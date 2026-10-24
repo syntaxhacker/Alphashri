@@ -79,62 +79,85 @@ export function buildLadder(row: UsRow, maxRows = 26): Ladder {
   return { rows, maxOi, windowPct };
 }
 
+export interface Candle {
+  t: string;
+  o: number;
+  h: number;
+  l: number;
+  c: number;
+}
+
+/**
+ * 1-minute tape rows → candles. Rows written before the 10 s sampler landed
+ * carry ``o=h=l=c``; those become close-to-close bodies so the chart still
+ * reads as candles instead of a row of dashes.
+ */
+export function toBars(frames: UsRow[], bucketMin = 1): Candle[] {
+  if (!frames.length) return [];
+  const raw: Candle[] = frames.map((f, i) => {
+    const c = f.c ?? f.spot;
+    const prev = i ? (frames[i - 1].c ?? frames[i - 1].spot) : (f.o ?? c);
+    const flat = f.h != null && f.l != null && f.h === f.l && (f.o ?? c) === c;
+    const o = flat ? prev : (f.o ?? prev);
+    return {
+      t: f.t,
+      o,
+      c,
+      h: flat ? Math.max(o, c) : (f.h ?? Math.max(o, c)),
+      l: flat ? Math.min(o, c) : (f.l ?? Math.min(o, c)),
+    };
+  });
+  if (bucketMin <= 1) return raw;
+
+  const bucketMs = bucketMin * 60_000;
+  const out: Candle[] = [];
+  let key: number | null = null;
+  for (const b of raw) {
+    const k = Math.floor(new Date(b.t).getTime() / bucketMs);
+    if (out.length && k === key) {
+      const last = out[out.length - 1];
+      last.h = Math.max(last.h, b.h);
+      last.l = Math.min(last.l, b.l);
+      last.c = b.c;
+    } else {
+      out.push({ ...b });
+      key = k;
+    }
+  }
+  return out;
+}
+
 export interface ChartGeometry {
   width: number;
   height: number;
-  spot: string;
-  putWall: string;
-  callWall: string;
-  maxPain: string;
-  cursorX: number;
   min: number;
   max: number;
+  cursorX: number;
 }
 
 const W = 1000;
 const H = 260;
 
-/** SVG polylines (no scaling distortion: viewBox is fixed 1000x260). */
-export function buildChart(frames: UsRow[], cursor: number): ChartGeometry | null {
-  if (!frames.length) return null;
-
-  // Keep the y-range tight around the traded spot. A call wall 5% away would
-  // otherwise flatten the entire session into the bottom 2% of the chart; far
-  // levels stay in the legend and get an edge marker instead.
-  const spots = frames.map((f) => f.spot);
-  const mid = spots.reduce((a, b) => a + b, 0) / spots.length;
-  const near = (v: number) => Math.abs(v / mid - 1) <= 0.025;
-  const vals = [...spots];
-  for (const f of frames) {
-    if (f.h != null) vals.push(f.h);
-    if (f.l != null) vals.push(f.l);
-    for (const v of [f.call_wall, f.put_wall, f.max_pain]) {
-      if (near(v)) vals.push(v);
-    }
-  }
-
-  const lo = Math.min(...vals);
-  const hi = Math.max(...vals);
-  const pad = (hi - lo) * 0.06 || mid * 0.002;
-  const min = lo - pad;
-  const max = hi + pad;
-
-  const x = (i: number) => (frames.length === 1 ? 0 : (i / (frames.length - 1)) * W);
-  const y = (v: number) => H - ((v - min) / (max - min)) * H;
-  const line = (get: (f: UsRow) => number) =>
-    frames.map((f, i) => `${x(i).toFixed(1)},${y(get(f)).toFixed(1)}`).join(" ");
-
+/**
+ * Scale to the traded candles, plus any wall the caller wants inside the frame
+ * (near walls should be visible; far ones get an edge tag instead).
+ */
+export function buildChart(bars: Candle[], cursor: number, include: number[] = []): ChartGeometry | null {
+  if (!bars.length) return null;
+  const lo = Math.min(...bars.map((b) => b.l), ...include);
+  const hi = Math.max(...bars.map((b) => b.h), ...include);
+  const pad = (hi - lo) * 0.06 || Math.max(1, hi * 0.0005);
   return {
     width: W,
     height: H,
-    spot: line((f) => f.spot),
-    putWall: line((f) => f.put_wall),
-    callWall: line((f) => f.call_wall),
-    maxPain: line((f) => f.max_pain),
-    cursorX: x(Math.max(0, Math.min(cursor, frames.length - 1))),
-    min,
-    max,
+    min: lo - pad,
+    max: hi + pad,
+    cursorX: bars.length === 1 ? 0 : (Math.max(0, Math.min(cursor, bars.length - 1)) / (bars.length - 1)) * W,
   };
+}
+
+export function niceTicks(min: number, max: number, n = 4): number[] {
+  return Array.from({ length: n }, (_, i) => min + ((max - min) * i) / (n - 1));
 }
 
 export function fmtNum(v: number | null | undefined, digits = 2): string {

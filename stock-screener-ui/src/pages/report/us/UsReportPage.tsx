@@ -37,6 +37,7 @@ function Stat({ label, value, color, testId }: { label: string; value: string; c
 export function UsReportPage() {
   const [root, setRoot] = useState<UsRoot>("NQ");
   const [mode, setMode] = useState<UsMode>("live");
+  const [tf, setTf] = useState(1);
   const us = useUsReport(root, mode);
   const row = us.row;
 
@@ -98,6 +99,20 @@ export function UsReportPage() {
               sx={{ minWidth: 42, height: 22, px: 0.75, fontSize: 10, textTransform: "uppercase" }}
             >
               {m}
+            </Button>
+          ))}
+        </Box>
+        <Box sx={{ display: "flex", gap: "2px" }}>
+          {[1, 5, 15].map((v) => (
+            <Button
+              key={v}
+              size="xs"
+              variant={tf === v ? "filled" : "subtle"}
+              onClick={() => setTf(v)}
+              data-testid={`us-tf-${v}`}
+              sx={{ minWidth: 26, height: 22, px: 0.5, fontSize: 10 }}
+            >
+              {v}m
             </Button>
           ))}
         </Box>
@@ -193,11 +208,11 @@ export function UsReportPage() {
 
       {/* ---- ladder + chart ---- */}
       <Box sx={{ display: "flex", gap: "4px", flex: 1, minHeight: 0 }}>
-        <Box sx={{ width: 430, minWidth: 360, display: "flex", flexDirection: "column" }}>
+        <Box sx={{ width: 400, minWidth: 340, display: "flex", flexDirection: "column" }}>
           {row ? <UsLadder row={row} /> : null}
         </Box>
         <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "4px" }}>
-          <UsChart frames={us.frames} cursor={us.cursor} />
+          <UsChart frames={us.frames} cursor={us.cursor} bucket={tf} />
           {mode === "eod" && (
             <Box
               data-testid="us-playback"

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { UsRow, UsStrike } from "../../../types/usReport";
-import { buildChart, buildLadder, fmtPct, fmtTime } from "./usReportMath";
+import { buildChart, buildLadder, fmtPct, fmtTime, toBars } from "./usReportMath";
 
 function strike(k: number, c = 0, p = 0): UsStrike {
   return { k, c_oi: c, c_vol: 0, p_oi: p, p_vol: 0, g: 0 };
@@ -65,28 +65,57 @@ describe("buildLadder", () => {
   });
 });
 
+describe("toBars", () => {
+  it("turns flat tape rows into close-to-close bodies", () => {
+    const frames = [
+      row({ t: "2026-10-22T14:00:00-04:00", spot: 29_100, o: 29_100, h: 29_100, l: 29_100, c: 29_100 }),
+      row({ t: "2026-10-22T14:01:00-04:00", spot: 29_140, o: 29_140, h: 29_140, l: 29_140, c: 29_140 }),
+    ];
+    const bars = toBars(frames);
+    expect(bars).toHaveLength(2);
+    expect(bars[1].o).toBe(29_100);
+    expect(bars[1].c).toBe(29_140);
+    expect(bars[1].h).toBe(29_140);
+    expect(bars[1].l).toBe(29_100);
+  });
+
+  it("keeps real OHLC when the sampler wrote it", () => {
+    const bars = toBars([row({ o: 29_100, h: 29_160, l: 29_080, c: 29_140 })]);
+    expect(bars[0]).toMatchObject({ o: 29_100, h: 29_160, l: 29_080, c: 29_140 });
+  });
+
+  it("aggregates into 5-minute buckets", () => {
+    const frames = [0, 1, 2, 3, 4, 5].map((i) =>
+      row({
+        t: `2026-10-22T14:0${i}:00-04:00`,
+        spot: 29_100 + i,
+        o: 29_100 + i,
+        h: 29_100 + i,
+        l: 29_100 + i,
+        c: 29_100 + i,
+      }),
+    );
+    const bars = toBars(frames, 5);
+    expect(bars).toHaveLength(2);
+    expect(bars[0].o).toBe(29_100);
+    expect(bars[0].c).toBe(29_104);
+    expect(bars[1].c).toBe(29_105);
+  });
+});
+
 describe("buildChart", () => {
-  it("returns null without frames", () => {
+  it("returns null without bars", () => {
     expect(buildChart([], 0)).toBeNull();
   });
 
-  it("spans the traded range and keeps far walls out of the scale", () => {
-    const frames = [row(), row({ t: "2026-10-22T14:01:00-04:00", spot: 29_050 })];
-    const g = buildChart(frames, 1);
+  it("scales to the traded range and places the cursor on the last bar", () => {
+    const frames = [row({ t: "2026-10-22T14:00:00-04:00", spot: 29_050 }), row({ t: "2026-10-22T14:01:00-04:00", spot: 29_150 })];
+    const bars = toBars(frames);
+    const g = buildChart(bars, 1);
     expect(g).not.toBeNull();
     expect(g!.min).toBeLessThan(29_050);
-    expect(g!.max).toBeGreaterThan(29_100);
-    // 30,500 is >2.5% away — it must not flatten the chart
-    expect(g!.max).toBeLessThan(29_800);
+    expect(g!.max).toBeGreaterThan(29_150);
     expect(g!.cursorX).toBe(1000);
-    expect(g!.spot.split(" ")).toHaveLength(2);
-  });
-
-  it("includes a wall that sits close to spot", () => {
-    const near = row({ call_wall: 29_200, put_wall: 29_000, max_pain: 29_150 });
-    const g = buildChart([near], 0);
-    expect(g!.max).toBeGreaterThan(29_200);
-    expect(g!.min).toBeLessThan(29_000);
   });
 });
 

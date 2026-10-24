@@ -1,20 +1,42 @@
+import { useMemo } from "react";
+
 import { Box, Text } from "@/ui";
 import { INFO, MONO, NEGATIVE, POSITIVE, WARNING } from "@/ui/palette";
 import type { UsRow } from "../../../types/usReport";
-import { buildChart, fmtInt, fmtTime } from "./usReportMath";
+import { buildChart, fmtInt, fmtNum, fmtTime, niceTicks, toBars } from "./usReportMath";
 
 const H = 260;
 
 interface Props {
   frames: UsRow[];
   cursor: number;
-  compact?: boolean;
+  /** Candle aggregation in minutes: 1, 5 or 15. */
+  bucket?: number;
 }
 
-/** Spot vs walls vs max pain, one polyline per level; cursor marks the frame. */
-export function UsChart({ frames, cursor, compact = false }: Props) {
-  const g = buildChart(frames, cursor);
+interface Wall {
+  v: number;
+  color: string;
+  label: string;
+}
+
+/** Candles + only the walls that fit the traded range; far walls get edge tags. */
+export function UsChart({ frames, cursor, bucket = 1 }: Props) {
+  const bars = useMemo(() => toBars(frames, bucket), [frames, bucket]);
   const frame = frames[Math.max(0, Math.min(cursor, frames.length - 1))] ?? null;
+
+  const barIdx = useMemo(() => {
+    if (!bars.length || !frame) return 0;
+    const i = bars.findIndex((b) => b.t >= frame.t);
+    return i < 0 ? bars.length - 1 : i;
+  }, [bars, frame]);
+
+  const nearWalls = frame
+    ? [frame.put_wall, frame.call_wall, frame.max_pain].filter(
+        (v) => Number.isFinite(v) && Math.abs(v / frame.spot - 1) <= 0.015,
+      )
+    : [];
+  const g = buildChart(bars, barIdx, nearWalls);
 
   if (!g || !frame) {
     return (
@@ -26,20 +48,22 @@ export function UsChart({ frames, cursor, compact = false }: Props) {
     );
   }
 
-  const yFor = (v: number) => H - ((v - g.min) / (g.max - g.min)) * H;
-  const first = frames[0];
-  const last = frames[frames.length - 1];
+  const walls: Wall[] = [
+    { v: frame.put_wall, color: NEGATIVE, label: "PUT" },
+    { v: frame.call_wall, color: POSITIVE, label: "CALL" },
+    { v: frame.max_pain, color: WARNING, label: "PAIN" },
+  ];
+  const inRange = walls.filter((w) => w.v >= g.min && w.v <= g.max);
+  const above = walls.filter((w) => w.v > g.max);
+  const below = walls.filter((w) => w.v < g.min);
 
-  // Build 1-minute bars. Tape rows carry o/h/l/c once the sampler has run;
-  // older rows fall back to close-to-close bodies so playback still works.
-  const bars = frames.map((f, i) => {
-    const c = f.c ?? f.spot;
-    const prev = i > 0 ? (frames[i - 1].c ?? frames[i - 1].spot) : f.o ?? c;
-    const o = f.o ?? prev;
-    return { t: f.t, o, c, h: f.h ?? Math.max(o, c), l: f.l ?? Math.min(o, c) };
-  });
+  const yFor = (v: number) => H - ((v - g.min) / (g.max - g.min)) * H;
+  const pctFor = (v: number) => 100 - ((v - g.min) / (g.max - g.min)) * 100;
   const step = g.width / Math.max(1, bars.length);
-  const bodyW = Math.max(1.5, Math.min(14, step * 0.62));
+  const bodyW = Math.max(1.2, Math.min(16, step * 0.66));
+  const last = bars[bars.length - 1];
+  const first = bars[0];
+  const ticks = niceTicks(g.min, g.max, 4);
 
   return (
     <Box
@@ -56,16 +80,28 @@ export function UsChart({ frames, cursor, compact = false }: Props) {
         viewBox={`0 0 ${g.width} ${H}`}
         preserveAspectRatio="none"
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+        shapeRendering="crispEdges"
         role="img"
-        aria-label="US futures spot against call wall, put wall and max pain"
+        aria-label="NQ candles against put wall, call wall and max pain"
       >
-        {[0.25, 0.5, 0.75].map((f) => (
-          <line key={f} x1={0} x2={g.width} y1={H * f} y2={H * f} stroke="rgba(255,255,255,0.06)" strokeWidth={1} />
+        {ticks.map((t, i) => (
+          <line key={i} x1={0} x2={g.width} y1={yFor(t)} y2={yFor(t)} stroke="rgba(255,255,255,0.05)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
         ))}
 
-        <polyline points={g.callWall} fill="none" stroke={POSITIVE} strokeWidth={1} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" opacity={0.85} />
-        <polyline points={g.putWall} fill="none" stroke={NEGATIVE} strokeWidth={1} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" opacity={0.85} />
-        <polyline points={g.maxPain} fill="none" stroke={WARNING} strokeWidth={1} strokeDasharray="2 4" vectorEffect="non-scaling-stroke" opacity={0.75} />
+        {inRange.map((w) => (
+          <line
+            key={w.label}
+            x1={0}
+            x2={g.width}
+            y1={yFor(w.v)}
+            y2={yFor(w.v)}
+            stroke={w.color}
+            strokeWidth={1}
+            strokeDasharray={w.label === "PAIN" ? "2 5" : "6 4"}
+            vectorEffect="non-scaling-stroke"
+            opacity={0.75}
+          />
+        ))}
 
         {bars.map((b, i) => {
           const x = step * i + step / 2;
@@ -75,81 +111,119 @@ export function UsChart({ frames, cursor, compact = false }: Props) {
           const bottom = yFor(Math.min(b.o, b.c));
           return (
             <g key={b.t}>
-              <line x1={x} x2={x} y1={yFor(b.h)} y2={yFor(b.l)} stroke={color} strokeWidth={1} vectorEffect="non-scaling-stroke" opacity={0.9} />
+              <line x1={x} x2={x} y1={yFor(b.h)} y2={yFor(b.l)} stroke={color} strokeWidth={1} vectorEffect="non-scaling-stroke" opacity={0.95} />
               <rect
                 x={x - bodyW / 2}
                 y={top}
                 width={bodyW}
-                height={Math.max(1, bottom - top)}
+                height={Math.max(1.2, bottom - top)}
                 fill={color}
-                opacity={0.85}
+                opacity={up ? 0.9 : 0.95}
               />
             </g>
           );
         })}
 
-        <line x1={g.cursorX} x2={g.cursorX} y1={0} y2={H} stroke="rgba(240,246,252,0.35)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
-
-        <circle cx={g.cursorX} cy={yFor(frame.spot)} r={3.5} fill={INFO} vectorEffect="non-scaling-stroke" />
+        <line x1={g.cursorX} x2={g.cursorX} y1={0} y2={H} stroke="rgba(240,246,252,0.4)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+        <line x1={0} x2={g.width} y1={yFor(frame.spot)} y2={yFor(frame.spot)} stroke={INFO} strokeWidth={1} strokeDasharray="1 3" vectorEffect="non-scaling-stroke" opacity={0.6} />
       </svg>
 
-      <Box
-        sx={{
-          position: "absolute",
-          left: 4,
-          top: 2,
-          bottom: 0,
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          pointerEvents: "none",
-          fontFamily: MONO,
-          fontSize: 9,
-          color: "var(--mui-palette-text-secondary)",
-        }}
-      >
-        <span>{fmtInt(g.max)}</span>
-        {!compact && <span>{fmtInt((g.max + g.min) / 2)}</span>}
-        <span>{fmtInt(g.min)}</span>
-      </Box>
+      {/* y-axis ticks */}
+      {ticks.map((t, i) => (
+        <Box
+          key={i}
+          sx={{
+            position: "absolute",
+            left: 3,
+            top: pctFor(t) > 94 ? "calc(100% - 12px)" : pctFor(t) < 6 ? 2 : `calc(${pctFor(t)}% - 5px)`,
+            fontFamily: MONO,
+            fontSize: 9,
+            color: "var(--mui-palette-text-secondary)",
+            bgcolor: "rgba(0,0,0,0.55)",
+            px: 0.25,
+            pointerEvents: "none",
+          }}
+        >
+          {fmtInt(t)}
+        </Box>
+      ))}
 
+      {/* in-range wall labels, pinned to the right edge */}
+      {inRange.map((w, i) => (
+        <Box
+          key={w.label}
+          sx={{
+            position: "absolute",
+            right: 4,
+            top: `calc(${pctFor(w.v)}% - 6px)`,
+            fontFamily: MONO,
+            fontSize: 9,
+            color: w.color,
+            bgcolor: "rgba(0,0,0,0.65)",
+            px: 0.5,
+            borderLeft: `2px solid ${w.color}`,
+            lineHeight: "11px",
+            pointerEvents: "none",
+            zIndex: 2 + i,
+          }}
+        >
+          {w.label} {fmtInt(w.v)}
+        </Box>
+      ))}
+
+      {/* far walls: edge tags instead of stretching the scale */}
+      {above.length > 0 && (
+        <Box sx={{ position: "absolute", top: 2, right: 4, display: "flex", gap: 1, fontFamily: MONO, fontSize: 9, pointerEvents: "none" }}>
+          {above.map((w) => (
+            <Text key={w.label} size="xs" span sx={{ color: w.color }}>
+              ↑ {w.label} {fmtInt(w.v)} ({fmtNum(((w.v - frame.spot) / frame.spot) * 100, 1)}%)
+            </Text>
+          ))}
+        </Box>
+      )}
+      {below.length > 0 && (
+        <Box sx={{ position: "absolute", bottom: 14, right: 4, display: "flex", gap: 1, fontFamily: MONO, fontSize: 9, pointerEvents: "none" }}>
+          {below.map((w) => (
+            <Text key={w.label} size="xs" span sx={{ color: w.color }}>
+              ↓ {w.label} {fmtInt(w.v)} ({fmtNum(((w.v - frame.spot) / frame.spot) * 100, 1)}%)
+            </Text>
+          ))}
+        </Box>
+      )}
+
+      {/* last price chip */}
       <Box
         sx={{
           position: "absolute",
-          right: 6,
-          top: 4,
-          display: "flex",
-          gap: 1.25,
+          right: 4,
+          top: `calc(${pctFor(last.c)}% - 7px)`,
           fontFamily: MONO,
           fontSize: 9.5,
-          alignItems: "center",
+          fontWeight: 700,
+          color: INFO,
+          bgcolor: "rgba(0,0,0,0.75)",
+          px: 0.5,
+          borderLeft: `2px solid ${INFO}`,
+          lineHeight: "12px",
+          pointerEvents: "none",
         }}
       >
-        <Text size="xs" span sx={{ color: INFO }}>
-          ● spot {fmtInt(frame.spot)}
-        </Text>
-        <Text size="xs" span sx={{ color: POSITIVE }}>
-          -- call {fmtInt(frame.call_wall)}
-        </Text>
-        <Text size="xs" span sx={{ color: NEGATIVE }}>
-          -- put {fmtInt(frame.put_wall)}
-        </Text>
-        <Text size="xs" span sx={{ color: WARNING }}>
-          ·· pain {fmtInt(frame.max_pain)}
-        </Text>
+        {fmtInt(last.c)}
       </Box>
 
+      {/* x-axis */}
       <Box
         sx={{
           position: "absolute",
-          left: 30,
-          right: 6,
-          bottom: 12,
+          left: 46,
+          right: 60,
+          bottom: 1,
           display: "flex",
           justifyContent: "space-between",
           fontFamily: MONO,
           fontSize: 9,
           color: "var(--mui-palette-text-secondary)",
+          pointerEvents: "none",
         }}
       >
         <span>{fmtTime(first.t)}</span>
