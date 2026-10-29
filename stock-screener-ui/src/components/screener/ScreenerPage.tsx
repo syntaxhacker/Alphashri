@@ -4,7 +4,7 @@ import MuiStack from "@mui/material/Stack";
 import Paper from "@mui/material/Paper";
 import { Box, Tabs, Text, Select, Skeleton, ActionIcon, Switch, Tooltip } from "@/ui";
 import { BORDER, SURFACE } from "@/ui/palette";
-import { IconTable, IconChartDots, IconSettings, IconLayoutDashboard, IconRefresh, IconCoins } from "@tabler/icons-react";
+import { IconTable, IconChartDots, IconSettings, IconLayoutDashboard, IconRefresh, IconCoins, IconCalendarEvent } from "@tabler/icons-react";
 import * as state from "../../state";
 import { DashboardView } from "./DashboardView";
 import { ScreenerHeader } from "./ScreenerHeader";
@@ -17,6 +17,7 @@ import { ScreenerInlineFilters } from "./ScreenerInlineFilters";
 const CorrelationTab = lazy(() => import("./CorrelationTab").then((m) => ({ default: m.CorrelationTab })));
 const ScreenerConfigView = lazy(() => import("./ScreenerConfigView").then((m) => ({ default: m.ScreenerConfigView })));
 const DeepValueTab = lazy(() => import("../value/ValuePanel").then((m) => ({ default: m.ValuePanel })));
+const EventsTab = lazy(() => import("../events/EventsPanel").then((m) => ({ default: m.EventsPanel })));
 import {
   setSymbols,
   setTimeframe,
@@ -162,6 +163,7 @@ export function ScreenerPage({
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "dashboard";
   const isValueTab = activeTab === "deepvalue";
+  const isEventsTab = activeTab === "events";
   const [isPending, startTransition] = useTransition();
   const [internalUniverse, setInternalUniverse] = useState(DEFAULT_DASHBOARD_UNIVERSE);
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
@@ -273,6 +275,14 @@ export function ScreenerPage({
               <Text size="xs" fw={600} data-testid="deep-value-tab-label">
                 Deep Value
               </Text>
+            ) : isEventsTab ? (
+              // Keeps the tab strip from jumping: the slot below it is a
+              // 148px Select on the other tabs. The word "Events" is already
+              // the active tab two elements to the right, so this slot names
+              // the surface instead of repeating it.
+              <Text size="xs" fw={600} data-testid="events-tab-label" sx={{ width: 148, flexShrink: 0 }}>
+                Event calendar
+              </Text>
             ) : (
               <Select
                 value={activeScreener}
@@ -301,6 +311,9 @@ export function ScreenerPage({
                 </Tabs.Tab>
                 <Tabs.Tab value="deepvalue" leftSection={<IconCoins size={14} />} data-testid="tab-deepvalue" style={{ minHeight: 32 }}>
                   Deep Value
+                </Tabs.Tab>
+                <Tabs.Tab value="events" leftSection={<IconCalendarEvent size={14} />} data-testid="tab-events" style={{ minHeight: 32 }}>
+                  Events
                 </Tabs.Tab>
                 <Tabs.Tab value="correlation" leftSection={<IconChartDots size={14} />} data-testid="tab-correlation" style={{ minHeight: 32 }}>
                   Correlation
@@ -341,7 +354,7 @@ export function ScreenerPage({
                   </ActionIcon>
                 </Tooltip>
               </Box>
-            ) : isValueTab ? null : (
+            ) : isValueTab ? null : isEventsTab ? null : (
               <ScreenerHeader
               status={status}
               isLoading={isLoading}
@@ -418,6 +431,14 @@ export function ScreenerPage({
           >
             <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
               <DeepValueTab />
+            </Suspense>
+          </Box>
+          <Box
+            data-testid="events-tab-panel"
+            sx={{ display: isEventsTab ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}
+          >
+            <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
+              <EventsTab />
             </Suspense>
           </Box>
           <Box sx={{ display: activeTab === "correlation" || activeTab === "config" ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}>

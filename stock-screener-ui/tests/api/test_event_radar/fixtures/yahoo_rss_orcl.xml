@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Yahoo Finance - ORCL</title>
+    <link>https://finance.yahoo.com/quote/ORCL</link>
+    <description>Headlines for Oracle Corporation</description>
+    <language>en-US</language>
+    <item>
+      <title>Oracle to Host Investor Day on October 28, 2026</title>
+      <link>https://finance.yahoo.com/news/oracle-host-investor-day-130500123.html</link>
+      <pubDate>Mon, 26 Oct 2026 13:05:00 GMT</pubDate>
+      <description>Oracle said it will host an investor day in Austin.</description>
+      <guid isPermaLink="false">oracle-host-investor-day-130500123</guid>
+    </item>
+    <item>
+      <title>Oracle hosting Investor Day today</title>
+      <link>https://finance.yahoo.com/news/oracle-hosting-investor-day-081500456.html</link>
+      <pubDate>Wed, 28 Oct 2026 08:15:00 -0400</pubDate>
+      <description>The event will be webcast.</description>
+    </item>
+    <item>
+      <title>Oracle to Webcast Investor Day</title>
+      <link>https://finance.yahoo.com/news/oracle-webcast-investor-day-201500789.html</link>
+      <pubDate>Tue, 27 Oct 2026 20:15:00 GMT</pubDate>
+      <description>No date was given in the headline.</description>
+    </item>
+    <item>
+      <title>Oracle shares rise as retail traders focus on day trading</title>
+      <link>https://finance.yahoo.com/news/oracle-shares-day-trading-174500321.html</link>
+      <pubDate>Mon, 26 Oct 2026 17:45:00 GMT</pubDate>
+      <description>Market commentary, not a corporate event.</description>
+    </item>
+    <item>
+      <title>Oracle Announces Analyst and Investor Day for November 12, 2026</title>
+      <link>https://finance.yahoo.com/news/oracle-analyst-investor-day-140000654.html</link>
+      <pubDate>Fri, 23 Oct 2026 14:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>
