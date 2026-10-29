@@ -22,6 +22,9 @@ from .chat import ChatConversation, ChatMessage
 from .replay_saved_config import ReplaySavedConfig
 from .chart_patterns import PatternComputeJob, PatternHit, PatternImage
 
+# --- Event Radar ---
+from .event import CorporateEvent, EventAnomaly
+
 __all__ = [
     "Base",
     "IdMixin",
@@ -61,4 +64,7 @@ __all__ = [
     "PatternComputeJob",
     "PatternHit",
     "PatternImage",
+    # --- Event Radar ---
+    "CorporateEvent",
+    "EventAnomaly",
 ]

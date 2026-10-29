@@ -684,6 +684,16 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 print(f"⚠️ Nifty OI stream failed: {e}")
                 _nifty_oi_task = None
+
+            # --- Event Radar ---
+            try:
+                from api.event_radar.poller import event_radar_poller
+
+                _event_radar_task = asyncio.create_task(event_radar_poller())
+                print("📅 Event radar poller started (calendar + tripwire)")
+            except Exception as e:
+                print(f"⚠️ Event radar poller failed: {e}")
+                _event_radar_task = None
     except Exception as e:
         import traceback
         print(f"❌ Startup failed: {e}")
@@ -1401,6 +1411,14 @@ try:
     print("✅ Nifty WS API loaded at /ws/nifty/report + /ws/nifty/bursts")
 except Exception as e:
     print(f"⚠️ Could not load Nifty WS API: {e}")
+
+# --- Event Radar ---
+try:
+    from api.event_radar.router import router as event_radar_router
+    app.include_router(event_radar_router)
+    print("✅ Event radar API loaded at /api/events")
+except Exception as e:
+    print(f"⚠️ Could not load event radar API: {e}")
 
 if __name__ == '__main__':
     port = config.PORT
