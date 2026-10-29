@@ -296,6 +296,21 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 - **Charts/links**: `/chart/:symbol` is Upstox/NSE-backed, so chart links are only rendered for NSE/BSE rows; other markets show the TV symbol instead of a broken link.
 - **Tests**: `tests/api/test_value_scan/` (pure scoring/filters + mocked scanner + router), `src/components/value/*.test.tsx`, `src/api/valueScan.test.ts`, `src/hooks/useValueScan.test.ts`, `tests/e2e/deep-value.spec.ts` (mocked via `setupValueScanMocks`). Guards: `npx vitest run src/test/ui-guard.test.ts` + `npx vitest run src/ui/inputs/inputs.w-h.test.tsx`.
 
+## Event Radar (scheduled corporate catalysts + intraday tripwire)
+
+- **Where**: tab in the Screener page (`?tab=events`, `src/components/events/`); backend `api/event_radar/`; full write-up in [docs/event-radar.md](./docs/event-radar.md).
+- **Why**: Oracle announced its Investor Day on 2026-10-23 and the stock still ran ~+12% intraday on 2026-10-28. The gap was memory, not analysis — nothing carried "ORCL has a dated catalyst".
+- **4 layers**: (1) recurring-event memory (`recurring` flag + `seed` precedence) · (2) SEC EDGAR full-text, **scheduled events only** · (3) Yahoo per-symbol RSS wires/IR · (4) intraday 1-min tripwire. TradingView has no investor-day type; yfinance `Ticker.calendar` only has earnings/dividends.
+- **EDGAR policy**: queries restricted to investor/analyst/CMD/strategy/R&D day (`guidance`, `business_update`, annual-meeting queries were dropped as noise); 8-K `items` filtered to 7.01/8.01; filing text fetched for the real date+headline (document date → confidence 0.8, filed-date fallback → 0.4 + verify note, `MAX_ENRICH_PER_RUN=40`); titles pass `strip_filing_boilerplate` (peels `Item 7.01…`, `Section 7—…`, `EX-99.1`, `*.htm`) and never return a bare exhibit label. Result: 153 → **20** rows per 7-day window.
+- **Dedupe**: `SOURCE_PRECEDENCE` `seed 5 > edgar 4 > ir 3 > wire 2 > tv 1`, keyed on `(symbol, event_date, event_type)`.
+- **Tripwire thresholds** (`contract.py`, echoed to the UI tooltip): `4σ` robust MAD, `8×` same-minute volume, `1.0%` floor, `30 min` per-symbol cooldown, **5** baseline sessions (Yahoo caps 1-min history at 8 days). Regression test proves it fires on ORCL at 14:19–14:25 ET.
+- **Poller** (`poller.py`, started in the lifespan): calendar every 1800 s + immediate on start; tripwire every 60 s inside US cash hours only (`13:30–20:00 UTC`, deliberate DST approximation); daily Telegram digest on the first tick at/after **07:30 ET**, immediate Telegram only on tripwire fires.
+- **Env**: `EVENT_RADAR_TRIPWIRE_SYMBOLS` (**empty = tripwire disabled**, opt-in), `EVENT_RADAR_MARKET` (`us` default), `EVENT_RADAR_CONTACT` (SEC UA).
+- **Endpoints**: `GET /api/events/calendar|today|anomalies`, `POST /api/events/refresh`. Upstream failures return structured 502/503 (`event_source_unavailable`), never an unhandled 500.
+- **DB**: `corporate_events` + `event_anomalies`, migration `ev1a2b3c4d5e` (down `tf2a2b3c4d5e`); `db/database.py` runs `alembic upgrade head` at startup.
+- **Frontend invariants (both cost time)**: use `useSyncExternalStore` for `eventsStore` — the `subscribe` + `forceUpdate` pattern silently stopped re-rendering the lazy panel inside `Suspense`; and keep **calendar and anomaly errors in separate slots** — a shared field let a healthy anomaly response erase a calendar 500.
+- **Tests**: `tests/api/test_event_radar/` (319 pass), `src/api|state|hooks/events*.test.*`, `src/components/events/*.test.tsx`, `tests/e2e/events.spec.ts` (7 pass, mocked via `setupEventsMocks`) — the deliberate-500 test is the only one allowed to waive Chromium's "Failed to load resource" console noise. Guards: `npx vitest run src/test/ui-guard.test.ts` + `src/ui/inputs/inputs.w-h.test.tsx`.
+
 ### Learnings (2026-10 market-research work — every one of these cost time)
 
 - **`america` includes OTC/foreign listings** (`IPOAF`, `SGIOF`, `CILJF`…). Every US screen must filter `exchange in {NASDAQ, NYSE, AMEX}`.
