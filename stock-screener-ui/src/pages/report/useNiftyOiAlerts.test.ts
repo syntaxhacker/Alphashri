@@ -219,11 +219,16 @@ describe("useNiftyOiAlerts", () => {
 
   test("toasts auto-expire after the TTL, the trail persists", () => {
     vi.useFakeTimers();
+    // FRESH is critical (90s toast) — downgrade it so this covers the normal
+    // 45s path for non-critical toasts.
+    const nonCrit = HISTORY_PLUS.map((b) =>
+      b.id === FRESH.id ? { ...b, severity: "watch" as const } : b,
+    );
     const { result, rerender } = renderHook(
       ({ bursts }: { bursts: OiBurst[] }) => useAlerts(bursts),
       { initialProps: { bursts: HISTORY } },
     );
-    act(() => rerender({ bursts: HISTORY_PLUS }));
+    act(() => rerender({ bursts: nonCrit }));
     expect(result.current.toasts).toHaveLength(1);
 
     act(() => {
@@ -279,5 +284,225 @@ describe("useNiftyOiAlerts", () => {
     expect(entry?.value).toBe("999.99");
     expect(a.title).toContain("BUY PE 22,700");
     expect(a.detail).toContain("backend plan");
+  });
+});
+
+describe("useNiftyOiAlerts critical prominence", () => {
+  /** FRESH is critical; clone it into distinct critical bursts. */
+  function crit(id: string, t: string): OiBurst {
+    return { ...FRESH, id, t, severity: "critical" as const };
+  }
+
+  test("critical toasts survive the normal 45s timer and last 90s", () => {
+    vi.useFakeTimers();
+    const { result, rerender } = renderHook(
+      ({ bursts }: { bursts: OiBurst[] }) => useAlerts(bursts),
+      { initialProps: { bursts: HISTORY } },
+    );
+    act(() => rerender({ bursts: HISTORY_PLUS }));
+    expect(result.current.toasts).toHaveLength(1);
+    expect(result.current.toasts[0].severity).toBe("critical");
+
+    act(() => {
+      vi.advanceTimersByTime(46_000);
+    });
+    // still up — the normal toast timer must not kill a critical
+    expect(result.current.toasts).toHaveLength(1);
+
+    act(() => {
+      vi.advanceTimersByTime(45_000);
+    });
+    expect(result.current.toasts).toEqual([]);
+    expect(result.current.trail.length).toBeGreaterThan(0);
+  });
+
+  test("banners fire only for critical bursts", () => {
+    const { result, rerender } = renderHook(
+      ({ bursts }: { bursts: OiBurst[] }) => useAlerts(bursts),
+      { initialProps: { bursts: HISTORY } },
+    );
+    // the seeded history already carries one critical → one banner
+    expect(result.current.banners).toHaveLength(1);
+
+    // non-critical fresh burst → toast, but no new banner
+    const watch = HISTORY_PLUS.map((b) =>
+      b.id === FRESH.id ? { ...b, severity: "watch" as const } : b,
+    );
+    act(() => rerender({ bursts: watch }));
+    expect(result.current.toasts).toHaveLength(1);
+    expect(result.current.banners).toHaveLength(1);
+
+    // critical fresh burst (new minute) → banner, newest first
+    act(() => rerender({ bursts: [...watch, crit("crit-2", "09:31")] }));
+    expect(result.current.banners).toHaveLength(2);
+    expect(result.current.banners[0].id).toBe("crit-2");
+    expect(result.current.banners.every((b) => b.severity === "critical")).toBe(true);
+  });
+
+  test("banners cap at two, newest first", () => {
+    const { result, rerender } = renderHook(
+      ({ bursts }: { bursts: OiBurst[] }) => useAlerts(bursts),
+      { initialProps: { bursts: HISTORY } },
+    );
+    const three = [
+      ...HISTORY,
+      crit("crit-1", "09:30"),
+      crit("crit-2", "09:31"),
+      crit("crit-3", "09:32"),
+    ];
+    act(() => rerender({ bursts: three }));
+    expect(result.current.banners).toHaveLength(2);
+    expect(result.current.banners.map((b) => b.id)).toEqual([
+      "crit-3",
+      "crit-2",
+    ]);
+  });
+
+  test("banners auto-dismiss after five minutes with fake timers", () => {
+    vi.useFakeTimers();
+    const { result, rerender } = renderHook(
+      ({ bursts }: { bursts: OiBurst[] }) => useAlerts(bursts),
+      { initialProps: { bursts: HISTORY } },
+    );
+    act(() => rerender({ bursts: HISTORY_PLUS }));
+    expect(result.current.banners).toHaveLength(2);
+
+    act(() => {
+      vi.advanceTimersByTime(5 * 60_000 + 1_000);
+    });
+    expect(result.current.banners).toEqual([]);
+    // the trail keeps the burst long after the banner is gone
+    expect(result.current.trail.length).toBeGreaterThan(0);
+  });
+
+  test("dismissBanner removes only that banner", () => {
+    const { result, rerender } = renderHook(
+      ({ bursts }: { bursts: OiBurst[] }) => useAlerts(bursts),
+      { initialProps: { bursts: HISTORY } },
+    );
+    act(() =>
+      rerender({ bursts: [...HISTORY, crit("crit-1", "09:30"), crit("crit-2", "09:31")] }),
+    );
+    expect(result.current.banners.map((b) => b.id)).toEqual([
+      "crit-2",
+      "crit-1",
+    ]);
+
+    act(() => result.current.dismissBanner("crit-2"));
+    expect(result.current.banners.map((b) => b.id)).toEqual(["crit-1"]);
+  });
+
+  test("clearTrail and session switch clear banners too", () => {
+    const { result, rerender } = renderHook(
+      ({ key }: { key: string }) => useAlerts(HISTORY_PLUS, true, true, key),
+      { initialProps: { key: "live:nearest" } },
+    );
+    // HISTORY_PLUS seeds two criticals → two banners (capped at two)
+    expect(result.current.banners).toHaveLength(2);
+
+    act(() => result.current.clearTrail());
+    expect(result.current.banners).toEqual([]);
+
+    act(() => rerender({ key: "live:other" }));
+    expect(result.current.banners).toHaveLength(2);
+  });
+
+  test("pushToast of a critical also raises a banner; non-critical does not", () => {
+    const { result } = renderHook(() => useAlerts(HISTORY));
+    const seeded = result.current.banners.map((b) => b.id);
+    const watchAlert = { ...burstToAlert(HISTORY[0]), severity: "watch" as const };
+    act(() => result.current.pushToast(watchAlert));
+    expect(result.current.banners.map((b) => b.id)).toEqual(seeded);
+
+    const critAlert = burstToAlert(crit("crit-x", "09:40"));
+    act(() => result.current.pushToast(critAlert));
+    expect(result.current.banners[0].id).toBe("crit-x");
+    expect(result.current.banners).toHaveLength(2);
+  });
+});
+
+describe("useNiftyOiAlerts flow-aware direction", () => {
+  // CHAIN spot 22,722: nearest CE to spot with premium ≥ 10 is 22,700 @ 22.
+  function flowBurst(overrides: Partial<OiBurst> = {}): OiBurst {
+    return {
+      id: "flow-1",
+      side: "put",
+      t: "15:04",
+      delta: -1_480_000,
+      baseline: 100_000,
+      score: 14.8,
+      severity: "critical",
+      cumDoi: 0,
+      spot: 22_701,
+      tickVol: 5_000,
+      ...overrides,
+    };
+  }
+
+  test("put unwind + covering threads into a BUY CE banner action", () => {
+    const { result, rerender } = renderHook(
+      ({ bursts }: { bursts: OiBurst[] }) => useAlerts(bursts),
+      { initialProps: { bursts: [] as OiBurst[] } },
+    );
+    act(() =>
+      rerender({
+        bursts: [
+          flowBurst({ flow: "covering", bearish: false, trend: "up", trend5m: "up" }),
+        ],
+      }),
+    );
+    expect(result.current.toasts).toHaveLength(1);
+    expect(result.current.trail[0].title).toContain("BUY CE 22,700");
+    expect(result.current.trail[0].metrics?.find((m) => m.label === "ENTRY")?.value).toBe(
+      "22.00",
+    );
+    expect(result.current.banners).toHaveLength(1);
+    expect(result.current.banners[0].title).toContain("BUY CE 22,700");
+  });
+
+  test("trend5m rescues a covering plan when the session trend lags", () => {
+    const { result, rerender } = renderHook(
+      ({ bursts }: { bursts: OiBurst[] }) => useAlerts(bursts),
+      { initialProps: { bursts: [] as OiBurst[] } },
+    );
+    act(() =>
+      rerender({
+        bursts: [
+          flowBurst({
+            id: "flow-2",
+            flow: "covering",
+            bearish: false,
+            trend: "down",
+            trend5m: "up",
+          }),
+        ],
+      }),
+    );
+    // without trend5m threading this would be suppressed as counter-trend
+    expect(result.current.trail[0].title).toContain("BUY CE 22,700");
+  });
+
+  test("liquidation + downtrend threads into a BUY PE action", () => {
+    const { result, rerender } = renderHook(
+      ({ bursts }: { bursts: OiBurst[] }) => useAlerts(bursts),
+      { initialProps: { bursts: [] as OiBurst[] } },
+    );
+    act(() =>
+      rerender({
+        bursts: [
+          flowBurst({
+            id: "flow-3",
+            flow: "liquidation",
+            bearish: true,
+            trend: "down",
+            trend5m: "down",
+          }),
+        ],
+      }),
+    );
+    expect(result.current.trail[0].title).toContain("BUY PE 22,700");
+    expect(result.current.trail[0].metrics?.find((m) => m.label === "ENTRY")?.value).toBe(
+      "28.00",
+    );
   });
 });

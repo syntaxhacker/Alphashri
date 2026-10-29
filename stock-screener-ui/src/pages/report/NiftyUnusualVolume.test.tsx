@@ -21,14 +21,27 @@ vi.mock("@/api/reportNifty", () => ({
   fetchLiveNifty: vi.fn(),
   fetchNiftyByDate: vi.fn(),
   fetchNiftyExpiries: vi.fn().mockResolvedValue([]),
+  fetchNiftyReplayDates: vi.fn().mockResolvedValue([]),
   fetchNiftyTape: vi.fn(),
   fetchNiftyBursts: vi.fn().mockResolvedValue([]),
   snapshotNifty: vi.fn(),
 }));
 
+// Keep the panel on Live regardless of when the suite runs (a closed-market
+// default would otherwise switch it to EOD on nights/weekends).
+vi.mock("./marketClock", () => ({
+  isMarketOpenIst: () => true,
+}));
+
 vi.mock("@/components/chart/TradingViewChart", () => ({
   TradingViewChart: () => <div data-testid="tradingview-chart" />,
 }));
+
+// The intel strip owns its own fetch; keep this suite network-free.
+vi.mock("./niftyIntel", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./niftyIntel")>();
+  return { ...actual, fetchNiftyIntel: vi.fn().mockRejectedValue(new Error("intel offline")) };
+});
 
 vi.mock("echarts-for-react", () => ({
   default: () => <div data-testid="nifty-depth-echarts" />,
@@ -397,6 +410,9 @@ describe("NiftyReportPanel unusual-volume wiring", () => {
   }
 
   test("unusual panel renders directly after the OI tape panel", async () => {
+    // The unusual-volume panel lives in the RESEARCH section (DESK keeps the
+    // band tight), so the mode is seeded before the panel mounts.
+    window.localStorage.setItem("nifty.deskMode", "research");
     const { NiftyReportPanel } = await import("./NiftyReportPanel");
     const api = await import("@/api/reportNifty");
     vi.mocked(api.fetchLiveNifty).mockResolvedValue(mockReport() as never);
@@ -407,6 +423,7 @@ describe("NiftyReportPanel unusual-volume wiring", () => {
     expect(within(unusual).getByTestId("nifty-unusual-table")).toBeInTheDocument();
     const tape = screen.getByTestId("nifty-tape-panel");
     expect(tape.compareDocumentPosition(unusual) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    window.localStorage.removeItem("nifty.deskMode");
   });
 });
 

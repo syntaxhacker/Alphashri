@@ -33,6 +33,8 @@ export interface MiniLineChartProps {
   formatValue?: (v: number) => string;
   testId?: string;
   emptyMessage?: string;
+  /** Optional y-axis compression (see `MiniScale`). Defaults to `linear`. */
+  scale?: MiniScale;
 }
 
 const PAD_L = 4;
@@ -45,17 +47,34 @@ function finite(v: unknown): v is number {
   return typeof v === "number" && Number.isFinite(v);
 }
 
+/**
+ * Optional y-axis compression. GEX-style profiles have a long tail (a few
+ * walls thousands of Cr tall next to dozens of strikes under a hundred), so a
+ * linear axis flattens everything but the tallest spike against the baseline.
+ * `sqrt` keeps zero at zero, preserves sign, and stays monotonic — a gentler,
+ * more familiar compression than log for a signed quantity. Points are
+ * transformed for plotting only; hover readouts keep the raw value.
+ */
+export type MiniScale = "linear" | "sqrt";
+
+export function scaleValue(v: number, scale: MiniScale): number {
+  if (scale !== "sqrt") return v;
+  return Math.sign(v) * Math.sqrt(Math.abs(v));
+}
+
 /** Min/max across the finite points of a set of series. */
 export function seriesBounds(
   series: MiniSeries[],
   axis: 0 | 1,
+  scale: MiniScale = "linear",
 ): { min: number; max: number } {
   let min = Infinity;
   let max = -Infinity;
   for (const s of series) {
     if ((s.axis ?? 0) !== axis) continue;
-    for (const p of s.points) {
-      if (!finite(p)) continue;
+    for (const raw of s.points) {
+      if (!finite(raw)) continue;
+      const p = scaleValue(raw, scale);
       if (p < min) min = p;
       if (p > max) max = p;
     }
@@ -74,12 +93,13 @@ export function buildLinePath(
   bounds: { min: number; max: number },
   innerW: number,
   innerH: number,
+  scale: MiniScale = "linear",
 ): string {
   const n = points.length;
   if (n === 0) return "";
   const span = bounds.max - bounds.min || 1;
   const stepX = n > 1 ? innerW / (n - 1) : 0;
-  const yOf = (v: number) => innerH - ((v - bounds.min) / span) * innerH;
+  const yOf = (v: number) => innerH - ((scaleValue(v, scale) - bounds.min) / span) * innerH;
   let d = "";
   let pen = false;
   for (let i = 0; i < n; i++) {
@@ -102,8 +122,9 @@ export function buildAreaPath(
   bounds: { min: number; max: number },
   innerW: number,
   innerH: number,
+  scale: MiniScale = "linear",
 ): string {
-  const line = buildLinePath(points, bounds, innerW, innerH);
+  const line = buildLinePath(points, bounds, innerW, innerH, scale);
   if (!line) return "";
   const n = points.length;
   const stepX = n > 1 ? innerW / (n - 1) : 0;
@@ -140,24 +161,25 @@ export function MiniLineChart({
   formatValue = (v) => v.toFixed(2),
   testId,
   emptyMessage = "No data",
+  scale = "linear",
 }: MiniLineChartProps) {
   const [hover, setHover] = useState<number | null>(null);
   const innerW = W - PAD_L - PAD_R;
   const innerH = height - PAD_T - PAD_B;
 
-  const bounds0 = useMemo(() => seriesBounds(series, 0), [series]);
-  const bounds1 = useMemo(() => seriesBounds(series, 1), [series]);
+  const bounds0 = useMemo(() => seriesBounds(series, 0, scale), [series, scale]);
+  const bounds1 = useMemo(() => seriesBounds(series, 1, scale), [series, scale]);
   const paths = useMemo(
     () =>
       series.map((s) => {
         const b = (s.axis ?? 0) === 1 ? bounds1 : bounds0;
         return {
-          line: buildLinePath(s.points, b, innerW, innerH),
-          area: s.area ? buildAreaPath(s.points, b, innerW, innerH) : "",
+          line: buildLinePath(s.points, b, innerW, innerH, scale),
+          area: s.area ? buildAreaPath(s.points, b, innerW, innerH, scale) : "",
           color: s.color,
         };
       }),
-    [series, bounds0, bounds1, innerW, innerH],
+    [series, bounds0, bounds1, innerW, innerH, scale],
   );
 
   const hasData = series.some((s) => s.points.some((p) => finite(p)));

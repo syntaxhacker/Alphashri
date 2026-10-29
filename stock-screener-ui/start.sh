@@ -163,16 +163,37 @@ start_recorder() {
   # Supervised: a dropped socket, an expired session or a stall exits non-zero
   # and gets restarted, so capture no longer dies silently for the rest of the
   # day. Exit 0 means "nothing to do" (market closed) and stops the loop.
+  #
+  # Crash-loop guard: a recorder that dies INSTANTLY gets a LONGER wait, never
+  # a shorter one (60s, 120s, 240s ... capped at 15 min), and a run that
+  # lasted minutes resets the counter — so a permanently broken recorder
+  # cannot spin the supervisor all session.
   nohup bash -c '
+    fails=0
     while true; do
+      started=$(date +%s)
       .venv/bin/python scripts/orderflow_recorder.py
       rc=$?
+      ran=$(( $(date +%s) - started ))
       if [ "$rc" -eq 0 ]; then
         echo "[recorder-supervisor] recorder finished normally; not restarting"
         break
       fi
-      echo "[recorder-supervisor] recorder exited rc=$rc; restarting in 60s"
-      sleep 60
+      fails=$((fails + 1))
+      if [ "$ran" -ge 300 ]; then
+        fails=1
+      fi
+      delay=60
+      i=1
+      while [ "$i" -lt "$fails" ] && [ "$delay" -lt 900 ]; do
+        delay=$((delay * 2))
+        i=$((i + 1))
+      done
+      if [ "$delay" -gt 900 ]; then
+        delay=900
+      fi
+      echo "[recorder-supervisor] recorder exited rc=$rc after ${ran}s (failure #$fails); restarting in ${delay}s"
+      sleep "$delay"
     done
   ' >> "$API_LOG" 2>&1 &
   echo $! > "$RECORDER_PID"

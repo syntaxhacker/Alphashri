@@ -60,6 +60,7 @@ export interface PaperTrade {
   strategy_type?: string;
   bot_id: string | null;
   bot_name: string | null;
+  source?: string; // 'options_paper…' for option trades, undefined/other for equity
 }
 
 // Portfolio status - matches API response from /api/paper/portfolio
@@ -191,6 +192,14 @@ export interface PaperBotSnapshot {
 // View type for paper trading
 export type PaperTradingView = "live" | "history" | "settings" | "analytics" | "activity" | "aggregated";
 
+// Asset-class "book" a trade belongs to. Derived from the trade's `source`
+// prefix (options_paper* / futures_paper* / commodities_paper*); everything
+// else (live, null, undefined) is equity.
+export type TradeBookKey = "equity" | "options" | "futures" | "commodities";
+
+// Instrument source filter for trade history — a book key, or "all".
+export type TradeSourceFilter = "all" | TradeBookKey;
+
 // State interface
 export interface PaperTradingState {
   currentView: PaperTradingView;
@@ -211,6 +220,7 @@ export interface PaperTradingState {
   filterSymbol: string | null;
   filterStrategy: number | null; // Filter by strategy ID
   filterBot: string | null; // Filter by bot ID (UUID)
+  filterSource: TradeSourceFilter; // Filter by book (equity / options / futures / commodities)
 
   // Chart state
   selectedSymbol: string | null;

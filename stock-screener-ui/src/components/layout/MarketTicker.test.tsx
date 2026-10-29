@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, within, cleanup, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { MarketTicker } from "./MarketTicker";
 import { UIProvider } from "@/ui";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
+import { isMarketClosedToday, getHolidayState } from "../../state/holidays";
 
 // Mock fetch
 const mockFetch = vi.fn();
@@ -21,11 +22,13 @@ vi.mock("../../hooks/useMarketTickerEnabled", () => ({
 vi.mock("../../state/holidays", () => ({
   subscribeToHolidays: vi.fn(),
   isMarketClosedToday: vi.fn().mockReturnValue(false),
+  getHolidayState: vi.fn(() => ({ holidays: [] })),
 }));
 
 describe("MarketTicker", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(isMarketClosedToday).mockReturnValue(false);
     // Reset mock to enabled by default
     mockMarketTickerEnabled = true;
     setupBrowserMocks();
@@ -110,7 +113,7 @@ describe("MarketTicker", () => {
     });
   });
 
-  it("shows positive change badge", async () => {
+  it("shows a positive change as plain coloured text", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => mockTickerData,
@@ -124,12 +127,14 @@ describe("MarketTicker", () => {
 
     await waitFor(() => {
       // change=150 formatted as "+150.00 (0.68%)"
-      const badge = screen.getByText(/\+150\.00/);
-      expect(badge).toBeInTheDocument();
+      const change = screen.getByTestId("ticker-change-nsei");
+      expect(change).toHaveTextContent("+150.00 (0.68%)");
+      expect(change).toHaveStyle({ color: "#3FB950" });
+      expect(change).toHaveTextContent("▲");
     });
   });
 
-  it("shows negative change badge", async () => {
+  it("shows a negative change as plain coloured text", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => mockTickerData,
@@ -143,9 +148,34 @@ describe("MarketTicker", () => {
 
     await waitFor(() => {
       // change=-200 formatted as "-200.00 (-0.44%)"
-      const badge = screen.getByText(/-200\.00/);
-      expect(badge).toBeInTheDocument();
+      expect(screen.getByTestId("ticker-change-nsebank")).toHaveTextContent(
+        "-200.00 (-0.44%)",
+      );
     });
+  });
+
+  it("keeps price and change in one grid row with no pill badge", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockTickerData,
+    });
+
+    render(
+      <UIProvider>
+        <MarketTicker />
+      </UIProvider>,
+    );
+
+    const item = await screen.findByTestId("ticker-nsei");
+    const price = screen.getByTestId("ticker-price-nsei");
+    const change = screen.getByTestId("ticker-change-nsei");
+    // One shared grid row: price and change are the only cells after the label.
+    expect(item.contains(price)).toBe(true);
+    expect(item.contains(change)).toBe(true);
+    expect(item.children).toHaveLength(3);
+    expect(item.style.display).toBe("grid");
+    // The old MUI Badge pill is gone — the change is plain text.
+    expect(item.querySelector(".MuiBadge-root")).toBeNull();
   });
 
   it("displays loading state with skeletons", () => {
@@ -229,7 +259,7 @@ describe("MarketTicker", () => {
     });
   });
 
-  it("shows last updated time", async () => {
+  it("shows last updated time on the ticker tooltip", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => mockTickerData,
@@ -242,7 +272,11 @@ describe("MarketTicker", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("market-ticker-updated")).toBeInTheDocument();
+      const ticker = screen.getByTestId("market-ticker");
+      // The visible "Updated: --" label is gone; the timestamp moved to the
+      // ticker's title so the tape stays one 22px row.
+      expect(ticker).toHaveAttribute("title", expect.stringContaining("Updated:"));
+      expect(within(ticker).queryByText(/Updated:/)).not.toBeInTheDocument();
     });
   });
 
@@ -330,6 +364,88 @@ describe("MarketTicker", () => {
     expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 300000);
 
     setIntervalSpy.mockRestore();
+  });
+
+  it("renders every ticker at one uniform size so the columns align", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        tickers: {
+          "^NSEI": {
+            symbol: "^NSEI",
+            name: "NIFTY 50",
+            price: 22000,
+            change: 150,
+            change_percent: 0.68,
+            is_positive: true,
+          },
+          "GC=F": {
+            symbol: "GC=F",
+            name: "Gold",
+            price: 1800,
+            change: 10,
+            change_percent: 0.56,
+            is_positive: true,
+          },
+        },
+        last_updated: "2025-06-15T10:30:00Z",
+        loading: false,
+        error: null,
+      }),
+    });
+
+    render(
+      <UIProvider>
+        <MarketTicker />
+      </UIProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("ticker-nsei")).toBeInTheDocument();
+      expect(screen.getByTestId("ticker-gcf")).toBeInTheDocument();
+    });
+
+    // One type scale for every item: 9.5px label, 11px tabular price.
+    for (const testId of ["ticker-nsei", "ticker-gcf"]) {
+      const item = screen.getByTestId(testId);
+      expect(item.children).toHaveLength(3);
+      expect(item.style.gridTemplateColumns).toBe(
+        "minmax(56px, auto) minmax(64px, 1fr) 82px",
+      );
+      expect(within(item).getByText(/Nifty 50|Gold/)).toHaveStyle({
+        fontSize: "9.5px",
+      });
+    }
+    expect(screen.getByTestId("ticker-price-nsei")).toHaveStyle({
+      fontSize: "11px",
+    });
+    expect(screen.getByTestId("ticker-price-gcf")).toHaveStyle({
+      fontSize: "11px",
+    });
+  });
+
+  it("shows market-closed status instead of a tape on holidays", () => {
+    vi.mocked(isMarketClosedToday).mockReturnValue(true);
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+    vi.mocked(getHolidayState).mockReturnValue({
+      holidays: [{ date: today, description: "Dussehra", type: "trading" }],
+      tradingDates: new Set<string>([today]),
+      clearingDates: new Set<string>(),
+      loaded: true,
+      loading: false,
+    });
+
+    render(
+      <UIProvider>
+        <MarketTicker />
+      </UIProvider>,
+    );
+
+    expect(screen.getByTestId("market-ticker-status")).toBeInTheDocument();
+    expect(screen.getByText("Market closed")).toBeInTheDocument();
+    expect(screen.getByText(/Dussehra/)).toBeInTheDocument();
+    expect(screen.queryByTestId("market-ticker-loading")).not.toBeInTheDocument();
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("returns null when disabled", () => {

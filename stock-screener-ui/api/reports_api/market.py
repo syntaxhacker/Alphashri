@@ -414,9 +414,10 @@ def _fetch_index(records: list[dict] | None = None) -> Optional[dict]:
     Never raises.
     """
     try:
+        index_symbols = {s.replace(" ", "") for s in _INDEX_SYMBOLS}
         for r in records or []:
             sym = str(r.get("symbol") or "").strip().upper().replace(" ", "")
-            if sym in {s.replace(" ", "") for s in _INDEX_SYMBOLS}:
+            if sym in index_symbols:
                 if _finite(r.get("close")) is None:
                     continue
                 return {
@@ -657,7 +658,10 @@ async def daily_report(
         allowed = {str(s).upper() for s in get_universe(uid)}
         df = await asyncio.to_thread(_fetch_tv_frame)
         records = _frame_to_records(df, allowed)
-        payload = _build_payload(day, uid, records)
+        # The build does blocking work (the yfinance index fetch and the
+        # sparkline fetches) - it must not run on the event loop, or a slow
+        # upstream stalls every other request on the desk.
+        payload = await asyncio.to_thread(_build_payload, day, uid, records)
         payload = _sanitize_for_json(payload)
         if is_today:
             _cache[f"{day}|{uid}"] = (time.time(), payload)

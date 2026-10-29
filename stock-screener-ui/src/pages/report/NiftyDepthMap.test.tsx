@@ -19,11 +19,48 @@ import {
 } from "./NiftyDepthMap";
 import type { NiftyReport } from "@/types/niftyReport";
 
-vi.mock("echarts-for-react", () => ({
-  default: ({ option }: { option?: { series?: unknown[] } }) => (
-    <div data-testid="nifty-depth-echarts" data-series={option?.series?.length ?? 0} />
-  ),
+const depthMocks = vi.hoisted(() => ({
+  mounts: 0,
+  setOption: vi.fn(),
+  resize: vi.fn(),
+  lastShouldSetOption: null as null | (() => boolean),
 }));
+
+vi.mock("echarts-for-react", async () => {
+  const React = await import("react");
+  // Faithful-enough stand-in: exposes getEchartsInstance via ref, fires
+  // onChartReady on mount (like the real async init), and records the
+  // shouldSetOption guard so tests can assert the auto-update path is off.
+  const MockECharts = React.forwardRef(function MockECharts(
+    props: {
+      option?: { series?: unknown[] };
+      onChartReady?: (instance: unknown) => void;
+      shouldSetOption?: () => boolean;
+    },
+    ref: React.Ref<{ getEchartsInstance: () => unknown }>,
+  ) {
+    const instance = React.useMemo(
+      () => ({ setOption: depthMocks.setOption, resize: depthMocks.resize }),
+      [],
+    );
+    const readyRef = React.useRef(props.onChartReady);
+    readyRef.current = props.onChartReady;
+    React.useEffect(() => {
+      depthMocks.mounts += 1;
+      readyRef.current?.(instance);
+    }, [instance]);
+    React.useImperativeHandle(
+      ref,
+      () => ({ getEchartsInstance: () => instance }),
+      [instance],
+    );
+    depthMocks.lastShouldSetOption = props.shouldSetOption ?? null;
+    return (
+      <div data-testid="nifty-depth-echarts" data-series={props.option?.series?.length ?? 0} />
+    );
+  });
+  return { default: MockECharts };
+});
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
   return <UIProvider>{children}</UIProvider>;
@@ -107,6 +144,10 @@ function asOpt(report: NiftyReport): DepthOpt {
 
 afterEach(() => {
   cleanup();
+  depthMocks.mounts = 0;
+  depthMocks.lastShouldSetOption = null;
+  depthMocks.setOption.mockClear();
+  depthMocks.resize.mockClear();
 });
 
 describe("buildDepthRows", () => {
@@ -473,5 +514,47 @@ describe("NiftyDepthMap render", () => {
     const stats = screen.getByTestId("nifty-depth-stats");
     expect(within(screen.getByTestId("nifty-depth-stat-hilo")).getByText("—")).toBeInTheDocument();
     expect(within(stats).getByTestId("nifty-depth-stat-chg")).toHaveTextContent("—");
+  });
+});
+
+describe("NiftyDepthMap active gate", () => {
+  test("active={false} renders the container but performs no ECharts work", () => {
+    r(<NiftyDepthMap report={mockReport()} active={false} />);
+    expect(screen.getByTestId("nifty-depthmap")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-depth-echarts")).toBeInTheDocument();
+    expect(depthMocks.mounts).toBe(1);
+    expect(depthMocks.setOption).not.toHaveBeenCalled();
+    expect(depthMocks.resize).not.toHaveBeenCalled();
+  });
+
+  test("automatic library updates are disabled — one manual driver only", () => {
+    r(<NiftyDepthMap report={mockReport()} />);
+    expect(typeof depthMocks.lastShouldSetOption).toBe("function");
+    expect(depthMocks.lastShouldSetOption?.()).toBe(false);
+  });
+
+  test("report change while hidden stays silent; activate resizes + catches up", () => {
+    const { rerender } = r(<NiftyDepthMap report={mockReport()} active={false} />);
+    expect(depthMocks.setOption).not.toHaveBeenCalled();
+    expect(depthMocks.resize).not.toHaveBeenCalled();
+
+    // Report updates while hidden: still zero ECharts work.
+    rerender(<NiftyDepthMap report={mockReport({ spot: 25800 })} active={false} />);
+    expect(depthMocks.setOption).not.toHaveBeenCalled();
+    expect(depthMocks.resize).not.toHaveBeenCalled();
+
+    // Flipping to active: exactly one resize + one setOption with latest.
+    rerender(<NiftyDepthMap report={mockReport({ spot: 25800 })} active />);
+    expect(depthMocks.resize).toHaveBeenCalledTimes(1);
+    expect(depthMocks.setOption).toHaveBeenCalledTimes(1);
+    expect(depthMocks.mounts).toBe(1);
+  });
+
+  test("active report change pushes the new option exactly once", () => {
+    const { rerender } = r(<NiftyDepthMap report={mockReport()} />);
+    expect(depthMocks.setOption).toHaveBeenCalledTimes(1);
+    expect(depthMocks.resize).toHaveBeenCalledTimes(1);
+    rerender(<NiftyDepthMap report={mockReport({ spot: 25800 })} />);
+    expect(depthMocks.setOption).toHaveBeenCalledTimes(2);
   });
 });

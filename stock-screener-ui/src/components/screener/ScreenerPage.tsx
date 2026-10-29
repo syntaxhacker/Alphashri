@@ -4,7 +4,7 @@ import MuiStack from "@mui/material/Stack";
 import Paper from "@mui/material/Paper";
 import { Box, Tabs, Text, Select, Skeleton, ActionIcon, Switch, Tooltip } from "@/ui";
 import { BORDER, SURFACE } from "@/ui/palette";
-import { IconTable, IconChartDots, IconSettings, IconLayoutDashboard, IconRefresh } from "@tabler/icons-react";
+import { IconTable, IconChartDots, IconSettings, IconLayoutDashboard, IconRefresh, IconCoins } from "@tabler/icons-react";
 import * as state from "../../state";
 import { DashboardView } from "./DashboardView";
 import { ScreenerHeader } from "./ScreenerHeader";
@@ -16,6 +16,7 @@ import { ScreenerInlineFilters } from "./ScreenerInlineFilters";
 
 const CorrelationTab = lazy(() => import("./CorrelationTab").then((m) => ({ default: m.CorrelationTab })));
 const ScreenerConfigView = lazy(() => import("./ScreenerConfigView").then((m) => ({ default: m.ScreenerConfigView })));
+const DeepValueTab = lazy(() => import("../value/ValuePanel").then((m) => ({ default: m.ValuePanel })));
 import {
   setSymbols,
   setTimeframe,
@@ -160,6 +161,7 @@ export function ScreenerPage({
   const [viewMode, setViewMode] = useState<"table" | "heatmap">("table");
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "dashboard";
+  const isValueTab = activeTab === "deepvalue";
   const [isPending, startTransition] = useTransition();
   const [internalUniverse, setInternalUniverse] = useState(DEFAULT_DASHBOARD_UNIVERSE);
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
@@ -267,6 +269,10 @@ export function ScreenerPage({
                 comboboxProps={{ withinPortal: true }}
                 aria-label="Market universe"
               />
+            ) : isValueTab ? (
+              <Text size="xs" fw={600} data-testid="deep-value-tab-label">
+                Deep Value
+              </Text>
             ) : (
               <Select
                 value={activeScreener}
@@ -292,6 +298,9 @@ export function ScreenerPage({
                 </Tabs.Tab>
                 <Tabs.Tab value="screener" leftSection={<IconTable size={14} />} data-testid="tab-screener" style={{ minHeight: 32 }}>
                   Screener
+                </Tabs.Tab>
+                <Tabs.Tab value="deepvalue" leftSection={<IconCoins size={14} />} data-testid="tab-deepvalue" style={{ minHeight: 32 }}>
+                  Deep Value
                 </Tabs.Tab>
                 <Tabs.Tab value="correlation" leftSection={<IconChartDots size={14} />} data-testid="tab-correlation" style={{ minHeight: 32 }}>
                   Correlation
@@ -332,7 +341,7 @@ export function ScreenerPage({
                   </ActionIcon>
                 </Tooltip>
               </Box>
-            ) : (
+            ) : isValueTab ? null : (
               <ScreenerHeader
               status={status}
               isLoading={isLoading}
@@ -402,6 +411,14 @@ export function ScreenerPage({
                 <SelectionBar onCompare={handleCompare} />
               </Box>
             </Paper>
+          </Box>
+          <Box
+            data-testid="deep-value-panel"
+            sx={{ display: isValueTab ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}
+          >
+            <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
+              <DeepValueTab />
+            </Suspense>
           </Box>
           <Box sx={{ display: activeTab === "correlation" || activeTab === "config" ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}>
             <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>

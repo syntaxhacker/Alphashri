@@ -137,11 +137,15 @@ describe("NewsPanel2", () => {
       </UIProvider>,
     );
 
-  it("renders the NEWS toggle button", () => {
+  it("renders the NEWS toggle as an icon-only button", () => {
     renderComponent();
-    expect(screen.getByTestId("news-toggle-btn")).toBeInTheDocument();
-    // Button should contain NEWS text
-    expect(screen.getByTestId("news-toggle-btn")).toHaveTextContent("NEWS");
+    const btn = screen.getByTestId("news-toggle-btn");
+    expect(btn).toBeInTheDocument();
+    // Icon-only: the label lives on the accessible name/tooltip, not in the
+    // header tape.
+    expect(btn).toHaveAttribute("aria-label", "News");
+    expect(btn).not.toHaveTextContent("NEWS");
+    expect(btn.querySelector("svg")).not.toBeNull();
   });
 
   it("opens the panel when toggle button is clicked", async () => {

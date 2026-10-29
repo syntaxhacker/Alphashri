@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import Box from "@mui/material/Box";
 import ReactECharts from "echarts-for-react";
 import { ChartErrorBoundary } from "@/components/common/ChartErrorBoundary";
@@ -7,6 +7,8 @@ import * as palette from "@/ui/palette";
 import { CompactStat, CompactStatGrid } from "@/components/common/compact";
 import { EmptyCompact } from "@/components/common/states";
 import type { NiftyReport } from "@/types/niftyReport";
+import { sortByField } from "@/utils/ui-helpers";
+import { formatReportNum, formatReportOiCr } from "./reportFormat";
 
 /**
  * Depth-map view for the Nifty report (futures footprint + GEX layout reference).
@@ -44,18 +46,18 @@ export const DEPTH_WINDOW = 750;
 export const DEPTH_MAX_ROWS = 31;
 
 /** Level-tag dedupe radius in points (same rule as the report panel). */
-export const LEVEL_DEDUPE_PTS = 25;
+const LEVEL_DEDUPE_PTS = 25;
 
 /** Candle-only y-range padding on each side. */
-export const CANDLE_PAD_PCT = 0.0015;
+const CANDLE_PAD_PCT = 0.0015;
 
-export interface DepthRow {
+interface DepthRow {
   strike: number;
   ceOi: number;
   peOi: number;
 }
 
-export interface DayStats {
+interface DayStats {
   hi: number | null;
   lo: number | null;
   changePct: number | null;
@@ -76,32 +78,34 @@ function num(v: unknown): number {
 }
 
 function fmtStrike(s: number): string {
-  return num(s).toLocaleString("en-IN");
+  return formatReportNum(num(s));
 }
 
 /** Compact Indian OI labels: 2.50 Cr / 25.0L / 5.0k. */
 export function formatOiCompact(v: number): string {
-  if (!Number.isFinite(v)) return "—";
-  const abs = Math.abs(v);
-  const sign = v < 0 ? "-" : "";
-  if (abs >= 1e7) return `${sign}${(abs / 1e7).toFixed(2)} Cr`;
-  if (abs >= 1e5) return `${sign}${(abs / 1e5).toFixed(1)}L`;
-  if (abs >= 1e3) return `${sign}${(abs / 1e3).toFixed(1)}k`;
-  return `${sign}${Math.round(abs)}`;
+  return formatReportOiCr(v, {
+    lakh: 1,
+    space: false,
+    thousands: true,
+    grouped: false,
+  });
 }
 
 /** Per-strike OI rows within ATM ±750, sorted ascending, capped at 31 rows. */
 export function buildDepthRows(report: NiftyReport): DepthRow[] {
   const strikes = Array.isArray(report?.strikes) ? report.strikes : [];
   const spot = num(report?.spot);
-  const inWindow = strikes
-    .filter((s) => s && Number.isFinite(Number(s.strike)) && Math.abs(Number(s.strike) - spot) <= DEPTH_WINDOW)
-    .map((s) => ({
-      strike: Number(s.strike),
-      ceOi: num(s?.ce?.oi),
-      peOi: num(s?.pe?.oi),
-    }))
-    .sort((a, b) => a.strike - b.strike);
+  const inWindow = sortByField(
+    strikes
+      .filter((s) => s && Number.isFinite(Number(s.strike)) && Math.abs(Number(s.strike) - spot) <= DEPTH_WINDOW)
+      .map((s) => ({
+        strike: Number(s.strike),
+        ceOi: num(s?.ce?.oi),
+        peOi: num(s?.pe?.oi),
+      })),
+    "strike",
+    "asc",
+  );
   if (inWindow.length <= DEPTH_MAX_ROWS) return inWindow;
   // Irregular/dense chains: keep the rows closest to spot, restore ordering.
   return inWindow
@@ -497,7 +501,11 @@ export function buildDepthOption(report: NiftyReport): Record<string, unknown> {
   };
 }
 
-function LegendChip({
+/** Hoisted ECharts chrome — stable identity so the chart never gets new literals. */
+const DEPTH_CHART_STYLE = { height: "100%", width: "100%" } as const;
+const DEPTH_CHART_OPTS = { renderer: "canvas" } as const;
+
+const LegendChip = memo(function LegendChip({
   testId,
   color,
   label,
@@ -524,13 +532,58 @@ function LegendChip({
       </Text>
     </Box>
   );
+});
+LegendChip.displayName = "LegendChip";
+
+/** Minimal ECharts instance surface this panel drives. */
+interface DepthChartHandle {
+  resize: () => void;
+  setOption: (option: object) => void;
 }
 
-export function NiftyDepthMap({ report }: { report: NiftyReport }) {
+interface NiftyDepthMapProps {
+  report: NiftyReport;
+  /**
+   * Visibility gate (default true). When false the component renders only
+   * its container: no `setOption`, no `resize`, no other ECharts work.
+   * Flipping back to true runs `resize()` + `setOption(latest)` so the
+   * chart catches up to anything skipped while hidden.
+   */
+  active?: boolean;
+}
+
+function NiftyDepthMapInner({ report, active = true }: NiftyDepthMapProps) {
   const rows = useMemo(() => buildDepthRows(report), [report]);
   const stats = useMemo(() => dayStats(report), [report]);
   const poc = useMemo(() => findOiPoc(report), [report]);
   const option = useMemo(() => buildDepthOption(report), [report]);
+
+  const chartRef = useRef<ReactECharts | null>(null);
+  const instanceRef = useRef<DepthChartHandle | null>(null);
+
+  const handleChartReady = useCallback((instance: DepthChartHandle) => {
+    instanceRef.current = instance;
+  }, []);
+
+  // Single driver for ECharts updates. The library's automatic setOption is
+  // disabled via `shouldSetOption` below, so while `active` is false this
+  // effect provably skips all ECharts work; on (re)activation it resizes
+  // (the hidden container was zero-size) and pushes the latest option.
+  // The instance may be null on the very first run (async init) — first
+  // mount is covered by the library's initial setOption, and onChartReady
+  // stashes the instance for every later run.
+  useEffect(() => {
+    if (!active) return;
+    const instance =
+      instanceRef.current ??
+      (chartRef.current?.getEchartsInstance?.() as unknown as
+        | DepthChartHandle
+        | undefined) ??
+      null;
+    if (!instance) return;
+    instance.resize();
+    instance.setOption(option);
+  }, [active, option]);
 
   const legend = useMemo(() => {
     const ceDom = rows.filter((r) => r.ceOi > r.peOi).length;
@@ -614,7 +667,14 @@ export function NiftyDepthMap({ report }: { report: NiftyReport }) {
           />
         ) : (
           <ChartErrorBoundary label="Depth map">
-            <ReactECharts option={option} style={{ height: "100%", width: "100%" }} opts={{ renderer: "canvas" }} />
+            <ReactECharts
+              ref={chartRef}
+              option={option}
+              style={DEPTH_CHART_STYLE}
+              opts={DEPTH_CHART_OPTS}
+              onChartReady={handleChartReady}
+              shouldSetOption={() => false}
+            />
           </ChartErrorBoundary>
         )}
       </Box>
@@ -625,3 +685,7 @@ export function NiftyDepthMap({ report }: { report: NiftyReport }) {
     </Box>
   );
 }
+
+/** Memoised leaf panel — `report` keeps identity between unrelated parent renders. */
+export const NiftyDepthMap = memo(NiftyDepthMapInner);
+NiftyDepthMap.displayName = "NiftyDepthMap";

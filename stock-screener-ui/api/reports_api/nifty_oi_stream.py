@@ -35,7 +35,7 @@ import logging
 import os
 import statistics
 from collections import deque
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +54,8 @@ ATM_N = 3
 MAX_SAMPLES = 240
 #: Re-resolve instrument keys this often (handles the expiry roll).
 RESOLVE_EVERY_SEC = 900.0
+#: Grace period before the first subscription (lets the tape settle).
+START_DELAY_SEC = 20.0
 
 
 def scaled_floor(per_minute_floor: float, window_sec: float) -> float:
@@ -270,7 +272,7 @@ async def nifty_oi_stream_task() -> None:
 
     from trading.utils import is_market_open
 
-    await asyncio.sleep(20)
+    await asyncio.sleep(START_DELAY_SEC)
     rings = RollingOi()
     key_map: dict[str, tuple[float, str]] = {}
     last_resolve = 0.0
@@ -297,39 +299,50 @@ async def nifty_oi_stream_task() -> None:
             # --- WS session (blocking) lives in a thread; ticks hop via a queue
             q: thr_queue.Queue = thr_queue.Queue(maxsize=20000)
             closed = threading.Event()
-            _run_ws(key_map, q, closed)
+            streamer = _run_ws(key_map, q, closed)
 
             deadline = time.time() + RESOLVE_EVERY_SEC
             next_eval = time.time() + SAMPLE_SEC
-            while time.time() < deadline and not closed.is_set():
-                try:
-                    tick = q.get_nowait()
-                except thr_queue.Empty:
-                    await asyncio.sleep(0.25)
-                    continue
-                rings.push(tick["strike"], tick["leg"], tick["ts"], tick["oi"])
+            try:
+                while time.time() < deadline and not closed.is_set():
+                    try:
+                        tick = q.get_nowait()
+                    except thr_queue.Empty:
+                        await asyncio.sleep(0.25)
+                        continue
+                    rings.push(tick["strike"], tick["leg"], tick["ts"], tick["oi"])
 
-                # Evaluate on a CADENCE, not per tick. The feed delivers ~29
-                # updates/sec across the keys; scoring every one re-copied every
-                # ring and ran medians 29x/sec, which starved the event loop and
-                # made the whole API (including /health) unresponsive.
-                if time.time() < next_eval:
-                    continue
-                next_eval = time.time() + SAMPLE_SEC
+                    # Evaluate on a CADENCE, not per tick. The feed delivers ~29
+                    # updates/sec across the keys; scoring every one re-copied
+                    # every ring and ran medians 29x/sec, which starved the event
+                    # loop and made the whole API (including /health)
+                    # unresponsive.
+                    if time.time() < next_eval:
+                        continue
+                    next_eval = time.time() + SAMPLE_SEC
 
-                events = detect_oi_ticks(rings.snapshot(), window_sec=DETECT_WINDOW_SEC)
-                if not events:
-                    continue
-                if SHADOW:
-                    for e in events[:3]:
-                        logger.info("nifty OI stream [shadow] %s %s %s delta=%.0f score=%.1f",
-                                    e["severity"], e["leg"], e["strike"], e["delta"], e["score"])
-                else:
-                    from api.reports_api.nifty_stream import publish
+                    events = detect_oi_ticks(
+                        rings.snapshot(), window_sec=DETECT_WINDOW_SEC
+                    )
+                    if not events:
+                        continue
+                    if SHADOW:
+                        for e in events[:3]:
+                            logger.info(
+                                "nifty OI stream [shadow] %s %s %s delta=%.0f score=%.1f",
+                                e["severity"], e["leg"], e["strike"],
+                                e["delta"], e["score"],
+                            )
+                    else:
+                        from api.reports_api.nifty_stream import publish
 
-                    publish(events)
-
-            closed.set()
+                        publish(events)
+            finally:
+                closed.set()
+                # The socket MUST be closed: ``connect()`` returns immediately
+                # and the SDK keeps the connection (and its thread) alive, so
+                # without this every 15-minute cycle leaked one Upstox WS.
+                _disconnect(streamer)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -337,10 +350,26 @@ async def nifty_oi_stream_task() -> None:
             await asyncio.sleep(15)
 
 
-def _run_ws(key_map: dict[str, tuple[float, str]], q, closed) -> None:
-    """Own the Upstox WS for this session (runs inside a worker thread)."""
+def _disconnect(streamer) -> None:
+    """Close the Upstox socket best-effort (never raises)."""
+    try:
+        if streamer is None:
+            return
+        streamer.disconnect()
+    except Exception as exc:
+        logger.debug("nifty OI stream: disconnect failed: %s", exc)
+
+
+def _run_ws(key_map: dict[str, tuple[float, str]], q, closed):
+    """Own the Upstox WS for this session (runs inside a worker thread).
+
+    Returns the streamer so the caller can close the socket when the session
+    ends (``connect()`` returns immediately, so the socket would otherwise stay
+    open for the life of the process).
+    """
     import queue as thr_queue
 
+    streamer = None
     try:
         import upstox_client
         from upstox_client import MarketDataStreamerV3
@@ -390,6 +419,9 @@ def _run_ws(key_map: dict[str, tuple[float, str]], q, closed) -> None:
         streamer.on("error", on_error)
         streamer.on("open", lambda: streamer.subscribe(instrument_keys, "option_greeks"))
         streamer.connect()
+        return streamer
     except Exception as exc:
         logger.warning("nifty OI stream WS failed: %s", exc)
         closed.set()
+        _disconnect(streamer)
+        return None

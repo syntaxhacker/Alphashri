@@ -45,15 +45,25 @@ def signal_is_bullish(burst: dict) -> bool:
     """Direction the burst implies for the underlying.
 
     Momentum events (squeeze, premium impulse) follow the side that moved; OI
-    builds fade the writers and OI unwinds follow the fuel.
+    events use the detector's ``bearish``/``flow`` reading (OI + premium, so a
+    put build is bearish when buyers paid up rather than writers selling). When
+    the tape has no premium the field is absent and the old OI-only rule — put
+    build -> writers -> bullish — is the fallback.
     """
     if burst.get("type") in ("squeeze", "premium"):
         leg = str(burst.get("leg") or ("CE" if burst.get("side") == "call" else "PE"))
         return leg.upper() == "CE"
+    if isinstance(burst.get("bearish"), bool):
+        return not burst["bearish"]
     building = (burst.get("delta") or 0) > 0
     if building:
         return burst.get("side") != "call"  # call build -> puts, put build -> calls
     return burst.get("side") == "call"  # call unwind -> calls, put unwind -> puts
+
+
+def flow_classified(burst: dict) -> bool:
+    """True when the burst carries a buyer/writer read, not the OI-only guess."""
+    return isinstance(burst.get("bearish"), bool) and bool(burst.get("flow"))
 
 
 def load_day(path: Path) -> list[dict]:
@@ -73,6 +83,7 @@ def evaluate(dedupe_min: int):
     moves = {a: {h: [] for h in HORIZONS} for a in (True, False)}
     seen: set[tuple] = set()
     days_used = []
+    flow_n = oi_fallback_n = 0
 
     for path in sorted(TAPE_DIR.glob("*.jsonl")):
         rows = load_day(path)
@@ -88,6 +99,11 @@ def evaluate(dedupe_min: int):
             if key in seen:
                 continue
             seen.add(key)
+            if burst.get("type") not in ("squeeze", "premium"):
+                if flow_classified(burst):
+                    flow_n += 1
+                else:
+                    oi_fallback_n += 1
             bull = signal_is_bullish(burst)
             trend = session_trend(rows, burst.get("t"))
             aligned = burst.get("type") == "squeeze" or trend is None or (trend == "up") == bull
@@ -101,7 +117,7 @@ def evaluate(dedupe_min: int):
                 for t in THRESHOLDS:
                     cells[(aligned, t, h)][1] += 1
                     cells[(aligned, t, h)][0] += int(signed > t)
-    return cells, moves, days_used
+    return cells, moves, days_used, (flow_n, oi_fallback_n)
 
 
 def main() -> None:
@@ -109,10 +125,11 @@ def main() -> None:
     ap.add_argument("--dedupe-min", type=int, default=5, help="one signal per side/kind per N minutes")
     args = ap.parse_args()
 
-    cells, moves, days = evaluate(max(1, args.dedupe_min))
+    cells, moves, days, (flow_n, fallback_n) = evaluate(max(1, args.dedupe_min))
     n = sum(cells[(True, 0, 15)][1] for _ in (0,)) + cells[(False, 0, 15)][1]
     print(f"tape days: {', '.join(days)}")
-    print(f"signals (deduped to 1 per {args.dedupe_min} min): {n}\n")
+    print(f"signals (deduped to 1 per {args.dedupe_min} min): {n}")
+    print(f"direction from OI+premium flow: {flow_n}   OI-only fallback: {fallback_n}\n")
 
     for aligned, name in ((True, "TREND-ALIGNED"), (False, "COUNTER-TREND")):
         print(name)

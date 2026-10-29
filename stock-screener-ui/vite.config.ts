@@ -1,7 +1,8 @@
 /// <reference types="vite/client" />
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig, loadEnv } from 'vite';
-import react from '@vitejs/plugin-react';
+import react, { reactCompilerPreset } from '@vitejs/plugin-react';
+import babel from '@rolldown/plugin-babel';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
 
 export default defineConfig(({ mode }) => {
@@ -14,9 +15,11 @@ export default defineConfig(({ mode }) => {
       },
     },
     plugins: [
-      react({
-        reactCompiler: true,
-      }),
+      react(),
+      // React Compiler must be wired through @rolldown/plugin-babel in
+      // plugin-react v6 — the old `react({ reactCompiler: true })` flag is
+      // silently ignored by v6 (it emitted zero `_c()` memo slots).
+      babel({ presets: [reactCompilerPreset()] }),
       sentryVitePlugin({
         org: process.env.SENTRY_ORG,
         project: process.env.SENTRY_PROJECT,

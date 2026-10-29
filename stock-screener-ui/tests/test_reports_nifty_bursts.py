@@ -15,7 +15,7 @@ from fastapi import HTTPException
 
 import api.reports_api.nifty as nifty
 from api.reports_api.nifty import get_nifty_bursts
-from api.reports_api.nifty_bursts import NIFTY_LOT_SIZE
+from api.reports_api.nifty_bursts import NIFTY_LOT_SIZE, coalesce_bursts
 
 DATE = "2026-10-13"
 
@@ -609,3 +609,51 @@ class TestDetectCoiling:
         rows = [self._row(f"2026-10-14T15:{20 + i:02d}:00+05:30", 22702.05)
                 for i in range(11)]
         assert detect_coiling(rows, window_min=10) == []
+
+
+# ------------------------------------------------------------------- coalescing
+
+class TestCoalesceBursts:
+    """One alert per (minute, side) — the 2026-10-16 10:01 flood was 4 bursts
+    (one index + a burst per strike) all describing the same call-side event."""
+
+    def test_same_minute_same_side_merges_to_strongest(self):
+        t = "2026-10-16T10:01:35+05:30"
+        bursts = [
+            {"t": t, "side": "call", "strike": None, "severity": "watch", "score": 3.86},
+            {"t": t, "side": "call", "strike": 22950.0, "severity": "alert", "score": 6.38},
+            {"t": t, "side": "call", "strike": 23000.0, "severity": "alert", "score": 7.19},
+            {"t": t, "side": "call", "strike": 23100.0, "severity": "watch", "score": 4.04},
+        ]
+        out = coalesce_bursts(bursts)
+        assert len(out) == 1
+        assert out[0]["strike"] == 23000.0  # strongest of the two 'alert's
+        assert out[0]["coalesced"] == 4
+        assert out[0]["strikes"] == [22950.0, 23000.0, 23100.0]
+
+    def test_critical_beats_higher_scored_alert(self):
+        t = "2026-10-16T10:01:00+05:30"
+        bursts = [
+            {"t": t, "side": "call", "strike": 23000.0, "severity": "alert", "score": 99.0},
+            {"t": t, "side": "call", "strike": 23100.0, "severity": "critical", "score": 8.0},
+        ]
+        out = coalesce_bursts(bursts)
+        assert out[0]["strike"] == 23100.0
+
+    def test_different_side_or_minute_stay_separate(self):
+        bursts = [
+            {"t": "2026-10-16T10:01:00+05:30", "side": "call", "severity": "alert", "score": 5},
+            {"t": "2026-10-16T10:01:00+05:30", "side": "put", "severity": "alert", "score": 5},
+            {"t": "2026-10-16T10:02:00+05:30", "side": "call", "severity": "alert", "score": 5},
+        ]
+        assert len(coalesce_bursts(bursts)) == 3
+
+    def test_single_burst_untouched(self):
+        bursts = [{"t": "2026-10-16T10:01:00+05:30", "side": "call",
+                   "severity": "alert", "score": 5}]
+        out = coalesce_bursts(bursts)
+        assert out == bursts
+        assert "coalesced" not in out[0]
+
+    def test_empty(self):
+        assert coalesce_bursts([]) == []

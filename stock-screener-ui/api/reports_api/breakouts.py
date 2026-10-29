@@ -22,17 +22,17 @@ Everything is fail-soft — errors yield empty sections, never a 500.
 from __future__ import annotations
 
 import json
-import math
 import time
 from collections import Counter
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Query
 
 import config as root_config
+from api.reports_api._numeric import safe_float as _f
 from chart_patterns.candles import fetch_for_timeframe, frame_last_date
 from chart_patterns.parallel import max_workers, run_symbols
 from chart_patterns.universes import get_universe
@@ -80,16 +80,6 @@ def _today_str() -> str:
         return datetime.now(root_config.IST).strftime("%Y-%m-%d")
     except Exception:
         return datetime.now().astimezone().strftime("%Y-%m-%d")
-
-
-def _f(value: Any, default: float = 0.0) -> float:
-    try:
-        out = float(value)
-    except (TypeError, ValueError):
-        return default
-    if not math.isfinite(out):
-        return default
-    return out
 
 
 def _normalize_spark(values: list[float], n: int = 30) -> list[float]:

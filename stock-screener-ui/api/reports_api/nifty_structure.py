@@ -86,14 +86,6 @@ def _top_wall(row: dict, side: str) -> tuple[Optional[float], float]:
     return best
 
 
-def _strike_oi(row: dict, strike: float, leg: str) -> Optional[float]:
-    """Per-strike OI for a leg from ``strikes_top`` (ATM +/-3)."""
-    for entry in (row or {}).get("strikes_top") or []:
-        if _f((entry or {}).get("strike")) == strike:
-            return _f((entry or {}).get(f"{leg}_oi"))
-    return None
-
-
 def _severity(magnitude: float, watch: float, alert: float) -> str:
     if magnitude >= alert:
         return "critical"

@@ -347,8 +347,71 @@ def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = No
     )
 
 
+# --------------------------------------------------------------------------
+# Headless (options-paper) strategies
+# --------------------------------------------------------------------------
+# The options paper account (``options_paper/``) stores one BotConfig per
+# strategy purely so the account keeps the usual bot/strategy shape. Those
+# strategies (``OPT_*``) are executed by the **headless** ``options_paper.runner``
+# — which writes completed trades straight into the DB — and are deliberately
+# absent from ``SIGNAL_GENERATOR_REGISTRY``. Handing one to the equity
+# ``trading.runner_cli`` raises ``ValueError: Unknown strategy type 'OPT_*'`` on
+# startup, and because ``bot_auto_recovery_task`` rescans every 60s that turns
+# into a restart storm. Every bot-start path funnels through this guard.
+HEADLESS_STRATEGY_PREFIXES: tuple = ("OPT_",)
+
+
+def equity_bots_disabled() -> bool:
+    """Kill-switch: ``EQUITY_BOTS_DISABLED=1`` blocks every equity bot start.
+
+    Set it in ``.env`` (or the environment) to keep the equity bots down across
+    app restarts; auto-recovery and "Start all" both honour it. Unset / ``0``
+    re-enables them. The options-paper engine is unaffected.
+    """
+    return (os.environ.get("EQUITY_BOTS_DISABLED", "") or "").strip().lower() \
+        in ("1", "true", "yes", "on")
+
+
+def is_headless_strategy(strategy_type: Optional[str]) -> bool:
+    """True for strategies the equity runner must never launch (options paper)."""
+    return (strategy_type or "").upper().startswith(HEADLESS_STRATEGY_PREFIXES)
+
+
+def headless_strategy_types(db: Session, bot_id: int) -> list:
+    """Headless strategy types attached to ``bot_id`` ([] when runnable)."""
+    if db is None or not _db_available:
+        return []
+    try:
+        rows = (
+            db.query(StrategyConfig.strategy_type)
+            .join(bot_strategies, StrategyConfig.id == bot_strategies.c.strategy_id)
+            .filter(bot_strategies.c.bot_id == bot_id)
+            .all()
+        )
+    except Exception:
+        return []
+    return [r[0] for r in rows if is_headless_strategy(r[0])]
+
+
 def start_bot_process(user_id: int, bot_id: int, test_mode: bool = False, live_trading: bool = False):
     import subprocess
+
+    # Guard: options-paper bots are headless — never spawn the equity runner.
+    if _db_available:
+        with SessionLocal() as _gdb:
+            blocked = headless_strategy_types(_gdb, bot_id)
+        if blocked:
+            console.print(
+                f"[yellow]Bot {bot_id} uses headless strategy {blocked[0]} — "
+                f"not startable by the equity runner (options paper runs via "
+                f"`python -m options_paper.runner`). Skipped.[/yellow]"
+            )
+            return None
+
+    if equity_bots_disabled():
+        console.print("[yellow]EQUITY_BOTS_DISABLED is set — refusing to start "
+                      "any equity bot. Unset it to re-enable.[/yellow]")
+        return None
 
     lock_key = f"bot:{user_id}:{bot_id}:start_lock"
     lock_token = str(uuid_module.uuid4())

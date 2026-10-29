@@ -12,7 +12,6 @@ Token sources (checked in order):
 """
 
 import sys
-import os
 import json
 import time
 import statistics
@@ -36,6 +35,8 @@ except ImportError:
 import requests
 from importlib.metadata import version as pkg_version
 
+from scripts import upstox_common
+
 KNOWN_SYMBOLS = [
     "RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK",
     "SBIN", "BHARTIARTL", "ITC", "WIPRO", "HINDUNILVR",
@@ -46,38 +47,10 @@ INSTRUMENTS_FILE = ROOT_DIR / "upstox_trader" / "config_and_utils" / "nse_instru
 
 
 def get_token() -> str:
-    try:
-        from db.models import get_shared_broker_token
-        token_data = get_shared_broker_token("upstox")
-        if token_data and token_data.get("access_token"):
-            print(f"  source: DB (broker_connections)")
-            return token_data["access_token"]
-    except Exception:
-        pass
-
-    token_file = ROOT_DIR / ".upstox_token.json"
-    if token_file.exists():
-        try:
-            with open(token_file) as f:
-                data = json.load(f)
-            if data.get("access_token"):
-                print(f"  source: {token_file}")
-                return data["access_token"]
-        except (json.JSONDecodeError, KeyError):
-            pass
-
-    token = os.getenv("UPSTOX_ACCESS_TOKEN")
+    token, source = upstox_common.token_with_source()
     if token:
-        print(f"  source: UPSTOX_ACCESS_TOKEN env var")
+        print(f"  source: {source}")
         return token
-    try:
-        from config import UPSTOX_ACCESS_TOKEN as cfg_token
-        if cfg_token:
-            print(f"  source: UPSTOX_ACCESS_TOKEN env var")
-            return cfg_token
-    except Exception:
-        pass
-
     raise RuntimeError(
         "No Upstox access token found.\n"
         "  Connect your broker via Settings -> Upstox, or\n"

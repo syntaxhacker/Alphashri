@@ -1,17 +1,27 @@
 // @vitest-environment happy-dom
 import { describe, expect, test } from "vitest";
 import type { NiftyTapeRow } from "@/types/niftyReport";
+import type { OiBurst, OiSignal } from "./niftyOiBursts";
 import {
   NIFTY_LOT_SIZE,
   OI_BURST_MIN_ABS,
   OI_BURST_TIERS,
+  atmPremiumChange,
   burstTimeLabel,
   burstToAlert,
   computeMinuteDoi,
+  criticalBannerText,
   deriveOiSignal,
   detectOiBursts,
+  entryFreshness,
+  inferFlowFromPremium,
+  premiumChangeBefore,
+  resolveFuelState,
+  resolveOiDirection,
   sessionTrend,
   severityForScore,
+  sortAlertsCriticalFirst,
+  spotMinutesBefore,
 } from "./niftyOiBursts";
 
 /** "09:15" + i minutes. */
@@ -401,6 +411,8 @@ describe("squeeze trigger (momentum, not fade)", () => {
     expect(s.aligned).toBe(true);
     expect(s.basis).toContain("short-covering squeeze");
     expect(s.basis).toContain("22,600");
+    // Unwind size is OI in UNITS (shares), matching the backend wording.
+    expect(s.basis).toContain("1,64,61,965 units");
   });
 
   test("put squeeze buys PE", () => {
@@ -478,5 +490,388 @@ describe("premium + coil triggers", () => {
     expect(a.title).toContain("COILING @ 22,750");
     expect(a.detail).toContain("heads-up, no plan");
     expect(a.title).not.toContain("BUY");
+  });
+});
+
+describe("critical prominence helpers", () => {
+  const alert = (id: string, severity: "critical" | "watch" | "alert" | "info") => ({
+    id,
+    kind: "oi_burst" as const,
+    severity,
+    symbol: "NIFTY",
+    title: `burst ${id}`,
+    detail: "",
+    metrics: [],
+    ts: Date.parse(`2026-10-21T09:${id.slice(-2)}:00+05:30`) || 0,
+    source: "",
+    href: "/report/nifty",
+  });
+
+  test("critical-first sort keeps newest-first within each group", () => {
+    const rows = [alert("a-15", "watch"), alert("b-16", "critical"), alert("c-17", "alert"), alert("d-18", "critical")];
+    const sorted = sortAlertsCriticalFirst(rows);
+    expect(sorted.map((r) => r.id)).toEqual(["b-16", "d-18", "a-15", "c-17"]);
+  });
+
+  test("a trail without criticals is returned unchanged", () => {
+    const rows = [alert("a-15", "watch"), alert("c-17", "alert")];
+    expect(sortAlertsCriticalFirst(rows).map((r) => r.id)).toEqual(["a-15", "c-17"]);
+  });
+
+  test("banner text leads with side/unwind, spot, then the trade plan", () => {
+    const chain = [{ strike: 22_700, ce: { ltp: 185 }, pe: { ltp: 140 } }];
+    const b = { id: "x", side: "put" as const, t: "15:04", delta: -1_480_000,
+      baseline: 100_000, score: 14.8, severity: "critical" as const, cumDoi: 0,
+      spot: 22_701, tickVol: 5_000 };
+    const signal = deriveOiSignal(b, chain, 22_701, {})!;
+    const text = criticalBannerText(b, burstToAlert(b, signal));
+    expect(text).toContain("CRITICAL PUT UNWIND");
+    expect(text).toContain("-1.48M");
+    expect(text).toContain("22,701");
+    expect(text).toContain(`BUY ${signal.leg} 22,700`);
+    expect(text).toContain(`entry ${signal.entry}`);
+    expect(text).toContain(`SL ${signal.sl}`);
+    expect(text).toContain(`TGT ${signal.target}`);
+  });
+
+  test("banner without a signal still names the unwind", () => {
+    const b = { id: "x", side: "call" as const, t: "15:04", delta: -900_000,
+      baseline: 100_000, score: 9, severity: "critical" as const, cumDoi: 0,
+      spot: 22_701, tickVol: 0 };
+    const text = criticalBannerText(b, burstToAlert(b, null));
+    expect(text).toContain("CRITICAL CALL UNWIND");
+    expect(text).toContain("22,701");
+  });
+
+  test("banner without a burst falls back to the alert title", () => {
+    const a = { ...alert("z-99", "critical"), title: "→ BUY PE 22,700 · qty 130" };
+    expect(criticalBannerText(undefined, a)).toContain("BUY PE 22,700");
+  });
+});
+
+describe("flow-aware direction (covering/liquidation)", () => {
+  // Mirrors the 2026-10-21 15:04 event: put OI unwind −1.48M at spot 22,701,
+  // 5m up, backend flow covering (bullish) — the squeeze that followed.
+  const chain = [
+    { strike: 22_700, ce: { ltp: 185 }, pe: { ltp: 140 } },
+  ];
+  const spot = 22_701;
+
+  function burst(overrides = {}) {
+    return {
+      id: "x", side: "put" as const, t: "15:04", delta: -1_480_000,
+      baseline: 100_000, score: 14.8, severity: "critical" as const, cumDoi: 0,
+      spot, tickVol: 5_000, ...overrides,
+    };
+  }
+
+  test("15:04 fixture: put unwind + covering in an up-move → BUY CE 22,700", () => {
+    const b = burst({ flow: "covering", bearish: false });
+    const s = deriveOiSignal(b, chain, spot, { trend: "up", trend5m: "up" })!;
+    expect(s.leg).toBe("CE");
+    expect(s.strike).toBe(22_700);
+    expect(s.entry).toBe(185);
+    expect(s.sl).toBe(138.75);
+    expect(s.target).toBe(277.5);
+    expect(s.basis).toContain("covering");
+    expect(s.aligned).toBe(true);
+    const a = burstToAlert(b, s);
+    expect(a.title).toContain("BUY CE 22,700");
+    expect(criticalBannerText(b, a)).toContain("BUY CE 22,700");
+  });
+
+  test("put unwind + liquidation in a down-move → BUY PE", () => {
+    const b = burst({ flow: "liquidation", bearish: true });
+    const s = deriveOiSignal(b, chain, spot, { trend: "down", trend5m: "down" })!;
+    expect(s.leg).toBe("PE");
+    expect(s.entry).toBe(140);
+    expect(s.sl).toBe(105);
+    expect(s.target).toBe(210);
+    expect(s.basis).toContain("liquidation");
+  });
+
+  test("put build + buyers in an up-trend → no plan (counter-trend rule kept)", () => {
+    const b = burst({ delta: 1_480_000, flow: "buyers", bearish: true });
+    expect(deriveOiSignal(b, chain, spot, { trend: "up", trend5m: "up" })).toBeNull();
+  });
+
+  test("put build + writers in an up-trend → BUY CE (support)", () => {
+    const b = burst({ delta: 640_000, flow: "writers", bearish: false });
+    const s = deriveOiSignal(b, chain, spot, { trend: "up", trend5m: "up" })!;
+    expect(s.leg).toBe("CE");
+    expect(s.basis).toContain("writers");
+  });
+
+  test("bearish verdict alone decides the leg (no flow string)", () => {
+    const bull = resolveOiDirection({ side: "put", delta: -1_000, bearish: false });
+    expect(bull.leg).toBe("CE");
+    expect(bull.via).toBe("flow");
+    const bear = resolveOiDirection({ side: "call", delta: -1_000, bearish: true });
+    expect(bear.leg).toBe("PE");
+  });
+
+  test("premium fallback mirrors the backend table", () => {
+    const prem = (side: "call" | "put", delta: number, premChg: number) =>
+      resolveOiDirection({ side, delta, premChg });
+    // put unwind + PE up → covering → CE; PE down → liquidation → PE
+    expect(prem("put", -1_000, 50)).toMatchObject({ leg: "CE", via: "premium" });
+    expect(prem("put", -1_000, -50)).toMatchObject({ leg: "PE", via: "premium" });
+    // put build + PE up → buyers → PE; PE down → writers → CE
+    expect(prem("put", 1_000, 50)).toMatchObject({ leg: "PE", via: "premium" });
+    expect(prem("put", 1_000, -50)).toMatchObject({ leg: "CE", via: "premium" });
+    // call mirror: build + CE up → buyers → CE; build + CE down → writers → PE
+    expect(prem("call", 1_000, 50)).toMatchObject({ leg: "CE", via: "premium" });
+    expect(prem("call", 1_000, -50)).toMatchObject({ leg: "PE", via: "premium" });
+    // unwind call: CE up → covering → CE; CE down → liquidation → PE
+    expect(prem("call", -1_000, 50)).toMatchObject({ leg: "CE", via: "premium" });
+    expect(prem("call", -1_000, -50)).toMatchObject({ leg: "PE", via: "premium" });
+  });
+
+  test("legacy OI-only rule is unchanged without flow or premium", () => {
+    expect(resolveOiDirection({ side: "put", delta: -1_000 })).toMatchObject({ leg: "PE", via: "oi" });
+    expect(resolveOiDirection({ side: "put", delta: 1_000 })).toMatchObject({ leg: "CE", via: "oi" });
+    expect(resolveOiDirection({ side: "call", delta: -1_000 })).toMatchObject({ leg: "CE", via: "oi" });
+    expect(resolveOiDirection({ side: "call", delta: 1_000 })).toMatchObject({ leg: "PE", via: "oi" });
+    // flat/missing premium never invents a reading
+    expect(inferFlowFromPremium(0, false)).toBeNull();
+    expect(inferFlowFromPremium(null, false)).toBeNull();
+    expect(inferFlowFromPremium(NaN, true)).toBeNull();
+    expect(inferFlowFromPremium(12, true)).toBe("buyers");
+    expect(inferFlowFromPremium(-12, true)).toBe("writers");
+    expect(inferFlowFromPremium(12, false)).toBe("covering");
+    expect(inferFlowFromPremium(-12, false)).toBe("liquidation");
+  });
+
+  test("5m trend rescues a covering signal on a reversal; both-opposed still blocked", () => {
+    const b = burst({ flow: "covering", bearish: false });
+    // session down but the last 5m turned up → the CE plan is with the move
+    const rescued = deriveOiSignal(b, chain, spot, { trend: "down", trend5m: "up" })!;
+    expect(rescued.leg).toBe("CE");
+    expect(rescued.aligned).toBe(true);
+    // opposed by every known trend → still suppressed
+    expect(deriveOiSignal(b, chain, spot, { trend: "down", trend5m: "down" })).toBeNull();
+    // no 5m info → the strict session rule still applies
+    expect(deriveOiSignal(b, chain, spot, { trend: "down" })).toBeNull();
+  });
+});
+
+describe("tape context helpers (5m trend + premium change)", () => {
+  test("atmPremiumChange mirrors the backend guards", () => {
+    const prev = { strike: 22_700, ce: 100, pe: 140 };
+    expect(atmPremiumChange(prev, { strike: 22_700, ce: 110, pe: 140 }, "call")).toBe(10);
+    expect(atmPremiumChange(prev, { strike: 22_700, ce: 100, pe: 130 }, "put")).toBe(-10);
+    // ATM strike rolled → strike artefact, not a trade
+    expect(atmPremiumChange(prev, { strike: 22_750, ce: 110, pe: 140 }, "call")).toBeNull();
+    // non-positive premiums are incomparable
+    expect(atmPremiumChange({ strike: 22_700, ce: 0, pe: 140 }, { strike: 22_700, ce: 110, pe: 140 }, "call")).toBeNull();
+    expect(atmPremiumChange(null, { strike: 22_700, ce: 110, pe: 140 }, "call")).toBeNull();
+    expect(atmPremiumChange(prev, null, "call")).toBeNull();
+  });
+
+  test("spotMinutesBefore tolerates gaps and returns null when blind", () => {
+    const spots = new Map([
+      ["15:04", 22_701],
+      ["14:59", 22_662],
+      ["14:50", 22_600],
+    ]);
+    expect(spotMinutesBefore(spots, "15:04", 5)).toBe(22_662);
+    // 14:58/14:57 missing → walks back to 14:50 within tolerance
+    expect(spotMinutesBefore(spots, "14:55", 5)).toBe(22_600);
+    // nothing within the window → null, never a guess
+    expect(spotMinutesBefore(spots, "09:20", 5)).toBeNull();
+    expect(spotMinutesBefore(spots, "nope", 5)).toBeNull();
+  });
+
+  test("premiumChangeBefore reads the nearest earlier minute", () => {
+    const prems = new Map([
+      ["15:04", { strike: 22_700, ce: 100, pe: 150 }],
+      ["15:03", { strike: 22_700, ce: 100, pe: 140 }],
+    ]);
+    expect(premiumChangeBefore(prems, "15:04", "put")).toBe(10);
+    expect(premiumChangeBefore(prems, "15:04", "call")).toBe(0);
+    expect(premiumChangeBefore(prems, "15:03", "put")).toBeNull();
+  });
+});
+
+/**
+ * 2026-10-22 regressions — the two alerts that looked identical on the tape
+ * and traded in opposite directions.
+ *
+ *  11:13  CALL UNWIND −162.5K, CE premium +5.90, spot at the DAY HIGH
+ *         22,779 → "BUY CE 22,700 · ENTRY 179.25". The market topped
+ *         22,780.35 two minutes later and fell 160 pts.
+ *  11:44  PUT UNWIND −94.9K, PE premium +6.85, spot CLOSED BELOW the
+ *         22,697 pivot → "BUY PE 22,700 · ENTRY 150.20". The market fell
+ *         another 60 pts.
+ *
+ * Both were the same 2×2 cell (unwind + premium up = writers covering). The
+ * differences the UI must now expose: the FUEL state, the LOCATION, and
+ * whether the plan is still priced at the market.
+ */
+describe("2026-10-22 fuel-state alerts", () => {
+  const chain = [
+    { strike: 22_700, ce: { ltp: 220.3 }, pe: { ltp: 151.85 } },
+  ];
+
+  test("a covering burst says the fuel is spent and names the location", () => {
+    const burst: OiBurst = {
+      id: "2026-10-22T11:13:00+05:30-call",
+      side: "call",
+      t: "2026-10-22T11:13:00+05:30",
+      delta: -162_500,
+      baseline: 20_000,
+      score: 8.1,
+      severity: "critical",
+      cumDoi: -1_861_275,
+      spot: 22_779.6,
+      tickVol: 49_583_495,
+      flow: "covering",
+    };
+    const a = burstToAlert(burst);
+    expect(a.title).toContain("Call OI burst");
+    expect(a.detail).toContain("WRITERS COVERING");
+    expect(a.detail).toContain("@ 22,780");
+    expect(a.metrics?.find((m) => m.label === "FUEL")?.value).toBe("spent");
+  });
+
+  test("a plan priced off a stale chain is marked RE-PRICE, not actionable", () => {
+    const burst: OiBurst = {
+      id: "2026-10-22T11:13:00+05:30-call",
+      side: "call",
+      t: "2026-10-22T11:13:00+05:30",
+      delta: -162_500,
+      baseline: 20_000,
+      score: 8.1,
+      severity: "critical",
+      cumDoi: -1_861_275,
+      spot: 22_779.6,
+      tickVol: 49_583_495,
+      flow: "covering",
+    };
+    const signal: OiSignal = {
+      leg: "CE",
+      strike: 22_700,
+      entry: 179.25,
+      sl: 134.44,
+      target: 268.88,
+      qty: 65,
+      lots: 1,
+      basis: "call OI unwind — writers covering → upside fuel → buy calls",
+    };
+    const a = burstToAlert(burst, signal, { freshness: entryFreshness(signal, chain) });
+    expect(a.title).toContain("RE-PRICE");
+    expect(a.title).toContain("220.30");
+    expect(a.detail).toContain("re-price before trading");
+    expect((a as { actionable?: boolean }).actionable).toBe(false);
+  });
+
+  test("a covering burst whose structure contradicts the leg carries no plan", () => {
+    const burst: OiBurst = {
+      id: "2026-10-22T11:13:00+05:30-call",
+      side: "call",
+      t: "2026-10-22T11:13:00+05:30",
+      delta: -162_500,
+      baseline: 20_000,
+      score: 8.1,
+      severity: "critical",
+      cumDoi: -1_861_275,
+      spot: 22_779.6,
+      tickVol: 49_583_495,
+      flow: "covering",
+      // the underlying closed DOWN through 22,697 — a call plan is the wrong side
+      structure: { level: 22_697, direction: "down", kind: "pivot" },
+    };
+    expect(deriveOiSignal(burst, chain, 22_779.6, {})).toBeNull();
+    const a = burstToAlert(burst, null);
+    expect(a.title).toContain("NO TRADE");
+    expect((a as { actionable?: boolean }).actionable).toBe(false);
+  });
+
+  test("a covering burst with a structure break in the same direction keeps its plan", () => {
+    const burst: OiBurst = {
+      id: "2026-10-22T11:44:00+05:30-put",
+      side: "put",
+      t: "2026-10-22T11:44:00+05:30",
+      delta: -94_900,
+      baseline: 20_000,
+      score: 4.7,
+      severity: "alert",
+      cumDoi: -886_535,
+      spot: 22_687.95,
+      tickVol: 68_325_660,
+      flow: "covering",
+      structure: { level: 22_697, direction: "down", kind: "pivot", close: 22_687.95 },
+      invalidation: 22_697,
+    };
+    // The backend attaches the plan (leg PE — the put side's own direction);
+    // the client renders it with the structure and the invalidation.
+    const signal: OiSignal = {
+      leg: "PE",
+      strike: 22_700,
+      entry: 150.2,
+      sl: 112.65,
+      target: 225.3,
+      qty: 130,
+      lots: 2,
+      basis: "put OI unwind + covering — shorts bought back → downside fuel → buy puts",
+    };
+    const a = burstToAlert(burst, signal);
+    expect(a.title).toContain("BUY PE 22,700");
+    expect(a.detail).toContain("below the 22,697 pivot");
+    expect(a.detail).toContain("while spot stays below 22,697");
+    expect(a.detail).toContain("WRITERS COVERING");
+    expect((a as { actionable?: boolean }).actionable).toBeUndefined();
+  });
+
+  test("entryFreshness flags a plan the market has run away from", () => {
+    const fresh = entryFreshness({ leg: "PE", strike: 22_700, entry: 150.2 }, chain);
+    expect(fresh.stale).toBe(false);
+    expect(fresh.live).toBe(151.85);
+    const stale = entryFreshness({ leg: "CE", strike: 22_700, entry: 179.25 }, chain);
+    expect(stale.stale).toBe(true);
+    expect(stale.driftPct).toBeGreaterThan(20);
+  });
+
+  test("the backend's fuel_state is authoritative over the client's guess", () => {
+    const burst: OiBurst = {
+      id: "b1", side: "call", t: "2026-10-22T11:13:00+05:30",
+      delta: -162_500, baseline: 20_000, score: 8.1, severity: "critical",
+      cumDoi: -1_861_275, spot: 22_779.6, tickVol: 49_583_495,
+      // The client would read the ATM premium as "covering" — the backend
+      // knows the same-strike premium and says the fuel was spent.
+      flow: "covering",
+      fuel_state: "writers_covering",
+    };
+    expect(resolveFuelState(burst)).toBe("writers_covering");
+    const a = burstToAlert(burst);
+    expect(a.detail).toContain("WRITERS COVERING");
+  });
+
+  test("a backend-suppressed burst renders NO TRADE and is not actionable", () => {
+    const burst: OiBurst = {
+      id: "b2", side: "call", t: "2026-10-22T11:13:00+05:30",
+      delta: -162_500, baseline: 20_000, score: 8.1, severity: "critical",
+      cumDoi: -1_861_275, spot: 22_779.6, tickVol: 49_583_495,
+      fuel_state: "writers_covering",
+      plan_suppressed: true,
+    };
+    // The client must not re-derive a plan the backend withheld.
+    expect(deriveOiSignal(burst, chain, 22_779.6, {})).toBeNull();
+    const a = burstToAlert(burst, null);
+    expect(a.title).toContain("NO TRADE");
+    expect((a as { actionable?: boolean }).actionable).toBe(false);
+  });
+
+  test("the invalidation level is printed even without a plan", () => {
+    const burst: OiBurst = {
+      id: "b3", side: "put", t: "2026-10-22T11:44:00+05:30",
+      delta: -94_900, baseline: 20_000, score: 4.7, severity: "alert",
+      cumDoi: -886_535, spot: 22_687.95, tickVol: 68_325_660,
+      fuel_state: "writers_covering",
+      structure: { level: 22_697, direction: "down", kind: "pivot" },
+      invalidation: 22_697,
+    };
+    const a = burstToAlert(burst, null);
+    expect(a.detail).toContain("while spot stays below 22,697");
   });
 });

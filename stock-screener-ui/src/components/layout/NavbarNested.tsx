@@ -47,6 +47,7 @@ const navItems = [
   { label: "Bots", icon: IconRobot, link: "/bots" },
   { label: "Options", icon: IconChartArea, link: "/options" },
   { label: "Nifty Report", icon: IconChartArea, link: "/report/nifty" },
+  { label: "US Report", icon: IconChartLine, link: "/report/us" },
   { label: "Settings", icon: IconSettings, link: "/settings" },
   { label: "Admin", icon: IconShield, link: "/admin" },
 ];
@@ -76,7 +77,7 @@ export function NavbarNested({
   ));
 
   return (
-    <Box data-testid="sidemenu" id="navbar-nested" sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <Box data-testid="sidemenu" id="navbar-nested" sx={{ display: "flex", flexDirection: "column", flexGrow: 1, minHeight: 0 }}>
       <Box sx={{ flexGrow: 1, minHeight: 0, overflow: "hidden" }} id="navbar-links" data-testid="navbar-links">
         <ScrollArea h="100%" type="scroll">
           <Stack gap={1} p={1}>

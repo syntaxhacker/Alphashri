@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Button, Group, Loader, Stack, Text, Progress, Badge, Paper } from "@/ui";
+import { Alert, Badge, Button, Group, Loader, Paper, Progress, Stack, Text } from "@/ui";
+import { ToolbarRow } from "@/ui";
 import { IconPlayerPlay, IconPlus } from "@tabler/icons-react";
 import { useAuth } from "../../components/auth/AuthProvider2";
-import { CompactPanel } from "../../components/common/compact";
-import type { NewsAnalysisQueueStatusResponse } from "../../types/admin";
+import { CompactPanel, CompactStat, CompactStatGrid } from "../../components/common/compact";
+import type { NewsAnalysisQueueStatus, NewsAnalysisQueueStatusResponse } from "../../types/admin";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
@@ -74,48 +75,52 @@ export function NewsQueuePanel() {
     return () => clearInterval(id);
   }, [fetchStatus]);
 
-  const q = data?.queue;
+  const q: NewsAnalysisQueueStatus = data?.queue ?? {
+    pending: 0,
+    processing: 0,
+    done: 0,
+    failed: 0,
+    total: 0,
+  };
   const needs = data?.needs_analysis;
   const pct = q?.total ? Math.round((100 * (q.done + q.failed)) / q.total) : 0;
   const hasQueue = q && q.total > 0;
+  const needsWork = Boolean(needs?.broken_summary || needs?.null_analysis);
   const busy = actionLoading !== null;
+  const failures = data?.recent_failures ?? [];
+
+  if (loading && !data) {
+    return (
+      <Paper p="sm" radius="sm" data-testid="admin-news-queue-loading">
+        <Group gap="sm" justify="center" py="sm">
+          <Loader size="sm" />
+          <Text size="sm" c="dimmed">Loading queue…</Text>
+        </Group>
+      </Paper>
+    );
+  }
+
+  if (!hasQueue && !needsWork) {
+    return (
+      <Text ta="center" size="sm" c="dimmed" data-testid="admin-news-queue-empty">
+        No articles need analysis. All summaries are up to date.
+      </Text>
+    );
+  }
 
   return (
     <Stack gap="sm" data-testid="admin-news-queue-panel">
-      {/* stats row */}
-      <Paper p="sm" radius="sm">
-        {loading && !data ? (
-          <Group gap="sm" justify="center" py="sm">
-            <Loader size="sm" />
-            <Text size="sm" c="dimmed">Loading queue...</Text>
-          </Group>
-        ) : !hasQueue && !needs?.broken_summary && !needs?.null_analysis ? (
-          <Text ta="center" size="sm" c="dimmed" py="sm">No articles need analysis. All summaries are up to date.</Text>
-        ) : (
-          <Group gap="xl" wrap="wrap" justify="center">
-            <Stack gap={0} align="center">
-              <Text fw={700} size="xl" c={q?.pending ? "warning" : "secondary"}>{q?.pending ?? "—"}</Text>
-              <Text size="xs" c="dimmed">Pending</Text>
-            </Stack>
-            <Stack gap={0} align="center">
-              <Text fw={700} size="xl" c="success">{q?.done ?? "—"}</Text>
-              <Text size="xs" c="dimmed">Done</Text>
-            </Stack>
-            <Stack gap={0} align="center">
-              <Text fw={700} size="xl" c={q?.failed ? "error" : "secondary"}>{q?.failed ?? "—"}</Text>
-              <Text size="xs" c="dimmed">Failed</Text>
-            </Stack>
-            <Stack gap={0} align="center">
-              <Text fw={700} size="xl" c="dimmed">{q?.total ?? "—"}</Text>
-              <Text size="xs" c="dimmed">Total</Text>
-            </Stack>
-          </Group>
-        )}
-      </Paper>
+      {error && <Alert color="error">{error}</Alert>}
 
-      {/* progress bar */}
+      <CompactStatGrid>
+        <CompactStat label="Pending" value={q?.pending ?? "—"} tone={q?.pending ? "warning" : "secondary"} />
+        <CompactStat label="Done" value={q?.done ?? "—"} tone="success" />
+        <CompactStat label="Failed" value={q?.failed ?? "—"} tone={q?.failed ? "error" : "secondary"} />
+        <CompactStat label="Total" value={q?.total ?? "—"} tone="secondary" />
+      </CompactStatGrid>
+
       {hasQueue && (
-        <CompactPanel padded>
+        <CompactPanel title="Progress">
           <Stack gap={4}>
             <Group justify="space-between">
               <Text size="sm" fw={500}>Progress</Text>
@@ -126,23 +131,20 @@ export function NewsQueuePanel() {
         </CompactPanel>
       )}
 
-      {/* actions */}
-      <Group gap="xs" wrap="wrap">
-        <Button size="sm" leftSection={<IconPlus size={14} />} onClick={() => doAction("enqueue", { limit: 0, force: false })} loading={actionLoading === "enqueue"} disabled={busy} variant="light">
-          Enqueue broken
-        </Button>
-        <Button size="sm" leftSection={<IconPlayerPlay size={14} />} onClick={() => doAction("process", {})} loading={actionLoading === "process"} disabled={busy || !q?.pending}>
-          Process next
-        </Button>
-        <Badge size="lg" variant="outline" color={!needs?.broken_summary && !needs?.null_analysis ? "success" : "warning"}>
+      <ToolbarRow gap={8} justify="space-between" wrap>
+        <Group gap="xs">
+          <Button size="sm" leftSection={<IconPlus size={14} />} onClick={() => doAction("enqueue", { limit: 0, force: false })} loading={actionLoading === "enqueue"} disabled={busy} variant="light">
+            Enqueue broken
+          </Button>
+          <Button size="sm" leftSection={<IconPlayerPlay size={14} />} onClick={() => doAction("process", {})} loading={actionLoading === "process"} disabled={busy || !q?.pending}>
+            Process next
+          </Button>
+        </Group>
+        <Badge size="lg" variant="outline" color={!needsWork ? "success" : "warning"}>
           {needs?.broken_summary ?? "—"} broken · {needs?.null_analysis ?? "—"} null
         </Badge>
-      </Group>
+      </ToolbarRow>
 
-      {/* error */}
-      {error && <Alert color="error">{error}</Alert>}
-
-      {/* last result */}
       {result && (
         <Paper p="sm" radius="sm" bg={result.failed ? "error.light" : "success.light"}>
           {result.message && !result.processed && !result.failed ? (
@@ -173,11 +175,10 @@ export function NewsQueuePanel() {
         </Paper>
       )}
 
-      {/* recent failures */}
-      {data?.recent_failures?.length > 0 && (
-        <CompactPanel title={`Recent failures (${data.recent_failures.length})`} padded>
+      {failures.length > 0 && (
+        <CompactPanel title={`Recent failures (${failures.length})`}>
           <Stack gap={4}>
-            {data.recent_failures.map((f) => (
+            {failures.map((f) => (
               <Text key={f.queue_id} size="xs" c="dimmed">
                 [{f.article_id}] {(f.headline || "").slice(0, 60)} — {f.error?.slice(0, 120)}
               </Text>

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Alert, Button, Checkbox, Group, Loader, Paper, Progress, Stack, Text, Badge,
+  Alert, Badge, Button, Checkbox, Group, Loader, Paper, Progress, Stack, Text,
 } from "@/ui";
+import { ToolbarRow } from "@/ui";
 import { IconPlayerPlay, IconRefresh, IconTrash } from "@tabler/icons-react";
 import { useAuth } from "../../components/auth/AuthProvider2";
-import { CompactPanel } from "../../components/common/compact";
+import { CompactPanel, CompactStat, CompactStatGrid } from "../../components/common/compact";
 import type { Week52RangeAdminStatus } from "../../types/admin";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
@@ -105,92 +106,85 @@ export function Admin52wRangePanel() {
   const job = data?.job;
   const db = data?.database;
   const running = job?.status === "running";
+  const stale = !running && job?.status === "idle" && job?.stale;
   const progress =
     job?.progress_pct ??
     (job?.total && job?.processed ? Math.round((100 * job.processed) / job.total) : 0);
 
+  if (loading && !data) {
+    return (
+      <Paper p="sm" radius="sm" data-testid="admin-52w-loading">
+        <Group gap="sm" justify="center" py="sm">
+          <Loader size="sm" />
+          <Text size="sm" c="dimmed">Loading 52W range status…</Text>
+        </Group>
+      </Paper>
+    );
+  }
+
   return (
     <Stack gap="sm" data-testid="admin-52w-range-panel">
-      {/* stats row + job status badge */}
-      <Paper p="sm" radius="sm">
-        {loading && !data ? (
-          <Group gap="sm" justify="center" py="sm">
-            <Loader size="sm" />
-            <Text size="sm" c="dimmed">Loading 52W range status...</Text>
-          </Group>
-        ) : (
-          <Stack gap="sm">
-            <Group gap="xl" wrap="wrap" justify="center">
-              <Stack gap={0} align="center">
-                <Text fw={700} size="xl">{db?.db_row_count ?? "—"}</Text>
-                <Text size="xs" c="dimmed">DB rows</Text>
-              </Stack>
-              <Stack gap={0} align="center">
-                <Text fw={700} size="xl">{db?.coverage_pct != null ? `${db.coverage_pct}%` : "—"}</Text>
-                <Text size="xs" c="dimmed">Coverage</Text>
-              </Stack>
-              <Stack gap={0} align="center">
-                <Text fw={700} size="xl">{db?.expected_universe ?? "—"}</Text>
-                <Text size="xs" c="dimmed">Expected EQ</Text>
-              </Stack>
-            </Group>
-            {job?.status && (
-              <Group justify="center" gap="xs">
-                <Text size="xs" c="dimmed">Job:</Text>
-                <Badge
-                  size="sm"
-                  color={running ? "warning" : job.status === "completed" ? "success" : job.status === "failed" ? "error" : "secondary"}
-                  variant="light"
-                >
-                  {job.status}
-                </Badge>
-                {job?.elapsed_sec != null && !running && (
-                  <Text size="xs" c="dimmed">{job.elapsed_sec}s</Text>
-                )}
-                {job?.finished_at && !running && (
-                  <Text size="xs" c="dimmed">· {formatDateTime(job.finished_at)}</Text>
-                )}
-              </Group>
-            )}
-          </Stack>
-        )}
-      </Paper>
+      <CompactStatGrid>
+        <CompactStat label="DB rows" value={db?.db_row_count ?? "—"} />
+        <CompactStat
+          label="Coverage"
+          value={db?.coverage_pct != null ? `${db.coverage_pct}%` : "—"}
+          hint={`${db?.db_row_count ?? 0} / ${db?.expected_universe ?? "?"} EQ`}
+        />
+        <CompactStat label="Expected EQ" value={db?.expected_universe ?? "—"} />
+      </CompactStatGrid>
 
-      {/* actions */}
-      <Group gap="xs" wrap="wrap">
-        <Button size="sm" leftSection={<IconPlayerPlay size={14} />} onClick={startBatch} loading={starting} disabled={running} data-testid="admin-52w-run">
-          Run batch
-        </Button>
-        <Button size="sm" variant="filled" color="warning" leftSection={<IconTrash size={14} />} onClick={() => clearAction(false)} loading={clearing} disabled={running}>
-          Clear cache
-        </Button>
-        <Button size="sm" variant="filled" color="error" leftSection={<IconTrash size={14} />} onClick={() => clearAction(true)} loading={clearing} disabled={running}>
-          Clear cache + DB
-        </Button>
-        <Button size="xs" variant="light" leftSection={<IconRefresh size={12} />} onClick={fetchStatus} loading={loading}>
-          Refresh
-        </Button>
-      </Group>
+      <CompactPanel title="Batch status">
+        <Group gap="xs" align="center" wrap="wrap">
+          <Text size="xs" c="dimmed">Job:</Text>
+          <Badge
+            size="sm"
+            color={running ? "warning" : stale ? "warning" : job?.status === "completed" ? "success" : job?.status === "failed" ? "error" : "secondary"}
+            variant="light"
+          >
+            {job?.status}{stale ? " — stale" : ""}
+          </Badge>
+          {job?.elapsed_sec != null && !running && <Text size="xs" c="dimmed">{job.elapsed_sec}s</Text>}
+          {job?.finished_at && !running && <Text size="xs" c="dimmed">· {formatDateTime(job.finished_at)}</Text>}
+        </Group>
+      </CompactPanel>
 
-      {/* full refresh toggle */}
-      <Checkbox
-        label="Full refresh (~2466 EQ symbols, no skip-existing)"
-        checked={fullRefresh}
-        onChange={(e) => setFullRefresh(e.currentTarget.checked)}
-        data-testid="admin-52w-full-refresh"
-        size="xs"
-      />
+      <ToolbarRow gap={8} justify="space-between" wrap data-testid="admin-52w-toolbar">
+        <Group gap="xs">
+          <Button size="sm" leftSection={<IconPlayerPlay size={14} />} onClick={startBatch} loading={starting} disabled={running} data-testid="admin-52w-run">
+            Run batch
+          </Button>
+          <Button size="sm" variant="filled" color="warning" leftSection={<IconTrash size={14} />} onClick={() => clearAction(false)} loading={clearing} disabled={running}>
+            Clear cache
+          </Button>
+          <Button size="sm" variant="filled" color="error" leftSection={<IconTrash size={14} />} onClick={() => clearAction(true)} loading={clearing} disabled={running}>
+            Clear cache + DB
+          </Button>
+        </Group>
+        <Group gap="xs" align="center">
+          <Checkbox
+            label="Full refresh (~2466 EQ symbols, no skip-existing)"
+            checked={fullRefresh}
+            onChange={(e) => setFullRefresh(e.currentTarget.checked)}
+            data-testid="admin-52w-full-refresh"
+            size="xs"
+          />
+          <Button size="xs" variant="light" leftSection={<IconRefresh size={12} />} onClick={fetchStatus} loading={loading}>
+            Refresh
+          </Button>
+        </Group>
+      </ToolbarRow>
 
-      {/* error */}
       {error && <Alert color="error">{error}</Alert>}
 
-      {/* batch progress */}
       {running && (
-        <CompactPanel padded>
+        <CompactPanel title="Batch progress">
           <Stack gap={4}>
             <Group justify="space-between">
               <Text size="sm" fw={500}>Batch Progress</Text>
-              <Text size="xs" c="dimmed">{job?.processed ?? 0} / {job?.total ?? "?"} · ok {job?.ok ?? 0} · fail {job?.failed ?? 0} · skip {job?.skipped ?? 0}</Text>
+              <Text size="xs" c="dimmed">
+                {job?.processed ?? 0} / {job?.total ?? "?"} · ok {job?.ok ?? 0} · fail {job?.failed ?? 0} · skip {job?.skipped ?? 0}
+              </Text>
             </Group>
             <Progress value={progress} size="md" animated />
             {job?.last_symbol && <Text size="xs" c="dimmed">Last: {job.last_symbol}</Text>}
@@ -199,7 +193,6 @@ export function Admin52wRangePanel() {
         </CompactPanel>
       )}
 
-      {/* status alerts */}
       {!running && job?.status === "completed" && (
         <Alert color="success">
           <Text size="sm">Batch completed{job.elapsed_sec != null ? ` in ${job.elapsed_sec}s` : ""}</Text>
@@ -210,13 +203,14 @@ export function Admin52wRangePanel() {
       {!running && job?.status === "failed" && (
         <Alert color="error">
           <Text size="sm">Batch failed</Text>
-          <Text size="xs">{(job.error || job.message || "").slice(0, 300)}</Text>
+          <Text size="xs">{((job.error || job.message || "") as string).slice(0, 300)}</Text>
         </Alert>
       )}
 
-      {/* footer info */}
       {db?.db_latest_updated_at && (
-        <Text size="xs" c="dimmed">Latest DB update: {formatDateTime(db.db_latest_updated_at)}</Text>
+        <Text size="xs" c="dimmed" data-testid="admin-52w-latest-update">
+          Latest DB update: {formatDateTime(db.db_latest_updated_at)}
+        </Text>
       )}
       {data?.run_hint && !running && (
         <Text size="xs" c="dimmed">CLI: {data.run_hint}</Text>

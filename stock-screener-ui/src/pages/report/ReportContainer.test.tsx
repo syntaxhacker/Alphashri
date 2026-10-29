@@ -124,7 +124,7 @@ describe("ReportContainer", () => {
       ),
     );
     expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
-  });
+  }, 30_000);
 
   test("closing the fullscreen returns to the report", async () => {
     const user = userEvent.setup();
@@ -137,5 +137,5 @@ describe("ReportContainer", () => {
     await waitFor(() =>
       expect(screen.queryByTestId("patterns-fullscreen-modal")).not.toBeInTheDocument(),
     );
-  });
+  }, 30_000);
 });

@@ -3,6 +3,7 @@ import { describe, expect, test, vi } from "vitest";
 
 import {
   fetchNiftyBursts,
+  fetchNiftyReplay,
   fetchNiftyTape,
   normalizeBurst,
   normalizeReport,
@@ -107,12 +108,14 @@ describe("normalizeReport (snake_case backend -> camelCase panel)", () => {
         top_positive: [{ strike: 25700, net_gex: 5.2 }],
         top_negative: [{ strike: 25800, net_gex: -5.3 }],
         zero_cross: 25750,
+        degraded: true,
       },
     });
     expect(rep.gex).toBeDefined();
     expect(rep.gex!.netTotal).toBe(12.4);
     expect(rep.gex!.regime).toBe("long");
     expect(rep.gex!.zeroCross).toBe(25750);
+    expect(rep.gex!.degraded).toBe(true);
     expect(rep.gex!.strikes[0]).toEqual({
       strike: 25700,
       callGex: -3.1,
@@ -121,6 +124,41 @@ describe("normalizeReport (snake_case backend -> camelCase panel)", () => {
     });
     expect(rep.gex!.topPositive).toEqual([{ strike: 25700, netGex: 5.2 }]);
     expect(rep.gex!.topNegative).toEqual([{ strike: 25800, netGex: -5.3 }]);
+  });
+
+  test("maps the spot-relative levels block (snake_case + nullable legs)", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      gex: {
+        net_total: 38.2,
+        regime: "long",
+        zero_cross: 23400,
+        levels: {
+          support: null,
+          resistance: { strike: 23200, net_gex: 13.15, side: "above" },
+          fuel_down: { strike: 22700, net_gex: -9.44, side: "below" },
+          fuel_up: null,
+        },
+      },
+    });
+    expect(rep.gex!.levels).toEqual({
+      support: null,
+      resistance: { strike: 23200, netGex: 13.15, side: "above" },
+      fuelDown: { strike: 22700, netGex: -9.44, side: "below" },
+      fuelUp: null,
+    });
+  });
+
+  test("an all-null levels block collapses to undefined", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      gex: {
+        net_total: 0,
+        regime: "flat",
+        levels: { support: null, resistance: null, fuel_down: null, fuel_up: null },
+      },
+    });
+    expect(rep.gex!.levels).toBeUndefined();
   });
 
   test("gex null flip maps to null with safe defaults", () => {
@@ -225,6 +263,12 @@ describe("normalizeTapeRow (sparse payloads -> safe defaults)", () => {
     expect(row.walls).toEqual({ call: 25900, put: 25600 });
   });
 
+  test("carries the per-minute degraded GEX flag", () => {
+    expect(normalizeTapeRow({ t: "09:16", gex_degraded: true }).gex_degraded).toBe(true);
+    expect(normalizeTapeRow({ t: "09:16", gex_degraded: false }).gex_degraded).toBeUndefined();
+    expect(normalizeTapeRow({ t: "09:16" }).gex_degraded).toBeUndefined();
+  });
+
   test("accepts time/ticks aliases, defaults numbers to 0, spot_flip null-safe", () => {
     const row = normalizeTapeRow({ time: "09:19", ticks: 42 } as never);
     expect(row.t).toBe("09:19");
@@ -241,6 +285,58 @@ describe("normalizeTapeRow (sparse payloads -> safe defaults)", () => {
     expect(row.t).toBe("");
     expect(row.spot_flip).toBeNull();
     expect(row.max_pain).toBe(0);
+  });
+});
+
+describe("normalizeTapeRow chain (per-strike snapshots)", () => {
+  test("keeps a valid chain with null legs intact", () => {
+    const row = normalizeTapeRow({
+      t: "09:16",
+      chain: {
+        "25700": [120.5, 100.2, 2000, 2500, 150, 130],
+        "25800": [null, 95.0, null, 3000, null, 200],
+      },
+    });
+    expect(row.chain?.["25700"]).toEqual([120.5, 100.2, 2000, 2500, 150, 130]);
+    expect(row.chain?.["25800"]).toEqual([null, 95.0, null, 3000, null, 200]);
+  });
+
+  test("non-finite slots become null, short rows pad to 6", () => {
+    const row = normalizeTapeRow({
+      t: "09:16",
+      chain: {
+        "25700": [120.5, "bad", Infinity, 2500, NaN, 130],
+        "26000": [10, 12],
+      },
+    });
+    expect(row.chain?.["25700"]).toEqual([120.5, null, null, 2500, null, 130]);
+    expect(row.chain?.["26000"]).toEqual([10, 12, null, null, null, null]);
+  });
+
+  test("drops malformed entries but keeps the valid ones", () => {
+    const row = normalizeTapeRow({
+      t: "09:16",
+      chain: {
+        "25700": [120.5, 100.2, 2000, 2500, 150, 130],
+        junk: [1, 2, 3, 4, 5, 6],
+        "-50": [1, 2, 3, 4, 5, 6],
+        "0": [1, 2, 3, 4, 5, 6],
+        "25800": "not-an-array",
+        "25900": [],
+        "26000": null,
+      },
+    });
+    expect(Object.keys(row.chain ?? {}).sort()).toEqual(["25700"]);
+  });
+
+  test("row without a chain stays undefined", () => {
+    expect(normalizeTapeRow({ t: "09:16" }).chain).toBeUndefined();
+    expect(normalizeTapeRow({ t: "09:16", chain: null }).chain).toBeUndefined();
+    expect(normalizeTapeRow({ t: "09:16", chain: {} }).chain).toBeUndefined();
+    expect(normalizeTapeRow({ t: "09:16", chain: [] }).chain).toBeUndefined();
+    expect(
+      normalizeTapeRow({ t: "09:16", chain: { junk: [1, 2, 3, 4, 5, 6] } }).chain,
+    ).toBeUndefined();
   });
 });
 
@@ -328,6 +424,32 @@ describe("fetchNiftyTape (top-level summary + sparse rows)", () => {
     } as unknown as Response);
     await expect(fetchNiftyTape()).rejects.toThrow("Tape unavailable");
   });
+
+  test("structured holiday detail renders a readable message", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({
+        detail: {
+          is_trading_day: false,
+          date: "2026-10-20",
+          message: "no Nifty snapshot for 2026-10-20",
+        },
+      }),
+    } as unknown as Response);
+    await expect(fetchNiftyTape()).rejects.toThrow(
+      "2026-10-20 was not a trading day — no snapshot recorded.",
+    );
+  });
+
+  test("validation-array detail is flattened", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({
+        detail: [{ msg: "bad date" }, { msg: "want YYYY-MM-DD" }],
+      }),
+    } as unknown as Response);
+    await expect(fetchNiftyTape()).rejects.toThrow("bad date; want YYYY-MM-DD");
+  });
 });
 
 describe("normalizeTapeRow walls", () => {
@@ -391,6 +513,35 @@ describe("normalizeBurst (snake_case backend -> camelCase panel)", () => {
     expect(normalizeBurst({ side: "call" }).news).toEqual([]);
     expect(normalizeBurst({ side: "call", news: "nope" }).news).toEqual([]);
     expect(normalizeBurst({ side: "call", news: [null, 1] }).news).toEqual([]);
+  });
+
+  test("carries the fuel, structure and suppression fields through", () => {
+    const b = normalizeBurst({
+      id: "b2", side: "put", t: "11:44", delta: -94900,
+      premChg: 6.85,
+      fuel_state: "writers_covering",
+      structure: { level: 22697, direction: "down", kind: "pivot", close: 22687.95 },
+      invalidation: 22697,
+      plan_suppressed: true,
+    });
+    expect(b.premChg).toBe(6.85);
+    expect(b.fuel_state).toBe("writers_covering");
+    expect(b.structure?.level).toBe(22697);
+    expect(b.structure?.direction).toBe("down");
+    expect(b.structure?.kind).toBe("pivot");
+    expect(b.invalidation).toBe(22697);
+    expect(b.plan_suppressed).toBe(true);
+  });
+
+  test("an unknown fuel state and a broken structure are dropped, not faked", () => {
+    const b = normalizeBurst({
+      id: "b3", side: "call", t: "11:13",
+      fuel_state: "something_new",
+      structure: { level: 0, direction: "down" },
+    });
+    expect(b.fuel_state).toBeUndefined();
+    expect(b.structure).toBeNull();
+    expect(b.plan_suppressed).toBeUndefined();
   });
 
   test("maps full camelCase burst with nested signal", () => {
@@ -576,5 +727,303 @@ describe("fetchNiftyBursts (additive feed, never throws)", () => {
   test("returns [] on network/abort failure", async () => {
     vi.mocked(fetchWithAuth).mockRejectedValueOnce(new Error("aborted"));
     await expect(fetchNiftyBursts()).resolves.toEqual([]);
+  });
+});
+
+describe("normalizeReport intraday + emas (1-minute chart overlays)", () => {
+  test("maps intraday candles and ema series", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      intraday: [
+        { time: "2026-10-12T09:15:00", open: 25600, high: 25650, low: 25580, close: 25620 },
+        { time: "2026-10-12T09:16:00", open: 25620, high: 25680, low: 25600, close: 25750.5 },
+      ],
+      emas: [
+        { period: 9, data: [null, 25685.25] },
+        { period: 20, data: [null, 25690.5] },
+      ],
+    });
+    expect(rep.intraday).toHaveLength(2);
+    expect(rep.intraday![0]).toEqual({
+      time: "2026-10-12T09:15:00",
+      open: 25600,
+      high: 25650,
+      low: 25580,
+      close: 25620,
+    });
+    expect(rep.emas).toEqual([
+      { period: 9, data: [null, 25685.25] },
+      { period: 20, data: [null, 25690.5] },
+    ]);
+  });
+
+  test("non-finite ema points become null, non-array stays undefined", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      intraday: [{ time: "t", open: 1, high: 2, low: 0, close: 1.5 }],
+      emas: [{ period: 9, data: [null, "bad", Infinity, 100] }],
+    });
+    expect(rep.emas![0].data).toEqual([null, null, null, 100]);
+    const bare = normalizeReport(snakeReport);
+    expect(bare.intraday).toBeUndefined();
+    expect(bare.emas).toBeUndefined();
+  });
+
+  test("strength block carries ema9 null-safe", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      strength: { verdict: "strong", score: 72.5, ema9: 25680.25, ema20: 25700, ema50: 25600, rsi: 61.3 },
+    });
+    expect(rep.strength!.ema9).toBe(25680.25);
+    const partial = normalizeReport({
+      ...snakeReport,
+      strength: { verdict: "weak", ema9: "bad" },
+    });
+    expect(partial.strength!.ema9).toBeNull();
+    expect(partial.strength!.ema20).toBeNull();
+  });
+});
+
+describe("normalizeReport pivots (classic levels, null-safe)", () => {
+  test("maps a full block, prev included", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      pivots: {
+        type: "classic",
+        pp: 22897.4, r1: 23157, r2: 23316.2, r3: 23500,
+        s1: 22738, s2: 22478, s3: 22000,
+        prev: { date: "2026-10-09", high: 23200, low: 22650.5, close: 23100 },
+      },
+    });
+    expect(rep.pivots).toEqual({
+      type: "classic",
+      pp: 22897.4, r1: 23157, r2: 23316.2, r3: 23500,
+      s1: 22738, s2: 22478, s3: 22000,
+      prev: { date: "2026-10-09", high: 23200, low: 22650.5, close: 23100 },
+    });
+  });
+
+  test("explicit null and absent both stay null (chart draws nothing)", () => {
+    expect(normalizeReport({ ...snakeReport, pivots: null }).pivots).toBeNull();
+    expect(normalizeReport(snakeReport).pivots).toBeNull();
+  });
+
+  test("partial payload keeps the levels it carries, missing ones null", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      pivots: { pp: 22897, s1: 22738 },
+    });
+    expect(rep.pivots).toEqual({
+      type: "classic",
+      pp: 22897, r1: null, r2: null, r3: null,
+      s1: 22738, s2: null, s3: null,
+      prev: null,
+    });
+  });
+
+  test("non-finite and junk numeric fields become null", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      pivots: {
+        pp: "22,000", // comma-grouped junk
+        r1: Infinity,
+        r2: NaN,
+        r3: "bad",
+        s1: null,
+        s2: "",
+        type: "weird",
+      },
+    });
+    expect(rep.pivots?.pp).toBeNull();
+    expect(rep.pivots?.r1).toBeNull();
+    expect(rep.pivots?.r2).toBeNull();
+    expect(rep.pivots?.r3).toBeNull();
+    expect(rep.pivots?.s1).toBeNull();
+    expect(rep.pivots?.s2).toBeNull();
+    expect(rep.pivots?.type).toBe("weird"); // string passes through verbatim
+  });
+
+  test("prev is null-safe: junk date becomes null, junk prev block nulls out", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      pivots: {
+        pp: 22897,
+        prev: { date: 20261009, high: 23200, low: "bad", close: null },
+      },
+    });
+    expect(rep.pivots?.prev).toEqual({ date: null, high: 23200, low: null, close: null });
+    const prevless = normalizeReport({
+      ...snakeReport,
+      pivots: { pp: 22897, prev: "yesterday" },
+    });
+    expect(prevless.pivots?.prev).toBeNull();
+  });
+
+  test("non-object payloads (string, scalar) null out like absent", () => {
+    expect(normalizeReport({ ...snakeReport, pivots: "none" }).pivots).toBeNull();
+    expect(normalizeReport({ ...snakeReport, pivots: 42 }).pivots).toBeNull();
+    expect(normalizeReport({ ...snakeReport, pivots: [] }).pivots).not.toBeNull();
+  });
+});
+
+describe("fetchNiftyReplay (recorded EOD minute frames)", () => {
+  test("normalizes every frame's report and sensex (null-safe)", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        date: "2026-10-10",
+        count: 2,
+        interval_sec: 60,
+        snapshots: [
+          {
+            t: "2026-10-10T09:15:00+05:30",
+            fetched_at: "2026-10-10T09:15:12+05:30",
+            report: {
+              ...snakeReport,
+              mode: "eod",
+              spot: 25100,
+              pcr_oi: 1.05,
+              max_pain: 25200,
+            },
+            sensex: {
+              symbol: "SENSEX",
+              spot: 82000,
+              pcr_oi: 1.4,
+              pcr_vol: 0.9,
+              max_pain: 81900,
+              walls: {
+                calls: [{ strike: 82500, oi: 1000 }],
+                puts: [{ strike: 81500, oi: 1200 }],
+              },
+              ohlc: { open: 81900, high: 82100, low: 81800, close: 82000 },
+              fetched_at: "2026-10-10T09:15:10+05:30",
+            },
+          },
+          {
+            t: "2026-10-10T09:16:00+05:30",
+            fetched_at: "2026-10-10T09:16:11+05:30",
+            report: { ...snakeReport, mode: "eod", spot: 25105 },
+            sensex: null,
+          },
+        ],
+      }),
+    } as unknown as Response);
+    const replay = await fetchNiftyReplay("2026-10-10");
+    expect(replay).not.toBeNull();
+    expect(replay!.date).toBe("2026-10-10");
+    expect(replay!.count).toBe(2);
+    expect(replay!.interval_sec).toBe(60);
+    expect(replay!.snapshots).toHaveLength(2);
+
+    const f0 = replay!.snapshots[0];
+    expect(f0.t).toBe("2026-10-10T09:15:00+05:30");
+    expect(f0.fetched_at).toBe("2026-10-10T09:15:12+05:30");
+    // report went through normalizeReport (snake_case → camelCase)
+    expect(f0.report.mode).toBe("eod");
+    expect(f0.report.spot).toBe(25100);
+    expect(f0.report.pcrOi).toBe(1.05);
+    expect(f0.report.maxPain).toBe(25200);
+    // sensex went through normalizeSensex
+    expect(f0.sensex?.symbol).toBe("SENSEX");
+    expect(f0.sensex?.spot).toBe(82000);
+    expect(f0.sensex?.pcrOi).toBe(1.4);
+    expect(f0.sensex?.maxPain).toBe(81900);
+
+    const f1 = replay!.snapshots[1];
+    expect(f1.report.spot).toBe(25105);
+    expect(f1.sensex).toBeNull();
+
+    expect(vi.mocked(fetchWithAuth)).toHaveBeenCalledWith(
+      expect.stringContaining("/api/reports/nifty/replay?date=2026-10-10"),
+      { signal: undefined },
+    );
+  });
+
+  test("carries the gap journal and drops junk reason counts", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        date: "2026-10-19",
+        count: 1,
+        interval_sec: 60,
+        snapshots: [{ t: "10:33", report: snakeReport }],
+        gap_reasons: { "chain-failed": 41, timeout: 12, zero: 0, neg: -3, junk: "x" },
+      }),
+    } as unknown as Response);
+    const replay = await fetchNiftyReplay("2026-10-19");
+    expect(replay!.gap_reasons).toEqual({ "chain-failed": 41, timeout: 12 });
+  });
+
+  test("leaves gap_reasons undefined when the day has no journal", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        date: "2026-10-13",
+        count: 0,
+        interval_sec: 60,
+        snapshots: [],
+      }),
+    } as unknown as Response);
+    const replay = await fetchNiftyReplay("2026-10-13");
+    expect(replay!.gap_reasons).toBeUndefined();
+  });
+
+  test("skips frames without a usable report envelope", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        date: "2026-10-10",
+        interval_sec: 60,
+        snapshots: [
+          { t: "09:15", report: snakeReport },
+          { t: "09:16", report: null },
+          { t: "09:17", report: "junk" },
+          { t: "09:18" },
+          null,
+        ],
+      }),
+    } as unknown as Response);
+    const replay = await fetchNiftyReplay("2026-10-10");
+    expect(replay!.snapshots).toHaveLength(1);
+    expect(replay!.snapshots[0].t).toBe("09:15");
+  });
+
+  test("tolerates an empty snapshots list", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        date: "2026-10-11",
+        count: 0,
+        interval_sec: 60,
+        snapshots: [],
+      }),
+    } as unknown as Response);
+    await expect(fetchNiftyReplay("2026-10-11")).resolves.toEqual({
+      date: "2026-10-11",
+      count: 0,
+      interval_sec: 60,
+      snapshots: [],
+    });
+  });
+
+  test("404 / missing-day envelope resolves null", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ is_trading_day: false, detail: "No replay" }),
+    } as unknown as Response);
+    await expect(fetchNiftyReplay("2026-10-11")).resolves.toBeNull();
+  });
+
+  test("malformed JSON and network failure resolve null (never throws)", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => {
+        throw new Error("bad json");
+      },
+    } as unknown as Response);
+    await expect(fetchNiftyReplay("2026-10-11")).resolves.toBeNull();
+
+    vi.mocked(fetchWithAuth).mockRejectedValueOnce(new Error("aborted"));
+    await expect(fetchNiftyReplay("2026-10-11")).resolves.toBeNull();
   });
 });

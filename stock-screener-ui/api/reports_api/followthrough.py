@@ -28,16 +28,16 @@ empty sections, never a 500.
 from __future__ import annotations
 
 import json
-import math
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Query
 
 import config as root_config
 from api.reports_api import breakouts as breakouts_mod
+from api.reports_api._numeric import safe_float as _f
 from chart_patterns.candles import fetch_for_timeframe
 from chart_patterns.parallel import max_workers, run_symbols
 
@@ -66,16 +66,6 @@ def _today_str() -> str:
         return datetime.now(root_config.IST).strftime("%Y-%m-%d")
     except Exception:
         return datetime.now().astimezone().strftime("%Y-%m-%d")
-
-
-def _f(value: Any, default: float = 0.0) -> float:
-    try:
-        out = float(value)
-    except (TypeError, ValueError):
-        return default
-    if not math.isfinite(out):
-        return default
-    return out
 
 
 def _bar_ist_dates(df) -> list[str]:
@@ -278,8 +268,6 @@ def compute_followthrough(date_str: str, universe: str) -> dict:
         if not isinstance(report, dict):
             return _empty_payload(date_str, universe, partial=is_partial)
         jobs: dict[str, dict] = {}
-        up_syms: list[str] = []
-        down_syms: list[str] = []
         try:
             up_rows = (report.get("breakouts") or {}).get("rows") or []
             down_rows = (report.get("breakdowns") or {}).get("rows") or []
@@ -300,7 +288,6 @@ def compute_followthrough(date_str: str, universe: str) -> dict:
                         "ref_close": _f(row.get("close")),
                         "side": side,
                     }
-                    (down_syms if side == "down" else up_syms).append(sym)
                 except Exception:
                     continue
         try:
@@ -321,7 +308,6 @@ def compute_followthrough(date_str: str, universe: str) -> dict:
             results = []
         up_out = [r for r in results or [] if isinstance(r, dict) and jobs.get(r.get("symbol", ""), {}).get("side") == "up"]
         down_out = [r for r in results or [] if isinstance(r, dict) and jobs.get(r.get("symbol", ""), {}).get("side") == "down"]
-        _ = (up_syms, down_syms)
         return {
             "date": date_str,
             "universe": universe,

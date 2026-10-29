@@ -73,7 +73,9 @@ class TestSRBreakoutSignalGenerator:
         pivots = self.gen.calculate_pivot_points(prev_high=100, prev_low=80, prev_close=90)
         r1 = pivots["R1"]
         r2 = pivots["R2"]
-        price = r1 * (1 + self.gen.breakout_buffer_pct / 100) + 1
+        # +0.1 keeps the price a fresh breakout just past the buffer edge and
+        # clearly inside the tightened 2% max_distance_from_r1_pct guard.
+        price = r1 * (1 + self.gen.breakout_buffer_pct / 100) + 0.1
         signal = self.gen.check_entry("TEST", {"current_price": price, "pivot_points": pivots})
         assert signal is not None
         assert signal.signal_type == SignalType.LONG_ENTRY
@@ -85,7 +87,10 @@ class TestSRBreakoutSignalGenerator:
         pivots = self.gen.calculate_pivot_points(prev_high=100, prev_low=80, prev_close=90)
         s1 = pivots["S1"]
         s2 = pivots["S2"]
-        price = s1 * (1 - self.gen.breakout_buffer_pct / 100) - 1
+        # -0.1 keeps the price a fresh breakdown just past the buffer edge and
+        # inside the 2% max_distance_from_s1_pct guard.  (The old -1 price was
+        # 2.25% below S1 — exactly the late-chase entry the new guard rejects.)
+        price = s1 * (1 - self.gen.breakout_buffer_pct / 100) - 0.1
         signal = self.gen.check_entry("TEST", {"current_price": price, "pivot_points": pivots})
         assert signal is not None
         assert signal.signal_type == SignalType.SHORT_ENTRY
@@ -115,6 +120,90 @@ class TestSRBreakoutSignalGenerator:
             "current_price": price_between_r1_and_buffer, "pivot_points": pivots,
         })
         assert signal is None, "Should not trigger when price is within buffer"
+
+    # ---- Symmetric max-distance guards -------------------------------------
+    # breakout_buffer_pct is the MINIMUM trigger distance (price must clear
+    # the level by at least this much to fire at all); max_distance_from_r1_pct
+    # / max_distance_from_s1_pct are the MAXIMUM chase distance (skip entries
+    # when price is already further past the level than this).  Two
+    # independent checks - one gates the trigger, the other gates the chase.
+
+    def test_check_entry_short_too_far_below_s1_rejected(self):
+        """CCL mirror (2026-10-16): short entered 6.79% below S1, stopped out."""
+        pivots = self.gen.calculate_pivot_points(prev_high=100, prev_low=80, prev_close=90)
+        s1 = pivots["S1"]
+        price = s1 * (1 - 6.8 / 100)  # 74.56 - past the 2% guard floor (78.4)
+        signal = self.gen.check_entry("TEST", {"current_price": price, "pivot_points": pivots})
+        assert signal is None
+
+    def test_check_entry_short_at_max_distance_boundary_accepted(self):
+        """Price exactly at the 2% guard boundary is still a fresh breakdown."""
+        pivots = self.gen.calculate_pivot_points(prev_high=100, prev_low=80, prev_close=90)
+        s1 = pivots["S1"]
+        price = s1 * (1 - self.gen.max_distance_from_s1_pct / 100)  # 78.4
+        signal = self.gen.check_entry("TEST", {"current_price": price, "pivot_points": pivots})
+        assert signal is not None
+        assert signal.signal_type == SignalType.SHORT_ENTRY
+
+    def test_check_entry_short_distance_guard_is_configurable(self):
+        """A wider short guard accepts the same price the default rejects."""
+        gen = SRBreakoutSignalGenerator(config={"max_distance_from_s1_pct": 7.0})
+        pivots = gen.calculate_pivot_points(prev_high=100, prev_low=80, prev_close=90)
+        s1 = pivots["S1"]
+        price = s1 * (1 - 6.8 / 100)
+        signal = gen.check_entry("TEST", {"current_price": price, "pivot_points": pivots})
+        assert signal is not None
+        assert signal.signal_type == SignalType.SHORT_ENTRY
+
+    def test_check_entry_long_too_far_above_r1_rejected_with_tightened_default(self):
+        """SHANTIGOLD mirror (2026-10-16): long entered 4.84% above R1, stopped out."""
+        pivots = self.gen.calculate_pivot_points(prev_high=100, prev_low=80, prev_close=90)
+        r1 = pivots["R1"]
+        price = r1 * (1 + 4.8 / 100)  # 104.8 - past the tightened 2% guard
+        signal = self.gen.check_entry("TEST", {"current_price": price, "pivot_points": pivots})
+        assert signal is None
+
+    def test_check_entry_long_within_tightened_guard_accepted(self):
+        """1.5% above R1 clears the 1% buffer and stays inside the 2% guard."""
+        pivots = self.gen.calculate_pivot_points(prev_high=100, prev_low=80, prev_close=90)
+        r1 = pivots["R1"]
+        price = r1 * (1 + 1.5 / 100)  # 101.5
+        signal = self.gen.check_entry("TEST", {"current_price": price, "pivot_points": pivots})
+        assert signal is not None
+        assert signal.signal_type == SignalType.LONG_ENTRY
+
+    def test_check_entry_long_at_max_distance_boundary_accepted(self):
+        """Price exactly at r1 * (1 + 2%) is not rejected (strict > comparison)."""
+        pivots = self.gen.calculate_pivot_points(prev_high=100, prev_low=80, prev_close=90)
+        r1 = pivots["R1"]
+        price = r1 * (1 + self.gen.max_distance_from_r1_pct / 100)  # 102.0
+        signal = self.gen.check_entry("TEST", {"current_price": price, "pivot_points": pivots})
+        assert signal is not None
+        assert signal.signal_type == SignalType.LONG_ENTRY
+
+    def test_check_entry_long_legacy_5pct_guard_still_configurable(self):
+        """Legacy 5.0 guard accepts the 4.8% chase - configurable either way."""
+        gen = SRBreakoutSignalGenerator(config={"max_distance_from_r1_pct": 5.0})
+        pivots = gen.calculate_pivot_points(prev_high=100, prev_low=80, prev_close=90)
+        r1 = pivots["R1"]
+        price = r1 * (1 + 4.8 / 100)
+        signal = gen.check_entry("TEST", {"current_price": price, "pivot_points": pivots})
+        assert signal is not None
+        assert signal.signal_type == SignalType.LONG_ENTRY
+
+    def test_check_entry_buffer_and_max_distance_are_distinct_checks(self):
+        """Buffer gates the trigger; max-distance gates the chase."""
+        pivots = self.gen.calculate_pivot_points(prev_high=100, prev_low=80, prev_close=90)
+        s1 = pivots["S1"]
+        # 0.6% below S1: not past the 1% buffer -> no signal (not a guard skip).
+        inside_buffer = s1 * (1 - 0.6 / 100)
+        assert self.gen.check_entry("TEST", {"current_price": inside_buffer, "pivot_points": pivots}) is None
+        # 1.2% below S1: past buffer, inside the 2% guard -> fires.
+        fresh_breakdown = s1 * (1 - 1.2 / 100)
+        assert self.gen.check_entry("TEST", {"current_price": fresh_breakdown, "pivot_points": pivots}) is not None
+        # 3.0% below S1: past buffer but beyond the 2% guard -> skipped.
+        chased_breakdown = s1 * (1 - 3.0 / 100)
+        assert self.gen.check_entry("TEST", {"current_price": chased_breakdown, "pivot_points": pivots}) is None
 
     def test_check_entry_missing_data(self):
         assert self.gen.check_entry("TEST", {}) is None
@@ -170,6 +259,10 @@ class TestSRBreakoutSignalGenerator:
         assert gen.tp_pct == 2.5
         assert gen.pivot_type == "classic"
         assert gen.breakout_buffer_pct == 1.0
+        # Symmetric max-chase-distance guards (tightened from 5.0 on the long
+        # side after 2026-10-16 chase losses; short side is new).
+        assert gen.max_distance_from_r1_pct == 2.0
+        assert gen.max_distance_from_s1_pct == 2.0
 
     def test_config_custom_values(self):
         gen = SRBreakoutSignalGenerator(config={

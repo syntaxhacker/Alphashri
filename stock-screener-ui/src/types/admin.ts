@@ -44,6 +44,8 @@ export interface Week52RangeJobStatus {
   message?: string;
   error?: string;
   updated_at?: string;
+  /** True when a recorded "running" job is older than the staleness threshold. */
+  stale?: boolean;
 }
 
 export interface Week52RangeDbStats {

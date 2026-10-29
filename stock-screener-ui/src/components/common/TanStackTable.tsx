@@ -358,7 +358,7 @@ export function TanStackTable<T>({
                             className="paper-tanstack-cell"
                             id={`paper-tanstack-cell-${String(cell.column.id)}-${row.id}`}
                             sx={{
-                              padding: width === 0 ? "0" : cell.column.id === "toggle" ? "3px 4px" : densityTokens.tableCellPad,
+                              padding: width === 0 ? "0" : cell.column.id === "toggle" ? "3px 4px" : "4px 8px",
                               fontSize: 11,
                               lineHeight: 1.2,
                               fontVariantNumeric: "tabular-nums",

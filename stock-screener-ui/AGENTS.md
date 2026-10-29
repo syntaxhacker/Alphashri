@@ -257,6 +257,61 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 - REST: tests 1-symbol and 15-symbol batch (5 iterations each, reports avg/min/max)
 - WS: connects `MarketDataStreamerV3` in `ltpc` mode, collects 15s of ticks, reports first-tick latency + tick cadence
 
+## Market Research Scripts (TV scanner + yfinance)
+- `scripts/market/` — **read-only** market research tools. No API keys, no auth, no DB writes, no broker calls.
+  - `tv_client.py` — shared client: TradingView scanner wrapper (`scan` / `scanner_frame`), options straddle-implied move (`implied_move`), earnings history (`earnings_table`)
+  - `us_earnings.py` — earnings prints: est vs reported, surprise %, day-1/5d/20d reaction, per-name post-earnings drift tally ("does the market pay for beats?"), forward calendar + implied moves
+  - `us_scorecard.py` — business quality + earnings quality + **peer-relative** value scorecard for ~110 US large caps. Deliberately no price/technical inputs (no SMA/RSI/gap) — it scores earnings history, margins, growth, FCF, cash, dividend and multiples *relative to each name's own peer bucket*
+  - `screens.py` — the three composite screens: `--mode quality` (quality-at-a-discount; `--universe sp500` for the >$15bn proxy), `--mode ai-resilient` (excludes industries where generative AI is a direct substitute), `--mode tradable` (liquid + volatile + sold off)
+  - `correlations.py` — 6-month daily-return correlation + beta matrix vs a reference/benchmark, plus a "best diversifiers" list (the check that stops you adding the same factor twice)
+  - `ai_infra.py` — neoclouds / GPU miners / networking / power / storage / data-centre REITs panel. Shows FCF yield and debt because these names are usually unprofitable and cash-burning — a low P/S is not value here
+  - `session_shape.py` — intraday session shape + after-hours move with the **session-date pinning fix** (the after-hours trap that mis-read IBM/TSLA/META)
+  - `qa_value_engine.py` — runs the production `api/value_scan` scoring engine against the live universe (sanity-check the ranking before trusting the UI)
+  - `ai_value.py` — value screen over the AI complex (accelerators, memory/HBM, interconnect/optics, power, foundry/semicap, AI software) with an explicit "expensive end" contrast table
+  - `india_session.py` — next-session NSE setup: index close, classic pivots + fibs, Nifty 50 breadth, mcap-weighted sector rotation, and watchlists built with the **same filters** as `upstox_trader/screeners/modes/pre_breakout.py` and `upstox_trader/intraday_breakout_scanner.py`
+  - `futures_cue.py` — global cue snapshot: NQ/MES/ES/YM/RTY, crude, GIFT Nifty, cash indices, VIX, and the QQQ/NDX weight×change contribution table
+- Run with the project venv: `.venv/bin/python scripts/market/<script>.py` (needs `tradingview_screener`, `yfinance`, `requests`, `pandas` — all already in `requirements.txt`)
+- Useful flags: `us_scorecard.py --peer-bucket "Semicap equipment" --top 20` · `us_earnings.py --days 4 --implied` · `ai_value.py --bucket "AI memory/HBM"` · `india_session.py --watchlists-only`
+- Data sources: TradingView public scanner `https://scanner.tradingview.com/{market}/scan` (markets: `america`, `india`, `futures`) + Yahoo Finance option chains.
+  - Symbol conventions: `NSE:NIFTY`, `NSE:BANKNIFTY`, `NSE:INDIAVIX` · GIFT Nifty = `SGX:NI1!` (in the `futures` market) · US index futures = `CME_MINI:NQ1!`, `CME_MINI:MES1!`, `CBOT_MINI:ES1!` · crude = `NYMEX:CL1!`
+- **Gotchas (learned the hard way — read before trusting output):**
+  - The `futures` scanner market rejects `CME_MINI` as a market name — use market `futures` with `CME_MINI:*` tickers.
+  - TV returns `null` for unsupported columns → they arrive as NaN, not 0. Never treat NaN as a value.
+  - yfinance after-hours rows: filtering `h.index.hour >= 16` without also pinning the **session date** silently mixes in the *previous* day's post-close bars. Always group by session date first.
+  - `yfinance.get_earnings_dates()` leaves `Reported EPS` as NaN for ~15 minutes after a print — treat a NaN surprise as "not yet ingested", not "missed".
+  - `get_earnings_dates()` returns a `DatetimeIndex`; call `.reset_index()` before column access or the field name changes to `index`.
+- These scripts are for analysis only — never wire them into the API, bots, or the UI without a separate review.
+
+## Deep Value tab (seriously undervalued stocks — India / USA / Global)
+- **Where**: a new tab inside the Screener page (`?tab=deepvalue`), next to Dashboard / Screener / Correlation / Config. Wired in `src/components/screener/ScreenerPage.tsx`; the panel lives in `src/components/value/`.
+- **Why a tab and not a rail entry**: the existing screener pipeline (`api/screener_api/screener_scan.py` → `trending_upside.fetch_trending_stocks`) is **NSE/Upstox-centric** (live Upstox prices, 52w touch logic, NSE symbols). US/global names have no Upstox quote path, so Deep Value owns its own data path end-to-end.
+- **Backend**: `api/value_scan/` — `tv_source.py` (scanner I/O), `scoring.py` (pure scoring), `filters.py` (pure filters/presets), `cache.py` (redis), `router.py` (`GET /api/value/scan`). Router is registered in `api_server_fastapi.py` in the standard try/except block.
+- **Data source**: TradingView public scanner, **markets**: `india` → `…/india/scan`, `usa` → `…/america/scan`, `global` → `…/global/scan` with an explicit country list.
+- **Scoring**: 0-100 = 4 sub-scores (value / quality / growth / health, 25 each), each **peer-relative to the row's own sector bucket** (median computed on the **full pre-gate frame** — computing medians after the gates makes the ranking self-referential). Sub-scores and peer medians travel in the row payload so the UI can explain a row without recomputing.
+- **Hard quality gates** (a name that fails is excluded, not just penalised): P/E band, EPS growth, ROE, positive FCF, D/E, market cap, volume, and price vs SMA200 (default ON = "cheap *and* basing"). Presets: `SERIOUS` (default) / `DEEP` / `GARP_VALUE` / `YIELD` / `TURNAROUND` / `NO_GATE`.
+- **Field coverage (measured — `scripts/market/field_coverage.py`)**: `india` and `america` expose 53 usable columns. **Not available anywhere: `total_cash`, `total_cash_flow_ttm`, `enterprise_value`, `price_ebitda_ttm`, `price_enterprise_value_ebitda_ttm`, `price_target`, `analyst_rating`, `total_analyst_opinions`, `basic_average_shares`.** So: no net-cash filter (use `debt_to_equity_fq` + `current_ratio` + FCF), no EV multiples, no analyst target column in v1.
+- **`global` gotchas** (measured): `global` is **not** a stocks market — it returns 0 rows for stocks and only works for futures. Global stocks need an explicit country list (16 markets → ~88k names). The same company is listed on many exchanges (NVDA appeared 8+ times with different currencies and P/Es) and ~20% of rows are `type: "dr"` → **de-duplicate by root symbol, keep `type == "stock"`, keep the listing with the most non-null fundamentals**. Market cap on a foreign listing is already in the primary currency (USD) → no FX maths. Global fundamentals coverage is ~85-90% → the response carries `fields_complete` for a "partial fundamentals" badge.
+- **Performance invariants (unit-tested)**: exactly **1 HTTP request per market per cache window** — user filters are applied in Python, never pushed to the network. The redis cache stores the **scored frame per market** (NOT the filtered result; key must not include filters) with TTL 900 s (india) / 3600 s (usa/global), a `_try_acquire_lock` stampede guard and stale-while-revalidate.
+- **Table rule**: the panel MUST use the shared `src/components/common/TanStackTable.tsx` with explicit `meta: { align }` per column (text left, numbers right, score/flags centre) — see `TABLE_CHECKLIST.md`. No bespoke table component.
+- **Charts/links**: `/chart/:symbol` is Upstox/NSE-backed, so chart links are only rendered for NSE/BSE rows; other markets show the TV symbol instead of a broken link.
+- **Tests**: `tests/api/test_value_scan/` (pure scoring/filters + mocked scanner + router), `src/components/value/*.test.tsx`, `src/api/valueScan.test.ts`, `src/hooks/useValueScan.test.ts`, `tests/e2e/deep-value.spec.ts` (mocked via `setupValueScanMocks`). Guards: `npx vitest run src/test/ui-guard.test.ts` + `npx vitest run src/ui/inputs/inputs.w-h.test.tsx`.
+
+### Learnings (2026-10 market-research work — every one of these cost time)
+
+- **`america` includes OTC/foreign listings** (`IPOAF`, `SGIOF`, `CILJF`…). Every US screen must filter `exchange in {NASDAQ, NYSE, AMEX}`.
+- **`global` is not a stocks market.** Use an explicit country list. De-duplicate by **`description`** (the company), not by ticker — Ageas SA/NV trades under 4 different tickers across Amsterdam/Paris/Milan/Brussels. There is also a **`country`** column: use it to drop US-domiciled names from GLOBAL (they belong to the USA tab).
+- **`free_cash_flow_ttm` coverage is market-dependent and brutal: ~3.5% of Indian names (69/1974) vs ~85-90% in the US.** A hard FCF gate therefore empties India. The engine treats a metric as **UNAVAILABLE for the whole bucket when coverage < 25%** (`MIN_METRIC_COVERAGE`), redistributes its points, and skips its gates. This was the single biggest bug: India returned 2 names until coverage-awareness was added.
+- **Absolute thresholds do not travel between markets.** `P/E ≤ 12 + P/S ≤ 1.5` passed **3 of 677** US names and **2 of 1974** Indian ones. Presets are now **percentile gates** (cheapest 35% of the name's own sector bucket), and percentiles are computed on the **pre-gate frame** — computing peer medians after the gates makes the ranking self-referential.
+- **Cache the scored frame per market, never per filter combination** — otherwise the hit rate collapses. User filters are applied in Python after the fetch; exactly **1 HTTP request per market per cache window**.
+- **pandas gotcha:** `Series.name` is the index name, not a column called `"name"`. `row.name` returns an int/None — always use `row["name"]` (this crashed a screen once).
+- **yfinance `prepost=True` trap:** pin the **session date** before splitting regular vs after-hours, or you silently mix in the *previous* day's post-close bars. And the **first hour of after-hours is a liquidity vacuum**: on 2026-10-21 IBM printed **+7.9%** then finished AH **−4.6%**, TSLA went **+2.2% → −3.3%**, META **+7.2% → +2.0%**. Never judge a print from a 16:15 snapshot.
+- **TV's futures feed is delayed 10 minutes** (`update_mode = delayed_streaming_600`). Never quote it as live.
+- **Futures-vs-cash basis is a *stress* gauge, not a forecast:** a normal Dec basis is **+0.3% to +0.5%**. On 2026-10-21 NQ sat at +0.36% (no crash priced) and the index still fell **3.2%** the next day on an Iran/oil headline. Basis prices **known** risk, never headlines.
+- **Earnings-day tails are fat:** APP printed **−19.7%** on two separate earnings days in 2026. A −6% stop cannot protect through an earnings gap — **size for the tail (a −20% day), never for the stop.**
+- **Screen artifacts to exclude by hand:** preferred-share lines (`ALL/PH`, `ALL/PI` show P/E 0.3), one-off EPS gains (`LYFT` P/E 2.4; `AU` EPS +9,057%), and buyback-inflated ROE (`HRB` 707%).
+- **NSE APIs are blocked in this environment (403/404)** — take the Nifty 50 constituent list from Wikipedia instead of `get_nifty_stocks_from_nseindia()`. India also has **BSE duplicate rows with different tickers** (`M_M`, `J_KBANK`) → keep NSE only.
+- **Do not inspect `app.routes` to check router registration in this FastAPI version.** Included routers are stored as `_IncludedRouter` wrappers (no `.path`), so a naive `[p.path for p in app.routes if "value" in p.path]` returns `[]` even when the route works. Verify with `TestClient(app).get(...)` — never by path introspection.
+
 ## Chart Cache
 - `api/paper/chart_cache.py` — pickle-based disk cache at `experiments/data/chart_cache/{date}/{symbol}.pkl`
 - Returns `(df, is_cached)` tuple — chart response includes `"cached": true/false`
@@ -327,7 +382,11 @@ bun test -- --run src/state/correlation.test.ts         # state tests only
 bun test -- --run src/components/screener/CorrelationMatrix.test.tsx  # single file
 source .venv/bin/activate && python -m pytest tests/test_correlation.py -v  # backend
 ```
-Always run the full suite (`bun run test`) before committing.
+**Do NOT run the full suite locally** (6,211 backend / ~6,500 frontend cases, 8 cores, >15 min
+backend). It starves the API/tape writer during market hours and the feedback is too slow to
+be useful — which is how tests stop being run at all. Local = the touched files only (or
+`npx vitest run --changed`). The full pass belongs to CI (20 shards × 4 workers). Run it
+locally only for a `develop → main` release check.
 
 **Note**: Use `npx vitest run <file>` for tests using `vi.mock` — `bun test` does not support `vi.mock`.
 ```bash
@@ -346,6 +405,12 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 
 ## Mutation Testing
 - See [MUTATION_TESTING.md](./MUTATION_TESTING.md) for advanced testing guide
+
+## Agent Fleet / Subagent Routing
+- When spawning subagents (background research / implementation fleets), **default to the cheap "Muse" model**: `opencode-go/muse-spark-1.3-contributor` ("Muse Spark 1.3 Contributor", ~$0.10/M). For literally-$0 use `opencode-go/beam-free` or `opencode-go/longcat-2.5-preview-free`.
+- Note: the model listed as `opencode/muse-spark-1.3-contributor-free` is **not selectable** for subagents — use the `opencode-go/…contributor` id.
+- Escalate a single agent to a stronger model **only** for correctness-critical work (adversarial verification, final holdout) and state why.
+- Long-running loop protocol (waves, ledger, gates, **fill-honesty audit**) lives in the **`non-stop`** skill.
 
 ## Committing (SMALL COMMITS ALWAYS)
 **Rule: Commit small, commit often — on a feature branch. Pushing a feature branch is fine; pushing `develop`/`main` is forbidden.**
@@ -389,6 +454,24 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - Reference thresholds & formulas: `.prime/agent/skills/stock-eda-report/references/analyses-and-thresholds.md`.
 - Data sources: Upstox V3 candles (`market_data.market_data.fetch_candles`) + `yfinance` (`TICKER.NS`
   for earnings, results, ownership, analyst). A worked example exists at `reports/NETWEB_EDA/`.
+
+## Earnings History & Event Playbook (research skill)
+
+- Reusable earnings-reaction study + pre-results plan for any NSE ticker:
+  **`.prime/agent/skills/earnings-history/`** (Prime Agent skill `earnings-history`).
+- One-shot generator (run from repo root, project venv):
+  ```bash
+  .venv/bin/python .prime/agent/skills/earnings-history/scripts/earnings_history.py \
+    --symbol MANKIND --next-date 2026-10-26
+  ```
+  Output → `reports/earnings/<SYMBOL>/` (`_earnings_history.md`, `_earnings_events.csv`, `.json`).
+- Computes: EPS surprise vs **T+1** move, beat rate, **beat-and-fade rate**, gap vs intraday fade,
+  pre-20d run-up, T+5/T+10 drift, expected move (last 8 events + ATR), SMAs/RSI/MACD/ADX, ±1×/±2× levels.
+- Preparation procedure: `references/earnings-play-checklist.md` (10 steps, quality-of-earnings checks,
+  scenario table, execution rules). Worked example: `references/mankind-q2fy27-playbook.md`.
+- Always pass `--next-date` from the **BSE/NSE board-meeting filing** — vendor dates drift
+  (yfinance said 29 Oct for Mankind Q2 FY27; the filing says 26 Oct).
+- Tests: `.venv/bin/python -m pytest .prime/agent/skills/earnings-history/tests -q`.
 
 ## Known Issues / Deferred
 - **Replay system name→ID migration** (Phase 3) — deferred, known limitation

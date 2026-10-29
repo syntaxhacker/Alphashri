@@ -41,6 +41,8 @@ import {
 import { LivePriceUpdater } from "./LivePriceUpdater";
 import { WatchlistScan2 } from "./WatchlistScan2";
 import { SelectedPositionBar } from "./SelectedPositionBar";
+import { OptionPayoffCard } from "./OptionPayoffChart";
+import { isOptionTrade } from "./optionTradeUtils";
 
 function useLoadInitialData(
   setAvailableBots: (bots: BotInfo[]) => void,
@@ -221,7 +223,16 @@ interface HistoryViewProps {
   state: ReturnType<typeof getPaperTradingState>;
 }
 
-function HistoryView({ state: _state }: HistoryViewProps) {
+function HistoryView({ state }: HistoryViewProps) {
+  const selectedTrade = useMemo(
+    () =>
+      state.selectedTradeId
+        ? state.trades.find((t) => t.trade_id === state.selectedTradeId) ?? null
+        : null,
+    [state.trades, state.selectedTradeId],
+  );
+  const showPayoff = selectedTrade != null && isOptionTrade(selectedTrade);
+
   return (
     <Box className="paper-history-view" sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2, flex: 1, minHeight: 0 }} data-testid="paper-history-panel" id="history-view">
       <Box className="paper-history-left" id="paper-history-left" sx={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -231,12 +242,13 @@ function HistoryView({ state: _state }: HistoryViewProps) {
           </CardContent>
         </Card>
       </Box>
-      <Box className="paper-history-right" id="paper-history-right" sx={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <Box className="paper-history-right" id="paper-history-right" sx={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", gap: 1 }}>
         <Card className="paper-history-chart-card" id="paper-history-chart-card" elevation={0} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
           <CardContent className="paper-history-chart-card-content" sx={{ p: 1, "&:last-child": { pb: 1 }, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             <PaperChart engine="tradingview" />
           </CardContent>
         </Card>
+        {showPayoff && selectedTrade && <OptionPayoffCard trade={selectedTrade} />}
       </Box>
     </Box>
   );

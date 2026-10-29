@@ -5,21 +5,31 @@
 import { fetchWithAuth } from "../state/auth";
 import type {
   NiftyBurst,
+  NiftyBurstFuelState,
   NiftyBurstNews,
   NiftyBurstSignal,
+  NiftyBurstStructure,
   NiftyControlBlock,
   NiftyControlVerdict,
+  NiftyEmaSeries,
   NiftyGex,
   NiftyGexLevel,
+  NiftyGexLevels,
   NiftyGexStrike,
+  NiftyIntradayCandle,
   NiftyMarketBlock,
   NiftyOptionSide,
+  NiftyPivots,
+  NiftyPivotPrev,
   NiftyPositioningBlock,
   NiftyPositioningLeg,
   NiftyPositioningStrike,
   NiftyPositioningVerdict,
+  NiftyReference,
   NiftyRegimeBlock,
   NiftyRegimeVerdict,
+  NiftyReplay,
+  NiftyReplayFrame,
   NiftyReport,
   NiftySensex,
   NiftyStrike,
@@ -27,6 +37,7 @@ import type {
   NiftyStrengthVerdict,
   NiftyStructureShift,
   NiftyTape,
+  NiftyTapeChainTuple,
   NiftyTapeRow,
   NiftyTimelineEvent,
   NiftyVixBlock,
@@ -51,6 +62,10 @@ function normalizeSide(raw: Record<string, unknown> = {}): NiftyOptionSide {
     priceChange: num(raw.priceChange ?? raw.price_change),
     volume: num(raw.volume),
     delta: nullNum(raw.delta),
+    gamma: nullNum(raw.gamma),
+    theta: nullNum(raw.theta),
+    vega: nullNum(raw.vega),
+    iv: nullNum(raw.iv),
     sentiment:
       typeof raw.sentiment === "string"
         ? raw.sentiment
@@ -72,10 +87,35 @@ function normalizeTimeline(raw: unknown): NiftyTimelineEvent[] {
 /** Backend speaks snake_case for GEX; absent block stays undefined so old snapshots render. */
 function normalizeGexLevel(raw: unknown): NiftyGexLevel {
   const row = (raw ?? {}) as Record<string, unknown>;
+  const sideRaw = String(row.side ?? "").toLowerCase();
   return {
     strike: num(row.strike),
     netGex: num(row.netGex ?? row.net_gex),
+    ...(sideRaw === "above" || sideRaw === "below"
+      ? { side: sideRaw as "above" | "below" }
+      : {}),
   };
+}
+
+/** One nullable spot-relative level (`null` when the backend has no strike). */
+function nullableGexLevel(raw: unknown): NiftyGexLevel | null {
+  if (raw === null || raw === undefined || typeof raw !== "object") return null;
+  const level = normalizeGexLevel(raw);
+  return Number.isFinite(level.strike) && level.strike > 0 ? level : null;
+}
+
+/** `levels` block — absent/empty → undefined so legacy payloads fall back. */
+function normalizeGexLevels(raw: unknown): NiftyGexLevels | undefined {
+  if (raw === null || raw === undefined || typeof raw !== "object") return undefined;
+  const l = raw as Record<string, unknown>;
+  const levels: NiftyGexLevels = {
+    support: nullableGexLevel(l.support),
+    resistance: nullableGexLevel(l.resistance),
+    fuelDown: nullableGexLevel(l.fuel_down ?? l.fuelDown),
+    fuelUp: nullableGexLevel(l.fuel_up ?? l.fuelUp),
+  };
+  const present = Object.values(levels).some((v) => v !== null);
+  return present ? levels : undefined;
 }
 
 function normalizeGex(raw: unknown): NiftyGex | undefined {
@@ -110,6 +150,8 @@ function normalizeGex(raw: unknown): NiftyGex | undefined {
       ? ((g.topNegative ?? g.top_negative) as unknown[])
       : []
     ).map(normalizeGexLevel),
+    levels: normalizeGexLevels(g.levels),
+    ...(g.degraded === true ? { degraded: true } : {}),
     zeroCross:
       zeroRaw === null || zeroRaw === undefined || zeroRaw === ""
         ? null
@@ -147,12 +189,17 @@ function coerceVerdict(raw: unknown, allowed: readonly string[]): string | null 
 const CONTROL_VERDICTS = [
   "call_writers",
   "put_writers",
+  "call_buyers",
+  "put_buyers",
+  "net_call_build",
+  "net_put_build",
   "balanced",
 ] as const satisfies readonly NiftyControlVerdict[];
 
 const REGIME_VERDICTS = [
   "range_sell_premium",
   "trend_buy",
+  "trend",
   "neutral",
 ] as const satisfies readonly NiftyRegimeVerdict[];
 
@@ -194,6 +241,8 @@ function normalizeRegime(raw: unknown): NiftyRegimeBlock | undefined {
     straddle_open: nullNum(r.straddle_open ?? r.straddleOpen),
     straddle_now: nullNum(r.straddle_now ?? r.straddleNow),
     straddle_pct: nullNum(r.straddle_pct ?? r.straddlePct),
+    bars: nullNum(r.bars),
+    warmup: typeof r.warmup === "boolean" ? r.warmup : null,
   };
 }
 
@@ -217,6 +266,7 @@ function normalizeStrength(raw: unknown): NiftyStrengthBlock | undefined {
   return {
     verdict: coerceVerdict(s.verdict, STRENGTH_VERDICTS) as NiftyStrengthVerdict | null,
     score: nullNum(s.score),
+    ema9: nullNum(s.ema9),
     ema20: nullNum(s.ema20),
     ema50: nullNum(s.ema50),
     rsi: nullNum(s.rsi),
@@ -234,6 +284,22 @@ function normalizeMarket(raw: unknown): NiftyMarketBlock | undefined {
     is_open: typeof m.is_open === "boolean" ? m.is_open : null,
     session_date: typeof sessionDate === "string" ? sessionDate : null,
     as_of: typeof asOf === "string" ? asOf : null,
+  };
+}
+
+/** `reference` block — absent/empty → null, partial → null fields. */
+function normalizeReference(raw: unknown): NiftyReference | null {
+  const r = asBlock(raw);
+  if (!r) return null;
+  return {
+    strike: nullNum(r.strike),
+    ce_open: nullNum(r.ce_open ?? r.ceOpen),
+    pe_open: nullNum(r.pe_open ?? r.peOpen),
+    ce_ltp: nullNum(r.ce_ltp ?? r.ceLtp),
+    pe_ltp: nullNum(r.pe_ltp ?? r.peLtp),
+    ce_change: nullNum(r.ce_change ?? r.ceChange),
+    pe_change: nullNum(r.pe_change ?? r.peChange),
+    since: typeof r.since === "string" ? r.since : null,
   };
 }
 
@@ -272,6 +338,7 @@ function normalizePositioning(raw: unknown): NiftyPositioningBlock | undefined {
     ceDoi: nullNum(p.ce_doi ?? p.ceDoi),
     peDoi: nullNum(p.pe_doi ?? p.peDoi),
     lotSize: nullNum(p.lot_size ?? p.lotSize),
+    deltaFlip: nullNum(p.delta_flip ?? p.deltaFlip),
     strikes: rows.map((r): NiftyPositioningStrike => {
       const row = (r ?? {}) as Record<string, unknown>;
       return {
@@ -279,6 +346,7 @@ function normalizePositioning(raw: unknown): NiftyPositioningBlock | undefined {
         ce: normalizePositioningLeg(row.ce),
         pe: normalizePositioningLeg(row.pe),
         netInitiated: num(row.net_initiated ?? row.netInitiated),
+        netState: nullNum(row.net_state ?? row.netState),
       };
     }),
   };
@@ -318,9 +386,84 @@ function normalizeStructure(raw: unknown): NiftyStructureShift[] | undefined {
   return raw.map(normalizeStructureShift);
 }
 
+/** 1-minute intraday candles — absent/non-array → undefined. */
+export function normalizeIntraday(raw: unknown): NiftyIntradayCandle[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  return raw.map((c) => {
+    const row = (c ?? {}) as Record<string, unknown>;
+    return {
+      time: String(row.time ?? ""),
+      open: num(row.open),
+      high: num(row.high),
+      low: num(row.low),
+      close: num(row.close),
+    };
+  });
+}
+
+/** Non-finite EMA point → null so gaps render instead of breaking the line. */
+function nullEmaPoint(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const n = typeof value === "string" ? Number(value) : (value as number);
+  return typeof n === "number" && Number.isFinite(n) ? n : null;
+}
+
+/** EMA series — absent/non-array → undefined, snake_case-tolerant. */
+export function normalizeEmas(raw: unknown): NiftyEmaSeries[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  return raw.map((e) => {
+    const row = (e ?? {}) as Record<string, unknown>;
+    const dataRaw = Array.isArray(row.data) ? row.data : [];
+    return {
+      period: num(row.period),
+      data: dataRaw.map(nullEmaPoint),
+    };
+  });
+}
+
+/**
+ * `pivots` block — classic pivots from the previous session's H/L/C.
+ * Null-safe: absent → `null`, non-finite levels → `null`, a partial payload
+ * keeps the levels it actually carries. Kept as `null` (not undefined) so a
+ * backend that explicitly answers `pivots: null` stays `null` — the chart
+ * treats both as "nothing to draw".
+ */
+export function normalizePivots(raw: unknown): NiftyPivots | null {
+  if (raw === null || raw === undefined || typeof raw !== "object") return null;
+  const p = raw as Record<string, unknown>;
+  const prevRaw = p.prev;
+  const prev: NiftyPivotPrev | null =
+    prevRaw !== null && prevRaw !== undefined && typeof prevRaw === "object"
+      ? (() => {
+          const r = prevRaw as Record<string, unknown>;
+          return {
+            date: typeof r.date === "string" ? r.date : null,
+            high: nullNum(r.high),
+            low: nullNum(r.low),
+            close: nullNum(r.close),
+          };
+        })()
+      : null;
+  return {
+    type: typeof p.type === "string" ? p.type : "classic",
+    pp: nullNum(p.pp),
+    r1: nullNum(p.r1),
+    r2: nullNum(p.r2),
+    r3: nullNum(p.r3),
+    s1: nullNum(p.s1),
+    s2: nullNum(p.s2),
+    s3: nullNum(p.s3),
+    prev,
+  };
+}
+
 /** Backend speaks snake_case; the panel speaks camelCase. Normalize once here. */
 export function normalizeReport(raw: Record<string, unknown>): NiftyReport {
   const walls = (raw.walls ?? {}) as Record<string, { strike: number; oi: number }[]>;
+  const wallsNear = (raw.walls_near ?? raw.wallsNear ?? {}) as Record<
+    string,
+    { strike: number; oi: number }[]
+  >;
   const ohlc = (raw.ohlc ?? {}) as Record<string, unknown>;
   return {
     mode: raw.mode === "eod" ? "eod" : "live",
@@ -337,6 +480,10 @@ export function normalizeReport(raw: Record<string, unknown>): NiftyReport {
     pcrVol: num(raw.pcrVol ?? raw.pcr_vol),
     maxPain: num(raw.maxPain ?? raw.max_pain),
     walls: { calls: walls.calls ?? [], puts: walls.puts ?? [] },
+    wallsNear: {
+      calls: wallsNear.calls ?? walls.calls ?? [],
+      puts: wallsNear.puts ?? walls.puts ?? [],
+    },
     strikes: (Array.isArray(raw.strikes) ? raw.strikes : []).map(
       (s): NiftyStrike => {
         const row = s as Record<string, Record<string, unknown>>;
@@ -351,6 +498,9 @@ export function normalizeReport(raw: Record<string, unknown>): NiftyReport {
     candles: Array.isArray(raw.candles)
       ? (raw.candles as NiftyReport["candles"])
       : undefined,
+    intraday: normalizeIntraday(raw.intraday),
+    emas: normalizeEmas(raw.emas),
+    pivots: normalizePivots(raw.pivots),
     fetchedAt: (raw.fetchedAt ?? raw.fetched_at) as string | undefined,
     snapshotAt: (raw.snapshotAt ?? raw.snapshot_at) as string | undefined,
     gex: normalizeGex(raw.gex),
@@ -359,6 +509,7 @@ export function normalizeReport(raw: Record<string, unknown>): NiftyReport {
     vix: normalizeVix(raw.vix),
     strength: normalizeStrength(raw.strength),
     market: normalizeMarket(raw.market),
+    reference: normalizeReference(raw.reference),
     positioning: normalizePositioning(raw.positioning),
     structure: normalizeStructure(raw.structure),
   };
@@ -386,12 +537,38 @@ export function normalizeSensex(raw: Record<string, unknown>): NiftySensex {
   };
 }
 
+/** FastAPI `detail` can be a string, a validation array, or a structured
+ *  object (the Nifty 404 sends `{is_trading_day, date, message}`). Passing an
+ *  object to `new Error()` leaked "[object Object]" into the report banner. */
+function detailMessage(payload: unknown, fallback: string): string {
+  const detail = (payload as { detail?: unknown } | null)?.detail;
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    const parts = detail
+      .map((d) => (typeof d === "string" ? d : (d as { msg?: unknown } | null)?.msg))
+      .filter((d): d is string => typeof d === "string" && d.trim() !== "");
+    if (parts.length > 0) return parts.join("; ");
+  }
+  if (detail && typeof detail === "object") {
+    const d = detail as {
+      is_trading_day?: boolean;
+      date?: string;
+      message?: unknown;
+      msg?: unknown;
+    };
+    if (d.is_trading_day === false && d.date) {
+      return `${d.date} was not a trading day — no snapshot recorded.`;
+    }
+    const msg = d.message ?? d.msg;
+    if (typeof msg === "string" && msg.trim()) return msg;
+  }
+  return fallback;
+}
+
 async function parseNiftyResponse(response: Response): Promise<NiftyReport> {
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(
-      (error as { detail?: string }).detail || "Failed to fetch Nifty report",
-    );
+    throw new Error(detailMessage(error, "Failed to fetch Nifty report"));
   }
   return normalizeReport((await response.json()) as Record<string, unknown>);
 }
@@ -428,7 +605,7 @@ export async function fetchLiveSensex(signal?: AbortSignal): Promise<NiftySensex
   const response = await fetchWithAuth(`${NIFTY_API_BASE}/sensex`, { signal });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error((error as { detail?: string }).detail || "Failed to fetch Sensex report");
+    throw new Error(detailMessage(error, "Failed to fetch Sensex report"));
   }
   return normalizeSensex((await response.json()) as Record<string, unknown>);
 }
@@ -459,6 +636,90 @@ export async function snapshotNifty(
   return parseNiftyResponse(response);
 }
 
+/**
+ * `GET /api/reports/nifty/replay?date=…` — the day's recorded minute frames.
+ * Each frame's `report` runs through `normalizeReport` and its `sensex` through
+ * `normalizeSensex` (null-safe), so a frame is drop-in interchangeable with the
+ * single EOD report. Never throws: a missing day (404 / `is_trading_day:false`),
+ * a bad payload, or a network failure resolves `null` (or empty `snapshots`)
+ * and the caller keeps the plain EOD snapshot.
+ */
+/** `{reason: count}` with non-finite/negative counts dropped. */
+function normalizeReasonCounts(raw: unknown): Record<string, number> | undefined {
+  if (raw === null || typeof raw !== "object") return undefined;
+  const out: Record<string, number> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const n = Number(value);
+    if (key && Number.isFinite(n) && n > 0) out[key] = n;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+export async function fetchNiftyReplay(
+  date: string,
+  signal?: AbortSignal,
+): Promise<NiftyReplay | null> {
+  try {
+    const response = await fetchWithAuth(
+      `${NIFTY_API_BASE}/replay?date=${encodeURIComponent(date)}`,
+      { signal },
+    );
+    if (!response.ok) return null;
+    const data = (await response.json().catch(() => null)) as
+      | (Record<string, unknown> & { snapshots?: unknown })
+      | null;
+    if (!data) return null;
+    const raw = Array.isArray(data.snapshots) ? data.snapshots : [];
+    const snapshots = raw
+      .map((frame): NiftyReplayFrame | null => {
+        const f = (frame ?? {}) as Record<string, unknown>;
+        const reportRaw = f.report;
+        // A frame without a usable report envelope cannot paint the screen.
+        if (reportRaw === null || typeof reportRaw !== "object") return null;
+        const sensexRaw = f.sensex;
+        return {
+          t: typeof f.t === "string" ? f.t : "",
+          fetched_at: typeof f.fetched_at === "string" ? f.fetched_at : "",
+          report: normalizeReport(reportRaw as Record<string, unknown>),
+          sensex:
+            sensexRaw !== null &&
+            sensexRaw !== undefined &&
+            typeof sensexRaw === "object"
+              ? normalizeSensex(sensexRaw as Record<string, unknown>)
+              : null,
+        };
+      })
+      .filter((x): x is NiftyReplayFrame => x !== null);
+    return {
+      date: typeof data.date === "string" && data.date ? data.date : date,
+      count:
+        typeof data.count === "number" && Number.isFinite(data.count)
+          ? data.count
+          : snapshots.length,
+      interval_sec: num(data.interval_sec ?? data.intervalSec, 60),
+      snapshots,
+      gap_reasons: normalizeReasonCounts(data.gap_reasons),
+    };
+  } catch {
+    // Network failure or abort — treat like "no replay recorded".
+    return null;
+  }
+}
+
+/** Dates that have a per-minute replay log, newest first. */
+export async function fetchNiftyReplayDates(signal?: AbortSignal): Promise<string[]> {
+  try {
+    const response = await fetchWithAuth(`${NIFTY_API_BASE}/replay/dates`, { signal });
+    if (!response.ok) return [];
+    const data = (await response.json().catch(() => null)) as { dates?: unknown } | null;
+    if (!data || !Array.isArray(data.dates)) return [];
+    return data.dates.filter((d): d is string => typeof d === "string");
+  } catch {
+    // A missing endpoint (older backend) must not break the panel.
+    return [];
+  }
+}
+
 /** One tape row, snake_case-tolerant; numbers default 0, spot_flip stays null-safe. */
 /** Row walls arrive as `{calls:[{strike,oi}], puts:[...]}` — reduce to top-OI strikes. */
 function topStrike(list: unknown): number {
@@ -483,6 +744,7 @@ export function normalizeTapeRow(raw: Record<string, unknown>): NiftyTapeRow {
   const spotFlipRaw = raw.spot_flip ?? raw.spotFlip;
   const ceLtp = raw.atm_ce_ltp ?? raw.atmCeLtp;
   const peLtp = raw.atm_pe_ltp ?? raw.atmPeLtp;
+  const chain = normalizeChain(raw.chain ?? raw.chain_snapshot ?? raw.chainSnapshot);
   return {
     t: String(raw.t ?? raw.time ?? ""),
     spot: num(raw.spot),
@@ -494,6 +756,7 @@ export function normalizeTapeRow(raw: Record<string, unknown>): NiftyTapeRow {
     ...(raw.net_gex !== undefined && raw.net_gex !== null
       ? { net_gex: nullNum(raw.net_gex) }
       : {}),
+    ...(raw.gex_degraded === true ? { gex_degraded: true } : {}),
     ...(raw.atm_ce_iv !== undefined && raw.atm_ce_iv !== null
       ? { atm_ce_iv: nullNum(raw.atm_ce_iv) }
       : {}),
@@ -531,7 +794,36 @@ export function normalizeTapeRow(raw: Record<string, unknown>): NiftyTapeRow {
           ? wallsRaw.put
           : topStrike(wallsRaw.put ?? wallsRaw.puts),
     },
+    ...(chain ? { chain } : {}),
   };
+}
+
+/**
+ * Per-strike chain snapshot — `chain[strike] = [ce_ltp, pe_ltp, ce_oi, pe_oi,
+ * ce_vol, pe_vol]` with dead legs as `null`. Keeps only entries whose key is
+ * a positive finite strike and whose value is an array; each of the first 6
+ * slots normalizes to a finite number or `null` (padded to 6). Empty or
+ * malformed entries are dropped, and a missing/empty chain stays `undefined`
+ * so the visuals keep their "no tape chain" empty state.
+ */
+export function normalizeChain(
+  raw: unknown,
+): Record<string, NiftyTapeChainTuple> | undefined {
+  if (raw === null || raw === undefined || typeof raw !== "object") return undefined;
+  if (Array.isArray(raw)) return undefined;
+  const out: Record<string, NiftyTapeChainTuple> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const strike = Number(key);
+    if (!Number.isFinite(strike) || strike <= 0) continue;
+    if (!Array.isArray(value) || value.length === 0) continue;
+    const slots = (value as unknown[]).slice(0, 6).map((slot) => {
+      const n = typeof slot === "string" ? Number(slot) : (slot as number);
+      return typeof n === "number" && Number.isFinite(n) ? n : null;
+    });
+    while (slots.length < 6) slots.push(null);
+    out[String(strike)] = slots as NiftyTapeChainTuple;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 /** Top-level walls may be `{call, put}` scalars or `{calls, puts}` strike arrays. */
@@ -572,9 +864,7 @@ export async function fetchNiftyTape(
   const response = await fetchWithAuth(url, { signal });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(
-      (error as { detail?: string }).detail || "Failed to fetch Nifty tape",
-    );
+    throw new Error(detailMessage(error, "Failed to fetch Nifty tape"));
   }
   const raw = (await response.json()) as Record<string, unknown>;
   const pcrOi = num(raw.pcr_oi ?? raw.pcrOi);
@@ -598,6 +888,14 @@ export async function fetchNiftyTape(
 }
 
 const BURST_SEVERITIES = ["info", "watch", "alert", "critical"] as const;
+
+/** The backend's fuel 2×2 cells (api/reports_api/nifty_fuel.py). */
+const BURST_FUEL_STATES = [
+  "fresh_buyers",
+  "fresh_sellers",
+  "writers_covering",
+  "longs_liquidating",
+] as const;
 
 /** True when a value is actually present (not undefined/null/empty string). */
 function present(value: unknown): boolean {
@@ -654,12 +952,32 @@ function normalizeBurstNews(raw: unknown): NiftyBurstNews[] {
     .filter((x): x is NiftyBurstNews => x !== null);
 }
 
+/** One burst's structure evidence (the level the underlying closed beyond). */
+function normalizeBurstStructure(raw: unknown): NiftyBurstStructure | null {
+  if (raw === null || raw === undefined || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const level = asFinite(r.level);
+  if (level === null || level <= 0) return null;
+  const dir = String(r.direction ?? "").toLowerCase();
+  return {
+    level,
+    direction: dir === "down" ? "down" : "up",
+    ...(typeof r.kind === "string" ? { kind: r.kind } : {}),
+    ...(asFinite(r.close) !== null ? { close: asFinite(r.close)! } : {}),
+    ...(typeof r.confirmed_at === "string" ? { confirmed_at: r.confirmed_at } : {}),
+  };
+}
+
 export function normalizeBurst(raw: Record<string, unknown>): NiftyBurst {
   const side: NiftyBurst["side"] = raw.side === "put" ? "put" : "call";
   const sevRaw = String(raw.severity ?? "").toLowerCase();
   const severity = (BURST_SEVERITIES as readonly string[]).includes(sevRaw)
     ? (sevRaw as NiftyBurst["severity"])
     : "watch";
+  const fuelRaw = String(raw.fuel_state ?? "").toLowerCase();
+  const fuel = (BURST_FUEL_STATES as readonly string[]).includes(fuelRaw)
+    ? (fuelRaw as NiftyBurstFuelState)
+    : null;
   return {
     id: String(raw.id ?? ""),
     side,
@@ -673,6 +991,24 @@ export function normalizeBurst(raw: Record<string, unknown>): NiftyBurst {
     tickVol: num(raw.tickVol ?? raw.tick_vol),
     signal: normalizeBurstSignal(raw.signal),
     news: normalizeBurstNews(raw.news),
+    // Buyer/writer flow verdict — passed through verbatim when present so the
+    // client direction mapping can use it (absent on pre-restart bursts).
+    ...(typeof raw.flow === "string" && raw.flow.length > 0 ? { flow: raw.flow } : {}),
+    ...(typeof raw.bearish === "boolean" ? { bearish: raw.bearish } : {}),
+    // The premium half of the fuel 2×2 (same-side ATM premium change, ₹).
+    ...(raw.premChg !== undefined && raw.premChg !== null
+      ? { premChg: num(raw.premChg) }
+      : {}),
+    // The backend's fuel reading is authoritative — it has the same-strike
+    // premium change, the client only has a guess.
+    ...(fuel ? { fuel_state: fuel } : {}),
+    ...(raw.structure !== undefined && raw.structure !== null
+      ? { structure: normalizeBurstStructure(raw.structure) }
+      : {}),
+    ...(raw.invalidation !== undefined && raw.invalidation !== null
+      ? { invalidation: num(raw.invalidation) }
+      : {}),
+    ...(raw.plan_suppressed === true ? { plan_suppressed: true } : {}),
     ...(raw.type === "squeeze" || raw.type === "strike" || raw.type === "premium" || raw.type === "coil"
       ? { type: raw.type as "squeeze" | "strike" | "premium" | "coil" }
       : {}),

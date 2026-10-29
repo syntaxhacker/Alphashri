@@ -12,13 +12,15 @@ Per bar (bars[i] close drives state; ticks drive fills/exits):
 import argparse
 import sys
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 sys.path.insert(0, __file__.rsplit("/", 2)[0])
 
+import config  # noqa: E402
+from scripts import desk_common  # noqa: E402
 from scripts.smc_tick_eval import fetch_ticks, build_1m_bars
 
-IST = timezone(timedelta(hours=5, minutes=30))
+IST = config.IST
 GAP_MIN, SL_BUF, RETEST_TOL = 2.0, 6.0, 2.0
 MIN_RR, MIN_RISK, COOLDOWN, RETEST_TTL = 2.0, 5.0, 3, 30
 SUPPLY_PROX = 25.0   # tie-break conflict distance (opt-in, see TIEBREAK)
@@ -32,7 +34,7 @@ MIN_RISK_SWEEP = 8.0
 
 
 def ist(ms):
-    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).astimezone(IST).strftime("%H:%M:%S")
+    return desk_common.ist_hhmmss(ms)
 
 
 def dbg(m):

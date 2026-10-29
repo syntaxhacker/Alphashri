@@ -3,7 +3,7 @@ import { Alert, Badge, Box, Button, SegmentedControl, Select, Skeleton, Tab, Tab
 import { fetchDailyReport, fetchReportBreakouts, fetchReportDelivery, fetchReportEvents, fetchReportFollowThrough, todayIST } from "../../api/report";
 import { fetchRegime } from "../../api/eventWatch";
 import type { RegimeResponse } from "../../types/eventWatch";
-import type { DailyReportResponse, DeliveryResponse, FollowThroughResponse, ReportBreakoutsResponse, ReportEventsResponse, SectorLeader, SectorLeaderBoard } from "../../types/report";
+import type { DailyReportResponse, DeliveryResponse, FollowThroughResponse, ReportBreakoutsResponse, ReportEventsResponse } from "../../types/report";
 import { copyToClipboard, toCsv, toSymbolList } from "../../utils/copyCsv";
 import { formatNumber, formatPercentage, formatTimeOnly, getPnLTextColor } from "../../utils/ui-helpers";
 import { ReportBreakoutTable } from "./ReportBreakoutTable";
@@ -12,8 +12,9 @@ import { ReportEventsStrip } from "./ReportEventsStrip";
 import { ReportFollowThroughTable } from "./ReportFollowThrough";
 import { EventWatch } from "./EventWatch";
 import { ReportMovePanels } from "./ReportMovePanels";
+import { BreadthStat, LeaderStrip } from "./ReportLeaderStrip";
 
-export interface DailyReportPageProps {
+interface DailyReportPageProps {
   universe?: string;
   onOpenSymbol?: (symbol: string) => void;
 }
@@ -27,98 +28,9 @@ const UNIVERSE_OPTIONS = [
  * error instead of an endless page spinner. */
 const REPORT_FETCH_TIMEOUT_MS = 120000;
 
-function formatVolume(v: number | null | undefined): string {
-  if (v == null || !Number.isFinite(v)) return "—";
-  return formatNumber(v);
-}
-
-function BreadthStat({ label, value, testId, color }: { label: string; value: string; testId: string; color?: "success" | "error" | "dimmed" }) {
-  return (
-    <Box data-testid={testId} sx={{ display: "flex", alignItems: "baseline", gap: 0.5, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-      <Text size="xs" c="dimmed" span>
-        {label}
-      </Text>
-      <Text size="xs" fw={700} c={color ?? "default"} span sx={{ fontVariantNumeric: "tabular-nums" }}>
-        {value}
-      </Text>
-    </Box>
-  );
-}
-
-/** Leadership strip: winners vs losers as pill groups, not a text wall.
- * Splits `{top, bottom}` (or ± sign for flat arrays) into ▲/▼ groups with
- * adv/dec counts in the tooltip. Omitted silently when there are no leaders. */
-function LeaderStrip({ leaders, testId, label }: { leaders: SectorLeader[] | SectorLeaderBoard | undefined; testId: string; label: string }) {
-  // Backend sends `{top: [...5], bottom: [...5]}`; accept a flat array too.
-  const all = (Array.isArray(leaders) ? leaders : [...(leaders?.top ?? []), ...(leaders?.bottom ?? [])]).filter(
-    (l) => l && typeof l.name === "string",
-  );
-  if (all.length === 0) return null;
-  const board = Array.isArray(leaders) ? null : leaders;
-  const winners = (board ? board.top : all.filter((l) => l.change >= 0)).filter((l) => l && typeof l.name === "string");
-  const losers = (board ? board.bottom : all.filter((l) => l.change < 0)).filter((l) => l && typeof l.name === "string");
-  const renderPill = (leader: SectorLeader) => {
-    const up = leader.change >= 0;
-    return (
-      <Tooltip
-        key={leader.name}
-        label={`${leader.stock_count} stocks · ${leader.advances} adv / ${leader.declines} dec`}
-        withArrow
-      >
-        <Box
-          data-testid={`${testId}-item-${leader.name}`}
-          sx={{
-            display: "flex",
-            alignItems: "baseline",
-            gap: 6,
-            flexShrink: 0,
-            alignSelf: "center",
-            whiteSpace: "nowrap",
-            fontVariantNumeric: "tabular-nums",
-            border: "1px solid",
-            borderColor: up ? "success.main" : "error.main",
-            borderRadius: 999,
-            px: 1,
-            py: 0.25,
-          }}
-        >
-          <Text size="xs" c="dimmed" span truncate>
-            {leader.name}
-          </Text>
-          <Text size="xs" fw={700} c={up ? "success" : "error"} span>
-            {formatPercentage(leader.change)}
-          </Text>
-        </Box>
-      </Tooltip>
-    );
-  };
-  return (
-    <ToolbarRow gap={2} wrap={false} data-testid={testId} sx={{ alignItems: "center", overflowX: "auto", py: 0.5 }}>
-      <Text size="xs" c="dimmed" span fw={700} sx={{ whiteSpace: "nowrap", textTransform: "uppercase" }}>
-        {label}
-      </Text>
-      {winners.length > 0 ? (
-        <ToolbarRow gap={1} wrap={false} sx={{ flexShrink: 0 }}>
-          <Text size="xs" c="success" span fw={700}>
-            ▲
-          </Text>
-          {winners.map(renderPill)}
-        </ToolbarRow>
-      ) : null}
-      {winners.length > 0 && losers.length > 0 ? (
-        <Box sx={{ width: 1, alignSelf: "stretch", bgcolor: "divider", flexShrink: 0 }} />
-      ) : null}
-      {losers.length > 0 ? (
-        <ToolbarRow gap={1} wrap={false} sx={{ flexShrink: 0 }}>
-          <Text size="xs" c="error" span fw={700}>
-            ▼
-          </Text>
-          {losers.map(renderPill)}
-        </ToolbarRow>
-      ) : null}
-    </ToolbarRow>
-  );
-}
+/** Compact breadth volume ("1.2Cr"), dash when the feed sent no number. */
+const formatVolume = (v: number | null | undefined): string =>
+  v == null || !Number.isFinite(v) ? "—" : formatNumber(v);
 
 /** Shift a YYYY-MM-DD date by ±days. Weekends/holidays are NOT skipped here —
  * the backend remaps non-trading days to the nearest session. */
@@ -373,6 +285,8 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
   const isCached = daily?.cached === true || breakouts?.cached === true;
   const breadth = daily?.breadth ?? null;
   const indexSnapshot = daily?.index ?? null;
+  const breadthTotal = breadth ? breadth.advances + breadth.declines + breadth.unchanged : 0;
+  const breadthShare = (n: number) => (breadthTotal > 0 ? `${(n / breadthTotal) * 100}%` : "0%");
 
   // Spark range toggle only appears when at least one breakout/breakdown row
   // carries daily closes; otherwise rows keep the single intraday spark.
@@ -532,28 +446,52 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
           ) : (
             <>
               {breadth ? (
-            <ToolbarRow gap={8} wrap data-testid="report-breadth">
-              {indexSnapshot ? (
-                <BreadthStat
-                  label={indexSnapshot.name}
-                  value={formatPercentage(indexSnapshot.change)}
-                  testId="report-breadth-index"
-                  color={getPnLTextColor(indexSnapshot.change)}
-                />
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }} data-testid="report-breadth-block">
+                  <ToolbarRow gap={8} wrap data-testid="report-breadth">
+                    {indexSnapshot ? (
+                      <BreadthStat
+                        label={indexSnapshot.name}
+                        value={formatPercentage(indexSnapshot.change)}
+                        testId="report-breadth-index"
+                        color={getPnLTextColor(indexSnapshot.change)}
+                      />
+                    ) : null}
+                    <BreadthStat label="Adv" value={String(breadth.advances)} testId="report-breadth-advances" color="success" />
+                    <BreadthStat label="Dec" value={String(breadth.declines)} testId="report-breadth-declines" color="error" />
+                    <BreadthStat label="Unch" value={String(breadth.unchanged)} testId="report-breadth-unchanged" color="dimmed" />
+                    <BreadthStat label="New highs" value={String(breadth.new_highs)} testId="report-breadth-new-highs" color="success" />
+                    <BreadthStat label="New lows" value={String(breadth.new_lows)} testId="report-breadth-new-lows" color="error" />
+                    <BreadthStat label="Avg" value={formatPercentage(breadth.avg_change)} testId="report-breadth-avg" />
+                    <BreadthStat label="Median" value={formatPercentage(breadth.median_change)} testId="report-breadth-median" />
+                    <BreadthStat label="Up vol" value={formatVolume(breadth.up_volume)} testId="report-breadth-up-volume" />
+                    <BreadthStat label="Down vol" value={formatVolume(breadth.down_volume)} testId="report-breadth-down-volume" />
+                  </ToolbarRow>
+                  {breadthTotal > 0 ? (
+                    <Box
+                      data-testid="report-breadth-bar"
+                      role="img"
+                      aria-label={`${breadth.advances} advances, ${breadth.declines} declines, ${breadth.unchanged} unchanged`}
+                      sx={{ display: "flex", width: "100%", height: 6, borderRadius: 0.5, overflow: "hidden", bgcolor: "divider" }}
+                    >
+                      <Box sx={{ width: breadthShare(breadth.advances), bgcolor: "success.main" }} />
+                      <Box sx={{ width: breadthShare(breadth.unchanged), bgcolor: "text.disabled" }} />
+                      <Box sx={{ width: breadthShare(breadth.declines), bgcolor: "error.main" }} />
+                    </Box>
+                  ) : null}
+                </Box>
               ) : null}
-              <BreadthStat label="Adv" value={String(breadth.advances)} testId="report-breadth-advances" color="success" />
-              <BreadthStat label="Dec" value={String(breadth.declines)} testId="report-breadth-declines" color="error" />
-              <BreadthStat label="Unch" value={String(breadth.unchanged)} testId="report-breadth-unchanged" color="dimmed" />
-              <BreadthStat label="New highs" value={String(breadth.new_highs)} testId="report-breadth-new-highs" color="success" />
-              <BreadthStat label="New lows" value={String(breadth.new_lows)} testId="report-breadth-new-lows" color="error" />
-              <BreadthStat label="Avg" value={formatPercentage(breadth.avg_change)} testId="report-breadth-avg" />
-              <BreadthStat label="Median" value={formatPercentage(breadth.median_change)} testId="report-breadth-median" />
-              <BreadthStat label="Up vol" value={formatVolume(breadth.up_volume)} testId="report-breadth-up-volume" />
-              <BreadthStat label="Down vol" value={formatVolume(breadth.down_volume)} testId="report-breadth-down-volume" />
-            </ToolbarRow>
-          ) : null}
-          <LeaderStrip leaders={daily?.sector_leaders} testId="report-sector-leaders" label="Sectors" />
-          <LeaderStrip leaders={daily?.theme_leaders} testId="report-theme-leaders" label="Themes" />
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" },
+                  gap: 1,
+                  minWidth: 0,
+                  alignItems: "start",
+                }}
+              >
+                <LeaderStrip leaders={daily?.sector_leaders} testId="report-sector-leaders" label="Sectors" />
+                <LeaderStrip leaders={daily?.theme_leaders} testId="report-theme-leaders" label="Themes" />
+              </Box>
             </>
           )}
             </Box>
@@ -621,7 +559,11 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
           <Box
             sx={{
               display: "grid",
-              gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" },
+              // Full-width stacked tables: nine columns per side do not fit in
+              // a half-width cell, and each table grew its own horizontal
+              // scrollbar. Stacking keeps one reading column and no inner
+              // horizontal scroll.
+              gridTemplateColumns: "minmax(0, 1fr)",
               gap: 1,
               alignItems: "start",
               minWidth: 0,

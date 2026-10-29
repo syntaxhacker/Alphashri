@@ -15,6 +15,10 @@ Rules (kept identical to the TS implementation):
   - score = |delta| / baseline;
   - severity: >= 8 critical, >= 5 alert, >= 3 watch;
   - requires ``warmup`` prior minutes and |delta| >= ``min_abs``.
+  - OI events also carry ``flow``/``bearish`` (buyer vs writer, read from OI +
+    premium together) when the tape has the premium. Squeezes and premium
+    impulses are momentum events whose direction is the leg that moved, so they
+    are deliberately not flow-classified.
 
 This is a heuristic, not advice, and it never places orders.
 """
@@ -23,6 +27,8 @@ from __future__ import annotations
 
 import statistics
 from typing import Any, Iterable, Optional
+
+from api.reports_api.nifty_fuel import basis_text, fuel_state, plan_allowed
 
 # ------------------------------------------------------------------ constants
 
@@ -61,6 +67,55 @@ def severity_for_score(score: float) -> str:
     if score >= OI_BURST_TIERS["watch"]:
         return "watch"
     return "info"
+
+
+#: Severity ordering for picking a group's representative burst.
+_SEVERITY_RANK = {"info": 0, "watch": 1, "alert": 2, "critical": 3}
+
+
+def coalesce_bursts(bursts: Iterable[dict]) -> list[dict]:
+    """One alert per (minute, side), keeping the strongest.
+
+    A single directional minute lights up several strikes and can trip more
+    than one detector, so the raw feed carries an index burst *plus* a burst
+    per strike (e.g. 4 alerts at 10:01:35 on 2026-10-16: one index + 23000 +
+    22950 + 23100). They describe the same event, so they are merged into one:
+    the highest severity (then score) wins and the fired strikes are recorded
+    on ``strikes`` / ``coalesced`` so nothing is lost.
+    """
+    groups: dict[tuple[str, Any], list[dict]] = {}
+    order: list[tuple[str, Any]] = []
+    for b in bursts or []:
+        key = (str(b.get("t") or "")[:16], b.get("side"))
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(b)
+
+    out: list[dict] = []
+    for key in order:
+        group = groups[key]
+        # A squeeze is the most actionable event in the group (momentum, not a
+        # fade), so it represents the minute; otherwise severity then score.
+        primary = max(
+            group,
+            key=lambda b: (
+                1 if b.get("type") == "squeeze" else 0,
+                _SEVERITY_RANK.get(str(b.get("severity")), 0),
+                _f(b.get("score")),
+            ),
+        )
+        merged = dict(primary)
+        if len(group) > 1:
+            merged["coalesced"] = len(group)
+            merged["strikes"] = sorted(
+                {_f(b.get("strike")) for b in group if b.get("strike")}
+            )
+            types = sorted({str(b.get("type")) for b in group if b.get("type")})
+            if types:
+                merged["types"] = types
+        out.append(merged)
+    return out
 
 
 #: A burst is by definition a ONE-minute OI move, so only strictly adjacent
@@ -104,6 +159,76 @@ def _is_contiguous(a: dict, b: dict, max_gap: int = MAX_BURST_GAP_MIN) -> bool:
     return gap is not None and 0 < gap <= max_gap
 
 
+# -------------------------------------------------- buyer / writer flow
+#
+# ΔOI alone does not say WHO traded. The same put build is bullish when writers
+# sold it (premium fell) and bearish when buyers paid up (premium rose), and the
+# old "put build -> writers -> bullish" assumption got the live chain backwards:
+# on 2026-10-21 the chain labelled the put builds "Long Buildup" (buyers) while
+# CE was "Short Buildup" (writers), yet a +640K put build still scored bullish.
+# Premium direction over the same window is the missing half of the reading.
+
+FLOW_BUYERS = "buyers"
+FLOW_WRITERS = "writers"
+FLOW_COVERING = "covering"
+FLOW_LIQUIDATION = "liquidation"
+
+
+def classify_flow(side: Any, delta: Any, premium_change: Any = None) -> dict[str, Any]:
+    """``{"flow", "bearish"}`` for one leg, or ``{}`` when undecidable.
+
+    ``delta`` is the OI change and ``premium_change`` the same-leg premium change
+    (rupees, not %) over the same window. The four combinations per side:
+
+      build  + premium up   -> buyers       put: bearish | call: bullish
+      build  + premium down -> writers      put: bullish | call: bearish
+      unwind + premium up   -> covering     both: bullish (shorts bought back)
+      unwind + premium down -> liquidation  both: bearish (longs sold out)
+
+    Returns ``{}`` (no fields at all) when the premium is missing/flat or the
+    OI change is zero — a guess is worse than no label, and callers fall back to
+    the old OI-only rule.
+    """
+    s = str(side or "").strip().lower()
+    if s not in ("call", "put"):
+        return {}
+    d = _f(delta)
+    if d == 0:
+        return {}
+    try:
+        p = float(premium_change)  # None -> TypeError
+    except (TypeError, ValueError):
+        return {}
+    if p != p or p == 0:  # NaN or a flat premium: no direction to read
+        return {}
+
+    rising = p > 0
+    if d > 0:
+        flow = FLOW_BUYERS if rising else FLOW_WRITERS
+        bearish = (not rising) if s == "call" else rising
+    else:
+        flow = FLOW_COVERING if rising else FLOW_LIQUIDATION
+        bearish = not rising
+    return {"flow": flow, "bearish": bearish}
+
+
+def _premium_change(prev: dict, cur: dict, key: str) -> Optional[float]:
+    """Change in a premium field between two rows, or None if incomparable.
+
+    The ATM strike rolls when spot crosses it; ``atm_*_ltp`` then refers to a
+    DIFFERENT contract, so the change is a strike artefact rather than a trade.
+    """
+    a = _f(prev.get(key))
+    b = _f(cur.get(key))
+    if a <= 0 or b <= 0:
+        return None
+    pa = _f(prev.get("atm_strike"))
+    pb = _f(cur.get("atm_strike"))
+    if pa and pb and pa != pb:
+        return None
+    return b - a
+
+
 def minute_doi_series(rows: Iterable[dict]) -> list[dict]:
     """Chronological per-minute OI deltas.
 
@@ -125,6 +250,9 @@ def minute_doi_series(rows: Iterable[dict]) -> list[dict]:
             "spot": _f(cur.get("spot")),
             "callTick": _f(cur.get("call_tick")),
             "putTick": _f(cur.get("put_tick")),
+            # ATM premium change per leg, for buyer/writer classification.
+            "dAtmCe": _premium_change(prev, cur, "atm_ce_ltp"),
+            "dAtmPe": _premium_change(prev, cur, "atm_pe_ltp"),
         })
     return out
 
@@ -144,10 +272,10 @@ def detect_oi_bursts(
         if (m.get("gapMinutes") or 1) > MAX_BURST_GAP_MIN:
             continue
         sides = (
-            ("call", m["dCall"], m["callDoi"], m["callTick"]),
-            ("put", m["dPut"], m["putDoi"], m["putTick"]),
+            ("call", m["dCall"], m["callDoi"], m["callTick"], m.get("dAtmCe")),
+            ("put", m["dPut"], m["putDoi"], m["putTick"], m.get("dAtmPe")),
         )
-        for side, delta, cum, tick in sides:
+        for side, delta, cum, tick, prem_chg in sides:
             magnitude = abs(delta)
             hist = history[side]
             if len(hist) >= warmup:
@@ -165,6 +293,12 @@ def detect_oi_bursts(
                         "cumDoi": cum,
                         "spot": m["spot"],
                         "tickVol": tick,
+                        # Same-side ATM premium change over the burst minute —
+                        # the premium direction half of the fuel 2×2.
+                        "premChg": prem_chg,
+                        # Side bursts are index totals, so the ATM leg is the
+                        # closest thing to "the premium for this flow".
+                        **classify_flow(side, delta, prem_chg),
                     })
             hist.append(magnitude)
 
@@ -209,7 +343,10 @@ def session_trend(rows: list[dict], at_time: Any = None) -> Optional[str]:
 
 # ------------------------------------------------------------- squeezes
 
-#: |OI unwind| needed for a wall break to count as a squeeze (contracts).
+#: |OI unwind| needed for a wall break to count as a squeeze, in UNITS
+#: (shares) - Upstox reports option OI in units, so 2,000,000 is 2,000,000
+#: units of open interest, NOT 2,000,000 contracts. The labels below say
+#: "units" for the same reason.
 SQUEEZE_MIN_UNWIND = 2_000_000.0
 SQUEEZE_TIERS = {"watch": 2_000_000.0, "alert": 4_000_000.0, "critical": 8_000_000.0}
 
@@ -248,8 +385,9 @@ def detect_squeezes(
 ) -> list[dict[str, Any]]:
     """Short-covering squeezes: spot breaks a wall while that side unwinds.
 
-    This is the shape of 2026-10-13's money move — spot crossed the call wall
-    at 14:21 while 16.5M call contracts were bought back at 14:20. A burst says
+    This is the shape of 2026-10-13's money move - spot crossed the call wall
+    at 14:21 while 16.5M call UNITS of open interest were bought back at
+    14:20 (Upstox reports OI in units/shares, not contracts). A burst says
     "writers moved"; a squeeze says "writers are being run over", which is a
     momentum trade (buy the broken side), not a fade.
 
@@ -258,7 +396,12 @@ def detect_squeezes(
 
     The unwind and the cross do NOT have to land on the same minute (they were
     a minute apart in the real case), so the strongest unwind within
-    +/-``window_min`` of the cross is what qualifies — emitted AT the cross.
+    +/-``window_min`` of the cross is what qualifies - emitted AT the cross.
+
+    Only ADJACENT minutes count inside that window: a recorder gap turns the
+    missing span into one enormous "one-minute" unwind, which then scores as
+    a CRITICAL squeeze. The window scan therefore applies the same
+    :func:`_is_contiguous` guard as the cross itself.
     """
     by_t: dict[str, dict] = {}
     for r in rows or []:
@@ -293,12 +436,16 @@ def detect_squeezes(
             if not broke:
                 continue
 
-            # Strongest unwind for this side inside the +/- window.
+            # Strongest unwind for this side inside the +/- window. Only
+            # adjacent minutes are eligible: a gap in the tape would turn the
+            # whole missing span into one "one-minute" unwind.
             best = 0.0
             best_t = None
             lo = max(1, i - window_min)
             hi = min(len(ordered), i + window_min + 1)
             for j in range(lo, hi):
+                if j >= 1 and not _is_contiguous(ordered[j - 1], ordered[j]):
+                    continue
                 d = delta_at(j, doi_key)
                 if d < best:
                     best, best_t = d, ordered[j].get("t")
@@ -338,6 +485,37 @@ STRIKE_BURST_MIN_ABS = 300_000.0
 STRIKE_BURST_MIN_SCORE = 4.0
 
 
+def _leg_premium(row: dict, strike: float, leg: str) -> Optional[float]:
+    """One (strike, leg) premium from a tape row, or None.
+
+    ``chain`` is the only per-strike price on the tape (``strikes_top`` carries
+    OI only). When the strike IS the row's ATM, fall back to the ATM snapshot so
+    tapes recorded before ``chain`` existed can still rate their ATM strike.
+    """
+    want = int(round(_f(strike)))
+    chain = row.get("chain")
+    if want and isinstance(chain, dict):
+        series = chain.get(str(want))
+        if isinstance(series, (list, tuple)) and len(series) >= 2:
+            v = _f(series[0] if leg == "ce" else series[1])
+            if v > 0:
+                return v
+    if want and int(round(_f(row.get("atm_strike")))) == want:
+        v = _f(row.get("atm_ce_ltp" if leg == "ce" else "atm_pe_ltp"))
+        if v > 0:
+            return v
+    return None
+
+
+def _strike_premium_change(prev: dict, cur: dict, strike: float, leg: str) -> Optional[float]:
+    """Premium change for one strike/leg across two adjacent rows, or None."""
+    a = _leg_premium(prev, strike, leg)
+    b = _leg_premium(cur, strike, leg)
+    if a is None or b is None:
+        return None
+    return b - a
+
+
 def detect_strike_bursts(
     rows: list[dict],
     min_abs: float = STRIKE_BURST_MIN_ABS,
@@ -346,7 +524,7 @@ def detect_strike_bursts(
 ) -> list[dict[str, Any]]:
     """Single-strike OI explosions — names the exact strike and leg.
 
-    Index totals dilute a strike: 16M contracts at one strike is invisible
+    Index totals dilute a strike: 16M UNITS of OI at one strike is invisible
     against a 300M total. Every series is (strike, leg), so the alert can say
     "22,750 CE +6.2M" instead of only "call OI burst". Needs the tape's
     ``strikes_top`` field, so it is a no-op on tapes recorded before it.
@@ -407,6 +585,12 @@ def detect_strike_bursts(
                         "cumDoi": _f(cur_row.get(f"{'call' if leg == 'ce' else 'put'}_doi")),
                         "spot": _f(cur_row.get("spot")),
                         "tickVol": 0.0,
+                        # That strike's OWN premium, not the ATM's: the whole
+                        # point of a strike alert is that this contract moved.
+                        **classify_flow(
+                            "call" if leg == "ce" else "put", d,
+                            _strike_premium_change(ordered[i - 1], cur_row, strike, leg),
+                        ),
                     })
             hist.append(magnitude)
     return out
@@ -432,6 +616,18 @@ def detect_premium_moves(
     ``atm_*_ltp`` values can refer to DIFFERENT strikes and produce a fake
     "premium spike". A move only counts when ``atm_strike`` is unchanged across
     the whole window.
+
+    The reported leg is gated on the SIGN of the premium move, not on which
+    leg happened to move:
+
+      * premium UP   -> ``CE`` / "call"
+      * premium DOWN -> ``PE`` / "put"
+
+    i.e. CE up -> CE, CE down -> PE, PE up -> CE, PE down -> PE. Labelling
+    the event with the leg that moved (the old behaviour) put 54 of 97 events
+    on the wrong side: a collapsing call premium was published as a "call"
+    event when the tape was pointing at the put side. The leg that actually
+    moved is still reported, as ``moved_leg``.
     """
     by_t: dict[str, dict] = {}
     for r in rows or []:
@@ -450,7 +646,7 @@ def detect_premium_moves(
         if _f(cur.get("atm_strike")) != _f(ref.get("atm_strike")):
             continue
 
-        for leg, key, side in (("CE", "atm_ce_ltp", "call"), ("PE", "atm_pe_ltp", "put")):
+        for leg, key in (("CE", "atm_ce_ltp"), ("PE", "atm_pe_ltp")):
             a = _f(ref.get(key))
             b = _f(cur.get(key))
             if a <= 0 or b <= 0:
@@ -458,11 +654,17 @@ def detect_premium_moves(
             pct = (b - a) / a * 100.0
             if abs(pct) < min_pct:
                 continue
+            # The reported leg follows the SIGN of the move (premium up -> CE,
+            # premium down -> PE); the leg that actually moved is kept
+            # separately as ``moved_leg``.
+            reported_leg = "CE" if pct > 0 else "PE"
+            side = "call" if reported_leg == "CE" else "put"
             out.append({
                 "id": f"{cur['t']}-premium-{leg}",
                 "type": "premium",
                 "side": side,
-                "leg": leg,
+                "leg": reported_leg,
+                "moved_leg": leg,
                 "strike": _f(cur.get("atm_strike")),
                 "t": cur["t"],
                 "delta": round(b - a, 2),
@@ -683,6 +885,13 @@ def derive_oi_signal(
     `trend` ("up"/"down") gates the plan: a leg that disagrees with the session
     trend gets NO plan (returns None) — counter-trend plans were the entire loss
     side on 2026-10-13 (1/9) and again on 2026-10-15 (resolved 0.32 vs 0.80 aligned).
+
+    The FUEL gate (playbook §3.1): a burst whose fuel is spent (writers
+    covering / longs liquidating) carries NO plan unless the underlying closed
+    beyond a level in the same direction — `burst["structure"]`. Without that
+    evidence there is no trade, because a premium rising on an unwind is a
+    liquidity event, not accumulation (2026-10-22 11:13: writers covering at
+    the day's high, the market topped two minutes later).
     """
     if not strikes or not spot:
         return None
@@ -701,6 +910,14 @@ def derive_oi_signal(
         leg = "CE" if leg == "CE" else "PE"
     else:
         leg = "PE" if call == building else "CE"
+
+    fuel = burst.get("fuel_state")
+    if fuel is None:
+        prem = burst.get("premChg")
+        fuel = fuel_state(building, None if prem is None else float(prem))
+    if not (is_squeeze or burst.get("type") == "premium"):
+        if not plan_allowed(fuel, burst.get("structure"), burst.get("side") or "call"):
+            return None
 
     candidates = []
     for s in strikes:
@@ -734,8 +951,12 @@ def derive_oi_signal(
     elif is_squeeze:
         wall = burst.get("wall")
         wall_txt = f"{wall:,.0f}" if isinstance(wall, (int, float)) else "?"
+        # The unwind is in UNITS (shares) — Upstox reports option OI in units,
+        # so the label says so instead of leaving the reader to guess whether
+        # "16,500,000" is contracts or shares.
         basis = (f"short-covering squeeze — {burst.get('side')} wall {wall_txt} "
-                 f"broken while that side unwound {abs(_f(burst.get('delta'))):,.0f}")
+                 f"broken while that side unwound "
+                 f"{abs(_f(burst.get('delta'))):,.0f} units")
     elif call:
         basis = ("call OI build — writers adding ceiling → fade with puts"
                  if building else

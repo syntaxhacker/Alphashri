@@ -491,8 +491,11 @@ async def lifespan(app: FastAPI):
     _digest_task = None
     _touch_task = None
     _nifty_tape_task = None
+    _us_tape_task = None
     _nifty_stream_task = None
     _nifty_oi_task = None
+    _nifty_spot_task = None
+    _nifty_md_task = None
     ci = _ci_mode()
     redis_connected = False
     try:
@@ -623,12 +626,48 @@ async def lifespan(app: FastAPI):
                 print(f"⚠️ Nifty tape task failed: {e}")
                 _nifty_tape_task = None
             try:
+                from api.reports_api.us_tape import start_us_tape_task
+                _us_tape_task = start_us_tape_task()
+                print("📼 US futures tape task started (NQ)")
+            except Exception as e:
+                print(f"⚠️ US tape task failed: {e}")
+                _us_tape_task = None
+            try:
                 from api.reports_api.nifty_stream import nifty_burst_watch_task
                 _nifty_stream_task = asyncio.create_task(nifty_burst_watch_task())
                 print("📡 Nifty burst stream watcher started")
             except Exception as e:
                 print(f"⚠️ Nifty burst stream watcher failed: {e}")
                 _nifty_stream_task = None
+            try:
+                from api.reports_api.nifty_ws import start_nifty_spot_tick_task
+                _nifty_spot_task = start_nifty_spot_tick_task()
+                print("📍 Nifty spot tick task started")
+            except Exception as e:
+                print(f"⚠️ Nifty spot tick task failed: {e}")
+                _nifty_spot_task = None
+            try:
+                # Upstox Market-Data WS. OFF by default: from most networks the
+                # WS upgrade is Cloudflare-1010 blocked, and the official 302
+                # upgrade-redirect can't be followed by websockets /
+                # websocket-client / curl_cffi (they 403 on the WAF or refuse
+                # the 302). REST (httpx) is unaffected, so the report falls back
+                # to it. Enable with NIFTY_MD_WS=1 on a network where the feed
+                # is reachable.
+                import os as _os
+                if _os.getenv("NIFTY_MD_WS", "").lower() in ("1", "true", "yes"):
+                    from api.reports_api.nifty_md import start_nifty_md_task
+                    _maybe_task = start_nifty_md_task()
+                    if asyncio.iscoroutine(_maybe_task):
+                        _maybe_task = asyncio.create_task(_maybe_task)
+                    _nifty_md_task = _maybe_task
+                    print("🔌 Nifty MD WS task started")
+                else:
+                    _nifty_md_task = None
+                    print("🔌 Nifty MD WS disabled (NIFTY_MD_WS=1 to enable; Cloudflare-blocked on most networks)")
+            except Exception as e:
+                print(f"⚠️ Nifty MD task failed: {e}")
+                _nifty_md_task = None
             try:
                 # P1: live OI over the WebSocket. OFF unless NIFTY_OI_STREAM=1,
                 # and shadow-logged by default — an unvalidated live feed must
@@ -690,8 +729,28 @@ async def lifespan(app: FastAPI):
         _touch_task.cancel()
     if _nifty_tape_task:
         _nifty_tape_task.cancel()
+    if _us_tape_task:
+        _us_tape_task.cancel()
+    try:
+        from api.reports_api.us_tape import stop_us_tasks
+        stop_us_tasks()
+    except Exception:
+        pass
     if _nifty_stream_task:
         _nifty_stream_task.cancel()
+    if _nifty_spot_task:
+        _nifty_spot_task.cancel()
+    if _nifty_md_task is not None:
+        try:
+            _nifty_md_task.cancel()
+        except Exception:
+            pass
+        _nifty_md_task = None
+    try:
+        from api.reports_api.nifty_md import stop_nifty_md_task
+        stop_nifty_md_task()
+    except Exception:
+        pass
     if _nifty_oi_task:
         _nifty_oi_task.cancel()
 
@@ -1110,6 +1169,16 @@ except Exception as e:
     print(f"⚠️ Could not load sector API: {e}")
 
 try:
+    # import from the SUBMODULE, not the package: `from api.value_scan import router`
+    # can resolve to the module (or a stale attribute) after other imports have
+    # touched the package, which silently registers an APIRouter with no routes.
+    from api.value_scan.router import router as value_scan_router
+    app.include_router(value_scan_router)
+    print("✅ Value scan API loaded at /api/value")
+except Exception as e:
+    print(f"⚠️ Could not load value scan API: {e}")
+
+try:
     from api.options import router as options_router
     app.include_router(options_router)
     print("✅ Options API loaded at /api/options")
@@ -1318,6 +1387,20 @@ try:
     print("✅ Nifty Report API loaded at /api/reports/nifty")
 except Exception as e:
     print(f"⚠️ Could not load Nifty Report API: {e}")
+
+try:
+    from api.reports_api.us import router as us_report_router
+    app.include_router(us_report_router)
+    print("✅ US Report API loaded at /api/reports/us")
+except Exception as e:
+    print(f"⚠️ Could not load US Report API: {e}")
+
+try:
+    from api.reports_api.nifty_ws import router as nifty_ws_router
+    app.include_router(nifty_ws_router)
+    print("✅ Nifty WS API loaded at /ws/nifty/report + /ws/nifty/bursts")
+except Exception as e:
+    print(f"⚠️ Could not load Nifty WS API: {e}")
 
 if __name__ == '__main__':
     port = config.PORT
