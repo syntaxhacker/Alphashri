@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { memo, useEffect } from "react";
 import { Box } from "@/ui";
 import { useECharts } from "@/hooks/useECharts";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
@@ -16,7 +16,7 @@ export interface PatternMiniChartProps {
  * Compact inline candlestick for a card. Reuses the shared option builder so
  * the pattern geometry matches the detail / fullscreen views exactly.
  */
-export function PatternMiniChart({ hit, trendlinesView = "both" }: PatternMiniChartProps) {
+export const PatternMiniChart = memo(function PatternMiniChart({ hit, trendlinesView = "both" }: PatternMiniChartProps) {
   const { chartRef, setChartOption } = useECharts({ isDark: true });
 
   useEffect(() => {
@@ -78,4 +78,4 @@ export function PatternMiniChart({ hit, trendlinesView = "both" }: PatternMiniCh
       sx={{ width: "100%", height: MINI_CHART_HEIGHT }}
     />
   );
-}
+});
