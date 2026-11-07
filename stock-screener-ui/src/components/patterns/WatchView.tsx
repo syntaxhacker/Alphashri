@@ -3,7 +3,8 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { Alert, Badge, Box, Button, Loader, NumberInput, Select, Switch, Text, TextInput, ToolbarRow, Tooltip } from "@/ui";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { fetchMarketStatus, fetchWatch, fetchWatchSetups, streamWatch } from "@/api/chartPatterns";
-import type { MarketStatus, WatchRow, WatchSetup, WatchStreamMeta } from "@/types/chartPatterns";
+import type { MarketStatus, WatchRow, WatchSetup } from "@/types/chartPatterns";
+import type { WatchStreamMeta } from "@/api/chartPatterns";
 import { formatCurrency, formatPercentage } from "@/utils/ui-helpers";
 import type { CsvColumn } from "@/utils/copyCsv";
 import { isMarketOpenIst } from "@/utils/marketClock";
@@ -28,9 +29,82 @@ export const WATCH_DEFAULT_WITHIN_PCT = 5;
  * Sent as `min_rel_volume`; the backend applies it to `vol_adj`.
  */
 export const WATCH_DEFAULT_MIN_REL_VOLUME = 0.7;
+/**
+ * Empty-stream hint delay: when the stream has delivered no `item` for this
+ * long, the loading panel adds a "Computing …" hint. Informational only —
+ * the stream is never aborted because of it.
+ */
+export const WATCH_SLOW_HINT_MS = 8000;
+
+/** Friendly labels for the known universe ids (singular matches ScanProgress). */
+const WATCH_UNIVERSE_LABELS: Record<string, string> = {
+  nifty50: "NIFTY 50",
+  nifty100: "NIFTY 100",
+  nifty200: "NIFTY 200",
+  nifty500: "NIFTY 500",
+  all_equity: "All NSE Equity",
+  nse_fo: "NSE F&O",
+};
+
+/** Human label for a universe id; unknown ids fall back to the raw id. */
+export function universeLabel(universe: string): string {
+  return WATCH_UNIVERSE_LABELS[universe] ?? universe;
+}
+
+/**
+ * Stream `meta` echo plus the optional armed `total`: the backend emits an
+ * immediate first `meta` (setup + gate) and, after `arm()`, a second `meta`
+ * carrying `total` so the UI can show `items.length / total`. Extended
+ * locally so older backends (no `total`) keep working via the fallback.
+ */
+type WatchStreamMetaWithTotal = WatchStreamMeta & { total?: number | null };
 
 /** IST offset, used only for the hh:mm snapshot stamp (not the session clock). */
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+/**
+ * Backend-supplied fields not yet in the canonical `WatchRow` type
+ * (`src/types/chartPatterns.ts` is not owned here). Local extension only:
+ * `tags` marks F&O underlyings / ETFs, `trigger_date` is the 52W-high
+ * trigger date for `near_52w` rows.
+ */
+type WatchRowExt = WatchRow & {
+  tags?: string[];
+  trigger_date?: string | null;
+  last_touch_date?: string | null;
+};
+
+/** True when the backend `tags` array carries `tag`. Never throws on missing. */
+function hasTag(row: WatchRow, tag: string): boolean {
+  const tags = (row as WatchRowExt).tags;
+  return Array.isArray(tags) && tags.includes(tag);
+}
+
+/** 52W trigger date for `near_52w` rows (null/undefined = unknown). */
+function triggerDateOf(row: WatchRow): string | null | undefined {
+  return (row as WatchRowExt).trigger_date;
+}
+
+/**
+ * F&O / ETF badges rendered next to the watch symbol. Additive only —
+ * rows without `tags` render nothing extra.
+ */
+function watchTagBadges(row: WatchRow) {
+  return (
+    <>
+      {hasTag(row, "F&O") ? (
+        <Badge color="info" size="xs" data-testid={`watch-tag-fno-${row.symbol}`}>
+          {"F&O"}
+        </Badge>
+      ) : null}
+      {hasTag(row, "ETF") ? (
+        <Badge color="warning" size="xs" data-testid={`watch-tag-etf-${row.symbol}`}>
+          ETF
+        </Badge>
+      ) : null}
+    </>
+  );
+}
 
 /**
  * True between 09:15–15:30 IST, Mon–Fri. Delegates to the shared NSE session
@@ -105,17 +179,43 @@ function stateCell(ctx: { getValue: () => unknown; row: { original: WatchRow } }
 
 type WatchCellContext = { getValue: () => unknown; row: { original: WatchRow } };
 
-/** Symbol label shared by every setup table. */
-const symbolCell = (ctx: WatchCellContext) => (
-  <Text size="sm" fw={600}>
-    {String(ctx.getValue())}
-  </Text>
-);
+/** Symbol label shared by every setup table, plus F&O/ETF tag badges. */
+const symbolCell = (ctx: WatchCellContext) => {
+  const row = ctx.row.original as WatchRow;
+  return (
+    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+      <Text size="sm" fw={600}>
+        {String(ctx.getValue())}
+      </Text>
+      {watchTagBadges(row)}
+    </Box>
+  );
+};
 
 /** Rupee price with two decimals. */
 const priceCell = (ctx: WatchCellContext) => (
   <span>{formatCurrency(Number(ctx.getValue() ?? 0), 2)}</span>
 );
+
+/**
+ * `near_52w` 52W-high cell: the numeric trigger value stays, and when the
+ * backend supplies `trigger_date` the date renders next to it (title carries
+ * the full "52W high ₹X · YYYY-MM-DD" caption). No date → plain price.
+ */
+const high52wCell = (ctx: WatchCellContext) => {
+  const row = ctx.row.original as WatchRow;
+  const price = formatCurrency(Number(ctx.getValue() ?? 0), 2);
+  const triggerDate = triggerDateOf(row);
+  if (!triggerDate) return <span>{price}</span>;
+  return (
+    <Box sx={{ display: "inline-flex", alignItems: "baseline", gap: 0.5 }}>
+      <span title={`52W high ${price} · ${triggerDate}`}>{price}</span>
+      <Text size="xs" c="dimmed" data-testid={`watch-trigger-date-${row.symbol}`}>
+        {triggerDate}
+      </Text>
+    </Box>
+  );
+};
 
 /** Bare two-decimal number (OBV slope, up/down ratio). */
 const plainNumberCell = (ctx: WatchCellContext) => {
@@ -245,7 +345,7 @@ const NEAR_52W_COLUMNS: ColumnDef<WatchRow>[] = [
     header: "52W high",
     accessorKey: "trigger_level",
     meta: { align: "right" },
-    cell: priceCell as never,
+    cell: high52wCell as never,
   },
   {
     id: "high_gap",
@@ -382,8 +482,10 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
   const [refreshing, setRefreshing] = useState(false);
   /** True while a `/watch/stream` connection is still appending rows. */
   const [streaming, setStreaming] = useState(false);
-  /** Stream `meta` echo (setup + gate), shown as soon as it arrives. */
-  const [streamMeta, setStreamMeta] = useState<WatchStreamMeta | null>(null);
+  /** Stream `meta` echo (setup + gate + optional total), shown as soon as it arrives. */
+  const [streamMeta, setStreamMeta] = useState<WatchStreamMetaWithTotal | null>(null);
+  /** True once the empty-stream "Computing …" hint becomes relevant. */
+  const [showSlowHint, setShowSlowHint] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState(() => isWatchLiveNow());
   // Holiday-aware market status (server clock wins over the client clock).
@@ -395,6 +497,8 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
   const [stateFilter, setStateFilter] = useState<WatchRow["state"] | "all">("all");
   const [withinPct, setWithinPct] = useState<number | string>(WATCH_DEFAULT_WITHIN_PCT);
   const [hideInvalidated, setHideInvalidated] = useState(true);
+  /** Hide ETF-tagged rows by default (the All NSE Equity 52W list is ETF-heavy). */
+  const [hideEtfs, setHideEtfs] = useState(true);
   const requestRef = useRef(0);
   const streamControllerRef = useRef<AbortController | null>(null);
 
@@ -414,6 +518,17 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
     const timer = setInterval(() => setNowMs(Date.now()), WATCH_SNAPSHOT_TICK_MS);
     return () => clearInterval(timer);
   }, []);
+  // Empty-stream hint: while `streaming` with no `item` yet, surface the
+  // "Computing …" hint after WATCH_SLOW_HINT_MS. Informational only — the
+  // stream keeps running and is never aborted because of the timer.
+  useEffect(() => {
+    if (!streaming || items.length !== 0) {
+      setShowSlowHint(false);
+      return;
+    }
+    const timer = setTimeout(() => setShowSlowHint(true), WATCH_SLOW_HINT_MS);
+    return () => clearTimeout(timer);
+  }, [streaming, items.length]);
   // Load the setup registry once; adopt the active setup's default rel-vol.
   useEffect(() => {
     let active = true;
@@ -593,6 +708,10 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
     const distanceOf = (row: WatchRow): number | null | undefined =>
       setup === "near_52w" ? row.close_gap : row.pct_to_trigger;
     return items.filter((row) => {
+      // Client-side ETF gate first: ETF rows are excluded before the
+      // search/state/distance filters. `filtered.length` (and the count
+      // label) therefore already reflect the hiding.
+      if (hideEtfs && hasTag(row, "ETF")) return false;
       if (q && !String(row.symbol || "").toUpperCase().includes(q)) return false;
       if (hideInvalidated && row.state === "invalidated") return false;
       if (stateFilter !== "all" && row.state !== stateFilter) return false;
@@ -602,7 +721,7 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
       }
       return true;
     });
-  }, [items, search, stateFilter, withinPct, hideInvalidated, setup]);
+  }, [items, search, stateFilter, withinPct, hideInvalidated, hideEtfs, setup]);
 
   const columns = useMemo(() => {
     const base = columnsFor(setup);
@@ -611,17 +730,20 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
       col.id === "symbol"
         ? {
             ...col,
-            cell: (ctx: { getValue: () => unknown }) => {
+            cell: (ctx: { getValue: () => unknown; row: { original: WatchRow } }) => {
               const symbol = String(ctx.getValue() ?? "");
               return (
-                <SymbolLink
-                  symbol={symbol}
-                  testId={`watch-tv-${symbol}`}
-                  chartTestId={`watch-chart-${symbol}`}
-                  onOpen={onOpenSymbol}
-                  onPreview={onSymbolPreview}
-                  onPreviewEnd={onSymbolPreviewEnd}
-                />
+                <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+                  <SymbolLink
+                    symbol={symbol}
+                    testId={`watch-tv-${symbol}`}
+                    chartTestId={`watch-chart-${symbol}`}
+                    onOpen={onOpenSymbol}
+                    onPreview={onSymbolPreview}
+                    onPreviewEnd={onSymbolPreviewEnd}
+                  />
+                  {watchTagBadges(ctx.row.original)}
+                </Box>
               );
             },
           }
@@ -631,6 +753,17 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
   const initialSorting = useMemo(() => sortFor(setup), [setup]);
   const csvColumns = useMemo(() => watchCsvColumns(setup), [setup]);
   const snapshotAge = useMemo(() => formatSnapshotAge(updatedAt, nowMs), [updatedAt, nowMs]);
+  // Stream progress: when the second `meta` carries `total`, the counter
+  // shows how many `item`s have arrived against that armed total. Older
+  // backends / pre-`total` metas keep the `filtered / items` display.
+  const streamTotal =
+    typeof streamMeta?.total === "number" && Number.isFinite(streamMeta.total)
+      ? streamMeta.total
+      : null;
+  const countLabel =
+    streamTotal != null
+      ? `${filtered.length} / ${streamTotal}`
+      : `${filtered.length} / ${items.length}`;
 
   const { copyMsg, copyFailed, copyRows, copySymbols } = useCopyFeedback();
   const handleCopyCsv = useCallback(() => {
@@ -763,8 +896,15 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
           onChange={(e) => setHideInvalidated(e.target.checked)}
           data-testid="watch-hide-invalidated"
         />
+        <Switch
+          label="Hide ETFs"
+          size="sm"
+          checked={hideEtfs}
+          onChange={(e) => setHideEtfs(e.target.checked)}
+          data-testid="watch-hide-etfs"
+        />
         <Text size="xs" c="dimmed" data-testid="watch-count">
-          {`${filtered.length} / ${items.length}`}
+          {countLabel}
         </Text>
         <Button
           size="sm"
@@ -812,6 +952,11 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
           <Text size="sm" c="dimmed">
             Loading watch list…
           </Text>
+          {showSlowHint && streaming ? (
+            <Text size="xs" c="dimmed" data-testid="watch-loading-hint">
+              {`Computing the ${universeLabel(universe)} screen — this can take a few seconds for All NSE Equity.`}
+            </Text>
+          ) : null}
         </Box>
       ) : items.length === 0 && !error ? (
         <Box

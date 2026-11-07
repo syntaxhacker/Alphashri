@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Box, Text } from "@/ui";
+import { Badge, Box, Text } from "@/ui";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
 import type { PatternHitDTO } from "@/types/chartPatterns";
@@ -31,6 +31,19 @@ export interface PatternListViewProps {
   onSymbolPreviewEnd?: (symbol: string) => void;
   /** Chart icon: open the symbol in the right-side chart. */
   onSymbolOpen?: (symbol: string) => void;
+}
+
+/**
+ * Backend-supplied `tags` not yet in the canonical `PatternHitDTO` type
+ * (local extension only). Results are equities, so only the F&O badge is
+ * shown — an ETF tag is tolerated (no crash) but never rendered.
+ */
+type PatternHitExt = PatternHitDTO & { tags?: string[] };
+
+/** True when the backend `tags` array carries `tag`. Never throws on missing. */
+function hitHasTag(hit: PatternHitDTO, tag: string): boolean {
+  const tags = (hit as PatternHitExt).tags;
+  return Array.isArray(tags) && tags.includes(tag);
 }
 
 /** Rail sort -> the column the table seeds its sort indicator from. */
@@ -133,6 +146,7 @@ export function PatternListView({
         cell: (info) => {
           const symbol = info.getValue<string>();
           const canShowMembers = Boolean(onShowMembers && hasIndexMembers(symbol));
+          const showFno = hitHasTag(info.row.original, "F&O");
           return (
             <Box sx={{ display: "flex", alignItems: "center", gap: "2px", minWidth: 0 }}>
               <SymbolLink
@@ -144,6 +158,11 @@ export function PatternListView({
                 onPreviewEnd={onSymbolPreviewEnd}
                 sx={{ flex: 1 }}
               />
+              {showFno ? (
+                <Badge color="info" size="xs" data-testid={`patterns-list-tag-fno-${symbol}`}>
+                  {"F&O"}
+                </Badge>
+              ) : null}
               {canShowMembers ? (
                 <MembersButton
                   symbol={symbol}

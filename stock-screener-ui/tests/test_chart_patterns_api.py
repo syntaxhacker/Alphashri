@@ -1370,6 +1370,30 @@ def test_summary_max_52w_gap_filter(cp_client, test_db_engine):
     assert unfiltered.json()["patterns"] == 2
 
 
+def test_results_items_carry_tags(cp_client, monkeypatch):
+    """Every /results item carries F&O / ETF tags computed from its symbol."""
+    store.save_job({
+        "job_id": "cpj_tags", "universe": "nifty500", "timeframe": "1D",
+        "status": "completed", "total": 3, "done": 3,
+    })
+    store.save_hits("cpj_tags", [_hit("NIFTYBEES"), _hit("RELIANCE"), _hit("AAA")])
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df, lookback_bars=None: {"support": None, "resistance": None},
+    )
+    resp = cp_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_tags", "compute_trendlines": "false"},
+    )
+    assert resp.status_code == 200
+    by_symbol = {item["symbol"]: item for item in resp.json()["items"]}
+    assert set(by_symbol) == {"NIFTYBEES", "RELIANCE", "AAA"}
+    assert by_symbol["NIFTYBEES"]["tags"] == ["ETF"]
+    assert by_symbol["RELIANCE"]["tags"] == ["F&O"]
+    assert by_symbol["AAA"]["tags"] == []
+
+
 # ---------------------------------------------------------------------------
 # min_range_pos filter + range_pos sort (consolidation base position).
 # ---------------------------------------------------------------------------

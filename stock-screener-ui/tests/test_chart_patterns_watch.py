@@ -14,6 +14,7 @@ from sqlalchemy.orm import sessionmaker
 from api.chart_patterns import router
 from chart_patterns import store
 from chart_patterns import watch as watch_mod
+from chart_patterns.tags import tags_for
 
 
 # ---------------------------------------------------------------------------
@@ -581,9 +582,37 @@ def test_watch_contract(cp_client, mock_quotes):
     assert set(item) == {
         "symbol", "setup_id", "trigger_level", "invalidate_level", "base_days",
         "range_pct", "confidence", "status", "end_date", "fresh",
-        "ltp", "rel_volume", "vol_adj", "pct_to_trigger", "state",
+        "ltp", "rel_volume", "vol_adj", "pct_to_trigger", "state", "tags",
     }
     assert item["state"] == "triggered"
+    assert item["tags"] == tags_for("AAA")
+
+
+def test_watch_row_tags_etf(cp_client, mock_quotes):
+    """NIFTYBEES carries an INF ISIN -> ``["ETF"]`` on every watch row."""
+    _seed(hits=[_hit("NIFTYBEES", base_days=90, range_pct=10.0)])
+    mock_quotes["NIFTYBEES"] = (400.0, 2.0)
+    resp = cp_client.get("/api/chart-patterns/watch?setup=breakout")
+    assert resp.status_code == 200
+    assert resp.json()["items"][0]["tags"] == ["ETF"]
+
+
+def test_watch_row_tags_fno(cp_client, mock_quotes):
+    """RELIANCE is an F&O underlying with an INE ISIN -> ``["F&O"]``."""
+    _seed(hits=[_hit("RELIANCE", base_days=90, range_pct=10.0)])
+    mock_quotes["RELIANCE"] = (2600.0, 2.0)
+    resp = cp_client.get("/api/chart-patterns/watch?setup=breakout")
+    assert resp.status_code == 200
+    assert resp.json()["items"][0]["tags"] == ["F&O"]
+
+
+def test_watch_row_tags_plain(cp_client, mock_quotes):
+    """JETFREIGHT is an INE company not in F&O -> ``[]``."""
+    _seed(hits=[_hit("JETFREIGHT", base_days=90, range_pct=10.0)])
+    mock_quotes["JETFREIGHT"] = (150.0, 2.0)
+    resp = cp_client.get("/api/chart-patterns/watch?setup=breakout")
+    assert resp.status_code == 200
+    assert resp.json()["items"][0]["tags"] == []
 
 
 def test_watch_unknown_setup_404(cp_client):
@@ -642,10 +671,13 @@ def test_near52w_row_fields():
     row = watch_mod._near52w_row("aaa", _near52w_frame())
     assert row["symbol"] == "AAA"
     assert row["setup_id"] == "near_52w"
-    # Prior high = max high of the first 29 bars = 90 + 28*0.3 + 0.5.
+    # Prior high = max high of the first 29 bars = 90 + 28*0.3 + 0.5,
+    # set on 2026-01-29; latest bar (2026-01-30) touches it.
     assert row["trigger_level"] == pytest.approx(98.9)
     assert row["last_high"] == pytest.approx(99.2)
     assert row["close"] == pytest.approx(98.7)
+    assert row["trigger_date"] == "2026-01-29"
+    assert row["last_touch_date"] == "2026-01-30"
     assert row["touched"] is True
     assert row["high_gap"] == pytest.approx((98.9 - 99.2) / 98.9 * 100.0)
     assert row["close_gap"] == pytest.approx((98.9 - 98.7) / 98.9 * 100.0)
@@ -668,6 +700,67 @@ def test_near52w_row_short_frame_skipped():
     assert watch_mod._near52w_row("AAA", None) is None
     assert watch_mod._near52w_row("AAA", pd.DataFrame()) is None
     assert watch_mod._near52w_row("AAA", _near52w_frame(n=10)) is None
+
+
+def test_near52w_old_high_ignored_aplltd():
+    """APLLTD regression: a 367-day-old 998 high sits inside tail(252) (only
+    28 bars total) so the old 252-bar lookback wrongly made it prior_high and
+    kept the screen un-touched. The calendar 52W window excludes it (>365
+    days), so the recent 963.35 high becomes the trigger and the latest bar
+    (985) touches it."""
+    import numpy as np
+    import pandas as pd
+
+    recent = pd.bdate_range("2026-10-01", "2026-11-06", tz="UTC")
+    n_recent = len(recent)
+    high = np.full(n_recent, 950.0)
+    close = np.full(n_recent, 940.0)
+    high[recent.get_loc(pd.Timestamp("2026-11-04", tz="UTC"))] = 963.35
+    high[recent.get_loc(pd.Timestamp("2026-11-06", tz="UTC"))] = 985.00  # latest bar
+
+    idx = pd.DatetimeIndex([pd.Timestamp("2025-11-04", tz="UTC")]).append(recent)
+    df = pd.DataFrame(
+        {
+            "open": np.concatenate([[988.0], close]),
+            "high": np.concatenate([[998.0], high]),
+            "low": np.concatenate([[980.0], close - 10.0]),
+            "close": np.concatenate([[990.0], close]),
+            "volume": np.full(1 + n_recent, 1000.0),
+        },
+        index=idx,
+    )
+
+    row = watch_mod._near52w_row("APLLTD", df)
+    assert row is not None
+    # Old 998 (>365 days old) excluded -> prior high is the recent 963.35.
+    assert row["trigger_level"] == pytest.approx(963.35)
+    assert row["trigger_date"] == "2026-11-04"
+    # Latest bar 985 >= 963.35 -> touched; last touch = latest session.
+    assert row["touched"] is True
+    assert row["last_touch_date"] == "2026-11-06"
+    assert row["last_high"] == pytest.approx(985.00)
+    assert row["close_gap"] == pytest.approx((963.35 - 940.0) / 963.35 * 100.0)
+
+
+def test_near52w_recent_new_high_touches():
+    """A recent bar printing a new high within the window -> touched=True and
+    last_touch_date = that session; trigger_date still points at the prior
+    high bar (not the touching bar)."""
+    row = watch_mod._near52w_row("AAA", _near52w_frame())
+    assert row["touched"] is True
+    assert row["trigger_date"] == "2026-01-29"  # bar that set prior_high 98.9
+    assert row["last_touch_date"] == "2026-01-30"  # latest bar touched it
+
+
+def test_near52w_short_history_fallback():
+    """21 bars (all within 365 days): only 20 in-window bars < MIN_BARS, so
+    the tail(252) fallback runs and a row is still returned."""
+    row = watch_mod._near52w_row("AAA", _near52w_frame(n=21))
+    assert row is not None
+    assert row["trigger_level"] == pytest.approx(96.2)  # high of 2026-01-20
+    assert row["trigger_date"] == "2026-01-20"
+    assert row["touched"] is True
+    assert row["last_touch_date"] == "2026-01-21"  # latest bar touched it
 
 
 def test_near52w_arm_filter_gap_or_touched(monkeypatch, near52w_env):
@@ -765,9 +858,22 @@ def test_near52w_live_passthrough(mock_quotes):
     assert out["state"] == "triggered"
     assert out["ltp"] == pytest.approx(105.0)
     assert out["pct_to_trigger"] == pytest.approx(round((105.0 - 98.9) / 98.9 * 100.0, 2))
-    for key in ("touched", "high_gap", "close_gap", "obv_slope", "updown",
-                "vol_ratio", "rising_lows", "close", "last_high"):
+    assert out["tags"] == tags_for("AAA")
+    for key in ("touched", "trigger_date", "last_touch_date", "high_gap",
+                "close_gap", "obv_slope", "updown", "vol_ratio",
+                "rising_lows", "close", "last_high"):
         assert out[key] == row[key]
+
+
+def test_live_attaches_tags(mock_quotes):
+    """live() stamps every row with ``tags_for(symbol)`` even when armed rows
+    carry none."""
+    mock_quotes["AAA"] = (110.0, 2.0)
+    (row,) = watch_mod.live([_row("AAA")])
+    assert row["tags"] == tags_for("AAA")
+    mock_quotes["NIFTYBEES"] = (400.0, 2.0)
+    (row,) = watch_mod.live([_row("NIFTYBEES")])
+    assert row["tags"] == ["ETF"]
 
 
 def test_watch_near52w_contract(cp_client, mock_quotes, monkeypatch, tmp_path):
@@ -788,13 +894,14 @@ def test_watch_near52w_contract(cp_client, mock_quotes, monkeypatch, tmp_path):
     item = data["items"][0]
     assert set(item) == {
         "symbol", "setup_id", "trigger_level", "invalidate_level", "close",
-        "last_high", "touched", "high_gap", "close_gap", "obv_slope",
-        "updown", "vol_ratio", "rising_lows", "base_days", "range_pct",
-        "status", "confidence",
-        "ltp", "rel_volume", "vol_adj", "pct_to_trigger", "state",
+        "last_high", "trigger_date", "last_touch_date", "touched",
+        "high_gap", "close_gap", "obv_slope", "updown", "vol_ratio",
+        "rising_lows", "base_days", "range_pct", "status", "confidence",
+        "ltp", "rel_volume", "vol_adj", "pct_to_trigger", "state", "tags",
     }
     assert item["state"] == "triggered"
     assert item["setup_id"] == "near_52w"
+    assert item["tags"] == tags_for("AAA")
 
 
 # ---------------------------------------------------------------------------
