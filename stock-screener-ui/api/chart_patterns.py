@@ -15,6 +15,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Optional
 
+from sqlalchemy.orm import Session
+
+from db.database import get_db
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -1176,19 +1180,13 @@ def get_index_members(index_id: str):
 
 
 @router.get("/hit/{hit_id}")
-async def get_hit(hit_id: int):
-    from db.database import SessionLocal
+def get_hit(hit_id: int, db: Session = Depends(get_db)):
     from db.models.chart_patterns import PatternHit
 
-    db = SessionLocal()
-    try:
-        row = db.query(PatternHit).filter(PatternHit.id == hit_id).first()
-        if row is None:
-            raise HTTPException(status_code=404, detail="Pattern hit not found")
-        data = row.to_dict()
-        return _sanitize_for_json(data)
-    finally:
-        db.close()
+    row = db.query(PatternHit).filter(PatternHit.id == hit_id).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Pattern hit not found")
+    return _sanitize_for_json(row.to_dict())
 
 
 @router.get("/results/stream")
