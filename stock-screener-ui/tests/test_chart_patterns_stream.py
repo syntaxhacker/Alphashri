@@ -100,9 +100,11 @@ def cp_client(test_db_engine):
     app.dependency_overrides[get_current_user] = lambda: _FakeUser()
 
     try:
+        cp_api._clear_read_caches()
         with TestClient(app) as client:
             yield client
     finally:
+        cp_api._clear_read_caches()
         app.dependency_overrides.clear()
         jobs.reset()
         store.reset_session_factory()

@@ -424,3 +424,68 @@ def test_delete_hits_for_scopes_custom_scans_by_symbol(cp_store):
     assert deleted == 1
     items, _, _ = store.query_results({"universe": "custom", "timeframe": "1D"})
     assert sorted(row["symbol"] for row in items) == ["BSE", "INFY"]
+
+
+def test_save_hits_payload_keeps_source_sig_and_query_results_exposes_it(cp_store):
+    store.save_job({"job_id": "cpj_ss1", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed"})
+    assert store.save_hits("cpj_ss1", [_hit(source_sig="sig-abc-123")]) == 1
+
+    # The raw payload_json column carries the field (no schema change).
+    session = cp_store()
+    try:
+        from db.models.chart_patterns import PatternHit
+
+        raw = (
+            session.query(PatternHit.payload_json)
+            .filter(PatternHit.job_id == "cpj_ss1")
+            .scalar()
+        )
+    finally:
+        session.close()
+    assert raw is not None and "source_sig" in raw and "sig-abc-123" in raw
+
+    # query_results exposes it on the read path.
+    items, total, _ = store.query_results({"job_id": "cpj_ss1"})
+    assert total == 1
+    assert items[0]["source_sig"] == "sig-abc-123"
+
+
+def test_save_hits_without_source_sig_exposes_none(cp_store):
+    """Legacy hits (no source_sig) expose None rather than blowing up."""
+    store.save_job({"job_id": "cpj_ss2", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed"})
+    store.save_hits("cpj_ss2", [_hit()])
+
+    items, total, _ = store.query_results({"job_id": "cpj_ss2"})
+    assert total == 1
+    assert items[0]["source_sig"] is None
+
+
+def test_latest_hits_by_symbol_promotes_source_sig(cp_store):
+    store.save_job({"job_id": "cpj_lhs1", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed"})
+    store.save_hits("cpj_lhs1", [_hit("AAA", source_sig="sig-1"), _hit("BBB")])
+
+    by_symbol = store.latest_hits_by_symbol("nifty50", "1D")
+
+    assert set(by_symbol) == {"AAA", "BBB"}
+    assert by_symbol["AAA"]["source_sig"] == "sig-1"
+    assert by_symbol["BBB"]["source_sig"] is None
+    # Scan-time lines are promoted too so a reuse read has everything it needs.
+    assert isinstance(by_symbol["AAA"].get("trend_lines"), list)
+
+
+def test_latest_hits_by_symbol_is_scoped_and_excludes_current(cp_store):
+    store.save_job({"job_id": "cpj_x1", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed"})
+    store.save_job({"job_id": "cpj_x2", "universe": "nifty500", "timeframe": "1D",
+                    "status": "completed"})
+    store.save_hits("cpj_x1", [_hit("AAA", source_sig="s1")])
+    store.save_hits("cpj_x2", [_hit("AAA", source_sig="s2")])
+
+    # nifty500 scope returns only its own row.
+    assert store.latest_hits_by_symbol("nifty500", "1D")["AAA"]["source_sig"] == "s2"
+    # Excluding the current job falls back to the older job's hit.
+    assert store.latest_hits_by_symbol("nifty50", "1D", exclude_job_id="cpj_x1") == {}
+    assert store.latest_hits_by_symbol("nope", "1D") == {}

@@ -192,6 +192,23 @@ class TestNormalizeOhlcv:
         out = F.normalize_ohlcv(df)
         assert out.attrs.get("_atr_cache") is None
 
+    def test_contract_frame_fast_path_returns_defensive_copy(self):
+        df = make_frame([100.0, 101.0, 102.0])
+        assert all(df[c].dtype == np.float64 for c in F.OHLCV_COLUMNS)
+        out = F.normalize_ohlcv(df)
+        pd.testing.assert_frame_equal(out, df)
+        assert out is not df
+        out.iloc[0, out.columns.get_loc("close")] = -1.0
+        assert df["close"].iloc[0] == pytest.approx(100.0)
+
+    def test_fast_path_matches_full_path(self):
+        # Same values through the fast (already-normalised) and full (upper-case
+        # names force coercion) branches must be identical.
+        df = make_frame([100.0, 101.0, 102.0])
+        fast = F.normalize_ohlcv(df)
+        slow = F.normalize_ohlcv(df.rename(columns=str.upper))
+        pd.testing.assert_frame_equal(fast, slow)
+
 
 # ---------------------------------------------------------------------------
 # linreg_fit / relative_slope / is_horizontal
@@ -345,6 +362,28 @@ class TestAtrValue:
         v14 = F.atr_value(df, period=14)
         assert v2 == pytest.approx(1.375)
         assert v14 == pytest.approx(float(F.atr(df, period=14).iloc[-1]))
+
+    def test_memo_does_not_write_frame_attrs(self):
+        # The memo lives in a frame-scoped store, not ``df.attrs``: pandas 3
+        # deep-copies attrs on every derived Series, which is the cost we removed.
+        df = atr_frame()
+        F.atr_value(df, period=2)
+        assert "_atr_cache" not in df.attrs
+
+    def test_memo_is_scoped_per_frame(self):
+        wide = atr_frame()
+        narrow = pd.DataFrame(
+            {
+                "open": [9.9, 10.0, 10.0],
+                "high": [10.0, 10.2, 10.1],
+                "low": [9.8, 9.9, 9.9],
+                "close": [9.9, 10.0, 10.0],
+                "volume": [100.0, 100.0, 100.0],
+            },
+            index=_INDEX[:3],
+        )
+        assert F.atr_value(wide, period=2) == pytest.approx(1.375)
+        assert F.atr_value(narrow, period=2) != pytest.approx(1.375)
 
 
 # ---------------------------------------------------------------------------
@@ -687,6 +726,36 @@ class TestEnvelopeLine:
         out = F.envelope_line(df, [(0, 10.0), (4, 10.0)], "lower", 0.5)
         assert out["slope"] == pytest.approx(0.0)
         assert out["viol"] == 0
+
+    def test_memo_returns_equal_independent_result(self):
+        df = make_frame([10.0] * 5, spread=0.0)
+        pivots = [(0, 10.0), (4, 10.0)]
+        first = F.envelope_line(df, pivots, "upper", 0.5)
+        second = F.envelope_line(df, pivots, "upper", 0.5)
+        assert first == second
+        # Callers must not be able to corrupt the memoized entry.
+        assert first is not second
+
+    def test_memo_is_scoped_per_frame(self):
+        flat = make_frame([10.0] * 5, spread=0.0)
+        high = make_frame([10.0] * 5, spread=0.0, high=[12.0] * 5)
+        pivots = [(0, 10.0), (4, 10.0)]
+        a = F.envelope_line(flat, pivots, "upper", 0.5)
+        b = F.envelope_line(high, pivots, "upper", 0.5)
+        assert a["viol"] == 0
+        assert b["viol"] == 5
+
+    def test_memo_invalidated_by_in_place_price_edit(self):
+        df = make_frame([10.0] * 5, spread=0.0)
+        pivots = [(0, 10.0), (4, 10.0)]
+        assert F.envelope_line(df, pivots, "upper", 0.5)["viol"] == 0
+        df.loc[:, "high"] = 12.0
+        edited = F.envelope_line(df, pivots, "upper", 0.5)
+        fresh = F.envelope_line(
+            make_frame([10.0] * 5, spread=0.0, high=[12.0] * 5), pivots, "upper", 0.5
+        )
+        assert edited == fresh
+        assert edited["viol"] == 5
 
 
 class TestPenetrationRatio:
