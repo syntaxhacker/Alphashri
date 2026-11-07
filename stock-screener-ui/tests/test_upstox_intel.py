@@ -192,7 +192,12 @@ def test_parse_fii_dii_latest_interval_wins():
             ]
         },
     }
-    assert parse_fii_dii_payload(payload) == {"buy": 1200.0, "sell": 1500.0, "net": -300.0}
+    assert parse_fii_dii_payload(payload) == {
+        "buy": 1200.0,
+        "sell": 1500.0,
+        "net": -300.0,
+        "date": "2026-04-30",
+    }
 
 
 def test_parse_fii_dii_prefers_cash_segment():
@@ -206,19 +211,37 @@ def test_parse_fii_dii_prefers_cash_segment():
             ],
         }
     }
-    assert parse_fii_dii_payload(payload) == {"buy": 100.0, "sell": 60.0, "net": 40.0}
+    assert parse_fii_dii_payload(payload) == {
+        "buy": 100.0,
+        "sell": 60.0,
+        "net": 40.0,
+        "date": "2026-04-30",
+    }
 
 
 def test_parse_fii_dii_derives_net_and_degrades():
+    # A record with no time_stamp degrades to the epoch session date.
     assert parse_fii_dii_payload({"data": {"buy_value": 500, "sell_value": 700}}) == {
         "buy": 500.0,
         "sell": 700.0,
         "net": -200.0,
+        "date": "1970-01-01",
     }
-    assert parse_fii_dii_payload({}) == {"buy": None, "sell": None, "net": None}
+    # A bare empty dict is a single empty record → epoch session date.
+    assert parse_fii_dii_payload({}) == {
+        "buy": None,
+        "sell": None,
+        "net": None,
+        "date": "1970-01-01",
+    }
+    # No rows / no valid records → no session, so the date key is absent.
     assert parse_fii_dii_payload(None) == {"buy": None, "sell": None, "net": None}
     assert parse_fii_dii_payload({"data": []}) == {"buy": None, "sell": None, "net": None}
-    assert parse_fii_dii_payload({"data": ["junk"]}) == {"buy": None, "sell": None, "net": None}
+    assert parse_fii_dii_payload({"data": ["junk"]}) == {
+        "buy": None,
+        "sell": None,
+        "net": None,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -334,7 +357,12 @@ def test_build_payload_degrades_per_source(monkeypatch):
 
     payload = build_payload(_args())
     assert payload["pcr"] == pytest.approx(1.05)
-    assert payload["fii"] == {"buy": 1.0, "sell": 2.0, "net": -1.0}
+    assert payload["fii"] == {
+        "buy": 1.0,
+        "sell": 2.0,
+        "net": -1.0,
+        "date": "1970-01-01",
+    }
     assert payload["oi"] is None
     assert payload["change_oi"] is None
     assert payload["max_pain"] is None

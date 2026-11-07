@@ -82,7 +82,12 @@ def _fake_get_factory(overrides: dict | None = None):
 class TestParsers:
     def test_fii_net_is_pulled_from_cash_segment(self):
         parsed = intel.parse_fii_dii_payload(_flow(-1149, 4_100, 5_249))
-        assert parsed == {"buy": 4_100.0, "sell": 5_249.0, "net": -1149.0}
+        assert parsed == {
+            "buy": 4_100.0,
+            "sell": 5_249.0,
+            "net": -1149.0,
+            "date": "1970-01-01",
+        }
 
     def test_change_oi_totals_and_rows(self):
         parsed = intel.parse_change_oi_payload(_change_oi_payload())
