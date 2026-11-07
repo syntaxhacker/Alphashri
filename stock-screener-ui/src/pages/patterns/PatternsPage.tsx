@@ -301,7 +301,7 @@ export function PatternsPage({
   const matrix = usePatternMatrix(
     universe,
     view === "matrix",
-    job?.finished_at ?? job?.job_id ?? null,
+    summary?.last_scan_at ?? summary?.data_through ?? null,
     tfSelection,
   );
   const sequencedResults = useMemo(() => {
