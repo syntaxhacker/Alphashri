@@ -199,6 +199,45 @@ describe("PatternListView", () => {
     expect(within(row).getAllByText("—").length).toBeGreaterThanOrEqual(2);
   });
 
+  test("renders the To trigger column with a signed percentage", () => {
+    const box = [
+      [{ t: "2026-01-01", price: 110 }],
+      [{ t: "2026-01-01", price: 100 }],
+    ];
+    const base = { pattern_id: "consolidation", base_days: 80 } as const;
+    r(
+      <PatternListView
+        hits={[
+          makeHit({ ...base, id: 1, symbol: "AAA", last_close: 115, trendlines: box, to_52w_high: 5, range_pos: 50 }),
+          makeHit({ ...base, id: 2, symbol: "BBB", last_close: 105, trendlines: box, to_52w_high: 5, range_pos: 50 }),
+          makeHit({
+            ...base,
+            id: 3,
+            symbol: "CCC",
+            last_close: null,
+            end_price: 110,
+            trendlines: [],
+            to_52w_high: 5,
+            range_pos: 50,
+          }),
+          // Non-base patterns have no horizontal trigger box → no distance.
+          makeHit({ id: 4, symbol: "DDD", last_close: 115, trendlines: box, to_52w_high: 5, range_pos: 50 }),
+        ]}
+        onSelect={vi.fn()}
+      />,
+    );
+    const table = screen.getByTestId("patterns-list");
+    expect(within(table).getByText("To trigger")).toBeInTheDocument();
+    const aaa = screen.getByTestId("patterns-list-row-AAA-consolidation-1");
+    expect(within(aaa).getByText("+4.5%")).toBeInTheDocument();
+    const bbb = screen.getByTestId("patterns-list-row-BBB-consolidation-2");
+    expect(within(bbb).getByText("−4.5%")).toBeInTheDocument();
+    const ccc = screen.getByTestId("patterns-list-row-CCC-consolidation-3");
+    expect(within(ccc).getByText("—")).toBeInTheDocument();
+    const ddd = screen.getByTestId("patterns-list-row-DDD-falling_wedge-4");
+    expect(within(ddd).getByText("—")).toBeInTheDocument();
+  });
+
   test("clicking a row selects that hit", async () => {
     const onSelect = vi.fn();
     const hits = [makeHit({ id: 1, symbol: "AAA" }), makeHit({ id: 2, symbol: "BBB" })];

@@ -654,6 +654,7 @@ export function PatternFilterRail({
             { value: "confidence", label: "Confidence" },
             { value: "newest", label: "Latest formed" },
             { value: "range_pos", label: "Near breakout" },
+            { value: "distance", label: "Closest to trigger" },
           ]}
           value={sort}
           onChange={(v) => setFilter("sort", v)}

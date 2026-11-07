@@ -337,6 +337,12 @@ describe("PatternFilterRail", () => {
     expect(screen.getByTestId("patterns-filter-sort-select")).toBeInTheDocument();
   });
 
+  test("sort dropdown offers Closest to trigger", () => {
+    r(<PatternFilterRail {...makeProps()} />);
+    const select = screen.getByTestId("patterns-filter-sort-select");
+    expect(within(select).getByRole("option", { name: "Closest to trigger" })).toBeInTheDocument();
+  });
+
   test("enters a 52W gap percentage", () => {
     const props = makeProps();
     r(<PatternFilterRail {...props} />);
@@ -521,6 +527,13 @@ describe("PatternFilterRail", () => {
     r(<PatternFilterRail {...props} />);
     fireEvent.change(screen.getByTestId("patterns-filter-sort-select"), { target: { value: "range_pos" } });
     expect(props.setFilter).toHaveBeenCalledWith("sort", "range_pos");
+  });
+
+  test("selects the distance (Closest to trigger) sort", async () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    fireEvent.change(screen.getByTestId("patterns-filter-sort-select"), { target: { value: "distance" } });
+    expect(props.setFilter).toHaveBeenCalledWith("sort", "distance");
   });
 
   test("shows the match-in-order switch with 2+ patterns selected", () => {

@@ -87,16 +87,22 @@ export function isFresherHit(a: PatternHitDTO, b: PatternHitDTO): boolean {
 
 export function lastNHitsPerTimeframe(hits: PatternHitDTO[], n: number): PatternHitDTO[] {
   const byKey = new Map<string, PatternHitDTO[]>();
-  const order: string[] = [];
   for (const hit of hits) {
     const key = `${hit.symbol}|${hit.timeframe}`;
-    if (!byKey.has(key)) {
-      byKey.set(key, []);
-      order.push(key);
-    }
-    byKey.get(key)!.push(hit);
+    const group = byKey.get(key);
+    if (group) group.push(hit);
+    else byKey.set(key, [hit]);
   }
-  return order.flatMap((key) => selectLastN(byKey.get(key) ?? [], n));
+  const indexOf = new Map<PatternHitDTO, number>();
+  hits.forEach((hit, index) => indexOf.set(hit, index));
+  const picked = [...byKey.values()]
+    .map((group) => selectLastN(group, n))
+    .filter((group) => group.length > 0);
+  // Order rows by the hit that is actually displayed, not by the group's best
+  // hit. Otherwise a symbol whose newest hit sits further from the trigger can
+  // jump ahead of a closer one just because an older duplicate sorted earlier.
+  picked.sort((a, b) => (indexOf.get(a[0]) ?? 0) - (indexOf.get(b[0]) ?? 0));
+  return picked.flat();
 }
 
 export function latestHitPerTimeframe(hits: PatternHitDTO[]): PatternHitDTO[] {

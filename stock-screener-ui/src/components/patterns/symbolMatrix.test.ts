@@ -5,6 +5,7 @@ import {
   formatMatrixPct,
   formatMatrixPrice,
   formatTfLabel,
+  lastNHitsPerTimeframe,
   matrixTfOrder,
   mergeMatrixQuotes,
 } from "./symbolMatrix";
@@ -222,5 +223,28 @@ describe("mergeMatrixQuotes", () => {
   test("returns the same rows when there are no hits", () => {
     const rows = [row()];
     expect(mergeMatrixQuotes(rows, [])).toBe(rows);
+  });
+});
+
+describe("lastNHitsPerTimeframe", () => {
+  test("orders rows by the hit that is displayed, not an older duplicate", () => {
+    const h = (id: number, symbol: string, end_date: string): PatternHitDTO =>
+      ({
+        id,
+        symbol,
+        timeframe: "1D",
+        pattern_id: "consolidation",
+        pattern_name: "Consolidation",
+        start_date: "2026-01-01",
+        end_date,
+        confidence: 50,
+      }) as PatternHitDTO;
+    // AAA has an older duplicate at index 0 and its newest hit at index 2.
+    // With n=1 the row shows the newest AAA, so it must sort after BBB.
+    const hits = [h(1, "AAA", "2026-01-10"), h(2, "BBB", "2026-01-10"), h(3, "AAA", "2026-02-10")];
+    expect(lastNHitsPerTimeframe(hits, 1).map((hit) => `${hit.symbol}:${hit.id}`)).toEqual([
+      "BBB:2",
+      "AAA:3",
+    ]);
   });
 });

@@ -346,8 +346,13 @@ export interface PatternFilters {
    * also doubles as the as-of replay cutoff for scans/charts.
    */
   to_date: string | null;
-  /** Result ordering: `"confidence"` (default), `"newest"`, `"range_pos"`, or `"breakout"`. */
-  sort: string;
+  /**
+   * Result ordering: `"confidence"` (default), `"newest"`, `"range_pos"`,
+   * `"breakout"`, or `"distance"`. `"distance"` is client-only: it is honoured
+   * in `sortStreamedHits` but coerced to `"confidence"` before any request, so
+   * `sort=distance` is never sent to `/results` or `/results/stream`.
+   */
+  sort: "confidence" | "newest" | "range_pos" | "breakout" | "distance";
   /**
    * View-only filter for standalone trendlines. CLIENT-ONLY: never sent to
    * `/results` or `/summary` (not part of `baseQuery`), never restrictive.

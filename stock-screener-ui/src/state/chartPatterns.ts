@@ -6,6 +6,7 @@
  */
 
 import { createSubscriber } from "./createSubscriber";
+import { triggerDistancePct } from "../components/patterns/triggerDistance";
 import type {
   TFSpec,
   Universe,
@@ -163,14 +164,16 @@ let resultsStreamController: AbortController | null = null;
 /**
  * Keep streamed hits in the active result order: `newest` = freshest bars
  * first (`bars_ago` asc), `range_pos` = consolidation position desc,
- * `breakout` = breakout-conviction score desc, anything else = `confidence`
- * desc (server default).
+ * `breakout` = breakout-conviction score desc, `distance` = closest to the
+ * trigger (absolute distance asc, nulls last) and anything else =
+ * `confidence` desc (server default).
+ *
+ * Keys + nulls-last + `id DESC` tie-break mirror the server's order_by
+ * (store.py) so the final order matches `GET /results` deterministically.
  */
-function sortStreamedHits(hits: PatternHitDTO[], sort: string | undefined): PatternHitDTO[] {
+export function sortStreamedHits(hits: PatternHitDTO[], sort: string | undefined): PatternHitDTO[] {
   const ordered = [...hits];
   // The stream arrives in worker-completion order, so the client must sort.
-  // Keys + nulls-last + `id DESC` tie-break mirror the server's order_by
-  // (store.py) so the final order matches `GET /results` deterministically.
   const byId = (a: PatternHitDTO, b: PatternHitDTO) => (b.id ?? 0) - (a.id ?? 0);
   if (sort === "newest") {
     ordered.sort(
@@ -193,6 +196,27 @@ function sortStreamedHits(hits: PatternHitDTO[], sort: string | undefined): Patt
         (b.confidence ?? 0) - (a.confidence ?? 0) ||
         byId(a, b),
     );
+  } else if (sort === "distance") {
+    // Only base patterns have a horizontal trigger box; anything else has no
+    // meaningful distance and sorts last.
+    const distanceOf = (hit: PatternHitDTO) =>
+      hit.pattern_id === "consolidation" || (hit.base_days ?? 0) > 0
+        ? triggerDistancePct(hit)
+        : null;
+    ordered.sort((a, b) => {
+      const da = distanceOf(a);
+      const db = distanceOf(b);
+      if (da == null && db == null) {
+        return (b.confidence ?? 0) - (a.confidence ?? 0) || byId(a, b);
+      }
+      if (da == null) return 1;
+      if (db == null) return -1;
+      return (
+        Math.abs(da) - Math.abs(db) ||
+        (b.confidence ?? 0) - (a.confidence ?? 0) ||
+        byId(a, b)
+      );
+    });
   } else {
     ordered.sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0) || byId(a, b));
   }
@@ -372,7 +396,10 @@ function baseQuery(): PatternsQuery {
     min_range_pos: state.filters.min_range_pos,
     from_date: state.filters.from_date,
     to_date: state.filters.to_date,
-    sort: state.filters.sort,
+    // `distance` is a client-only sort (honoured in `sortStreamedHits`); the
+    // server does not know it, so coerce to the default before it reaches the
+    // wire (`buildPatternsQuery` also omits `confidence` entirely).
+    sort: state.filters.sort === "distance" ? "confidence" : state.filters.sort,
     // Card candle window: the cards fetch the active Lookback so mini-charts
     // span it (omitted when Auto so the server default applies).
     lookback_bars: state.lookbackBars ?? undefined,
@@ -473,6 +500,10 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
   // immediately and append each `item` in result order. Any stream failure
   // falls back to the plain `GET /results` fetch below.
   patch({ results: [], total: 0, streaming: true, error: null });
+  // The raw UI sort drives client-side ordering (`sortStreamedHits`). The wire
+  // query (`query.sort`, from `baseQuery`) has `distance` coerced away, so it
+  // is never sent to `/results` or `/results/stream`.
+  const uiSort = state.filters.sort;
   const query = {
     ...baseQuery(),
     limit: DEFAULT_RESULTS_LIMIT,
@@ -496,7 +527,7 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
         onItem: (item) => {
           if (generation !== resultsGeneration) return;
           if (!passesResultFilters(item, state.filters)) return;
-          patch({ results: sortStreamedHits([...state.results, item], query.sort) });
+          patch({ results: sortStreamedHits([...state.results, item], uiSort) });
         },
         onDone: () => {
           streamOk = true;
@@ -528,7 +559,7 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
       if (generation !== resultsGeneration) return;
       const items = applyResultFilters(data.items, state.filters);
       patch({
-        results: items,
+        results: sortStreamedHits(items, uiSort),
         total: hasClientResultFilter(state.filters) ? items.length : data.total,
         dataThrough: data.data_through ?? null,
         streaming: false,

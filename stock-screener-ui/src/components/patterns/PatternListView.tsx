@@ -10,6 +10,8 @@ import { SymbolLink } from "@/components/common/SymbolLink";
 import { hasIndexMembers } from "@/config/indexGroups";
 import { MembersButton } from "./MembersButton";
 import { StatusBadge } from "./StatusBadge";
+import { displayStatusForHit } from "./patternDisplayStatus";
+import { triggerDistancePct } from "./triggerDistance";
 import { directionGlyph, directionTone } from "./symbolMatrix";
 import { qualityBadgeTone, qualityLabel } from "./patternTone";
 import { formatPrice } from "./shared";
@@ -36,6 +38,9 @@ function sortingFor(sort?: string): { id: string; desc: boolean }[] {
   if (sort === "newest") return [{ id: "bars_ago", desc: false }];
   if (sort === "range_pos") return [{ id: "range_pos", desc: true }];
   if (sort === "breakout") return [{ id: "breakout_score", desc: true }];
+  // `distance` is client-ordered by absolute distance in `sortStreamedHits`;
+  // seed no header sort so the table keeps that order.
+  if (sort === "distance") return [];
   return [{ id: "confidence", desc: true }];
 }
 
@@ -54,6 +59,14 @@ function changePctOf(hit: PatternHitDTO): number {
 function gapPct(value: number | null | undefined): string {
   if (value == null) return "—";
   return `${Number.isInteger(value) ? String(value) : value.toFixed(1)}%`;
+}
+
+/** Signed distance to the trigger: `+4.7%` / `−0.8%`, `—` when unknown.
+ * A proper minus sign (U+2212) is used for below-trigger values. */
+function formatTriggerDistance(distance: number | null | undefined): string {
+  if (distance == null || !Number.isFinite(distance)) return "—";
+  const sign = distance >= 0 ? "+" : "−";
+  return `${sign}${Math.abs(distance).toFixed(1)}%`;
 }
 
 /** Compact direction glyph: ▲ bullish / ▼ bearish / ◆ otherwise (value kept in title/aria). */
@@ -186,7 +199,12 @@ export function PatternListView({
         accessorKey: "status",
         size: 110,
         meta: { align: "center" },
-        cell: (info) => <StatusBadge status={info.row.original.status} />,
+        cell: (info) => (
+          <StatusBadge
+            status={info.row.original.status}
+            display={displayStatusForHit(info.row.original)}
+          />
+        ),
       },
       {
         id: "quality",
@@ -259,6 +277,26 @@ export function PatternListView({
           return (
             <Text size="sm" c={getPnLTextColor(value)} truncate>
               {formatPercentage(value, 2)}
+            </Text>
+          );
+        },
+      },
+      {
+        id: "to_trigger",
+        header: "To trigger",
+        accessorFn: (hit) =>
+          hit.pattern_id === "consolidation" || (hit.base_days ?? 0) > 0
+            ? triggerDistancePct(hit)
+            : null,
+        size: 100,
+        meta: { align: "right" },
+        cell: (info) => {
+          const distance = info.getValue<number | null>();
+          const text = formatTriggerDistance(distance);
+          const tone = distance == null ? "text.disabled" : distance > 0 ? "success" : "text.secondary";
+          return (
+            <Text size="sm" fw={600} c={tone} truncate>
+              {text}
             </Text>
           );
         },
