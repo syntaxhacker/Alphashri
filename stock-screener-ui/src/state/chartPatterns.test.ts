@@ -52,6 +52,7 @@ import {
   selectSymbols,
   CUSTOM_UNIVERSE,
   setFilter,
+  setFilters,
   setLookbackBars,
   setComputeTrendlines,
   resetFilters,
@@ -829,7 +830,7 @@ describe("stale async responses", () => {
       });
 
     const slow = loadResults();
-    const fast = loadResults();
+    const fast = loadResults({ q: "newer" }); // different query: not coalesced, aborts the slow stream
     await fast;
     await flush();
     expect(getChartPatternsState().total).toBe(7);
@@ -865,7 +866,7 @@ describe("stale async responses", () => {
     });
 
     const slow = loadResults();
-    const fast = loadResults();
+    const fast = loadResults({ q: "newer" }); // different query: not coalesced, aborts the slow stream
     await fast;
     await flush();
     expect(getChartPatternsState().error).toBeNull();
@@ -1537,5 +1538,98 @@ describe("loadSymbolDetail extras", () => {
       "1D",
       { lookbackBars: 250, computeTrendlines: false },
     );
+  });
+});
+
+describe("query coalescing and same-query reload", () => {
+  it("a duplicate call for the same query does not start a second stream", async () => {
+    mocked.fetchResults.mockResolvedValue({
+      items: [],
+      total: 0,
+      summary: SUMMARY,
+      data_through: "2026-09-30",
+    });
+    // The default `streamResults` mock fails immediately, so the load lands in
+    // the `fetchResults` fallback. Both calls share one query signature.
+    const first = loadResults();
+    const second = loadResults(); // same query, no await between
+    await first;
+    await second;
+    await flush();
+    expect(getChartPatternsState().streaming).toBe(false);
+    expect(mocked.streamResults).toHaveBeenCalledTimes(1);
+    expect(mocked.fetchResults).toHaveBeenCalledTimes(1);
+  });
+
+  it("a same-query reload keeps existing results until new items arrive", async () => {
+    let releaseFirst!: () => void;
+    mocked.streamResults.mockImplementation(async (_query, handlers) => {
+      await new Promise<void>((resolve) => {
+        releaseFirst = resolve;
+      });
+      handlers.onMeta?.({ total: 2, summary: SUMMARY, data_through: "2026-09-30" });
+      handlers.onItem?.({ id: 1, symbol: "IRCON", pattern_id: "falling_wedge", confidence: 90 } as never);
+      handlers.onItem?.({ id: 2, symbol: "TCS", pattern_id: "flag", confidence: 80 } as never);
+      handlers.onDone?.();
+    });
+
+    const first = loadResults();
+    releaseFirst();
+    await first;
+    await flush();
+    expect(getChartPatternsState().results.map((r) => r.symbol)).toEqual(["IRCON", "TCS"]);
+
+    let releaseSecond!: () => void;
+    mocked.streamResults.mockImplementation(async (_query, handlers) => {
+      await new Promise<void>((resolve) => {
+        releaseSecond = resolve;
+      });
+      handlers.onItem?.({ id: 3, symbol: "RELIANCE", pattern_id: "flag", confidence: 99 } as never);
+      handlers.onDone?.();
+    });
+
+    // Same query signature: no `results: []` blanking — the current results
+    // stay on screen until the first new item arrives.
+    const second = loadResults();
+    expect(getChartPatternsState().results.map((r) => r.symbol)).toEqual(["IRCON", "TCS"]);
+    expect(getChartPatternsState().streaming).toBe(true);
+
+    releaseSecond();
+    await second;
+    await flush();
+    expect(getChartPatternsState().results).toEqual([expect.objectContaining({ symbol: "RELIANCE" })]);
+    expect(mocked.streamResults).toHaveBeenCalledTimes(2);
+    expect(mocked.fetchResults).not.toHaveBeenCalled();
+  });
+
+  it("a different query clears results immediately", async () => {
+    // Prime load returns one hit; the reload's fallback fetch returns none.
+    mocked.fetchResults
+      .mockResolvedValueOnce({
+        items: [{ id: 1, symbol: "IRCON", pattern_id: "falling_wedge" } as never],
+        total: 1,
+        summary: SUMMARY,
+        data_through: "2026-09-30",
+      })
+      .mockResolvedValue({ items: [], total: 0, summary: SUMMARY, data_through: "2026-09-30" });
+    // Restore the pinned "stream unavailable" behaviour for this test.
+    mocked.streamResults.mockImplementation(async (_query, handlers) => {
+      handlers.onError?.(new Error("stream unavailable"));
+    });
+
+    await loadResults();
+    expect(getChartPatternsState().results).toHaveLength(1);
+
+    // Genuinely different query: results are blanked at the start of the load.
+    setFilters({ ...DEFAULT_PATTERN_FILTERS, q: "bank" });
+    const reloading = loadResults();
+    expect(getChartPatternsState().results).toEqual([]);
+    expect(getChartPatternsState().streaming).toBe(true);
+
+    await reloading;
+    await flush();
+    expect(getChartPatternsState().results).toEqual([]);
+    expect(mocked.streamResults).toHaveBeenCalledTimes(2);
+    expect(mocked.fetchResults).toHaveBeenCalledTimes(2);
   });
 });

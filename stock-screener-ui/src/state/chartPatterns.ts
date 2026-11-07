@@ -160,6 +160,18 @@ let resultsGeneration = 0;
 let summaryGeneration = 0;
 /** AbortController for the in-flight `/results/stream` connection (if any). */
 let resultsStreamController: AbortController | null = null;
+/**
+ * Signature of the query whose `/results/stream` request is currently in
+ * flight. A duplicate `loadResults()` for the same query returns early instead
+ * of opening a second stream and re-blanking the visible results.
+ */
+let inFlightQuerySig: string | null = null;
+/**
+ * Signature of the query whose results are currently on screen. A reload for
+ * the same query keeps the visible results until the new stream lands; a
+ * different query clears them at the start as today.
+ */
+let displayedQuerySig: string | null = null;
 
 /**
  * Keep streamed hits in the active result order: `newest` = freshest bars
@@ -488,18 +500,11 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
   if (state.universe === CUSTOM_UNIVERSE && state.filters.symbols.length === 0) {
     resultsStreamController?.abort();
     resultsStreamController = null;
+    inFlightQuerySig = null;
     patch({ results: [], total: 0, streaming: false });
     return;
   }
-  const generation = ++resultsGeneration;
-  resultsStreamController?.abort();
-  const controller = new AbortController();
-  resultsStreamController = controller;
-  startLoading();
-  // Progressive path: open `/results/stream`, render `meta` (total/summary)
-  // immediately and append each `item` in result order. Any stream failure
-  // falls back to the plain `GET /results` fetch below.
-  patch({ results: [], total: 0, streaming: true, error: null });
+
   // The raw UI sort drives client-side ordering (`sortStreamedHits`). The wire
   // query (`query.sort`, from `baseQuery`) has `distance` coerced away, so it
   // is never sent to `/results` or `/results/stream`.
@@ -510,6 +515,34 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
     offset: 0,
     ...overrides,
   };
+  // Stable signature of the resolved query (key order is deterministic: it is
+  // always `baseQuery()` plus the same override spread). A duplicate call for
+  // the same query must not start a second stream or touch state.
+  const sig = JSON.stringify(query);
+  if (sig === inFlightQuerySig) return;
+
+  const generation = ++resultsGeneration;
+  resultsStreamController?.abort();
+  const controller = new AbortController();
+  resultsStreamController = controller;
+  inFlightQuerySig = sig;
+  startLoading();
+  // Progressive path: open `/results/stream`, render `meta` (total/summary)
+  // immediately and append each `item` in result order. Any stream failure
+  // falls back to the plain `GET /results` fetch below.
+  //
+  // When the query is unchanged and we already have results on screen, keep
+  // them visible while the new stream runs (no card/mini-chart unmount
+  // flicker): the first incoming item replaces the list, later items append as
+  // usual. For a genuinely different query the list is cleared at the start so
+  // stale symbols never mix.
+  let replaceOnFirstItem = false;
+  if (sig === displayedQuerySig && state.results.length > 0) {
+    replaceOnFirstItem = true;
+    patch({ streaming: true, error: null });
+  } else {
+    patch({ results: [], total: 0, streaming: true, error: null });
+  }
   let streamOk = false;
   let streamFailed = false;
   try {
@@ -523,14 +556,28 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
             summary: meta.summary ?? state.summary,
             dataThrough: meta.data_through ?? state.dataThrough,
           });
+          // Same-query reload whose stream reports nothing: the old results
+          // are stale, blank them now.
+          if (replaceOnFirstItem && (meta.total ?? 0) === 0) {
+            replaceOnFirstItem = false;
+            patch({ results: [] });
+          }
         },
         onItem: (item) => {
           if (generation !== resultsGeneration) return;
           if (!passesResultFilters(item, state.filters)) return;
+          if (replaceOnFirstItem) {
+            patch({ results: sortStreamedHits([item], uiSort) });
+            replaceOnFirstItem = false;
+            return;
+          }
           patch({ results: sortStreamedHits([...state.results, item], uiSort) });
         },
         onDone: () => {
           streamOk = true;
+          // Same-query reload with zero incoming items: nothing replaced the
+          // list, so clear the now-stale results.
+          if (replaceOnFirstItem) patch({ results: [] });
         },
         onError: () => {
           streamFailed = true;
@@ -542,15 +589,18 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
     if (generation !== resultsGeneration) return;
     if (streamOk && !streamFailed) {
       if (resultsStreamController === controller) resultsStreamController = null;
+      inFlightQuerySig = null;
       // The streamed `meta.total` is the server count; a client-only filter
       // narrows the rows, so the visible total is the filtered length.
       patch({
         streaming: false,
         ...(hasClientResultFilter(state.filters) ? { total: state.results.length } : {}),
       });
+      displayedQuerySig = sig;
       return;
     }
-    // Aborted by a newer load: stay silent, the newer generation owns state.
+    // Aborted by a newer load: stay silent, the newer generation owns state
+    // (including `inFlightQuerySig`, which it already overwrote).
     if (controller.signal.aborted) return;
     // Fallback: plain non-streaming fetch (also covers stream-capable backends
     // that error mid-stream — the full payload still renders).
@@ -564,9 +614,12 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
         dataThrough: data.data_through ?? null,
         streaming: false,
       });
+      inFlightQuerySig = null;
+      displayedQuerySig = sig;
     } catch (error) {
       if (generation !== resultsGeneration) return;
       patch({ streaming: false, error: toMessage(error, "Failed to load pattern results") });
+      inFlightQuerySig = null;
     }
   } finally {
     finishLoading();
@@ -1049,6 +1102,8 @@ export function resetChartPatternsState(): void {
   inflight = 0;
   resultsGeneration = 0;
   summaryGeneration = 0;
+  inFlightQuerySig = null;
+  displayedQuerySig = null;
   autoScanRequested.clear();
   state = createInitialState();
   notify();
