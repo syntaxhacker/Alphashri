@@ -246,4 +246,21 @@ describe("PatternListView", () => {
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith(hits[1]);
   });
+
+  test("shows the F&O badge for tagged rows only; an ETF tag is tolerated without a badge", () => {
+    const hits = [
+      makeHit({ id: 1, symbol: "AAA", tags: ["F&O"] } as unknown as Partial<PatternHitDTO>),
+      makeHit({ id: 2, symbol: "BBB" }),
+      makeHit({ id: 3, symbol: "CCC", tags: ["ETF"] } as unknown as Partial<PatternHitDTO>),
+    ];
+    r(<PatternListView hits={hits} onSelect={vi.fn()} />);
+
+    expect(screen.getByTestId("patterns-list-tag-fno-AAA")).toHaveTextContent("F&O");
+    expect(screen.queryByTestId("patterns-list-tag-fno-BBB")).not.toBeInTheDocument();
+    // Results are equities: no F&O badge for the ETF-tagged row either, and no crash.
+    expect(screen.queryByTestId("patterns-list-tag-fno-CCC")).not.toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("patterns-list-row-CCC-falling_wedge-3")).queryByText("ETF"),
+    ).not.toBeInTheDocument();
+  });
 });
