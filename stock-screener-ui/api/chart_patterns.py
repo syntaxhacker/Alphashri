@@ -452,6 +452,52 @@ def _clamp_to_lookback(df, lookback_bars: Optional[int]):
     return df.tail(n)
 
 
+def _fast_candle_series(frame, limit) -> list:
+    """Vectorized twin of ``candles.candles_to_series`` (same ``{t,o,h,l,c,v}`` shape).
+
+    ``iterrows`` with per-value ``import math`` costs ~20-27 ms per 500-bar
+    frame; column arrays do the same row work in ~3 ms. Any unexpected frame
+    shape falls back to :func:`candles.candles_to_series` so output never
+    changes (NaN/Inf -> 0.0 and the tail/limit rule are mirrored).
+    """
+    if frame is None or getattr(frame, "empty", True):
+        return []
+    try:
+        import math as _math
+        import numpy as _np
+
+        out_df = frame.tail(int(limit)) if limit and limit > 0 else frame
+        ts = [t.isoformat() if hasattr(t, "isoformat") else str(t) for t in out_df.index]
+        cols = {
+            name: out_df[name].to_numpy(dtype=float)
+            for name in ("open", "high", "low", "close", "volume")
+        }
+        opens = cols["open"]
+        highs = cols["high"]
+        lows = cols["low"]
+        closes = cols["close"]
+        vols = cols["volume"]
+        series: list = []
+        append = series.append
+        for i, t in enumerate(ts):
+            o = float(opens[i])
+            h = float(highs[i])
+            l = float(lows[i])
+            c = float(closes[i])
+            v = float(vols[i])
+            append({
+                "t": t,
+                "o": 0.0 if (o != o or _math.isinf(o)) else o,
+                "h": 0.0 if (h != h or _math.isinf(h)) else h,
+                "l": 0.0 if (l != l or _math.isinf(l)) else l,
+                "c": 0.0 if (c != c or _math.isinf(c)) else c,
+                "v": 0.0 if (v != v or _math.isinf(v)) else v,
+            })
+        return series
+    except Exception:
+        return candles.candles_to_series(frame, limit)
+
+
 def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache, lock=None):
     """Attach a candle window + last close/day change + trend lines to one item.
 
@@ -474,26 +520,47 @@ def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache
         return item
     fresh = _stored_lines_fresh(item)
     stored_lines = _stored_trend_lines(item) if fresh else None
-    try:
-        if df is not None and not getattr(df, "empty", True):
-            frame = _clamp_to_lookback(df, lookback_bars)
-            item["candles"] = candles.candles_to_series(frame, config.CHART_MAX_BARS)
-        else:
-            item["candles"] = []
-    except Exception:
-        item["candles"] = []
-    if df is not None and not getattr(df, "empty", True):
-        try:
-            last = float(df["close"].iloc[-1])
-            prev = float(df["close"].iloc[-2]) if len(df) > 1 else last
-            item["last_close"] = last
-            item["day_change_pct"] = round(((last - prev) / prev * 100.0) if prev else 0.0, 2)
-        except Exception:
-            item["last_close"] = None
-            item["day_change_pct"] = None
+    # Per-key candle window + closes: result sets repeat (symbol, timeframe)
+    # across patterns; rebuilding the series per item is the dominant
+    # enrichment cost. Cache under a namespaced key in the shared ``tl_cache``
+    # (the batch path and the SSE worker both share one dict per request), so
+    # duplicates reuse one conversion. Sharing the list object is safe: the
+    # endpoint deep-copies via ``_sanitize_for_json`` before serializing.
+    series_key = ("__series__", key, lookback_bars)
+    cached = tl_cache.get(series_key) if isinstance(tl_cache, dict) else None
+    if cached is not None:
+        item["candles"], item["last_close"], item["day_change_pct"] = cached
     else:
-        item["last_close"] = None
-        item["day_change_pct"] = None
+        try:
+            if df is not None and not getattr(df, "empty", True):
+                frame = _clamp_to_lookback(df, lookback_bars)
+                candle_series = _fast_candle_series(frame, config.CHART_MAX_BARS)
+            else:
+                candle_series = []
+        except Exception:
+            candle_series = []
+        if df is not None and not getattr(df, "empty", True):
+            try:
+                last = float(df["close"].iloc[-1])
+                prev = float(df["close"].iloc[-2]) if len(df) > 1 else last
+                last_close = last
+                day_change = round(((last - prev) / prev * 100.0) if prev else 0.0, 2)
+            except Exception:
+                last_close = None
+                day_change = None
+        else:
+            last_close = None
+            day_change = None
+        if isinstance(tl_cache, dict):
+            entry = (candle_series, last_close, day_change)
+            if lock is not None:
+                with lock:
+                    tl_cache.setdefault(series_key, entry)
+            else:
+                tl_cache[series_key] = entry
+        item["candles"] = candle_series
+        item["last_close"] = last_close
+        item["day_change_pct"] = day_change
     if not compute_trendlines:
         item["trend_lines"] = []
         return item
@@ -1304,8 +1371,10 @@ def _candle_fields(symbol: str, timeframe: str) -> dict:
     if df is None or getattr(df, "empty", True):
         return {"last_close": None, "day_change_pct": None, "history_bars": 0}
     try:
-        close = float(df["close"].iloc[-1])
-        prev = float(df["close"].iloc[-2]) if len(df) > 1 else close
+        # One array for both closes: avoids two column lookups + iloc slicing.
+        vals = df["close"].to_numpy()
+        close = float(vals[-1])
+        prev = float(vals[-2]) if len(vals) > 1 else close
         change = ((close - prev) / prev * 100.0) if prev else 0.0
         return {"last_close": close, "day_change_pct": round(change, 2), "history_bars": int(len(df))}
     except Exception:
