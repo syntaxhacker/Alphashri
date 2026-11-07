@@ -7,6 +7,7 @@ progress. Per-symbol failures never abort the job.
 from __future__ import annotations
 
 import dataclasses
+import logging
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -44,6 +45,8 @@ except Exception:  # pragma: no cover - trading package always present in app en
     _calendar_mod = None
     _market_mod = None
     _IST = timezone.utc
+
+logger = logging.getLogger(__name__)
 
 SYMBOL_WORKERS = int(os.environ.get("PATTERN_SCAN_SYMBOL_WORKERS", "4"))
 DEFAULT_MIN_BARS = 60
@@ -405,8 +408,11 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
             store.save_hits(job_id, enriched)
         except Exception:
             return {"status": "failed", "data_through": data_through, "from_cache": from_cache}
+        return {"status": "ok", "data_through": data_through, "from_cache": from_cache}
 
-    return {"status": "ok", "data_through": data_through, "from_cache": from_cache}
+    # Detector ran cleanly but found nothing: a distinct, non-error outcome so
+    # the job's ``failed`` counter stays honest.
+    return {"status": "empty", "data_through": data_through, "from_cache": from_cache}
 
 
 def _provenance(
@@ -551,14 +557,7 @@ def run_job(job_id: str) -> None:
         _running_state["message"] = prefilter_message
     jobs_mod.update_state(job_id, **_running_state)
 
-    # Supersede any previous hits for this universe/timeframe so results never
-    # mix stale rows from an earlier scan.
-    try:
-        store.delete_hits_for(universe, timeframe, keep_job_id=job_id)
-    except Exception:
-        pass
-
-    done = failed = skipped = 0
+    done = failed = skipped = no_hits = 0
     candles_cached = candles_fetched = 0
     max_date = None
     lock = threading.Lock()
@@ -595,7 +594,8 @@ def run_job(job_id: str) -> None:
             symbol = futures[future]
             try:
                 result = future.result()
-            except Exception:
+            except Exception as exc:  # _process_symbol never raises; defensive
+                logger.warning("scan %s: %s failed: %s: %s", job_id, symbol, type(exc).__name__, exc)
                 result = {"status": "failed", "data_through": None}
             with lock:
                 done += 1
@@ -603,6 +603,8 @@ def run_job(job_id: str) -> None:
                     failed += 1
                 elif result.get("status") == "skipped":
                     skipped += 1
+                elif result.get("status") == "empty":
+                    no_hits += 1
                 if result.get("from_cache") is True:
                     candles_cached += 1
                 elif result.get("from_cache") is False:
@@ -613,7 +615,7 @@ def run_job(job_id: str) -> None:
                 persist = done % _PERSIST_EVERY == 0 or done == total
             jobs_mod.update_state(
                 job_id, persist=persist,
-                done=done, failed=failed, skipped=skipped,
+                done=done, failed=failed, skipped=skipped, no_hits=no_hits,
                 data_through=max_date,
             )
 
@@ -623,17 +625,29 @@ def run_job(job_id: str) -> None:
         )
         jobs_mod.update_state(
             job_id, status="cancelled", done=done, failed=failed,
-            skipped=skipped, data_through=max_date, finished_at=_now(),
+            skipped=skipped, no_hits=no_hits, data_through=max_date,
+            finished_at=_now(),
             provenance=_cancel_provenance,
             params={**params, "provenance": _cancel_provenance},
         )
     else:
+        # Supersede previous hits now that this job's own hits are durable.
+        # ``keep_job_id=job_id`` preserves the rows this job just wrote, so the
+        # stored hits always belong to this (about-to-be) completed job. Old
+        # hits stay visible while the scan runs (no empty result list mid
+        # scan) and survive a cancel/failure, since the new job produced
+        # nothing durable to replace them with.
+        try:
+            store.delete_hits_for(universe, timeframe, keep_job_id=job_id)
+        except Exception:
+            pass
         _done_provenance = _provenance(
             False, candles_cached, candles_fetched, prefilter_dropped, max_date
         )
         _done_state: dict = {
             "status": "completed", "done": done, "failed": failed,
-            "skipped": skipped, "data_through": max_date, "finished_at": _now(),
+            "skipped": skipped, "no_hits": no_hits,
+            "data_through": max_date, "finished_at": _now(),
             "scan_signature": _detector_signature(max_date),
             "provenance": _done_provenance,
             "params": {**params, "scan_signature": _detector_signature(max_date),
