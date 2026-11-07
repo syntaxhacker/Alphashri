@@ -54,10 +54,12 @@ except Exception:  # pragma: no cover - trading package always present in app en
 logger = logging.getLogger(__name__)
 
 SYMBOL_WORKERS = int(os.environ.get("PATTERN_SCAN_SYMBOL_WORKERS", "4"))
-# Opt-in process-based fan-out for the detect+trendlines CPU (GIL-bound under
-# threads). Default off for the API; a CLI/bot can pass ``use_processes=True``
-# in the job params. Threads remain the default path regardless.
-USE_PROCESSES_DEFAULT = os.environ.get("PATTERN_SCAN_USE_PROCESSES", "0") == "1"
+# Auto process fan-out threshold: resolved symbol counts at/above this use a
+# process pool for the GIL-bound detect+trendlines work when spawn is
+# available and nothing forced the mode. Below it threads win -- spawn startup
+# (re-importing pandas/numpy per worker) would dominate a small scan. Override
+# with ``PATTERN_SCAN_PROCESS_THRESHOLD``.
+PROCESS_THRESHOLD = int(os.environ.get("PATTERN_SCAN_PROCESS_THRESHOLD", "300"))
 DEFAULT_MIN_BARS = 60
 # Upper bound on the resolved symbol count of an as-of (replay) scan. Replays
 # fetch explicit historical windows per symbol; without a cap one request
@@ -567,6 +569,22 @@ def _provenance(
     }
 
 
+def _use_processes_for(n_symbols: int, params: dict) -> bool:
+    """Decide processes vs threads for this job.
+
+    Precedence: explicit env (``0`` off / ``1`` on) > explicit
+    ``params["use_processes"]`` > auto (``n >= PROCESS_THRESHOLD`` and spawn
+    available). Small scans stay on threads so spawn startup doesn't dominate.
+    """
+    env = os.environ.get("PATTERN_SCAN_USE_PROCESSES")
+    if env is not None:
+        return env == "1"
+    explicit = params.get("use_processes")
+    if explicit is not None:
+        return bool(explicit)
+    return n_symbols >= PROCESS_THRESHOLD and parallel.supports_processes()
+
+
 def run_job(job_id: str) -> None:
     """Run a single job end-to-end. Safe to call from a worker thread."""
     job = jobs_mod.get_job(job_id) or store.get_job(job_id)
@@ -780,10 +798,10 @@ def run_job(job_id: str) -> None:
         except Exception:
             partial_bars = {}
 
-    # Executor selection: spawn processes (opt-in) -> threads -> sequential.
+    # Executor selection: spawn processes -> threads -> sequential.
     # All DB/Redis/mirror writes stay in the parent; workers only fetch +
     # detect + trendlines and return a status dict.
-    use_processes = USE_PROCESSES_DEFAULT or bool(params.get("use_processes"))
+    use_processes = _use_processes_for(total, params)
     proc_workers = min(max(1, SYMBOL_WORKERS), parallel.max_workers())
 
     def _open_pool():
