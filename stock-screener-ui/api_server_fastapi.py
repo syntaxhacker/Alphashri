@@ -876,14 +876,18 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
 app.add_middleware(DynamicCORSMiddleware)
 
 # GZip cuts the patterns read path (`/results` ~6.9 MB raw at 500-bar cards)
-# to ~1.2 MB on the wire; browsers accept it by default. The excluded-types
+# to ~1.8 MB on the wire; browsers accept it by default. The excluded-types
 # list is pinned (not left to the library default) because it guarantees the
 # SSE streams (`text/event-stream`) never buffer behind a gzip layer — events
 # must interleave immediately, and `Cache-Control: no-cache` alone does not
-# prevent compression.
+# prevent compression. `compresslevel=5` is benchmarked on a 6.81 MiB
+# `/results` body (185 items x 500 bars): level 5 → 1.83 MB (ratio 0.257) in
+# ~208 ms vs level 9 → 1.75 MB (0.246) in ~1078 ms — 4.4% larger wire but
+# ~5x less CPU; level 6 buys only 28 KB more for ~57% more CPU than level 5.
 app.add_middleware(
     GZipMiddleware,
     minimum_size=1024,
+    compresslevel=5,
     exclude_content_types=DEFAULT_EXCLUDED_CONTENT_TYPES,
 )
 

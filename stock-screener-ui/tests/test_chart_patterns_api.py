@@ -1971,6 +1971,7 @@ def gz_app(test_db_engine):
     app.add_middleware(
         GZipMiddleware,
         minimum_size=1024,
+        compresslevel=5,
         exclude_content_types=DEFAULT_EXCLUDED_CONTENT_TYPES,
     )
 
@@ -2044,6 +2045,7 @@ def gz_client(test_db_engine):
     app.add_middleware(
         GZipMiddleware,
         minimum_size=1024,
+        compresslevel=5,
         exclude_content_types=DEFAULT_EXCLUDED_CONTENT_TYPES,
     )
 
@@ -2075,6 +2077,8 @@ def test_gzip_middleware_registered_on_production_app():
     by_cls = {getattr(m, "cls", type(m)): m.kwargs for m in app.user_middleware}
     assert GZipMiddleware in by_cls
     assert by_cls[GZipMiddleware]["minimum_size"] == 1024
+    assert by_cls[GZipMiddleware]["compresslevel"] == 5
+    assert "text/event-stream" in by_cls[GZipMiddleware]["exclude_content_types"]
 
 
 def test_large_results_response_is_gzipped_with_identical_body(gz_client, monkeypatch):
