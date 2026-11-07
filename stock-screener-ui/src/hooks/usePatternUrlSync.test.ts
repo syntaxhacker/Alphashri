@@ -33,7 +33,7 @@ function makeArgs(overrides: Partial<UsePatternUrlSyncArgs> = {}): UsePatternUrl
     universe: "",
     timeframe: "1D",
     lookbackBars: null,
-    computeTrendlines: true,
+    computeTrendlines: undefined,
     filters: { ...DEFAULT_PATTERN_FILTERS },
     setUniverse: vi.fn(),
     setTimeframe: vi.fn(),
@@ -565,6 +565,46 @@ describe("usePatternUrlSync", () => {
     expect(args.setLookbackBars).not.toHaveBeenCalled();
     expect(args.applyFilters).not.toHaveBeenCalled();
     expect(setSearchParams).not.toHaveBeenCalled();
+  });
+
+  it("does not apply filters when the URL matches the current state", () => {
+    mockedUseSearchParams.mockReturnValue([
+      new URLSearchParams("universe=nifty50&avgvol=150"),
+      setSearchParams,
+    ] as never);
+
+    // Props already sit at the parsed defaults: universe=nifty50 and the
+    // default-on avgvol=150 filter.
+    const args = makeArgs({
+      universe: "nifty50",
+      filters: { ...DEFAULT_PATTERN_FILTERS },
+    });
+    renderHook((props: UsePatternUrlSyncArgs) => usePatternUrlSync(props), {
+      initialProps: args,
+    });
+
+    expect(args.setUniverse).not.toHaveBeenCalled();
+    expect(args.setTimeframe).not.toHaveBeenCalled();
+    expect(args.setLookbackBars).not.toHaveBeenCalled();
+    expect(args.applyFilters).not.toHaveBeenCalled();
+    expect(setSearchParams).not.toHaveBeenCalled();
+  });
+
+  it("applies filters only when a parsed value differs from the current state", () => {
+    mockedUseSearchParams.mockReturnValue([
+      new URLSearchParams("sort=newest"),
+      setSearchParams,
+    ] as never);
+
+    const args = makeArgs();
+    renderHook((props: UsePatternUrlSyncArgs) => usePatternUrlSync(props), {
+      initialProps: args,
+    });
+
+    expect(args.applyFilters).toHaveBeenCalledTimes(1);
+    expect(args.applyFilters).toHaveBeenCalledWith({ sort: "newest" });
+    expect(args.setUniverse).not.toHaveBeenCalled();
+    expect(args.setTimeframe).not.toHaveBeenCalled();
   });
 
   it("applies lookback from the URL on mount and writes it back", () => {

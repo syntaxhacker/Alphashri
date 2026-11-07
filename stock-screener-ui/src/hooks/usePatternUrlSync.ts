@@ -427,20 +427,34 @@ export function usePatternUrlSync({
     }
 
     parsedRef.current = parsed;
-    if (parsed.universe) setUniverse(parsed.universe);
+    if (parsed.universe && parsed.universe !== universe) setUniverse(parsed.universe);
+    const currentSelection = selectedTimeframes ?? [timeframe];
     if (parsed.timeframes) {
-      if (setSelectedTimeframes) setSelectedTimeframes(parsed.timeframes);
-      else setTimeframe(parsed.timeframes[0]);
-    } else if (parsed.timeframe) {
+      if (!filterValuesEqual(currentSelection, parsed.timeframes)) {
+        if (setSelectedTimeframes) setSelectedTimeframes(parsed.timeframes);
+        else setTimeframe(parsed.timeframes[0]);
+      }
+    } else if (parsed.timeframe && parsed.timeframe !== timeframe) {
       setTimeframe(parsed.timeframe);
     }
-    if (parsed.lookback != null) setLookbackBars(parsed.lookback);
-    if (parsed.computeTrendlines != null) setComputeTrendlines?.(parsed.computeTrendlines);
-    if (parsed.tab != null) setTab?.(parsed.tab);
-    if (parsed.view != null) setView?.(parsed.view);
-    if (parsed.indexGroup != null) setIndexGroup?.(parsed.indexGroup);
-    if (parsed.members != null) setMembers?.(parsed.members);
-    if (Object.keys(parsed.filters).length > 0) applyFilters(parsed.filters);
+    if (parsed.lookback != null && parsed.lookback !== lookbackBars) setLookbackBars(parsed.lookback);
+    if (
+      parsed.computeTrendlines != null &&
+      parsed.computeTrendlines !== computeTrendlines
+    ) {
+      setComputeTrendlines?.(parsed.computeTrendlines);
+    }
+    if (parsed.tab != null && parsed.tab !== tab) setTab?.(parsed.tab);
+    if (parsed.view != null && parsed.view !== view) setView?.(parsed.view);
+    if (parsed.indexGroup != null && parsed.indexGroup !== indexGroup) {
+      setIndexGroup?.(parsed.indexGroup);
+    }
+    if (parsed.members != null && parsed.members !== members) setMembers?.(parsed.members);
+    const filtersDiffer = Object.entries(parsed.filters).some(([key, value]) => {
+      const current = (filters as Record<string, unknown>)[key];
+      return !filterValuesEqual(current, value);
+    });
+    if (filtersDiffer) applyFilters(parsed.filters);
     // Intentionally mount-only: read the URL once, then let changes write back.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
