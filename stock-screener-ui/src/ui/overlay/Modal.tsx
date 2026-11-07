@@ -58,7 +58,6 @@ export function Modal({
       className={className}
       style={style}
       data-testid={testId}
-      disableEscapeKeyDown={!closeOnEscape}
       slotProps={{
         backdrop: overlayProps
           ? {

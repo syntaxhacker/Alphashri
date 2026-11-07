@@ -34,7 +34,7 @@ body[data-color-scheme="dark"] { color-scheme: dark; }
 .price-flash-chg { animation: flash-chg 0.6s ease-out; border-radius: 4px; }
 
 /* hide TradingView attribution logo on lightweight-charts (POC full-page) */
-#tv-attr-logo, a[href*="tradingview.com"] { display: none !important; }
+#tv-attr-logo, a[href*="tradingview.com"]:not(.pattern-tv-link) { display: none !important; }
 
 /* Active/selected row highlight (paper trade history, backtest, replay).
    Targets the td because each cell sets its own background via sx. */
@@ -46,4 +46,26 @@ body[data-color-scheme="dark"] { color-scheme: dark; }
 }
 .trade-row-highlighted:hover td {
   background-color: color-mix(in srgb, var(--mui-palette-primary-main) 26%, var(--mui-palette-background-paper)) !important;
+}
+
+
+/* 0-DTE walls — small, purposeful motion. */
+@keyframes wall-spark-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes wall-alert-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes wall-event-in {
+  from { opacity: 0; transform: translateX(-3px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wall-anim,
+  [data-wall-anim] {
+    animation: none !important;
+    transition: none !important;
+  }
 }

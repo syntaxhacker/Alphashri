@@ -1,12 +1,18 @@
 // @vitest-environment happy-dom
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { configure } from "@testing-library/dom";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { ReportContainer } from "./ReportContainer";
 import { fetchSymbolChart, fetchTimeframes } from "@/api/chartPatterns";
+
+// These tests mount the full report container (~4.4 s each). The 1 s default
+// findBy* timeout flakes under the parallel suite, where the tab bar can take
+// longer than that to appear.
+configure({ asyncUtilTimeout: 8000 });
 
 vi.mock("../../api/report", () => ({
   fetchDailyReport: vi.fn(),
@@ -124,7 +130,7 @@ describe("ReportContainer", () => {
       ),
     );
     expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
-  });
+  }, 30_000);
 
   test("closing the fullscreen returns to the report", async () => {
     const user = userEvent.setup();
@@ -137,5 +143,5 @@ describe("ReportContainer", () => {
     await waitFor(() =>
       expect(screen.queryByTestId("patterns-fullscreen-modal")).not.toBeInTheDocument(),
     );
-  });
+  }, 30_000);
 });

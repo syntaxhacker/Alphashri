@@ -1,5 +1,5 @@
 import { memo, useRef, useState, useEffect, useMemo } from "react";
-import { Text, Group, Flex, Tooltip, ActionIcon, Badge, Collapse, Box, Stack, SimpleGrid, Textarea, Button, Loader } from "@/ui";
+import { Text, Flex, Tooltip, ActionIcon, Box, Stack, SimpleGrid, Textarea, Button, Loader } from "@/ui";
 import { IconChevronRight, IconChevronDown } from "@tabler/icons-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import dayjs from "dayjs";
@@ -11,7 +11,7 @@ import {
   setSelectedTradeId,
   updatePositionNotesAction,
 } from "../../state/paperTrading";
-import type { PaperPosition, PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
+import type { PaperPosition, PaperScanItem } from "../../types/paperTrading";
 import { TanStackTable } from "../common/TanStackTable";
 import {
   formatSignedPnl,
@@ -182,10 +182,6 @@ function sanitizeTestIdValue(value: string | number): string {
 function getCompositeRowId(pos: PaperPosition): string {
   const strat = pos.strategy_id ?? (pos as unknown as { id?: string | number }).id ?? 0;
   return `${sanitizeTestIdValue(strat)}-${sanitizeTestIdValue(pos.symbol)}`;
-}
-
-function getSideColor(side: string): string {
-  return side === "BUY" ? POSITIVE : NEGATIVE;
 }
 
 function calcRowBg(current: number, entry: number, sl: number, tp: number): string {
@@ -490,7 +486,7 @@ export function PositionsTableBody({
       columns={columns}
       getRowCanExpand={() => true}
       renderSubComponent={(pos) => (
-        <Box className="paper-position-expanded" id={`paper-position-expanded-${pos.order_id || pos.symbol}`} p="xs" sx={{ bgcolor: "var(--mui-palette-background-default)", borderTop: "1px solid var(--mui-palette-divider)", borderBottom: "1px solid var(--mui-palette-divider)" }}>
+        <Box className="paper-position-expanded" id={`paper-position-expanded-${pos.order_id || pos.symbol}`} p={0.5} sx={{ bgcolor: "var(--mui-palette-background-default)", borderTop: "1px solid var(--mui-palette-divider)", borderBottom: "1px solid var(--mui-palette-divider)" }}>
           <PositionDetail pos={pos} />
         </Box>
       )}
@@ -501,6 +497,8 @@ export function PositionsTableBody({
       })}
       getRowTestId={(pos) => `position-row-${getCompositeRowId(pos)}`}
       dataTestId="positions-table"
+      stickyHeader
+      dense
     />
   );
 }
@@ -517,13 +515,14 @@ export function StrategySummaryFooter({
   }));
 
   const columns: ColumnDef<(typeof summaries)[0]>[] = [
-    { id: "name", header: "Strategy", accessorKey: "name", cell: ({ row }) => <Text fw={600} size="sm">{row.original.name}</Text> },
-    { id: "count", header: "Pos", accessorKey: "count", cell: ({ row }) => <>{row.original.count}</> },
-    { id: "marginUsed", header: "Margin", accessorKey: "marginUsed", cell: ({ row }) => <>₹{formatCurrencyIN(row.original.marginUsed)}</> },
+    { id: "name", header: "Strategy", accessorKey: "name", meta: { align: "left" }, cell: ({ row }) => <Text fw={600} size="sm">{row.original.name}</Text> },
+    { id: "count", header: "Pos", accessorKey: "count", meta: { align: "right" }, cell: ({ row }) => <>{row.original.count}</> },
+    { id: "marginUsed", header: "Margin", accessorKey: "marginUsed", meta: { align: "right" }, cell: ({ row }) => <>₹{formatCurrencyIN(row.original.marginUsed)}</> },
     {
       id: "totalPnl",
       header: "P&L",
       accessorKey: "totalPnl",
+      meta: { align: "right" },
       cell: ({ row }) => (
         <Text c={getPnLTextColor(row.original.totalPnl)} fw={600} size="sm">
           {formatSignedPnl(row.original.totalPnl)}
@@ -535,13 +534,13 @@ export function StrategySummaryFooter({
   return (
     <Flex
       direction="column"
-      mt={2}
-      pt={2}
+      mt={1}
+      pt={1}
       data-testid="strategy-summary-footer"
       className="paper-strategy-summary"
       id="strategy-summary"
     >
-      <Text fw={600} size="xs" c="dimmed" tt="uppercase" mb={2}>
+      <Text fw={600} size="xs" c="dimmed" tt="uppercase" mb={0.5}>
         Strategy Summary
       </Text>
       <TanStackTable
@@ -549,6 +548,7 @@ export function StrategySummaryFooter({
         columns={columns}
         enableSorting={false}
         dataTestId="strategy-summary-table"
+        dense
       />
     </Flex>
   );

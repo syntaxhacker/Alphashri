@@ -38,6 +38,18 @@ from api.utils import _sanitize_for_json
 
 router = APIRouter(prefix="/api/chart-patterns", tags=["chart-patterns"])
 
+# Risk sizing (stop/target/breakout/RR) is the trader's job, not the pattern
+# engine's. The DB keeps the columns for the watch trigger, but the API never
+# exposes them to the chart/scan.
+_RISK_FIELDS = ("breakout_level", "target", "stop", "rr", "breakout_score")
+
+
+def _strip_risk_fields(items) -> None:
+    for item in items or []:
+        if isinstance(item, dict):
+            for key in _RISK_FIELDS:
+                item.pop(key, None)
+
 
 # ---------------------------------------------------------------------------
 # Frozen fallbacks (CONTRACT.md §1/§2) — used only if Agent 1's registries are
@@ -46,13 +58,11 @@ router = APIRouter(prefix="/api/chart-patterns", tags=["chart-patterns"])
 
 _FALLBACK_TIMEFRAMES = [
     {"id": "1m", "label": "1m", "minutes": 1, "native": True, "source_tf": None, "max_lookback_days": 30, "min_bars": 60},
-    {"id": "3m", "label": "3m", "minutes": 3, "native": False, "source_tf": "1m", "max_lookback_days": 30, "min_bars": 60},
     {"id": "5m", "label": "5m", "minutes": 5, "native": True, "source_tf": None, "max_lookback_days": 90, "min_bars": 60},
     {"id": "10m", "label": "10m", "minutes": 10, "native": True, "source_tf": None, "max_lookback_days": 90, "min_bars": 60},
     {"id": "15m", "label": "15m", "minutes": 15, "native": True, "source_tf": None, "max_lookback_days": 90, "min_bars": 60},
     {"id": "30m", "label": "30m", "minutes": 30, "native": True, "source_tf": None, "max_lookback_days": 180, "min_bars": 60},
     {"id": "1h", "label": "1h", "minutes": 60, "native": True, "source_tf": None, "max_lookback_days": 365, "min_bars": 60},
-    {"id": "2h", "label": "2h", "minutes": 120, "native": False, "source_tf": "1h", "max_lookback_days": 365, "min_bars": 60},
     {"id": "3h", "label": "3h", "minutes": 180, "native": False, "source_tf": "1h", "max_lookback_days": 365, "min_bars": 60},
     {"id": "4h", "label": "4h", "minutes": 240, "native": False, "source_tf": "1h", "max_lookback_days": 365, "min_bars": 60},
     {"id": "1D", "label": "1D", "minutes": 1440, "native": True, "source_tf": None, "max_lookback_days": 730, "min_bars": 60},
@@ -122,11 +132,11 @@ def _spec_to_dict(spec) -> dict:
 
 def _timeframes_payload() -> list[dict]:
     try:
-        from chart_patterns import timeframes as tf
+        from chart_patterns import timeframe_config
 
-        specs = getattr(tf, "TIMEFRAMES", None)
-        if specs:
-            return [_spec_to_dict(s) for s in specs]
+        rows = timeframe_config.enabled_timeframes()
+        if rows:
+            return [_spec_to_dict(row) for row in rows]
     except Exception:
         pass
     return [dict(s) for s in _FALLBACK_TIMEFRAMES]
@@ -280,11 +290,11 @@ def _valid_universe_ids() -> set:
 
 
 def _valid_timeframe_ids() -> set:
-    """Timeframe ids from the real registry, falling back to the frozen list."""
+    """Enabled timeframe ids, falling back to the frozen list."""
     try:
-        from chart_patterns import timeframes as tf
+        from chart_patterns import timeframe_config
 
-        ids = getattr(tf, "TIMEFRAME_IDS", None)
+        ids = timeframe_config.enabled_timeframe_ids()
         if ids:
             return set(ids)
     except Exception:
@@ -607,6 +617,14 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
 # Request models
 # ---------------------------------------------------------------------------
 
+class DetectRequest(BaseModel):
+    """Single-symbol, synchronous pattern check (no job queue)."""
+
+    symbol: str
+    timeframe: str
+    lookback_bars: Optional[int] = 150
+
+
 class ScanRequest(BaseModel):
     universe: str = ""
     timeframe: str
@@ -679,6 +697,58 @@ async def get_universes():
 @router.get("/patterns")
 async def get_patterns():
     return _sanitize_for_json({"families": list(_FAMILIES), "patterns": _patterns_payload()})
+
+
+@router.post("/detect")
+def detect_one(request: DetectRequest, user: User = Depends(get_current_user)):
+    """Run the detector on ONE symbol now and return the hits.
+
+    The Nifty chart's PATTERNS button needs an answer in seconds. The queued
+    scan can sit behind a 500-symbol universe job for minutes, so this bypasses
+    the queue: fetch candles (disk-cached after the first call) → detect →
+    return. No job row, no store writes.
+    """
+    symbol = (request.symbol or "").strip().upper()
+    if not symbol:
+        raise HTTPException(status_code=422, detail="symbol is required")
+    tf = request.timeframe
+    if tf not in _valid_timeframe_ids():
+        raise HTTPException(status_code=422, detail=f"unknown timeframe {tf!r}")
+    lookback = request.lookback_bars if isinstance(request.lookback_bars, int) else 150
+    lookback = max(config.LOOKBACK_MIN, min(config.LOOKBACK_MAX, lookback))
+    try:
+        df = candles.fetch_for_timeframe(symbol, tf, lookback_bars=lookback)
+    except Exception as exc:  # noqa: BLE001 - surface a clean 502
+        raise HTTPException(status_code=502, detail=f"candles unavailable: {exc}") from exc
+    if df is None or getattr(df, "empty", True):
+        return {"symbol": symbol, "timeframe": tf, "data_through": None, "hits": [], "count": 0}
+    data_through = candles.frame_last_date(df)
+    if len(df) < scan_mod._resolve_min_bars(tf):
+        return {"symbol": symbol, "timeframe": tf, "data_through": data_through, "hits": [], "count": 0}
+    if len(df) > lookback:
+        df = df.iloc[-lookback:]
+    try:
+        hits = scan_mod._detect(df, tf, symbol) or []
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"detector failed: {exc}") from exc
+    items = []
+    for hit in hits:
+        try:
+            items.append(scan_mod._hit_to_dict(hit))
+        except Exception:
+            continue
+    # ONE pattern per symbol/timeframe — the most recent. A chart button shows
+    # the live read, not a catalogue; the queued scan applies the same rule
+    # (scan._process_symbol → _latest_record).
+    if len(items) > 1:
+        items = [scan_mod._latest_record(items)]
+    return {
+        "symbol": symbol,
+        "timeframe": tf,
+        "data_through": data_through,
+        "hits": items,
+        "count": len(items),
+    }
 
 
 @router.post("/scan")
@@ -1067,12 +1137,58 @@ async def get_results(
     # The card window spans the active Lookback so mini-charts match the view.
     await run_in_threadpool(_enrich_with_candles, items, timeframe, lookback_bars=lookback_bars,
                             compute_trendlines=compute_trendlines)
+    _strip_risk_fields(items)
     return _sanitize_for_json({
         "items": items,
         "total": total,
         "summary": summary,
         "data_through": summary.get("data_through"),
     })
+
+
+@router.get("/index/{index_id}/members")
+def get_index_members(index_id: str):
+    from chart_patterns.index_members import NO_MEMBERS_INDEX_IDS, members_for_index
+    from chart_patterns.indices import INDEX_LABELS
+
+    key = str(index_id or "").strip().upper()
+    try:
+        symbols = members_for_index(key)
+    except Exception as exc:
+        import logging as _logging
+
+        _logging.getLogger(__name__).warning("index members failed for %s: %s", key, exc)
+        raise HTTPException(status_code=503, detail="Failed to load index constituents") from exc
+    if symbols is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Constituents are not available for {index_id!r}",
+        )
+    payload = {
+        "index": key,
+        "label": INDEX_LABELS.get(key, key),
+        "count": len(symbols),
+        "symbols": symbols,
+    }
+    if key in NO_MEMBERS_INDEX_IDS:
+        payload["note"] = "Volatility index has no constituent stocks."
+    return _sanitize_for_json(payload)
+
+
+@router.get("/hit/{hit_id}")
+async def get_hit(hit_id: int):
+    from db.database import SessionLocal
+    from db.models.chart_patterns import PatternHit
+
+    db = SessionLocal()
+    try:
+        row = db.query(PatternHit).filter(PatternHit.id == hit_id).first()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Pattern hit not found")
+        data = row.to_dict()
+        return _sanitize_for_json(data)
+    finally:
+        db.close()
 
 
 @router.get("/results/stream")
@@ -1126,6 +1242,7 @@ async def stream_results(
         except Exception as exc:
             yield _sse_event("error", {"message": str(exc)[:300]})
             return
+        _strip_risk_fields(items)
         async for frame in _results_sse_events(
             items, default_timeframe=timeframe, lookback_bars=lookback_bars,
             compute_trendlines=compute_trendlines, total=total,
@@ -1198,10 +1315,18 @@ def _candle_fields(symbol: str, timeframe: str) -> dict:
 
 
 @router.get("/symbol/{symbol}")
-async def get_symbol(symbol: str, timeframe: str = Query("1D")):
-    detail = store.get_symbol_detail(symbol, timeframe)
+async def get_symbol(
+    symbol: str,
+    timeframe: str = Query("1D"),
+    limit: int = Query(0, ge=0, le=50),
+    non_overlapping: bool = Query(False),
+):
+    detail = store.get_symbol_detail(
+        symbol, timeframe, limit=limit or None, non_overlapping=non_overlapping
+    )
     detail.update(await run_in_threadpool(_candle_fields, symbol, timeframe))
     await run_in_threadpool(_enrich_with_candles, detail.get("patterns", []), timeframe)
+    _strip_risk_fields(detail.get("patterns", []))
     if not detail.get("name"):
         detail["name"] = _lookup_name(symbol)
     return _sanitize_for_json(detail)
@@ -1229,10 +1354,6 @@ def _live_hit_to_dict(hit, symbol: str, timeframe: str) -> Optional[dict]:
         return None
     record.setdefault("symbol", symbol.upper())
     record.setdefault("timeframe", timeframe)
-    try:
-        record["breakout_score"] = store.breakout_score(record)
-    except Exception:
-        pass
     return record
 
 
@@ -1704,3 +1825,173 @@ async def stream_watch(
             yield frame
 
     return StreamingResponse(_body(), media_type="text/event-stream", headers=dict(_SSE_HEADERS))
+
+
+_MATRIX_HIT_KEYS = (
+    "id", "symbol", "name", "timeframe", "pattern_id", "pattern_name",
+    "family", "direction", "status", "quality", "confidence", "start_date",
+    "end_date", "start_price", "end_price", "bars_ago", "volume_confirmed",
+    "range_pos", "to_52w_high",
+)
+
+_MATRIX_MAX_HITS = 40
+
+
+def _matrix_number(value) -> Optional[float]:
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return None
+    if out != out or out in (float("inf"), float("-inf")):
+        return None
+    return out
+
+
+def _matrix_desc(value) -> tuple:
+    num = _matrix_number(value)
+    return (1, 0.0) if num is None else (0, -num)
+
+
+def _matrix_asc(value) -> tuple:
+    num = _matrix_number(value)
+    return (1, 0.0) if num is None else (0, num)
+
+
+def _matrix_rank_key(hit: dict) -> tuple:
+    return (
+        _matrix_desc(hit.get("confidence")),
+        _matrix_asc(hit.get("bars_ago")),
+    )
+
+
+def _matrix_latest(group: list[dict]) -> dict:
+    bars = [_matrix_number(hit.get("bars_ago")) for hit in group]
+    values = [value for value in bars if value is not None]
+    if values:
+        floor = min(values)
+        pool = [hit for hit, value in zip(group, bars) if value == floor]
+    else:
+        pool = list(group)
+    return max(
+        pool,
+        key=lambda hit: (str(hit.get("end_date") or ""), _matrix_number(hit.get("id")) or 0),
+    )
+
+
+def _matrix_slim(hit: dict) -> dict:
+    return {key: hit.get(key) for key in _MATRIX_HIT_KEYS}
+
+
+def _matrix_timeframes(requested) -> list[str]:
+    if requested:
+        valid = _valid_timeframe_ids()
+        out: list[str] = []
+        for tf in requested:
+            key = str(tf or "").strip()
+            if key in valid and key not in out:
+                out.append(key)
+        return out
+    return [str(spec["id"]) for spec in _timeframes_payload() if spec.get("id")]
+
+
+def _matrix_row_key(row: dict) -> tuple:
+    best = row.get("best") or {}
+    return (
+        _matrix_desc(best.get("confidence")),
+        str(row.get("symbol") or ""),
+    )
+
+
+def _matrix_rows(pairs) -> list[dict]:
+    rows: dict[str, dict] = {}
+    for timeframe, items in pairs:
+        for item in items or []:
+            if not isinstance(item, dict):
+                continue
+            symbol = str(item.get("symbol") or "").strip().upper()
+            if not symbol:
+                continue
+            row = rows.get(symbol)
+            if row is None:
+                row = {
+                    "symbol": symbol,
+                    "name": None,
+                    "ltp": None,
+                    "day_change_pct": None,
+                    "groups": {},
+                    "hits": [],
+                }
+                rows[symbol] = row
+            if row["name"] is None and item.get("name"):
+                row["name"] = item.get("name")
+            if row["ltp"] is None:
+                number = _matrix_number(item.get("last_close"))
+                if number is not None:
+                    row["ltp"] = number
+            if row["day_change_pct"] is None and item.get("day_change_pct") is not None:
+                row["day_change_pct"] = item.get("day_change_pct")
+            hit_tf = str(item.get("timeframe") or timeframe or "")
+            row["groups"].setdefault(hit_tf, []).append(item)
+            row["hits"].append(item)
+
+    out: list[dict] = []
+    for row in rows.values():
+        groups = row.pop("groups")
+        hits = row.pop("hits")
+        cells: dict[str, dict] = {}
+        latest_hits: list[dict] = []
+        for timeframe, group in groups.items():
+            latest = _matrix_latest(group)
+            latest_hits.append(latest)
+            name = latest.get("pattern_name")
+            cells[timeframe] = {
+                "direction": latest.get("direction"),
+                "status": latest.get("status"),
+                "count": len(group),
+                "confidence": latest.get("confidence"),
+                "patterns": [name] if name else [],
+                "best_id": latest.get("id"),
+            }
+        best_hit = min(latest_hits, key=_matrix_rank_key) if latest_hits else None
+        if row["ltp"] is None and hits:
+            freshest = min(hits, key=lambda hit: _matrix_asc(hit.get("bars_ago")))
+            row["ltp"] = _matrix_number(freshest.get("end_price"))
+        row["timeframes"] = cells
+        row["hits"] = [_matrix_slim(hit) for hit in latest_hits[:_MATRIX_MAX_HITS]]
+        row["best"] = _matrix_slim(best_hit) if best_hit is not None else None
+        row["hit_count"] = len(hits)
+        out.append(row)
+    out.sort(key=_matrix_row_key)
+    return out
+
+
+@router.get("/matrix")
+async def get_matrix(
+    universe: str = Query(...),
+    limit: int = Query(400, ge=1, le=1000),
+    timeframes: Optional[list[str]] = Query(None),
+):
+    """One row per symbol, one compact cell per timeframe, from stored hits."""
+    tf_ids = _matrix_timeframes(timeframes)
+    pairs: list[tuple[str, list]] = []
+    through_values: list = []
+    for tf in tf_ids:
+        try:
+            items, _total, summary = store.query_results(
+                {"universe": universe, "timeframe": tf, "sort": "confidence"},
+                limit=limit,
+                offset=0,
+            )
+        except Exception:
+            items, summary = [], {}
+        if not isinstance(summary, dict):
+            summary = {}
+        if summary.get("data_through") is not None:
+            through_values.append(summary["data_through"])
+        pairs.append((tf, items or []))
+    return _sanitize_for_json({
+        "universe": universe,
+        "timeframes": tf_ids,
+        "rows": _matrix_rows(pairs),
+        "data_through": max(through_values, key=str) if through_values else None,
+    })

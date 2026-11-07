@@ -6,6 +6,7 @@
  */
 
 import { createSubscriber } from "./createSubscriber";
+import { triggerDistancePct } from "../components/patterns/triggerDistance";
 import type {
   TFSpec,
   Universe,
@@ -61,6 +62,11 @@ export const DEFAULT_PATTERN_FILTERS: PatternFilters = {
   symbol: null,
   symbols: [],
   q: "",
+  history: 1,
+  sequence: false,
+  sequence_gap_days: 20,
+  sequence_max_bars: null,
+  sequence_step_status: [],
   min_base_days: null,
   max_range_pct: null,
   max_52w_gap: null,
@@ -83,6 +89,7 @@ export interface ChartPatternsState {
   patterns: PatternDef[];
   families: PatternFamily[];
   timeframe: string;
+  selectedTimeframes: string[];
   universe: string;
   /** Lookback window in bars (null = Auto / server default). */
   lookbackBars: number | null;
@@ -116,6 +123,7 @@ function createInitialState(): ChartPatternsState {
     patterns: [],
     families: [],
     timeframe: DEFAULT_TIMEFRAME,
+    selectedTimeframes: [DEFAULT_TIMEFRAME],
     universe: "",
     lookbackBars: null,
     filters: { ...DEFAULT_PATTERN_FILTERS },
@@ -152,18 +160,32 @@ let resultsGeneration = 0;
 let summaryGeneration = 0;
 /** AbortController for the in-flight `/results/stream` connection (if any). */
 let resultsStreamController: AbortController | null = null;
+/**
+ * Signature of the query whose `/results/stream` request is currently in
+ * flight. A duplicate `loadResults()` for the same query returns early instead
+ * of opening a second stream and re-blanking the visible results.
+ */
+let inFlightQuerySig: string | null = null;
+/**
+ * Signature of the query whose results are currently on screen. A reload for
+ * the same query keeps the visible results until the new stream lands; a
+ * different query clears them at the start as today.
+ */
+let displayedQuerySig: string | null = null;
 
 /**
  * Keep streamed hits in the active result order: `newest` = freshest bars
  * first (`bars_ago` asc), `range_pos` = consolidation position desc,
- * `breakout` = breakout-conviction score desc, anything else = `confidence`
- * desc (server default).
+ * `breakout` = breakout-conviction score desc, `distance` = closest to the
+ * trigger (absolute distance asc, nulls last) and anything else =
+ * `confidence` desc (server default).
+ *
+ * Keys + nulls-last + `id DESC` tie-break mirror the server's order_by
+ * (store.py) so the final order matches `GET /results` deterministically.
  */
-function sortStreamedHits(hits: PatternHitDTO[], sort: string | undefined): PatternHitDTO[] {
+export function sortStreamedHits(hits: PatternHitDTO[], sort: string | undefined): PatternHitDTO[] {
   const ordered = [...hits];
   // The stream arrives in worker-completion order, so the client must sort.
-  // Keys + nulls-last + `id DESC` tie-break mirror the server's order_by
-  // (store.py) so the final order matches `GET /results` deterministically.
   const byId = (a: PatternHitDTO, b: PatternHitDTO) => (b.id ?? 0) - (a.id ?? 0);
   if (sort === "newest") {
     ordered.sort(
@@ -186,6 +208,27 @@ function sortStreamedHits(hits: PatternHitDTO[], sort: string | undefined): Patt
         (b.confidence ?? 0) - (a.confidence ?? 0) ||
         byId(a, b),
     );
+  } else if (sort === "distance") {
+    // Only base patterns have a horizontal trigger box; anything else has no
+    // meaningful distance and sorts last.
+    const distanceOf = (hit: PatternHitDTO) =>
+      hit.pattern_id === "consolidation" || (hit.base_days ?? 0) > 0
+        ? triggerDistancePct(hit)
+        : null;
+    ordered.sort((a, b) => {
+      const da = distanceOf(a);
+      const db = distanceOf(b);
+      if (da == null && db == null) {
+        return (b.confidence ?? 0) - (a.confidence ?? 0) || byId(a, b);
+      }
+      if (da == null) return 1;
+      if (db == null) return -1;
+      return (
+        Math.abs(da) - Math.abs(db) ||
+        (b.confidence ?? 0) - (a.confidence ?? 0) ||
+        byId(a, b)
+      );
+    });
   } else {
     ordered.sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0) || byId(a, b));
   }
@@ -249,7 +292,7 @@ export function setPatterns(patterns: PatternDef[], families: PatternFamily[]): 
 }
 
 export function setTimeframe(timeframe: string): void {
-  patch({ timeframe });
+  patch({ timeframe, selectedTimeframes: [timeframe] });
 }
 
 export function setUniverse(universe: string): void {
@@ -365,7 +408,10 @@ function baseQuery(): PatternsQuery {
     min_range_pos: state.filters.min_range_pos,
     from_date: state.filters.from_date,
     to_date: state.filters.to_date,
-    sort: state.filters.sort,
+    // `distance` is a client-only sort (honoured in `sortStreamedHits`); the
+    // server does not know it, so coerce to the default before it reaches the
+    // wire (`buildPatternsQuery` also omits `confidence` entirely).
+    sort: state.filters.sort === "distance" ? "confidence" : state.filters.sort,
     // Card candle window: the cards fetch the active Lookback so mini-charts
     // span it (omitted when Auto so the server default applies).
     lookback_bars: state.lookbackBars ?? undefined,
@@ -387,8 +433,21 @@ export async function loadCatalog(): Promise<void> {
       fetchUniverses(),
       fetchPatternCatalog(),
     ]);
+    const known = new Set(timeframes.map((tf) => tf.id));
+    const seed =
+      state.selectedTimeframes.length > 0 ? state.selectedTimeframes : [state.timeframe];
+    const selected = seed.filter((id) => known.has(id));
+    if (known.has(state.timeframe) && !selected.includes(state.timeframe)) {
+      selected.unshift(state.timeframe);
+    }
+    if (selected.length === 0 && known.has(DEFAULT_TIMEFRAME)) selected.push(DEFAULT_TIMEFRAME);
+    const primary = selected.includes(state.timeframe)
+      ? state.timeframe
+      : (selected[0] ?? DEFAULT_TIMEFRAME);
     patch({
       timeframes,
+      selectedTimeframes: selected.length > 0 ? selected : [primary],
+      timeframe: primary,
       universes: universes.universes,
       defaultUniverse: universes.default || state.defaultUniverse,
       universe: state.universe || universes.default,
@@ -441,24 +500,49 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
   if (state.universe === CUSTOM_UNIVERSE && state.filters.symbols.length === 0) {
     resultsStreamController?.abort();
     resultsStreamController = null;
+    inFlightQuerySig = null;
     patch({ results: [], total: 0, streaming: false });
     return;
   }
-  const generation = ++resultsGeneration;
-  resultsStreamController?.abort();
-  const controller = new AbortController();
-  resultsStreamController = controller;
-  startLoading();
-  // Progressive path: open `/results/stream`, render `meta` (total/summary)
-  // immediately and append each `item` in result order. Any stream failure
-  // falls back to the plain `GET /results` fetch below.
-  patch({ results: [], total: 0, streaming: true, error: null });
+
+  // The raw UI sort drives client-side ordering (`sortStreamedHits`). The wire
+  // query (`query.sort`, from `baseQuery`) has `distance` coerced away, so it
+  // is never sent to `/results` or `/results/stream`.
+  const uiSort = state.filters.sort;
   const query = {
     ...baseQuery(),
     limit: DEFAULT_RESULTS_LIMIT,
     offset: 0,
     ...overrides,
   };
+  // Stable signature of the resolved query (key order is deterministic: it is
+  // always `baseQuery()` plus the same override spread). A duplicate call for
+  // the same query must not start a second stream or touch state.
+  const sig = JSON.stringify(query);
+  if (sig === inFlightQuerySig) return;
+
+  const generation = ++resultsGeneration;
+  resultsStreamController?.abort();
+  const controller = new AbortController();
+  resultsStreamController = controller;
+  inFlightQuerySig = sig;
+  startLoading();
+  // Progressive path: open `/results/stream`, render `meta` (total/summary)
+  // immediately and append each `item` in result order. Any stream failure
+  // falls back to the plain `GET /results` fetch below.
+  //
+  // When the query is unchanged and we already have results on screen, keep
+  // them visible while the new stream runs (no card/mini-chart unmount
+  // flicker): the first incoming item replaces the list, later items append as
+  // usual. For a genuinely different query the list is cleared at the start so
+  // stale symbols never mix.
+  let replaceOnFirstItem = false;
+  if (sig === displayedQuerySig && state.results.length > 0) {
+    replaceOnFirstItem = true;
+    patch({ streaming: true, error: null });
+  } else {
+    patch({ results: [], total: 0, streaming: true, error: null });
+  }
   let streamOk = false;
   let streamFailed = false;
   try {
@@ -472,14 +556,28 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
             summary: meta.summary ?? state.summary,
             dataThrough: meta.data_through ?? state.dataThrough,
           });
+          // Same-query reload whose stream reports nothing: the old results
+          // are stale, blank them now.
+          if (replaceOnFirstItem && (meta.total ?? 0) === 0) {
+            replaceOnFirstItem = false;
+            patch({ results: [] });
+          }
         },
         onItem: (item) => {
           if (generation !== resultsGeneration) return;
           if (!passesResultFilters(item, state.filters)) return;
-          patch({ results: sortStreamedHits([...state.results, item], query.sort) });
+          if (replaceOnFirstItem) {
+            patch({ results: sortStreamedHits([item], uiSort) });
+            replaceOnFirstItem = false;
+            return;
+          }
+          patch({ results: sortStreamedHits([...state.results, item], uiSort) });
         },
         onDone: () => {
           streamOk = true;
+          // Same-query reload with zero incoming items: nothing replaced the
+          // list, so clear the now-stale results.
+          if (replaceOnFirstItem) patch({ results: [] });
         },
         onError: () => {
           streamFailed = true;
@@ -491,15 +589,18 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
     if (generation !== resultsGeneration) return;
     if (streamOk && !streamFailed) {
       if (resultsStreamController === controller) resultsStreamController = null;
+      inFlightQuerySig = null;
       // The streamed `meta.total` is the server count; a client-only filter
       // narrows the rows, so the visible total is the filtered length.
       patch({
         streaming: false,
         ...(hasClientResultFilter(state.filters) ? { total: state.results.length } : {}),
       });
+      displayedQuerySig = sig;
       return;
     }
-    // Aborted by a newer load: stay silent, the newer generation owns state.
+    // Aborted by a newer load: stay silent, the newer generation owns state
+    // (including `inFlightQuerySig`, which it already overwrote).
     if (controller.signal.aborted) return;
     // Fallback: plain non-streaming fetch (also covers stream-capable backends
     // that error mid-stream — the full payload still renders).
@@ -508,14 +609,17 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
       if (generation !== resultsGeneration) return;
       const items = applyResultFilters(data.items, state.filters);
       patch({
-        results: items,
+        results: sortStreamedHits(items, uiSort),
         total: hasClientResultFilter(state.filters) ? items.length : data.total,
         dataThrough: data.data_through ?? null,
         streaming: false,
       });
+      inFlightQuerySig = null;
+      displayedQuerySig = sig;
     } catch (error) {
       if (generation !== resultsGeneration) return;
       patch({ streaming: false, error: toMessage(error, "Failed to load pattern results") });
+      inFlightQuerySig = null;
     }
   } finally {
     finishLoading();
@@ -730,6 +834,13 @@ export async function triggerScan(
   const universe = overrides.universe ?? state.universe;
   const timeframe = overrides.timeframe ?? state.timeframe;
   const symbols = universe === CUSTOM_UNIVERSE ? state.filters.symbols : undefined;
+  // An empty custom scope would be sent as `universe:"custom", symbols:[]`,
+  // which the API rejects with a 422 "unknown universe". Fail fast with a
+  // friendly message instead of a network round-trip.
+  if (universe === CUSTOM_UNIVERSE && (!symbols || symbols.length === 0)) {
+    patch({ error: "Custom scope is empty — add at least one symbol (or pick a universe)." });
+    return;
+  }
   const lookback = state.lookbackBars;
   const refresh = overrides.refresh ?? false;
   const asOf = overrides.asOfDate ?? overrides.as_of_date ?? state.filters.to_date ?? null;
@@ -887,10 +998,34 @@ async function reloadSelection(overrides: Partial<PatternsQuery>): Promise<void>
 
 /** Switch timeframe and reload results/summary; clears the open symbol detail. */
 export function selectTimeframe(timeframe: string): void {
-  // No-op first: re-selecting the active value must not wipe the open detail.
-  if (timeframe === state.timeframe) return;
-  patch({ timeframe, selectedSymbol: null, detail: null, detailChart: null, error: null });
-  void reloadSelection({ timeframe });
+  selectTimeframes([timeframe]);
+}
+
+function sameSelection(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+/** Select one or more timeframes; the first is the primary for results/scans. */
+export function selectTimeframes(next: string[]): void {
+  const order = new Map(state.timeframes.map((tf, index) => [tf.id, index]));
+  const known = state.timeframes.length > 0 ? new Set(order.keys()) : null;
+  const selected = Array.from(
+    new Set((next ?? []).map((value) => String(value ?? "").trim()).filter(Boolean)),
+  )
+    .filter((id) => !known || known.has(id))
+    .sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
+  const resolved = selected.length > 0 ? selected : [DEFAULT_TIMEFRAME];
+  const primary = resolved.includes(state.timeframe) ? state.timeframe : resolved[0];
+  const primaryChanged = primary !== state.timeframe;
+  if (!primaryChanged && sameSelection(resolved, state.selectedTimeframes)) return;
+  patch({
+    selectedTimeframes: resolved,
+    timeframe: primary,
+    ...(primaryChanged
+      ? { selectedSymbol: null, detail: null, detailChart: null, error: null }
+      : {}),
+  });
+  if (primaryChanged) void reloadSelection({ timeframe: primary });
 }
 
 /** Switch universe and reload results/summary; clears the open symbol detail. */
@@ -967,6 +1102,8 @@ export function resetChartPatternsState(): void {
   inflight = 0;
   resultsGeneration = 0;
   summaryGeneration = 0;
+  inFlightQuerySig = null;
+  displayedQuerySig = null;
   autoScanRequested.clear();
   state = createInitialState();
   notify();

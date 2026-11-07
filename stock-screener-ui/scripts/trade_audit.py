@@ -13,15 +13,14 @@ Usage:
 """
 import argparse
 import sys
-from collections import defaultdict
-from datetime import datetime, timezone, timedelta
 
 sys.path.insert(0, __file__.rsplit("/", 2)[0])
 
+import config  # noqa: E402
 from scripts.smc_tick_eval import fetch_ticks, build_1m_bars
 from trading.smc_ifvg import SMCIFVGEngine
 
-IST = timezone(timedelta(hours=5, minutes=30))
+IST = config.IST
 DATES = ["2026-07-02", "2026-07-10", "2026-07-22", "2026-07-24", "2026-08-26", "2026-09-02"]
 
 

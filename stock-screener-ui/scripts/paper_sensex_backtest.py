@@ -12,13 +12,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 from datetime import datetime
 from pathlib import Path
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from options_paper import greeks as _gr  # noqa: E402
 from scripts.paper_sensex import fetch_chain  # noqa: E402
 
 LOT = 20
@@ -27,24 +27,9 @@ IV = 0.19          # SENSEX ATM IV observed today
 NOW = datetime(2026, 8, 5, 12, 45)
 
 
-def norm_cdf(x):
-    return 0.5 * (1 + math.erf(x / math.sqrt(2)))
-
-
 def bs_premium(side: str, spot: float, strike: float, t_years: float, iv: float, r: float = 0.05) -> float:
-    if t_years <= 1e-6:
-        t_years = 1e-6
-    if side == "CE":
-        intrinsic = max(spot - strike, 0)
-    else:
-        intrinsic = max(strike - spot, 0)
-    d1 = (math.log(spot / strike) + (r + iv * iv / 2) * t_years) / (iv * math.sqrt(t_years))
-    d2 = d1 - iv * math.sqrt(t_years)
-    if side == "CE":
-        bs = spot * norm_cdf(d1) - strike * math.exp(-r * t_years) * norm_cdf(d2)
-    else:
-        bs = strike * math.exp(-r * t_years) * norm_cdf(-d2) - spot * norm_cdf(-d1)
-    return max(bs, intrinsic)
+    """Black-Scholes premium on the spot (shared implementation)."""
+    return _gr.bs_price(side, spot, strike, t_years, iv, r)
 
 
 def load_1m(path: str) -> list:

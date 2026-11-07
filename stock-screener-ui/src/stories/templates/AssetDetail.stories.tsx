@@ -1,8 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Box, Text, Stack, Card, Title, Divider, Group } from "@/ui";
-import { ChartHeader } from "@/pages/chart/ChartHeader";
-import { ChartBody } from "@/pages/chart/ChartBody";
-import { ChartError } from "@/pages/chart/ChartError";
 import { ArticleDetail } from "@/components/news/ArticleDetail";
 import { BotStatusPanel } from "@/components/bots/BotStatusPanel2";
 import { MOCK_PAPER_POSITIONS, MOCK_PAPER_TRADES, MOCK_SECTOR_STOCKS, MOCK_SPOT_RELIANCE } from "../fixtures";
@@ -70,8 +67,17 @@ export const Anatomy: StoryObj = {
 export const ChartDetail: StoryObj = {
   render: () => (
     <Box p="sm" h={520} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <ChartHeader symbol="RELIANCE" timeframe={15} orMinutes={45} showPivots={false} show52wHigh={false} onBack={() => {}} onTimeframeChange={() => {}} onOrMinutesChange={() => {}} onPivotsChange={() => {}} on52wHighChange={() => {}} />
-      <ChartBody loading={false} error={null} chartError={null} hasData={false} />
+      <DetailChrome title="RELIANCE — chart detail" subtitle="Same chrome as /chart/:symbol (pattern workspace)">
+        <Stack gap="sm">
+          <Card p="sm">
+            <Title order={6}>Chart body</Title>
+            <Text size="xs" c="dimmed">
+              The symbol page renders the shared pattern toolbar + chart body
+              (`PatternChartToolbar` / `PatternChartBody`).
+            </Text>
+          </Card>
+        </Stack>
+      </DetailChrome>
     </Box>
   ),
 };
@@ -81,12 +87,13 @@ export const NewsDetail: StoryObj = {
 export const BotDetail: StoryObj = {
   render: () => <BotStatusPanel bot={{ id: "bot-1", uuid: "bot-1", name: "Demo Bot", is_active: true, max_total_positions: 5, max_total_capital_pct: 0.8, max_daily_loss_pct: 0.03, live_trading: false, strategies: [], created_at: null, updated_at: null, running: true, pid: 1234 } as any} status={mockBotStatus} trades={mockBotTrades as any} onStart={async () => {}} onStop={async () => {}} />,
 };
-export const Empty: StoryObj = { render: () => <Box p="sm"><ChartError onBackToScreener={() => {}} /></Box> };
-export const Loading: StoryObj = {
+export const Empty: StoryObj = {
   render: () => (
-    <Box p="sm" h={420} style={{ display: "flex", flexDirection: "column" }}>
-      <ChartHeader symbol="RELIANCE" timeframe={15} orMinutes={45} showPivots={false} show52wHigh={false} onBack={() => {}} onTimeframeChange={() => {}} onOrMinutesChange={() => {}} onPivotsChange={() => {}} on52wHighChange={() => {}} />
-      <ChartBody loading error={null} chartError={null} hasData={false} />
-    </Box>
+    <DetailChrome title="Empty detail" subtitle="Nothing selected">
+      <Stack gap="sm">
+        <Text size="sm">No symbol specified</Text>
+        <Text size="xs" c="dimmed">Pick a symbol from any table to open its detail.</Text>
+      </Stack>
+    </DetailChrome>
   ),
 };

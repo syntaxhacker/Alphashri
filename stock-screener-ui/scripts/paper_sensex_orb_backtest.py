@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import math
 import statistics
 import sys
 import time
@@ -23,19 +22,15 @@ ROOT = Path(__file__).parent.parent
 DATA = ROOT / "experiments" / "data"
 sys.path.insert(0, str(ROOT))
 
+from options_paper import greeks as _gr  # noqa: E402
 from scripts.paper_sensex import load_candle_days, option_costs  # noqa: E402
 
 IST_TZ = __import__("config").IST
 
 
 def bs(side, spot, strike, t, iv=0.19, r=0.05):
-    def ncdf(x): return 0.5 * (1 + math.erf(x / math.sqrt(2)))
-    d1 = (math.log(spot / strike) + (r + iv * iv / 2) * t) / (iv * math.sqrt(t))
-    d2 = d1 - iv * math.sqrt(t)
-    v = (spot * ncdf(d1) - strike * math.exp(-r * t) * ncdf(d2)) if side == "CE" \
-        else (strike * math.exp(-r * t) * ncdf(-d2) - spot * ncdf(-d1))
-    intr = max(spot - strike, 0) if side == "CE" else max(strike - spot, 0)
-    return max(v, intr)
+    """Black-Scholes premium on the spot (shared implementation)."""
+    return _gr.bs_price(side, spot, strike, t, iv, r)
 
 
 def orb_day(rows, or_min, buf, sl, tp, eod_hm="15:20", trail_trig=1e9, trail_dist=250):
@@ -93,7 +88,6 @@ def orb_day(rows, or_min, buf, sl, tp, eod_hm="15:20", trail_trig=1e9, trail_dis
 
 def load_60m_days():
     import pickle
-    import pandas as pd
     p = DATA / "sensex_60m_cache.pkl"
     if not p.exists():
         return []

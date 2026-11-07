@@ -7,6 +7,7 @@ import { runStrategyRunner } from "../../api/strategyRunner";
 import { listBots } from "../../api/bots";
 import type { BotConfig } from "../../types/bots";
 import type { StrategyRunnerTrade, StrategyRunnerSummary, BotInfo, StrategyRunnerConfig } from "../../types/strategyRunner";
+import * as palette from "@/ui/palette";
 
 function botConfigToBotInfo(bot: BotConfig): BotInfo {
   const s = bot.strategies?.[0];
@@ -109,7 +110,7 @@ export function StrategyRunnerPage() {
         gap={8}
         wrap={false}
         data-testid="sr-header"
-        style={{ flex: "0 0 auto", height: 48, padding: "0 16px", borderBottom: "1px solid var(--mui-palette-divider)" }}
+        style={{ flex: "0 0 auto", height: palette.FIN_HEADER_H, padding: `0 ${palette.FIN_OUTER_PAD}px`, borderBottom: "1px solid var(--mui-palette-divider)" }}
       >
         <Title order={2} size="h4">Strategy Runner</Title>
         <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>

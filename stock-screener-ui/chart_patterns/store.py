@@ -13,6 +13,8 @@ from sqlalchemy import case, func
 
 from db.database import SessionLocal
 
+from .history import select_last_n
+
 try:  # models are registered via db.models on normal import
     from db.models.chart_patterns import PatternComputeJob, PatternHit
 except Exception:  # pragma: no cover
@@ -748,7 +750,12 @@ def compute_summary(filters: dict) -> dict:
         session.close()
 
 
-def get_symbol_detail(symbol: str, timeframe: Optional[str] = None) -> dict:
+def get_symbol_detail(
+    symbol: str,
+    timeframe: Optional[str] = None,
+    limit: Optional[int] = None,
+    non_overlapping: bool = False,
+) -> dict:
     """Hits + counts for a single symbol (API enriches with candle fields)."""
     session = _new_session()
     symbol_u = str(symbol).upper()
@@ -779,6 +786,9 @@ def get_symbol_detail(symbol: str, timeframe: Optional[str] = None) -> dict:
                 -(p.get("confidence") or 0.0),
             )
         )
+        total_patterns = len(patterns)
+        if limit:
+            patterns = select_last_n(patterns, limit, non_overlapping)
         counts = {
             "confirmed": sum(1 for p in patterns if p.get("status") == "confirmed"),
             "forming": sum(1 for p in patterns if p.get("status") == "forming"),
@@ -796,6 +806,7 @@ def get_symbol_detail(symbol: str, timeframe: Optional[str] = None) -> dict:
             "timeframe": timeframe,
             "counts": counts,
             "timeframes": timeframes,
+            "patterns_total": total_patterns,
             "patterns": patterns,
         }
     except Exception:

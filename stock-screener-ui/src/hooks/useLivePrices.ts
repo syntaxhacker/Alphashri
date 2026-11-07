@@ -1,8 +1,9 @@
 import { useEffect, useRef, useCallback } from "react";
 import { getAccessToken } from "../state/auth";
 import { isMarketClosedToday } from "../state/holidays";
+import { readSseStream } from "../api/sse";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+import { API_BASE } from "@/api/config";
 
 export interface LivePriceEvent {
   instrument_key: string;
@@ -32,7 +33,6 @@ export function useLivePrices() {
     if (isMarketClosedToday()) return;
     const controller = new AbortController();
     controllerRef.current = controller;
-    let cancelled = false;
 
     (async () => {
       const token = getAccessToken();
@@ -52,31 +52,12 @@ export function useLivePrices() {
           return;
         }
 
-        const reader = response.body!.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (!cancelled) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const parts = buffer.split("\n\n");
-          buffer = parts.pop() || "";
-
-          for (const part of parts) {
-            const lines = part.split("\n");
-            let eventType = "";
-            let dataStr = "";
-
-            for (const line of lines) {
-              if (line.startsWith("event: ")) eventType = line.slice(7);
-              else if (line.startsWith("data: ")) dataStr = line.slice(6);
-            }
-
-            if (eventType === "price" && dataStr) {
+        await readSseStream(
+          response,
+          (frame) => {
+            if (frame.event === "price" && frame.data) {
               try {
-                const data = JSON.parse(dataStr) as LivePriceEvent & { type: string };
+                const data = JSON.parse(frame.data) as LivePriceEvent & { type: string };
                 if (data.symbol && data.ltp != null) {
                   const prev = pricesRef.current[data.symbol];
                   if (!prev || prev.ltp !== data.ltp) {
@@ -87,24 +68,27 @@ export function useLivePrices() {
                       ltq: data.ltq,
                       ts: data.ts,
                     };
-                    listenersRef.current.forEach((fn) => fn(data.symbol, pricesRef.current[data.symbol]));
+                    listenersRef.current.forEach((fn) =>
+                      fn(data.symbol, pricesRef.current[data.symbol]),
+                    );
                   }
                 }
               } catch {
                 // skip malformed
               }
-            } else if (eventType === "error" && dataStr) {
+            } else if (frame.event === "error" && frame.data) {
               try {
-                const parsed = JSON.parse(dataStr);
+                const parsed = JSON.parse(frame.data);
                 console.error("[LivePrices] Stream error:", parsed.message);
               } catch {
                 // ignore
               }
-            } else if (eventType === "nosymbols") {
+            } else if (frame.event === "nosymbols") {
               console.log("[LivePrices] No symbols to stream");
             }
-          }
-        }
+          },
+          { signal: controller.signal },
+        );
       } catch (err: any) {
         if (err?.name !== "AbortError") {
           console.warn("[LivePrices] Connection error:", err);
@@ -113,7 +97,6 @@ export function useLivePrices() {
     })();
 
     return () => {
-      cancelled = true;
       controller.abort();
     };
   }, []);

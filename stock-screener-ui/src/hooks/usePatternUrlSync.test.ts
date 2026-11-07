@@ -33,7 +33,7 @@ function makeArgs(overrides: Partial<UsePatternUrlSyncArgs> = {}): UsePatternUrl
     universe: "",
     timeframe: "1D",
     lookbackBars: null,
-    computeTrendlines: true,
+    computeTrendlines: undefined,
     filters: { ...DEFAULT_PATTERN_FILTERS },
     setUniverse: vi.fn(),
     setTimeframe: vi.fn(),
@@ -56,6 +56,10 @@ describe("parsePatternParams", () => {
     expect(parsePatternParams(params)).toEqual({
       universe: "nifty50",
       timeframe: "15m",
+      timeframes: ["15m"],
+      view: null,
+      indexGroup: null,
+      members: null,
       lookback: null,
       computeTrendlines: null,
       tab: null,
@@ -94,6 +98,19 @@ describe("parsePatternParams", () => {
     expect(parsed.filters.symbols).toEqual(["NIACL", "PWL"]);
   });
 
+  it("hydrates a single-symbol custom scope into symbols= (round-trip)", () => {
+    const parsed = parsePatternParams(new URLSearchParams("universe=custom&symbol=INFY"));
+    expect(parsed.universe).toBe("custom");
+    expect(parsed.filters.symbols).toEqual(["INFY"]);
+    expect(parsed.filters.symbol).toBeUndefined();
+  });
+
+  it("keeps one symbol as the singular filter outside the custom scope", () => {
+    const parsed = parsePatternParams(new URLSearchParams("universe=nifty50&symbol=INFY"));
+    expect(parsed.filters.symbol).toBe("INFY");
+    expect(parsed.filters.symbols).toBeUndefined();
+  });
+
   it("parses compact patterns=/families=/directions=/statuses=", () => {
     const parsed = parsePatternParams(
       new URLSearchParams("patterns=double_bottom,flag&families=reversal&directions=bullish&statuses=confirmed,forming"),
@@ -116,7 +133,97 @@ describe("parsePatternParams", () => {
     const parsed = parsePatternParams(
       new URLSearchParams("universe=&tf=&within=&symbol=&foo=bar"),
     );
-    expect(parsed).toEqual({ universe: null, timeframe: null, lookback: null, computeTrendlines: null, tab: null, filters: {} });
+    expect(parsed).toEqual({ universe: null, timeframe: null, timeframes: null, view: null, indexGroup: null, members: null, lookback: null, computeTrendlines: null, tab: null, filters: {} });
+  });
+
+  it("parses multiple tf values from comma and repeated forms", () => {
+    expect(parsePatternParams(new URLSearchParams("tf=5m,15m")).timeframes).toEqual(["5m", "15m"]);
+    expect(parsePatternParams(new URLSearchParams("tf=5m&tf=15m")).timeframes).toEqual(["5m", "15m"]);
+    expect(parsePatternParams(new URLSearchParams("tf=5m,15m")).timeframe).toBe("5m");
+  });
+
+  it("writes a comma-separated tf list when multiple are selected", () => {
+    const params = buildPatternParams({
+      universe: "",
+      timeframe: "5m",
+      selectedTimeframes: ["5m", "15m"],
+      lookbackBars: null,
+      filters: { ...DEFAULT_PATTERN_FILTERS },
+    });
+    expect(params.get("tf")).toBe("5m,15m");
+  });
+
+  it("parses and writes the results view", () => {
+    expect(parsePatternParams(new URLSearchParams("view=grid")).view).toBe("grid");
+    expect(parsePatternParams(new URLSearchParams("view=list")).view).toBe("list");
+    expect(parsePatternParams(new URLSearchParams("view=matrix")).view).toBe("matrix");
+    expect(parsePatternParams(new URLSearchParams("view=nope")).view).toBeNull();
+    const grid = buildPatternParams({
+      universe: "",
+      timeframe: "1D",
+      selectedTimeframes: ["1D"],
+      view: "grid",
+      lookbackBars: null,
+      filters: { ...DEFAULT_PATTERN_FILTERS },
+    });
+    expect(grid.get("view")).toBe("grid");
+    const matrix = buildPatternParams({
+      universe: "",
+      timeframe: "1D",
+      selectedTimeframes: ["1D"],
+      view: "matrix",
+      lookbackBars: null,
+      filters: { ...DEFAULT_PATTERN_FILTERS },
+    });
+    expect(matrix.has("view")).toBe(false);
+  });
+
+  it("parses and writes the index group filter", () => {
+    expect(parsePatternParams(new URLSearchParams("igroup=big")).indexGroup).toBe("big");
+    expect(parsePatternParams(new URLSearchParams("igroup=others")).indexGroup).toBe("others");
+    expect(parsePatternParams(new URLSearchParams("igroup=all")).indexGroup).toBe("all");
+    expect(parsePatternParams(new URLSearchParams("igroup=nope")).indexGroup).toBeNull();
+    const big = buildPatternParams({
+      universe: "indices",
+      timeframe: "1D",
+      selectedTimeframes: ["1D"],
+      indexGroup: "big",
+      lookbackBars: null,
+      filters: { ...DEFAULT_PATTERN_FILTERS },
+    });
+    expect(big.get("igroup")).toBe("big");
+    const all = buildPatternParams({
+      universe: "indices",
+      timeframe: "1D",
+      selectedTimeframes: ["1D"],
+      indexGroup: "all",
+      lookbackBars: null,
+      filters: { ...DEFAULT_PATTERN_FILTERS },
+    });
+    expect(all.has("igroup")).toBe(false);
+  });
+
+  it("parses and writes the open index-members drawer", () => {
+    expect(parsePatternParams(new URLSearchParams("members=nifty")).members).toBe("NIFTY");
+    expect(parsePatternParams(new URLSearchParams("members=")).members).toBeNull();
+    const params = buildPatternParams({
+      universe: "indices",
+      timeframe: "1D",
+      selectedTimeframes: ["1D"],
+      members: "NIFTY",
+      lookbackBars: null,
+      filters: { ...DEFAULT_PATTERN_FILTERS },
+    });
+    expect(params.get("members")).toBe("NIFTY");
+    const closed = buildPatternParams({
+      universe: "indices",
+      timeframe: "1D",
+      selectedTimeframes: ["1D"],
+      members: null,
+      lookbackBars: null,
+      filters: { ...DEFAULT_PATTERN_FILTERS },
+    });
+    expect(closed.has("members")).toBe(false);
   });
 
   it("parses lookback as an integer", () => {
@@ -138,6 +245,14 @@ describe("parsePatternParams", () => {
     expect(parsePatternParams(new URLSearchParams("avgvol=150")).filters.min_avg_volume_10d).toBe(150);
     expect(parsePatternParams(new URLSearchParams("avgvol=")).filters.min_avg_volume_10d).toBeUndefined();
     expect(parsePatternParams(new URLSearchParams("avgvol=abc")).filters.min_avg_volume_10d).toBeUndefined();
+  });
+
+  it("parses hist into patterns-per-symbol and ignores blanks/non-positive", () => {
+    expect(parsePatternParams(new URLSearchParams("hist=3")).filters.history).toBe(3);
+    expect(parsePatternParams(new URLSearchParams("hist=5")).filters.history).toBe(5);
+    expect(parsePatternParams(new URLSearchParams("hist=")).filters.history).toBeUndefined();
+    expect(parsePatternParams(new URLSearchParams("hist=abc")).filters.history).toBeUndefined();
+    expect(parsePatternParams(new URLSearchParams("hist=0")).filters.history).toBeUndefined();
   });
 });
 
@@ -360,6 +475,25 @@ describe("buildPatternParams", () => {
     expect(clean.has("avgvol")).toBe(false);
   });
 
+  it("round-trips hist (patterns per symbol) through build/parse", () => {
+    const state = {
+      universe: "",
+      timeframe: "1D",
+      lookbackBars: null as number | null,
+      filters: { ...DEFAULT_PATTERN_FILTERS, history: 3 },
+    };
+    const params = buildPatternParams(state);
+    expect(params.get("hist")).toBe("3");
+    expect(parsePatternParams(new URLSearchParams(params.toString())).filters.history).toBe(3);
+    const refined = buildPatternParams({
+      universe: "",
+      timeframe: "1D",
+      lookbackBars: null,
+      filters: { ...DEFAULT_PATTERN_FILTERS },
+    });
+    expect(refined.has("hist")).toBe(false);
+  });
+
   it("round-trips avgvol (10d avg volume filter) through build/parse", () => {
     const state = {
       universe: "",
@@ -431,6 +565,46 @@ describe("usePatternUrlSync", () => {
     expect(args.setLookbackBars).not.toHaveBeenCalled();
     expect(args.applyFilters).not.toHaveBeenCalled();
     expect(setSearchParams).not.toHaveBeenCalled();
+  });
+
+  it("does not apply filters when the URL matches the current state", () => {
+    mockedUseSearchParams.mockReturnValue([
+      new URLSearchParams("universe=nifty50&avgvol=150"),
+      setSearchParams,
+    ] as never);
+
+    // Props already sit at the parsed defaults: universe=nifty50 and the
+    // default-on avgvol=150 filter.
+    const args = makeArgs({
+      universe: "nifty50",
+      filters: { ...DEFAULT_PATTERN_FILTERS },
+    });
+    renderHook((props: UsePatternUrlSyncArgs) => usePatternUrlSync(props), {
+      initialProps: args,
+    });
+
+    expect(args.setUniverse).not.toHaveBeenCalled();
+    expect(args.setTimeframe).not.toHaveBeenCalled();
+    expect(args.setLookbackBars).not.toHaveBeenCalled();
+    expect(args.applyFilters).not.toHaveBeenCalled();
+    expect(setSearchParams).not.toHaveBeenCalled();
+  });
+
+  it("applies filters only when a parsed value differs from the current state", () => {
+    mockedUseSearchParams.mockReturnValue([
+      new URLSearchParams("sort=newest"),
+      setSearchParams,
+    ] as never);
+
+    const args = makeArgs();
+    renderHook((props: UsePatternUrlSyncArgs) => usePatternUrlSync(props), {
+      initialProps: args,
+    });
+
+    expect(args.applyFilters).toHaveBeenCalledTimes(1);
+    expect(args.applyFilters).toHaveBeenCalledWith({ sort: "newest" });
+    expect(args.setUniverse).not.toHaveBeenCalled();
+    expect(args.setTimeframe).not.toHaveBeenCalled();
   });
 
   it("applies lookback from the URL on mount and writes it back", () => {

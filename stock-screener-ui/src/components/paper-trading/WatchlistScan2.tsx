@@ -149,6 +149,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
         id: "symbol",
         header: "Symbol",
         accessorKey: "symbol",
+        meta: { align: "left" } as any,
         cell: (info) => {
           const row = info.row.original;
           return (
@@ -180,6 +181,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
         id: "price",
         header: "Price",
         accessorKey: "price",
+        meta: { align: "right" } as any,
         cell: (info) => {
           const val = info.getValue<number | null>();
           return <Text size="xs">{val ? `₹${val.toFixed(2)}` : "-"}</Text>;
@@ -205,6 +207,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
         id: "strategy",
         header: "Strategy",
         accessorKey: "strategy_name",
+        meta: { align: "left" } as any,
         cell: (info) => {
           const val = info.getValue<string | null>();
           return (
@@ -218,6 +221,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
         id: "age",
         header: "Age",
         accessorKey: "timestamp",
+        meta: { align: "right" } as any,
         cell: (info) => {
           const val = info.getValue<string | null>();
           return <Text size="xs" c="dimmed">{val ? formatTimeAgo(val) : "-"}</Text>;
@@ -227,6 +231,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
         id: "notes",
         header: "Notes",
         accessorKey: "reason",
+        meta: { align: "left" } as any,
         cell: (info) => {
           const val = info.getValue<string | null>();
           return (
@@ -244,7 +249,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
 
   if (!snapshot || allItems.length === 0) {
     return (
-      <Stack gap={1} data-testid="watchlist-scan-card" className="paper-watchlist-scan" id="watchlist-scan">
+      <Stack gap={0.5} data-testid="watchlist-scan-card" className="paper-watchlist-scan" id="watchlist-scan">
         <Group justify="space-between" px={1} py={0.5}>
           <Group gap="xs">
             <Text fw={600} size="xs" c="dimmed" tt="uppercase">
@@ -254,7 +259,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
               No data
             </Badge>
           </Group>
-          <Group gap={2}>
+          <Group gap={0.5}>
             {onRefresh && (
               <ActionIcon size="sm" variant="subtle" onClick={onRefresh} loading={refreshing} data-testid="watchlist-refresh">
                 <IconRefresh size={12} />
@@ -273,8 +278,8 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
   }
 
   return (
-    <Stack gap={1} data-testid="watchlist-scan-card" className="paper-watchlist-scan" id="watchlist-scan">
-      <Group justify="space-between" px={1} py={0.5} wrap="nowrap">
+    <Stack gap={0.5} data-testid="watchlist-scan-card" className="paper-watchlist-scan" id="watchlist-scan">
+      <Group justify="space-between" px={0.75} py={0.25} wrap="nowrap">
         <Group gap="xs">
           <Text fw={600} size="xs" c="dimmed" tt="uppercase">
             Watchlist Scan
@@ -283,7 +288,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
             {allItems.length}
           </Badge>
         </Group>
-        <Group gap={2}>
+        <Group gap={0.5}>
           {onRefresh && (
             <ActionIcon size="sm" variant="subtle" onClick={onRefresh} loading={refreshing} data-testid="watchlist-refresh">
               <IconRefresh size={12} />
@@ -295,7 +300,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
         </Group>
       </Group>
 
-      <ToolbarRow gap={8} style={{ paddingLeft: 8, paddingRight: 8 }}>
+      <ToolbarRow gap={4} style={{ paddingLeft: 4, paddingRight: 4 }}>
         <SegmentedControl
           size="xs"
           value={statusFilter}
@@ -355,10 +360,11 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
             };
           }}
           getRowTestId={(row) => `scan-row-${row.symbol}`}
+          dense
         />
       </ScrollArea>
 
-      <Group justify="space-between" px={1} py={0.5}>
+      <Group justify="space-between" px={0.75} py={0.25}>
         <Group gap="xs">
           <Text size="xs" c="dimmed">
             Showing {visibleItems.length} of {allItems.length}

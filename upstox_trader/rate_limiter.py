@@ -31,12 +31,12 @@ window have room.
 
 Budget arithmetic (defaults)::
 
-    api (150) + bot (300) + orderflow (50) = 500 = global 500/min
+    api (120) + options (30) + bot (300) + orderflow (50) = 500 = global 500/min
 
 Because the per-consumer caps sum to exactly the global cap, the ``api``
 slice can never be consumed by other consumers: even with ``bot`` at its
 300 and ``orderflow`` at its 50, the global window holds at most 350 and
-``api`` still has its full 150 left.  Unknown consumers fall back to the
+``api`` still has its full 120 left.  Unknown consumers fall back to the
 global cap, so every deployment must run each process under an explicit
 consumer for the slice math to hold.
 
@@ -71,10 +71,14 @@ CONSUMER_CAP_ENV_PREFIX = "UPSTOX_RL_CAP_"
 DEFAULT_CONSUMER = "default"
 
 # Default per-consumer minute caps. These sum to exactly GLOBAL_PER_MINUTE
-# (150 + 300 + 50 = 500) so the api slice is reserved: background consumers
-# can never eat into it, no matter how saturated they are.
+# (120 + 30 + 300 + 50 = 500) so the api slice is reserved: background consumers
+# can never eat into it, no matter how saturated they are. The 30/min
+# "options" slice is the on-demand stock/index report (SENSEX/RELIANCE); it is
+# deliberately separate so a selector fan-out can never starve NIFTY's api
+# slice (the 52W batch runs on "api").
 DEFAULT_CONSUMER_CAPS = {
-    "api": 150,
+    "api": 120,
+    "options": 30,
     "bot": 300,
     "orderflow": 50,
 }

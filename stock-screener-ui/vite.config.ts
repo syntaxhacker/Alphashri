@@ -14,9 +14,13 @@ export default defineConfig(({ mode }) => {
       },
     },
     plugins: [
-      react({
-        reactCompiler: true,
-      }),
+      react(),
+      // React Compiler disabled: the app is built on mutable module stores
+      // read during render (`useStoreSubscription` + `get*State()`), which the
+      // compiler memoizes as pure and renders stale (empty panels under lazy
+      // Suspense — reproduced 2026-11-07, PR #157 smoke failures). Re-enable
+      // only after migrating store consumers to `useSyncExternalStore`
+      // (see `useEventsStore` in src/state/events.ts).
       sentryVitePlugin({
         org: process.env.SENTRY_ORG,
         project: process.env.SENTRY_PROJECT,
@@ -43,7 +47,21 @@ export default defineConfig(({ mode }) => {
     server: {
       host: true,
       watch: {
-        ignored: ['**/.venv/**', '**/venv/**'],
+        // Only source/config should trigger HMR. The repo writes thousands of
+        // files into experiments/, reports/, logs/ and backups/ (caches, charts,
+        // bot output) — watching them stalls the dev server for seconds.
+        ignored: [
+          '**/.venv/**',
+          '**/venv/**',
+          '**/experiments/**',
+          '**/reports/**',
+          '**/backups/**',
+          '**/logs/**',
+          '**/dist/**',
+          '**/test-results/**',
+          '**/playwright-report/**',
+          '**/coverage/**',
+        ],
       },
       proxy: {
         '/api': {

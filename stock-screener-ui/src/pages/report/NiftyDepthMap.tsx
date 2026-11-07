@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import ReactECharts from "echarts-for-react";
 import { ChartErrorBoundary } from "@/components/common/ChartErrorBoundary";
@@ -7,6 +7,9 @@ import * as palette from "@/ui/palette";
 import { CompactStat, CompactStatGrid } from "@/components/common/compact";
 import { EmptyCompact } from "@/components/common/states";
 import type { NiftyReport } from "@/types/niftyReport";
+import { sortByField } from "@/utils/ui-helpers";
+import { formatReportNum, formatReportOiCr } from "./reportFormat";
+import { wallCode, wallSide } from "./niftyChartMath";
 
 /**
  * Depth-map view for the Nifty report (futures footprint + GEX layout reference).
@@ -44,18 +47,18 @@ export const DEPTH_WINDOW = 750;
 export const DEPTH_MAX_ROWS = 31;
 
 /** Level-tag dedupe radius in points (same rule as the report panel). */
-export const LEVEL_DEDUPE_PTS = 25;
+const LEVEL_DEDUPE_PTS = 25;
 
 /** Candle-only y-range padding on each side. */
-export const CANDLE_PAD_PCT = 0.0015;
+const CANDLE_PAD_PCT = 0.0015;
 
-export interface DepthRow {
+interface DepthRow {
   strike: number;
   ceOi: number;
   peOi: number;
 }
 
-export interface DayStats {
+interface DayStats {
   hi: number | null;
   lo: number | null;
   changePct: number | null;
@@ -76,32 +79,34 @@ function num(v: unknown): number {
 }
 
 function fmtStrike(s: number): string {
-  return num(s).toLocaleString("en-IN");
+  return formatReportNum(num(s));
 }
 
 /** Compact Indian OI labels: 2.50 Cr / 25.0L / 5.0k. */
 export function formatOiCompact(v: number): string {
-  if (!Number.isFinite(v)) return "—";
-  const abs = Math.abs(v);
-  const sign = v < 0 ? "-" : "";
-  if (abs >= 1e7) return `${sign}${(abs / 1e7).toFixed(2)} Cr`;
-  if (abs >= 1e5) return `${sign}${(abs / 1e5).toFixed(1)}L`;
-  if (abs >= 1e3) return `${sign}${(abs / 1e3).toFixed(1)}k`;
-  return `${sign}${Math.round(abs)}`;
+  return formatReportOiCr(v, {
+    lakh: 1,
+    space: false,
+    thousands: true,
+    grouped: false,
+  });
 }
 
 /** Per-strike OI rows within ATM ±750, sorted ascending, capped at 31 rows. */
 export function buildDepthRows(report: NiftyReport): DepthRow[] {
   const strikes = Array.isArray(report?.strikes) ? report.strikes : [];
   const spot = num(report?.spot);
-  const inWindow = strikes
-    .filter((s) => s && Number.isFinite(Number(s.strike)) && Math.abs(Number(s.strike) - spot) <= DEPTH_WINDOW)
-    .map((s) => ({
-      strike: Number(s.strike),
-      ceOi: num(s?.ce?.oi),
-      peOi: num(s?.pe?.oi),
-    }))
-    .sort((a, b) => a.strike - b.strike);
+  const inWindow = sortByField(
+    strikes
+      .filter((s) => s && Number.isFinite(Number(s.strike)) && Math.abs(Number(s.strike) - spot) <= DEPTH_WINDOW)
+      .map((s) => ({
+        strike: Number(s.strike),
+        ceOi: num(s?.ce?.oi),
+        peOi: num(s?.pe?.oi),
+      })),
+    "strike",
+    "asc",
+  );
   if (inWindow.length <= DEPTH_MAX_ROWS) return inWindow;
   // Irregular/dense chains: keep the rows closest to spot, restore ordering.
   return inWindow
@@ -205,9 +210,10 @@ export function topOiLabelStrikes(rows: DepthRow[]): number[] {
  * dedupe rule the report panel uses.
  */
 export function levelLines(report: NiftyReport, stats: DayStats, poc: number | null): LevelLine[] {
+  const spot = num(report?.spot);
   const ordered: LevelLine[] = [];
-  if (Number.isFinite(Number(report?.spot)) && Number(report.spot) > 0) {
-    ordered.push({ name: `Spot ${fmtStrike(Number(report.spot))}`, value: Number(report.spot), color: palette.TEXT, type: "solid", width: 1 });
+  if (Number.isFinite(spot) && spot > 0) {
+    ordered.push({ name: `Spot ${fmtStrike(spot)}`, value: spot, color: palette.TEXT, type: "solid", width: 1 });
   }
   if (Number.isFinite(Number(report?.maxPain)) && Number(report.maxPain) > 0) {
     ordered.push({ name: `MP ${fmtStrike(Number(report.maxPain))}`, value: Number(report.maxPain), color: palette.PRIMARY, type: "solid", width: 2 });
@@ -216,11 +222,17 @@ export function levelLines(report: NiftyReport, stats: DayStats, poc: number | n
   const puts = [...(report?.walls?.puts ?? [])].sort((a, b) => num(b?.oi) - num(a?.oi)).slice(0, 2);
   for (const w of calls) {
     if (!Number.isFinite(Number(w?.strike))) continue;
-    ordered.push({ name: `CW ${fmtStrike(Number(w.strike))}`, value: Number(w.strike), color: palette.NEGATIVE, type: "dashed", width: 1 });
+    const strike = Number(w.strike);
+    const ws = wallSide(strike, spot);
+    const tag = wallCode(true, ws, false);
+    ordered.push({ name: `${tag} ${fmtStrike(strike)}`, value: strike, color: palette.NEGATIVE, type: "dashed", width: 1 });
   }
   for (const w of puts) {
     if (!Number.isFinite(Number(w?.strike))) continue;
-    ordered.push({ name: `PW ${fmtStrike(Number(w.strike))}`, value: Number(w.strike), color: palette.POSITIVE, type: "dashed", width: 1 });
+    const strike = Number(w.strike);
+    const ws = wallSide(strike, spot);
+    const tag = wallCode(false, ws, false);
+    ordered.push({ name: `${tag} ${fmtStrike(strike)}`, value: strike, color: palette.POSITIVE, type: "dashed", width: 1 });
   }
   if (poc != null && Number.isFinite(poc)) {
     ordered.push({ name: `OI POC ${fmtStrike(poc)}`, value: poc, color: palette.WARNING, type: "solid", width: 2 });
@@ -497,7 +509,11 @@ export function buildDepthOption(report: NiftyReport): Record<string, unknown> {
   };
 }
 
-function LegendChip({
+/** Hoisted ECharts chrome — stable identity so the chart never gets new literals. */
+const DEPTH_CHART_STYLE = { height: "100%", width: "100%" } as const;
+const DEPTH_CHART_OPTS = { renderer: "canvas" } as const;
+
+const LegendChip = memo(function LegendChip({
   testId,
   color,
   label,
@@ -524,13 +540,96 @@ function LegendChip({
       </Text>
     </Box>
   );
+});
+LegendChip.displayName = "LegendChip";
+
+/** Minimal ECharts instance surface this panel drives. */
+interface DepthChartHandle {
+  resize: () => void;
+  setOption: (option: object, opts?: { notMerge?: boolean; lazyUpdate?: boolean }) => void;
 }
 
-export function NiftyDepthMap({ report }: { report: NiftyReport }) {
+interface NiftyDepthMapProps {
+  report: NiftyReport;
+  /**
+   * Visibility gate (default true). When false the component renders only
+   * its container: no `setOption`, no `resize`, no other ECharts work.
+   * Flipping back to true runs `resize()` + `setOption(latest)` so the
+   * chart catches up to anything skipped while hidden.
+   */
+  active?: boolean;
+}
+
+function NiftyDepthMapInner({ report, active = true }: NiftyDepthMapProps) {
   const rows = useMemo(() => buildDepthRows(report), [report]);
   const stats = useMemo(() => dayStats(report), [report]);
   const poc = useMemo(() => findOiPoc(report), [report]);
   const option = useMemo(() => buildDepthOption(report), [report]);
+
+  /**
+   * Keep the ECharts *engine* mounted once it has drawn a row.
+   *
+   * A poll that momentarily returns no strikes (pre-open, a chain refresh, a
+   * replay boundary) used to unmount `ReactECharts`: that disposes the
+   * instance, and the next poll re-`init`s it (~380 ms + a fresh zrender
+   * canvas). Worse, `echarts-for-react` initialises asynchronously (it waits
+   * for the `finished` event, then disposes + re-inits): unmounting inside that
+   * window leaves an instance created after `componentWillUnmount`, with no one
+   * left to dispose it. Keeping it mounted removes the whole class.
+   */
+  const [hasEverHadRows, setHasEverHadRows] = useState(false);
+  if (rows.length > 0 && !hasEverHadRows) setHasEverHadRows(true);
+
+  const chartRef = useRef<ReactECharts | null>(null);
+  const instanceRef = useRef<DepthChartHandle | null>(null);
+
+  const handleChartReady = useCallback((instance: DepthChartHandle) => {
+    instanceRef.current = instance;
+  }, []);
+
+  /** Drop the instance reference on unmount so nothing can drive a disposed
+   *  ECharts instance (the library disposes it in `componentWillUnmount`). */
+  useEffect(
+    () => () => {
+      instanceRef.current = null;
+    },
+    [],
+  );
+
+  const resolveInstance = useCallback(
+    (): DepthChartHandle | null =>
+      instanceRef.current ??
+      (chartRef.current?.getEchartsInstance?.() as unknown as
+        | DepthChartHandle
+        | undefined) ??
+      null,
+    [],
+  );
+
+  // Resize only when the view becomes visible. The hidden container is
+  // zero-size, so one resize on activation is required — but resizing on every
+  // report push (every poll) forced a full ECharts/zrender re-layout for no
+  // geometry change.
+  useEffect(() => {
+    if (!active) return;
+    resolveInstance()?.resize();
+  }, [active, resolveInstance]);
+
+  // Single option driver. The library's automatic setOption is disabled via
+  // `shouldSetOption` below, so while `active` is false this effect provably
+  // skips all ECharts work; on (re)activation it pushes the latest option.
+  //
+  // `notMerge: true` is deliberate: the option is rebuilt in full from the
+  // report, and a merge-mode setOption re-uses/patches ECharts' internal model
+  // in place every poll — the accumulation pattern that grows a long-lived
+  // chart tab. Full replacement also guarantees a series removed upstream
+  // cannot survive as a stale ghost series.
+  useEffect(() => {
+    if (!active) return;
+    const instance = resolveInstance();
+    if (!instance) return;
+    instance.setOption(option, { notMerge: true, lazyUpdate: false });
+  }, [active, option, resolveInstance]);
 
   const legend = useMemo(() => {
     const ceDom = rows.filter((r) => r.ceOi > r.peOi).length;
@@ -604,7 +703,13 @@ export function NiftyDepthMap({ report }: { report: NiftyReport }) {
 
       <Box
         data-testid="nifty-depth-chart"
-        sx={{ width: "100%", minWidth: 0, minHeight: 380, height: "min(62vh, 600px)" }}
+        sx={{
+          position: "relative",
+          width: "100%",
+          minWidth: 0,
+          minHeight: 380,
+          height: "min(62vh, 600px)",
+        }}
       >
         {rows.length === 0 ? (
           <EmptyCompact
@@ -612,11 +717,29 @@ export function NiftyDepthMap({ report }: { report: NiftyReport }) {
             title="No strikes in window"
             description="No option-chain strikes near spot for this expiry."
           />
-        ) : (
-          <ChartErrorBoundary label="Depth map">
-            <ReactECharts option={option} style={{ height: "100%", width: "100%" }} opts={{ renderer: "canvas" }} />
-          </ChartErrorBoundary>
-        )}
+        ) : null}
+        {rows.length > 0 || hasEverHadRows ? (
+          <Box
+            sx={{
+              position: "absolute",
+              inset: 0,
+              // Hidden, not unmounted: a transient empty poll must not tear the
+              // engine down (see `hasEverHadRows`).
+              display: rows.length > 0 ? "block" : "none",
+            }}
+          >
+            <ChartErrorBoundary label="Depth map">
+              <ReactECharts
+                ref={chartRef}
+                option={option}
+                style={DEPTH_CHART_STYLE}
+                opts={DEPTH_CHART_OPTS}
+                onChartReady={handleChartReady}
+                shouldSetOption={() => false}
+              />
+            </ChartErrorBoundary>
+          </Box>
+        ) : null}
       </Box>
 
       <Text data-testid="nifty-depth-note" size="xs" c="dimmed">
@@ -625,3 +748,7 @@ export function NiftyDepthMap({ report }: { report: NiftyReport }) {
     </Box>
   );
 }
+
+/** Memoised leaf panel — `report` keeps identity between unrelated parent renders. */
+export const NiftyDepthMap = memo(NiftyDepthMapInner);
+NiftyDepthMap.displayName = "NiftyDepthMap";

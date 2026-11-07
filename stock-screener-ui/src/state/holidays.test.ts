@@ -11,6 +11,7 @@ import {
   loadHolidays,
   isTradingHoliday,
   isClearingHoliday,
+  isMarketOpenNow,
   checkDate,
   resetHolidays,
 } from "./holidays";
@@ -71,6 +72,17 @@ describe("isTradingHoliday", () => {
 
     expect(isTradingHoliday("2026-01-26")).toBe(true);
     expect(isTradingHoliday("2026-01-20")).toBe(false);
+  });
+});
+
+describe("isMarketOpenNow", () => {
+  it("is open only inside the IST cash session on weekdays", () => {
+    expect(isMarketOpenNow(new Date("2026-10-21T03:44:00Z"))).toBe(false);
+    expect(isMarketOpenNow(new Date("2026-10-21T03:45:00Z"))).toBe(true);
+    expect(isMarketOpenNow(new Date("2026-10-21T09:59:00Z"))).toBe(true);
+    expect(isMarketOpenNow(new Date("2026-10-21T10:00:00Z"))).toBe(false);
+    expect(isMarketOpenNow(new Date("2026-10-24T06:00:00Z"))).toBe(false);
+    expect(isMarketOpenNow(new Date("2026-10-25T06:00:00Z"))).toBe(false);
   });
 });
 

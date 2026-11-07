@@ -90,6 +90,17 @@ _KEYWORD_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
 
 _feed_mem: dict[str, tuple[float, dict]] = {}
 
+#: The feed cache key embeds the requested symbol CSV, so every distinct
+#: request added an entry that was never evicted - bound it.
+_MEM_CACHE_MAX = 64
+
+
+def _mem_put(store: dict, key: str, value: tuple[float, dict]) -> None:
+    """Store a cache entry, evicting the oldest ones past the cap."""
+    store[key] = value
+    while len(store) > _MEM_CACHE_MAX:
+        store.pop(next(iter(store)), None)
+
 
 def classify_news_kind(headline: Any, content: Any = "") -> str:
     """Keyword classify a news item into a feed kind; never raises.
@@ -333,7 +344,7 @@ def serve_feed(mode: str, days: int, universe: str, symbols_csv: Optional[str]) 
         }
         clean = _sanitize_for_json(payload)
         try:
-            _feed_mem[mem_key] = (time.time(), clean)
+            _mem_put(_feed_mem, mem_key, (time.time(), clean))
         except Exception:
             pass
         return clean

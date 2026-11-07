@@ -4,8 +4,11 @@ import { Alert, Badge, Box, Button, Loader, NumberInput, Select, Switch, Text, T
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { fetchMarketStatus, fetchWatch, fetchWatchSetups, streamWatch } from "@/api/chartPatterns";
 import type { MarketStatus, WatchRow, WatchSetup, WatchStreamMeta } from "@/types/chartPatterns";
-import { formatPercentage } from "@/utils/ui-helpers";
-import { copyToClipboard, toCsv, toSymbolList, type CsvColumn } from "@/utils/copyCsv";
+import { formatCurrency, formatPercentage } from "@/utils/ui-helpers";
+import type { CsvColumn } from "@/utils/copyCsv";
+import { isMarketOpenIst } from "@/utils/marketClock";
+import { useCopyFeedback } from "@/hooks/useCopyFeedback";
+import { SymbolLink } from "@/components/common/SymbolLink";
 
 /** Re-fetch cadence for the watch list while the market is open. */
 export const WATCH_POLL_MS = 60000;
@@ -26,20 +29,15 @@ export const WATCH_DEFAULT_WITHIN_PCT = 5;
  */
 export const WATCH_DEFAULT_MIN_REL_VOLUME = 0.7;
 
+/** IST offset, used only for the hh:mm snapshot stamp (not the session clock). */
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
-const MARKET_OPEN_MIN = 9 * 60 + 15;
-const MARKET_CLOSE_MIN = 15 * 60 + 30;
 
 /**
- * True between 09:15–15:30 IST, Mon–Fri. Pure IST-clock helper so the watch
- * list polls live during market hours and pauses otherwise.
+ * True between 09:15–15:30 IST, Mon–Fri. Delegates to the shared NSE session
+ * clock so the watch list and the daily report can never disagree.
  */
 export function isWatchLiveNow(now: Date = new Date()): boolean {
-  const ist = new Date(now.getTime() + IST_OFFSET_MS);
-  const day = ist.getUTCDay();
-  if (day === 0 || day === 6) return false;
-  const minutes = ist.getUTCHours() * 60 + ist.getUTCMinutes();
-  return minutes >= MARKET_OPEN_MIN && minutes <= MARKET_CLOSE_MIN;
+  return isMarketOpenIst(now);
 }
 
 /**
@@ -72,6 +70,9 @@ export interface WatchViewProps {
   timeframe: string;
   minBaseDays?: number | null;
   onOpenSymbol?: (symbol: string) => void;
+  /** Hover intent for the right-side preview (no-op on the Watch tab). */
+  onSymbolPreview?: (symbol: string) => void;
+  onSymbolPreviewEnd?: (symbol: string) => void;
 }
 
 function stateColor(state: WatchRow["state"]): "success" | "default" | "dimmed" {
@@ -102,34 +103,80 @@ function stateCell(ctx: { getValue: () => unknown; row: { original: WatchRow } }
   );
 }
 
+type WatchCellContext = { getValue: () => unknown; row: { original: WatchRow } };
+
+/** Symbol label shared by every setup table. */
+const symbolCell = (ctx: WatchCellContext) => (
+  <Text size="sm" fw={600}>
+    {String(ctx.getValue())}
+  </Text>
+);
+
+/** Rupee price with two decimals. */
+const priceCell = (ctx: WatchCellContext) => (
+  <span>{formatCurrency(Number(ctx.getValue() ?? 0), 2)}</span>
+);
+
+/** Bare two-decimal number (OBV slope, up/down ratio). */
+const plainNumberCell = (ctx: WatchCellContext) => {
+  const raw = ctx.getValue() as number | null | undefined;
+  if (raw == null) return <span>-</span>;
+  return <span>{Number(raw).toFixed(2)}</span>;
+};
+
+/** `1.23x` multiple, dash when missing. */
+const ratioCell = (ctx: WatchCellContext) => {
+  const raw = ctx.getValue() as number | null | undefined;
+  if (raw == null) return <span>-</span>;
+  return <span>{`${Number(raw).toFixed(2)}x`}</span>;
+};
+
+/** Time-adjusted volume multiple; greens once it clears 1x. */
+const volAdjCell = (ctx: WatchCellContext) => {
+  const row = ctx.row.original as WatchRow;
+  const raw = ctx.getValue() as number | null | undefined;
+  if (raw == null) return <span data-testid={`watch-vol-adj-${row.symbol}`}>—</span>;
+  const v = Number(raw);
+  return (
+    <Text size="sm" c={v >= 1 ? "success" : undefined}>
+      <span data-testid={`watch-vol-adj-${row.symbol}`}>{`${v.toFixed(2)}x`}</span>
+    </Text>
+  );
+};
+
+/** Identical first two columns of every setup registry. */
+const SYMBOL_COLUMN: ColumnDef<WatchRow> = {
+  id: "symbol",
+  header: "Symbol",
+  accessorKey: "symbol",
+  meta: { align: "left" },
+  cell: symbolCell as never,
+};
+
+const STATE_COLUMN: ColumnDef<WatchRow> = {
+  id: "state",
+  header: "State",
+  accessorKey: "state",
+  meta: { align: "center" },
+  cell: (ctx) => stateCell(ctx as never),
+};
+
 const BREAKOUT_COLUMNS: ColumnDef<WatchRow>[] = [
-  {
-    id: "symbol",
-    header: "Symbol",
-    accessorKey: "symbol",
-    meta: { align: "left" },
-    cell: (ctx) => <Text size="sm" fw={600}>{String(ctx.getValue())}</Text>,
-  },
-  {
-    id: "state",
-    header: "State",
-    accessorKey: "state",
-    meta: { align: "center" },
-    cell: (ctx) => stateCell(ctx as never),
-  },
+  SYMBOL_COLUMN,
+  STATE_COLUMN,
   {
     id: "ltp",
     header: "LTP",
     accessorKey: "ltp",
     meta: { align: "right" },
-    cell: (ctx) => <span>{`₹${Number(ctx.getValue() ?? 0).toFixed(2)}`}</span>,
+    cell: priceCell as never,
   },
   {
     id: "trigger",
     header: "Trigger",
     accessorKey: "trigger_level",
     meta: { align: "right" },
-    cell: (ctx) => <span>{`₹${Number(ctx.getValue() ?? 0).toFixed(2)}`}</span>,
+    cell: priceCell as never,
   },
   {
     id: "pct_to_trigger",
@@ -150,24 +197,14 @@ const BREAKOUT_COLUMNS: ColumnDef<WatchRow>[] = [
     header: "Rel vol",
     accessorKey: "rel_volume",
     meta: { align: "right" },
-    cell: (ctx) => <span>{Number(ctx.getValue() ?? 0).toFixed(2)}x</span>,
+    cell: ratioCell as never,
   },
   {
     id: "vol_adj",
     header: "Vol (adj)",
     accessorKey: "vol_adj",
     meta: { align: "right" },
-    cell: (ctx) => {
-      const row = ctx.row.original as WatchRow;
-      const raw = ctx.getValue() as number | null | undefined;
-      if (raw == null) return <span data-testid={`watch-vol-adj-${row.symbol}`}>—</span>;
-      const v = Number(raw);
-      return (
-        <Text size="sm" c={v >= 1 ? "success" : undefined}>
-          <span data-testid={`watch-vol-adj-${row.symbol}`}>{`${v.toFixed(2)}x`}</span>
-        </Text>
-      );
-    },
+    cell: volAdjCell as never,
   },
   {
     id: "base_days",
@@ -194,33 +231,21 @@ const BREAKOUT_COLUMNS: ColumnDef<WatchRow>[] = [
 
 /** `near_52w` accumulation columns: 52W-high proximity + accumulation gauges. */
 const NEAR_52W_COLUMNS: ColumnDef<WatchRow>[] = [
-  {
-    id: "symbol",
-    header: "Symbol",
-    accessorKey: "symbol",
-    meta: { align: "left" },
-    cell: (ctx) => <Text size="sm" fw={600}>{String(ctx.getValue())}</Text>,
-  },
-  {
-    id: "state",
-    header: "State",
-    accessorKey: "state",
-    meta: { align: "center" },
-    cell: (ctx) => stateCell(ctx as never),
-  },
+  SYMBOL_COLUMN,
+  STATE_COLUMN,
   {
     id: "ltp",
     header: "LTP",
     accessorKey: "ltp",
     meta: { align: "right" },
-    cell: (ctx) => <span>{`₹${Number(ctx.getValue() ?? 0).toFixed(2)}`}</span>,
+    cell: priceCell as never,
   },
   {
     id: "high_52w",
     header: "52W high",
     accessorKey: "trigger_level",
     meta: { align: "right" },
-    cell: (ctx) => <span>{`₹${Number(ctx.getValue() ?? 0).toFixed(2)}`}</span>,
+    cell: priceCell as never,
   },
   {
     id: "high_gap",
@@ -254,33 +279,21 @@ const NEAR_52W_COLUMNS: ColumnDef<WatchRow>[] = [
     header: "OBV",
     accessorKey: "obv_slope",
     meta: { align: "right" },
-    cell: (ctx) => {
-      const raw = ctx.getValue() as number | null | undefined;
-      if (raw == null) return <span>-</span>;
-      return <span>{Number(raw).toFixed(2)}</span>;
-    },
+    cell: plainNumberCell as never,
   },
   {
     id: "updown",
     header: "Up/Dn",
     accessorKey: "updown",
     meta: { align: "right" },
-    cell: (ctx) => {
-      const raw = ctx.getValue() as number | null | undefined;
-      if (raw == null) return <span>-</span>;
-      return <span>{Number(raw).toFixed(2)}</span>;
-    },
+    cell: plainNumberCell as never,
   },
   {
     id: "vol_ratio",
     header: "VolR",
     accessorKey: "vol_ratio",
     meta: { align: "right" },
-    cell: (ctx) => {
-      const raw = ctx.getValue() as number | null | undefined;
-      if (raw == null) return <span>-</span>;
-      return <span>{`${Number(raw).toFixed(2)}x`}</span>;
-    },
+    cell: ratioCell as never,
   },
   {
     id: "rising_lows",
@@ -303,28 +316,14 @@ const NEAR_52W_COLUMNS: ColumnDef<WatchRow>[] = [
     header: "Rel vol",
     accessorKey: "rel_volume",
     meta: { align: "right" },
-    cell: (ctx) => {
-      const raw = ctx.getValue() as number | null | undefined;
-      if (raw == null) return <span>-</span>;
-      return <span>{`${Number(raw).toFixed(2)}x`}</span>;
-    },
+    cell: ratioCell as never,
   },
   {
     id: "vol_adj",
     header: "Vol (adj)",
     accessorKey: "vol_adj",
     meta: { align: "right" },
-    cell: (ctx) => {
-      const row = ctx.row.original as WatchRow;
-      const raw = ctx.getValue() as number | null | undefined;
-      if (raw == null) return <span data-testid={`watch-vol-adj-${row.symbol}`}>—</span>;
-      const v = Number(raw);
-      return (
-        <Text size="sm" c={v >= 1 ? "success" : undefined}>
-          <span data-testid={`watch-vol-adj-${row.symbol}`}>{`${v.toFixed(2)}x`}</span>
-        </Text>
-      );
-    },
+    cell: volAdjCell as never,
   },
 ];
 
@@ -372,7 +371,7 @@ export function sortFor(setup: string): Array<{ id: string; desc: boolean }> {
  * holiday-aware `/market-status` probe (`open === true`); the IST 09:15–15:30
  * Mon–Fri clock is only a fallback when that probe fails.
  */
-export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbol }: WatchViewProps) {
+export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbol, onSymbolPreview, onSymbolPreviewEnd }: WatchViewProps) {
   const [setups, setSetups] = useState<WatchSetup[]>([]);
   const [setup, setSetup] = useState("breakout");
   const [relVol, setRelVol] = useState<number | string>(WATCH_DEFAULT_MIN_REL_VOLUME);
@@ -406,10 +405,7 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
     },
     [],
   );
-  // Copy-to-clipboard feedback (transient "Copied N rows" / error toast).
-  const [copyMsg, setCopyMsg] = useState<string | null>(null);
-  const [copyFailed, setCopyFailed] = useState(false);
-  const copyTimerRef = useRef<number | null>(null);
+  // Copy-to-clipboard feedback (shared hook).
 
   // Clock for the snapshot-age label only: recomputes the relative age string,
   // never fetches (polling stays OFF via WATCH_AUTO_REFRESH).
@@ -418,24 +414,6 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
     const timer = setInterval(() => setNowMs(Date.now()), WATCH_SNAPSHOT_TICK_MS);
     return () => clearInterval(timer);
   }, []);
-  useEffect(
-    () => () => {
-      if (copyTimerRef.current != null) window.clearTimeout(copyTimerRef.current);
-    },
-    [],
-  );
-
-  const flashCopy = useCallback((message: string, failed: boolean) => {
-    setCopyMsg(message);
-    setCopyFailed(failed);
-    if (copyTimerRef.current != null) window.clearTimeout(copyTimerRef.current);
-    copyTimerRef.current = window.setTimeout(() => {
-      setCopyMsg(null);
-      setCopyFailed(false);
-      copyTimerRef.current = null;
-    }, 3000);
-  }, []);
-
   // Load the setup registry once; adopt the active setup's default rel-vol.
   useEffect(() => {
     let active = true;
@@ -626,33 +604,44 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
     });
   }, [items, search, stateFilter, withinPct, hideInvalidated, setup]);
 
-  const columns = useMemo(() => columnsFor(setup), [setup]);
+  const columns = useMemo(() => {
+    const base = columnsFor(setup);
+    if (!onOpenSymbol) return base;
+    return base.map((col) =>
+      col.id === "symbol"
+        ? {
+            ...col,
+            cell: (ctx: { getValue: () => unknown }) => {
+              const symbol = String(ctx.getValue() ?? "");
+              return (
+                <SymbolLink
+                  symbol={symbol}
+                  testId={`watch-tv-${symbol}`}
+                  chartTestId={`watch-chart-${symbol}`}
+                  onOpen={onOpenSymbol}
+                  onPreview={onSymbolPreview}
+                  onPreviewEnd={onSymbolPreviewEnd}
+                />
+              );
+            },
+          }
+        : col,
+    );
+  }, [setup, onOpenSymbol, onSymbolPreview, onSymbolPreviewEnd]);
   const initialSorting = useMemo(() => sortFor(setup), [setup]);
   const csvColumns = useMemo(() => watchCsvColumns(setup), [setup]);
   const snapshotAge = useMemo(() => formatSnapshotAge(updatedAt, nowMs), [updatedAt, nowMs]);
 
-  const handleCopyCsv = useCallback(async () => {
-    const csv = toCsv(filtered as unknown as Array<Record<string, unknown>>, csvColumns);
-    const ok = await copyToClipboard(csv);
-    flashCopy(
-      ok ? `Copied ${filtered.length} row${filtered.length === 1 ? "" : "s"}` : "Copy failed",
-      !ok,
-    );
-  }, [filtered, csvColumns, flashCopy]);
-
-  const handleCopySymbols = useCallback(async () => {
-    const list = toSymbolList(filtered as unknown as Array<Record<string, unknown>>);
-    const ok = await copyToClipboard(list);
-    flashCopy(
-      ok
-        ? `Copied ${filtered.length} symbol${filtered.length === 1 ? "" : "s"}`
-        : "Copy failed",
-      !ok,
-    );
-  }, [filtered, flashCopy]);
+  const { copyMsg, copyFailed, copyRows, copySymbols } = useCopyFeedback();
+  const handleCopyCsv = useCallback(() => {
+    void copyRows(filtered, csvColumns);
+  }, [copyRows, filtered, csvColumns]);
+  const handleCopySymbols = useCallback(() => {
+    void copySymbols(filtered);
+  }, [copySymbols, filtered]);
 
   return (
-    <Box data-testid="watch-view" sx={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+    <Box data-testid="watch-view" sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }}>
       <ToolbarRow justify="space-between" data-testid="watch-toolbar" gap={8}>
         <ToolbarRow gap={8}>
           <Select

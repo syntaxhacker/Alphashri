@@ -1,5 +1,8 @@
-import { Select } from "@/ui";
+import { useMemo } from "react";
+import { Box, Button, Checkbox, Menu, MenuDropdown, MenuTarget, Text } from "@/ui";
+import { IconChevronDown } from "@tabler/icons-react";
 import type { TFSpec } from "@/types/chartPatterns";
+import { DEFAULT_TIMEFRAME } from "@/state/chartPatterns";
 
 /**
  * Full timeframe ladder fallback. The server (`GET /timeframes`) is the source
@@ -8,13 +11,11 @@ import type { TFSpec } from "@/types/chartPatterns";
  */
 export const FALLBACK_TIMEFRAMES: TFSpec[] = [
   { id: "1m", label: "1m", minutes: 1, native: "minutes/1", source_tf: null, max_lookback_days: 30, min_bars: 60 },
-  { id: "3m", label: "3m", minutes: 3, native: null, source_tf: "1m", max_lookback_days: 30, min_bars: 60 },
   { id: "5m", label: "5m", minutes: 5, native: "minutes/5", source_tf: null, max_lookback_days: 90, min_bars: 60 },
   { id: "10m", label: "10m", minutes: 10, native: "minutes/10", source_tf: null, max_lookback_days: 90, min_bars: 60 },
   { id: "15m", label: "15m", minutes: 15, native: "minutes/15", source_tf: null, max_lookback_days: 90, min_bars: 60 },
   { id: "30m", label: "30m", minutes: 30, native: "minutes/30", source_tf: null, max_lookback_days: 180, min_bars: 60 },
   { id: "1h", label: "1h", minutes: 60, native: "hours/1", source_tf: null, max_lookback_days: 365, min_bars: 60 },
-  { id: "2h", label: "2h", minutes: 120, native: null, source_tf: "1h", max_lookback_days: 365, min_bars: 60 },
   { id: "3h", label: "3h", minutes: 180, native: null, source_tf: "1h", max_lookback_days: 365, min_bars: 60 },
   { id: "4h", label: "4h", minutes: 240, native: "hours/4", source_tf: null, max_lookback_days: 365, min_bars: 60 },
   { id: "1D", label: "1D", minutes: 1440, native: "days/1", source_tf: null, max_lookback_days: 730, min_bars: 60 },
@@ -24,33 +25,80 @@ export const FALLBACK_TIMEFRAMES: TFSpec[] = [
 
 export interface TimeframeSelectProps {
   timeframes: TFSpec[];
-  value: string;
-  onChange: (value: string) => void;
+  value: string[];
+  onChange: (value: string[]) => void;
 }
 
-/**
- * Server-driven timeframe ladder (1m … 1M). Values come from `/timeframes`;
- * falls back to the frozen contract ladder only when the catalog is empty.
- */
 export function TimeframeSelect({ timeframes, value, onChange }: TimeframeSelectProps) {
   const source = timeframes.length > 0 ? timeframes : FALLBACK_TIMEFRAMES;
-  const data = source.map((tf) => ({ value: tf.id, label: tf.label || tf.id }));
+  const selected = value && value.length > 0 ? value : [DEFAULT_TIMEFRAME];
+  const ids = useMemo(() => source.map((tf) => tf.id), [source]);
+  const ordered = ids.filter((id) => selected.includes(id));
+  const labels = useMemo(() => new Map(source.map((tf) => [tf.id, tf.label || tf.id])), [source]);
+  const summary =
+    ordered.length <= 2
+      ? ordered.map((id) => labels.get(id) ?? id).join(",")
+      : String(ordered.length);
+
+  const toggle = (id: string) => {
+    const next = selected.includes(id) ? selected.filter((item) => item !== id) : [...selected, id];
+    if (next.length === 0) return;
+    onChange(ids.filter((item) => next.includes(item)));
+  };
+
   return (
-    <Select
-      label="Timeframe"
-      data={data}
-      value={value}
-      onChange={(v) => {
-        // Never commit an empty selection (clearing the control must not wipe
-        // the active timeframe to "").
-        if (v == null || v === "") return;
-        onChange(v);
-      }}
-      w={150}
-      size="sm"
-      searchable
-      data-testid="patterns-timeframe-select"
-      style={{ flexShrink: 0 }}
-    />
+    <Menu closeOnItemClick={false} data-testid="patterns-timeframe-menu">
+      <MenuTarget>
+        <Button
+          size="xs"
+          variant="outline"
+          rightSection={<IconChevronDown size={12} />}
+          data-testid="patterns-timeframe-select"
+          aria-label="Timeframes"
+          title="Timeframes used for pattern detection (select one or more)"
+          sx={{
+            minWidth: 136,
+            maxWidth: 210,
+            justifyContent: "space-between",
+            textTransform: "none",
+            fontSize: 11,
+            fontWeight: 600,
+          }}
+        >
+          {`Timeframe · ${summary}`}
+        </Button>
+      </MenuTarget>
+      <MenuDropdown data-testid="patterns-timeframe-dropdown">
+        <Box sx={{ minWidth: 170, maxHeight: 320, overflowY: "auto", py: 0.25 }}>
+          {source.map((tf) => {
+            const checked = selected.includes(tf.id);
+            return (
+              <Box
+                key={tf.id}
+                data-testid={`patterns-timeframe-option-${tf.id}`}
+                onClick={() => toggle(tf.id)}
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 0.5,
+                  px: 0.5,
+                  py: 0.25,
+                  cursor: "pointer",
+                  "&:hover": { bgcolor: "action.hover" },
+                }}
+              >
+                <Checkbox
+                  size="xs"
+                  checked={checked}
+                  onChange={() => toggle(tf.id)}
+                  onClick={(event) => event.stopPropagation()}
+                />
+                <Text size="xs">{tf.label || tf.id}</Text>
+              </Box>
+            );
+          })}
+        </Box>
+      </MenuDropdown>
+    </Menu>
   );
 }

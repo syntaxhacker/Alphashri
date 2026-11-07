@@ -3,6 +3,7 @@
  */
 
 import { fetchWithAuth } from "../state/auth";
+import { jsonOrThrow } from "./utils/request";
 import type {
   SectorClassify,
   SectorGroupsPayload,
@@ -17,13 +18,12 @@ const SECTOR_API_BASE = `${API_BASE}/api/sector`;
 export async function fetchSectorPerformance(
   market: string = "india",
   signal?: AbortSignal,
+  force = false,
 ): Promise<SectorResponse> {
-  const response = await fetchWithAuth(`${SECTOR_API_BASE}?market=${market}`, { signal });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to fetch sector performance");
-  }
-  return response.json();
+  const params = new URLSearchParams({ market });
+  if (force) params.set("force", "true");
+  const response = await fetchWithAuth(`${SECTOR_API_BASE}?${params.toString()}`, { signal });
+  return jsonOrThrow<SectorResponse>(response, "Failed to fetch sector performance");
 }
 
 export interface FetchSectorGroupsParams {
@@ -50,9 +50,5 @@ export async function fetchSectorGroups({
   const response = await fetchWithAuth(`${API_BASE}/api/sector/groups?${params.toString()}`, {
     signal,
   });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to fetch group performance");
-  }
-  return response.json();
+  return jsonOrThrow<SectorGroupsPayload>(response, "Failed to fetch group performance");
 }

@@ -3,6 +3,7 @@ import { ActionIcon, Badge, Box, Button, MultiSelect, Text, useDebouncedValue } 
 import { IconX } from "@tabler/icons-react";
 import { searchSymbols } from "@/api/symbols";
 import type { PatternFilters } from "@/types/chartPatterns";
+import { parseSymbolList } from "./parseSymbolList";
 
 /**
  * `PatternFilters.symbols` is added by the symbols/q filter feature. Read it
@@ -86,7 +87,17 @@ export function SymbolFilter({
       sx={{ display: "flex", flexDirection: "column", gap: 0.5, flex: 1, minWidth: 0 }}
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0, maxWidth: 380 }}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box
+          sx={{ flex: 1, minWidth: 0 }}
+          onPaste={(e) => {
+            const parsed = parseSymbolList(e.clipboardData.getData("text"));
+            if (parsed.length > 1) {
+              e.preventDefault();
+              apply(Array.from(new Set([...selected, ...parsed])));
+              setQuery("");
+            }
+          }}
+        >
           <MultiSelect
             data={options}
             value={selected}

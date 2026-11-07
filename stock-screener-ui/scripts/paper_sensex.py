@@ -35,6 +35,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from scripts import upstox_common  # noqa: E402
+
 import config as root_config
 IST = root_config.IST
 
@@ -96,11 +98,10 @@ def strategy_configs():
 # api helpers
 # ---------------------------------------------------------------------------
 def get_token() -> str:
-    from db.models import get_shared_broker_token
-    data = get_shared_broker_token("upstox")
-    if data and data.get("access_token"):
-        return data["access_token"]
-    raise SystemExit("ERROR: No Upstox token in DB. Connect broker in Settings.")
+    token = upstox_common.token()
+    if not token:
+        raise SystemExit("ERROR: No Upstox token in DB. Connect broker in Settings.")
+    return token
 
 
 def _get(url: str, params: dict = None, timeout: int = 20):

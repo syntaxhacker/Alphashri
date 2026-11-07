@@ -48,37 +48,122 @@ def _const_session(day, hi, lo, n=120, minute_start=(9, 15)):
 # ---------------------------------------------------------------------------
 
 class TestControlVerdict:
-    def test_call_writers_dominates(self):
-        assert nv.control_verdict(1000, 100) == "call_writers"
+    @pytest.mark.parametrize("ce_doi,pe_doi,flow,expected", [
+        # Call OI adds + bearish flow -> call writers are capping the upside.
+        (1_000, 100, -25_074, "call_writers"),
+        # Call OI adds + bullish flow -> call BUYERS paid up, not writers.
+        (1_000, 100, 25_074, "call_buyers"),
+        # Put OI adds + bullish flow -> put writers are selling support.
+        (100, 1_000, 25_074, "put_writers"),
+        # Put OI adds + bearish flow -> put BUYERS demanded downside, not writers.
+        (100, 1_000, -25_074, "put_buyers"),
+        # 2026-10-22 tape: +599,235 calls / +839,150 puts, flow -25,074 Cr.
+        # The old OI-share rule printed "PUT WRITERS IN CONTROL" (bullish) on a
+        # day spot fell 22,650 -> 22,590 while positioning read bearish.
+        (599_235, 839_150, -25_074, "put_buyers"),
+        # Mild skew stays balanced whatever the flow says.
+        (100, 100, -25_074, "balanced"),
+        (124, 100, 25_074, "balanced"),
+        # No flow evidence -> neutral OI-build label, never a writer.
+        (1_000, 100, None, "net_call_build"),
+        (100, 1_000, None, "net_put_build"),
+        # A bias inside the +/-50 Cr noise band cannot flip the label.
+        (100, 1_000, -10, "put_writers"),
+        (1_000, 100, 10, "call_writers"),
+    ])
+    def test_flow_gates_the_writer_label(self, ce_doi, pe_doi, flow, expected):
+        assert nv.control_verdict(ce_doi, pe_doi, flow) == expected
 
-    def test_put_writers_dominates(self):
-        assert nv.control_verdict(100, 1000) == "put_writers"
+    def test_price_confirmed_put_writing_is_bullish(self):
+        # Puts added while their premium falls = put writing, not put buying.
+        rows = [
+            {"strike": 100, "ce": {"oi": 1_100_000, "prev_oi": 1_000_000, "delta": 0.5, "price_change": 4.0, "sentiment": {"type": "Long Buildup"}},
+             "pe": {"oi": 2_000_000, "prev_oi": 1_000_000, "delta": 0.4, "price_change": -6.0, "sentiment": {"type": "Short Buildup"}}},
+        ]
+        out = nv.compute_control(rows, spot=24_000.0, flow_bias=-25_074.0)
+        assert out["verdict"] == "put_writers"
+        assert out["flow_bias"] > 0
 
-    def test_balanced_within_25pct(self):
-        assert nv.control_verdict(100, 100) == "balanced"
-        assert nv.control_verdict(124, 100) == "balanced"  # 124 <= 125
+    def test_price_confirmed_put_buying_is_bearish(self):
+        # Puts added while their premium rises = put buying.
+        rows = [
+            {"strike": 100, "ce": {"oi": 1_100_000, "prev_oi": 1_000_000, "delta": 0.5, "price_change": -4.0, "sentiment": {"type": "Short Buildup"}},
+             "pe": {"oi": 2_000_000, "prev_oi": 1_000_000, "delta": 0.4, "price_change": 6.0, "sentiment": {"type": "Long Buildup"}}},
+        ]
+        out = nv.compute_control(rows, spot=24_000.0, flow_bias=25_074.0)
+        assert out["verdict"] == "put_buyers"
+        assert out["flow_bias"] < 0
 
     def test_threshold_boundary(self):
         # exactly 1.25x is NOT greater → balanced
-        assert nv.control_verdict(125, 100) == "balanced"
-        assert nv.control_verdict(126, 100) == "call_writers"
+        assert nv.control_verdict(125, 100, -1_000) == "balanced"
+        assert nv.control_verdict(126, 100, -1_000) == "call_writers"
 
     def test_zero_zero_is_balanced(self):
-        assert nv.control_verdict(0, 0) == "balanced"
+        assert nv.control_verdict(0, 0, None) == "balanced"
+
+    @pytest.mark.parametrize("ce_doi,pe_doi", [
+        (-5_000_000, 1_000_000),
+        (1_000_000, -5_000_000),
+        (-5_000_000, -1_000_000),
+    ])
+    def test_unwinding_side_is_never_a_writer(self, ce_doi, pe_doi):
+        # A side that is being SHED cannot be "in control": the old rule
+        # compared the raw numbers, so ce_doi = -5M and pe_doi = +1M named
+        # the put writers while the calls were being unwound.
+        assert nv.control_verdict(ce_doi, pe_doi, -25_074) == "balanced"
+
+    @pytest.mark.parametrize("ce_doi,pe_doi", [(1_000, 100), (100, 1_000)])
+    def test_missing_flow_never_asserts_a_participant(self, ce_doi, pe_doi):
+        verdict = nv.control_verdict(ce_doi, pe_doi, None)
+        assert verdict in ("net_call_build", "net_put_build")
 
 
 class TestComputeControl:
     def test_doi_sums_and_verdict(self):
         rows = [
             {"strike": 100.0, "ce": _side(1000, 800), "pe": _side(500, 400)},
-            {"strike": 110.0, "ce": _side(300, 500), "pe": _side(2000, 1000)},
+            {"strike": 110.0, "ce": _side(300, 100), "pe": _side(2000, 1000)},
         ]
-        out = nv.compute_control(rows, spot=105.0, gex_regime="long")
-        # calls: +200 -200 = 0 ; puts: +100 +1000 = 1100
-        assert out["ce_doi"] == 0
+        out = nv.compute_control(rows, spot=105.0, gex_regime="long",
+                                 flow_bias=500.0)
+        # calls: +200 +200 = 400 ; puts: +100 +1000 = 1100
+        assert out["ce_doi"] == 400
         assert out["pe_doi"] == 1100
+        # Puts added 2.75x the calls and the flow is bullish → put writers.
         assert out["verdict"] == "put_writers"
+        assert out["flow_bias"] == 500.0
         assert out["gex_regime"] == "long"
+
+    def test_bearish_flow_turns_put_build_into_buyers(self):
+        # Same 2026-10-22 shape: puts build harder, but premium flow is net
+        # bearish, so the added put OI is buying, not writing.
+        rows = [
+            {"strike": 100.0, "ce": _side(700, 0), "pe": _side(900, 0)},
+            {"strike": 110.0, "ce": _side(100, 0), "pe": _side(300, 0)},
+        ]
+        out = nv.compute_control(rows, spot=105.0, flow_bias=-25_074.0)
+        assert out["ce_doi"] == 800
+        assert out["pe_doi"] == 1_200
+        assert out["verdict"] == "put_buyers"
+        assert out["flow_bias"] == -25_074.0
+
+    def test_missing_flow_degrades_to_neutral_build(self):
+        rows = [{"strike": 110.0,
+                 "ce": _side(300, 100), "pe": _side(2000, 1000)}]
+        out = nv.compute_control(rows, spot=105.0)
+        assert out["verdict"] == "net_put_build"
+        assert out["flow_bias"] is None
+
+    def test_unwinding_side_never_names_a_writer(self):
+        rows = [
+            {"strike": 100.0, "ce": _side(1000, 5_000_000), "pe": _side(500, 400)},
+            {"strike": 110.0, "ce": _side(300, 100), "pe": _side(2000, 1000)},
+        ]
+        out = nv.compute_control(rows, spot=105.0, flow_bias=-25_074.0)
+        assert out["ce_doi"] < 0
+        assert out["pe_doi"] > 0
+        assert out["verdict"] == "balanced"
 
     def test_atm_iv_and_skew(self):
         rows = [
@@ -109,8 +194,8 @@ class TestComputeControl:
 
     def test_frozen_contract_keys(self):
         out = nv.compute_control([], 100.0)
-        assert set(out) == {"verdict", "ce_doi", "pe_doi", "atm_ce_iv",
-                            "atm_pe_iv", "skew", "gex_regime"}
+        assert set(out) == {"verdict", "ce_doi", "pe_doi", "flow_bias",
+                            "atm_ce_iv", "atm_pe_iv", "skew", "gex_regime"}
 
 
 class TestAtmIvs:
@@ -125,6 +210,16 @@ class TestAtmIvs:
     def test_nonpositive_iv_treated_missing(self):
         rows = [{"strike": 100.0, "ce": _side(1, 1, 0.0), "pe": _side(1, 1, -3.0)}]
         assert nv.atm_ivs(rows, 100.0) == (None, None)
+
+    def test_dead_strike_iv_is_not_a_market_implied_vol(self):
+        """2026-11-03 after the close: ATM legs quoted 226% with zero OI."""
+        rows = [{"strike": 100.0, "ce": _side(0, 0, 226.56),
+                 "pe": _side(0, 0, 226.56)}]
+        assert nv.atm_ivs(rows, 100.0) == (None, None)
+        # Same chain with OI: above the 100 vol-point band, still dropped.
+        rows = [{"strike": 100.0, "ce": _side(5, 5, 281.25),
+                 "pe": _side(5, 5, 99.5)}]
+        assert nv.atm_ivs(rows, 100.0) == (None, 99.5)
 
     def test_empty(self):
         assert nv.atm_ivs([], 100.0) == (None, None)
@@ -179,6 +274,50 @@ class TestRealizedVol:
     def test_flat_series_is_zero(self):
         candles = [_candle("09:15", 1, 1, 1) for _ in range(5)]
         assert nv.realized_vol_pct(candles) == 0.0
+
+
+class TestRealizedVolLikeForLike:
+    """The RV must be comparable with a 24h implied vol.
+
+    A session-only realised vol misses the overnight gap, so it is
+    systematically low: on the 2026-10-21 tape it read 11.45 % against an
+    ATM IV of 14.25 % (ratio 0.80) while the full-day figure was 14.43 %
+    (ratio 1.01 — parity).
+    """
+
+    def _session(self):
+        # 40 one-minute bars with a ±0.1% zig-zag around 22,000.
+        return [_candle(f"{9 + (15 + i) // 60:02d}:{(15 + i) % 60:02d}",
+                        22020 + (i % 2) * 40, 21980 + (i % 2) * 40,
+                        22000 + (i % 2) * 40)
+                for i in range(40)]
+
+    def test_overnight_gap_is_added_to_the_variance(self):
+        candles = self._session()
+        session_only = nv.realized_vol_pct(candles)
+        # A 1% gap up (22,000 -> 22,220) adds variance the session never saw.
+        with_gap = nv.realized_vol_pct(candles, prev_close=21_800.0)
+        assert with_gap > session_only
+
+    def test_gap_free_previous_close_changes_nothing(self):
+        candles = self._session()
+        # The first candle opens at 21,980 → a previous close of 21,980 is a
+        # zero gap, and a zero gap adds no variance.
+        assert nv.realized_vol_pct(candles, prev_close=21_980.0) == \
+            nv.realized_vol_pct(candles)
+
+    def test_unknown_previous_close_is_session_only(self):
+        candles = self._session()
+        assert nv.realized_vol_pct(candles, prev_close=None) == \
+            nv.realized_vol_pct(candles)
+        assert nv.overnight_gap_pct(candles, None) is None
+
+    def test_ratio_is_a_plain_ratio_now(self):
+        # The day-scale factor that used to be applied (sqrt(1440/375)) is
+        # gone: the RV itself is now a full-day figure.
+        assert nv.rv_iv_ratio(14.43, 14.25) == pytest.approx(1.0126, abs=1e-4)
+        assert nv.rv_iv_ratio(None, 14.25) is None
+        assert nv.rv_iv_ratio(14.43, 0) is None
 
 
 # ---------------------------------------------------------------------------
@@ -247,6 +386,42 @@ class TestRegimeVerdict:
         assert nv.regime_verdict(None, None, None) == "neutral"
         assert nv.regime_verdict(None, 5.0, None) == "neutral"
 
+    def test_rv_ignored_during_warmup(self):
+        # 12 bars at the open: RV/IV ~1.8x must NOT call "buy premium".
+        assert nv.regime_verdict(83.0, 24.8, 13.7, bars=12) == "neutral"
+
+    def test_rv_trusted_after_warmup(self):
+        assert nv.regime_verdict(83.0, 24.8, 13.7, bars=30) == "trend_buy"
+
+    def test_bars_none_skips_guard(self):
+        assert nv.regime_verdict(83.0, 24.8, 13.7) == "trend_buy"
+
+    def test_straddle_bleed_vetoes_range_expansion(self):
+        # 2026-10-16: a 157%-range tape with a −22.65% ATM straddle — long
+        # premium LOST money, so the range branch must not call it buy-premium.
+        assert nv.regime_verdict(157.4, 9.75, 10.88, straddle_pct=-22.65) == "range_sell_premium"
+
+    def test_mild_bleed_does_not_veto_range_expansion(self):
+        # −5% is inside the −15% bleed threshold → the range rule still wins,
+        # but it now says "trend" (the tape is expanding), NOT "trend_buy":
+        # a wide range alone is never evidence for buying premium.
+        assert nv.regime_verdict(157.4, 9.75, 10.88, straddle_pct=-5.0) == "trend"
+
+    def test_range_expansion_alone_is_never_trend_buy(self):
+        # No vol ratio at all → the range branch can only say "trend".
+        assert nv.regime_verdict(157.4, None, None) == "trend"
+
+    def test_session_only_rv_is_not_used_for_the_verdict(self):
+        # A session-only realised vol (no overnight gap) is biased low, so it
+        # must not be able to call "buy premium" — nor "sell premium".
+        assert nv.regime_verdict(80.0, 30.0, 15.0,
+                                 rv_like_for_like=False) == "neutral"
+        assert nv.regime_verdict(80.0, 5.0, 15.0,
+                                 rv_like_for_like=False) == "neutral"
+        # The same numbers ARE used once the figure is like-for-like.
+        assert nv.regime_verdict(80.0, 30.0, 15.0) == "trend_buy"
+        assert nv.regime_verdict(80.0, 5.0, 15.0) == "range_sell_premium"
+
 
 class TestStraddle:
     def test_open_now_pct(self):
@@ -268,6 +443,60 @@ class TestStraddle:
     def test_empty_returns_none(self):
         assert nv.straddle_from_tape([]) == (None, None, None)
 
+    def test_tape_read_is_capped_at_100_pct(self):
+        """A dead-leg artefact must never be published as a 300% move."""
+        rows = [
+            {"atm_ce_ltp": 100.0, "atm_pe_ltp": 100.0},
+            {"atm_ce_ltp": 400.0, "atm_pe_ltp": 400.0},
+        ]
+        assert nv.straddle_from_tape(rows) == (200.0, 800.0, 100.0)
+
+
+class TestStraddleReferenceSanity:
+    """2026-11-03: pinned 23,550 (CE 56.5/PE 75.7 open), 23,810.85 spot.
+
+    The reference printed ``+97.2%`` because the CALL had gone 260 pts
+    in-the-money while the PUT was quoted at ₹0.05 — the strike had rolled away
+    and one leg was dead. That is not a straddle move.
+    """
+
+    DEAD = {"strike": 23_550.0, "ce_open": 56.5, "pe_open": 75.7,
+            "ce_ltp": 260.65, "pe_ltp": 0.05}
+
+    def test_dead_leg_reference_is_rejected(self):
+        assert nv.straddle_from_reference(self.DEAD, spot=23_810.85) == (
+            None, None, None)
+
+    def test_missing_or_zero_premium_is_rejected(self):
+        for field in ("ce_open", "pe_open", "ce_ltp", "pe_ltp"):
+            ref = dict(self.DEAD, pe_ltp=60.0)
+            ref.pop(field)
+            assert nv.straddle_from_reference(ref) == (None, None, None), field
+            ref[field] = 0.0
+            assert nv.straddle_from_reference(ref) == (None, None, None), field
+
+    def test_pinned_strike_must_still_be_the_atm(self):
+        ref = {"strike": 23_550.0, "ce_open": 56.5, "pe_open": 75.7,
+               "ce_ltp": 100.0, "pe_ltp": 60.0}
+        # 260 pts from spot -> the strike rolled, no reference read.
+        assert nv.straddle_from_reference(ref, spot=23_810.85) == (
+            None, None, None)
+        # Spot still on the pinned strike -> one contract vs itself.
+        start, now, pct = nv.straddle_from_reference(ref, spot=23_560.0)
+        assert (start, now) == (132.2, 160.0)
+        assert pct == pytest.approx(21.03, abs=0.01)
+
+    def test_wide_but_valid_read_is_capped(self):
+        ref = {"strike": 23_550.0, "ce_open": 30.0, "pe_open": 30.0,
+               "ce_ltp": 300.0, "pe_ltp": 300.0}
+        assert nv.straddle_from_reference(ref, spot=23_560.0) == (
+            60.0, 600.0, 100.0)
+
+    def test_open_premium_below_the_floor_is_rejected(self):
+        ref = {"strike": 23_550.0, "ce_open": 5.0, "pe_open": 5.0,
+               "ce_ltp": 5.0, "pe_ltp": 5.0}
+        assert nv.straddle_from_reference(ref) == (None, None, None)
+
 
 class TestComputeRegime:
     def test_full_block(self):
@@ -278,12 +507,47 @@ class TestComputeRegime:
         out = nv.compute_regime(candles=candles, baseline=200.0, iv=15.0,
                                 tape_rows=rows)
         assert set(out) == {"verdict", "range_pts", "range_baseline_pts",
-                            "range_pct", "rv", "iv", "straddle_open",
-                            "straddle_now", "straddle_pct"}
+                            "range_pct", "session_range_pts", "rv", "iv",
+                            "rv_iv_ratio", "rv_like_for_like",
+                            "overnight_gap_pct", "bars", "warmup",
+                            "straddle_open", "straddle_now", "straddle_pct"}
         assert out["range_pts"] == 119.0
         assert out["range_pct"] == pytest.approx(59.5, abs=0.01)
         assert out["straddle_open"] == 200.0
         assert out["straddle_now"] == 170.0
+        assert out["bars"] == 20
+        assert out["warmup"] is True  # 20 < REGIME_MIN_BARS
+        # No previous close → the realised vol is session-only and the block
+        # says so instead of pretending the ratio is like-for-like.
+        assert out["rv_like_for_like"] is False
+        assert out["overnight_gap_pct"] is None
+
+    def test_rotated_reference_is_not_published(self):
+        """The pinned 23,550 cannot price a straddle with spot at 23,810.85."""
+        candles = [_candle(f"09:{15 + i:02d}", 22100 + i, 22000 + i, 22050 + i)
+                   for i in range(20)]
+        ref = {"strike": 23_550.0, "ce_open": 56.5, "pe_open": 75.7,
+               "ce_ltp": 260.65, "pe_ltp": 0.05}
+        tape = [{"atm_ce_ltp": 100.0, "atm_pe_ltp": 100.0},
+                {"atm_ce_ltp": 90.0, "atm_pe_ltp": 95.0}]
+        out = nv.compute_regime(candles=candles, baseline=200.0, iv=15.0,
+                                tape_rows=tape, reference=ref, spot=23_810.85)
+        # Falls back to the rolling ATM tape read instead of the +97.2% print.
+        assert out["straddle_open"] == 200.0
+        assert out["straddle_now"] == 185.0
+        assert out["straddle_pct"] == pytest.approx(-7.5, abs=0.01)
+
+    def test_previous_close_makes_the_rv_like_for_like(self):
+        candles = [_candle(f"09:{15 + i:02d}", 22100 + i, 22000 + i, 22050 + i)
+                   for i in range(20)]
+        out = nv.compute_regime(candles=candles, baseline=200.0, iv=15.0,
+                                prev_close=21_000.0)
+        assert out["rv_like_for_like"] is True
+        assert out["overnight_gap_pct"] is not None
+        # The full-day figure is at least the session-only one (the overnight
+        # gap only adds variance).
+        session_only = nv.realized_vol_pct(candles)
+        assert out["rv"] >= session_only
 
 
 # ---------------------------------------------------------------------------
@@ -331,8 +595,47 @@ class TestComputeStrength:
 
     def test_contract_keys(self):
         out = nv.compute_strength([], spot=None)
-        assert set(out) == {"verdict", "score", "ema20", "ema50", "rsi",
-                            "pos_in_range"}
+        assert set(out) == {"verdict", "score", "ema9", "ema20", "ema50",
+                            "rsi", "pos_in_range"}
+
+    def test_ema9_present_when_enough_closes(self):
+        candles = self._series(22000.0, 1.0)
+        out = nv.compute_strength(candles, spot=22059.0)
+        assert out["ema9"] is not None
+        assert out["ema9"] == pytest.approx(nv.ema(
+            [c["close"] for c in candles], 9), abs=0.01)
+
+    def test_ema9_none_with_few_closes(self):
+        candles = self._series(22000.0, 1.0, n=8)
+        out = nv.compute_strength(candles, spot=22007.0)
+        assert out["ema9"] is None
+        assert out["ema20"] is None
+
+
+class TestEmaSeries:
+    def test_length_and_seed(self):
+        values = [float(i) for i in range(1, 11)]
+        out = nv.ema_series(values, 3)
+        assert len(out) == len(values)
+        assert out[0] is None and out[1] is None
+        assert all(v is not None for v in out[2:])
+
+    def test_tail_matches_ema(self):
+        values = [float(i) for i in range(1, 31)]
+        for period in (9, 20):
+            out = nv.ema_series(values, period)
+            assert len(out) == len(values)
+            assert out[-1] == pytest.approx(nv.ema(values, period))
+
+    def test_insufficient_returns_all_none(self):
+        assert nv.ema_series([1.0, 2.0], 3) == [None, None]
+        assert nv.ema_series([], 9) == []
+
+    def test_missing_close_stays_aligned(self):
+        values = [1.0, 2.0, None, 4.0, 5.0, 6.0]
+        out = nv.ema_series(values, 3)
+        assert len(out) == len(values)
+        assert out[2] is None
 
 
 # ---------------------------------------------------------------------------
@@ -382,6 +685,41 @@ class TestVixFetcher:
             block = await nv.get_vix_block()
         assert block["change_pct"] is None
         assert block["prev_close"] is None
+
+    async def test_intraday_uses_newest_candle_as_previous_close(self):
+        """Live session is not in the daily series yet → newest candle IS prev.
+
+        Regression: taking candles[1] used the session before last, which made
+        Oct 30 show Oct 28's close (16.25) instead of Oct 29's (15.12).
+        """
+        async def fetch(path, params=None):
+            if "historical-candle" in path:
+                return {"status": "success", "data": {"candles": [
+                    ["2026-10-29T00:00:00+05:30", 16.25, 16.57, 15.09, 15.12],
+                    ["2026-10-28T00:00:00+05:30", 16.4, 17.36, 15.54, 16.25],
+                ]}}
+            return _vix_payload(ltp=15.56, close=15.56, hi=15.66, lo=14.47)
+
+        with patch("api.options.fetch_upstox", fetch):
+            block = await nv.get_vix_block()
+        assert block["prev_close"] == 15.12
+        assert block["change_pct"] == pytest.approx(2.91, abs=0.01)
+        assert block["day_high"] == 15.66 and block["day_low"] == 14.47
+
+    async def test_closed_session_uses_the_older_candle(self):
+        """Quote == newest close → completed session, prev is the next older."""
+        async def fetch(path, params=None):
+            if "historical-candle" in path:
+                return {"status": "success", "data": {"candles": [
+                    ["2026-10-30T00:00:00+05:30", 15.12, 15.7, 14.47, 15.3],
+                    ["2026-10-29T00:00:00+05:30", 16.25, 16.57, 15.09, 15.12],
+                ]}}
+            return _vix_payload(ltp=15.3, close=15.3, hi=15.3, lo=15.3)
+
+        with patch("api.options.fetch_upstox", fetch):
+            block = await nv.get_vix_block()
+        assert block["prev_close"] == 15.12
+        assert block["change_pct"] == pytest.approx(1.19, abs=0.01)
 
     async def test_failure_returns_none(self):
         fetch = AsyncMock(side_effect=RuntimeError("boom"))

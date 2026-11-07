@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import type { SectorResponse, SectorAlert, InternalStockMover } from "./sectorUtils";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+import { API_BASE } from "@/api/config";
 
 interface UseSectorDataReturn {
   market: "india" | "america";

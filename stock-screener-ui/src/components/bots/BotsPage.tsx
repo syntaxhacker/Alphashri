@@ -390,7 +390,7 @@ export function BotsPage() {
 
   return (
     <Box sx={{ width: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", bgcolor: "background.default" }} data-testid="bots-view">
-      <ToolbarRow gap={8} wrap={false} style={{ flex: "0 0 auto", height: 48, padding: "0 16px", borderBottom: "1px solid var(--mui-palette-divider)" }}>
+      <ToolbarRow gap={8} wrap={false} style={{ flex: "0 0 auto", height: palette.FIN_HEADER_H, padding: `0 ${palette.FIN_OUTER_PAD}px`, borderBottom: "1px solid var(--mui-palette-divider)" }}>
         <Text size="lg" fw={600}>Bots</Text>
         <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           Manage bot configurations, live status, and execution controls.

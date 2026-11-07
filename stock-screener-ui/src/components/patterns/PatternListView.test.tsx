@@ -46,12 +46,37 @@ function r(jsx: React.ReactElement) {
 describe("PatternListView", () => {
   afterEach(() => cleanup());
 
+  test("emits the rendered (header-sorted) order for prev/next navigation", async () => {
+    const hits = [
+      makeHit({ id: 1, symbol: "BBB", confidence: 90 }),
+      makeHit({ id: 2, symbol: "AAA", confidence: 80 }),
+    ];
+    const onOrderChange = vi.fn();
+    r(<PatternListView hits={hits} onSelect={vi.fn()} onOrderChange={onOrderChange} />);
+    expect(onOrderChange).toHaveBeenLastCalledWith([hits[0], hits[1]]);
+
+    await userEvent.click(within(screen.getByTestId("patterns-list")).getByText("Symbol"));
+    expect(onOrderChange).toHaveBeenLastCalledWith([hits[1], hits[0]]);
+  });
+
+  test("marks the hit currently shown in the docked chart", () => {
+    const hits = [makeHit({ id: 1, symbol: "AAA" }), makeHit({ id: 2, symbol: "BBB" })];
+    r(<PatternListView hits={hits} onSelect={vi.fn()} activeHit={hits[1]} />);
+    expect(screen.getByTestId("patterns-list-row-BBB-falling_wedge-2")).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+    expect(screen.getByTestId("patterns-list-row-AAA-falling_wedge-1")).not.toHaveAttribute(
+      "data-active",
+    );
+  });
+
   test("renders the dense table with one row per hit and all columns", () => {
     const hits = [makeHit({ id: 1, symbol: "AAA" }), makeHit({ id: 2, symbol: "BBB" })];
     r(<PatternListView hits={hits} onSelect={vi.fn()} />);
     const table = screen.getByTestId("patterns-list");
     expect(table).toBeInTheDocument();
-    for (const header of ["Symbol", "Pattern", "Dir", "Status", "Q", "52W gap %", "Pos %", "Breakout", "Bars ago", "Price", "Chg %"]) {
+    for (const header of ["Symbol", "Pattern", "Dir", "Status", "Q", "52W gap %", "Pos %", "Bars ago", "Price", "Chg %"]) {
       // A sticky header may clone a cell, so assert presence (>=1), not uniqueness.
       expect(within(table).getAllByText(header).length).toBeGreaterThanOrEqual(1);
     }
@@ -59,6 +84,20 @@ describe("PatternListView", () => {
     expect(within(table).getAllByText(/Score/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByTestId("patterns-list-row-AAA-falling_wedge-1")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-list-row-BBB-falling_wedge-2")).toBeInTheDocument();
+  });
+
+  test("opens index members from a broad-index row", async () => {
+    const onShowMembers = vi.fn();
+    r(
+      <PatternListView
+        hits={[makeHit({ id: 9, symbol: "NIFTY" })]}
+        onSelect={vi.fn()}
+        onShowMembers={onShowMembers}
+      />,
+    );
+
+    await userEvent.click(screen.getByTestId("patterns-list-members-NIFTY"));
+    expect(onShowMembers).toHaveBeenCalledWith("NIFTY");
   });
 
   test("Score header clarifies it is pattern-fit, not breakout conviction", () => {
@@ -69,31 +108,6 @@ describe("PatternListView", () => {
     );
   });
 
-  test("Breakout column renders the 0-dp score or — when missing", () => {
-    const hits = [
-      makeHit({ id: 1, symbol: "AAA", breakout_score: 73.4 }),
-      makeHit({ id: 2, symbol: "BBB", breakout_score: null }),
-    ];
-    r(<PatternListView hits={hits} onSelect={vi.fn()} sort="breakout" />);
-    const rowA = screen.getByTestId("patterns-list-row-AAA-falling_wedge-1");
-    const rowB = screen.getByTestId("patterns-list-row-BBB-falling_wedge-2");
-    expect(within(rowA).getByText("73")).toBeInTheDocument();
-    // BBB lacks both range_pos and breakout_score → at least the Breakout "—".
-    expect(within(rowB).getAllByText("—").length).toBeGreaterThanOrEqual(1);
-  });
-
-  test("seeds its sort from the rail sort (breakout → Breakout desc)", () => {
-    const hits = [
-      makeHit({ id: 1, symbol: "AAA", breakout_score: 41.2, confidence: 99 }),
-      makeHit({ id: 2, symbol: "BBB", breakout_score: 73.0, confidence: 10 }),
-    ];
-    r(<PatternListView hits={hits} onSelect={vi.fn()} sort="breakout" />);
-    const rows = within(screen.getByTestId("patterns-list")).getAllByTestId(/^patterns-list-row-/);
-    expect(rows.map((el) => el.getAttribute("data-testid"))).toEqual([
-      "patterns-list-row-BBB-falling_wedge-2",
-      "patterns-list-row-AAA-falling_wedge-1",
-    ]);
-  });
   test("seeds its sort from the rail sort (range_pos → Pos % desc)", () => {
     const hits = [
       makeHit({ id: 1, symbol: "AAA", range_pos: 10, confidence: 99 }),
@@ -183,6 +197,45 @@ describe("PatternListView", () => {
     expect(within(row).getByText("₹112.60")).toBeInTheDocument();
     // Missing 52W gap and missing base position both render "—".
     expect(within(row).getAllByText("—").length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("renders the To trigger column with a signed percentage", () => {
+    const box = [
+      [{ t: "2026-01-01", price: 110 }],
+      [{ t: "2026-01-01", price: 100 }],
+    ];
+    const base = { pattern_id: "consolidation", base_days: 80 } as const;
+    r(
+      <PatternListView
+        hits={[
+          makeHit({ ...base, id: 1, symbol: "AAA", last_close: 115, trendlines: box, to_52w_high: 5, range_pos: 50 }),
+          makeHit({ ...base, id: 2, symbol: "BBB", last_close: 105, trendlines: box, to_52w_high: 5, range_pos: 50 }),
+          makeHit({
+            ...base,
+            id: 3,
+            symbol: "CCC",
+            last_close: null,
+            end_price: 110,
+            trendlines: [],
+            to_52w_high: 5,
+            range_pos: 50,
+          }),
+          // Non-base patterns have no horizontal trigger box → no distance.
+          makeHit({ id: 4, symbol: "DDD", last_close: 115, trendlines: box, to_52w_high: 5, range_pos: 50 }),
+        ]}
+        onSelect={vi.fn()}
+      />,
+    );
+    const table = screen.getByTestId("patterns-list");
+    expect(within(table).getByText("To trigger")).toBeInTheDocument();
+    const aaa = screen.getByTestId("patterns-list-row-AAA-consolidation-1");
+    expect(within(aaa).getByText("+4.5%")).toBeInTheDocument();
+    const bbb = screen.getByTestId("patterns-list-row-BBB-consolidation-2");
+    expect(within(bbb).getByText("−4.5%")).toBeInTheDocument();
+    const ccc = screen.getByTestId("patterns-list-row-CCC-consolidation-3");
+    expect(within(ccc).getByText("—")).toBeInTheDocument();
+    const ddd = screen.getByTestId("patterns-list-row-DDD-falling_wedge-4");
+    expect(within(ddd).getByText("—")).toBeInTheDocument();
   });
 
   test("clicking a row selects that hit", async () => {

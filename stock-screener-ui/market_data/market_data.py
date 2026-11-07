@@ -61,6 +61,24 @@ _RESAMPLE_RULE: Dict[int, str] = {
     43200: "1ME",
 }
 
+
+def _resample_rule(minutes: int) -> str:
+    """Pandas resample alias for a target width in minutes."""
+    minutes = int(minutes)
+    fixed = _RESAMPLE_RULE.get(minutes)
+    if fixed is not None:
+        return fixed
+    if minutes % 43200 == 0:
+        return f"{minutes // 43200}ME"
+    if minutes % 10080 == 0:
+        return f"{minutes // 10080}W"
+    if minutes % 1440 == 0:
+        return f"{minutes // 1440}D"
+    if minutes % 60 == 0:
+        return f"{minutes // 60}h"
+    return f"{minutes}min"
+
+
 # Native minutes -> registered timeframe id (chart_patterns.timeframes).
 _MINUTES_TO_TF_ID: Dict[int, str] = {
     1: "1m",
@@ -136,6 +154,41 @@ def _lookback_days(spec_minutes: int, lookback_bars: int) -> int:
     return max(1, min(3650, days))
 
 
+_DELEGATING_TIMEFRAMES: set[tuple[str, str]] = set()
+
+
+def _delegate_to_pattern_candles(
+    symbol: str,
+    timeframe: str,
+    *,
+    from_date: str | None,
+    to_date: str | None,
+    as_of_date: str | None,
+    include_partial_today: bool,
+    api_client=None,
+) -> Optional[pd.DataFrame]:
+    """Fetch a custom timeframe via ``chart_patterns.candles`` (source + resample)."""
+    key = (str(symbol or "").upper(), str(timeframe))
+    if key in _DELEGATING_TIMEFRAMES:
+        return None
+    _DELEGATING_TIMEFRAMES.add(key)
+    try:
+        from chart_patterns.candles import fetch_for_timeframe
+
+        return fetch_for_timeframe(
+            symbol,
+            timeframe,
+            as_of_date=as_of_date or to_date,
+            api_client=api_client,
+            include_partial_today=bool(include_partial_today),
+            from_date=from_date,
+        )
+    except Exception:
+        return None
+    finally:
+        _DELEGATING_TIMEFRAMES.discard(key)
+
+
 def fetch_candles_for_timeframe(
     symbol: str,
     timeframe: str,
@@ -209,6 +262,17 @@ def fetch_candles_for_timeframe(
     minutes = int(spec.minutes)
     source_tf = spec.source_tf
     max_lookback = int(spec.max_lookback_days or 90)
+
+    if minutes not in _TF_TO_UPSTOX and timeframe not in _MINUTES_TO_TF_ID.values():
+        return _delegate_to_pattern_candles(
+            symbol,
+            timeframe,
+            from_date=from_date,
+            to_date=to_date,
+            as_of_date=as_of_date,
+            include_partial_today=include_partial_today,
+            api_client=api_client,
+        )
 
     today_str = datetime.now(_IST).strftime("%Y-%m-%d")
     eff_to = to_date or as_of_date or today_str
@@ -371,6 +435,20 @@ def _fetch_native_window(
             from_date=from_date,
         )
     except Exception:
+        df = None
+    if df is None or getattr(df, "empty", True):
+        # Historical leg unavailable (provider outage, or the 1m retention
+        # window). Today's intraday is still valid history for an intraday
+        # timeframe — returning None here silently emptied every 1m chart and
+        # pattern scan until the next success.
+        if to_date == today_str:
+            try:
+                return api.fetch_intraday_data_v3(
+                    symbol=symbol,
+                    interval=str(tf_minutes),
+                )
+            except Exception:
+                return None
         return None
     if to_date == today_str:
         try:
@@ -724,9 +802,7 @@ def _concat_merge(*frames: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
 def _resample(df: pd.DataFrame, tf_minutes: int) -> pd.DataFrame:
     if df.empty:
         return df
-    rule = _RESAMPLE_RULE.get(tf_minutes)
-    if rule is None:
-        return df
+    rule = _resample_rule(tf_minutes)
     agg = {c: "first" if c == "open" else "sum" if c == "volume" else "last" if c == "close" else "max" if c == "high" else "min" if c == "low" else "last" for c in df.columns}
     agg["high"] = "max"
     agg["low"] = "min"

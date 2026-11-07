@@ -43,7 +43,8 @@ def main():
         for k in STRIKES:
             for opt in ("CE", "PE"):
                 sym = fd.nifty_symbol(exp, k, opt, weekly=weekly)
-                df = fd.fetch_candles_cached(client, sym, "1", frm, TODAY.isoformat())
+                df = fd.fetch_candles_cached(client, sym, "1", frm, TODAY.isoformat(),
+                                             oi=True)
                 done += 1
                 if len(df):
                     manifest["contracts"].append({

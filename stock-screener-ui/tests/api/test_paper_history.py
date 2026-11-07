@@ -78,6 +78,7 @@ def sample_trade():
 # ============================================================================
 
 @pytest.mark.unit
+@pytest.mark.slow
 class TestResolveBotId:
     """Tests for resolve_bot_id() in api/bots_api/bots_router.py."""
 
@@ -123,6 +124,7 @@ class TestResolveBotId:
 # ============================================================================
 
 @pytest.mark.unit
+@pytest.mark.slow
 class TestTradesBotIdFilter:
     """Tests that /api/paper/trades accepts UUID bot_id filter."""
 
@@ -190,6 +192,7 @@ class TestTradesBotIdFilter:
 
 
 @pytest.mark.unit
+@pytest.mark.slow
 class TestPatchTradeNotes:
 
     def test_patch_updates_notes_and_reason(self, client, auth_headers, sample_trade):

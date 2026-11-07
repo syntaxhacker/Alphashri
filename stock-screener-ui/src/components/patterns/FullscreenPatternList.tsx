@@ -1,6 +1,7 @@
 import { Box, Text, ToolbarRow, UnstyledButton } from "@/ui";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { StatusBadge } from "./StatusBadge";
+import { displayStatusForHit } from "./patternDisplayStatus";
 import { formatChartTimestamp } from "./datetime";
 
 /** Identity for a fullscreen pattern hit (mirrors the page's hitIdentity). */
@@ -44,7 +45,7 @@ export interface FullscreenPatternListProps {
  * (radio-style — no multi-select, no dashed siblings).
  */
 export function FullscreenPatternList({ hits, activeKey, onSelect }: FullscreenPatternListProps) {
-  const sorted = sortHitsNewest(hits);
+  const sorted = sortHitsNewest(hits).slice(0, 1);
   return (
     <Box data-testid="patterns-fullscreen-list" sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
       <Text size="xs" c="dimmed" fw={700} style={{ textTransform: "uppercase" }}>
@@ -69,22 +70,22 @@ export function FullscreenPatternList({ hits, activeKey, onSelect }: FullscreenP
                 width: "100%",
                 display: "block",
                 borderRadius: 1,
-                p: 1,
+                p: 0.5,
                 bgcolor: active ? "action.selected" : "transparent",
                 "&:hover": { bgcolor: active ? "action.selected" : "action.hover" },
               }}
             >
               <ToolbarRow justify="space-between" gap={4} align="center">
-                <Text size="xs" fw={600} truncate style={{ flex: 1, minWidth: 0 }}>
+                <Text size="xs" fw={600} truncate style={{ flex: 1, minWidth: 0 }} lh={1.15}>
                   {hit.pattern_name}
                 </Text>
-                <StatusBadge status={hit.status} />
+                <StatusBadge status={hit.status} display={displayStatusForHit(hit)} />
               </ToolbarRow>
               <ToolbarRow justify="space-between" gap={4} align="center">
-                <Text size="xs" c="dimmed" truncate>
+                <Text size="xs" c="dimmed" truncate lh={1.15}>
                   {`${formatChartTimestamp(hit.end_date)} · ${hit.bars_ago} bar${hit.bars_ago === 1 ? "" : "s"} ago`}
                 </Text>
-                <Text size="xs" c="dimmed">
+                <Text size="xs" c="dimmed" lh={1.15}>
                   {`${Math.round(hit.confidence)}%`}
                 </Text>
               </ToolbarRow>

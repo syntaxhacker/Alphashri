@@ -57,6 +57,17 @@ function r(jsx: React.ReactElement) {
 describe("PatternGrid", () => {
   afterEach(() => cleanup());
 
+  test("outlines only the card that is open in the docked chart", () => {
+    const hits = [
+      makeHit({ id: 11, symbol: "AAA", start_date: "2026-04-26" }),
+      makeHit({ id: 22, symbol: "BBB", start_date: "2026-07-01" }),
+    ];
+    r(<PatternGrid hits={hits} onSelect={vi.fn()} activeHit={hits[1]} />);
+    const cards = screen.getAllByTestId("patterns-card");
+    expect(cards[1]).toHaveAttribute("data-selected", "true");
+    expect(cards[0]).not.toHaveAttribute("data-selected");
+  });
+
   test("renders two hits with the same symbol+pattern+timeframe without duplicate keys", () => {
     const warnings: string[] = [];
     const origError = console.error;

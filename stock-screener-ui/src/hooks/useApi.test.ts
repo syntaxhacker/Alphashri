@@ -22,7 +22,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.unstubAllGlobals();
   localStorage.clear();
-  localStorage.setItem("token", "test-token");
+  localStorage.setItem("alphashri_token", "test-token");
 });
 
 afterEach(() => {

@@ -1,4 +1,4 @@
-import { useState, Fragment, useMemo, type ReactNode, type CSSProperties } from "react";
+import { useState, Fragment, useEffect, useMemo, useRef, type ReactNode, type CSSProperties } from "react";
 import TableContainer from "@mui/material/TableContainer";
 import Paper from "@mui/material/Paper";
 import { Box, ScrollArea, useDensity } from "@/ui";
@@ -59,6 +59,12 @@ interface Props<T> {
   getRowTestId?: (row: T, index: number) => string | undefined;
   /** Extra DOM attributes for each row (e.g. data-* used for external lookup). */
   getRowAttributes?: (row: T, index: number) => Record<string, string | number | undefined>;
+  /**
+   * Emits the rows in the order they are rendered (after header sorting /
+   * grouping / expansion) whenever that order changes. Lets a caller drive
+   * prev/next navigation over exactly what the user sees.
+   */
+  onSortedRowsChange?: (rows: T[]) => void;
   enableSorting?: boolean;
   enableSortingRemoval?: boolean;
   stickyHeader?: boolean;
@@ -78,11 +84,18 @@ interface Props<T> {
    */
   fillContainer?: boolean;
   /**
+   * Minimum table width override. Defaults to `max(640, columns * 96)`.
+   * Dense desk tables that must fit a fixed panel pass their real width.
+   */
+  minTableWidth?: number;
+  /**
    * Opt-in bare mode: skip the outer Paper/TableContainer wrapper (use when
    * the page already provides its own bordered container — avoids nested
    * double borders). Returns the scroll area + table only. Default false.
    */
   bare?: boolean;
+  /** Ultra-dense rows (18px, 1px 6px cells) regardless of the global density. */
+  dense?: boolean;
 }
 
 const GROUP_ROW_ESTIMATE = 36;
@@ -130,6 +143,7 @@ export function TanStackTable<T>({
   getRowStyle,
   getRowTestId,
   getRowAttributes,
+  onSortedRowsChange,
   enableSorting = true,
   // Matches TanStack's default: a third click on a sorted column clears sorting.
   // Pass false for tables that should only toggle asc/desc (e.g. experiments).
@@ -145,13 +159,26 @@ export function TanStackTable<T>({
   renderSubComponent,
   rowWindowSize = 0,
   fillContainer = false,
+  minTableWidth,
   bare = false,
+  dense = false,
 }: Props<T>) {
   const [sorting, setSorting] = useState<SortingState>(initialState?.sorting ?? []);
   const [expanded, setExpanded] = useState<ExpandedState>(initialState?.expanded ?? {});
   const [scrollTop, setScrollTop] = useState(0);
-  const { tokens: densityTokens } = useDensity();
-  const rowEstimated = densityTokens.tableRowHeight;
+  const { density, tokens: densityTokens } = useDensity();
+  // Desk tables are dense by default (Bloomberg-style): 22-24px rows,
+  // 2px/8px cells, 11px tabular numerals. `comfortable` is the explicit
+  // opt-in escape hatch; `dense` stays the ultra-dense 18px matrix mode.
+  const isComfortable = density === "comfortable";
+  const rowEstimated = dense ? 18 : isComfortable ? densityTokens.tableRowHeight : 23;
+  const cellPad = dense
+    ? "1px 6px"
+    : isComfortable
+      ? densityTokens.tableCellPad
+      : "2px 8px";
+  const cellFontSize = dense ? 10 : 11;
+  const headerHeight = dense ? 20 : isComfortable ? 28 : 23;
 
   const hasSizedColumns = useMemo(
     () => columns.some((col) => typeof (col as { size?: number }).size === "number" && (col as { size?: number }).size !== 0),
@@ -184,6 +211,22 @@ export function TanStackTable<T>({
     autoResetExpanded: false,
     getRowCanExpand: getRowCanExpand ? (row) => getRowCanExpand(row.original) : undefined,
   });
+
+  // Emit the rendered order (post-sort/group/expand) so callers can navigate
+  // the exact sequence the user sees. Guarded by element identity so a parent
+  // that stores the array cannot cause an emit → setState → emit loop.
+  const emittedOrderRef = useRef<T[] | null>(null);
+  const sortedRowsForOrder = table.getRowModel().rows;
+  useEffect(() => {
+    if (!onSortedRowsChange) return;
+    const next = sortedRowsForOrder.map((row) => row.original);
+    const prev = emittedOrderRef.current;
+    if (prev && prev.length === next.length && prev.every((item, i) => item === next[i])) {
+      return;
+    }
+    emittedOrderRef.current = next;
+    onSortedRowsChange(next);
+  }, [sortedRowsForOrder, onSortedRowsChange]);
 
   // Columns whose sample values are all numbers get right-aligned headers
   // and cells by default (text columns stay left). Explicit `meta.align`
@@ -242,12 +285,45 @@ export function TanStackTable<T>({
           component="table"
           data-testid={dataTestId}
           id={dataTestId ? `paper-tanstack-table-${dataTestId}` : undefined}
-          style={{ width: "100%", tableLayout: hasSizedColumns ? "fixed" : "auto", minWidth: Math.max(640, visibleColumnCount * 96), ...(style || {}) } as React.CSSProperties}
+          style={{ width: "100%", tableLayout: hasSizedColumns ? "fixed" : "auto", minWidth: minTableWidth ?? Math.max(640, visibleColumnCount * 96), ...style } as React.CSSProperties}
           sx={{
             width: "100%",
-            minWidth: Math.max(640, visibleColumnCount * 96),
+            minWidth: minTableWidth ?? Math.max(640, visibleColumnCount * 96),
             borderCollapse: "collapse",
             bgcolor: palette.SURFACE,
+            // Badges/chips must not set the row height in a dense table: cap
+            // them so a status chip fits inside the 22-24px row budget.
+            "& .MuiChip-root": {
+              height: dense ? 14 : isComfortable ? 22 : 16,
+              fontSize: dense ? 9 : isComfortable ? 11 : 9.5,
+              borderRadius: 0.5,
+            },
+            "& .MuiChip-label": {
+              paddingInline: isComfortable ? 8 : 4,
+            },
+            // A default MUI checkbox is 38px tall (9px padding + 20px icon) and
+            // alone pushes a dense row to 43px. Cap it to the row budget; the
+            // hit area shrinks but the row stays scannable (18px target).
+            ...(isComfortable
+              ? {}
+              : {
+                  "& .MuiCheckbox-root": {
+                    padding: "1px",
+                    "& .MuiSvgIcon-root": { fontSize: 16 },
+                  },
+                }),
+            // Typography inside a cell must not set the row height: MUI's
+            // default body line-height (1.66) turns a 11-12px label into a
+            // 20px line box, which pushes a 23px row to 25px+. Cap it here so
+            // the row budget is honoured by every consumer (the cell height
+            // is a min-height in CSS table layout, so content wins without
+            // this). Not applied in comfortable mode.
+            ...(isComfortable
+              ? {}
+              : {
+                  "& .paper-tanstack-cell .MuiTypography-root, & .paper-tanstack-header-cell .MuiTypography-root":
+                    { lineHeight: 1.15 },
+                }),
           }}
           className={`paper-tanstack-table ${className || ""}`}
         >
@@ -264,8 +340,10 @@ export function TanStackTable<T>({
                     className="paper-tanstack-header-cell"
                     id={`paper-tanstack-header-${String(h.column.id)}`}
                     sx={{
-                      padding: width === 0 ? "0" : densityTokens.tableCellPad,
-                      fontSize: 11,
+                      padding: width === 0 ? "0" : cellPad,
+                      height: headerHeight,
+                      fontSize: cellFontSize,
+                      lineHeight: 1.2,
                       fontWeight: 600,
                       fontVariantNumeric: "tabular-nums",
                       whiteSpace: "nowrap",
@@ -358,12 +436,12 @@ export function TanStackTable<T>({
                             className="paper-tanstack-cell"
                             id={`paper-tanstack-cell-${String(cell.column.id)}-${row.id}`}
                             sx={{
-                              padding: width === 0 ? "0" : cell.column.id === "toggle" ? "3px 4px" : densityTokens.tableCellPad,
-                              fontSize: 11,
+                              padding: width === 0 ? "0" : cell.column.id === "toggle" ? "2px 4px" : cellPad,
+                              fontSize: cellFontSize,
                               lineHeight: 1.2,
                               fontVariantNumeric: "tabular-nums",
                               whiteSpace: "nowrap",
-                              height: densityTokens.tableRowHeight,
+                              height: rowEstimated,
                               borderBottom: 1,
                               borderColor: palette.BORDER,
                               bgcolor: palette.SURFACE,

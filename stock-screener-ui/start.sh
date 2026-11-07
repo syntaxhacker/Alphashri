@@ -30,10 +30,15 @@ RELOAD_FLAG="${RELOAD_FLAG:-}"
 # UPSTOX_RL_CONSUMER applies to the API process; bot/orderflow subprocesses
 # resolve their own slice via entry-point autodetect (see rate_limiter.py).
 UPSTOX_RL_CONSUMER="${UPSTOX_RL_CONSUMER:-api}"
-UPSTOX_RL_CAP_API="${UPSTOX_RL_CAP_API:-150}"
+UPSTOX_RL_CAP_API="${UPSTOX_RL_CAP_API:-120}"
 UPSTOX_RL_CAP_BOT="${UPSTOX_RL_CAP_BOT:-300}"
 UPSTOX_RL_CAP_ORDERFLOW="${UPSTOX_RL_CAP_ORDERFLOW:-50}"
-export UPSTOX_RL_CONSUMER UPSTOX_RL_CAP_API UPSTOX_RL_CAP_BOT UPSTOX_RL_CAP_ORDERFLOW
+UPSTOX_RL_CAP_OPTIONS="${UPSTOX_RL_CAP_OPTIONS:-30}"
+# 52W batch: 1 worker x 1s = 60/min, under Upstox's ~66/min historical quota.
+# The old 3 x 0.35s (~514/min) exhausted it and blanked the report charts.
+SCREENER_52W_WORKERS="${SCREENER_52W_WORKERS:-1}"
+SCREENER_52W_DELAY_SEC="${SCREENER_52W_DELAY_SEC:-1.0}"
+export UPSTOX_RL_CONSUMER UPSTOX_RL_CAP_API UPSTOX_RL_CAP_BOT UPSTOX_RL_CAP_ORDERFLOW UPSTOX_RL_CAP_OPTIONS SCREENER_52W_WORKERS SCREENER_52W_DELAY_SEC
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -163,16 +168,37 @@ start_recorder() {
   # Supervised: a dropped socket, an expired session or a stall exits non-zero
   # and gets restarted, so capture no longer dies silently for the rest of the
   # day. Exit 0 means "nothing to do" (market closed) and stops the loop.
+  #
+  # Crash-loop guard: a recorder that dies INSTANTLY gets a LONGER wait, never
+  # a shorter one (60s, 120s, 240s ... capped at 15 min), and a run that
+  # lasted minutes resets the counter — so a permanently broken recorder
+  # cannot spin the supervisor all session.
   nohup bash -c '
+    fails=0
     while true; do
+      started=$(date +%s)
       .venv/bin/python scripts/orderflow_recorder.py
       rc=$?
+      ran=$(( $(date +%s) - started ))
       if [ "$rc" -eq 0 ]; then
         echo "[recorder-supervisor] recorder finished normally; not restarting"
         break
       fi
-      echo "[recorder-supervisor] recorder exited rc=$rc; restarting in 60s"
-      sleep 60
+      fails=$((fails + 1))
+      if [ "$ran" -ge 300 ]; then
+        fails=1
+      fi
+      delay=60
+      i=1
+      while [ "$i" -lt "$fails" ] && [ "$delay" -lt 900 ]; do
+        delay=$((delay * 2))
+        i=$((i + 1))
+      done
+      if [ "$delay" -gt 900 ]; then
+        delay=900
+      fi
+      echo "[recorder-supervisor] recorder exited rc=$rc after ${ran}s (failure #$fails); restarting in ${delay}s"
+      sleep "$delay"
     done
   ' >> "$API_LOG" 2>&1 &
   echo $! > "$RECORDER_PID"

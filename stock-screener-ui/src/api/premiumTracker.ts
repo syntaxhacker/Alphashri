@@ -1,4 +1,5 @@
 import { API_BASE } from "./config";
+import { jsonOrThrow } from "./utils/request";
 
 export type PremiumVerdict = "CHEAP" | "FAIR" | "EXPENSIVE" | "UNKNOWN";
 
@@ -31,9 +32,5 @@ const PREMIUM_API_BASE = `${API_BASE}/api/options`;
 
 export async function fetchPremiumTracker(signal?: AbortSignal): Promise<PremiumTrackerResponse> {
   const response = await fetch(`${PREMIUM_API_BASE}/premium-tracker`, { signal });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Failed to fetch premium snapshot" }));
-    throw new Error(error.detail || "Failed to fetch premium snapshot");
-  }
-  return response.json();
+  return jsonOrThrow<PremiumTrackerResponse>(response, "Failed to fetch premium snapshot");
 }

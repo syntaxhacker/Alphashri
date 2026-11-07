@@ -45,7 +45,9 @@ class StrategyConfigData:
     # Trading Runner Parameters
     cooldown_minutes: int = 30
     max_distance_from_or_pct: float = 1.5
-    max_distance_from_r1_pct: float = 5.0
+    # Tightened 5.0 -> 2.0: a 4.8%-above-R1 chase stopped out on 2026-10-16.
+    # Overridable per strategy via the existing DB column / UI field.
+    max_distance_from_r1_pct: float = 2.0
 
     # 52W Chaser Parameters
     entry_threshold_pct: float = 3.0

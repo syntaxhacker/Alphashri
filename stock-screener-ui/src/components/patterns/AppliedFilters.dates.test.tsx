@@ -45,7 +45,7 @@ describe("AppliedFilters date chips", () => {
     ).toEqual([]);
   });
 
-  test("renders date chips with Date group prefix", () => {
+  test("groups the date chips under one Dates label", () => {
     r(
       <AppliedFilters
         filters={makeFilters({ from_date: "2026-06-01", to_date: "2026-09-30T14:30" })}
@@ -54,8 +54,9 @@ describe("AppliedFilters date chips", () => {
         resetFilters={vi.fn()}
       />,
     );
-    expect(screen.getByText("Date: formed ≥ 2026-06-01")).toBeInTheDocument();
-    expect(screen.getByText("Date: formed ≤ 2026-09-30 14:30")).toBeInTheDocument();
+    expect(screen.getByText("Dates")).toBeInTheDocument();
+    expect(screen.getByText("formed ≥ 2026-06-01")).toBeInTheDocument();
+    expect(screen.getByText("formed ≤ 2026-09-30 14:30")).toBeInTheDocument();
   });
 
   test("removing a date chip resets it to null", () => {

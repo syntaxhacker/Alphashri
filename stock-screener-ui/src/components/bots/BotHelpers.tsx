@@ -193,21 +193,21 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
       header: "Qty",
       accessorKey: "quantity",
       meta: { align: "right" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text fw={500} ta="right">{row.original.quantity}</Text></Box>,
+      cell: ({ row }) => <Text fw={500} ta="right">{row.original.quantity}</Text>,
     },
     {
       id: "entry_price",
       header: "Entry",
       accessorKey: "entry_price",
       meta: { align: "right" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text size="sm" ta="right">₹{row.original.entry_price.toFixed(2)}</Text></Box>,
+      cell: ({ row }) => <Text size="sm" ta="right">₹{row.original.entry_price.toFixed(2)}</Text>,
     },
     {
       id: "current_price",
       header: "Current",
       accessorKey: "current_price",
       meta: { align: "right" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text size="sm" fw={500} ta="right">₹{row.original.current_price.toFixed(2)}</Text></Box>,
+      cell: ({ row }) => <Text size="sm" fw={500} ta="right">₹{row.original.current_price.toFixed(2)}</Text>,
     },
     {
       id: "unrealized_pnl",
@@ -218,15 +218,13 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
         const p = row.original;
         const pnlColor = getPnLTextColor(p.unrealized_pnl);
         return (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
-            <Text c={pnlColor} fw={600} ta="right">
-              {formatSignedPnl(p.unrealized_pnl)}
-              <Text span size="sm" ml={4}>
-                ({p.unrealized_pnl_pct >= 0 ? "+" : ""}
-                {p.unrealized_pnl_pct.toFixed(2)}%)
-              </Text>
+          <Text c={pnlColor} fw={600} ta="right">
+            {formatSignedPnl(p.unrealized_pnl)}
+            <Text span size="sm" ml={4}>
+              ({p.unrealized_pnl_pct >= 0 ? "+" : ""}
+              {p.unrealized_pnl_pct.toFixed(2)}%)
             </Text>
-          </Box>
+          </Text>
         );
       },
     },
@@ -324,23 +322,21 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
       header: "Qty",
       accessorKey: "quantity",
       meta: { align: "right" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text fw={500} ta="right">{row.original.quantity}</Text></Box>,
+      cell: ({ row }) => <Text fw={500} ta="right">{row.original.quantity}</Text>,
     },
     {
       id: "entry_price",
       header: "Entry",
       accessorKey: "entry_price",
       meta: { align: "right" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text size="sm" ta="right">₹{row.original.entry_price.toFixed(2)}</Text></Box>,
+      cell: ({ row }) => <Text size="sm" ta="right">₹{row.original.entry_price.toFixed(2)}</Text>,
     },
     {
       id: "exit_price",
       header: "Exit",
       accessorKey: "exit_price",
       meta: { align: "right" } as any,
-      cell: ({ row }) => (
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text size="sm" fw={500} ta="right">₹{row.original.exit_price?.toFixed(2) || "-"}</Text></Box>
-      ),
+      cell: ({ row }) => <Text size="sm" fw={500} ta="right">₹{row.original.exit_price?.toFixed(2) || "-"}</Text>,
     },
     {
       id: "pnl",
@@ -351,15 +347,13 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
         const t = row.original;
         const pnlColor = getPnLTextColor(t.pnl);
         return (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
-            <Text c={pnlColor} fw={600} ta="right">
-              {formatSignedPnl(t.pnl)}
-              <Text span size="sm" ml={4}>
-                ({t.pnl_pct >= 0 ? "+" : ""}
-                {t.pnl_pct.toFixed(2)}%)
-              </Text>
+          <Text c={pnlColor} fw={600} ta="right">
+            {formatSignedPnl(t.pnl)}
+            <Text span size="sm" ml={4}>
+              ({t.pnl_pct >= 0 ? "+" : ""}
+              {t.pnl_pct.toFixed(2)}%)
             </Text>
-          </Box>
+          </Text>
         );
       },
     },
@@ -371,11 +365,9 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
       cell: ({ row }) => {
         const netPnlColor = getPnLTextColor(row.original.net_pnl);
         return (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
-            <Text c={netPnlColor} fw={600} ta="right">
-              {formatSignedPnl(row.original.net_pnl)}
-            </Text>
-          </Box>
+          <Text c={netPnlColor} fw={600} ta="right">
+            {formatSignedPnl(row.original.net_pnl)}
+          </Text>
         );
       },
     },

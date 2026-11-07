@@ -27,8 +27,8 @@ import pandas as pd
 
 from .. import features as F
 from .common import (
+    _fit_pair,
     curve_points,
-    fit_window_pair,
     flat_line_points,
     iso_ts,
     make_hit,
@@ -60,13 +60,6 @@ def _window(df: pd.DataFrame, lookback: int = LOOKBACK, min_bars: int = 30):
     return window_slice(df, lookback, min_bars)
 
 
-def _fit_pair(df, ctx, start):
-    # Wedges span the full detection window, so fit all window pivots (not just
-    # the most recent few) — otherwise the drawn boundaries cover only a recent
-    # sub-segment and do not reach the pattern's start.
-    return fit_window_pair(df, ctx, start, max_pivots=None)
-
-
 def _bound(
     df: pd.DataFrame, slope: float, intercept: float, x0: int, x1: int, side: str
 ) -> tuple[float, float]:
@@ -92,11 +85,6 @@ def _bound(
         delta = float(np.max(line - df["low"].to_numpy(dtype=float)[x0 : x1 + 1]))
         intercept -= max(delta, 0.0) + margin
     return float(slope), float(intercept)
-
-
-def _r2_of(pivots: list[tuple[int, float]]) -> float:
-    fit = F.fit_pivot_line(pivots)
-    return float(fit[2]) if fit else 0.0
 
 
 def _breakout_pos(
@@ -520,7 +508,12 @@ def detect_diamond_bottom(df: pd.DataFrame, ctx: dict | None = None) -> list:
     if not (su2 < sl2):
         return []
 
-    r2 = min(_r2_of(H1), _r2_of(L1), _r2_of(H2), _r2_of(L2))
+    r2 = min(
+        F.fit_pivot_line(H1)[2],
+        F.fit_pivot_line(L1)[2],
+        F.fit_pivot_line(H2)[2],
+        F.fit_pivot_line(L2)[2],
+    )
     if r2 < MIN_R2:
         return []
 

@@ -1,27 +1,45 @@
-import { useCallback, useEffect, useRef } from "react";
-import { fetchWithAuth } from "@/state/auth";
+import { useEffect, useRef } from "react";
+import { getAccessToken } from "@/state/auth";
 import { API_BASE } from "@/api/config";
 import { normalizeBurst } from "@/api/reportNifty";
 import type { NiftyBurst } from "@/types/niftyReport";
 
-const STREAM_URL = `${API_BASE}/api/reports/nifty/bursts/stream`;
-/** Reconnect backoff after a drop (ms). The caller falls back to polling. */
-const RECONNECT_MS = 5_000;
+/** Backoff schedule for a dropped socket: 1s, 2s, 4s … capped at 15s. */
+const MIN_RECONNECT_MS = 1_000;
+const MAX_RECONNECT_MS = 15_000;
+
+function backoffMs(attempt: number): number {
+  return Math.min(MIN_RECONNECT_MS * 2 ** attempt, MAX_RECONNECT_MS);
+}
 
 /**
- * Server-pushed Nifty alerts.
+ * Build the bursts WebSocket URL from an HTTP(S) API base.
+ * `http` → `ws`, `https` → `wss` (single prefix replace).
+ */
+export function burstWsUrl(
+  base: string,
+  opts: { token?: string | null } = {},
+): string {
+  const wsBase = base.replace(/^http/, "ws");
+  const params = new URLSearchParams();
+  if (opts.token) params.set("token", opts.token);
+  const qs = params.toString();
+  return `${wsBase}/ws/nifty/bursts${qs ? `?${qs}` : ""}`;
+}
+
+/**
+ * Server-pushed Nifty alerts over WebSocket.
  *
- * The report page polls `/bursts` every 30s, so an alert detected at a minute
- * boundary could reach the UI up to ~30s late. This subscribes to the SSE feed
- * and hands each event straight to `onEvent`, so a burst lands within a couple
- * of seconds of the tape row.
+ * Same exported name, arguments, and callback contract as the old SSE
+ * version: each detected event is handed to `onEvent` as a normalized
+ * `NiftyBurst`. A `snapshot` frame (a list) is delivered one event at a
+ * time; a `burst` frame (a single event) is appended the same way. The
+ * caller dedupes by id, so replaying a snapshot over already-seen events
+ * is safe. `heartbeat` / `error` frames are ignored.
  *
- * Uses `fetchWithAuth` + `ReadableStream` rather than `EventSource` because the
- * endpoint is auth-gated and `EventSource` cannot send an Authorization header
- * (same reason `useLivePrices` does it this way).
- *
- * Delivery only — it does not make detection faster. `enabled` false (EOD) and
- * any error just means the caller keeps its polling path.
+ * `enabled` false (EOD) and any error just means the caller keeps its
+ * polling path. When the `WebSocket` global is missing (e.g. jsdom tests)
+ * the hook does nothing.
  */
 export function useNiftyBurstStream(
   onEvent: (burst: NiftyBurst) => void,
@@ -33,70 +51,92 @@ export function useNiftyBurstStream(
     cbRef.current = onEvent;
   }, [onEvent]);
 
-  const stopRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    if (typeof WebSocket === "undefined") return;
 
-  const connect = useCallback(async (signal: AbortSignal) => {
-    const res = await fetchWithAuth(STREAM_URL, {
-      headers: { Accept: "text/event-stream" },
-      signal,
-    });
-    if (!res.ok || !res.body) throw new Error(`stream HTTP ${res.status}`);
+    let ws: WebSocket | null = null;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let closed = false;
+    let attempt = 0;
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
+    const deliver = (raw: unknown) => {
+      try {
+        const parsed = normalizeBurst((raw ?? {}) as Record<string, unknown>);
+        if (parsed && parsed.id) cbRef.current(parsed);
+      } catch {
+        /* ignore a malformed event rather than dropping the stream */
+      }
+    };
 
-    while (!signal.aborted) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
+    const connect = () => {
+      if (closed) return;
+      timer = undefined;
+      let socket: WebSocket;
+      try {
+        socket = new WebSocket(burstWsUrl(API_BASE, { token: getAccessToken() }));
+      } catch {
+        attempt += 1;
+        timer = setTimeout(connect, backoffMs(attempt));
+        return;
+      }
+      ws = socket;
 
-      // SSE frames are separated by a blank line; ignore comments (: ...).
-      const frames = buffer.split("\n\n");
-      buffer = frames.pop() ?? "";
-      for (const frame of frames) {
-        const line = frame.split("\n").find((l) => l.startsWith("data: "));
-        if (!line) continue; // heartbeat / comment
+      socket.onopen = () => {
+        if (closed) return;
+        attempt = 0;
+      };
+
+      socket.onmessage = (event) => {
         try {
-          const raw = JSON.parse(line.slice(6)) as Record<string, unknown>;
-          // SSE carries the backend's raw detection dict — normalize it the
-          // same way the polled endpoint is normalized.
-          const parsed = normalizeBurst(raw);
-          if (parsed && parsed.id) cbRef.current(parsed);
+          const frame = JSON.parse(String(event.data)) as {
+            type?: string;
+            data?: unknown;
+          };
+          if (frame.type === "burst" && frame.data) {
+            deliver(frame.data);
+          } else if (frame.type === "snapshot" && Array.isArray(frame.data)) {
+            for (const item of frame.data) deliver(item);
+          }
+          // heartbeat / error frames carry no events — ignore them.
         } catch {
           /* ignore a malformed frame rather than dropping the stream */
         }
-      }
-    }
-  }, []);
+      };
 
-  useEffect(() => {
-    if (!enabled) return;
-    const controller = new AbortController();
-    stopRef.current = controller;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let closed = false;
-
-    const loop = async () => {
-      while (!closed && !controller.signal.aborted) {
-        try {
-          await connect(controller.signal);
-        } catch {
-          /* fall through to backoff */
-        }
-        if (closed || controller.signal.aborted) return;
-        await new Promise<void>((resolve) => {
-          timer = setTimeout(resolve, RECONNECT_MS);
-        });
-      }
+      // Browsers fire `error` followed by `close` for a single failure —
+      // schedule only one reconnect, otherwise every failure doubles the
+      // live sockets (each re-delivering the snapshot) and the overwritten
+      // timer handle can never be cleared on cleanup.
+      const scheduleReconnect = () => {
+        if (closed || timer !== undefined) return;
+        attempt += 1;
+        timer = setTimeout(connect, backoffMs(attempt));
+      };
+      socket.onclose = scheduleReconnect;
+      socket.onerror = scheduleReconnect;
     };
-    void loop();
+
+    connect();
 
     return () => {
       closed = true;
-      if (timer) clearTimeout(timer);
-      controller.abort();
-      stopRef.current = null;
+      if (timer !== undefined) {
+        clearTimeout(timer);
+        timer = undefined;
+      }
+      const socket = ws;
+      ws = null;
+      if (socket) {
+        // Detach first so close() itself cannot schedule a reconnect.
+        socket.onclose = null;
+        socket.onerror = null;
+        try {
+          socket.close();
+        } catch {
+          /* already closed */
+        }
+      }
     };
-  }, [enabled, connect]);
+  }, [enabled]);
 }

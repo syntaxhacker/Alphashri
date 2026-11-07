@@ -5,7 +5,8 @@
  * Short keys keep links compact:
  *   universe, tf, pattern (repeat), family (repeat), direction (repeat),
  *   status (repeat), quality, within, volume_confirmed, min_rr, base, range,
- *   gap52, pos, score, breakout, relvol, volm, avgvol, from, to, sort, symbol (a lone `symbol=` is the singular symbol filter; repeated
+ *   gap52, pos, score, breakout, relvol, volm, avgvol, hist (patterns per
+ *   symbol), from, to, sort, symbol (a lone `symbol=` is the singular symbol filter; repeated
  *   `symbol=` values are the multi-symbol filter), q, trendlines,
  *   compute_trendlines (`=0` only, when trendline computation is skipped).
  *   Compact comma-separated forms are also accepted on parse: `symbols=a,b`,
@@ -22,16 +23,24 @@ import { useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { PatternFilters, TrendlinesView } from "../types/chartPatterns";
 import { DEFAULT_PATTERN_FILTERS, DEFAULT_TIMEFRAME } from "../state/chartPatterns";
+import type { IndexGroup } from "../config/indexGroups";
 
 /** Parsed URL: active selection plus a partial filter patch (defaults omitted). */
 export interface ParsedPatternParams {
   universe: string | null;
   timeframe: string | null;
+  timeframes: string[] | null;
   lookback: number | null;
   /** False when `compute_trendlines=0`; true when `=1`; null when omitted. */
   computeTrendlines: boolean | null;
   /** Active workspace tab (`scan`|`watch`); null when omitted (defaults to scan). */
   tab: "scan" | "watch" | null;
+  /** Results view (`matrix`|`list`|`grid`); null when omitted (defaults to matrix). */
+  view: "matrix" | "list" | "grid" | null;
+  /** Index group filter (`all`|`big`|`others`); null when omitted (defaults to all). */
+  indexGroup: IndexGroup | null;
+  /** Open index-members drawer for this index id (null = closed). */
+  members: string | null;
   filters: Partial<PatternFilters>;
 }
 
@@ -39,22 +48,36 @@ export interface ParsedPatternParams {
 export interface PatternUrlState {
   universe: string;
   timeframe: string;
+  selectedTimeframes?: string[];
   lookbackBars: number | null;
   /** Omitted (compute) is the default; only `false` is written. */
   computeTrendlines?: boolean;
   /** Active workspace tab; only `watch` is written (`scan` is the default). */
   tab?: "scan" | "watch";
+  /** Results view; `list`/`grid` are written (`matrix` is the default). */
+  view?: "matrix" | "list" | "grid";
+  /** Index group; `big`/`others` are written (`all` is the default). */
+  indexGroup?: IndexGroup;
+  /** Open index-members drawer for this index id. */
+  members?: string | null;
   filters: PatternFilters;
 }
 
 export interface UsePatternUrlSyncArgs extends PatternUrlState {
   setUniverse: (universe: string) => void;
   setTimeframe: (timeframe: string) => void;
+  setSelectedTimeframes?: (timeframes: string[]) => void;
   setLookbackBars: (bars: number | null) => void;
   /** Optional so existing call sites keep compiling; the container provides it. */
   setComputeTrendlines?: (value: boolean) => void;
   /** Optional; when provided the `tab` param round-trips through the URL. */
   setTab?: (tab: "scan" | "watch") => void;
+  /** Optional; when provided the `view` param round-trips through the URL. */
+  setView?: (view: "matrix" | "list" | "grid") => void;
+  /** Optional; when provided the `igroup` param round-trips through the URL. */
+  setIndexGroup?: (group: IndexGroup) => void;
+  /** Optional; when provided the `members` param round-trips through the URL. */
+  setMembers?: (indexId: string | null) => void;
   applyFilters: (filters: Partial<PatternFilters>) => void;
 }
 
@@ -88,6 +111,10 @@ function multiParam(params: URLSearchParams, key: string, plural: string, upper 
 
 export function parsePatternParams(params: URLSearchParams): ParsedPatternParams {
   const filters: Partial<PatternFilters> = {};
+  // The custom scope is addressed by `universe=custom`; its constituent list
+  // must hydrate `filters.symbols` even when the URL carries a single
+  // `symbol=` (the compact serialization writes one key for one symbol).
+  const universeParam = params.get("universe") || null;
 
   const pattern = multiParam(params, "pattern", "patterns");
   if (pattern.length > 0) filters.pattern_id = pattern;
@@ -127,6 +154,10 @@ export function parsePatternParams(params: URLSearchParams): ParsedPatternParams
   const minAvgVolume10d = numberOrNull(params.get("avgvol"));
   if (minAvgVolume10d != null) filters.min_avg_volume_10d = minAvgVolume10d;
 
+  // Patterns-per-symbol view depth (1/3/5). Non-positive values mean "unset".
+  const history = numberOrNull(params.get("hist"));
+  if (history != null && history > 0) filters.history = Math.trunc(history);
+
   const from = params.get("from");
   if (from) filters.from_date = from;
   const to = params.get("to");
@@ -140,7 +171,10 @@ export function parsePatternParams(params: URLSearchParams): ParsedPatternParams
   // A compact `symbols=a,b,c` form is also accepted (hand-typed URLs).
   const symbols = multiParam(params, "symbol", "symbols", true);
   if (symbols.length > 1) filters.symbols = symbols;
-  else if (symbols.length === 1) filters.symbol = symbols[0];
+  else if (symbols.length === 1) {
+    if (universeParam === "custom") filters.symbols = symbols;
+    else filters.symbol = symbols[0];
+  }
 
   const q = params.get("q");
   if (q) filters.q = q;
@@ -174,9 +208,30 @@ export function parsePatternParams(params: URLSearchParams): ParsedPatternParams
         ? true
         : null;
 
+  const timeframes: string[] = [];
+  for (const raw of params.getAll("tf")) {
+    for (const part of raw.split(",")) {
+      const value = part.trim();
+      if (value && !timeframes.includes(value)) timeframes.push(value);
+    }
+  }
+
+  const rawView = params.get("view");
+  const view: "matrix" | "list" | "grid" | null =
+    rawView === "list" || rawView === "grid" || rawView === "matrix" ? rawView : null;
+  const rawGroup = params.get("igroup");
+  const indexGroup: IndexGroup | null =
+    rawGroup === "all" || rawGroup === "big" || rawGroup === "others" ? rawGroup : null;
+  const rawMembers = params.get("members");
+  const members = rawMembers ? rawMembers.trim().toUpperCase() : null;
+
   return {
-    universe: params.get("universe") || null,
-    timeframe: params.get("tf") || null,
+    universe: universeParam,
+    timeframe: timeframes.length > 0 ? timeframes[0] : null,
+    timeframes: timeframes.length > 0 ? timeframes : null,
+    view,
+    indexGroup,
+    members,
     lookback,
     computeTrendlines,
     tab: params.get("tab") === "watch" ? "watch" : params.get("tab") === "scan" ? "scan" : null,
@@ -193,7 +248,13 @@ export function buildPatternParams(state: PatternUrlState): URLSearchParams {
   const { filters } = state;
 
   if (state.universe) params.set("universe", state.universe);
-  if (state.timeframe && state.timeframe !== DEFAULT_TIMEFRAME) {
+  if (state.view && state.view !== "matrix") params.set("view", state.view);
+  if (state.indexGroup && state.indexGroup !== "all") params.set("igroup", state.indexGroup);
+  if (state.members) params.set("members", state.members);
+  const selected = state.selectedTimeframes ?? [state.timeframe];
+  if (selected.length > 1) {
+    params.set("tf", selected.join(","));
+  } else if (state.timeframe && state.timeframe !== DEFAULT_TIMEFRAME) {
     params.set("tf", state.timeframe);
   }
   if (state.lookbackBars != null) {
@@ -226,6 +287,9 @@ export function buildPatternParams(state: PatternUrlState): URLSearchParams {
   if (filters.to_date) params.set("to", filters.to_date);
   if (filters.sort && filters.sort !== DEFAULT_PATTERN_FILTERS.sort) {
     params.set("sort", filters.sort);
+  }
+  if (filters.history != null && filters.history !== DEFAULT_PATTERN_FILTERS.history) {
+    params.set("hist", String(filters.history));
   }
   if (filters.symbol) params.set("symbol", filters.symbol);
   for (const symbol of filters.symbols ?? []) params.append("symbol", symbol);
@@ -268,6 +332,7 @@ const PATTERN_PARAM_KEYS = new Set([
   "relvol",
   "volm",
   "avgvol",
+  "hist",
   "from",
   "to",
   "sort",
@@ -276,6 +341,9 @@ const PATTERN_PARAM_KEYS = new Set([
   "trendlines",
   "compute_trendlines",
   "tab",
+  "view",
+  "igroup",
+  "members",
 ]);
 
 /** True when a parsed URL actually carries any pattern param. */
@@ -286,6 +354,9 @@ function hasAnyPatternParam(parsed: ParsedPatternParams): boolean {
     parsed.lookback != null ||
     parsed.computeTrendlines != null ||
     parsed.tab != null ||
+    parsed.view != null ||
+    parsed.indexGroup != null ||
+    parsed.members != null ||
     Object.keys(parsed.filters).length > 0
   );
 }
@@ -312,15 +383,23 @@ export function filterValuesEqual(a: unknown, b: unknown): boolean {
 export function usePatternUrlSync({
   universe,
   timeframe,
+  selectedTimeframes,
   lookbackBars,
   computeTrendlines,
   tab,
+  view,
+  indexGroup,
+  members,
   filters,
   setUniverse,
   setTimeframe,
+  setSelectedTimeframes,
   setLookbackBars,
   setComputeTrendlines,
   setTab,
+  setView,
+  setIndexGroup,
+  setMembers,
   applyFilters,
 }: UsePatternUrlSyncArgs): void {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -348,12 +427,34 @@ export function usePatternUrlSync({
     }
 
     parsedRef.current = parsed;
-    if (parsed.universe) setUniverse(parsed.universe);
-    if (parsed.timeframe) setTimeframe(parsed.timeframe);
-    if (parsed.lookback != null) setLookbackBars(parsed.lookback);
-    if (parsed.computeTrendlines != null) setComputeTrendlines?.(parsed.computeTrendlines);
-    if (parsed.tab != null) setTab?.(parsed.tab);
-    if (Object.keys(parsed.filters).length > 0) applyFilters(parsed.filters);
+    if (parsed.universe && parsed.universe !== universe) setUniverse(parsed.universe);
+    const currentSelection = selectedTimeframes ?? [timeframe];
+    if (parsed.timeframes) {
+      if (!filterValuesEqual(currentSelection, parsed.timeframes)) {
+        if (setSelectedTimeframes) setSelectedTimeframes(parsed.timeframes);
+        else setTimeframe(parsed.timeframes[0]);
+      }
+    } else if (parsed.timeframe && parsed.timeframe !== timeframe) {
+      setTimeframe(parsed.timeframe);
+    }
+    if (parsed.lookback != null && parsed.lookback !== lookbackBars) setLookbackBars(parsed.lookback);
+    if (
+      parsed.computeTrendlines != null &&
+      parsed.computeTrendlines !== computeTrendlines
+    ) {
+      setComputeTrendlines?.(parsed.computeTrendlines);
+    }
+    if (parsed.tab != null && parsed.tab !== tab) setTab?.(parsed.tab);
+    if (parsed.view != null && parsed.view !== view) setView?.(parsed.view);
+    if (parsed.indexGroup != null && parsed.indexGroup !== indexGroup) {
+      setIndexGroup?.(parsed.indexGroup);
+    }
+    if (parsed.members != null && parsed.members !== members) setMembers?.(parsed.members);
+    const filtersDiffer = Object.entries(parsed.filters).some(([key, value]) => {
+      const current = (filters as Record<string, unknown>)[key];
+      return !filterValuesEqual(current, value);
+    });
+    if (filtersDiffer) applyFilters(parsed.filters);
     // Intentionally mount-only: read the URL once, then let changes write back.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -370,21 +471,39 @@ export function usePatternUrlSync({
       } else {
         const universeOk = !parsed.universe || universe === parsed.universe;
         const timeframeOk = !parsed.timeframe || timeframe === parsed.timeframe;
+        const timeframesOk =
+          !parsed.timeframes ||
+          filterValuesEqual(selectedTimeframes ?? [timeframe], parsed.timeframes);
         const lookbackOk = parsed.lookback == null || lookbackBars === parsed.lookback;
         const computeOk =
           parsed.computeTrendlines == null ||
           (computeTrendlines ?? true) === parsed.computeTrendlines;
         const tabOk = parsed.tab == null || (tab ?? "scan") === parsed.tab;
+        const viewOk = parsed.view == null || (view ?? "matrix") === parsed.view;
+        const indexGroupOk =
+          parsed.indexGroup == null || (indexGroup ?? "all") === parsed.indexGroup;
+        const membersOk = parsed.members == null || (members ?? null) === parsed.members;
         const filtersOk = Object.entries(parsed.filters).every(([key, value]) => {
           const current = (filters as Record<string, unknown>)[key];
           return filterValuesEqual(current, value);
         });
-        if (!(universeOk && timeframeOk && lookbackOk && computeOk && tabOk && filtersOk)) return; // wait for adoption
+        if (!(universeOk && timeframeOk && timeframesOk && lookbackOk && computeOk && tabOk && viewOk && indexGroupOk && membersOk && filtersOk)) return; // wait for adoption
         hydratedRef.current = true;
       }
     }
 
-    const next = buildPatternParams({ universe, timeframe, lookbackBars, computeTrendlines, tab, filters });
+    const next = buildPatternParams({
+      universe,
+      timeframe,
+      selectedTimeframes: selectedTimeframes ?? [timeframe],
+      lookbackBars,
+      computeTrendlines,
+      tab,
+      view,
+      indexGroup,
+      members,
+      filters,
+    });
     // Preserve unrelated params (e.g. the screener's `?screener=`) untouched.
     for (const [key, value] of searchParams.entries()) {
       if (!PATTERN_PARAM_KEYS.has(key)) next.append(key, value);
@@ -396,7 +515,7 @@ export function usePatternUrlSync({
     // Intentionally keyed on the synced state; `searchParams`/`setSearchParams`
     // are read imperatively and would re-trigger on every navigation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [universe, timeframe, lookbackBars, computeTrendlines, tab, filters]);
+  }, [universe, timeframe, selectedTimeframes, lookbackBars, computeTrendlines, tab, view, indexGroup, members, filters]);
 
   // Back/forward (or manual) navigation: once hydrated, adopt a URL that
   // differs from what this hook last wrote. Setter calls are diffed against
@@ -410,7 +529,14 @@ export function usePatternUrlSync({
 
     const parsed = parsePatternParams(searchParams);
     if (parsed.universe && parsed.universe !== universe) setUniverse(parsed.universe);
-    if (parsed.timeframe && parsed.timeframe !== timeframe) setTimeframe(parsed.timeframe);
+    if (parsed.timeframes) {
+      if (!filterValuesEqual(selectedTimeframes ?? [timeframe], parsed.timeframes)) {
+        if (setSelectedTimeframes) setSelectedTimeframes(parsed.timeframes);
+        else if (parsed.timeframes[0] !== timeframe) setTimeframe(parsed.timeframes[0]);
+      }
+    } else if (parsed.timeframe && parsed.timeframe !== timeframe) {
+      setTimeframe(parsed.timeframe);
+    }
     if ((parsed.lookback ?? null) !== (lookbackBars ?? null)) {
       setLookbackBars(parsed.lookback);
     }
@@ -419,6 +545,15 @@ export function usePatternUrlSync({
     }
     if (parsed.tab != null && parsed.tab !== (tab ?? "scan")) {
       setTab?.(parsed.tab);
+    }
+    if (parsed.view != null && parsed.view !== (view ?? "matrix")) {
+      setView?.(parsed.view);
+    }
+    if (parsed.indexGroup != null && parsed.indexGroup !== (indexGroup ?? "all")) {
+      setIndexGroup?.(parsed.indexGroup);
+    }
+    if (parsed.members !== (members ?? null)) {
+      setMembers?.(parsed.members);
     }
     const entries = Object.entries(parsed.filters);
     if (entries.length > 0) {

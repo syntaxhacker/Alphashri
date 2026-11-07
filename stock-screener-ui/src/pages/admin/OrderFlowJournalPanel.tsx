@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePolling } from "@/hooks/usePolling";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Alert, Badge, Box, Button, Group, Loader, Select, Stack, Text } from "@/ui";
 import { IconRefresh } from "@tabler/icons-react";
@@ -7,7 +8,7 @@ import { CompactPanel, CompactStat, CompactStatGrid } from "../../components/com
 import { TanStackTable } from "../../components/common/TanStackTable";
 import type { OrderFlowJournalRow, OrderFlowJournalSummary } from "../../types/admin";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+import { API_BASE } from "@/api/config";
 const REFRESH_MS = 60_000;
 
 /** Broker labels, including the "mixed" case that must stand out. */
@@ -91,10 +92,7 @@ export function OrderFlowJournalPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    const timer = setInterval(() => void load(day), REFRESH_MS);
-    return () => clearInterval(timer);
-  }, [load, day]);
+  usePolling(() => void load(day), REFRESH_MS, { skipIfRunning: false });
 
   const rows = summary?.rows ?? [];
 

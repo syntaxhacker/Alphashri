@@ -230,7 +230,7 @@ export default function ReplayShell({ plugin, headerExtra }: { plugin: ReplayStr
   const showRunHint = manual && runNonce === 0;
 
   return (
-    <Box sx={{ p: 2, width: "100%" }} data-testid={plugin.mode === "timeline" ? "tick-replay" : "replay-strategy"}>
+    <Box sx={{ p: 1, width: "100%" }} data-testid={plugin.mode === "timeline" ? "tick-replay" : "replay-strategy"}>
       <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", mb: 0.5 }}>
         <Typography variant="h6" sx={{ color: "#E5E7EB" }}>{plugin.label}</Typography>
         {headerExtra}
@@ -288,7 +288,7 @@ export default function ReplayShell({ plugin, headerExtra }: { plugin: ReplayStr
             />
           </Card>
           <Card elevation={0} sx={{ bgcolor: palette.NT_BG, border: `1px solid ${palette.NT_GRID}`, overflow: "hidden" }}>
-            <Box sx={{ p: 1.5, bgcolor: "#111", borderBottom: `1px solid ${palette.NT_GRID}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <Box sx={{ p: 1, bgcolor: "#111", borderBottom: `1px solid ${palette.NT_GRID}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <Typography variant="subtitle2" sx={{ color: palette.PRIMARY }}>
                 Trades — {closed.length} closed · net {net > 0 ? "+" : ""}{net.toFixed(1)} pts
               </Typography>
@@ -307,12 +307,12 @@ export default function ReplayShell({ plugin, headerExtra }: { plugin: ReplayStr
           <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap", alignItems: "center" }}>
             {paramControls}
             {!plugin.panel && <Chip size="small" label={`${trades.length} trades`} sx={{ bgcolor: "#1F2937", color: palette.POSITIVE }} />}
-            {loading && <Chip size="small" label="loading ticks…" sx={{ bgcolor: "#1F2937", color: "#58A6FF" }} />}
+            {loading && <Chip size="small" label="loading ticks…" sx={{ bgcolor: "#1F2937", color: palette.PRIMARY }} />}
             {bundle?.error && <Chip size="small" label={bundle.error} color="error" />}
           </Stack>
           {plugin.panel?.(bundle ?? EMPTY_BUNDLE, raw)}
           {!loading && trades.length === 0 && (
-            <Box sx={{ p: 2, color: palette.TEXT_MUTED, fontSize: 12 }}>No trades in this view.</Box>
+            <Box sx={{ p: 1, color: palette.TEXT_MUTED, fontSize: 12 }}>No trades in this view.</Box>
           )}
           {trades.map((tr, i) => (
             <TradeReplayCard

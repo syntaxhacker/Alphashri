@@ -1,345 +1,230 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
-import ChartView from "./ChartView";
-import { fetchChartPreview } from "../../api/chartPreview";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { UIProvider } from "@/ui";
-import { useParams, useNavigate } from "react-router-dom";
-import { setupBrowserMocks } from "../../test-utils/setupBrowser";
+import type { ChartPayload, PatternHitDTO, TFSpec } from "@/types/chartPatterns";
+import ChartView from "./ChartView";
+import { fetchSymbolChart, fetchTimeframes } from "@/api/chartPatterns";
 
-// Mock lightweight-charts (TradingViewChart)
-const mockRemove = vi.fn();
-const mockChartApi = {
-  addSeries: () => ({
-    setData: vi.fn(),
-    applyOptions: vi.fn(),
-    createPriceLine: vi.fn(),
-    removePriceLine: vi.fn(),
-    priceToCoordinate: () => 100,
-    coordinateToPrice: () => 100,
-    priceScale: () => ({ applyOptions: vi.fn() }),
-  }),
-  timeScale: () => ({
-    setVisibleRange: vi.fn(),
-    setVisibleLogicalRange: vi.fn(),
-    fitContent: vi.fn(),
-    timeToCoordinate: () => 100,
-    subscribeVisibleLogicalRangeChange: vi.fn(),
-    unsubscribeVisibleLogicalRangeChange: vi.fn(),
-  }),
-  applyOptions: vi.fn(),
-  remove: mockRemove,
-  subscribeClick: vi.fn(),
-  unsubscribeClick: vi.fn(),
+vi.mock("@/api/chartPatterns", () => ({
+  fetchSymbolChart: vi.fn(),
+  fetchTimeframes: vi.fn(),
+}));
+
+vi.mock("@/components/patterns/PatternTradingViewChart", () => ({
+  PatternTradingViewChart: () => <div data-testid="patterns-tv-chart" />,
+}));
+
+// Native-select stub so the timeframe wiring is deterministic (the real MUI
+// Select needs popup interaction). Same test id as the real control.
+vi.mock("@/components/patterns/ChartTimeframeSelect", () => ({
+  ChartTimeframeSelect: ({ timeframes, value, onChange }: any) => {
+    const source =
+      (timeframes as any[]).length > 0 ? (timeframes as any[]) : [{ id: value, label: value }];
+    return (
+      <select
+        data-testid="chart-timeframe-select"
+        aria-label="Timeframe"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {source.map((tf: any) => (
+          <option key={tf.id} value={tf.id}>
+            {tf.label || tf.id}
+          </option>
+        ))}
+      </select>
+    );
+  },
+}));
+
+const TIMEFRAMES: TFSpec[] = [
+  { id: "1D", label: "1D" },
+  { id: "1W", label: "1W" },
+  { id: "1h", label: "1h" },
+  { id: "15m", label: "15m" },
+] as TFSpec[];
+
+const HIT: PatternHitDTO = {
+  id: 7,
+  symbol: "TEST",
+  name: "Test Industries",
+  timeframe: "1D",
+  pattern_id: "falling_wedge",
+  pattern_name: "Falling Wedge",
+  family: "reversal",
+  direction: "bullish",
+  status: "confirmed",
+  quality: "strong",
+  confidence: 78.4,
+  start_date: "2026-04-26",
+  end_date: "2026-09-26",
+  start_price: 100,
+  end_price: 112.6,
+  breakout_level: 112.6,
+  target: 129.6,
+  stop: 102.5,
+  rr: 1.7,
+  bars_ago: 1,
+  volume_confirmed: true,
+  trendlines: [],
+  trend_lines: [],
+  notes: "Higher lows into a falling wedge.",
+  pivots: [],
 };
 
-vi.mock("lightweight-charts", () => ({
-  ColorType: { Solid: "solid" },
-  CandlestickSeries: {},
-  HistogramSeries: {},
-  LineSeries: {},
-  createSeriesMarkers: vi.fn(() => ({ setMarkers: vi.fn() })),
-  createChart: vi.fn(() => mockChartApi),
-}));
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  setupBrowserMocks();
-});
-
-afterEach(() => {
-  cleanup();
-});
-
-// Mock API
-vi.mock("../../api/chartPreview", () => ({
-  fetchChartPreview: vi.fn(),
-}));
-
-vi.mock("react-router-dom", () => ({
-  useParams: vi.fn(),
-  useNavigate: vi.fn(),
-}));
-
-vi.mock("@/ui", async (importOriginal) => {
-  const actual = await importOriginal();
+function chartPayload(overrides: Partial<ChartPayload> = {}): ChartPayload {
   return {
-    ...actual,
-    useColorScheme: vi.fn(() => ({ colorScheme: "light" })),
-  };
-});
-
-describe("ChartView", () => {
-  const mockChartData = {
     symbol: "TEST",
+    timeframe: "1D",
     candles: [
-      { time: "2025-06-15 09:15:00", open: 100, high: 101, low: 99, close: 100.5, volume: 1000 },
+      { t: "2026-09-25T00:00:00+05:30", o: 100, h: 105, l: 99, c: 104, v: 1000 },
+      { t: "2026-09-26T00:00:00+05:30", o: 104, h: 113, l: 103, c: 112, v: 1200 },
     ],
-    orb_zones: [],
-    pivot_levels: [],
-    high_52w: 150,
+    overlays: [],
+    trend_lines: [],
+    hits: [HIT],
+    ...overrides,
   };
+}
 
-  const mockNavigate = vi.fn();
+function renderPage(initial = "/chart/TEST") {
+  return render(
+    <UIProvider>
+      <MemoryRouter initialEntries={[initial]}>
+        <Routes>
+          <Route path="/chart/:symbol?" element={<ChartView />} />
+        </Routes>
+      </MemoryRouter>
+    </UIProvider>,
+  );
+}
 
+describe("ChartView (pattern workspace)", () => {
   beforeEach(() => {
-    vi.mocked(useNavigate).mockReturnValue(mockNavigate);
-    mockRemove.mockClear();
+    vi.clearAllMocks();
+    vi.mocked(fetchTimeframes).mockResolvedValue(TIMEFRAMES);
+    vi.mocked(fetchSymbolChart).mockResolvedValue(chartPayload());
   });
+  afterEach(() => cleanup());
 
-  it("renders chart view container", () => {
-    vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
-    vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
-    render(
-      <UIProvider>
-        <ChartView />
-      </UIProvider>,
-    );
+  it("renders the page with the symbol title", async () => {
+    renderPage();
     expect(screen.getByTestId("chart-view")).toBeInTheDocument();
+    expect(screen.getByTestId("chart-title")).toHaveTextContent("TEST");
+    await waitFor(() => expect(screen.getByTestId("patterns-tv-chart")).toBeInTheDocument());
   });
 
-  it("fetches chart data on mount with symbol from params", async () => {
-    vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
-    vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
-    render(
-      <UIProvider>
-        <ChartView />
-      </UIProvider>,
+  it("loads the symbol chart with live detection on the default timeframe", async () => {
+    renderPage();
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "1D", {
+        detectPatterns: true,
+        computeTrendlines: true,
+      }),
     );
-    await waitFor(() => {
-      expect(fetchChartPreview).toHaveBeenCalledWith("TEST", 15, 5, 45);
-    });
   });
 
-  it("shows loading state initially", async () => {
-    vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
-    vi.mocked(fetchChartPreview).mockImplementation(
-      () => new Promise((resolve) => setTimeout(resolve, 1000)),
+  it("shows a loader while the first fetch is in flight", async () => {
+    vi.mocked(fetchSymbolChart).mockImplementation(
+      () => new Promise(() => {}) as Promise<ChartPayload>,
     );
-    render(
-      <UIProvider>
-        <ChartView />
-      </UIProvider>,
-    );
-    await waitFor(() => {
-      expect(screen.getByTestId("chart-loading")).toBeInTheDocument();
-    });
+    renderPage();
+    expect(screen.getByTestId("chart-loading")).toBeInTheDocument();
   });
 
-  it("handles fetch error", async () => {
-    vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
-    vi.mocked(fetchChartPreview).mockRejectedValue(new Error("Failed to fetch"));
-    render(
-      <UIProvider>
-        <ChartView />
-      </UIProvider>,
+  it("renders the detected pattern in the right-hand panel", async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId("patterns-fullscreen-panel")).toBeInTheDocument());
+    expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent(
+      "Falling Wedge",
     );
-    await waitFor(() => {
-      expect(screen.getByTestId("chart-error")).toBeInTheDocument();
-    });
   });
 
-  it("renders timeframe selector", async () => {
-    vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
-    vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
-    render(
-      <UIProvider>
-        <ChartView />
-      </UIProvider>,
+  it("switches timeframe and refetches on the new frame", async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId("chart-timeframe-select")).toBeInTheDocument());
+
+    fireEvent.change(screen.getByTestId("chart-timeframe-select"), { target: { value: "1W" } });
+
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "1W", {
+        detectPatterns: true,
+        computeTrendlines: true,
+      }),
     );
-    await waitFor(() => {
-      expect(screen.getByTestId("chart-timeframe-select")).toBeInTheDocument();
-    });
   });
 
-  it("changes timeframe when selector changes", async () => {
-    const user = userEvent.setup();
-    vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
-    vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
-    render(
-      <UIProvider>
-        <ChartView />
-      </UIProvider>,
+  it("shows the as-of banner and passes the replay cutoff to the API", async () => {
+    renderPage("/chart/TEST?asof=2026-09-20T15:30");
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith(
+        "TEST",
+        "1D",
+        expect.objectContaining({ asOf: "2026-09-20T15:30" }),
+      ),
     );
-    await waitFor(() => {
-      expect(fetchChartPreview).toHaveBeenCalledWith("TEST", 15, 5, 45);
-    });
-    const outer = screen.getByTestId("chart-timeframe-select");
-    const combo = outer.querySelector('[role="combobox"]') ?? outer;
-    await user.click(combo as Element);
-    const option = await screen.findByRole("option", { name: "5m" });
-    await user.click(option);
-    expect(fetchChartPreview).toHaveBeenCalledWith("TEST", 5, 5, 45);
+    expect(screen.getByTestId("patterns-fullscreen-asof-banner")).toBeInTheDocument();
   });
 
-  it("renders OR minutes selector", async () => {
-    vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
-    vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
-    render(
-      <UIProvider>
-        <ChartView />
-      </UIProvider>,
-    );
-    await waitFor(() => {
-      expect(screen.getByTestId("chart-or-select")).toBeInTheDocument();
-    });
+  it("shows the empty state when the timeframe has candles but no patterns", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(chartPayload({ hits: [] }));
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId("chart-no-patterns")).toBeInTheDocument());
+    expect(screen.queryByTestId("patterns-fullscreen-panel")).toBeNull();
   });
 
-  it("changes OR minutes when selector changes", async () => {
-    const user = userEvent.setup();
-    vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
-    vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
-    render(
-      <UIProvider>
-        <ChartView />
-      </UIProvider>,
+  it("offers an alternative timeframe from the empty state", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(chartPayload({ hits: [] }));
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByTestId("chart-empty-timeframe-1W")).toBeInTheDocument(),
     );
-    await waitFor(() => {
-      expect(fetchChartPreview).toHaveBeenCalledWith("TEST", 15, 5, 45);
-    });
-    const outer = screen.getByTestId("chart-or-select");
-    const combo = outer.querySelector('[role="combobox"]') ?? outer;
-    await user.click(combo as Element);
-    const option = await screen.findByRole("option", { name: "OR 30m" });
-    await user.click(option);
-    expect(fetchChartPreview).toHaveBeenCalledWith("TEST", 15, 5, 30);
+
+    fireEvent.click(screen.getByTestId("chart-empty-timeframe-1W"));
+
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "1W", expect.any(Object)),
+    );
   });
 
-  it("shows toggle for pivots", async () => {
-    vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
-    vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
-    render(
-      <UIProvider>
-        <ChartView />
-      </UIProvider>,
+  it("shows the no-data state when no candles come back", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      chartPayload({ candles: [], hits: [] }),
     );
-    await waitFor(() => {
-      expect(screen.getByTestId("chart-pivots-checkbox")).toBeInTheDocument();
-    });
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId("chart-empty")).toBeInTheDocument());
   });
 
-  it("shows toggle for 52w high", async () => {
-    vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
-    vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
-    render(
-      <UIProvider>
-        <ChartView />
-      </UIProvider>,
-    );
-    await waitFor(() => {
-      expect(screen.getByTestId("chart-52w-checkbox")).toBeInTheDocument();
-    });
+  it("shows the error state and retries the fetch", async () => {
+    vi.mocked(fetchSymbolChart).mockRejectedValueOnce(new Error("Network down"));
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId("chart-error")).toBeInTheDocument());
+    expect(screen.getByText("Network down")).toBeInTheDocument();
+
+    vi.mocked(fetchSymbolChart).mockResolvedValue(chartPayload());
+    fireEvent.click(screen.getByTestId("chart-retry-btn"));
+
+    await waitFor(() => expect(screen.getByTestId("patterns-tv-chart")).toBeInTheDocument());
   });
 
-  it("toggles pivots checkbox", async () => {
-    const user = userEvent.setup();
-    vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
-    vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
-    render(
-      <UIProvider>
-        <ChartView />
-      </UIProvider>,
-    );
-    await waitFor(() => {
-      expect(screen.getByTestId("candlestick-chart")).toBeInTheDocument();
-    });
-    const checkbox = screen.getByTestId("chart-pivots-checkbox") as HTMLInputElement;
-    expect(checkbox.checked).toBe(false);
-    await user.click(checkbox);
-    expect(checkbox.checked).toBe(true);
+  it("shows the missing-symbol state on /chart", async () => {
+    renderPage("/chart");
+    expect(screen.getByTestId("chart-view-error")).toBeInTheDocument();
+    expect(screen.getByText("Back to Screener")).toBeInTheDocument();
   });
 
-  it("navigates back when goBack is called", async () => {
-    const user = userEvent.setup();
-    vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
-    vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
-    render(
-      <UIProvider>
-        <ChartView />
-      </UIProvider>,
-    );
-    await waitFor(() => {
-      expect(screen.getByTestId("chart-back-btn")).toBeInTheDocument();
-    });
-    const backBtn = screen.getByTestId("chart-back-btn");
-    await user.click(backBtn);
-    expect(mockNavigate).toHaveBeenCalledWith(-1);
+  it("keeps the back button in the page header", async () => {
+    renderPage();
+    expect(screen.getByTestId("chart-back-btn")).toBeInTheDocument();
   });
 
-  it("displays chart footer with data", async () => {
-    vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
-    vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
-    render(
-      <UIProvider>
-        <ChartView />
-      </UIProvider>,
+  it("falls back to 1D when the URL timeframe is unknown", async () => {
+    renderPage("/chart/TEST?tf=nope");
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "1D", expect.any(Object)),
     );
-    await waitFor(() => {
-      expect(screen.getByTestId("chart-footer")).toBeInTheDocument();
-    });
-    expect(screen.getByText(/1 candles/)).toBeInTheDocument();
-    expect(screen.getByText(/TF: 15m/)).toBeInTheDocument();
-    expect(screen.getByText(/OR: 45m/)).toBeInTheDocument();
-    expect(screen.getByText(/52W High: ₹150\.00/)).toBeInTheDocument();
-  });
-
-  it("renders tradingview chart on data load", async () => {
-    vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
-    vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
-    render(
-      <UIProvider>
-        <ChartView />
-      </UIProvider>,
-    );
-    await waitFor(() => {
-      expect(screen.getByTestId("tradingview-chart")).toBeInTheDocument();
-    });
-  });
-
-  it("removes chart instance on cleanup", async () => {
-    vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
-    vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
-    const { unmount } = render(
-      <UIProvider>
-        <ChartView />
-      </UIProvider>,
-    );
-    await waitFor(() => {
-      expect(screen.getByTestId("tradingview-chart")).toBeInTheDocument();
-    });
-    unmount();
-    expect(mockRemove).toHaveBeenCalled();
-  });
-
-  it("shows retry button in error state", async () => {
-    vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
-    vi.mocked(fetchChartPreview).mockRejectedValue(new Error("Network error"));
-    render(
-      <UIProvider>
-        <ChartView />
-      </UIProvider>,
-    );
-    await waitFor(() => {
-      expect(screen.getByTestId("chart-retry-btn")).toBeInTheDocument();
-    });
-  });
-
-  it("navigates back when symbol param is missing", async () => {
-      const user = userEvent.setup();
-    const mockNavigate = vi.fn();
-    vi.mocked(useNavigate).mockReturnValue(mockNavigate);
-    vi.mocked(useParams).mockReturnValue({ symbol: "" });
-    render(
-      <UIProvider>
-        <ChartView />
-      </UIProvider>,
-    );
-    await waitFor(() => {
-      expect(screen.getByTestId("chart-view-error")).toBeInTheDocument();
-    });
-    await user.click(screen.getByText("Back to Screener"));
-    expect(mockNavigate).toHaveBeenCalledWith("/");
   });
 });

@@ -1,22 +1,15 @@
 import { useLocation } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
 import { useDisclosure } from "@/ui/hooks";
-import { NavbarNested } from "./NavbarNested";
-import { NotificationsPanel, useSurgeAlertTotal } from "../notifications/NotificationsPanel";
-import { MarketTicker } from "./MarketTicker";
-import NewsPanel2 from "../news/NewsPanel2";
-import MuiAppBar from "@mui/material/AppBar";
+import { Box, Divider } from "@/ui";
 import MuiDrawer from "@mui/material/Drawer";
-import Toolbar from "@mui/material/Toolbar";
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
-import Badge from "@mui/material/Badge";
-import MenuIcon from "@mui/icons-material/Menu";
-import NotificationsIcon from "@mui/icons-material/Notifications";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTheme } from "@mui/material/styles";
-import { useState } from "react";
+import { IconMenu2 } from "@tabler/icons-react";
+import { NavbarNested } from "./NavbarNested";
+import { SidebarHeader } from "./SidebarHeader";
+import { NotificationsPanel, useSurgeAlertTotal } from "../notifications/NotificationsPanel";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -27,72 +20,96 @@ export function AppLayout({ children }: AppLayoutProps) {
   const theme = useTheme();
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure();
   const [desktopCollapsed, { toggle: toggleDesktop }] = useDisclosure(false);
+  // Only one navigation tree is mounted at a time: the hidden permanent drawer
+  // used to keep all 19 links (and the news poller) alive on phones.
+  const isDesktop = useMediaQuery(theme.breakpoints.up("md"), { noSsr: true });
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifRefreshKey, setNotifRefreshKey] = useState(0);
   const surgeTotal = useSurgeAlertTotal(notifRefreshKey);
   const navWidth = desktopCollapsed ? 64 : 200;
 
-  const handleNotifOpen = () => setNotifOpen(true);
-  const handleNotifClose = () => {
+  // The desk dock drawer is portaled to <body>, outside #app-shell; publish the
+  // nav width on the root so the bottom sheet aligns with the main column.
+  useEffect(() => {
+    document.documentElement.style.setProperty("--app-nav-width", `${navWidth}px`);
+    return () => {
+      document.documentElement.style.removeProperty("--app-nav-width");
+    };
+  }, [navWidth]);
+
+  const handleNotifOpen = useCallback(() => setNotifOpen(true), []);
+  const handleNotifClose = useCallback(() => {
     setNotifOpen(false);
     setNotifRefreshKey((key) => key + 1);
-  };
+  }, []);
 
   const drawerContent = (
-    <NavbarNested activePath={location.pathname} collapsed={desktopCollapsed} onToggleCollapse={toggleDesktop} onMobileNavigate={closeMobile} />
+    <NavbarNested
+      activePath={location.pathname}
+      collapsed={desktopCollapsed}
+      onMobileNavigate={closeMobile}
+    />
   );
 
   return (
-    <Box sx={{ display: "flex", height: "100vh", overflow: "hidden", bgcolor: "background.default" }} id="app-shell" data-testid="app-shell">
-      <MuiAppBar position="fixed" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }} id="app-header" data-testid="app-header">
-        <Toolbar>
-          <IconButton color="inherit" size="small" edge="start" onClick={toggleMobile} sx={{ display: { md: "none" }, mr: 1 }} aria-label="Toggle navigation">
-            <MenuIcon />
-          </IconButton>
-          <IconButton color="inherit" size="small" edge="start" onClick={toggleDesktop} sx={{ display: { xs: "none", md: "inline-flex" }, mr: 1 }} aria-label="Toggle sidebar">
-            <MenuIcon />
-          </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 700, letterSpacing: "-0.01em" }} id="app-logo" data-testid="app-logo">
-            Alphashri
-          </Typography>
-          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-            <MarketTicker />
-          </Box>
-          <NewsPanel2 />
-          <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-            <Tooltip title={surgeTotal > 0 ? `${surgeTotal} surge alerts` : "Notifications"}>
-              <IconButton
-                color="inherit"
-                onClick={handleNotifOpen}
-                data-testid="notif-bell"
-                aria-label={surgeTotal > 0 ? `Notifications, ${surgeTotal} surge alerts` : "Notifications"}
-              >
-                <Badge
-                  color="error"
-                  badgeContent={surgeTotal > 99 ? "99+" : surgeTotal}
-                  invisible={surgeTotal === 0}
-                  data-testid="notif-badge"
-                >
-                  <NotificationsIcon />
-                </Badge>
-              </IconButton>
-            </Tooltip>
-          </Stack>
-        </Toolbar>
-      </MuiAppBar>
+    <Box
+      sx={{
+        display: "flex",
+        height: "100vh",
+        overflow: "hidden",
+        bgcolor: "background.default",
+      }}
+      id="app-shell"
+      data-testid="app-shell"
+    >
+      {/* No top app bar: on narrow viewports the rail is a temporary drawer, so
+          a floating trigger replaces the header hamburger without a bar. */}
+      <IconButton
+        aria-label="Toggle navigation"
+        onClick={toggleMobile}
+        data-testid="app-mobile-nav-toggle"
+        sx={{
+          display: { xs: "inline-flex", md: "none" },
+          position: "fixed",
+          top: 8,
+          left: 8,
+          zIndex: (t) => t.zIndex.drawer - 1,
+          width: 36,
+          height: 36,
+          bgcolor: "background.paper",
+          border: 1,
+          borderColor: "divider",
+          boxShadow: 2,
+          "&:hover": { bgcolor: "action.hover" },
+        }}
+      >
+        <IconMenu2 size={18} />
+      </IconButton>
 
       <NotificationsPanel opened={notifOpen} onClose={handleNotifClose} />
 
+      {!isDesktop ? (
       <MuiDrawer
         variant="temporary"
         open={mobileOpened}
         onClose={closeMobile}
-        sx={{ display: { xs: "block", md: "none" }, "& .MuiDrawer-paper": { width: 200, boxSizing: "border-box" } }}
+        sx={{
+          display: { xs: "block", md: "none" },
+          "& .MuiDrawer-paper": { width: 220, boxSizing: "border-box" },
+        }}
       >
-        <Toolbar />
+        <SidebarHeader
+          mobile
+          surgeTotal={surgeTotal}
+          onToggleCollapse={toggleDesktop}
+          onOpenNotifications={handleNotifOpen}
+        />
+        <Divider />
         {drawerContent}
       </MuiDrawer>
+      ) : null}
 
+      {isDesktop ? (
       <MuiDrawer
         variant="permanent"
         id="app-navbar"
@@ -104,19 +121,53 @@ export function AppLayout({ children }: AppLayoutProps) {
           "& .MuiDrawer-paper": {
             width: navWidth,
             boxSizing: "border-box",
-            transition: theme.transitions.create("width", { easing: theme.transitions.easing.sharp, duration: theme.transitions.duration.enteringScreen }),
-            overflowX: "hidden",
+            transition: theme.transitions.create("width", {
+              easing: theme.transitions.easing.sharp,
+              duration: theme.transitions.duration.enteringScreen,
+            }),
+            // The nav body owns the only scrollbar: the drawer paper is just a
+            // fixed-width flex column (header + nav + footer).
+            overflow: "hidden",
           },
         }}
         open
       >
-        <Toolbar />
+        <SidebarHeader
+          rail={desktopCollapsed}
+          surgeTotal={surgeTotal}
+          onToggleCollapse={toggleDesktop}
+          onOpenNotifications={handleNotifOpen}
+        />
+        <Divider />
         {drawerContent}
       </MuiDrawer>
+      ) : null}
 
-      <Box component="main" sx={{ flexGrow: 1, minWidth: 0, minHeight: 0, overflow: "auto", bgcolor: "background.default", display: "flex", flexDirection: "column" }} id="app-main" data-testid="app-main">
-        <Toolbar />
-        <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", width: "100%", p: 0, m: 0 }}>
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          minWidth: 0,
+          minHeight: 0,
+          overflow: "auto",
+          bgcolor: "background.default",
+          display: "flex",
+          flexDirection: "column",
+        }}
+        id="app-main"
+        data-testid="app-main"
+      >
+        <Box
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
+            width: "100%",
+            p: 0,
+            m: 0,
+          }}
+        >
           {children}
         </Box>
       </Box>

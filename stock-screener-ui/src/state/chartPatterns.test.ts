@@ -52,6 +52,7 @@ import {
   selectSymbols,
   CUSTOM_UNIVERSE,
   setFilter,
+  setFilters,
   setLookbackBars,
   setComputeTrendlines,
   resetFilters,
@@ -69,6 +70,7 @@ import {
   setJob,
   loadSymbolDetail,
   hasRestrictiveFilter,
+  sortStreamedHits,
 } from "./chartPatterns";
 
 const mocked = {
@@ -397,6 +399,26 @@ describe("filters", () => {
     );
   });
 
+  it("setFilter sort=distance is coerced to confidence on the wire (never sent to /results or /summary)", async () => {
+    setUniverse("nifty500");
+    setFilter("sort", "distance");
+    await flush();
+    expect(getChartPatternsState().filters.sort).toBe("distance");
+    // The UI keeps `distance`, but the wire query must never carry it.
+    expect(mocked.fetchResults).toHaveBeenCalledWith(
+      expect.objectContaining({ sort: "confidence" }),
+    );
+    expect(mocked.fetchSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ sort: "confidence" }),
+    );
+    expect(mocked.fetchResults).not.toHaveBeenCalledWith(
+      expect.objectContaining({ sort: "distance" }),
+    );
+    expect(mocked.fetchSummary).not.toHaveBeenCalledWith(
+      expect.objectContaining({ sort: "distance" }),
+    );
+  });
+
   it("setFilter symbols + q persist and forward to results + summary", async () => {
     setFilter("symbols", ["SBIN", "TCS"]);
     setFilter("q", "bank");
@@ -465,6 +487,79 @@ describe("filters", () => {
   it("min_confidence defaults to null", () => {
     expect(DEFAULT_PATTERN_FILTERS.min_confidence).toBeNull();
     expect(DEFAULT_PATTERN_FILTERS.min_breakout_score).toBeNull();
+  });
+});
+
+describe("sortStreamedHits", () => {
+  function makeHit(id: number, overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
+    return {
+      id,
+      symbol: `S${id}`,
+      name: null,
+      timeframe: "1D",
+      pattern_id: "falling_wedge",
+      pattern_name: "Falling Wedge",
+      family: "reversal",
+      direction: "bullish",
+      status: "confirmed",
+      quality: "strong",
+      confidence: 50,
+      start_date: "2026-01-01",
+      end_date: "2026-02-01",
+      start_price: 100,
+      end_price: 110,
+      breakout_level: 110,
+      target: 120,
+      stop: 95,
+      rr: 2,
+      bars_ago: 1,
+      volume_confirmed: true,
+      trendlines: [],
+      notes: "",
+      ...overrides,
+    };
+  }
+
+  const box = [
+    [{ t: "2026-01-01", price: 110 }],
+    [{ t: "2026-01-01", price: 100 }],
+  ];
+
+  it("orders by absolute distance asc, nulls last, then confidence desc then id", () => {
+    const base = { pattern_id: "consolidation", base_days: 80 } as const;
+    const hits = [
+      makeHit(1, { ...base, symbol: "FAR", confidence: 90, last_close: 130, trendlines: box }), // |18.18|
+      makeHit(2, { ...base, symbol: "CLOSE", confidence: 40, last_close: 112, trendlines: box }), // |1.82|
+      makeHit(3, { ...base, symbol: "NULL1", confidence: 80 }), // no data -> null
+      makeHit(4, { ...base, symbol: "NULL2", confidence: 90, last_close: 112, trendlines: [] }), // null (no upper)
+      makeHit(5, { ...base, symbol: "TIE", confidence: 70, last_close: 112, trendlines: box }), // |1.82|, conf 70 > 40
+    ];
+    const ordered = sortStreamedHits(hits, "distance");
+    // Closest first (TIE wins the confidence tie-break over CLOSE), then FAR,
+    // then nulls last (NULL2 before NULL1 on confidence).
+    expect(ordered.map((h) => h.symbol)).toEqual(["TIE", "CLOSE", "FAR", "NULL2", "NULL1"]);
+  });
+
+  it("puts non-base patterns last for sort=distance (no horizontal trigger)", () => {
+    const hits = [
+      makeHit(1, { symbol: "WEDGE", confidence: 99, last_close: 112, trendlines: box }),
+      makeHit(2, {
+        symbol: "BASE",
+        pattern_id: "consolidation",
+        base_days: 80,
+        confidence: 10,
+        last_close: 112,
+        trendlines: box,
+      }),
+    ];
+    const ordered = sortStreamedHits(hits, "distance");
+    expect(ordered.map((h) => h.symbol)).toEqual(["BASE", "WEDGE"]);
+  });
+
+  it("treats an undefined sort as confidence desc", () => {
+    const hits = [makeHit(1, { confidence: 40 }), makeHit(2, { confidence: 90 })];
+    const ordered = sortStreamedHits(hits, undefined);
+    expect(ordered.map((h) => h.id)).toEqual([2, 1]);
   });
 });
 
@@ -735,7 +830,7 @@ describe("stale async responses", () => {
       });
 
     const slow = loadResults();
-    const fast = loadResults();
+    const fast = loadResults({ q: "newer" }); // different query: not coalesced, aborts the slow stream
     await fast;
     await flush();
     expect(getChartPatternsState().total).toBe(7);
@@ -771,7 +866,7 @@ describe("stale async responses", () => {
     });
 
     const slow = loadResults();
-    const fast = loadResults();
+    const fast = loadResults({ q: "newer" }); // different query: not coalesced, aborts the slow stream
     await fast;
     await flush();
     expect(getChartPatternsState().error).toBeNull();
@@ -1443,5 +1538,98 @@ describe("loadSymbolDetail extras", () => {
       "1D",
       { lookbackBars: 250, computeTrendlines: false },
     );
+  });
+});
+
+describe("query coalescing and same-query reload", () => {
+  it("a duplicate call for the same query does not start a second stream", async () => {
+    mocked.fetchResults.mockResolvedValue({
+      items: [],
+      total: 0,
+      summary: SUMMARY,
+      data_through: "2026-09-30",
+    });
+    // The default `streamResults` mock fails immediately, so the load lands in
+    // the `fetchResults` fallback. Both calls share one query signature.
+    const first = loadResults();
+    const second = loadResults(); // same query, no await between
+    await first;
+    await second;
+    await flush();
+    expect(getChartPatternsState().streaming).toBe(false);
+    expect(mocked.streamResults).toHaveBeenCalledTimes(1);
+    expect(mocked.fetchResults).toHaveBeenCalledTimes(1);
+  });
+
+  it("a same-query reload keeps existing results until new items arrive", async () => {
+    let releaseFirst!: () => void;
+    mocked.streamResults.mockImplementation(async (_query, handlers) => {
+      await new Promise<void>((resolve) => {
+        releaseFirst = resolve;
+      });
+      handlers.onMeta?.({ total: 2, summary: SUMMARY, data_through: "2026-09-30" });
+      handlers.onItem?.({ id: 1, symbol: "IRCON", pattern_id: "falling_wedge", confidence: 90 } as never);
+      handlers.onItem?.({ id: 2, symbol: "TCS", pattern_id: "flag", confidence: 80 } as never);
+      handlers.onDone?.();
+    });
+
+    const first = loadResults();
+    releaseFirst();
+    await first;
+    await flush();
+    expect(getChartPatternsState().results.map((r) => r.symbol)).toEqual(["IRCON", "TCS"]);
+
+    let releaseSecond!: () => void;
+    mocked.streamResults.mockImplementation(async (_query, handlers) => {
+      await new Promise<void>((resolve) => {
+        releaseSecond = resolve;
+      });
+      handlers.onItem?.({ id: 3, symbol: "RELIANCE", pattern_id: "flag", confidence: 99 } as never);
+      handlers.onDone?.();
+    });
+
+    // Same query signature: no `results: []` blanking — the current results
+    // stay on screen until the first new item arrives.
+    const second = loadResults();
+    expect(getChartPatternsState().results.map((r) => r.symbol)).toEqual(["IRCON", "TCS"]);
+    expect(getChartPatternsState().streaming).toBe(true);
+
+    releaseSecond();
+    await second;
+    await flush();
+    expect(getChartPatternsState().results).toEqual([expect.objectContaining({ symbol: "RELIANCE" })]);
+    expect(mocked.streamResults).toHaveBeenCalledTimes(2);
+    expect(mocked.fetchResults).not.toHaveBeenCalled();
+  });
+
+  it("a different query clears results immediately", async () => {
+    // Prime load returns one hit; the reload's fallback fetch returns none.
+    mocked.fetchResults
+      .mockResolvedValueOnce({
+        items: [{ id: 1, symbol: "IRCON", pattern_id: "falling_wedge" } as never],
+        total: 1,
+        summary: SUMMARY,
+        data_through: "2026-09-30",
+      })
+      .mockResolvedValue({ items: [], total: 0, summary: SUMMARY, data_through: "2026-09-30" });
+    // Restore the pinned "stream unavailable" behaviour for this test.
+    mocked.streamResults.mockImplementation(async (_query, handlers) => {
+      handlers.onError?.(new Error("stream unavailable"));
+    });
+
+    await loadResults();
+    expect(getChartPatternsState().results).toHaveLength(1);
+
+    // Genuinely different query: results are blanked at the start of the load.
+    setFilters({ ...DEFAULT_PATTERN_FILTERS, q: "bank" });
+    const reloading = loadResults();
+    expect(getChartPatternsState().results).toEqual([]);
+    expect(getChartPatternsState().streaming).toBe(true);
+
+    await reloading;
+    await flush();
+    expect(getChartPatternsState().results).toEqual([]);
+    expect(mocked.streamResults).toHaveBeenCalledTimes(2);
+    expect(mocked.fetchResults).toHaveBeenCalledTimes(2);
   });
 });

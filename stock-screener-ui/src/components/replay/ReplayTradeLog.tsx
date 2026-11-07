@@ -100,6 +100,7 @@ export function ReplayTradeLog({
       {
         id: "index",
         header: "#",
+        meta: { align: "right" },
         enableSorting: false,
         cell: ({ row }) => <Text size="xs" c="dimmed">{row.index + 1}</Text>,
       },
@@ -107,18 +108,21 @@ export function ReplayTradeLog({
         id: "symbol",
         header: "Symbol",
         accessorKey: "symbol",
+        meta: { align: "left" },
         cell: ({ row }) => <Text size="xs" fw={500}>{row.original.symbol}</Text>,
       },
       {
         id: "side",
         header: "Side",
         accessorKey: "side",
+        meta: { align: "center" },
         cell: ({ row }) => <SideBadge side={row.original.side} size="xs" />,
       },
       {
         id: "quantity",
         header: "Qty",
         accessorKey: "quantity",
+        meta: { align: "right" },
         enableSorting: false,
         cell: ({ row }) => <Text size="xs" ta="center">{row.original.quantity}</Text>,
       },
@@ -126,17 +130,20 @@ export function ReplayTradeLog({
         id: "entry_time",
         header: "Entry Time",
         accessorKey: "entry_time",
+        meta: { align: "left" },
         cell: ({ row }) => <Text size="xs">{formatTimeOnly(row.original.entry_time)}</Text>,
       },
       {
         id: "exit_time",
         header: "Exit Time",
         accessorKey: "exit_time",
+        meta: { align: "left" },
         cell: ({ row }) => <Text size="xs">{row.original.exit_time ? formatTimeOnly(row.original.exit_time) : "-"}</Text>,
       },
       {
         id: "hold",
         header: "Hold",
+        meta: { align: "right" },
         enableSorting: false,
         cell: ({ row }) => (
           <Text size="xs" c="dimmed">
@@ -148,6 +155,7 @@ export function ReplayTradeLog({
         id: "entry_price",
         header: "Entry Price",
         accessorKey: "entry_price",
+        meta: { align: "right" },
         enableSorting: false,
         cell: ({ row }) => <Text size="xs" ta="right">{row.original.entry_price.toFixed(2)}</Text>,
       },
@@ -155,6 +163,7 @@ export function ReplayTradeLog({
         id: "exit_price",
         header: "Exit Price",
         accessorKey: "exit_price",
+        meta: { align: "right" },
         enableSorting: false,
         cell: ({ row }) => <Text size="xs" ta="right">{row.original.exit_price.toFixed(2)}</Text>,
       },
@@ -162,6 +171,7 @@ export function ReplayTradeLog({
         id: "pnl",
         header: "P&L",
         accessorKey: "pnl",
+        meta: { align: "right" },
         cell: ({ row }) => (
           <Text size="xs" fw={500} c={getPnLTextColor(row.original.pnl)} ta="right">
             {row.original.pnl >= 0 ? "+" : ""}
@@ -173,6 +183,7 @@ export function ReplayTradeLog({
         id: "net_pnl",
         header: "Net",
         accessorKey: "net_pnl",
+        meta: { align: "right" },
         cell: ({ row }) => (
           <Text size="xs" fw={500} c={getPnLTextColor(row.original.net_pnl)} ta="right">
             {row.original.net_pnl >= 0 ? "+" : ""}
@@ -183,6 +194,7 @@ export function ReplayTradeLog({
       {
         id: "strategy",
         header: "Strategy",
+        meta: { align: "left" },
         enableSorting: false,
         cell: ({ row }) => (
           <Anchor
@@ -198,6 +210,7 @@ export function ReplayTradeLog({
       {
         id: "exit_reason",
         header: "Reason",
+        meta: { align: "center" },
         enableSorting: false,
         cell: ({ row }) => (
           <Badge size="xs" color={getExitBadgeColor(row.original.exit_reason)} variant="filled">
@@ -256,6 +269,8 @@ export function ReplayTradeLog({
             highlightedTradeId === row.id ? "trade-row-highlighted" : ""
           }
           getRowTestId={(row) => `replay-trade-row-${row.id}`}
+          stickyHeader
+          dense
           onRowClick={onTradeClick ? handleRowClick : undefined}
         />
         <div ref={bottomRef} />

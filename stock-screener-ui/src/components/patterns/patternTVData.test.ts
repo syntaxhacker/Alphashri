@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MARKER_SL, MARKER_TP, NEGATIVE, POSITIVE, PRIMARY } from "@/ui/palette";
+import { NEGATIVE, POSITIVE } from "@/ui/palette";
 import type { ChartCandle, PatternHitDTO, TrendLine } from "@/types/chartPatterns";
 import { buildPatternTVData, PATTERN_TV_COLORS, toTVTime } from "./patternTVData";
 
@@ -106,20 +106,8 @@ describe("buildPatternTVData", () => {
     expect(up?.color).not.toBe(down?.color);
   });
 
-  it("emits breakout/target/stop levels with the ECharts colours", () => {
+  it("emits no risk levels (stop/target/breakout are the trader's job)", () => {
     const out = buildPatternTVData({ candles: CANDLES, hit: makeHit() });
-    expect(out.levels).toEqual([
-      { price: 99, color: MARKER_SL, title: "Stop", lineStyle: "dashed", width: 1 },
-      { price: 109, color: PRIMARY, title: "Breakout", lineStyle: "dashed", width: 1 },
-      { price: 120, color: MARKER_TP, title: "Target", lineStyle: "dashed", width: 1 },
-    ]);
-  });
-
-  it("suppresses zeroed levels (fullscreen re-plan suppression)", () => {
-    const out = buildPatternTVData({
-      candles: CANDLES,
-      hit: makeHit({ breakout_level: 0, target: 0, stop: 0 }),
-    });
     expect(out.levels).toEqual([]);
   });
 
@@ -263,24 +251,9 @@ describe("buildPatternTVData", () => {
     expect(new Set(times).size).toBe(times.length);
   });
 
-  it("maps pivots to markers: high red arrowDown above, low green arrowUp below", () => {
+  it("emits no dot markers (the chart draws lines only)", () => {
     const out = buildPatternTVData({ candles: CANDLES, hit: makeHit(), trendLines: [] });
-    expect(out.markers).toEqual([
-      {
-        time: toTVTime("2026-04-02"),
-        position: "aboveBar",
-        shape: "arrowDown",
-        color: NEGATIVE,
-        text: "H",
-      },
-      {
-        time: toTVTime("2026-04-03"),
-        position: "belowBar",
-        shape: "arrowUp",
-        color: POSITIVE,
-        text: "L",
-      },
-    ]);
+    expect(out.markers).toEqual([]);
   });
 
   it("returns empty arrays for empty inputs", () => {

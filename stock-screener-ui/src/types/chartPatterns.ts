@@ -282,6 +282,16 @@ export interface PatternFilters {
   symbols: string[];
   /** Free-text symbol/name search (`q` param); empty = any. */
   q: string;
+  /** How many recent patterns per symbol to show (client-side, default 1). */
+  history?: number;
+  /** Match the selected pattern ids as an ordered sequence (current-only). */
+  sequence?: boolean;
+  /** Max days between steps (default 20). */
+  sequence_gap_days?: number | null;
+  /** The last step must be at most this many bars old (null = any). */
+  sequence_max_bars?: number | null;
+  /** Allowed statuses for the earlier steps (empty = any). */
+  sequence_step_status?: string[];
   /** Minimum consolidation base length in bars/days (null = any). */
   min_base_days: number | null;
   /** Maximum consolidation range as % of price (null = any). */
@@ -336,8 +346,13 @@ export interface PatternFilters {
    * also doubles as the as-of replay cutoff for scans/charts.
    */
   to_date: string | null;
-  /** Result ordering: `"confidence"` (default), `"newest"`, `"range_pos"`, or `"breakout"`. */
-  sort: string;
+  /**
+   * Result ordering: `"confidence"` (default), `"newest"`, `"range_pos"`,
+   * `"breakout"`, or `"distance"`. `"distance"` is client-only: it is honoured
+   * in `sortStreamedHits` but coerced to `"confidence"` before any request, so
+   * `sort=distance` is never sent to `/results` or `/results/stream`.
+   */
+  sort: "confidence" | "newest" | "range_pos" | "breakout" | "distance";
   /**
    * View-only filter for standalone trendlines. CLIENT-ONLY: never sent to
    * `/results` or `/summary` (not part of `baseQuery`), never restrictive.
@@ -428,4 +443,43 @@ export interface WatchPayload {
   min_rel_volume: number;
   updated_at: string;
   items: WatchRow[];
+}
+
+/** Per-symbol, per-timeframe summary cell (`GET /api/chart-patterns/matrix`). */
+export interface PatternMatrixCell {
+  direction: PatternDirection | string;
+  status: PatternStatus | string;
+  count: number;
+  confidence: number | null;
+  patterns: string[];
+  best_id: number | null;
+}
+
+/** One compact matrix row: every stored hit for a symbol across timeframes. */
+export interface PatternMatrixRow {
+  symbol: string;
+  name: string | null;
+  ltp: number | null;
+  day_change_pct: number | null;
+  timeframes: Record<string, PatternMatrixCell>;
+  hits: PatternHitDTO[];
+  best: PatternHitDTO | null;
+  hit_count: number;
+}
+
+/** `GET /api/chart-patterns/index/{id}/members` payload. */
+export interface IndexMembersResponse {
+  index: string;
+  label: string;
+  count: number;
+  symbols: string[];
+  note?: string;
+}
+
+/** `GET /api/chart-patterns/matrix` payload. */
+export interface PatternMatrixResponse {
+  universe: string;
+  timeframes: string[];
+  rows: PatternMatrixRow[];
+  data_through: string | null;
 }

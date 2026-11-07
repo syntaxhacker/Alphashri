@@ -1,4 +1,5 @@
 """Tests for chart_patterns/scan.py (job execution + progress counters)."""
+from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
@@ -112,6 +113,38 @@ def test_run_job_persists_hits_and_progress(cp_store, patched_scan):
     assert summary["bullish"] == 1
     # detect only ran for the symbol with enough bars
     assert patched_scan["detect"] == ["AAA"]
+
+
+def test_run_job_persists_only_the_latest_hit_per_symbol(cp_store, monkeypatch):
+    older = _hit("AAA")
+    newer = replace(
+        older,
+        pattern_id="head_shoulders",
+        pattern_name="Head & Shoulders",
+        bars_ago=0,
+        end_date="2026-02-02",
+        confidence=90.0,
+    )
+    monkeypatch.setattr(scan.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+    monkeypatch.setattr(
+        scan,
+        "engine_mod",
+        SimpleNamespace(detect_patterns=lambda *_: [older, newer]),
+    )
+    monkeypatch.setattr(
+        scan,
+        "universes_mod",
+        SimpleNamespace(get_universe=lambda uid: ["AAA"]),
+    )
+    job_id = "cpj_latest_only"
+    store.save_job({"job_id": job_id, "universe": "nifty50", "timeframe": "1D", "status": "queued"})
+
+    scan.run_job(job_id)
+
+    items, total, summary = store.query_results({"job_id": job_id})
+    assert total == 1
+    assert items[0]["pattern_name"] == "Head & Shoulders"
+    assert summary["patterns"] == 1
 
 
 def test_run_job_universe_error_marks_failed(cp_store, monkeypatch):
@@ -261,7 +294,6 @@ def test_save_hits_drops_non_finite_confidence(cp_store):
     items, total, _ = store.query_results({"job_id": "cpj_nan"})
     assert total == 1
     assert items[0]["confidence"] is None
-    assert items[0]["rr"] is None
 
 
 def test_save_job_persists_params(cp_store):
@@ -1334,3 +1366,173 @@ def test_run_scan_prefilter_fail_open_scans_everything(cp_store, monkeypatch):
     row = store.get_job("cpj_tvfailopen")
     assert row["status"] == "completed"
     assert row["total"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Bug A: old hits are superseded only after a job completes — never at job
+# start, never on cancel/failure. ``delete_hits_for(..., keep_job_id=job_id)``
+# must preserve the rows the current job just wrote.
+# ---------------------------------------------------------------------------
+
+
+def test_run_job_supersedes_old_hits_after_completion_not_at_start(cp_store, monkeypatch):
+    order: list = []
+    real_delete = store.delete_hits_for
+    real_save = store.save_hits
+
+    def recording_delete(universe, timeframe, keep_job_id=None):
+        order.append(("delete", keep_job_id))
+        return real_delete(universe, timeframe, keep_job_id=keep_job_id)
+
+    def recording_save(job_id, hits):
+        order.append(("save", job_id, len(hits)))
+        return real_save(job_id, hits)
+
+    monkeypatch.setattr(store, "delete_hits_for", recording_delete)
+    monkeypatch.setattr(store, "save_hits", recording_save)
+
+    # A previous completed job's hit for the same universe/timeframe.
+    store.save_job({"job_id": "cpj_prev", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed", "total": 1, "done": 1})
+    store.save_hits("cpj_prev", [_dupe_hit("OLD")])
+
+    monkeypatch.setattr(
+        scan.candles, "fetch_for_timeframe",
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: _make_df(80),
+    )
+    monkeypatch.setattr(
+        scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)])
+    )
+    monkeypatch.setattr(
+        scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA"])
+    )
+    store.save_job({"job_id": "cpj_new", "universe": "nifty50", "timeframe": "1D", "status": "queued"})
+    scan.run_job("cpj_new")
+
+    saves = [o for o in order if o[0] == "save"]
+    deletes = [o for o in order if o[0] == "delete"]
+    # The new job's hits were saved ...
+    assert any(o[1] == "cpj_new" for o in saves)
+    # ... and previous hits were superseded exactly once, keeping this job's rows.
+    assert len(deletes) == 1
+    assert deletes[0][1] == "cpj_new"  # keep_job_id is the current job
+    # The delete ran after the new job's saves (completion path), not at job start.
+    save_idx = next(i for i, o in enumerate(order) if o[0] == "save" and o[1] == "cpj_new")
+    delete_idx = next(i for i, o in enumerate(order) if o[0] == "delete")
+    assert save_idx < delete_idx
+
+    # Old hit is gone; only the new job's hit remains for the combo.
+    items, total, _ = store.query_results({"universe": "nifty50", "timeframe": "1D"})
+    assert total == 1
+    assert items[0]["symbol"] == "AAA"
+    # The previous job's rows were deleted too.
+    _, old_total, _ = store.query_results({"job_id": "cpj_prev"})
+    assert old_total == 0
+
+
+def test_cancelled_job_does_not_delete_old_hits(cp_store, monkeypatch):
+    store.save_job({"job_id": "cpj_old", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed", "total": 1, "done": 1})
+    store.save_hits("cpj_old", [_dupe_hit("OLD")])
+
+    delete_calls = []
+    real_delete = store.delete_hits_for
+
+    def recording_delete(universe, timeframe, keep_job_id=None):
+        delete_calls.append(keep_job_id)
+        return real_delete(universe, timeframe, keep_job_id=keep_job_id)
+
+    monkeypatch.setattr(store, "delete_hits_for", recording_delete)
+    # Cancel before any symbol work: the completion path is never reached.
+    monkeypatch.setattr(jobs, "is_cancelled", lambda job_id: True)
+    monkeypatch.setattr(
+        scan.candles, "fetch_for_timeframe",
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: _make_df(80),
+    )
+    monkeypatch.setattr(
+        scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)])
+    )
+    monkeypatch.setattr(
+        scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA"])
+    )
+    store.save_job({"job_id": "cpj_cancel", "universe": "nifty50", "timeframe": "1D", "status": "queued"})
+    scan.run_job("cpj_cancel")
+
+    assert store.get_job("cpj_cancel")["status"] == "cancelled"
+    assert delete_calls == []  # nothing superseded when a job produces nothing durable
+    items, total, _ = store.query_results({"job_id": "cpj_old"})
+    assert total == 1  # old hit intact
+
+
+# ---------------------------------------------------------------------------
+# Bug B: a symbol that fetched and detected cleanly but produced zero hits is
+# ``status == "empty"`` — distinct from a real failure, never counted as
+# ``failed``. Genuine exceptions still increment ``failed``.
+# ---------------------------------------------------------------------------
+
+
+def test_process_symbol_zero_hits_returns_empty(cp_store, monkeypatch):
+    monkeypatch.setattr(
+        scan.candles, "fetch_for_timeframe",
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: _make_df(80),
+    )
+    monkeypatch.setattr(
+        scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [])
+    )
+    store.save_job({"job_id": "cpj_zero_proc", "universe": "nifty50", "timeframe": "1D", "status": "queued"})
+
+    result = scan._process_symbol("AAA", "1D", "cpj_zero_proc")
+
+    assert result["status"] == "empty"
+    assert result["data_through"] is not None
+    assert result["from_cache"] is False
+    # Nothing was persisted for a symbol with no hits.
+    items, total, _ = store.query_results({"job_id": "cpj_zero_proc"})
+    assert total == 0
+
+
+def test_run_job_zero_hit_symbol_is_empty_not_failed(cp_store, monkeypatch):
+    monkeypatch.setattr(
+        scan.candles, "fetch_for_timeframe",
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: _make_df(80),
+    )
+    def detect(df, tf, symbol):
+        return [] if symbol == "EMPTY" else [_hit(symbol)]
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=detect))
+    monkeypatch.setattr(scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["HIT", "EMPTY"]))
+    store.save_job({"job_id": "cpj_zero", "universe": "nifty50", "timeframe": "1D", "status": "queued"})
+    scan.run_job("cpj_zero")
+
+    row = store.get_job("cpj_zero")
+    assert row["status"] == "completed"
+    assert row["failed"] == 0       # zero hits is not a failure
+    assert row["done"] == 2
+    assert jobs.get_job("cpj_zero")["no_hits"] == 1  # tracked separately (in-memory + Redis only)
+    items, total, _ = store.query_results({"job_id": "cpj_zero"})
+    assert total == 1
+    assert items[0]["symbol"] == "HIT"
+
+
+def test_genuine_exception_increments_failed(cp_store, monkeypatch):
+    logs = []
+    monkeypatch.setattr(scan.logger, "warning", lambda *a, **k: logs.append(a))
+
+    def fake_process(symbol, timeframe, job_id, name=None, lookback_bars=None,
+                     compute_trendlines=True, as_of_date=None, from_date=None,
+                     include_partial_today=None):
+        if symbol == "BOOM":
+            raise RuntimeError("symbol worker died")
+        return {"status": "ok", "data_through": "2026-01-01", "from_cache": False}
+
+    monkeypatch.setattr(scan, "_process_symbol", fake_process)
+    monkeypatch.setattr(scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["OK", "BOOM"]))
+    store.save_job({"job_id": "cpj_boom", "universe": "nifty50", "timeframe": "1D", "status": "queued"})
+    scan.run_job("cpj_boom")
+
+    row = store.get_job("cpj_boom")
+    assert row["status"] == "completed"
+    assert row["failed"] == 1       # the real error is still counted
+    assert row["done"] == 2
+    assert jobs.get_job("cpj_boom")["no_hits"] == 0
+    flat = str(logs)
+    assert "cpj_boom" in flat and "BOOM" in flat and "RuntimeError" in flat

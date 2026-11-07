@@ -199,7 +199,7 @@ export function GroupPerformancePanel({
         </Box>
       ) : (
         <Box
-          sx={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", px: 1, pb: 1 }}
+          sx={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", px: 0.5, pb: 0.5 }}
           data-testid="group-performance-list"
         >
           {visible.map((g) => {
@@ -214,8 +214,8 @@ export function GroupPerformancePanel({
                 sx={{
                   display: "flex",
                   flexDirection: "column",
-                  gap: 4,
-                  py: 1,
+                  gap: 2,
+                  py: 0.25,
                   borderBottom: 1,
                   borderColor: "divider",
                   cursor: onSelectGroup ? "pointer" : "default",

@@ -1,6 +1,7 @@
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import { ScrollArea, ToolbarRow } from "@/ui";
+import * as palette from "@/ui/palette";
 import { OptionChainPanel } from "./OptionChain/OptionChainPanel";
 import { OptionChainHeader } from "./OptionChain/OptionChainHeader";
 import { OptionChainFilters } from "./OptionChain/OptionChainFilters";
@@ -65,9 +66,9 @@ export function OptionsPage({
         wrap={false}
         clip
         style={{
-          height: 48,
-          minHeight: 48,
-          maxHeight: 48,
+          height: palette.FIN_HEADER_H,
+          minHeight: palette.FIN_HEADER_H,
+          maxHeight: palette.FIN_HEADER_H,
           paddingLeft: 12,
           paddingRight: 12,
           borderBottom: "1px solid var(--mui-palette-divider)",

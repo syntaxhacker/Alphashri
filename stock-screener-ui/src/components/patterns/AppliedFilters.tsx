@@ -1,5 +1,7 @@
 import { Box, Button, Chip, Text, ToolbarRow } from "@/ui";
+import { DEFAULT_PATTERN_FILTERS } from "@/state/chartPatterns";
 import type { PatternDef, PatternFilters } from "@/types/chartPatterns";
+import { FAMILY_LABELS } from "./shared";
 
 /** One removable chip in the applied-filters row. */
 export interface AppliedFilterChip {
@@ -14,12 +16,6 @@ export interface AppliedFilterChip {
   /** Value to write when the chip's close button is pressed. */
   nextValue: PatternFilters[keyof PatternFilters];
 }
-
-const FAMILY_LABELS: Record<string, string> = {
-  reversal: "Reversal",
-  continuation: "Continuation",
-  curve_cup: "Curve & Cup",
-};
 
 /** `"formed_within_bars"` → `"Formed Within Bars"`. */
 function titleCase(value: string): string {
@@ -194,7 +190,12 @@ export function buildAppliedFilterChips(
       nextValue: null,
     });
   }
-  if (filters.min_avg_volume_10d != null) {
+  // The 10d-avg-volume floor is a system default, not a user choice: showing it
+  // as a removable chip made the chip count disagree with the Filters badge.
+  if (
+    filters.min_avg_volume_10d != null &&
+    filters.min_avg_volume_10d !== DEFAULT_PATTERN_FILTERS.min_avg_volume_10d
+  ) {
     chips.push({
       id: "min_avg_volume_10d",
       group: "Volume",
@@ -262,32 +263,70 @@ export interface AppliedFiltersProps {
 }
 
 /**
- * Inline summary of the active filters, each removable with its close button —
- * so the modal never has to be reopened just to drop one filter. Renders
- * nothing when no filters are applied.
+ * Inline summary of the active filters, grouped by filter family and each value
+ * removable with its close button — so the modal never has to be reopened just
+ * to drop one filter. Renders nothing when no filters are applied.
  */
 export function AppliedFilters({ filters, patterns, setFilter, resetFilters }: AppliedFiltersProps) {
   const chips = buildAppliedFilterChips(filters, patterns);
   if (chips.length === 0) return null;
 
+  const shown = chips;
+
+  // Consecutive chips sharing a `group` render under one muted label, so
+  // "Pattern: A · Pattern: B · Pattern: C" becomes "Patterns  A  B  C".
+  const groups: Array<{ group: string; items: AppliedFilterChip[] }> = [];
+  for (const chip of shown) {
+    const last = groups[groups.length - 1];
+    if (last && last.group === chip.group) last.items.push(chip);
+    else groups.push({ group: chip.group, items: [chip] });
+  }
+
   return (
     <Box data-testid="patterns-applied-filters" sx={{ minWidth: 0 }}>
-      <ToolbarRow gap={6} align="center" style={{ flexWrap: "wrap", rowGap: 6 }}>
-        <Text size="xs" c="dimmed" fw={700} style={{ textTransform: "uppercase" }}>
-          Applied
+      <ToolbarRow gap={6} style={{ flexWrap: "wrap", rowGap: 3 }}>
+        <Text
+          size="xs"
+          c="dimmed"
+          fw={700}
+          style={{ textTransform: "none", letterSpacing: 0.2 }}
+        >
+          Active
         </Text>
-        {chips.map((chip) => (
-          <Chip
-            key={chip.id}
-            size="xs"
-            variant="light"
-            checked
-            data-testid={`patterns-applied-filter-${chip.id}`}
-            onDelete={() => setFilter(chip.key, chip.nextValue)}
-          >
-            {`${chip.group}: ${chip.label}`}
-          </Chip>
-        ))}
+        {groups.map((group) => {
+          const multi = group.items.length > 1;
+          return (
+            <Box
+              key={group.group}
+              data-testid={`patterns-applied-group-${group.group.toLowerCase()}`}
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 0.25,
+                minWidth: 0,
+                pl: 0.25,
+              }}
+            >
+              {multi ? (
+                <Text size="xs" c="dimmed" fw={600} style={{ whiteSpace: "nowrap" }}>
+                  {`${group.group}s`}
+                </Text>
+              ) : null}
+              {group.items.map((chip) => (
+                <Chip
+                  key={chip.id}
+                  size="xs"
+                  variant="light"
+                  checked
+                  data-testid={`patterns-applied-filter-${chip.id}`}
+                  onDelete={() => setFilter(chip.key, chip.nextValue)}
+                >
+                  {multi ? chip.label : `${chip.group}: ${chip.label}`}
+                </Chip>
+              ))}
+            </Box>
+          );
+        })}
         <Button
           size="xs"
           variant="subtle"

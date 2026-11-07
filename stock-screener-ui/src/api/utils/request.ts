@@ -5,7 +5,7 @@
 
 import { fetchWithAuth } from "../../state/auth";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+import { API_BASE } from "@/api/config";
 
 export interface ApiError {
   detail?: string;
@@ -25,6 +25,58 @@ export async function handleApiError(response: Response, defaultMessage: string)
       throw new Error(defaultMessage);
     }
     throw e;
+  }
+}
+
+/**
+ * Parse a response body as JSON, throwing a uniform error on failure.
+ *
+ * - If `!response.ok`, delegates to `handleApiError` (reads the server's
+ *   `detail`/`message`, falling back to `defaultMessage`).
+ * - Otherwise returns `response.json()`. If the body is not parseable JSON,
+ *   throws a clear Error carrying `defaultMessage`.
+ */
+export async function jsonOrThrow<T>(
+  response: Response,
+  defaultMessage: string,
+): Promise<T> {
+  if (!response.ok) {
+    await handleApiError(response, defaultMessage);
+  }
+  try {
+    return (await response.json()) as T;
+  } catch (e) {
+    if (e instanceof SyntaxError) {
+      throw new Error(defaultMessage);
+    }
+    throw e;
+  }
+}
+
+/**
+ * Fetch a URL and return its JSON body, or `fallback` on any failure.
+ *
+ * Wraps `fetchWithAuth` plus the non-ok / parse-error handling so callers
+ * that intentionally swallow errors (returning `[]`/`null` today) never have
+ * to write a `try/catch` or `if (!response.ok)` block. Never throws.
+ */
+export async function safeGet<T>(
+  url: string,
+  fallback: T,
+  defaultMessage?: string,
+  init?: RequestInit,
+): Promise<T> {
+  try {
+    const response = await fetchWithAuth(url, init);
+    if (!response.ok) {
+      if (defaultMessage) {
+        console.error(defaultMessage);
+      }
+      return fallback;
+    }
+    return (await response.json()) as T;
+  } catch {
+    return fallback;
   }
 }
 

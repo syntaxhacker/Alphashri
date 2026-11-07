@@ -1,6 +1,7 @@
 import { Alert, Badge, Box, Paper, Skeleton, Text } from "@/ui";
 import { BORDER, SURFACE } from "@/ui/palette";
 import type { ReportEventKind, ReportEventsResponse } from "../../types/report";
+import { symbolRowCursor, symbolRowProps } from "../../components/common/symbolRowProps";
 
 interface ReportEventsStripProps {
   data: ReportEventsResponse | null;
@@ -64,19 +65,7 @@ export function ReportEventsStrip({ data, loading, error, onOpenSymbol }: Report
             key={`${ev.date}-${ev.symbol}-${ev.kind}-${i}`}
             data-testid={`report-events-row-${ev.symbol}-${ev.kind}`}
             data-symbol={ev.symbol}
-            role={onOpenSymbol ? "button" : undefined}
-            tabIndex={onOpenSymbol ? 0 : undefined}
-            onClick={onOpenSymbol ? () => onOpenSymbol(ev.symbol) : undefined}
-            onKeyDown={
-              onOpenSymbol
-                ? (e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      onOpenSymbol(ev.symbol);
-                    }
-                  }
-                : undefined
-            }
+            {...symbolRowProps(onOpenSymbol, ev.symbol)}
             sx={{
               display: "flex",
               alignItems: "center",
@@ -85,7 +74,7 @@ export function ReportEventsStrip({ data, loading, error, onOpenSymbol }: Report
               py: 0.5,
               borderBottom: 1,
               borderColor: "divider",
-              cursor: onOpenSymbol ? "pointer" : "default",
+              cursor: symbolRowCursor(onOpenSymbol),
               fontVariantNumeric: "tabular-nums",
             }}
           >

@@ -3,6 +3,7 @@
  */
 
 import { fetchWithAuth } from "../state/auth";
+import { jsonOrThrow } from "./utils/request";
 
 import { API_ENDPOINTS } from "./config";
 
@@ -37,9 +38,5 @@ export async function fetchCorrelation(params: CorrelationRequest): Promise<Corr
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
   });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to fetch correlation data");
-  }
-  return response.json();
+  return jsonOrThrow<CorrelationResponse>(response, "Failed to fetch correlation data");
 }

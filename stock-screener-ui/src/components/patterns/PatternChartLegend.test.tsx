@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { UIProvider } from "@/ui";
+import * as palette from "@/ui/palette";
 import { PatternChartLegend } from "./PatternChartLegend";
 import { buildPatternTVData } from "./patternTVData";
 import type { ChartCandle, PatternHitDTO } from "@/types/chartPatterns";
@@ -148,8 +149,8 @@ describe("PatternChartLegend", () => {
         lines={lines}
         levels={[
           { name: "Breakout", color: "#4C8DFF" },
-          { name: "Target", color: "#3FB950" },
-          { name: "Stop", color: "#F85149" },
+          { name: "Target", color: palette.POSITIVE },
+          { name: "Stop", color: palette.NEGATIVE },
         ]}
         hidden={new Set()}
         onToggle={onToggle}
@@ -168,7 +169,7 @@ describe("PatternChartLegend", () => {
     r(
       <PatternChartLegend
         lines={lines}
-        markers={[{ name: "Pivots", color: "#8B949E" }]}
+        markers={[{ name: "Pivots", color: palette.NEUTRAL }]} 
         hidden={new Set()}
         onToggle={onToggle}
       />,

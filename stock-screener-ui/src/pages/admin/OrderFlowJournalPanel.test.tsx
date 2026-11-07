@@ -12,10 +12,10 @@ import {
 } from "./OrderFlowJournalPanel";
 import type { OrderFlowJournalRow, OrderFlowJournalSummary } from "../../types/admin";
 
-const fetchWithAuthMock = vi.fn();
+const mockFetchWithAuth = vi.fn();
 
 vi.mock("../../components/auth/AuthProvider2", () => ({
-  useAuth: () => ({ fetchWithAuth: fetchWithAuthMock }),
+  useAuth: () => ({ fetchWithAuth: mockFetchWithAuth }),
 }));
 
 function row(overrides: Partial<OrderFlowJournalRow> = {}): OrderFlowJournalRow {
@@ -69,7 +69,7 @@ function mockResponse(body: unknown, ok = true) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  fetchWithAuthMock.mockImplementation(() => mockResponse(summary()));
+  mockFetchWithAuth.mockImplementation(() => mockResponse(summary()));
 });
 
 describe("OrderFlowJournalPanel", () => {
@@ -90,7 +90,7 @@ describe("OrderFlowJournalPanel", () => {
   });
 
   it("flags a file that mixes two feeds", async () => {
-    fetchWithAuthMock.mockImplementation(() =>
+    mockFetchWithAuth.mockImplementation(() =>
       mockResponse(summary({ rows: [row({ broker: "mixed", brokers_seen: ["fyers_tbt", "upstox"] })] })),
     );
     renderWithProviders(<OrderFlowJournalPanel />);
@@ -117,20 +117,20 @@ describe("OrderFlowJournalPanel", () => {
     await user.click(await screen.findByRole("option", { name: "2026-09-16" }));
 
     await waitFor(() =>
-      expect(fetchWithAuthMock).toHaveBeenCalledWith(
+      expect(mockFetchWithAuth).toHaveBeenCalledWith(
         expect.stringContaining("day=2026-09-16"),
       ),
     );
   });
 
   it("surfaces a backend error", async () => {
-    fetchWithAuthMock.mockImplementation(() => mockResponse({ detail: "journal scan failed" }, false));
+    mockFetchWithAuth.mockImplementation(() => mockResponse({ detail: "journal scan failed" }, false));
     renderWithProviders(<OrderFlowJournalPanel />);
     expect(await screen.findByTestId("ofj-error")).toHaveTextContent("journal scan failed");
   });
 
   it("shows an empty message for a day with no data", async () => {
-    fetchWithAuthMock.mockImplementation(() =>
+    mockFetchWithAuth.mockImplementation(() =>
       mockResponse(summary({ rows: [], total_bytes: 0, total_records: 0, overall_coverage_pct: 0 })),
     );
     renderWithProviders(<OrderFlowJournalPanel />);
@@ -167,7 +167,7 @@ describe("orderflow journal helpers", () => {
 
 describe("OrderFlowJournalPanel broker-name verification", () => {
   it("flags a file whose name promises one feed but holds another", async () => {
-    fetchWithAuthMock.mockImplementation(() =>
+    mockFetchWithAuth.mockImplementation(() =>
       mockResponse(
         summary({
           rows: [
@@ -185,7 +185,7 @@ describe("OrderFlowJournalPanel broker-name verification", () => {
   });
 
   it("does not flag a correctly named file", async () => {
-    fetchWithAuthMock.mockImplementation(() =>
+    mockFetchWithAuth.mockImplementation(() =>
       mockResponse(summary({ rows: [row({ broker: "fyers_tbt", named_broker: "fyers_tbt" })] })),
     );
     renderWithProviders(<OrderFlowJournalPanel />);
@@ -208,7 +208,7 @@ describe("OrderFlowJournalPanel closing-auction window", () => {
   });
 
   it("hides the auction note when the window has no auction tail", async () => {
-    fetchWithAuthMock.mockImplementation(() =>
+    mockFetchWithAuth.mockImplementation(() =>
       mockResponse(summary({ auction_minutes: 0, full_session_close: "15:15", full_session_minutes: 360 })),
     );
     renderWithProviders(<OrderFlowJournalPanel />);

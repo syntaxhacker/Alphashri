@@ -68,6 +68,7 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
         header: "",
         enableSorting: false,
         size: 32,
+        meta: { align: "center" },
         cell: ({ row }) => (
           <Box
             role="button" aria-label={row.getIsExpanded() ? "Collapse" : "Expand"}
@@ -83,6 +84,7 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
         id: "time",
         header: "Time",
         accessorKey: "time",
+        meta: { align: "left" },
         cell: ({ row }) => (
           <Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: 11 }}>
             {fmtT(row.original.time)}
@@ -93,12 +95,14 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
         id: "side",
         header: "Side",
         accessorKey: "side",
+        meta: { align: "center" },
         cell: ({ row }) => <SideBadge side={row.original.side} />,
       },
       {
         id: "entry",
         header: "Entry",
         accessorKey: "entry",
+        meta: { align: "right" },
         cell: ({ row }) => (
           <Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: 11 }}>{row.original.entry.toFixed(1)}</Typography>
         ),
@@ -107,6 +111,7 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
         id: "sl",
         header: "SL",
         accessorKey: "sl",
+        meta: { align: "right" },
         cell: ({ row }) => (
           <Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: 11 }}>{row.original.sl.toFixed(1)}</Typography>
         ),
@@ -115,6 +120,7 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
         id: "tp",
         header: "TP",
         accessorKey: "tp",
+        meta: { align: "right" },
         cell: ({ row }) => (
           <Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: 11 }}>{row.original.tp != null ? row.original.tp.toFixed(1) : "trail"}</Typography>
         ),
@@ -123,6 +129,7 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
         id: "exit",
         header: "Exit",
         accessorKey: "exit",
+        meta: { align: "right" },
         cell: ({ row }) => {
           const t = row.original;
           return t.exit_time <= clock ? (
@@ -135,6 +142,7 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
       {
         id: "hold",
         header: "Hold",
+        meta: { align: "right" },
         accessorFn: (t) => (t.exit_time <= clock ? t.exit_time - t.time : -1),
         cell: ({ row }) => {
           const t = row.original;
@@ -149,6 +157,7 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
         id: "pnl",
         header: "P&L",
         accessorKey: "pnl",
+        meta: { align: "right" },
         cell: ({ row }) => {
           const t = row.original;
           if (t.exit_time > clock) return <Typography variant="caption" sx={{ color: palette.TEXT_MUTED, fontSize: 11 }}>…</Typography>;
@@ -163,6 +172,7 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
         id: "rr",
         header: "R",
         accessorKey: "rr",
+        meta: { align: "right" },
         cell: ({ row }) => {
           const t = row.original;
           if (t.exit_time > clock) return <Typography variant="caption" sx={{ color: palette.TEXT_MUTED, fontSize: 11 }}>…</Typography>;
@@ -177,6 +187,7 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
         id: "result",
         header: "Exit",
         accessorKey: "result",
+        meta: { align: "center" },
         enableSorting: false,
         cell: ({ row }) => {
           const t = row.original;
@@ -200,6 +211,8 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
       renderSubComponent={(t) => <ReplayTradeStats trade={t} clock={clock} />}
       getRowTestId={(t) => `replay-trade-row-${t.time}-${t.side}`}
       onRowClick={(t) => onSelectTime(t.time)}
+      stickyHeader
+      dense
       emptyMessage="Press Play — entries print as ticks cross their signals."
     />
   );

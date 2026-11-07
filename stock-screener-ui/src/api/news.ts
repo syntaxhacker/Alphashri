@@ -14,6 +14,7 @@ import type {
   NewsArticle,
 } from "../components/news/news-types";
 import { fetchWithAuth } from "../state/auth";
+import { jsonOrThrow } from "./utils/request";
 import { API_BASE, WS_BASE } from "./config";
 
 /**
@@ -29,10 +30,7 @@ export async function fetchNews(
       url += `&source=${source}`;
     }
     const response = await fetchWithAuth(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch news: ${response.statusText}`);
-    }
-    const data: NewsResponse = await response.json();
+    const data: NewsResponse = await jsonOrThrow<NewsResponse>(response, "Failed to fetch news");
     return data.items || [];
   } catch (error) {
     console.error("Failed to fetch news:", error);
@@ -47,11 +45,7 @@ export async function fetchArticle(url: string): Promise<ArticleResponse | null>
   try {
     const encodedUrl = encodeURIComponent(url);
     const response = await fetchWithAuth(`${API_BASE}/api/news/article?url=${encodedUrl}`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch article: ${response.statusText}`);
-    }
-    const data: ArticleResponse = await response.json();
-    return data;
+    return jsonOrThrow<ArticleResponse>(response, "Failed to fetch article");
   } catch (error) {
     console.error("Failed to fetch article:", error);
     return null;
@@ -64,10 +58,10 @@ export async function fetchArticle(url: string): Promise<ArticleResponse | null>
 export async function fetchNewsSources(): Promise<NewsSource[]> {
   try {
     const response = await fetchWithAuth(`${API_BASE}/api/news/sources`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch sources: ${response.statusText}`);
-    }
-    const data = await response.json();
+    const data = await jsonOrThrow<{ sources?: NewsSource[] }>(
+      response,
+      "Failed to fetch sources",
+    );
     return data.sources || [];
   } catch (error) {
     console.error("Failed to fetch news sources:", error);
@@ -142,10 +136,7 @@ export async function fetchSymbolChart(
     const response = await fetchWithAuth(
       `${API_BASE}/api/news/symbols/${encodeURIComponent(symbol)}/chart?days=${days}`,
     );
-    if (!response.ok) {
-      throw new Error(`Failed to fetch chart: ${response.statusText}`);
-    }
-    return await response.json();
+    return jsonOrThrow<SymbolChartData>(response, "Failed to fetch chart");
   } catch (error) {
     console.error("Failed to fetch symbol chart:", error);
     return null;
@@ -163,10 +154,7 @@ export async function fetchArticlesForSymbol(
     const response = await fetchWithAuth(
       `${API_BASE}/api/news/symbols/${encodeURIComponent(symbol)}/articles?limit=${limit}`,
     );
-    if (!response.ok) {
-      throw new Error(`Failed to fetch articles: ${response.statusText}`);
-    }
-    return await response.json();
+    return jsonOrThrow<SymbolArticlesResponse>(response, "Failed to fetch articles");
   } catch (error) {
     console.error("Failed to fetch articles for symbol:", error);
     return null;
@@ -179,10 +167,7 @@ export async function fetchArticlesForSymbol(
 export async function fetchArticleById(articleId: number): Promise<NewsArticle | null> {
   try {
     const response = await fetchWithAuth(`${API_BASE}/api/news/articles/${articleId}`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch article: ${response.statusText}`);
-    }
-    return await response.json();
+    return jsonOrThrow<NewsArticle>(response, "Failed to fetch article");
   } catch (error) {
     console.error("Failed to fetch article by ID:", error);
     return null;
@@ -203,10 +188,10 @@ export async function fetchRecentArticles(
       url += `&source=${encodeURIComponent(source)}`;
     }
     const response = await fetchWithAuth(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch recent articles: ${response.statusText}`);
-    }
-    return await response.json();
+    return jsonOrThrow<{ total: number; articles: NewsArticle[] }>(
+      response,
+      "Failed to fetch recent articles",
+    );
   } catch (error) {
     console.error("Failed to fetch recent articles:", error);
     return null;
@@ -224,10 +209,10 @@ export async function searchArticles(
     const response = await fetchWithAuth(
       `${API_BASE}/api/news/search?q=${encodeURIComponent(query)}&limit=${limit}`,
     );
-    if (!response.ok) {
-      throw new Error(`Failed to search articles: ${response.statusText}`);
-    }
-    return await response.json();
+    return jsonOrThrow<{ query: string; total: number; articles: NewsArticle[] }>(
+      response,
+      "Failed to search articles",
+    );
   } catch (error) {
     console.error("Failed to search articles:", error);
     return null;
@@ -240,10 +225,7 @@ export async function searchArticles(
 export async function mapSymbol(symbol: string): Promise<SymbolMapping | null> {
   try {
     const response = await fetchWithAuth(`${API_BASE}/api/news/map/${encodeURIComponent(symbol)}`);
-    if (!response.ok) {
-      throw new Error(`Failed to map symbol: ${response.statusText}`);
-    }
-    return await response.json();
+    return jsonOrThrow<SymbolMapping>(response, "Failed to map symbol");
   } catch (error) {
     console.error("Failed to map symbol:", error);
     return null;
@@ -256,10 +238,7 @@ export async function mapSymbol(symbol: string): Promise<SymbolMapping | null> {
 export async function fetchNewsStats(): Promise<NewsStatsResponse | null> {
   try {
     const response = await fetchWithAuth(`${API_BASE}/api/news/stats`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch stats: ${response.statusText}`);
-    }
-    return await response.json();
+    return jsonOrThrow<NewsStatsResponse>(response, "Failed to fetch stats");
   } catch (error) {
     console.error("Failed to fetch news stats:", error);
     return null;

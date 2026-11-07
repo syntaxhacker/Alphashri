@@ -142,13 +142,8 @@ def linreg_fit(
         return 0.0, float(ys[0]), 1.0
     slope, intercept = np.polyfit(xs, ys, 1)
     yhat = slope * xs + intercept
-    ss_res = float(((ys - yhat) ** 2).sum())
-    ss_tot = float(((ys - ys.mean()) ** 2).sum())
-    if ss_tot <= 0:
-        r2 = 1.0
-    else:
-        r2 = 1.0 - ss_res / ss_tot
-    return float(slope), float(intercept), float(min(1.0, max(0.0, r2)))
+    r2 = r2_of(ys, yhat)
+    return float(slope), float(intercept), float(r2)
 
 
 def fit_pivot_line(

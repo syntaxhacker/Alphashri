@@ -2,6 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, cleanup } from "@testing-library/react";
+import { configure } from "@testing-library/dom";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
 import {
@@ -15,20 +16,54 @@ import {
   isItmLeg,
   UNUSUAL_SENTIMENT_NAMES,
 } from "./NiftyUnusualVolume";
+import { sentimentNote, sentimentSign } from "./optionSentiment";
 import type { NiftyStrike } from "@/types/niftyReport";
+
+// The full report panel mounts in ~1.5-2 s alone; under the parallel suite a
+// 1 s findBy* budget flakes. 8 s keeps the assertion, not the timing.
+configure({ asyncUtilTimeout: 8000 });
+// The panel-mount case takes ~5 s alone; under 54 parallel files it exceeds
+// the 5 s default and fails as a timeout rather than a defect.
+vi.setConfig({ testTimeout: 20_000 });
 
 vi.mock("@/api/reportNifty", () => ({
   fetchLiveNifty: vi.fn(),
+  fetchLiveSensex: vi.fn().mockResolvedValue(null),
   fetchNiftyByDate: vi.fn(),
   fetchNiftyExpiries: vi.fn().mockResolvedValue([]),
+  fetchNiftyReplay: vi.fn(),
+  fetchNiftyReplayFrame: vi.fn(),
+  fetchNiftyReplayMeta: vi.fn().mockResolvedValue([]),
+  fetchNiftyReplayDates: vi.fn().mockResolvedValue([]),
   fetchNiftyTape: vi.fn(),
   fetchNiftyBursts: vi.fn().mockResolvedValue([]),
+  fetchBreadth: vi.fn().mockResolvedValue(null),
+  fetchChain10sSummary: vi.fn().mockResolvedValue([]),
+  fetchNiftyBlasts: vi.fn().mockResolvedValue([]),
+  fetchOptionsWalls: vi.fn().mockResolvedValue(null),
   snapshotNifty: vi.fn(),
+}));
+
+// Keep the panel on Live regardless of when the suite runs (a closed-market
+// default would otherwise switch it to EOD on nights/weekends).
+vi.mock("@/utils/marketClock", () => ({
+  isMarketOpenIst: () => true,
 }));
 
 vi.mock("@/components/chart/TradingViewChart", () => ({
   TradingViewChart: () => <div data-testid="tradingview-chart" />,
 }));
+
+// The positions drawer loads the paper book on mount; never hit the network.
+vi.mock("@/api/paperTrading", () => ({
+  fetchPositions: vi.fn().mockResolvedValue([]),
+}));
+
+// The intel strip owns its own fetch; keep this suite network-free.
+vi.mock("./niftyIntel", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./niftyIntel")>();
+  return { ...actual, fetchNiftyIntel: vi.fn().mockRejectedValue(new Error("intel offline")) };
+});
 
 vi.mock("echarts-for-react", () => ({
   default: () => <div data-testid="nifty-depth-echarts" />,
@@ -159,18 +194,36 @@ describe("unusual sentiment + ITM helpers", () => {
     });
   });
 
-  test("per-side tone matches the OI panel convention", () => {
-    // calls rise on buying: LB/SC bullish; puts rise on fear: SB/SC bullish
+  test("tone is the delta-exposure sign, matching backend class_sign", () => {
+    // CE: LB (buyers open) / SC (writers buy back) bullish; SB / LU bearish.
     expect(getUnusualSentimentTone("LB", "CE")).toBe(palette.POSITIVE);
     expect(getUnusualSentimentTone("SC", "CE")).toBe(palette.POSITIVE);
     expect(getUnusualSentimentTone("SB", "CE")).toBe(palette.NEGATIVE);
     expect(getUnusualSentimentTone("LU", "CE")).toBe(palette.NEGATIVE);
+    // PE: SB (writers open) / LU (buyers sell out) bullish; LB / SC bearish.
+    // A put short cover removes long-delta support; a put long unwind removes
+    // short-delta pressure. The old tone map had these two swapped.
     expect(getUnusualSentimentTone("SB", "PE")).toBe(palette.POSITIVE);
-    expect(getUnusualSentimentTone("SC", "PE")).toBe(palette.POSITIVE);
+    expect(getUnusualSentimentTone("LU", "PE")).toBe(palette.POSITIVE);
     expect(getUnusualSentimentTone("LB", "PE")).toBe(palette.NEGATIVE);
-    expect(getUnusualSentimentTone("LU", "PE")).toBe(palette.NEGATIVE);
+    expect(getUnusualSentimentTone("SC", "PE")).toBe(palette.NEGATIVE);
     expect(getUnusualSentimentTone("Neutral", "CE")).toBe(palette.TEXT_MUTED);
     expect(getUnusualSentimentTone("???", "PE")).toBe(palette.TEXT_MUTED);
+  });
+
+  test("tooltip explains the contract action and the directional read", () => {
+    // The two readings diverge only on the put wing: the action is a cover,
+    // the direction is bearish. The tooltip carries both.
+    expect(sentimentNote("SC", "PE")).toBe(
+      "put writers buying back · adds/supports short delta — bearish",
+    );
+    expect(sentimentNote("LU", "PE")).toBe(
+      "put buyers selling out · adds/supports long delta — bullish",
+    );
+    expect(sentimentNote("LB", "CE")).toBe(
+      "call buyers opening · adds/supports long delta — bullish",
+    );
+    expect(sentimentNote("Neutral", "CE")).toBe("unclassified flow");
   });
 
   test("isItmLeg: calls below spot, puts above spot", () => {
@@ -295,6 +348,23 @@ describe("NiftyUnusualVolume render", () => {
     expect(within(table).getByTestId("nifty-unusual-row-25700-PE")).toHaveTextContent("3.00");
   });
 
+  test("position cell tooltip separates contract action from market tone", () => {
+    r(
+      <NiftyUnusualVolume
+        spot={25750}
+        strikes={[strikeAt(25700, side(9_000, 1_000, "LB"), side(3_000, 1_000, "SC"))]}
+      />,
+    );
+    const cell = screen.getByTitle(/put writers buying back/);
+    expect(cell).toHaveAttribute(
+      "title",
+      "Short Cover (PE) — put writers buying back · adds/supports short delta — bearish",
+    );
+    // A put BUYER opening is the mirror: bearish, not “SB is bullish for puts”.
+    expect(sentimentSign("LB", "PE")).toBe(-1);
+    expect(sentimentSign("LU", "PE")).toBe(1);
+  });
+
   test("ITM-side rows carry the subtle tint, OTM rows do not", () => {
     r(
       <NiftyUnusualVolume
@@ -397,6 +467,9 @@ describe("NiftyReportPanel unusual-volume wiring", () => {
   }
 
   test("unusual panel renders directly after the OI tape panel", async () => {
+    // The unusual-volume panel lives in the RESEARCH section (DESK keeps the
+    // band tight), so the mode is seeded before the panel mounts.
+    window.localStorage.setItem("nifty.deskMode", "research");
     const { NiftyReportPanel } = await import("./NiftyReportPanel");
     const api = await import("@/api/reportNifty");
     vi.mocked(api.fetchLiveNifty).mockResolvedValue(mockReport() as never);
@@ -407,6 +480,7 @@ describe("NiftyReportPanel unusual-volume wiring", () => {
     expect(within(unusual).getByTestId("nifty-unusual-table")).toBeInTheDocument();
     const tape = screen.getByTestId("nifty-tape-panel");
     expect(tape.compareDocumentPosition(unusual) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    window.localStorage.removeItem("nifty.deskMode");
   });
 });
 

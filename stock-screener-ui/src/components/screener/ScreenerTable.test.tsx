@@ -16,13 +16,6 @@ vi.mock("../../state", () => ({
   subscribeToSelection: vi.fn(() => vi.fn()),
 }));
 
-vi.mock("../common/PreviewChartProvider", () => ({
-  usePreviewChart: () => ({
-    showPreviewChart: vi.fn(),
-    hidePreviewChart: vi.fn(),
-  }),
-}));
-
 const mockStock: Stock = {
   symbol: "RELIANCE",
   score: 85,

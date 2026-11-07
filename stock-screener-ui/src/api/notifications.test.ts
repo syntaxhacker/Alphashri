@@ -9,7 +9,7 @@ import { apiFetch } from "../state/auth";
 import { fetchSurges, recordSurge } from "./notifications";
 
 const mockedApiFetch = vi.mocked(apiFetch);
-const API_BASE = "http://localhost:8765";
+import { API_BASE } from "@/api/config";
 
 beforeEach(() => vi.clearAllMocks());
 

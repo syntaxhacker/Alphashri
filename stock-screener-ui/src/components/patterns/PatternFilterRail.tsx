@@ -1,4 +1,7 @@
-import { Box, Button, Chip, Divider, NumberInput, Select, Switch, Text, TextInput, ToolbarRow, Tooltip } from "@/ui";
+import { useCallback, useDeferredValue, useMemo, useState } from "react";
+import { ActionIcon, Box, Button, Chip, Divider, MultiSelect, Select, Switch, Text, TextInput, ToolbarRow, Tooltip } from "@/ui";
+import { Close as CloseIcon } from "@mui/icons-material";
+import { IconRestore } from "@tabler/icons-react";
 import type {
   PatternDef,
   PatternFilters,
@@ -10,18 +13,14 @@ import {
   PATTERN_FAMILIES,
   PATTERN_LABELS,
   QUALITY_INFO,
-  STATUS_INFO,
 } from "@/config/patternCatalog";
+import { FAMILY_LABELS } from "./shared";
 import { PatternPresets } from "./PatternPresets";
+import { FilterNumber } from "./FilterNumber";
 import { PatternImage } from "./PatternImage";
 import { ReplayScanControl, type ReplayScanArgs } from "./ReplayScanControl";
 import { daysAgoDatetimeLocal, startOfMonthDatetimeLocal } from "./datetime";
-
-const FAMILY_LABELS: Record<string, string> = {
-  reversal: "Reversal",
-  continuation: "Continuation",
-  curve_cup: "Curve & Cup",
-};
+import { DEFAULT_PATTERN_FILTERS } from "@/state/chartPatterns";
 
 const FAMILY_ORDER = ["reversal", "continuation", "curve_cup"];
 const FORMED_PRESETS = [1, 3, 5, 10, 20, 30, 60];
@@ -60,14 +59,31 @@ function toggle(list: string[], value: string): string[] {
 function Section({
   title,
   info,
+  level = "group",
   children,
 }: {
   title: string;
   info?: React.ReactNode;
+  level?: "group" | "field";
   children: React.ReactNode;
 }) {
+  // `field` is the compact form used inside a group: a 10px muted label and the
+  // control, with no rule. `group` owns the single rule for a group of fields.
+  if (level === "field") {
+    return (
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, minWidth: 0 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Text size="xs" c="dimmed" style={{ fontSize: 10, lineHeight: 1.2 }}>
+            {title}
+          </Text>
+          {info}
+        </Box>
+        {children}
+      </Box>
+    );
+  }
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
       <Box
         sx={{
           display: "flex",
@@ -75,7 +91,7 @@ function Section({
           gap: 0.5,
           borderBottom: "1px solid",
           borderColor: "divider",
-          pb: 0.5,
+          pb: 0.25,
         }}
       >
         <Text size="xs" fw={700} style={{ textTransform: "uppercase", letterSpacing: 0.4 }} c="dimmed">
@@ -148,12 +164,41 @@ export function PatternFilterRail({
   onReplayScan,
 }: PatternFilterRailProps) {
   const panel = layout === "panel";
-  const familyOrder = Array.from(new Set([...FAMILY_ORDER, ...patterns.map((p) => p.family)]));
-  const families = familyOrder.map((id) => ({
-    id,
-    label: FAMILY_LABELS[id] ?? id,
-    count: summary?.family_counts?.[id] ?? results.filter((r) => r.family === id).length,
-  }));
+  // Compact pattern picker state (panel layout). Search + hide-zero keep the
+  // gallery scannable without forcing a long scroll past empty patterns.
+  const [patternQuery, setPatternQuery] = useState("");
+  // A user who arrives with advanced filters already applied must see them,
+  // not a collapsed section that silently hides the active constraints.
+  const advancedActive =
+    filters.min_confidence != null ||
+    filters.min_breakout_score != null ||
+    filters.min_rel_volume != null ||
+    filters.min_volume_m != null ||
+    (filters.min_avg_volume_10d != null &&
+      filters.min_avg_volume_10d !== DEFAULT_PATTERN_FILTERS.min_avg_volume_10d) ||
+    (filters.trendlines ?? "both") !== "both";
+  const [advancedOpen, setAdvancedOpen] = useState(advancedActive);
+  const [hideZero, setHideZero] = useState(false);
+  // One pass over the results feeds both family and pattern counters; the old
+  // code re-scanned `results` once per family on every render.
+  const { familyCounts, patternCounts } = useMemo(() => {
+    const familyMap = new Map<string, number>();
+    const patternMap = new Map<string, number>();
+    for (const result of results) {
+      familyMap.set(result.family, (familyMap.get(result.family) ?? 0) + 1);
+      patternMap.set(result.pattern_id, (patternMap.get(result.pattern_id) ?? 0) + 1);
+    }
+    return { familyCounts: familyMap, patternCounts: patternMap };
+  }, [results]);
+
+  const families = useMemo(() => {
+    const order = Array.from(new Set([...FAMILY_ORDER, ...patterns.map((p) => p.family)]));
+    return order.map((id) => ({
+      id,
+      label: FAMILY_LABELS[id] ?? id,
+      count: summary?.family_counts?.[id] ?? familyCounts.get(id) ?? 0,
+    }));
+  }, [patterns, summary, familyCounts]);
 
   const selectedFamilies = asArray(filters.family);
   const selectedPatterns = asArray(filters.pattern_id);
@@ -163,12 +208,29 @@ export function PatternFilterRail({
   const minBaseDays = filters.min_base_days ?? null;
   const sort = filters.sort ?? "confidence";
 
-  const pagePatternCounts = new Map<string, number>();
-  for (const result of results) {
-    pagePatternCounts.set(result.pattern_id, (pagePatternCounts.get(result.pattern_id) ?? 0) + 1);
-  }
-  const patternCountFor = (patternId: string): number =>
-    summary?.pattern_counts?.[patternId] ?? pagePatternCounts.get(patternId) ?? 0;
+  const patternCountFor = useCallback(
+    (patternId: string): number =>
+      summary?.pattern_counts?.[patternId] ?? patternCounts.get(patternId) ?? 0,
+    [summary, patternCounts],
+  );
+
+  // The gallery only depends on the query, the zero filter and the counters —
+  // not on unrelated filter changes or typing in other inputs.
+  const deferredQuery = useDeferredValue(patternQuery);
+  const query = deferredQuery.trim().toLowerCase();
+  const gallery = useMemo(
+    () =>
+      PATTERN_FAMILIES.map((family) => ({
+        family,
+        visible: family.patterns.filter((pattern) => {
+          if (hideZero && patternCountFor(pattern.id) === 0) return false;
+          if (!query) return true;
+          const label = PATTERN_LABELS[pattern.id] ?? pattern.name;
+          return label.toLowerCase().includes(query);
+        }),
+      })).filter((group) => group.visible.length > 0),
+    [hideZero, patternCountFor, query],
+  );
 
   const presetsSection = (
     <Section title="Presets">
@@ -178,19 +240,27 @@ export function PatternFilterRail({
 
   const familySection = (
     <Section title="Pattern family">
-      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-        {families.map((f) => (
-          <Chip
-            key={f.id}
-            size="sm"
-            variant="light"
-            checked={selectedFamilies.includes(f.id)}
-            onChange={() => setFilter("family", toggle(selectedFamilies, f.id))}
-            data-testid={`patterns-family-${f.id}`}
-          >
-            {f.label} ({f.count})
-          </Chip>
-        ))}
+      <Box
+        data-testid="patterns-family-select"
+        title={
+          selectedFamilies.length
+            ? selectedFamilies
+                .map((id) => families.find((f) => f.id === id)?.label ?? id)
+                .join(", ")
+            : undefined
+        }
+      >
+        <MultiSelect
+          data={families.map((f) => ({ value: f.id, label: `${f.label} (${f.count})` }))}
+          value={selectedFamilies}
+          onChange={(vals) => setFilter("family", vals)}
+          size="xs"
+          placeholder={
+            selectedFamilies.length ? `${selectedFamilies.length} selected` : "Any family"
+          }
+          clearable
+          hideTags
+        />
       </Box>
     </Section>
   );
@@ -205,7 +275,7 @@ export function PatternFilterRail({
         tabIndex={0}
         aria-pressed={selected}
         onClick={togglePattern}
-        onKeyDown={(e) => {
+        onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
             togglePattern();
@@ -214,110 +284,240 @@ export function PatternFilterRail({
         data-testid={`patterns-filter-pattern-${patternId}`}
         sx={{
           display: "flex",
-          flexDirection: "column",
-          gap: 0.5,
-          p: 0.5,
+          alignItems: "center",
+          gap: 0.4,
+          p: "2px 4px",
           minWidth: 0,
           border: "1px solid",
           borderColor: selected ? "primary.main" : "divider",
-          bgcolor: selected ? "action.selected" : "background.default",
+          bgcolor: selected ? "action.selected" : "transparent",
           borderRadius: 1,
           cursor: "pointer",
-          transition: "border-color 120ms ease",
-          "&:hover": { borderColor: "primary.main" },
+          transition: "border-color 120ms ease, background-color 120ms ease",
+          "&:hover": { borderColor: "primary.main", bgcolor: "action.hover" },
           "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: 1 },
         }}
       >
-        <PatternImage
-          patternId={patternId}
-          images={images ?? {}}
-          height={54}
-          showPlaceholderLabel={false}
-        />
-        <Text size="xs" fw={selected ? 700 : 500} lineClamp={2} sx={{ lineHeight: 1.25, minHeight: 30 }}>
-          {label} ({count})
-        </Text>
+        <Box
+          aria-hidden="true"
+          sx={{ width: 24, height: 14, flexShrink: 0, overflow: "hidden", borderRadius: 0.5 }}
+        >
+          <PatternImage
+            patternId={patternId}
+            images={images ?? {}}
+            height={14}
+            showPlaceholderLabel={false}
+          />
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline" }}>
+          <Text
+            size="xs"
+            fw={selected ? 700 : 500}
+            truncate
+            sx={{ minWidth: 0, lineHeight: 1.2 }}
+          >
+            {label}
+          </Text>
+          <Text
+            size="xs"
+            c={count > 0 ? "text.secondary" : "dimmed"}
+            style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", paddingLeft: 3 }}
+          >
+            {` (${count})`}
+          </Text>
+        </Box>
       </Box>
     );
   };
 
   const patternsSection = (
     <Section title="Patterns">
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-        {PATTERN_FAMILIES.map((family) => (
-          <Box
-            key={family.id}
-            sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}
-            data-testid={`patterns-filter-family-group-${family.id}`}
-          >
-            <Text size="xs" c="dimmed" fw={600}>
-              {family.label}
-            </Text>
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-                gap: 1,
-              }}
-            >
-              {family.patterns.map((pattern) =>
-                patternTile(
-                  pattern.id,
-                  PATTERN_LABELS[pattern.id] ?? pattern.name,
-                  patternCountFor(pattern.id),
-                ),
-              )}
-            </Box>
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+        <ToolbarRow gap={6}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <TextInput
+              value={patternQuery}
+              onChange={(value) => setPatternQuery(String(value ?? ""))}
+              placeholder="Find a pattern…"
+              size="xs"
+              data-testid="patterns-filter-search"
+              style={{ width: "100%" }}
+            />
           </Box>
-        ))}
+          <Switch
+            label="Hide 0"
+            size="xs"
+            checked={hideZero}
+            onChange={(e) => setHideZero(e.target.checked)}
+            data-testid="patterns-filter-hide-zero"
+          />
+        </ToolbarRow>
+        {selectedPatterns.length >= 2 ? (
+          <Switch
+            label="Match in order (sequence)"
+            size="xs"
+            checked={Boolean(filters.sequence)}
+            onChange={(e) => setFilter("sequence", e.target.checked)}
+            data-testid="patterns-filter-sequence"
+          />
+        ) : null}
+        {filters.sequence && selectedPatterns.length >= 2 ? (
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+            <ToolbarRow gap={6} wrap>
+              <Text size="xs" c="dimmed">Max gap</Text>
+              <Select
+                data={[
+                  { value: "5", label: "5d" },
+                  { value: "10", label: "10d" },
+                  { value: "20", label: "20d" },
+                  { value: "40", label: "40d" },
+                  { value: "any", label: "Any" },
+                ]}
+                value={filters.sequence_gap_days == null ? "any" : String(filters.sequence_gap_days)}
+                onChange={(v) => setFilter("sequence_gap_days", v === "any" ? null : Number(v))}
+                size="xs"
+                data-testid="patterns-filter-sequence-gap"
+              />
+              <Text size="xs" c="dimmed">Last step ≤</Text>
+              <Select
+                data={[
+                  { value: "1", label: "1 bar" },
+                  { value: "3", label: "3 bars" },
+                  { value: "5", label: "5 bars" },
+                  { value: "10", label: "10 bars" },
+                  { value: "any", label: "Any" },
+                ]}
+                value={filters.sequence_max_bars == null ? "any" : String(filters.sequence_max_bars)}
+                onChange={(v) => setFilter("sequence_max_bars", v === "any" ? null : Number(v))}
+                size="xs"
+                data-testid="patterns-filter-sequence-bars"
+              />
+            </ToolbarRow>
+            <ToolbarRow gap={4}>
+              <Text size="xs" c="dimmed">Earlier steps</Text>
+              {["confirmed", "forming"].map((status) => {
+                const active = (filters.sequence_step_status ?? []).includes(status);
+                return (
+                  <Chip
+                    key={status}
+                    size="xs"
+                    variant="light"
+                    checked={active}
+                    onChange={() => {
+                      const current = filters.sequence_step_status ?? [];
+                      setFilter(
+                        "sequence_step_status",
+                        active ? current.filter((x) => x !== status) : [...current, status],
+                      );
+                    }}
+                    data-testid={`patterns-filter-sequence-status-${status}`}
+                  >
+                    {status === "confirmed" ? "Confirmed" : "Forming"}
+                  </Chip>
+                );
+              })}
+            </ToolbarRow>
+          </Box>
+        ) : null}
+        {selectedPatterns.length > 0 ? (
+          <ToolbarRow gap={4}>
+            <Text size="xs" c="dimmed">
+              {`${selectedPatterns.length} selected`}
+            </Text>
+            <Tooltip label="Clear selected patterns">
+              <ActionIcon
+                size="xs"
+                variant="subtle"
+                aria-label="Clear patterns"
+                onClick={() => setFilter("pattern_id", [])}
+                data-testid="patterns-filter-pattern-clear"
+              >
+                <CloseIcon sx={{ fontSize: 14 }} />
+              </ActionIcon>
+            </Tooltip>
+          </ToolbarRow>
+        ) : null}
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 0.5,
+            maxHeight: 340,
+            overflowY: "auto",
+            pr: 0.5,
+          }}
+        >
+        {gallery.map(({ family, visible }) => {
+          return (
+            <Box
+              key={family.id}
+              sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}
+              data-testid={`patterns-filter-family-group-${family.id}`}
+            >
+              <Text size="xs" c="dimmed" fw={600} style={{ fontSize: 10 }}>
+                {family.label}
+              </Text>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(118px, 1fr))",
+                  gap: 0.25,
+                }}
+              >
+                {visible.map((pattern) =>
+                  patternTile(
+                    pattern.id,
+                    PATTERN_LABELS[pattern.id] ?? pattern.name,
+                    patternCountFor(pattern.id),
+                  ),
+                )}
+              </Box>
+            </Box>
+          );
+        })}
+        </Box>
       </Box>
     </Section>
   );
 
   const directionSection = (
     <Section title="Direction">
-      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-        {(["bullish", "bearish"] as const).map((dir) => (
-          <Chip
-            key={dir}
-            size="sm"
-            variant="light"
-            color={dir === "bullish" ? "success" : "error"}
-            checked={selectedDirections.includes(dir)}
-            onChange={() => setFilter("direction", toggle(selectedDirections, dir))}
-            data-testid={`patterns-direction-${dir}`}
-          >
-            {dir === "bullish" ? "Bullish" : "Bearish"}
-          </Chip>
-        ))}
+      <Box data-testid="patterns-direction-select">
+        <MultiSelect
+          data={[
+            { value: "bullish", label: "Bullish" },
+            { value: "bearish", label: "Bearish" },
+          ]}
+          value={selectedDirections}
+          onChange={(vals) => setFilter("direction", vals)}
+          size="xs"
+          placeholder={
+            selectedDirections.length ? `${selectedDirections.length} selected` : "Any direction"
+          }
+          clearable
+          hideTags
+        />
       </Box>
     </Section>
   );
 
   const statusSection = (
-    <Section
-      title="Status"
-      info={
-        <InfoTip
-          title="Detection status"
-          items={infoItems(STATUS_INFO)}
-          testId="patterns-status-info"
+    <Section title="Status">
+      <Box data-testid="patterns-status-select">
+        <MultiSelect
+          data={["forming", "confirmed", "failed", "marginal"].map((status) => ({
+            value: status,
+            label: status.charAt(0).toUpperCase() + status.slice(1),
+          }))}
+          value={selectedStatuses}
+          onChange={(vals) => setFilter("status", vals)}
+          size="xs"
+          placeholder={
+            selectedStatuses.length ? `${selectedStatuses.length} selected` : "Any status"
+          }
+          clearable
+          hideTags
         />
-      }
-    >
-      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-        {(["forming", "confirmed", "failed", "marginal"] as const).map((status) => (
-          <Chip
-            key={status}
-            size="sm"
-            variant="light"
-            checked={selectedStatuses.includes(status)}
-            onChange={() => setFilter("status", toggle(selectedStatuses, status))}
-            data-testid={`patterns-status-filter-${status}`}
-          >
-            {status.charAt(0).toUpperCase() + status.slice(1)}
-          </Chip>
-        ))}
       </Box>
     </Section>
   );
@@ -335,77 +535,49 @@ export function PatternFilterRail({
     >
       <Select
         data={[
-          { value: "", label: "Any" },
+          { value: "any", label: "Any" },
           { value: "fair", label: "Fair+" },
           { value: "strong", label: "Strong+" },
           { value: "textbook", label: "Textbook" },
         ]}
-        value={filters.quality ?? ""}
-        onChange={(v) => setFilter("quality", v ? v : null)}
-        size="sm"
+        value={filters.quality ?? "any"}
+        onChange={(v) => setFilter("quality", v && v !== "any" ? v : null)}
+        size="xs"
         data-testid="patterns-quality-select"
       />
     </Section>
   );
 
   const formedSection = (
-    <Section title="Formed within (bars)">
-      <Box
-        data-testid="patterns-filter-formed-within"
-        sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}
-      >
-        <Text size="xs" c="dimmed">
-          1D: 1 bar = 1 day
-        </Text>
-        <NumberInput
-          value={formedWithin ?? ""}
-          onChange={(v: number | string) => {
-            if (v === "" || v == null) {
-              setFilter("formed_within_bars", null);
-              return;
-            }
-            const n = Number(v);
-            // Ignore in-progress partials ("-", "1.") — never store NaN.
-            if (!Number.isNaN(n)) setFilter("formed_within_bars", n);
-          }}
-          min={1}
-          step={1}
-          size="sm"
-          placeholder="Any"
-          w={110}
-          data-testid="patterns-formed-within"
+    <Section title="Formed within (bars)" level="field">
+      <Box data-testid="patterns-filter-formed-within">
+        <Select
+          data={[
+            { value: "any", label: "Any" },
+            ...FORMED_PRESETS.map((n) => ({ value: String(n), label: String(n) })),
+          ]}
+          value={formedWithin == null ? "any" : String(formedWithin)}
+          onChange={(v) => setFilter("formed_within_bars", v === "any" ? null : Number(v))}
+          size="xs"
+          data-testid="patterns-filter-formed-within-select"
         />
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-          {FORMED_PRESETS.map((preset) => (
-            <Chip
-              key={preset}
-              size="xs"
-              variant="light"
-              checked={formedWithin === preset}
-              onChange={() => setFilter("formed_within_bars", formedWithin === preset ? null : preset)}
-              data-testid={`patterns-formed-within-${preset}`}
-            >
-              {preset}
-            </Chip>
-          ))}
-        </Box>
       </Box>
     </Section>
   );
 
   const dateSection = (
-    <Section title="Formed between">
+    <Section title="Formed between" level="field">
       <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
           <Text size="xs" c="dimmed">
             From
           </Text>
-          <ToolbarRow gap={4} align="center">
+          <ToolbarRow gap={4}>
             <TextInput
               type="datetime-local"
               value={filters.from_date ?? ""}
               onChange={(v) => setFilter("from_date", v ? String(v) : null)}
-              size="sm"
+              size="xs"
               w={190}
               data-testid="patterns-filter-from-date"
             />
@@ -425,12 +597,12 @@ export function PatternFilterRail({
           <Text size="xs" c="dimmed">
             To
           </Text>
-          <ToolbarRow gap={4} align="center">
+          <ToolbarRow gap={4}>
             <TextInput
               type="datetime-local"
               value={filters.to_date ?? ""}
               onChange={(v) => setFilter("to_date", v ? String(v) : null)}
-              size="sm"
+              size="xs"
               w={190}
               data-testid="patterns-filter-to-date"
             />
@@ -476,145 +648,111 @@ export function PatternFilterRail({
 
   const sortSection = (
     <Section title="Sort">
-      <Box
-        data-testid="patterns-filter-sort"
-        sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}
-      >
-        <Chip
-          size="sm"
-          variant="light"
-          checked={sort === "confidence"}
-          onChange={() => setFilter("sort", "confidence")}
-          data-testid="patterns-filter-sort-confidence"
-        >
-          Confidence
-        </Chip>
-        <Chip
-          size="sm"
-          variant="light"
-          checked={sort === "newest"}
-          onChange={() => setFilter("sort", "newest")}
-          data-testid="patterns-filter-sort-newest"
-        >
-          Latest formed
-        </Chip>
-        <Chip
-          size="sm"
-          variant="light"
-          checked={sort === "range_pos"}
-          onChange={() => setFilter("sort", "range_pos")}
-          data-testid="patterns-filter-sort-range_pos"
-        >
-          Near breakout
-        </Chip>
-        <Chip
-          size="sm"
-          variant="light"
-          checked={sort === "breakout"}
-          onChange={() => setFilter("sort", "breakout")}
-          data-testid="patterns-filter-sort-breakout"
-        >
-          Breakout
-        </Chip>
+      <Box data-testid="patterns-filter-sort">
+        <Select
+          data={[
+            { value: "confidence", label: "Confidence" },
+            { value: "newest", label: "Latest formed" },
+            { value: "range_pos", label: "Near breakout" },
+            { value: "distance", label: "Closest to trigger" },
+          ]}
+          value={sort}
+          onChange={(v) => setFilter("sort", v)}
+          size="xs"
+          data-testid="patterns-filter-sort-select"
+        />
       </Box>
     </Section>
   );
 
-  const baseSection = (
-    <Section title="Base length (days)">
-      <ToolbarRow gap={4} data-testid="patterns-filter-min-base">
-        <Chip
-          size="xs"
-          variant="light"
-          checked={minBaseDays == null}
-          onChange={() => setFilter("min_base_days", null)}
-          data-testid="patterns-filter-min-base-any"
-        >
-          Any
-        </Chip>
-        {BASE_LENGTH_PRESETS.map((preset) => (
+  const historySection = (
+    <Section
+      title="Patterns per symbol"
+      level="field"
+      info={
+        <InfoTip
+          title="Patterns per symbol"
+          items={[
+            { label: "1", description: "Latest pattern only — the compact view." },
+            { label: "3 / 5", description: "Show the last few patterns for each symbol." },
+            {
+              label: "Overlap",
+              description:
+                "The same pattern re-detected is collapsed to its newest instance; different patterns are kept even when their spans overlap.",
+            },
+          ]}
+          testId="patterns-history-info"
+        />
+      }
+    >
+      <ToolbarRow gap={4} data-testid="patterns-filter-history">
+        {[1, 3, 5].map((n) => (
           <Chip
-            key={preset}
+            key={n}
             size="xs"
             variant="light"
-            checked={minBaseDays === preset}
-            onChange={() => setFilter("min_base_days", minBaseDays === preset ? null : preset)}
-            data-testid={`patterns-filter-min-base-${preset}`}
+            checked={(filters.history ?? 1) === n}
+            onChange={() => setFilter("history", n)}
+            data-testid={`patterns-filter-history-${n}`}
           >
-            {preset}
+            {n}
           </Chip>
         ))}
       </ToolbarRow>
     </Section>
   );
 
+  const baseSection = (
+    <Section title="Base length (days)" level="field">
+      <Box data-testid="patterns-filter-min-base">
+        <Select
+          data={[
+            { value: "any", label: "Any" },
+            ...BASE_LENGTH_PRESETS.map((n) => ({ value: String(n), label: String(n) })),
+          ]}
+          value={minBaseDays == null ? "any" : String(minBaseDays)}
+          onChange={(v) => setFilter("min_base_days", v === "any" ? null : Number(v))}
+          size="xs"
+          data-testid="patterns-filter-min-base-select"
+        />
+      </Box>
+    </Section>
+  );
+
   const rangeSection = (
-    <Section title="Range ≤ %">
-      <NumberInput
-        value={filters.max_range_pct ?? ""}
-        onChange={(v: number | string) => {
-          if (v === "" || v == null) {
-            setFilter("max_range_pct", null);
-            return;
-          }
-          const n = Number(v);
-          // Ignore in-progress partials ("-", "1.") — never store NaN.
-          if (!Number.isNaN(n)) setFilter("max_range_pct", n);
-        }}
+    <Section title="Range ≤ %" level="field">
+      <FilterNumber
+        value={filters.max_range_pct}
+        onChange={(v) => setFilter("max_range_pct", v)}
         min={0}
         step={1}
-        size="sm"
-        placeholder="Any"
-        w={110}
-        data-testid="patterns-filter-max-range"
+        testId="patterns-filter-max-range"
       />
     </Section>
   );
 
   const gap52Section = (
-    <Section title="52W gap ≤ %">
-      <NumberInput
-        value={filters.max_52w_gap ?? ""}
-        onChange={(v: number | string) => {
-          if (v === "" || v == null) {
-            setFilter("max_52w_gap", null);
-            return;
-          }
-          const n = Number(v);
-          // Ignore in-progress partials ("-", "1.") — never store NaN.
-          if (!Number.isNaN(n)) setFilter("max_52w_gap", n);
-        }}
+    <Section title="52W gap ≤ %" level="field">
+      <FilterNumber
+        value={filters.max_52w_gap}
+        onChange={(v) => setFilter("max_52w_gap", v)}
         min={0}
         max={25}
         step={0.5}
-        size="sm"
-        placeholder="Any"
-        w={110}
-        data-testid="patterns-filter-max-52w-gap"
+        testId="patterns-filter-max-52w-gap"
       />
     </Section>
   );
 
   const rangePosSection = (
-    <Section title="Range pos ≥ %">
-      <NumberInput
-        value={filters.min_range_pos ?? ""}
-        onChange={(v: number | string) => {
-          if (v === "" || v == null) {
-            setFilter("min_range_pos", null);
-            return;
-          }
-          const n = Number(v);
-          // Ignore in-progress partials ("-", "1.") — never store NaN.
-          if (!Number.isNaN(n)) setFilter("min_range_pos", n);
-        }}
+    <Section title="Range pos ≥ %" level="field">
+      <FilterNumber
+        value={filters.min_range_pos}
+        onChange={(v) => setFilter("min_range_pos", v)}
         min={0}
         max={100}
         step={5}
-        size="sm"
-        placeholder="Any"
-        w={110}
-        data-testid="patterns-filter-min-range-pos"
+        testId="patterns-filter-min-range-pos"
       />
     </Section>
   );
@@ -622,138 +760,76 @@ export function PatternFilterRail({
   // Result-level client-side floors (filtered in the store selector, never sent
   // to the API): pattern-fit confidence and breakout conviction.
   const scoreSection = (
-    <Section title="Score ≥">
-      <NumberInput
-        value={filters.min_confidence ?? ""}
-        onChange={(v: number | string) => {
-          if (v === "" || v == null) {
-            setFilter("min_confidence", null);
-            return;
-          }
-          const n = Number(v);
-          // Ignore in-progress partials ("-", "1.") — never store NaN.
-          if (!Number.isNaN(n)) setFilter("min_confidence", n);
-        }}
+    <Section title="Score ≥" level="field">
+      <FilterNumber
+        value={filters.min_confidence}
+        onChange={(v) => setFilter("min_confidence", v)}
         min={0}
         max={100}
         step={5}
-        size="sm"
-        placeholder="Any"
-        w={110}
-        data-testid="patterns-filter-min-confidence"
+        testId="patterns-filter-min-confidence"
       />
     </Section>
   );
 
   const breakoutSection = (
-    <Section title="Breakout ≥">
-      <NumberInput
-        value={filters.min_breakout_score ?? ""}
-        onChange={(v: number | string) => {
-          if (v === "" || v == null) {
-            setFilter("min_breakout_score", null);
-            return;
-          }
-          const n = Number(v);
-          // Ignore in-progress partials ("-", "1.") — never store NaN.
-          if (!Number.isNaN(n)) setFilter("min_breakout_score", n);
-        }}
+    <Section title="Breakout ≥" level="field">
+      <FilterNumber
+        value={filters.min_breakout_score}
+        onChange={(v) => setFilter("min_breakout_score", v)}
         min={0}
         max={100}
         step={5}
-        size="sm"
-        placeholder="Any"
-        w={110}
-        data-testid="patterns-filter-min-breakout"
+        testId="patterns-filter-min-breakout"
       />
     </Section>
   );
 
   // Scan-time volume pre-filters: the scan pre-filters the universe via
   // TradingView before fetching candles (unlike the result-level filters).
-  const volumeScanSection = (
-    <Section title="Volume scan">
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-          <Text size="xs" c="dimmed">
-            Rel vol ≥
-          </Text>
-          <NumberInput
-            value={filters.min_rel_volume ?? ""}
-            onChange={(v: number | string) => {
-              if (v === "" || v == null) {
-                setFilter("min_rel_volume", null);
-                return;
-              }
-              const n = Number(v);
-              // Ignore in-progress partials ("-", "1.") — never store NaN.
-              if (!Number.isNaN(n)) setFilter("min_rel_volume", n);
-            }}
-            min={0}
-            max={10}
-            step={0.5}
-            size="sm"
-            placeholder="Any"
-            w={110}
-            data-testid="patterns-filter-min-rel-volume"
-          />
-        </Box>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-          <Text size="xs" c="dimmed">
-            Volume ≥ M
-          </Text>
-          <NumberInput
-            value={filters.min_volume_m ?? ""}
-            onChange={(v: number | string) => {
-              if (v === "" || v == null) {
-                setFilter("min_volume_m", null);
-                return;
-              }
-              const n = Number(v);
-              // Ignore in-progress partials ("-", "1.") — never store NaN.
-              if (!Number.isNaN(n)) setFilter("min_volume_m", n);
-            }}
-            min={0}
-            max={500}
-            step={5}
-            size="sm"
-            placeholder="Any"
-            w={110}
-            data-testid="patterns-filter-min-volume-m"
-          />
-        </Box>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-          <Text size="xs" c="dimmed">
-            10d avg vol ≥ K
-          </Text>
-          <NumberInput
-            value={filters.min_avg_volume_10d ?? ""}
-            onChange={(v: number | string) => {
-              if (v === "" || v == null) {
-                setFilter("min_avg_volume_10d", null);
-                return;
-              }
-              const n = Number(v);
-              // Ignore in-progress partials ("-", "1.") — never store NaN.
-              if (!Number.isNaN(n)) setFilter("min_avg_volume_10d", n);
-            }}
-            min={0}
-            max={500000}
-            step={50}
-            size="sm"
-            placeholder="Any"
-            w={110}
-            data-testid="patterns-filter-min-avg-volume-10d"
-          />
-        </Box>
-      </Box>
+  const relVolumeField = (
+    <Section title="Rel vol ≥" level="field">
+      <FilterNumber
+        value={filters.min_rel_volume}
+        onChange={(v) => setFilter("min_rel_volume", v)}
+        min={0}
+        max={10}
+        step={0.5}
+        testId="patterns-filter-min-rel-volume"
+      />
+    </Section>
+  );
+
+  const volumeMField = (
+    <Section title="Volume ≥ M" level="field">
+      <FilterNumber
+        value={filters.min_volume_m}
+        onChange={(v) => setFilter("min_volume_m", v)}
+        min={0}
+        max={500}
+        step={5}
+        testId="patterns-filter-min-volume-m"
+      />
+    </Section>
+  );
+
+  const avgVolume10dField = (
+    <Section title="10d avg vol ≥ K" level="field">
+      <FilterNumber
+        value={filters.min_avg_volume_10d}
+        onChange={(v) => setFilter("min_avg_volume_10d", v)}
+        min={0}
+        max={500000}
+        step={50}
+        testId="patterns-filter-min-avg-volume-10d"
+      />
     </Section>
   );
 
   // View-only overlay toggle: controls which standalone support/resistance
   // lines are drawn on the card/fullscreen charts. Never sent to the API.
   const trendlinesSection = (
-    <Section title="Trendlines">
+    <Section title="Trendlines" level="field">
       <Select
         data={[
           { value: "both", label: "Both" },
@@ -763,7 +839,7 @@ export function PatternFilterRail({
         ]}
         value={filters.trendlines ?? "both"}
         onChange={(v) => setFilter("trendlines", (v ?? "both") as TrendlinesView)}
-        size="sm"
+        size="xs"
         data-testid="patterns-filter-trendlines"
       />
     </Section>
@@ -773,20 +849,23 @@ export function PatternFilterRail({
     <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
       <Switch
         label="Volume confirmed"
-        size="sm"
+        size="xs"
         checked={Boolean(filters.volume_confirmed)}
         onChange={(e) => setFilter("volume_confirmed", e.target.checked ? true : null)}
         data-testid="patterns-volume-confirmed"
       />
       {!panel && (
-        <Button
-          size="xs"
-          variant="outline"
-          onClick={resetFilters}
-          data-testid="patterns-reset"
-        >
-          Reset
-        </Button>
+        <Tooltip label="Reset all filters">
+          <ActionIcon
+            size="xs"
+            variant="outline"
+            aria-label="Reset filters"
+            onClick={resetFilters}
+            data-testid="patterns-reset"
+          >
+            <IconRestore size={14} />
+          </ActionIcon>
+        </Tooltip>
       )}
     </Box>
   );
@@ -801,36 +880,97 @@ export function PatternFilterRail({
           display: "grid",
           gridTemplateColumns: {
             xs: "minmax(0, 1fr)",
-            md: "minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1fr)",
+            lg: "minmax(220px, 0.78fr) minmax(320px, 1.4fr) minmax(320px, 1.2fr)",
           },
-          gap: 3,
+          gap: 1,
           alignItems: "start",
         }}
       >
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5, minWidth: 0 }}>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, minWidth: 0 }}>
           {presetsSection}
           {familySection}
           {directionSection}
           {statusSection}
           {qualitySection}
+          {sortSection}
+{historySection}
         </Box>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5, minWidth: 0 }}>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, minWidth: 0 }}>
           {patternsSection}
         </Box>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5, minWidth: 0 }}>
-          {formedSection}
-          {dateSection}
-          {sortSection}
-          {trendlinesSection}
-          {baseSection}
-          {rangeSection}
-          {gap52Section}
-          {rangePosSection}
-          {scoreSection}
-          {breakoutSection}
-          {volumeScanSection}
-          {replaySection}
-          {volumeSection}
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, minWidth: 0 }}>
+          <Section title="Freshness">
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+                gap: 0.5,
+              }}
+            >
+              {formedSection}
+              {dateSection}
+            </Box>
+          </Section>
+          <Section title="Structure">
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: 0.5,
+              }}
+            >
+              {baseSection}
+              {rangeSection}
+              {gap52Section}
+              {rangePosSection}
+            </Box>
+          </Section>
+          <Button
+            size="xs"
+            variant="subtle"
+            onClick={() => setAdvancedOpen((open) => !open)}
+            aria-expanded={advancedOpen}
+            aria-controls="patterns-advanced-section"
+            data-testid="patterns-filter-advanced"
+          >
+            {advancedOpen ? "Advanced ▾" : advancedActive ? "Advanced •" : "Advanced ▸"}
+          </Button>
+          <Box
+            id="patterns-advanced-section"
+            sx={{
+              display: advancedOpen ? "flex" : "none",
+              flexDirection: "column",
+              gap: 0.75,
+            }}
+          >
+          <Section title="Scores">
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: 0.5,
+              }}
+            >
+              {scoreSection}
+              {breakoutSection}
+            </Box>
+            {volumeSection}
+          </Section>
+          <Section title="Volume scan">
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(80px, 1fr))",
+                gap: 0.5,
+              }}
+            >
+              {relVolumeField}
+              {volumeMField}
+              {avgVolume10dField}
+            </Box>
+          </Section>
+          <Section title="Display">{trendlinesSection}</Section>
+          </Box>
         </Box>
       </Box>
     );
@@ -858,6 +998,7 @@ export function PatternFilterRail({
       {dateSection}
       <Divider />
       {sortSection}
+{historySection}
       <Divider />
       {trendlinesSection}
       <Divider />
@@ -873,7 +1014,15 @@ export function PatternFilterRail({
       <Divider />
       {breakoutSection}
       <Divider />
-      {volumeScanSection}
+      <Section title="Volume scan">
+        <Box
+          sx={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 1 }}
+        >
+          {relVolumeField}
+          {volumeMField}
+          {avgVolume10dField}
+        </Box>
+      </Section>
       <Divider />
       {replaySection}
       {replaySection ? <Divider /> : null}

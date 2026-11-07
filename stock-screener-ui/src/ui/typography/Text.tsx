@@ -49,8 +49,12 @@ export function Text({
   lineClamp,
   span,
   inherit,
+  sx: sxProp,
   ...rest
 }: UITextProps) {
+  // Caller `sx` must *merge* with the size/weight/colour props, not replace
+  // them: spreading `rest` after `sx` used to let a single `sx={{ ms: 1 }}`
+  // silently drop the whole internal style block (size, weight, tone).
   const sx: Record<string, unknown> = {
     ...(c != null && { color: resolveColor(c as string) }),
     ...(fw != null && { fontWeight: fw }),
@@ -79,6 +83,8 @@ export function Text({
       overflow: "hidden",
     });
   }
+
+  Object.assign(sx, (sxProp ?? {}) as Record<string, unknown>);
 
   return (
     <Typography

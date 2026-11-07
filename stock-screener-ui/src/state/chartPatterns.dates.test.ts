@@ -25,10 +25,12 @@ vi.mock("../api/chartPatterns", async () => {
 
 import { startScan, fetchResults, fetchSummary } from "../api/chartPatterns";
 import {
+  CUSTOM_UNIVERSE,
   DEFAULT_PATTERN_FILTERS,
   getChartPatternsState,
   resetChartPatternsState,
   setFilter,
+  setUniverse,
   triggerScan,
   triggerReplayScan,
   hasRestrictiveFilter,
@@ -124,6 +126,25 @@ describe("chartPatterns from/to date filters", () => {
         from_date: "2026-06-01",
         as_of_date: "2026-09-30T14:30",
       }),
+    );
+  });
+
+  it("refuses an empty custom scope without hitting the API", async () => {
+    setUniverse(CUSTOM_UNIVERSE);
+    mocked.startScan.mockClear();
+    await triggerScan(true);
+    expect(mocked.startScan).not.toHaveBeenCalled();
+    expect(getChartPatternsState().error).toMatch(/Custom scope is empty/i);
+  });
+
+  it("scans a custom scope once it has symbols", async () => {
+    setUniverse(CUSTOM_UNIVERSE);
+    setFilter("symbols", ["INFY"]);
+    await flush();
+    mocked.startScan.mockClear();
+    await triggerScan(true);
+    expect(mocked.startScan).toHaveBeenCalledWith(
+      expect.objectContaining({ universe: CUSTOM_UNIVERSE, symbols: ["INFY"] }),
     );
   });
 });

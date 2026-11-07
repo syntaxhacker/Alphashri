@@ -10,12 +10,10 @@ import MenuItem from "@mui/material/MenuItem";
 import Slider from "@mui/material/Slider";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { TZ_IST } from "@/config/constants";
+import { fmtClock } from "../format";
+import * as palette from "@/ui/palette";
 
 export const SPEEDS = [1, 5, 15, 60, 300];
-
-const fmtT = (ts: number) =>
-  new Date(ts * 1000).toLocaleString("en-IN", { timeZone: TZ_IST, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 
 export interface ReplayControlsProps {
   playing: boolean;
@@ -55,9 +53,9 @@ export default function ReplayControls({
           onChange={(_, v) => onJump(v as number)} aria-label="replay position" />
       </Box>
       <Typography variant="caption" sx={{ color: "#E5E7EB", fontFamily: "monospace" }}>
-        {clock > 0 ? fmtT(clock) : "--:--:--"} · {closedCount}/{revealedCount} closed · net {net > 0 ? "+" : ""}{net.toFixed(1)}
+        {clock > 0 ? fmtClock(clock) : "--:--:--"} · {closedCount}/{revealedCount} closed · net {net > 0 ? "+" : ""}{net.toFixed(1)}
       </Typography>
-      {loading && <Chip size="small" label="loading ticks…" sx={{ bgcolor: "#1F2937", color: "#58A6FF" }} />}
+      {loading && <Chip size="small" label="loading ticks…" sx={{ bgcolor: "#1F2937", color: palette.PRIMARY }} />}
       {error && <Chip size="small" label={error} sx={{ bgcolor: "#3B1D1D", color: "#F87171" }} />}
     </Stack>
   );

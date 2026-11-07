@@ -4,6 +4,8 @@ import Stack from "@mui/material/Stack";
 import Chip from "@mui/material/Chip";
 import { createElement } from "react";
 import { TZ_IST_LABEL } from "@/config/constants";
+import * as palette from "@/ui/palette";
+import { tradeStatChips } from "./shared";
 import { stackColor, type ReplayTrade, type TradeStack } from "../tick";
 import type { ReplayStrategyPlugin } from "../core/plugin";
 
@@ -52,17 +54,24 @@ const smcIfvg: ReplayStrategyPlugin = {
   },
   panel: (bundle) => {
     const trades = bundle.trades;
-    const net = trades.reduce((a, t) => a + t.pnl, 0);
-    const wins = trades.filter(t => t.pnl > 0).length;
     const netStack = (st: TradeStack) => trades.filter(t => t.stack === st).reduce((a, t) => a + t.pnl, 0);
     return createElement(
       Stack,
       { direction: "row", spacing: 1, sx: { mb: 1, flexWrap: "wrap" } },
-      createElement(Chip, { size: "small", label: `${trades.length ?? 0} trades`, sx: { bgcolor: "#1F2937", color: "#00FF00" } }),
-      createElement(Chip, { size: "small", label: `win ${wins}/${trades.length ?? 0}`, sx: { bgcolor: "#1F2937", color: "#9CA3AF" } }),
-      createElement(Chip, { size: "small", label: `net ${net > 0 ? "+" : ""}${net.toFixed(1)} pts`, color: net > 0 ? "success" : "error" }),
-      createElement(Chip, { size: "small", label: `MOMENTUM ${netStack("inv") > 0 ? "+" : ""}${netStack("inv").toFixed(1)}`, sx: { bgcolor: "#1F2937", color: "#58A6FF", border: `1px solid ${stackColor("inv")}` } }),
-      createElement(Chip, { size: "small", label: `REVERSION ${netStack("retest") > 0 ? "+" : ""}${netStack("retest").toFixed(1)}`, sx: { bgcolor: "#1F2937", color: "#CE9BFC", border: `1px solid ${stackColor("retest")}` } }),
+      ...tradeStatChips(bundle, [
+        createElement(Chip, {
+          size: "small",
+          key: "momentum",
+          label: `MOMENTUM ${netStack("inv") > 0 ? "+" : ""}${netStack("inv").toFixed(1)}`,
+          sx: { bgcolor: "#1F2937", color: palette.PRIMARY, border: `1px solid ${stackColor("inv")}` },
+        }),
+        createElement(Chip, {
+          size: "small",
+          key: "reversion",
+          label: `REVERSION ${netStack("retest") > 0 ? "+" : ""}${netStack("retest").toFixed(1)}`,
+          sx: { bgcolor: "#1F2937", color: "#CE9BFC", border: `1px solid ${stackColor("retest")}` },
+        }),
+      ]),
     );
   },
   summary: (bundle) =>

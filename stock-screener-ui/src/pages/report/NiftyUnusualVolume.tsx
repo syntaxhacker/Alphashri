@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { formatNumberIN } from "@/utils/ui-helpers";
+import { memo, useCallback, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import Box from "@mui/material/Box";
 import { Text } from "@/ui";
@@ -6,11 +7,20 @@ import * as palette from "@/ui/palette";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NiftyStrike } from "@/types/niftyReport";
+import { hexToRgba } from "@/utils/color";
+import { formatReportClock, formatReportCompact, formatReportPct } from "./reportFormat";
+import {
+  SENTIMENT_NAMES,
+  sentimentCode,
+  sentimentLabel,
+  sentimentNote,
+  sentimentSign,
+} from "./optionSentiment";
 
 /** Cap on ranked legs — one CE row + one PE row per strike compete for slots. */
-export const UNUSUAL_TOP_N = 30;
+const UNUSUAL_TOP_N = 30;
 
-export interface UnusualLegRow {
+interface UnusualLegRow {
   key: string;
   strike: number;
   leg: "CE" | "PE";
@@ -70,37 +80,32 @@ export function buildUnusualRows(strikes: NiftyStrike[]): UnusualLegRow[] {
 
 /** Unsigned compact volume: 1.25M / 850.00K / 912. */
 export function formatUnusualCompact(v: number): string {
-  if (v === null || v === undefined || !Number.isFinite(v)) return "—";
-  const abs = Math.abs(v);
-  if (abs >= 1_000_000) return `${(abs / 1_000_000).toFixed(2)}M`;
-  if (abs >= 1_000) return `${(abs / 1_000).toFixed(2)}K`;
-  return Math.round(abs).toLocaleString("en-IN");
+  return formatReportCompact(v, { round: true });
 }
 
 /** Share of leg volume, 1 decimal. */
 export function formatUnusualShare(p: number): string {
-  if (!Number.isFinite(p)) return "—";
-  return `${p.toFixed(1)}%`;
+  return formatReportPct(p, { digits: 1 });
 }
 
-// Mirrors NiftyReportPanel's sentimentBadge label + per-side tone convention
-// (calls rise on buying so LB/SC are bullish; puts rise on fear so SB/SC
-// are bullish). Duplicated here so this panel stays decoupled from the
-// report panel module (no import cycle).
-export const UNUSUAL_SENTIMENT_NAMES: Record<string, string> = {
-  LB: "Long Buildup",
-  SB: "Short Buildup",
-  SC: "Short Cover",
-  LU: "Long Unwind",
-};
+// Full class labels + the directional map live in `optionSentiment` so this
+// panel and NiftyReportPanel's CE/PE Signal badges can never drift apart.
+export const UNUSUAL_SENTIMENT_NAMES = SENTIMENT_NAMES;
 
-/** Border/text tone for a positioning pill, per side. */
+/**
+ * Border/text tone for a positioning cell, per side.
+ *
+ * This is a **direction-of-delta-exposure** badge, not a "what did the
+ * participants do" badge — it uses the same map as the backend's
+ * `class_sign` (put SC = writers buying back a long-delta hedge = bearish,
+ * put LU = buyers selling out of short-delta pressure = bullish). The
+ * contract-level reading is in the cell tooltip so the two concepts cannot be
+ * confused.
+ */
 export function getUnusualSentimentTone(sentiment: string, side: "CE" | "PE"): string {
-  const code = sentiment.trim().toUpperCase();
-  if (code === "NEUTRAL" || !UNUSUAL_SENTIMENT_NAMES[code]) return palette.TEXT_MUTED;
-  const bullish =
-    side === "CE" ? code === "LB" || code === "SC" : code === "SB" || code === "SC";
-  return bullish ? palette.POSITIVE : palette.NEGATIVE;
+  const sign = sentimentSign(sentiment, side);
+  if (sign === 0) return palette.TEXT_MUTED;
+  return sign > 0 ? palette.POSITIVE : palette.NEGATIVE;
 }
 
 /**
@@ -109,16 +114,16 @@ export function getUnusualSentimentTone(sentiment: string, side: "CE" | "PE"): s
  */
 export const UNUSUAL_TERM_BG = "#000000";
 export const UNUSUAL_TERM_BORDER = "#1A1A1A";
-export const UNUSUAL_CE = "#5B9CF6";
-export const UNUSUAL_PE = "#F2A65A";
-export const UNUSUAL_CALL_VOL = "#5B9CF6";
-export const UNUSUAL_PUT_VOL = "#F2A65A";
+const UNUSUAL_CE = "#5B9CF6";
+const UNUSUAL_PE = "#F2A65A";
+const UNUSUAL_CALL_VOL = "#5B9CF6";
+const UNUSUAL_PUT_VOL = "#F2A65A";
 
-export type UnusualLegFilter = "all" | "CE" | "PE";
+type UnusualLegFilter = "all" | "CE" | "PE";
 
 function positioningText(sentiment: string, side: "CE" | "PE") {
-  const code = sentiment.trim().toUpperCase();
-  const label = UNUSUAL_SENTIMENT_NAMES[code] ?? sentiment;
+  const code = sentimentCode(sentiment);
+  const label = sentimentLabel(sentiment);
   const tone = getUnusualSentimentTone(sentiment, side);
   // Terminal style: plain bold text, no pill border — Short buildup reads
   // orange, Long buildup / covers read blue, unwinds stay muted.
@@ -127,6 +132,8 @@ function positioningText(sentiment: string, side: "CE" | "PE") {
   return (
     <Box
       component="span"
+      title={code ? `${label} (${side}) — ${sentimentNote(code, side)}` : label}
+      data-testid={`nifty-unusual-sentiment-${side}`}
       sx={{
         maxWidth: "100%",
         overflow: "hidden",
@@ -167,15 +174,6 @@ export function isItmLeg(strike: number, leg: "CE" | "PE", spot: number): boolea
   return leg === "CE" ? strike < spot : strike > spot;
 }
 
-/** Build an rgba() string from a palette hex token — never hardcode the channels. */
-function hexToRgba(hex: string, alpha: number): string {
-  const h = hex.replace("#", "");
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
 export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>[] {
   return [
     {
@@ -210,7 +208,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
               fontVariantNumeric: "tabular-nums",
             }}
           >
-            <Text size="xs" span fw={700}>{row.strike.toLocaleString("en-IN")}</Text>
+            <Text size="xs" span fw={700}>{formatNumberIN(row.strike)}</Text>
             <Text size="xs" span fw={700} c={tone}>{row.leg}</Text>
           </Box>
         );
@@ -288,7 +286,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
  * already-built row (no new data): `25,800 CE · VOL 90.00K · OI 1.00K ·
  * VOL÷OI 90.00x · SHARE 47.4% of CE vol · VS SPOT +50 pts · Short Cover`. */
 export function formatUnusualFocus(row: UnusualLegRow, spot: number): string {
-  const strike = row.strike.toLocaleString("en-IN");
+  const strike = formatNumberIN(row.strike);
   const vol = formatUnusualCompact(row.volume);
   const oi = formatUnusualCompact(row.oi);
   // Mirrors the table cell: OI=0 legs show compact volume instead of a ratio.
@@ -301,19 +299,74 @@ export function formatUnusualFocus(row: UnusualLegRow, spot: number): string {
   const vs = Number.isFinite(diff)
     ? `${diff >= 0 ? "+" : "-"}${Math.abs(diff).toLocaleString("en-IN", { maximumFractionDigits: 0 })} pts`
     : "—";
-  const code = row.sentiment.trim().toUpperCase();
-  const positioning = UNUSUAL_SENTIMENT_NAMES[code] ?? row.sentiment;
+  const positioning = sentimentLabel(row.sentiment);
   return `${strike} ${row.leg} · VOL ${vol} · OI ${oi} · VOL÷OI ${ratio} · SHARE ${share} · VS SPOT ${vs} · ${positioning}`;
 }
 
 
 /** IST HH:MM:SS for an epoch-ms value — host-TZ independent. */
 function clock(ms: number): string {
-  if (!Number.isFinite(ms)) return "—";
-  return new Date(ms).toLocaleTimeString("en-IN", { hour12: false, timeZone: "Asia/Kolkata" });
+  return formatReportClock(ms);
 }
 
-export function NiftyUnusualVolume({
+/** Stable row test-id getter — hoisted so the table never gets a new fn. */
+function getUnusualRowTestId(row: UnusualLegRow): string {
+  return `nifty-unusual-row-${row.strike}-${row.leg}`;
+}
+
+/** Hoisted pill chrome — constant halves of the filter-pill style. */
+const UNUSUAL_PILL_BASE_SX = {
+  border: "1px solid",
+  borderRadius: 999,
+  px: 1,
+  py: 0.25,
+  fontSize: 11,
+  fontWeight: 700,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+} as const;
+
+const UNUSUAL_PILL_ACTIVE_SX = {
+  borderColor: "#2FC0AC",
+  background: "rgba(47, 192, 172, 0.18)",
+  color: "#8AE6D4",
+} as const;
+
+const UNUSUAL_PILL_IDLE_SX = {
+  borderColor: "#30363D",
+  background: "transparent",
+  color: "#8B949E",
+} as const;
+
+/** Memoised filter pill — replaces the per-render `pill()` closure. */
+const UnusualFilterPill = memo(function UnusualFilterPill({
+  active,
+  label,
+  testId,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  testId: string;
+  onClick: () => void;
+}) {
+  return (
+    <Box
+      component="button"
+      data-testid={testId}
+      onClick={onClick}
+      sx={{
+        ...UNUSUAL_PILL_BASE_SX,
+        ...(active ? UNUSUAL_PILL_ACTIVE_SX : UNUSUAL_PILL_IDLE_SX),
+      }}
+    >
+      {label}
+    </Box>
+  );
+});
+UnusualFilterPill.displayName = "UnusualFilterPill";
+
+function NiftyUnusualVolumeInner({
   strikes,
   spot,
   sx,
@@ -347,34 +400,23 @@ export function NiftyUnusualVolume({
     [visible],
   );
   const columns = useMemo(() => getNiftyUnusualColumns(maxVol), [maxVol]);
+  // Stable filter callbacks so the memoised pills keep working props.
+  const selectAll = useCallback(() => setLegFilter("all"), []);
+  const selectCalls = useCallback(() => setLegFilter("CE"), []);
+  const selectPuts = useCallback(() => setLegFilter("PE"), []);
+  // Stable row-style resolver (depends only on spot, not on every render).
+  const getRowStyle = useCallback(
+    (row: UnusualLegRow) =>
+      isItmLeg(row.strike, row.leg, spot)
+        ? { background: hexToRgba(palette.WARNING, 0.08) }
+        : undefined,
+    [spot],
+  );
   const top = rows[0];
   const focus = top ? formatUnusualFocus(top, spot) : "";
   // Split the focus line into label/value pairs for terminal rendering while
   // keeping the exact same text (tests assert the full string).
   const focusParts = focus ? focus.split(" · ") : [];
-
-  const pill = (active: boolean, label: string, testId: string, onClick: () => void) => (
-    <Box
-      component="button"
-      data-testid={testId}
-      onClick={onClick}
-      sx={{
-        border: "1px solid",
-        borderColor: active ? "#2FC0AC" : "#30363D",
-        background: active ? "rgba(47, 192, 172, 0.18)" : "transparent",
-        color: active ? "#8AE6D4" : "#8B949E",
-        borderRadius: 999,
-        px: 1,
-        py: 0.25,
-        fontSize: 11,
-        fontWeight: 700,
-        cursor: "pointer",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {label}
-    </Box>
-  );
 
   return (
     <Box
@@ -384,9 +426,9 @@ export function NiftyUnusualVolume({
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 0.5, px: 0.75, pt: 0.25 }}>
         <Text size="xs" fw={700} span>Unusual volume</Text>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          {pill(legFilter === "all", "C + P", "nifty-unusual-filter-all", () => setLegFilter("all"))}
-          {pill(legFilter === "CE", "Calls", "nifty-unusual-filter-ce", () => setLegFilter("CE"))}
-          {pill(legFilter === "PE", "Puts", "nifty-unusual-filter-pe", () => setLegFilter("PE"))}
+          <UnusualFilterPill active={legFilter === "all"} label="C + P" testId="nifty-unusual-filter-all" onClick={selectAll} />
+          <UnusualFilterPill active={legFilter === "CE"} label="Calls" testId="nifty-unusual-filter-ce" onClick={selectCalls} />
+          <UnusualFilterPill active={legFilter === "PE"} label="Puts" testId="nifty-unusual-filter-pe" onClick={selectPuts} />
         </Box>
       </Box>
       {/* Single wrapping stat line (was two stacked rows): call/put vol +
@@ -467,8 +509,8 @@ export function NiftyUnusualVolume({
             fontSize: 12,
           },
           "& .paper-tanstack-header-cell": {
-            paddingTop: "4px",
-            paddingBottom: "4px",
+            paddingTop: "2px",
+            paddingBottom: "2px",
             background: `${UNUSUAL_TERM_BG} !important`,
             borderBottom: "1px solid #2A2A2A !important",
             color: "#8B949E",
@@ -483,14 +525,16 @@ export function NiftyUnusualVolume({
           dataTestId="nifty-unusual-table"
           emptyMessage="No chain data"
           fillContainer
-          getRowStyle={(row) =>
-            isItmLeg(row.strike, row.leg, spot)
-              ? { background: hexToRgba(palette.WARNING, 0.08) }
-              : undefined
-          }
-          getRowTestId={(row) => `nifty-unusual-row-${row.strike}-${row.leg}`}
+          getRowStyle={getRowStyle}
+          getRowTestId={getUnusualRowTestId}
+          dense
+          style={{ minWidth: 0 }}
         />
       </Box>
     </Box>
   );
 }
+
+/** Memoised leaf panel — `strikes` keeps identity between unrelated parent renders. */
+export const NiftyUnusualVolume = memo(NiftyUnusualVolumeInner);
+NiftyUnusualVolume.displayName = "NiftyUnusualVolume";

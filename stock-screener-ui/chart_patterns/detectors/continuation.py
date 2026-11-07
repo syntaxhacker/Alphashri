@@ -11,8 +11,8 @@ import pandas as pd
 
 from .. import features as F
 from .common import (
+    _fit_pair,
     envelope_pair,
-    fit_window_pair,
     flat_line_points,
     iso_ts,
     make_hit,
@@ -45,10 +45,6 @@ PENNANT_MAX_RETR = 0.70  # max retracement of the pole
 PENNANT_CONVERGE = 0.85  # end width must be < 85% of start width
 PENNANT_CONVERGE_MID = 0.85  # end width must also be < 85% of the mid-span width
 PENNANT_MAX_DRIFT = 0.04  # net consolidation drift vs its start price
-
-
-def _fit_pair(df, ctx, start, max_pivots=5):
-    return fit_window_pair(df, ctx, start, max_pivots=max_pivots)
 
 
 def _line_val(env: dict, x) -> float:
