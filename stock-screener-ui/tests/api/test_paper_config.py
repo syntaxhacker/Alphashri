@@ -94,6 +94,7 @@ def _mock_session_with_row(mock_row):
 
 
 @pytest.mark.unit
+@pytest.mark.slow
 class TestGetStrategyConfig:
     """GET /api/paper/config — fetch config by name or strategy_id."""
 
@@ -185,6 +186,7 @@ class TestGetStrategyConfig:
 
 
 @pytest.mark.unit
+@pytest.mark.slow
 class TestUpdateStrategyConfig:
     """PUT /api/paper/config — update or create strategy config (requires auth)."""
 
@@ -286,6 +288,7 @@ class TestUpdateStrategyConfig:
 
 
 @pytest.mark.unit
+@pytest.mark.slow
 class TestResetStrategyConfig:
     """POST /api/paper/config/reset — reset config to defaults (requires auth)."""
 

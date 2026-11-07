@@ -56,6 +56,7 @@ def mock_trading_deps():
 
 
 @pytest.mark.unit
+@pytest.mark.slow
 class TestChartEndpoint:
 
     def test_chart_returns_candles(self, client, auth_headers, sample_1min_df, mock_trading_deps):
