@@ -61,10 +61,6 @@ const CONSOLIDATION: PatternHitDTO = {
   breakout_level: 130,
   target: 150,
   stop: 110,
-  trendlines: [
-    [{ t: "2026-02-01", price: 130 }],
-    [{ t: "2026-02-01", price: 110 }],
-  ],
   rr: 1.5,
   base_days: 120,
   range_pct: 13,
@@ -89,7 +85,7 @@ describe("PatternCard", () => {
   afterEach(() => cleanup());
 
   test("flags cards with missing candles (red border + No chart badge)", () => {
-    const { container } = r(<PatternCard hit={HIT} />);
+    r(<PatternCard hit={HIT} />);
     expect(screen.getByTestId("patterns-card-no-data-IRCON")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-card-no-data-IRCON")).toHaveTextContent("No chart");
   });
@@ -105,7 +101,7 @@ describe("PatternCard", () => {
     expect(screen.getByTestId("patterns-card-IRCON-falling_wedge")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-card")).toBeInTheDocument();
     expect(screen.getByText("Falling Wedge")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-status-confirmed")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-status-confirmed")).toHaveTextContent("CONFIRMED");
     expect(screen.getByTestId("patterns-quality-strong")).toBeInTheDocument();
     expect(screen.getByText("2 1D candles ago")).toBeInTheDocument();
   });
@@ -206,6 +202,62 @@ describe("PatternCard", () => {
       />,
     );
     expect(screen.getByTestId("patterns-card-range-CONS")).toHaveTextContent("₹105.00 – ₹128.00");
+  });
+
+  describe("status pill (derived display status)", () => {
+    // CONSOLIDATION: raw status "forming", box ₹100.00 – ₹130.00 (hi = breakout trigger).
+    test("consolidation below the trigger but inside the box shows ARMED", () => {
+      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: 120 }} />);
+      expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("ARMED");
+      // (120 - 130) / 130 = -7.7% → distance line is shown.
+      expect(screen.getByTestId("patterns-card-to-trigger-CONS")).toHaveTextContent("−7.7% to trigger");
+    });
+
+    test("consolidation at the lower box edge is still ARMED", () => {
+      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: 100 }} />);
+      expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("ARMED");
+    });
+
+    test("consolidation closed above the trigger within 5% shows BREAKOUT", () => {
+      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: 133 }} />);
+      // (133 - 130) / 130 ≈ 2.3%
+      expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("BREAKOUT");
+    });
+
+    test("consolidation exactly 5% above the trigger shows BREAKOUT", () => {
+      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: 136.5 }} />);
+      // (136.5 - 130) / 130 = 5%
+      expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("BREAKOUT");
+    });
+
+    test("consolidation more than 5% above the trigger shows EXTENDED", () => {
+      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: 140 }} />);
+      // (140 - 130) / 130 ≈ 7.7%
+      expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("EXTENDED");
+    });
+
+    test("consolidation below the box shows INVALID", () => {
+      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: 90 }} />);
+      // 90 < lower 100
+      expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("INVALID");
+    });
+
+    test("consolidation without a live price falls back to the raw DB status", () => {
+      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: null }} />);
+      expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("FORMING");
+    });
+
+    test("consolidation with a non-positive price falls back to the raw DB status", () => {
+      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: 0 }} />);
+      expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("FORMING");
+    });
+
+    test("non-base patterns keep the raw DB status even with a live price", () => {
+      // Not a consolidation and no base_days → bounds are null → raw mapping,
+      // never ARMED, even though a price exists.
+      r(<PatternCard hit={{ ...HIT, status: "marginal", last_close: 50 }} />);
+      expect(screen.getByTestId("patterns-status-marginal")).toHaveTextContent("MARGINAL");
+    });
   });
 });
 

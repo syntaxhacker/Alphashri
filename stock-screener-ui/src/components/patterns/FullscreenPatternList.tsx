@@ -1,6 +1,7 @@
 import { Box, Text, ToolbarRow, UnstyledButton } from "@/ui";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { StatusBadge } from "./StatusBadge";
+import { displayStatusForHit } from "./patternDisplayStatus";
 import { formatChartTimestamp } from "./datetime";
 
 /** Identity for a fullscreen pattern hit (mirrors the page's hitIdentity). */
@@ -78,7 +79,7 @@ export function FullscreenPatternList({ hits, activeKey, onSelect }: FullscreenP
                 <Text size="xs" fw={600} truncate style={{ flex: 1, minWidth: 0 }} lh={1.15}>
                   {hit.pattern_name}
                 </Text>
-                <StatusBadge status={hit.status} />
+                <StatusBadge status={hit.status} display={displayStatusForHit(hit)} />
               </ToolbarRow>
               <ToolbarRow justify="space-between" gap={4} align="center">
                 <Text size="xs" c="dimmed" truncate lh={1.15}>

@@ -5,13 +5,18 @@ import type { PatternHitDTO, TrendlinesView } from "@/types/chartPatterns";
 import { QUALITY_INFO } from "@/config/patternCatalog";
 import { SymbolLink } from "@/components/common/SymbolLink";
 import { hasIndexMembers } from "@/config/indexGroups";
-import { PATTERN_CONFIRMED, PATTERN_FAILED } from "@/ui/palette";
-import { formatPrice } from "./shared";
 import {
-  changeChartColor,
-  qualityLabel as qualityLabelFor,
-  statusChartColor,
-} from "./patternTone";
+  INFO,
+  NEUTRAL,
+  NEGATIVE,
+  PATTERN_CONFIRMED,
+  PATTERN_FAILED,
+  POSITIVE,
+  WARNING,
+} from "@/ui/palette";
+import { formatPrice } from "./shared";
+import { patternDisplayStatus, type DisplayTone } from "./patternDisplayStatus";
+import { changeChartColor, qualityLabel as qualityLabelFor } from "./patternTone";
 import { PatternMiniChart } from "./PatternMiniChart";
 
 export interface PatternCardProps {
@@ -109,6 +114,22 @@ function consolidationBounds(hit: PatternHitDTO): { lo: number | null; hi: numbe
   return { lo, hi };
 }
 
+/** Palette color for the status pill dot + text, keyed by the derived tone. */
+function displayToneColor(tone: DisplayTone): string {
+  switch (tone) {
+    case "success":
+      return POSITIVE;
+    case "warning":
+      return WARNING;
+    case "error":
+      return NEGATIVE;
+    case "info":
+      return INFO;
+    case "neutral":
+      return NEUTRAL;
+  }
+}
+
 /** One pattern result card in the grid. */
 export function PatternCard({
   hit,
@@ -129,7 +150,17 @@ export function PatternCard({
   const isConsolidation = hit.pattern_id === "consolidation" || baseDays > 0;
   const bounds = isConsolidation ? consolidationBounds(hit) : null;
   const missingCandles = (hit.candles ?? []).length === 0;
-  const tone = statusChartColor(hit.status);
+  const triggerDistance =
+    isConsolidation && bounds?.hi != null && lastPrice > 0
+      ? ((lastPrice - bounds.hi) / bounds.hi) * 100
+      : null;
+  const display = patternDisplayStatus({
+    rawStatus: hit.status,
+    isBase: isConsolidation,
+    lastClose: hit.last_close ?? null,
+    upper: bounds?.hi ?? null,
+    lower: bounds?.lo ?? null,
+  });
   const qualityKey = String(hit.quality ?? "").toLowerCase();
   const qualityInfo = QUALITY_INFO[qualityKey as keyof typeof QUALITY_INFO];
   const quality = qualityLabelFor(qualityKey, "—");
@@ -208,17 +239,33 @@ export function PatternCard({
               <Text size="xs" c="dimmed" sx={{ fontSize: 9, lineHeight: 1, whiteSpace: "nowrap" }}>
                 {barsLabel}
               </Text>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <Box sx={{ width: 5, height: 5, borderRadius: "50%", bgcolor: tone, flexShrink: 0 }} />
-                <Text
-                  data-testid={`patterns-status-${String(hit.status ?? "").toLowerCase()}`}
-                  size="xs"
-                  fw={700}
-                  sx={{ fontSize: 9, lineHeight: 1, letterSpacing: 0.5, textTransform: "uppercase", color: tone }}
-                >
-                  {hit.status}
-                </Text>
-              </Box>
+              <Tooltip label={display.tooltip} withArrow position="top">
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Box
+                    sx={{
+                      width: 5,
+                      height: 5,
+                      borderRadius: "50%",
+                      bgcolor: displayToneColor(display.tone),
+                      flexShrink: 0,
+                    }}
+                  />
+                  <Text
+                    data-testid={`patterns-status-${String(hit.status ?? "").toLowerCase()}`}
+                    size="xs"
+                    fw={700}
+                    sx={{
+                      fontSize: 9,
+                      lineHeight: 1,
+                      letterSpacing: 0.5,
+                      textTransform: "uppercase",
+                      color: displayToneColor(display.tone),
+                    }}
+                  >
+                    {display.label}
+                  </Text>
+                </Box>
+              </Tooltip>
               <Tooltip label={qualityInfo?.description ?? quality} position="left" withArrow>
                 <Text
                   data-testid={`patterns-quality-${qualityKey || "unknown"}`}
@@ -259,6 +306,21 @@ export function PatternCard({
           >
             {formatPercentage(changePct, 2)}
           </Text>
+          {triggerDistance != null ? (
+            <Text
+              data-testid={`patterns-card-to-trigger-${hit.symbol}`}
+              size="xs"
+              c={triggerDistance >= 0 ? "success" : "dimmed"}
+              sx={{
+                fontSize: 10,
+                lineHeight: 1.1,
+                fontVariantNumeric: "tabular-nums",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {`${triggerDistance >= 0 ? "+" : "−"}${Math.abs(triggerDistance).toFixed(1)}% to trigger`}
+            </Text>
+          ) : null}
           {missingCandles ? (
             <Tooltip
               label="Chart data failed to load (rate limit or fetch error) — pattern levels only. Refresh or force-rescan to retry."

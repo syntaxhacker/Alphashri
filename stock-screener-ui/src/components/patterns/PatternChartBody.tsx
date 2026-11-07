@@ -17,6 +17,7 @@ import { KeyPointLegend } from "./KeyPointLegend";
 import { PivotList } from "./PatternPivotList";
 import { QualityBadge } from "./QualityBadge";
 import { StatusBadge } from "./StatusBadge";
+import { displayStatusForHit } from "./patternDisplayStatus";
 import { formatPrice } from "./shared";
 import { FullscreenPatternList, fullscreenHitKey } from "./FullscreenPatternList";
 import { KEY_POINTS_LEGEND_NAME, PIVOT_LEGEND_NAME } from "@/config/patterns";
@@ -105,7 +106,7 @@ function FullscreenPanel({
       ) : null}
       <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
         <ToolbarRow gap={4} wrap>
-          <StatusBadge status={hit.status} />
+          <StatusBadge status={hit.status} display={displayStatusForHit(hit)} />
           <QualityBadge quality={hit.quality} />
         </ToolbarRow>
         <Text size="xs" c="dimmed" truncate>
