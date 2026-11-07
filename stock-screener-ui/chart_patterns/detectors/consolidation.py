@@ -316,7 +316,9 @@ def detect_consolidation(df: pd.DataFrame, ctx: dict | None = None) -> list:
     # window, instead of re-fetching per window.
     swings = get_swings(df, ctx)
     best = None
-    for w in WINDOWS:
+    # Largest window first: a smaller window cannot beat a base longer than
+    # itself, so stop as soon as the best base covers the next window.
+    for w in sorted(WINDOWS, reverse=True):
         # Only scan a window we actually have bars for, so ``base_days`` is the
         # true lookback rather than a clipped (smaller) span.
         if n < w:
@@ -341,6 +343,8 @@ def detect_consolidation(df: pd.DataFrame, ctx: dict | None = None) -> list:
         base["span"] = base["end"] - base["start"] + 1
         if best is None or base["span"] > best["span"]:
             best = base
+        if best["span"] >= w:
+            break
 
     if best is None:
         return []
