@@ -12,6 +12,8 @@ primitives to describe geometry (pivots, trendlines, curvature, ATR).
 
 from __future__ import annotations
 
+import weakref
+from collections import OrderedDict
 from typing import Iterable, Sequence
 
 import numpy as np
@@ -20,8 +22,137 @@ import pandas as pd
 OHLCV_COLUMNS = ["open", "high", "low", "close", "volume"]
 
 # ---------------------------------------------------------------------------
+# Frame-scoped memo storage
+# ---------------------------------------------------------------------------
+#
+# ``atr_value`` and ``envelope_line`` are called many times with the same frame
+# inside one ``detect_patterns`` pass (~19 detectors, 63% of envelope calls are
+# exact duplicates). Caching on ``df.attrs`` looked free but pandas 3 deep-copies
+# ``attrs`` on every derived Series (``__finalize__``), which cost ~5% of the
+# engine. This store is keyed by object identity, holds only a weak reference to
+# the frame, and is bounded, so a frame's entries disappear with the frame and a
+# recycled ``id`` can never produce a wrong hit (the weakref identity check
+# fails and the entry is rebuilt).
+#
+# Values are keyed by shape + index edges (not by price values): the lifetime
+# contract is "one frame, one value", exactly like the old ``attrs`` cache, so
+# an in-place price edit on the same frame keeps the memoized ATR. ``envelope_line``
+# additionally fingerprints the boundary column it reads, so a price edit there
+# forces a refit rather than a stale line.
+
+_FRAME_CACHE_MAX = 32
+_ENVELOPE_ENTRY_MAX = 512
+
+
+class _FrameEntry:
+    __slots__ = ("ref", "token", "atr", "envelope")
+
+    def __init__(self, token: tuple) -> None:
+        self.ref = None
+        self.token = token
+        self.atr: dict[int, float] = {}
+        self.envelope: dict[tuple, dict | None] = {}
+
+
+_FRAME_CACHE: "OrderedDict[int, _FrameEntry]" = OrderedDict()
+
+
+def _frame_token(df: pd.DataFrame) -> tuple | None:
+    """Shape + index-edge fingerprint used to reject a recycled ``id``.
+
+    ``DatetimeIndex.asi8`` exposes the raw int64 values without building a
+    ``Timestamp`` per edge (~8x cheaper than ``index[0]``), which matters
+    because this runs on every memoized call.
+    """
+    try:
+        n = len(df)
+        if n == 0:
+            return (0, None, None)
+        index = df.index
+        raw = getattr(index, "asi8", None)
+        if raw is not None:
+            return (n, raw[0], raw[-1])
+        return (n, index[0], index[-1])
+    except Exception:
+        return None
+
+
+def _make_dropper(key: int, entry: _FrameEntry):
+    def _drop(_ref) -> None:
+        # Only remove our own entry: a later frame may already own ``key``.
+        if _FRAME_CACHE.get(key) is entry:
+            _FRAME_CACHE.pop(key, None)
+
+    return _drop
+
+
+def _frame_entry(df: pd.DataFrame) -> _FrameEntry | None:
+    """Return this frame's memo entry, creating it on first use.
+
+    The store is shared across detector threads: every operation is a single
+    dict/OrderedDict call, and a lost race only causes a recompute — never a
+    wrong hit (the weakref identity check and token still gate reuse).
+    """
+    try:
+        key = id(df)
+    except Exception:
+        return None
+    token = _frame_token(df)
+    if token is None:
+        return None
+    entry = _FRAME_CACHE.get(key)
+    if (
+        entry is not None
+        and entry.ref is not None
+        and entry.ref() is df
+        and token == entry.token
+    ):
+        return entry
+    entry = _FrameEntry(token)
+    try:
+        entry.ref = weakref.ref(df, _make_dropper(key, entry))
+    except TypeError:
+        return None
+    _FRAME_CACHE[key] = entry
+    if len(_FRAME_CACHE) > _FRAME_CACHE_MAX:
+        try:
+            _FRAME_CACHE.popitem(last=False)
+        except KeyError:  # another thread emptied it first
+            pass
+    return entry
+
+
+# ---------------------------------------------------------------------------
 # Normalisation
 # ---------------------------------------------------------------------------
+
+
+def _normalized_copy(df: pd.DataFrame) -> pd.DataFrame | None:
+    """Fast path: a defensive copy when ``df`` already meets the contract.
+
+    Returns ``None`` whenever the full path would do any real work (case
+    normalisation, dtype coercion, dedupe/sort, NaN handling, missing volume),
+    so the caller falls back with identical results.
+    """
+    try:
+        if list(df.columns) != OHLCV_COLUMNS:
+            return None
+        for col in OHLCV_COLUMNS:
+            if df[col].dtype != np.float64:
+                return None
+        index = df.index
+        if not (index.is_unique and index.is_monotonic_increasing):
+            return None
+        close = df["close"].to_numpy(dtype=float, copy=False)
+        volume = df["volume"].to_numpy(dtype=float, copy=False)
+        if not np.isfinite(close).all() or not np.isfinite(volume).all():
+            return None
+        out = df.copy()
+        # Backward compatibility: callers may still inspect ``attrs``.
+        out.attrs.pop("_atr_cache", None)
+        return out
+    except Exception:
+        return None
 
 
 def normalize_ohlcv(df: pd.DataFrame | None) -> pd.DataFrame | None:
@@ -36,11 +167,15 @@ def normalize_ohlcv(df: pd.DataFrame | None) -> pd.DataFrame | None:
     if not isinstance(df, pd.DataFrame) or df.empty:
         return None
 
+    fast = _normalized_copy(df)
+    if fast is not None:
+        return fast
+
     out = df.copy()
     out.columns = [str(c).lower() for c in out.columns]
-    # Drop any memoized ATR (see ``atr_value``): the copy inherits the input's
-    # ``attrs``, but filtering/sorting below can change the rows, so a cached
-    # value from the source frame must never be reused here.
+    # Drop a legacy memoized ATR (see ``atr_value``): the copy inherits the
+    # input's ``attrs``, but filtering/sorting below can change the rows, so a
+    # cached value from the source frame must never be reused here.
     try:
         out.attrs.pop("_atr_cache", None)
     except AttributeError:
@@ -268,19 +403,17 @@ def atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
 def atr_value(df: pd.DataFrame, period: int = 14) -> float:
     """Last ATR value, with a sane fallback for very short frames.
 
-    Memoized on the frame itself (``df.attrs``): one ``detect_patterns`` call
-    runs ~19 detectors over the same normalised frame and each asks for the
-    ATR, so the ~1ms EMA is computed once per frame instead of ~28 times. The
-    cache dies with the frame, so distinct symbols/frames never share values.
+    Memoized per frame in the frame-scoped store (see ``_frame_entry``): one
+    ``detect_patterns`` call runs ~19 detectors over the same normalised frame
+    and each asks for the ATR, so the ~1ms EMA is computed once per frame
+    instead of ~28 times. The entry dies with the frame, so distinct
+    symbols/frames never share values.
     """
     if df is None or df.empty:
         return 0.0
-    try:
-        cache = df.attrs.get("_atr_cache")
-    except AttributeError:
-        cache = None
-    if isinstance(cache, dict) and period in cache:
-        return cache[period]
+    entry = _frame_entry(df)
+    if entry is not None and period in entry.atr:
+        return entry.atr[period]
     series = atr(df, period)
     val = float(series.iloc[-1]) if not series.empty else 0.0
     if not np.isfinite(val) or val <= 0:
@@ -288,10 +421,8 @@ def atr_value(df: pd.DataFrame, period: int = 14) -> float:
         val = float(rng.tail(min(len(rng), period)).mean())
     if not np.isfinite(val) or val < 0:
         val = 0.0
-    try:
-        df.attrs.setdefault("_atr_cache", {})[period] = val
-    except (AttributeError, TypeError):
-        pass
+    if entry is not None:
+        entry.atr[period] = val
     return val
 
 
@@ -359,6 +490,25 @@ def envelope_line(
     # memory stays bounded on pivot-dense frames.
     boundary = df["high"].to_numpy(dtype=float) if side == "upper" else df["low"].to_numpy(dtype=float)
     n = len(boundary)
+    # Frame-scoped memo: detectors ask for the same boundary repeatedly within
+    # one pass. The key includes the boundary's byte hash so an in-place price
+    # edit can never return a stale line, and the store is keyed by frame
+    # identity (weakref-verified), so symbols never share entries.
+    entry = _frame_entry(df)
+    memo_key = None
+    if entry is not None:
+        try:
+            memo_key = (
+                side,
+                tuple((int(p), float(q)) for p, q in P),
+                float(tol),
+                hash(boundary.tobytes()),
+            )
+        except (TypeError, ValueError):
+            memo_key = None
+        if memo_key is not None and memo_key in entry.envelope:
+            cached = entry.envelope[memo_key]
+            return dict(cached) if cached is not None else None
     xs = np.array([int(p) for p, _ in P])
     qs = np.array([float(q) for _, q in P])
     m = len(P)
@@ -404,6 +554,11 @@ def envelope_line(
                 "viol": int(viol[w]),
                 "worst": float(worst[w]) if viol[w] > 0 else 0.0,
             }
+    if entry is not None and memo_key is not None:
+        if len(entry.envelope) >= _ENVELOPE_ENTRY_MAX:
+            entry.envelope.clear()
+        # Store a private copy: the caller owns the returned dict and may edit it.
+        entry.envelope[memo_key] = dict(best) if best is not None else None
     return best
 
 
