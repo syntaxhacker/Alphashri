@@ -117,3 +117,64 @@ def test_run_symbols_item_exception_becomes_none():
     assert par.run_symbols(
         _boom_on_b, ["a", "B", "c"], workers=3, use_processes=False
     ) == ["A", None, "C"]
+
+
+def test_spawn_context_returns_usable_context():
+    """``spawn_context`` yields a context able to start processes (Linux: spawn)."""
+    ctx = par.spawn_context()
+    assert ctx is not None
+    assert hasattr(ctx, "Process") and hasattr(ctx, "get_context")
+
+
+def test_process_pool_receives_spawn_context(monkeypatch):
+    """The real process pool is constructed with ``mp_context=spawn`` (never fork)."""
+    captured = {}
+
+    class CapturingPool:
+        def __init__(self, max_workers=None, mp_context=None, **kwargs):
+            captured["mp_context"] = mp_context
+            captured["max_workers"] = max_workers
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def map(self, fn, tasks, chunksize=1):
+            return [fn(task) for task in tasks]
+
+    monkeypatch.setattr(par, "ProcessPoolExecutor", CapturingPool)
+    monkeypatch.setattr(par, "spawn_context", lambda: "SPAWN_CTX")
+
+    values, mode = par.run_symbols_with_mode(_shout, ["a", "b"], workers=2, use_processes=True)
+    assert values == ["A!", "B!"]
+    assert mode == "processes"
+    assert captured["mp_context"] == "SPAWN_CTX"
+    assert captured["max_workers"] == 2
+
+
+def test_auto_process_mode_uses_spawn(monkeypatch):
+    """Auto mode on a large universe picks processes and passes the spawn context."""
+    captured = {}
+
+    class CapturingPool:
+        def __init__(self, max_workers=None, mp_context=None, **kwargs):
+            captured["mp_context"] = mp_context
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def map(self, fn, tasks, chunksize=1):
+            return [fn(task) for task in tasks]
+
+    monkeypatch.setattr(par, "ProcessPoolExecutor", CapturingPool)
+    monkeypatch.setattr(par, "spawn_context", lambda: "SPAWN_CTX")
+    syms = [f"L{i:03d}" for i in range(210)]
+    values, mode = par.run_symbols_with_mode(_shout, syms)
+    assert mode == "processes"
+    assert captured["mp_context"] == "SPAWN_CTX"
+    assert values == [f"L{i:03d}!" for i in range(210)]

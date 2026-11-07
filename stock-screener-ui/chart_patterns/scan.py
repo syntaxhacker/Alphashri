@@ -7,19 +7,20 @@ progress. Per-symbol failures never abort the job.
 from __future__ import annotations
 
 import dataclasses
+import functools
 import hashlib
 import logging
 import os
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Optional
 
 import pandas as pd
 
-from chart_patterns import candles, config, jobs as jobs_mod, store
+from chart_patterns import candles, config, jobs as jobs_mod, parallel, store
 
 try:
     from chart_patterns import tv_prefilter as tv_prefilter_mod
@@ -53,6 +54,10 @@ except Exception:  # pragma: no cover - trading package always present in app en
 logger = logging.getLogger(__name__)
 
 SYMBOL_WORKERS = int(os.environ.get("PATTERN_SCAN_SYMBOL_WORKERS", "4"))
+# Opt-in process-based fan-out for the detect+trendlines CPU (GIL-bound under
+# threads). Default off for the API; a CLI/bot can pass ``use_processes=True``
+# in the job params. Threads remain the default path regardless.
+USE_PROCESSES_DEFAULT = os.environ.get("PATTERN_SCAN_USE_PROCESSES", "0") == "1"
 DEFAULT_MIN_BARS = 60
 # Upper bound on the resolved symbol count of an as-of (replay) scan. Replays
 # fetch explicit historical windows per symbol; without a cap one request
@@ -775,16 +780,111 @@ def run_job(job_id: str) -> None:
         except Exception:
             partial_bars = {}
 
-    with ThreadPoolExecutor(max_workers=max(1, SYMBOL_WORKERS)) as pool:
-        futures = {
-            pool.submit(
-                _process_symbol, symbol, timeframe, job_id, names.get(symbol), lookback_bars,
-                compute_trendlines, as_of_date, from_date, include_partial_today,
-                prev_by_symbol.get(symbol), partial_bars.get(symbol),
-            ): symbol
-            for symbol in symbols
-        }
-        cancelled = False
+    # Executor selection: spawn processes (opt-in) -> threads -> sequential.
+    # All DB/Redis/mirror writes stay in the parent; workers only fetch +
+    # detect + trendlines and return a status dict.
+    use_processes = USE_PROCESSES_DEFAULT or bool(params.get("use_processes"))
+    proc_workers = min(max(1, SYMBOL_WORKERS), parallel.max_workers())
+
+    def _open_pool():
+        """(executor, mode). Never raises; sequential when no pool is available."""
+        if use_processes:
+            try:
+                ctx = parallel.spawn_context()
+                return ProcessPoolExecutor(max_workers=proc_workers, mp_context=ctx), "processes"
+            except Exception:
+                pass
+        try:
+            return ThreadPoolExecutor(max_workers=max(1, SYMBOL_WORKERS)), "threads"
+        except Exception:
+            return None, "sequential"
+
+    pool, mode = _open_pool()
+    cancelled = False
+    done_symbols: set[str] = set()
+
+    def _submit(symbol: str):
+        return functools.partial(
+            _process_symbol, symbol, timeframe, job_id, names.get(symbol), lookback_bars,
+            compute_trendlines, as_of_date, from_date, include_partial_today,
+            prev_by_symbol.get(symbol), partial_bars.get(symbol),
+        )
+
+    def _consume(symbol: str, result: dict) -> None:
+        nonlocal done, failed, skipped, no_hits, reused
+        nonlocal candles_cached, candles_fetched, max_date
+        with lock:
+            done_symbols.add(symbol)
+            done += 1
+            if result.get("reused"):
+                reused += 1
+            hits = result.get("hits") or []
+            if hits:
+                pending_hits.extend(hits)
+            status = result.get("status")
+            if status == "failed":
+                failed += 1
+            elif status == "skipped":
+                skipped += 1
+            elif status == "empty":
+                no_hits += 1
+            from_cache = result.get("from_cache")
+            if from_cache is True:
+                candles_cached += 1
+            elif from_cache is False:
+                candles_fetched += 1
+            data_through = result.get("data_through")
+            if data_through and (max_date is None or data_through > max_date):
+                max_date = data_through
+
+    def _mirror_flush(final: bool = False) -> None:
+        nonlocal last_mirror
+        now = time.monotonic()
+        mirror_due = (
+            final
+            or done == total
+            or done % _MIRROR_EVERY == 0
+            or now - last_mirror >= _MIRROR_INTERVAL_SEC
+        )
+        hits_due = final or done == total or len(pending_hits) >= _HITS_EVERY
+        if mirror_due:
+            jobs_mod.update_state(
+                job_id, persist=(done % _PERSIST_EVERY == 0 or done == total),
+                done=done, failed=failed, skipped=skipped, no_hits=no_hits,
+                reused=reused, data_through=max_date,
+            )
+            last_mirror = now
+        if hits_due:
+            _flush_hits(force=final or done == total)
+
+    def _handle(symbol: str, result: dict) -> None:
+        _consume(symbol, result)
+        _mirror_flush()
+
+    def _run_remaining(remaining: list[str]) -> None:
+        nonlocal cancelled
+        for symbol in remaining:
+            if jobs_mod.is_cancelled(job_id):
+                cancelled = True
+                break
+            try:
+                result = _submit(symbol)()
+            except Exception as exc:  # _process_symbol never raises; defensive
+                logger.warning(
+                    "scan %s: %s failed: %s: %s", job_id, symbol, type(exc).__name__, exc
+                )
+                result = {"status": "failed", "data_through": None}
+            _handle(symbol, result)
+
+    def _drive(pool, symbol_list) -> bool:
+        """Apply ``pool`` to ``symbol_list``; returns True if cancelled.
+
+        A per-symbol exception is swallowed inside ``_process_symbol``; an
+        exception here means the pool itself is broken and the caller falls
+        back (processes -> threads -> sequential).
+        """
+        nonlocal cancelled
+        futures = {pool.submit(_submit(symbol)): symbol for symbol in symbol_list}
         for future in as_completed(futures):
             if jobs_mod.is_cancelled(job_id):
                 cancelled = True
@@ -794,49 +894,57 @@ def run_job(job_id: str) -> None:
             symbol = futures[future]
             try:
                 result = future.result()
-            except Exception as exc:  # _process_symbol never raises; defensive
-                logger.warning("scan %s: %s failed: %s: %s", job_id, symbol, type(exc).__name__, exc)
-                result = {"status": "failed", "data_through": None}
-            with lock:
-                done += 1
-                if result.get("reused"):
-                    reused += 1
-                hits = result.get("hits") or []
-                if hits:
-                    pending_hits.extend(hits)
-                if result.get("status") == "failed":
-                    failed += 1
-                elif result.get("status") == "skipped":
-                    skipped += 1
-                elif result.get("status") == "empty":
-                    no_hits += 1
-                if result.get("from_cache") is True:
-                    candles_cached += 1
-                elif result.get("from_cache") is False:
-                    candles_fetched += 1
-                data_through = result.get("data_through")
-                if data_through and (max_date is None or data_through > max_date):
-                    max_date = data_through
+            except Exception as exc:  # broken pool/worker -> caller falls back
+                logger.warning(
+                    "scan %s: %s failed: %s: %s", job_id, symbol, type(exc).__name__, exc
+                )
+                raise
+            _handle(symbol, result)
+        return cancelled
 
-                now = time.monotonic()
-                mirror_due = (
-                    done == total
-                    or done % _MIRROR_EVERY == 0
-                    or now - last_mirror >= _MIRROR_INTERVAL_SEC
+    def _run_subset_via_threads(symbol_list) -> bool:
+        with ThreadPoolExecutor(max_workers=max(1, SYMBOL_WORKERS)) as tp:
+            return _drive(tp, symbol_list)
+
+    primary_failed = False
+    primary_exc = None
+    if pool is not None:
+        try:
+            cancelled = _drive(pool, symbols)
+        except Exception as exc:  # broken pool -> fall back below
+            primary_failed = True
+            primary_exc = exc
+            try:
+                pool.shutdown(wait=False, cancel_futures=True)
+            except Exception:
+                pass
+        else:
+            try:
+                pool.shutdown(wait=True, cancel_futures=False)
+            except Exception:
+                pass
+
+    remaining = [s for s in symbols if s not in done_symbols]
+    if pool is None:
+        _run_remaining(remaining)
+    elif primary_failed and not cancelled and remaining:
+        if mode == "processes":
+            # processes -> threads
+            try:
+                cancelled = _run_subset_via_threads(remaining)
+            except Exception as exc:
+                # threads -> sequential
+                logger.warning(
+                    "scan %s: thread pool failed (%s); falling back to sequential",
+                    job_id, exc,
                 )
-                hits_due = done == total or len(pending_hits) >= _HITS_EVERY
-            if mirror_due:
-                # Mirror live counters to Redis (and persist to DB on the usual
-                # cadence) at most every _MIRROR_EVERY symbols or every
-                # _MIRROR_INTERVAL_SEC; the final symbol always mirrors.
-                jobs_mod.update_state(
-                    job_id, persist=(done % _PERSIST_EVERY == 0 or done == total),
-                    done=done, failed=failed, skipped=skipped, no_hits=no_hits,
-                    reused=reused, data_through=max_date,
-                )
-                last_mirror = now
-            if hits_due:
-                _flush_hits(force=done == total)
+                _run_remaining(remaining)
+        else:
+            logger.warning(
+                "scan %s: thread pool failed (%s); falling back to sequential",
+                job_id, primary_exc,
+            )
+            _run_remaining(remaining)
 
     if cancelled or jobs_mod.is_cancelled(job_id):
         # Persist any hits computed so far before terminal state; old hits of

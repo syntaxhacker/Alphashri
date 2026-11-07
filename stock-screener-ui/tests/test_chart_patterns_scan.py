@@ -1,5 +1,6 @@
 """Tests for chart_patterns/scan.py (job execution + progress counters)."""
 from dataclasses import replace
+from concurrent.futures import ThreadPoolExecutor as _RealThreadPool
 from types import SimpleNamespace
 from typing import Optional
 
@@ -1813,3 +1814,297 @@ def test_different_frame_interior_forces_redetect(cp_store, monkeypatch):
     items, total, _ = store.query_results({"job_id": "cpj_interior_new"})
     assert total == 1
     assert items[0]["source_sig"] != prev_sig  # stored hit reflects frame B
+
+
+# ---------------------------------------------------------------------------
+# Process-based fan-out (PATTERN_SCAN_USE_PROCESSES / params.use_processes).
+# The fake pool below is thread-backed so monkeypatched fetch/detect deps stay
+# visible to the worker (real spawn re-imports the module and loses them), but
+# it routes through scan's process-path code: functools.partial submission,
+# as_completed, cancellation, and the spawn context.
+# ---------------------------------------------------------------------------
+
+
+class _FakeProcessPool:
+    """Thread-backed stand-in for ProcessPoolExecutor exercising scan's process path."""
+
+    instances: list = []
+
+    def __init__(self, max_workers=None, mp_context=None, **kwargs):
+        self.max_workers = max_workers
+        self.mp_context = mp_context
+        self._pool = _RealThreadPool(max_workers=max_workers or 1)
+        _FakeProcessPool.instances.append(self)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self._pool.shutdown(wait=True, cancel_futures=True)
+        return False
+
+    def submit(self, fn, *args, **kwargs):
+        return self._pool.submit(fn, *args, **kwargs)
+
+    def shutdown(self, wait=True, cancel_futures=False):
+        self._pool.shutdown(wait=wait, cancel_futures=cancel_futures)
+
+
+def _eq_items(job_id: str) -> dict:
+    items, _, _ = store.query_results({"job_id": job_id})
+    return {
+        i["symbol"]: {
+            "pattern_id": i["pattern_id"],
+            "pattern_name": i["pattern_name"],
+            "status": i["status"],
+            "direction": i["direction"],
+            "source_sig": i.get("source_sig"),
+            "trend_lines": i.get("trend_lines"),
+            "trend_lines_sig": i.get("trend_lines_sig"),
+            "confidence": i.get("confidence"),
+        }
+        for i in items
+    }
+
+
+def _eq_patch(monkeypatch):
+    monkeypatch.setattr(
+        scan.candles, "fetch_for_timeframe",
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None,
+        include_partial_today=None, partial_bar=None: _make_df(80),
+    )
+    monkeypatch.setattr(
+        scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)])
+    )
+    monkeypatch.setattr(
+        scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA", "BBB", "CCC"])
+    )
+
+
+def test_process_mode_matches_threads_on_hits(cp_store, monkeypatch):
+    """Process path yields identical hits/symbols/statuses/source_sig/trend_lines vs threads."""
+    _eq_patch(monkeypatch)
+    _FakeProcessPool.instances.clear()
+
+    def run(job_id: str, use_processes: bool) -> dict:
+        monkeypatch.setattr(scan, "USE_PROCESSES_DEFAULT", use_processes)
+        if use_processes:
+            monkeypatch.setattr(scan, "ProcessPoolExecutor", _FakeProcessPool)
+        store.save_job({"job_id": job_id, "universe": "nifty50", "timeframe": "1D",
+                        "status": "queued", "params": {"force": True}})
+        scan.run_job(job_id)
+        row = store.get_job(job_id)
+        assert row["status"] == "completed"
+        assert row["done"] == 3
+        return _eq_items(job_id)
+
+    thread_items = run("cpj_eq_thread", False)
+    proc_items = run("cpj_eq_proc", True)
+
+    assert proc_items == thread_items
+    assert set(proc_items) == {"AAA", "BBB", "CCC"}
+    # The process path was really used, with a spawn context (never fork).
+    assert len(_FakeProcessPool.instances) == 1
+    assert _FakeProcessPool.instances[0].mp_context is not None
+    assert type(_FakeProcessPool.instances[0].mp_context).__name__ == "SpawnContext"
+
+
+def test_process_path_cancellation_terminates(cp_store, monkeypatch):
+    """Cancellation stops the process path; old hits are never superseded."""
+    fetched, detected = [], []
+
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None,
+                   include_partial_today=None, partial_bar=None):
+        fetched.append(symbol)
+        return _make_df(80)
+
+    def fake_detect(df, tf, symbol):
+        detected.append(symbol)
+        return [_hit(symbol)]
+
+    monkeypatch.setattr(scan.candles, "fetch_for_timeframe", fake_fetch)
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=fake_detect))
+    monkeypatch.setattr(
+        scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA", "BBB", "CCC"])
+    )
+    monkeypatch.setattr(scan, "USE_PROCESSES_DEFAULT", True)
+    monkeypatch.setattr(scan, "ProcessPoolExecutor", _FakeProcessPool)
+    # Cancelled before any symbol work.
+    monkeypatch.setattr(jobs, "is_cancelled", lambda job_id: True)
+
+    store.save_job({"job_id": "cpj_cancel_old", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed", "total": 1, "done": 1})
+    store.save_hits("cpj_cancel_old", [_dupe_hit("OLD")])
+
+    delete_calls = []
+    real_delete = store.delete_hits_for
+
+    def recording_delete(universe, timeframe, keep_job_id=None, symbols=None):
+        delete_calls.append((keep_job_id, symbols))
+        return real_delete(universe, timeframe, keep_job_id=keep_job_id, symbols=symbols)
+
+    monkeypatch.setattr(store, "delete_hits_for", recording_delete)
+
+    store.save_job({"job_id": "cpj_cancel_proc", "universe": "nifty50", "timeframe": "1D",
+                    "status": "queued", "params": {"force": True}})
+    scan.run_job("cpj_cancel_proc")
+
+    row = store.get_job("cpj_cancel_proc")
+    assert row["status"] == "cancelled"
+    assert row["finished_at"] is not None
+    # No symbol work started once cancellation was signalled.
+    assert fetched == [] and detected == []
+    # Cancel never supersedes previous hits.
+    assert delete_calls == []
+    items_o, total_o, _ = store.query_results({"job_id": "cpj_cancel_old"})
+    assert total_o == 1  # old hit intact
+
+
+def test_process_path_workers_never_call_store(cp_store, monkeypatch):
+    """The worker (_process_symbol) never touches store; all writes stay in the parent."""
+    store_write_calls = []
+    real_save_batch = store.save_hits_batch
+    real_update = jobs.update_state
+
+    def recording_save_batch(entries):
+        store_write_calls.append(("save_hits_batch", entries))
+        return real_save_batch(entries)
+
+    def recording_update(job_id, **fields):
+        store_write_calls.append(("update_state", job_id, fields))
+        return real_update(job_id, **fields)
+
+    monkeypatch.setattr(store, "save_hits_batch", recording_save_batch)
+    monkeypatch.setattr(jobs, "update_state", recording_update)
+
+    _eq_patch(monkeypatch)
+    monkeypatch.setattr(scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA", "BBB"]))
+    monkeypatch.setattr(scan, "USE_PROCESSES_DEFAULT", True)
+    monkeypatch.setattr(scan, "ProcessPoolExecutor", _FakeProcessPool)
+
+    # Worker simulation: _process_symbol runs as a worker would. It must not write store.
+    result = scan._process_symbol("AAA", "1D", "cpj_parent_only")
+    assert result["status"] == "ok"
+    assert not any(c[0] in ("save_hits_batch", "delete_hits_for") for c in store_write_calls), \
+        "worker must not write store"
+
+    # Full job: the parent performs all store writes (flush at completion).
+    store.save_job({"job_id": "cpj_parent_only_job", "universe": "nifty50", "timeframe": "1D",
+                    "status": "queued", "params": {"force": True}})
+    scan.run_job("cpj_parent_only_job")
+    assert store.get_job("cpj_parent_only_job")["status"] == "completed"
+    assert any(c[0] == "save_hits_batch" for c in store_write_calls), "parent must flush hits"
+
+
+def test_process_unavailable_falls_back_to_threads(cp_store, monkeypatch):
+    """When the process pool cannot be created, the scan degrades to threads, never crashes."""
+    fetched = []
+
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None,
+                   include_partial_today=None, partial_bar=None):
+        fetched.append(symbol)
+        return _make_df(80)
+
+    def fake_detect(df, tf, symbol):
+        return [_hit(symbol)]
+
+    monkeypatch.setattr(scan.candles, "fetch_for_timeframe", fake_fetch)
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=fake_detect))
+    monkeypatch.setattr(
+        scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA", "BBB"])
+    )
+    # Force process mode, but the process pool cannot be created.
+    monkeypatch.setattr(scan, "USE_PROCESSES_DEFAULT", True)
+
+    class _BrokenProcessPool:
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError("no processes allowed")
+
+    monkeypatch.setattr(scan, "ProcessPoolExecutor", _BrokenProcessPool)
+
+    used = {"threads": False}
+
+    class _RecordingThreadPool(scan.ThreadPoolExecutor):
+        def __init__(self, *a, **k):
+            used["threads"] = True
+            super().__init__(*a, **k)
+
+    monkeypatch.setattr(scan, "ThreadPoolExecutor", _RecordingThreadPool)
+
+    store.save_job({"job_id": "cpj_fallback", "universe": "nifty50", "timeframe": "1D",
+                    "status": "queued", "params": {"force": True}})
+    scan.run_job("cpj_fallback")
+
+    row = store.get_job("cpj_fallback")
+    assert row["status"] == "completed"
+    assert row["done"] == 2
+    assert used["threads"] is True  # degraded to threads, never crashed
+    items, total, _ = store.query_results({"job_id": "cpj_fallback"})
+    assert total == 2
+    assert {i["symbol"] for i in items} == {"AAA", "BBB"}
+    assert sorted(fetched) == ["AAA", "BBB"]
+
+
+def test_both_pools_broken_still_runs_sequentially(cp_store, monkeypatch):
+    """When neither pool is available, the scan still completes sequentially."""
+
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None,
+                   include_partial_today=None, partial_bar=None):
+        return _make_df(80)
+
+    monkeypatch.setattr(scan.candles, "fetch_for_timeframe", fake_fetch)
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)]))
+    monkeypatch.setattr(
+        scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA"])
+    )
+    monkeypatch.setattr(scan, "USE_PROCESSES_DEFAULT", True)
+
+    class _BrokenPool:
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError("no pools today")
+
+    monkeypatch.setattr(scan, "ProcessPoolExecutor", _BrokenPool)
+    monkeypatch.setattr(scan, "ThreadPoolExecutor", _BrokenPool)
+
+    store.save_job({"job_id": "cpj_seq", "universe": "nifty50", "timeframe": "1D",
+                    "status": "queued", "params": {"force": True}})
+    scan.run_job("cpj_seq")
+
+    row = store.get_job("cpj_seq")
+    assert row["status"] == "completed"
+    assert row["done"] == 1
+    items, total, _ = store.query_results({"job_id": "cpj_seq"})
+    assert total == 1
+
+
+def test_default_stays_threads(cp_store, monkeypatch):
+    """Without the opt-in flag, the process pool is never instantiated; threads are used."""
+    _eq_patch(monkeypatch)
+    monkeypatch.setattr(scan, "USE_PROCESSES_DEFAULT", False)
+
+    proc_insts = {"n": 0}
+    real_pp = scan.ProcessPoolExecutor
+
+    class _RecProc(real_pp):
+        def __init__(self, *a, **k):
+            proc_insts["n"] += 1
+            super().__init__(*a, **k)
+
+    thread_insts = {"n": 0}
+    real_tp = scan.ThreadPoolExecutor
+
+    class _RecThread(real_tp):
+        def __init__(self, *a, **k):
+            thread_insts["n"] += 1
+            super().__init__(*a, **k)
+
+    monkeypatch.setattr(scan, "ProcessPoolExecutor", _RecProc)
+    monkeypatch.setattr(scan, "ThreadPoolExecutor", _RecThread)
+
+    store.save_job({"job_id": "cpj_default", "universe": "nifty50", "timeframe": "1D",
+                    "status": "queued", "params": {"force": True}})
+    scan.run_job("cpj_default")
+
+    assert store.get_job("cpj_default")["status"] == "completed"
+    assert proc_insts["n"] == 0, "process pool must not be used by default"
+    assert thread_insts["n"] >= 1, "thread pool must be used by default"
