@@ -524,6 +524,16 @@ def fetch_for_timeframe(
     return df
 
 
+def _today_is_session() -> bool:
+    """True when today (IST) is an NSE trading day."""
+    try:
+        from datetime import datetime as _dt
+        from trading.timezone import IST
+        return _is_trading_day(_dt.now(IST).date())
+    except Exception:
+        return True
+
+
 def _with_partial_today(
     df: pd.DataFrame, symbol: str, api_client=None
 ) -> Optional[pd.DataFrame]:
@@ -535,6 +545,9 @@ def _with_partial_today(
     never be written to the disk cache — callers append after ``_write_cached``.
     """
     if df is None or df.empty:
+        return df
+    # No session today (weekend/holiday): skip the intraday call entirely.
+    if not _today_is_session():
         return df
     try:
         from market_data.market_data import (

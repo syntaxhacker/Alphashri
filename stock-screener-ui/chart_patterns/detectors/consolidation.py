@@ -87,17 +87,21 @@ def _tightness(range_pct: float, range_max: float) -> float:
 class _BaseScan:
     """One-shot NumPy view of a frame for base-box measurement.
 
-    The consolidation scan calls :func:`_window_base` ~600 times per symbol
-    (every candidate end in :func:`_trailing_base_end`, for each of the 6
-    windows). Each call used to re-``astype`` all three price columns and
-    re-slice via pandas ``.iloc``. The OHLCV columns are converted **once**
-    here; every window metric is then a cheap NumPy slice reduction plus the
-    same :func:`linreg_fit` call as before, and per-``(start, end)`` metrics
-    are memoized so the trailing-trim loop, its walk-back and the final
-    validation share each box instead of recomputing it.
+    The consolidation scan evaluates ~600 candidate boxes per symbol (every
+    candidate end in :func:`_trailing_base_end`, for each of the 6 windows).
+    Each used to re-``astype`` all three price columns, re-slice via pandas
+    ``.iloc`` and run three ``nan*`` reductions plus a full OLS per box. The
+    OHLCV columns are converted **once** here, and because every candidate is a
+    prefix of the same window, the gates are evaluated for all candidates in
+    one vectorised pass (see ``_scan_for_base_end``).
+
+    ``metrics`` (the cold path: the walk-back and the final validation, a
+    couple of boxes per window) keeps the original ``nanmax``/``nanmin``/
+    ``nanmean`` + :func:`linreg_fit` arithmetic, so emitted values are
+    bit-identical to the pre-optimisation detector.
     """
 
-    __slots__ = ("high", "low", "close", "n", "_memo", "_xs")
+    __slots__ = ("high", "low", "close", "n", "_memo", "_xs", "_smin", "_smax")
 
     def __init__(self, df: pd.DataFrame):
         self.high = df["high"].to_numpy(dtype=float)
@@ -106,6 +110,19 @@ class _BaseScan:
         self.n = len(df)
         self._memo: dict[tuple[int, int], dict | None] = {}
         self._xs = np.arange(self.n, dtype=float)
+        # Suffix min/max of close let the trim loop test "every bar after cand
+        # is beyond the box" without slicing + two ``.all()`` reductions per
+        # candidate. Only valid for tails that end at the frame's last bar.
+        close = self.close
+        if self.n and bool(
+            np.isfinite(close).all()
+            and np.isfinite(self.high).all()
+            and np.isfinite(self.low).all()
+        ):
+            self._smin = np.minimum.accumulate(close[::-1])[::-1]
+            self._smax = np.maximum.accumulate(close[::-1])[::-1]
+        else:
+            self._smin = self._smax = None
 
     def metrics(self, start: int, end: int) -> dict | None:
         """Box metrics for ``[start, end]`` (range + near-flat), memoized.
@@ -129,12 +146,17 @@ class _BaseScan:
         seg_h = self.high[start : end + 1]
         seg_l = self.low[start : end + 1]
         seg_c = self.close[start : end + 1]
-        # ``nanmax``/``nanmin`` match pandas ``.max()``/``.min()`` (skipna);
-        # ``nanmean`` matched pandas ``.mean()`` bit-for-bit on 1000 real
-        # window slices (no bottleneck in this env).
-        hi = float(np.nanmax(seg_h))
-        lo = float(np.nanmin(seg_l))
-        mp = float(np.nanmean(seg_c))
+        if self._smin is not None:
+            # No NaN anywhere in the frame, so ``max``/``min``/``mean`` return
+            # exactly what ``nanmax``/``nanmin``/``nanmean`` do (both are
+            # ``np.sum``/``np.divide`` under the hood) without the mask copies.
+            hi = float(seg_h.max())
+            lo = float(seg_l.min())
+            mp = float(seg_c.mean())
+        else:
+            hi = float(np.nanmax(seg_h))
+            lo = float(np.nanmin(seg_l))
+            mp = float(np.nanmean(seg_c))
         if hi <= lo or mp <= 0:
             return None
         range_pct = (hi - lo) / mp * 100.0
@@ -169,24 +191,26 @@ class _BaseScan:
         return {**box, "w": w}
 
     def trailing_base_end(self, start: int, end: int, atr_val: float) -> int:
-        """Memoized :func:`_trailing_base_end` equivalent (see its docstring)."""
+        """Memoized :func:`_trailing_base_end` equivalent (see its docstring).
+
+        The candidate search is the detector's hot path: it finds the largest
+        ``cand`` in ``[start, end - 1]`` whose box passes the same gates as
+        ``_compute`` (range band + near-flat) *and* whose following bars all
+        close beyond that box. ``_scan_for_base_end`` evaluates every candidate
+        at once; the box itself is still measured by ``metrics`` afterwards, so
+        the emitted numbers stay bit-identical.
+        """
         start, end = int(start), int(end)
         if end - start + 1 <= MIN_BARS:
             return end
         tol = BREAKOUT_TOL_ATR * max(float(atr_val), 0.0)
         close = self.close
         k = int(end)
-        for cand in range(int(end) - 1, int(start) + MIN_BARS - 2, -1):
-            base = self.metrics(start, cand)
-            if base is None:
-                continue
-            tail = close[cand + 1 : end + 1]
-            if len(tail) < BREAKOUT_MIN_BARS:
-                continue
-            if bool((tail < base["lo"] - tol).all()) or bool((tail > base["hi"] + tol).all()):
-                k = cand
-                break
-        while k - 1 >= int(start) + MIN_BARS - 1:
+        if self._smin is None or end != self.n - 1:
+            k = self._trailing_base_end_slow(start, end, tol, k)
+        else:
+            k = self._scan_for_base_end(start, end, tol)
+        while k - 1 >= start + MIN_BARS - 1:
             prev = self.metrics(start, k - 1)
             if prev is None:
                 break
@@ -195,10 +219,104 @@ class _BaseScan:
             k -= 1
         return k
 
+    def _trailing_base_end_slow(self, start: int, end: int, tol: float, k: int) -> int:
+        """Reference scan (non-finite prices or a non-trailing ``end``)."""
+        close = self.close
+        for cand in range(end - 1, start + MIN_BARS - 2, -1):
+            base = self.metrics(start, cand)
+            if base is None:
+                continue
+            tail = close[cand + 1 : end + 1]
+            if len(tail) < BREAKOUT_MIN_BARS:
+                continue
+            if bool((tail < base["lo"] - tol).all()) or bool((tail > base["hi"] + tol).all()):
+                return cand
+        return k
+
+    def _scan_for_base_end(self, start: int, end: int, tol: float) -> int:
+        """Largest ``cand`` whose following bars all close beyond its box.
+
+        Every candidate box is the prefix ``[start, cand]`` of this window, so
+        ``hi``/``lo`` are running extremes and ``sum(close)``/``sum(j*close)``
+        running sums — the whole gate set is evaluated for every candidate in
+        one vectorised pass. The largest qualifying ``cand`` wins (the
+        descending loop this replaces broke at the first, i.e. largest, match).
+        """
+        high = self.high[start:end]
+        low = self.low[start:end]
+        close = self.close[start:end]
+        m_max = end - start
+        if m_max < MIN_BARS:
+            return int(end)
+        hi = np.maximum.accumulate(high)
+        lo = np.minimum.accumulate(low)
+        s0 = np.cumsum(close)
+        j = np.arange(m_max, dtype=float)
+        t0 = np.cumsum(j * close)
+        m = j + 1.0
+        with np.errstate(divide="ignore", invalid="ignore"):
+            mp = s0 / m
+            range_pct = (hi - lo) / mp * 100.0
+            # OLS slope on x = 0..m-1: sum((x-xbar)*y) / sum((x-xbar)^2).
+            slope = (t0 - (m - 1.0) * 0.5 * s0) / (m * (m * m - 1.0) / 12.0)
+            ok = (hi > lo) & (mp > 0)
+            ok &= (range_pct <= RANGE_MAX) & (range_pct >= MIN_RANGE_PCT)
+            ok &= np.abs(slope * m / mp) <= NEAR_FLAT_MAX
+        ok &= m >= MIN_BARS
+        ok &= (m_max - j) >= BREAKOUT_MIN_BARS
+        ok &= (self._smax[start + 1 : end + 1] < lo - tol) | (
+            self._smin[start + 1 : end + 1] > hi + tol
+        )
+        hits = np.flatnonzero(ok)
+        return int(start + hits[-1]) if hits.size else int(end)
+
 
 def _scan_of(df: pd.DataFrame) -> _BaseScan:
     """Fresh :class:`_BaseScan` for ``df`` (memo lives for one scan only)."""
     return _BaseScan(df)
+
+
+def _swing_indices(values: np.ndarray, left: int, right: int, kind: str) -> list[int]:
+    """Vectorised ``features._pivot_indices`` (same pivots, same order).
+
+    ``_pivot_indices`` slices a 5-element window and calls ``.max()``/``.min()``
+    in a Python loop — ~1.5 µs per bar, ~0.7 ms per frame, and this detector
+    needs both sides. ``sliding_window_view`` does the same comparisons in two
+    vector ops. ``max``/``min`` are exact, so the pivot set is unchanged.
+    """
+    n = len(values)
+    if n < left + right + 1:
+        return []
+    win = np.lib.stride_tricks.sliding_window_view(values, left + right + 1)
+    centre = values[left : n - right]
+    prev_v = values[left - 1 : n - right - 1]
+    next_v = values[left + 1 : n - right + 1]
+    if kind == "high":
+        ok = (centre >= win.max(axis=1)) & ((centre > prev_v) | (centre > next_v))
+    else:
+        ok = (centre <= win.min(axis=1)) & ((centre < prev_v) | (centre < next_v))
+    return (np.flatnonzero(ok) + left).tolist()
+
+
+def _swings_from(scan: _BaseScan, ctx: dict | None):
+    """``get_swings`` over the scan's arrays, written to the same ``ctx`` slot.
+
+    ``get_swings`` re-reads ``df["high"]``/``df["low"]`` once per pivot to get
+    its price (~130 pandas column lookups per frame). The arrays are already
+    converted here, and the result is stored under ``ctx["_swings"][(2, 2)]``
+    so the other detectors sharing this call's ``ctx`` hit the same cache.
+    """
+    cache = ctx.get("_swings") if ctx is not None else None
+    if cache is not None and (2, 2) in cache:
+        return cache[(2, 2)]
+    high, low = scan.high, scan.low
+    result = (
+        [(i, float(high[i])) for i in _swing_indices(high, 2, 2, "high")],
+        [(i, float(low[i])) for i in _swing_indices(low, 2, 2, "low")],
+    )
+    if ctx is not None:
+        ctx.setdefault("_swings", {})[(2, 2)] = result
+    return result
 
 
 def _window_base(
@@ -314,9 +432,11 @@ def detect_consolidation(df: pd.DataFrame, ctx: dict | None = None) -> list:
     # Swing pivots are frame-level: fetch once (also warms the ``ctx`` cache
     # for the other detectors sharing this call's ``ctx``) and filter per
     # window, instead of re-fetching per window.
-    swings = get_swings(df, ctx)
+    swings = _swings_from(scan, ctx)
     best = None
-    for w in WINDOWS:
+    # Largest window first: a smaller window cannot beat a base longer than
+    # itself, so stop as soon as the best base covers the next window.
+    for w in sorted(WINDOWS, reverse=True):
         # Only scan a window we actually have bars for, so ``base_days`` is the
         # true lookback rather than a clipped (smaller) span.
         if n < w:
@@ -341,6 +461,8 @@ def detect_consolidation(df: pd.DataFrame, ctx: dict | None = None) -> list:
         base["span"] = base["end"] - base["start"] + 1
         if best is None or base["span"] > best["span"]:
             best = base
+        if best["span"] >= w:
+            break
 
     if best is None:
         return []

@@ -1550,6 +1550,7 @@ def test_symbol_chart_1d_marks_synthetic_last_bar(cp_client, monkeypatch, tmp_pa
     """With a mocked 1-min tape the chart gains one `is_partial` bar."""
     store.save_hits("cpj_pmark", [_hit("IRCON")])
     base = _partial_daily_base()
+    monkeypatch.setattr(cp_api.candles, "_today_is_session", lambda: True)
     monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
     monkeypatch.setattr(
         "market_data.market_data.fetch_candles_for_timeframe",

@@ -10,6 +10,7 @@ import dataclasses
 import logging
 import os
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -55,6 +56,15 @@ DEFAULT_MIN_BARS = 60
 # could enqueue a universe-sized replay by accident.
 ASOF_SCAN_MAX_SYMBOLS = 200
 _PERSIST_EVERY = 10
+# Redis mirror cadence: mirror live job state (done/failed/skipped/no_hits) at
+# most every N symbols or every ~500 ms, whichever comes first, plus the final
+# symbol. DB persist keeps its own cadence (_PERSIST_EVERY / final). A 0.5 s
+# UI lag is acceptable; the mirror is what was hitting Redis per symbol.
+_MIRROR_EVERY = 10
+_MIRROR_INTERVAL_SEC = 0.5
+# Hit-write cadence: accumulate enriched hits and flush in one transaction
+# every N symbols, plus at the end (and before any terminal state).
+_HITS_EVERY = 20
 # A non-forced scan for a universe/timeframe with a completed job younger than
 # this is a no-op (results are still fresh); ``force=True`` always recomputes.
 SCAN_FRESH_SECONDS = int(os.environ.get("PATTERN_SCAN_FRESH_SEC", "300"))
@@ -404,15 +414,14 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
     if enriched:
         if len(enriched) > 1:
             enriched = [_latest_record(enriched)]
-        try:
-            store.save_hits(job_id, enriched)
-        except Exception:
-            return {"status": "failed", "data_through": data_through, "from_cache": from_cache}
-        return {"status": "ok", "data_through": data_through, "from_cache": from_cache}
+        return {
+            "status": "ok", "data_through": data_through, "from_cache": from_cache,
+            "hits": enriched,
+        }
 
     # Detector ran cleanly but found nothing: a distinct, non-error outcome so
     # the job's ``failed`` counter stays honest.
-    return {"status": "empty", "data_through": data_through, "from_cache": from_cache}
+    return {"status": "empty", "data_through": data_through, "from_cache": from_cache, "hits": []}
 
 
 def _provenance(
@@ -561,6 +570,22 @@ def run_job(job_id: str) -> None:
     candles_cached = candles_fetched = 0
     max_date = None
     lock = threading.Lock()
+    pending_hits: list[dict] = []
+    last_mirror = time.monotonic()
+
+    def _flush_hits(force: bool = False) -> None:
+        nonlocal pending_hits
+        if not pending_hits and not force:
+            return
+        batch = pending_hits
+        pending_hits = []
+        if batch:
+            try:
+                # One session + one commit for the whole batch instead of one
+                # per symbol.
+                store.save_hits_batch([(job_id, batch)])
+            except Exception:  # pragma: no cover - DB write failure must not abort a scan
+                logger.warning("scan %s: hit batch flush failed", job_id, exc_info=True)
 
     if not symbols:
         _empty_provenance = _provenance(False, 0, 0, prefilter_dropped, None)
@@ -599,6 +624,9 @@ def run_job(job_id: str) -> None:
                 result = {"status": "failed", "data_through": None}
             with lock:
                 done += 1
+                hits = result.get("hits") or []
+                if hits:
+                    pending_hits.extend(hits)
                 if result.get("status") == "failed":
                     failed += 1
                 elif result.get("status") == "skipped":
@@ -612,14 +640,31 @@ def run_job(job_id: str) -> None:
                 data_through = result.get("data_through")
                 if data_through and (max_date is None or data_through > max_date):
                     max_date = data_through
-                persist = done % _PERSIST_EVERY == 0 or done == total
-            jobs_mod.update_state(
-                job_id, persist=persist,
-                done=done, failed=failed, skipped=skipped, no_hits=no_hits,
-                data_through=max_date,
-            )
+
+                now = time.monotonic()
+                mirror_due = (
+                    done == total
+                    or done % _MIRROR_EVERY == 0
+                    or now - last_mirror >= _MIRROR_INTERVAL_SEC
+                )
+                hits_due = done == total or len(pending_hits) >= _HITS_EVERY
+            if mirror_due:
+                # Mirror live counters to Redis (and persist to DB on the usual
+                # cadence) at most every _MIRROR_EVERY symbols or every
+                # _MIRROR_INTERVAL_SEC; the final symbol always mirrors.
+                jobs_mod.update_state(
+                    job_id, persist=(done % _PERSIST_EVERY == 0 or done == total),
+                    done=done, failed=failed, skipped=skipped, no_hits=no_hits,
+                    data_through=max_date,
+                )
+                last_mirror = now
+            if hits_due:
+                _flush_hits(force=done == total)
 
     if cancelled or jobs_mod.is_cancelled(job_id):
+        # Persist any hits computed so far before terminal state; old hits of
+        # previous jobs are intentionally left intact on cancel.
+        _flush_hits(force=True)
         _cancel_provenance = _provenance(
             False, candles_cached, candles_fetched, prefilter_dropped, max_date
         )
@@ -631,6 +676,9 @@ def run_job(job_id: str) -> None:
             params={**params, "provenance": _cancel_provenance},
         )
     else:
+        # Flush pending hits first so this job's rows are durable before old
+        # hits are superseded.
+        _flush_hits(force=True)
         # Supersede previous hits now that this job's own hits are durable.
         # ``keep_job_id=job_id`` preserves the rows this job just wrote, so the
         # stored hits always belong to this (about-to-be) completed job. Old
