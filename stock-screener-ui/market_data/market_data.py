@@ -752,6 +752,171 @@ def _synthetic_today_bar(api, symbol: str) -> Optional[pd.DataFrame]:
     return _synthesize_bar_from_tape(tape)
 
 
+#: Max instrument keys per /v3/market-quote/ohlc request (SDK documents ~500).
+_OHLC_BATCH_CHUNK = 500
+
+
+def _ohlc_instrument_keys(symbols: list[str]) -> dict[str, str]:
+    """Map trading symbols to Upstox instrument keys (DB ``Instrument`` table).
+
+    Same source as ``chart_patterns.watch._instrument_keys``; returns ``{}``
+    when the instruments table is unavailable. Never raises.
+    """
+    try:
+        from api.symbols import _load_instruments
+
+        want = {str(s).upper() for s in symbols}
+        out: dict[str, str] = {}
+        for inst in _load_instruments() or []:
+            sym = inst.get("trading_symbol")
+            if sym in want and inst.get("instrument_key"):
+                out[str(sym).upper()] = str(inst["instrument_key"])
+        return out
+    except Exception:
+        return {}
+
+
+def _ohlc_bar_frame(open_, high, low, close, volume, day=None) -> pd.DataFrame:
+    """Single-row daily bar indexed at the session's IST midnight (UTC).
+
+    Same index convention as :func:`_synthesize_bar_from_tape`, so a batch bar
+    and a tape-synthesized bar are interchangeable (same OHLCV + timestamp)
+    and can replace one another in a daily frame without shifting detection
+    input.
+    """
+    if day is None:
+        day = datetime.now(_IST).date()
+    ts = pd.Timestamp(day)
+    if ts.tz is None:
+        ts = ts.tz_localize(_IST)
+    else:
+        ts = ts.tz_convert(_IST)
+    ts = ts.normalize().tz_convert("UTC")
+    row = {
+        "open": float(open_),
+        "high": float(high),
+        "low": float(low),
+        "close": float(close),
+    }
+    if volume is not None:
+        try:
+            row["volume"] = float(volume)
+        except (TypeError, ValueError):
+            row["volume"] = 0.0
+    ts = pd.Timestamp(day).tz_localize(_IST).tz_convert("UTC")
+    return pd.DataFrame([row], index=pd.DatetimeIndex([ts]))
+
+
+def _quote_ohlcv(quote) -> Optional[tuple]:
+    """Extract ``(open, high, low, close, volume)`` from an OHLC quote.
+
+    Accepts the SDK ``MarketQuoteOHLCV3`` model or a plain dict; prefers the
+    live-session ``live_ohlc`` block, falls back to a flat ``ohlc`` block or
+    the quote itself. Returns None when unreadable. Never raises.
+    """
+    if quote is None:
+        return None
+    try:
+        if isinstance(quote, dict):
+            ohlc = quote.get("live_ohlc") or quote.get("ohlc") or quote
+            if not isinstance(ohlc, dict):
+                return None
+            get = ohlc.get
+            volume = ohlc.get("volume")
+            if volume is None:
+                volume = quote.get("volume") or quote.get("last_price")
+        else:
+            ohlc = (
+                getattr(quote, "live_ohlc", None)
+                or getattr(quote, "ohlc", None)
+                or quote
+            )
+            get = lambda k: getattr(ohlc, k, None)
+            volume = getattr(ohlc, "volume", None)
+            if volume is None:
+                volume = getattr(quote, "volume", None) or getattr(
+                    quote, "last_price", None
+                )
+        o = float(get("open"))
+        h = float(get("high"))
+        l = float(get("low"))
+        c = float(get("close"))
+    except (TypeError, ValueError, AttributeError):
+        return None
+    if not (o > 0 and h > 0 and l > 0 and c > 0):
+        return None
+    return o, h, l, c, volume
+
+
+def fetch_ohlc_batch(
+    symbols: list[str], interval: str = "1d",
+) -> dict[str, pd.DataFrame]:
+    """Batch-fetch today's OHLC snapshot for many symbols via
+    ``GET /v3/market-quote/ohlc``.
+
+    Resolves instrument keys (DB ``Instrument`` table), chunks at most
+    ``_OHLC_BATCH_CHUNK`` keys per request, and builds one synthetic daily bar
+    per symbol keyed by trading symbol (upper). Each bar is indexed at the
+    session's IST midnight in UTC — identical to what
+    :func:`_synthetic_today_bar` produces — so it can be appended to a daily
+    frame in place of a per-symbol 1-minute tape fetch.
+
+    Never raises: returns ``{}`` on any failure (missing OAuth token, unresolved
+    keys, HTTP error, bad payload) and ``{}`` for an empty symbol list.
+    """
+    syms = [str(s).upper() for s in (symbols or []) if str(s or "").strip()]
+    if not syms:
+        return {}
+    try:
+        from upstox_client import ApiClient, Configuration
+        from upstox_client.api.market_quote_v3_api import MarketQuoteV3Api
+    except Exception:
+        return {}
+    keys = _ohlc_instrument_keys(syms)
+    if not keys:
+        return {}
+    api = get_api_client()
+    token = getattr(getattr(api, "auth_handler", None), "access_token", None)
+    if not token:
+        return {}
+    try:
+        configuration = Configuration()
+        configuration.access_token = token
+        mq = MarketQuoteV3Api(ApiClient(configuration))
+    except Exception:
+        return {}
+    sym_by_key = {key: sym for sym, key in keys.items()}
+    key_list = [keys[s] for s in syms if s in keys]
+    out: dict[str, pd.DataFrame] = {}
+    try:
+        for i in range(0, len(key_list), _OHLC_BATCH_CHUNK):
+            chunk = key_list[i : i + _OHLC_BATCH_CHUNK]
+            try:
+                resp = mq.get_market_quote_ohlc(
+                    interval=interval, instrument_key=",".join(chunk),
+                )
+            except Exception:
+                continue
+            data = None
+            if isinstance(resp, dict):
+                data = resp.get("data")
+            else:
+                data = getattr(resp, "data", None)
+            if not isinstance(data, dict):
+                continue
+            for key, quote in data.items():
+                sym = sym_by_key.get(key)
+                if not sym:
+                    continue
+                vals = _quote_ohlcv(quote)
+                if vals is None:
+                    continue
+                out[sym] = _ohlc_bar_frame(*vals)
+    except Exception:
+        pass
+    return out
+
+
 def _has_session_bar(df: pd.DataFrame, ts) -> bool:
     """True when the frame already holds a bar on the UTC date of ``ts``.
 

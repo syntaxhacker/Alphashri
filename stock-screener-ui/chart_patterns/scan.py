@@ -382,7 +382,8 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
                    lookback_bars=None, compute_trendlines: bool = True,
                    as_of_date=None, from_date=None,
                    include_partial_today: Optional[bool] = None,
-                   prev_hit: Optional[dict] = None) -> dict:
+                   prev_hit: Optional[dict] = None,
+                   partial_bar: Optional[pd.DataFrame] = None) -> dict:
     """Fetch + detect one symbol. Never raises; returns a status dict.
 
     With ``as_of_date`` set the fetch window ends on that date (its time
@@ -400,6 +401,13 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
     :func:`candles.fetch_for_timeframe` (official bar wins, empty tape
     appends nothing, never cached), so it cannot be double-counted and
     ``frame_last_date``/``data_through`` reflect the current session.
+
+    ``partial_bar`` is an optional pre-fetched synthetic today bar (one per
+    symbol, from :func:`market_data.fetch_ohlc_batch`). When supplied for a
+    live ``1D`` scan it is appended in place of the per-symbol 1-minute tape
+    fetch, so a whole universe is topped up with a single batched quote
+    request instead of one tape call per symbol. When missing for a symbol
+    that needs it, that symbol falls back to its own tape fetch.
 
     The returned dict always carries ``from_cache`` (True = candles served
     from disk, False = freshly fetched, None = no fetch attempted) so
@@ -430,11 +438,12 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
     try:
         try:
             df = candles.fetch_for_timeframe(
-                symbol, timeframe, **{**fetch_kwargs, "provenance": prov}
+                symbol, timeframe,
+                **{**fetch_kwargs, "provenance": prov, "partial_bar": partial_bar},
             )
         except TypeError:
             # Backward compatible: patched/custom fetchers without the
-            # ``provenance`` out-param.
+            # ``provenance`` / ``partial_bar`` out-param.
             df = candles.fetch_for_timeframe(symbol, timeframe, **fetch_kwargs)
     except Exception:
         return {"status": "failed", "data_through": None, "from_cache": False}
@@ -743,12 +752,35 @@ def run_job(job_id: str) -> None:
         jobs_mod.update_state(job_id, **_empty_state)
         return
 
+    # One batched OHLC snapshot for the whole symbol list (one
+    # /v3/market-quote/ohlc call, chunked at ~500 keys) so every live 1D symbol
+    # appends its in-progress session bar without a per-symbol 1-minute tape
+    # fetch. Skipped for replays, non-1D timeframes, when the flag is off, or
+    # off-session (weekend/holiday). Symbols missing from the batch fall back
+    # to their own tape fetch inside _process_symbol.
+    partial_bars: dict[str, pd.DataFrame] = {}
+    want_partial = (
+        include_partial_today if include_partial_today is not None
+        else (timeframe == "1D")
+    )
+    if (
+        not is_replay
+        and want_partial
+        and timeframe == "1D"
+        and candles._today_is_session()
+    ):
+        try:
+            from market_data.market_data import fetch_ohlc_batch
+            partial_bars = fetch_ohlc_batch(symbols, interval="1d") or {}
+        except Exception:
+            partial_bars = {}
+
     with ThreadPoolExecutor(max_workers=max(1, SYMBOL_WORKERS)) as pool:
         futures = {
             pool.submit(
                 _process_symbol, symbol, timeframe, job_id, names.get(symbol), lookback_bars,
                 compute_trendlines, as_of_date, from_date, include_partial_today,
-                prev_by_symbol.get(symbol),
+                prev_by_symbol.get(symbol), partial_bars.get(symbol),
             ): symbol
             for symbol in symbols
         }

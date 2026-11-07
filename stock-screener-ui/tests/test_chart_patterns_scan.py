@@ -71,7 +71,7 @@ def cp_store(test_db_engine):
 def patched_scan(monkeypatch):
     calls = {"fetch": [], "detect": []}
 
-    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None):
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None):
         calls["fetch"].append(symbol)
         if symbol == "BBB":
             return None  # fetch failure
@@ -166,7 +166,7 @@ def test_run_job_universe_error_marks_failed(cp_store, monkeypatch):
 def test_run_job_per_symbol_detector_error_does_not_abort(cp_store, monkeypatch):
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: _make_df(80),
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: _make_df(80),
     )
 
     def flaky(df, timeframe, symbol):
@@ -430,7 +430,7 @@ def test_run_job_scans_explicit_symbol_scope(cp_store, monkeypatch):
     # other API misuse"). This test covers scope routing, not parallelism.
     monkeypatch.setattr(scan, "SYMBOL_WORKERS", 1)
 
-    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None):
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None):
         calls["fetch"].append(symbol)
         return _make_df(80)
 
@@ -471,7 +471,7 @@ def test_run_job_symbol_scope_bypasses_freshness(cp_store, monkeypatch):
 
     fetched = []
 
-    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None):
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None):
         fetched.append(symbol)
         return _make_df(80)
 
@@ -505,7 +505,7 @@ def test_run_job_honours_cancellation_per_symbol(cp_store, patched_scan, monkeyp
 def test_process_symbol_checks_cancel_before_fetch(cp_store, monkeypatch):
     calls = []
 
-    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None):
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None):
         calls.append(symbol)
         return _make_df(80)
 
@@ -607,7 +607,7 @@ def test_resample_bins_anchor_to_ist_midnight():
 def test_run_job_lookback_slices_to_last_n_bars(cp_store, monkeypatch):
     seen = {}
 
-    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None):
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None):
         seen["lookback_bars"] = lookback_bars
         return _make_df(100)
 
@@ -634,7 +634,7 @@ def test_run_job_lookback_slices_to_last_n_bars(cp_store, monkeypatch):
 def test_run_job_without_lookback_passes_full_frame(cp_store, monkeypatch):
     seen = {}
 
-    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None):
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None):
         seen["lookback_bars"] = lookback_bars
         return _make_df(100)
 
@@ -674,7 +674,7 @@ def test_cache_path_variant_does_not_poison_default():
 def test_process_symbol_attaches_trend_lines(cp_store, monkeypatch):
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: _make_df(80),
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: _make_df(80),
     )
     monkeypatch.setattr(
         scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)])
@@ -697,7 +697,7 @@ def test_process_symbol_attaches_trend_lines(cp_store, monkeypatch):
 def test_process_symbol_trendlines_failure_still_persists_hits(cp_store, monkeypatch):
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: _make_df(80),
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: _make_df(80),
     )
     monkeypatch.setattr(
         scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)])
@@ -742,7 +742,7 @@ def test_process_symbol_forwards_lookback_to_trendlines(cp_store, monkeypatch):
     """`_process_symbol` passes its `lookback_bars` into `detect_trendlines`."""
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: _make_df(80),
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: _make_df(80),
     )
     monkeypatch.setattr(
         scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)])
@@ -773,7 +773,7 @@ def test_process_symbol_stamps_trend_lines_sig(cp_store, monkeypatch):
 
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: _make_df(80),
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: _make_df(80),
     )
     monkeypatch.setattr(
         scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)])
@@ -795,7 +795,7 @@ def test_run_job_compute_trendlines_false_skips_detector(cp_store, monkeypatch):
     """`params={"compute_trendlines": False}` stores empty lines, no detector call."""
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: _make_df(80),
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: _make_df(80),
     )
     monkeypatch.setattr(
         scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)])
@@ -829,7 +829,7 @@ def test_run_job_compute_trendlines_false_skips_detector(cp_store, monkeypatch):
 def test_process_symbol_empty_frame_is_failed(cp_store, monkeypatch):
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: _make_df(0),
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: _make_df(0),
     )
     store.save_job({"job_id": "cpj_empty", "universe": "nifty50", "timeframe": "1D", "status": "queued"})
 
@@ -839,7 +839,7 @@ def test_process_symbol_empty_frame_is_failed(cp_store, monkeypatch):
 def test_process_symbol_none_frame_is_failed(cp_store, monkeypatch):
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: None,
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: None,
     )
     store.save_job({"job_id": "cpj_none", "universe": "nifty50", "timeframe": "1D", "status": "queued"})
 
@@ -860,7 +860,7 @@ def test_run_job_stale_combo_reruns(cp_store, monkeypatch):
     fetched = []
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: (
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: (
             fetched.append(symbol) or _make_df(80)
         ),
     )
@@ -878,7 +878,7 @@ def test_run_job_compute_trendlines_none_defaults_to_true(cp_store, monkeypatch)
     """An explicit `compute_trendlines=None` param still runs the detector."""
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: _make_df(80),
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: _make_df(80),
     )
     monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)]))
     monkeypatch.setattr(scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA"]))
@@ -906,7 +906,7 @@ def test_process_symbol_lookback_slices_detection_input(cp_store, monkeypatch):
     """The detector sees only the last N bars when `lookback_bars` is set."""
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: _make_df(100),
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: _make_df(100),
     )
     seen = {}
 
@@ -1020,7 +1020,7 @@ def test_run_job_closed_market_new_session_reruns(cp_store, monkeypatch):
     fetched = []
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: (
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: (
             fetched.append(symbol) or _make_df(80)
         ),
     )
@@ -1045,7 +1045,7 @@ def test_run_job_force_bypasses_session_freshness(cp_store, monkeypatch):
     fetched = []
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: (
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: (
             fetched.append(symbol) or _make_df(80)
         ),
     )
@@ -1283,7 +1283,7 @@ def test_run_scan_prefilter_called_once_and_limits_symbols(cp_store, monkeypatch
     fetched = []
     prefilter_calls = []
 
-    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None):
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None):
         fetched.append(symbol)
         return _make_df(80)
 
@@ -1329,7 +1329,7 @@ def test_run_scan_without_filters_never_calls_prefilter(cp_store, monkeypatch):
     fetched = []
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: (
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: (
             fetched.append(symbol) or _make_df(80)
         ),
     )
@@ -1351,7 +1351,7 @@ def test_run_scan_prefilter_fail_open_scans_everything(cp_store, monkeypatch):
     monkeypatch.setattr(scan, "SYMBOL_WORKERS", 1)
     fetched = []
 
-    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None):
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None):
         fetched.append(symbol)
         return _make_df(80)
 
@@ -1406,7 +1406,7 @@ def test_run_job_supersedes_old_hits_after_completion_not_at_start(cp_store, mon
 
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: _make_df(80),
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: _make_df(80),
     )
     monkeypatch.setattr(
         scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)])
@@ -1455,7 +1455,7 @@ def test_cancelled_job_does_not_delete_old_hits(cp_store, monkeypatch):
     monkeypatch.setattr(jobs, "is_cancelled", lambda job_id: True)
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: _make_df(80),
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: _make_df(80),
     )
     monkeypatch.setattr(
         scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)])
@@ -1482,7 +1482,7 @@ def test_cancelled_job_does_not_delete_old_hits(cp_store, monkeypatch):
 def test_process_symbol_zero_hits_returns_empty(cp_store, monkeypatch):
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: _make_df(80),
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: _make_df(80),
     )
     monkeypatch.setattr(
         scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [])
@@ -1502,7 +1502,7 @@ def test_process_symbol_zero_hits_returns_empty(cp_store, monkeypatch):
 def test_run_job_zero_hit_symbol_is_empty_not_failed(cp_store, monkeypatch):
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: _make_df(80),
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: _make_df(80),
     )
     def detect(df, tf, symbol):
         return [] if symbol == "EMPTY" else [_hit(symbol)]
@@ -1527,7 +1527,7 @@ def test_genuine_exception_increments_failed(cp_store, monkeypatch):
 
     def fake_process(symbol, timeframe, job_id, name=None, lookback_bars=None,
                      compute_trendlines=True, as_of_date=None, from_date=None,
-                     include_partial_today=None, prev_hit=None):
+                     include_partial_today=None, partial_bar=None, prev_hit=None):
         if symbol == "BOOM":
             raise RuntimeError("symbol worker died")
         return {"status": "ok", "data_through": "2026-01-01", "from_cache": False}
@@ -1557,7 +1557,7 @@ def test_custom_scan_delete_is_scoped_to_its_symbols(cp_store, monkeypatch):
     monkeypatch.setattr(store, "delete_hits_for", recording_delete)
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: _make_df(80),
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: _make_df(80),
     )
     monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)]))
     store.save_job({
@@ -1611,7 +1611,7 @@ def test_consecutive_runs_second_run_detects_zero(cp_store, monkeypatch):
     detect_calls = []
 
     def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None,
-                   lookback_bars=None, include_partial_today=None):
+                   lookback_bars=None, include_partial_today=None, partial_bar=None):
         return _make_df(80)
 
     def fake_detect(df, timeframe, symbol):
@@ -1669,7 +1669,7 @@ def test_changed_last_close_forces_redetect(cp_store, monkeypatch):
                    finished_age_sec=scan.SCAN_FRESH_SECONDS + 60)
 
     def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None,
-                   lookback_bars=None, include_partial_today=None):
+                   lookback_bars=None, include_partial_today=None, partial_bar=None):
         df = _make_df(80)
         df.iloc[-1, df.columns.get_loc("close")] = 999.0  # last close moved
         return df
@@ -1702,7 +1702,7 @@ def test_force_always_detects(cp_store, monkeypatch):
                    finished_age_sec=scan.SCAN_FRESH_SECONDS + 60)
 
     def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None,
-                   lookback_bars=None, include_partial_today=None):
+                   lookback_bars=None, include_partial_today=None, partial_bar=None):
         return _make_df(80)
 
     def fake_detect(df, timeframe, symbol):
@@ -1732,7 +1732,7 @@ def test_missing_source_sig_legacy_row_detects(cp_store, monkeypatch):
                    finished_age_sec=scan.SCAN_FRESH_SECONDS + 60)
 
     def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None,
-                   lookback_bars=None, include_partial_today=None):
+                   lookback_bars=None, include_partial_today=None, partial_bar=None):
         return _make_df(80)
 
     def fake_detect(df, timeframe, symbol):
@@ -1786,7 +1786,7 @@ def test_different_frame_interior_forces_redetect(cp_store, monkeypatch):
     assert scan._frame_signature(frame_a) != scan._frame_signature(_interior_frame_b())
 
     def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None,
-                   lookback_bars=None, include_partial_today=None):
+                   lookback_bars=None, include_partial_today=None, partial_bar=None):
         return _interior_frame_b()
 
     def fake_detect(df, timeframe, symbol):

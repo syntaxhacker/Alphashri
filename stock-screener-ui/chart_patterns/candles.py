@@ -421,6 +421,7 @@ def fetch_for_timeframe(
     from_date: Optional[str] = None,
     force_refresh: bool = False,
     provenance: Optional[dict] = None,
+    partial_bar: Optional[pd.DataFrame] = None,
 ) -> Optional[pd.DataFrame]:
     """Fetch candles for a symbol at a registered timeframe id.
 
@@ -568,7 +569,7 @@ def fetch_for_timeframe(
             )
 
     if include_partial_today and tf_id == "1D" and is_today:
-        df = _with_partial_today(df, symbol, api_client)
+        df = _with_partial_today(df, symbol, api_client, partial_bar=partial_bar)
     return df
 
 
@@ -607,14 +608,17 @@ def _cached_synthetic_today(api, symbol: str) -> Optional[pd.DataFrame]:
 
 
 def _with_partial_today(
-    df: pd.DataFrame, symbol: str, api_client=None
+    df: pd.DataFrame, symbol: str, api_client=None,
+    partial_bar: Optional[pd.DataFrame] = None,
 ) -> Optional[pd.DataFrame]:
-    """Append today's synthetic daily bar aggregated from the 1-minute tape.
+    """Append today's synthetic daily bar.
 
-    Returns ``df`` unchanged when the tape is empty (pre-market/holiday) or
-    the official daily bar for the session already exists (official wins).
-    The merged frame is flagged via ``df.attrs["partial_today"]`` and must
-    never be written to the disk cache — callers append after ``_write_cached``.
+    When ``partial_bar`` is supplied (pre-fetched by
+    :func:`market_data.fetch_ohlc_batch` for the whole scan) it is used
+    directly and no per-symbol intraday tape call is made. Otherwise the bar is
+    synthesized from today's 1-minute tape (legacy path). The official daily
+    bar wins; the merged frame is flagged via ``df.attrs["partial_today"]`` and
+    must never be written to the disk cache. Never raises.
     """
     if df is None or df.empty:
         return df
@@ -622,33 +626,31 @@ def _with_partial_today(
     if not _today_is_session():
         return df
     try:
-        from market_data.market_data import (
-            _concat_merge,
-            _has_session_bar,
-            _synthetic_today_bar,
-            get_api_client,
-        )
+        from market_data.market_data import _concat_merge, _has_session_bar
     except Exception:
+        return df
+    bar = partial_bar
+    if bar is None or getattr(bar, "empty", True):
+        try:
+            from market_data.market_data import get_api_client
+            api = api_client if api_client is not None else get_api_client()
+            if api is None:
+                return df
+            bar = _cached_synthetic_today(api, symbol)
+        except Exception:
+            return df
+    if bar is None or bar.empty:
+        return df
+    if _has_session_bar(df, bar.index[0]):
+        return df
+    merged = _concat_merge(df, bar)
+    if merged is None or merged.empty:
         return df
     try:
-        api = api_client if api_client is not None else get_api_client()
-        if api is None:
-            return df
-        synth = _cached_synthetic_today(api, symbol)
-        if synth is None or synth.empty:
-            return df
-        if _has_session_bar(df, synth.index[0]):
-            return df
-        merged = _concat_merge(df, synth)
-        if merged is None or merged.empty:
-            return df
-        try:
-            merged.attrs["partial_today"] = True
-        except Exception:
-            pass
-        return merged
+        merged.attrs["partial_today"] = True
     except Exception:
-        return df
+        pass
+    return merged
 
 
 def frame_last_date(df: pd.DataFrame) -> Optional[str]:
