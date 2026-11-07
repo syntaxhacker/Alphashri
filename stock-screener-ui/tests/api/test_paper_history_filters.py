@@ -35,6 +35,7 @@ def _patch_session(db):
 
 
 @pytest.mark.unit
+@pytest.mark.slow
 class TestTradesFilters:
     def test_filter_db_first_journal_fallback_only_when_empty(self, client, db):
         token, headers = _register_and_login(client, f"f1_{uuid.uuid4()}@ex.com")

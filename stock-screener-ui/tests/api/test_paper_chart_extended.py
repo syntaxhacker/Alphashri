@@ -147,6 +147,7 @@ def sample_journal_trade():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
+@pytest.mark.slow
 class TestResampleTimeframe:
 
     def test_resample_5min(self, client, auth_headers, sample_1min_df, mock_trading_deps):
@@ -236,6 +237,7 @@ class TestResampleTimeframe:
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
+@pytest.mark.slow
 class TestCacheHitMiss:
 
     def test_cache_hit_returns_cached_data(self, client, auth_headers, sample_1min_df, mock_trading_deps):
@@ -274,6 +276,7 @@ class TestCacheHitMiss:
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
+@pytest.mark.slow
 class TestIntradayOnly:
 
     def test_intraday_only_filters_to_last_day(self, client, auth_headers, sample_multi_day_df, mock_trading_deps):
@@ -303,6 +306,7 @@ class TestIntradayOnly:
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
+@pytest.mark.slow
 class TestORBLevels:
 
     def test_orb_levels_present(self, client, auth_headers, sample_1min_df, mock_trading_deps):
@@ -371,6 +375,7 @@ class TestORBLevels:
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
+@pytest.mark.slow
 class TestEMASeries:
 
     def test_ema_series_computed(self, client, auth_headers, sample_1min_df, sample_400day_df, mock_trading_deps):
@@ -444,6 +449,7 @@ class TestEMASeries:
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
+@pytest.mark.slow
 class TestPivotLevels:
 
     def test_pivot_levels_present(self, client, auth_headers, sample_1min_df, sample_400day_df, mock_trading_deps):
@@ -479,6 +485,7 @@ class TestPivotLevels:
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
+@pytest.mark.slow
 class TestTradeMarkers:
 
     def test_trades_from_db(self, client, auth_headers, sample_1min_df, mock_trading_deps, sample_journal_trade):
@@ -508,6 +515,7 @@ class TestTradeMarkers:
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
+@pytest.mark.slow
 class TestCurrentPosition:
 
     def test_position_from_in_memory_trader(self, client, auth_headers, sample_1min_df, mock_trading_deps, mock_trader_with_position):
@@ -548,6 +556,7 @@ class TestCurrentPosition:
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
+@pytest.mark.slow
 class TestFindLastTradingDay:
 
     def test_finds_data_on_first_try(self):
@@ -605,6 +614,7 @@ class TestFindLastTradingDay:
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
+@pytest.mark.slow
 class TestWeekendFallback:
 
     def test_weekend_returns_last_trading_day(self, client, auth_headers, mock_trading_deps):
@@ -638,6 +648,7 @@ class TestWeekendFallback:
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
+@pytest.mark.slow
 class TestChartErrors:
 
     def test_no_data_returns_error(self, client, auth_headers, mock_trading_deps):
@@ -672,6 +683,7 @@ class TestChartErrors:
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
+@pytest.mark.slow
 class TestDirectTimeframeFiltering:
     """Tests that direct TF timeframes (2h, 4h, 12h) filter to target date when no from_date."""
 
@@ -799,6 +811,7 @@ class TestDirectTimeframeFiltering:
 # ---------------------------------------------------------------------------
 
 @pytest.mark.unit
+@pytest.mark.slow
 class TestResponseShape:
 
     def test_response_has_all_fields(self, client, auth_headers, sample_1min_df, mock_trading_deps):

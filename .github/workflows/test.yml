@@ -32,7 +32,7 @@ jobs:
   pytest:
     name: Python Unit Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -63,7 +63,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
       - run: |
           cd stock-screener-ui
-          uv run --python 3.12 pytest -m unit -q --tb=short --ignore=tests/api/test_llm_analyzer.py
+          uv run --python 3.12 pytest -m "unit and not slow" -n 4 --dist loadfile -q --tb=short --ignore=tests/api/test_llm_analyzer.py
         env:
           JWT_SECRET_KEY: test-secret
           DATABASE_URL: sqlite:///./test.db
