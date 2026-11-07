@@ -1,6 +1,7 @@
 """Tests for chart_patterns/scan.py (job execution + progress counters)."""
 from dataclasses import replace
 from types import SimpleNamespace
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -1526,7 +1527,7 @@ def test_genuine_exception_increments_failed(cp_store, monkeypatch):
 
     def fake_process(symbol, timeframe, job_id, name=None, lookback_bars=None,
                      compute_trendlines=True, as_of_date=None, from_date=None,
-                     include_partial_today=None):
+                     include_partial_today=None, prev_hit=None):
         if symbol == "BOOM":
             raise RuntimeError("symbol worker died")
         return {"status": "ok", "data_through": "2026-01-01", "from_cache": False}
@@ -1567,3 +1568,248 @@ def test_custom_scan_delete_is_scoped_to_its_symbols(cp_store, monkeypatch):
 
     assert seen["universe"] == "custom"
     assert seen["symbols"] == ["AAA"]
+
+
+# ---------------------------------------------------------------------------
+# Source-signature symbol reuse: unchanged symbols skip detection + trendlines.
+# ---------------------------------------------------------------------------
+
+
+def _seed_prev_hit(job_id: str, symbol: str = "AAA", source_sig=None,
+                   finished_age_sec: Optional[float] = None) -> None:
+    """A completed previous job carrying one hit for `symbol`.
+
+    `finished_age_sec` ages the job past the freshness TTL so the whole-job
+    short-circuit does not fire and the symbol-level reuse path is exercised.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    finished_at = None
+    if finished_age_sec is not None:
+        finished_at = (
+            datetime.now(timezone.utc) - timedelta(seconds=finished_age_sec)
+        ).isoformat()
+    store.save_job({
+        "job_id": job_id, "universe": "nifty50", "timeframe": "1D",
+        "status": "completed", "total": 1, "done": 1, "failed": 0, "skipped": 0,
+        "finished_at": finished_at,
+        "params": {"scan_signature": scan._detector_signature()},
+    })
+    hit = scan._hit_to_dict(_hit(symbol))
+    if source_sig is not None:
+        hit["source_sig"] = source_sig
+    store.save_hits(job_id, [hit])
+
+
+def _market_open(monkeypatch):
+    monkeypatch.setattr("trading.utils.is_market_open", lambda *a, **k: True)
+
+
+def test_consecutive_runs_second_run_detects_zero(cp_store, monkeypatch):
+    """Run 1 detects; run 2 on an unchanged frame reuses every stored hit."""
+    _market_open(monkeypatch)
+    detect_calls = []
+
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None,
+                   lookback_bars=None, include_partial_today=None):
+        return _make_df(80)
+
+    def fake_detect(df, timeframe, symbol):
+        detect_calls.append(symbol)
+        return [_hit(symbol)]
+
+    monkeypatch.setattr(scan.candles, "fetch_for_timeframe", fake_fetch)
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=fake_detect))
+    monkeypatch.setattr(
+        scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA"])
+    )
+
+    store.save_job({
+        "job_id": "cpj_consec1", "universe": "nifty50", "timeframe": "1D",
+        "status": "queued", "params": {"force": True},
+    })
+    scan.run_job("cpj_consec1")
+    assert detect_calls == ["AAA"]
+    first_symbols = {i["symbol"] for i in store.query_results({"job_id": "cpj_consec1"})[0]}
+
+    # Age the previous job past the freshness TTL so run 2 must take the
+    # symbol-level reuse path (the whole-job short-circuit is skipped).
+    from datetime import datetime, timedelta, timezone
+
+    stale = (
+        datetime.now(timezone.utc) - timedelta(seconds=scan.SCAN_FRESH_SECONDS + 60)
+    ).isoformat()
+    store.update_job("cpj_consec1", finished_at=stale)
+
+    store.save_job({
+        "job_id": "cpj_consec2", "universe": "nifty50", "timeframe": "1D",
+        "status": "queued",
+    })
+    scan.run_job("cpj_consec2")
+
+    # Identical frame -> identical source signature -> zero new detections.
+    assert detect_calls == ["AAA"]
+    row = store.get_job("cpj_consec2")
+    assert row["status"] == "completed"
+    assert row["done"] == 1
+    provenance = (jobs.get_job("cpj_consec2") or {}).get("provenance") or {}
+    assert int(provenance.get("reused") or 0) >= 1
+    items, total, _ = store.query_results({"job_id": "cpj_consec2"})
+    assert total == 1
+    assert {i["symbol"] for i in items} == first_symbols == {"AAA"}
+    assert items[0]["source_sig"] is not None
+
+
+def test_changed_last_close_forces_redetect(cp_store, monkeypatch):
+    """A changed last close changes the source signature -> re-detect."""
+    _market_open(monkeypatch)
+    detect_calls = []
+    prev_sig = scan._source_sig(_make_df(80), "1D", None, True)
+    _seed_prev_hit("cpj_close_prev", "AAA", source_sig=prev_sig,
+                   finished_age_sec=scan.SCAN_FRESH_SECONDS + 60)
+
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None,
+                   lookback_bars=None, include_partial_today=None):
+        df = _make_df(80)
+        df.iloc[-1, df.columns.get_loc("close")] = 999.0  # last close moved
+        return df
+
+    def fake_detect(df, timeframe, symbol):
+        detect_calls.append(symbol)
+        return [_hit(symbol)]
+
+    monkeypatch.setattr(scan.candles, "fetch_for_timeframe", fake_fetch)
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=fake_detect))
+    monkeypatch.setattr(
+        scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA"])
+    )
+    store.save_job({
+        "job_id": "cpj_close_new", "universe": "nifty50", "timeframe": "1D",
+        "status": "queued",
+    })
+    scan.run_job("cpj_close_new")
+
+    assert detect_calls == ["AAA"]
+    assert store.get_job("cpj_close_new")["status"] == "completed"
+
+
+def test_force_always_detects(cp_store, monkeypatch):
+    """`force=True` re-detects even when the source signature matches."""
+    _market_open(monkeypatch)
+    detect_calls = []
+    prev_sig = scan._source_sig(_make_df(80), "1D", None, True)
+    _seed_prev_hit("cpj_force_prev", "AAA", source_sig=prev_sig,
+                   finished_age_sec=scan.SCAN_FRESH_SECONDS + 60)
+
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None,
+                   lookback_bars=None, include_partial_today=None):
+        return _make_df(80)
+
+    def fake_detect(df, timeframe, symbol):
+        detect_calls.append(symbol)
+        return [_hit(symbol)]
+
+    monkeypatch.setattr(scan.candles, "fetch_for_timeframe", fake_fetch)
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=fake_detect))
+    monkeypatch.setattr(
+        scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA"])
+    )
+    store.save_job({
+        "job_id": "cpj_force_new", "universe": "nifty50", "timeframe": "1D",
+        "status": "queued", "params": {"force": True},
+    })
+    scan.run_job("cpj_force_new")
+
+    assert detect_calls == ["AAA"]
+    assert store.get_job("cpj_force_new")["status"] == "completed"
+
+
+def test_missing_source_sig_legacy_row_detects(cp_store, monkeypatch):
+    """Legacy hits without `source_sig` are re-detected (never silently reused)."""
+    _market_open(monkeypatch)
+    detect_calls = []
+    _seed_prev_hit("cpj_legacy_prev", "AAA", source_sig=None,
+                   finished_age_sec=scan.SCAN_FRESH_SECONDS + 60)
+
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None,
+                   lookback_bars=None, include_partial_today=None):
+        return _make_df(80)
+
+    def fake_detect(df, timeframe, symbol):
+        detect_calls.append(symbol)
+        return [_hit(symbol)]
+
+    monkeypatch.setattr(scan.candles, "fetch_for_timeframe", fake_fetch)
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=fake_detect))
+    monkeypatch.setattr(
+        scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA"])
+    )
+    store.save_job({
+        "job_id": "cpj_legacy_new", "universe": "nifty50", "timeframe": "1D",
+        "status": "queued",
+    })
+    scan.run_job("cpj_legacy_new")
+
+    assert detect_calls == ["AAA"]
+    assert store.get_job("cpj_legacy_new")["status"] == "completed"
+
+
+def _interior_frame_b() -> pd.DataFrame:
+    """Frame B: 79 bars at 200, last bar untouched (close 120, len 80).
+
+    Same last date/timestamp/close/length as _make_df(80) (frame A), different
+    interior — the audit collision case.
+    """
+    df = _make_df(80)
+    df.iloc[:-1] = 200.0  # interior bars all 200; last bar keeps close == 120
+    return df
+
+
+def test_different_frame_interior_forces_redetect(cp_store, monkeypatch):
+    """Same tail stats but different interior -> new signature -> re-detect (no reuse).
+
+    Reproduces the audit collision: frame A = linspace(100->120), frame B =
+    79 bars at 200 then last bar 120. Both share last date/timestamp/close/length
+    (old signature would collide), but the interior digest differs so detection
+    must run and the stored hit reflects frame B.
+    """
+    _market_open(monkeypatch)
+    detect_calls = []
+
+    frame_a = _make_df(80)  # close 100->120, last close 120
+    prev_sig = scan._source_sig(frame_a, "1D", None, True)
+    _seed_prev_hit("cpj_interior_prev", "AAA", source_sig=prev_sig,
+                   finished_age_sec=scan.SCAN_FRESH_SECONDS + 60)
+
+    # Sanity: the new signature (with interior digest) separates these two frames
+    # whose tail-only signature would collide (the bug).
+    assert scan._frame_signature(frame_a) != scan._frame_signature(_interior_frame_b())
+
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None,
+                   lookback_bars=None, include_partial_today=None):
+        return _interior_frame_b()
+
+    def fake_detect(df, timeframe, symbol):
+        detect_calls.append(symbol)
+        return [_hit(symbol)]
+
+    monkeypatch.setattr(scan.candles, "fetch_for_timeframe", fake_fetch)
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=fake_detect))
+    monkeypatch.setattr(
+        scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA"])
+    )
+    store.save_job({
+        "job_id": "cpj_interior_new", "universe": "nifty50", "timeframe": "1D",
+        "status": "queued",
+    })
+    scan.run_job("cpj_interior_new")
+
+    # Detection MUST run (no silent reuse of the frame-A hit).
+    assert detect_calls == ["AAA"]
+    row = store.get_job("cpj_interior_new")
+    assert row["status"] == "completed"
+    provenance = (jobs.get_job("cpj_interior_new") or {}).get("provenance") or {}
+    assert int(provenance.get("reused") or 0) == 0
+    items, total, _ = store.query_results({"job_id": "cpj_interior_new"})
+    assert total == 1
+    assert items[0]["source_sig"] != prev_sig  # stored hit reflects frame B

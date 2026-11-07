@@ -252,6 +252,72 @@ def latest_completed_job(universe: str, timeframe: str) -> Optional[dict]:
         session.close()
 
 
+def latest_hits_by_symbol(
+    universe: str, timeframe: str, exclude_job_id: Optional[str] = None
+) -> dict[str, dict]:
+    """The previous completed job's hits for a universe/timeframe, keyed by symbol.
+
+    Returns the latest completed job (excluding ``exclude_job_id``) and keeps the
+    newest hit per symbol. Each value is the hit dto with ``source_sig`` plus the
+    scan-time ``trend_lines`` / ``trend_lines_sig`` promoted from ``payload_json``
+    to the top level, so :func:`chart_patterns.scan.run_job` can compare
+    signatures without re-parsing payloads. Returns ``{}`` when there is no
+    previous completed job with hits, and never raises on DB failure.
+
+    This is the read side of the source-signature reuse contract: a symbol whose
+    stored ``source_sig`` still matches its current frame is skipped at detect
+    time and its stored hit is re-persisted under the new job id.
+    """
+    session = _new_session()
+    try:
+        q = (
+            session.query(PatternHit)
+            .join(PatternComputeJob, PatternComputeJob.id == PatternHit.job_id)
+            .filter(
+                PatternComputeJob.universe == universe,
+                PatternComputeJob.timeframe == timeframe,
+                PatternComputeJob.status == "completed",
+            )
+        )
+        if exclude_job_id:
+            q = q.filter(PatternComputeJob.id != exclude_job_id)
+        q = q.order_by(
+            PatternComputeJob.finished_at.desc().nullslast(),
+            PatternComputeJob.id.desc(),
+            PatternHit.id.desc(),
+        )
+        rows = q.all()
+        by_symbol: dict[str, dict] = {}
+        for row in rows:
+            sym = row.symbol
+            if sym in by_symbol:
+                continue
+            dto = row.to_dict()
+            payload = {}
+            raw = row.payload_json
+            if isinstance(raw, str):
+                try:
+                    payload = json.loads(raw)
+                except (TypeError, ValueError):
+                    payload = {}
+            elif isinstance(raw, dict):
+                payload = dict(raw)
+            source_sig = payload.get("source_sig")
+            dto["source_sig"] = str(source_sig) if source_sig else None
+            trend_lines = payload.get("trend_lines")
+            if isinstance(trend_lines, list):
+                dto["trend_lines"] = trend_lines
+            trend_lines_sig = payload.get("trend_lines_sig")
+            if trend_lines_sig:
+                dto["trend_lines_sig"] = str(trend_lines_sig)
+            by_symbol[sym] = dto
+        return by_symbol
+    except Exception:
+        return {}
+    finally:
+        session.close()
+
+
 def list_jobs(active_only: bool = False, limit: int = 50) -> list[dict]:
     session = _new_session()
     try:
@@ -326,6 +392,7 @@ def _add_hit_rows(session, job_id: str, hits: Iterable[dict]) -> int:
             "pivots": hit.get("pivots") or [],
             "trend_lines": hit.get("trend_lines") or [],
             "trend_lines_sig": hit.get("trend_lines_sig") or "",
+            "source_sig": hit.get("source_sig") or "",
         }
         row = PatternHit(
             job_id=job_id,
@@ -432,6 +499,24 @@ def _payload_trend_lines_sig(raw) -> Optional[str]:
     if not isinstance(payload, dict):
         return None
     sig = payload.get("trend_lines_sig")
+    return str(sig) if sig else None
+
+
+def _payload_source_sig(raw) -> Optional[str]:
+    """``source_sig`` carried in a hit's ``payload_json``.
+
+    Follows the same payload→dict route as ``_payload_trend_lines``. Missing or
+    malformed values yield ``None`` (legacy rows never had a source signature).
+    """
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw) if isinstance(raw, str) else {}
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    sig = payload.get("source_sig")
     return str(sig) if sig else None
 
 
@@ -634,6 +719,7 @@ def query_results(filters: dict, limit: int = 100, offset: int = 0):
             dto["breakout_score"] = breakout_score(dto)
             dto["trend_lines"] = _payload_trend_lines(row.payload_json)
             dto["trend_lines_sig"] = _payload_trend_lines_sig(row.payload_json)
+            dto["source_sig"] = _payload_source_sig(row.payload_json)
             items.append(dto)
         _attach_52w_gaps(session, items)
 
