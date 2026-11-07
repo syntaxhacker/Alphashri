@@ -50,6 +50,7 @@ import functools
 import importlib
 import json
 import logging
+import pandas as pd
 import pickle
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -58,6 +59,7 @@ from pathlib import Path
 from typing import Optional
 
 from chart_patterns.parallel import run_symbols
+from chart_patterns.tags import tags_for
 
 log = logging.getLogger(__name__)
 
@@ -153,6 +155,15 @@ _NEAR52W_MIN_BARS = 21
 #: Lookback for the prior 52W high (daily bars, latest bar excluded).
 _NEAR52W_LOOKBACK = 252
 
+#: Calendar window (days) for the prior 52W high: bars whose UTC index is
+#: within the last 365 days of the latest bar are eligible (latest bar
+#: excluded). Bars older than 365 days are ignored even when they sit inside
+#: the last 252 trading bars -- APLLTD had a 367-day-old high wrongly arming
+#: the screen; excluding it lets a recent high become the trigger. If fewer
+#: than _NEAR52W_MIN_BARS bars qualify (short-history symbols), fall back to
+#: the last 252 bars so the screen still runs for young symbols.
+_NEAR52W_WINDOW_DAYS = 365
+
 #: Accumulation windows (daily bars): OBV slope + volume ratio denominator.
 _NEAR52W_ACCUM_WINDOW = 20
 
@@ -166,7 +177,7 @@ _NEAR52W_VOL_SHORT = 5
 #: Version of the ``near_52w`` detector + row shape. Bump whenever
 #: :func:`_near52w_row` changes so stale per-symbol and whole-screen cache
 #: entries are ignored instead of served as fresh.
-DETECTOR_VERSION = 4
+DETECTOR_VERSION = 5
 
 #: Per-symbol detection-result cache subdirectory of ``_NEAR52W_CACHE_DIR``:
 #: ``detect/{setup}__{SYM}__{tf}__{session}.v{N}.pkl``. Kept in a
@@ -389,11 +400,40 @@ def _detect_cache_write(
         pass
 
 
+def _ist_date(ts) -> Optional[str]:
+    """IST session date (YYYY-MM-DD) of a UTC timestamp; ``None`` on failure.
+
+    Candle indexes are UTC; converting via IST avoids mislabeling a bar
+    stamped 18:30+ UTC as the previous session date. Never raises."""
+    try:
+        import config
+
+        tz = config.IST
+    except Exception:
+        from zoneinfo import ZoneInfo
+
+        tz = ZoneInfo("Asia/Kolkata")
+    try:
+        stamp = pd.Timestamp(ts)
+        if stamp.tzinfo is None:
+            stamp = stamp.tz_localize("UTC")
+        return stamp.tz_convert(tz).date().isoformat()
+    except Exception:
+        return None
+
+
 def _near52w_row(symbol: str, df) -> Optional[dict]:
     """Screen one daily frame; a watch row or ``None`` (skip). Never raises.
 
-    * ``prior_high`` = ``max(high)`` over the last 252 bars **excluding**
-      the latest bar; ``touched`` = latest high ``>=`` prior high.
+    * ``prior_high`` = ``max(high)`` over the calendar 52W window (last 365
+      days, latest bar excluded); bars older than 365 days are ignored even
+      when inside the last 252 trading bars. If fewer than
+      ``_NEAR52W_MIN_BARS`` bars qualify (short history), falls back to the
+      last 252 bars. ``touched`` = latest high ``>=`` prior high.
+    * ``trigger_date`` = IST session date (YYYY-MM-DD) of the bar in the
+      window that set prior_high; ``last_touch_date`` = most recent IST
+      session date in the full frame (latest bar included) whose high >=
+      prior_high, else ``None``.
     * ``high_gap``/``close_gap`` = ``(prior_high - last_high/close) /
       prior_high * 100`` (negative = exceeded intraday / closed above).
     * Accumulation over the last ~20 sessions: ``obv_slope`` (linreg slope
@@ -417,7 +457,17 @@ def _near52w_row(symbol: str, df) -> Optional[dict]:
 
         hist = df.iloc[:-1]
         last = df.iloc[-1]
-        prior_high = float(hist["high"].astype(float).tail(_NEAR52W_LOOKBACK).max())
+
+        # Prior 52W high over a calendar window: bars whose UTC index is within
+        # the last 365 days of the latest bar (latest bar excluded). Bars older
+        # than 365 days are ignored even when inside the last 252 trading bars.
+        # With too few in-window bars (short history), fall back to the last 252
+        # bars so the screen still runs for young symbols.
+        window_start = df.index[-1] - pd.Timedelta(days=_NEAR52W_WINDOW_DAYS)
+        win = hist[hist.index >= window_start]
+        if len(win) < _NEAR52W_MIN_BARS:
+            win = hist.tail(_NEAR52W_LOOKBACK)
+        prior_high = float(win["high"].astype(float).max())
         last_high = float(last["high"])
         close = float(last["close"])
         if not prior_high > 0:
@@ -425,6 +475,26 @@ def _near52w_row(symbol: str, df) -> Optional[dict]:
         touched = bool(last_high >= prior_high)
         high_gap = (prior_high - last_high) / prior_high * 100.0
         close_gap = (prior_high - close) / prior_high * 100.0
+
+        # trigger_date: IST session date of the bar in the window that set
+        # prior_high (most recent such bar wins on a re-touch).
+        trigger_date = None
+        try:
+            hit = win[win["high"] == prior_high]
+            if not hit.empty:
+                trigger_date = _ist_date(hit.index[-1])
+        except Exception:
+            trigger_date = None
+
+        # last_touch_date: most recent IST session date in the full frame
+        # (latest bar included) whose high >= prior_high; None when never.
+        last_touch_date = None
+        try:
+            touch = df[df["high"] >= prior_high]
+            if not touch.empty:
+                last_touch_date = _ist_date(touch.index[-1])
+        except Exception:
+            last_touch_date = None
 
         n = min(len(df), _NEAR52W_ACCUM_WINDOW)
         wclose = [float(v) for v in closes.tail(n).tolist()]
@@ -477,6 +547,8 @@ def _near52w_row(symbol: str, df) -> Optional[dict]:
             "invalidate_level": float(lows.tail(_NEAR52W_INVALIDATE_WINDOW).min()),
             "close": close,
             "last_high": last_high,
+            "trigger_date": trigger_date,
+            "last_touch_date": last_touch_date,
             "touched": touched,
             "high_gap": high_gap,
             "close_gap": close_gap,
@@ -1231,6 +1303,7 @@ def live(rows: list[dict], *, min_rel_volume: float = 0.7) -> list[dict]:
             row["rel_volume"] = rel
             row["vol_adj"] = va
             row["pct_to_trigger"] = round(pct, 2) if pct is not None else None
+            row["tags"] = tags_for(sym)
             above = (
                 ltp is not None
                 and trigger is not None
@@ -1251,6 +1324,7 @@ def live(rows: list[dict], *, min_rel_volume: float = 0.7) -> list[dict]:
             row.setdefault("rel_volume", None)
             row.setdefault("vol_adj", None)
             row.setdefault("pct_to_trigger", None)
+            row.setdefault("tags", [])
             row["state"] = "armed"
         out.append(row)
     return out

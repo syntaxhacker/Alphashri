@@ -29,6 +29,7 @@ from chart_patterns import candles, config, jobs, store
 from chart_patterns import scan as scan_mod
 from chart_patterns import trendlines as trendlines_mod
 from chart_patterns import watch as watch_mod
+from chart_patterns.tags import tags_for
 from chart_patterns.parallel import max_workers as _parallel_max_workers
 
 import config as root_config
@@ -626,6 +627,8 @@ def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache
     ``lock`` when calling from worker threads (guards the shared caches).
     Mutates and returns ``item``; never raises for a dict item.
     """
+    if isinstance(item, dict):
+        item.setdefault("tags", tags_for(str(item.get("symbol") or "")))
     if key is None:
         if isinstance(item, dict):
             if current_sig is None:
