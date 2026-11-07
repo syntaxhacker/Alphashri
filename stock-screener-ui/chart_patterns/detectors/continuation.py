@@ -360,9 +360,9 @@ def _find_pole_flag(df: pd.DataFrame, bullish: bool):
     return best
 
 
-def _flag_hit(df, best, pid, bullish):
+def _flag_hit(df, best, pid, bullish, ctx):
     atr_val = F.atr_value(df)
-    highs, lows = get_swings(df)
+    highs, lows = get_swings(df, ctx)
     pstart, pend = int(best["pstart"]), int(best["pend"])
     fstart, fend = int(best["fstart"]), int(best["fend"])
     if bullish:
@@ -439,7 +439,7 @@ def detect_bull_flag(df: pd.DataFrame, ctx: dict | None = None) -> list:
     best = _find_pole_flag(df, bullish=True)
     if best is None:
         return []
-    return _flag_hit(df, best, "bull_flag", True)
+    return _flag_hit(df, best, "bull_flag", True, ctx)
 
 
 def detect_bear_flag(df: pd.DataFrame, ctx: dict | None = None) -> list:
@@ -447,10 +447,10 @@ def detect_bear_flag(df: pd.DataFrame, ctx: dict | None = None) -> list:
     best = _find_pole_flag(df, bullish=False)
     if best is None:
         return []
-    return _flag_hit(df, best, "bear_flag", False)
+    return _flag_hit(df, best, "bear_flag", False, ctx)
 
 
-def _find_pennant(df: pd.DataFrame):
+def _find_pennant(df: pd.DataFrame, ctx: dict | None = None):
     """Return the best ``pole + converging consolidation`` dict or ``None``.
 
     Scans a wider set of pole/consolidation windows than the flag scanner and
@@ -469,7 +469,7 @@ def _find_pennant(df: pd.DataFrame):
     atr_val = F.atr_value(df)
     if atr_val <= 0:
         return None
-    highs_all, lows_all = get_swings(df)
+    highs_all, lows_all = get_swings(df, ctx)
     best = None
     for pole_bars in PENNANT_POLES:
         for flag_bars in PENNANT_FLAGS:
@@ -580,7 +580,7 @@ def detect_pennant(df: pd.DataFrame, ctx: dict | None = None) -> list:
     n = len(df)
     if n < 20:
         return []
-    best = _find_pennant(df)
+    best = _find_pennant(df, ctx)
     if best is None:
         return []
     eu, el = best["eu"], best["el"]
@@ -597,7 +597,7 @@ def detect_pennant(df: pd.DataFrame, ctx: dict | None = None) -> list:
     _, _, r2l = F.linreg_fit(xs, df["low"].iloc[cx0 : cx1 + 1].to_numpy(dtype=float))
     r2 = float(min(r2u, r2l))
     atr_val = F.atr_value(df)
-    highs, lows = get_swings(df)
+    highs, lows = get_swings(df, ctx)
     touches = F.count_touches(highs, eu["slope"], eu["intercept"], atr_val) + F.count_touches(
         lows, el["slope"], el["intercept"], atr_val
     )
