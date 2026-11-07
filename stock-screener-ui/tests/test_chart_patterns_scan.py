@@ -685,6 +685,9 @@ def test_process_symbol_attaches_trend_lines(cp_store, monkeypatch):
     result = scan._process_symbol("AAA", "1D", "cpj_tlproc")
 
     assert result["status"] == "ok"
+    # _process_symbol no longer persists per symbol; persistence is batched in
+    # run_job, so persist the returned hits explicitly here.
+    store.save_hits("cpj_tlproc", result.get("hits") or [])
     items, total, _ = store.query_results({"job_id": "cpj_tlproc"})
     assert total == 1
     assert isinstance(items[0].get("trend_lines"), list)
@@ -706,6 +709,7 @@ def test_process_symbol_trendlines_failure_still_persists_hits(cp_store, monkeyp
     result = scan._process_symbol("AAA", "1D", "cpj_tlproc_fail")
 
     assert result["status"] == "ok"
+    store.save_hits("cpj_tlproc_fail", result.get("hits") or [])
     items, total, _ = store.query_results({"job_id": "cpj_tlproc_fail"})
     assert total == 1
     assert items[0].get("trend_lines") == []
@@ -780,6 +784,7 @@ def test_process_symbol_stamps_trend_lines_sig(cp_store, monkeypatch):
     result = scan._process_symbol("AAA", "1D", "cpj_tlsig")
 
     assert result["status"] == "ok"
+    store.save_hits("cpj_tlsig", result.get("hits") or [])
     items, total, _ = store.query_results({"job_id": "cpj_tlsig"})
     assert total == 1
     assert items[0].get("trend_lines_sig") == cp_config.trendline_signature()
@@ -1379,18 +1384,19 @@ def test_run_scan_prefilter_fail_open_scans_everything(cp_store, monkeypatch):
 def test_run_job_supersedes_old_hits_after_completion_not_at_start(cp_store, monkeypatch):
     order: list = []
     real_delete = store.delete_hits_for
-    real_save = store.save_hits
+    real_save_batch = store.save_hits_batch
 
     def recording_delete(universe, timeframe, keep_job_id=None):
         order.append(("delete", keep_job_id))
         return real_delete(universe, timeframe, keep_job_id=keep_job_id)
 
-    def recording_save(job_id, hits):
-        order.append(("save", job_id, len(hits)))
-        return real_save(job_id, hits)
+    def recording_save_batch(entries):
+        job_id = entries[0][0] if entries else None
+        order.append(("save_batch", job_id, sum(len(hits) for _, hits in entries)))
+        return real_save_batch(entries)
 
     monkeypatch.setattr(store, "delete_hits_for", recording_delete)
-    monkeypatch.setattr(store, "save_hits", recording_save)
+    monkeypatch.setattr(store, "save_hits_batch", recording_save_batch)
 
     # A previous completed job's hit for the same universe/timeframe.
     store.save_job({"job_id": "cpj_prev", "universe": "nifty50", "timeframe": "1D",
@@ -1410,15 +1416,15 @@ def test_run_job_supersedes_old_hits_after_completion_not_at_start(cp_store, mon
     store.save_job({"job_id": "cpj_new", "universe": "nifty50", "timeframe": "1D", "status": "queued"})
     scan.run_job("cpj_new")
 
-    saves = [o for o in order if o[0] == "save"]
+    saves = [o for o in order if o[0] == "save_batch"]
     deletes = [o for o in order if o[0] == "delete"]
-    # The new job's hits were saved ...
+    # The new job's hits were saved (batched at completion) ...
     assert any(o[1] == "cpj_new" for o in saves)
     # ... and previous hits were superseded exactly once, keeping this job's rows.
     assert len(deletes) == 1
     assert deletes[0][1] == "cpj_new"  # keep_job_id is the current job
     # The delete ran after the new job's saves (completion path), not at job start.
-    save_idx = next(i for i, o in enumerate(order) if o[0] == "save" and o[1] == "cpj_new")
+    save_idx = next(i for i, o in enumerate(order) if o[0] == "save_batch" and o[1] == "cpj_new")
     delete_idx = next(i for i, o in enumerate(order) if o[0] == "delete")
     assert save_idx < delete_idx
 

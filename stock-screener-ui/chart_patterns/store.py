@@ -311,48 +311,84 @@ def delete_hits_for(
         session.close()
 
 
+def _add_hit_rows(session, job_id: str, hits: Iterable[dict]) -> int:
+    """Add ``PatternHit`` rows for ``hits`` to an open session (no commit).
+
+    Shared by :func:`save_hits` (single symbol) and :func:`save_hits_batch`
+    (many symbols in one transaction). Row construction is identical to the
+    legacy per-symbol path so stored columns are unchanged.
+    """
+    saved = 0
+    for hit in hits:
+        payload = {
+            "trendlines": hit.get("trendlines") or [],
+            "notes": hit.get("notes") or "",
+            "pivots": hit.get("pivots") or [],
+            "trend_lines": hit.get("trend_lines") or [],
+            "trend_lines_sig": hit.get("trend_lines_sig") or "",
+        }
+        row = PatternHit(
+            job_id=job_id,
+            symbol=(hit.get("symbol") or "").upper(),
+            name=hit.get("name"),
+            timeframe=str(hit.get("timeframe") or ""),
+            pattern_id=hit.get("pattern_id") or "",
+            pattern_name=hit.get("pattern_name") or "",
+            family=hit.get("family") or "",
+            direction=hit.get("direction") or "",
+            status=hit.get("status") or "",
+            quality=hit.get("quality"),
+            confidence=_num(hit.get("confidence")),
+            start_date=_str(hit.get("start_date")),
+            end_date=_str(hit.get("end_date")),
+            start_price=_num(hit.get("start_price")),
+            end_price=_num(hit.get("end_price")),
+            breakout_level=_num(hit.get("breakout_level")),
+            target=_num(hit.get("target")),
+            stop=_num(hit.get("stop")),
+            rr=_num(hit.get("rr")),
+            bars_ago=_int(hit.get("bars_ago")),
+            volume_confirmed=bool(hit.get("volume_confirmed")),
+            base_days=_int(hit.get("base_days")),
+            range_pct=_num(hit.get("range_pct")),
+            range_pos=_num(hit.get("range_pos")),
+            payload_json=json.dumps(payload),
+        )
+        session.add(row)
+        saved += 1
+    return saved
+
+
 def save_hits(job_id: str, hits: Iterable[dict]) -> int:
-    """Persist detected hits (already enriched with symbol/name/timeframe)."""
+    """Persist detected hits (already enriched with symbol/name/timeframe).
+
+    Single-symbol convenience wrapper around :func:`_add_hit_rows` that owns
+    its own session and commit. Kept for direct callers and tests.
+    """
+    session = _new_session()
+    try:
+        saved = _add_hit_rows(session, job_id, hits)
+        session.commit()
+        return saved
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def save_hits_batch(entries: list[tuple[str, list[dict]]]) -> int:
+    """Persist hits for several jobs in a single session/transaction.
+
+    ``entries`` is a list of ``(job_id, hits)`` pairs. All rows are inserted
+    and committed in one transaction, so a batch of symbols costs one session
+    and one commit instead of one per symbol. Returns the total rows saved.
+    """
     session = _new_session()
     saved = 0
     try:
-        for hit in hits:
-            payload = {
-                "trendlines": hit.get("trendlines") or [],
-                "notes": hit.get("notes") or "",
-                "pivots": hit.get("pivots") or [],
-                "trend_lines": hit.get("trend_lines") or [],
-                "trend_lines_sig": hit.get("trend_lines_sig") or "",
-            }
-            row = PatternHit(
-                job_id=job_id,
-                symbol=(hit.get("symbol") or "").upper(),
-                name=hit.get("name"),
-                timeframe=str(hit.get("timeframe") or ""),
-                pattern_id=hit.get("pattern_id") or "",
-                pattern_name=hit.get("pattern_name") or "",
-                family=hit.get("family") or "",
-                direction=hit.get("direction") or "",
-                status=hit.get("status") or "",
-                quality=hit.get("quality"),
-                confidence=_num(hit.get("confidence")),
-                start_date=_str(hit.get("start_date")),
-                end_date=_str(hit.get("end_date")),
-                start_price=_num(hit.get("start_price")),
-                end_price=_num(hit.get("end_price")),
-                breakout_level=_num(hit.get("breakout_level")),
-                target=_num(hit.get("target")),
-                stop=_num(hit.get("stop")),
-                rr=_num(hit.get("rr")),
-                bars_ago=_int(hit.get("bars_ago")),
-                volume_confirmed=bool(hit.get("volume_confirmed")),
-                base_days=_int(hit.get("base_days")),
-                range_pct=_num(hit.get("range_pct")),
-                range_pos=_num(hit.get("range_pos")),
-                payload_json=json.dumps(payload),
-            )
-            session.add(row)
-            saved += 1
+        for job_id, hits in entries:
+            saved += _add_hit_rows(session, job_id, hits)
         session.commit()
         return saved
     except Exception:
