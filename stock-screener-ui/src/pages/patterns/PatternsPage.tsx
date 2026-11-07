@@ -85,6 +85,19 @@ function sameFilters(a: PatternFilters, b: PatternFilters): boolean {
   return true;
 }
 
+/** Host handler closures (e.g. anything closing over `fullscreen`) are
+ *  recreated whenever `fullscreen` changes; stable identities stop the
+ *  matrix `columns` (and every memoised cell) from being rebuilt on each
+ *  chart open/close. Same shape as `PatternGrid.useStableCallback`. */
+type Fn = (...args: any[]) => unknown;
+function useStableCallback<T extends Fn | undefined>(callback: T): T;
+function useStableCallback<T extends Fn | undefined>(callback: T): T | undefined {
+  if (callback == null) return undefined;
+  const ref = useRef(callback);
+  ref.current = callback;
+  return useCallback((...args: any[]) => ref.current(...args), []) as unknown as T;
+}
+
 export interface PatternsPageProps {
   timeframes: TFSpec[];
   universes: Universe[];
@@ -228,7 +241,11 @@ export function PatternsPage({
   const previewTimerRef = useRef<number | null>(null);
   const previewCloseTimerRef = useRef<number | null>(null);
   const fullscreenRef = useRef(fullscreen);
-  fullscreenRef.current = fullscreen;
+  // Kept in an effect (not written during render) so the hover-preview close
+  // timer always reads the latest `fullscreen`.
+  useEffect(() => {
+    fullscreenRef.current = fullscreen;
+  }, [fullscreen]);
   const clearPreviewTimers = useCallback(() => {
     if (previewTimerRef.current) {
       window.clearTimeout(previewTimerRef.current);
@@ -691,6 +708,15 @@ export function PatternsPage({
     prevTabRef.current = activeTab;
   }, [activeTab, fullscreen, closeFullscreen]);
 
+  // Stable identities for the handlers passed into the matrix / list / grid.
+  // A fullscreen toggle recreates `fullscreen` and therefore these closures;
+  // wrapping them stops the matrix `columns` (and every memoised cell) from
+  // being rebuilt on each chart open/close.
+  const openChartHitStable = useStableCallback(openChartHit);
+  const requestSymbolPreviewStable = useStableCallback(requestSymbolPreview);
+  const endSymbolPreviewStable = useStableCallback(endSymbolPreview);
+  const openSymbolPinnedStable = useStableCallback(openSymbolPinned);
+
 
   return (
     <Box
@@ -1070,38 +1096,38 @@ export function PatternsPage({
                 <PatternSymbolMatrix
                   rows={filteredMatrixRows}
                   timeframes={matrixVisibleTimeframes}
-                  onSelect={openChartHit}
+                  onSelect={openChartHitStable}
                   onShowMembers={changeMembers}
                   activeSymbol={fullscreen?.hit?.symbol ?? null}
                   onRowsChange={setMatrixOrder}
-                  onSymbolPreview={requestSymbolPreview}
-                  onSymbolPreviewEnd={endSymbolPreview}
-                  onSymbolOpen={openSymbolPinned}
+                  onSymbolPreview={requestSymbolPreviewStable}
+                  onSymbolPreviewEnd={endSymbolPreviewStable}
+                  onSymbolOpen={openSymbolPinnedStable}
                 />
               ) : view === "list" ? (
                 <PatternListView
                   key={filters.sort}
                   hits={filteredLatest}
-                  onSelect={openChartHit}
+                  onSelect={openChartHitStable}
                   onShowMembers={changeMembers}
                   sort={filters.sort}
                   activeHit={fullscreen?.hit ?? null}
                   onOrderChange={setListOrder}
-                  onSymbolPreview={requestSymbolPreview}
-                  onSymbolPreviewEnd={endSymbolPreview}
-                  onSymbolOpen={openSymbolPinned}
+                  onSymbolPreview={requestSymbolPreviewStable}
+                  onSymbolPreviewEnd={endSymbolPreviewStable}
+                  onSymbolOpen={openSymbolPinnedStable}
                 />
               ) : (
                 <PatternGrid
                   hits={filteredLatest}
-                  onSelect={openChartHit}
+                  onSelect={openChartHitStable}
                   onExpand={openFromCard}
                   onShowMembers={changeMembers}
                   trendlinesView={effectiveTrendlinesView}
                   activeHit={fullscreen?.hit ?? null}
-                  onSymbolPreview={requestSymbolPreview}
-                  onSymbolPreviewEnd={endSymbolPreview}
-                  onSymbolOpen={openSymbolPinned}
+                  onSymbolPreview={requestSymbolPreviewStable}
+                  onSymbolPreviewEnd={endSymbolPreviewStable}
+                  onSymbolOpen={openSymbolPinnedStable}
                 />
               )}
               <LoadingOverlay

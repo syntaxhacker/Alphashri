@@ -286,9 +286,9 @@ def _find_pole_flag(df: pd.DataFrame, bullish: bool):
     """Search pole+consolidation; return the best ``(dict)`` or ``None``."""
     n = len(df)
     end = n - 1
-    close = df["close"].astype(float)
-    high = df["high"].astype(float)
-    low = df["low"].astype(float)
+    close = df["close"].to_numpy(dtype=float)
+    high = df["high"].to_numpy(dtype=float)
+    low = df["low"].to_numpy(dtype=float)
     best = None
     for pole_bars in (6, 8, 10, 12, 15):
         for flag_bars in (5, 7, 9, 12):
@@ -299,25 +299,25 @@ def _find_pole_flag(df: pd.DataFrame, bullish: bool):
             pend = end - flag_bars
             fstart = pend
             fend = end
-            c0 = float(close.iloc[pstart])
-            c1 = float(close.iloc[pend])
+            c0 = float(close[pstart])
+            c1 = float(close[pend])
             if c0 <= 0:
                 continue
             pole_ret = (c1 - c0) / c0
-            pole_high = float(high.iloc[pstart : pend + 1].max())
-            pole_low = float(low.iloc[pstart : pend + 1].min())
+            pole_high = float(high[pstart : pend + 1].max())
+            pole_low = float(low[pstart : pend + 1].min())
             pole_move = pole_high - pole_low
             if pole_move <= 0:
                 continue
-            fhigh = float(high.iloc[fstart : fend + 1].max())
-            flow = float(low.iloc[fstart : fend + 1].min())
+            fhigh = float(high[fstart : fend + 1].max())
+            flow = float(low[fstart : fend + 1].min())
             frange = fhigh - flow
             if frange > 0.55 * pole_move:
                 continue
             if frange <= 0:
                 continue
             # A flag consolidates: its net drift must be small vs the pole move.
-            flag_change = abs(float(close.iloc[fend]) - float(close.iloc[fstart]))
+            flag_change = abs(float(close[fend]) - float(close[fstart]))
             if flag_change > 0.22 * pole_move:
                 continue
             if bullish:
@@ -326,8 +326,8 @@ def _find_pole_flag(df: pd.DataFrame, bullish: bool):
                 retr = (pole_high - flow) / pole_move
                 if retr > 0.6:
                     continue
-                fdrift = (float(close.iloc[fend]) - float(close.iloc[fstart])) / max(
-                    float(close.iloc[fstart]), 1e-9
+                fdrift = (float(close[fend]) - float(close[fstart])) / max(
+                    float(close[fstart]), 1e-9
                 )
                 if fdrift > 0.04:
                     continue
@@ -337,8 +337,8 @@ def _find_pole_flag(df: pd.DataFrame, bullish: bool):
                 retr = (fhigh - pole_low) / pole_move
                 if retr > 0.6:
                     continue
-                fdrift = (float(close.iloc[fend]) - float(close.iloc[fstart])) / max(
-                    float(close.iloc[fstart]), 1e-9
+                fdrift = (float(close[fend]) - float(close[fstart])) / max(
+                    float(close[fstart]), 1e-9
                 )
                 if fdrift < -0.04:
                     continue
@@ -463,9 +463,9 @@ def _find_pennant(df: pd.DataFrame, ctx: dict | None = None):
     if n < 20:
         return None
     end = n - 1
-    close = df["close"].astype(float)
-    high = df["high"].astype(float)
-    low = df["low"].astype(float)
+    close = df["close"].to_numpy(dtype=float)
+    high = df["high"].to_numpy(dtype=float)
+    low = df["low"].to_numpy(dtype=float)
     atr_val = F.atr_value(df)
     if atr_val <= 0:
         return None
@@ -479,30 +479,30 @@ def _find_pennant(df: pd.DataFrame, ctx: dict | None = None):
             pstart = end - total
             pend = end - flag_bars
             fstart, fend = pend, end
-            c0 = float(close.iloc[pstart])
-            c1 = float(close.iloc[pend])
+            c0 = float(close[pstart])
+            c1 = float(close[pend])
             if c0 <= 0:
                 continue
             pole_ret = (c1 - c0) / c0
             if pole_ret < PENNANT_MIN_POLE_RET:
                 continue
-            pole_high = float(high.iloc[pstart : pend + 1].max())
-            pole_low = float(low.iloc[pstart : pend + 1].min())
+            pole_high = float(high[pstart : pend + 1].max())
+            pole_low = float(low[pstart : pend + 1].min())
             pole_move = pole_high - pole_low
             if pole_move <= 0:
                 continue
-            fhigh = float(high.iloc[fstart : fend + 1].max())
-            flow = float(low.iloc[fstart : fend + 1].min())
+            fhigh = float(high[fstart : fend + 1].max())
+            flow = float(low[fstart : fend + 1].min())
             frange = fhigh - flow
             if frange <= 0 or frange > PENNANT_MAX_FLAG_FRAC * pole_move:
                 continue
             if (pole_high - flow) / pole_move > PENNANT_MAX_RETR:
                 continue
-            flag_change = abs(float(close.iloc[fend]) - float(close.iloc[fstart]))
+            flag_change = abs(float(close[fend]) - float(close[fstart]))
             if flag_change > 0.22 * pole_move:
                 continue
-            fdrift = (float(close.iloc[fend]) - float(close.iloc[fstart])) / max(
-                float(close.iloc[fstart]), 1e-9
+            fdrift = (float(close[fend]) - float(close[fstart])) / max(
+                float(close[fstart]), 1e-9
             )
             if fdrift > PENNANT_MAX_DRIFT:
                 continue

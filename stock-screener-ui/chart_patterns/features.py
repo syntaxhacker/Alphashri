@@ -132,10 +132,13 @@ def _normalized_copy(df: pd.DataFrame) -> pd.DataFrame | None:
 
     Returns ``None`` whenever the full path would do any real work (case
     normalisation, dtype coercion, dedupe/sort, NaN handling, missing volume),
-    so the caller falls back with identical results.
+    so the caller falls back with identical results. Extra columns (e.g. the
+    ``oi`` column on cached frames) are allowed and dropped, matching the
+    full path's ``out[OHLCV_COLUMNS]`` projection; they are never read here.
     """
     try:
-        if list(df.columns) != OHLCV_COLUMNS:
+        columns = list(df.columns)
+        if len(columns) != len(set(columns)) or not set(OHLCV_COLUMNS) <= set(columns):
             return None
         for col in OHLCV_COLUMNS:
             if df[col].dtype != np.float64:
@@ -148,6 +151,13 @@ def _normalized_copy(df: pd.DataFrame) -> pd.DataFrame | None:
         if not np.isfinite(close).all() or not np.isfinite(volume).all():
             return None
         out = df.copy()
+        if columns[: len(OHLCV_COLUMNS)] == OHLCV_COLUMNS:
+            # Cached frames append extras (``oi``) after OHLCV: deleting them
+            # from the copy is far cheaper than a ``df[OHLCV]`` re-selection.
+            for col in columns[len(OHLCV_COLUMNS) :]:
+                del out[col]
+        else:
+            out = out[OHLCV_COLUMNS]
         # Backward compatibility: callers may still inspect ``attrs``.
         out.attrs.pop("_atr_cache", None)
         return out

@@ -67,6 +67,26 @@ def supports_processes() -> bool:
         return False
 
 
+def spawn_context():
+    """A ``spawn`` multiprocessing context, falling back to the default.
+
+    Spawn re-imports ``chart_patterns`` in each worker instead of forking the
+    (possibly threaded, session-laden) API process -- avoiding deadlocks and
+    duplicated SQLAlchemy/Redis connections in workers. Never raises; returns
+    ``None`` only when no context is available at all.
+    """
+    import multiprocessing as mp
+
+    try:
+        return mp.get_context("spawn")
+    except (AttributeError, ValueError):
+        pass
+    try:
+        return mp.get_context()
+    except Exception:
+        return None
+
+
 def _resolve_workers(n: int, workers) -> int:
     """Clamp ``workers`` to ``[1, n]``; default :func:`max_workers`."""
     try:
@@ -122,7 +142,8 @@ def _run_threads(fn, symbols: list, workers: int) -> tuple[list, int]:
 def _run_processes(fn, symbols: list, workers: int) -> tuple[list, int]:
     tasks = [(fn, s) for s in symbols]
     chunksize = max(1, len(tasks) // (max(1, workers) * 4))
-    with ProcessPoolExecutor(max_workers=workers) as pool:
+    ctx = spawn_context()
+    with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as pool:
         outcomes = list(pool.map(_apply_one, tasks, chunksize=chunksize))
     return _unwrap(outcomes)
 

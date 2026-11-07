@@ -39,6 +39,8 @@ import {
 
 /** Poll cadence while a scan job is queued/running. */
 export const POLL_INTERVAL_MS = 2000;
+/** Coalesce streamed `onItem` appends into one store patch per flush window. */
+export const STREAM_FLUSH_MS = 50;
 export const DEFAULT_TIMEFRAME = "1D";
 /** Reserved universe id for a hand-picked symbol scan (no preset universe). */
 export const CUSTOM_UNIVERSE = "custom";
@@ -545,6 +547,39 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
   }
   let streamOk = false;
   let streamFailed = false;
+  // Buffered streamed `onItem` appends, flushed once per `STREAM_FLUSH_MS`
+  // window (or immediately on done/error) so a 40+ item stream triggers ~one
+  // store patch instead of one patch per item. Keeps the final list identical
+  // to the unbatched behaviour; subscribers only see the coalesced result.
+  let pendingItems: PatternHitDTO[] = [];
+  let flushTimer: ReturnType<typeof setTimeout> | null = null;
+  let flushScheduled = false;
+  const flushPending = (): void => {
+    flushScheduled = false;
+    flushTimer = null;
+    // Drop batches from a superseded or aborted stream.
+    if (generation !== resultsGeneration) return;
+    if (resultsStreamController !== controller) return;
+    const batch = pendingItems;
+    pendingItems = [];
+    if (batch.length === 0) return;
+    const next = replaceOnFirstItem ? batch : [...state.results, ...batch];
+    patch({ results: sortStreamedHits(next, uiSort) });
+    if (replaceOnFirstItem) replaceOnFirstItem = false;
+  };
+  const scheduleFlush = (): void => {
+    if (flushScheduled) return;
+    flushScheduled = true;
+    flushTimer = setTimeout(flushPending, STREAM_FLUSH_MS);
+  };
+  const flushNow = (): void => {
+    if (flushTimer !== null) {
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    }
+    flushScheduled = false;
+    flushPending();
+  };
   try {
     try {
       await streamResults(query, {
@@ -566,21 +601,19 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
         onItem: (item) => {
           if (generation !== resultsGeneration) return;
           if (!passesResultFilters(item, state.filters)) return;
-          if (replaceOnFirstItem) {
-            patch({ results: sortStreamedHits([item], uiSort) });
-            replaceOnFirstItem = false;
-            return;
-          }
-          patch({ results: sortStreamedHits([...state.results, item], uiSort) });
+          pendingItems.push(item);
+          scheduleFlush();
         },
         onDone: () => {
           streamOk = true;
+          flushNow();
           // Same-query reload with zero incoming items: nothing replaced the
           // list, so clear the now-stale results.
           if (replaceOnFirstItem) patch({ results: [] });
         },
         onError: () => {
           streamFailed = true;
+          flushNow();
         },
       });
     } catch {

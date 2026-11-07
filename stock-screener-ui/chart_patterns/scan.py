@@ -7,19 +7,20 @@ progress. Per-symbol failures never abort the job.
 from __future__ import annotations
 
 import dataclasses
+import functools
 import hashlib
 import logging
 import os
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Optional
 
 import pandas as pd
 
-from chart_patterns import candles, config, jobs as jobs_mod, store
+from chart_patterns import candles, config, jobs as jobs_mod, parallel, store
 
 try:
     from chart_patterns import tv_prefilter as tv_prefilter_mod
@@ -53,6 +54,12 @@ except Exception:  # pragma: no cover - trading package always present in app en
 logger = logging.getLogger(__name__)
 
 SYMBOL_WORKERS = int(os.environ.get("PATTERN_SCAN_SYMBOL_WORKERS", "4"))
+# Auto process fan-out threshold: resolved symbol counts at/above this use a
+# process pool for the GIL-bound detect+trendlines work when spawn is
+# available and nothing forced the mode. Below it threads win -- spawn startup
+# (re-importing pandas/numpy per worker) would dominate a small scan. Override
+# with ``PATTERN_SCAN_PROCESS_THRESHOLD``.
+PROCESS_THRESHOLD = int(os.environ.get("PATTERN_SCAN_PROCESS_THRESHOLD", "300"))
 DEFAULT_MIN_BARS = 60
 # Upper bound on the resolved symbol count of an as-of (replay) scan. Replays
 # fetch explicit historical windows per symbol; without a cap one request
@@ -382,7 +389,8 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
                    lookback_bars=None, compute_trendlines: bool = True,
                    as_of_date=None, from_date=None,
                    include_partial_today: Optional[bool] = None,
-                   prev_hit: Optional[dict] = None) -> dict:
+                   prev_hit: Optional[dict] = None,
+                   partial_bar: Optional[pd.DataFrame] = None) -> dict:
     """Fetch + detect one symbol. Never raises; returns a status dict.
 
     With ``as_of_date`` set the fetch window ends on that date (its time
@@ -400,6 +408,13 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
     :func:`candles.fetch_for_timeframe` (official bar wins, empty tape
     appends nothing, never cached), so it cannot be double-counted and
     ``frame_last_date``/``data_through`` reflect the current session.
+
+    ``partial_bar`` is an optional pre-fetched synthetic today bar (one per
+    symbol, from :func:`market_data.fetch_ohlc_batch`). When supplied for a
+    live ``1D`` scan it is appended in place of the per-symbol 1-minute tape
+    fetch, so a whole universe is topped up with a single batched quote
+    request instead of one tape call per symbol. When missing for a symbol
+    that needs it, that symbol falls back to its own tape fetch.
 
     The returned dict always carries ``from_cache`` (True = candles served
     from disk, False = freshly fetched, None = no fetch attempted) so
@@ -430,11 +445,12 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
     try:
         try:
             df = candles.fetch_for_timeframe(
-                symbol, timeframe, **{**fetch_kwargs, "provenance": prov}
+                symbol, timeframe,
+                **{**fetch_kwargs, "provenance": prov, "partial_bar": partial_bar},
             )
         except TypeError:
             # Backward compatible: patched/custom fetchers without the
-            # ``provenance`` out-param.
+            # ``provenance`` / ``partial_bar`` out-param.
             df = candles.fetch_for_timeframe(symbol, timeframe, **fetch_kwargs)
     except Exception:
         return {"status": "failed", "data_through": None, "from_cache": False}
@@ -551,6 +567,22 @@ def _provenance(
         "data_through": data_through,
         "reused": int(reused),
     }
+
+
+def _use_processes_for(n_symbols: int, params: dict) -> bool:
+    """Decide processes vs threads for this job.
+
+    Precedence: explicit env (``0`` off / ``1`` on) > explicit
+    ``params["use_processes"]`` > auto (``n >= PROCESS_THRESHOLD`` and spawn
+    available). Small scans stay on threads so spawn startup doesn't dominate.
+    """
+    env = os.environ.get("PATTERN_SCAN_USE_PROCESSES")
+    if env is not None:
+        return env == "1"
+    explicit = params.get("use_processes")
+    if explicit is not None:
+        return bool(explicit)
+    return n_symbols >= PROCESS_THRESHOLD and parallel.supports_processes()
 
 
 def run_job(job_id: str) -> None:
@@ -743,16 +775,134 @@ def run_job(job_id: str) -> None:
         jobs_mod.update_state(job_id, **_empty_state)
         return
 
-    with ThreadPoolExecutor(max_workers=max(1, SYMBOL_WORKERS)) as pool:
-        futures = {
-            pool.submit(
-                _process_symbol, symbol, timeframe, job_id, names.get(symbol), lookback_bars,
-                compute_trendlines, as_of_date, from_date, include_partial_today,
-                prev_by_symbol.get(symbol),
-            ): symbol
-            for symbol in symbols
-        }
-        cancelled = False
+    # One batched OHLC snapshot for the whole symbol list (one
+    # /v3/market-quote/ohlc call, chunked at ~500 keys) so every live 1D symbol
+    # appends its in-progress session bar without a per-symbol 1-minute tape
+    # fetch. Skipped for replays, non-1D timeframes, when the flag is off, or
+    # off-session (weekend/holiday). Symbols missing from the batch fall back
+    # to their own tape fetch inside _process_symbol.
+    partial_bars: dict[str, pd.DataFrame] = {}
+    want_partial = (
+        include_partial_today if include_partial_today is not None
+        else (timeframe == "1D")
+    )
+    if (
+        not is_replay
+        and want_partial
+        and timeframe == "1D"
+        and candles._today_is_session()
+    ):
+        try:
+            from market_data.market_data import fetch_ohlc_batch
+            partial_bars = fetch_ohlc_batch(symbols, interval="1d") or {}
+        except Exception:
+            partial_bars = {}
+
+    # Executor selection: spawn processes -> threads -> sequential.
+    # All DB/Redis/mirror writes stay in the parent; workers only fetch +
+    # detect + trendlines and return a status dict.
+    use_processes = _use_processes_for(total, params)
+    proc_workers = min(max(1, SYMBOL_WORKERS), parallel.max_workers())
+
+    def _open_pool():
+        """(executor, mode). Never raises; sequential when no pool is available."""
+        if use_processes:
+            try:
+                ctx = parallel.spawn_context()
+                return ProcessPoolExecutor(max_workers=proc_workers, mp_context=ctx), "processes"
+            except Exception:
+                pass
+        try:
+            return ThreadPoolExecutor(max_workers=max(1, SYMBOL_WORKERS)), "threads"
+        except Exception:
+            return None, "sequential"
+
+    pool, mode = _open_pool()
+    cancelled = False
+    done_symbols: set[str] = set()
+
+    def _submit(symbol: str):
+        return functools.partial(
+            _process_symbol, symbol, timeframe, job_id, names.get(symbol), lookback_bars,
+            compute_trendlines, as_of_date, from_date, include_partial_today,
+            prev_by_symbol.get(symbol), partial_bars.get(symbol),
+        )
+
+    def _consume(symbol: str, result: dict) -> None:
+        nonlocal done, failed, skipped, no_hits, reused
+        nonlocal candles_cached, candles_fetched, max_date
+        with lock:
+            done_symbols.add(symbol)
+            done += 1
+            if result.get("reused"):
+                reused += 1
+            hits = result.get("hits") or []
+            if hits:
+                pending_hits.extend(hits)
+            status = result.get("status")
+            if status == "failed":
+                failed += 1
+            elif status == "skipped":
+                skipped += 1
+            elif status == "empty":
+                no_hits += 1
+            from_cache = result.get("from_cache")
+            if from_cache is True:
+                candles_cached += 1
+            elif from_cache is False:
+                candles_fetched += 1
+            data_through = result.get("data_through")
+            if data_through and (max_date is None or data_through > max_date):
+                max_date = data_through
+
+    def _mirror_flush(final: bool = False) -> None:
+        nonlocal last_mirror
+        now = time.monotonic()
+        mirror_due = (
+            final
+            or done == total
+            or done % _MIRROR_EVERY == 0
+            or now - last_mirror >= _MIRROR_INTERVAL_SEC
+        )
+        hits_due = final or done == total or len(pending_hits) >= _HITS_EVERY
+        if mirror_due:
+            jobs_mod.update_state(
+                job_id, persist=(done % _PERSIST_EVERY == 0 or done == total),
+                done=done, failed=failed, skipped=skipped, no_hits=no_hits,
+                reused=reused, data_through=max_date,
+            )
+            last_mirror = now
+        if hits_due:
+            _flush_hits(force=final or done == total)
+
+    def _handle(symbol: str, result: dict) -> None:
+        _consume(symbol, result)
+        _mirror_flush()
+
+    def _run_remaining(remaining: list[str]) -> None:
+        nonlocal cancelled
+        for symbol in remaining:
+            if jobs_mod.is_cancelled(job_id):
+                cancelled = True
+                break
+            try:
+                result = _submit(symbol)()
+            except Exception as exc:  # _process_symbol never raises; defensive
+                logger.warning(
+                    "scan %s: %s failed: %s: %s", job_id, symbol, type(exc).__name__, exc
+                )
+                result = {"status": "failed", "data_through": None}
+            _handle(symbol, result)
+
+    def _drive(pool, symbol_list) -> bool:
+        """Apply ``pool`` to ``symbol_list``; returns True if cancelled.
+
+        A per-symbol exception is swallowed inside ``_process_symbol``; an
+        exception here means the pool itself is broken and the caller falls
+        back (processes -> threads -> sequential).
+        """
+        nonlocal cancelled
+        futures = {pool.submit(_submit(symbol)): symbol for symbol in symbol_list}
         for future in as_completed(futures):
             if jobs_mod.is_cancelled(job_id):
                 cancelled = True
@@ -762,49 +912,57 @@ def run_job(job_id: str) -> None:
             symbol = futures[future]
             try:
                 result = future.result()
-            except Exception as exc:  # _process_symbol never raises; defensive
-                logger.warning("scan %s: %s failed: %s: %s", job_id, symbol, type(exc).__name__, exc)
-                result = {"status": "failed", "data_through": None}
-            with lock:
-                done += 1
-                if result.get("reused"):
-                    reused += 1
-                hits = result.get("hits") or []
-                if hits:
-                    pending_hits.extend(hits)
-                if result.get("status") == "failed":
-                    failed += 1
-                elif result.get("status") == "skipped":
-                    skipped += 1
-                elif result.get("status") == "empty":
-                    no_hits += 1
-                if result.get("from_cache") is True:
-                    candles_cached += 1
-                elif result.get("from_cache") is False:
-                    candles_fetched += 1
-                data_through = result.get("data_through")
-                if data_through and (max_date is None or data_through > max_date):
-                    max_date = data_through
+            except Exception as exc:  # broken pool/worker -> caller falls back
+                logger.warning(
+                    "scan %s: %s failed: %s: %s", job_id, symbol, type(exc).__name__, exc
+                )
+                raise
+            _handle(symbol, result)
+        return cancelled
 
-                now = time.monotonic()
-                mirror_due = (
-                    done == total
-                    or done % _MIRROR_EVERY == 0
-                    or now - last_mirror >= _MIRROR_INTERVAL_SEC
+    def _run_subset_via_threads(symbol_list) -> bool:
+        with ThreadPoolExecutor(max_workers=max(1, SYMBOL_WORKERS)) as tp:
+            return _drive(tp, symbol_list)
+
+    primary_failed = False
+    primary_exc = None
+    if pool is not None:
+        try:
+            cancelled = _drive(pool, symbols)
+        except Exception as exc:  # broken pool -> fall back below
+            primary_failed = True
+            primary_exc = exc
+            try:
+                pool.shutdown(wait=False, cancel_futures=True)
+            except Exception:
+                pass
+        else:
+            try:
+                pool.shutdown(wait=True, cancel_futures=False)
+            except Exception:
+                pass
+
+    remaining = [s for s in symbols if s not in done_symbols]
+    if pool is None:
+        _run_remaining(remaining)
+    elif primary_failed and not cancelled and remaining:
+        if mode == "processes":
+            # processes -> threads
+            try:
+                cancelled = _run_subset_via_threads(remaining)
+            except Exception as exc:
+                # threads -> sequential
+                logger.warning(
+                    "scan %s: thread pool failed (%s); falling back to sequential",
+                    job_id, exc,
                 )
-                hits_due = done == total or len(pending_hits) >= _HITS_EVERY
-            if mirror_due:
-                # Mirror live counters to Redis (and persist to DB on the usual
-                # cadence) at most every _MIRROR_EVERY symbols or every
-                # _MIRROR_INTERVAL_SEC; the final symbol always mirrors.
-                jobs_mod.update_state(
-                    job_id, persist=(done % _PERSIST_EVERY == 0 or done == total),
-                    done=done, failed=failed, skipped=skipped, no_hits=no_hits,
-                    reused=reused, data_through=max_date,
-                )
-                last_mirror = now
-            if hits_due:
-                _flush_hits(force=done == total)
+                _run_remaining(remaining)
+        else:
+            logger.warning(
+                "scan %s: thread pool failed (%s); falling back to sequential",
+                job_id, primary_exc,
+            )
+            _run_remaining(remaining)
 
     if cancelled or jobs_mod.is_cancelled(job_id):
         # Persist any hits computed so far before terminal state; old hits of

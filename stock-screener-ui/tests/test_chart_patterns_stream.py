@@ -16,6 +16,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
+from starlette.middleware.gzip import DEFAULT_EXCLUDED_CONTENT_TYPES, GZipMiddleware
 
 import api.chart_patterns as cp_api
 from api.auth import get_current_user
@@ -356,3 +357,72 @@ def test_watch_stream_empty_arm_meta_then_done(cp_client, monkeypatch):
     events = _no_heartbeat(_parse_sse(resp.text))
     assert events[0][0] == "meta"
     assert events[-1] == ("done", {})
+
+
+# ---------------------------------------------------------------------------
+# GZip exclusion (streams must never buffer behind compression)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def gz_stream_client(test_db_engine):
+    """Router app with the production gzip wiring; streams stay uncompressed."""
+    factory = sessionmaker(autocommit=False, autoflush=False, bind=test_db_engine)
+    store.set_session_factory(factory)
+    jobs.reset()
+
+    app = FastAPI()
+    app.include_router(router)
+    app.add_middleware(
+        GZipMiddleware,
+        minimum_size=1024,
+        exclude_content_types=DEFAULT_EXCLUDED_CONTENT_TYPES,
+    )
+
+    def override_get_db():
+        session = factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = lambda: _FakeUser()
+
+    try:
+        cp_api._clear_read_caches()
+        with TestClient(app) as client:
+            yield client
+    finally:
+        cp_api._clear_read_caches()
+        app.dependency_overrides.clear()
+        jobs.reset()
+        store.reset_session_factory()
+
+
+def test_stream_is_excluded_from_gzip_and_delivers_events(gz_stream_client, monkeypatch):
+    """``text/event-stream`` is pinned in the excluded types: no compression,
+    no buffering — events arrive as before even when gzip is advertised."""
+    store.save_job({
+        "job_id": "cpj_gz_stream", "universe": "nifty500", "timeframe": "1D",
+        "status": "completed", "total": 500, "done": 500,
+    })
+    store.save_hits("cpj_gz_stream", [_hit("AAA"), _hit("BBB", name="B Co")])
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df, lookback_bars=None: {"support": None, "resistance": None},
+    )
+
+    resp = gz_stream_client.get(
+        "/api/chart-patterns/results/stream",
+        params={"job_id": "cpj_gz_stream"},
+        headers={"Accept-Encoding": "gzip"},
+    )
+    assert resp.status_code == 200
+    assert "text/event-stream" in resp.headers["content-type"]
+    assert "content-encoding" not in resp.headers
+    events = _no_heartbeat(_parse_sse(resp.text))
+    assert events[0][0] == "meta"
+    assert events[-1] == ("done", {})
+    assert {data["symbol"] for name, data in events[1:-1]} == {"AAA", "BBB"}

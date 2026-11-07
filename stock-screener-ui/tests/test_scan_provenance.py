@@ -207,6 +207,7 @@ def test_run_job_aggregates_cache_provenance(cp_store, monkeypatch):
         "prefilter_dropped": None,
         "detector_version": scan.SCAN_DETECTOR_VERSION,
         "data_through": dto.get("data_through"),
+        "reused": 0,
     }
     assert prov["data_through"] is not None
     # The params mirror carries provenance so it survives a DB round-trip.

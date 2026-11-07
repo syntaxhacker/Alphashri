@@ -1,3 +1,4 @@
+import { useCallback, useRef } from "react";
 import { SimpleGrid, useMediaQuery } from "@/ui";
 import type { PatternHitDTO, TrendlinesView } from "@/types/chartPatterns";
 import { fullscreenDedupeKey } from "@/hooks/usePatternFullscreen";
@@ -20,6 +21,18 @@ export interface PatternGridProps {
 }
 
 /** Responsive card grid of pattern hits (4-up on wide desktop). */
+// A host (PatternsPage) recreates its handler closures on every render, so wrap
+// them in stable identities here. That lets `React.memo(PatternCard)` bail out
+// when the underlying hit is unchanged even though the parent re-rendered.
+function useStableCallback<T extends (...args: any[]) => unknown>(
+  callback: T | undefined
+): T | undefined {
+  if (callback == null) return undefined;
+  const ref = useRef(callback);
+  ref.current = callback;
+  return useCallback((...args: any[]) => ref.current(...args), []) as unknown as T;
+}
+
 export function PatternGrid({
   hits,
   onSelect,
@@ -36,6 +49,13 @@ export function PatternGrid({
   const isTablet = useMediaQuery("(min-width: 900px)");
   const cols = isWide ? 4 : isDesktop ? 3 : isTablet ? 2 : 1;
 
+  const onSelectStable = useStableCallback(onSelect);
+  const onExpandStable = useStableCallback(onExpand);
+  const onShowMembersStable = useStableCallback(onShowMembers);
+  const onSymbolPreviewStable = useStableCallback(onSymbolPreview);
+  const onSymbolPreviewEndStable = useStableCallback(onSymbolPreviewEnd);
+  const onSymbolOpenStable = useStableCallback(onSymbolOpen);
+
   return (
     <SimpleGrid cols={cols} spacing={16} data-testid="patterns-grid">
       {hits.map((hit) => (
@@ -45,13 +65,13 @@ export function PatternGrid({
           selected={
             activeHit ? fullscreenDedupeKey(activeHit) === fullscreenDedupeKey(hit) : false
           }
-          onClick={onSelect}
-          onExpand={onExpand}
-          onShowMembers={onShowMembers}
+          onClick={onSelectStable}
+          onExpand={onExpandStable}
+          onShowMembers={onShowMembersStable}
           trendlinesView={trendlinesView}
-          onSymbolPreview={onSymbolPreview}
-          onSymbolPreviewEnd={onSymbolPreviewEnd}
-          onSymbolOpen={onSymbolOpen}
+          onSymbolPreview={onSymbolPreviewStable}
+          onSymbolPreviewEnd={onSymbolPreviewEndStable}
+          onSymbolOpen={onSymbolOpenStable}
         />
       ))}
     </SimpleGrid>

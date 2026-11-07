@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import { ActionIcon, Badge, Box, Card, Text, ToolbarRow, Tooltip } from "@/ui";
 import { IconArrowsMaximize } from "@tabler/icons-react";
 import { formatPercentage } from "@/utils/ui-helpers";
@@ -131,7 +132,7 @@ function displayToneColor(tone: DisplayTone): string {
 }
 
 /** One pattern result card in the grid. */
-export function PatternCard({
+export const PatternCard = memo(function PatternCard({
   hit,
   selected = false,
   onClick,
@@ -148,19 +149,23 @@ export function PatternCard({
   const barsLabel = `${hit.bars_ago} ${hit.timeframe} candle${hit.bars_ago === 1 ? "" : "s"} ago`;
   const baseDays = hit.base_days ?? 0;
   const isConsolidation = hit.pattern_id === "consolidation" || baseDays > 0;
-  const bounds = isConsolidation ? consolidationBounds(hit) : null;
   const missingCandles = (hit.candles ?? []).length === 0;
-  const triggerDistance =
-    isConsolidation && bounds?.hi != null && lastPrice > 0
-      ? ((lastPrice - bounds.hi) / bounds.hi) * 100
-      : null;
-  const display = patternDisplayStatus({
-    rawStatus: hit.status,
-    isBase: isConsolidation,
-    lastClose: hit.last_close ?? null,
-    upper: bounds?.hi ?? null,
-    lower: bounds?.lo ?? null,
-  });
+  const bounds = useMemo(() => (isConsolidation ? consolidationBounds(hit) : null), [hit, isConsolidation]);
+  const triggerDistance = useMemo(() => {
+    if (!isConsolidation || bounds?.hi == null || lastPrice <= 0) return null;
+    return ((lastPrice - bounds.hi) / bounds.hi) * 100;
+  }, [isConsolidation, bounds, lastPrice]);
+  const display = useMemo(
+    () =>
+      patternDisplayStatus({
+        rawStatus: hit.status,
+        isBase: isConsolidation,
+        lastClose: hit.last_close ?? null,
+        upper: bounds?.hi ?? null,
+        lower: bounds?.lo ?? null,
+      }),
+    [hit, isConsolidation, bounds]
+  );
   const qualityKey = String(hit.quality ?? "").toLowerCase();
   const qualityInfo = QUALITY_INFO[qualityKey as keyof typeof QUALITY_INFO];
   const quality = qualityLabelFor(qualityKey, "—");
@@ -202,6 +207,10 @@ export function PatternCard({
         cursor: onClick ? "pointer" : "default",
         transition: "border-color 120ms ease",
         "&:hover": onClick ? { borderColor: "primary.main" } : undefined,
+        // Offscreen containment: the browser skips layout/paint for cards
+        // outside the visible area while the user scrolls a long results grid.
+        contentVisibility: "auto",
+        containIntrinsicSize: "300px 480px",
       }}
     >
       <Box
@@ -516,4 +525,4 @@ export function PatternCard({
       </Box>
     </Card>
   );
-}
+});

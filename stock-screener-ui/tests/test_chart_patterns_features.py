@@ -209,6 +209,101 @@ class TestNormalizeOhlcv:
         slow = F.normalize_ohlcv(df.rename(columns=str.upper))
         pd.testing.assert_frame_equal(fast, slow)
 
+    def test_six_column_frame_takes_fast_path_and_drops_oi(self):
+        df = make_frame([100.0, 101.0, 102.0])
+        df["oi"] = np.asarray([10, 20, 30], dtype=np.int64)
+        assert F._normalized_copy(df) is not None
+        out = F.normalize_ohlcv(df)
+        assert list(out.columns) == F.OHLCV_COLUMNS
+        assert "oi" not in out.columns
+        pd.testing.assert_frame_equal(out, make_frame([100.0, 101.0, 102.0]))
+
+    def test_six_column_fast_path_is_defensive_copy(self):
+        df = make_frame([100.0, 101.0, 102.0])
+        df["oi"] = np.asarray([10, 20, 30], dtype=np.int64)
+        snapshot = df.copy(deep=True)
+        out = F.normalize_ohlcv(df)
+        assert out is not df
+        pd.testing.assert_frame_equal(df, snapshot)
+        out.iloc[0, out.columns.get_loc("close")] = -1.0
+        assert df["close"].iloc[0] == pytest.approx(100.0)
+
+    def test_six_column_reordered_columns_take_fast_path(self):
+        df = make_frame([100.0, 101.0])
+        df["oi"] = np.asarray([10, 20], dtype=np.int64)
+        df = df[["oi", "volume", "close", "low", "high", "open"]]
+        assert F._normalized_copy(df) is not None
+        out = F.normalize_ohlcv(df)
+        pd.testing.assert_frame_equal(out, make_frame([100.0, 101.0]))
+
+    def test_six_column_extra_values_are_not_read(self):
+        # The extra column is dropped unread: NaNs there cannot break the fast
+        # path, exactly as the full path's ``out[OHLCV_COLUMNS]`` ignores it.
+        df = make_frame([100.0, 101.0])
+        df["oi"] = np.asarray([np.nan, 20.0], dtype=float)
+        assert F._normalized_copy(df) is not None
+        out = F.normalize_ohlcv(df)
+        pd.testing.assert_frame_equal(out, make_frame([100.0, 101.0]))
+
+    def test_six_column_nan_close_falls_back_and_drops_row(self):
+        df = make_frame([100.0, np.nan, 102.0])
+        df["oi"] = np.asarray([10, 20, 30], dtype=np.int64)
+        assert F._normalized_copy(df) is None
+        out = F.normalize_ohlcv(df)
+        assert out["close"].tolist() == [100.0, 102.0]
+        assert "oi" not in out.columns
+
+    def test_six_column_duplicate_index_falls_back_and_keeps_last(self):
+        idx = pd.to_datetime(["2024-01-02", "2024-01-02"]).tz_localize("UTC")
+        df = pd.DataFrame(
+            {
+                "open": [1.0, 99.0],
+                "high": [1.0, 99.0],
+                "low": [1.0, 99.0],
+                "close": [1.0, 99.0],
+                "volume": [1.0, 99.0],
+                "oi": [5, 9],
+            },
+            index=idx,
+        )
+        assert F._normalized_copy(df) is None
+        out = F.normalize_ohlcv(df)
+        assert len(out) == 1
+        assert out.iloc[0]["close"] == pytest.approx(99.0)
+
+    def test_six_column_non_float_dtypes_fall_back_to_coercion(self):
+        df = pd.DataFrame(
+            {"open": ["100"], "high": ["101"], "low": ["99"], "close": ["100.5"], "volume": ["10"], "oi": [7]},
+            index=_INDEX[:1],
+        )
+        assert F._normalized_copy(df) is None
+        out = F.normalize_ohlcv(df)
+        assert float(out.iloc[0]["close"]) == pytest.approx(100.5)
+        assert "oi" not in out.columns
+
+    def test_detect_patterns_identical_with_extra_column_and_full_path(self):
+        from chart_patterns.engine import detect_patterns
+
+        i = np.arange(140)
+        closes = 100.0 + 2.0 * np.sin(i * 2.0 * np.pi / 20.0)
+        base = make_frame(closes)
+        six = base.copy()
+        six["oi"] = np.full(len(base), 7, dtype=np.int64)
+        upper = six.rename(columns=str.upper)
+
+        def sig(hits):
+            return [
+                (h.pattern_id, h.status, h.base_days, h.breakout_level, h.confidence, h.start_date, h.end_date)
+                for h in hits
+            ]
+
+        fast_hits = sig(detect_patterns(six, "1D", "SYN"))
+        full_hits = sig(detect_patterns(upper, "1D", "SYN"))
+        plain_hits = sig(detect_patterns(base, "1D", "SYN"))
+        assert full_hits
+        assert fast_hits == full_hits
+        assert fast_hits == plain_hits
+
 
 # ---------------------------------------------------------------------------
 # linreg_fit / relative_slope / is_horizontal
