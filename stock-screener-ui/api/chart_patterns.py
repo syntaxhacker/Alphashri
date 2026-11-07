@@ -1115,6 +1115,11 @@ _STREAM_POOL_WORKERS = 8
 #: seconds so proxies do not close a slow stream.
 _STREAM_HEARTBEAT_SEC = 15.0
 
+#: ``watch.live`` batches LTP/TV/vol_adj across its whole input, so the watch
+#: live stream fans rows off in chunks instead of one ``live([row])`` call per
+#: row (159 armed rows were ~159 separate price/TV/volume calls — the hang).
+_STREAM_LIVE_CHUNK = 50
+
 _SSE_HEADERS = {
     "Cache-Control": "no-cache",
     "Connection": "keep-alive",
@@ -1883,19 +1888,24 @@ async def get_watch(
 
 
 def _stream_watch_live_worker(rows, *, min_rel_volume, out, stop):
-    """Run ``watch.live`` per armed row on a bounded pool, streaming each row.
+    """Run ``watch.live`` in chunks of ``_STREAM_LIVE_CHUNK`` armed rows per
+    call, streaming each returned row as an ``item`` in completion order.
 
-    Each single-row ``live([row])`` call reuses the exact batch logic, so a
-    streamed row matches its ``/watch`` twin; rows are enqueued as computed
-    (completion order, not the batch endpoint's ranked order — clients
-    re-sort). Queue protocol mirrors :func:`_stream_results_worker`.
+    ``watch.live`` batches LTP/TV/vol_adj across its whole input, so one call
+    per chunk (instead of one per row) keeps the stream fast: 159 armed rows
+    become 3 calls instead of ~159. Each chunk call reuses the exact batch
+    logic, so a streamed row matches its ``/watch`` twin; rows are enqueued as
+    computed (completion order, not the batch endpoint's ranked order — clients
+    re-sort). Queue protocol mirrors :func:`_stream_results_worker`; never
+    raises.
     """
     try:
-        workers = max(1, min(_STREAM_POOL_WORKERS, len(rows) or 1))
+        chunks = [rows[i:i + _STREAM_LIVE_CHUNK] for i in range(0, len(rows), _STREAM_LIVE_CHUNK)]
+        workers = max(1, min(_STREAM_POOL_WORKERS, len(chunks) or 1))
         with ThreadPoolExecutor(max_workers=workers) as pool:
             futs = [
-                pool.submit(watch_mod.live, [row], min_rel_volume=min_rel_volume)
-                for row in rows
+                pool.submit(watch_mod.live, list(chunk), min_rel_volume=min_rel_volume)
+                for chunk in chunks
             ]
             for fut in as_completed(futs):
                 if stop.is_set():
@@ -1933,10 +1943,12 @@ async def _watch_sse_events(setup, *, universe, timeframe, min_base_days,
                             max_range_pct, min_rel_volume, request=None):
     """Async SSE body for ``GET /watch/stream`` (also drives the tests).
 
-    Emits ``meta`` → ``{setup, min_rel_volume}`` immediately, then one
-    ``item`` per live row (snapshot rows first when a fresh snapshot exists,
-    else each ``live()`` row as computed), then ``done``. Never raises
-    mid-stream: unexpected failures become ``event: error`` and close.
+    Emits ``meta`` → ``{setup, min_rel_volume}`` immediately, then a second
+    ``meta`` → ``{setup, min_rel_volume, total}`` after ``arm()`` so the UI can
+    show progress, then one ``item`` per live row (snapshot rows first when a
+    fresh snapshot exists, else each ``live()`` row as computed), then
+    ``done``. Never raises mid-stream: unexpected failures become ``event:
+    error`` and close.
     """
     try:
         yield _sse_event("meta", _sanitize_for_json({
@@ -1968,6 +1980,15 @@ async def _watch_sse_events(setup, *, universe, timeframe, min_base_days,
     rows = list(rows or [])[:_STREAM_MAX_ITEMS]
     if not rows:
         yield _sse_event("done", {})
+        return
+    # Second meta (after arm): the UI replaces the immediate first meta with
+    # this one so it can show progress against ``total``.
+    try:
+        yield _sse_event("meta", _sanitize_for_json({
+            "setup": setup, "min_rel_volume": min_rel_volume, "total": len(rows),
+        }))
+    except Exception as exc:
+        yield _sse_event("error", {"message": str(exc)[:300]})
         return
     out: _queue.Queue = _queue.Queue(maxsize=_STREAM_MAX_ITEMS + 10)
     stop = threading.Event()
@@ -2008,15 +2029,18 @@ async def stream_watch(
 ):
     """SSE twin of ``GET /watch`` (same query params, read-only, open).
 
-    Events: ``meta`` → ``{setup, min_rel_volume}`` (immediately);
-    ``item`` → one live row; ``done`` → ``{}``. ``arm()`` rows are cheap
-    (store read / session cache) so they resolve fast; each ``live()`` row
-    streams as computed on a bounded pool (``queue.Queue`` bridge, like
-    ``api/paper/live_stream.py``). A fresh precomputed snapshot
-    (``watch.get_snapshot``) is emitted item-by-item instead. Client
-    disconnect stops production. Never raises mid-stream (``event: error``
-    + close). Unknown setups 404 before the stream starts (same as
-    ``/watch``).
+    Events: ``meta`` → ``{setup, min_rel_volume}`` (immediately), then a
+    second ``meta`` → ``{setup, min_rel_volume, total}`` after ``arm()`` so
+    the UI can show progress; ``item`` → one live row; ``done`` → ``{}``.
+    ``arm()`` rows are cheap (store read / session cache) so they resolve
+    fast; each ``live()`` row streams as computed on a bounded pool
+    (``queue.Queue`` bridge, like ``api/paper/live_stream.py``). Rows are
+    fanned to ``watch.live`` in ``_STREAM_LIVE_CHUNK``-sized chunks so one
+    batched price/volume call serves up to 50 armed names instead of one call
+    per row. A fresh precomputed snapshot (``watch.get_snapshot``) is emitted
+    item-by-item instead. Client disconnect stops production. Never raises
+    mid-stream (``event: error`` + close). Unknown setups 404 before the
+    stream starts (same as ``/watch``).
     """
     if setup not in watch_mod.SETUPS:
         raise HTTPException(

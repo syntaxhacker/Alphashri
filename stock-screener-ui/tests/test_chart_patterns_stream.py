@@ -8,6 +8,7 @@ still blocked) rather than all at the end.
 """
 import asyncio
 import json
+import queue
 import threading
 
 import numpy as np
@@ -279,10 +280,8 @@ def test_watch_stream_live_rows(cp_client, monkeypatch):
     )
 
     def _live(rows, min_rel_volume=0.7):
-        row = dict(rows[0])
-        row.update(state="triggered", ltp=101.0, rel_volume=1.2, vol_adj=1.1,
-                   pct_to_trigger=1.0)
-        return [row]
+        return [dict(r, state="triggered", ltp=101.0, rel_volume=1.2, vol_adj=1.1,
+                     pct_to_trigger=1.0) for r in rows]
 
     monkeypatch.setattr(cp_api.watch_mod, "live", _live)
 
@@ -291,16 +290,85 @@ def test_watch_stream_live_rows(cp_client, monkeypatch):
     assert "text/event-stream" in resp.headers["content-type"]
     events = _no_heartbeat(_parse_sse(resp.text))
 
+    # First meta is immediate and unchanged.
     assert events[0] == ("meta", {"setup": "breakout", "min_rel_volume": 0.7})
+    # A second meta arrives after arm, carrying the expected total.
+    metas = [data for name, data in events if name == "meta"]
+    assert metas[1] == {"setup": "breakout", "min_rel_volume": 0.7, "total": 2}
     assert events[-1] == ("done", {})
-    rows = [data for name, data in events[1:-1]]
-    assert len(rows) == 2
-    assert all(name == "item" for name, _ in events[1:-1])
-    assert {row["symbol"] for row in rows} == {"AAA", "BBB"}
-    for row in rows:
+    items = [data for name, data in events if name == "item"]
+    assert len(items) == 2
+    assert {row["symbol"] for row in items} == {"AAA", "BBB"}
+    for row in items:
         assert row["state"] == "triggered"
         assert row["ltp"] == 101.0
         assert row["trigger_level"] == 100.0
+
+
+def test_watch_stream_chunks_live_calls(cp_client, monkeypatch):
+    """150 armed rows → ``watch.live`` called ceil(150/50) == 3 times (not 150),
+    exactly 150 items stream, then done. The second meta carries ``total``."""
+    monkeypatch.setattr(cp_api.watch_mod, "get_snapshot", lambda *a, **k: None)
+    rows = [_armed_row(f"S{i:03d}") for i in range(150)]
+    calls = {"n": 0}
+    sizes = []
+
+    def _live(rows, min_rel_volume=0.7):
+        calls["n"] += 1
+        sizes.append(len(rows))
+        return [dict(r, state="triggered", ltp=101.0, rel_volume=1.2, vol_adj=1.1,
+                     pct_to_trigger=1.0) for r in rows]
+
+    monkeypatch.setattr(cp_api.watch_mod, "arm", lambda setup_id, **kw: rows)
+    monkeypatch.setattr(cp_api.watch_mod, "live", _live)
+
+    resp = cp_client.get("/api/chart-patterns/watch/stream", params={"setup": "breakout"})
+    assert resp.status_code == 200
+    events = _no_heartbeat(_parse_sse(resp.text))
+    assert events[0] == ("meta", {"setup": "breakout", "min_rel_volume": 0.7})
+    metas = [data for name, data in events if name == "meta"]
+    assert metas[1] == {"setup": "breakout", "min_rel_volume": 0.7, "total": 150}
+    items = [data for name, data in events if name == "item"]
+    assert len(items) == 150
+    assert {r["symbol"] for r in items} == {f"S{i:03d}" for i in range(150)}
+    assert events[-1] == ("done", {})
+    assert calls["n"] == 3
+    assert sorted(sizes) == [50, 50, 50]
+
+
+def test_watch_stream_stop_ends_stream(monkeypatch):
+    """Client stop mid-stream halts production: with ``live`` blocked, stopping
+    before any chunk completes yields ``end`` with no items, and releasing
+    ``live`` lets the pool drain and the worker exit (no deadlock)."""
+    rows = [_armed_row(f"S{i:03d}") for i in range(60)]  # 2 chunks: 50 + 10
+    started = threading.Event()
+    release = threading.Event()
+
+    def _live(rows, min_rel_volume=0.7):
+        started.set()
+        release.wait(timeout=5)
+        return [dict(r, state="triggered") for r in rows]
+
+    monkeypatch.setattr(cp_api.watch_mod, "get_snapshot", lambda *a, **k: None)
+    monkeypatch.setattr(cp_api.watch_mod, "arm", lambda setup_id, **kw: rows)
+    monkeypatch.setattr(cp_api.watch_mod, "live", _live)
+
+    out: queue.Queue = queue.Queue()
+    stop = threading.Event()
+    worker = threading.Thread(
+        target=cp_api._stream_watch_live_worker,
+        kwargs={"rows": rows, "min_rel_volume": 0.7, "out": out, "stop": stop},
+        daemon=True,
+    )
+    worker.start()
+    assert started.wait(timeout=5), "both chunked live() calls should be in flight"
+    stop.set()  # stop before either chunk completes
+    release.set()  # unblock live so the pool can drain
+    kind, payload = out.get(timeout=5)
+    assert kind == "end", f"expected terminator after stop, got {kind!r}"
+    assert out.qsize() == 0  # no items emitted once stopped
+    worker.join(timeout=5)
+    assert not worker.is_alive()
 
 
 def test_watch_stream_snapshot_path_skips_arm_live(cp_client, monkeypatch):
