@@ -489,3 +489,140 @@ def test_latest_hits_by_symbol_is_scoped_and_excludes_current(cp_store):
     # Excluding the current job falls back to the older job's hit.
     assert store.latest_hits_by_symbol("nifty50", "1D", exclude_job_id="cpj_x1") == {}
     assert store.latest_hits_by_symbol("nope", "1D") == {}
+
+
+def test_summary_mixed_status_direction_and_counts(cp_store):
+    store.save_job({"job_id": "cpj_mix", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed", "total": 5, "done": 5})
+    store.save_hits("cpj_mix", [
+        _hit("AAA", pattern_id="pw", family="rev", direction="bullish", status="confirmed", end_date="2026-01-02"),
+        _hit("BBB", pattern_id="pw", family="rev", direction="bearish", status="forming", end_date="2026-01-03"),
+        _hit("CCC", pattern_id="db", family="cont", direction="bullish", status="forming", end_date="2026-01-04"),
+        _hit("DDD", pattern_id="db", family="cont", direction="bearish", status="confirmed", end_date="2026-01-01"),
+        _hit("EEE", pattern_id="db", family="cont", direction="neutral", status="failed", end_date="2026-01-05"),
+    ])
+
+    summary = store.compute_summary({"job_id": "cpj_mix"})
+
+    assert summary["patterns"] == 5
+    assert summary["in_view"] == 5
+    assert summary["confirmed"] == 2
+    assert summary["forming"] == 2
+    assert summary["bullish"] == 2
+    assert summary["bearish"] == 2
+    assert summary["data_through"] == "2026-01-05"
+    assert summary["pattern_counts"] == {"pw": 2, "db": 3}
+    assert summary["family_counts"] == {"rev": 2, "cont": 3}
+    _, _, qr_summary = store.query_results({"job_id": "cpj_mix"})
+    assert qr_summary == summary
+
+
+def test_summary_excludes_empty_keys_and_ignores_null_end_date(cp_store):
+    store.save_job({"job_id": "cpj_null", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed", "total": 2, "done": 2})
+    store.save_hits("cpj_null", [
+        _hit("AAA", pattern_id="pw", family="rev", direction="bullish", status="confirmed", end_date="2026-01-02"),
+        _hit("BBB", pattern_id="", family="", direction="", status="", end_date=None),
+    ])
+
+    summary = store.compute_summary({"job_id": "cpj_null"})
+
+    assert summary["patterns"] == 2
+    assert summary["confirmed"] == 1
+    assert summary["forming"] == 0
+    assert summary["bullish"] == 1
+    assert summary["bearish"] == 0
+    assert summary["data_through"] == "2026-01-02"
+    assert summary["pattern_counts"] == {"pw": 1}
+    assert summary["family_counts"] == {"rev": 1}
+
+
+def test_summary_all_null_end_dates_data_through_none(cp_store):
+    store.save_job({"job_id": "cpj_allnull", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed", "total": 2, "done": 2})
+    store.save_hits("cpj_allnull", [
+        _hit("AAA", end_date=None),
+        _hit("BBB", end_date=None, status="forming", direction="bearish"),
+    ])
+
+    summary = store.compute_summary({"job_id": "cpj_allnull"})
+
+    assert summary["patterns"] == 2
+    assert summary["data_through"] is None
+    assert summary["confirmed"] == 1
+    assert summary["forming"] == 1
+
+
+def test_summary_empty_result_set(cp_store):
+    store.save_job({"job_id": "cpj_empty", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed", "total": 7, "done": 7})
+
+    summary = store.compute_summary({"job_id": "cpj_empty"})
+
+    assert summary["patterns"] == 0
+    assert summary["in_view"] == 0
+    assert summary["confirmed"] == 0
+    assert summary["forming"] == 0
+    assert summary["bullish"] == 0
+    assert summary["bearish"] == 0
+    assert summary["data_through"] is None
+    assert summary["pattern_counts"] == {}
+    assert summary["family_counts"] == {}
+    assert store.compute_summary({"job_id": "nope"})["patterns"] == 0
+    assert store.compute_summary({})["patterns"] == 0
+
+
+def test_summary_respects_filters(cp_store):
+    store.save_job({"job_id": "cpj_flt", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed", "total": 3, "done": 3})
+    store.save_hits("cpj_flt", [
+        _hit("AAA", pattern_id="pw", family="rev", direction="bullish", status="confirmed", end_date="2026-01-02"),
+        _hit("BBB", pattern_id="db", family="cont", direction="bearish", status="forming", end_date="2026-01-03"),
+        _hit("CCC", pattern_id="pw", family="rev", direction="bullish", status="forming", end_date="2026-01-04"),
+    ])
+
+    bullish = store.compute_summary({"job_id": "cpj_flt", "direction": ["bullish"]})
+
+    assert bullish["patterns"] == 2
+    assert bullish["confirmed"] == 1
+    assert bullish["forming"] == 1
+    assert bullish["bullish"] == 2
+    assert bullish["bearish"] == 0
+    assert bullish["data_through"] == "2026-01-04"
+    assert bullish["pattern_counts"] == {"pw": 2}
+    assert bullish["family_counts"] == {"rev": 2}
+
+    via_join = store.compute_summary({"universe": "nifty50", "timeframe": "1D"})
+
+    assert via_join["patterns"] == 3
+    assert via_join["confirmed"] == 1
+    assert via_join["forming"] == 2
+    assert via_join["bullish"] == 2
+    assert via_join["bearish"] == 1
+    assert via_join["pattern_counts"] == {"pw": 2, "db": 1}
+    assert via_join["family_counts"] == {"rev": 2, "cont": 1}
+
+
+def test_summary_query_count_guard(cp_store, test_db_engine):
+    from sqlalchemy import event
+
+    store.save_job({"job_id": "cpj_qc", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed", "total": 1, "done": 1})
+    store.save_hits("cpj_qc", [_hit("AAA")])
+
+    statements: list[str] = []
+
+    @event.listens_for(test_db_engine, "before_cursor_execute")
+    def _count(_conn, _cursor, statement, _params, _ctx, _em):
+        statements.append(statement)
+
+    try:
+        summary = store.compute_summary({"job_id": "cpj_qc"})
+    finally:
+        event.remove(test_db_engine, "before_cursor_execute", _count)
+
+    # total count + one GROUP BY + one UNION ALL + scanned; a regression to
+    # per-status/direction/max/per-column queries would run ~9 here.
+    assert len(statements) <= 4
+    assert summary["patterns"] == 1
+    assert summary["confirmed"] == 1

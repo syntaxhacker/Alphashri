@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from typing import Any, Iterable, Optional
 
-from sqlalchemy import case, func
+from sqlalchemy import case, func, literal
 
 from db.database import SessionLocal
 
@@ -731,30 +731,84 @@ def query_results(filters: dict, limit: int = 100, offset: int = 0):
         session.close()
 
 
-def _counts_by(base, column) -> dict[str, int]:
-    """Group the *unlimited* filtered base query by ``column`` into counts.
+def _status_direction_summary(base) -> tuple[int, int, int, int, Optional[str]]:
+    """One GROUP BY (status, direction) for the four counters + data-through.
 
-    Powers the filter-rail chips, which must reflect the whole filtered result
-    set rather than just the current (capped) page.
+    Replaces four ``count()`` calls plus one ``max(end_date)``. ``MAX(end_date)``
+    per group combined with a Python max equals the global ``max`` (SQL ``MAX``
+    ignores NULLs), and only the exact ``confirmed``/``forming``/
+    ``bullish``/``bearish`` values contribute, matching the old filters.
+    """
+    rows = (
+        base.with_entities(
+            PatternHit.status,
+            PatternHit.direction,
+            func.count(PatternHit.id),
+            func.max(PatternHit.end_date),
+        )
+        .group_by(PatternHit.status, PatternHit.direction)
+        .all()
+    )
+    confirmed = forming = bullish = bearish = 0
+    data_through = None
+    for status, direction, count, max_end in rows:
+        n = int(count)
+        if status == "confirmed":
+            confirmed += n
+        elif status == "forming":
+            forming += n
+        if direction == "bullish":
+            bullish += n
+        elif direction == "bearish":
+            bearish += n
+        if max_end is not None and (data_through is None or max_end > data_through):
+            data_through = max_end
+    return confirmed, forming, bullish, bearish, data_through
+
+
+def _pattern_family_counts(base) -> tuple[dict[str, int], dict[str, int]]:
+    """One UNION ALL for the pattern/family filter-rail chips.
+
+    Both GROUP BY branches run over the whole filtered result set, not the
+    capped page. Falsy keys (``None``/``""``) are excluded, matching the old
+    ``_counts_by``. The discriminator distinguishes the two branches and
+    ``literal``/``func.count`` keep the statement portable across SQLite and
+    PostgreSQL.
     """
     try:
-        rows = (
-            base.with_entities(column, func.count(PatternHit.id))
-            .group_by(column)
-            .all()
+        pattern_q = (
+            base.with_entities(
+                literal("pattern"),
+                PatternHit.pattern_id,
+                func.count(PatternHit.id),
+            )
+            .group_by(PatternHit.pattern_id)
         )
-        return {str(key): int(count) for key, count in rows if key}
+        family_q = (
+            base.with_entities(
+                literal("family"),
+                PatternHit.family,
+                func.count(PatternHit.id),
+            )
+            .group_by(PatternHit.family)
+        )
+        rows = pattern_q.union_all(family_q).all()
     except Exception:
-        return {}
+        return {}, {}
+    pattern_counts: dict[str, int] = {}
+    family_counts: dict[str, int] = {}
+    for kind, key, count in rows:
+        if not key:
+            continue
+        target = pattern_counts if kind == "pattern" else family_counts
+        target[str(key)] = int(count)
+    return pattern_counts, family_counts
 
 
 def _summary_for(session, filters: dict, base, total: int) -> dict:
-    confirmed = base.filter(PatternHit.status == "confirmed").count()
-    forming = base.filter(PatternHit.status == "forming").count()
-    bullish = base.filter(PatternHit.direction == "bullish").count()
-    bearish = base.filter(PatternHit.direction == "bearish").count()
-    data_through = base.with_entities(func.max(PatternHit.end_date)).scalar()
+    confirmed, forming, bullish, bearish, data_through = _status_direction_summary(base)
     scanned = _scanned_count(session, filters, base)
+    pattern_counts, family_counts = _pattern_family_counts(base)
     return {
         "scanned": scanned,
         "patterns": total,
@@ -765,8 +819,8 @@ def _summary_for(session, filters: dict, base, total: int) -> dict:
         "bearish": bearish,
         "data_through": data_through,
         "last_scan_at": _last_scan_at(session, filters),
-        "pattern_counts": _counts_by(base, PatternHit.pattern_id),
-        "family_counts": _counts_by(base, PatternHit.family),
+        "pattern_counts": pattern_counts,
+        "family_counts": family_counts,
     }
 
 
