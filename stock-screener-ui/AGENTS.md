@@ -482,6 +482,20 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - Escalate a single agent to a stronger model **only** for correctness-critical work (adversarial verification, final holdout) and state why.
 - Long-running loop protocol (waves, ledger, gates, **fill-honesty audit**) lives in the **`non-stop`** skill.
 
+### Subagent contract (enforced by the main agent)
+- **One agent, one file set.** Every prompt lists the exact files the agent owns; it must not edit anything else. Parallel agents share one worktree, so overlapping scopes corrupt each other. Test-only agents may create test files but must not edit sources.
+- **Read-only git.** Subagents never run `add`, `commit`, `checkout`, `switch`, `stash`, `reset`, `clean`, `rebase`, `merge` or `push`. The main agent is the only git actor.
+- **No builds, no servers.** Agents run only their targeted tests (`npx vitest run <file>`, `.venv/bin/python -m pytest <file> -q`). `bun run build`, `./start.sh`, dev servers and browser/devtools sessions belong to the main agent.
+- **Protected paths.** Never edit `db/alphashri.db`, `.github/workflows/test.yml`, or unrelated files already dirty in the worktree.
+- **Return contract.** Report changes, files touched, the exact test command with pass/fail counts, and anything not done. A report without test counts is rejected.
+- **Review gate.** The main agent reviews the diff, fills integration gaps, then runs the full affected suite + `oxlint` + `bun run build` + the UI guards before committing. Agents never commit.
+- **Free model pool:** `opencode/deepseek-v4.1-flash-free`, `opencode/nemotron-3.5-super-vl-free`, `openrouter/nvidia/nemotron-3.5-super-vl:free`, `opencode/crouton-alpha-free`. One model per independent scope.
+
+### Comment policy
+- Comments explain **why**, never **what**. No narration (`// set the value`), no docstrings that restate the signature, no changelog comments.
+- Keep a comment only where the code is surprising: a non-obvious constraint, a workaround, an ordering/protocol requirement.
+- Prefer a clear name over a comment. In tests, one short line above a non-obvious fixture is enough — do not annotate every assertion.
+
 ## Committing (SMALL COMMITS ALWAYS)
 **Rule: Commit small, commit often — on a feature branch. Pushing a feature branch is fine; pushing `develop`/`main` is forbidden.**
 
