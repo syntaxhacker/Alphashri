@@ -1481,6 +1481,62 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
     expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent("Ascending Channel");
     expect(screen.queryByTestId("patterns-fullscreen-list-item-1")).not.toBeInTheDocument();
   });
+
+  test("switching universe closes the docked chart", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("1200px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    try {
+      const props = makeProps({ results: [makeHit()], total: 1 });
+      const view = r(<PatternsPage {...props} />);
+      await userEvent.click(screen.getByTestId("patterns-list-row-IRCON-falling_wedge"));
+      expect(await screen.findByTestId("patterns-chart-dock")).toBeInTheDocument();
+
+      // Scope changed: the open hit belongs to the previous universe.
+      // (`r` re-applies the UIProvider wrapper, so pass the page bare.)
+      view.rerender(<PatternsPage {...props} universe="nifty50" />);
+      await waitFor(() =>
+        expect(screen.queryByTestId("patterns-chart-dock")).not.toBeInTheDocument(),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test("a completed scan re-resolves the open stored hit", async () => {
+    const props = makeProps({
+      results: [makeHit({ id: 11 })],
+      total: 1,
+      summary: { ...SUMMARY, last_scan_at: "2026-10-01T00:00:00Z" },
+    });
+    const view = r(<PatternsPage {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-list-row-IRCON-falling_wedge"));
+    await screen.findByTestId("patterns-fullscreen-modal");
+    await waitFor(() => expect(fetchPatternHit).toHaveBeenCalledWith(11));
+    const callsAfterOpen = fetchPatternHit.mock.calls.length;
+
+    // A scan completed: `last_scan_at` moves, so the stored hit is re-fetched.
+    fetchPatternHit.mockResolvedValueOnce(makeHit({ id: 11, status: "failed" }));
+    view.rerender(
+      <PatternsPage
+        {...props}
+        summary={{ ...SUMMARY, last_scan_at: "2026-10-02T00:00:00Z" }}
+      />,
+    );
+    await waitFor(() =>
+      expect(fetchPatternHit.mock.calls.length).toBe(callsAfterOpen + 1),
+    );
+    expect(fetchPatternHit).toHaveBeenLastCalledWith(11);
+    // The chart stays open with the re-resolved hit.
+    expect(screen.getByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
+  });
 });
 
 describe("PatternsPage copy CSV", () => {

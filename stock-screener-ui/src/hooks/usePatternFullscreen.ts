@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   ChartCandle,
   PatternHitDTO,
@@ -43,6 +43,19 @@ export interface UsePatternFullscreenArgs {
   timeframe: string;
   lookbackBars?: number | null;
   computeTrendlines?: boolean;
+  /**
+   * Scope identity (typically `universe|timeframe`). When it changes after
+   * mount the open chart is closed: it belongs to the previous scope and its
+   * hit may no longer exist there. Filters/search must NOT be part of this key.
+   */
+  scopeKey?: string | null;
+  /**
+   * Resolution identity (typically the last completed scan timestamp). When it
+   * changes after mount and a *stored* hit (`hit.id != null`) is open, the hit
+   * is re-fetched so a rescan that replaced/deleted the row cannot leave a
+   * stale panel. A failed re-fetch closes the fullscreen.
+   */
+  resolutionKey?: string | null;
 }
 
 /** Full hit identity — distinguishes two instances on the same symbol/timeframe. */
@@ -72,11 +85,21 @@ export function usePatternFullscreen({
   timeframe: defaultTimeframe,
   lookbackBars = null,
   computeTrendlines = true,
+  scopeKey = null,
+  resolutionKey = null,
 }: UsePatternFullscreenArgs) {
   const [fullscreen, setFullscreen] = useState<FullscreenChartState | null>(null);
   // Monotonic request token: rapid successive opens must not let a stale
   // fetch overwrite the newer selection.
   const chartRequestRef = useRef(0);
+  // Latest committed state, readable from effects without making them re-run
+  // on every chart update (scope/resolution watchers below).
+  const fullscreenStateRef = useRef<FullscreenChartState | null>(null);
+  fullscreenStateRef.current = fullscreen;
+  // Previous scope/resolution keys: the first render only seeds these, so the
+  // initial mount never closes the chart or re-fetches a hit.
+  const prevScopeKeyRef = useRef<string | null>(scopeKey);
+  const prevResolutionKeyRef = useRef<string | null>(resolutionKey);
 
   const mergeHits = (
     clicked: PatternHitDTO,
@@ -316,10 +339,67 @@ export function usePatternFullscreen({
     setFullscreen((prev) => (prev ? { ...prev, hit } : prev));
   };
 
-  const closeFullscreen = () => {
+  const closeFullscreen = useCallback(() => {
     chartRequestRef.current += 1;
     setFullscreen(null);
-  };
+  }, []);
+
+  // Scope / resolution watchers. One effect so a scope change (which closes
+  // the chart) supersedes a same-commit resolution change: the old hit must
+  // not be re-fetched for a scope it does not belong to.
+  useEffect(() => {
+    const nextScope = scopeKey ?? null;
+    const nextResolution = resolutionKey ?? null;
+    const scopeChanged = prevScopeKeyRef.current !== nextScope;
+    const resolutionChanged = prevResolutionKeyRef.current !== nextResolution;
+    prevScopeKeyRef.current = nextScope;
+    prevResolutionKeyRef.current = nextResolution;
+
+    if (scopeChanged) {
+      closeFullscreen();
+      return;
+    }
+    if (!resolutionChanged) return;
+
+    const current = fullscreenStateRef.current;
+    const openHit = current?.hit;
+    // Only stored hits can be re-resolved; a live-detected hit has no id.
+    if (!current || !openHit || openHit.id == null) return;
+
+    const hitId = openHit.id;
+    const token = chartRequestRef.current + 1;
+    chartRequestRef.current = token;
+    void fetchPatternHit(hitId)
+      .then((fresh) => {
+        if (chartRequestRef.current !== token) return;
+        // A failed/empty response means the hit was replaced or deleted.
+        if (!fresh) {
+          closeFullscreen();
+          return;
+        }
+        setFullscreen((prev) => {
+          if (!prev || !prev.hit || prev.hit.id !== hitId) return prev;
+          const updated: PatternHitDTO = {
+            ...prev.hit,
+            status: fresh.status,
+            quality: fresh.quality,
+            confidence: fresh.confidence,
+            end_date: fresh.end_date,
+            trendlines: fresh.trendlines,
+          };
+          return {
+            ...prev,
+            hit: updated,
+            hits: prev.hits.map((h) => (h.id === hitId ? updated : h)),
+          };
+        });
+      })
+      .catch(() => {
+        if (chartRequestRef.current !== token) return;
+        // 404 / failure: the stored hit no longer exists — close the chart.
+        closeFullscreen();
+      });
+  }, [scopeKey, resolutionKey, closeFullscreen]);
 
   /** Promote a hover preview to a pinned chart (user interacted with it). */
   const pinFullscreen = () => {

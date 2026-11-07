@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
 import { Box, Divider, Text, ToolbarRow } from "@/ui";
-import type { PatternSummary } from "@/types/chartPatterns";
+import type { JobDTO, PatternSummary } from "@/types/chartPatterns";
 import { formatAgeLong, formatNumberIN } from "@/utils/ui-helpers";
 
 export interface ScanStatsProps {
   summary: PatternSummary | null;
+  /**
+   * Live scan job. While `queued`/`running` the strip reports the job's own
+   * progress instead of the last completed scan, which would otherwise look
+   * current while the progress bar is still moving.
+   */
+  job?: JobDTO | null;
   /**
    * Makes the actionable cells filter the results: `confirmed` toggles the
    * status filter, `bullish` / `bearish` toggle the direction filter.
@@ -31,9 +37,22 @@ function relativeAge(iso: string | null | undefined): string {
   return formatAgeLong(Date.now() - ts);
 }
 
-function buildCells(summary: PatternSummary | null): StatCell[] {
+function buildCells(summary: PatternSummary | null, job?: JobDTO | null): StatCell[] {
+  const activeJob =
+    job && (job.status === "queued" || job.status === "running") ? job : null;
+  const scanned =
+    activeJob && activeJob.total
+      ? `${num(activeJob.done ?? 0)} / ${num(activeJob.total)}`
+      : num(summary?.scanned);
+  const lastScan = activeJob
+    ? activeJob.status === "queued"
+      ? activeJob.queue_position != null
+        ? `queued #${activeJob.queue_position}`
+        : "queued"
+      : "running…"
+    : relativeAge(summary?.last_scan_at);
   return [
-    { key: "scanned", label: "Scanned", value: num(summary?.scanned) },
+    { key: "scanned", label: "Scanned", value: scanned },
     { key: "patterns", label: "Patterns", value: num(summary?.patterns) },
     { key: "in_view", label: "In view", value: num(summary?.in_view) },
     { key: "confirmed", label: "Confirmed", value: num(summary?.confirmed), tone: "success" },
@@ -43,13 +62,17 @@ function buildCells(summary: PatternSummary | null): StatCell[] {
       value: `${num(summary?.bullish)} / ${num(summary?.bearish)}`,
       tone: "primary",
     },
-    { key: "data_through", label: "Last candle", value: summary?.data_through ?? "—" },
-    { key: "last_scan", label: "Last scan", value: relativeAge(summary?.last_scan_at) },
+    {
+      key: "data_through",
+      label: "Last candle",
+      value: activeJob?.data_through ?? summary?.data_through ?? "—",
+    },
+    { key: "last_scan", label: "Last scan", value: lastScan },
   ];
 }
 
 /** Dense inline stat strip (~28px): `LABEL value` pairs separated by dividers, no Card. */
-export function ScanStats({ summary, onSelect }: ScanStatsProps) {
+export function ScanStats({ summary, job = null, onSelect }: ScanStatsProps) {
   // `relativeAge` derives from `Date.now()`, so without a tick it freezes until
   // the next store update. Re-render every 60s to keep "x min ago" fresh.
   const [, setTick] = useState(0);
@@ -57,7 +80,7 @@ export function ScanStats({ summary, onSelect }: ScanStatsProps) {
     const id = setInterval(() => setTick((t) => t + 1), 60_000);
     return () => clearInterval(id);
   }, []);
-  const cells = buildCells(summary);
+  const cells = buildCells(summary, job);
   const clickable = (key: StatCell["key"]): boolean =>
     !!onSelect && (key === "confirmed" || key === "bull_bear");
   const clickableSx = (key: StatCell["key"]) =>

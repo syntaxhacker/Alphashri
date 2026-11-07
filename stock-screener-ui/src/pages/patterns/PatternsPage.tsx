@@ -205,7 +205,17 @@ export function PatternsPage({
     changeFullscreenAsOf,
     selectFullscreenHit,
     closeFullscreen,
-  } = usePatternFullscreen({ timeframe, lookbackBars, computeTrendlines });
+  } = usePatternFullscreen({
+    timeframe,
+    lookbackBars,
+    computeTrendlines,
+    // Universe/timeframe identity only — filter edits (search, direction…)
+    // must not close the open chart. A scope change does.
+    scopeKey: `${universe}|${timeframe}`,
+    // Exactly one re-resolution per completed scan: the timestamp changes
+    // once when the job finishes, not once per rendered item.
+    resolutionKey: summary?.last_scan_at ?? job?.finished_at ?? null,
+  });
 
   // Docked chart inspector: at >=lg a click opens the chart beside the
   // results (fast row-to-row switching without a modal round-trip);
@@ -707,6 +717,7 @@ export function PatternsPage({
         <Tabs.Panel value="scan" data-testid="patterns-panel-scan" sx={{ py: 0 }}>
       <ScanStats
         summary={displaySummary}
+        job={job}
         onSelect={(kind) =>
           toggleFilterValue(kind === "confirmed" ? "status" : "direction", kind === "confirmed" ? "confirmed" : kind)
         }

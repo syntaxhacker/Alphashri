@@ -49,8 +49,16 @@ function makeHit(overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
   };
 }
 
-function Harness({ onReady }: { onReady: (api: ReturnType<typeof usePatternFullscreen>) => void }) {
-  const api = usePatternFullscreen({ timeframe: "1D" });
+function Harness({
+  onReady,
+  scopeKey,
+  resolutionKey,
+}: {
+  onReady: (api: ReturnType<typeof usePatternFullscreen>) => void;
+  scopeKey?: string | null;
+  resolutionKey?: string | null;
+}) {
+  const api = usePatternFullscreen({ timeframe: "1D", scopeKey, resolutionKey });
   const ref = useRef(api);
   ref.current = api;
   useEffectOnce(ref, onReady);
@@ -58,6 +66,7 @@ function Harness({ onReady }: { onReady: (api: ReturnType<typeof usePatternFulls
     <div>
       <span data-testid="fs-symbol">{api.fullscreen?.symbol ?? "none"}</span>
       <span data-testid="fs-hit">{api.fullscreen?.hit?.pattern_id ?? "none"}</span>
+      <span data-testid="fs-status">{api.fullscreen?.hit?.status ?? "none"}</span>
       <span data-testid="fs-count">{api.fullscreen?.hits.length ?? 0}</span>
       <span data-testid="fs-loading">{api.fullscreen?.loading ? "yes" : "no"}</span>
     </div>
@@ -196,5 +205,119 @@ describe("usePatternFullscreen", () => {
       api.closeFullscreen();
     });
     expect(screen.getByTestId("fs-symbol")).toHaveTextContent("none");
+  });
+
+  test("a scopeKey change closes an open chart", async () => {
+    mockedFetchPatternHit.mockResolvedValue(makeHit({ id: 7 }));
+    mockedFetchSymbolChart.mockResolvedValue({ candles: [], hits: [], trend_lines: [] } as never);
+    let api!: ReturnType<typeof usePatternFullscreen>;
+    const onReady = (a: ReturnType<typeof usePatternFullscreen>) => {
+      api = a;
+    };
+    const { rerender } = render(
+      <UIProvider>
+        <Harness onReady={onReady} scopeKey="nifty500|1D" resolutionKey="scan-1" />
+      </UIProvider>,
+    );
+    await act(async () => {
+      api.openFromCard(makeHit({ id: 7 }));
+    });
+    await waitFor(() => expect(screen.getByTestId("fs-symbol")).toHaveTextContent("IRCON"));
+
+    // Same resolution key: the chart must close purely because the scope moved.
+    rerender(
+      <UIProvider>
+        <Harness onReady={onReady} scopeKey="nifty50|1D" resolutionKey="scan-1" />
+      </UIProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("fs-symbol")).toHaveTextContent("none"));
+    expect(mockedFetchPatternHit).toHaveBeenCalledTimes(1);
+  });
+
+  test("a resolutionKey change re-fetches a stored hit and updates its status", async () => {
+    mockedFetchPatternHit
+      .mockResolvedValueOnce(makeHit({ id: 7, status: "confirmed" }))
+      .mockResolvedValueOnce(makeHit({ id: 7, status: "failed", confidence: 42 }));
+    mockedFetchSymbolChart.mockResolvedValue({ candles: [], hits: [], trend_lines: [] } as never);
+    let api!: ReturnType<typeof usePatternFullscreen>;
+    const onReady = (a: ReturnType<typeof usePatternFullscreen>) => {
+      api = a;
+    };
+    const { rerender } = render(
+      <UIProvider>
+        <Harness onReady={onReady} scopeKey="nifty500|1D" resolutionKey="scan-1" />
+      </UIProvider>,
+    );
+    await act(async () => {
+      api.openFromCard(makeHit({ id: 7, status: "forming" }));
+    });
+    await waitFor(() => expect(screen.getByTestId("fs-status")).toHaveTextContent("confirmed"));
+
+    rerender(
+      <UIProvider>
+        <Harness onReady={onReady} scopeKey="nifty500|1D" resolutionKey="scan-2" />
+      </UIProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("fs-status")).toHaveTextContent("failed"));
+    expect(screen.getByTestId("fs-symbol")).toHaveTextContent("IRCON");
+    expect(mockedFetchPatternHit).toHaveBeenCalledTimes(2);
+    expect(mockedFetchPatternHit).toHaveBeenLastCalledWith(7);
+  });
+
+  test("a 404 on re-fetch closes the chart", async () => {
+    mockedFetchPatternHit
+      .mockResolvedValueOnce(makeHit({ id: 7 }))
+      .mockRejectedValueOnce(new Error("Pattern hit not found"));
+    mockedFetchSymbolChart.mockResolvedValue({ candles: [], hits: [], trend_lines: [] } as never);
+    let api!: ReturnType<typeof usePatternFullscreen>;
+    const onReady = (a: ReturnType<typeof usePatternFullscreen>) => {
+      api = a;
+    };
+    const { rerender } = render(
+      <UIProvider>
+        <Harness onReady={onReady} scopeKey="nifty500|1D" resolutionKey="scan-1" />
+      </UIProvider>,
+    );
+    await act(async () => {
+      api.openFromCard(makeHit({ id: 7 }));
+    });
+    await waitFor(() => expect(screen.getByTestId("fs-symbol")).toHaveTextContent("IRCON"));
+
+    rerender(
+      <UIProvider>
+        <Harness onReady={onReady} scopeKey="nifty500|1D" resolutionKey="scan-2" />
+      </UIProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("fs-symbol")).toHaveTextContent("none"));
+  });
+
+  test("unchanged scopeKey/resolutionKey neither closes nor refetches", async () => {
+    mockedFetchPatternHit.mockResolvedValue(makeHit({ id: 7 }));
+    mockedFetchSymbolChart.mockResolvedValue({ candles: [], hits: [], trend_lines: [] } as never);
+    let api!: ReturnType<typeof usePatternFullscreen>;
+    const onReady = (a: ReturnType<typeof usePatternFullscreen>) => {
+      api = a;
+    };
+    const { rerender } = render(
+      <UIProvider>
+        <Harness onReady={onReady} scopeKey="nifty500|1D" resolutionKey="scan-1" />
+      </UIProvider>,
+    );
+    await act(async () => {
+      api.openFromCard(makeHit({ id: 7 }));
+    });
+    await waitFor(() => expect(screen.getByTestId("fs-symbol")).toHaveTextContent("IRCON"));
+
+    rerender(
+      <UIProvider>
+        <Harness onReady={onReady} scopeKey="nifty500|1D" resolutionKey="scan-1" />
+      </UIProvider>,
+    );
+    // Let any stray effect settle before asserting nothing happened.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId("fs-symbol")).toHaveTextContent("IRCON");
+    expect(mockedFetchPatternHit).toHaveBeenCalledTimes(1);
   });
 });
