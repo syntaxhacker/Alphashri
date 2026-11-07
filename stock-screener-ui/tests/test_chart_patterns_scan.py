@@ -1139,6 +1139,7 @@ def test_1d_partial_appends_synthetic_bar_from_tape(monkeypatch, tmp_path):
     from chart_patterns import candles as candles_mod
 
     monkeypatch.setattr(candles_mod, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(candles_mod, "_today_is_session", lambda: True)
     base = _daily_bars(["2020-01-01", "2020-01-02", "2020-01-03"])
     tape = _minute_tape("2020-06-01")
     monkeypatch.setattr(

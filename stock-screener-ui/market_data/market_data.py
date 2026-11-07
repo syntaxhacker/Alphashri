@@ -684,12 +684,22 @@ def _daily_live_edge(
     except Exception:
         last_bar = None
 
+    # A synthetic "today" bar only exists on a trading day. On weekends and
+    # holidays the previous code still fetched the 1-minute tape per symbol
+    # (~2 s each) to synthesize a session that cannot exist.
+    try:
+        from chart_patterns.candles import _is_trading_day
+        tradable_today = _is_trading_day(datetime.now(_IST).date())
+    except Exception:
+        tradable_today = True
+    want_partial = bool(include_partial_today) and tradable_today
+
     tape: Optional[pd.DataFrame] = None
     if (
         last_done is not None
         and last_bar is not None
         and last_bar >= last_done
-        and not include_partial_today
+        and not want_partial
     ):
         return df  # current: no gap, no tape fetch
     if last_done is not None and last_bar is not None and last_bar >= last_done:
@@ -700,7 +710,7 @@ def _daily_live_edge(
             df = _backfill_completed_daily_sessions(
                 api, symbol, df, today_str, tape=tape
             )
-    if include_partial_today and not _has_session_bar(df, pd.Timestamp.now(tz="UTC")):
+    if want_partial and not _has_session_bar(df, pd.Timestamp.now(tz="UTC")):
         # Reuse today's rows from the already-fetched tape when present
         # (the historical minutes leg can carry the in-progress session);
         # otherwise fall back to one intraday fetch.
