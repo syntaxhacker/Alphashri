@@ -76,9 +76,11 @@ def cp_client(test_db_engine):
     app.dependency_overrides[get_current_user] = lambda: _FakeUser()
 
     try:
+        cp_api._clear_read_caches()
         with TestClient(app) as client:
             yield client
     finally:
+        cp_api._clear_read_caches()
         app.dependency_overrides.clear()
         jobs.reset()
         store.reset_session_factory()
@@ -1874,3 +1876,72 @@ def test_results_consolidation_filters(cp_client):
     )
     assert summary.status_code == 200
     assert summary.json()["patterns"] == 1
+
+
+def test_sanitize_for_json_exotic_leaves(cp_client):
+    """np.generic, uuid.UUID, decimal.Decimal, set/frozenset, pd.NaT sanitize so
+    ``json.dumps(..., allow_nan=False)`` succeeds (no 500 under JSONResponse)."""
+    import decimal
+    import json
+    import uuid
+
+    from api.utils import _sanitize_for_json
+
+    uid = uuid.uuid4()
+    payload = {
+        "np_float32_nan": np.float32("nan"),
+        "np_float64": np.float64(2.5),
+        "np_int32": np.int32(7),
+        "uuid": uid,
+        "decimal": decimal.Decimal("1.5"),
+        "decimal_nan": decimal.Decimal("NaN"),
+        "set": {1, 2, 3},
+        "frozenset": frozenset(["a", "b"]),
+        "nat": pd.NaT,
+        "nested": {"np_inf": np.float32(float("inf")), "s": {5}},
+    }
+
+    result = _sanitize_for_json(payload)
+
+    assert result["np_float32_nan"] is None
+    assert result["np_float64"] == 2.5
+    assert result["np_int32"] == 7
+    assert result["uuid"] == str(uid)
+    assert result["decimal"] == 1.5
+    assert result["decimal_nan"] is None
+    assert sorted(result["set"]) == [1, 2, 3]
+    assert sorted(result["frozenset"]) == ["a", "b"]
+    assert result["nat"] is None
+    assert result["nested"]["np_inf"] is None
+    assert sorted(result["nested"]["s"]) == [5]
+
+    # Round-trips through strict JSON (allow_nan=False) without raising.
+    json.dumps(result, allow_nan=False)
+
+
+def test_sanitize_for_json_preserves_existing_behaviour(cp_client):
+    """NaN/Inf floats -> None, datetime -> ISO, tuples/lists -> lists, keys stringified."""
+    import json
+    from datetime import datetime
+
+    from api.utils import _sanitize_for_json
+
+    payload = {
+        "nan": float("nan"),
+        "inf": float("inf"),
+        "dt": datetime(2026, 1, 2, 3, 4, 5),
+        "tup": (1, 2),
+        1: "int-key",  # non-string key
+        "nested": [{"a": float("-inf")}],
+    }
+
+    result = _sanitize_for_json(payload)
+
+    assert result["nan"] is None
+    assert result["inf"] is None
+    assert result["dt"] == "2026-01-02T03:04:05"
+    assert result["tup"] == [1, 2]
+    assert result["1"] == "int-key"
+    assert result["nested"] == [{"a": None}]
+
+    json.dumps(result, allow_nan=False)

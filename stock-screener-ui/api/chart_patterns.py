@@ -11,6 +11,7 @@ import dataclasses
 import json
 import queue as _queue
 import threading
+import time as _time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Optional
@@ -114,6 +115,86 @@ _FALLBACK_UNIVERSES = [
 _UNIVERSE_ALIASES = {"all": "all_equity"}
 
 _name_cache: Optional[dict] = None
+
+
+# Candle ``t`` strings depend only on the frame index, and every symbol
+# fetched for the same session shares the same trading calendar — reformatting
+# 712 timestamps per distinct symbol is pure recomputation. The lists are
+# time-invariant for a given (tz, length, timestamp bytes) key, so a small
+# bounded cache turns a ~1.8 ms per-frame isoformat loop into a lookup.
+_TS_CACHE_LOCK = threading.Lock()
+_TS_CACHE: dict = {}
+_TS_CACHE_MAX = 8
+
+
+# ---------------------------------------------------------------------------
+# Short-TTL read cache (stale-scan-safe)
+#
+# ``/summary`` and ``/matrix`` re-query the store on every UI poll, but the
+# underlying hit set only changes when a new scan completes. Entries are keyed
+# on the ``last_scan_at`` of the latest completed job for the requested
+# universe/timeframe(s), plus a 3-second TTL backstop: if a newer scan
+# finishes, the key changes and the recompute runs immediately, so no
+# response can outlive the scan it was built from by more than the TTL.
+# ``/results`` is deliberately *not* cached (enrichment + fresh cards).
+# ---------------------------------------------------------------------------
+
+_READ_CACHE_TTL_SEC = 3.0
+_summary_cache: dict = {}
+_matrix_cache: dict = {}
+_read_cache_lock = threading.Lock()
+_READ_CACHE_MAX_ENTRIES = 64
+
+
+def _freeze_filters(filters: dict) -> tuple:
+    """Hashable snapshot of a store filter dict (lists become tuples)."""
+    items = []
+    for key in sorted(filters):
+        value = filters[key]
+        if isinstance(value, list):
+            value = tuple(value)
+        items.append((key, value))
+    return tuple(items)
+
+
+def _last_scan_at_for(universe, timeframe):
+    """Latest completed job's ``finished_at`` for a combo (``None``-safe)."""
+    try:
+        session = store._new_session()
+        try:
+            return store._last_scan_at(session, {"universe": universe, "timeframe": timeframe})
+        finally:
+            session.close()
+    except Exception:
+        return None
+
+
+def _read_cache_get(cache: dict, key):
+    now = _time.monotonic()
+    with _read_cache_lock:
+        entry = cache.get(key)
+        if entry is None:
+            return None
+        expires, payload = entry
+        if now < expires:
+            return payload
+        cache.pop(key, None)
+        return None
+
+
+def _read_cache_put(cache: dict, key, payload) -> None:
+    now = _time.monotonic()
+    with _read_cache_lock:
+        while len(cache) >= _READ_CACHE_MAX_ENTRIES:
+            cache.pop(next(iter(cache)), None)
+        cache[key] = (now + _READ_CACHE_TTL_SEC, payload)
+
+
+def _clear_read_caches() -> None:
+    """Drop the short-TTL read caches (tests + operator resets)."""
+    with _read_cache_lock:
+        _summary_cache.clear()
+        _matrix_cache.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -422,15 +503,19 @@ def _stored_lines_sig(item) -> Optional[str]:
     return str(sig) if isinstance(sig, str) and sig else None
 
 
-def _stored_lines_fresh(item) -> bool:
+def _stored_lines_fresh(item, current_sig=None) -> bool:
     """True when stored ``trend_lines`` are non-empty and match the detector.
 
     After a detector change the stored lines are stale and must be recomputed
-    so cards and fullscreen agree.
+    so cards and fullscreen agree. ``current_sig`` lets batch callers compute
+    the detector signature once per request instead of per item; when omitted
+    it is built on demand.
     """
     if _stored_trend_lines(item) is None:
         return False
-    return _stored_lines_sig(item) == config.trendline_signature()
+    if current_sig is None:
+        current_sig = config.trendline_signature()
+    return _stored_lines_sig(item) == current_sig
 
 
 def _clamp_to_lookback(df, lookback_bars: Optional[int]):
@@ -452,6 +537,24 @@ def _clamp_to_lookback(df, lookback_bars: Optional[int]):
     return df.tail(n)
 
 
+def _ts_list(idx) -> list:
+    """Isoformat timestamp strings for an index (calendar-cached)."""
+    try:
+        key = (str(getattr(idx, "tz", None)), len(idx), idx.asi8.tobytes())
+    except Exception:
+        return [t.isoformat() if hasattr(t, "isoformat") else str(t) for t in idx]
+    with _TS_CACHE_LOCK:
+        cached = _TS_CACHE.get(key)
+    if cached is not None:
+        return cached
+    ts = [t.isoformat() if hasattr(t, "isoformat") else str(t) for t in idx]
+    with _TS_CACHE_LOCK:
+        while len(_TS_CACHE) >= _TS_CACHE_MAX:
+            _TS_CACHE.pop(next(iter(_TS_CACHE)), None)
+        _TS_CACHE[key] = ts
+    return ts
+
+
 def _fast_candle_series(frame, limit) -> list:
     """Vectorized twin of ``candles.candles_to_series`` (same ``{t,o,h,l,c,v}`` shape).
 
@@ -459,46 +562,60 @@ def _fast_candle_series(frame, limit) -> list:
     frame; column arrays do the same row work in ~3 ms. Any unexpected frame
     shape falls back to :func:`candles.candles_to_series` so output never
     changes (NaN/Inf -> 0.0 and the tail/limit rule are mirrored).
+
+    The limit slice is applied to the numpy arrays / index views instead of
+    ``frame.tail()``, so no 700-row DataFrame copy runs per distinct symbol,
+    and non-finite cleaning is vectorized (the per-scalar ``float`` /
+    ``isinf`` pairing only pays up front in ``tolist``). Output is identical
+    to the previous per-row loop.
     """
     if frame is None or getattr(frame, "empty", True):
         return []
     try:
-        import math as _math
         import numpy as _np
 
-        out_df = frame.tail(int(limit)) if limit and limit > 0 else frame
-        ts = [t.isoformat() if hasattr(t, "isoformat") else str(t) for t in out_df.index]
-        cols = {
-            name: out_df[name].to_numpy(dtype=float)
-            for name in ("open", "high", "low", "close", "volume")
-        }
-        opens = cols["open"]
-        highs = cols["high"]
-        lows = cols["low"]
-        closes = cols["close"]
-        vols = cols["volume"]
+        n = len(frame)
+        if limit and limit > 0:
+            try:
+                keep = int(limit)
+            except (TypeError, ValueError):
+                keep = 0
+            if keep > 0 and n > keep:
+                idx = frame.index[n - keep:]
+            else:
+                idx = frame.index
+        else:
+            idx = frame.index
+        ts = _ts_list(idx)
+
+        def _col(name: str) -> list:
+            arr = frame[name].to_numpy(dtype=float)
+            if limit and limit > 0:
+                try:
+                    keep = int(limit)
+                except (TypeError, ValueError):
+                    keep = 0
+                if keep > 0 and len(arr) > keep:
+                    arr = arr[len(arr) - keep:]
+            if arr.size and not _np.isfinite(arr).all():
+                arr = _np.where(_np.isfinite(arr), arr, 0.0)
+            return arr.tolist()
+
+        opens = _col("open")
+        highs = _col("high")
+        lows = _col("low")
+        closes = _col("close")
+        vols = _col("volume")
         series: list = []
         append = series.append
-        for i, t in enumerate(ts):
-            o = float(opens[i])
-            h = float(highs[i])
-            l = float(lows[i])
-            c = float(closes[i])
-            v = float(vols[i])
-            append({
-                "t": t,
-                "o": 0.0 if (o != o or _math.isinf(o)) else o,
-                "h": 0.0 if (h != h or _math.isinf(h)) else h,
-                "l": 0.0 if (l != l or _math.isinf(l)) else l,
-                "c": 0.0 if (c != c or _math.isinf(c)) else c,
-                "v": 0.0 if (v != v or _math.isinf(v)) else v,
-            })
+        for t, o, h, l, c, v in zip(ts, opens, highs, lows, closes, vols):
+            append({"t": t, "o": o, "h": h, "l": l, "c": c, "v": v})
         return series
     except Exception:
         return candles.candles_to_series(frame, limit)
 
 
-def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache, lock=None):
+def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache, lock=None, current_sig=None):
     """Attach a candle window + last close/day change + trend lines to one item.
 
     Phase-2 of :func:`_enrich_with_candles`, factored so the SSE stream
@@ -511,14 +628,18 @@ def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache
     """
     if key is None:
         if isinstance(item, dict):
-            fresh = _stored_lines_fresh(item)
+            if current_sig is None:
+                current_sig = config.trendline_signature()
+            fresh = _stored_lines_fresh(item, current_sig)
             stored_lines = _stored_trend_lines(item) if fresh else None
             item.setdefault("candles", [])
             item.setdefault("last_close", None)
             item.setdefault("day_change_pct", None)
             item["trend_lines"] = [] if not compute_trendlines else (stored_lines if stored_lines is not None else [])
         return item
-    fresh = _stored_lines_fresh(item)
+    if current_sig is None:
+        current_sig = config.trendline_signature()
+    fresh = _stored_lines_fresh(item, current_sig)
     stored_lines = _stored_trend_lines(item) if fresh else None
     # Per-key candle window + closes: result sets repeat (symbol, timeframe)
     # across patterns; rebuilding the series per item is the dominant
@@ -670,6 +791,8 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
                 if key not in cache:
                     cache[key] = _fetch_one(key)
     tl_cache: dict = {}
+    # One detector signature per batch (instead of one rebuild per item).
+    current_sig = config.trendline_signature()
     # Phase 2: per-item enrichment in the original order (clamp, series,
     # last close/day change, stored-vs-recomputed trendlines) — unchanged.
     for item in items:
@@ -679,7 +802,7 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
         _finalize_item(
             item, cache.get(key) if key is not None else None, key=key,
             lookback_bars=lookback_bars, compute_trendlines=compute_trendlines,
-            tl_cache=tl_cache,
+            tl_cache=tl_cache, current_sig=current_sig,
         )
     return items
 
@@ -1020,6 +1143,7 @@ def _stream_results_worker(items, *, default_timeframe, fetch_lb, lookback_bars,
     df_cache: dict = {}
     tl_cache: dict = {}
     lock = threading.Lock()
+    current_sig = config.trendline_signature()
 
     def _cached_fetch(key):
         with lock:
@@ -1049,6 +1173,7 @@ def _stream_results_worker(items, *, default_timeframe, fetch_lb, lookback_bars,
         return _finalize_item(
             item, df, key=key, lookback_bars=lookback_bars,
             compute_trendlines=compute_trendlines, tl_cache=tl_cache, lock=lock,
+            current_sig=current_sig,
         )
 
     try:
@@ -1209,12 +1334,15 @@ async def get_results(
     await run_in_threadpool(_enrich_with_candles, items, timeframe, lookback_bars=lookback_bars,
                             compute_trendlines=compute_trendlines)
     _strip_risk_fields(items)
-    return _sanitize_for_json({
+    # Already-sanitized payload: return it as a ready-rendered JSONResponse so
+    # FastAPI skips its jsonable_encoder pass (a second full traversal of the
+    # 700-bar-per-card candle arrays). The parsed body is unchanged.
+    return JSONResponse(content=_sanitize_for_json({
         "items": items,
         "total": total,
         "summary": summary,
         "data_through": summary.get("data_through"),
-    })
+    }))
 
 
 @router.get("/index/{index_id}/members")
@@ -1348,8 +1476,16 @@ async def get_summary(
         min_base_days, max_range_pct, q, sort=sort, max_52w_gap=max_52w_gap,
         min_range_pos=min_range_pos, from_date=from_date, to_date=to_date,
     )
+    cache_key = (
+        getattr(store, "_session_factory", None),
+        _freeze_filters(filters),
+        _last_scan_at_for(filters.get("universe"), filters.get("timeframe")),
+    )
+    cached = _read_cache_get(_summary_cache, cache_key)
+    if cached is not None:
+        return JSONResponse(content=cached)
     summary = store.compute_summary(filters)
-    return _sanitize_for_json({
+    payload = _sanitize_for_json({
         "scanned": summary.get("scanned", 0),
         "patterns": summary.get("patterns", 0),
         "in_view": summary.get("in_view", 0),
@@ -1361,6 +1497,8 @@ async def get_summary(
         "pattern_counts": summary.get("pattern_counts", {}),
         "family_counts": summary.get("family_counts", {}),
     })
+    _read_cache_put(_summary_cache, cache_key, payload)
+    return JSONResponse(content=payload)
 
 
 def _candle_fields(symbol: str, timeframe: str) -> dict:
@@ -1396,7 +1534,7 @@ async def get_symbol(
     _strip_risk_fields(detail.get("patterns", []))
     if not detail.get("name"):
         detail["name"] = _lookup_name(symbol)
-    return _sanitize_for_json(detail)
+    return JSONResponse(content=_sanitize_for_json(detail))
 
 
 def _live_hit_to_dict(hit, symbol: str, timeframe: str) -> Optional[dict]:
@@ -1536,10 +1674,10 @@ async def get_symbol_chart(
     from_date: Optional[str] = Query(None),
 ):
     if as_of_date is not None:
-        return _sanitize_for_json(await _asof_symbol_chart(
+        return JSONResponse(content=_sanitize_for_json(await _asof_symbol_chart(
             symbol, timeframe, limit, lookback_bars, compute_trendlines,
             detect_patterns, as_of_date, from_date,
-        ))
+        )))
     try:
         lb = lookback_bars if lookback_bars is not None else config.READ_LOOKBACK_BARS
         df = candles.fetch_for_timeframe(
@@ -1561,6 +1699,9 @@ async def get_symbol_chart(
     detail = store.get_symbol_detail(symbol, timeframe)
     overlays = []
     stored_fresh_lines: list = []
+    # Reuse fresh scan-time lines so fullscreen agrees with the cards;
+    # stale lines (detector changed) fall through to the recompute below.
+    chart_sig = config.trendline_signature()
     for pattern in detail.get("patterns", []):
         if pattern.get("trendlines"):
             overlays.append({
@@ -1574,7 +1715,7 @@ async def get_symbol_chart(
             })
         # Reuse fresh scan-time lines so fullscreen agrees with the cards;
         # stale lines (detector changed) fall through to the recompute below.
-        if not stored_fresh_lines and _stored_lines_fresh(pattern):
+        if not stored_fresh_lines and _stored_lines_fresh(pattern, chart_sig):
             stored_fresh_lines = list(pattern.get("trend_lines") or [])
     if not compute_trendlines:
         trend_lines = []
@@ -1609,7 +1750,7 @@ async def get_symbol_chart(
             if overlay is not None:
                 overlays.append(overlay)
         payload["hits"] = hits
-    return _sanitize_for_json(payload)
+    return JSONResponse(content=_sanitize_for_json(payload))
 
 
 @router.get("/watch/setups")
@@ -2040,6 +2181,16 @@ async def get_matrix(
 ):
     """One row per symbol, one compact cell per timeframe, from stored hits."""
     tf_ids = _matrix_timeframes(timeframes)
+    cache_key = (
+        getattr(store, "_session_factory", None),
+        universe,
+        tuple(tf_ids),
+        limit,
+        tuple(_last_scan_at_for(universe, tf) for tf in tf_ids),
+    )
+    cached = _read_cache_get(_matrix_cache, cache_key)
+    if cached is not None:
+        return JSONResponse(content=cached)
     pairs: list[tuple[str, list]] = []
     through_values: list = []
     for tf in tf_ids:
@@ -2056,9 +2207,11 @@ async def get_matrix(
         if summary.get("data_through") is not None:
             through_values.append(summary["data_through"])
         pairs.append((tf, items or []))
-    return _sanitize_for_json({
+    payload = _sanitize_for_json({
         "universe": universe,
         "timeframes": tf_ids,
         "rows": _matrix_rows(pairs),
         "data_through": max(through_values, key=str) if through_values else None,
     })
+    _read_cache_put(_matrix_cache, cache_key, payload)
+    return JSONResponse(content=payload)

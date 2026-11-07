@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 import api.chart_patterns as cp_api
 from api.auth import get_current_user
 from api.chart_patterns import router
+from chart_patterns import store
 from db.database import get_db
 
 _ALLOWED = {
@@ -40,10 +41,17 @@ def matrix_client(test_db_engine):
     app.dependency_overrides[get_current_user] = lambda: _FakeUser()
 
     try:
+        # Per-test store factory: the read cache keys on it, so mocked
+        # matrix bodies never collide across tests (and the
+        # last_scan_at probe stays on the isolated engine, not the real DB).
+        store.set_session_factory(factory)
+        cp_api._clear_read_caches()
         with TestClient(app) as client:
             yield client
     finally:
+        cp_api._clear_read_caches()
         app.dependency_overrides.clear()
+        store.reset_session_factory()
 
 
 def _hit(

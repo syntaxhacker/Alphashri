@@ -20,9 +20,13 @@ Imported by chart, backtest routes (indirectly), screener, sector, etc.
 
 from pathlib import Path
 from typing import Any, Dict, Optional, Callable
+import decimal
 import json
 import math
 import time
+import uuid
+
+import numpy as np
 
 
 _BUY_SIDES = ("BUY", "LONG")
@@ -63,12 +67,56 @@ def _to_float(value: Any, default: float = 0.0) -> float:
 def _sanitize_for_json(obj: Any) -> Any:
     """Recursively sanitize objects for JSON serialization.
 
-    - NaN/Inf floats -> None
-    - Objects with .isoformat() (datetime, etc) -> ISO string
-    - Preserves other types
+    - None/str/bool/int -> as-is
+    - float -> None if NaN/Inf
+    - dict -> sanitized dict with stringified keys
+    - list/tuple/set/frozenset -> sanitized list
+    - np.generic -> .item() (native Python) then recurse (np.float32 -> float;
+      NaN/Inf -> None)
+    - uuid.UUID -> str
+    - decimal.Decimal -> float (NaN/Inf -> None)
+    - pd.NaT / NaT-like -> None
+    - datetime/date (has .isoformat) -> ISO string
+    - anything else -> as-is
+
+    Primitives (None/str/bool/int) are returned as-is without the
+    ``hasattr`` probe: the read path sanitizes candle-heavy payloads
+    (hundreds of thousands of leaves), where a direct type dispatch
+    avoids a redundant hasattr + isnan check per scalar.
     """
+    t = type(obj)
+    if obj is None:
+        return None
+    if t is str or t is bool or t is int:
+        return obj
+    if t is float:
+        return obj if math.isfinite(obj) else None
+    if t is dict:
+        return {str(k): _sanitize_for_json(v) for k, v in obj.items()}
+    if t in (list, tuple, set, frozenset):
+        return [_sanitize_for_json(v) for v in obj]
+    # numpy scalars -> native Python value, then recurse (np.float32 -> float,
+    # np.int64 -> int; np.float64(nan) -> None via the float branch).
+    if isinstance(obj, np.generic):
+        return _sanitize_for_json(obj.item())
+    # pd.NaT -> None (lazy pandas import keeps the hot path pandas-free).
+    try:
+        import pandas as _pd
+        if obj is _pd.NaT:
+            return None
+    except Exception:
+        pass
+    if isinstance(obj, uuid.UUID):
+        return str(obj)
+    if isinstance(obj, decimal.Decimal):
+        try:
+            out = float(obj)
+        except Exception:
+            return None
+        return out if math.isfinite(out) else None
+    # Fallback for subclasses / exotic leaves (datetime, etc.) -> ISO string.
     if isinstance(obj, dict):
-        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+        return {str(k): _sanitize_for_json(v) for k, v in obj.items()}
     if isinstance(obj, list):
         return [_sanitize_for_json(v) for v in obj]
     if isinstance(obj, float):
