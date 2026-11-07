@@ -5,7 +5,8 @@
  * Short keys keep links compact:
  *   universe, tf, pattern (repeat), family (repeat), direction (repeat),
  *   status (repeat), quality, within, volume_confirmed, min_rr, base, range,
- *   gap52, pos, score, breakout, relvol, volm, avgvol, from, to, sort, symbol (a lone `symbol=` is the singular symbol filter; repeated
+ *   gap52, pos, score, breakout, relvol, volm, avgvol, hist (patterns per
+ *   symbol), from, to, sort, symbol (a lone `symbol=` is the singular symbol filter; repeated
  *   `symbol=` values are the multi-symbol filter), q, trendlines,
  *   compute_trendlines (`=0` only, when trendline computation is skipped).
  *   Compact comma-separated forms are also accepted on parse: `symbols=a,b`,
@@ -153,6 +154,10 @@ export function parsePatternParams(params: URLSearchParams): ParsedPatternParams
   const minAvgVolume10d = numberOrNull(params.get("avgvol"));
   if (minAvgVolume10d != null) filters.min_avg_volume_10d = minAvgVolume10d;
 
+  // Patterns-per-symbol view depth (1/3/5). Non-positive values mean "unset".
+  const history = numberOrNull(params.get("hist"));
+  if (history != null && history > 0) filters.history = Math.trunc(history);
+
   const from = params.get("from");
   if (from) filters.from_date = from;
   const to = params.get("to");
@@ -283,6 +288,9 @@ export function buildPatternParams(state: PatternUrlState): URLSearchParams {
   if (filters.sort && filters.sort !== DEFAULT_PATTERN_FILTERS.sort) {
     params.set("sort", filters.sort);
   }
+  if (filters.history != null && filters.history !== DEFAULT_PATTERN_FILTERS.history) {
+    params.set("hist", String(filters.history));
+  }
   if (filters.symbol) params.set("symbol", filters.symbol);
   for (const symbol of filters.symbols ?? []) params.append("symbol", symbol);
   if (filters.q) params.set("q", filters.q);
@@ -324,6 +332,7 @@ const PATTERN_PARAM_KEYS = new Set([
   "relvol",
   "volm",
   "avgvol",
+  "hist",
   "from",
   "to",
   "sort",

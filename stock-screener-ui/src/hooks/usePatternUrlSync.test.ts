@@ -246,6 +246,14 @@ describe("parsePatternParams", () => {
     expect(parsePatternParams(new URLSearchParams("avgvol=")).filters.min_avg_volume_10d).toBeUndefined();
     expect(parsePatternParams(new URLSearchParams("avgvol=abc")).filters.min_avg_volume_10d).toBeUndefined();
   });
+
+  it("parses hist into patterns-per-symbol and ignores blanks/non-positive", () => {
+    expect(parsePatternParams(new URLSearchParams("hist=3")).filters.history).toBe(3);
+    expect(parsePatternParams(new URLSearchParams("hist=5")).filters.history).toBe(5);
+    expect(parsePatternParams(new URLSearchParams("hist=")).filters.history).toBeUndefined();
+    expect(parsePatternParams(new URLSearchParams("hist=abc")).filters.history).toBeUndefined();
+    expect(parsePatternParams(new URLSearchParams("hist=0")).filters.history).toBeUndefined();
+  });
 });
 
 describe("filterValuesEqual", () => {
@@ -465,6 +473,25 @@ describe("buildPatternParams", () => {
     expect(clean.has("relvol")).toBe(false);
     expect(clean.has("volm")).toBe(false);
     expect(clean.has("avgvol")).toBe(false);
+  });
+
+  it("round-trips hist (patterns per symbol) through build/parse", () => {
+    const state = {
+      universe: "",
+      timeframe: "1D",
+      lookbackBars: null as number | null,
+      filters: { ...DEFAULT_PATTERN_FILTERS, history: 3 },
+    };
+    const params = buildPatternParams(state);
+    expect(params.get("hist")).toBe("3");
+    expect(parsePatternParams(new URLSearchParams(params.toString())).filters.history).toBe(3);
+    const refined = buildPatternParams({
+      universe: "",
+      timeframe: "1D",
+      lookbackBars: null,
+      filters: { ...DEFAULT_PATTERN_FILTERS },
+    });
+    expect(refined.has("hist")).toBe(false);
   });
 
   it("round-trips avgvol (10d avg volume filter) through build/parse", () => {

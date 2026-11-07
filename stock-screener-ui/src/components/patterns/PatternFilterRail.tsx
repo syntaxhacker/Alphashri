@@ -665,7 +665,25 @@ export function PatternFilterRail({
   );
 
   const historySection = (
-    <Section title="Patterns per symbol" level="field">
+    <Section
+      title="Patterns per symbol"
+      level="field"
+      info={
+        <InfoTip
+          title="Patterns per symbol"
+          items={[
+            { label: "1", description: "Latest pattern only — the compact view." },
+            { label: "3 / 5", description: "Show the last few patterns for each symbol." },
+            {
+              label: "Overlap",
+              description:
+                "The same pattern re-detected is collapsed to its newest instance; different patterns are kept even when their spans overlap.",
+            },
+          ]}
+          testId="patterns-history-info"
+        />
+      }
+    >
       <ToolbarRow gap={4} data-testid="patterns-filter-history">
         {[1, 3, 5].map((n) => (
           <Chip

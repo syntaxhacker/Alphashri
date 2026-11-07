@@ -19,21 +19,44 @@ describe("selectLastN", () => {
     expect(out.map((h) => h.pattern_id)).toEqual(["c", "b"]);
   });
 
-  it("drops overlapping hits", () => {
+  it("keeps different patterns even when their spans overlap", () => {
     const out = selectLastN(
       [
-        hit("a", "2026-01-01", "2026-01-20"),
-        hit("b", "2026-01-15", "2026-02-20"),
-        hit("c", "2026-02-15", "2026-03-01"),
+        hit("triangle", "2026-01-01", "2026-01-20"),
+        hit("consolidation", "2026-01-15", "2026-02-20"),
+        hit("channel", "2026-02-15", "2026-03-01"),
       ],
       3,
     );
-    expect(out.map((h) => h.pattern_id)).toEqual(["c", "a"]);
+    expect(out.map((h) => h.pattern_id)).toEqual(["channel", "consolidation", "triangle"]);
+  });
+
+  it("collapses the same pattern re-detected over the same span", () => {
+    const out = selectLastN(
+      [
+        hit("consolidation", "2026-08-06", "2026-11-02", 68),
+        hit("consolidation", "2026-08-11", "2026-11-05", 82),
+      ],
+      3,
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0].end_date).toBe("2026-11-05");
+  });
+
+  it("keeps the same pattern when the instances do not overlap", () => {
+    const out = selectLastN(
+      [
+        hit("consolidation", "2026-01-01", "2026-02-01"),
+        hit("consolidation", "2026-04-01", "2026-05-01"),
+      ],
+      3,
+    );
+    expect(out).toHaveLength(2);
   });
 
   it("allows overlaps when disabled", () => {
     const out = selectLastN(
-      [hit("a", "2026-01-01", "2026-01-20"), hit("b", "2026-01-15", "2026-02-20")],
+      [hit("a", "2026-01-01", "2026-01-20"), hit("a", "2026-01-15", "2026-02-20")],
       2,
       false,
     );
