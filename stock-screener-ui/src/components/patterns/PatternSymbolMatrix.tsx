@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { memo, useCallback, useMemo, useRef, type ReactNode } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { alpha } from "@mui/material/styles";
 import { Box, Text } from "@/ui";
@@ -66,15 +66,63 @@ function sortHits(hits: PatternHitDTO[]): PatternHitDTO[] {
   );
 }
 
-function NumText({ children, color }: { children: ReactNode; color?: string }) {
+/** Render/build counters for the matrix perf work. Every render/memo rebuild
+ *  bumps the matching counter so tests can assert that columns/cells are not
+ *  rebuilt when only callback identity changes. */
+export interface MatrixRenderStats {
+  matrixRenders: number;
+  columnsBuilds: number;
+  visibleRowsBuilds: number;
+  symbolCellRenders: number;
+  tfGlyphRenders: number;
+  patternChipRenders: number;
+  numTextRenders: number;
+}
+
+const matrixStats: MatrixRenderStats = {
+  matrixRenders: 0,
+  columnsBuilds: 0,
+  visibleRowsBuilds: 0,
+  symbolCellRenders: 0,
+  tfGlyphRenders: 0,
+  patternChipRenders: 0,
+  numTextRenders: 0,
+};
+
+export function matrixRenderStats(): Readonly<MatrixRenderStats> {
+  // Copy so callers can take before/after snapshots without aliasing the live counters.
+  return { ...matrixStats };
+}
+
+export function matrixRenderStatsReset(): void {
+  for (const key of Object.keys(matrixStats) as Array<keyof MatrixRenderStats>) {
+    matrixStats[key] = 0;
+  }
+}
+
+/** The host (`PatternsPage`) recreates its handler closures whenever
+ *  `fullscreen` changes; stable identities keep the matrix `columns` memo
+ *  (and therefore every memoised cell below) from being rebuilt on each
+ *  chart open/close. */
+type Fn = (...args: any[]) => unknown;
+function useStableCallback<T extends Fn | undefined>(callback: T): T;
+function useStableCallback<T extends Fn | undefined>(callback: T): T | undefined {
+  if (callback == null) return undefined;
+  const ref = useRef(callback);
+  ref.current = callback;
+  return useCallback((...args: any[]) => ref.current(...args), []) as unknown as T;
+}
+
+const NumText = memo(function NumText({ children, color }: { children: ReactNode; color?: string }) {
+  matrixStats.numTextRenders += 1;
   return (
     <Text c={color} fw={600} sx={{ fontSize: 11, lineHeight: 1.1 }}>
       {children}
     </Text>
   );
-}
+});
 
-function SymbolCell({
+const SymbolCell = memo(function SymbolCell({
   row,
   onShowMembers,
   onSymbolPreview,
@@ -87,6 +135,7 @@ function SymbolCell({
   onSymbolPreviewEnd?: (symbol: string) => void;
   onSymbolOpen?: (symbol: string) => void;
 }) {
+  matrixStats.symbolCellRenders += 1;
   const canShowMembers = Boolean(onShowMembers && hasIndexMembers(row.symbol));
   return (
     <Box sx={{ minWidth: 0 }}>
@@ -119,9 +168,10 @@ function SymbolCell({
       ) : null}
     </Box>
   );
-}
+});
 
-function TfGlyph({ cell }: { cell: MatrixCell | undefined }) {
+const TfGlyph = memo(function TfGlyph({ cell }: { cell: MatrixCell | undefined }) {
+  matrixStats.tfGlyphRenders += 1;
   if (!cell) {
     return (
       <Text c="dimmed" sx={{ fontSize: 11, lineHeight: 1.1 }}>
@@ -150,9 +200,10 @@ function TfGlyph({ cell }: { cell: MatrixCell | undefined }) {
       ) : null}
     </Box>
   );
-}
+});
 
-function PatternChip({ hit, onSelect }: { hit: PatternHitDTO; onSelect: (hit: PatternHitDTO) => void }) {
+const PatternChip = memo(function PatternChip({ hit, onSelect }: { hit: PatternHitDTO; onSelect: (hit: PatternHitDTO) => void }) {
+  matrixStats.patternChipRenders += 1;
   const color = TONE_COLOR[directionTone(hit.direction)];
   const label = `${hit.pattern_name} ${formatTfLabel(hit.timeframe)}`;
   return (
@@ -192,7 +243,7 @@ function PatternChip({ hit, onSelect }: { hit: PatternHitDTO; onSelect: (hit: Pa
       {label}
     </Box>
   );
-}
+});
 
 export function PatternSymbolMatrix({
   rows,
@@ -207,8 +258,17 @@ export function PatternSymbolMatrix({
   onSymbolPreviewEnd,
   onSymbolOpen,
 }: PatternSymbolMatrixProps) {
+  matrixStats.matrixRenders += 1;
+
+  const onSelectStable = useStableCallback(onSelect);
+  const onShowMembersStable = useStableCallback(onShowMembers);
+  const onSymbolPreviewStable = useStableCallback(onSymbolPreview);
+  const onSymbolPreviewEndStable = useStableCallback(onSymbolPreviewEnd);
+  const onSymbolOpenStable = useStableCallback(onSymbolOpen);
+
   const orderedTimeframes = useMemo(() => matrixTfOrder(timeframes), [timeframes]);
   const visibleRows = useMemo(() => {
+    matrixStats.visibleRowsBuilds += 1;
     const allowed = new Set(orderedTimeframes);
     return rows
       .flatMap((row) => {
@@ -226,7 +286,12 @@ export function PatternSymbolMatrix({
       .sort((a, b) => (a.best && b.best ? compareConviction(a.best, b.best) : a.best ? -1 : 1));
   }, [rows, orderedTimeframes]);
 
+  const onRowClick = useCallback((row: PatternMatrixRow) => {
+    if (row.best) onSelectStable(row.best);
+  }, [onSelectStable]);
+
   const columns = useMemo<ColumnDef<PatternMatrixRow>[]>(() => {
+    matrixStats.columnsBuilds += 1;
     const tfColumns: ColumnDef<PatternMatrixRow>[] = orderedTimeframes.map((tf) => ({
       id: `tf-${tf}`,
       header: formatTfLabel(tf),
@@ -246,10 +311,10 @@ export function PatternSymbolMatrix({
         cell: (info) => (
           <SymbolCell
             row={info.row.original}
-            onShowMembers={onShowMembers}
-            onSymbolPreview={onSymbolPreview}
-            onSymbolPreviewEnd={onSymbolPreviewEnd}
-            onSymbolOpen={onSymbolOpen}
+            onShowMembers={onShowMembersStable}
+            onSymbolPreview={onSymbolPreviewStable}
+            onSymbolPreviewEnd={onSymbolPreviewEndStable}
+            onSymbolOpen={onSymbolOpenStable}
           />
         ),
       },
@@ -312,7 +377,7 @@ export function PatternSymbolMatrix({
                 <PatternChip
                   key={`${hit.id ?? `${hit.pattern_id}-${hit.timeframe}`}-${index}`}
                   hit={hit}
-                  onSelect={onSelect}
+                  onSelect={onSelectStable}
                 />
               ))}
               {extra > 0 ? (
@@ -325,7 +390,7 @@ export function PatternSymbolMatrix({
         },
       },
     ];
-  }, [orderedTimeframes, onSelect, onShowMembers, onSymbolPreview, onSymbolPreviewEnd, onSymbolOpen]);
+  }, [orderedTimeframes, onSelectStable, onShowMembersStable, onSymbolPreviewStable, onSymbolPreviewEndStable, onSymbolOpenStable]);
 
   return (
     <TanStackTable<PatternMatrixRow>
@@ -337,9 +402,7 @@ export function PatternSymbolMatrix({
       enableSorting
       stickyHeader
       rowWindowSize={80}
-      onRowClick={(row) => {
-        if (row.best) onSelect(row.best);
-      }}
+      onRowClick={onRowClick}
       getRowStyle={(row) =>
         activeSymbol && row.symbol === activeSymbol
           ? {
