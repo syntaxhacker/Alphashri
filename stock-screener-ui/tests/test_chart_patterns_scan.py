@@ -1536,3 +1536,27 @@ def test_genuine_exception_increments_failed(cp_store, monkeypatch):
     assert jobs.get_job("cpj_boom")["no_hits"] == 0
     flat = str(logs)
     assert "cpj_boom" in flat and "BOOM" in flat and "RuntimeError" in flat
+
+
+def test_custom_scan_delete_is_scoped_to_its_symbols(cp_store, monkeypatch):
+    seen: dict = {}
+    real_delete = store.delete_hits_for
+
+    def recording_delete(universe, timeframe, keep_job_id=None, symbols=None):
+        seen.update(universe=universe, symbols=symbols)
+        return real_delete(universe, timeframe, keep_job_id=keep_job_id, symbols=symbols)
+
+    monkeypatch.setattr(store, "delete_hits_for", recording_delete)
+    monkeypatch.setattr(
+        scan.candles, "fetch_for_timeframe",
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None: _make_df(80),
+    )
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)]))
+    store.save_job({
+        "job_id": "cpj_custom", "universe": "custom", "timeframe": "1D",
+        "status": "queued", "params": {"symbols": ["AAA"]},
+    })
+    scan.run_job("cpj_custom")
+
+    assert seen["universe"] == "custom"
+    assert seen["symbols"] == ["AAA"]

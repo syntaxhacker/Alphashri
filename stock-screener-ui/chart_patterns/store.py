@@ -270,12 +270,21 @@ def list_jobs(active_only: bool = False, limit: int = 50) -> list[dict]:
 # Hits
 # ---------------------------------------------------------------------------
 
-def delete_hits_for(universe: str, timeframe: str, keep_job_id: Optional[str] = None) -> int:
+def delete_hits_for(
+    universe: str,
+    timeframe: str,
+    keep_job_id: Optional[str] = None,
+    symbols: Optional[Iterable[str]] = None,
+) -> int:
     """Remove hits from *previous* jobs for a universe/timeframe.
 
     A new scan supersedes the old one; without this, results would accumulate
     stale hits from earlier detector versions / prior runs and the UI would show
-    duplicates. ``keep_job_id`` (the current job) is preserved. Returns rows deleted.
+    duplicates. ``keep_job_id`` (the current job) is preserved.
+
+    ``symbols`` scopes the delete to those symbols. Custom scans all share
+    ``universe="custom"``, so without it a scan of one symbol set would delete
+    another set's results. Returns rows deleted.
     """
     session = _new_session()
     try:
@@ -288,11 +297,11 @@ def delete_hits_for(universe: str, timeframe: str, keep_job_id: Optional[str] = 
         job_ids = [row[0] for row in q]
         if not job_ids:
             return 0
-        deleted = (
-            session.query(PatternHit)
-            .filter(PatternHit.job_id.in_(job_ids))
-            .delete(synchronize_session=False)
-        )
+        scope = [str(sym).strip().upper() for sym in (symbols or []) if str(sym).strip()]
+        q = session.query(PatternHit).filter(PatternHit.job_id.in_(job_ids))
+        if scope:
+            q = q.filter(PatternHit.symbol.in_(scope))
+        deleted = q.delete(synchronize_session=False)
         session.commit()
         return int(deleted or 0)
     except Exception:

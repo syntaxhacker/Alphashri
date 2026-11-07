@@ -409,3 +409,18 @@ def test_symbol_detail_attaches_breakout_score(cp_store):
     detail = store.get_symbol_detail("AAA", "1D")
 
     assert detail["patterns"][0]["breakout_score"] == 90.5
+
+
+def test_delete_hits_for_scopes_custom_scans_by_symbol(cp_store):
+    store.save_job({"job_id": "cpj_old", "universe": "custom", "timeframe": "1D",
+                    "status": "completed", "total": 2, "done": 2})
+    store.save_job({"job_id": "cpj_new", "universe": "custom", "timeframe": "1D",
+                    "status": "completed", "total": 1, "done": 1})
+    store.save_hits("cpj_old", [_hit("INFY"), _hit("BSE")])
+    store.save_hits("cpj_new", [_hit("BSE")])
+
+    deleted = store.delete_hits_for("custom", "1D", keep_job_id="cpj_new", symbols=["BSE"])
+
+    assert deleted == 1
+    items, _, _ = store.query_results({"universe": "custom", "timeframe": "1D"})
+    assert sorted(row["symbol"] for row in items) == ["BSE", "INFY"]

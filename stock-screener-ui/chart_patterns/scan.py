@@ -638,7 +638,12 @@ def run_job(job_id: str) -> None:
         # scan) and survive a cancel/failure, since the new job produced
         # nothing durable to replace them with.
         try:
-            store.delete_hits_for(universe, timeframe, keep_job_id=job_id)
+            if universe == "custom":
+                store.delete_hits_for(
+                    universe, timeframe, keep_job_id=job_id, symbols=symbols
+                )
+            else:
+                store.delete_hits_for(universe, timeframe, keep_job_id=job_id)
         except Exception:
             pass
         _done_provenance = _provenance(
