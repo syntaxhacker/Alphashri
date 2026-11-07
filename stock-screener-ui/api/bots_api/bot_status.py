@@ -1,4 +1,3 @@
-import asyncio
 from datetime import datetime
 from typing import List
 
@@ -16,13 +15,9 @@ from .bots_router import (
     get_bot_by_uuid,
     is_bot_running,
     _db_available,
-    SessionLocal,
 )
+from ._db import require_db, run_db
 from .requests import BotResponse, BotStatusResponse, BotSummaryResponse, BotSummaryStrategy
-
-
-def _get_db_available():
-    return _db_available
 
 
 def _sync_list_available_strategies(db: Session) -> list:
@@ -191,14 +186,8 @@ async def list_available_strategies(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
-    if not _get_db_available():
-        raise HTTPException(status_code=500, detail="Database not available")
-
-    if db is None:
-        with SessionLocal() as db:
-            return await asyncio.to_thread(_sync_list_available_strategies, db)
-
-    return await asyncio.to_thread(_sync_list_available_strategies, db)
+    require_db(_db_available)
+    return await run_db(_sync_list_available_strategies, db=db)
 
 
 @router.get("", response_model=List[BotResponse])
@@ -206,16 +195,9 @@ async def list_bots(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
-    if not _get_db_available():
-        raise HTTPException(status_code=500, detail="Database not available")
-
+    require_db(_db_available)
     user_id = get_user_id(user)
-
-    if db is None:
-        with SessionLocal() as session:
-            return await asyncio.to_thread(_sync_list_bots, user_id, session)
-
-    return await asyncio.to_thread(_sync_list_bots, user_id, db)
+    return await run_db(_sync_list_bots, user_id, db=db)
 
 
 @router.get("/summary", response_model=List[BotSummaryResponse])
@@ -223,16 +205,9 @@ async def list_bots_summary(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
-    if not _get_db_available():
-        raise HTTPException(status_code=500, detail="Database not available")
-
+    require_db(_db_available)
     user_id = get_user_id(user)
-
-    if db is None:
-        with SessionLocal() as session:
-            return await asyncio.to_thread(_sync_list_bots_summary, user_id, session)
-
-    return await asyncio.to_thread(_sync_list_bots_summary, user_id, db)
+    return await run_db(_sync_list_bots_summary, user_id, db=db)
 
 
 @router.get("/{bot_id}/status", response_model=BotStatusResponse)
@@ -241,18 +216,6 @@ async def get_bot_status(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
-    if not _get_db_available():
-        raise HTTPException(status_code=500, detail="Database not available")
-
+    require_db(_db_available)
     user_id = get_user_id(user)
-
-    close_db = False
-    if db is None:
-        db = SessionLocal()
-        close_db = True
-
-    try:
-        return await asyncio.to_thread(_sync_get_bot_status, bot_id, user_id, db)
-    finally:
-        if close_db:
-            db.close()
+    return await run_db(_sync_get_bot_status, bot_id, user_id, db=db)

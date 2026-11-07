@@ -69,6 +69,19 @@ export interface Week52RangeAdminStatus {
   schedule?: Week52RangeSchedule;
 }
 
+export interface AdminPatternTimeframe {
+  id: string;
+  label: string;
+  minutes: number;
+  native: boolean;
+  source_tf: string | null;
+  max_lookback_days: number;
+  min_bars: number;
+  enabled: boolean;
+  sort_order: number;
+  custom: boolean;
+}
+
 export interface NewsAnalysisQueueStatus {
   pending: number;
   processing: number;

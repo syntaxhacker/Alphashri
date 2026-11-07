@@ -35,9 +35,10 @@ from typing import Optional
 
 from fastapi import APIRouter, Query
 
-import config as root_config
 from api.reports_api import breakouts as breakouts_mod
 from api.reports_api._numeric import safe_float as _f
+from api.reports_api._time import now_iso as _now_iso
+from api.reports_api._time import today_str as _today_str
 from chart_patterns.candles import fetch_for_timeframe
 from chart_patterns.parallel import max_workers, run_symbols
 
@@ -52,20 +53,6 @@ REPORT_DIR = (
 )
 
 _MAX_WORKERS = 8
-
-
-def _now_iso() -> str:
-    try:
-        return datetime.now(root_config.IST).isoformat()
-    except Exception:
-        return datetime.now().astimezone().isoformat()
-
-
-def _today_str() -> str:
-    try:
-        return datetime.now(root_config.IST).strftime("%Y-%m-%d")
-    except Exception:
-        return datetime.now().astimezone().strftime("%Y-%m-%d")
 
 
 def _bar_ist_dates(df) -> list[str]:

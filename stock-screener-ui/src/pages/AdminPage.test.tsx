@@ -12,7 +12,7 @@ vi.mock("../components/auth/AuthProvider2", () => ({
   useAuth: vi.fn(() => ({ fetchWithAuth: vi.fn() })),
 }));
 
-// Mock all three panel components
+// Mock the admin panel components
 vi.mock("./admin/LLMStatsPanel", () => ({
   LLMStatsPanel: () => React.createElement("div", { "data-testid": "llm-stats-panel" }, "LLM Stats Content"),
 }));
@@ -23,6 +23,11 @@ vi.mock("./admin/Admin52wRangePanel", () => ({
 
 vi.mock("./admin/NewsQueuePanel", () => ({
   NewsQueuePanel: () => React.createElement("div", { "data-testid": "news-queue-panel-mock" }),
+}));
+
+vi.mock("./admin/AdminPatternTimeframesPanel", () => ({
+  AdminPatternTimeframesPanel: () =>
+    React.createElement("div", { "data-testid": "admin-pattern-timeframes-panel-mock" }),
 }));
 
 vi.mock("../components/patterns/PatternImageManager", () => ({
@@ -45,6 +50,7 @@ describe("AdminPage", () => {
     expect(screen.getByText("Admin")).toBeInTheDocument();
     expect(screen.getByText("LLM stats")).toBeInTheDocument();
     expect(screen.getByText("52W range batch")).toBeInTheDocument();
+    expect(screen.getByText("Pattern timeframes")).toBeInTheDocument();
     expect(screen.getByText("News Queue")).toBeInTheDocument();
   });
 
@@ -67,11 +73,17 @@ describe("AdminPage", () => {
     expect(screen.getByTestId("news-queue-panel-mock")).toBeInTheDocument();
   });
 
-  it("renders admin description", () => {
+  it("renders a compact header without a page description", () => {
     renderWithProviders(<AdminPage />);
-    expect(
-      screen.getByText("LLM telemetry, 52W range batch, order-flow storage, and news analysis queue."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Admin")).toBeInTheDocument();
+    expect(screen.queryByText(/LLM telemetry/)).not.toBeInTheDocument();
+  });
+
+  it("switches to the Pattern timeframes tab", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<AdminPage />);
+    await user.click(screen.getByTestId("admin-tab-pattern-timeframes"));
+    expect(screen.getByTestId("admin-pattern-timeframes-panel-mock")).toBeInTheDocument();
   });
 
   it("switches to the Pattern images tab", async () => {

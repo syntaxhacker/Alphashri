@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Optional
 
 import config
+from api.orderflow_json import dumps as _encode
 
 _JOURNAL_ROOT = ("experiments", "data", "orderflow_journal")
 
@@ -36,17 +37,6 @@ _handle_order: list[str] = []
 _pending: dict[str, float] = {}
 _current_day = None
 _lock = threading.Lock()
-
-try:  # orjson serializes a 50-level tick ~9x faster than stdlib json
-    import orjson as _fastjson
-
-    def _encode(record: dict) -> str:
-        return _fastjson.dumps(record, default=str).decode("utf-8")
-
-except ImportError:  # pragma: no cover - fallback keeps the module importable
-    def _encode(record: dict) -> str:
-        return json.dumps(record, separators=(",", ":"), default=str)
-
 
 
 def _flush_interval() -> float:

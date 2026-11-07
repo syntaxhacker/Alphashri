@@ -79,7 +79,7 @@ def _null_vix() -> dict:
 #: Signed premium-flow magnitude (₹ Cr) below which the flow carries no
 #: direction. Matches the absolute floor in ``nifty_positioning``: 50 Cr is
 #: ~0.1 % of a 58,000 Cr book, so anything smaller is noise, not a bias.
-FLOW_BIAS_EPS_CR = 50.0
+from api.reports_api.nifty_positioning import FLOW_EPS_CR as FLOW_BIAS_EPS_CR
 
 
 def control_verdict(ce_doi: float, pe_doi: float,
@@ -88,9 +88,11 @@ def control_verdict(ce_doi: float, pe_doi: float,
 
     ``flow_bias`` is the session's signed directional premium flow in **₹ Cr**
     (positive = net bullish / premium being bought on calls or sold on puts,
-    negative = net bearish / put buying). It is the same number that drives
-    ``positioning.initiated`` / ``positioning.flow_class`` — the caller must
-    pass that existing figure, never recompute a second one.
+    negative = net bearish / put buying). It is the raw signed-delta
+    ``positioning.flow`` — NOT the class-weighted ``positioning.initiated`` /
+    ``flow_class``, which read 99.8% bullish on 2026-11-02 while the index
+    broke 23,300. The caller must pass that existing figure, never recompute a
+    second one.
 
     Raw OI change alone cannot tell a writer from a buyer: on a falling day
     added put OI is usually put **buyers** (bearish), yet the old OI-share rule
@@ -133,8 +135,57 @@ def control_verdict(ce_doi: float, pe_doi: float,
     return "call_buyers" if bias > FLOW_BIAS_EPS_CR else "call_writers"
 
 
+def premium_flow_bias(rows: list[dict], spot: float) -> Optional[float]:
+    """Price-confirmed directional OI flow in ₹ Cr.
+
+    Raw signed-delta ``positioning.flow`` assumes every added put is a long put
+    (bearish). That is wrong on a rally: puts can add OI while their premium
+    falls because writers are selling them. Use the leg's actual premium change
+    to classify the OI build:
+
+    * call OI up + call premium up = call buying (bullish)
+    * call OI up + call premium down = call writing (bearish)
+    * put OI up + put premium down = put writing (bullish)
+    * put OI up + put premium up = put buying (bearish)
+
+    Delta-weighting keeps the ₹ Cr scale comparable with the existing control
+    block. Returns ``None`` when no leg has both ΔOI, delta and a non-zero
+    premium change; callers then fall back to the old raw signed flow.
+    """
+    total = 0.0
+    seen = False
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        ce = r.get("ce") or {}
+        pe = r.get("pe") or {}
+        ce_doi = _i(ce.get("oi")) - _i(ce.get("prev_oi"))
+        pe_doi = _i(pe.get("oi")) - _i(pe.get("prev_oi"))
+        ce_d = abs(_f(ce.get("delta")) or 0.0)
+        pe_d = abs(_f(pe.get("delta")) or 0.0)
+        ce_pc = _f(ce.get("price_change"))
+        pe_pc = _f(pe.get("price_change"))
+        if ce_doi and ce_d > 0 and ce_pc is not None and ce_pc != 0:
+            total += ce_doi * ce_d * (1.0 if ce_pc > 0 else -1.0)
+            seen = True
+        if pe_doi and pe_d > 0 and pe_pc is not None and pe_pc != 0:
+            total += pe_doi * pe_d * (1.0 if pe_pc < 0 else -1.0)
+            seen = True
+    if not seen:
+        return None
+    return total * (_f(spot, 0.0) or 0.0) / 1e7
+
+
 def atm_ivs(rows: list[dict], spot: float) -> tuple[Optional[float], Optional[float]]:
-    """``(ce_iv, pe_iv)`` for the strike nearest ``spot``; ``None`` per dead leg."""
+    """``(ce_iv, pe_iv)`` for the strike nearest ``spot``; ``None`` per dead leg.
+
+    Applies the same usability gates as :mod:`api.reports_api.iv_surface`:
+    finite, 1..100 vol points and a leg that actually carries open interest. A
+    dead strike's greek (2026-11-03: 281%, and 226% at the ATM after the close)
+    is not a market-implied vol and must not feed the RV/IV verdict.
+    """
+    from api.reports_api.iv_surface import _iv as _usable_iv
+
     if not rows:
         return None, None
     best: Optional[tuple[float, Optional[float], Optional[float]]] = None
@@ -143,10 +194,9 @@ def atm_ivs(rows: list[dict], spot: float) -> tuple[Optional[float], Optional[fl
             strike = _f((r or {}).get("strike"))
             if strike is None:
                 continue
-            ce_iv = _f(((r.get("ce") or {}).get("iv")))
-            pe_iv = _f(((r.get("pe") or {}).get("iv")))
-            ce_iv = ce_iv if ce_iv and ce_iv > 0 else None
-            pe_iv = pe_iv if pe_iv and pe_iv > 0 else None
+            ce, pe = (r.get("ce") or {}), (r.get("pe") or {})
+            ce_iv = _usable_iv(ce.get("iv"), ce.get("oi"))
+            pe_iv = _usable_iv(pe.get("iv"), pe.get("oi"))
         except Exception:
             continue
         dist = abs(strike - spot) if spot else 0.0
@@ -166,7 +216,9 @@ def compute_control(rows: list[dict], spot: float,
 
     ``flow_bias`` (₹ Cr, positive = bullish) is threaded into
     :func:`control_verdict` so a writer label needs flow evidence, not just the
-    OI share (see that function). It is echoed back for auditability.
+    OI share (see that function). When the chain carries price changes, the
+    price-confirmed :func:`premium_flow_bias` overrides the raw signed-delta
+    flow; the emitted ``flow_bias`` is the value actually used.
     """
     ce_doi = 0
     pe_doi = 0
@@ -181,6 +233,11 @@ def compute_control(rows: list[dict], spot: float,
         skew = round(atm_pe_iv - atm_ce_iv, 2)
     regime = gex_regime if gex_regime in ("long", "short", "flat") else "flat"
     bias = _f(flow_bias)
+    # Prefer the price-confirmed OI flow. Raw signed-delta flow calls added
+    # puts "long puts" even when their premium is falling (put writing).
+    confirmed = premium_flow_bias(rows or [], _f(spot, 0.0) or 0.0)
+    if confirmed is not None:
+        bias = confirmed
     return {
         "verdict": control_verdict(ce_doi, pe_doi, bias),
         "ce_doi": ce_doi,
@@ -477,6 +534,23 @@ RV_IV_TREND = 1.15
 RV_IV_SELL = 0.60
 #: An ATM straddle down this much says long premium paid for nothing today.
 STRADDLE_BLEED_PCT = -15.0
+#: The open premium a straddle read needs to be a percentage at all. Below
+#: this the "straddle" is two dead contracts and any pct is division noise.
+MIN_STRADDLE_OPEN_PTS = 20.0
+#: A single leg quoting below this is dead (Nifty ATM legs trade in the tens
+#: to hundreds of points). On 2026-11-03 the pinned reference held a 0.05 PE
+#: and printed +97.2% — the strike had rolled 260 pts, the "move" was the
+#: other leg going in-the-money.
+MIN_LEG_PREMIUM_PTS = 1.0
+#: Hard cap on the DISPLAYED straddle move. A wider print is a measurement
+#: artefact (dead leg, stale reference), not a day-long premium move.
+STRADDLE_MAX_PCT = 100.0
+#: The pinned reference is only a straddle while its strike is still the ATM.
+#: Once spot has walked away from it, one leg is ITM and the other is dead;
+#: the honest answer is "no reference" (the tape fallback still runs).
+REFERENCE_MAX_ATM_DIST_PCT = 0.005
+#: Floor for the ATM-distance test so a low-priced index is not clipped.
+REFERENCE_MIN_ATM_DIST_PTS = 50.0
 #: Annualising fewer than this many intraday bars makes RV unreliable — a
 #: 12-bar sample at the open routinely prints 2-3x the day's true RV, which
 #: fired a false "buy premium" at 09:27 on 2026-10-16. Below it the RV/IV ratio
@@ -549,6 +623,20 @@ def regime_verdict(range_pct: Optional[float], rv: Optional[float],
     return "neutral"
 
 
+def _capped_straddle_pct(start: float, now: float) -> Optional[float]:
+    """Straddle move in %, or ``None`` when the anchor premium is unusable.
+
+    ``None`` when the open premium is below :data:`MIN_STRADDLE_OPEN_PTS`
+    (two dead contracts cannot define a percentage). A move wider than
+    :data:`STRADDLE_MAX_PCT` is a measurement artefact, so the displayed value
+    is clamped to the cap rather than published as a 200% "move".
+    """
+    if not start or start < MIN_STRADDLE_OPEN_PTS:
+        return None
+    pct = (now / start - 1.0) * 100.0
+    return round(max(-STRADDLE_MAX_PCT, min(STRADDLE_MAX_PCT, pct)), 2)
+
+
 def straddle_from_tape(tape_rows: Optional[list[dict]]) -> tuple[
         Optional[float], Optional[float], Optional[float]]:
     """``(open, now, pct)`` ATM straddle premium change, within ONE instrument.
@@ -591,11 +679,12 @@ def straddle_from_tape(tape_rows: Optional[list[dict]]) -> tuple[
         return None, None, None
     start = series[0]
     now = series[-1]
-    pct = round((now / start - 1.0) * 100.0, 2) if start else None
+    pct = _capped_straddle_pct(start, now)
     return round(start, 2), round(now, 2), pct
 
 
-def straddle_from_reference(reference: Optional[dict]) -> tuple[
+def straddle_from_reference(reference: Optional[dict], spot: Optional[float] = None,
+                            ) -> tuple[
         Optional[float], Optional[float], Optional[float]]:
     """``(open, now, pct)`` for the PINNED ATM strike (see ``compute_reference``).
 
@@ -605,8 +694,16 @@ def straddle_from_reference(reference: Optional[dict]) -> tuple[
     day-level straddle read that survives a strike roll — on 2026-10-21 it
     reads +16.86% where the naive first/last diff read −4.41%.
 
-    ``(None, None, None)`` when the reference is missing or incomplete (a
-    strike that is no longer in the chain, or no tape row to anchor the open).
+    ``(None, None, None)`` when the reference is stale or incomplete:
+
+    * a premium is missing or effectively zero (a dead leg cannot anchor a
+      move — 2026-11-03 pinned 23,550, held a PE at ₹0.05 and printed +97.2%
+      purely because the CALL had gone ITM);
+    * ``spot`` is supplied and the pinned strike is no longer the ATM (the
+      strike rolled away, so one leg is deep ITM and the read is an artefact);
+    * the open premium is below :data:`MIN_STRADDLE_OPEN_PTS`.
+
+    A usable read is clamped to ±:data:`STRADDLE_MAX_PCT`.
     """
     if not isinstance(reference, dict):
         return None, None, None
@@ -616,11 +713,22 @@ def straddle_from_reference(reference: Optional[dict]) -> tuple[
     pe_ltp = _f(reference.get("pe_ltp"))
     if None in (ce_open, pe_open, ce_ltp, pe_ltp):
         return None, None, None
-    if ce_open <= 0 or pe_open <= 0 or ce_ltp <= 0 or pe_ltp <= 0:
+    if min(ce_open, pe_open, ce_ltp, pe_ltp) < MIN_LEG_PREMIUM_PTS:
         return None, None, None
+    if spot is not None:
+        pinned = _f(reference.get("strike"))
+        now_spot = _f(spot)
+        if pinned is None or not pinned or not now_spot:
+            return None, None, None
+        max_dist = max(REFERENCE_MIN_ATM_DIST_PTS,
+                       now_spot * REFERENCE_MAX_ATM_DIST_PCT)
+        if abs(pinned - now_spot) > max_dist:
+            return None, None, None
     start = ce_open + pe_open
     now = ce_ltp + pe_ltp
-    pct = round((now / start - 1.0) * 100.0, 2) if start else None
+    pct = _capped_straddle_pct(start, now)
+    if pct is None:
+        return None, None, None
     return round(start, 2), round(now, 2), pct
 
 
@@ -628,7 +736,8 @@ def compute_regime(candles: Optional[list[dict]], baseline: Optional[float],
                    iv: Optional[float] = None,
                    tape_rows: Optional[list[dict]] = None,
                    reference: Optional[dict] = None,
-                   prev_close: Optional[float] = None) -> dict:
+                   prev_close: Optional[float] = None,
+                   spot: Optional[float] = None) -> dict:
     """Range-vs-trend read from today's spot candles + baseline + ATM straddle.
 
     ``range_pts`` is measured over the SAME window as the baseline
@@ -636,7 +745,8 @@ def compute_regime(candles: Optional[list[dict]], baseline: Optional[float],
     emitted alongside as ``session_range_pts``.
 
     The straddle read prefers the PINNED-strike reference (one contract
-    against itself) and falls back to the tape's ATM groups.
+    against itself, and only while that strike is still the ATM — see
+    :func:`straddle_from_reference`) and falls back to the tape's ATM groups.
 
     ``prev_close`` (the previous session's close) makes the realised vol a
     full-day figure, so the RV/IV comparison is like-for-like with a 24h
@@ -653,7 +763,8 @@ def compute_regime(candles: Optional[list[dict]], baseline: Optional[float],
     bars = len(_closes(candles))
     gap_pct = overnight_gap_pct(candles, prev_close)
     like_for_like = gap_pct is not None
-    straddle_open, straddle_now, straddle_pct = straddle_from_reference(reference)
+    straddle_open, straddle_now, straddle_pct = straddle_from_reference(
+        reference, spot=spot)
     if straddle_pct is None:
         straddle_open, straddle_now, straddle_pct = straddle_from_tape(tape_rows)
     ratio = rv_iv_ratio(rv, iv)
@@ -887,7 +998,7 @@ async def _fetch_vix() -> Optional[dict]:
     # using it as the previous close made change_pct a structural 0.00%. Take the
     # prior session's close from the daily series instead, and if we still end up
     # with "prev == ltp" report no change at all rather than a fake flat 0.00%.
-    close = await _fetch_vix_prev_close()
+    close = await _fetch_vix_prev_close(ltp)
     if close is None:
         candidate = _f(ohlc.get("close"))
         close = candidate if (candidate and ltp and candidate != ltp) else None
@@ -901,11 +1012,16 @@ async def _fetch_vix() -> Optional[dict]:
     }
 
 
-async def _fetch_vix_prev_close() -> Optional[float]:
+async def _fetch_vix_prev_close(ltp: Optional[float] = None) -> Optional[float]:
     """Previous session's India VIX close.
 
     The market-quote OHLC endpoint cannot supply it (its ``close`` is today's).
-    Daily candles come newest-first, so ``candles[1]`` is the prior session.
+    Daily candles come newest-first, and **the live session is not in the series
+    until it closes**. So:
+      * quote differs from the newest daily close → that candle *is* the
+        previous session (intraday case);
+      * quote equals the newest daily close → the quote is that completed
+        session, and the previous close is the next older candle.
     """
     enc = urllib.parse.quote(VIX_KEY, safe="")
     today = datetime.now(config.IST).strftime("%Y-%m-%d")
@@ -920,8 +1036,13 @@ async def _fetch_vix_prev_close() -> Optional[float]:
             continue
         candles = _extract_candles(payload)
         if len(candles) >= 2:
+            newest = _f(candles[0][4])
+            live_session_missing = bool(
+                ltp is not None and newest is not None and abs(ltp - newest) > 0.005
+            )
+            index = 0 if live_session_missing else 1
             try:
-                value = _f(candles[1][4])
+                value = _f(candles[index][4])
             except (IndexError, TypeError):
                 value = None
             if value:
@@ -951,15 +1072,17 @@ def build_verdicts(*, rows: list[dict], spot: float, gex: Optional[dict],
     """Return the four frozen blocks. Pure — all I/O happens in the fetchers.
 
     ``flow_bias`` is the signed session premium flow (₹ Cr, positive =
-    bullish) that already backs ``positioning.initiated``; it is threaded into
-    the control block so writer labels require flow evidence.
+    bullish) — ``positioning.flow``, the raw signed-delta figure, not the
+    class-weighted ``initiated``; it is threaded into the control block so
+    writer labels require flow evidence.
     """
     control = compute_control(rows or [], _f(spot, 0.0) or 0.0,
                               gex_regime=(gex or {}).get("regime"),
                               flow_bias=flow_bias)
     regime = compute_regime(candles=candles, baseline=baseline,
                             iv=_avg_iv(control), tape_rows=tape_rows,
-                            reference=reference, prev_close=prev_close)
+                            reference=reference, prev_close=prev_close,
+                            spot=_f(spot))
     strength = compute_strength(candles, spot=_f(spot))
     return {
         "control": control,

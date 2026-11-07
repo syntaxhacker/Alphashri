@@ -119,9 +119,9 @@ async def nifty_burst_watch_task(interval_sec: int = WATCH_INTERVAL_SEC) -> None
     while True:
         try:
             try:
-                from trading.utils import is_market_open
+                from trading.utils import is_derivatives_open
 
-                open_now = bool(is_market_open())
+                open_now = bool(is_derivatives_open())
             except Exception:
                 open_now = False
 

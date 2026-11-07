@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { MemoryRouter } from "react-router-dom";
@@ -19,14 +19,17 @@ const mockUserAuth: any = {
   isAuthenticated: true,
 };
 
+/** Every route the rail renders for an admin (20 items incl. Admin). */
+const NAV_IDS =
+  /^nav-(screener|news|backtest|experiments|paper|replay|strategy-runner|sector|agri-prices|heatmap|order-flow|patterns|reports|strategies|bots|options|index-report|us-report|settings|admin)$/;
+
 function renderNavbar(opts: {
   activePath?: string;
   collapsed?: boolean;
   auth?: any;
-  onToggleCollapse?: any;
   onMobileNavigate?: any;
 } = {}) {
-  const { activePath = "/", collapsed = false, auth = mockAdminAuth, onToggleCollapse, onMobileNavigate } = opts;
+  const { activePath = "/", collapsed = false, auth = mockAdminAuth, onMobileNavigate } = opts;
   return render(
     <ThemeProvider theme={muiTheme}>
       <MemoryRouter>
@@ -34,7 +37,6 @@ function renderNavbar(opts: {
           <NavbarNested
             activePath={activePath}
             collapsed={collapsed}
-            onToggleCollapse={onToggleCollapse}
             onMobileNavigate={onMobileNavigate}
           />
         </AuthContext.Provider>
@@ -68,27 +70,26 @@ afterEach(() => {
 
 // ── Nav list contract ──
 describe("NavbarNested nav list contract", () => {
-  it("renders all 15 nav items for admin (enforces list maintenance)", () => {
+  it("renders all 20 nav items for admin (enforces list maintenance)", () => {
     renderNavbar({ auth: mockAdminAuth, activePath: "/" });
     const items = screen.getAllByTestId(/^nav-/);
-    // 15 nav items + theme toggle etc are not counted here; filter only nav-*
-    // but NavbarNested renders exactly 15 nav-* items for admin
-    expect(items.length).toBeGreaterThanOrEqual(15);
-    // filter to known nav labels
+    expect(items).toHaveLength(20);
     const navIds = items.map((el) => el.getAttribute("data-testid")).filter(Boolean);
     expect(navIds).toContain("nav-screener");
+    expect(navIds).toContain("nav-agri-prices");
+    expect(navIds).toContain("nav-order-flow");
+    expect(navIds).toContain("nav-patterns");
     expect(navIds).toContain("nav-reports");
+    expect(navIds).toContain("nav-us-report");
     expect(navIds).toContain("nav-strategies");
     expect(navIds).toContain("nav-admin");
-    // exact count: count nav items minus auxiliary buttons (theme/sidebar)
-    const navCount = screen.getAllByTestId(/^nav-(screener|news|backtest|experiments|paper|replay|strategy-runner|sector|heatmap|reports|strategies|bots|options|nifty-report|settings|admin)$/).length;
-    expect(navCount).toBe(16);
+    // exact count: the full rail, including the Admin-only entry
+    expect(screen.getAllByTestId(NAV_IDS)).toHaveLength(20);
   });
 
-  it("renders 14 items for non-admin (hides Admin)", () => {
+  it("renders 19 items for non-admin (hides Admin)", () => {
     renderNavbar({ auth: mockUserAuth });
-    const navCount = screen.getAllByTestId(/^nav-(screener|news|backtest|experiments|paper|replay|strategy-runner|sector|heatmap|reports|strategies|bots|options|nifty-report|settings|admin)$/).length;
-    expect(navCount).toBe(15);
+    expect(screen.getAllByTestId(NAV_IDS)).toHaveLength(19);
     expect(screen.queryByTestId("nav-admin")).not.toBeInTheDocument();
   });
 
@@ -103,12 +104,16 @@ describe("NavbarNested nav list contract", () => {
       "nav-replay",
       "nav-strategy-runner",
       "nav-sector",
+      "nav-agri-prices",
       "nav-heatmap",
+      "nav-order-flow",
+      "nav-patterns",
       "nav-reports",
       "nav-strategies",
       "nav-bots",
       "nav-options",
-      "nav-nifty-report",
+      "nav-index-report",
+      "nav-us-report",
       "nav-settings",
       "nav-admin",
     ];
@@ -213,22 +218,11 @@ describe("NavbarNested collapsed state", () => {
     expect(navScreener.querySelector("svg")).toBeTruthy();
   });
 
-  it("hides sidebar collapse toggle button when collapsed", () => {
-    renderNavbar({ collapsed: true });
-    expect(screen.queryByTestId("sidebar-collapse-toggle")).not.toBeInTheDocument();
-  });
-
-  it("shows sidebar collapse toggle button when expanded", () => {
+  it("leaves the collapse control to the sidebar chrome (AppLayout)", () => {
+    // The toggle moved into AppLayout's sidebar header so it stays reachable
+    // when the rail is collapsed and there is no top app bar.
     renderNavbar({ collapsed: false });
-    expect(screen.getByTestId("sidebar-collapse-toggle")).toBeInTheDocument();
-  });
-
-  it("calls onToggleCollapse when toggle button clicked", async () => {
-    const onToggleCollapse = vi.fn();
-    renderNavbar({ collapsed: false, onToggleCollapse });
-    const user = userEvent.setup();
-    await user.click(screen.getByTestId("sidebar-collapse-toggle"));
-    expect(onToggleCollapse).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("sidebar-collapse-toggle")).not.toBeInTheDocument();
   });
 
   it("applies collapsed centering via NavbarLinksGroup (data-testid still reachable)", () => {
@@ -236,6 +230,56 @@ describe("NavbarNested collapsed state", () => {
     const items = screen.getAllByTestId(/^nav-(screener|news|backtest)$/);
     expect(items.length).toBeGreaterThan(0);
     items.forEach((el) => expect(el).toBeInTheDocument());
+  });
+});
+
+// ── Accessible names (collapsed rail is icon-only) ──
+describe("NavbarNested nav item accessible names", () => {
+  it("labels every icon-only nav item when collapsed", () => {
+    renderNavbar({ collapsed: true, auth: mockAdminAuth });
+
+    // The rail is text-free in this state — the name must come from aria-label.
+    expect(screen.queryByText("Screener")).not.toBeInTheDocument();
+
+    const items = screen.getAllByTestId(NAV_IDS);
+    expect(items).toHaveLength(20);
+    for (const item of items) {
+      const label = item.getAttribute("aria-label");
+      expect(label).toBeTruthy();
+      expect(item).toHaveAttribute("title", label as string);
+      expect(item).toHaveAccessibleName(label as string);
+    }
+    // Spot-check the a11y tree shape the audit reported.
+    expect(screen.getByRole("button", { name: "Screener" })).toBe(
+      screen.getByTestId("nav-screener"),
+    );
+    expect(screen.getByRole("button", { name: "Index Report" })).toBe(
+      screen.getByTestId("nav-index-report"),
+    );
+    expect(screen.getByRole("button", { name: "Admin" })).toBe(
+      screen.getByTestId("nav-admin"),
+    );
+  });
+
+  it("keeps aria-label on every nav item when expanded", () => {
+    renderNavbar({ collapsed: false, auth: mockAdminAuth });
+
+    const items = screen.getAllByTestId(NAV_IDS);
+    expect(items).toHaveLength(20);
+    items.forEach((item) => expect(item).toHaveAttribute("aria-label"));
+    // Visible labels still render alongside the accessible name.
+    expect(screen.getByText("Screener")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Paper Trading" })).toBe(
+      screen.getByTestId("nav-paper"),
+    );
+  });
+
+  it("still navigates on click when collapsed", async () => {
+    const onMobileNavigate = vi.fn();
+    renderNavbar({ collapsed: true, onMobileNavigate });
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("nav-index-report"));
+    expect(onMobileNavigate).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -47,6 +47,9 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Query
 
+from api.reports_api._time import now_iso as _now_iso
+from api.reports_api._time import today_str as _today_str
+from api.reports_api._dates import parse_day as _parse_day
 from api.utils import _sanitize_for_json
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
@@ -99,34 +102,6 @@ def _mem_put(store: dict, key: str, value: tuple[float, dict]) -> None:
     store[key] = value
     while len(store) > _MEM_CACHE_MAX:
         store.pop(next(iter(store)), None)
-
-
-def _now_iso() -> str:
-    try:
-        import config as _cfg
-
-        return datetime.now(_cfg.IST).isoformat()
-    except Exception:
-        return datetime.now().astimezone().isoformat()
-
-
-def _today_str() -> str:
-    try:
-        import config as _cfg
-
-        return datetime.now(_cfg.IST).strftime("%Y-%m-%d")
-    except Exception:
-        return datetime.now().astimezone().strftime("%Y-%m-%d")
-
-
-def _parse_day(value: Optional[str]) -> str:
-    text = (value or "").strip()
-    if not text:
-        return _today_str()
-    try:
-        return datetime.strptime(text[:10], "%Y-%m-%d").strftime("%Y-%m-%d")
-    except ValueError:
-        return _today_str()
 
 
 def _parse_window(

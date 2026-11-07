@@ -41,10 +41,10 @@ BOOK_MANUAL = "manual"
 BOOK_CODED = "coded"
 
 #: NSE Closing Auction Session (since 3 Aug 2026): continuous F&O-stock
-#: trading ends at 15:15 IST, the index print is frozen 15:15–15:30 (no
-#: continuous matching), and the official close is the CAS print (~15:30).
+#: trading ends at 15:15 IST, the index print is frozen 15:15–15:35 (cash CAS
+#: end; derivatives keep trading until 15:40).
 CAS_START_MIN = 15 * 60 + 15
-CAS_END_MIN = 15 * 60 + 30  # exclusive
+CAS_END_MIN = 15 * 60 + 35  # exclusive; cash CAS ends 15:35 IST
 NIFTY_INDEX_KEY = "NSE_INDEX|Nifty 50"
 
 

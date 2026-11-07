@@ -129,12 +129,33 @@ export type NiftyStrengthVerdict = "strong" | "neutral" | "weak";
  */
 export interface NiftyControlBlock {
   verdict: NiftyControlVerdict | null;
+  /** Net premium flow in ₹ crore (signed, session-cumulative). */
+  flow_bias?: number | null;
   ce_doi: number | null;
   pe_doi: number | null;
   atm_ce_iv: number | null;
   atm_pe_iv: number | null;
   skew: number | null;
   gex_regime: string | null;
+}
+
+/** Rolling CE/PE OI change over the last N minutes of the tape. */
+export interface NiftyFlowLeg {
+  from: string;
+  ce: number;
+  pe: number;
+  net: number;
+}
+
+/**
+ * `report.flow_window` — the short-window OI read beside the session-cumulative
+ * `control` block. The session label can say CALL BUYING while the last 5m is
+ * a put build; this is how the UI shows the flip instead of hiding it.
+ */
+export interface NiftyFlowWindow {
+  as_of: string;
+  "5m"?: NiftyFlowLeg;
+  "15m"?: NiftyFlowLeg;
 }
 
 /** Range-vs-trend regime block. All numeric fields null-safe. */
@@ -359,6 +380,8 @@ export interface NiftyReport {
   gex?: NiftyGex;
   /** Session-control block — absent/partial payloads render as dashes. */
   control?: NiftyControlBlock;
+  /** 5m/15m rolling CE/PE OI change — the flip read beside the session block. */
+  flow_window?: NiftyFlowWindow | null;
   /** Range-vs-trend regime block — absent/partial payloads render as dashes. */
   regime?: NiftyRegimeBlock;
   /** India VIX block — absent/partial payloads render as dashes. */
@@ -434,6 +457,10 @@ export type NiftyTapeChainTuple = [
 export interface NiftyTapeRow {
   t: string;
   spot: number;
+  /** Total CE/PE OI at this tape minute (generic underlyings use these for
+   *  the rolling 5m/15m windows; NIFTY also gets `flow_window` server-side). */
+  ce_oi?: number;
+  pe_oi?: number;
   call_doi: number;
   put_doi: number;
   net: number;
@@ -461,6 +488,9 @@ export interface NiftyTapeRow {
   /** Per-minute ATM implied vol; absent on older tapes. */
   atm_ce_iv?: number | null;
   atm_pe_iv?: number | null;
+  /** Cumulative premium volume from the session start (CE / PE). */
+  ce_vol?: number;
+  pe_vol?: number;
   /** Per-strike chain snapshot backing the heatmap / participant-flow /
    *  volume-profile visuals; absent on tapes recorded before it existed. */
   chain?: Record<string, NiftyTapeChainTuple>;
@@ -541,10 +571,30 @@ export interface NiftyBurst {
   /** Candidate catalysts within ±10 min; empty when the news store had none. */
   news?: NiftyBurstNews[];
   /** "squeeze" = wall break w/ unwinding OI (momentum); "strike" = single-strike
-   * explosion; absent = index OI burst (fade). */
-  type?: "burst" | "squeeze" | "strike" | "premium" | "coil";
+   * explosion; "wall_test"/"rejection"/"break"/"wall_break" = strike-wall events;
+   * "data_stale" = system warning that the tape stopped updating;
+   * absent = index OI burst (fade). */
+  type?:
+    | "burst"
+    | "squeeze"
+    | "strike"
+    | "premium"
+    | "coil"
+    | "wall"
+    | "wall_test"
+    | "rejection"
+    | "break"
+    | "wall_break"
+    | "data_stale";
+  /** Wall events carry the target (max pain) and the tested strike. */
+  target?: number | null;
+  strike?: number;
   /** Wall strike the squeeze broke through. */
   wall?: number;
+  /** Human headline supplied by the backend (wall/data-stale events). */
+  label?: string | null;
+  /** Longer explanation supplied by the backend (wall/data-stale events). */
+  detail?: string | null;
 }
 
 export interface NiftyTape {

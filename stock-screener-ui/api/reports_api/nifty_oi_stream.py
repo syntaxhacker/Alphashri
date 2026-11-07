@@ -270,7 +270,7 @@ async def nifty_oi_stream_task() -> None:
         logger.info("nifty OI stream: disabled (set NIFTY_OI_STREAM=1)")
         return
 
-    from trading.utils import is_market_open
+    from trading.utils import is_derivatives_open
 
     await asyncio.sleep(START_DELAY_SEC)
     rings = RollingOi()
@@ -279,7 +279,7 @@ async def nifty_oi_stream_task() -> None:
 
     while True:
         try:
-            if not is_market_open():
+            if not is_derivatives_open():
                 await asyncio.sleep(60)
                 continue
 

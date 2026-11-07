@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MarketAlert } from "@/components/notifications/MarketAlertCard";
 import type { NiftyStrike } from "@/types/niftyReport";
-import { burstToAlert, deriveOiSignal, entryFreshness } from "./niftyOiBursts";
+import { burstToAlert, deriveOiSignal, dropConflictingSides, entryFreshness, isNonTradeAlertType, resolveOiDirection } from "./niftyOiBursts";
+import { flashAlertTitle, playAlertSound, unlockAlertAudio } from "./alertSound";
 import type { OiBurst, OiSignal } from "./niftyOiBursts";
 
 /**
@@ -26,6 +27,17 @@ export const OI_ALERT_TOAST_MAX = 4;
 /** Session trail length kept on the page (a full Nifty session can
  * produce ~45 bursts on expiry day). */
 export const OI_ALERT_TRAIL_MAX = 60;
+/** The same setup (side + flow + strike) is not re-announced inside this
+ * window. 2026-10-23 produced 60 bursts and 10 "critical" — without this the
+ * banner/sound repeat the same idea every few minutes. */
+export const OI_ALERT_COOLDOWN_MS = 10 * 60_000;
+/** Minimum gap between two audible chirps, so a cluster is one cue. */
+export const OI_SOUND_GAP_MS = 15_000;
+/** Cap on the "already seen" burst ids kept for one session. A session
+ *  produces ~60 bursts, so this only bites on a pathological feed — and it
+ *  stops the set from pinning every burst id (and its strings) for the whole
+ *  life of the tab. */
+export const OI_ALERT_SEEN_MAX = 600;
 
 export interface NiftyOiAlerts {
   /** Every burst seen this session, newest first (persistent trail). */
@@ -63,6 +75,10 @@ export function useNiftyOiAlerts(
   const seenRef = useRef<Set<string>>(new Set());
   const primedRef = useRef(false);
   const sessionRef = useRef(sessionKey);
+  /** side:flow:strike → last announced epoch ms (cooldown). */
+  const announcedRef = useRef<Map<string, number>>(new Map());
+  /** Last audible cue, so a cluster chirps once. */
+  const lastSoundRef = useRef(0);
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const bannerTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
@@ -103,12 +119,28 @@ export function useNiftyOiAlerts(
     );
   }, []);
 
-  /** Burst → renderable alert, preferring the backend's signal. */
+  /** Burst → renderable alert. The backend plan wins only when it agrees
+   * with who traded.
+   *
+   * The backend derives its `signal.leg` from the OI move alone (call unwind →
+   * CE), while the burst also carries `flow`/`bearish` from `classify_flow`
+   * (call unwind + premium down = **long liquidation** → PE). When those
+   * disagree the banner used to read "LONGS LIQUIDATING → BUY CE" —
+   * 2026-10-23 11:19, call unwind −2.55M, premChg −4.45, bearish true, signal
+   * CE. The flow reading is the reason the alert fired, so it wins; the plan
+   * is re-derived from the live chain instead of trusting the contradiction.
+   */
   const toAlert = useCallback(
     (b: OiBurst): MarketAlert => {
-      const signal: OiSignal | null =
-        b.signal ??
-        deriveOiSignal(b, chain, spot, { trend: b.trend ?? null, trend5m: b.trend5m ?? null });
+      // Wall geometry + stale-data warnings carry no trade plan: map them
+      // directly so no signal is derived from a zero-delta event.
+      if (isNonTradeAlertType(b.type)) return burstToAlert(b);
+      const flowDir = resolveOiDirection(b);
+      const backendAgrees =
+        b.signal != null && (flowDir == null || b.signal.leg === flowDir.leg);
+      const signal: OiSignal | null = backendAgrees
+        ? (b.signal as OiSignal)
+        : deriveOiSignal(b, chain, spot, { trend: b.trend ?? null, trend5m: b.trend5m ?? null });
       // A signal priced off a stale chain is void — mark it for re-pricing.
       const freshness = signal ? entryFreshness(signal, chain) : null;
       return burstToAlert(b, signal, { freshness });
@@ -116,12 +148,25 @@ export function useNiftyOiAlerts(
     [chain, spot],
   );
 
+  /** Remember burst ids without letting the set grow for the whole tab life.
+   *  A Set preserves insertion order, so the hard cap drops the oldest ids. */
+  const markSeen = useCallback((ids: string[]) => {
+    for (const id of ids) seenRef.current.add(id);
+    while (seenRef.current.size > OI_ALERT_SEEN_MAX) {
+      const oldest = seenRef.current.values().next().value;
+      if (oldest === undefined) break;
+      seenRef.current.delete(oldest);
+    }
+  }, []);
+
   // Context switch → new session: forget what we've seen and start clean.
   useEffect(() => {
     if (sessionRef.current === sessionKey) return;
     sessionRef.current = sessionKey;
     seenRef.current = new Set();
     primedRef.current = false;
+    announcedRef.current.clear();
+    lastSoundRef.current = 0;
     for (const t of timersRef.current.values()) clearTimeout(t);
     timersRef.current.clear();
     for (const t of bannerTimersRef.current.values()) clearTimeout(t);
@@ -140,18 +185,29 @@ export function useNiftyOiAlerts(
     if (!primedRef.current) {
       // Everything already on screen is history, not news. Arm even when the
       // list is empty.
-      for (const b of bursts) seenRef.current.add(b.id);
+      markSeen(bursts.map((b) => b.id));
       primedRef.current = true;
       if (seedTrail) {
         // Closed-market review: surface the day's bursts in the trail (no toasts).
-        const seeded = bursts
+        // Opposite-side plans in the same minute are a pin, not two trades.
+        const seeded = dropConflictingSides(bursts)
           .slice(-OI_ALERT_TRAIL_MAX)
           .map(toAlert)
           .reverse();
         setTrail(seeded);
-        // A critical already on the tape must be impossible to miss: seed the
-        // sticky banners too (they still auto-dismiss from now).
-        for (const a of seeded.filter((x) => x.severity === "critical" && x.actionable !== false).reverse()) {
+        // A critical already on the tape must be impossible to miss — but only
+        // if it is still FRESH. Seeding every critical on load made a 09:58
+        // unwind reappear as a live banner at 10:45 (entry price long gone).
+        // Only a LIVE feed gets the freshness rule. A replay/EOD session is
+        // historical by definition (and panel fixtures use fixed dates), so it
+        // still seeds every critical; a live feed whose newest burst is >12h
+        // old is not live either.
+        const newestTs = seeded.reduce((m, a) => Math.max(m, a.ts), 0);
+        const liveFeed = enabled && newestTs > 0 && Date.now() - newestTs < 12 * 3_600_000;
+        const bannerCutoff = liveFeed ? Date.now() - OI_CRITICAL_BANNER_TTL_MS : 0;
+        for (const a of seeded
+          .filter((x) => x.severity === "critical" && x.actionable !== false && x.ts >= bannerCutoff)
+          .reverse()) {
           scheduleBanner(a);
         }
       }
@@ -163,9 +219,35 @@ export function useNiftyOiAlerts(
 
     const fresh = bursts.filter((b) => !seenRef.current.has(b.id));
     if (fresh.length === 0) return;
-    for (const b of fresh) seenRef.current.add(b.id);
+    markSeen(fresh.map((b) => b.id));
 
-    const mapped = fresh
+    // Two-sided writers in the same minute are a pin: drop both plans before
+    // the cooldown/toast stage. Seen-marking above still prevents a re-announce.
+    const usableFresh = dropConflictingSides(fresh);
+    if (usableFresh.length === 0) return;
+
+    // Cooldown: a new burst id with the same side + flow + strike is the same
+    // idea, not new information. Keep the first, drop repeats for 10 minutes.
+    const announced = announcedRef.current;
+    const now = Date.now();
+    const deduped = usableFresh.filter((b) => {
+      // The event TYPE is part of the identity: a wall test at 11:54 and the
+      // rejection of the same strike at 12:10 are two events, not a repeat.
+      const key = `${b.type ?? "burst"}:${b.side}:${b.flow ?? ""}:${b.strike ?? ""}`;
+      const last = announced.get(key) ?? 0;
+      if (now - last < OI_ALERT_COOLDOWN_MS) return false;
+      announced.set(key, now);
+      return true;
+    });
+    if (announced.size > 200) {
+      // Drop stale keys so the map cannot grow for the whole session.
+      for (const [key, at] of announced) {
+        if (now - at > OI_ALERT_COOLDOWN_MS) announced.delete(key);
+      }
+    }
+    if (deduped.length === 0) return;
+
+    const mapped = deduped
       .slice(-OI_ALERT_TOAST_MAX)
       .map(toAlert)
       .reverse();
@@ -180,7 +262,35 @@ export function useNiftyOiAlerts(
     for (const a of [...mapped].reverse()) {
       if (a.severity === "critical" && a.actionable !== false) scheduleBanner(a);
     }
-  }, [bursts, chain, spot, ready, enabled, seedTrail, sessionKey, toAlert, scheduleToast, scheduleBanner]);
+
+    // Audible + tab-title cue. A trader looking at the chart (or another tab)
+    // will not see the toast rail; the critical chirp is the only channel that
+    // reaches them. Silent on suppressed plans (actionable === false).
+    const critical = mapped.find((a) => a.severity === "critical" && a.actionable !== false);
+    if (critical) {
+      if (now - lastSoundRef.current > OI_SOUND_GAP_MS) {
+        playAlertSound("critical");
+        lastSoundRef.current = now;
+      }
+      flashAlertTitle(critical.title);
+    } else if (mapped.length > 0) {
+      if (now - lastSoundRef.current > OI_SOUND_GAP_MS) {
+        playAlertSound(mapped[0].severity === "alert" ? "alert" : "watch");
+        lastSoundRef.current = now;
+      }
+    }
+  }, [bursts, chain, spot, ready, enabled, seedTrail, sessionKey, toAlert, scheduleToast, scheduleBanner, markSeen]);
+
+  // Browsers block audio until a gesture: unlock the context on the first one.
+  useEffect(() => {
+    const unlock = () => unlockAlertAudio();
+    window.addEventListener("pointerdown", unlock, { once: true });
+    window.addEventListener("keydown", unlock, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+  }, []);
 
   useEffect(
     () => () => {

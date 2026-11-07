@@ -2,6 +2,7 @@ import { Text, useTheme, Skeleton } from "@/ui";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import { useEffect, useState, useMemo } from "react";
+import { API_BASE } from "@/api/config";
 
 interface HistoryPoint {
   time: string;
@@ -20,7 +21,6 @@ export function LiveSpotChart({ underlying }: { underlying: string }) {
         return;
       }
       try {
-        const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
         const res = await fetch(`${API_BASE}/api/options/spot-history/${underlying}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();

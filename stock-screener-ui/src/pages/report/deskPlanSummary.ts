@@ -112,6 +112,19 @@ function fmtPlanLevel(value: unknown): string | null {
   });
 }
 
+/**
+ * Headline cut / target are whole index points, the same unit as every other
+ * level on the page (spot quote, max pain, walls). The stop is derived
+ * (`trigger ± buffer`) and the projected target carries a rounded fraction, so
+ * without this the headline read "cut 22,424.98 · target 22,129.53" while the
+ * rest of the desk quoted integers. Full precision stays in the reasons block.
+ */
+function fmtPlanPoints(value: unknown): string | null {
+  const n = finite(value);
+  if (n === null) return null;
+  return n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+}
+
 function normalizeBias(value: unknown): PlanBias {
   return value === "bullish" || value === "bearish" || value === "neutral"
     ? value
@@ -246,8 +259,8 @@ export function summarizeDeskPlan(input: PlanInput): DeskPlanSummary {
     spot,
     verb: isBear ? "sell rallies" : "buy dips",
     trigger: trigger === null ? null : fmtPlanLevel(trigger),
-    stop: fmtPlanLevel(doBlock?.stop),
-    target: fmtPlanLevel(doBlock?.target),
+    stop: fmtPlanPoints(doBlock?.stop),
+    target: fmtPlanPoints(doBlock?.target),
     weak: weakRR,
   });
 

@@ -9,22 +9,19 @@ import {
   MenuDropdown,
   MenuItem,
   MenuTarget,
-  Paper,
   SegmentedControl,
   Skeleton,
   Text,
   TextInput,
   ToolbarRow,
 } from "@/ui";
-import { BORDER, SURFACE } from "@/ui/palette";
-import {
-  fetchScreenerDashboard,
-} from "../../api/screenerDashboard";
+import { fetchScreenerDashboard } from "../../api/screenerDashboard";
 import type {
   ScreenerDashboardPanel,
   ScreenerDashboardResponse,
   ScreenerDashboardRow,
 } from "../../types/screenerDashboard";
+import { CompactPanel } from "../common/compact";
 import {
   formatCurrency,
   formatNumber,
@@ -34,6 +31,7 @@ import {
 } from "../../utils/ui-helpers";
 import { Sparkline } from "./Sparkline";
 import { SymbolAvatar } from "./SymbolAvatar";
+import { symbolRowCursor, symbolRowProps } from "../common/symbolRowProps";
 
 export interface DashboardViewProps {
   universe?: string;
@@ -296,65 +294,55 @@ function DashboardCard({
   const canShowMore = activePanel.qualify > shown.length || expanded;
 
   return (
-    <Paper
-      elevation={0}
-      data-testid={`dashboard-card-${cardKey}`}
-      sx={{
-        minWidth: 0,
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        border: 1,
-        borderColor: BORDER,
-        borderRadius: 2,
-        bgcolor: SURFACE,
-      }}
-    >
-      <Box sx={{ px: 1, pt: 1 }}>
-        <ToolbarRow gap={4} wrap={false}>
-          <Text
-            size="xs"
-            fw={600}
-            truncate
-            span
-            title={group.title}
-            data-testid={`dashboard-card-title-${cardKey}`}
-            sx={{ flex: 1, minWidth: 0 }}
-          >
-            {group.title}
-          </Text>
-          <Badge size="xs" data-testid={`dashboard-card-count-${cardKey}`}>
-            {shown.length}
-          </Badge>
-          <Menu closeOnItemClick data-testid={`dashboard-sort-menu-${cardKey}`}>
-            <MenuTarget>
-              <ActionIcon
-                size="xs"
-                variant="subtle"
-                data-testid={`dashboard-sort-${cardKey}`}
-                aria-label={`Sort ${group.title}`}
-              >
-                <Text size="xs" span fw={700}>
-                  …
-                </Text>
-              </ActionIcon>
-            </MenuTarget>
-            <MenuDropdown>
-              {SORT_OPTIONS.map((opt) => (
-                <MenuItem
-                  key={opt.value}
-                  data-testid={`dashboard-sort-${cardKey}-${opt.value}`}
-                  onClick={() => setSort(opt.value)}
+    <CompactPanel
+      testId={`dashboard-card-${cardKey}`}
+      padded={false}
+      flush
+      style={{ minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}
+      title={
+        <Box sx={{ width: "100%", display: "flex", flexDirection: "column", gap: 0.25, py: 0.25 }}>
+          <ToolbarRow gap={4} wrap={false}>
+            <Text
+              size="xs"
+              fw={600}
+              truncate
+              span
+              title={group.title}
+              data-testid={`dashboard-card-title-${cardKey}`}
+              sx={{ flex: 1, minWidth: 0 }}
+            >
+              {group.title}
+            </Text>
+            <Badge size="xs" data-testid={`dashboard-card-count-${cardKey}`}>
+              {shown.length}
+            </Badge>
+            <Menu closeOnItemClick data-testid={`dashboard-sort-menu-${cardKey}`}>
+              <MenuTarget>
+                <ActionIcon
+                  size="xs"
+                  variant="subtle"
+                  data-testid={`dashboard-sort-${cardKey}`}
+                  aria-label={`Sort ${group.title}`}
                 >
-                  {sort === opt.value ? `✓ ${opt.label}` : opt.label}
-                </MenuItem>
-              ))}
-            </MenuDropdown>
-          </Menu>
-        </ToolbarRow>
-        {isMerged ? (
-          <Box sx={{ py: 0.5 }}>
+                  <Text size="xs" span fw={700}>
+                    …
+                  </Text>
+                </ActionIcon>
+              </MenuTarget>
+              <MenuDropdown>
+                {SORT_OPTIONS.map((opt) => (
+                  <MenuItem
+                    key={opt.value}
+                    data-testid={`dashboard-sort-${cardKey}-${opt.value}`}
+                    onClick={() => setSort(opt.value)}
+                  >
+                    {sort === opt.value ? `✓ ${opt.label}` : opt.label}
+                  </MenuItem>
+                ))}
+              </MenuDropdown>
+            </Menu>
+          </ToolbarRow>
+          {isMerged ? (
             <SegmentedControl
               size="xs"
               value={activePanel.id}
@@ -377,14 +365,15 @@ function DashboardCard({
               }))}
               data-testid={`dashboard-toggle-${cardKey}`}
             />
-          </Box>
-        ) : null}
-        {activePanel.metric_label ? (
-          <Text size="xs" c="dimmed" span truncate title={activePanel.metric_label}>
-            {activePanel.metric_label}
-          </Text>
-        ) : null}
-      </Box>
+          ) : null}
+          {activePanel.metric_label ? (
+            <Text size="xs" c="dimmed" span truncate title={activePanel.metric_label}>
+              {activePanel.metric_label}
+            </Text>
+          ) : null}
+        </Box>
+      }
+    >
       {shown.length === 0 ? (
         <Box sx={{ px: 1, py: 1 }} data-testid={`dashboard-card-empty-${cardKey}`}>
           <Text size="xs" c="dimmed">
@@ -400,39 +389,27 @@ function DashboardCard({
                 <Box
                   data-testid={`dashboard-row-${activePanel.id}-${row.symbol}`}
                   data-symbol={row.symbol}
-                  role={onOpenSymbol ? "button" : undefined}
-                  tabIndex={onOpenSymbol ? 0 : undefined}
-                  onClick={onOpenSymbol ? () => onOpenSymbol(row.symbol) : undefined}
-                  onKeyDown={
-                    onOpenSymbol
-                      ? (e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            onOpenSymbol(row.symbol);
-                          }
-                        }
-                      : undefined
-                  }
+                  {...symbolRowProps(onOpenSymbol, row.symbol)}
                   sx={{
                     display: "flex",
                     alignItems: "center",
                     gap: 1,
                     minWidth: 0,
-                    py: 0.75,
+                    py: 0.25,
                     borderBottom: isOpen || idx < shown.length - 1 ? 1 : 0,
                     borderColor: "divider",
-                    cursor: onOpenSymbol ? "pointer" : "default",
+                    cursor: symbolRowCursor(onOpenSymbol),
                     fontVariantNumeric: "tabular-nums",
                     "&:hover": onOpenSymbol ? { bgcolor: "action.hover" } : {},
                   }}
                 >
                   <SymbolAvatar symbol={row.symbol} name={row.name} logo={row.logo} size={20} />
                   <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 0 }}>
-                    <Text size="xs" fw={700} truncate span title={row.symbol}>
+                    <Text size="xs" fw={700} truncate span title={row.symbol} lh={1.1}>
                       {row.symbol}
                     </Text>
                     {row.sub_value || row.sub_label ? (
-                      <Text size="xs" c="dimmed" truncate span title={row.sub_label}>
+                      <Text size="xs" c="dimmed" truncate span title={row.sub_label} lh={1.1}>
                         {row.sub_value || row.sub_label}
                       </Text>
                     ) : null}
@@ -445,7 +422,7 @@ function DashboardCard({
                       flexShrink: 0,
                     }}
                   >
-                    <Text size="xs" ta="right" span sx={{ fontVariantNumeric: "tabular-nums" }}>
+                    <Text size="xs" ta="right" span lh={1.1} sx={{ fontVariantNumeric: "tabular-nums" }}>
                       {formatCurrency(row.close, 2)}
                     </Text>
                     <Text
@@ -453,6 +430,7 @@ function DashboardCard({
                       c={getPnLTextColor(row.change)}
                       ta="right"
                       span
+                      lh={1.1}
                       sx={{ fontVariantNumeric: "tabular-nums" }}
                     >
                       {formatPercentage(row.change)}
@@ -462,6 +440,7 @@ function DashboardCard({
                   <ActionIcon
                     size="xs"
                     variant="subtle"
+                    style={{ width: 16, height: 16, minHeight: 16, padding: 0 }}
                     data-testid={`dashboard-row-expand-${activePanel.id}-${row.symbol}`}
                     aria-label={isOpen ? `Hide details for ${row.symbol}` : `Show details for ${row.symbol}`}
                     aria-expanded={isOpen}
@@ -508,7 +487,7 @@ function DashboardCard({
           </Button>
         </ToolbarRow>
       </Box>
-    </Paper>
+    </CompactPanel>
   );
 }
 

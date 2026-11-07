@@ -238,7 +238,7 @@ class TestRecorder:
 
         monkeypatch.setattr(nifty, "TAPE_TICK_TIMEOUT_SEC", 1)
         with patch.object(nifty, "record_nifty_tape_tick", side_effect=slow_tick), \
-                patch("trading.utils.is_market_open", return_value=True), \
+                patch("trading.utils.is_derivatives_open", return_value=True), \
                 patch.object(asyncio, "sleep", side_effect=stop_sleep):
             with pytest.raises(RuntimeError, match="stop recorder test"):
                 await nifty.start_nifty_tape_task(poll_sec=1)

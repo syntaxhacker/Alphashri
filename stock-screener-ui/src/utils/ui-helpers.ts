@@ -6,6 +6,7 @@ import {
   MARKER_EOD,
   EXIT_DEFAULT,
 } from "../config/colors";
+import { formatChartTimeLabel } from "@/utils/chart/time";
 
 export function formatCurrency(amount: number | undefined | null, precision: number = 0): string {
   if (amount === undefined || amount === null || isNaN(amount)) return "0";
@@ -55,7 +56,11 @@ export function formatPercentage(
   return `${sign}${value.toFixed(precision)}%`;
 }
 
-// ============================================
+/** Grouped integer/float formatting in the app's Indian locale. */
+export const formatNumberIN = (value: number): string => value.toLocaleString("en-IN");
+export const IN_LOCALE = "en-IN";
+
+// ===========================================
 // Date/Time Formatting
 // ============================================
 
@@ -390,6 +395,19 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+/**
+ * Coarse relative age from a millisecond delta: `just now`, `12 min ago`,
+ * `3 h ago`, `2 d ago`. The spaced style used by scan stats/progress panels.
+ */
+export function formatAgeLong(ms: number): string {
+  const mins = Math.floor(ms / 60_000);
+  if (mins <= 0) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} h ago`;
+  return `${Math.floor(hours / 24)} d ago`;
+}
+
 export function formatTimeAgo(isoString: string): string {
   try {
     const date = new Date(isoString);
@@ -420,7 +438,5 @@ export function getStrategyTypeFromName(name: string | undefined | null): string
 }
 
 export function parseTimeToHHMM(isoTime: string): string {
-  if (isoTime.includes("T")) return isoTime.split("T")[1].substring(0, 5);
-  if (isoTime.includes(" ")) return isoTime.split(" ")[1].substring(0, 5);
-  return isoTime.substring(0, 5);
+  return formatChartTimeLabel(isoTime);
 }

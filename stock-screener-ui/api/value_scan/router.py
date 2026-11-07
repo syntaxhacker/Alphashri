@@ -291,9 +291,17 @@ def scan(
     if limit is None or not 1 <= limit <= 500:
         raise HTTPException(status_code=400,
                             detail="limit must be between 1 and 500")
-    if sort not in ALLOWED_SORTS:
+    # Accept the legacy UI vocabulary (`score_desc`, `pe_asc`, …) and validate
+    # the base key: the scorer owns the direction, so a suffix must not 400.
+    base_sort = sort
+    for suffix in ("_desc", "_asc"):
+        if base_sort.endswith(suffix):
+            base_sort = base_sort[: -len(suffix)]
+            break
+    if base_sort not in ALLOWED_SORTS:
         raise HTTPException(status_code=400,
                             detail=f"unknown sort '{sort}'")
+    sort = base_sort
 
     apply_filters, describe_filters, presets = _load_filter_engine()
     warnings: list[str] = []

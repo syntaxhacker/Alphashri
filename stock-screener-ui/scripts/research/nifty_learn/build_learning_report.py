@@ -644,7 +644,7 @@ of VWAP and usually keeps it → range builds fast till lunch → <b>~1 day in 5
 midday (watch the VWAP cross) → afternoon drifts inside the morning range while option premium
 melts → the 13:30 leader limps over the line at 15:30. Trade the morning creation, manage the
 afternoon melt, never buy fresh premium after lunch.</p>
-<h2>⚡ Read the tape in 60 seconds (the /report/nifty page)</h2>
+<h2>⚡ Read the tape in 60 seconds (the /report/index page)</h2>
 <h2>9. Can the 50 stocks predict the index? (breadth study, 31 sessions)</h2>
 <p class="dim">Full interactive report: <code>reports/NIFTY_BREADTH_EDGE/NIFTY_BREADTH_EDGE_report.html</code>
 (weights, pooled skill, every v2 call, scatter + equity charts). Summary below.</p>
@@ -665,7 +665,7 @@ rule picked in-sample, only 36% of calls clear a 0.30% cost filter. Use as the d
 entries still need RSI snap / ORB / VWAP-cross triggers + the 12:30 exit. 20 sessions of pre-registered
 paper-trading before sizing. Failure modes: narrow heavyweight rallies (Oct-13: TCS +3.4% vs flat median),
 expiry days, post-crash-day breadth inflation.</div>
-<p>Open <b>Nifty Report</b> in the navbar → Live mode. Read top to bottom, 10 seconds per block:</p>
+<p>Open <b>Index Report</b> in the navbar → Live mode. Read top to bottom, 10 seconds per block:</p>
 <p><b>0:00–0:10 — Stat strip.</b> <i>Spot</i>, <i>PCR (OI)</i>, <i>PCR (Vol)</i>, <i>Max Pain</i>.
 The page prints its own verdict: PCR-OI above 1.0 = put writers in control (bullish floor), below
 0.7 = call writers in control (bearish cap), between = neutral. Spot vs Max Pain within ±0.05% =

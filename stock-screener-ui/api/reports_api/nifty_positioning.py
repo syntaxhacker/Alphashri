@@ -17,20 +17,34 @@ Conventions (kept explicit so the numbers stay auditable):
   ``initiated`` agree in sign on only ~6% of a session (measured on the
   2026-10-21 replay log: 22 of 375 frames), so comparing them is meaningless.
   Recomputed with the class signs they agree on 99.7% of frames.
-* ``initiated`` — ``ΔOI × |delta|`` signed by the **class** each leg was read as
-  (long buildup / short cover = bullish, short buildup / long unwind =
-  bearish). This is the directional "initiated" flow; positive = bullish.
-  ``|ΔOI|`` is used because the class already encodes direction — an unwind has
-  negative ΔOI but its sign is carried by the class, not the delta.
-  Per-side convention, mirrored from the frontend's
-  ``getUnusualSentimentTone`` (``NiftyUnusualVolume.tsx``):
+* ``initiated`` — ``ΔOI × |delta|`` signed by the **class** each leg was read as.
+  This is the directional "initiated" flow; positive = bullish. ``|ΔOI|`` is
+  used because the class already encodes direction — an unwind has negative
+  ΔOI but its sign is carried by the class, not the delta. Per-side
+  convention, derived from the change in delta exposure each class represents
+  (a long call is +delta, a long put is −delta):
 
-  * calls — ``LB``/``SC`` bullish, ``SB``/``LU`` bearish
-  * puts — ``SB``/``SC`` bullish, ``LB``/``LU`` bearish
+  * calls — ``LB`` (buyers open) / ``SC`` (shorts buy back) bullish,
+    ``SB`` (writers open) / ``LU`` (buyers sell out) bearish
+  * puts — ``SB`` (writers open) / ``LU`` (buyers sell out) bullish,
+    ``LB`` (buyers open) / ``SC`` (shorts buy back) bearish
 
-  Note that the put side is intentionally the *house* convention (put short
-  covering read as bullish, put long unwinding as bearish); changing it here
-  without changing the badge colours would make the panel contradict itself.
+  The put side previously read ``SC`` bullish / ``LU`` bearish (a
+  contract-tone convention copied from ``getUnusualSentimentTone``). That
+  credited put short covering — writers buying puts back, i.e. long-delta
+  support leaving — as bullish, and put long unwinding — buyers selling puts,
+  i.e. short-delta pressure leaving — as bearish. Put unwinds are what a
+  genuine down day produces, so that swap let a falling tape print near-100%
+  bullish. It is now fixed on the put side only; the six other cells are
+  unchanged.
+
+  Note the class read is anchored to the **prior close**. A session that is
+  up day-over-day but falls intraday still reads bullish on both sides (calls
+  bought, puts written): the 2026-11-02 11:52 frame printed 171,106 Cr bull vs
+  387 Cr bear while the tape broke 23,300, because the day was up ≈1% versus
+  the prior close. That is not a mapping error — it is the raw signed
+  ``flow`` (``−84,202`` Cr) vetoing the class read in
+  :func:`positioning_verdict`.
 * ``bull_cr`` / ``bear_cr`` — gross magnitude of the bullish / bearish
   initiated legs; ``split_pct`` is the dominant side's share. These are gross
   legs and intentionally carry no net direction. Both are **positive
@@ -87,17 +101,21 @@ __all__ = [
 #: is noise on a 200 Cr book — so the threshold scales with the book. On the
 #: 2026-10-21 chain (gross ≈ 58,000 Cr) the effective floor is ≈ 2,900 Cr.
 VERDICT_EPS_FRACTION = 0.05
-#: Absolute floor (Cr). The effective threshold is
-#: ``max(VERDICT_EPS_FRACTION * gross_cr, VERDICT_EPS_CR)`` — the relative
-#: share carries the verdict on a real chain and this floor only stops a
-#: rounding-level number (or a tiny book) from reading as a direction.
-#: 50 Cr is the level below which a number carries no information: it is
-#: 0.09 % of a 58,000 Cr book and a quarter of a 200 Cr one.
-VERDICT_EPS_CR = 50.0
+#: Absolute floor (Cr) for any directional verdict/bias. The effective threshold
+#: in ``positioning_verdict`` is ``max(VERDICT_EPS_FRACTION * gross_cr, FLOW_EPS_CR)``.
+#: In ``control_verdict`` (nifty_verdicts) it is used directly as the neutrality
+#: band around the signed premium flow. 50 Cr is the level below which a number
+#: carries no information: it is 0.09 % of a 58,000 Cr book and a quarter of a
+#: 200 Cr one.
+FLOW_EPS_CR = 50.0
+
+# Backwards-compatible alias used by this module.
+VERDICT_EPS_CR = FLOW_EPS_CR
 
 
 def positioning_verdict(initiated_cr: float, flow_cr: float = 0.0,
-                        gross_cr: float = 0.0) -> str:
+                        gross_cr: float = 0.0,
+                        signed_flow_cr: Optional[float] = None) -> str:
     """Directional verdict from the **class-weighted** aggregates only.
 
     ``initiated_cr`` is today's class-weighted initiation and ``flow_cr`` the
@@ -108,13 +126,15 @@ def positioning_verdict(initiated_cr: float, flow_cr: float = 0.0,
     (5.9%), so the verdict read "balanced" almost all day. Recomputed with the
     class signs the two agree on 99.7% of frames.
 
+    ``signed_flow_cr`` is the raw signed-delta flow (calls +, puts −). It acts
+    as a one-way veto: the class-weighted read may not claim a direction that
+    the raw book contradicts. On 2026-11-02 the sentiment classifier produced
+    bull 164,851 Cr vs bear 391 Cr (99.8% bullish) while the raw flow was
+    −51,499 Cr and spot broke max pain — without this veto the panel printed
+    "bullish" through the whole down-move.
+
     The signed-delta ``state`` is intentionally NOT accepted here: it is a
     different convention and cannot confirm a class-weighted number.
-
-    A verdict needs a non-noise ``initiated_cr`` (relative floor
-    :data:`VERDICT_EPS_FRACTION` of ``gross_cr``, absolute floor
-    :data:`VERDICT_EPS_CR`) AND a ``flow_cr`` that confirms the same
-    direction.
     """
     floor = VERDICT_EPS_CR
     if gross_cr > 0:
@@ -123,6 +143,8 @@ def positioning_verdict(initiated_cr: float, flow_cr: float = 0.0,
         return "balanced"
     direction = 1 if initiated_cr > 0 else -1
     if flow_cr * direction <= 0:
+        return "balanced"
+    if signed_flow_cr is not None and signed_flow_cr * direction <= 0:
         return "balanced"
     return "bullish" if direction > 0 else "bearish"
 
@@ -246,7 +268,7 @@ def compute_positioning(rows: list[dict], spot: float,
     total = bull + bear
     split_pct = round(100.0 * max(bull, bear) / total, 1) if total > 0 else 0.0
     return {
-        "verdict": positioning_verdict(initiated, flow_class, total),
+        "verdict": positioning_verdict(initiated, flow_class, total, signed_flow_cr=flow),
         "state": round(state, 2),
         "flow": round(flow, 2),
         "flow_class": round(flow_class, 2),

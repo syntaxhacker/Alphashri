@@ -1,3 +1,4 @@
+import { formatNumberIN } from "@/utils/ui-helpers";
 import { useCallback, useMemo, useState } from "react";
 import type { KeyboardEvent } from "react";
 import Box from "@mui/material/Box";
@@ -90,7 +91,7 @@ function Field({
 
 function strikeText(value: number | null | undefined): string {
   const n = finite(value);
-  return n === null ? "—" : n.toLocaleString("en-IN");
+  return n === null ? "—" : formatNumberIN(n);
 }
 
 /**

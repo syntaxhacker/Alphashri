@@ -107,6 +107,136 @@ describe("TradingViewChart redraw loop", () => {
   });
 });
 
+describe("mark-line overlay churn", () => {
+  const levels = () => [
+    {
+      yAxis: 25700,
+      includeInScale: true,
+      lineStyle: { color: "#16a34a", type: "solid" as const, width: 1 },
+      label: { position: "insideEndTop", formatter: "PW 25700" },
+    },
+    {
+      yAxis: 25730,
+      includeInScale: true,
+      lineStyle: { color: "#dc2626", type: "dashed" as const, width: 1 },
+      label: { position: "insideEndTop", formatter: "CW 25730" },
+    },
+  ];
+
+  test("identical overlay content across a poll re-render does not rebuild the price lines", () => {
+    const start = lwMocks.series.length;
+    const { rerender } = render(
+      <TradingViewChart candles={CANDLES} fitMarkLines markLines={levels()} />,
+    );
+    const candle = lwMocks.series[start];
+    expect(candle.createPriceLine).toHaveBeenCalledTimes(2);
+
+    // A poll hands over brand-new arrays with the same content: no rebuild.
+    rerender(
+      <TradingViewChart
+        candles={[...CANDLES]}
+        fitMarkLines
+        markLines={levels()}
+      />,
+    );
+    expect(candle.createPriceLine).toHaveBeenCalledTimes(2);
+    expect(candle.removePriceLine).not.toHaveBeenCalled();
+
+    // A level actually moving does rebuild the set.
+    const moved = levels();
+    moved[0] = { ...moved[0], yAxis: 25600 };
+    rerender(<TradingViewChart candles={[...CANDLES]} fitMarkLines markLines={moved} />);
+    expect(candle.removePriceLine).toHaveBeenCalledTimes(2);
+    expect(candle.createPriceLine).toHaveBeenCalledTimes(4);
+  });
+
+  test("identical EMA overlays reuse their line series instead of recreating them", () => {
+    const ema = () => [
+      { label: "EMA9", color: "#f59e0b", data: [1, 2] },
+      { label: "EMA20", color: "#3b82f6", data: [1, 2] },
+    ];
+    const start = lwMocks.series.length;
+    const { rerender } = render(<TradingViewChart candles={CANDLES} emaData={ema()} />);
+    // candle + volume + EMA9 + EMA20
+    expect(lwMocks.series.length - start).toBe(4);
+
+    rerender(<TradingViewChart candles={[...CANDLES]} emaData={ema()} />);
+    // Still four: the two line series were updated in place, not re-added.
+    expect(lwMocks.series.length - start).toBe(4);
+  });
+
+  test("identical EMA data with new candles identity does not re-push setData; changed last value does", () => {
+    const ema = () => [
+      { label: "EMA9", color: "#f59e0b", data: [25705, 25720] },
+      { label: "EMA20", color: "#3b82f6", data: [25700, 25715] },
+    ];
+    const start = lwMocks.series.length;
+    const { rerender } = render(<TradingViewChart candles={CANDLES} emaData={ema()} />);
+    const ema9 = lwMocks.series[start + 2];
+    const ema20 = lwMocks.series[start + 3];
+    expect(ema9.setData).toHaveBeenCalledTimes(1);
+    expect(ema20.setData).toHaveBeenCalledTimes(1);
+
+    // New array identities, identical content: no EMA setData again.
+    rerender(
+      <TradingViewChart
+        candles={CANDLES.map((c) => ({ ...c }))}
+        emaData={ema()}
+      />,
+    );
+    expect(ema9.setData).toHaveBeenCalledTimes(1);
+    expect(ema20.setData).toHaveBeenCalledTimes(1);
+
+    // A changed last EMA value re-pushes that series only.
+    const bumped = ema();
+    bumped[0] = { ...bumped[0], data: [25705, 25722] };
+    rerender(
+      <TradingViewChart
+        candles={CANDLES.map((c) => ({ ...c }))}
+        emaData={bumped}
+      />,
+    );
+    expect(ema9.setData).toHaveBeenCalledTimes(2);
+    expect(ema20.setData).toHaveBeenCalledTimes(1);
+  });
+
+  test("identical candle content across a poll does not re-push setData; changed candles do", () => {
+    const start = lwMocks.series.length;
+    const { rerender } = render(<TradingViewChart candles={CANDLES} fitMarkLines markLines={levels()} />);
+    const candle = lwMocks.series[start];
+    const volume = lwMocks.series[start + 1];
+    expect(candle.setData).toHaveBeenCalledTimes(1);
+    expect(volume.setData).toHaveBeenCalledTimes(1);
+    const autoscaleCalls = () =>
+      candle.applyOptions.mock.calls.filter(
+        ([opts]: any[]) => opts && "autoscaleInfoProvider" in opts,
+      ).length;
+    const autoscaleAfterMount = autoscaleCalls();
+
+    // A poll hands over brand-new arrays with the same content: no setData,
+    // no new autoscale closure.
+    rerender(
+      <TradingViewChart
+        candles={CANDLES.map((c) => ({ ...c }))}
+        fitMarkLines
+        markLines={levels()}
+      />,
+    );
+    expect(candle.setData).toHaveBeenCalledTimes(1);
+    expect(volume.setData).toHaveBeenCalledTimes(1);
+    expect(autoscaleCalls()).toBe(autoscaleAfterMount);
+
+    // Last-bar tick (close moves) does re-push and re-anchor autoscale.
+    const ticked = CANDLES.map((c, i) =>
+      i === CANDLES.length - 1 ? { ...c, close: c.close + 5 } : c,
+    );
+    rerender(<TradingViewChart candles={ticked} fitMarkLines markLines={levels()} />);
+    expect(candle.setData).toHaveBeenCalledTimes(2);
+    expect(volume.setData).toHaveBeenCalledTimes(2);
+    expect(autoscaleCalls()).toBe(autoscaleAfterMount + 1);
+  });
+});
+
 describe("visibleBarsRange", () => {
   test("returns min-low / max-high of the rendered window", () => {
     expect(

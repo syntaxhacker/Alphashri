@@ -1,8 +1,7 @@
 /// <reference types="vite/client" />
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig, loadEnv } from 'vite';
-import react, { reactCompilerPreset } from '@vitejs/plugin-react';
-import babel from '@rolldown/plugin-babel';
+import react from '@vitejs/plugin-react';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
 
 export default defineConfig(({ mode }) => {
@@ -16,10 +15,12 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       react(),
-      // React Compiler must be wired through @rolldown/plugin-babel in
-      // plugin-react v6 — the old `react({ reactCompiler: true })` flag is
-      // silently ignored by v6 (it emitted zero `_c()` memo slots).
-      babel({ presets: [reactCompilerPreset()] }),
+      // React Compiler disabled: the app is built on mutable module stores
+      // read during render (`useStoreSubscription` + `get*State()`), which the
+      // compiler memoizes as pure and renders stale (empty panels under lazy
+      // Suspense — reproduced 2026-11-07, PR #157 smoke failures). Re-enable
+      // only after migrating store consumers to `useSyncExternalStore`
+      // (see `useEventsStore` in src/state/events.ts).
       sentryVitePlugin({
         org: process.env.SENTRY_ORG,
         project: process.env.SENTRY_PROJECT,
@@ -46,7 +47,21 @@ export default defineConfig(({ mode }) => {
     server: {
       host: true,
       watch: {
-        ignored: ['**/.venv/**', '**/venv/**'],
+        // Only source/config should trigger HMR. The repo writes thousands of
+        // files into experiments/, reports/, logs/ and backups/ (caches, charts,
+        // bot output) — watching them stalls the dev server for seconds.
+        ignored: [
+          '**/.venv/**',
+          '**/venv/**',
+          '**/experiments/**',
+          '**/reports/**',
+          '**/backups/**',
+          '**/logs/**',
+          '**/dist/**',
+          '**/test-results/**',
+          '**/playwright-report/**',
+          '**/coverage/**',
+        ],
       },
       proxy: {
         '/api': {

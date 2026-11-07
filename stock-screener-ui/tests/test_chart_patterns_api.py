@@ -90,7 +90,8 @@ def test_timeframes_endpoint(cp_client):
     data = resp.json()
     ids = [t["id"] for t in data["timeframes"]]
     assert "1D" in ids and "15m" in ids
-    assert len(ids) == 13
+    assert len(ids) == 11
+    assert "3m" not in ids and "2h" not in ids
 
 
 def test_universes_endpoint(cp_client):

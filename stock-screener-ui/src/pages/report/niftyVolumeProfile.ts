@@ -11,6 +11,7 @@
 
 import { sortByField } from "@/utils/ui-helpers";
 import { formatReportCompact } from "./reportFormat";
+import { chainLeg } from "./chainTuple";
 
 /** One tape row: spot + the per-strike cumulative chain snapshot. */
 export interface NiftyVolumeTapeRow {
@@ -50,11 +51,6 @@ interface VolumeProfile {
 type VolumeProfileMode =
   | "latest"
   | "delta";
-
-function num(v: unknown): number {
-  const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? n : 0;
-}
 
 /**
  * Build the per-strike volume profile from tape rows.
@@ -96,12 +92,11 @@ export function buildVolumeProfile(
     for (const key of Object.keys(chain)) {
       const strike = Number(key);
       if (!Number.isFinite(strike)) continue;
-      const leg = chain[key];
-      if (!Array.isArray(leg)) continue;
-      const ceOi = num(leg[2]);
-      const peOi = num(leg[3]);
-      const ceVol = num(leg[4]);
-      const peVol = num(leg[5]);
+      const leg = chainLeg(chain, strike);
+      const ceOi = leg.ceOi ?? 0;
+      const peOi = leg.peOi ?? 0;
+      const ceVol = leg.ceVol ?? 0;
+      const peVol = leg.peVol ?? 0;
       if (!first.has(strike)) first.set(strike, { ceVol, peVol });
       seen.set(strike, (seen.get(strike) ?? 0) + 1);
       last.set(strike, { ceVol, peVol, ceOi, peOi });

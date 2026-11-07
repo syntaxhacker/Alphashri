@@ -98,28 +98,26 @@ export interface ChainSummary {
 /** U+2212 minus — matches the report's tabular number style. */
 const MINUS = "−";
 
+import { safeNum } from "@/utils/reportParsers";
+
 function finiteOrNull(value: number | null | undefined): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function num(value: number | null | undefined): number {
-  return finiteOrNull(value) ?? 0;
-}
-
 function closePrice(leg: ChainSide): number {
-  return num(leg.close_price ?? leg.close);
+  return safeNum(leg.close_price ?? leg.close);
 }
 
 function oiChange(leg: ChainSide): number {
-  return num(leg.oi_change ?? leg.oiChange);
+  return safeNum(leg.oi_change ?? leg.oiChange);
 }
 
 function oi(leg: ChainSide): number {
-  return num(leg.oi);
+  return safeNum(leg.oi);
 }
 
 function volume(leg: ChainSide): number {
-  return num(leg.volume);
+  return safeNum(leg.volume);
 }
 
 /** Signed, fixed-decimal display — avoids `−0.00` on tiny negatives. */
@@ -138,7 +136,7 @@ function signed(value: number, decimals: number): string {
  * zero is not meaningful, but the points move is still real and is reported).
  */
 export function formatLegChange(leg: ChainSide): LegChange {
-  const ltp = num(leg.ltp);
+  const ltp = safeNum(leg.ltp);
   const close = closePrice(leg);
   const points = ltp - close;
   const pct = close > 0 ? (points / close) * 100 : 0;
@@ -212,7 +210,7 @@ export function rowFlags(
 function sortValue(row: ChainRow, by: ChainSortKey): number {
   switch (by) {
     case "strike":
-      return num(row.strike);
+      return safeNum(row.strike);
     case "oi":
       return oi(row.ce) + oi(row.pe);
     case "volume":

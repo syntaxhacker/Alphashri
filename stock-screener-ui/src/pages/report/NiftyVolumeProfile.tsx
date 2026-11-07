@@ -1,3 +1,4 @@
+import { formatNumberIN } from "@/utils/ui-helpers";
 import { memo, useMemo } from "react";
 import Box from "@mui/material/Box";
 import { Text } from "@/ui";
@@ -86,12 +87,12 @@ function NiftyVolumeProfileInner({
           </Text>
           {atmStrike !== null && (
             <Text data-testid={`${testId}-atm-label`} size="xs" span c={palette.TERM_FLIP}>
-              ATM {atmStrike.toLocaleString("en-IN")}
+              ATM {formatNumberIN(atmStrike)}
             </Text>
           )}
           {topStrike !== null && (
             <Text data-testid={`${testId}-top-label`} size="xs" span c="dimmed">
-              Top {topStrike.toLocaleString("en-IN")}
+              Top {formatNumberIN(topStrike)}
             </Text>
           )}
         </Box>
@@ -212,7 +213,7 @@ function NiftyVolumeProfileInner({
                     fill={isAtm ? palette.TERM_FLIP : palette.TEXT_MUTED}
                     fontWeight={isAtm || isTop ? 700 : 400}
                   >
-                    {p.strike.toLocaleString("en-IN")}
+                    {formatNumberIN(p.strike)}
                   </text>
                 </g>
               );

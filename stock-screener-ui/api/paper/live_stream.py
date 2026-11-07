@@ -20,7 +20,6 @@ from fastapi.responses import StreamingResponse
 
 from api.auth import get_current_user
 from db.models import User
-import config
 
 router = APIRouter(prefix="/api/paper/live", tags=["Paper Trading Live"])
 
@@ -28,29 +27,13 @@ router = APIRouter(prefix="/api/paper/live", tags=["Paper Trading Live"])
 def _get_upstox_token() -> Optional[str]:
     """Get Upstox access token.
 
-    Checks DB first (OAuth token), then .upstox_token.json file.
-    Environment variable is NOT checked to avoid using expired manual tokens
-    after disconnect.
+    DB first (OAuth token), then .upstox_token.json file. Environment
+    variable is NOT checked to avoid using expired manual tokens after
+    disconnect. Never raises; returns None when no token is configured.
     """
-    try:
-        from db.models import get_shared_broker_token
-        token_data = get_shared_broker_token("upstox")
-        if token_data and token_data.get("access_token"):
-            return token_data["access_token"]
-    except Exception:
-        pass
+    from api.upstox_token import resolve_upstox_token
 
-    token_file = Path(config.BASE_DIR) / ".upstox_token.json"
-    if token_file.exists():
-        try:
-            with open(token_file) as f:
-                data = json.load(f)
-            if data.get("access_token"):
-                return data["access_token"]
-        except (json.JSONDecodeError, KeyError):
-            pass
-
-    return None
+    return resolve_upstox_token(use_env=False)
 
 
 def _get_instrument_keys(user_id: int) -> tuple[list[str], dict[str, str]]:

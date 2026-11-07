@@ -1,5 +1,10 @@
 // @vitest-environment happy-dom
-import { describe, expect, test } from "vitest";
+import { createElement } from "react";
+import { afterEach, describe, expect, test } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
+import { UIProvider } from "@/ui";
+import { MarketAlertRow } from "@/components/notifications/MarketAlertCard";
 import type { NiftyTapeRow } from "@/types/niftyReport";
 import type { OiBurst, OiSignal } from "./niftyOiBursts";
 import {
@@ -13,6 +18,7 @@ import {
   criticalBannerText,
   deriveOiSignal,
   detectOiBursts,
+  dropConflictingSides,
   entryFreshness,
   inferFlowFromPremium,
   premiumChangeBefore,
@@ -171,7 +177,7 @@ describe("burstToAlert", () => {
     expect(a.title).toContain("+60.0K");
     expect(a.metrics?.find((m) => m.label === "ΔOI")?.value).toBe("+60.0K");
     expect(a.source).toContain("Nifty tape");
-    expect(a.href).toBe("/report/nifty");
+    expect(a.href).toBe("/report/index");
   });
 
   test("put side labels correctly and signs the tone down when negative", () => {
@@ -504,7 +510,7 @@ describe("critical prominence helpers", () => {
     metrics: [],
     ts: Date.parse(`2026-10-21T09:${id.slice(-2)}:00+05:30`) || 0,
     source: "",
-    href: "/report/nifty",
+    href: "/report/index",
   });
 
   test("critical-first sort keeps newest-first within each group", () => {
@@ -729,7 +735,7 @@ describe("2026-10-22 fuel-state alerts", () => {
     };
     const a = burstToAlert(burst);
     expect(a.title).toContain("Call OI burst");
-    expect(a.detail).toContain("WRITERS COVERING");
+    expect(a.detail).toContain("shorts buying back");
     expect(a.detail).toContain("@ 22,780");
     expect(a.metrics?.find((m) => m.label === "FUEL")?.value).toBe("spent");
   });
@@ -819,7 +825,7 @@ describe("2026-10-22 fuel-state alerts", () => {
     expect(a.title).toContain("BUY PE 22,700");
     expect(a.detail).toContain("below the 22,697 pivot");
     expect(a.detail).toContain("while spot stays below 22,697");
-    expect(a.detail).toContain("WRITERS COVERING");
+    expect(a.detail).toContain("shorts buying back");
     expect((a as { actionable?: boolean }).actionable).toBeUndefined();
   });
 
@@ -844,7 +850,7 @@ describe("2026-10-22 fuel-state alerts", () => {
     };
     expect(resolveFuelState(burst)).toBe("writers_covering");
     const a = burstToAlert(burst);
-    expect(a.detail).toContain("WRITERS COVERING");
+    expect(a.detail).toContain("shorts buying back");
   });
 
   test("a backend-suppressed burst renders NO TRADE and is not actionable", () => {
@@ -873,5 +879,180 @@ describe("2026-10-22 fuel-state alerts", () => {
     };
     const a = burstToAlert(burst, null);
     expect(a.detail).toContain("while spot stays below 22,697");
+  });
+});
+
+describe("two-sided writer pin", () => {
+  const burst = (over: Partial<OiBurst>): OiBurst => ({
+    id: "b",
+    t: "2026-10-29T09:19:00+05:30",
+    side: "call",
+    delta: 3_600_000,
+    baseline: 100_000,
+    score: 10,
+    severity: "critical",
+    cumDoi: 3_600_000,
+    spot: 22_720,
+    tickVol: 1_000_000,
+    flow: "writers",
+    strike: 22_700,
+    ...over,
+  });
+
+  test("drops both sides when call and put writers add in the same minute", () => {
+    const call = burst({ id: "call", side: "call", delta: 3_600_000 });
+    const put = burst({ id: "put", side: "put", delta: 2_200_000 });
+    expect(dropConflictingSides([call, put])).toHaveLength(0);
+  });
+
+  test("keeps same-leg bursts in the same minute", () => {
+    const a = burst({ id: "a", side: "call", delta: 3_600_000 });
+    const b = burst({ id: "b", side: "call", delta: 1_000_000 });
+    expect(dropConflictingSides([a, b])).toHaveLength(2);
+  });
+});
+
+describe("strike-wall events", () => {
+  /** 2026-11-03 11:54 — the call wall was tested, not broken. */
+  const TEST_EVENT = {
+    id: "wall_test:2026-11-03T11:54:00+05:30:call:23700:",
+    type: "wall_test" as const,
+    side: "call" as const,
+    t: "2026-11-03T11:54:00+05:30",
+    strike: 23700,
+    target: null,
+    spot: 23690,
+    label: "CALL WALL 23,700 TESTED",
+  };
+  /** 2026-11-03 12:10 — the same wall rejected, target = max pain 23,650. */
+  const REJECT = {
+    id: "rejection:2026-11-03T12:10:00+05:30:call:23700:23650",
+    type: "rejection" as const,
+    side: "call" as const,
+    t: "2026-11-03T12:10:00+05:30",
+    strike: 23700,
+    target: 23650,
+    spot: 23647.7,
+    label: "CALL WALL REJECTED 23,700",
+  };
+
+  const wall = (over: Partial<OiBurst>): OiBurst => ({
+    side: "call",
+    delta: 0,
+    baseline: 0,
+    score: 0,
+    severity: "watch",
+    cumDoi: 0,
+    spot: 23690,
+    tickVol: 0,
+    ...over,
+  });
+
+  afterEach(() => cleanup());
+
+  test("a wall test is a watch alert with the tested level in the title", () => {
+    const a = burstToAlert(wall(TEST_EVENT));
+    expect(a.kind).toBe("oi_burst");
+    expect(a.severity).toBe("watch");
+    expect(a.title).toContain("◇ CW 23,700 TESTED");
+    expect(a.metrics?.find((m) => m.label === "STRIKE")?.value).toBe("23,700");
+    expect(a.detail).toContain("no break yet");
+  });
+
+  test("a rejection is an alert and prints wall → target", () => {
+    const a = burstToAlert(wall(REJECT));
+    expect(a.kind).toBe("oi_burst");
+    expect(a.severity).toBe("alert");
+    expect(a.title).toBe("✕ CW 23,700 → 23,650");
+    expect(a.metrics?.find((m) => m.label === "TGT")?.value).toBe("23,650");
+    expect(a.detail).toContain("held");
+  });
+
+  test("a break is an alert with a directional icon", () => {
+    const callBreak = burstToAlert(
+      wall({ ...TEST_EVENT, id: "b1", type: "break", target: 23750, spot: 23760 }),
+    );
+    expect(callBreak.severity).toBe("alert");
+    expect(callBreak.title).toBe("↑ CW 23,700 → 23,750");
+
+    const putBreak = burstToAlert(
+      wall({
+        ...TEST_EVENT,
+        id: "b2",
+        type: "wall_break",
+        side: "put",
+        strike: 23500,
+        target: 23450,
+        spot: 23468,
+      }),
+    );
+    expect(putBreak.title).toBe("↓ PW 23,500 → 23,450");
+  });
+
+  test("wall events never take part in the two-sided pin drop", () => {
+    const callWall = wall({ ...TEST_EVENT, id: "wall-call" });
+    const putWall = wall({
+      ...TEST_EVENT,
+      id: "wall-put",
+      type: "wall_test",
+      side: "put",
+      strike: 23500,
+    });
+    // A regular call + put writer build in the SAME minute still cancels,
+    // but the wall rows beside them survive.
+    const callBurst = wall({
+      id: "burst-call",
+      t: "2026-11-03T11:54:00+05:30",
+      delta: 3_600_000,
+      flow: "writers",
+      strike: 23_700,
+      type: undefined,
+    });
+    const putBurst = wall({
+      id: "burst-put",
+      t: "2026-11-03T11:54:00+05:30",
+      delta: 2_200_000,
+      flow: "writers",
+      strike: 23_500,
+      side: "put",
+      type: undefined,
+    });
+    const kept = dropConflictingSides([callWall, putWall, callBurst, putBurst]);
+    expect(kept.map((b) => b.id).sort()).toEqual(["wall-call", "wall-put"]);
+  });
+
+  test("renders through MarketAlertRow with the right severity rail", () => {
+    const testAlert = burstToAlert(wall(TEST_EVENT));
+    const rejectAlert = burstToAlert(wall(REJECT));
+    render(
+      createElement(
+        UIProvider,
+        null,
+        createElement(MarketAlertRow, { alert: testAlert }),
+        createElement(MarketAlertRow, { alert: rejectAlert }),
+      ),
+    );
+    const rows = screen.getAllByTestId("market-alert-oi_burst");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveAttribute("data-severity", "watch");
+    expect(rows[0]).toHaveTextContent("◇ CW 23,700 TESTED");
+    expect(rows[1]).toHaveAttribute("data-severity", "alert");
+    expect(rows[1]).toHaveTextContent("✕ CW 23,700 → 23,650");
+  });
+
+  test("data_stale maps to a critical system alert", () => {
+    const a = burstToAlert(
+      wall({
+        id: "data_stale:2026-11-03T12:00:00+05:30:call::",
+        type: "data_stale",
+        t: "2026-11-03T12:00:00+05:30",
+        label: "TAPE STALE 3m",
+        detail: "No new tape row for 3 minutes.",
+      }),
+    );
+    expect(a.kind).toBe("system");
+    expect(a.severity).toBe("critical");
+    expect(a.title).toBe("TAPE STALE 3m");
+    expect(a.detail).toContain("No new tape row");
   });
 });

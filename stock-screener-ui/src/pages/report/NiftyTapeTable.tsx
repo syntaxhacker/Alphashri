@@ -8,6 +8,7 @@ import type { NiftyGex, NiftyTape, NiftyTapeRow } from "@/types/niftyReport";
 import { hexToRgba } from "@/utils/color";
 import { gexFlipAtSpot } from "./niftyGex";
 import { getNiftyTapeColumns } from "./NiftyTapeColumns";
+import { ascTapeByTime } from "./tapeRange";
 import {
   TAPE_CALL_DOI,
   TAPE_NEG_HUE,
@@ -32,6 +33,14 @@ import {
   getTapeBaseline,
   tapeDoiLabel,
 } from "./tapeFormat";
+import {
+  REPORT_FONT,
+  REPORT_PAD,
+  REPORT_RADIUS,
+  REPORT_LINE_HEIGHT,
+  REPORT_FONT_WEIGHT,
+  REPORT_LETTER_SPACING,
+} from "./reportTokens";
 
 /**
  * The tape's public surface. The maths and the formatters live in
@@ -133,21 +142,21 @@ const TAPE_TABLE_WRAP_SX: SxProps<Theme> = {
     background: `${TAPE_TERM_BG} !important`,
   },
   "& .paper-tanstack-cell": {
-    paddingTop: "3px",
-    paddingBottom: "3px",
+    paddingTop: `${REPORT_PAD.xs}px`,
+    paddingBottom: `${REPORT_PAD.xs}px`,
     background: `${TAPE_TERM_BG} !important`,
     borderBottom: "1px solid #141414 !important",
-    fontSize: 12,
+    fontSize: REPORT_FONT.xs,
     fontFamily:
       'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
   },
   "& .paper-tanstack-header-cell": {
-    paddingTop: "3px",
-    paddingBottom: "4px",
+    paddingTop: `${REPORT_PAD.xs}px`,
+    paddingBottom: `${REPORT_PAD.xs}px`,
     background: `${TAPE_TERM_BG} !important`,
     borderBottom: "1px solid #2A2A2A !important",
     color: "#8B949E",
-    fontSize: 10,
+    fontSize: REPORT_FONT.micro,
     textTransform: "uppercase",
     verticalAlign: "bottom",
   },
@@ -239,9 +248,10 @@ function NiftyTapeTableInner({
   const prevRowsRef = useRef<Map<string, NiftyTapeRow>>(new Map());
   const prevLatestRef = useRef<string>("");
   const baseline = useMemo(() => getTapeBaseline(tape, rows), [rows, tape]);
-  /** Newest-first (default) or oldest-first; copy, never mutate the prop. */
+  /** Newest-first (default) or oldest-first; `ascTapeByTime` returns a fresh
+   * array, so the in-place reverse never touches the prop. */
   const ordered = useMemo(() => {
-    const asc = [...rows].sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
+    const asc = ascTapeByTime(rows);
     return order === "newest" ? asc.reverse() : asc;
   }, [rows, order]);
   const scale = useMemo(() => computeTapeScale(rows), [rows]);
@@ -257,7 +267,7 @@ function NiftyTapeTableInner({
   // The tape's own last spot is the fallback for the flip placement — the
   // recorded rows are the only spot the tape knows for sure.
   const tapeSpot = useMemo(() => {
-    const asc = [...rows].sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
+    const asc = ascTapeByTime(rows);
     return asc.length > 0 ? asc[asc.length - 1].spot : null;
   }, [rows]);
   // Spot-relative gamma flip: the same level the gamma strip shows. Without
@@ -354,78 +364,77 @@ function NiftyTapeTableInner({
       {/* Single wrapping stat line (was two stacked rows): PCR OI, ΔOI since
           baseline, max pain, flip, walls, then session meta + order toggle +
           LIVE dot all flow inline so the head is one ~18px line at width. */}
-      <Box data-testid="nifty-tape-head" sx={{ background: TAPE_TERM_BG, px: 0.75, pt: 0.25 }}>
+      <Box data-testid="nifty-tape-head" sx={{ background: TAPE_TERM_BG, px: REPORT_PAD.sm / 8, pt: REPORT_PAD.xs / 8 }}>
         <Box
           sx={{
             display: "flex",
             alignItems: "center",
             flexWrap: "wrap",
             columnGap: 1.5,
-            rowGap: 0.25,
+            rowGap: REPORT_PAD.xs / 8,
             fontVariantNumeric: "tabular-nums",
           }}
         >
           <Box data-testid="nifty-tape-pcr" sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
-            <Text size="xs" span c="dimmed" tt="uppercase" fw={600}>PCR OI</Text>
-            <Text data-testid="nifty-tape-head-pcr-oi" size="sm" span fw={700}>{formatTapeRatio(head.pcrOi)}</Text>
-            <Text size="xs" span c="dimmed">snapshot</Text>
+            <Text span fw={600} tt="uppercase" c="dimmed" style={{ fontSize: REPORT_FONT.xs - 1 }}>PCR OI</Text>
+            <Text span fw={700} data-testid="nifty-tape-head-pcr-oi" style={{ fontSize: REPORT_FONT.sm }}>{formatTapeRatio(head.pcrOi)}</Text>
+            <Text span c="dimmed" style={{ fontSize: REPORT_FONT.xs - 1 }}>snapshot</Text>
           </Box>
           <Box data-testid="nifty-tape-head-pcr-doi" sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
-            <Text size="xs" span c="dimmed" tt="uppercase" fw={600}>{doiLabel}</Text>
-            <Text size="sm" span fw={700} c={TAPE_CALL_DOI}>{formatTapeSigned(head.pcrDoiDelta)}</Text>
+            <Text span fw={600} tt="uppercase" c="dimmed" style={{ fontSize: REPORT_FONT.xs - 1 }}>{doiLabel}</Text>
+            <Text span fw={700} c={TAPE_CALL_DOI} style={{ fontSize: REPORT_FONT.sm }}>{formatTapeSigned(head.pcrDoiDelta)}</Text>
           </Box>
           <Box data-testid="nifty-tape-max-pain" sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
-            <Text size="xs" span c="dimmed" tt="uppercase" fw={600}>Max pain</Text>
-            <Text data-testid="nifty-tape-head-max-pain" size="sm" span fw={700}>{formatTapePrice(head.maxPain)}</Text>
+            <Text span fw={600} tt="uppercase" c="dimmed" style={{ fontSize: REPORT_FONT.xs - 1 }}>Max pain</Text>
+            <Text span fw={700} data-testid="nifty-tape-head-max-pain" style={{ fontSize: REPORT_FONT.sm }}>{formatTapePrice(head.maxPain)}</Text>
           </Box>
           <Box data-testid="nifty-tape-flip" sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
-            <Text size="xs" span c="dimmed" tt="uppercase" fw={600}>Flip</Text>
-            <Text data-testid="nifty-tape-head-flip" size="sm" span fw={700}>
+            <Text span fw={600} tt="uppercase" c="dimmed" style={{ fontSize: REPORT_FONT.xs - 1 }}>Flip</Text>
+            <Text span fw={700} data-testid="nifty-tape-head-flip" style={{ fontSize: REPORT_FONT.sm }}>
               {formatTapePrice(head.flip)}{" "}
-              <Text size="xs" span c={head.flipDeltaPts >= 0 ? TAPE_FLIP_POS_TEXT : TAPE_FLIP_NEG_TEXT} fw={700}>
+              <Text span fw={700} c={head.flipDeltaPts >= 0 ? TAPE_FLIP_POS_TEXT : TAPE_FLIP_NEG_TEXT} style={{ fontSize: REPORT_FONT.xs - 1 }}>
                 {flipSigned}
               </Text>
             </Text>
-            <Text size="xs" span c="dimmed">spot−flip</Text>
+            <Text span c="dimmed" style={{ fontSize: REPORT_FONT.xs - 1 }}>spot−flip</Text>
           </Box>
           <Box data-testid="nifty-tape-walls" sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
-            <Text size="xs" span c="dimmed" tt="uppercase" fw={600}>Walls</Text>
-            <Text data-testid="nifty-tape-head-walls" size="sm" span fw={700}>
+            <Text span fw={600} tt="uppercase" c="dimmed" style={{ fontSize: REPORT_FONT.xs - 1 }}>Walls</Text>
+            <Text span fw={700} data-testid="nifty-tape-head-walls" style={{ fontSize: REPORT_FONT.sm }}>
               {formatTapePrice(head.wallCall)} / {formatTapePrice(head.wallPut)}
             </Text>
-            <Text size="xs" span c="dimmed">call / put</Text>
+            <Text span c="dimmed" style={{ fontSize: REPORT_FONT.xs - 1 }}>call / put</Text>
           </Box>
-          <Text size="xs" c="dimmed" ta="left" span>
+          <Text c="dimmed" ta="left" span style={{ fontSize: REPORT_FONT.xs - 1 }}>
             TICKS {rows.length} · one per minute
           </Text>
           {updatedAtMs !== null && (
             <Text
               data-testid="nifty-tape-updated"
-              size="xs"
               c="dimmed"
               span
-              sx={{ fontVariantNumeric: "tabular-nums" }}
+              sx={{ fontVariantNumeric: "tabular-nums", fontSize: REPORT_FONT.xs - 1 }}
             >
               upd {formatIstClock(updatedAtMs)}
               {nextUpdateAtMs !== null ? ` · next ${formatIstClock(nextUpdateAtMs)}` : ""}
             </Text>
           )}
-          <Text size="xs" c="dimmed" span>
+          <Text c="dimmed" span style={{ fontSize: REPORT_FONT.xs - 1 }}>
             SPOT {formatTapePrice(session.spotLo)}–{formatTapePrice(session.spotHi)}
           </Text>
           <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
-            <Text size="xs" c="dimmed" span>MAX ΔOI</Text>
-            <Text size="xs" c={TAPE_CALL_DOI} fw={700} span>C {formatTapeCompact(session.maxCallDoi)}</Text>
-            <Text size="xs" c={TAPE_PUT_DOI} fw={700} span>P {formatTapeCompact(session.maxPutDoi)}</Text>
+            <Text c="dimmed" span style={{ fontSize: REPORT_FONT.xs - 1 }}>MAX ΔOI</Text>
+            <Text span fw={700} c={TAPE_CALL_DOI} style={{ fontSize: REPORT_FONT.xs - 1 }}>C {formatTapeCompact(session.maxCallDoi)}</Text>
+            <Text span fw={700} c={TAPE_PUT_DOI} style={{ fontSize: REPORT_FONT.xs - 1 }}>P {formatTapeCompact(session.maxPutDoi)}</Text>
           </Box>
           <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
-            <Text size="xs" c="dimmed" span>NET</Text>
+            <Text c="dimmed" span style={{ fontSize: REPORT_FONT.xs - 1 }}>NET</Text>
             <Text
-              size="xs"
               span
               fw={700}
               c={session.netLast >= 0 ? TAPE_NET_TEXT : TAPE_FLIP_NEG_TEXT}
               title="Cumulative put ΔOI − call ΔOI at the last recorded minute (the tape's `net` is already a running total — the column is never summed)"
+              style={{ fontSize: REPORT_FONT.xs - 1 }}
             >
               {formatTapeCompact(session.netLast)}
             </Text>
@@ -441,10 +450,10 @@ function NiftyTapeTableInner({
               borderRadius: 999,
               px: 1,
               py: 0.25,
-              fontSize: 10,
-              fontWeight: 700,
+              fontSize: REPORT_FONT.micro,
+              fontWeight: REPORT_FONT_WEIGHT.bold,
               cursor: "pointer",
-              letterSpacing: 0.3,
+              letterSpacing: REPORT_LETTER_SPACING.normal,
             }}
           >
             {order === "newest" ? "NEWEST FIRST ↓" : "OLDEST FIRST ↑"}
@@ -468,7 +477,7 @@ function NiftyTapeTableInner({
                   animation: "tapePulse 1.8s ease-out infinite",
                 }}
               />
-              <Text size="xs" span fw={700} c={palette.POSITIVE}>LIVE</Text>
+              <Text span fw={700} c={palette.POSITIVE} style={{ fontSize: REPORT_FONT.xs - 1 }}>LIVE</Text>
             </Box>
           )}
         </Box>
@@ -485,6 +494,7 @@ function NiftyTapeTableInner({
           fillContainer
           enableSorting={false}
           rowWindowSize={40}
+          dense
           getRowTestId={getTapeRowTestId}
           getRowClassName={getRowClassName}
         />
@@ -493,31 +503,31 @@ function NiftyTapeTableInner({
           single wrapped line instead of two airy rows. */}
       <Box
         data-testid="nifty-tape-heat-legend"
-        sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 1, rowGap: 0, px: 0.75, pb: 0.25, lineHeight: 1.25 }}
+        sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 1, rowGap: 0, px: REPORT_PAD.sm / 8, pb: REPORT_PAD.xs / 8, lineHeight: REPORT_LINE_HEIGHT.snug }}
       >
-        <Text size="xs" c="dimmed" span>HEAT</Text>
+        <Text c="dimmed" span style={{ fontSize: REPORT_FONT.xs - 1 }}>HEAT</Text>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_POS_HUE, 0.18), borderRadius: 0.5 }} />
-          <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_POS_HUE, 0.45), borderRadius: 0.5 }} />
-          <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_POS_HUE, 0.7), borderRadius: 0.5 }} />
-          <Text size="xs" c="dimmed" span title="Positive value in the signed columns — net put-led, call/put tick volume up, PCR up, spot above the flip">positive</Text>
+          <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_POS_HUE, 0.18), borderRadius: REPORT_RADIUS.sm / 2 }} />
+          <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_POS_HUE, 0.45), borderRadius: REPORT_RADIUS.sm / 2 }} />
+          <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_POS_HUE, 0.7), borderRadius: REPORT_RADIUS.sm / 2 }} />
+          <Text c="dimmed" span style={{ fontSize: REPORT_FONT.xs - 1 }} title="Positive value in the signed columns — net put-led, call/put tick volume up, PCR up, spot above the flip">positive</Text>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_NEG_HUE, 0.18), borderRadius: 0.5 }} />
-          <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_NEG_HUE, 0.45), borderRadius: 0.5 }} />
-          <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_NEG_HUE, 0.7), borderRadius: 0.5 }} />
-          <Text size="xs" c="dimmed" span title="Negative value in the signed columns — net call-led, call/put tick volume down, PCR down, spot below the flip">negative</Text>
+          <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_NEG_HUE, 0.18), borderRadius: REPORT_RADIUS.sm / 2 }} />
+          <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_NEG_HUE, 0.45), borderRadius: REPORT_RADIUS.sm / 2 }} />
+          <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_NEG_HUE, 0.7), borderRadius: REPORT_RADIUS.sm / 2 }} />
+          <Text c="dimmed" span style={{ fontSize: REPORT_FONT.xs - 1 }} title="Negative value in the signed columns — net call-led, call/put tick volume down, PCR down, spot below the flip">negative</Text>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_NET_HUE, 0.7), borderRadius: 0.5 }} />
-          <Text size="xs" c="dimmed" span>net ΔOI (put−call)</Text>
+          <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_NET_HUE, 0.7), borderRadius: REPORT_RADIUS.sm / 2 }} />
+          <Text c="dimmed" span style={{ fontSize: REPORT_FONT.xs - 1 }}>net ΔOI (put−call)</Text>
         </Box>
         <Box data-testid="nifty-tape-burst-legend" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <Box sx={{ width: 10, height: 8, background: TAPE_CALL_DOI, borderRadius: 0.5 }} />
-          <Box sx={{ width: 10, height: 8, background: TAPE_PUT_DOI, borderRadius: 0.5 }} />
-          <Text size="xs" c="dimmed" span>burst minute</Text>
+          <Box sx={{ width: 10, height: 8, background: TAPE_CALL_DOI, borderRadius: REPORT_RADIUS.sm / 2 }} />
+          <Box sx={{ width: 10, height: 8, background: TAPE_PUT_DOI, borderRadius: REPORT_RADIUS.sm / 2 }} />
+          <Text c="dimmed" span style={{ fontSize: REPORT_FONT.xs - 1 }}>burst minute</Text>
         </Box>
-        <Text size="xs" c="dimmed" span>· brighter = bigger print</Text>
+        <Text c="dimmed" span style={{ fontSize: REPORT_FONT.xs - 1 }}>· brighter = bigger print</Text>
       </Box>
     </Box>
   );

@@ -50,7 +50,6 @@ import functools
 import importlib
 import json
 import logging
-import os
 import pickle
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -740,21 +739,9 @@ def _broker_token_data() -> Optional[dict]:
 
 def _token() -> Optional[str]:
     """Upstox OAuth token: DB → ``.upstox_token.json`` → env. Never raises."""
-    try:
-        data = _broker_token_data()
-        if data and data.get("access_token"):
-            return data["access_token"]
-    except Exception:
-        pass
-    try:
-        token_file = Path(__file__).resolve().parent.parent / ".upstox_token.json"
-        if token_file.exists():
-            token = json.loads(token_file.read_text()).get("access_token")
-            if token:
-                return token
-    except Exception:
-        pass
-    return os.getenv("UPSTOX_ACCESS_TOKEN")
+    from api.upstox_token import resolve_upstox_token
+
+    return resolve_upstox_token(use_env=True)
 
 
 def _upstox_token_expired() -> bool:

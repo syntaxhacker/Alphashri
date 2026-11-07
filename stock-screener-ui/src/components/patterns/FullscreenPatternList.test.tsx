@@ -69,18 +69,12 @@ describe("FullscreenPatternList", () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => cleanup());
 
-  test("renders the section newest-first with header count", () => {
+  test("renders only the newest pattern", () => {
     r(<FullscreenPatternList hits={[OLD, NEW, MID]} activeKey={null} onSelect={vi.fn()} />);
     expect(screen.getByTestId("patterns-fullscreen-list")).toBeInTheDocument();
-    expect(screen.getByText("Patterns (3)")).toBeInTheDocument();
-    const rows = [
-      screen.getByTestId("patterns-fullscreen-list-item-0"),
-      screen.getByTestId("patterns-fullscreen-list-item-1"),
-      screen.getByTestId("patterns-fullscreen-list-item-2"),
-    ];
-    expect(rows[0]).toHaveTextContent("Bull Flag");
-    expect(rows[1]).toHaveTextContent("Rising Wedge");
-    expect(rows[2]).toHaveTextContent("Falling Wedge");
+    expect(screen.getByText("Patterns (1)")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent("Bull Flag");
+    expect(screen.queryByTestId("patterns-fullscreen-list-item-1")).not.toBeInTheDocument();
   });
 
   test("marks the active row selected", () => {
@@ -89,17 +83,14 @@ describe("FullscreenPatternList", () => {
       "data-selected",
       "true",
     );
-    expect(
-      screen.getByTestId("patterns-fullscreen-list-item-1"),
-    ).not.toHaveAttribute("data-selected", "true");
   });
 
-  test("clicking a row calls onSelect with that hit", () => {
+  test("clicking the row calls onSelect with the newest hit", () => {
     const onSelect = vi.fn();
     r(<FullscreenPatternList hits={[OLD, NEW, MID]} activeKey="33" onSelect={onSelect} />);
-    fireEvent.click(screen.getByTestId("patterns-fullscreen-list-item-1"));
+    fireEvent.click(screen.getByTestId("patterns-fullscreen-list-item-0"));
     expect(onSelect).toHaveBeenCalledTimes(1);
-    expect(onSelect).toHaveBeenCalledWith(MID);
+    expect(onSelect).toHaveBeenCalledWith(NEW);
   });
 
   test("shows each row's formation date, bars-ago, status and confidence", () => {

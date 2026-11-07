@@ -1,4 +1,3 @@
-import asyncio
 import uuid as uuid_module
 from typing import Optional
 
@@ -18,8 +17,8 @@ from .bots_router import (
     is_bot_running,
     stop_bot_process,
     _db_available,
-    SessionLocal,
 )
+from ._db import require_db, session_scope, run_db
 from .requests import BotCreate, BotUpdate, BotResponse
 
 console = Console()
@@ -144,22 +143,10 @@ async def create_bot(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
-    if not _db_available:
-        raise HTTPException(status_code=500, detail="Database not available")
-
+    require_db(_db_available)
     user_id = get_user_id(user)
-
-    close_db = False
-    if db is None:
-        db = SessionLocal()
-        close_db = True
-
-    try:
-        request_dict = request.model_dump()
-        return await asyncio.to_thread(_sync_create_bot, request_dict, user_id, db)
-    finally:
-        if close_db:
-            db.close()
+    request_dict = request.model_dump()
+    return await run_db(_sync_create_bot, request_dict, user_id, db=db)
 
 
 @router.put("/{bot_id}", response_model=BotResponse)
@@ -169,22 +156,10 @@ async def update_bot(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
-    if not _db_available:
-        raise HTTPException(status_code=500, detail="Database not available")
-
+    require_db(_db_available)
     user_id = get_user_id(user)
-
-    close_db = False
-    if db is None:
-        db = SessionLocal()
-        close_db = True
-
-    try:
-        request_dict = request.model_dump(exclude_none=True)
-        return await asyncio.to_thread(_sync_update_bot, bot_id, request_dict, user_id, db)
-    finally:
-        if close_db:
-            db.close()
+    request_dict = request.model_dump(exclude_none=True)
+    return await run_db(_sync_update_bot, bot_id, request_dict, user_id, db=db)
 
 
 @router.delete("/{bot_id}")
@@ -193,21 +168,9 @@ async def delete_bot(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
-    if not _db_available:
-        raise HTTPException(status_code=500, detail="Database not available")
-
+    require_db(_db_available)
     user_id = get_user_id(user)
-
-    close_db = False
-    if db is None:
-        db = SessionLocal()
-        close_db = True
-
-    try:
-        return await asyncio.to_thread(_sync_delete_bot, bot_id, user_id, db)
-    finally:
-        if close_db:
-            db.close()
+    return await run_db(_sync_delete_bot, bot_id, user_id, db=db)
 
 
 @router.get("/{bot_id}", response_model=BotResponse)
@@ -216,15 +179,8 @@ async def get_bot(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
-    if not _db_available:
-        raise HTTPException(status_code=500, detail="Database not available")
-
+    require_db(_db_available)
     user_id = get_user_id(user)
-
-    if db is None:
-        with SessionLocal() as session:
-            bot = get_bot_by_uuid(bot_id, user_id, session)
-            return bot_to_response(bot, user_id, db=session)
-
-    bot = get_bot_by_uuid(bot_id, user_id, db)
-    return bot_to_response(bot, user_id, db=db)
+    with session_scope(db) as session:
+        bot = get_bot_by_uuid(bot_id, user_id, session)
+        return bot_to_response(bot, user_id, db=session)

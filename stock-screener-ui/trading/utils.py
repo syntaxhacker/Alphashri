@@ -23,8 +23,14 @@ MARKET_CLOSE = (15, 30)
 # A strategy's own `eod_exit_hour/minute` still takes precedence.
 FORCE_EXIT = (15, 10)
 
+#: NSE cash-market Closing Auction Session end (15:35 IST).
+CASH_CAS_END = (15, 35)
+#: Equity derivatives (index + stock F&O) trade until 15:40 IST — five
+#: minutes past the cash CAS, with the index print frozen from 15:15.
+DERIVATIVES_CLOSE = (15, 40)
+
 #: End of *continuous* cash-market trading. NSE's Closing Auction Session (CAS,
-#: introduced Aug 2026) runs from here to MARKET_CLOSE and determines the
+#: introduced Aug 2026) runs from here to CASH_CAS_END and determines the
 #: official closing price, so from this minute on there are no further trades —
 #: depth keeps updating but volume, prints and CVD stop. Anything measuring how
 #: much of the *trading* session was captured must use this boundary, not
@@ -98,6 +104,19 @@ def is_market_open(dt: Optional[datetime] = None) -> bool:
         return False
     open_time = datetime(dt.year, dt.month, dt.day, *MARKET_OPEN, tzinfo=IST)
     close_time = datetime(dt.year, dt.month, dt.day, *MARKET_CLOSE, tzinfo=IST)
+    return open_time <= dt <= close_time
+
+
+def is_derivatives_open(dt: Optional[datetime] = None) -> bool:
+    """Equity derivatives session: 09:15–15:40 IST, holiday-aware."""
+    if dt is None:
+        dt = datetime.now(IST)
+    if dt.weekday() >= 5:
+        return False
+    if is_trading_holiday(dt):
+        return False
+    open_time = datetime(dt.year, dt.month, dt.day, *MARKET_OPEN, tzinfo=IST)
+    close_time = datetime(dt.year, dt.month, dt.day, *DERIVATIVES_CLOSE, tzinfo=IST)
     return open_time <= dt <= close_time
 
 

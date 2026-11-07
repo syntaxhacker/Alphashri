@@ -30,7 +30,7 @@ test.describe("Screener - Data Display", () => {
       timeout: 10000,
     });
     const firstSymbol = page
-      .locator('[data-testid="screener-table"] tbody button[data-testid^="symbol-link-"]')
+      .locator('[data-testid="screener-table"] tbody a[data-testid^="symbol-link-"]')
       .first();
     await expect(firstSymbol).toBeVisible();
   });

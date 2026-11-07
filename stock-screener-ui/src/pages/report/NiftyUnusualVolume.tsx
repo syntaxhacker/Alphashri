@@ -1,3 +1,4 @@
+import { formatNumberIN } from "@/utils/ui-helpers";
 import { memo, useCallback, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import Box from "@mui/material/Box";
@@ -8,6 +9,13 @@ import type { ColumnDef } from "@tanstack/react-table";
 import type { NiftyStrike } from "@/types/niftyReport";
 import { hexToRgba } from "@/utils/color";
 import { formatReportClock, formatReportCompact, formatReportPct } from "./reportFormat";
+import {
+  SENTIMENT_NAMES,
+  sentimentCode,
+  sentimentLabel,
+  sentimentNote,
+  sentimentSign,
+} from "./optionSentiment";
 
 /** Cap on ranked legs — one CE row + one PE row per strike compete for slots. */
 const UNUSUAL_TOP_N = 30;
@@ -80,24 +88,24 @@ export function formatUnusualShare(p: number): string {
   return formatReportPct(p, { digits: 1 });
 }
 
-// Mirrors NiftyReportPanel's sentimentBadge label + per-side tone convention
-// (calls rise on buying so LB/SC are bullish; puts rise on fear so SB/SC
-// are bullish). Duplicated here so this panel stays decoupled from the
-// report panel module (no import cycle).
-export const UNUSUAL_SENTIMENT_NAMES: Record<string, string> = {
-  LB: "Long Buildup",
-  SB: "Short Buildup",
-  SC: "Short Cover",
-  LU: "Long Unwind",
-};
+// Full class labels + the directional map live in `optionSentiment` so this
+// panel and NiftyReportPanel's CE/PE Signal badges can never drift apart.
+export const UNUSUAL_SENTIMENT_NAMES = SENTIMENT_NAMES;
 
-/** Border/text tone for a positioning pill, per side. */
+/**
+ * Border/text tone for a positioning cell, per side.
+ *
+ * This is a **direction-of-delta-exposure** badge, not a "what did the
+ * participants do" badge — it uses the same map as the backend's
+ * `class_sign` (put SC = writers buying back a long-delta hedge = bearish,
+ * put LU = buyers selling out of short-delta pressure = bullish). The
+ * contract-level reading is in the cell tooltip so the two concepts cannot be
+ * confused.
+ */
 export function getUnusualSentimentTone(sentiment: string, side: "CE" | "PE"): string {
-  const code = sentiment.trim().toUpperCase();
-  if (code === "NEUTRAL" || !UNUSUAL_SENTIMENT_NAMES[code]) return palette.TEXT_MUTED;
-  const bullish =
-    side === "CE" ? code === "LB" || code === "SC" : code === "SB" || code === "SC";
-  return bullish ? palette.POSITIVE : palette.NEGATIVE;
+  const sign = sentimentSign(sentiment, side);
+  if (sign === 0) return palette.TEXT_MUTED;
+  return sign > 0 ? palette.POSITIVE : palette.NEGATIVE;
 }
 
 /**
@@ -114,8 +122,8 @@ const UNUSUAL_PUT_VOL = "#F2A65A";
 type UnusualLegFilter = "all" | "CE" | "PE";
 
 function positioningText(sentiment: string, side: "CE" | "PE") {
-  const code = sentiment.trim().toUpperCase();
-  const label = UNUSUAL_SENTIMENT_NAMES[code] ?? sentiment;
+  const code = sentimentCode(sentiment);
+  const label = sentimentLabel(sentiment);
   const tone = getUnusualSentimentTone(sentiment, side);
   // Terminal style: plain bold text, no pill border — Short buildup reads
   // orange, Long buildup / covers read blue, unwinds stay muted.
@@ -124,6 +132,8 @@ function positioningText(sentiment: string, side: "CE" | "PE") {
   return (
     <Box
       component="span"
+      title={code ? `${label} (${side}) — ${sentimentNote(code, side)}` : label}
+      data-testid={`nifty-unusual-sentiment-${side}`}
       sx={{
         maxWidth: "100%",
         overflow: "hidden",
@@ -198,7 +208,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
               fontVariantNumeric: "tabular-nums",
             }}
           >
-            <Text size="xs" span fw={700}>{row.strike.toLocaleString("en-IN")}</Text>
+            <Text size="xs" span fw={700}>{formatNumberIN(row.strike)}</Text>
             <Text size="xs" span fw={700} c={tone}>{row.leg}</Text>
           </Box>
         );
@@ -276,7 +286,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
  * already-built row (no new data): `25,800 CE · VOL 90.00K · OI 1.00K ·
  * VOL÷OI 90.00x · SHARE 47.4% of CE vol · VS SPOT +50 pts · Short Cover`. */
 export function formatUnusualFocus(row: UnusualLegRow, spot: number): string {
-  const strike = row.strike.toLocaleString("en-IN");
+  const strike = formatNumberIN(row.strike);
   const vol = formatUnusualCompact(row.volume);
   const oi = formatUnusualCompact(row.oi);
   // Mirrors the table cell: OI=0 legs show compact volume instead of a ratio.
@@ -289,8 +299,7 @@ export function formatUnusualFocus(row: UnusualLegRow, spot: number): string {
   const vs = Number.isFinite(diff)
     ? `${diff >= 0 ? "+" : "-"}${Math.abs(diff).toLocaleString("en-IN", { maximumFractionDigits: 0 })} pts`
     : "—";
-  const code = row.sentiment.trim().toUpperCase();
-  const positioning = UNUSUAL_SENTIMENT_NAMES[code] ?? row.sentiment;
+  const positioning = sentimentLabel(row.sentiment);
   return `${strike} ${row.leg} · VOL ${vol} · OI ${oi} · VOL÷OI ${ratio} · SHARE ${share} · VS SPOT ${vs} · ${positioning}`;
 }
 
@@ -500,8 +509,8 @@ function NiftyUnusualVolumeInner({
             fontSize: 12,
           },
           "& .paper-tanstack-header-cell": {
-            paddingTop: "4px",
-            paddingBottom: "4px",
+            paddingTop: "2px",
+            paddingBottom: "2px",
             background: `${UNUSUAL_TERM_BG} !important`,
             borderBottom: "1px solid #2A2A2A !important",
             color: "#8B949E",
@@ -518,6 +527,7 @@ function NiftyUnusualVolumeInner({
           fillContainer
           getRowStyle={getRowStyle}
           getRowTestId={getUnusualRowTestId}
+          dense
           style={{ minWidth: 0 }}
         />
       </Box>

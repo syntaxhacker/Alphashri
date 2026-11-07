@@ -21,6 +21,9 @@ from __future__ import annotations
 import statistics
 from typing import Any, Optional
 
+from api.reports_api._numeric import safe_float
+from api.reports_api._time import minutes_between as _minutes_between
+
 #: A minute is a volume spike at this multiple of the trailing median.
 VOLUME_SPIKE_MULT = 3.0
 #: A wall or max-pain level must move at least this far to be "a shift".
@@ -38,14 +41,10 @@ MAX_GAP_FLOW_MIN = 3
 MAX_GAP_STOCK_MIN = 30
 
 
+# Backwards-compatible alias: safe_float with default=None matches the old
+# semantics (None/unparseable/NaN -> default, inf -> default).
 def _f(value: Any, default: Optional[float] = None) -> Optional[float]:
-    try:
-        if value is None:
-            return default
-        out = float(value)
-        return out if out == out else default  # NaN guard
-    except (TypeError, ValueError):
-        return default
+    return safe_float(value, default)
 
 
 def _minute_key(row: dict) -> str:
@@ -62,15 +61,6 @@ def _minute_gap(a: str, b: str) -> Optional[int]:
     except (ValueError, TypeError):
         return None
 
-
-def _minutes_between(a: dict, b: dict) -> Optional[int]:
-    from datetime import datetime
-
-    try:
-        return int((datetime.fromisoformat(str(b.get("t"))) -
-                    datetime.fromisoformat(str(a.get("t")))).total_seconds() // 60)
-    except (ValueError, TypeError):
-        return None
 
 
 def _top_wall(row: dict, side: str) -> tuple[Optional[float], float]:

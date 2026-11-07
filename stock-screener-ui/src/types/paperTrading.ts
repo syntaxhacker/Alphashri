@@ -6,6 +6,7 @@
 export type { StrategyConfig } from "./strategies";
 
 import type { StrategyConfig } from "./strategies";
+import type { CandleData as ChartCandleData } from "./backtest";
 
 export interface PaperPosition {
   symbol: string;
@@ -140,14 +141,14 @@ export interface PaperChartData {
   } | null;
 }
 
-export interface CandleData {
-  time: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-}
+// Candles returned by /api/paper/chart carry only `time` + OHLCV — no date split.
+// Derive from the single chart-candle definition in types/backtest.ts so the
+// OHLCV fields are never defined twice; the date-split fields stay optional.
+export type CandleData = Omit<ChartCandleData, "date" | "date_raw" | "time_str"> & {
+  date?: string;
+  date_raw?: string;
+  time_str?: string;
+};
 
 export interface ORBLevels {
   or_high: number;

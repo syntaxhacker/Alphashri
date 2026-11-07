@@ -14,15 +14,8 @@
 
 import { MAX_PAIN_TOUCH_TOL, maxPainTouches } from "./maxPainTouches";
 import { formatReportNum } from "./reportFormat";
-
-export type ChainTuple = [
-  ce_ltp: number | null,
-  pe_ltp: number | null,
-  ce_oi: number | null,
-  pe_oi: number | null,
-  ce_vol: number | null,
-  pe_vol: number | null,
-];
+import { safeNumNull } from "@/utils/reportParsers";
+import { chainLeg, chainMetric, type ChainMap } from "./chainTuple";
 
 /** Minimal tape-row surface this builder reads — deliberately local so the
  *  component never depends on another agent's in-flight file. */
@@ -34,19 +27,21 @@ export interface HeatmapTapeRow {
   maxPain?: number | null;
   flip?: number | null;
   walls?: { call?: number; put?: number } | null;
-  chain?: Record<string, ChainTuple | (number | null)[]> | null;
+  chain?: ChainMap | null;
 }
 
 type HeatCellSign = "ce" | "pe" | "flat";
 
 interface HeatBucket {
-  /** ISO timestamp of the bucket's last row. */
+  /** ISO timestamp of the bucket's last row (empty when no tape row landed). */
   t: string;
   /** Short HH:MM label of the bucket's representative (last) row. */
   label: string;
   /** HH:MM wall-clock start of the bucket — used for axis ticks. */
   startLabel: string;
-  spot: number;
+  /** Spot of the bucket's representative row; null for a padded empty bucket
+   *  (tape started after the session's first candle). */
+  spot: number | null;
   maxPain: number | null;
   flip: number | null;
   atmStrike: number | null;
@@ -69,6 +64,11 @@ interface HeatCell {
   strike: number;
   ceDoi: number | null;
   peDoi: number | null;
+  /** CE/PE LTP change vs the previous data bucket (premium evidence). This is
+   *  computed regardless of the cell `metric` so a read can tell buyers from
+   *  writers: OI up + premium up = buying, OI up + premium down = writing. */
+  cePremiumDoi: number | null;
+  pePremiumDoi: number | null;
   sign: HeatCellSign;
   /** 0..1, normalized by the largest |ΔOI| in the whole model. */
   intensity: number;
@@ -83,6 +83,8 @@ interface OiHeatmap {
   maxAbs: number;
   /** True when no row carried a usable chain. */
   empty: boolean;
+  /** Field the cells colour (OI change / volume / premium change). */
+  metric: "oi" | "volume" | "premium";
 }
 
 interface HeatmapOptions {
@@ -90,6 +92,18 @@ interface HeatmapOptions {
   widthPts?: number;
   /** Max-pain touch window in points (any row in the bucket). */
   touchTol?: number;
+  /**
+   * Which field the cells colour: OI change (default), traded volume, or
+   * premium change. Volume answers "where is the fight" (2026-10-23 13:33
+   * printed 17.5M at 22,450 before the break); premium answers "who is paying".
+   */
+  metric?: "oi" | "volume" | "premium";
+  /**
+   * Session anchor for the time axis (the first intraday candle, 09:15). When
+   * supplied, the axis starts there and missing tape minutes become empty
+   * buckets instead of being silently compressed out of the left edge.
+   */
+  startTime?: string | null;
 }
 
 /** Plot geometry (viewBox) shared with the flow strip below the heatmap. */
@@ -102,10 +116,6 @@ export const HEATMAP_PAD_L = 64;
  * burst lands under the 09:36 heatmap column instead of at "1/3 of the
  * events" (which put a 15:00 burst next to a 09:20 one).
  */
-function num(v: unknown): number | null {
-  const n = typeof v === "string" ? Number(v) : (v as number);
-  return typeof n === "number" && Number.isFinite(n) ? n : null;
-}
 
 /** IST wall-clock HH:MM for an ISO stamp or a bare HH:MM. */
 function heatTimeLabel(t: string): string {
@@ -138,11 +148,10 @@ function clockLabel(minutes: number): string {
 function strikeOi(
   chain: HeatmapTapeRow["chain"],
   strike: number,
+  metric: "oi" | "volume" | "premium" = "oi",
 ): { ce: number | null; pe: number | null } {
-  if (!chain || typeof chain !== "object") return { ce: null, pe: null };
-  const entry = chain[String(strike)] ?? chain[String(Math.round(strike))];
-  if (!Array.isArray(entry) || entry.length < 4) return { ce: null, pe: null };
-  return { ce: num(entry[2]), pe: num(entry[3]) };
+  const leg = chainLeg(chain, strike);
+  return chainMetric(leg, metric);
 }
 
 function hasChain(row: HeatmapTapeRow): boolean {
@@ -157,7 +166,8 @@ export function buildOiHeatmap(
   const bucketMin = opts.bucketMin ?? 5;
   const widthPts = opts.widthPts ?? 500;
   const touchTol = opts.touchTol ?? MAX_PAIN_TOUCH_TOL;
-  const empty: OiHeatmap = { buckets: [], strikes: [], cells: [], maxAbs: 0, empty: true };
+  const metric = opts.metric ?? "oi";
+  const empty: OiHeatmap = { buckets: [], strikes: [], cells: [], maxAbs: 0, empty: true, metric };
 
   const asc = (rows ?? [])
     .filter((r) => r && typeof r.t === "string" && r.t.length > 0)
@@ -167,7 +177,7 @@ export function buildOiHeatmap(
   // Reference spot = last row with a finite spot (drives the ±width window).
   let refSpot = 0;
   for (let i = asc.length - 1; i >= 0; i--) {
-    const s = num(asc[i].spot);
+    const s = safeNumNull(asc[i].spot);
     if (s !== null && s > 0) {
       refSpot = s;
       break;
@@ -187,8 +197,14 @@ export function buildOiHeatmap(
   const strikes = [...universe].sort((a, b) => a - b);
   if (strikes.length === 0) return empty;
 
-  // Time buckets anchored at the first row's minute.
-  const firstMin = heatMinutes(asc[0].t) ?? 0;
+  // Time buckets anchored at the session's first candle when the caller passes
+  // `startTime`; otherwise at the first tape row's minute. Padding the axis
+  // from 09:15 makes the opening pump visible even when the first chain
+  // snapshot arrived at 09:30 (the old axis silently started at 09:30).
+  const rowFirstMin = heatMinutes(asc[0].t) ?? 0;
+  const requestedMin = opts.startTime ? heatMinutes(opts.startTime) : null;
+  const firstMin = requestedMin !== null && requestedMin < rowFirstMin ? requestedMin : rowFirstMin;
+  const padFromStart = requestedMin !== null && requestedMin < rowFirstMin;
   const bucketOf = (t: string): number => {
     const m = heatMinutes(t);
     if (m === null) return 0;
@@ -201,19 +217,35 @@ export function buildOiHeatmap(
     list.push(r);
     bucketRows.set(b, list);
   }
-  const keys = [...bucketRows.keys()].sort((a, b) => a - b);
+  const presentKeys = [...bucketRows.keys()].sort((a, b) => a - b);
+  const keys = padFromStart
+    ? Array.from({ length: presentKeys[presentKeys.length - 1] + 1 }, (_, i) => i)
+    : presentKeys;
 
   // Representative = last row of each bucket (latest chain snapshot). A bucket
   // still counts as a max-pain touch when ANY row inside it sat on the pin —
   // the representative row can be several points away by the bucket's end.
   const buckets: HeatBucket[] = keys.map((b) => {
-    const list = bucketRows.get(b) as HeatmapTapeRow[];
+    const list = bucketRows.get(b) ?? [];
+    const startLabel = clockLabel(firstMin + b * Math.max(1, bucketMin));
+    if (list.length === 0) {
+      return {
+        t: "",
+        label: startLabel,
+        startLabel,
+        spot: null,
+        maxPain: null,
+        flip: null,
+        atmStrike: null,
+        touch: null,
+      };
+    }
     const rep = list[list.length - 1];
-    const mp = num(rep.max_pain ?? rep.maxPain);
-    const flip = num(rep.flip);
-    const atm = num(rep.atm_strike);
+    const mp = safeNumNull(rep.max_pain ?? rep.maxPain);
+    const flip = safeNumNull(rep.flip);
+    const atm = safeNumNull(rep.atm_strike);
     const touches = maxPainTouches(
-      list.map((r) => ({ value: num(r.spot) ?? NaN, maxPain: num(r.max_pain ?? r.maxPain) })),
+      list.map((r) => ({ value: safeNumNull(r.spot) ?? NaN, maxPain: safeNumNull(r.max_pain ?? r.maxPain) })),
       touchTol,
     );
     // Closest wins; ties keep the earlier row.
@@ -224,8 +256,8 @@ export function buildOiHeatmap(
     return {
       t: rep.t,
       label: heatTimeLabel(rep.t),
-      startLabel: clockLabel(firstMin + b * Math.max(1, bucketMin)),
-      spot: num(rep.spot) ?? 0,
+      startLabel,
+      spot: safeNumNull(rep.spot) ?? 0,
       maxPain: mp !== null && mp > 0 ? mp : null,
       flip: flip !== null && flip !== 0 ? flip : null,
       atmStrike: atm !== null && atm > 0 ? atm : null,
@@ -241,28 +273,72 @@ export function buildOiHeatmap(
     };
   });
 
-  // Per-cell ΔOI vs the previous bucket's representative chain.
+  // Per-cell ΔOI vs the previous DATA bucket's representative chain. Empty
+  // padded buckets carry null deltas; the next data bucket still measures
+  // against the last real snapshot across the gap.
   const cells: HeatCell[] = [];
   let maxAbs = 0;
+  let prevRep: HeatmapTapeRow | null = null;
   keys.forEach((b, bi) => {
-    const rep = (bucketRows.get(b) as HeatmapTapeRow[]).slice(-1)[0];
-    const prevRep = bi > 0 ? ((bucketRows.get(keys[bi - 1]) as HeatmapTapeRow[]).slice(-1)[0]) : null;
+    const list = bucketRows.get(b) ?? [];
+    const rep = list.length > 0 ? list[list.length - 1] : null;
+    if (!rep) {
+      for (const strike of strikes) {
+        cells.push({
+          bucket: bi,
+          strike,
+          ceDoi: null,
+          peDoi: null,
+          cePremiumDoi: null,
+          pePremiumDoi: null,
+          sign: "flat",
+          intensity: 0,
+        });
+      }
+      return;
+    }
     for (const strike of strikes) {
-      if (bi === 0 || !prevRep) {
-        cells.push({ bucket: bi, strike, ceDoi: null, peDoi: null, sign: "flat", intensity: 0 });
+      if (!prevRep) {
+        cells.push({
+          bucket: bi,
+          strike,
+          ceDoi: null,
+          peDoi: null,
+          cePremiumDoi: null,
+          pePremiumDoi: null,
+          sign: "flat",
+          intensity: 0,
+        });
         continue;
       }
-      const cur = strikeOi(rep.chain, strike);
-      const prev = strikeOi(prevRep.chain, strike);
+      const cur = strikeOi(rep.chain, strike, metric);
+      const prev = strikeOi(prevRep.chain, strike, metric);
       const ceDoi = cur.ce !== null && prev.ce !== null ? cur.ce - prev.ce : null;
       const peDoi = cur.pe !== null && prev.pe !== null ? cur.pe - prev.pe : null;
+      // Premium leg [0,1] is always read, independent of the colour metric.
+      const curPrem = strikeOi(rep.chain, strike, "premium");
+      const prevPrem = strikeOi(prevRep.chain, strike, "premium");
+      const cePremiumDoi =
+        curPrem.ce !== null && prevPrem.ce !== null ? curPrem.ce - prevPrem.ce : null;
+      const pePremiumDoi =
+        curPrem.pe !== null && prevPrem.pe !== null ? curPrem.pe - prevPrem.pe : null;
       const net = (ceDoi ?? 0) - (peDoi ?? 0);
       const sign: HeatCellSign =
         ceDoi === null && peDoi === null ? "flat" : net > 0 ? "ce" : net < 0 ? "pe" : "flat";
       const mag = Math.max(Math.abs(ceDoi ?? 0), Math.abs(peDoi ?? 0));
       if (mag > maxAbs) maxAbs = mag;
-      cells.push({ bucket: bi, strike, ceDoi, peDoi, sign, intensity: 0 });
+      cells.push({
+        bucket: bi,
+        strike,
+        ceDoi,
+        peDoi,
+        cePremiumDoi,
+        pePremiumDoi,
+        sign,
+        intensity: 0,
+      });
     }
+    prevRep = rep;
   });
 
   if (maxAbs > 0) {
@@ -271,17 +347,21 @@ export function buildOiHeatmap(
     }
   }
 
-  return { buckets, strikes, cells, maxAbs, empty: false };
+  return { buckets, strikes, cells, maxAbs, empty: false, metric };
 }
 
 interface HeatmapRead {
   /** Strike with the largest positive CE ΔOI (call writers pressing). */
   ceStrike: number | null;
   ceDoi: number | null;
+  /** CE premium change at `ceStrike` in the winning bucket (null = no evidence). */
+  cePremiumDoi: number | null;
   /** Strike with the largest positive PE ΔOI (put buyers). */
   peStrike: number | null;
   peDoi: number | null;
-  /** Spot from the latest bucket. */
+  /** PE premium change at `peStrike` in the winning bucket (null = no evidence). */
+  pePremiumDoi: number | null;
+  /** Spot from the latest bucket that carries one. */
   spot: number | null;
   /** Latest non-null max-pain level. */
   maxPain: number | null;
@@ -296,22 +376,34 @@ function fmtStrike(v: number): string {
 export function readHeatmap(model: OiHeatmap): HeatmapRead {
   let ceStrike: number | null = null;
   let ceDoi: number | null = null;
+  let cePremiumDoi: number | null = null;
   let peStrike: number | null = null;
   let peDoi: number | null = null;
+  let pePremiumDoi: number | null = null;
 
   for (const c of model.cells) {
     if (c.ceDoi !== null && c.ceDoi > 0 && (ceDoi === null || c.ceDoi > ceDoi)) {
       ceDoi = c.ceDoi;
       ceStrike = c.strike;
+      cePremiumDoi = c.cePremiumDoi;
     }
     if (c.peDoi !== null && c.peDoi > 0 && (peDoi === null || c.peDoi > peDoi)) {
       peDoi = c.peDoi;
       peStrike = c.strike;
+      pePremiumDoi = c.pePremiumDoi;
     }
   }
 
-  const last = model.buckets.length > 0 ? model.buckets[model.buckets.length - 1] : null;
-  const spot = last && Number.isFinite(last.spot) && last.spot > 0 ? last.spot : null;
+  // Latest bucket that actually carries a spot (padded empty buckets are null).
+  let last: (typeof model.buckets)[number] | null = null;
+  for (let i = model.buckets.length - 1; i >= 0; i--) {
+    const b = model.buckets[i];
+    if (b.spot !== null && Number.isFinite(b.spot) && b.spot > 0) {
+      last = b;
+      break;
+    }
+  }
+  const spot = last?.spot ?? null;
 
   let maxPain: number | null = null;
   for (let i = model.buckets.length - 1; i >= 0; i--) {
@@ -325,18 +417,47 @@ export function readHeatmap(model: OiHeatmap): HeatmapRead {
   const spotVsMaxPain: HeatmapRead["spotVsMaxPain"] =
     spot === null || maxPain === null ? null : spot > maxPain ? "above" : spot < maxPain ? "below" : "at";
 
-  return { ceStrike, ceDoi, peStrike, peDoi, spot, maxPain, spotVsMaxPain };
+  return {
+    ceStrike,
+    ceDoi,
+    cePremiumDoi,
+    peStrike,
+    peDoi,
+    pePremiumDoi,
+    spot,
+    maxPain,
+    spotVsMaxPain,
+  };
+}
+
+/** Buyer/writer wording only when premium evidence exists; otherwise the
+ *  neutral OI-build clause (OI alone cannot name the initiator). */
+function buildClause(
+  side: "CE" | "PE",
+  strike: number | null,
+  premiumDoi: number | null,
+): string | null {
+  if (strike === null) return null;
+  if (premiumDoi !== null && Number.isFinite(premiumDoi) && premiumDoi !== 0) {
+    const who = premiumDoi > 0 ? "buyers" : "writers";
+    return `${side === "CE" ? "call" : "put"} ${who} at ${fmtStrike(strike)}`;
+  }
+  return `${side} OI build at ${fmtStrike(strike)}`;
 }
 
 /**
  * One-line interpretation of a heatmap read:
- * `Call writers pressing 23,000 · put buyers at 22,700 · spot 22,738 below max pain 22,900`.
- * Clauses whose data is missing are omitted.
+ * `call buyers at 23,000 · put writers at 22,700 · spot 22,738 below max pain 22,900`.
+ * Buyer/writer wording appears only when the premium delta proves it (OI up +
+ * premium up = buying; OI up + premium down = writing). Otherwise the clause
+ * stays neutral (`CE OI build at …`). Clauses whose data is missing are omitted.
  */
 export function heatmapReadText(read: HeatmapRead): string {
   const parts: string[] = [];
-  if (read.ceStrike !== null) parts.push(`Call writers pressing ${fmtStrike(read.ceStrike)}`);
-  if (read.peStrike !== null) parts.push(`put buyers at ${fmtStrike(read.peStrike)}`);
+  const call = buildClause("CE", read.ceStrike, read.cePremiumDoi);
+  const put = buildClause("PE", read.peStrike, read.pePremiumDoi);
+  if (call) parts.push(call);
+  if (put) parts.push(put);
   if (read.spot !== null && read.maxPain !== null && read.spotVsMaxPain !== null) {
     parts.push(`spot ${fmtStrike(read.spot)} ${read.spotVsMaxPain} max pain ${fmtStrike(read.maxPain)}`);
   }

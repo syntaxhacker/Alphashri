@@ -1,10 +1,9 @@
-import { memo, useEffect, useState } from "react";
+import { memo } from "react";
 import { Text } from "@/ui";
-import type { NiftySpotTick } from "@/hooks/useNiftyReportStream";
+import { formatReportClock } from "./reportFormat";
+import { useNiftySpotTick } from "@/hooks/useNiftyReportStream";
 
 interface NiftyUpdatedLabelProps {
-  /** Live spot tick pushed ~1/second. Consumed here only. */
-  tick: NiftySpotTick | null;
   marketClosed: boolean;
   sessionDate?: string | null;
   /** Last report/tape frame time — moves ~30-60s, never per tick. */
@@ -13,32 +12,20 @@ interface NiftyUpdatedLabelProps {
 }
 
 /**
- * Header "Updated HH:MM:SS · live (WS)" label, isolated behind `React.memo`.
- * The ~1/second `tick` frame owns a tiny local clock here instead of bumping
- * parent state (which re-rendered the entire report tree once per second just
- * to move this label). The tick therefore repaints only this label; the rest
- * of the panel sees `updatedAtMs` from report/tape frames only (~30-60s).
+ * Header "Updated HH:MM:SS · live (WS)" label. Subscribes to the tick store
+ * itself, so the ~1/second frame repaints only this label instead of bumping
+ * `updatedAtMs` (which re-rendered every consumer) or the panel.
  */
 export const NiftyUpdatedLabel = memo(function NiftyUpdatedLabel({
-  tick,
   marketClosed,
   sessionDate,
   updatedAtMs,
   isStale,
 }: NiftyUpdatedLabelProps) {
-  const [tickAtMs, setTickAtMs] = useState<number | null>(null);
-  useEffect(() => {
-    if (tick) setTickAtMs(Date.now());
-  }, [tick]);
-
-  const shownMs = tickAtMs ?? updatedAtMs;
-  const updatedAtLabel =
-    shownMs === null
-      ? ""
-      : new Date(shownMs).toLocaleTimeString("en-IN", {
-          hour12: false,
-          timeZone: "Asia/Kolkata",
-        });
+  const tick = useNiftySpotTick();
+  const tickMs = tick?.ts ? Date.parse(tick.ts) : NaN;
+  const shownMs = Number.isFinite(tickMs) ? tickMs : updatedAtMs ?? Date.now();
+  const updatedAtLabel = formatReportClock(shownMs);
 
   return (
     <Text

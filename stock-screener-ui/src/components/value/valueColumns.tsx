@@ -1,6 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { Box, Badge, Text } from "@/ui";
 import type { ValueRow } from "../../api/valueScan";
+import { SymbolLink } from "../common/SymbolLink";
 import { ValueScoreCell } from "./ValueScoreCell";
 import {
   formatValueMcap,
@@ -78,11 +79,28 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
       cell: ({ row }) => {
         const r = row.original;
         return (
-          <Box sx={{ textAlign: "left", lineHeight: 1.2 }}>
-            <Text size="xs" fw={600} data-testid={`value-name-${r.symbol}`}>
-              {r.symbol}
-            </Text>
-            <Text size="xs" c="dimmed" data-testid={`value-subname-${r.symbol}`}>
+          // Single-line identity: symbol + company·exchange. A stacked second
+          // line doubled the row height (40px) for information the drawer
+          // already carries; the full name stays in the tooltip.
+          <Box sx={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0, textAlign: "left" }}>
+            <SymbolLink
+              symbol={r.symbol}
+              market={r.exchange}
+              testId={`value-name-${r.symbol}`}
+              chartTestId={`value-chart-${r.symbol}`}
+              size="xs"
+              weight={600}
+              sx={{ flexShrink: 0 }}
+            />
+            <Text
+              size="xs"
+              c="dimmed"
+              truncate
+              lh={1.15}
+              title={`${r.name} · ${r.exchange}`}
+              data-testid={`value-subname-${r.symbol}`}
+              sx={{ minWidth: 0, fontSize: 10 }}
+            >
               {r.name} · {r.exchange}
             </Text>
           </Box>
@@ -233,7 +251,7 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
         if (r.flags.length === 0) return dash(r.symbol, "flags");
         return (
           <Box
-            sx={{ display: "flex", justifyContent: "center", gap: "4px", flexWrap: "wrap" }}
+            sx={{ display: "flex", justifyContent: "center", gap: "4px", flexWrap: "nowrap", overflow: "hidden" }}
             data-testid={`value-flags-${r.symbol}`}
           >
             {r.flags.slice(0, 3).map((f) => (

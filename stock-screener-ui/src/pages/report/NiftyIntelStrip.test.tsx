@@ -56,7 +56,7 @@ describe("NiftyIntelStrip — compact fields", () => {
     expect(await screen.findByTestId("nifty-intel-fii")).toHaveTextContent("−1,149");
     expect(screen.getByTestId("nifty-intel-dii")).toHaveTextContent("+3,201");
     const doi = screen.getByTestId("nifty-intel-doi");
-    expect(doi).toHaveTextContent(/ΔOI C\s*\+96M/);
+    expect(doi).toHaveTextContent(/ΔOI \(official\) C\s*\+96M/);
     expect(doi).toHaveTextContent(/\/\s*P\s*\+44M/);
     expect(screen.getByTestId("nifty-intel-mp")).toHaveTextContent("22,900");
     expect(screen.getByTestId("nifty-intel-pcr")).toHaveTextContent("0.69");

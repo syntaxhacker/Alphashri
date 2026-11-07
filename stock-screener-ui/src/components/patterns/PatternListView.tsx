@@ -1,17 +1,34 @@
 import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Text } from "@/ui";
+import { Box, Text } from "@/ui";
 import { TanStackTable } from "@/components/common/TanStackTable";
-import { formatCurrency, formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
+import { formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
 import type { PatternHitDTO } from "@/types/chartPatterns";
+import { fullscreenDedupeKey } from "@/hooks/usePatternFullscreen";
 import { QUALITY_INFO } from "@/config/patternCatalog";
+import { SymbolLink } from "@/components/common/SymbolLink";
+import { hasIndexMembers } from "@/config/indexGroups";
+import { MembersButton } from "./MembersButton";
 import { StatusBadge } from "./StatusBadge";
+import { directionGlyph, directionTone } from "./symbolMatrix";
+import { qualityBadgeTone, qualityLabel } from "./patternTone";
+import { formatPrice } from "./shared";
 
 export interface PatternListViewProps {
   hits: PatternHitDTO[];
   onSelect: (hit: PatternHitDTO) => void;
+  onShowMembers?: (symbol: string) => void;
   /** Active rail sort — seeds the table's sort so the header matches the rail. */
   sort?: string;
+  /** Hit currently shown in the docked chart — highlighted in the table. */
+  activeHit?: PatternHitDTO | null;
+  /** Emits the rows in rendered (post-sort) order for prev/next navigation. */
+  onOrderChange?: (hits: PatternHitDTO[]) => void;
+  /** Hover intent for the right-side symbol preview (host debounces). */
+  onSymbolPreview?: (symbol: string) => void;
+  onSymbolPreviewEnd?: (symbol: string) => void;
+  /** Chart icon: open the symbol in the right-side chart. */
+  onSymbolOpen?: (symbol: string) => void;
 }
 
 /** Rail sort -> the column the table seeds its sort indicator from. */
@@ -42,11 +59,16 @@ function gapPct(value: number | null | undefined): string {
 /** Compact direction glyph: ▲ bullish / ▼ bearish / ◆ otherwise (value kept in title/aria). */
 function DirectionGlyph({ direction }: { direction: string | null | undefined }) {
   const raw = String(direction ?? "—").toLowerCase();
-  const glyph = raw === "bullish" ? "▲" : raw === "bearish" ? "▼" : "◆";
-  const tone = raw === "bullish" ? "success" : raw === "bearish" ? "error" : "dimmed";
   return (
-    <Text size="sm" fw={700} c={tone} title={raw} aria-label={raw} truncate>
-      {glyph}
+    <Text
+      size="sm"
+      fw={700}
+      c={directionTone(direction)}
+      title={raw}
+      aria-label={raw}
+      truncate
+    >
+      {directionGlyph(direction)}
     </Text>
   );
 }
@@ -55,10 +77,9 @@ function DirectionGlyph({ direction }: { direction: string | null | undefined })
 function QualityGlyph({ quality }: { quality: string | null | undefined }) {
   const key = String(quality ?? "").toLowerCase();
   const info = QUALITY_INFO[key as keyof typeof QUALITY_INFO];
-  const label = info?.label ?? (key ? key.charAt(0).toUpperCase() + key.slice(1) : "Unknown");
-  const letter = (info?.label ?? label).charAt(0).toUpperCase();
-  const tone =
-    key === "textbook" ? "success" : key === "strong" ? "primary" : key === "fair" ? "info" : "warning";
+  const label = qualityLabel(quality);
+  const letter = label.charAt(0).toUpperCase();
+  const tone = qualityBadgeTone(quality);
   const title = info ? `${info.label}: ${info.description}` : label;
   return (
     <Text
@@ -76,20 +97,50 @@ function QualityGlyph({ quality }: { quality: string | null | undefined }) {
 }
 
 /** Dense scanner table: one row per hit, ~28px rows, no sticky thead (see below). */
-export function PatternListView({ hits, onSelect, sort }: PatternListViewProps) {
+export function PatternListView({
+  hits,
+  onSelect,
+  onShowMembers,
+  sort,
+  activeHit = null,
+  onOrderChange,
+  onSymbolPreview,
+  onSymbolPreviewEnd,
+  onSymbolOpen,
+}: PatternListViewProps) {
+  const activeKey = activeHit ? fullscreenDedupeKey(activeHit) : null;
   const columns = useMemo<ColumnDef<PatternHitDTO>[]>(
     () => [
       {
         id: "symbol",
         header: "Symbol",
         accessorFn: (hit) => hit.symbol,
-        size: 110,
+        size: 134,
         meta: { align: "left" },
-        cell: (info) => (
-          <Text size="sm" fw={700} truncate>
-            {info.getValue<string>()}
-          </Text>
-        ),
+        cell: (info) => {
+          const symbol = info.getValue<string>();
+          const canShowMembers = Boolean(onShowMembers && hasIndexMembers(symbol));
+          return (
+            <Box sx={{ display: "flex", alignItems: "center", gap: "2px", minWidth: 0 }}>
+              <SymbolLink
+                symbol={symbol}
+                testId={`patterns-list-tv-${symbol}`}
+                chartTestId={`patterns-list-chart-${symbol}`}
+                onOpen={onSymbolOpen}
+                onPreview={onSymbolPreview}
+                onPreviewEnd={onSymbolPreviewEnd}
+                sx={{ flex: 1 }}
+              />
+              {canShowMembers ? (
+                <MembersButton
+                  symbol={symbol}
+                  testId={`patterns-list-members-${symbol}`}
+                  onShowMembers={onShowMembers}
+                />
+              ) : null}
+            </Box>
+          );
+        },
       },
       {
         id: "pattern",
@@ -117,25 +168,6 @@ export function PatternListView({ hits, onSelect, sort }: PatternListViewProps) 
           return (
             <Text size="sm" fw={600} truncate>
               {value == null ? "—" : value.toFixed(1)}
-            </Text>
-          );
-        },
-      },
-      {
-        id: "breakout_score",
-        header: () => (
-          <span title="Breakout conviction (range position, pattern fit, status, direction) — higher means closer to breaking out.">
-            Breakout
-          </span>
-        ),
-        accessorKey: "breakout_score",
-        size: 80,
-        meta: { align: "right" },
-        cell: (info) => {
-          const value = info.getValue<number | null | undefined>();
-          return (
-            <Text size="sm" fw={600} truncate>
-              {value == null ? "—" : Math.round(value).toString()}
             </Text>
           );
         },
@@ -211,7 +243,7 @@ export function PatternListView({ hits, onSelect, sort }: PatternListViewProps) 
           const value = info.getValue<number | null>();
           return (
             <Text size="sm" fw={600} truncate>
-              {value == null ? "—" : formatCurrency(value, 2)}
+              {formatPrice(value)}
             </Text>
           );
         },
@@ -232,7 +264,7 @@ export function PatternListView({ hits, onSelect, sort }: PatternListViewProps) 
         },
       },
     ],
-    [],
+    [onShowMembers, onSymbolOpen, onSymbolPreview, onSymbolPreviewEnd],
   );
 
   return (
@@ -249,6 +281,19 @@ export function PatternListView({ hits, onSelect, sort }: PatternListViewProps) 
       // breakout_score desc).
       initialState={{ sorting: sortingFor(sort) }}
       onRowClick={onSelect}
+      onSortedRowsChange={onOrderChange}
+      getRowStyle={(hit) =>
+        activeKey && fullscreenDedupeKey(hit) === activeKey
+          ? {
+              background: "var(--mui-palette-action-selected)",
+              boxShadow: "inset 3px 0 0 var(--mui-palette-primary-main)",
+            }
+          : undefined
+      }
+      getRowAttributes={(hit) => ({
+        "data-active":
+          activeKey && fullscreenDedupeKey(hit) === activeKey ? "true" : undefined,
+      })}
       getRowTestId={(hit) =>
         `patterns-list-row-${hit.symbol}-${hit.pattern_id}${hit.id != null ? `-${hit.id}` : ""}`
       }

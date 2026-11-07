@@ -6,6 +6,16 @@ import { detectOiBursts, burstToAlert } from "./niftyOiBursts";
 import type { OiBurst, OiSignal } from "./niftyOiBursts";
 import { useNiftyOiAlerts } from "./useNiftyOiAlerts";
 
+// Sound/title are browser side-effects; assert the calls, never play audio in CI.
+vi.mock("./alertSound", () => ({
+  playAlertSound: vi.fn(),
+  flashAlertTitle: vi.fn(),
+  unlockAlertAudio: vi.fn(),
+  alertsMuted: vi.fn(() => false),
+  setAlertsMuted: vi.fn(),
+}));
+import { flashAlertTitle, playAlertSound } from "./alertSound";
+
 function hm(i: number): string {
   const total = 9 * 60 + 15 + i;
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
@@ -103,6 +113,15 @@ describe("useNiftyOiAlerts", () => {
     expect(result.current.toasts).toEqual([]);
     // …yet the session is reviewable immediately (post-close / mid-session)
     expect(result.current.trail).toHaveLength(HISTORY.length);
+  });
+
+  test("seeding never resurrects a critical older than the banner TTL", () => {
+    // A 09:58 unwind was reappearing as a live banner at 10:45 after a reload.
+    const old = HISTORY.find((b) => b.severity === "critical")!;
+    const stale = { ...old, t: new Date(Date.now() - 30 * 60_000).toISOString() };
+    const { result } = renderHook(() => useAlerts([stale]));
+    expect(result.current.trail).toHaveLength(1); // still reviewable
+    expect(result.current.banners).toEqual([]); // but never "live"
   });
 
   test("seedTrail=false keeps a session empty (opt-out)", () => {
@@ -250,6 +269,113 @@ describe("useNiftyOiAlerts", () => {
     expect(result.current.trail[0].metrics?.some((m) => m.label === "ENTRY")).toBe(false);
   });
 
+  test("a critical burst chirps and flashes the tab title", () => {
+    const { result, rerender } = renderHook(
+      ({ bursts }: { bursts: OiBurst[] }) => useAlerts(bursts),
+      { initialProps: { bursts: HISTORY } },
+    );
+    act(() =>
+      rerender({
+        bursts: [
+          ...HISTORY,
+          {
+            ...FRESH,
+            id: "2026-10-23T12:45:00+05:30-call",
+            t: "2026-10-23T12:45:00+05:30",
+            severity: "critical",
+            actionable: true,
+          },
+        ],
+      }),
+    );
+    expect(playAlertSound).toHaveBeenCalledWith("critical");
+    expect(flashAlertTitle).toHaveBeenCalled();
+    // The toast/banner path is unchanged.
+    expect(result.current.banners.length).toBeGreaterThan(0);
+  });
+
+  test("a watch burst uses the soft cue, never the critical chirp", () => {
+    const { rerender } = renderHook(
+      ({ bursts }: { bursts: OiBurst[] }) => useAlerts(bursts),
+      { initialProps: { bursts: HISTORY } },
+    );
+    vi.mocked(playAlertSound).mockClear();
+    vi.mocked(flashAlertTitle).mockClear();
+    act(() =>
+      rerender({
+        bursts: [
+          ...HISTORY,
+          {
+            ...FRESH,
+            id: "2026-10-23T12:46:00+05:30-call",
+            t: "2026-10-23T12:46:00+05:30",
+            severity: "watch",
+          },
+        ],
+      }),
+    );
+    expect(playAlertSound).toHaveBeenCalledWith("watch");
+    expect(flashAlertTitle).not.toHaveBeenCalled();
+  });
+
+  test("the same setup inside ten minutes is announced once", () => {
+    const { result, rerender } = renderHook(
+      ({ bursts }: { bursts: OiBurst[] }) => useAlerts(bursts),
+      { initialProps: { bursts: HISTORY } },
+    );
+    const first: OiBurst = {
+      ...FRESH, id: "cool-1", t: "2026-10-23T09:40:00+05:30",
+      severity: "critical", strike: 22_700, side: "call", flow: "writers",
+    };
+    act(() => rerender({ bursts: [...HISTORY, first] }));
+    const trail = result.current.trail.length;
+    const repeat: OiBurst = { ...first, id: "cool-2", t: "2026-10-23T09:42:00+05:30" };
+    act(() => rerender({ bursts: [...HISTORY, first, repeat] }));
+    // Same side + flow + strike → the second id is the same idea.
+    expect(result.current.trail.length).toBe(trail);
+  });
+
+  test("a wall test and a same-strike rejection are two events, not a repeat", () => {
+    const { result, rerender } = renderHook(
+      ({ bursts }: { bursts: OiBurst[] }) => useAlerts(bursts),
+      { initialProps: { bursts: HISTORY } },
+    );
+    const tested: OiBurst = {
+      id: "wall-test-1154",
+      type: "wall_test",
+      side: "call",
+      t: "2026-11-03T11:54:00+05:30",
+      strike: 23_700,
+      spot: 23_690,
+      delta: 0,
+      baseline: 0,
+      score: 0,
+      severity: "watch",
+      cumDoi: 0,
+      tickVol: 0,
+    };
+    // 6 minutes later, same strike — inside the 10-minute cooldown window.
+    const rejected: OiBurst = {
+      ...tested,
+      id: "wall-reject-1200",
+      type: "rejection",
+      t: "2026-11-03T12:00:00+05:30",
+      target: 23_650,
+      spot: 23_647.7,
+    };
+    // A second test of the same wall is the same idea and must not re-toast.
+    const retest: OiBurst = {
+      ...tested,
+      id: "wall-test-1202",
+      t: "2026-11-03T12:02:00+05:30",
+    };
+    act(() => rerender({ bursts: [...HISTORY, tested, rejected, retest] }));
+    const titles = result.current.trail.map((a) => a.title);
+    expect(titles[0]).toContain("✕ CW 23,700 → 23,650");
+    expect(titles.filter((t) => t.includes("TESTED"))).toHaveLength(1);
+    expect(titles.filter((t) => t.includes("REJECTED") || t.includes("✕"))).toHaveLength(1);
+  });
+
   test("pushToast raises a toast manually and never stacks duplicates", () => {
     const { result } = renderHook(() => useAlerts(HISTORY));
     const alert = burstToAlert(HISTORY[0]);
@@ -259,14 +385,15 @@ describe("useNiftyOiAlerts", () => {
     expect(result.current.toasts).toHaveLength(1);
   });
 
-  test("a burst's pre-computed backend signal is used verbatim", () => {
+  test("a burst's pre-computed backend signal is used when it agrees with the flow", () => {
     const { result, rerender } = renderHook(
       ({ bursts }: { bursts: OiBurst[] }) => useAlerts(bursts),
       { initialProps: { bursts: HISTORY } },
     );
 
-    // The locally derived plan for this call-side burst would be ~28 on PE
-    // 22,700. A supplied signal must win over that derivation.
+    // The locally derived plan for this call-side burst is also PE, so the
+    // supplied signal is consistent with the flow read and must win verbatim
+    // (it carries the backend's own strike/entry).
     const supplied: OiSignal = {
       leg: "PE",
       strike: 22_700,
@@ -283,14 +410,54 @@ describe("useNiftyOiAlerts", () => {
     const entry = a.metrics?.find((m) => m.label === "ENTRY");
     expect(entry?.value).toBe("999.99");
     expect(a.title).toContain("BUY PE 22,700");
-    expect(a.detail).toContain("backend plan");
+    expect(a.detail).toContain("buy PE 22,700");
+  });
+
+  test("a backend plan that contradicts the flow verdict is re-derived", () => {
+    // 2026-10-23 11:19 live alert: call unwind −2.55M, premChg −4.45,
+    // flow=liquidation, bearish=true (longs sold out → PE) while the legacy
+    // backend plan said CE. The banner read "LONGS LIQUIDATING → BUY CE".
+    const { result, rerender } = renderHook(
+      ({ bursts }: { bursts: OiBurst[] }) => useAlerts(bursts),
+      { initialProps: { bursts: HISTORY } },
+    );
+    const contradictory: OiBurst = {
+      ...FRESH,
+      id: "2026-10-23T11:19:48+05:30-call",
+      side: "call",
+      delta: -2_551_640,
+      flow: "liquidation",
+      bearish: true,
+      premChg: -4.45,
+      type: "burst",
+      signal: {
+        leg: "CE",
+        strike: 22_450,
+        entry: 176.45,
+        sl: 132.34,
+        target: 264.67,
+        qty: 65,
+        lots: 1,
+        basis: "backend legacy plan (OI-only)",
+      },
+    };
+    act(() => rerender({ bursts: [...HISTORY, contradictory] }));
+
+    const a = result.current.trail[0];
+    expect(a.title).toContain("BUY PE");
+    expect(a.title).not.toContain("BUY CE");
+    expect(a.detail).toContain("longs exiting");
+    expect(a.detail).not.toContain("backend legacy plan");
   });
 });
 
 describe("useNiftyOiAlerts critical prominence", () => {
   /** FRESH is critical; clone it into distinct critical bursts. */
   function crit(id: string, t: string): OiBurst {
-    return { ...FRESH, id, t, severity: "critical" as const };
+    // Distinct strikes: the cooldown dedupes by side + flow + strike, so two
+    // criticals from the same setup inside 10 minutes are one announcement.
+    const n = Number(id.replace(/\D/g, "")) || 0;
+    return { ...FRESH, id, t, severity: "critical" as const, strike: 22_500 + n * 50 };
   }
 
   test("critical toasts survive the normal 45s timer and last 90s", () => {

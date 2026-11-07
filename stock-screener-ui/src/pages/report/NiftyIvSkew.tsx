@@ -1,3 +1,4 @@
+import { formatNumberIN } from "@/utils/ui-helpers";
 import { memo, useMemo } from "react";
 import Box from "@mui/material/Box";
 import * as palette from "@/ui/palette";
@@ -257,7 +258,7 @@ export function buildIvSkewChart(
     }
   }
 
-  const labels = masked.map((p) => p.strike.toLocaleString("en-IN"));
+  const labels = masked.map((p) => formatNumberIN(p.strike));
   const series: MiniSeries[] = [
     {
       name: "CE IV",
@@ -304,7 +305,7 @@ function NiftyIvSkewInner({ strikes, spot = null }: NiftyIvSkewProps) {
   const band = chart.band;
   const coverage = [
     band.length > 0
-      ? `Band ${band[0].strike.toLocaleString("en-IN")}–${band[band.length - 1].strike.toLocaleString("en-IN")}`
+      ? `Band ${formatNumberIN(band[0].strike)}–${formatNumberIN(band[band.length - 1].strike)}`
       : null,
     `${band.length} OTM strikes`,
     chart.clipped > 0 ? `${chart.clipped} legs >${IV_MAX_PCT}% clipped` : null,

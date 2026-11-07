@@ -31,6 +31,8 @@ from typing import Any, Callable, Optional
 from fastapi import APIRouter, HTTPException, Query
 
 import config
+from api.reports_api._dates import validate_date
+from api.reports_api._time import today_str as _today_ist
 from scripts.upstox_intel import (
     NIFTY_KEY,
     _as_float,
@@ -88,19 +90,6 @@ def _get(path: str, params: dict, timeout: float):
     get_limiter().acquire()
     return _upstox_get(path, params, timeout)
 
-
-def _today_ist() -> str:
-    return dt.datetime.now(config.IST).date().isoformat()
-
-
-def _validate_date(date_str: str) -> str:
-    """``YYYY-MM-DD`` or a 400 — a bad date must not reach the upstream API."""
-    try:
-        dt.datetime.strptime(str(date_str), "%Y-%m-%d")
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=400,
-                            detail=f"bad date: {date_str!r}, want YYYY-MM-DD")
-    return str(date_str)
 
 
 def _validate_expiry(expiry_str: str) -> str:
@@ -306,7 +295,9 @@ def build_payload(
         "date": date_str,
         "expiry": expiry_str,
         "fii_net": fii.get("net"),
+        "fii_date": fii.get("date"),
         "dii_net": dii.get("net"),
+        "dii_date": dii.get("date"),
         "dce_oi": change.get("total_call_change_oi"),
         "dpe_oi": change.get("total_put_change_oi"),
         "top_dce": top_side(rows, "call"),
@@ -333,7 +324,9 @@ def _all_unavailable(date_str: str, expiry_str: str) -> dict:
         "date": date_str,
         "expiry": expiry_str,
         "fii_net": None,
+        "fii_date": None,
         "dii_net": None,
+        "dii_date": None,
         "dce_oi": None,
         "dpe_oi": None,
         "top_dce": [],
@@ -359,7 +352,7 @@ def get_nifty_intel(
     by ONE request (single-flight) — the others wait for it. Never 500s:
     anything that goes wrong is reported through ``unavailable``.
     """
-    date_str = _validate_date(date or _today_ist())
+    date_str = validate_date(date or _today_ist())
     expiry_str = _validate_expiry(expiry or "current_week")
     key = (date_str, expiry_str, news_limit)
 

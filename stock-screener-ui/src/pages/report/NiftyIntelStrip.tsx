@@ -43,6 +43,12 @@ type Status = "loading" | "ready" | "error";
 
 const STRIP_HEIGHT = 24;
 
+/** `FII` when the flows are today's, `FII·23` when they are a prior session's. */
+function sessionTag(label: string, flowDate: string | null, session: string): string {
+  if (!flowDate || !session || flowDate === session) return label;
+  return `${label}·${flowDate.slice(8, 10)}`;
+}
+
 function Sep() {
   return (
     <Box component="span" aria-hidden sx={{ color: palette.TEXT_MUTED, opacity: 0.6, flexShrink: 0 }}>
@@ -463,18 +469,18 @@ export function NiftyIntelStrip({
         </Box>
         <Field
           testId="nifty-intel-fii"
-          label="FII"
+          label={sessionTag("FII", data.fii_date, data.date)}
           value={fmtIntelSigned(data.fii_net)}
           tone={flowTone(data.fii_net, palette)}
-          title="FII cash-market net flow (₹ crore)"
+          title={`FII cash-market net flow (₹ crore) — session ${data.fii_date ?? "unknown"}${data.fii_date && data.date && data.fii_date !== data.date ? " (previous session; published after its close)" : ""}`}
         />
         <Sep />
         <Field
           testId="nifty-intel-dii"
-          label="DII"
+          label={sessionTag("DII", data.dii_date, data.date)}
           value={fmtIntelSigned(data.dii_net)}
           tone={flowTone(data.dii_net, palette)}
-          title="DII cash-market net flow (₹ crore)"
+          title={`DII cash-market net flow (₹ crore) — session ${data.dii_date ?? "unknown"}${data.dii_date && data.date && data.dii_date !== data.date ? " (previous session; published after its close)" : ""}`}
         />
         <Sep />
         <Box
@@ -483,7 +489,7 @@ export function NiftyIntelStrip({
           sx={{ display: "inline-flex", alignItems: "baseline", gap: "4px", flexShrink: 0 }}
         >
           <Box component="span" sx={{ color: palette.TEXT_MUTED, fontSize: 9, letterSpacing: "0.04em" }}>
-            ΔOI C
+            ΔOI (official) C
           </Box>
           <Box
             component="span"

@@ -56,7 +56,7 @@ interface ReplaySegment {
 /**
  * Timeline segments in frame order: one minute per frame, plus a segment as
  * wide as the hole it skips. Leading/trailing holes cover the rest of the
- * session, so the strip always spans 09:15–15:29.
+ * session, so the strip always spans 09:15–15:39.
  */
 export function buildReplaySegments(
   replay: NiftyReplay | null,

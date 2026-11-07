@@ -1,12 +1,8 @@
 import { Box, Collapse, Text, UnstyledButton, useDisclosure } from "@/ui";
 import { IconChevronDown } from "@tabler/icons-react";
-import { formatCurrency } from "@/utils/ui-helpers";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { formatChartTimestamp } from "./datetime";
-
-function price(value: number | null | undefined): string {
-  return value == null ? "—" : formatCurrency(value, 2);
-}
+import { formatPrice } from "./shared";
 
 /**
  * Collapsible audit list of the swing pivots that define the pattern, so a
@@ -47,7 +43,7 @@ export function PivotList({ pivots }: { pivots?: PatternHitDTO["pivots"] }) {
               c="text.secondary"
               data-testid={`patterns-detail-pivot-${i}`}
             >
-              {formatChartTimestamp(pivot.t)} · {price(pivot.price)} · {pivot.kind === "low" ? "Low" : "High"}
+              {formatChartTimestamp(pivot.t)} · {formatPrice(pivot.price)} · {pivot.kind === "low" ? "Low" : "High"}
             </Text>
           ))}
         </Box>

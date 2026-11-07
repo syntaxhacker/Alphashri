@@ -4,9 +4,9 @@
 // exits via SL/TP/trailing/max-holding. Unlike the intraday plugins, each trade spans
 // days, so the chart window is widened to ~3 days on either side of the trade.
 import Stack from "@mui/material/Stack";
-import Chip from "@mui/material/Chip";
 import { createElement } from "react";
 import { TZ_IST_LABEL } from "@/config/constants";
+import { tradeStatChips } from "./shared";
 import type { ReplayTrade } from "../tick";
 import type { ReplayStrategyPlugin } from "../core/plugin";
 
@@ -62,18 +62,11 @@ const week52Chaser: ReplayStrategyPlugin = {
     fitPaddingBeforeMin: 3 * DAY_MIN,
     fitPaddingAfterMin: 3 * DAY_MIN,
   },
-  panel: (bundle) => {
-    const trades = bundle.trades;
-    const net = trades.reduce((a, t) => a + t.pnl, 0);
-    const wins = trades.filter(t => t.pnl > 0).length;
-    return createElement(
-      Stack,
-      { direction: "row", spacing: 1, sx: { mb: 1, flexWrap: "wrap" } },
-      createElement(Chip, { size: "small", label: `${trades.length} trades`, sx: { bgcolor: "#1F2937", color: "#00FF00" } }),
-      createElement(Chip, { size: "small", label: `win ${wins}/${trades.length}`, sx: { bgcolor: "#1F2937", color: "#9CA3AF" } }),
-      createElement(Chip, { size: "small", label: `net ${net > 0 ? "+" : ""}${net.toFixed(1)} pts`, color: net > 0 ? "success" : "error" }),
-    );
-  },
+  panel: (bundle) => createElement(
+    Stack,
+    { direction: "row", spacing: 1, sx: { mb: 1, flexWrap: "wrap" } },
+    ...tradeStatChips(bundle),
+  ),
   summary: (bundle) =>
     `daily NSE bars · breakout of rolling 52W high · SL/TP or trailing/max-holding exit · ${bundle.trades.length} trades · ${TZ_IST_LABEL}`,
 };

@@ -1,4 +1,4 @@
-import { Select } from "@/ui";
+import { Select, Text } from "@/ui";
 import { LOOKBACK_OPTIONS } from "@/config/patterns";
 
 /** Re-exported so existing imports from this module keep working. */
@@ -17,7 +17,6 @@ export function LookbackSelect({ value, onChange }: LookbackSelectProps) {
   ];
   return (
     <Select
-      label="Lookback"
       data={data}
       value={value == null ? "auto" : String(value)}
       onChange={(v) => {
@@ -28,9 +27,11 @@ export function LookbackSelect({ value, onChange }: LookbackSelectProps) {
         const n = Number(v);
         if (Number.isFinite(n)) onChange(n);
       }}
-      w={130}
-      size="sm"
+      w={122}
+      size="xs"
+      leftSection={<Text size="xs" c="dimmed" style={{ fontSize: 10 }}>Bars</Text>}
       data-testid="patterns-lookback-select"
+      title="Bars of history the detector reads before forming a pattern (Auto = preset default)"
       style={{ flexShrink: 0 }}
     />
   );

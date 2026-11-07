@@ -1,3 +1,4 @@
+import { formatNumberIN } from "@/utils/ui-helpers";
 import { memo, useMemo } from "react";
 import Box from "@mui/material/Box";
 import * as palette from "@/ui/palette";
@@ -404,7 +405,7 @@ export function gexSideCopy(
 /** Integer Indian-grouped strike, e.g. `22,600` / `—`. */
 export function formatGexStrike(v: number | null): string {
   if (v == null || !Number.isFinite(v)) return GEX_DASH;
-  return v.toLocaleString("en-IN");
+  return formatNumberIN(v);
 }
 
 /** Colour the netGex / regime value by sign (support vs volatility fuel). */
@@ -524,7 +525,7 @@ function NiftyGexProfileInner({ gex, spot }: NiftyGexProfileProps) {
 
   return (
     <CompactPanel
-      title="Gamma by strike (price × γ)"
+      title="GEX profile"
       testId="nifty-gex-profile-panel"
       sx={{
         background: palette.TERM_BG,

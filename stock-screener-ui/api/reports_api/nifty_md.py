@@ -29,7 +29,7 @@ and/or orderflow must count this socket: live-stream (1) + this module (1)
 
 Safety
 ------
-* Market-hours gated (``trading.utils.is_market_open``; sleeps 60s when closed).
+* Market-hours gated (``trading.utils.is_derivatives_open``; sleeps 60s when closed).
 * Keys re-resolved every 15 min (handles the expiry roll); the session only
   restarts when the key set actually changed.
 * Every step wrapped; the task never raises (``CancelledError`` re-raised).
@@ -605,9 +605,9 @@ def _stop_session() -> None:
 
 def _market_open() -> bool:
     try:
-        from trading.utils import is_market_open
+        from trading.utils import is_derivatives_open
 
-        return bool(is_market_open())
+        return bool(is_derivatives_open())
     except Exception:
         return False
 

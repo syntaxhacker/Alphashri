@@ -60,16 +60,32 @@ VERDICT_EPS_FRACTION = 0.05
 #: rounding-level number (or a tiny book) from reading as a direction.
 VERDICT_EPS_CR = 50.0
 
-#: Classes read as bullish / bearish per side (the house convention — mirrors
-#: ``getUnusualSentimentTone`` in the frontend and
-#: :mod:`api.reports_api.nifty_positioning`).
+#: Classes read as bullish / bearish **per side**.
+#:
+#: The sign is the change in delta exposure the class represents, which is the
+#: only reading that stays consistent across both sides:
+#:
+#: * calls (long delta = +): ``LB`` buyers open = ``+``; ``SC`` shorts buy back
+#:   = ``+``; ``SB`` writers open = ``-``; ``LU`` buyers sell out = ``-``.
+#: * puts (long delta = -): ``LB`` buyers open = ``-``; ``SC`` shorts buy back =
+#:   ``-``; ``SB`` writers open = ``+``; ``LU`` buyers sell out = ``+``.
+#:
+#: The put side used to read ``SC`` bullish / ``LU`` bearish (mirroring the
+#: leg-colour helper in ``NiftyUnusualVolume``). That is a *contract-tone*
+#: convention, not a directional one: it credits a put short covering (writers
+#: buying puts back = losing long-delta support, bearish) as bullish and a put
+#: long unwinding (buyers selling puts = short-delta pressure leaving,
+#: bullish) as bearish. Put unwinds are what a genuine down day produces, so
+#: the old cells could make a falling tape read near-100% bullish. The
+#: ``SC``/``LU`` cells are now swapped on puts only; the other six are
+#: unchanged.
 BULLISH_CLASS: Dict[str, frozenset] = {
     "CE": frozenset({"LB", "SC"}),
-    "PE": frozenset({"SB", "SC"}),
+    "PE": frozenset({"SB", "LU"}),
 }
 BEARISH_CLASS: Dict[str, frozenset] = {
     "CE": frozenset({"SB", "LU"}),
-    "PE": frozenset({"LB", "LU"}),
+    "PE": frozenset({"LB", "SC"}),
 }
 
 #: Full class names → their 2-letter code (the chain stores either form).
@@ -101,7 +117,13 @@ def sentiment_code(value: Any) -> str:
 
 
 def class_sign(sentiment: Any, side: str) -> int:
-    """Direction of a leg's class: +1 bullish, -1 bearish, 0 neutral/unknown."""
+    """Direction of a leg's class: +1 bullish, -1 bearish, 0 neutral/unknown.
+
+    The sign is the change in delta exposure the class represents, so it is
+    not symmetric across sides — a put long buildup is bearish, a put short
+    covering is bearish, a put short buildup is bullish and a put long
+    unwinding is bullish (see :data:`BULLISH_CLASS`).
+    """
     code = sentiment_code(sentiment)
     if code in BULLISH_CLASS.get(side, ()):
         return 1

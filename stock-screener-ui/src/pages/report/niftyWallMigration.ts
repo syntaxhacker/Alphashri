@@ -13,6 +13,9 @@
  * fields, and both snake_case and camelCase spellings are accepted.
  */
 
+import { minutesToHhmm } from "./tapeRange";
+import { chainLeg } from "./chainTuple";
+
 /** Minimal tape row — only the fields the migration needs. */
 export interface WallMigrationRow {
   t: string;
@@ -94,14 +97,8 @@ export function bucketStartMinutes(
 /** `HH:MM` label for a bucket start (`"—"` when unknown). */
 export function bucketLabel(startMin: number | null): string {
   if (startMin === null || !Number.isFinite(startMin)) return "—";
-  const h = Math.floor(startMin / 60);
-  const m = startMin % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  return minutesToHhmm(startMin);
 }
-
-/** Chain leg indexes: `[ce_ltp, pe_ltp, ce_oi, pe_oi, ce_vol, pe_vol]`. */
-const CE_OI_IDX = 2;
-const PE_OI_IDX = 3;
 
 /**
  * Top walls from a per-strike chain: the strike with the most CE OI and the
@@ -120,8 +117,7 @@ export function topWallsFromChain(
   for (const [key, leg] of Object.entries(chain)) {
     const strike = Number(key);
     if (!Number.isFinite(strike) || !Array.isArray(leg)) continue;
-    const ceOi = finiteOrNull(leg[CE_OI_IDX]);
-    const peOi = finiteOrNull(leg[PE_OI_IDX]);
+    const { ceOi, peOi } = chainLeg(chain, strike);
     if (ceOi !== null && ceOi > bestCeOi) {
       bestCeOi = ceOi;
       call = strike;

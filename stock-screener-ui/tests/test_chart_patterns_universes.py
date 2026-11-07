@@ -63,14 +63,27 @@ def test_nifty_lists_are_static_and_case_insensitive(fixture_instruments):
 def test_list_universes_shape(fixture_instruments):
     listing = universes.list_universes()
     ids = [u["id"] for u in listing]
-    assert ids == ["all_equity", "nse_fo", "nifty50", "nifty100", "nifty200", "nifty500"]
+    assert ids == ["all_equity", "nse_fo", "indices", "nifty50", "nifty100", "nifty200", "nifty500"]
     by_id = {u["id"]: u for u in listing}
     assert by_id["all_equity"]["count"] == 2
     assert by_id["nse_fo"]["count"] == 2
+    assert by_id["indices"]["count"] == len(universes.get_universe("indices"))
     assert by_id["nifty50"]["count"] == len(universes.get_universe("nifty50"))
     for entry in listing:
         assert set(entry) == {"id", "label", "count"}
         assert isinstance(entry["label"], str) and entry["label"]
+
+
+def test_indices_universe_contains_broad_and_sector_indices(fixture_instruments):
+    ids = universes.get_universe("indices")
+    assert "NIFTY" in ids
+    assert "BANKNIFTY" in ids
+    assert "FINNIFTY" in ids
+    assert "MIDCPNIFTY" in ids
+    assert "SENSEX" in ids
+    assert "NIFTYIT" in ids
+    assert len(ids) >= 30
+    assert len(ids) == len(set(ids))
 
 
 def test_unknown_universe_raises(fixture_instruments):

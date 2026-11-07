@@ -37,17 +37,16 @@ test.describe("Screener - Interactions", () => {
     ).toBeVisible();
   });
 
-  test("should navigate to chart on symbol click", async ({ page }) => {
+  test("should navigate to chart on row click", async ({ page }) => {
     await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
 
-    const stockSymbolLink = page
-      .locator('[data-testid="screener-table"] tbody button[data-testid^="symbol-link-"]')
-      .first();
-    await expect(stockSymbolLink).toBeVisible({ timeout: 5000 });
-    await stockSymbolLink.click();
+    // The symbol text is the TradingView link now; the row (pattern cell)
+    // keeps the in-app navigation.
+    const firstRow = page.locator('[data-testid="screener-table"] tbody tr').first();
+    await firstRow.locator("td").nth(2).click();
 
     await expect(page).toHaveURL(/\/chart\//);
   });

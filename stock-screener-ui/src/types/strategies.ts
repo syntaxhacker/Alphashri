@@ -2,6 +2,8 @@
  * Strategy Management Types
  */
 
+import type { BotConfig } from "./bots";
+
 // Strategy configuration from database
 export interface StrategyConfig {
   id: string; // UUID from backend
@@ -180,17 +182,9 @@ export interface StrategyPerformance {
   net_pnl: number;
 }
 
-// Bot configuration
-export interface BotConfig {
-  id: string; // UUID string
-  name: string;
-  is_active: boolean;
-  max_total_positions: number;
-  max_total_capital_pct: number;
-  strategies: StrategyConfig[];
-  created_at: string | null;
-  updated_at: string | null;
-}
+// Bot configuration — single source of truth is types/bots.ts (superset: adds
+// uuid / running / pid / live_trading and the richer StrategyWithAllocation list).
+export type { BotConfig } from "./bots";
 
 // Strategies state
 export interface StrategiesState {

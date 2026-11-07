@@ -4,6 +4,7 @@ import { SymbolAvatar } from "../../components/screener/SymbolAvatar";
 import { Sparkline } from "../../components/screener/Sparkline";
 import type { DailyMoveRow, DailyMovesPanelId } from "../../types/report";
 import { formatCurrency, formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
+import { symbolRowCursor, symbolRowProps } from "../../components/common/symbolRowProps";
 
 const MOVE_PANELS: Array<{ id: DailyMovesPanelId; title: string }> = [
   { id: "gainers", title: "Top gainers" },
@@ -22,19 +23,7 @@ function MoveRow({ row, onOpenSymbol }: { row: DailyMoveRow; onOpenSymbol?: (sym
     <Box
       data-testid={`report-move-row-${row.symbol}`}
       data-symbol={row.symbol}
-      role={onOpenSymbol ? "button" : undefined}
-      tabIndex={onOpenSymbol ? 0 : undefined}
-      onClick={onOpenSymbol ? () => onOpenSymbol(row.symbol) : undefined}
-      onKeyDown={
-        onOpenSymbol
-          ? (e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onOpenSymbol(row.symbol);
-              }
-            }
-          : undefined
-      }
+      {...symbolRowProps(onOpenSymbol, row.symbol)}
       sx={{
         display: "flex",
         alignItems: "center",
@@ -43,7 +32,7 @@ function MoveRow({ row, onOpenSymbol }: { row: DailyMoveRow; onOpenSymbol?: (sym
         py: 0.5,
         borderBottom: 1,
         borderColor: "divider",
-        cursor: onOpenSymbol ? "pointer" : "default",
+        cursor: symbolRowCursor(onOpenSymbol),
         fontVariantNumeric: "tabular-nums",
         "&:hover": onOpenSymbol ? { bgcolor: "action.hover" } : {},
       }}

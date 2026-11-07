@@ -1,5 +1,7 @@
+import { formatNumberIN } from "@/utils/ui-helpers";
 import type { AlertSeverity, MarketAlert } from "@/components/notifications/MarketAlertCard";
 import type { NiftyBurstNews, NiftyTapeRow } from "@/types/niftyReport";
+import { hhmmToMinutes, minutesToHhmm } from "./tapeRange";
 
 /**
  * Nifty OI-burst detection — pure, client-side, no store.
@@ -93,12 +95,30 @@ export interface OiBurst {
   news?: NiftyBurstNews[];
   /** Session trend at this minute (attached by the panel from the tape). */
   trend?: "up" | "down" | null;
-  /** "squeeze" = wall break (momentum); "strike" = single-strike explosion. */
-  type?: "burst" | "squeeze" | "strike" | "premium" | "coil";
-  /** Wall strike the squeeze broke through. */
+  /** "squeeze" = wall break (momentum); "strike" = single-strike explosion;
+   *  wall events = strike-wall test/rejection/break; "data_stale" = system
+   *  warning that the tape stopped updating. */
+  type?:
+    | "burst"
+    | "squeeze"
+    | "strike"
+    | "premium"
+    | "coil"
+    | "wall"
+    | "wall_test"
+    | "rejection"
+    | "break"
+    | "wall_break"
+    | "data_stale";
+  /** Wall strike the squeeze broke through / the wall event tested. */
   wall?: number;
   /** Exact strike a per-strike burst names (overrides nearest-to-spot). */
   strike?: number;
+  /** Wall event: the level the move is expected to reach (max pain). */
+  target?: number | null;
+  /** Backend headline / longer explanation (wall + data-stale events). */
+  label?: string | null;
+  detail?: string | null;
   /** "CE" | "PE" for per-strike / premium bursts. */
   leg?: string;
   /** ATM premium move in % (premium bursts). */
@@ -116,6 +136,16 @@ export interface OiBurst {
   plan_suppressed?: boolean;
   /** Backend fuel state — the OI × premium 2×2 cell. */
   fuel_state?: OiFuelState;
+}
+
+/** Wall event kinds the backend attaches to the bursts feed. */
+export function isWallEventType(type?: string | null): boolean {
+  return type === "wall_test" || type === "rejection" || type === "break" || type === "wall_break";
+}
+
+/** Events that carry no trade plan (wall geometry + system warnings). */
+export function isNonTradeAlertType(type?: string | null): boolean {
+  return isWallEventType(type) || type === "data_stale";
 }
 
 /* ------------------------------------------------------------------ signal */
@@ -453,6 +483,8 @@ export function deriveOiSignal(
 
   // A coil is a heads-up, not a trade.
   if (burst.type === "coil") return null;
+  // Wall geometry and stale-data warnings never carry a mechanical plan.
+  if (isNonTradeAlertType(burst.type)) return null;
 
   const call = burst.side === "call";
   const building = burst.delta > 0;
@@ -474,6 +506,24 @@ export function deriveOiSignal(
     }))
     .filter((c) => Number.isFinite(c.strike) && Number.isFinite(c.ltp) && c.ltp >= minPremium)
     .sort((a, b) => Math.abs(a.strike - spot) - Math.abs(b.strike - spot));
+
+  // Flow/plan consistency: a "call writers adding" burst is bearish; a
+  // "BUY CE" plan on it is a contradictory banner (seen live 2026-10-28 at
+  // 14:58). If the flow-derived leg and the chosen leg disagree, withhold the
+  // plan rather than print two opposite instructions.
+  const fuelState = resolveFuelState(burst);
+  const fuelFlow =
+    fuelState === "fresh_buyers"
+      ? "buyers"
+      : fuelState === "fresh_sellers"
+        ? "writers"
+        : fuelState === "writers_covering"
+          ? "covering"
+          : fuelState === "longs_liquidating"
+            ? "liquidation"
+            : null;
+  const fuelLeg = fuelFlow ? directionFromFlow(fuelFlow, burst.side)?.leg ?? null : null;
+  if (!isSqueeze && !isPremium && fuelLeg && leg !== fuelLeg) return null;
 
   const pick = candidates[0];
   if (!pick) return null;
@@ -497,12 +547,12 @@ export function deriveOiSignal(
     ? `ATM premium impulse ${
         burst.pct !== undefined ? `${burst.pct >= 0 ? "+" : ""}${burst.pct.toFixed(2)}` : "?"
       }% (${leg} ${
-        typeof burst.strike === "number" ? burst.strike.toLocaleString("en-IN") : "?"
+        typeof burst.strike === "number" ? formatNumberIN(burst.strike) : "?"
       })`
     : isSqueeze
       ? `short-covering squeeze — ${burst.side} wall ${
-        typeof burst.wall === "number" ? burst.wall.toLocaleString("en-IN") : "?"
-        } broken while that side unwound ${Math.abs(burst.delta).toLocaleString("en-IN")} units`
+        typeof burst.wall === "number" ? formatNumberIN(burst.wall) : "?"
+        } broken while that side unwound ${formatNumberIN(Math.abs(burst.delta))} units`
       : (dir?.basis ??
         (call
           ? building
@@ -597,19 +647,6 @@ export function atmPremiumChange(
     return null;
   }
   return b - a;
-}
-
-function hhmmToMinutes(hhmm: string): number | null {
-  const m = /^(\d{1,2}):(\d{2})/.exec(hhmm);
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  if (!Number.isFinite(h) || !Number.isFinite(min) || h > 23 || min > 59) return null;
-  return h * 60 + min;
-}
-
-function minutesToHhmm(total: number): string {
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
 /**
@@ -769,6 +806,104 @@ function compact(v: number): string {
   return `${sign}${abs}`;
 }
 
+function levelText(v: number | null | undefined): string {
+  return typeof v === "number" && Number.isFinite(v) ? formatNumberIN(Math.round(v)) : "";
+}
+
+/** Alert timestamp from a burst clock (bare `HH:MM` has no date → now). */
+function burstTs(t: string): number {
+  const parsed = Date.parse(t);
+  return Number.isFinite(parsed) ? parsed : Date.now();
+}
+
+/**
+ * Strike-wall event → alert.
+ *
+ * Icons carry the event class so the row reads at a glance:
+ *   ◇ wall_test  (watch — the wall is being tested, no break yet)
+ *   ✕ rejection  (alert — the wall held; target = the move's magnet)
+ *   ↑ / ↓ break  (alert — the wall broke; arrow follows the side)
+ *
+ * All wall events are `kind: "oi_burst"` so they join the existing trail/toast
+ * pipeline; the severity rail is what colours them (watch = muted,
+ * rejection/break = warning).
+ */
+function wallEventToAlert(burst: OiBurst): MarketAlert {
+  const type = burst.type ?? "wall_test";
+  const level = burst.strike ?? burst.wall ?? null;
+  const target = burst.target ?? null;
+  const sideCode = burst.side === "put" ? "PW" : "CW";
+  const levelTxt = levelText(level);
+  const targetTxt = levelText(target);
+  const isTest = type === "wall_test";
+  const isBreak = type === "break" || type === "wall_break";
+  const icon = isTest ? "◇" : type === "rejection" ? "✕" : burst.side === "put" ? "↓" : "↑";
+  const verb = isTest ? "TESTED" : type === "rejection" ? "REJECTED" : "BROKEN";
+  const title = isTest
+    ? `${icon} ${sideCode} ${levelTxt} ${verb}`
+    : targetTxt
+      ? `${icon} ${sideCode} ${levelTxt} → ${targetTxt}`
+      : `${icon} ${sideCode} ${levelTxt} ${verb}`;
+
+  const fallback = isTest
+    ? `${sideCode} ${levelTxt} is being tested · no break yet`
+    : type === "rejection"
+      ? `${sideCode} ${levelTxt} held${targetTxt ? ` · magnet ${targetTxt}` : ""}`
+      : `${sideCode} ${levelTxt} broke${targetTxt ? ` · next ${targetTxt}` : ""}`;
+  const detail = [burst.detail?.trim(), burst.label?.trim(), fallback]
+    .filter((part): part is string => typeof part === "string" && part.length > 0)
+    .filter((part, i, all) => all.indexOf(part) === i)
+    .join(" · ");
+
+  const metrics = [
+    ...(levelTxt ? [{ label: isBreak ? "BROKE" : "STRIKE", value: levelTxt }] : []),
+    ...(targetTxt ? [{ label: "TGT", value: targetTxt, tone: "down" as const }] : []),
+    ...(Number.isFinite(burst.spot) && burst.spot > 0
+      ? [{ label: "SPOT", value: formatNumberIN(Math.round(burst.spot)) }]
+      : []),
+  ];
+
+  return {
+    id: burst.id,
+    kind: "oi_burst",
+    // A test is a heads-up; a rejection/break is the event itself.
+    severity: isTest ? "watch" : "alert",
+    symbol: "NIFTY",
+    title,
+    detail,
+    metrics,
+    ts: burstTs(burst.t),
+    source: `Nifty walls · ${burstTimeLabel(burst.t)} IST`,
+    href: "/report/index",
+  };
+}
+
+/** Backend `data_stale` warning → critical system alert. */
+function dataStaleToAlert(burst: OiBurst): MarketAlert {
+  const since = burst.t ? ` since ${burstTimeLabel(burst.t)} IST` : "";
+  const title = burst.label?.trim() || "DATA STALE";
+  const detail =
+    burst.detail?.trim() ||
+    `The tape stopped updating${since}. Treat prices and OI as indicative until it resumes.`;
+  return {
+    id: burst.id,
+    kind: "system",
+    severity: "critical",
+    symbol: "NIFTY",
+    title,
+    detail,
+    metrics: [
+      ...(burst.t ? [{ label: "TAPE", value: `${burstTimeLabel(burst.t)} IST` }] : []),
+      ...(Number.isFinite(burst.spot) && burst.spot > 0
+        ? [{ label: "SPOT", value: formatNumberIN(Math.round(burst.spot)) }]
+        : []),
+    ],
+    ts: burstTs(burst.t),
+    source: "Nifty tape watchdog",
+    href: "/report/index",
+  };
+}
+
 /**
  * Burst → alert. Grammar: WHAT (fuel) · WHERE (level) · WITH (reason) ·
  * GUARD (invalidation). A spent-fuel burst without a structure break prints
@@ -780,24 +915,43 @@ export function burstToAlert(
   signal?: OiSignal | null,
   opts: { freshness?: OiEntryFreshness | null } = {},
 ): MarketAlert {
+  // Wall geometry and system warnings bypass the OI-burst grammar entirely.
+  if (isWallEventType(burst.type)) return wallEventToAlert(burst);
+  if (burst.type === "data_stale") return dataStaleToAlert(burst);
+
   const sideLabel = burst.side === "call" ? "Call" : "Put";
   const tone: "up" | "down" = burst.delta >= 0 ? "up" : "down";
-  const scoreTxt = `${burst.score.toFixed(1)}× the trailing typical minute`;
+  const scoreTxt = `${burst.score.toFixed(1)}× a normal minute`;
 
-  // WHAT: fresh money, or a book being spent.
+  // WHAT: fresh money, or a book being spent. Plain English, not "fuel" jargon.
   const fuel = resolveFuelState(burst);
   const spent = isSpentFuel(fuel);
-  const what = `${sideLabel.toUpperCase()} ${burst.delta >= 0 ? "BUILD" : "UNWIND"} ${compact(burst.delta)}${
-    fuel ? ` · ${FUEL_STATE_LABEL[fuel]}` : ""
-  }`;
+  const plainFuel =
+    fuel === "writers_covering"
+      ? "shorts covering"
+      : fuel === "longs_liquidating"
+        ? "longs exiting"
+        : fuel === "fresh_buyers"
+          ? "buyers adding"
+          : fuel === "fresh_sellers"
+            ? "writers adding"
+            : burst.delta >= 0
+              ? "writers adding"
+              : "shorts covering";
+  const what = `${sideLabel} ${plainFuel} ${compact(burst.delta)}`;
 
   // WHERE: the level the underlying closed beyond.
   const structure = burst.structure ?? null;
   const where = structure
-    ? `@ ${Math.round(burst.spot).toLocaleString("en-IN")} (${
+    ? `@ ${formatNumberIN(Math.round(burst.spot))} (${
         structure.direction === "up" ? "above" : "below"
-      } the ${structure.level.toLocaleString("en-IN")} ${structure.kind ?? "level"})`
-    : `@ ${Math.round(burst.spot).toLocaleString("en-IN")}`;
+      } the ${formatNumberIN(structure.level)} ${structure.kind ?? "level"})`
+    : `@ ${formatNumberIN(Math.round(burst.spot))}`;
+  // The level the plan needs before it is a trade, and the "already spent" flag.
+  const level = structure?.level ?? signal?.strike ?? null;
+  const levelTxt = level != null ? formatNumberIN(level) : "";
+  const dirWord = structure?.direction === "up" ? "above" : "below";
+  const late = spent && !structure && !!signal;
 
   // GUARD: the level that invalidates the idea.
   const invalidation =
@@ -805,7 +959,7 @@ export function burstToAlert(
     (structure && structure.direction === "down" ? structure.level : null);
   const guardTxt =
     invalidation !== null
-      ? `while spot stays ${structure?.direction === "down" ? "below" : "above"} ${invalidation.toLocaleString("en-IN")}`
+      ? `while spot stays ${structure?.direction === "down" ? "below" : "above"} ${formatNumberIN(invalidation)}`
       : "";
 
   const freshness = opts.freshness ?? null;
@@ -855,31 +1009,47 @@ export function burstToAlert(
       : "plan withheld by the trend/structure filter";
 
   const title = stale && signal
-    ? `RE-PRICE · BUY ${signal.leg} ${signal.strike.toLocaleString("en-IN")} · ${staleTxt}`
+    ? `RE-PRICE · BUY ${signal.leg} ${formatNumberIN(signal.strike)} · ${staleTxt}`
     : suppressed
       ? `NO TRADE · ${noTradeWhy}`
       : signal
-        ? `→ BUY ${signal.leg} ${signal.strike.toLocaleString("en-IN")} · qty ${signal.qty > 0 ? signal.qty : "—"}`
+        ? late
+          ? `BUY ${signal.leg} ${formatNumberIN(signal.strike)} only after the ${levelTxt} break`
+          : `→ BUY ${signal.leg} ${formatNumberIN(signal.strike)} · qty ${signal.qty > 0 ? signal.qty : "—"}`
         : burst.type === "coil"
-          ? `COILING @ ${typeof burst.wall === "number" ? burst.wall.toLocaleString("en-IN") : "wall"}`
+          ? `COILING @ ${typeof burst.wall === "number" ? formatNumberIN(burst.wall) : "wall"}`
           : `${sideLabel} OI burst ${compact(burst.delta)} in 1 min`;
+
+  const whyTxt =
+    burst.type === "squeeze"
+      ? "short-covering squeeze through a wall"
+      : fuel === "writers_covering"
+      ? "shorts buying back lifts the index"
+      : fuel === "longs_liquidating"
+        ? "longs exiting presses the index"
+        : fuel === "fresh_buyers"
+          ? "fresh buying supports the index"
+          : fuel === "fresh_sellers"
+            ? "fresh selling caps the index"
+            : "flow shifted";
+  const doTxt = late
+    ? `wait for a 1-min close ${dirWord} ${levelTxt} before buying`
+    : signal
+      ? `buy ${signal.leg} ${formatNumberIN(signal.strike)} — entry ${signal.entry}, stop ${signal.sl}, target ${signal.target}`
+      : "no trade — wait for a level break";
 
   const detail =
     burst.type === "coil"
-      ? `spot ${burst.spot.toLocaleString("en-IN")} pressed on the ${burst.side} wall ${
-          typeof burst.wall === "number" ? burst.wall.toLocaleString("en-IN") : "?"
+      ? `spot ${formatNumberIN(burst.spot)} pressed on the ${burst.side} wall ${
+          typeof burst.wall === "number" ? formatNumberIN(burst.wall) : "?"
         } · ${burst.range_pct?.toFixed(3) ?? "?"}% range, ${burst.dist_pct?.toFixed(3) ?? "?"}% away · heads-up, no plan`
       : suppressed
-        ? `${what} ${where} · ${noTradeWhy} · ${
-            signal?.basis ?? "no plan — the filter withheld it"
-          }${guardTxt ? ` · ${guardTxt}` : ""} · not a trade`
+        ? `${what} ${where}. ${noTradeWhy}. ${doTxt}. Not a trade.`
         : signal
-          ? `${what} ${where} · ${signal.basis}${
-              spent && !structure ? " · fuel spent, no level closed — confirm the break" : ""
-            }${guardTxt ? ` · ${guardTxt}` : ""}${
-              staleTxt ? ` · ${staleTxt} — re-price before trading` : ""
-            } · ${scoreTxt} · heuristic, not advice`
-          : `${what} ${where}${guardTxt ? ` · ${guardTxt}` : ""} · ${scoreTxt} · ${burstTimeLabel(burst.t)} IST`;
+          ? `${what} ${where}. ${whyTxt}. ${doTxt}.${guardTxt ? ` ${guardTxt}.` : ""}${
+              staleTxt ? ` ${staleTxt} — re-price before trading.` : ""
+            } ${scoreTxt}. Heuristic, not advice.`
+          : `${what} ${where}. ${whyTxt}. ${doTxt}.${guardTxt ? ` ${guardTxt}.` : ""} ${scoreTxt} · ${burstTimeLabel(burst.t)} IST`;
 
   // Candidate catalyst: lead with the headline nearest the burst.
   const headline = burst.news?.[0];
@@ -897,7 +1067,7 @@ export function burstToAlert(
     metrics,
     ts: Date.parse(burst.t) || Date.now(),
     source: `Nifty tape · ${burstTimeLabel(burst.t)} IST${signal ? " · mechanical plan" : ""}${headline ? ` · ${headline.source || "news"}` : ""}`,
-    href: "/report/nifty",
+    href: "/report/index",
     // A suppressed or stale plan must not take the sticky banner.
     ...(suppressed || stale ? { actionable: false } : {}),
   } as MarketAlert;
@@ -945,14 +1115,20 @@ export function criticalBannerText(
     alert.metrics?.find((m) => m.label === "ΔOI")?.value ??
     (burst ? compact(burst.delta) : "");
   const fuel = burst ? resolveFuelState(burst) : null;
+  const plain: Record<string, string> = {
+    fresh_buyers: "BUYERS ADDING",
+    fresh_sellers: "WRITERS ADDING",
+    writers_covering: "SHORTS COVERING",
+    longs_liquidating: "LONGS EXITING",
+  };
   const head = burst
     ? `CRITICAL ${burst.side === "call" ? "CALL" : "PUT"} ${
-        burst.delta >= 0 ? "BUILD" : "UNWIND"
-      } ${doi}${fuel ? ` · ${FUEL_STATE_LABEL[fuel]}` : ""}`
+        fuel ? plain[fuel] : burst.delta >= 0 ? "BUILD" : "UNWIND"
+      } ${doi}`
     : "CRITICAL";
   const spotTxt =
     burst && Number.isFinite(burst.spot) && burst.spot > 0
-      ? Math.round(burst.spot).toLocaleString("en-IN")
+      ? formatNumberIN(Math.round(burst.spot))
       : "";
   const entry = alert.metrics?.find((m) => m.label === "ENTRY")?.value;
   const sl = alert.metrics?.find((m) => m.label === "SL")?.value;
@@ -962,4 +1138,39 @@ export function criticalBannerText(
       ? `${alert.title} · entry ${shortNum(entry)} · SL ${shortNum(sl)} · TGT ${shortNum(tgt)}`
       : alert.title;
   return [head, spotTxt, plan].filter((p) => p.length > 0).join(" · ");
+}
+
+/**
+ * Two-sided writer builds are a pin, not a trade.
+ *
+ * 2026-10-29 09:19: call OI +3.6M and put OI +2.2M at 22,700 in the same
+ * minute. The per-side plans are opposite (call writers -> fade with puts,
+ * put writers -> floor holds, buy calls). Emitting both is a contradiction;
+ * drop every burst in a minute whose per-side plans disagree.
+ */
+export function dropConflictingSides(bursts: OiBurst[]): OiBurst[] {
+  const byMinute = new Map<string, OiBurst[]>();
+  for (const b of bursts) {
+    // Wall geometry and stale-data warnings are not per-side trade plans, so
+    // they must never be counted as a two-sided pin (a call wall test + a put
+    // wall test in the same minute used to cancel both rows).
+    if (isNonTradeAlertType(b.type)) continue;
+    const key = burstTimeLabel(b.t);
+    const group = byMinute.get(key);
+    if (group) group.push(b);
+    else byMinute.set(key, [b]);
+  }
+  const drop = new Set<string>();
+  for (const group of byMinute.values()) {
+    if (group.length < 2) continue;
+    const legs = new Set(
+      group
+        .map((b) => resolveOiDirection(b)?.leg)
+        .filter((l): l is "CE" | "PE" => l === "CE" || l === "PE"),
+    );
+    if (legs.size > 1) {
+      for (const b of group) drop.add(b.id);
+    }
+  }
+  return drop.size === 0 ? bursts : bursts.filter((b) => !drop.has(b.id));
 }

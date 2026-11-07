@@ -58,6 +58,23 @@ export const SURFACE_ALT = "#121212";
 export const BORDER = BORDER_COLOR;
 export const SURFACE_TEXT = TEXT_COLOR;
 
+// Muted pattern/chart accent palette (professional desk look, not neon).
+export const PATTERN_LINE_COLORS = [
+  "#C9A227", // muted gold — selected pattern
+  "#5B8DEF", // muted blue
+  "#4C9A8F", // muted teal
+  "#8C9BAA", // slate
+  "#B07A3C", // bronze
+  "#6F8FAF", // steel blue
+  "#9A8C6A", // khaki
+  "#7F8B99", // grey
+];
+export const PATTERN_BOUNDARY = ["#5B8DEF", "#C9A227"];
+export const PATTERN_CONFIRMED = "#4C9A8F";
+export const PATTERN_FORMING = "#5B8DEF";
+export const PATTERN_FAILED = "#C05A5A";
+export const PATTERN_MARGINAL = "#C9A227";
+
 // Trading markers (vivid green/red on dark)
 export const MARKER_ENTRY = PRIMARY;
 export const MARKER_TP = POSITIVE_COLOR;
@@ -136,13 +153,13 @@ export const CHART_AVG_ENTRY = "#D29922";
 export const CHART_TRADE_EXIT = "#F0883E";
 
 // Sector treemap
-export const SECTOR_STRONG_GREEN = "#1A7F37";
-export const SECTOR_GREEN = "#3FB950";
-export const SECTOR_LIGHT_GREEN = "#8CE0A4";
-export const SECTOR_STRONG_RED = "#B6231C";
-export const SECTOR_RED = "#F85149";
-export const SECTOR_LIGHT_RED = "#FFA8A3";
-export const SECTOR_NEUTRAL = "#484F58";
+export const SECTOR_STRONG_GREEN = "#2E7D5B";
+export const SECTOR_GREEN = "#3E8E6A";
+export const SECTOR_LIGHT_GREEN = "#345B4A";
+export const SECTOR_STRONG_RED = "#B05A53";
+export const SECTOR_RED = "#9E4640";
+export const SECTOR_LIGHT_RED = "#5E3B39";
+export const SECTOR_NEUTRAL = "#3A4048";
 
 // Tinted row backgrounds
 export const TINT_POSITIVE = "rgba(63, 185, 80, 0.12)";
@@ -191,6 +208,10 @@ export const NT_BG = "#0E0E0E";
 export const NT_GRID = "#2A2A2A";
 export const NT_CANDLE_BULL = "#00FF88";
 export const NT_CANDLE_BEAR = "#FF3B30";
+
+// ----- Layout tokens -----
+export const FIN_HEADER_H = 48;   // header height
+export const FIN_OUTER_PAD = 16;  // horizontal padding
 export const NT_FVG_BULL_FILL = "rgba(0,255,136,0.18)";
 export const NT_FVG_BULL_STROKE = "rgba(0,255,136,0.9)";
 export const NT_FVG_BEAR_FILL = "rgba(255,59,48,0.18)";

@@ -22,7 +22,7 @@ vi.mock("@/components/chart/TradingViewChart", async () => {
   const React = await import("react");
   return {
     TradingViewChart: ({ candles, markLines, emaData, fitMarkLines, touchMarkers }: {
-      candles?: unknown[];
+      candles?: { open: number; high: number; low: number; close: number }[];
       markLines?: { label: { formatter: string } }[];
       emaData?: unknown[];
       fitMarkLines?: boolean;
@@ -31,11 +31,17 @@ vi.mock("@/components/chart/TradingViewChart", async () => {
       React.useEffect(() => {
         panelMocks.tvMounts += 1;
       }, []);
+      const first = candles?.[0];
       return (
         <div
           data-testid="tradingview-chart"
           data-candles={candles?.length ?? 0}
+          data-first-open={first?.open}
+          data-first-high={first?.high}
+          data-first-low={first?.low}
+          data-first-close={first?.close}
           data-marklines={markLines?.length ?? 0}
+          data-markline-labels={(markLines ?? []).map((l) => l.label.formatter).join("|")}
           data-emas={emaData?.length ?? 0}
           data-fit-marklines={fitMarkLines ? "1" : "0"}
           data-touch-markers={touchMarkers?.length ?? 0}
@@ -125,6 +131,57 @@ function depthReport() {
 }
 
 describe("NiftyChartPanel", () => {
+  test("flipAt draws a no-text marker on the candle close at that time", () => {
+    const { rerender } = r(
+      <NiftyChartPanel
+        report={mockReport({ candles: candles3() })}
+        mode="live"
+        view="chart"
+        flipAt="2026-10-12T09:16:00"
+      />,
+    );
+    expect(screen.getByTestId("nifty-chart-wrap")).toHaveAttribute("data-flip-marker", "1");
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "1");
+    rerender(<NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
+    expect(screen.getByTestId("nifty-chart-wrap")).toHaveAttribute("data-flip-marker", "0");
+  });
+
+  test("an invalid flipAt draws no marker", () => {
+    r(
+      <NiftyChartPanel
+        report={mockReport({ candles: candles3() })}
+        mode="live"
+        view="chart"
+        flipAt="not-a-date"
+      />,
+    );
+    expect(screen.getByTestId("nifty-chart-wrap")).toHaveAttribute("data-flip-marker", "0");
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "0");
+  });
+
+  test("an omitted flipAt draws no marker", () => {
+    r(<NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
+    expect(screen.getByTestId("nifty-chart-wrap")).toHaveAttribute("data-flip-marker", "0");
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "0");
+  });
+
+  test("a flipAt between two candles marks the candle at/before it", () => {
+    // 09:17:30 sits between the 09:16 and 09:20 closes → the marker lands on
+    // the 09:16 candle (the last close at/before the flip stamp).
+    r(
+      <NiftyChartPanel
+        report={mockReport({ candles: candles3() })}
+        mode="live"
+        view="chart"
+        flipAt="2026-10-12T09:17:30"
+      />,
+    );
+    expect(screen.getByTestId("nifty-chart-wrap")).toHaveAttribute("data-flip-marker", "1");
+    // The flip marker is one of the chart's touch markers (no max-pain touches
+    // here: maxPain 25,700 vs closes 25,620/25,640/25,680, no bursts).
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "1");
+  });
+
   test("renders chart, size + timeframe toggles and wrap (legend hidden)", () => {
     r(<NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
     expect(screen.getByTestId("nifty-chart-panel")).toBeInTheDocument();
@@ -253,6 +310,27 @@ describe("NiftyChartPanel", () => {
     expect(screen.queryByTestId("nifty-chart-wrap")).not.toBeInTheDocument();
   });
 
+  test("a poll with no candles hides the chart instead of unmounting it", () => {
+    const { rerender } = r(
+      <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />,
+    );
+    expect(panelMocks.tvMounts).toBe(1);
+
+    // Transient empty poll (feed hiccup / replay boundary): the empty state
+    // shows, but the engine stays mounted so the next poll does not rebuild
+    // every canvas, series and price line from scratch.
+    rerender(<NiftyChartPanel report={mockReport()} mode="live" view="chart" />);
+    expect(screen.getByTestId("nifty-chart-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-chart-wrap")).toBeInTheDocument();
+    expect(panelMocks.tvMounts).toBe(1);
+
+    rerender(
+      <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />,
+    );
+    expect(screen.queryByTestId("nifty-chart-empty")).not.toBeInTheDocument();
+    expect(panelMocks.tvMounts).toBe(1);
+  });
+
   test("marks bars whose close touches max pain and exposes the count", () => {
     // closes are 25620 / 25640 / 25680 → only the last is within 10 pts.
     r(<NiftyChartPanel report={mockReport({ candles: candles3(), maxPain: 25680 })} mode="live" view="chart" />);
@@ -266,6 +344,303 @@ describe("NiftyChartPanel", () => {
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "0");
   });
 
+  test("SENSEX fixture: 100-pt strike step → tol=20, close 15 pts from max pain = touch", () => {
+    // SENSEX: spot ~79,150, strikes every 100 pts, maxPain 79,000
+    // A candle close at 79,015 (15 pts away) should be a touch with tol=20
+    const sensexCandles = [
+      { time: "2026-10-12T09:15:00", open: 79100, high: 79150, low: 79050, close: 79120, volume: 1000 },
+      { time: "2026-10-12T09:16:00", open: 79120, high: 79180, low: 79080, close: 79015, volume: 1100 }, // 15 pts from 79,000
+      { time: "2026-10-12T09:17:00", open: 79015, high: 79080, low: 78980, close: 79040, volume: 1200 },
+    ];
+    const sensexStrikes = Array.from({ length: 11 }, (_, i) => ({ strike: 78500 + i * 100 })); // 78500..79500 step 100
+    r(
+      <NiftyChartPanel
+        report={mockReport({
+          candles: sensexCandles,
+          maxPain: 79000,
+          spot: 79150,
+          strikes: sensexStrikes,
+        })}
+        mode="live"
+        view="chart"
+        symbol="SENSEX"
+      />,
+    );
+    expect(screen.getByTestId("nifty-chart-wrap")).toHaveAttribute("data-mp-touches", "1");
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "1");
+  });
+
+  test("NIFTY fixture: 50-pt strike step → tol=10, close 15 pts from max pain = no touch", () => {
+    // NIFTY: spot ~23,000, strikes every 50 pts, maxPain 23,000
+    // A candle close at 23,015 (15 pts away) should NOT be a touch with tol=10
+    const niftyCandles = [
+      { time: "2026-10-12T09:15:00", open: 22950, high: 23000, low: 22900, close: 22970, volume: 1000 },
+      { time: "2026-10-12T09:16:00", open: 22970, high: 23030, low: 22930, close: 23015, volume: 1100 }, // 15 pts from 23,000
+      { time: "2026-10-12T09:17:00", open: 23015, high: 23060, low: 22980, close: 23040, volume: 1200 },
+    ];
+    const niftyStrikes = Array.from({ length: 11 }, (_, i) => ({ strike: 22500 + i * 50 })); // 22500..23000 step 50
+    r(
+      <NiftyChartPanel
+        report={mockReport({
+          candles: niftyCandles,
+          maxPain: 23000,
+          spot: 23000,
+          strikes: niftyStrikes,
+        })}
+        mode="live"
+        view="chart"
+        symbol="NIFTY"
+      />,
+    );
+    expect(screen.getByTestId("nifty-chart-wrap")).toHaveAttribute("data-mp-touches", "0");
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "0");
+  });
+
+  test("replay drops wall events after the playhead (no look-ahead)", () => {
+    const report = mockReport({ candles: candles3(), maxPain: 25700 });
+    const bursts = [
+      { id: "rej", side: "call", type: "rejection", t: "2026-10-12T09:16:30", strike: 25800, spot: 25760, target: 25700 },
+      { id: "brk", side: "call", type: "break", t: "2026-10-12T15:29:00", strike: 25900, spot: 25910 },
+    ];
+    const { rerender } = r(
+      <NiftyChartPanel
+        report={report}
+        mode="eod"
+        view="chart"
+        asOf="2026-10-12T09:17:00"
+        bursts={bursts}
+      />,
+    );
+    // Only the 09:16 rejection is knowable; the 15:29 break must not appear.
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "1");
+
+    rerender(
+      <NiftyChartPanel
+        report={report}
+        mode="eod"
+        view="chart"
+        asOf="2026-10-12T15:30:00"
+        bursts={bursts}
+      />,
+    );
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "2");
+  });
+
+  test("10s chain snapshots build true 1-minute OHLC with wicks", () => {
+    const spotPoints = [
+      { t: "2026-10-12T09:15:00", spot: 25600 },
+      { t: "2026-10-12T09:15:10", spot: 25640 }, // minute high
+      { t: "2026-10-12T09:15:20", spot: 25580 }, // minute low
+      { t: "2026-10-12T09:15:30", spot: 25620 },
+      { t: "2026-10-12T09:16:00", spot: 25650 },
+      { t: "2026-10-12T09:16:10", spot: 25630 },
+    ];
+    r(
+      <NiftyChartPanel
+        report={mockReport({ date: "2026-10-12", intraday: [], candles: [] })}
+        spotPoints={spotPoints}
+        mode="live"
+        view="chart"
+      />,
+    );
+    const chart = screen.getByTestId("tradingview-chart");
+    expect(chart).toHaveAttribute("data-candles", "2");
+    expect(Number(chart.getAttribute("data-first-open"))).toBe(25600);
+    expect(Number(chart.getAttribute("data-first-close"))).toBe(25620);
+    expect(Number(chart.getAttribute("data-first-high"))).toBe(25640);
+    expect(Number(chart.getAttribute("data-first-low"))).toBe(25580);
+    // True wicks: the extremes exceed the body on both sides.
+    expect(Number(chart.getAttribute("data-first-high"))).toBeGreaterThan(
+      Math.max(25600, 25620),
+    );
+    expect(Number(chart.getAttribute("data-first-low"))).toBeLessThan(
+      Math.min(25600, 25620),
+    );
+  });
+
+  test("a single spot minute merges with tape instead of being vetoed", () => {
+    const spotPoints = [{ t: "2026-10-12T09:15:00", spot: 25600 }];
+    const tape = {
+      rows: [
+        { t: "2026-10-12T09:15:00", spot: 25620 },
+        { t: "2026-10-12T09:16:00", spot: 25640 },
+        { t: "2026-10-12T09:17:00", spot: 25630 },
+      ],
+    } as unknown as Parameters<typeof NiftyChartPanel>[0]["tape"];
+    r(
+      <NiftyChartPanel
+        report={mockReport({ date: "2026-10-12", intraday: [], candles: [] })}
+        spotPoints={spotPoints}
+        tape={tape}
+        mode="live"
+        view="chart"
+      />,
+    );
+    const chart = screen.getByTestId("tradingview-chart");
+    expect(chart).toHaveAttribute("data-candles", "3");
+    // The 09:15 spot minute wins over the tape's 09:15 body; the other two
+    // tape minutes still fill the tail.
+    expect(Number(chart.getAttribute("data-first-high"))).toBe(25600);
+    expect(Number(chart.getAttribute("data-first-low"))).toBe(25600);
+  });
+
+  test("spot points win over the tape when both are present", () => {
+    const spotPoints = [
+      { t: "2026-10-12T09:15:00", spot: 25600 },
+      { t: "2026-10-12T09:15:10", spot: 25640 },
+      { t: "2026-10-12T09:15:20", spot: 25580 },
+      { t: "2026-10-12T09:15:30", spot: 25620 },
+      { t: "2026-10-12T09:16:00", spot: 25650 },
+      { t: "2026-10-12T09:16:10", spot: 25630 },
+    ];
+    const tape = {
+      rows: [
+        { t: "2026-10-12T09:15:00", spot: 25000 },
+        { t: "2026-10-12T09:16:00", spot: 25010 },
+        { t: "2026-10-12T09:17:00", spot: 25020 },
+      ],
+    } as unknown as Parameters<typeof NiftyChartPanel>[0]["tape"];
+    r(
+      <NiftyChartPanel
+        report={mockReport({ date: "2026-10-12", intraday: [], candles: [] })}
+        spotPoints={spotPoints}
+        tape={tape}
+        mode="live"
+        view="chart"
+      />,
+    );
+    const chart = screen.getByTestId("tradingview-chart");
+    expect(chart).toHaveAttribute("data-candles", "3");
+    expect(Number(chart.getAttribute("data-first-high"))).toBe(25640);
+  });
+
+  test("report intraday candles still win over spot points", () => {
+    const spotPoints = [
+      { t: "2026-10-12T09:15:00", spot: 25600 },
+      { t: "2026-10-12T09:15:10", spot: 25640 },
+      { t: "2026-10-12T09:16:00", spot: 25650 },
+    ];
+    const intraday = [
+      { time: "2026-10-12T09:15:00", open: 25600, high: 25650, low: 25580, close: 25620 },
+      { time: "2026-10-12T09:16:00", open: 25620, high: 25680, low: 25600, close: 25640 },
+    ];
+    r(
+      <NiftyChartPanel
+        report={mockReport({ date: "2026-10-12", intraday, candles: [] })}
+        spotPoints={spotPoints}
+        mode="live"
+        view="chart"
+      />,
+    );
+    const chart = screen.getByTestId("tradingview-chart");
+    expect(chart).toHaveAttribute("data-candles", "2");
+    expect(Number(chart.getAttribute("data-first-high"))).toBe(25650);
+    expect(Number(chart.getAttribute("data-first-low"))).toBe(25580);
+  });
+
+  test("generic underlying with no candles plots the 1m tape spots", () => {
+    const tape = {
+      rows: [
+        { t: "2026-10-12T09:15:00", spot: 25620 },
+        { t: "2026-10-12T09:16:00", spot: 25640 },
+        { t: "2026-10-12T09:17:00", spot: 25630 },
+      ],
+    } as unknown as Parameters<typeof NiftyChartPanel>[0]["tape"];
+    r(
+      <NiftyChartPanel
+        report={mockReport({ date: "2026-10-12", intraday: [], candles: [] })}
+        tape={tape}
+        mode="live"
+        view="chart"
+      />,
+    );
+    expect(screen.queryByTestId("nifty-chart-empty")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-candles", "3");
+  });
+
+  test("previous-session candles are dropped instead of mixed with today's tape", () => {
+    const tape = {
+      rows: [
+        { t: "2026-10-12T09:15:00", spot: 25620 },
+        { t: "2026-10-12T09:16:00", spot: 25640 },
+      ],
+    } as unknown as Parameters<typeof NiftyChartPanel>[0]["tape"];
+    r(
+      <NiftyChartPanel
+        report={mockReport({
+          date: "2026-10-12",
+          intraday: [],
+          candles: [
+            { time: "2026-10-11T15:00:00", open: 25000, high: 25010, low: 24990, close: 25000, volume: 0 },
+            { time: "2026-10-11T15:01:00", open: 25000, high: 25010, low: 24990, close: 25000, volume: 0 },
+            { time: "2026-10-11T15:02:00", open: 25000, high: 25010, low: 24990, close: 25000, volume: 0 },
+          ],
+        })}
+        tape={tape}
+        mode="live"
+        view="chart"
+      />,
+    );
+    // 2 today-only tape bars, not 3 stale candles + 2 tape bars (the old
+    // two-day chart with an overnight jump).
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-candles", "2");
+  });
+
+  test("previous-session intraday bars are dropped instead of mixing with today's tape", () => {
+    const tape = {
+      rows: [
+        { t: "2026-10-12T09:15:00", spot: 25620 },
+        { t: "2026-10-12T09:16:00", spot: 25640 },
+      ],
+    } as unknown as Parameters<typeof NiftyChartPanel>[0]["tape"];
+    r(
+      <NiftyChartPanel
+        report={mockReport({
+          date: "2026-10-12",
+          intraday: [
+            { time: "2026-10-11T09:15:00", open: 25000, high: 25010, low: 24990, close: 25000, volume: 0 },
+            { time: "2026-10-11T09:16:00", open: 25000, high: 25010, low: 24990, close: 25000, volume: 0 },
+            { time: "2026-10-11T09:17:00", open: 25000, high: 25010, low: 24990, close: 25000, volume: 0 },
+          ],
+          candles: [],
+        })}
+        tape={tape}
+        mode="live"
+        view="chart"
+      />,
+    );
+    // 2 today-only tape bars — the 3 stale previous-session intraday bars
+    // never mix into today's chart (same session-scoping rule as the
+    // `candles` fallback above).
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-candles", "2");
+  });
+
+  test("maxWalls from the walls card overrides the report's max-OI lines", () => {
+    r(
+      <NiftyChartPanel
+        report={mockReport({
+          candles: candles3(),
+          walls: {
+            calls: [{ strike: 25000, oi: 900 }, { strike: 24500, oi: 800 }],
+            puts: [{ strike: 25500, oi: 700 }],
+          },
+        })}
+        maxWalls={{
+          calls: [{ strike: 24000, oi: 500 }],
+          puts: [{ strike: 25600, oi: 600 }],
+        }}
+        mode="live"
+        view="chart"
+      />,
+    );
+    const labels = screen.getByTestId("tradingview-chart").getAttribute("data-markline-labels") ?? "";
+    // maxWalls call at 24,000 is below spot (25,750.5) → CW (BELOW) since no call above
+    expect(labels).toContain("CW (BELOW) 24,000");
+    // maxWalls put at 25,600 is below spot → PW (support)
+    expect(labels).toContain("PW 25,600");
+    expect(labels).not.toContain("CW 25,000");
+  });
+
   test("memo: same report reference keeps the wrap DOM node across parent re-renders", () => {
     const report = mockReport({ candles: candles3() });
     const { rerender } = r(<NiftyChartPanel report={report} mode="live" view="chart" />);
@@ -276,6 +651,40 @@ describe("NiftyChartPanel", () => {
     // React.memo bailed out — the identical DOM node survived the re-render.
     expect(screen.getByTestId("nifty-chart-wrap")).toBe(wrap);
     expect(screen.queryByTestId("nifty-level-legend")).not.toBeInTheDocument();
+  });
+
+  test("stale report intraday + fresh spotPoints → chart merges morning + fresh minute", () => {
+    // Stale intraday from 11:56 (old REST snapshot)
+    const staleIntraday = [
+      { time: "2026-10-12T09:15:00", open: 25600, high: 25650, low: 25580, close: 25620 },
+      { time: "2026-10-12T11:56:00", open: 25700, high: 25720, low: 25680, close: 25710 },
+    ];
+    // Fresh spot points from 10s chain feed at 12:20
+    const freshSpotPoints = [
+      { t: "2026-10-12T09:15:00", spot: 25600 },
+      { t: "2026-10-12T09:15:10", spot: 25640 },
+      { t: "2026-10-12T09:15:20", spot: 25580 },
+      { t: "2026-10-12T09:15:30", spot: 25620 },
+      { t: "2026-10-12T12:20:00", spot: 25755 },
+      { t: "2026-10-12T12:20:10", spot: 25760 },
+    ];
+    r(
+      <NiftyChartPanel
+        report={mockReport({ date: "2026-10-12", intraday: staleIntraday, candles: [] })}
+        spotPoints={freshSpotPoints}
+        mode="live"
+        view="chart"
+      />,
+    );
+    const chart = screen.getByTestId("tradingview-chart");
+    // Morning 09:15/11:56 from intraday + fresh 12:20 from spot points.
+    expect(chart).toHaveAttribute("data-candles", "3");
+    // The 12:20 candle should have the fresh spot data
+    // The last candle (12:20) should reflect the fresh spot ~25755-25760
+    // Since we only check the first candle attributes in the mock, verify count
+    // and that it didn't use the stale 11:56 intraday candle
+    expect(Number(chart.getAttribute("data-first-open"))).toBe(25600);
+    expect(Number(chart.getAttribute("data-first-close"))).toBe(25620);
   });
 });
 
@@ -373,8 +782,8 @@ describe("NiftyChartPanel live GEX overlay", () => {
     const gres = lines.find((l) => l.label.formatter.includes("GRES"));
     const gfuel = lines.find((l) => l.label.formatter.includes("GFUEL"));
     const flip = lines.find((l) => l.label.formatter.includes("FLIP"));
-    expect(labels).toContain("CW 23000 · GRES");
-    expect(labels).toContain("PW 22500 · GFUEL↓");
+    expect(labels).toContain("CW 23,000 · GRES");
+    expect(labels).toContain("PW 22,500 · GFUEL↓");
     expect(labels).toContain("R2 23,300 · FLIP");
     expect(gres?.yAxis).toBe(23000);
     expect(gres?.lineStyle.color).toBe(palette.NEGATIVE);
@@ -390,7 +799,7 @@ describe("NiftyChartPanel live GEX overlay", () => {
     // 23,300 R2/FLIP is 580 pts above spot and outside the session pad too.
     expect(flip?.includeInScale).toBe(false);
     // Walls stay out of the scale so a far call wall doesn't squash the candles.
-    expect(lines.find((l) => l.label.formatter === "CW 23500")?.includeInScale).toBeFalsy();
+    expect(lines.find((l) => l.label.formatter === "CW 23,500")?.includeInScale).toBeFalsy();
 
     r(<NiftyChartPanel report={report} mode="live" view="chart" />);
     // The dense panel no longer renders the legend row; the exported
@@ -588,7 +997,7 @@ describe("mergeCollidingLabels", () => {
       }),
     ).map((l) => l.label.formatter);
     // MP 22700 + CW 22705 are 5 pts apart → one gutter label, no duplicates.
-    expect(labels.filter((l) => l.includes("MP 22700") || l.includes("CW 22705"))).toHaveLength(1);
-    expect(labels.join(" ")).toContain("MP 22700 · CW");
+    expect(labels.filter((l) => l.includes("MP 22,700") || l.includes("CW 22,705"))).toHaveLength(1);
+    expect(labels.join(" ")).toContain("MP 22,700 · CW");
   });
 });

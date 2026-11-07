@@ -47,6 +47,7 @@ export function ReplaySummaryPanel({ summary }: ReplaySummaryProps) {
         id: "name",
         header: "Strategy",
         accessorKey: "name",
+        meta: { align: "left" },
         cell: (info) => (
           <span style={{ fontWeight: info.row.original.isTotal ? 700 : 500, fontSize: 11 }}>
             {info.getValue<string>()}
@@ -57,6 +58,7 @@ export function ReplaySummaryPanel({ summary }: ReplaySummaryProps) {
         id: "trades",
         header: "Trades",
         accessorKey: "trades",
+        meta: { align: "right" },
         cell: (info) => (
           <span
             style={{
@@ -74,6 +76,7 @@ export function ReplaySummaryPanel({ summary }: ReplaySummaryProps) {
         id: "win_rate",
         header: "Win Rate",
         accessorKey: "win_rate",
+        meta: { align: "right" },
         cell: (info) => (
           <span
             style={{
@@ -91,6 +94,7 @@ export function ReplaySummaryPanel({ summary }: ReplaySummaryProps) {
         id: "net_pnl",
         header: "Net P&L",
         accessorKey: "net_pnl",
+        meta: { align: "right" },
         cell: (info) => {
           const val = info.getValue<number>();
           return (
@@ -116,6 +120,7 @@ export function ReplaySummaryPanel({ summary }: ReplaySummaryProps) {
         id: "profit_factor",
         header: "PF",
         accessorKey: "profit_factor",
+        meta: { align: "right" },
         cell: (info) => {
           const val = info.getValue<number | null>();
           const color =
@@ -153,6 +158,7 @@ export function ReplaySummaryPanel({ summary }: ReplaySummaryProps) {
         dataTestId="replay-summary-table"
         enableSorting={false}
         stickyHeader={false}
+        dense
         getRowClassName={(row) => (row.isTotal ? "replay-summary-total" : undefined)}
       />
     </CompactPanel>

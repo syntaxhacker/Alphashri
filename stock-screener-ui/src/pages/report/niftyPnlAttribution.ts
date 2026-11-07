@@ -1,3 +1,5 @@
+import { formatNumberIN } from "@/utils/ui-helpers";
+import { safeNumNull } from "@/utils/reportParsers";
 /**
  * Intraday P&L attribution for open NIFTY option legs.
  *
@@ -59,12 +61,6 @@ export interface NiftyPnlAttribution {
   total: number;
 }
 
-function num(v: unknown): number | null {
-  if (v === null || v === undefined || v === "") return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-
 /**
  * Attribute every leg. A leg with no matching greek snapshot keeps
  * `missingGreeks: true` with all parts (and the total) at 0 — it must
@@ -80,13 +76,13 @@ export function attributeNiftyPnl(
   const legs: NiftyLegAttribution[] = [];
   const list = Array.isArray(positions) ? positions : [];
   const greekList = Array.isArray(greeks) ? greeks : [];
-  const spotNow = num(spot);
-  const defaultElapsed = num(opts.defaultElapsedDays) ?? 0;
+  const spotNow = safeNumNull(spot);
+  const defaultElapsed = safeNumNull(opts.defaultElapsedDays) ?? 0;
 
   for (const pos of list) {
     if (!pos || !Number.isFinite(Number(pos.strike))) continue;
     const key = `${pos.strike}-${pos.opt}-${pos.direction}`;
-    const label = `${Number(pos.strike).toLocaleString("en-IN")} ${pos.opt} ${pos.direction}`;
+    const label = `${formatNumberIN(Number(pos.strike))} ${pos.opt} ${pos.direction}`;
     const blank: NiftyLegAttribution = {
       key,
       label,
@@ -106,26 +102,26 @@ export function attributeNiftyPnl(
       continue;
     }
     const dirSign = pos.direction === "short" ? -1 : 1;
-    const qty = num(pos.qty) ?? 0;
+    const qty = safeNumNull(pos.qty) ?? 0;
     const scale = dirSign * qty;
-    const entryPremium = num(pos.entry_premium) ?? 0;
-    const current = num(g.ltp);
+    const entryPremium = safeNumNull(pos.entry_premium) ?? 0;
+    const current = safeNumNull(g.ltp);
 
     // Delta: Δspot × entry delta (else the live greek). No spot, no delta P&L.
-    const deltaGreek = num(pos.entry_delta) ?? num(g.delta) ?? 0;
-    const entrySpot = num(pos.entry_spot);
+    const deltaGreek = safeNumNull(pos.entry_delta) ?? safeNumNull(g.delta) ?? 0;
+    const entrySpot = safeNumNull(pos.entry_spot);
     const delta =
       spotNow !== null && entrySpot !== null ? (spotNow - entrySpot) * deltaGreek * scale : 0;
 
     // Vega: ΔIV × vega. Either IV endpoint missing → 0 (never guess a vol move).
-    const entryIv = num(pos.entry_iv);
-    const nowIv = num(g.iv);
-    const vegaGreek = num(g.vega) ?? 0;
+    const entryIv = safeNumNull(pos.entry_iv);
+    const nowIv = safeNumNull(g.iv);
+    const vegaGreek = safeNumNull(g.vega) ?? 0;
     const vega = entryIv !== null && nowIv !== null ? (nowIv - entryIv) * vegaGreek * scale : 0;
 
     // Theta: theta × elapsed days (decay accrues even without a spot move).
-    const thetaGreek = num(g.theta) ?? 0;
-    const elapsed = num(pos.elapsed_days) ?? defaultElapsed;
+    const thetaGreek = safeNumNull(g.theta) ?? 0;
+    const elapsed = safeNumNull(pos.elapsed_days) ?? defaultElapsed;
     const theta = thetaGreek * elapsed * scale;
 
     const total = current !== null ? (current - entryPremium) * scale : 0;
@@ -143,5 +139,5 @@ export function formatPnlSigned(v: number | null | undefined): string {
   const rounded = Math.round(v);
   if (rounded === 0) return "0";
   const sign = rounded > 0 ? "+" : "−";
-  return `${sign}${Math.abs(rounded).toLocaleString("en-IN")}`;
+  return `${sign}${formatNumberIN(Math.abs(rounded))}`;
 }

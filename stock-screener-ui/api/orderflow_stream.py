@@ -36,17 +36,8 @@ from fastapi.responses import StreamingResponse
 from api.auth import decode_token, get_current_user
 from api.paper.live_stream import _get_upstox_token
 from api import orderflow_journal
+from api.orderflow_json import dumps as _dumps
 from api.orderflow_signals import OrderFlowSignalEngine
-
-try:  # orjson serializes a 50-level tick ~9x faster than stdlib json
-    import orjson as _fastjson
-
-    def _dumps(payload) -> str:
-        return _fastjson.dumps(payload, default=str).decode("utf-8")
-
-except ImportError:  # pragma: no cover - fallback keeps the module importable
-    def _dumps(payload) -> str:
-        return json.dumps(payload, separators=(",", ":"), default=str)
 
 
 #: Max queued messages folded into one WebSocket frame. A burst of depth

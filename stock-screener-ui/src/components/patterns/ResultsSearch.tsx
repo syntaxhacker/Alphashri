@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { TextInput, useDebouncedValue } from "@/ui";
+import { IconSearch } from "@tabler/icons-react";
 import type { PatternFilters } from "@/types/chartPatterns";
 
 /**
@@ -53,10 +54,10 @@ export function ResultsSearch({ filters, setFilter }: ResultsSearchProps) {
   return (
     <TextInput
       data-testid="patterns-results-search"
-      label="Filter results"
-      placeholder="Symbol or company"
+      placeholder="Search results…"
       size="xs"
-      w={220}
+      w={190}
+      leftSection={<IconSearch size={14} />}
       value={value}
       onChange={setValue}
       style={{ flexShrink: 0 }}

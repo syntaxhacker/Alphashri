@@ -74,6 +74,14 @@ export function isMarketClosedToday(): boolean {
   return isTradingHoliday(today);
 }
 
+export function isMarketOpenNow(now: Date = new Date()): boolean {
+  if (typeof window !== "undefined" && (window as any).__E2E_MOCK_MARKET_OPEN__) return true;
+  const ist = dayjs(now).tz("Asia/Kolkata");
+  if (isTradingHoliday(ist.format("YYYY-MM-DD"))) return false;
+  const minutes = ist.hour() * 60 + ist.minute();
+  return minutes >= 9 * 60 + 15 && minutes < 15 * 60 + 30;
+}
+
 export function isClearingHoliday(dateStr: string): boolean {
   return state.clearingDates.has(dateStr);
 }

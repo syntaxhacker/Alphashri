@@ -36,7 +36,10 @@ export interface NiftyIntel {
   date: string;
   expiry: string;
   fii_net: number | null;
+  /** Session the FII/DII flows belong to (the latest COMPLETED session). */
+  fii_date: string | null;
   dii_net: number | null;
+  dii_date: string | null;
   dce_oi: number | null;
   dpe_oi: number | null;
   top_dce: NiftyIntelStrike[];
@@ -52,7 +55,9 @@ export const EMPTY_INTEL: NiftyIntel = {
   date: "",
   expiry: "",
   fii_net: null,
+  fii_date: null,
   dii_net: null,
+  dii_date: null,
   dce_oi: null,
   dpe_oi: null,
   top_dce: [],
@@ -100,7 +105,9 @@ export function normalizeNiftyIntel(raw: Record<string, unknown>): NiftyIntel {
     date: str(raw.date),
     expiry: str(raw.expiry),
     fii_net: numOrNull(raw.fii_net),
+    fii_date: typeof raw.fii_date === "string" ? raw.fii_date : null,
     dii_net: numOrNull(raw.dii_net),
+    dii_date: typeof raw.dii_date === "string" ? raw.dii_date : null,
     dce_oi: numOrNull(raw.dce_oi),
     dpe_oi: numOrNull(raw.dpe_oi),
     top_dce: normalizeStrikes(raw.top_dce),

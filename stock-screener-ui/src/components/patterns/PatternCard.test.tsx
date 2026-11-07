@@ -43,7 +43,10 @@ const HIT: PatternHitDTO = {
   rr: 1.7,
   bars_ago: 2,
   volume_confirmed: true,
-  trendlines: [],
+  trendlines: [
+    [{ t: "2026-04-26", price: 112.6 }],
+    [{ t: "2026-04-26", price: 102.5 }],
+  ],
   notes: "",
 };
 
@@ -58,6 +61,10 @@ const CONSOLIDATION: PatternHitDTO = {
   breakout_level: 130,
   target: 150,
   stop: 110,
+  trendlines: [
+    [{ t: "2026-02-01", price: 130 }],
+    [{ t: "2026-02-01", price: 110 }],
+  ],
   rr: 1.5,
   base_days: 120,
   range_pct: 13,
@@ -198,13 +205,36 @@ describe("PatternCard", () => {
         }}
       />,
     );
-    expect(screen.getByTestId("patterns-card-range-CONS")).toHaveTextContent("₹105.00 – ₹130.00");
+    expect(screen.getByTestId("patterns-card-range-CONS")).toHaveTextContent("₹105.00 – ₹128.00");
   });
 });
 
 describe("PatternCard missing coverage", () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => cleanup());
+
+  test("shows Members for a broad index and calls onShowMembers", async () => {
+    const onShowMembers = vi.fn();
+    r(<PatternCard hit={{ ...HIT, symbol: "NIFTY" }} onShowMembers={onShowMembers} />);
+    await userEvent.click(screen.getByTestId("patterns-card-members-NIFTY"));
+    expect(onShowMembers).toHaveBeenCalledWith("NIFTY");
+  });
+
+  test("omits Members for a normal stock", () => {
+    r(<PatternCard hit={HIT} onShowMembers={vi.fn()} />);
+    expect(screen.queryByTestId("patterns-card-members-IRCON")).not.toBeInTheDocument();
+  });
+
+  test("renders a TradingView chart link", () => {
+    r(<PatternCard hit={HIT} />);
+    const link = screen.getByTestId("patterns-card-tv-IRCON-falling_wedge");
+    expect(link).toHaveAttribute(
+      "href",
+      "https://www.tradingview.com/chart/?symbol=NSE%3AIRCON",
+    );
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
 
   test("expand button calls onExpand without triggering onClick", async () => {
     const onClick = vi.fn();
@@ -213,6 +243,17 @@ describe("PatternCard missing coverage", () => {
     await userEvent.click(screen.getByTestId("patterns-card-expand-IRCON-falling_wedge"));
     expect(onExpand).toHaveBeenCalledTimes(1);
     expect(onExpand).toHaveBeenCalledWith(HIT);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  test("Enter on the expand button does not also select the card", async () => {
+    const onClick = vi.fn();
+    const onExpand = vi.fn();
+    r(<PatternCard hit={HIT} onClick={onClick} onExpand={onExpand} />);
+    const expand = screen.getByTestId("patterns-card-expand-IRCON-falling_wedge");
+    expand.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(onExpand).toHaveBeenCalledTimes(1);
     expect(onClick).not.toHaveBeenCalled();
   });
 

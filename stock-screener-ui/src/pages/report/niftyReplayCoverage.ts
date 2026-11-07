@@ -1,5 +1,5 @@
 /**
- * Replay coverage — how much of the 09:15–15:29 session the recorded frames
+ * Replay coverage — how much of the 09:15–15:39 session the recorded frames
  * actually cover.
  *
  * The replay log only contains the minutes the recorder managed to capture.
@@ -7,14 +7,16 @@
  * at 10:33 and have dozens of one- to two-minute holes. Playback jumps a hole
  * in a single tick, which looks like a stutter, so the UI needs to say *why*:
  * a percentage, the missing minutes, the holes, and the jump after each frame.
+ * The session is the derivatives (F&O) session: 09:15 to the 15:40 F&O
+ * close, i.e. 15:39 as the last recorded minute (385 minutes, end-exclusive).
  */
 
-/** Session open, minute of day (09:15 IST). */
-export const SESSION_START_MIN = 9 * 60 + 15;
-/** Last recorded minute (15:29 IST) — 15:30 belongs to the closing auction. */
-export const SESSION_END_MIN = 15 * 60 + 29;
-/** 09:15 → 15:29 inclusive = 375 one-minute bars. */
-export const SESSION_MINUTES = SESSION_END_MIN - SESSION_START_MIN + 1;
+import { SESSION_START_MIN, DERIVATIVES_CLOSE_MIN, DERIVATIVES_SESSION_MINUTES } from "../../utils/marketClock";
+/** Last recorded minute of the derivatives session: 15:39 IST. */
+export const SESSION_END_MIN = DERIVATIVES_CLOSE_MIN - 1;
+/** Derivatives session length in minutes: 09:15 → 15:40 = 385 minutes. */
+export const SESSION_MINUTES = DERIVATIVES_SESSION_MINUTES;
+export { SESSION_START_MIN };
 
 interface ReplayGap {
   /** Minute of day of the first missing minute. */
@@ -30,7 +32,7 @@ export interface ReplayCoverage {
   recorded: number;
   /** sessionMinutes − recorded. */
   missing: number;
-  /** 0–100, one decimal (0.8 for 3/375). */
+  /** 0–100, one decimal (0.8 for 3/385). */
   pct: number;
   firstMin: number | null;
   lastMin: number | null;

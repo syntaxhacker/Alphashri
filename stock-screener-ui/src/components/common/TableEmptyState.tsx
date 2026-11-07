@@ -1,5 +1,5 @@
-import { Box, Flex, Text, Group } from "@/ui";
 import type { ReactNode } from "react";
+import { EmptyCompact } from "./states";
 
 interface TableEmptyStateProps {
   message: string;
@@ -9,7 +9,7 @@ interface TableEmptyStateProps {
 
 /**
  * Reusable empty state component for tables.
- * Displays a consistent message when a table has no data.
+ * Thin wrapper over `EmptyCompact` (CompactPanel + EmptyState).
  *
  * @example
  * <TableEmptyState message="No open positions" />
@@ -21,19 +21,8 @@ interface TableEmptyStateProps {
  */
 export function TableEmptyState({ message, icon, action }: TableEmptyStateProps) {
   return (
-    <Flex
-      py="lg"
-      justify="center"
-      align="center"
-      direction="column"
-      gap={4}
-      data-testid="table-empty-state"
-    >
-      {icon && <Group justify="center">{icon}</Group>}
-      <Text size="sm" fw={500} c="dimmed">
-        {message}
-      </Text>
-      {action && <Box mt={8}>{action}</Box>}
-    </Flex>
+    <EmptyCompact data-testid="table-empty-state" icon={icon} title={message}>
+      {action}
+    </EmptyCompact>
   );
 }

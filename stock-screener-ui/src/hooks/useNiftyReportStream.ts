@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { API_BASE } from "@/api/config";
 import { normalizeReport, normalizeSensex, normalizeTapeRow } from "@/api/reportNifty";
 import { getAccessToken } from "@/state/auth";
@@ -67,6 +67,35 @@ export interface NiftySpotTick {
   change_pct: number | null;
 }
 
+let liveTick: NiftySpotTick | null = null;
+const tickListeners = new Set<() => void>();
+
+function emitTick(): void {
+  for (const listener of tickListeners) listener();
+}
+
+/** Replace the live tick. Identity changes each tick, so the snapshot is stable per render. */
+export function setLiveTick(tick: NiftySpotTick | null): void {
+  liveTick = tick;
+  emitTick();
+}
+
+function subscribeTick(listener: () => void): () => void {
+  tickListeners.add(listener);
+  return () => {
+    tickListeners.delete(listener);
+  };
+}
+
+function getTickSnapshot(): NiftySpotTick | null {
+  return liveTick;
+}
+
+/** The ~1/second live spot tick, as a subscription — only subscribers re-render. */
+export function useNiftySpotTick(): NiftySpotTick | null {
+  return useSyncExternalStore(subscribeTick, getTickSnapshot, getTickSnapshot);
+}
+
 /**
  * Live Nifty report over WebSocket.
  *
@@ -80,7 +109,9 @@ export interface NiftySpotTick {
  *
  * A `{"type":"tick","spot": <number>, "ts": <iso|null>,
  * "change_pct": <number|null>}` frame arrives ~once per second (only when the
- * spot changed) and is exposed as `tick` without touching `report`.
+ * spot changed) and is pushed into the module-level tick store (read it with
+ * `useNiftySpotTick`) instead of this hook's return value, so the ~1 Hz tick
+ * never re-renders the caller.
  *
  * Reconnects with backoff (1s, 2s, 4s … cap 15s) while `enabled`; closes
  * cleanly on unmount, when `enabled` goes false, or when `expiry` changes.
@@ -93,11 +124,10 @@ export function useNiftyReportStream({
 }: {
   expiry?: string;
   enabled: boolean;
-}): { report: NiftyReport | null; tape: NiftyTape | null; sensex: NiftySensex | null; tick: NiftySpotTick | null; connected: boolean } {
+}): { report: NiftyReport | null; tape: NiftyTape | null; sensex: NiftySensex | null; connected: boolean } {
   const [report, setReport] = useState<NiftyReport | null>(null);
   const [tape, setTape] = useState<NiftyTape | null>(null);
   const [sensex, setSensex] = useState<NiftySensex | null>(null);
-  const [tick, setTick] = useState<NiftySpotTick | null>(null);
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
@@ -105,7 +135,13 @@ export function useNiftyReportStream({
       setConnected(false);
       // Drop the last live tick so switching to EOD cannot show a stale
       // spot from the previous live session.
-      setTick(null);
+      setLiveTick(null);
+      // Release the last pushed frames too: the panel re-loads its own copy
+      // for the new context, and an EOD view must not pin the previous live
+      // report + tape (~1-2 MB each) for as long as the tab stays open.
+      setReport(null);
+      setTape(null);
+      setSensex(null);
       return;
     }
     if (typeof WebSocket === "undefined") return;
@@ -159,7 +195,7 @@ export function useNiftyReportStream({
               typeof frame.change_pct === "number" && Number.isFinite(frame.change_pct)
                 ? frame.change_pct
                 : null;
-            setTick({ spot, ts, change_pct: changePct });
+            setLiveTick({ spot, ts, change_pct: changePct });
           } else if (frame.type === "aux") {
             // Null sides mean "unchanged" — keep the last good value.
             if (frame.tape !== null && frame.tape !== undefined) {
@@ -213,5 +249,5 @@ export function useNiftyReportStream({
     };
   }, [enabled, expiry]);
 
-  return { report, tape, sensex, tick, connected };
+  return { report, tape, sensex, connected };
 }

@@ -1,20 +1,14 @@
-import { Group, Loader, Text } from "@/ui";
-import { CompactPanel } from "../common/compact";
+import { Loader } from "@/ui";
+import { EmptyCompact } from "../common/states";
 import type { ScreenerLoadingProps } from "./types";
 
 export function ScreenerLoading({ message }: ScreenerLoadingProps) {
   return (
-    <CompactPanel
+    <EmptyCompact
       id="screener-loading"
-      testId="screener-loading"
-      title={
-        <Group gap="sm" wrap="nowrap" align="center">
-          <Loader size="sm" data-testid="screener-loader" />
-          <Text fw={600} size="sm">
-            Loading screener
-          </Text>
-        </Group>
-      }
+      data-testid="screener-loading"
+      icon={<Loader size="sm" data-testid="screener-loader" />}
+      title="Loading screener"
       description={message}
     />
   );

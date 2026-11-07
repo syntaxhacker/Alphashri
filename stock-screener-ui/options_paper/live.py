@@ -43,17 +43,18 @@ from options_paper.strategies import build  # noqa: E402
 
 #: What the agent runs: selective strategies + a continuous spot scalp.
 AGENT_STRATEGIES = ("nifty_momentum", "nifty_gap", "nifty_iv_delta",
-                    "nifty_open_straddle", "nifty_spot_scalp")
+                    "nifty_open_straddle", "nifty_spot_scalp",
+                    "nifty_maxpain")
 
 
 def market_open(now: datetime | None = None) -> bool:
-    """Canonical market-hours check (falls back to a simple 09:15-15:30 rule)."""
+    """Canonical market-hours check (falls back to a simple 09:15-15:40 rule)."""
     try:
         from trading.utils import is_market_open
         return bool(is_market_open())
     except Exception:
         now = now or datetime.now()
-        return now.weekday() < 5 and (9, 15) <= (now.hour, now.minute) <= (15, 30)
+        return now.weekday() < 5 and (9, 15) <= (now.hour, now.minute) <= (15, 40)
 
 
 def snapshot(tk) -> dict:
@@ -272,7 +273,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"agent live runner — date={date_str} strategies={list(names)} "
           f"lots={args.lots} interval={args.interval}s dry_run={args.dry_run}")
-    close_min = 15 * 60 + 30          # 15:30 IST — run until the close
+    close_min = 15 * 60 + 40          # 15:40 IST — run until the close
     while True:
         try:
             r = run_once(date_str, names, args.lots, args.dry_run,

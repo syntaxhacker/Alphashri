@@ -25,6 +25,8 @@ from .bots_router import (
     equity_bots_disabled,
 )
 
+from ._db import require_db, session_scope, run_db
+
 from api.auth import get_current_user
 from api.utils import _BUY_SIDES, _get_market_price
 from api.bot_state import get_bot_state
@@ -167,22 +169,10 @@ async def get_bot_logs(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
-    if not _db_available:
-        raise HTTPException(status_code=500, detail="Database not available")
-
+    require_db(_db_available)
     user_id = get_user_id(user)
-
-    close_db = False
-    if db is None:
-        db = SessionLocal()
-        close_db = True
-
-    try:
-        sync_fn, _, _ = _get_sync_functions()
-        return await asyncio.to_thread(sync_fn, bot_id, user_id, lines, db)
-    finally:
-        if close_db:
-            db.close()
+    sync_fn, _, _ = _get_sync_functions()
+    return await run_db(sync_fn, bot_id, user_id, lines, db=db)
 
 
 @router.get("/{bot_id}/portfolio")
@@ -191,22 +181,10 @@ async def get_bot_portfolio(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
-    if not _db_available:
-        raise HTTPException(status_code=500, detail="Database not available")
-
+    require_db(_db_available)
     user_id = get_user_id(user)
-
-    close_db = False
-    if db is None:
-        db = SessionLocal()
-        close_db = True
-
-    try:
-        _, sync_fn, _ = _get_sync_functions()
-        return await asyncio.to_thread(sync_fn, bot_id, user_id, db)
-    finally:
-        if close_db:
-            db.close()
+    _, sync_fn, _ = _get_sync_functions()
+    return await run_db(sync_fn, bot_id, user_id, db=db)
 
 
 @router.get("/{bot_id}/positions")
@@ -216,17 +194,9 @@ async def get_bot_positions(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
-    if not _db_available:
-        raise HTTPException(status_code=500, detail="Database not available")
-
+    require_db(_db_available)
     user_id = get_user_id(user)
-
-    close_db = False
-    if db is None:
-        db = SessionLocal()
-        close_db = True
-
-    try:
+    with session_scope(db) as db:
         bot = get_bot_by_uuid(bot_id, user_id, db)
 
         state = get_bot_state(bot.id, user_id, db)
@@ -248,9 +218,6 @@ async def get_bot_positions(
             "positions": positions,
             "count": len(positions),
         }
-    finally:
-        if close_db:
-            db.close()
 
 
 @router.get("/{bot_id}/trades")
@@ -263,26 +230,15 @@ async def get_bot_trades(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
-    if not _db_available:
-        raise HTTPException(status_code=500, detail="Database not available")
-
+    require_db(_db_available)
     user_id = user_id_query if user_id_query is not None else get_user_id(user)
-
-    close_db = False
-    if db is None:
-        db = SessionLocal()
-        close_db = True
-
+    _, _, sync_fn = _get_sync_functions()
     try:
-        _, _, sync_fn = _get_sync_functions()
-        return await asyncio.to_thread(sync_fn, bot_id, user_id, strategy_id, limit, include_test, db)
+        return await run_db(sync_fn, bot_id, user_id, strategy_id, limit, include_test, db=db)
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get trades: {str(e)}")
-    finally:
-        if close_db:
-            db.close()
 
 
 @router.post("/{bot_id}/start")
@@ -292,17 +248,9 @@ async def start_bot(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
-    if not _db_available:
-        raise HTTPException(status_code=500, detail="Database not available")
-
+    require_db(_db_available)
     user_id = get_user_id(user)
-
-    close_db = False
-    if db is None:
-        db = SessionLocal()
-        close_db = True
-
-    try:
+    with session_scope(db) as db:
         bot = get_bot_by_uuid(bot_id, user_id, db)
 
         if not bot.is_active:
@@ -320,9 +268,6 @@ async def start_bot(
             "pid": process.pid,
             "log_file": str(_bot_logs.get(bot.id)),
         }
-    finally:
-        if close_db:
-            db.close()
 
 
 @router.post("/start-all")
@@ -334,17 +279,9 @@ async def start_all_bots(
     if equity_bots_disabled():
         return {"message": "EQUITY_BOTS_DISABLED is set — equity bots are off",
                 "started": []}
-    if not _db_available:
-        raise HTTPException(status_code=500, detail="Database not available")
-
+    require_db(_db_available)
     user_id = get_user_id(user)
-
-    close_db = False
-    if db is None:
-        db = SessionLocal()
-        close_db = True
-
-    try:
+    with session_scope(db) as db:
         from db.models import BotConfig
         bots = db.query(BotConfig).filter(
             BotConfig.user_id == user_id,
@@ -371,9 +308,6 @@ async def start_all_bots(
             "message": f"Started {len(started)} bot(s)",
             "started": started,
         }
-    finally:
-        if close_db:
-            db.close()
 
 
 @router.post("/stop-all")
@@ -382,17 +316,9 @@ async def stop_all_bots(
     db: Session = Depends(get_db) if get_db else None
 ):
     """Stop all running bots for the current user."""
-    if not _db_available:
-        raise HTTPException(status_code=500, detail="Database not available")
-
+    require_db(_db_available)
     user_id = get_user_id(user)
-
-    close_db = False
-    if db is None:
-        db = SessionLocal()
-        close_db = True
-
-    try:
+    with session_scope(db) as db:
         import concurrent.futures
         from db.models import BotConfig
         bots = db.query(BotConfig).filter(
@@ -420,9 +346,6 @@ async def stop_all_bots(
             "message": f"Stopped {len(stopped)} bot(s)",
             "stopped": stopped,
         }
-    finally:
-        if close_db:
-            db.close()
 
 
 @router.post("/{bot_id}/stop")
@@ -431,17 +354,9 @@ async def stop_bot(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
-    if not _db_available:
-        raise HTTPException(status_code=500, detail="Database not available")
-
+    require_db(_db_available)
     user_id = get_user_id(user)
-
-    close_db = False
-    if db is None:
-        db = SessionLocal()
-        close_db = True
-
-    try:
+    with session_scope(db) as db:
         bot = get_bot_by_uuid(bot_id, user_id, db)
 
         running, pid = is_bot_running(user_id, bot.id)
@@ -451,9 +366,6 @@ async def stop_bot(
         stop_bot_process(user_id, bot.id)
 
         return {"message": f"Bot {bot_id} stopped"}
-    finally:
-        if close_db:
-            db.close()
 
 
 @router.get("/{bot_id}/scan")
@@ -463,17 +375,9 @@ async def get_bot_scan(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
-    if not _db_available:
-        raise HTTPException(status_code=500, detail="Database not available")
-
+    require_db(_db_available)
     user_id = get_user_id(user)
-
-    close_db = False
-    if db is None:
-        db = SessionLocal()
-        close_db = True
-
-    try:
+    with session_scope(db) as db:
         bot = get_bot_by_uuid(bot_id, user_id, db)
 
         state = get_bot_state(bot.id, user_id, db)
@@ -502,9 +406,6 @@ async def get_bot_scan(
             "timestamp": state['timestamp'] if state else datetime.now().isoformat(),
             "bot_running": running,
         }
-    finally:
-        if close_db:
-            db.close()
 
 
 @router.post("/{bot_id}/close-all")
@@ -514,94 +415,84 @@ async def close_all_bot_positions(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
-    if not _db_available:
-        raise HTTPException(status_code=500, detail="Database not available")
-
+    require_db(_db_available)
     user_id = get_user_id(user)
-
-    close_db = False
-    if db is None:
-        db = SessionLocal()
-        close_db = True
-
     try:
-        bot = get_bot_by_uuid(bot_id, user_id, db)
-        running, pid = is_bot_running(user_id, bot.id)
+        with session_scope(db) as db:
+            bot = get_bot_by_uuid(bot_id, user_id, db)
+            running, pid = is_bot_running(user_id, bot.id)
 
-        from db.models import Position as _Pos, Trade as _Trade
-        from config import IST
-        positions = db.query(_Pos).filter(_Pos.bot_id == bot.id).all()
+            from db.models import Position as _Pos, Trade as _Trade
+            from config import IST
+            positions = db.query(_Pos).filter(_Pos.bot_id == bot.id).all()
 
-        if running:
-            import json, uuid
+            if running:
+                import json, uuid
+                cmd_dir = Path(f"/tmp/bot-cmd-{bot.id}")
+                cmd_dir.mkdir(parents=True, exist_ok=True)
+                cmd_path = cmd_dir / f"{uuid.uuid4().hex}.json"
+                cmd_path.write_text(json.dumps({
+                    "action": "close_all",
+                    "prices": request.prices,
+                }))
+                return {
+                    "status": "signal_sent",
+                    "message": f"Close signal sent to bot for {len(positions)} positions",
+                    "bot_running": True,
+                    "bot_pid": pid,
+                }
+
+            closed_count = 0
             cmd_dir = Path(f"/tmp/bot-cmd-{bot.id}")
-            cmd_dir.mkdir(parents=True, exist_ok=True)
-            cmd_path = cmd_dir / f"{uuid.uuid4().hex}.json"
-            cmd_path.write_text(json.dumps({
-                "action": "close_all",
-                "prices": request.prices,
-            }))
-            return {
-                "status": "signal_sent",
-                "message": f"Close signal sent to bot for {len(positions)} positions",
-                "bot_running": True,
-                "bot_pid": pid,
-            }
-
-        closed_count = 0
-        cmd_dir = Path(f"/tmp/bot-cmd-{bot.id}")
-        if cmd_dir.is_dir():
-            import shutil
-            shutil.rmtree(cmd_dir, ignore_errors=True)
-        if positions:
-            for pos in positions:
-                exit_price = request.prices.get(pos.symbol, pos.current_price or pos.entry_price)
-                _mp = _get_market_price(pos.symbol)
-                if _mp is not None:
-                    exit_price = _mp
-                side = pos.side.upper()
-                if side in _BUY_SIDES:
-                    pnl = (exit_price - pos.entry_price) * pos.quantity
-                    pnl_pct = ((exit_price - pos.entry_price) / pos.entry_price) * 100
-                else:
-                    pnl = (pos.entry_price - exit_price) * pos.quantity
-                    pnl_pct = ((pos.entry_price - exit_price) / pos.entry_price) * 100
-                costs = _calc_costs(pos.entry_price, exit_price, pos.quantity, side)
-                trade = _Trade(
-                    user_id=user_id,
-                    bot_id=bot.id,
-                    strategy_id=pos.strategy_id,
-                    strategy_name=pos.strategy_name or "",
-                    symbol=pos.symbol,
-                    side=side,
-                    quantity=pos.quantity,
-                    entry_price=pos.entry_price,
-                    exit_price=exit_price,
-                    entry_time=pos.entry_time,
-                    exit_time=datetime.now(IST),
-                    stop_loss=pos.stop_loss or 0.0,
-                    take_profit=pos.take_profit or 0.0,
-                    pnl=round(pnl, 2),
-                    pnl_pct=round(pnl_pct, 2),
-                    costs=round(costs, 2),
-                    net_pnl=round(pnl - costs, 2),
-                    exit_reason="MANUAL_CLOSE",
-                    reason="Closed via Close All",
-                    peak_price=pos.peak_price or pos.entry_price,
-                    low_price=pos.low_price or pos.entry_price,
-                    source="live",
-                )
-                db.add(trade)
-                db.delete(pos)
-                closed_count += 1
-            db.commit()
+            if cmd_dir.is_dir():
+                import shutil
+                shutil.rmtree(cmd_dir, ignore_errors=True)
+            if positions:
+                for pos in positions:
+                    exit_price = request.prices.get(pos.symbol, pos.current_price or pos.entry_price)
+                    _mp = _get_market_price(pos.symbol)
+                    if _mp is not None:
+                        exit_price = _mp
+                    side = pos.side.upper()
+                    if side in _BUY_SIDES:
+                        pnl = (exit_price - pos.entry_price) * pos.quantity
+                        pnl_pct = ((exit_price - pos.entry_price) / pos.entry_price) * 100
+                    else:
+                        pnl = (pos.entry_price - exit_price) * pos.quantity
+                        pnl_pct = ((pos.entry_price - exit_price) / pos.entry_price) * 100
+                    costs = _calc_costs(pos.entry_price, exit_price, pos.quantity, side)
+                    trade = _Trade(
+                        user_id=user_id,
+                        bot_id=bot.id,
+                        strategy_id=pos.strategy_id,
+                        strategy_name=pos.strategy_name or "",
+                        symbol=pos.symbol,
+                        side=side,
+                        quantity=pos.quantity,
+                        entry_price=pos.entry_price,
+                        exit_price=exit_price,
+                        entry_time=pos.entry_time,
+                        exit_time=datetime.now(IST),
+                        stop_loss=pos.stop_loss or 0.0,
+                        take_profit=pos.take_profit or 0.0,
+                        pnl=round(pnl, 2),
+                        pnl_pct=round(pnl_pct, 2),
+                        costs=round(costs, 2),
+                        net_pnl=round(pnl - costs, 2),
+                        exit_reason="MANUAL_CLOSE",
+                        reason="Closed via Close All",
+                        peak_price=pos.peak_price or pos.entry_price,
+                        low_price=pos.low_price or pos.entry_price,
+                        source="live",
+                    )
+                    db.add(trade)
+                    db.delete(pos)
+                    closed_count += 1
+                db.commit()
 
         return {"status": "success", "message": f"Closed {closed_count} positions", "bot_running": False}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to close positions: {str(e)}")
-    finally:
-        if close_db:
-            db.close()
 
 
 @router.get("/{bot_id}/performance")
@@ -611,17 +502,9 @@ async def get_bot_performance(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
-    if not _db_available:
-        raise HTTPException(status_code=500, detail="Database not available")
-
+    require_db(_db_available)
     user_id = get_user_id(user)
-
-    close_db = False
-    if db is None:
-        db = SessionLocal()
-        close_db = True
-
-    try:
+    with session_scope(db) as db:
         bot = get_bot_by_uuid(bot_id, user_id, db)
 
         state = get_bot_state(bot.id, user_id, db)
@@ -670,9 +553,6 @@ async def get_bot_performance(
             "period_days": days,
             "timestamp": state['timestamp'],
         }
-    finally:
-        if close_db:
-            db.close()
 
 
 @router.get("/{bot_id}/performance/compare")
@@ -681,17 +561,9 @@ async def compare_strategy_performance(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
-    if not _db_available:
-        raise HTTPException(status_code=500, detail="Database not available")
-
+    require_db(_db_available)
     user_id = get_user_id(user)
-
-    close_db = False
-    if db is None:
-        db = SessionLocal()
-        close_db = True
-
-    try:
+    with session_scope(db) as db:
         bot = get_bot_by_uuid(bot_id, user_id, db)
 
         state = get_bot_state(bot.id, user_id, db)
@@ -728,9 +600,6 @@ async def compare_strategy_performance(
             "comparison": comparison,
             "timestamp": state['timestamp'],
         }
-    finally:
-        if close_db:
-            db.close()
 
 
 @router.get("/{bot_id}/trade-count")
@@ -740,17 +609,9 @@ async def get_bot_trade_count(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
-    if not _db_available:
-        raise HTTPException(status_code=500, detail="Database not available")
-
+    require_db(_db_available)
     user_id = user_id_query if user_id_query is not None else get_user_id(user)
-
-    close_db = False
-    if db is None:
-        db = SessionLocal()
-        close_db = True
-
-    try:
+    with session_scope(db) as db:
         bot = get_bot_by_uuid(bot_id, user_id, db)
 
         try:
@@ -771,9 +632,6 @@ async def get_bot_trade_count(
 
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get trade count: {str(e)}")
-    finally:
-        if close_db:
-            db.close()
 
 
 @router.get("/{bot_id}/strategy-performance")
@@ -785,17 +643,9 @@ async def get_strategy_performance(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
-    if not _db_available:
-        raise HTTPException(status_code=500, detail="Database not available")
-
+    require_db(_db_available)
     user_id = user_id_query if user_id_query is not None else get_user_id(user)
-
-    close_db = False
-    if db is None:
-        db = SessionLocal()
-        close_db = True
-
-    try:
+    with session_scope(db) as db:
         bot = get_bot_by_uuid(bot_id, user_id, db)
 
         try:
@@ -882,9 +732,6 @@ async def get_strategy_performance(
 
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get strategy performance: {str(e)}")
-    finally:
-        if close_db:
-            db.close()
 
 
 async def bot_auto_recovery_task():

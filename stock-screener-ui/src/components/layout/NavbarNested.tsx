@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   IconChartLine,
   IconChartDots,
@@ -8,7 +9,6 @@ import {
   IconSettings,
   IconSun,
   IconMoon,
-  IconChevronLeft,
   IconNews,
   IconShield,
   IconPlayerPlay,
@@ -17,6 +17,7 @@ import {
   IconAdjustments,
   IconFlask,
   IconReportAnalytics,
+  IconLeaf,
 } from "@tabler/icons-react";
 import { Box, Group, ScrollArea, Stack, ActionIcon, Divider, useColorScheme } from "@/ui";
 import { NavbarLinksGroup } from "./NavbarLinksGroup";
@@ -26,7 +27,6 @@ import { useAuth } from "../auth/AuthProvider2";
 interface NavbarNestedProps {
   activePath: string;
   collapsed?: boolean;
-  onToggleCollapse?: () => void;
   onMobileNavigate?: () => void;
 }
 
@@ -39,6 +39,7 @@ const navItems = [
   { label: "Replay", icon: IconPlayerPlay, link: "/replay" },
   { label: "Strategy Runner", icon: IconAdjustments, link: "/strategy-runner" },
   { label: "Sector Analysis", icon: IconBuildingFactory, link: "/sector" },
+  { label: "Agri Prices", icon: IconLeaf, link: "/agri" },
   { label: "Heatmap", icon: IconLayoutGrid, link: "/heatmap" },
   { label: "Order Flow", icon: IconChartCandle, link: "/orderflow" },
   { label: "Patterns", icon: IconChartCandle, link: "/patterns" },
@@ -46,22 +47,33 @@ const navItems = [
   { label: "Strategies", icon: IconChartBar, link: "/strategies" },
   { label: "Bots", icon: IconRobot, link: "/bots" },
   { label: "Options", icon: IconChartArea, link: "/options" },
-  { label: "Nifty Report", icon: IconChartArea, link: "/report/nifty" },
+  { label: "Index Report", icon: IconChartArea, link: "/report/index" },
   { label: "US Report", icon: IconChartLine, link: "/report/us" },
   { label: "Settings", icon: IconSettings, link: "/settings" },
   { label: "Admin", icon: IconShield, link: "/admin" },
 ];
 
-export function NavbarNested({
+export const NavbarNested = memo(function NavbarNested({
   activePath,
   collapsed,
-  onToggleCollapse,
   onMobileNavigate,
 }: NavbarNestedProps) {
   const { colorScheme, toggleColorScheme } = useColorScheme();
   const { user } = useAuth();
 
   const visibleNavItems = navItems.filter((item) => item.label !== "Admin" || user?.is_admin);
+
+  const themeToggle = (
+    <ActionIcon
+      variant="subtle"
+      size="sm"
+      onClick={toggleColorScheme}
+      aria-label="Toggle color scheme"
+      data-testid="theme-toggle-btn"
+    >
+      {colorScheme === "dark" ? <IconSun size={16} /> : <IconMoon size={16} />}
+    </ActionIcon>
+  );
 
   const links = visibleNavItems.map((item) => (
     <NavbarLinksGroup
@@ -72,7 +84,6 @@ export function NavbarNested({
       active={activePath === item.link}
       collapsed={collapsed}
       onNavigate={onMobileNavigate}
-      data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
     />
   ));
 
@@ -89,32 +100,20 @@ export function NavbarNested({
       <Divider />
 
       <Box p={1} id="navbar-footer" data-testid="navbar-footer">
-        <Group justify="space-between" px={1}>
-          <UserButton collapsed={collapsed} />
-          <Group gap={1}>
-            <ActionIcon
-              variant="subtle"
-              size="sm"
-              onClick={toggleColorScheme}
-              aria-label="Toggle color scheme"
-              data-testid="theme-toggle-btn"
-            >
-              {colorScheme === "dark" ? <IconSun size={16} /> : <IconMoon size={16} />}
-            </ActionIcon>
-            {!collapsed && (
-              <ActionIcon
-                variant="subtle"
-                size="sm"
-                onClick={onToggleCollapse}
-                aria-label="Toggle sidebar"
-                data-testid="sidebar-collapse-toggle"
-              >
-                <IconChevronLeft size={16} />
-              </ActionIcon>
-            )}
+        {collapsed ? (
+          // A 64px rail cannot hold the user row and the theme toggle side by
+          // side; stacking them centered keeps both inside the rail.
+          <Stack align="center" gap={0.5}>
+            <UserButton collapsed />
+            {themeToggle}
+          </Stack>
+        ) : (
+          <Group justify="space-between" px={1}>
+            <UserButton />
+            <Group gap={1}>{themeToggle}</Group>
           </Group>
-        </Group>
+        )}
       </Box>
     </Box>
   );
-}
+});

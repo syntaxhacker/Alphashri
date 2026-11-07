@@ -1,18 +1,28 @@
 import { Box, Text } from "@/ui";
 import { BORDER, MONO, TEXT_MUTED } from "@/ui/palette";
-import { useMemo } from "react";
-import { buildFlowEvents, type FlowSide, type FlowTapeRow } from "./niftyFlowStrip";
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
+import {
+  buildFlowEvents,
+  clockLabel,
+  FLOW_SUMMARY_MAX_CHARS,
+  groupFlowRuns,
+  summarizeFlowRuns,
+  type FlowSide,
+  type FlowTapeRow,
+} from "./niftyFlowStrip";
+import { DERIVATIVES_CLOSE_MIN, SESSION_START_MIN } from "@/utils/marketClock";
 
 export const FLOW_BULL = "#16A34A";
 export const FLOW_BEAR = "#DC2626";
 export const FLOW_STRUCT = "#F59E0B";
 
 /** At most this many text labels; ticks always render for every event. */
-const FLOW_MAX_LABELS = 12;
+/** Text lane shows only the newest runs; the tooltip keeps the full history. */
+const FLOW_MAX_LABELS = 3;
 
-/** NSE continuous session bounds — the strip's time axis, minute of day. */
-const FLOW_SESSION_START_MIN = 9 * 60 + 15;
-const FLOW_SESSION_END_MIN = 15 * 60 + 29;
+/** NSE derivatives session bounds — the strip's time axis, minute of day. */
+const FLOW_SESSION_START_MIN = SESSION_START_MIN;
+const FLOW_SESSION_END_MIN = DERIVATIVES_CLOSE_MIN;
 
 /** `"10:33"` / `"2026-10-19T10:33:00+05:30"` → minute of day, else null. */
 function flowMinuteOfDay(t: string): number | null {
@@ -52,14 +62,16 @@ const FLOW_LEGEND: { id: string; color: string; text: string; title: string }[] 
   {
     id: "bull",
     color: FLOW_BULL,
-    text: "green = put build / call unwind",
-    title: "Green tick — put OI built or call OI unwound (bullish)",
+    text: "green = puts sold / calls bought back (bullish)",
+    title:
+      "Bullish OI: put OI built (put writing = support) or call OI fell (call writers covering). OI only — a fall is bearish when writers cover (premium up) and mild-bullish when buyers exit (premium down); the OI 1m strip names which one.",
   },
   {
     id: "bear",
     color: FLOW_BEAR,
-    text: "red = call build / put unwind",
-    title: "Red tick — call OI built or put OI unwound (bearish)",
+    text: "red = calls sold / puts bought back (bearish)",
+    title:
+      "Bearish OI: call OI built (call writing = resistance) or put OI fell (put writers withdrawing support). OI only — a put OI fall is bearish when writers cover (premium up) and mild-bullish when buyers exit (premium down); the OI 1m strip names which one.",
   },
   {
     id: "struct",
@@ -127,10 +139,44 @@ interface NiftyFlowStripProps {
   maxLabels?: number;
 }
 
-export function NiftyFlowStrip({ rows, burstThreshold, maxLabels = FLOW_MAX_LABELS }: NiftyFlowStripProps) {
+function NiftyFlowStripInner({ rows, burstThreshold, maxLabels = FLOW_MAX_LABELS }: NiftyFlowStripProps) {
   const events = useMemo(
     () => buildFlowEvents(rows, burstThreshold !== undefined ? { burstThreshold } : {}),
     [rows, burstThreshold],
+  );
+  const buckets = useMemo(() => groupFlowRuns(events), [events]);
+
+  // Fit the one-line summary to the measured lane width. A character budget
+  // (rather than CSS ellipsis) guarantees we never clip halfway through a
+  // number: buckets are whole strings or they move into `+N earlier`.
+  const labelsRef = useRef<HTMLDivElement | null>(null);
+  const [maxChars, setMaxChars] = useState(FLOW_SUMMARY_MAX_CHARS);
+
+  useEffect(() => {
+    const el = labelsRef.current;
+    if (!el) return;
+    const measure = () => {
+      const width = el.clientWidth;
+      if (width > 0) {
+        // 10px monospace ≈ 6.4px/char (conservative). Subtract the 12px of
+        // horizontal padding and one char of slack; the separator/gap cost is
+        // modelled inside `summarizeFlowRuns` so the tail is never clipped.
+        setMaxChars(Math.max(24, Math.floor((width - 12) / 6.4) - 1));
+      }
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const summary = useMemo(
+    () => summarizeFlowRuns(buckets, { maxLabels, maxChars }),
+    [buckets, maxLabels, maxChars],
   );
 
   if (events.length === 0) {
@@ -143,17 +189,16 @@ export function NiftyFlowStrip({ rows, burstThreshold, maxLabels = FLOW_MAX_LABE
     );
   }
 
-  // Labels: keep the lane readable — the largest-magnitude events win.
-  const labeled = useMemo(() => {
-    const top = events
-      .map((e, i) => ({ e, i }))
-      .sort((a, b) => b.e.magnitude - a.e.magnitude || a.i - b.i)
-      .slice(0, Math.max(0, maxLabels))
-      .map(({ i }) => i);
-    return new Set(top);
-  }, [events, maxLabels]);
-
   const leftPct = (t: string): string => flowTickPct(t);
+  const sep = (
+    <Box
+      component="span"
+      aria-hidden
+      sx={{ flexShrink: 0, opacity: 0.45, color: TEXT_MUTED }}
+    >
+      ·
+    </Box>
+  );
 
   return (
     <Box data-testid="nifty-flowstrip" sx={{ width: "100%", minWidth: 0 }}>
@@ -177,7 +222,7 @@ export function NiftyFlowStrip({ rows, burstThreshold, maxLabels = FLOW_MAX_LABE
             data-testid="nifty-flow-tick"
             data-kind={e.kind}
             data-side={e.side}
-            title={`${e.t} · ${e.label}`}
+            title={`${clockLabel(e.t)} · ${e.label}`}
             sx={{
               position: "absolute",
               left: leftPct(e.t),
@@ -191,23 +236,65 @@ export function NiftyFlowStrip({ rows, burstThreshold, maxLabels = FLOW_MAX_LABE
           />
         ))}
       </Box>
-      <Box data-testid="nifty-flowstrip-labels" sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-        {events.map((e, i) =>
-          labeled.has(i) ? (
-            <Text
-              key={`lbl-${e.t}-${e.kind}-${i}`}
-              size="xs"
-              c="dimmed"
-              span
-              data-testid="nifty-flow-label"
-              data-kind={e.kind}
-              title={`${e.t} · ${e.label}`}
+      {/* One-line, run-aggregated summary. Ticks above keep every raw print;
+          this row answers "what actually happened" instead of listing six
+          near-identical Put unwind minutes in a row. */}
+      <Box
+        ref={labelsRef}
+        data-testid="nifty-flowstrip-labels"
+        title={summary.fullText}
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          columnGap: "6px",
+          minWidth: 0,
+          maxWidth: "100%",
+          overflow: "hidden",
+          whiteSpace: "nowrap",
+          fontFamily: MONO,
+          fontSize: 10,
+          lineHeight: 1.2,
+          color: TEXT_MUTED,
+          fontVariantNumeric: "tabular-nums",
+          px: 0.75,
+          py: 0.25,
+        }}
+      >
+        {summary.showMarker && summary.hidden > 0 ? (
+          <Fragment>
+            <Box
+              component="span"
+              data-testid="nifty-flowstrip-more"
+              title={`${summary.hidden} older run${summary.hidden === 1 ? "" : "s"} hidden — ${summary.fullText}`}
+              sx={{ flexShrink: 0, opacity: 0.75 }}
             >
-              {e.label}
-            </Text>
-          ) : null,
-        )}
+              +{summary.hidden} earlier
+            </Box>
+            {sep}
+          </Fragment>
+        ) : null}
+        {summary.visible.map((b, i) => (
+          <Fragment key={`${b.segment}-${b.start}-${i}`}>
+            {i > 0 ? sep : null}
+            <Box
+              component="span"
+              data-testid="nifty-flow-label"
+              data-kind={b.kind}
+              data-count={b.count}
+              data-total={Math.round(b.total)}
+              title={b.detail}
+              sx={{ flexShrink: 0, color: tickColor(b.side) }}
+            >
+              {b.label}
+            </Box>
+          </Fragment>
+        ))}
       </Box>
     </Box>
   );
 }
+
+/** Memoised: `rows` (the replay-filtered tape) is a stable memo between
+ *  report frames, so the spot tick does not repaint the flow buckets. */
+export const NiftyFlowStrip = memo(NiftyFlowStripInner);
+NiftyFlowStrip.displayName = "NiftyFlowStrip";

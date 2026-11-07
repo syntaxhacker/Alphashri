@@ -1,3 +1,4 @@
+import { formatNumberIN } from "@/utils/ui-helpers";
 import { useMemo, useState } from "react";
 import Box from "@mui/material/Box";
 import { Badge, Button, Divider, NumberInput, Select, Text, TextInput, ToolbarRow } from "@/ui";
@@ -26,7 +27,7 @@ function fmtRupee(value: number | null): string {
   if (value === null || value === undefined) return "—";
   if (!Number.isFinite(value)) return "open";
   const sign = value > 0 ? "+" : "";
-  return `${sign}₹${Math.round(value).toLocaleString("en-IN")}`;
+  return `${sign}₹${formatNumberIN(Math.round(value))}`;
 }
 
 export function SetupCard({ setup, spot, ltpOf, onUpdateLeg, onDeleteSetup, onPaperFill, glow }: SetupCardProps) {

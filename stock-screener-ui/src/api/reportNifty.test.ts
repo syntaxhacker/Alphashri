@@ -5,6 +5,20 @@ import {
   fetchNiftyBursts,
   fetchNiftyReplay,
   fetchNiftyTape,
+  fetchOptionsBlasts,
+  fetchOptionsBursts,
+  fetchOptionsChain10s,
+  fetchOptionsExpiries,
+  fetchOptionsLive,
+  fetchOptionsLiveCandles,
+  fetchOptionsReplay,
+  fetchOptionsReplayDates,
+  fetchOptionsReplayFrame,
+  fetchOptionsReplayMeta,
+  fetchOptionsSnapshot,
+  fetchOptionsTape,
+  fetchOptionsTapeStatus,
+  fetchOptionsWalls,
   normalizeBurst,
   normalizeReport,
   normalizeSensex,
@@ -89,6 +103,21 @@ describe("normalizeReport (snake_case backend -> camelCase panel)", () => {
     expect(rep.strikes).toEqual([]);
     expect(rep.timeline).toEqual([]);
     expect(rep.walls).toEqual({ calls: [], puts: [] });
+  });
+
+  test("maps control.flow_bias and the 5m/15m flow_window legs", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      control: { verdict: "call_buyers", flow_bias: 2656.63, ce_doi: 10, pe_doi: 20 },
+      flow_window: {
+        as_of: "2026-11-04T11:25:14+05:30",
+        "15m": { from: "2026-11-04T11:10:14+05:30", ce: 3_316_105, pe: -852_670, net: 4_168_775 },
+        "5m": { from: "2026-11-04T11:20:14+05:30", ce: -952_185, pe: 646_815, net: -1_599_000 },
+      },
+    });
+    expect(rep.control?.flow_bias).toBe(2656.63);
+    expect(rep.flow_window?.["15m"]?.ce).toBe(3_316_105);
+    expect(rep.flow_window?.["5m"]?.net).toBe(-1_599_000);
   });
 
   test("gex absent stays undefined so old snapshots still render", () => {
@@ -242,6 +271,8 @@ describe("normalizeTapeRow (sparse payloads -> safe defaults)", () => {
     const row = normalizeTapeRow({
       t: "09:16",
       spot: 25760,
+      ce_oi: 86249460,
+      pe_oi: 85732480,
       call_doi: 1000000,
       put_doi: 500000,
       net: 500000,
@@ -258,9 +289,18 @@ describe("normalizeTapeRow (sparse payloads -> safe defaults)", () => {
     });
     expect(row.t).toBe("09:16");
     expect(row.spot).toBe(25760);
+    // Generic underlyings compute their 5m/15m flow windows from these.
+    expect(row.ce_oi).toBe(86249460);
+    expect(row.pe_oi).toBe(85732480);
     expect(row.call_doi).toBe(1000000);
     expect(row.spot_flip).toBe(-8);
     expect(row.walls).toEqual({ call: 25900, put: 25600 });
+  });
+
+  test("keeps ce_oi/pe_oi absent on tapes recorded before they existed", () => {
+    const row = normalizeTapeRow({ t: "09:16", spot: 25760 });
+    expect(row.ce_oi).toBeUndefined();
+    expect(row.pe_oi).toBeUndefined();
   });
 
   test("carries the per-minute degraded GEX flag", () => {
@@ -509,6 +549,44 @@ describe("normalizeBurst (snake_case backend -> camelCase panel)", () => {
     expect(b.leg).toBe("CE");
   });
 
+  test("synthesises a stable id for a wall event with no backend id", () => {
+    const raw = {
+      side: "call",
+      t: "2026-11-03T11:54:00+05:30",
+      type: "wall_test",
+      strike: 23700,
+      target: null,
+      label: "CALL WALL 23,700 TESTED",
+      detail: "spot pressed the wall",
+    };
+    const a = normalizeBurst(raw);
+    const b = normalizeBurst(raw);
+    expect(a.id).toBeTruthy();
+    expect(a.id).toBe(b.id);
+    // Deterministic across REST/WS, and distinct per event type/target.
+    expect(normalizeBurst({ ...raw, type: "rejection", target: 23650 }).id).not.toBe(a.id);
+    expect(a.type).toBe("wall_test");
+    expect(a.label).toBe("CALL WALL 23,700 TESTED");
+    expect(a.detail).toBe("spot pressed the wall");
+    // Absent targets are omitted, not coerced to 0 — the alert renderer treats
+    // a missing target as "no level".
+    expect(a.target).toBeUndefined();
+  });
+
+  test("keeps a supplied id and passes data_stale through", () => {
+    const b = normalizeBurst({
+      id: "server-id",
+      side: "call",
+      t: "12:00",
+      type: "data_stale",
+      label: "TAPE STALE",
+      detail: "no rows for 3m",
+    });
+    expect(b.id).toBe("server-id");
+    expect(b.type).toBe("data_stale");
+    expect(b.label).toBe("TAPE STALE");
+  });
+
   test("missing or malformed news yields an empty list, never null", () => {
     expect(normalizeBurst({ side: "call" }).news).toEqual([]);
     expect(normalizeBurst({ side: "call", news: "nope" }).news).toEqual([]);
@@ -628,7 +706,9 @@ describe("normalizeBurst (snake_case backend -> camelCase panel)", () => {
     const burst = normalizeBurst({ side: "sideways", severity: "meh" });
     expect(burst.side).toBe("call");
     expect(burst.severity).toBe("watch");
-    expect(burst.id).toBe("");
+    // No backend id: a deterministic one is synthesised so repeated events do
+    // not collapse into a single row.
+    expect(burst.id).toBe("burst::call::");
     expect(burst.t).toBe("");
     expect(burst.delta).toBe(0);
     expect(burst.signal).toBeNull();
@@ -1025,5 +1105,464 @@ describe("fetchNiftyReplay (recorded EOD minute frames)", () => {
 
     vi.mocked(fetchWithAuth).mockRejectedValueOnce(new Error("aborted"));
     await expect(fetchNiftyReplay("2026-10-11")).resolves.toBeNull();
+  });
+});
+
+describe("fetchOptionsLive (generic underlying -> normalized report)", () => {
+  test("builds the options-live URL and normalizes the payload", async () => {
+    vi.mocked(fetchWithAuth).mockClear();
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ...snakeReport, spot: 1450.25 }),
+    } as unknown as Response);
+
+    const report = await fetchOptionsLive("RELIANCE");
+
+    expect(report.spot).toBe(1450.25);
+    expect(report.pcrOi).toBe(0.6);
+    expect(report.strikes).toHaveLength(1);
+    expect(vi.mocked(fetchWithAuth)).toHaveBeenCalledWith(
+      expect.stringContaining("/api/reports/options/RELIANCE/live"),
+    );
+    // No expiry selected -> no query string, and the fast path never asks for candles.
+    expect(vi.mocked(fetchWithAuth).mock.calls[0][0]).not.toContain("?expiry=");
+    expect(vi.mocked(fetchWithAuth).mock.calls[0][0]).not.toContain("candles=1");
+  });
+
+  test("encodes the underlying and the optional expiry", async () => {
+    vi.mocked(fetchWithAuth).mockClear();
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => snakeReport,
+    } as unknown as Response);
+
+    await fetchOptionsLive("NIFTY 50", "2026-10-29");
+
+    const url = String(vi.mocked(fetchWithAuth).mock.calls[0][0]);
+    expect(url).toContain("/api/reports/options/NIFTY%2050/live");
+    expect(url).toContain("expiry=2026-10-29");
+  });
+
+  test("surfaces the backend detail instead of a generic failure", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ detail: "RELIANCE option chain unavailable" }),
+    } as unknown as Response);
+
+    await expect(fetchOptionsLive("RELIANCE")).rejects.toThrow(
+      "RELIANCE option chain unavailable",
+    );
+  });
+});
+
+describe("fetchOptionsLiveCandles (slow optional candle path)", () => {
+  test("opts into candles=1 and still normalizes the payload", async () => {
+    vi.mocked(fetchWithAuth).mockClear();
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        ...snakeReport,
+        intraday: [
+          {
+            time: "2026-10-12T09:15:00+05:30",
+            open: 1448,
+            high: 1451,
+            low: 1447,
+            close: 1450,
+            volume: 10,
+          },
+        ],
+      }),
+    } as unknown as Response);
+
+    const report = await fetchOptionsLiveCandles("RELIANCE");
+
+    const url = String(vi.mocked(fetchWithAuth).mock.calls[0][0]);
+    expect(url).toContain("/api/reports/options/RELIANCE/live");
+    expect(url).toContain("candles=1");
+    expect(report.intraday).toHaveLength(1);
+    expect(report.intraday?.[0].close).toBe(1450);
+  });
+
+  test("keeps the expiry alongside the candle flag", async () => {
+    vi.mocked(fetchWithAuth).mockClear();
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => snakeReport,
+    } as unknown as Response);
+
+    await fetchOptionsLiveCandles("SENSEX", "2026-10-29");
+
+    const url = String(vi.mocked(fetchWithAuth).mock.calls[0][0]);
+    expect(url).toContain("/api/reports/options/SENSEX/live");
+    expect(url).toContain("candles=1");
+    expect(url).toContain("expiry=2026-10-29");
+  });
+});
+
+describe("generic options history (per-symbol endpoints)", () => {
+  const okResponse = (payload: unknown) =>
+    ({ ok: true, json: async () => payload }) as unknown as Response;
+  const errorResponse = (status = 404, payload: unknown = { detail: "not found" }) =>
+    ({ ok: false, status, json: async () => payload }) as unknown as Response;
+
+  test("fetchOptionsTape builds the per-symbol URL and normalizes rows", async () => {
+    vi.mocked(fetchWithAuth).mockClear();
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(
+      okResponse({
+        date: "2026-10-28",
+        interval_sec: 60,
+        baseline_t: "2026-10-28T09:20:00+05:30",
+        pcr_oi: 0.91,
+        max_pain: 1450,
+        walls: { calls: [{ strike: 1500, oi: 900 }], puts: [{ strike: 1400, oi: 1200 }] },
+        rows: [
+          {
+            t: "2026-10-28T09:21:00+05:30",
+            spot: 1450.5,
+            call_doi: 1200,
+            put_doi: -800,
+            net: 400,
+            atm_strike: 1450,
+            atm_ce_ltp: 12.5,
+            atm_pe_ltp: 9.75,
+          },
+        ],
+      }),
+    );
+
+    const tape = await fetchOptionsTape("RELIANCE", "2026-10-28");
+
+    const url = String(vi.mocked(fetchWithAuth).mock.calls[0][0]);
+    expect(url).toContain("/api/reports/options/RELIANCE/tape");
+    expect(url).toContain("date=2026-10-28");
+    expect(tape?.date).toBe("2026-10-28");
+    expect(tape?.interval_sec).toBe(60);
+    expect(tape?.rows).toHaveLength(1);
+    expect(tape?.rows[0].spot).toBe(1450.5);
+    expect(tape?.rows[0].atm_ce_ltp).toBe(12.5);
+    expect(tape?.walls).toEqual({ call: 1500, put: 1400 });
+    expect(tape?.baseline_t).toBe("2026-10-28T09:20:00+05:30");
+  });
+
+  test("fetchOptionsTape omits the date param for today and returns null on failure", async () => {
+    vi.mocked(fetchWithAuth).mockClear();
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(okResponse({ rows: [] }));
+    const tape = await fetchOptionsTape("SENSEX");
+    expect(String(vi.mocked(fetchWithAuth).mock.calls[0][0])).not.toContain("date=");
+    expect(tape?.rows).toEqual([]);
+
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(errorResponse());
+    await expect(fetchOptionsTape("SENSEX")).resolves.toBeNull();
+
+    vi.mocked(fetchWithAuth).mockRejectedValueOnce(new Error("network"));
+    await expect(fetchOptionsTape("SENSEX")).resolves.toBeNull();
+  });
+
+  test("fetchOptionsChain10s asks for the summary and parses the points", async () => {
+    vi.mocked(fetchWithAuth).mockClear();
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(
+      okResponse({
+        date: "2026-10-28",
+        count: 1,
+        summary: [
+          {
+            t: "2026-10-28T09:21:00+05:30",
+            spot: 1450.5,
+            ce_oi: 1000,
+            pe_oi: 1200,
+            ce_vol: 50,
+            pe_vol: 60,
+            atm_strike: 1450,
+            ce_prem: 12.5,
+            pe_prem: 9.75,
+          },
+        ],
+      }),
+    );
+
+    const points = await fetchOptionsChain10s("RELIANCE", "2026-10-28", 240);
+
+    const url = String(vi.mocked(fetchWithAuth).mock.calls[0][0]);
+    expect(url).toContain("/api/reports/options/RELIANCE/chain10s");
+    expect(url).toContain("summary=1");
+    expect(url).toContain("limit=240");
+    expect(url).toContain("date=2026-10-28");
+    expect(points).toHaveLength(1);
+    expect(points[0].pe_oi).toBe(1200);
+    expect(points[0].ce_prem).toBe(12.5);
+  });
+
+  test("fetchOptionsChain10s returns [] for a bad response", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(errorResponse(502));
+    await expect(fetchOptionsChain10s("RELIANCE")).resolves.toEqual([]);
+    vi.mocked(fetchWithAuth).mockRejectedValueOnce(new Error("boom"));
+    await expect(fetchOptionsChain10s("RELIANCE")).resolves.toEqual([]);
+  });
+
+  test("fetchOptionsBursts parses both the wrapped and bare payloads", async () => {
+    vi.mocked(fetchWithAuth).mockClear();
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(
+      okResponse({
+        date: "2026-10-28",
+        count: 1,
+        interval_sec: 60,
+        bursts: [
+          {
+            id: "b1",
+            side: "put",
+            t: "2026-10-28T10:05:00+05:30",
+            delta: -1200,
+            severity: "critical",
+            spot: 1440,
+          },
+        ],
+      }),
+    );
+
+    const bursts = await fetchOptionsBursts("RELIANCE", "2026-10-28");
+
+    const url = String(vi.mocked(fetchWithAuth).mock.calls[0][0]);
+    expect(url).toContain("/api/reports/options/RELIANCE/bursts");
+    expect(url).toContain("date=2026-10-28");
+    expect(bursts).toHaveLength(1);
+    expect(bursts[0].side).toBe("put");
+    expect(bursts[0].severity).toBe("critical");
+
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(okResponse([]));
+    await expect(fetchOptionsBursts("RELIANCE")).resolves.toEqual([]);
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(errorResponse());
+    await expect(fetchOptionsBursts("RELIANCE")).resolves.toEqual([]);
+  });
+
+  test("fetchOptionsBlasts forwards the lookback window and never throws", async () => {
+    vi.mocked(fetchWithAuth).mockClear();
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(
+      okResponse({
+        blasts: [
+          {
+            kind: "oi",
+            t: "2026-10-28T10:05:00+05:30",
+            side: "CE",
+            delta: 900,
+            label: "CE OI blast",
+            detail: "x",
+            severity: "alert",
+            bias: "bull",
+          },
+        ],
+      }),
+    );
+
+    const blasts = await fetchOptionsBlasts("SENSEX", 3, 10);
+
+    const url = String(vi.mocked(fetchWithAuth).mock.calls[0][0]);
+    expect(url).toContain("/api/reports/options/SENSEX/blasts");
+    expect(url).toContain("lookback_min=3");
+    expect(url).toContain("limit=10");
+    expect(blasts).toHaveLength(1);
+    expect(blasts[0].kind).toBe("oi");
+
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(errorResponse(503));
+    await expect(fetchOptionsBlasts("SENSEX")).resolves.toEqual([]);
+  });
+
+  test("fetchOptionsReplayDates parses dates and tolerates a missing endpoint", async () => {
+    vi.mocked(fetchWithAuth).mockClear();
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(
+      okResponse({ dates: ["2026-10-28", "2026-10-27"] }),
+    );
+
+    await expect(fetchOptionsReplayDates("RELIANCE")).resolves.toEqual([
+      "2026-10-28",
+      "2026-10-27",
+    ]);
+    expect(String(vi.mocked(fetchWithAuth).mock.calls[0][0])).toContain(
+      "/api/reports/options/RELIANCE/replay/dates",
+    );
+
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(errorResponse());
+    await expect(fetchOptionsReplayDates("RELIANCE")).resolves.toEqual([]);
+  });
+
+  test("fetchOptionsReplay normalizes frames and gap reasons", async () => {
+    vi.mocked(fetchWithAuth).mockClear();
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(
+      okResponse({
+        date: "2026-10-28",
+        count: 1,
+        interval_sec: 60,
+        gap_reasons: { "chain-failed": 2, timeout: 0 },
+        snapshots: [{ t: "2026-10-28T10:05:00+05:30", fetched_at: "", report: snakeReport }],
+      }),
+    );
+
+    const replay = await fetchOptionsReplay("RELIANCE", "2026-10-28");
+
+    expect(String(vi.mocked(fetchWithAuth).mock.calls[0][0])).toContain(
+      "/api/reports/options/RELIANCE/replay?date=2026-10-28",
+    );
+    expect(replay?.snapshots).toHaveLength(1);
+    expect(replay?.snapshots[0].report.spot).toBe(22363.35);
+    expect(replay?.snapshots[0].sensex).toBeNull();
+    expect(replay?.gap_reasons).toEqual({ "chain-failed": 2 });
+
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(errorResponse());
+    await expect(fetchOptionsReplay("RELIANCE", "2026-10-28")).resolves.toBeNull();
+  });
+
+  test("fetchOptionsReplayMeta reads the playhead list only", async () => {
+    vi.mocked(fetchWithAuth).mockClear();
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(
+      okResponse({
+        date: "2026-10-28",
+        count: 2,
+        frames: [
+          { t: "2026-10-28T09:20:00+05:30", spot: 1440 },
+          { t: "2026-10-28T09:21:00+05:30" },
+          { nope: true },
+        ],
+      }),
+    );
+
+    const meta = await fetchOptionsReplayMeta("RELIANCE", "2026-10-28");
+
+    expect(String(vi.mocked(fetchWithAuth).mock.calls[0][0])).toContain("meta=1");
+    expect(meta?.frames).toHaveLength(2);
+    expect(meta?.count).toBe(2);
+    expect(Number.isNaN(meta?.frames[1].spot)).toBe(true);
+
+    vi.mocked(fetchWithAuth).mockRejectedValueOnce(new Error("offline"));
+    await expect(fetchOptionsReplayMeta("RELIANCE", "2026-10-28")).resolves.toBeNull();
+  });
+
+  test("fetchOptionsReplayFrame sends the minute and normalizes the snapshot", async () => {
+    vi.mocked(fetchWithAuth).mockClear();
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(
+      okResponse({
+        snapshot: { t: "2026-10-28T10:05:00+05:30", fetched_at: "", report: snakeReport },
+      }),
+    );
+
+    const frame = await fetchOptionsReplayFrame(
+      "RELIANCE",
+      "2026-10-28",
+      "2026-10-28T10:05:00+05:30",
+    );
+
+    const url = String(vi.mocked(fetchWithAuth).mock.calls[0][0]);
+    expect(url).toContain("/api/reports/options/RELIANCE/replay");
+    expect(url).toContain("t=2026-10-28T10%3A05%3A00%2B05%3A30");
+    expect(frame?.report.expiry).toBe("2026-10-13");
+
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(okResponse({}));
+    await expect(
+      fetchOptionsReplayFrame("RELIANCE", "2026-10-28", "10:05"),
+    ).resolves.toBeNull();
+  });
+
+  test("fetchOptionsSnapshot reads the recorded EOD report by date", async () => {
+    vi.mocked(fetchWithAuth).mockClear();
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(okResponse(snakeReport));
+
+    const report = await fetchOptionsSnapshot("SENSEX", "2026-10-28");
+
+    expect(String(vi.mocked(fetchWithAuth).mock.calls[0][0])).toContain(
+      "/api/reports/options/SENSEX/snapshot?date=2026-10-28",
+    );
+    expect(report?.spot).toBe(22363.35);
+    expect(report?.pcrOi).toBe(0.6);
+
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(errorResponse());
+    await expect(fetchOptionsSnapshot("SENSEX", "2026-10-28")).resolves.toBeNull();
+  });
+
+  test("fetchOptionsTapeStatus returns the recorder block, null on failure", async () => {
+    vi.mocked(fetchWithAuth).mockClear();
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(
+      okResponse({ date: "2026-10-28", recording: true, rows: 375, last_tick: "2026-10-28T15:29:00+05:30" }),
+    );
+
+    const status = await fetchOptionsTapeStatus("RELIANCE");
+
+    expect(String(vi.mocked(fetchWithAuth).mock.calls[0][0])).toContain(
+      "/api/reports/options/RELIANCE/tape/status",
+    );
+    expect(status?.recording).toBe(true);
+    expect(status?.rows).toBe(375);
+
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(errorResponse());
+    await expect(fetchOptionsTapeStatus("RELIANCE")).resolves.toBeNull();
+  });
+
+  test("fetchOptionsExpiries lists the real exchange dates", async () => {
+    vi.mocked(fetchWithAuth).mockClear();
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(
+      okResponse({
+        underlying: "RELIANCE",
+        expiries: [{ date: "2026-10-29" }, { date: "2026-11-26" }, { nope: 1 }],
+      }),
+    );
+
+    const expiries = await fetchOptionsExpiries("RELIANCE");
+
+    expect(String(vi.mocked(fetchWithAuth).mock.calls[0][0])).toContain(
+      "/api/options/expiries/RELIANCE",
+    );
+    expect(expiries).toEqual(["2026-10-29", "2026-11-26"]);
+
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(errorResponse());
+    await expect(fetchOptionsExpiries("RELIANCE")).resolves.toEqual([]);
+  });
+
+  test("fetchOptionsWalls builds the date-scoped URL and passes the payload through", async () => {
+    vi.mocked(fetchWithAuth).mockClear();
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(
+      okResponse({
+        symbol: "SENSEX",
+        date: "2026-10-29",
+        state: "BREAK",
+        spot: 74096,
+        max_pain: 73900,
+        alert_eligible: true,
+        alert: { wall: 74000, at: "2026-10-29T14:25:48+05:30", cooldown_min: 15 },
+        calls: [{ strike: 74000, oi: 8169120, tracked: true }],
+        puts: [{ strike: 73500, oi: 7940520 }],
+        events: [{ at: "2026-10-29T14:25:48+05:30", kind: "BREAK", wall: 74000 }],
+      }),
+    );
+
+    const walls = await fetchOptionsWalls("SENSEX", "2026-10-29");
+
+    const url = String(vi.mocked(fetchWithAuth).mock.calls[0][0]);
+    expect(url).toContain("/api/reports/options/SENSEX/walls");
+    expect(url).toContain("date=2026-10-29");
+    expect(walls?.state).toBe("BREAK");
+    expect(walls?.alert?.wall).toBe(74000);
+    expect(walls?.events?.[0].kind).toBe("BREAK");
+
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(errorResponse());
+    await expect(fetchOptionsWalls("SENSEX", "2026-10-29")).resolves.toBeNull();
+  });
+
+  test("fetchOptionsWalls sends the replay cutoff as at", async () => {
+    vi.mocked(fetchWithAuth).mockClear();
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(okResponse({ symbol: "NIFTY", state: "WATCH" }));
+
+    await fetchOptionsWalls("NIFTY", "2026-10-29", "2026-10-29T09:16:00.291937+05:30");
+
+    const url = String(vi.mocked(fetchWithAuth).mock.calls[0][0]);
+    expect(url).toContain("/api/reports/options/NIFTY/walls");
+    expect(decodeURIComponent(url)).toContain("at=2026-10-29T09:16:00.291937+05:30");
+  });
+
+  test("fetchOptionsWalls requests the wall map only when asked", async () => {
+    vi.mocked(fetchWithAuth).mockClear();
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce(okResponse({ symbol: "NIFTY", state: "WATCH" }));
+
+    await fetchOptionsWalls("NIFTY", "2026-10-29", undefined, undefined, true);
+
+    const url = String(vi.mocked(fetchWithAuth).mock.calls[0][0]);
+    expect(url).toContain("map=1");
   });
 });

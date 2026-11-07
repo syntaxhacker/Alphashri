@@ -24,13 +24,16 @@ import os
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Iterable, Mapping, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 import config
 from api.auth import get_current_user
+from api.reports_api._dates import validate_date
+from api.reports_api._numeric import safe_float as _safe_float, safe_int as _safe_int
+from api.reports_api._time import today_str as _today_str
 from api.reports_api.desk_trades import router as desk_trades_router
 from api.reports_api.nifty_intel import router as nifty_intel_router
 from api.reports_api.nifty_fuel import basis_text, fuel_state, structure_evidence
@@ -62,6 +65,13 @@ logger = logging.getLogger(__name__)
 # stock-screener-ui/api/reports_api/nifty.py -> parents[2] == stock-screener-ui
 SNAPSHOT_DIR = Path(__file__).resolve().parent.parent.parent / "experiments" / "data" / "nifty_reports"
 
+#: ``read_snapshot`` parse cache keyed by path, validated on (mtime_ns, size):
+#: ``GET /nifty`` polls every 1-2s while the snapshot is rewritten every 20s.
+_SNAPSHOT_READ_CACHE: dict[str, tuple[int, int, dict]] = {}
+#: ``_with_delta_flip`` projection cache, same key. Re-deriving positioning/gex
+#: on every 1-2s poll was pure recomputation of a file that changes every 20s.
+_DERIVED_SNAPSHOT_CACHE: dict[str, tuple[int, int, dict]] = {}
+
 _LIVE_TTL = 5
 _live_cache: dict[str, dict] = {}
 _sensex_cache: dict[str, dict] = {}
@@ -75,28 +85,21 @@ _TOP_WALLS = 3
 #: is book structure, not an intraday level.
 WALL_NEAR_DIST_PTS = 300.0
 
+#: Reuse the 10s chain poller's frame instead of issuing a second REST chain
+#: call when the frame is at most this old. The poller writes every 10s, so a
+#: healthy frame is 0-12s old; 30s tolerates one dropped fetch without letting a
+#: dead poller serve a stale ladder.
+CHAIN10S_REUSE_MAX_AGE_SEC = float(
+    os.getenv("NIFTY_CHAIN_REUSE_MAX_AGE_SEC", "30"))
+#: Wall-clock interval for the background snapshot rebuild. The build is cheap
+#: when it reuses the chain10s frame, so 20s keeps ``snapshot_at`` well inside
+#: the 35s target (the old fixed 60s sleep + a ~50s REST chain = ~110s cadence).
+SNAPSHOT_REFRESH_SEC = float(os.getenv("NIFTY_SNAPSHOT_REFRESH_SEC", "20"))
+
 
 # ---------------------------------------------------------------------------
 # Pure helpers (unit-testable, no I/O)
 # ---------------------------------------------------------------------------
-
-def _safe_float(value: Any, default: float = 0.0) -> float:
-    try:
-        if value is None:
-            return default
-        return float(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _safe_int(value: Any, default: int = 0) -> int:
-    try:
-        if value is None:
-            return default
-        return int(float(value))
-    except (TypeError, ValueError):
-        return default
-
 
 def has_usable_chain(rows: Optional[list[dict]]) -> bool:
     """True when ``rows`` describe a real chain (strikes + non-zero OI).
@@ -122,14 +125,16 @@ def has_usable_chain(rows: Optional[list[dict]]) -> bool:
 
 
 #: NSE Closing Auction Session (since 3 Aug 2026): continuous F&O-stock
-#: trading ends at 15:15 IST, the index print is frozen 15:15–15:30 (no
-#: continuous matching), and the official close is the CAS print (~15:30).
+#: trading ends at 15:15 IST, the index print is frozen 15:15–15:35 (no
+#: continuous matching), the official close is the CAS print (~15:35), and
+#: the spot stays fixed through the 15:40 F&O close.
 CAS_START_MIN = 15 * 60 + 15
-CAS_END_MIN = 15 * 60 + 30  # exclusive
+CAS_END_MIN = 15 * 60 + 35  # cash CAS ends 15:35 IST (after which spot is frozen); derivatives continue until 15:40
+SPOT_FROZEN_END_MIN = 15 * 60 + 40
 
 
 def is_cas_window(now: Optional[datetime] = None) -> bool:
-    """True when ``now`` (IST) falls in the 15:15–15:30 CAS freeze window.
+    """True when ``now`` (IST) falls in the 15:15–15:35 CAS freeze window.
 
     Naive datetimes are assumed IST; aware ones are converted. Never raises.
     """
@@ -318,6 +323,22 @@ def near_walls(rows: list[dict], side: str, n: int = _TOP_WALLS,
         return top_walls(rows, side, n)
     near = top_walls(rows, side, n, spot=spot, max_dist=max_dist)
     return near or top_walls(rows, side, n, spot=spot)
+
+
+def _top_wall_strike(walls: Any, side: str) -> Optional[float]:
+    """Top strike from a ``walls`` / ``walls_near`` block (``calls``/``puts``).
+
+    Returns ``None`` for a missing/empty block so the tape records an explicit
+    ``null`` instead of a fake 0 strike.
+    """
+    try:
+        entries = (walls or {}).get(side) or []
+        if entries and isinstance(entries[0], dict):
+            strike = _safe_float(entries[0].get("strike"))
+            return strike or None
+    except Exception:
+        pass
+    return None
 
 
 def _fetch_nifty_candles(date_str: str, walkback_days: int = 0) -> list[dict]:
@@ -609,12 +630,13 @@ def market_block() -> dict:
 
     The report keeps working after hours (the chain returns the last close), so
     the UI needs an explicit signal to stop polling and stop labelling a stale
-    snapshot as "live".
+    snapshot as "live". Uses derivatives-open (09:15‑15:40) so that the report
+    stays live through the F&O closing auction.
     """
-    from trading.utils import is_market_open
+    from trading.utils import is_derivatives_open
     now = datetime.now(config.IST)
     try:
-        is_open = bool(is_market_open())
+        is_open = bool(is_derivatives_open())
     except Exception:
         is_open = False
     return {
@@ -778,6 +800,181 @@ async def get_pivots_block(today: Optional[str] = None) -> Optional[dict]:
     return value
 
 
+# ---------------------------------------------------------------------------
+# Spot vs candle close, and 1-minute candle gaps
+# ---------------------------------------------------------------------------
+#: A tape-derived gap fill may not step more than this away from the last real
+#: candle close. On 2026-11-03 the option chain's ``underlying_spot_price`` sat
+#: ~79 pts (0.33%) ABOVE the index's last 1-minute close (23,810.85 vs
+#: 23,731.85) and the recorder persisted it as the 15:29 tape row: filling that
+#: minute into the candle series would have invented a +79 pt last-minute move.
+GAP_FILL_MAX_STEP_PCT = 0.0025
+#: Never synthesise more than this many minutes from one gap (~one session).
+GAP_FILL_MAX_MINUTES = 400
+
+
+def _finite(value: Any) -> Optional[float]:
+    """Finite float or ``None`` — canonical ``safe_float`` with a ``None`` default."""
+    return _safe_float(value, default=None)
+
+
+def _candle_ohlc(candle: Any) -> Optional[tuple[float, float, float, float]]:
+    """``(open, high, low, close)`` when all four are finite, else ``None``.
+
+    Upstox returns rows with null OHLC for a minute it has not aggregated yet;
+    those are not a flat candle, they are *no* candle.
+    """
+    if not isinstance(candle, dict):
+        return None
+    vals = tuple(_finite(candle.get(k)) for k in ("open", "high", "low", "close"))
+    if any(v is None for v in vals):
+        return None
+    return vals  # type: ignore[return-value]
+
+
+def _candle_dt(candle: Any) -> Optional[datetime]:
+    """Parsed ``time`` of a candle, or ``None`` when it is not ISO-8601."""
+    try:
+        return datetime.fromisoformat(str((candle or {}).get("time")))
+    except (TypeError, ValueError):
+        return None
+
+
+def closed_market_spot(candles: Optional[list[dict]]) -> Optional[float]:
+    """Last valid 1-minute **close**, clamped to the session's ``[low, high]``.
+
+    After the close the chain's ``underlying_spot_price`` is not the index
+    close: on 2026-11-03 it printed 23,810.85 while the last 1-minute candle
+    closed at 23,731.85 (a 79-pt gap, the same forward/cash spread the tape
+    records). The settled number is the last candle that actually carries an
+    OHLC, so that is what the page must show once the session ends. Clamping to
+    the day's range keeps a partial/stale series from printing a spot the day
+    never traded.
+    """
+    valid = []
+    for candle in candles or []:
+        ohlc = _candle_ohlc(candle)
+        if ohlc is not None:
+            valid.append(ohlc)
+    if not valid:
+        return None
+    close = valid[-1][3]
+    high = max(v[1] for v in valid)
+    low = min(v[2] for v in valid)
+    return round(min(max(close, low), high), 2)
+
+
+def fill_candle_gaps(candles: Optional[list[dict]],
+                     tape_rows: Optional[list[dict]] = None, *,
+                     max_step_pct: float = GAP_FILL_MAX_STEP_PCT,
+                     max_fill_minutes: int = GAP_FILL_MAX_MINUTES,
+                     ) -> list[dict]:
+    """Drop null-OHLC candles and fill missing 1-minute bars from the tape.
+
+    Two failure modes this closes (2026-11-03):
+
+    * the intraday endpoint returned rows with ``null`` OHLC after 12:04 while
+      the tape kept recording. A null row is NOT a flat candle — it is dropped,
+      because keeping it poisons every close-based series (EMA, RV, ATR).
+    * a dropped/minutes-long hole must never be closed by widening the next
+      candle: each missing minute becomes its OWN bar with
+      ``O=H=L=C=tape.spot, volume=0`` (flagged ``synthetic``). That is the only
+      shape that cannot turn a 90-minute gap into one giant candle.
+
+    A fill is skipped when the tape's spot for that minute is missing, or when
+    it steps more than ``max_step_pct`` from the last real close (a different
+    print, not this series). Gaps wider than ``max_fill_minutes`` are left
+    alone. The tail is filled only as far as the tape's last minute.
+    """
+    kept = [c for c in (candles or [])
+            if isinstance(c, dict) and _candle_ohlc(c) is not None]
+    if not kept:
+        return []
+    kept.sort(key=lambda c: str(c.get("time") or ""))
+
+    tape_spot: dict[datetime, float] = {}
+    last_tape_dt: Optional[datetime] = None
+    for row in tape_rows or []:
+        if not isinstance(row, dict):
+            continue
+        spot = _finite(row.get("spot"))
+        dt = _candle_dt(row) if row.get("t") is not None else None
+        if dt is None:
+            try:
+                dt = datetime.fromisoformat(str(row.get("t")))
+            except (TypeError, ValueError):
+                continue
+        dt = dt.replace(second=0, microsecond=0)
+        if last_tape_dt is None or dt > last_tape_dt:
+            last_tape_dt = dt
+        if spot and spot > 0:
+            tape_spot[dt] = spot
+
+    out: list[dict] = []
+    prev_dt: Optional[datetime] = None
+    prev_close: Optional[float] = None
+
+    def _fill(minute: datetime) -> Optional[dict]:
+        spot = tape_spot.get(minute)
+        if not spot:
+            return None
+        if prev_close and abs(spot - prev_close) / prev_close > max_step_pct:
+            return None
+        return {"time": minute.isoformat(), "open": round(spot, 2),
+                "high": round(spot, 2), "low": round(spot, 2),
+                "close": round(spot, 2), "volume": 0, "synthetic": True}
+
+    for candle in kept:
+        dt = _candle_dt(candle)
+        if prev_dt is not None and dt is not None:
+            gap = int((dt - prev_dt).total_seconds() // 60)
+            if 1 < gap <= max_fill_minutes:
+                for k in range(1, gap):
+                    filled = _fill(prev_dt + timedelta(minutes=k))
+                    if filled is not None:
+                        out.append(filled)
+        out.append(candle)
+        if dt is not None:
+            prev_dt = dt
+        prev_close = _candle_ohlc(candle)[3]  # type: ignore[index]
+
+    # Tail: the tape can be ahead of the last aggregated candle (2026-11-03:
+    # candles ended 15:27, tape 15:29). Fill only up to the tape's last minute.
+    if prev_dt is not None and last_tape_dt is not None:
+        gap = int((last_tape_dt - prev_dt).total_seconds() // 60)
+        if 0 < gap <= max_fill_minutes:
+            for k in range(1, gap + 1):
+                filled = _fill(prev_dt + timedelta(minutes=k))
+                if filled is not None:
+                    out.append(filled)
+    out.sort(key=lambda c: str(c.get("time") or ""))
+    return out
+
+
+def reconcile_closed_market_spot(report: dict,
+                                 market_open: Optional[bool] = None) -> dict:
+    """After the close, make ``report["spot"]`` the last valid candle close.
+
+    A wrapper around :func:`closed_market_spot` that keeps the served payload
+    auditable: the replaced value is preserved as ``spot_chain`` and
+    ``spot_source`` records why. No-op while the market is open (the live feed
+    owns spot then) and when the series carries no usable candle.
+    """
+    if not isinstance(report, dict):
+        return report
+    is_open = _market_open() if market_open is None else bool(market_open)
+    if is_open:
+        return report
+    spot = closed_market_spot(report.get("intraday") or report.get("candles"))
+    if spot is None:
+        return report
+    previous = _finite(report.get("spot"))
+    if previous is not None and round(previous, 2) == spot:
+        return {**report, "spot_source": "last_candle_close"}
+    return {**report, "spot": spot, "spot_source": "last_candle_close",
+            "spot_chain": previous}
+
+
 def build_report(expiry: str, spot: float, rows: list[dict], mode: str,
                  candles: Optional[list[dict]] = None) -> dict:
     """Assemble the report envelope shared by live and snapshot responses."""
@@ -829,6 +1026,22 @@ def build_timeline_skeleton(report: dict) -> list[dict]:
     ]
 
 
+def _build_snapshot_dict(report: dict, date_str: str) -> dict:
+    """Build the standard snapshot envelope from a live report.
+
+    Shared by :func:`create_nifty_snapshot` and :func:`nifty_snapshot_task`
+    so the snapshot structure is identical in both paths.
+    """
+    return {
+        **report,
+        "mode": "snapshot",
+        "date": date_str,
+        "snapshot_at": datetime.now(config.IST).isoformat(),
+        "source": "upstox-option-chain",
+        "timeline": build_timeline_skeleton(report),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Snapshot persistence
 # ---------------------------------------------------------------------------
@@ -839,13 +1052,28 @@ def snapshot_path(date_str: str) -> Path:
 
 def read_snapshot(date_str: str) -> Optional[dict]:
     path = snapshot_path(date_str)
-    if not path.exists():
+    try:
+        stat = path.stat()
+    except OSError:
         return None
+    key = str(path)
+    cached = _SNAPSHOT_READ_CACHE.get(key)
+    if (cached is not None and cached[0] == stat.st_mtime_ns
+            and cached[1] == stat.st_size):
+        # Top-level copy: callers may add a block, but must not mutate the
+        # cached snapshot's keys. Nested structures are read-only by contract.
+        return dict(cached[2])
     try:
         with open(path) as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError):
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError, ValueError, TypeError):
         return None
+    if not isinstance(data, dict):
+        return None
+    if len(_SNAPSHOT_READ_CACHE) >= 16:
+        _SNAPSHOT_READ_CACHE.clear()
+    _SNAPSHOT_READ_CACHE[key] = (stat.st_mtime_ns, stat.st_size, data)
+    return dict(data)
 
 
 def write_snapshot(date_str: str, data: dict) -> Path:
@@ -866,30 +1094,58 @@ def write_snapshot(date_str: str, data: dict) -> Path:
     return path
 
 
-def _today_str() -> str:
-    return datetime.now(config.IST).strftime("%Y-%m-%d")
-
-
-def _validate_date(date_str: str) -> str:
-    try:
-        datetime.strptime(date_str, "%Y-%m-%d")
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"bad date: {date_str!r}, want YYYY-MM-DD")
-    return date_str
-
-
 # ---------------------------------------------------------------------------
 # Live computation (Upstox)
 # ---------------------------------------------------------------------------
 
+def _rolling_oi(rows: list[dict], minutes: tuple[int, ...] = (5, 15)) -> dict:
+    """Rolling CE/PE OI change over the last N minutes of the tape.
+
+    The session-cumulative ``positioning.flow`` hides intraday sign flips
+    (on 2026-11-02 the last 5m was a put build while the last 15m was a call
+    build). Raw OI units, anchored on the newest frame.
+    """
+    clean = [r for r in rows or [] if isinstance(r, dict) and r.get("t")]
+    if not clean:
+        return {}
+    try:
+        stamps = [datetime.fromisoformat(r["t"]) for r in clean]
+    except (TypeError, ValueError):
+        return {}
+    last_ts = stamps[-1]
+    last = clean[-1]
+    out: dict = {"as_of": last["t"]}
+    for m in minutes:
+        cut = last_ts - timedelta(minutes=m)
+        idx = min(range(len(clean)), key=lambda i: abs((stamps[i] - cut).total_seconds()))
+        base = clean[idx]
+        ce = (last.get("ce_oi") or 0) - (base.get("ce_oi") or 0)
+        pe = (last.get("pe_oi") or 0) - (base.get("pe_oi") or 0)
+        out[f"{m}m"] = {
+            "from": base["t"],
+            "ce": int(ce),
+            "pe": int(pe),
+            "net": int(ce - pe),
+        }
+    return out
+
+
 async def _attach_verdicts(report: dict, rows: list[dict], spot: float,
-                           for_date: Optional[str]) -> None:
+                           for_date: Optional[str],
+                           expiries: Optional[Mapping[Any, Iterable[Any]]] = None,
+                           ) -> None:
     """Attach the four session-verdict blocks to ``report`` in place.
 
     Reuses the already-fetched chain/GEX/candles; only pulls today's 1-minute
     spot, the once-a-day session baseline and VIX (all cached in
     :mod:`api.reports_api.nifty_verdicts`). Never raises — a failure leaves the
     blocks absent rather than breaking ``/live``.
+
+    ``expiries`` is an optional ``expiry -> parsed rows`` map used ONLY for the
+    IV term structure (``iv_surface.term``). The report itself carries a single
+    expiry, so without a caller-supplied map the term stays ``[]``. Rows are
+    the exact shape from :func:`parse_chain_payload`; the caller owns fetching
+    the extra expiries (this function never makes an upstream call for them).
     """
     try:
         from api.reports_api import nifty_verdicts as nv
@@ -901,23 +1157,32 @@ async def _attach_verdicts(report: dict, rows: list[dict], spot: float,
     vix: Optional[dict] = None
     intraday: Optional[list] = None
     try:
-        baseline, vix = await asyncio.gather(
+        # Three independent fetches: run them together instead of paying the
+        # baseline/VIX round trip and then the intraday one back-to-back on a
+        # cold cache.
+        results = await asyncio.gather(
             nv.get_baseline_range(today),
             nv.get_vix_block() if is_today else _async_none(),
+            nv.get_intraday_candles(today) if is_today else _async_none(),
             return_exceptions=True,
         )
-        if isinstance(baseline, BaseException):
-            baseline = None
-        if isinstance(vix, BaseException):
-            vix = None
-        if is_today:
-            intraday = await nv.get_intraday_candles(today)
+        if not isinstance(results[0], BaseException):
+            baseline = results[0]
+        if not isinstance(results[1], BaseException):
+            vix = results[1]
+        if not isinstance(results[2], BaseException):
+            intraday = results[2]
     except Exception:
         pass
-    # 1-minute today candles when available, else the report's own spot candles.
-    candles = intraday or report.get("candles") or []
     # The tape is a growing JSONL (1.4 MB today); parse it in a worker thread.
     tape = await asyncio.to_thread(read_tape, today)
+    # 1-minute today candles when available, else the report's own spot candles.
+    # Null-OHLC rows are dropped and missing minutes are filled from the tape as
+    # one flat bar per minute (never one wide bar across the hole) — see
+    # :func:`fill_candle_gaps`. Only the 1-minute series is gap-filled: the 15m
+    # yfinance fallback must not be diluted with synthetic minute bars.
+    intraday = fill_candle_gaps(intraday, tape) if intraday else intraday
+    candles = intraday or report.get("candles") or []
     # Fixed-strike ATM reference (see compute_reference) so the UI can show the
     # premium move instead of the self-cancelling rolling ATM leg.
     try:
@@ -936,11 +1201,13 @@ async def _attach_verdicts(report: dict, rows: list[dict], spot: float,
             prev_close = _prev_close_from_pivots(pivots)
         except Exception:
             prev_close = None
-    # Signed session premium flow (₹ Cr, positive = bullish) — the same number
-    # that drives positioning.initiated / flow_class. Threaded into the control
-    # block so a "writer" label needs flow evidence, not just the OI share.
+    # Signed session delta-weighted flow (₹ Cr, positive = bullish). Use the
+    # raw `flow`, NOT `initiated`: `initiated` is class-weighted by the
+    # sentiment classifier, which read 99.8% bullish (bull 171,106 Cr vs
+    # bear 387 Cr) on 2026-11-02 while spot broke 23,300 — it can only ever
+    # name a writer. `flow` is the raw book change and flips sign with price.
     positioning = report.get("positioning")
-    flow_bias = (positioning.get("initiated")
+    flow_bias = (positioning.get("flow")
                  if isinstance(positioning, dict) else None)
     try:
         report.update(nv.build_verdicts(
@@ -952,6 +1219,23 @@ async def _attach_verdicts(report: dict, rows: list[dict], spot: float,
             reference=report.get("reference"),
             prev_close=prev_close,
             flow_bias=flow_bias))
+    except Exception:
+        pass
+    # IV surface: ATM / 25-delta skew from the same chain rows. ``expiries`` is
+    # supplied by the caller when it already holds other expiries' rows; the
+    # term structure is [] otherwise (one chain does not a curve make).
+    try:
+        from api.reports_api.iv_surface import attach_iv_surface
+        attach_iv_surface(report, rows, expiries=expiries)
+    except Exception:
+        pass
+    # Rolling OI windows: the session flow is cumulative and hides intraday
+    # sign flips; these are the 5m/15m raw CE/PE OI deltas the panel uses to
+    # show whether the same side is still driving. ``tape`` was already parsed
+    # above — re-reading the day file here doubled the per-build disk cost.
+    try:
+        if tape:
+            report["flow_window"] = _rolling_oi(tape)
     except Exception:
         pass
     # Structural shifts (wall flips, wall migration, max-pain drift, PCR regime
@@ -1006,8 +1290,40 @@ def _prev_close_from_pivots(pivots: Any) -> Optional[float]:
     return _safe_float(prev.get("close")) or None
 
 
+def _chain10s_chain(expiry: Optional[str] = None,
+                    max_age_sec: float = CHAIN10S_REUSE_MAX_AGE_SEC,
+                    ) -> Optional[tuple[str, float, list[dict]]]:
+    """``(expiry, spot, rows)`` from the newest 10s poller frame, or ``None``.
+
+    The 10s poller already fetches the FULL chain (greeks + prev_oi) every
+    10s; rebuilding the snapshot on a second REST call cost ~50s and pushed the
+    snapshot cadence past 100s. Reuse is gated on freshness
+    (:func:`chain10s.fresh_frame`), a usable chain, and — when the caller named
+    an expiry — a matching expiry, so an explicit weekly request never gets the
+    front-week frame. Any failure returns ``None`` and the caller fetches.
+    """
+    try:
+        from api.reports_api.chain10s import fresh_frame
+        frame = fresh_frame(max_age_sec=max_age_sec)
+    except Exception:
+        return None
+    if not isinstance(frame, dict):
+        return None
+    rows = frame.get("rows") or []
+    if not has_usable_chain(rows):
+        return None
+    frame_expiry = str(frame.get("expiry") or "")
+    if expiry and frame_expiry and expiry != frame_expiry:
+        return None
+    return (frame_expiry or expiry or "", _safe_float(frame.get("spot")), rows)
+
+
 async def _fetch_chain_payload(expiry: Optional[str]) -> tuple[str, dict]:
     """Resolve the nearest expiry (when needed) and fetch one raw chain payload.
+
+    When ``expiry`` is not provided, the **nearest expiry strictly after today**
+    is chosen (``days_to_expiry > 0``). This avoids picking a chain that expires
+    today and may already be settled/illiquid.
 
     Raises ``HTTPException(502)`` when no expiry is listed or the fetch fails.
     """
@@ -1019,7 +1335,24 @@ async def _fetch_chain_payload(expiry: Optional[str]) -> tuple[str, dict]:
         expiries = listing.get("expiries", [])
         if not expiries:
             raise HTTPException(status_code=502, detail="no NIFTY expiries available")
-        expiry = expiries[0]["date"]
+        # Pick the nearest non-expiring chain. Prefer the listed
+        # `days_to_expiry`; when an older listing omits it, fall back to the
+        # date comparison. If neither yields a future expiry, keep the first
+        # listing (test fixtures and stale feeds) instead of 502-ing the desk.
+        today = _today_str()
+
+        def _is_future(entry: dict) -> bool:
+            days = entry.get("days_to_expiry")
+            if days is not None:
+                try:
+                    return float(days) > 0
+                except (TypeError, ValueError):
+                    return False
+            return str(entry.get("date") or "") > today
+
+        future_expiries = [e for e in expiries if _is_future(e)]
+        chosen = future_expiries or expiries
+        expiry = chosen[0]["date"]
 
     try:
         payload = await fetch_upstox("/option/chain", {
@@ -1036,7 +1369,9 @@ async def _fetch_chain_payload(expiry: Optional[str]) -> tuple[str, dict]:
 async def _compute_live(expiry: Optional[str], for_date: Optional[str] = None,
                       walkback_days: int = 5, with_verdicts: bool = True,
                       with_candles: bool = True,
-                      payload: Optional[dict] = None) -> dict:
+                      payload: Optional[dict] = None,
+                      expiries: Optional[Mapping[Any, Iterable[Any]]] = None,
+                      ) -> dict:
     """Fetch the Upstox chain + spot and build a live report (no caching).
 
     ``with_verdicts`` attaches the four session-verdict blocks (live/snapshot).
@@ -1044,6 +1379,18 @@ async def _compute_live(expiry: Optional[str], for_date: Optional[str] = None,
     tick, which only reads chain aggregates and must stay yfinance-free.
     ``payload`` lets a caller reuse an already-fetched raw chain (the recorder
     builds two views per minute from a single upstream call).
+
+    ``expiries`` is the optional ``expiry -> parsed rows`` map for the IV term
+    structure (``report["iv_surface"]["term"]``). This function fetches only the
+    report's own chain, so callers that already hold other expiries pass them
+    here — e.g. ``await _compute_live(None, expiries={exp: rows_for(exp)})``
+    where each value is ``parse_chain_payload(payload)[2]``. With no map the
+    term stays ``[]`` (the honest answer for a single expiry).
+
+    Chain source: when ``payload`` is omitted the newest 10s poller frame is
+    reused if fresh (:func:`_chain10s_chain`); only when there is no fresh frame
+    does this issue its own REST chain call. ``report["chain_source"]`` records
+    which path was taken ("chain10s" / "rest") for the cadence audit.
 
     Raises ``HTTPException(502)`` when the chain comes back empty or with no
     OI at all: that is a failed fetch, not a market state, and serving it as a
@@ -1053,10 +1400,20 @@ async def _compute_live(expiry: Optional[str], for_date: Optional[str] = None,
     # Lazy imports: keeps this module import-light and avoids import cycles.
     from api.options import get_spot_price
 
+    chain_source = "rest"
+    chain_expiry = ""
+    spot = 0.0
+    rows: list[dict] = []
     if payload is None:
-        expiry, payload = await _fetch_chain_payload(expiry)
+        reused = _chain10s_chain(expiry)
+        if reused is not None:
+            chain_expiry, spot, rows = reused
+            chain_source = "chain10s"
+        else:
+            expiry, payload = await _fetch_chain_payload(expiry)
+    if payload is not None:
+        chain_expiry, spot, rows = parse_chain_payload(payload)
 
-    chain_expiry, spot, rows = parse_chain_payload(payload)
     if not has_usable_chain(rows):
         # ``status: success`` with an empty ``data`` array is what Upstox
         # returns for an expiry that does not exist (e.g. the synthetic
@@ -1078,6 +1435,7 @@ async def _compute_live(expiry: Optional[str], for_date: Optional[str] = None,
                if with_candles else [])
     report = build_report(chain_expiry or expiry, spot, rows, mode="live",
                           candles=candles)
+    report["chain_source"] = chain_source
     report["market"] = market_block()
     # Previous-session pivot levels (classic), cached per process day. A
     # failure stores None so the chart simply renders no levels.
@@ -1085,8 +1443,16 @@ async def _compute_live(expiry: Optional[str], for_date: Optional[str] = None,
         report["pivots"] = await get_pivots_block(for_date or _today_str())
     except Exception:
         report["pivots"] = None
+    # See reconcile_closed_market_spot: a closed session is priced by its last
+    # candle close, not by the chain's underlying (forward) price.
+    report = reconcile_closed_market_spot(report)
+    spot = _safe_float(report.get("spot")) or spot
     if with_verdicts:
-        await _attach_verdicts(report, rows, spot, for_date)
+        await _attach_verdicts(report, rows, spot, for_date, expiries=expiries)
+        # Verdict attachment builds the richer 1-minute series (gap-filled from
+        # the tape); reconcile once more so the stored spot matches the last
+        # candle it just produced (see reconcile_closed_market_spot).
+        report = reconcile_closed_market_spot(report)
     return report
 
 
@@ -1196,26 +1562,37 @@ async def get_nifty_expiries():
         raise HTTPException(status_code=502, detail=f"expiries fetch failed: {e}")
 
 
-async def get_cached_live(expiry: Optional[str] = None) -> dict:
+async def get_cached_live(expiry: Optional[str] = None,
+                          expiries: Optional[Mapping[Any, Iterable[Any]]] = None,
+                          ) -> dict:
     """Live report with the shared 5s in-memory TTL.
 
     The WS and the REST endpoint must both go through this: calling
     ``_compute_live`` directly regenerates ``fetched_at`` on every call, which
     made the WebSocket re-send the whole report every tick (heavy upstream
     fetches + a 60KB frame + a full re-parse/re-render every 1s).
+
+    ``expiries`` (the optional IV term map, see :func:`_compute_live`) bypasses
+    the TTL cache: the cache key cannot describe which extra expiries were
+    supplied, so a cached report would carry another caller's term structure.
     """
     key = expiry or "default"
     now = time.time()
-    hit = _live_cache.get(key)
-    if hit and now - hit["ts"] < _LIVE_TTL:
-        return hit["data"]
-    report = await _compute_live(expiry)
+    if expiries is None:
+        hit = _live_cache.get(key)
+        if hit and now - hit["ts"] < _LIVE_TTL:
+            return hit["data"]
+    if expiries is None:
+        report = await _compute_live(expiry)
+    else:
+        report = await _compute_live(expiry, expiries=expiries)
     try:
         # Where the prices came from — the panel can flag a feed it doubts.
         report["feed"] = {"source": "rest"}
     except Exception:
         pass
-    _live_cache[key] = {"ts": now, "data": report}
+    if expiries is None:
+        _live_cache[key] = {"ts": now, "data": report}
     return report
 
 
@@ -1270,16 +1647,17 @@ def _snapshot_leg_age(snapshot: Any) -> Optional[float]:
         return None
 
 
-def build_report_from_live(snapshot: dict, expiry: Optional[str],
-                           candles: Optional[list[dict]] = None,
-                           max_leg_age_sec: float = LIVE_LEG_MAX_AGE_SEC) -> Optional[dict]:
-    """Build the report envelope from a WS ``snapshot`` instead of REST rows.
+def _ws_chain_rows(snapshot: dict,
+                   max_leg_age_sec: float = LIVE_LEG_MAX_AGE_SEC
+                   ) -> Optional[tuple[float, list[dict], float]]:
+    """``(spot, rows, leg_age_sec)`` from a WS snapshot, or ``None``.
 
     ``snapshot`` legs are keyed ``"<strike>:ce"`` / ``"<strike>:pe"`` with
     ``{oi, iv, ltp, volume, delta, gamma}``. Returns ``None`` when the legs
-    hold fewer than ~20 distinct strikes (not a real chain — the caller falls
-    back to REST) **or when the legs are older than ``max_leg_age_sec``**
-    (a frozen option stream is not a live chain either). Never raises.
+    hold fewer than ~20 distinct strikes (not a real chain), when the snapshot
+    carries no ``legs`` dict, or when the legs are older than
+    ``max_leg_age_sec`` (a frozen option stream is not a live chain either).
+    Never raises.
     """
     try:
         legs = (snapshot or {}).get("legs") or {}
@@ -1329,7 +1707,23 @@ def build_report_from_live(snapshot: dict, expiry: Optional[str],
             for strike, sides in grouped.items()
         ]
         rows.sort(key=lambda r: r["strike"])
-        spot = _safe_float((snapshot or {}).get("spot"))
+        return _safe_float((snapshot or {}).get("spot")), rows, leg_age
+    except Exception:
+        return None
+
+
+def build_report_from_live(snapshot: dict, expiry: Optional[str],
+                           candles: Optional[list[dict]] = None,
+                           max_leg_age_sec: float = LIVE_LEG_MAX_AGE_SEC) -> Optional[dict]:
+    """Build the report envelope from a WS ``snapshot`` instead of REST rows.
+
+    See :func:`_ws_chain_rows` for the usability gates. Never raises.
+    """
+    parsed = _ws_chain_rows(snapshot, max_leg_age_sec)
+    if parsed is None:
+        return None
+    try:
+        spot, rows, leg_age = parsed
         exp = expiry or (snapshot or {}).get("expiry") or ""
         report = build_report(exp, spot, rows, mode="live",
                               candles=candles or [])
@@ -1346,7 +1740,99 @@ def build_report_from_live(snapshot: dict, expiry: Optional[str],
         return None
 
 
-async def get_live_report(expiry: Optional[str] = None) -> dict:
+def _merge_ws_vix(report: dict, snapshot: dict) -> dict:
+    """Replace ``report["vix"]`` with the WS VIX reading when it carries one.
+
+    ``_attach_verdicts`` sets a REST VIX block; the WS tick is fresher, so it
+    wins. A scalar WS reading is merged into the existing block so the change %
+    survives. Never raises; returns ``report`` when there is nothing to merge.
+    """
+    try:
+        ws_vix = (snapshot or {}).get("vix")
+        if ws_vix is None:
+            return report
+        if isinstance(ws_vix, dict):
+            return {**report, "vix": ws_vix}
+        if isinstance(report.get("vix"), dict):
+            try:
+                return {**report, "vix": {**report["vix"], "ltp": float(ws_vix)}}
+            except (TypeError, ValueError):
+                return report
+        return {**report, "vix": ws_vix}
+    except Exception:
+        return report
+
+
+def _overlay_ws_blocks(report: dict, snapshot: Optional[dict],
+                       max_leg_age_sec: float = LIVE_LEG_MAX_AGE_SEC,
+                       market_open: Optional[bool] = None) -> dict:
+    """Project live WS blocks onto a saved report WITHOUT writing a snapshot.
+
+    Replaces ``spot`` / ``vix`` from the WS snapshot, and — when the snapshot
+    converts to a usable chain (:func:`_ws_chain_rows`) — ``walls``,
+    ``walls_near``, ``positioning`` and ``gex``, which are pure functions of
+    the legs. This is what makes ``GET /nifty`` follow a wall relocation between
+    two 20s snapshot writes.
+
+    **Spot is a session-time read only.** The WS spot tick lags the index at
+    the close and, worse, the chain's underlying price carries the forward
+    basis: on 2026-11-03 the overlay served 23,810.85 while the last 1-minute
+    candle closed at 23,731.85. So the overlay is gated on market hours; once
+    the session is over the spot is the last valid candle close clamped to the
+    day's range (:func:`reconcile_closed_market_spot`). ``market_open`` is
+    injectable so the gate is testable without a clock.
+
+    ``control`` and ``strikes`` are replaced ONLY when the snapshot carries them
+    itself: WS legs have no ``prev_oi``, so recomputing control from them would
+    print a fake zero OI change and a "flat" verdict. Never raises; returns the
+    input report unchanged when the snapshot is unusable.
+    """
+    if not isinstance(report, dict) or not isinstance(snapshot, dict):
+        return report
+    is_open = _market_open() if market_open is None else bool(market_open)
+    out = report
+    if is_open:
+        try:
+            ws_spot = _safe_float(snapshot.get("spot"))
+            if ws_spot > 0:
+                out = {**out, "spot": ws_spot}
+        except Exception:
+            pass
+    else:
+        out = reconcile_closed_market_spot(out, market_open=False)
+    out = _merge_ws_vix(out, snapshot)
+    parsed = _ws_chain_rows(snapshot, max_leg_age_sec)
+    if parsed is not None:
+        try:
+            spot, rows, leg_age = parsed
+            # Levels are relative to the SERVED spot, not the WS tick: after
+            # the close those differ (candle close vs chain underlying).
+            level = _safe_float(out.get("spot")) or spot
+            out = {
+                **out,
+                "walls": {"calls": top_walls(rows, "ce", spot=level),
+                          "puts": top_walls(rows, "pe", spot=level)},
+                "walls_near": {"calls": near_walls(rows, "ce", spot=level),
+                               "puts": near_walls(rows, "pe", spot=level)},
+                "positioning": compute_positioning(rows, level),
+                "gex": compute_gex(rows, level),
+                "live_overlay": {"source": "ws" if is_open else "ws_closed",
+                                 "leg_age_sec": round(leg_age, 1)},
+            }
+        except Exception:
+            out = report
+    for key in ("control", "strikes"):
+        value = snapshot.get(key)
+        if key == "control" and isinstance(value, dict) and value:
+            out = {**out, "control": value}
+        elif key == "strikes" and isinstance(value, list) and value:
+            out = {**out, "strikes": value}
+    return out
+
+
+async def get_live_report(expiry: Optional[str] = None,
+                          expiries: Optional[Mapping[Any, Iterable[Any]]] = None,
+                          ) -> dict:
     """Live report, preferring the WS snapshot when it is live.
 
     When ``nifty_md.is_live()`` and the snapshot converts to a full report
@@ -1354,30 +1840,36 @@ async def get_live_report(expiry: Optional[str] = None) -> dict:
     built once per ~1s (shared across WS clients) with verdicts attached;
     otherwise this degrades to :func:`get_cached_live` (REST). Never raises
     anything the REST path wouldn't raise.
+
+    ``expiries`` is the optional IV term map (:func:`_compute_live`); supplying
+    it bypasses the 1s WS cache because that cache is keyed only on expiry.
     """
     key = expiry or "default"
-    try:
-        now = time.time()
-        hit = _live_ws_cache.get(key)
-        if hit and now - hit["ts"] < _LIVE_WS_TTL:
-            return hit["data"]
-    except Exception:
-        pass
+    if expiries is None:
+        try:
+            now = time.time()
+            hit = _live_ws_cache.get(key)
+            if hit and now - hit["ts"] < _LIVE_WS_TTL:
+                return hit["data"]
+        except Exception:
+            pass
     try:
         md = _nifty_md()
         if md is not None and bool(md.is_live()):
             snap = md.snapshot() or {}
             if isinstance(snap, dict) and isinstance(snap.get("legs"), dict):
                 exp = expiry or snap.get("expiry") or ""
-                if not exp:
+                if not exp or (expiry is None and exp <= _today_str()):
                     try:
                         from api.options import get_expiries as _get_expiries
                         listing = await _get_expiries("NIFTY")
                         exps = (listing or {}).get("expiries", []) or []
-                        if exps:
-                            exp = exps[0].get("date", "")
+                        future = [e for e in exps if e.get("days_to_expiry", 0) > 0]
+                        chosen = future or exps
+                        if chosen:
+                            exp = chosen[0].get("date", "") or exp
                     except Exception:
-                        exp = ""
+                        pass
                 try:
                     candles = await asyncio.to_thread(
                         _fetch_nifty_candles_cached, _today_str(), 5)
@@ -1397,34 +1889,25 @@ async def get_live_report(expiry: Optional[str] = None) -> dict:
                     try:
                         await _attach_verdicts(
                             report, report.get("strikes", []),
-                            report.get("spot", 0), None)
+                            report.get("spot", 0), None, expiries=expiries)
                     except Exception:
                         pass
-                    # Prefer the WS VIX reading when present; _attach_verdicts
-                    # already set report["vix"] to the REST block (or null).
-                    try:
-                        ws_vix = snap.get("vix")
-                        if ws_vix is not None:
-                            if isinstance(ws_vix, dict):
-                                report["vix"] = ws_vix
-                            elif isinstance(report.get("vix"), dict):
-                                try:
-                                    report["vix"] = {**report["vix"],
-                                                     "ltp": float(ws_vix)}
-                                except (TypeError, ValueError):
-                                    pass
-                            else:
-                                report["vix"] = ws_vix
-                    except Exception:
-                        pass
-                    try:
-                        _live_ws_cache[key] = {"ts": time.time(), "data": report}
-                    except Exception:
-                        pass
+                    # Project the WS VIX reading (and any explicit control /
+                    # walls blocks the snapshot carries) onto the report.
+                    # _attach_verdicts already set report["vix"] to the REST
+                    # block (or null); the WS tick is fresher.
+                    report = _overlay_ws_blocks(report, snap)
+                    if expiries is None:
+                        try:
+                            _live_ws_cache[key] = {"ts": time.time(), "data": report}
+                        except Exception:
+                            pass
                     return report
     except Exception:
         pass
-    return await get_cached_live(expiry)
+    if expiries is None:
+        return await get_cached_live(expiry)
+    return await get_cached_live(expiry, expiries=expiries)
 
 
 @router.get("/nifty/live")
@@ -1432,7 +1915,7 @@ async def get_nifty_live(expiry: Optional[str] = Query(default=None, description
     """On-demand Nifty report from the live Upstox option chain (5s TTL)."""
     _ensure_tape_task()
     if expiry:
-        _validate_date(expiry)
+        validate_date(expiry)
     return await get_cached_live(expiry)
 
 
@@ -1501,10 +1984,210 @@ def _with_delta_flip(report: dict) -> dict:
     return out
 
 
+#: Last computed breadth payload is served from the 60s cache owned by
+#: :mod:`api.reports_api.breadth`. Reading it here never triggers a quote call.
+_BREADTH_MAX_AGE_SEC = 900.0
+
+#: Where the last fresh advance/decline reading is kept so a process restart
+#: (which empties every in-process cache) still has an honest last-known value
+#: to serve instead of ``null``. Tiny JSON, overwritten in place.
+_BREADTH_LAST_PATH = (
+    Path(__file__).resolve().parent.parent.parent
+    / "experiments" / "data" / "nifty_breadth" / "last.json")
+
+#: How old the persisted reading may be before it is ignored (a week covers a
+#: long weekend without resurrecting a month-old number).
+_BREADTH_LAST_MAX_AGE_SEC = 7 * 86_400.0
+_BREADTH_LAST: dict = {"loaded": False, "block": None}
+
+
+def _cached_breadth() -> Optional[dict]:
+    """The desk breadth strip from the 60s cache, or ``None`` when cold.
+
+    ``GET /nifty`` must never block on the five-index quote call, so this is a
+    cache read only: the desk strip polls ``/api/reports/breadth`` and keeps it
+    warm. A payload older than 15 min is dropped rather than serving yesterday's
+    closes as today's breadth.
+    """
+    try:
+        from api.reports_api import breadth as breadth_mod
+        cache = getattr(breadth_mod, "_cache", None) or {}
+        payload = cache.get("payload")
+        at = float(cache.get("at") or 0.0)
+        if not isinstance(payload, dict) or not payload.get("available"):
+            return None
+        if not at or time.time() - at > _BREADTH_MAX_AGE_SEC:
+            return None
+        return {
+            "up": payload.get("up"),
+            "count": payload.get("count"),
+            "rows": payload.get("rows") or [],
+            "fetched_at": payload.get("fetched_at"),
+        }
+    except Exception:
+        return None
+
+
+def _rotation_breadth_state() -> Optional[dict]:
+    """Fresh-or-stale India advance/decline state from the rotation cache.
+
+    :func:`api.rotation.cached_breadth` is a cache read — it never fetches the
+    universe frame — and returns ``stale``/``as_of`` alongside the percentage.
+    Only the India market is accepted: a US risk-off print is not Nifty breadth.
+    """
+    try:
+        from api import rotation
+        return rotation.cached_breadth("india")
+    except Exception:
+        return None
+
+
+def _cached_rotation_breadth() -> Optional[float]:
+    """Advance/decline breadth (%) from the rotation overview cache, fresh only.
+
+    :func:`api.rotation._market_breadth` needs the full universe frame (a slow
+    Upstox fetch), but the overview endpoint already computed it and cached the
+    result for ``CACHE_TTL_SECONDS``. This is a read of that cache — no fetch.
+    An expired entry is not "warm" here; :func:`_breadth_block` serves it as a
+    last-known value with ``stale: true`` instead.
+    """
+    state = _rotation_breadth_state()
+    if not state or state.get("stale"):
+        return None
+    return state.get("advances_pct")
+
+
+def _load_last_breadth() -> Optional[dict]:
+    """The persisted last-known breadth block, or ``None`` (read once)."""
+    if _BREADTH_LAST["loaded"]:
+        return _BREADTH_LAST["block"]
+    _BREADTH_LAST["loaded"] = True
+    try:
+        with open(_BREADTH_LAST_PATH) as f:
+            payload = json.load(f)
+        block = payload.get("block") if isinstance(payload, dict) else None
+        at = float(payload.get("at") or 0.0)
+        if (isinstance(block, dict) and at
+                and time.time() - at <= _BREADTH_LAST_MAX_AGE_SEC):
+            _BREADTH_LAST["block"] = {**block, "stale": True}
+    except (OSError, ValueError, TypeError):
+        pass
+    return _BREADTH_LAST["block"]
+
+
+def _persist_last_breadth(block: dict) -> None:
+    """Remember a FRESH breadth reading for the next cold start. Never raises."""
+    if not isinstance(block, dict) or block.get("advances_pct") is None:
+        return
+    current = _BREADTH_LAST.get("block") or {}
+    if current.get("as_of") == block.get("as_of"):
+        return
+    _BREADTH_LAST["block"] = dict(block)
+    _BREADTH_LAST["loaded"] = True
+    try:
+        _BREADTH_LAST_PATH.parent.mkdir(parents=True, exist_ok=True)
+        tmp = _BREADTH_LAST_PATH.with_suffix(".json.tmp")
+        with open(tmp, "w") as f:
+            json.dump({"at": time.time(), "block": block}, f,
+                      separators=(",", ":"))
+        os.replace(tmp, _BREADTH_LAST_PATH)
+    except OSError:
+        pass
+
+
+def _breadth_block() -> Optional[dict]:
+    """Read-only breadth for ``GET /nifty``: rotation A/D % + index strip rows.
+
+    Every source is a cache read (rotation overview, desk strip, last-known
+    file); when they are all cold the block is omitted, so the request never
+    waits on a quote/frame fetch. A cold *rotation* cache does not blank the
+    reading: the last value is served with ``as_of`` + ``stale: true``.
+    """
+    strip = _cached_breadth()
+    fresh_pct = _cached_rotation_breadth()
+    state = _rotation_breadth_state()
+    advances_pct = fresh_pct
+    stale = False
+    if advances_pct is None and isinstance(state, dict):
+        advances_pct = state.get("advances_pct")
+        # A value read from an expired overview entry is the last known one.
+        stale = advances_pct is not None
+    if advances_pct is None and strip is None:
+        last = _load_last_breadth()
+        return {**last, "stale": True} if isinstance(last, dict) else None
+
+    state = state if isinstance(state, dict) else {}
+    block = {
+        "advances_pct": advances_pct,
+        "advances": state.get("advances"),
+        "declines": state.get("declines"),
+        "total": state.get("total"),
+        "up": (strip or {}).get("up"),
+        "count": (strip or {}).get("count"),
+        "rows": (strip or {}).get("rows") or [],
+        "fetched_at": (strip or {}).get("fetched_at"),
+        # When the advance/decline figure was computed; the strip carries its
+        # own ``fetched_at`` so each source stays auditable.
+        "as_of": state.get("as_of") if advances_pct is not None
+        else (strip or {}).get("fetched_at"),
+        "stale": stale,
+    }
+    if advances_pct is not None and not stale:
+        _persist_last_breadth(block)
+    return block
+
+
+
+def _overlay_live_today(report: dict) -> dict:
+    """Overlay the live WS feed on TODAY's saved snapshot (no write).
+
+    The background task rewrites the snapshot every
+    :data:`SNAPSHOT_REFRESH_SEC`, but a wall relocation can happen inside that
+    window. ``GET /nifty`` serves the saved file, so projecting the WS blocks
+    here keeps the served report current without touching the file. Past dates
+    are never overlaid (the WS feed describes today).
+    """
+    try:
+        md = _nifty_md()
+        if md is None or not bool(md.is_live()):
+            return report
+        snap = md.snapshot() or {}
+        if not isinstance(snap, dict):
+            return report
+        return _overlay_ws_blocks(report, snap)
+    except Exception:
+        return report
+
+
+def _derived_snapshot(date_str: str, data: dict) -> dict:
+    """``_with_delta_flip`` behind the snapshot's (mtime_ns, size) stamp.
+
+    ``GET /nifty`` is polled every 1-2s while ``nifty_snapshot_task`` rewrites
+    the file every 20s; re-deriving the positioning/GEX blocks on every poll
+    recomputed the same answer ~10-20 times per version. The cache key is the
+    file stamp, so a new snapshot (or a replayed past day) invalidates it.
+    Returns a top-level copy — the cached dict is never handed out for mutation.
+    """
+    try:
+        stat = snapshot_path(date_str).stat()
+    except OSError:
+        return _with_delta_flip(data)
+    key = str(snapshot_path(date_str))
+    cached = _DERIVED_SNAPSHOT_CACHE.get(key)
+    if (cached is not None and cached[0] == stat.st_mtime_ns
+            and cached[1] == stat.st_size):
+        return dict(cached[2])
+    out = _with_delta_flip(data)
+    if len(_DERIVED_SNAPSHOT_CACHE) >= 16:
+        _DERIVED_SNAPSHOT_CACHE.clear()
+    _DERIVED_SNAPSHOT_CACHE[key] = (stat.st_mtime_ns, stat.st_size, out)
+    return dict(out)
+
+
 @router.get("/nifty")
 def get_nifty_report(date: Optional[str] = Query(default=None, description="Snapshot date YYYY-MM-DD (default: today)")):
     """Serve the saved Nifty snapshot for ``date``; 404 envelope when missing."""
-    date_str = _validate_date(date or _today_str())
+    date_str = validate_date(date or _today_str())
     data = read_snapshot(date_str)
     if data is None:
         raise HTTPException(status_code=404, detail={
@@ -1512,7 +2195,18 @@ def get_nifty_report(date: Optional[str] = Query(default=None, description="Snap
             "date": date_str,
             "message": f"no Nifty snapshot for {date_str}",
         })
-    return _with_delta_flip(data)
+    data = _derived_snapshot(date_str, data)
+    if date_str == _today_str():
+        data = _overlay_live_today(data)
+        # After the close the served spot is the last valid candle close, even
+        # when the WS feed is no longer "live" enough to overlay (the saved
+        # snapshot's chain spot carries the forward basis — 23,810.85 vs a
+        # 23,731.85 index close on 2026-11-03).
+        data = reconcile_closed_market_spot(data)
+        breadth = _breadth_block()
+        if breadth is not None:
+            data = {**data, "breadth": breadth}
+    return data
 
 
 class NiftySnapshotRequest(BaseModel):
@@ -1542,9 +2236,9 @@ async def create_nifty_snapshot(body: NiftySnapshotRequest):
     and the past day's record and replay log are left alone. A past day's
     replay log is never appended to with a ``now`` stamp.
     """
-    date_str = _validate_date(body.date or _today_str())
+    date_str = validate_date(body.date or _today_str())
     if body.expiry:
-        _validate_date(body.expiry)
+        validate_date(body.expiry)
     today = _today_str()
     is_today = date_str == today
     if not is_today and not body.force:
@@ -1556,14 +2250,7 @@ async def create_nifty_snapshot(body: NiftySnapshotRequest):
                 f"under today ({today}); pass force=true to archive it"),
         })
     report = await _compute_live(body.expiry, for_date=date_str, walkback_days=0)
-    snapshot = {
-        **report,
-        "mode": "snapshot",
-        "date": date_str,
-        "snapshot_at": datetime.now(config.IST).isoformat(),
-        "source": "upstox-option-chain",
-        "timeline": build_timeline_skeleton(report),
-    }
+    snapshot = _build_snapshot_dict(report, date_str)
     if is_today:
         write_snapshot(date_str, snapshot)
     else:
@@ -1594,12 +2281,49 @@ async def create_nifty_snapshot(body: NiftySnapshotRequest):
     return snapshot
 
 
+async def nifty_snapshot_task() -> None:
+    """Keep today's Nifty snapshot fresh (target: ≤35s) during market hours.
+
+    The snapshot is what ``GET /nifty`` serves; before this task it was only
+    written by the SNAPSHOT button, so control/positioning/walls could be
+    hours old while spot/VIX were overlaid live. Only the snapshot file is
+    written here — the replay log stays owned by the tape recorder.
+
+    Cadence: each iteration reuses the 10s chain poller's frame
+    (:func:`_chain10s_chain`), so the build no longer pays a ~50s REST chain
+    call; the sleep is then computed against a WALL-CLOCK target
+    (:data:`SNAPSHOT_REFRESH_SEC`, 20s) instead of a fixed 60s *after* the
+    build. The old shape produced 60s + ~50s ≈ 110s between ``snapshot_at``
+    stamps. A build slower than the target (REST fallback when the poller is
+    down) simply runs back-to-back with no sleep.
+    """
+    while True:
+        started = time.time()
+        try:
+            from trading.utils import is_derivatives_open
+        except Exception:  # pragma: no cover - import guard
+            is_derivatives_open = lambda: False  # type: ignore[assignment]
+        try:
+            if is_derivatives_open():
+                date_str = _today_str()
+                report = await _compute_live(None, for_date=date_str, walkback_days=0)
+                snapshot = _build_snapshot_dict(report, date_str)
+                write_snapshot(date_str, snapshot)
+        except Exception:
+            pass
+        elapsed = time.time() - started
+        await asyncio.sleep(max(1.0, SNAPSHOT_REFRESH_SEC - elapsed))
+
+
 # ---------------------------------------------------------------------------
 # OI tape: per-minute time series of the Nifty chain
 # ---------------------------------------------------------------------------
 
 # stock-screener-ui/api/reports_api/nifty.py -> parents[2] == stock-screener-ui
 TAPE_DIR = Path(__file__).resolve().parent.parent.parent / "experiments" / "data" / "nifty_tape"
+#: Parsed tape rows keyed by path, validated on (mtime_ns, size). The file is
+#: appended once a minute while the snapshot build reads it every 20s.
+_TAPE_READ_CACHE: dict[str, tuple[int, int, list[dict]]] = {}
 TAPE_INTERVAL_SEC = 60
 # Keep one slow upstream request from pushing the next tape attempt into the
 # following minute.  The loop is wall-clock paced below, so a timed-out tick
@@ -1747,10 +2471,23 @@ def read_tape(date_str: str) -> list[dict]:
     """Raw tape rows for ``date_str`` (JSONL, one snapshot per line).
 
     Skips blank/corrupt lines; returns [] when the file is missing.
+
+    The parsed rows are cached against ``(mtime_ns, size)``: the snapshot build
+    re-reads this file every 20s and the file only grows once a minute, so two
+    of three builds used to spend ~40 ms re-parsing an unchanged 2.6 MB JSONL
+    (the tape tick and the bursts/stream feeds paid it too). A caller gets a
+    fresh list (rows are read-only) so appending cannot poison the cache.
     """
     path = tape_path(date_str)
-    if not path.exists():
+    try:
+        stat = path.stat()
+    except OSError:
         return []
+    key = str(path)
+    cached = _TAPE_READ_CACHE.get(key)
+    if (cached is not None and cached[0] == stat.st_mtime_ns
+            and cached[1] == stat.st_size):
+        return list(cached[2])
     rows: list[dict] = []
     try:
         with open(path) as f:
@@ -1764,7 +2501,10 @@ def read_tape(date_str: str) -> list[dict]:
                     continue
     except OSError:
         return []
-    return rows
+    if len(_TAPE_READ_CACHE) >= 8:
+        _TAPE_READ_CACHE.clear()
+    _TAPE_READ_CACHE[key] = (stat.st_mtime_ns, stat.st_size, rows)
+    return list(rows)
 
 
 # ---------------------------------------------------------------------------
@@ -2397,6 +3137,8 @@ async def _write_tape_row(report: dict, date_str: str, t_iso: str, ts: datetime,
             atm_ce_iv, atm_pe_iv = atm_ivs(strikes, spot)
         except Exception:
             atm_ce_iv, atm_pe_iv = None, None
+        walls_near = (report.get("walls_near") or report.get("walls")
+                      or {"calls": [], "puts": []})
         row = {
             "t": t_iso,
             "spot": spot,
@@ -2430,7 +3172,13 @@ async def _write_tape_row(report: dict, date_str: str, t_iso: str, ts: datetime,
             # minute-to-minute, so an unrestricted ranking makes the wall
             # "migrate" whenever a far mega-wall outranks the near one —
             # six spurious migrations in one afternoon (2026-10-22).
-            "walls": report.get("walls_near") or report.get("walls", {"calls": [], "puts": []}),
+            "walls": walls_near,
+            # Scalar top-of-book walls: the wall-change detector diffs TWO
+            # FRAMES (this row vs the previous minute), and digging the strike
+            # out of the ranked list on every diff is both slow and easy to get
+            # wrong. ``null`` when the chain had no walls (never 0).
+            "call_wall": _top_wall_strike(walls_near, "calls"),
+            "put_wall": _top_wall_strike(walls_near, "puts"),
             "expiry": report.get("expiry", ""),
             "atm_strike": atm_strike,
             "atm_ce_ltp": atm_ce_ltp,
@@ -2445,11 +3193,20 @@ async def _write_tape_row(report: dict, date_str: str, t_iso: str, ts: datetime,
             # (the ATM drifts), and lets walls/PCR be rebuilt per strike later.
             "chain": _premium_chain_snapshot(strikes, spot),
         }
-        if is_cas_window(ts):
-            # NSE Closing Auction Session: the index print is frozen 15:15–
-            # 15:30 IST, so this row's spot is stale by construction. Flag it
-            # so EOD can prefer the official OHLC close. Additive only.
+        # Spot freeze: keep the cash-CAS flag from is_cas_window(ts), but
+        # the index spot is frozen/fixed from 15:15 through the 15:40 F&O
+        # close, so flag the whole 15:15-15:40 window as cas + spot_frozen.
+        try:
+            _mins = ts.hour * 60 + ts.minute
+        except Exception:
+            _mins = -1
+        if is_cas_window(ts) or (CAS_START_MIN <= _mins < SPOT_FROZEN_END_MIN):
+            # NSE Closing Auction Session: the index spot is frozen/fixed
+            # from 15:15 through the 15:40 F&O close, so this row's spot is
+            # stale by construction. Flag it so EOD can prefer the official
+            # OHLC close. Additive only.
             row["cas"] = True
+            row["spot_frozen"] = True
         TAPE_DIR.mkdir(parents=True, exist_ok=True)
         # JSON encoding + append are blocking; off the event loop.
         await asyncio.to_thread(_append_tape_line, path, row)
@@ -2590,9 +3347,9 @@ def _schedule_tape_restart(delay: float = TAPE_RESTART_DELAY_SEC) -> None:
 def _market_open() -> bool:
     """Is the market open? Falls back to an hour window on import failure."""
     try:
-        from trading.utils import is_market_open
+        from trading.utils import is_derivatives_open
 
-        return bool(is_market_open())
+        return bool(is_derivatives_open())
     except Exception:
         return 8 <= datetime.now(config.IST).hour <= 16
 
@@ -2683,7 +3440,7 @@ async def _tape_recorder_loop(poll_sec: int) -> None:
 async def start_nifty_tape_task(poll_sec: int = TAPE_INTERVAL_SEC) -> None:
     """Background loop: one tape tick every ``poll_sec``s while the market is open.
 
-    Market gate delegates to ``trading.utils.is_market_open`` (hour-window
+    Market gate delegates to ``trading.utils.is_derivatives_open`` (hour-window
     fallback on import failure, mirroring the server's ``_is_market_hours``).
     A tick failure is logged and retried on the next tick; the loop itself
     only ends on cancellation or a fatal error, and a fatal error is LOUD
@@ -2764,7 +3521,7 @@ def get_nifty_tape(date: Optional[str] = Query(default=None, description="Tape d
     missing/empty tape yields a 404 ``{is_trading_day: False}`` envelope.
     See :func:`derive_tape_rows` for the per-row formulas.
     """
-    date_str = _validate_date(date or _today_str())
+    date_str = validate_date(date or _today_str())
     raw = read_tape(date_str)
     if not raw:
         raise HTTPException(status_code=404, detail={
@@ -2805,12 +3562,69 @@ def get_nifty_replay_dates(limit: int = Query(15, ge=1, le=120)):
     return {"dates": dates, "latest": dates[0] if dates else None}
 
 
+def _slim_replay_report(report: Optional[dict], window: float = 750.0) -> Optional[dict]:
+    """Drop fields the replay UI never reads (and far strikes) from a frame.
+
+    Never mutates the stored payload; never raises — a malformed frame is
+    returned unchanged rather than dropping the whole day.
+    """
+    if not isinstance(report, dict):
+        return report
+    try:
+        out = dict(report)
+        spot = _safe_float(out.get("spot"))
+        strikes = out.get("strikes")
+        if spot and isinstance(strikes, list):
+            out["strikes"] = [
+                s for s in strikes
+                if isinstance(s, dict)
+                and abs(_safe_float(s.get("strike")) - spot) <= window
+            ]
+        out.pop("emas", None)
+        return out
+    except Exception:
+        return report
+
+
+# One parsed+slimmed day, keyed by (date, mtime). Scrubbing asks for one frame
+# per move; without this every request re-read and re-parsed the whole 74 MB
+# JSONL. The mtime key invalidates naturally while the recorder is appending.
+_SLIM_CACHE: dict = {"key": None, "rows": None}
+
+
+def _slimmed_snapshots(date_str: str) -> list[dict]:
+    """Replay frames with the UI-only projection applied, cached per file mtime."""
+    path = snapshot_log_path(date_str)
+    try:
+        st = path.stat() if path.exists() else None
+        mtime = st.st_mtime if st else 0.0
+        size = st.st_size if st else 0
+    except OSError:
+        mtime, size = 0.0, 0
+    # Path + size + mtime: two temp logs in a test run can share a second.
+    key = (date_str, str(path), mtime, size)
+    if _SLIM_CACHE.get("key") == key and _SLIM_CACHE.get("rows") is not None:
+        return _SLIM_CACHE["rows"]
+    rows = [
+        {**s, "report": _slim_replay_report(_with_delta_flip(s.get("report")))}
+        if isinstance(s, dict) and isinstance(s.get("report"), dict)
+        else s
+        for s in read_snapshots(date_str)
+    ]
+    _SLIM_CACHE["key"] = key
+    _SLIM_CACHE["rows"] = rows
+    return rows
+
+
 @router.get("/nifty/replay", dependencies=[Depends(get_current_user)])
 def get_nifty_replay(
     date: str = Query(..., description="Replay date YYYY-MM-DD"),
     t: Optional[str] = Query(default=None, description=(
         "ISO minute; when given, returns the snapshot recorded at the last "
         "minute at or before ``t`` instead of the whole day")),
+    meta: bool = Query(default=False, description=(
+        "Return only the frame list (t + spot, no report bodies) so the replay "
+        "scrubber can load one full frame at a time instead of the whole day")),
 ):
     """Serve the day's per-minute FULL report snapshots (replay source).
 
@@ -2821,22 +3635,31 @@ def get_nifty_replay(
     the closest at or before ``t`` (``snapshot: null`` when none qualify —
     e.g. before the day's first recording).
     """
-    date_str = _validate_date(date)
-    snaps = read_snapshots(date_str)
+    date_str = validate_date(date)
+    snaps = _slimmed_snapshots(date_str)
     if not snaps:
         raise HTTPException(status_code=404, detail={
             "is_trading_day": False,
             "date": date_str,
             "message": f"no Nifty snapshots for {date_str}",
         })
-    # Frames recorded before the delta-flip level existed still carry the
-    # per-leg deltas, so project it on read (same as the EOD snapshot route).
-    snaps = [
-        {**s, "report": _with_delta_flip(s.get("report"))}
-        if isinstance(s, dict) and isinstance(s.get("report"), dict)
-        else s
-        for s in snaps
-    ]
+    if meta is True:
+        # ~40 bytes per frame instead of ~103 KB: the client keeps the playhead
+        # list and fetches the selected frame via ?t=. This is the difference
+        # between a ~33 MB day in JS heap and a ~100 KB list.
+        frames = [
+            {"t": s.get("t"),
+             "spot": _safe_float((s.get("report") or {}).get("spot"))}
+            for s in snaps
+            if isinstance(s, dict)
+        ]
+        return {"date": date_str, "count": len(frames),
+                "interval_sec": TAPE_INTERVAL_SEC, "frames": frames,
+                "gap_reasons": read_gap_reasons(date_str)}
+
+    # `_slimmed_snapshots` already applied the projection (and cached it):
+    # frames are ~103 KB instead of ~227 KB, and the whole day is not re-parsed
+    # on every scrub.
     if t and isinstance(t, str):
         # FULL timestamps are compared, not minute buckets: truncating both
         # sides to [:16] made "10:01:30" select the 10:01:59 frame as well.
@@ -2918,12 +3741,434 @@ def _snapshot_oi_context(date_str: str) -> tuple[Optional[list], float]:
         return None, 0.0
 
 
+def _frame_wall(row: dict, side: str) -> Optional[float]:
+    """Top wall strike on ONE tape frame (scalar first, list fallback)."""
+    key = "call_wall" if side == "call" else "put_wall"
+    strike = _safe_float(row.get(key))
+    if strike:
+        return strike
+    walls = row.get("walls")
+    if isinstance(walls, dict):
+        return _top_wall_strike(walls, "calls" if side == "call" else "puts")
+    return None
+
+
+def _frame_gap_minutes(a: dict, b: dict) -> Optional[int]:
+    """Whole minutes between two tape frames, or ``None`` when unparseable."""
+    try:
+        delta = (datetime.fromisoformat(str(b.get("t"))) -
+                 datetime.fromisoformat(str(a.get("t")))).total_seconds()
+    except (TypeError, ValueError):
+        return None
+    return int(delta // 60)
+
+
+#: Nifty's option ladder: one "strike" of migration is 50 points. A 1-strike
+#: move is book rank noise, not a level moving — see detect_wall_moves.
+WALL_STRIKE_STEP = 50.0
+#: A wall comparison across a recorder gap is not a one-minute move.
+WALL_MOVE_MAX_GAP_MIN = 2
+
+
+def detect_wall_moves(rows: list[dict],
+                      min_strikes: int = 2) -> list[dict]:
+    """Wall relocation alerts with hysteresis, from consecutive tape frames.
+
+    A wall's top strike changes rank constantly: on 2026-11-02 the call wall
+    wobbled between 23,500 and 23,450 every few minutes while nothing in the
+    book changed. Alerting every 50-pt move buries the real events, so a move
+    only becomes an alert when
+
+    * a SIDE FLIP occurs — the previous put wall becomes the new call wall (or
+      vice versa): support has become resistance; or
+    * the wall migrates at least ``min_strikes`` strikes (2 × 50 = 100 pts).
+
+    Returns burst-shaped dicts (``type``/``kind`` = "wall", ``from``/``to``,
+    ``side``, ``severity``) so they flow through the existing burst feed and
+    its coalescing. Frames must be adjacent (≤ :data:`WALL_MOVE_MAX_GAP_MIN`
+    minutes apart); a recorder gap is never read as a one-minute migration.
+    """
+    ordered = sorted(
+        (r for r in rows or [] if isinstance(r, dict) and r.get("t")),
+        key=lambda r: str(r.get("t")))
+    out: list[dict] = []
+    prev: Optional[dict] = None
+    for row in ordered:
+        if prev is not None:
+            gap = _frame_gap_minutes(prev, row)
+            if gap is not None and 0 < gap <= WALL_MOVE_MAX_GAP_MIN:
+                spot = _safe_float(row.get("spot"))
+                cw_prev, pw_prev = _frame_wall(prev, "call"), _frame_wall(prev, "put")
+                cw, pw = _frame_wall(row, "call"), _frame_wall(row, "put")
+                for side, old, new, other_prev in (("call", cw_prev, cw, pw_prev),
+                                                   ("put", pw_prev, pw, cw_prev)):
+                    if not old or not new or old == new:
+                        continue
+                    # The previous opposite-side wall is now THIS side's wall:
+                    # support became resistance (or vice versa).
+                    flip = other_prev == new
+                    steps = abs(new - old) / WALL_STRIKE_STEP
+                    if not flip and steps < float(min_strikes):
+                        continue
+                    out.append({
+                        "t": str(row.get("t")),
+                        "type": "wall",
+                        "kind": "wall",
+                        "side": side,
+                        "from": old,
+                        "to": new,
+                        "strike": new,
+                        "migration_strikes": round(steps, 1),
+                        "flip": bool(flip),
+                        "spot": spot,
+                        "severity": "alert" if flip else "watch",
+                        "score": round(max(steps, 2.0 if flip else steps), 1),
+                        "detail": (
+                            f"{side} wall {old:,.0f} -> {new:,.0f}"
+                            + (" (side flip)" if flip else "")),
+                    })
+        prev = row
+    return out
+
+
+def _wall_event_alerts(rows: list[dict],
+                       date_str: Optional[str] = None) -> list[dict]:
+    """Map tape wall tests/rejections/breaks into the bursts feed.
+
+    Validated on 2026-11-03: call wall 23,700 tested at 11:54, rejected at
+    12:10, max pain 23,650 hit. Put-wall breaks are surfaced as break-risk
+    (historical hold rate was 2/8), never as support bounces.
+
+    When ``date_str`` is given every detected event is appended to the day's
+    recall journal (``experiments/data/nifty_wall_events/{date}.jsonl``,
+    deduped on ``t+side+kind+level``) so
+    ``scripts/nifty_event_recall.py`` can prove what the feed alerted against
+    what the tape actually contained.
+    """
+    from api.reports_api.nifty_wall_events import detect_wall_events
+
+    events = detect_wall_events(rows)
+    if date_str:
+        try:
+            from api.reports_api.nifty_wall_events import persist_events
+
+            persist_events(events, date_str)
+        except Exception:
+            pass
+
+    out: list[dict] = []
+    for event in events:
+        side = event.get("side") or "call"
+        level = event.get("level")
+        label_side = "CALL" if side == "call" else "PUT"
+        try:
+            level_txt = f"{float(level):,.0f}"
+        except (TypeError, ValueError):
+            level_txt = "—"
+        kind = event.get("kind")
+        if kind == "wall_test":
+            out.append({
+                "type": "wall_test", "kind": "wall_test", "side": side,
+                "t": event.get("t"), "strike": level,
+                "label": f"{label_side} WALL {level_txt} TESTED",
+                "detail": f"{side} wall {level_txt} held for 10+ minutes",
+                "severity": "watch",
+            })
+        elif kind == "rejection":
+            target = event.get("target")
+            try:
+                target_txt = f" · target max pain {float(target):,.0f}" if target else ""
+            except (TypeError, ValueError):
+                target_txt = ""
+            out.append({
+                "type": "rejection", "kind": "rejection", "side": side,
+                "t": event.get("t"), "strike": level, "target": target,
+                "spot": event.get("spot"),
+                "label": f"{label_side} WALL REJECTED {level_txt}",
+                "detail": f"rejected {event.get('moved_pts', 0):.1f} pts{target_txt}",
+                "severity": "alert",
+            })
+        elif kind == "break":
+            out.append({
+                "type": "break", "kind": "break", "side": side,
+                "t": event.get("t"), "strike": level,
+                "label": f"CALL WALL BREAK {level_txt}",
+                "detail": f"broke {event.get('moved_pts', 0):.1f} pts above the wall",
+                "severity": "alert",
+            })
+        elif kind == "wall_break":
+            out.append({
+                "type": "wall_break", "kind": "wall_break", "side": side,
+                "t": event.get("t"), "strike": level,
+                "label": f"PUT WALL BREAK {level_txt}",
+                "detail": f"broke {event.get('moved_pts', 0):.1f} pts below the wall",
+                "severity": "alert",
+            })
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Data watchdog + Telegram fan-out for the bursts feed
+# ---------------------------------------------------------------------------
+#: A tape whose newest row is older than this during market hours is blind: the
+#: recorder died (or the chain feed did) and every panel above the bursts feed
+#: is stale without saying so. 2 minutes is one missed tick plus one retry.
+TAPE_STALE_SEC = 120.0
+#: Re-emit a stale alert at most once per this window (the feed is polled every
+#: few seconds and the same outage must not alert 200 times).
+STALE_ALERT_DEDUPE_SEC = 300.0
+#: ``date -> epoch`` of the last emitted stale alert. Process-local on purpose:
+#: a restart re-arms the watchdog, which is when it matters most.
+_STALE_ALERT_AT: dict[str, float] = {}
+#: ``date -> {(type, t, side)}`` already pushed to Telegram, so a polling
+#: browser never re-notifies a historical event.
+_NOTIFIED_ALERTS: dict[str, set[tuple[str, str, str]]] = {}
+
+#: The recorder is expected to have written at least one row by this time (IST).
+#: Market opens at 09:15; 09:20 gives 5 minutes for the first tick to land.
+NO_TAPE_BY_HOUR = 9
+NO_TAPE_BY_MINUTE = 20
+#: Re-emit a "no tape" alert at most once per this window.
+NO_TAPE_ALERT_DEDUPE_SEC = 300.0
+#: ``date -> epoch`` of the last emitted "no tape" alert.
+_NO_TAPE_ALERT_AT: dict[str, float] = {}
+
+
+def detect_data_stale(rows: Optional[list[dict]],
+                      now: Optional[datetime] = None,
+                      market_open: Optional[bool] = None) -> Optional[dict]:
+    """The ``data_stale`` alert when the tape's last row is too old, else None.
+
+    Only meaningful while the market is open — outside it the tape is supposed
+    to stop, and alerting every evening would train the desk to ignore it.
+    Never raises.
+    """
+    try:
+        is_open = _market_open() if market_open is None else bool(market_open)
+        if not is_open:
+            return None
+        last = None
+        for row in reversed(list(rows or ())):
+            if isinstance(row, dict) and row.get("t"):
+                last = row
+                break
+        if last is None:
+            return None
+        try:
+            last_dt = datetime.fromisoformat(str(last.get("t")))
+        except (TypeError, ValueError):
+            return None
+        now_dt = now or datetime.now(config.IST)
+        if last_dt.tzinfo is None:
+            last_dt = last_dt.replace(tzinfo=config.IST)
+        if now_dt.tzinfo is None:
+            now_dt = now_dt.replace(tzinfo=config.IST)
+        age = (now_dt - last_dt).total_seconds()
+        if age <= TAPE_STALE_SEC:
+            return None
+        return {
+            "type": "data_stale", "kind": "data_stale",
+            "severity": "critical", "t": last.get("t"),
+            "spot": _safe_float(last.get("spot")) or None,
+            "age_sec": round(age, 1),
+            "label": "TAPE STALE",
+            "detail": (
+                f"last tape row {str(last.get('t'))[11:19]} is "
+                f"{age / 60.0:.1f} min old (> {TAPE_STALE_SEC / 60.0:.0f} min "
+                "watchdog) — the recorder or the chain feed is down"),
+        }
+    except Exception:
+        return None
+
+
+def data_stale_alert(rows: Optional[list[dict]], date_str: str,
+                     now: Optional[datetime] = None,
+                     market_open: Optional[bool] = None,
+                     state: Optional[dict[str, float]] = None,
+                     ) -> Optional[dict]:
+    """``detect_data_stale`` behind a per-day, 5-minute emit gate.
+
+    Returns the alert only when it is due; ``None`` while the same outage is
+    still inside :data:`STALE_ALERT_DEDUPE_SEC`. ``state`` is injectable (tests);
+    the default is the process-local :data:`_STALE_ALERT_AT`.
+    """
+    alert = detect_data_stale(rows, now=now, market_open=market_open)
+    if alert is None:
+        return None
+    clock = state if state is not None else _STALE_ALERT_AT
+    now_dt = now or datetime.now(config.IST)
+    if now_dt.tzinfo is None:
+        now_dt = now_dt.replace(tzinfo=config.IST)
+    stamp = now_dt.timestamp()
+    last = clock.get(date_str)
+    if last is not None and stamp - last < STALE_ALERT_DEDUPE_SEC:
+        return None
+    clock[date_str] = stamp
+    return alert
+
+
+def detect_no_tape_alert(date_str: str,
+                         rows: Optional[list[dict]],
+                         now: Optional[datetime] = None,
+                         market_open: Optional[bool] = None) -> Optional[dict]:
+    """The ``data_stale`` alert when the tape has NO rows by 09:20 IST.
+
+    Only fires for TODAY, while the market is open, and when the local time
+    is >= 09:20. This catches the case where the recorder dies BEFORE writing
+    any row — the existing 2-minute staleness watchdog only triggers when there
+    is at least one row to measure age from. Never raises.
+    """
+    try:
+        today = _today_str()
+        if date_str != today:
+            return None
+        is_open = _market_open() if market_open is None else bool(market_open)
+        if not is_open:
+            return None
+        now_dt = now or datetime.now(config.IST)
+        if now_dt.tzinfo is None:
+            now_dt = now_dt.replace(tzinfo=config.IST)
+        mins = now_dt.hour * 60 + now_dt.minute
+        cutoff = NO_TAPE_BY_HOUR * 60 + NO_TAPE_BY_MINUTE
+        if mins < cutoff:
+            return None
+        # Empty or None rows means no tape written yet
+        if rows:
+            return None
+        return {
+            "type": "data_stale", "kind": "data_stale",
+            "severity": "critical", "t": now_dt.isoformat(),
+            "spot": None,
+            "age_sec": None,
+            "label": "TAPE MISSING",
+            "detail": (
+                f"no tape rows recorded since market open (09:15); "
+                f"it is now {now_dt.strftime('%H:%M')} — the recorder did not start"
+            ),
+        }
+    except Exception:
+        return None
+
+
+def no_tape_alert(date_str: str,
+                  rows: Optional[list[dict]],
+                  now: Optional[datetime] = None,
+                  market_open: Optional[bool] = None,
+                  state: Optional[dict[str, float]] = None) -> Optional[dict]:
+    """``detect_no_tape_alert`` behind a per-day, 5-minute emit gate.
+
+    Returns the alert only when it is due; ``None`` while the same outage is
+    still inside :data:`NO_TAPE_ALERT_DEDUPE_SEC`. ``state`` is injectable (tests);
+    the default is the process-local :data:`_NO_TAPE_ALERT_AT`.
+    """
+    alert = detect_no_tape_alert(date_str, rows, now=now, market_open=market_open)
+    if alert is None:
+        return None
+    clock = state if state is not None else _NO_TAPE_ALERT_AT
+    now_dt = now or datetime.now(config.IST)
+    if now_dt.tzinfo is None:
+        now_dt = now_dt.replace(tzinfo=config.IST)
+    stamp = now_dt.timestamp()
+    last = clock.get(date_str)
+    if last is not None and stamp - last < NO_TAPE_ALERT_DEDUPE_SEC:
+        return None
+    clock[date_str] = stamp
+    return alert
+
+
+#: Tracks whether the "Telegram notifier unavailable" warning has been logged
+#: in this process. Used to emit the warning exactly once per process lifetime.
+_TELEGRAM_WARNED = False
+
+
+def notify_telegram(alert: Optional[dict]) -> bool:
+    """Fire-and-forget Telegram for an ``alert``/``critical`` burst.
+
+    Returns True when a send was handed to the notifier. The notifier submits
+    to its own thread pool (and no-ops when Telegram is unconfigured), so this
+    never blocks the request path and never raises — a dead notifier must not
+    take the feed down.
+
+    If the notifier is unavailable (unconfigured or send fails), a single
+    warning is logged per process and False is returned.
+    """
+    global _TELEGRAM_WARNED
+    try:
+        if not isinstance(alert, dict):
+            return False
+        if str(alert.get("severity")) not in ("alert", "critical"):
+            return False
+        from trading.telegram_notifier import _is_available, send_alert
+
+        # Check if notifier is configured; if not, log once and return False.
+        if not _is_available():
+            if not _TELEGRAM_WARNED:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Telegram notifier unavailable (bot_token or chat_id not set); "
+                    "burst alerts will not be sent."
+                )
+                _TELEGRAM_WARNED = True
+            return False
+
+        # A test/CI run must never POST with the real notifier (it truly sends
+        # when configured). A monkeypatched send_alert is allowed so the
+        # failure path stays testable.
+        import os as _os
+        if (_os.environ.get("PYTEST_CURRENT_TEST") or _os.environ.get("CI_MODE")) and \
+           getattr(send_alert, "__module__", "").startswith("trading.telegram_notifier"):
+            return False
+
+        label = alert.get("label") or alert.get("type") or "NIFTY ALERT"
+        detail = alert.get("detail") or ""
+        send_alert(f"*{label}*\n{detail}",
+                   cooldown_key=f"nifty:{alert.get('type')}:{alert.get('t')}")
+        return True
+    except Exception:
+        if not _TELEGRAM_WARNED:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Telegram send failed; burst alerts will not be sent.", exc_info=True
+            )
+            _TELEGRAM_WARNED = True
+        return False
+
+
+def notify_new_bursts(bursts: Iterable[dict], date_str: str,
+                      latest_minute: Optional[str] = None) -> int:
+    """Telegram ``alert``/``critical`` bursts for the CURRENT tape minute only.
+
+    Historical bursts are re-served on every poll; notifying them again would
+    page the desk about 11:54 at 15:29. Entries are deduped in-process on
+    ``(type, t, side)``. Returns the number handed to the notifier.
+    """
+    sent = 0
+    seen = _NOTIFIED_ALERTS.setdefault(date_str, set())
+    for burst in bursts or ():
+        try:
+            if str(burst.get("severity")) not in ("alert", "critical"):
+                continue
+            t = str(burst.get("t") or "")
+            if latest_minute and t[:16] != latest_minute[:16]:
+                continue
+            key = (str(burst.get("type")), t, str(burst.get("side") or ""))
+            if key in seen:
+                continue
+            seen.add(key)
+            if notify_telegram(burst):
+                sent += 1
+        except Exception:
+            continue
+    return sent
+
+
 @router.get("/nifty/bursts")
 @router.get("/nifty/bursts", dependencies=[Depends(get_current_user)])
 def get_nifty_bursts(
     date: Optional[str] = Query(default=None, description="Burst date YYYY-MM-DD (default: today)"),
     window: int = Query(default=OI_BURST_WINDOW, ge=3, le=60, description="Trailing minutes for the baseline"),
     min_abs: float = Query(default=OI_BURST_MIN_ABS, ge=0, description="Absolute ΔOI floor (contracts)"),
+    _now: Optional[datetime] = None,  # injectable for tests
 ):
     """Per-minute OI bursts recomputed from the stored tape — never errors.
 
@@ -2937,11 +4182,20 @@ def get_nifty_bursts(
     # The desk polls this feed, so it doubles as the recorder's watchdog: a
     # recorder that died is restarted here instead of staying blind.
     _ensure_tape_task()
-    date_str = _validate_date(date or _today_str())
+    date_str = validate_date(date or _today_str())
     raw = read_tape(date_str)
     if not raw:
-        return {"date": date_str, "count": 0, "interval_sec": TAPE_INTERVAL_SEC,
-                "bursts": [], "reason": "no tape"}
+        # Empty tape: check for "no tape by 09:20" alert (today, market open, >=09:20)
+        bursts: list[dict] = []
+        try:
+            no_tape = no_tape_alert(date_str, raw, now=_now)
+            if no_tape is not None:
+                bursts.append(no_tape)
+                notify_telegram(no_tape)
+        except Exception:
+            pass
+        return {"date": date_str, "count": len(bursts), "interval_sec": TAPE_INTERVAL_SEC,
+                "bursts": bursts, "reason": "no tape"}
 
     rows = derive_tape_rows(raw)
     # Fades (OI bursts) + momentum (wall-break squeezes) in one feed.
@@ -2962,10 +4216,40 @@ def get_nifty_bursts(
         bursts += detect_coiling(rows)
     except Exception:
         pass
+    # Wall relocations are a STATE change (old -> new strike), not an OI delta;
+    # they flow through the same feed/coalescing but carry their own kind so
+    # the UI can label them.
+    try:
+        bursts += detect_wall_moves(rows)
+    except Exception:
+        pass
+    # Wall test / rejection / break (tape-based). These are the pre-move
+    # triggers validated on 2026-11-03: test 11:54 → rejection 12:10 →
+    # max pain 23,650. They carry their own target/level, so no synthetic plan.
+    try:
+        bursts += _wall_event_alerts(rows, date_str)
+    except Exception:
+        pass
     bursts.sort(key=lambda b: str(b.get("t") or ""))
     # One alert per (minute, side): a single directional minute trips several
     # strikes/detectors and they describe the same event.
     bursts = coalesce_bursts(bursts)
+    # Data watchdog: appended AFTER coalescing so a dead recorder can never be
+    # merged away by a same-minute burst. Deduped per 5 minutes.
+    try:
+        stale = data_stale_alert(rows, date_str, now=_now)
+        if stale is not None:
+            bursts.append(stale)
+            notify_telegram(stale)
+    except Exception:
+        pass
+    # Telegram fan-out for live alert/critical bursts (never blocks, no-op when
+    # the notifier is unavailable). Only the current tape minute is pushed.
+    try:
+        latest_minute = str(rows[-1].get("t") or "") if rows else None
+        notify_new_bursts(bursts, date_str, latest_minute)
+    except Exception:
+        pass
     strikes, spot = _snapshot_oi_context(date_str)
     try:
         trend = session_trend(rows)
@@ -2998,7 +4282,9 @@ def get_nifty_bursts(
                 b["invalidation"] = b["structure"].get("level")
             b["signal"] = derive_oi_signal(b, strikes, spot, trend=b_trend)
             if (b.get("signal") is None and strikes and spot
-                    and b.get("type") not in ("coil", "squeeze", "premium")):
+                    and b.get("type") not in ("coil", "squeeze", "premium", "wall",
+                                              "wall_test", "rejection", "break",
+                                              "wall_break", "data_stale")):
                 b["plan_suppressed"] = True
                 b["signal"] = {
                     "leg": None, "strike": None, "entry": None, "sl": None,

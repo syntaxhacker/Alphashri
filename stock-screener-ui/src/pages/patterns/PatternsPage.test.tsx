@@ -7,6 +7,11 @@ import { UIProvider } from "@/ui";
 import type { PatternHitDTO, PatternSummary } from "@/types/chartPatterns";
 import { PatternsPage, type PatternsPageProps } from "./PatternsPage";
 
+// These page tests mount the real filter modal (MUI Autocomplete + Select).
+// Under a full-suite run with 8 workers the multi-select interaction can exceed
+// the 5s default; the assertions are deterministic, so allow a slower machine.
+vi.setConfig({ testTimeout: 20_000 });
+
 vi.mock("@/hooks/useECharts", () => ({
   useECharts: () => ({
     chartRef: { current: null },
@@ -16,8 +21,12 @@ vi.mock("@/hooks/useECharts", () => ({
 }));
 
 const fetchSymbolChart = vi.fn();
+const fetchPatternMatrix = vi.fn();
+const fetchPatternHit = vi.fn();
 vi.mock("@/api/chartPatterns", () => ({
   fetchSymbolChart: (...args: unknown[]) => fetchSymbolChart(...args),
+  fetchPatternMatrix: (...args: unknown[]) => fetchPatternMatrix(...args),
+  fetchPatternHit: (...args: unknown[]) => fetchPatternHit(...args),
 }));
 
 const fetchPatternImages = vi.fn();
@@ -70,29 +79,62 @@ vi.mock("@/components/patterns/PatternGrid", () => ({
 // Dense list stub: mirrors the grid contract (row buttons + onSelect) so the
 // page tests stay deterministic without mounting the real TanStackTable.
 vi.mock("@/components/patterns/PatternListView", () => ({
-  PatternListView: ({ hits, onSelect }: any) => (
+  PatternListView: ({ hits, onSelect, onSymbolPreview, onSymbolPreviewEnd, onSymbolOpen }: any) => (
     <div data-testid="patterns-list">
       {(hits as any[]).map((hit: any) => (
+        <div key={hit.id ?? `${hit.symbol}-${hit.pattern_id}-${hit.start_date}`}>
+          <button
+            type="button"
+            data-testid={`patterns-list-row-${hit.symbol}-${hit.pattern_id}`}
+            onClick={() => onSelect?.(hit)}
+          >
+            {hit.symbol} {hit.pattern_name}
+          </button>
+          <span
+            data-testid={`patterns-list-tv-${hit.symbol}-wrap`}
+            onMouseEnter={() => onSymbolPreview?.(hit.symbol)}
+            onMouseLeave={() => onSymbolPreviewEnd?.(hit.symbol)}
+          >
+            {hit.symbol}
+          </span>
+          <button
+            type="button"
+            data-testid={`patterns-list-chart-${hit.symbol}`}
+            onClick={() => onSymbolOpen?.(hit.symbol)}
+          >
+            chart
+          </button>
+        </div>
+      ))}
+    </div>
+  ),
+}));
+
+vi.mock("@/components/patterns/PatternSymbolMatrix", () => ({
+  PatternSymbolMatrix: ({ rows, timeframes, onSelect }: any) => (
+    <div data-testid="patterns-symbol-matrix">
+      <span data-testid="matrix-timeframes">{(timeframes as string[]).join(",")}</span>
+      {(rows as any[]).map((row: any) => (
         <button
-          key={hit.id ?? `${hit.symbol}-${hit.pattern_id}-${hit.start_date}`}
+          key={row.symbol}
           type="button"
-          data-testid={`patterns-list-row-${hit.symbol}-${hit.pattern_id}`}
-          onClick={() => onSelect?.(hit)}
+          data-testid={`matrix-row-${row.symbol}`}
+          onClick={() => row.best && onSelect?.(row.best)}
         >
-          {hit.symbol} {hit.pattern_name}
+          {row.symbol}
         </button>
       ))}
     </div>
   ),
 }));
 
-vi.mock("@/components/patterns/PatternFullscreenView", () => ({  PatternFullscreenView: ({ opened, onClose, hit, hits = [], onSelectHit, candles, overlays, trendlinesView = "both", timeframe, timeframes = [], onTimeframeChange, loading = false }: any) => {
+vi.mock("@/components/patterns/PatternFullscreenView", () => ({  PatternFullscreenView: ({ opened, docked = false, onClose, onMaximize, onPrev, onNext, positionLabel, hit, hits = [], onSelectHit, candles, overlays, trendlinesView = "both", timeframe, timeframes = [], onTimeframeChange, loading = false }: any) => {
     fullscreenTrendlinesViews.push(trendlinesView);
     fullscreenOverlays.push(overlays);
     if (!opened) return null;
     const options = (timeframes as any[]).length > 0 ? (timeframes as any[]) : [{ id: timeframe, label: timeframe }];
     return (
-      <div data-testid="patterns-fullscreen-modal" data-trendlines-view={trendlinesView}>
+      <div data-testid={docked ? "patterns-chart-dock" : "patterns-fullscreen-modal"} data-trendlines-view={trendlinesView}>
         <div data-testid="patterns-fullscreen-active-hit">{hit?.pattern_name}</div>
         {(hits as any[]).map((h: any, i: number) => (
           <button
@@ -122,6 +164,24 @@ vi.mock("@/components/patterns/PatternFullscreenView", () => ({  PatternFullscre
         <button type="button" onClick={onClose}>
           Close
         </button>
+        {onMaximize ? (
+          <button type="button" data-testid="patterns-chart-expand" onClick={onMaximize}>
+            Expand
+          </button>
+        ) : null}
+        {onPrev ? (
+          <button type="button" data-testid="patterns-chart-prev" onClick={onPrev}>
+            Prev
+          </button>
+        ) : null}
+        {onNext ? (
+          <button type="button" data-testid="patterns-chart-next" onClick={onNext}>
+            Next
+          </button>
+        ) : null}
+        {positionLabel ? (
+          <div data-testid="patterns-chart-position">{positionLabel}</div>
+        ) : null}
         <div data-testid="patterns-fullscreen-chart" />
         {(candles?.length ?? 0) === 0 ? <div>No chart data</div> : null}
       </div>
@@ -133,21 +193,29 @@ vi.mock("@/components/patterns/PatternFullscreenView", () => ({  PatternFullscre
 // Select needs popup interaction). Testids + onChange contracts preserved.
 vi.mock("@/components/patterns/TimeframeSelect", () => ({
   TimeframeSelect: ({ timeframes, value, onChange }: any) => {
+    const selected = Array.isArray(value) ? value : value ? [value] : [];
     const source =
-      (timeframes as any[]).length > 0 ? (timeframes as any[]) : [{ id: value, label: value }];
+      (timeframes as any[]).length > 0
+        ? (timeframes as any[])
+        : [{ id: selected[0] ?? "1D", label: selected[0] ?? "1D" }];
     return (
-      <select
-        data-testid="patterns-timeframe-select"
-        aria-label="Timeframe"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
+      <div data-testid="patterns-timeframe-select">
         {source.map((tf: any) => (
-          <option key={tf.id} value={tf.id}>
+          <button
+            key={tf.id}
+            type="button"
+            data-testid={`tf-option-${tf.id}`}
+            onClick={() => {
+              const next = selected.includes(tf.id)
+                ? selected.filter((item: string) => item !== tf.id)
+                : [...selected, tf.id];
+              if (next.length > 0) onChange(next);
+            }}
+          >
             {tf.label || tf.id}
-          </option>
+          </button>
         ))}
-      </select>
+      </div>
     );
   },
 }));
@@ -223,6 +291,8 @@ function makeProps(overrides: Partial<PatternsPageProps> = {}): PatternsPageProp
     ],
     timeframe: "1D",
     setTimeframe: vi.fn(),
+    selectedTimeframes: ["1D"],
+    setSelectedTimeframes: vi.fn(),
     lookbackBars: null,
     setLookbackBars: vi.fn(),
     universe: "nifty500",
@@ -261,6 +331,7 @@ function makeProps(overrides: Partial<PatternsPageProps> = {}): PatternsPageProp
     scan: vi.fn(),
     refresh: vi.fn(),
     forceRefresh: vi.fn(),
+    defaultView: "list",
     ...overrides,
   };
 }
@@ -275,6 +346,7 @@ describe("PatternsPage", () => {
     gridTrendlinesViews.length = 0;
     fullscreenTrendlinesViews.length = 0;
     fullscreenOverlays.length = 0;
+    fetchPatternHit.mockResolvedValue(undefined as never);
     fetchPatternImages.mockResolvedValue({
       falling_wedge: "/api/chart-patterns/image/falling_wedge",
     });
@@ -320,12 +392,229 @@ describe("PatternsPage", () => {
     expect(screen.queryByTestId("patterns-grid")).not.toBeInTheDocument();
   });
 
+  test("matrix view is the default and renders one row per symbol", async () => {
+    fetchPatternMatrix.mockResolvedValue({
+      universe: "nifty500",
+      timeframes: ["5m", "1D"],
+      rows: [
+        {
+          symbol: "IRCON",
+          name: "IRCON International",
+          ltp: 110,
+          day_change_pct: 1.25,
+          timeframes: {
+            "1D": {
+              direction: "bullish",
+              status: "confirmed",
+              count: 1,
+              confidence: 80,
+              patterns: ["Falling Wedge"],
+              best_id: 1,
+            },
+          },
+          hits: [makeHit()],
+          best: makeHit(),
+          hit_count: 1,
+        },
+      ],
+      data_through: "2026-09-30",
+    });
+    r(<PatternsPage {...makeProps({ defaultView: "matrix" })} />);
+    expect(await screen.findByTestId("patterns-symbol-matrix")).toBeInTheDocument();
+    expect(await screen.findByTestId("matrix-row-IRCON")).toBeInTheDocument();
+    expect(screen.getByTestId("matrix-timeframes")).toHaveTextContent("1D");
+    expect(screen.queryByTestId("patterns-list")).not.toBeInTheDocument();
+  });
+
+  test("matrix row click opens the fullscreen chart", async () => {
+    fetchPatternMatrix.mockResolvedValue({
+      universe: "nifty500",
+      timeframes: ["1D"],
+      rows: [
+        {
+          symbol: "IRCON",
+          name: null,
+          ltp: 110,
+          day_change_pct: null,
+          timeframes: {},
+          hits: [makeHit()],
+          best: makeHit(),
+          hit_count: 1,
+        },
+      ],
+      data_through: null,
+    });
+    r(<PatternsPage {...makeProps({ defaultView: "matrix" })} />);
+    await userEvent.click(await screen.findByTestId("matrix-row-IRCON"));
+    expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
+  });
+
+  test("docks the chart beside the results and steps with the keyboard", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("1200px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    try {
+      const first = makeHit({
+        id: 11,
+        symbol: "IRCON",
+        pattern_id: "falling_wedge",
+        pattern_name: "Falling Wedge",
+        start_date: "2026-04-26",
+      });
+      const second = makeHit({
+        id: 22,
+        symbol: "RELIANCE",
+        pattern_id: "rising_wedge",
+        pattern_name: "Rising Wedge",
+        start_date: "2026-07-01",
+      });
+      r(<PatternsPage {...makeProps({ results: [first, second], total: 2 })} />);
+
+      await userEvent.click(
+        screen.getByTestId(/^patterns-list-row-IRCON-falling_wedge/),
+      );
+      expect(await screen.findByTestId("patterns-chart-dock")).toBeInTheDocument();
+      expect(screen.queryByTestId("patterns-fullscreen-modal")).not.toBeInTheDocument();
+      expect(screen.getByTestId("patterns-chart-position")).toHaveTextContent("1 / 2");
+
+      await userEvent.click(screen.getByTestId("patterns-chart-next"));
+      expect(await screen.findByTestId("patterns-chart-position")).toHaveTextContent("2 / 2");
+      expect(screen.getByTestId("patterns-fullscreen-active-hit")).toHaveTextContent(
+        "Rising Wedge",
+      );
+
+      // Arrow keys step through the same sequence; the dock stays mounted.
+      await userEvent.keyboard("{ArrowUp}");
+      expect(await screen.findByTestId("patterns-chart-position")).toHaveTextContent("1 / 2");
+      expect(screen.getByTestId("patterns-chart-dock")).toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   test("clicking a list row opens the fullscreen chart", async () => {
     r(<PatternsPage {...makeProps()} />);
     expect(screen.queryByTestId("patterns-fullscreen-modal")).not.toBeInTheDocument();
     await userEvent.click(screen.getByTestId("patterns-list-row-IRCON-falling_wedge"));
     expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-fullscreen-chart")).toBeInTheDocument();
+  });
+
+  test("hovering a symbol previews its chart in the dock before pinning", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("1200px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    try {
+      const first = makeHit({
+        id: 11,
+        symbol: "IRCON",
+        pattern_id: "falling_wedge",
+        pattern_name: "Falling Wedge",
+        start_date: "2026-04-26",
+      });
+      const second = makeHit({
+        id: 22,
+        symbol: "RELIANCE",
+        pattern_id: "rising_wedge",
+        pattern_name: "Rising Wedge",
+        start_date: "2026-07-01",
+      });
+      r(<PatternsPage {...makeProps({ results: [first, second], total: 2 })} />);
+
+      await userEvent.hover(screen.getByTestId(/^patterns-list-tv-IRCON-wrap/));
+      expect(
+        await screen.findByTestId("patterns-chart-dock", {}, { timeout: 3000 }),
+      ).toBeInTheDocument();
+      expect(fetchSymbolChart).toHaveBeenCalledWith(
+        "IRCON",
+        "1D",
+        expect.objectContaining({ detectPatterns: true }),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test("hover does not override a pinned chart", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("1200px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    try {
+      const first = makeHit({
+        id: 11,
+        symbol: "IRCON",
+        pattern_id: "falling_wedge",
+        pattern_name: "Falling Wedge",
+        start_date: "2026-04-26",
+      });
+      const second = makeHit({
+        id: 22,
+        symbol: "RELIANCE",
+        pattern_id: "rising_wedge",
+        pattern_name: "Rising Wedge",
+        start_date: "2026-07-01",
+      });
+      r(<PatternsPage {...makeProps({ results: [first, second], total: 2 })} />);
+
+      await userEvent.click(screen.getByTestId("patterns-list-chart-IRCON"));
+      const before = fetchSymbolChart.mock.calls.length;
+      await userEvent.hover(screen.getByTestId(/^patterns-list-tv-RELIANCE-wrap/));
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      expect(fetchSymbolChart.mock.calls.length).toBe(before);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test("the f shortcut never opens Filters behind an open dialog", async () => {
+    r(<PatternsPage {...makeProps()} />);
+    await userEvent.click(screen.getByTestId("patterns-paste-symbols"));
+    expect(await screen.findByTestId("patterns-paste-symbols-input")).toBeInTheDocument();
+
+    // Focus the dialog chrome (not its textarea), then press the page shortcut.
+    const dialog = document.querySelector('[role="dialog"]') as HTMLElement;
+    dialog.focus();
+    await userEvent.keyboard("f");
+
+    expect(screen.queryByTestId("patterns-filter-modal")).not.toBeInTheDocument();
+    expect(screen.getByTestId("patterns-paste-symbols-input")).toBeInTheDocument();
+  });
+
+  test("an empty custom scope cannot launch a scan from the empty state", () => {
+    r(
+      <PatternsPage
+        {...makeProps({
+          universe: "custom",
+          customUniverse: "custom",
+          results: [],
+          total: 0,
+          loading: false,
+        })}
+      />,
+    );
+    expect(screen.getByTestId("patterns-empty-scan")).toBeDisabled();
+    expect(screen.getByText(/Custom scope is empty/i)).toBeInTheDocument();
   });
 
   test("Filters button opens the modal with the full rail", async () => {
@@ -354,7 +643,7 @@ describe("PatternsPage", () => {
     for (const key of ["scanned", "patterns", "in_view", "confirmed", "bull_bear", "data_through"]) {
       expect(screen.getByTestId(`patterns-stat-${key}`)).toBeInTheDocument();
     }
-    expect(screen.getByTestId("patterns-stat-bull_bear")).toHaveTextContent("7");
+    expect(screen.getByTestId("patterns-stat-bull_bear")).toHaveTextContent("1 / 0");
   });
 
   test("shows loading state", () => {
@@ -431,12 +720,45 @@ describe("PatternsPage", () => {
     const props = makeProps();
     r(<PatternsPage {...props} />);
     await userEvent.click(screen.getByTestId("patterns-open-filters"));
-    await userEvent.click(await screen.findByTestId("patterns-family-reversal"));
+    await userEvent.click(
+      within(await screen.findByTestId("patterns-family-select")).getByRole("combobox"),
+    );
+    await userEvent.click(await screen.findByRole("option", { name: /^Reversal/ }));
     // Staged locally — no instant store update / reload.
     expect(props.setFilter).not.toHaveBeenCalled();
     await userEvent.click(screen.getByTestId("patterns-filters-done"));
     expect(props.applyFilters).toHaveBeenCalledWith(
       expect.objectContaining({ family: ["reversal"] }),
+    );
+  });
+
+  test("a preset replaces the staged filters instead of merging with them", async () => {
+    const props = makeProps();
+    r(<PatternsPage {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-open-filters"));
+
+    // Stage a direction first…
+    const directionCombo = within(screen.getByTestId("patterns-direction-select")).getByRole(
+      "combobox",
+    );
+    await userEvent.click(directionCombo);
+    const listboxId = directionCombo.getAttribute("aria-controls");
+    const listbox = listboxId ? document.getElementById(listboxId) : null;
+    await userEvent.click(within(listbox as HTMLElement).getByRole("option", { name: "Bearish" }));
+    // …then apply a preset that says nothing about direction.
+    await userEvent.click(
+      within(screen.getByTestId("patterns-preset-select")).getByRole("combobox"),
+    );
+    await userEvent.click(await screen.findByRole("option", { name: "Fresh reversals" }));
+
+    await userEvent.click(screen.getByTestId("patterns-filters-done"));
+    expect(props.applyFilters).toHaveBeenCalledWith(
+      expect.objectContaining({
+        family: ["reversal"],
+        formed_within_bars: 3,
+        sort: "newest",
+        direction: [],
+      }),
     );
   });
 
@@ -470,7 +792,7 @@ describe("PatternsPage", () => {
     expect(screen.getByTestId("patterns-compute-trendlines")).not.toBeChecked();
   });
 
-  test("stale same-symbol fetches never overwrite the newer selection", async () => {
+  test("stale fetches never overwrite the newer selection", async () => {
     let resolveFirst!: (v: unknown) => void;
     let resolveSecond!: (v: unknown) => void;
     fetchSymbolChart
@@ -480,20 +802,19 @@ describe("PatternsPage", () => {
       .mockImplementationOnce(
         () => new Promise((resolve) => { resolveSecond = resolve; }),
       );
-    const first = makeHit({ id: 11, pattern_id: "falling_wedge", pattern_name: "Falling Wedge", start_date: "2026-04-26" });
-    const second = makeHit({ id: 22, pattern_id: "rising_wedge", pattern_name: "Rising Wedge", start_date: "2026-07-01" });
+    const first = makeHit({ id: 11, symbol: "IRCON", pattern_id: "falling_wedge", pattern_name: "Falling Wedge", start_date: "2026-04-26" });
+    const second = makeHit({ id: 22, symbol: "RELIANCE", pattern_id: "rising_wedge", pattern_name: "Rising Wedge", start_date: "2026-07-01" });
     r(<PatternsPage {...makeProps({ results: [first, second], total: 2 })} />);
     await userEvent.click(screen.getByRole("button", { name: "Grid" }));
 
-    // Click two cards of the same symbol in quick succession.
     await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
-    await userEvent.click(screen.getByTestId("patterns-card-IRCON-rising_wedge"));
+    await userEvent.click(screen.getByTestId("patterns-card-RELIANCE-rising_wedge"));
     expect(fetchSymbolChart).toHaveBeenCalledTimes(2);
 
     // Current request resolves with no candles; the stale one resolves last
     // carrying candles. Without the guard the stale fetch would paint the
     // first hit's candles into the second hit's fullscreen view.
-    resolveSecond({ symbol: "IRCON", timeframe: "1D", candles: [], overlays: [] });
+    resolveSecond({ symbol: "RELIANCE", timeframe: "1D", candles: [], overlays: [] });
     await waitFor(() =>
       expect(screen.getByTestId("patterns-fullscreen-modal")).toHaveTextContent("Rising Wedge"),
     );
@@ -540,22 +861,30 @@ describe("PatternsPage toolbar", () => {
     expect(screen.getByTestId("patterns-lookback-select")).toBeInTheDocument();
     // Native input carries the testid (see TextInput htmlInput slot).
     expect(screen.getByTestId("patterns-results-search")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Symbol or company")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Search results…")).toBeInTheDocument();
     expect(screen.getByText("TLS/TLR")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-compute-trendlines")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-open-filters")).toHaveTextContent("Filters");
   });
 
-  test("changing the timeframe select calls setTimeframe", async () => {
+  test("changing the timeframe select calls setSelectedTimeframes", async () => {
     const props = makeProps({
       timeframes: [
-        { id: "1D", label: "1D", minutes: 1440, native: "days/1", source_tf: null, max_lookback_days: 730, min_bars: 60 },
-        { id: "1h", label: "1h", minutes: 60, native: "hours/1", source_tf: null, max_lookback_days: 365, min_bars: 60 },
+        { id: "1D", label: "1D", minutes: 1440, native: true, source_tf: null, max_lookback_days: 730, min_bars: 60 },
+        { id: "1h", label: "1h", minutes: 60, native: true, source_tf: null, max_lookback_days: 365, min_bars: 60 },
       ],
     });
     r(<PatternsPage {...props} />);
-    await userEvent.selectOptions(screen.getByTestId("patterns-timeframe-select"), "1h");
-    expect(props.setTimeframe).toHaveBeenCalledWith("1h");
+    await userEvent.click(screen.getByTestId("tf-option-1h"));
+    expect(props.setSelectedTimeframes).toHaveBeenCalledWith(["1D", "1h"]);
+  });
+
+  test("shows the index group filter only for the indices universe", () => {
+    const indices = r(<PatternsPage {...makeProps({ universe: "indices" })} />);
+    expect(screen.getByTestId("patterns-index-group")).toBeInTheDocument();
+    indices.unmount();
+    r(<PatternsPage {...makeProps({ universe: "nifty500" })} />);
+    expect(screen.queryByTestId("patterns-index-group")).not.toBeInTheDocument();
   });
 
   test("changing the lookback select calls setLookbackBars", async () => {
@@ -597,7 +926,7 @@ describe("PatternsPage toolbar", () => {
     expect(within(toolbar).queryByText("1 patterns")).not.toBeInTheDocument();
     expect(within(toolbar).queryByText("Patterns")).not.toBeInTheDocument();
     // The stats strip still reports the pattern count.
-    expect(screen.getByTestId("patterns-stat-patterns")).toHaveTextContent("12");
+    expect(screen.getByTestId("patterns-stat-patterns")).toHaveTextContent("1");
   });
 
   test("Filters button counts a non-default 10d avg volume filter", () => {
@@ -668,7 +997,7 @@ describe("PatternsPage toolbar", () => {
     r(<PatternsPage {...props} />);
     expect(screen.getByTestId("patterns-scan-status")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-scan-reused")).toHaveTextContent("Cached · 12 min ago");
-    expect(screen.getByTestId("patterns-scan-data-through")).toHaveTextContent("as of 2026-09-30");
+    expect(screen.getByTestId("patterns-job-status")).toHaveTextContent("through 2026-09-30");
     // The chip's own Force re-run action re-runs fresh.
     await userEvent.click(screen.getByTestId("patterns-scan-reused-force"));
     expect(props.forceRefresh).toHaveBeenCalledTimes(1);
@@ -753,7 +1082,7 @@ describe("PatternsPage toolbar", () => {
     expect(screen.getByTestId("patterns-scan-status")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-scan-fresh")).toHaveTextContent("Fresh");
     expect(screen.queryByTestId("patterns-scan-reused")).not.toBeInTheDocument();
-    expect(screen.getByTestId("patterns-scan-data-through")).toHaveTextContent("as of 2026-09-30");
+    expect(screen.getByTestId("patterns-job-status")).toHaveTextContent("through 2026-09-30");
     expect(
       screen.getByLabelText("Scan reused: no — freshly computed · Candle cache: 0 cached / 500 fetched · Prefilter dropped: 0 · Detector v3 · Data as of 2026-09-30"),
     ).toBeInTheDocument();
@@ -886,7 +1215,7 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
     await userEvent.click(screen.getByTestId("patterns-card-expand-IRCON-falling_wedge"));
     expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-fullscreen-chart")).toBeInTheDocument();
-    expect(fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1D", { detectPatterns: true, computeTrendlines: true });
+    expect(fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1D", { detectPatterns: false, computeTrendlines: true });
   });
 
   test("grid + fullscreen default to the both trendlines view when computing", async () => {
@@ -929,7 +1258,7 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
     expect(fetchSymbolChart).toHaveBeenCalledWith(
       "IRCON",
       "1D",
-      { detectPatterns: true, lookbackBars: 250, computeTrendlines: true },
+      { detectPatterns: false, lookbackBars: 250, computeTrendlines: true },
     );
   });
 
@@ -1090,9 +1419,8 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
     );
   });
 
-  test("opening a card defaults to the newest hit and list selection switches it", async () => {
+  test("opening a card shows that hit and keeps a single-item pattern list", async () => {
     const cardHit = makeHit({ id: 11, pattern_id: "falling_wedge", pattern_name: "Falling Wedge", confidence: 95, end_date: "2026-08-01", bars_ago: 40 });
-    const newerHit = makeHit({ id: 22, pattern_id: "rising_wedge", pattern_name: "Rising Wedge", confidence: 60, end_date: "2026-09-28", bars_ago: 1, start_date: "2026-07-01" });
     r(<PatternsPage {...makeProps({ results: [cardHit], total: 1 })} />);
     fetchSymbolChart.mockClear();
     fetchSymbolChart.mockResolvedValueOnce({
@@ -1101,32 +1429,25 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
       candles: [{ t: "2026-09-26T09:15:00+05:30", o: 100, h: 115, l: 98, c: 112, v: 1000 }],
       overlays: [],
       trend_lines: [],
-      hits: [newerHit],
+      hits: [],
     });
 
     await userEvent.click(screen.getByRole("button", { name: "Grid" }));
     await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
     await screen.findByTestId("patterns-fullscreen-modal");
-    // The open fetch runs detection so the panel can list every pattern.
     await waitFor(() =>
       expect(fetchSymbolChart).toHaveBeenCalledWith(
         "IRCON",
         "1D",
-        expect.objectContaining({ detectPatterns: true }),
+        expect.objectContaining({ detectPatterns: false }),
       ),
     );
-    // Default shown pattern is the newest — not the clicked card.
-    await waitFor(() =>
-      expect(screen.getByTestId("patterns-fullscreen-active-hit")).toHaveTextContent("Rising Wedge"),
-    );
-    // Both hits are listed, newest first.
-    expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent("Rising Wedge");    expect(screen.getByTestId("patterns-fullscreen-list-item-1")).toHaveTextContent("Falling Wedge");
-
-    // Selecting the older row replaces the shown pattern (single active).
-    await userEvent.click(screen.getByTestId("patterns-fullscreen-list-item-1"));
+    expect(fetchPatternHit).toHaveBeenCalledWith(11);
     await waitFor(() =>
       expect(screen.getByTestId("patterns-fullscreen-active-hit")).toHaveTextContent("Falling Wedge"),
     );
+    expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent("Falling Wedge");
+    expect(screen.queryByTestId("patterns-fullscreen-list-item-1")).not.toBeInTheDocument();
   });
 
   test("de-duplicates a stored card hit against the same live hit returned with id:null", async () => {

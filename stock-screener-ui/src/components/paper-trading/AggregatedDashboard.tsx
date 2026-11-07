@@ -255,6 +255,7 @@ function BotRankingPanel({ bots }: { bots: PaperDashboardBotRanking[] }) {
     {
       header: "#",
       accessorKey: "bot_id",
+      meta: { align: "center" },
       cell: ({ row }) => (
         <Text fw={700} size="sm" c={row.index === 0 ? "gold" : row.index < 3 ? undefined : "dimmed"}>
           {row.index === 0 ? "🥇" : row.index === 1 ? "🥈" : row.index === 2 ? "🥉" : row.index + 1}
@@ -264,6 +265,7 @@ function BotRankingPanel({ bots }: { bots: PaperDashboardBotRanking[] }) {
     {
       header: "Bot",
       accessorKey: "bot_name",
+      meta: { align: "left" },
       cell: ({ getValue, row }) => (
         <Stack gap={0} style={{ minWidth: 0 }}>
           <Text size="sm" fw={700} truncate>{getValue<string>()}</Text>
@@ -271,58 +273,58 @@ function BotRankingPanel({ bots }: { bots: PaperDashboardBotRanking[] }) {
         </Stack>
       ),
     },
-    { header: "PF", accessorKey: "profit_factor", cell: ({ getValue }) => formatPf(getValue<number | null>()) },
-    { header: "Net P&L", accessorKey: "total_net_pnl", cell: ({ getValue }) => <PnlValue value={getValue<number>()} /> },
+    { header: "PF", accessorKey: "profit_factor", meta: { align: "right" }, cell: ({ getValue }) => formatPf(getValue<number | null>()) },
+    { header: "Net P&L", accessorKey: "total_net_pnl", meta: { align: "right" }, cell: ({ getValue }) => <PnlValue value={getValue<number>()} /> },
   ], []);
   return (
     <CompactPanel className="paper-dashboard-bot-ranking" title="Bot Ranking" description={`${bots.length} bots with closed trades`}>
-      <TanStackTable columns={columns} data={bots.slice(0, 8)} />
+      <TanStackTable columns={columns} data={bots.slice(0, 8)} dense />
     </CompactPanel>
   );
 }
 
 function StrategyTable({ rows }: { rows: PaperDashboardStrategyRanking[] }) {
   const columns = useMemo<ColumnDef<PaperDashboardStrategyRanking>[]>(() => [
-    { header: "Bot", accessorKey: "bot_name" },
-    { header: "Strategy", accessorKey: "strategy_name" },
-    { header: "Trades", accessorKey: "total_trades" },
-    { header: "Win%", accessorKey: "win_rate", cell: ({ getValue }) => pct(getValue<number>()) },
-    { header: "PF", accessorKey: "profit_factor", cell: ({ getValue }) => formatPf(getValue<number | null>()) },
-    { header: "Hold", accessorKey: "avg_hold_minutes", cell: ({ getValue }) => formatHold(getValue<number>()) },
-    { header: "Net P&L", accessorKey: "total_net_pnl", cell: ({ getValue }) => <PnlValue value={getValue<number>()} /> },
+    { header: "Bot", accessorKey: "bot_name", meta: { align: "left" } },
+    { header: "Strategy", accessorKey: "strategy_name", meta: { align: "left" } },
+    { header: "Trades", accessorKey: "total_trades", meta: { align: "right" } },
+    { header: "Win%", accessorKey: "win_rate", meta: { align: "right" }, cell: ({ getValue }) => pct(getValue<number>()) },
+    { header: "PF", accessorKey: "profit_factor", meta: { align: "right" }, cell: ({ getValue }) => formatPf(getValue<number | null>()) },
+    { header: "Hold", accessorKey: "avg_hold_minutes", meta: { align: "right" }, cell: ({ getValue }) => formatHold(getValue<number>()) },
+    { header: "Net P&L", accessorKey: "total_net_pnl", meta: { align: "right" }, cell: ({ getValue }) => <PnlValue value={getValue<number>()} /> },
   ], []);
-  return <TanStackTable columns={columns} data={rows.slice(0, 12)} />;
+  return <TanStackTable columns={columns} data={rows.slice(0, 12)} dense />;
 }
 
 function TradesTable({ title, trades }: { title: string; trades: PaperDashboardTradeItem[] }) {
   const isWinners = title.toLowerCase().includes("win");
   const accentColor = isWinners ? "success" : "error";
   const columns = useMemo<ColumnDef<PaperDashboardTradeItem>[]>(() => [
-    { header: "Symbol", accessorKey: "symbol", cell: ({ getValue }) => <Text fw={700} size="sm">{getValue<string>()}</Text> },
-    { header: "Bot", accessorKey: "bot_name" },
-    { header: "Strategy", accessorKey: "strategy_name" },
-    { header: "Exit Reason", accessorKey: "exit_reason", cell: ({ getValue }) => <Badge size="xs" variant="light">{getValue<string>() || "UNKNOWN"}</Badge> },
-    { header: "P&L", accessorKey: "net_pnl", cell: ({ getValue }) => <PnlValue value={getValue<number>()} /> },
+    { header: "Symbol", accessorKey: "symbol", meta: { align: "left" }, cell: ({ getValue }) => <Text fw={700} size="sm">{getValue<string>()}</Text> },
+    { header: "Bot", accessorKey: "bot_name", meta: { align: "left" } },
+    { header: "Strategy", accessorKey: "strategy_name", meta: { align: "left" } },
+    { header: "Exit Reason", accessorKey: "exit_reason", meta: { align: "center" }, cell: ({ getValue }) => <Badge size="xs" variant="light">{getValue<string>() || "UNKNOWN"}</Badge> },
+    { header: "P&L", accessorKey: "net_pnl", meta: { align: "right" }, cell: ({ getValue }) => <PnlValue value={getValue<number>()} /> },
   ], []);
   return (
     <CompactPanel scrollable style={{ height: 280 }}>
-      <Box mb="xs"><SectionHeader title={title} badge={trades.length} color={accentColor} /></Box>
-      <TanStackTable columns={columns} data={trades} />
+      <Box mb={0.5}><SectionHeader title={title} badge={trades.length} color={accentColor} /></Box>
+      <TanStackTable columns={columns} data={trades} dense />
     </CompactPanel>
   );
 }
 
 function SymbolPanel({ data }: { data: PaperDashboardAnalyticsData }) {
   const columns = useMemo<ColumnDef<PaperDashboardSymbolPerformance>[]>(() => [
-    { header: "Symbol", accessorKey: "symbol", cell: ({ getValue }) => <Text fw={700} size="sm">{getValue<string>()}</Text> },
-    { header: "Trades", accessorKey: "total_trades" },
-    { header: "Win%", accessorKey: "win_rate", cell: ({ getValue }) => pct(getValue<number>()) },
-    { header: "Net P&L", accessorKey: "total_net_pnl", cell: ({ getValue }) => <PnlValue value={getValue<number>()} /> },
+    { header: "Symbol", accessorKey: "symbol", meta: { align: "left" }, cell: ({ getValue }) => <Text fw={700} size="sm">{getValue<string>()}</Text> },
+    { header: "Trades", accessorKey: "total_trades", meta: { align: "right" } },
+    { header: "Win%", accessorKey: "win_rate", meta: { align: "right" }, cell: ({ getValue }) => pct(getValue<number>()) },
+    { header: "Net P&L", accessorKey: "total_net_pnl", meta: { align: "right" }, cell: ({ getValue }) => <PnlValue value={getValue<number>()} /> },
   ], []);
   return (
     <CompactPanel scrollable style={{ height: 280 }}>
-      <Box mb="xs"><SectionHeader title="Symbol Performance" badge={data.symbol_performance.length} color="secondary" /></Box>
-      <TanStackTable columns={columns} data={data.symbol_performance.slice(0, 12)} />
+      <Box mb={0.5}><SectionHeader title="Symbol Performance" badge={data.symbol_performance.length} color="secondary" /></Box>
+      <TanStackTable columns={columns} data={data.symbol_performance.slice(0, 12)} dense />
     </CompactPanel>
   );
 }
@@ -359,7 +361,7 @@ export function AggregatedDashboard() {
   const data = state.dashboardAnalyticsData;
 
   return (
-    <Flex direction="column" gap={16} p={2} data-testid="paper-dashboard" className="paper-dashboard" id="paper-dashboard">
+    <Flex direction="column" gap={8} p={1} data-testid="paper-dashboard" className="paper-dashboard" id="paper-dashboard">
       <Group justify="space-between" align="flex-end" className="paper-dashboard-header" id="paper-dashboard-header">
         <Stack gap={0}>
           <SectionHeader title="Dashboard" badge={data?.period.trade_count ? `${data.period.trade_count} trades` : undefined} color="primary" />
@@ -372,7 +374,7 @@ export function AggregatedDashboard() {
         </Button>
       </Group>
 
-      <Group gap={16} wrap="wrap" className="paper-dashboard-filters" id="paper-dashboard-filters">
+      <Group gap={8} wrap="wrap" className="paper-dashboard-filters" id="paper-dashboard-filters">
         <Select size="sm" w={180} value={botId} onChange={(value) => setBotId(value || "all")} data={botOptions} data-testid="dashboard-bot-filter" />
         <Group gap={8}>
           {PRESETS.map((item) => (
@@ -410,7 +412,7 @@ export function AggregatedDashboard() {
         <>
           <SummaryStrip data={data} />
 
-          <SimpleGrid cols={{ base: 1, lg: 2 }} spacing={16} className="paper-dashboard-row-hero">
+          <SimpleGrid cols={{ base: 1, lg: 2 }} spacing={8} className="paper-dashboard-row-hero">
             <CompactPanel
               className="paper-dashboard-card"
               title={<SectionHeader title="Equity Curve" color="primary" />}
@@ -420,7 +422,7 @@ export function AggregatedDashboard() {
             <BotRankingPanel bots={data.bot_rankings} />
           </SimpleGrid>
 
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing={16} className="paper-dashboard-row-dist">
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing={8} className="paper-dashboard-row-dist">
             <CompactPanel title={<SectionHeader title="Bot Comparison" color="primary" />}>
               <BotComparisonChart data={data} />
             </CompactPanel>
@@ -442,7 +444,7 @@ export function AggregatedDashboard() {
             <StrategyTable rows={data.strategy_rankings} />
           </CompactPanel>
 
-          <SimpleGrid cols={{ base: 1, lg: 2 }} spacing={16} className="paper-dashboard-winners-losers">
+          <SimpleGrid cols={{ base: 1, lg: 2 }} spacing={8} className="paper-dashboard-winners-losers">
             <TradesTable title="Biggest Winners" trades={data.biggest_winners} />
             <TradesTable title="Biggest Losers" trades={data.biggest_losers} />
           </SimpleGrid>

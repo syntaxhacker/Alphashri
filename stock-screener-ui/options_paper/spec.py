@@ -32,7 +32,7 @@ from datetime import time
 # Sessions (all IST)
 # --------------------------------------------------------------------------
 MARKET_OPEN = time(9, 15)
-MARKET_CLOSE = time(15, 30)
+MARKET_CLOSE = time(15, 40)
 CONTINUOUS_CLOSE = time(15, 15)
 FORCE_EXIT = time(15, 10)          # global safety-net exit used by the equity bot
 DEFAULT_EOD_EXIT = time(15, 10)    # paper options: flatten here unless a strategy overrides

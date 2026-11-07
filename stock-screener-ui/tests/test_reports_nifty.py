@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import HTTPException
 
+import api.options as options_mod
 import api.reports_api.nifty as nifty
 from api.reports_api.nifty import (
     build_leg,
@@ -37,14 +38,29 @@ from api.reports_api.nifty import (
 
 
 @pytest.fixture(autouse=True)
-def _clear_live_cache():
+def _clear_live_cache(monkeypatch, tmp_path):
     nifty._live_cache.clear()
     nifty._sensex_cache.clear()
     nifty._live_ws_cache.clear()
+    nifty._SNAPSHOT_READ_CACHE.clear()
+    nifty._DERIVED_SNAPSHOT_CACHE.clear()
+    nifty._TAPE_READ_CACHE.clear()
+    # Expiries cache in api.options must also be cleared for deterministic
+    # expiry selection tests (test_default_expiry_uses_nearest).
+    options_mod._expiries_cache.clear()
+    # Breadth persistence is a repo file; tests get their own and start cold.
+    monkeypatch.setattr(nifty, "_BREADTH_LAST_PATH",
+                        tmp_path / "breadth_last.json")
+    monkeypatch.setattr(nifty, "_BREADTH_LAST",
+                        {"loaded": True, "block": None})
     yield
     nifty._live_cache.clear()
     nifty._sensex_cache.clear()
     nifty._live_ws_cache.clear()
+    nifty._SNAPSHOT_READ_CACHE.clear()
+    nifty._DERIVED_SNAPSHOT_CACHE.clear()
+    nifty._TAPE_READ_CACHE.clear()
+    options_mod._expiries_cache.clear()
 
 
 @pytest.fixture()
@@ -59,7 +75,7 @@ def _tmp_replay(tmp_path, monkeypatch):
     return tmp_path
 
 
-def _chain_payload():
+def _chain_payload(expiry: str = "2026-10-13"):
     """Minimal Upstox-shaped /option/chain payload (3 strikes)."""
     def side(ltp, close, oi, prev_oi, vol):
         return {"market_data": {"ltp": ltp, "close_price": close, "oi": oi,
@@ -67,15 +83,15 @@ def _chain_payload():
     return {
         "underlying_spot_price": 22363.35,
         "data": [
-            {"expiry": "2026-10-13", "strike_price": 22400.0,
+            {"expiry": expiry, "strike_price": 22400.0,
              "underlying_spot_price": 22363.35,
              "call_options": side(50.0, 60.0, 1000, 800, 500),
              "put_options": side(70.0, 60.0, 2000, 1500, 900)},
-            {"expiry": "2026-10-13", "strike_price": 22300.0,
+            {"expiry": expiry, "strike_price": 22300.0,
              "underlying_spot_price": 22363.35,
              "call_options": side(90.0, 80.0, 500, 550, 100),
              "put_options": side(40.0, 45.0, 3000, 3200, 200)},
-            {"expiry": "2026-10-13", "strike_price": 22500.0,
+            {"expiry": expiry, "strike_price": 22500.0,
              "underlying_spot_price": 22363.35,
              "call_options": side(20.0, 25.0, 5000, 4000, 300),
              "put_options": side(120.0, 100.0, 100, 90, 50)},
@@ -243,6 +259,13 @@ class TestSnapshots:
     def test_missing_returns_none(self, _tmp_snapshots):
         assert read_snapshot("1999-01-01") is None
 
+    def test_corrupt_snapshot_returns_none(self, _tmp_snapshots):
+        # A half-written / binary file used to raise UnicodeDecodeError (a
+        # ValueError, not a JSONDecodeError) out of GET /nifty as a 500.
+        (nifty.SNAPSHOT_DIR / "2026-10-12.json").write_bytes(
+            b"\xff\xfe not json")
+        assert read_snapshot("2026-10-12") is None
+
     def test_get_404_envelope(self, _tmp_snapshots):
         with pytest.raises(HTTPException) as exc:
             get_nifty_report(date="1999-01-01")
@@ -283,6 +306,65 @@ class TestSnapshots:
         assert exc.value.status_code == 400
 
 
+# ---------------- read caches (tape / snapshot) ----------------
+
+class TestReadCaches:
+    def test_tape_parse_is_cached_until_the_file_grows(
+            self, tmp_path, monkeypatch):
+        monkeypatch.setattr(nifty, "TAPE_DIR", tmp_path)
+        path = tmp_path / "2026-11-02.jsonl"
+        path.write_text(json.dumps({"t": "a", "spot": 1.0}) + "\n")
+        calls = {"n": 0}
+        real_loads = json.loads
+
+        def counting(*args, **kwargs):
+            calls["n"] += 1
+            return real_loads(*args, **kwargs)
+
+        monkeypatch.setattr(nifty.json, "loads", counting)
+
+        first = nifty.read_tape("2026-11-02")
+        assert calls["n"] == 1
+        second = nifty.read_tape("2026-11-02")
+        assert second == first
+        assert second is not first      # a caller may append to its list
+        assert calls["n"] == 1          # parse served from the cache
+
+        with open(path, "a") as f:
+            f.write(json.dumps({"t": "b", "spot": 2.0}) + "\n")
+        third = nifty.read_tape("2026-11-02")
+        assert [row["t"] for row in third] == ["a", "b"]
+        assert calls["n"] == 3          # two new lines parsed, first one cached
+
+    def test_snapshot_parse_is_cached_and_replaced_atomically(
+            self, _tmp_snapshots):
+        data = {"spot": 1.0, "strikes": [{"strike": 23_000.0}]}
+        write_snapshot("2026-11-02", data)
+
+        first = read_snapshot("2026-11-02")
+        second = read_snapshot("2026-11-02")
+        assert first == data and second == data
+        assert first is not second      # dict copies, never the cached object
+
+        write_snapshot("2026-11-02", {**data, "spot": 2.0})
+        assert read_snapshot("2026-11-02")["spot"] == 2.0
+
+    def test_get_reprojects_a_rewritten_snapshot(self, _tmp_snapshots,
+                                                 monkeypatch):
+        monkeypatch.setattr(nifty, "_nifty_md", lambda: None)
+        old = {"spot": 20_000.0,
+               "strikes": [{"strike": 20_000.0,
+                            "ce": {"oi": 100, "delta": 0.5,
+                                   "sentiment": "Neutral"},
+                            "pe": {"oi": 300, "delta": 0.5,
+                                   "sentiment": "Neutral"}}]}
+        write_snapshot("2026-11-02", old)
+        assert get_nifty_report(date="2026-11-02")["spot"] == 20_000.0
+
+        write_snapshot("2026-11-02", {**old, "spot": 20_100.0})
+        assert get_nifty_report(date="2026-11-02")["spot"] == 20_100.0
+
+
 # ---------------- live + snapshot endpoints (mocked Upstox) ----------------
 
 def _mock_chain(payload):
@@ -307,6 +389,23 @@ class TestLiveEndpoint:
         with p1, p2:
             rep = await get_nifty_live(expiry=None)
         assert rep["expiry"] == "2026-10-13"
+
+    async def test_default_expiry_skips_todays_expiry(self):
+        """When the nearest expiry is today (days_to_expiry=0), the next
+        expiry (days_to_expiry>0) must be chosen."""
+        fetch = AsyncMock(return_value=_chain_payload("2026-10-20"))
+        # Two expiries: today (0 days) and next week (7 days).
+        expiries = AsyncMock(return_value={
+            "expiries": [
+                {"date": "2026-10-13", "days_to_expiry": 0},
+                {"date": "2026-10-20", "days_to_expiry": 7},
+            ]
+        })
+        with patch("api.options.fetch_upstox", fetch), \
+             patch("api.options.get_expiries", expiries):
+            rep = await get_nifty_live(expiry=None)
+        # Must pick the future expiry, not today's.
+        assert rep["expiry"] == "2026-10-20"
 
     async def test_cache_ttl(self):
         p1, p2 = _mock_chain(_chain_payload())
@@ -925,12 +1024,13 @@ class TestAttachVerdictsEmas:
         assert report["intraday"] == []
         assert report["emas"] == []
 
-    async def test_control_reads_positioning_initiated_as_flow_bias(self, monkeypatch):
-        """The control verdict must reuse positioning.initiated — 2026-10-22 shape.
+    async def test_control_reads_positioning_flow_as_flow_bias(self, monkeypatch):
+        """The control verdict must reuse the raw ``positioning.flow``.
 
-        Calls +599,235 / puts +839,150 units with a -25,074 Cr initiated flow:
-        added put OI is put BUYING (bearish), so the label must not be
-        "put_writers" (which read bullish and contradicted positioning).
+        Calls +599,235 / puts +839,150 units with a -25,074 Cr signed flow:
+        added put OI is put BUYING (bearish). The old wiring passed
+        ``positioning.initiated`` (class-weighted), which read +99.8% bullish
+        on the 2026-11-02 down-move and kept printing "put_writers".
         """
         import api.reports_api.nifty_verdicts as nv
 
@@ -947,7 +1047,11 @@ class TestAttachVerdictsEmas:
         }]
         report: dict = {
             "candles": [], "gex": {"regime": "flat"},
-            "positioning": {"verdict": "bearish", "initiated": -25_074.0},
+            "positioning": {
+                "verdict": "bearish",
+                "initiated": 120_000.0,
+                "flow": -25_074.0,
+            },
         }
         await nifty._attach_verdicts(report, rows, 22_600.0, "2026-10-13")
 
@@ -1405,3 +1509,81 @@ def test_top_walls_limits_the_ranking_to_strikes_near_spot():
 
     # a thin book still reports something
     assert near_walls([{"strike": 20_000, "pe": {"oi": 5}, "ce": {"oi": 0}}], "pe", spot=spot)
+
+
+# ---------------- notify_telegram ----------------
+
+class TestNotifyTelegram:
+    """Tests for the notify_telegram helper."""
+
+    def test_returns_false_for_none_alert(self):
+        from api.reports_api.nifty import notify_telegram
+        assert notify_telegram(None) is False
+
+    def test_returns_false_for_non_dict_alert(self):
+        from api.reports_api.nifty import notify_telegram
+        assert notify_telegram("not a dict") is False
+
+    def test_returns_false_for_non_alert_severity(self):
+        from api.reports_api.nifty import notify_telegram
+        assert notify_telegram({"severity": "watch", "type": "oi_burst", "t": "2026-10-13T09:15:00+05:30"}) is False
+        assert notify_telegram({"severity": "info", "type": "oi_burst", "t": "2026-10-13T09:15:00+05:30"}) is False
+
+    def test_returns_false_and_logs_once_when_unconfigured(self, monkeypatch, caplog):
+        """When the notifier is unconfigured, notify_telegram returns False
+        and logs a warning exactly once per process."""
+        import api.reports_api.nifty as n_mod
+        import trading.telegram_notifier as tgn
+
+        # Reset the warning flag
+        n_mod._TELEGRAM_WARNED = False
+        # Make notifier appear unconfigured
+        monkeypatch.setattr(tgn, "_is_available", lambda: False)
+
+        import logging
+        caplog.set_level(logging.WARNING, logger="api.reports_api.nifty")
+
+        alert = {"severity": "alert", "type": "oi_burst", "t": "2026-10-13T09:15:00+05:30"}
+
+        # First call - should warn
+        result1 = n_mod.notify_telegram(alert)
+        assert result1 is False
+        assert any("Telegram notifier unavailable" in r.message for r in caplog.records)
+
+        # Second call - should NOT warn again
+        caplog.clear()
+        result2 = n_mod.notify_telegram(alert)
+        assert result2 is False
+        assert not any("Telegram notifier unavailable" in r.message for r in caplog.records)
+
+    def test_returns_false_and_logs_once_when_send_fails(self, monkeypatch, caplog):
+        """When send_alert raises, notify_telegram returns False
+        and logs a warning exactly once per process."""
+        import api.reports_api.nifty as n_mod
+        import trading.telegram_notifier as tgn
+
+        # Reset the warning flag
+        n_mod._TELEGRAM_WARNED = False
+        # Make notifier appear configured but send_alert raises
+        monkeypatch.setattr(tgn, "_is_available", lambda: True)
+
+        def raising_send_alert(*args, **kwargs):
+            raise RuntimeError("network error")
+
+        monkeypatch.setattr(tgn, "send_alert", raising_send_alert)
+
+        import logging
+        caplog.set_level(logging.WARNING, logger="api.reports_api.nifty")
+
+        alert = {"severity": "critical", "type": "squeeze", "t": "2026-10-13T09:15:00+05:30"}
+
+        # First call - should warn
+        result1 = n_mod.notify_telegram(alert)
+        assert result1 is False
+        assert any("Telegram send failed" in r.message for r in caplog.records)
+
+        # Second call - should NOT warn again
+        caplog.clear()
+        result2 = n_mod.notify_telegram(alert)
+        assert result2 is False
+        assert not any("Telegram send failed" in r.message for r in caplog.records)

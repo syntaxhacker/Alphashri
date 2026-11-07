@@ -88,8 +88,8 @@ export function CompactPanel({
   flush = false,
   ...paperProps
 }: CompactPanelProps) {
-  /** Fin-app body inset: 6px (was the density token's 8px). */
-  const pad = padded ? 0.75 : 0;
+  /** Fin-app body inset: 4px (dense desk default; was 6px). */
+  const pad = padded ? 0.5 : 0;
   const panelStyle: CSSProperties = scrollable ? { ...SCROLLABLE_PANEL_STYLE, ...style } : style;
   const bodyStyle: CSSProperties = flush ? { padding: pad } : {};
 
@@ -97,9 +97,9 @@ export function CompactPanel({
       <MuiPaper elevation={0} data-compact="" sx={{ bgcolor: palette.SURFACE, borderRadius: 1, border: `1px solid ${palette.BORDER}` }} style={panelStyle} data-testid={testId} {...(paperProps as any)}>
         <MuiCardContent sx={{ p: flush ? 0 : pad, "&:last-child": { pb: flush ? 0 : pad }, ...(scrollable && { flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }) }}>
         {(title || description || action) && (
-          <Box data-compact-header="" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 0.5, px: 1, py: 0.5, mb: 0, width: "100%", borderBottom: `1px solid ${palette.BORDER}` }}>
-            <Stack spacing={1} sx={{ display: "flex", alignItems: "flex-start", justifyContent: "flex-start", gap: 1, minWidth: 0 }}>
-              {title ? (typeof title === "string" ? <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Title order={4} size="h5">{title}</Title></Box> : <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>{title}</Box>) : null}
+          <Box data-compact-header="" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 0.5, px: 1, py: 0.25, mb: 0, width: "100%", borderBottom: `1px solid ${palette.BORDER}` }}>
+            <Stack spacing={0.5} sx={{ display: "flex", alignItems: "flex-start", justifyContent: "flex-start", gap: 0.5, minWidth: 0 }}>
+              {title ? (typeof title === "string" ? <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Title order={4} size="sm" lh={1.2}>{title}</Title></Box> : <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>{title}</Box>) : null}
               {description ? <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Text size="sm" c="dimmed" data-testid="status">{description}</Text></Box> : null}
             </Stack>
             {action ? <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{action}</Box> : null}
@@ -133,12 +133,13 @@ export function CompactStat({
   ...paperProps
 }: CompactStatProps) {
   const { tokens: densityTokens } = useDensity();
-  const pad = dense ? 0.5 : densityTokens.statPad;
+  // 4px body inset keeps stat cards from adding vertical air between rows.
+  const pad = dense ? 0.375 : Math.min(densityTokens.statPad, 0.5);
   const resolvedLabelSize = dense ? ("xs" as const) : labelSize;
   const resolvedValueSize = dense ? ("sm" as const) : valueSize;
   return (
     <Card elevation={0} data-compact-stat="" sx={{ bgcolor: palette.SURFACE, border: `1px solid ${palette.BORDER}` }} {...(paperProps as any)}>
-      <MuiCardContent sx={{ p: pad, "&:last-child": { pb: pad }, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, textAlign: "center" }}>
+      <MuiCardContent sx={{ p: pad, "&:last-child": { pb: pad }, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 0.5, textAlign: "center" }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}>
           <Text size={resolvedLabelSize} tt="uppercase" fw={700} c="dimmed" lh={1.1} ta="center">
             {label}
@@ -176,8 +177,8 @@ export function CompactStatGrid({
   [key: string]: any;
 }) {
   return (
-    <Box style={{ justifyContent: center ? "center" : "flex-start", alignItems: center ? "center" : "stretch" }} sx={{ display: "flex", width: "100%", p: 1 }}>
-      <SimpleGrid container spacing={1} style={{ justifyContent: center ? "center" : "flex-start", alignItems: center ? "center" : "stretch" }} sx={{ width: "100%", gap: 1 }} {...props}>
+    <Box style={{ justifyContent: center ? "center" : "flex-start", alignItems: center ? "center" : "stretch" }} sx={{ display: "flex", width: "100%", p: 0.5 }}>
+      <SimpleGrid container spacing={0.5} style={{ justifyContent: center ? "center" : "flex-start", alignItems: center ? "center" : "stretch" }} sx={{ width: "100%", gap: 0.5 }} {...props}>
         {children}
       </SimpleGrid>
     </Box>

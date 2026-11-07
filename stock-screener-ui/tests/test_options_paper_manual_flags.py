@@ -102,3 +102,61 @@ class TestTheRatchetUsesTheStoredValues:
         pos = json.loads(ledger.read_text())["positions"][0]
         # best 120, entry 100 → profit 20 → 50% trail keeps half: stop 110.
         assert 109.0 <= pos["stop"] <= 111.0
+
+
+class TestTheTrailProtectsBelowTheBreakevenTrigger:
+    def test_a_5pct_peak_still_ratchets_the_stop(self, _ledger, monkeypatch):
+        """2026-10-30 regression: a +5.1% peak must arm the trail.
+
+        The trail used to be gated on ``best_fav >= be_trigger`` (8%), so a
+        scalp that peaked at +5% kept its original stop and gave the whole
+        winner back. The trail now arms at ``TRAIL_ARM`` (2%) independently.
+        """
+        ledger = _ledger
+        ledger.write_text(json.dumps({"positions": [{
+            "opt": "CE", "strike": 22_700, "direction": "SHORT", "lots": 1,
+            "qty": 65, "entry_premium": 100.0,
+            "entry_time": "2026-10-30T12:36:00+05:30", "entry_spot": 23_100.0,
+            "expiry": "2026-10-27", "stop": 120.0, "target": 80.0, "best": 95.0,
+            "be_trigger": 0.08, "trail_pct": 0.20, "reason": "test",
+        }]}))
+        monkeypatch.setattr(manual, "_load_triggers", lambda: [])
+        monkeypatch.setattr(manual, "_save_triggers", lambda ts: None)
+        tk = Tick(t=__import__("datetime").datetime(2026, 10, 30, 12, 45),
+                  spot=23_100.0, atm_strike=23_100.0, ce_ltp=99.0, pe_ltp=0.0,
+                  ce_iv=12.0, pe_iv=12.0, expiry="2026-10-27",
+                  chain={22_700: (99.0, 0.0)})
+        _fired, closed = manual.auto_manage(tk)
+        assert closed, "the trail must close the short on the pullback"
+        pos = json.loads(ledger.read_text())["positions"]
+        assert pos == []
+
+
+class TestHoldMin:
+    def test_the_trail_waits_for_the_hold(self, _ledger, monkeypatch):
+        ledger = _ledger
+        ledger.write_text(json.dumps({"positions": [{
+            "opt": "CE", "strike": 22_700, "direction": "LONG", "lots": 1,
+            "qty": 65, "entry_premium": 100.0,
+            "entry_time": "2026-10-30T11:00:00+05:30", "entry_spot": 22_700.0,
+            "expiry": "2026-10-27", "stop": 80.0, "target": 200.0, "best": 100.0,
+            "be_trigger": 0.08, "trail_pct": 0.5, "trail_arm": 0.05, "hold_min": 20,
+            "reason": "test",
+        }]}))
+        monkeypatch.setattr(manual, "_load_triggers", lambda: [])
+        monkeypatch.setattr(manual, "_save_triggers", lambda ts: None)
+        dt = __import__("datetime").datetime
+
+        def tick(hh, mm):
+            return Tick(t=dt(2026, 10, 30, hh, mm), spot=22_700.0,
+                        atm_strike=22_700.0, ce_ltp=110.0, pe_ltp=0.0,
+                        ce_iv=12.0, pe_iv=12.0, expiry="2026-10-27",
+                        chain={22_700: (110.0, 0.0)})
+
+        manual.auto_manage(tick(11, 5))
+        pos = json.loads(ledger.read_text())["positions"][0]
+        assert pos["stop"] == 80.0, "the hold has not elapsed; the stop must not move"
+
+        manual.auto_manage(tick(11, 21))
+        pos = json.loads(ledger.read_text())["positions"][0]
+        assert pos["stop"] > 80.0, "after the hold the trail must arm"

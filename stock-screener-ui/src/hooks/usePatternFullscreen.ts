@@ -5,11 +5,15 @@ import type {
   PatternOverlay,
   TrendLine,
 } from "../types/chartPatterns";
-import { fetchSymbolChart } from "../api/chartPatterns";
+import { fetchPatternHit, fetchSymbolChart } from "../api/chartPatterns";
 import {
   newestHit,
   sortHitsNewest,
 } from "../components/patterns/FullscreenPatternList";
+
+/** Payload returned by the symbol-chart endpoint (candles + detected hits). */
+type SymbolChartPayload = Awaited<ReturnType<typeof fetchSymbolChart>>;
+const SYMBOL_CHART_CACHE_MS = 60_000;
 
 export interface FullscreenChartState {
   symbol: string;
@@ -27,6 +31,11 @@ export interface FullscreenChartState {
   asOf: string | null;
   /** Replay window start (ISO local datetime, null = any). */
   fromDate: string | null;
+  /**
+   * `true` when the user explicitly opened the chart (row/card click, chart
+   * icon). `false` for a hover preview, which the host may auto-dismiss.
+   */
+  pinned: boolean;
 }
 
 export interface UsePatternFullscreenArgs {
@@ -85,49 +94,72 @@ export function usePatternFullscreen({
     const token = chartRequestRef.current + 1;
     chartRequestRef.current = token;
     const identity = fullscreenHitIdentity(hit);
+    const stored = hit.id != null;
     setFullscreen({
       symbol: hit.symbol,
       hit,
-      hits: [],
+      hits: [hit],
       timeframe: hit.timeframe,
       candles: hit.candles ?? [],
       overlays: [],
       trendLines: hit.trend_lines ?? [],
-      loading: false,
+      loading: true,
       asOf: null,
       fromDate: null,
+      pinned: true,
     });
-    // Forward the TLS/TLR opt-out: with computation off the chart endpoint
-    // skips the detector and returns empty `trend_lines`.
-    void fetchSymbolChart(hit.symbol, hit.timeframe, {
-      detectPatterns: true,
+
+    const fullHit = stored ? fetchPatternHit(hit.id as number).catch(() => hit) : Promise.resolve(hit);
+    const chartPromise = fetchSymbolChart(hit.symbol, hit.timeframe, {
+      detectPatterns: !stored,
       ...(lookbackBars != null ? { lookbackBars } : {}),
       computeTrendlines,
-    })
-      .then((chart) => {
-        // Drop stale responses: only the latest request may update the view.
+    });
+
+    void Promise.all([fullHit, chartPromise])
+      .then(([full, chart]) => {
         if (chartRequestRef.current !== token) return;
+        const fetched = chart.hits ?? [];
+        const resolved = stored
+          ? (full ?? hit)
+          : (newestHit(mergeHits(hit, fetched)) ?? hit);
         setFullscreen((prev) =>
           prev && prev.hit && fullscreenHitIdentity(prev.hit) === identity
             ? {
                 ...prev,
-                hits: sortHitsNewest(mergeHits(hit, chart.hits ?? [])),
-                hit: newestHit(mergeHits(hit, chart.hits ?? [])),
+                hit: resolved,
+                hits: [resolved],
                 candles: chart.candles?.length ? chart.candles : prev.candles,
                 overlays: [],
-                trendLines: chart.trend_lines ?? prev.trendLines,
+                trendLines: chart.trend_lines ?? resolved.trend_lines ?? prev.trendLines,
+                loading: false,
               }
             : prev,
         );
       })
       .catch(() => {
-        /* non-fatal: keep the card's pattern + candles */
+        if (chartRequestRef.current !== token) return;
+        setFullscreen((prev) =>
+          prev && prev.hit && fullscreenHitIdentity(prev.hit) === identity
+            ? { ...prev, loading: false }
+            : prev,
+        );
       });
   };
 
   // Open from a bare symbol (report rows, watch rows): fetch the chart with
   // live detection and promote the newest hit (or null when there is none).
-  const openFromSymbol = (symbol: string, timeframe?: string) => {
+  // Shared by the pinned open (chart icon/row click) and the hover preview so
+  // both render the same widget.
+  const symbolChartCacheRef = useRef(
+    new Map<string, { chart: SymbolChartPayload; ts: number }>(),
+  );
+
+  const loadSymbolChart = (
+    symbol: string,
+    timeframe: string | undefined,
+    pinned: boolean,
+  ) => {
     const tf = timeframe ?? defaultTimeframe;
     const token = chartRequestRef.current + 1;
     chartRequestRef.current = token;
@@ -142,28 +174,42 @@ export function usePatternFullscreen({
       loading: true,
       asOf: null,
       fromDate: null,
+      pinned,
     });
+
+    const apply = (chart: SymbolChartPayload) => {
+      if (chartRequestRef.current !== token) return;
+      const hits = sortHitsNewest(chart.hits ?? []);
+      setFullscreen((prev) =>
+        prev && prev.symbol === symbol && prev.timeframe === tf
+          ? {
+              ...prev,
+              hit: newestHit(hits),
+              hits,
+              candles: chart.candles ?? [],
+              overlays: [],
+              trendLines: chart.trend_lines ?? [],
+              loading: false,
+            }
+          : prev,
+      );
+    };
+
+    const key = `${symbol}|${tf}`;
+    const cached = symbolChartCacheRef.current.get(key);
+    if (cached && Date.now() - cached.ts < SYMBOL_CHART_CACHE_MS) {
+      apply(cached.chart);
+      return;
+    }
+
     void fetchSymbolChart(symbol, tf, {
       detectPatterns: true,
       ...(lookbackBars != null ? { lookbackBars } : {}),
       computeTrendlines,
     })
       .then((chart) => {
-        if (chartRequestRef.current !== token) return;
-        const hits = sortHitsNewest(chart.hits ?? []);
-        setFullscreen((prev) =>
-          prev && prev.symbol === symbol && prev.timeframe === tf
-            ? {
-                ...prev,
-                hit: newestHit(hits),
-                hits,
-                candles: chart.candles ?? [],
-                overlays: [],
-                trendLines: chart.trend_lines ?? [],
-                loading: false,
-              }
-            : prev,
-        );
+        symbolChartCacheRef.current.set(key, { chart, ts: Date.now() });
+        apply(chart);
       })
       .catch(() => {
         if (chartRequestRef.current !== token) return;
@@ -174,6 +220,13 @@ export function usePatternFullscreen({
         );
       });
   };
+
+  const openFromSymbol = (symbol: string, timeframe?: string) =>
+    loadSymbolChart(symbol, timeframe, true);
+
+  /** Hover preview: same widget, but dismissible (pinned = false). */
+  const previewFromSymbol = (symbol: string, timeframe?: string) =>
+    loadSymbolChart(symbol, timeframe, false);
 
   // Fullscreen timeframe switch: re-runs detection on the new timeframe,
   // swaps candles/trendlines, promotes the newest hit. Preserves as-of.
@@ -268,10 +321,17 @@ export function usePatternFullscreen({
     setFullscreen(null);
   };
 
+  /** Promote a hover preview to a pinned chart (user interacted with it). */
+  const pinFullscreen = () => {
+    setFullscreen((prev) => (prev && !prev.pinned ? { ...prev, pinned: true } : prev));
+  };
+
   return {
     fullscreen,
     openFromCard,
     openFromSymbol,
+    previewFromSymbol,
+    pinFullscreen,
     changeFullscreenTimeframe,
     changeFullscreenAsOf,
     selectFullscreenHit,

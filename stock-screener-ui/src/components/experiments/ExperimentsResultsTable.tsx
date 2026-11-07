@@ -73,6 +73,7 @@ function PerSymbolTable({
         id: "symbol",
         header: "Symbol",
         accessorKey: "symbol",
+        meta: { align: "left" },
         cell: (info) => (
           <Text size="sm" fw={500}>
             {info.getValue<string>()}
@@ -130,6 +131,7 @@ function PerSymbolTable({
       enableSorting={false}
       dataTestId={`experiments-symbol-table-${run.run}`}
       getRowTestId={(row) => `experiments-symbol-row-${run.run}-${row.symbol}`}
+      dense
     />
   );
 }
@@ -169,6 +171,7 @@ export function ExperimentsResultsTable() {
         header: "",
         enableSorting: false,
         size: 40,
+        meta: { align: "center" },
         cell: ({ row }) => (
           <UnstyledButton
             data-testid={`experiments-expand-${row.original.run}`}
@@ -189,6 +192,7 @@ export function ExperimentsResultsTable() {
         header: "#",
         enableSorting: false,
         accessorKey: "run",
+        meta: { align: "right" },
         cell: (info) => (
           <Text size="sm" fw={500}>
             {info.getValue<number>()}
@@ -200,6 +204,7 @@ export function ExperimentsResultsTable() {
         header: "Config",
         enableSorting: false,
         accessorFn: (run) => configLabel(run),
+        meta: { align: "left" },
         cell: (info) => (
           <Text size="sm" lineClamp={1}>
             {info.getValue<string>()}
@@ -289,6 +294,7 @@ export function ExperimentsResultsTable() {
         id: "tp_sl_eod",
         header: "TP/SL/EOD",
         enableSorting: false,
+        meta: { align: "center" },
         accessorFn: (run) =>
           `${run.metrics.tp_exits}/${run.metrics.sl_exits}/${run.metrics.eod_exits}`,
         cell: (info) => <Text size="sm">{info.getValue<string>()}</Text>,
@@ -297,6 +303,7 @@ export function ExperimentsResultsTable() {
         id: "status",
         header: "Status",
         enableSorting: false,
+        meta: { align: "center" },
         accessorFn: (run) => run.status,
         cell: ({ row }) => <RunStatusBadge run={row.original} />,
       },
@@ -339,9 +346,10 @@ export function ExperimentsResultsTable() {
         dataTestId="experiments-results-table-inner"
         initialState={{ sorting: [{ id: "profit_factor", desc: true }] }}
         enableSortingRemoval={false}
+        dense
         getRowCanExpand={() => true}
         renderSubComponent={(run) => (
-          <Box p="xs">
+          <Box p={0.5}>
             <Text size="xs" fw={600} c="dimmed" style={{ marginBottom: 4 }}>
               Per-symbol breakdown
             </Text>

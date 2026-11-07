@@ -7,15 +7,15 @@ import {
   MARKER_SL,
   MARKER_TP,
   NEGATIVE,
+  PATTERN_BOUNDARY,
   POSITIVE,
   PRIMARY,
-  WARNING,
 } from "@/ui/palette";
 import { mapTimeSegment, mapTrendlines, pointsToSeriesData } from "./trendlineMapping";
 import { formatChartTick, formatChartTimestamp } from "./datetime";
 import { formatCurrency } from "@/utils/ui-helpers";
 
-export const BOUNDARY_COLORS = [PRIMARY, WARNING];
+export const BOUNDARY_COLORS = PATTERN_BOUNDARY;
 
 /**
  * Distinct colours assigned in order to the patterns drawn on one chart: the

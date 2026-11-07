@@ -7,6 +7,7 @@ import Box from "@mui/material/Box";
 import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import { TZ_IST } from "@/config/constants";
+import { fmtClock } from "../format";
 import type { ReplayTrade } from "@/components/replay/tick";
 
 export type ReplayCandle = { time: number; open: number; high: number; low: number; close: number };
@@ -34,9 +35,6 @@ interface ReplayChartHostProps {
   /** controlled playing state — gates auto-follow + range-change repaints */
   playing: boolean;
 }
-
-const fmtT = (ts: number) =>
-  new Date(ts * 1000).toLocaleString("en-IN", { timeZone: TZ_IST, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 
 const ReplayChartHost = forwardRef<ReplayChartHandle, ReplayChartHostProps>(function ReplayChartHost(
   { bars, subs, vwap, levels, trades, height = 420, barSeconds = 60, clock, playing }, ref,
@@ -86,7 +84,7 @@ const ReplayChartHost = forwardRef<ReplayChartHandle, ReplayChartHostProps>(func
       },
       rightPriceScale: { borderColor: palette.NT_GRID },
       localization: {
-        timeFormatter: (t: Time) => typeof t === "number" ? fmtT(t) : "",
+        timeFormatter: (t: Time) => typeof t === "number" ? fmtClock(t) : "",
         locale: "en-IN",
       },
     });
@@ -153,8 +151,8 @@ const ReplayChartHost = forwardRef<ReplayChartHandle, ReplayChartHostProps>(func
     // scrubbing back before or_end removes them again.
     const orLines = orLinesRef.current;
     if (!orLines && levels.or_end > 0 && now >= levels.or_end) {
-      const h = (cs as any).createPriceLine({ price: levels.or_high, color: "#A78BFA", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "OR-H" });
-      const l = (cs as any).createPriceLine({ price: levels.or_low, color: "#A78BFA", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "OR-L" });
+      const h = (cs as any).createPriceLine({ price: levels.or_high, color: palette.NT_TREND, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "OR-H" });
+      const l = (cs as any).createPriceLine({ price: levels.or_low, color: palette.NT_TREND, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "OR-L" });
       orLinesRef.current = { h, l };
     } else if (orLines && levels.or_end > 0 && now < levels.or_end) {
       try { (cs as any).removePriceLine?.(orLines.h); } catch { /* already gone */ }

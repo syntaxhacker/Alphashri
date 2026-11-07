@@ -68,7 +68,7 @@ export function PerformanceView({
         header: "Total Trades",
         accessorKey: "total_trades",
         meta: { align: "right" } as any,
-        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text size="sm" ta="right">{info.getValue<number>()}</Text></Box>,
+        cell: (info) => <Text size="sm" ta="right">{info.getValue<number>()}</Text>,
       },
       {
         id: "wl",
@@ -76,7 +76,6 @@ export function PerformanceView({
         accessorFn: (row) => `${row.winners}/${row.losers}`,
         meta: { align: "right" } as any,
         cell: (info) => (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
           <Group gap={4} sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1 }}>
             <Text size="sm" c="info">
               {info.row.original.winners}
@@ -88,7 +87,6 @@ export function PerformanceView({
               {info.row.original.losers}
             </Text>
           </Group>
-          </Box>
         ),
       },
       {
@@ -99,11 +97,9 @@ export function PerformanceView({
         cell: (info) => {
           const winRate = info.getValue<number>();
           return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
             <Badge size="sm" color={winRate >= 50 ? "success" : "error"} variant="filled">
               {winRate.toFixed(1)}%
             </Badge>
-            </Box>
           );
         },
       },
@@ -115,12 +111,10 @@ export function PerformanceView({
         cell: (info) => {
           const val = info.getValue<number>();
           return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
             <span style={{ color: val >= 0 ? "var(--mui-palette-info-main)" : "var(--mui-palette-error-main)", fontWeight: 500, fontSize: 13 }}>
               {val >= 0 ? "+" : ""}
               {val.toFixed(2)}
             </span>
-            </Box>
           );
         },
       },

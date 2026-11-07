@@ -15,7 +15,7 @@ import {
 } from "@/utils/chart/types";
 import type { MarkLineData } from "@/utils/chart/types";
 import { gexSideLevels, type GexSideLevel } from "./NiftyGexProfile";
-import { sortByField } from "@/utils/ui-helpers";
+import { sortByField, formatNumberIN } from "@/utils/ui-helpers";
 import type {
   NiftyIntradayCandle,
   NiftyReport,
@@ -166,6 +166,34 @@ export function mergeCollidingLabels(
   return out;
 }
 
+/** Gutter level label: whole index points, Indian-grouped (`MP 22,700`),
+ *  matching the pivot labels. Raw `${strike}` printed `MP 22700` beside
+ *  `CW 23,000` — two number formats in one price gutter. */
+function fmtMarkLevel(value: number): string {
+  return formatNumberIN(Math.round(value));
+}
+
+/** Classify a wall strike relative to spot. */
+export type WallSide = "above" | "below";
+
+/** Classify a wall strike relative to spot. */
+export function wallSide(strike: number, spot: number): WallSide {
+  return strike > spot ? "above" : "below";
+}
+
+/** Build the label code for a call/put wall based on side vs spot. */
+export function wallCode(isCall: boolean, side: WallSide, isFallbackPrimary: boolean): string {
+  if (isCall) {
+    if (side === "above") return "CW"; // call above spot = resistance (never fallback for calls above)
+    // Call wall below spot = broken resistance / support
+    return isFallbackPrimary ? "CW (BELOW)" : "CW↓"; // fallback = no calls above at all
+  } else {
+    if (side === "below") return "PW"; // put below spot = support (never fallback for puts below)
+    // Put wall above spot = broken support / resistance
+    return isFallbackPrimary ? "PW (ABOVE)" : "PW↑"; // fallback = no puts below at all
+  }
+}
+
 export function buildMarkLines(
   report: NiftyReport,
   withGex = false,
@@ -183,23 +211,127 @@ export function buildMarkLines(
 
   // Call/put walls and max pain as horizontal price LINES. These were shaded
   // price zones previously; the bands were too heavy, so they are lines now.
-  const topCalls = sortByField(report.walls.calls, "oi", "desc").slice(0, 2);
-  const topPuts = sortByField(report.walls.puts, "oi", "desc").slice(0, 2);
-  for (const w of topCalls) {
+  // `walls` are the heaviest OI across the chain (CW/PW); `wallsNear` are the
+  // nearest actionable strikes and carry the NEAR prefix so the two concepts
+  // never look like the same line.
+  const allCalls = sortByField(report.walls?.calls ?? [], "oi", "desc");
+  const allPuts = sortByField(report.walls?.puts ?? [], "oi", "desc");
+
+  // Classify calls by side vs spot
+  const callsAbove = allCalls.filter((w) => wallSide(w.strike, report.spot) === "above");
+  const callsBelow = allCalls.filter((w) => wallSide(w.strike, report.spot) === "below");
+  // Primary CW = highest-OI call ABOVE spot (resistance). If none above, fall back to highest overall but mark as broken.
+  const primaryCall = callsAbove[0] ?? allCalls[0];
+  // Secondary: next highest OI call not on same strike as primary
+  let secondaryCall: (typeof allCalls)[0] | undefined;
+  if (callsAbove.length >= 2) {
+    secondaryCall = callsAbove[1];
+  } else if (callsAbove.length === 1) {
+    secondaryCall = callsBelow[0];
+  } else {
+    // No calls above, primary is callsBelow[0], secondary is callsBelow[1]
+    secondaryCall = callsBelow[1];
+  }
+
+  // Classify puts by side vs spot
+  const putsBelow = allPuts.filter((w) => wallSide(w.strike, report.spot) === "below");
+  const putsAbove = allPuts.filter((w) => wallSide(w.strike, report.spot) === "above");
+  // Primary PW = highest-OI put BELOW spot (support). If none below, fall back to highest overall but mark as broken.
+  const primaryPut = putsBelow[0] ?? allPuts[0];
+  // Secondary: next highest OI put not on same strike as primary
+  let secondaryPut: (typeof allPuts)[0] | undefined;
+  if (putsBelow.length >= 2) {
+    secondaryPut = putsBelow[1];
+  } else if (putsBelow.length === 1) {
+    secondaryPut = putsAbove[0];
+  } else {
+    // No puts below, primary is putsAbove[0], secondary is putsAbove[1]
+    secondaryPut = putsAbove[1];
+  }
+
+  // Primary call wall (above spot = resistance, or below = broken fallback)
+  if (primaryCall) {
+    const side = wallSide(primaryCall.strike, report.spot);
+    const isFallbackPrimary = callsAbove.length === 0; // no calls above → this primary is fallback
+    lines.push({
+      yAxis: primaryCall.strike,
+      includeInScale: inScale(primaryCall.strike),
+      lineStyle: { color: palette.NEGATIVE, type: "dashed", width: 1 },
+      label: {
+        position: "insideEndTop",
+        formatter: `${wallCode(true, side, isFallbackPrimary)} ${fmtMarkLevel(primaryCall.strike)}`,
+      },
+    });
+    used.push(primaryCall.strike);
+  }
+  // Secondary call wall (next highest OI, but not same strike)
+  if (secondaryCall && secondaryCall.strike !== primaryCall?.strike) {
+    const side = wallSide(secondaryCall.strike, report.spot);
+    // Secondary is never fallback primary
+    lines.push({
+      yAxis: secondaryCall.strike,
+      includeInScale: inScale(secondaryCall.strike),
+      lineStyle: { color: palette.NEGATIVE, type: "dashed", width: 1 },
+      label: {
+        position: "insideEndTop",
+        formatter: `${wallCode(true, side, false)} ${fmtMarkLevel(secondaryCall.strike)}`,
+      },
+    });
+    used.push(secondaryCall.strike);
+  }
+
+  // Primary put wall (below spot = support, or above = broken fallback)
+  if (primaryPut) {
+    const side = wallSide(primaryPut.strike, report.spot);
+    const isFallbackPrimary = putsBelow.length === 0; // no puts below → this primary is fallback
+    lines.push({
+      yAxis: primaryPut.strike,
+      includeInScale: inScale(primaryPut.strike),
+      lineStyle: { color: palette.POSITIVE, type: "dashed", width: 1 },
+      label: {
+        position: "insideEndTop",
+        formatter: `${wallCode(false, side, isFallbackPrimary)} ${fmtMarkLevel(primaryPut.strike)}`,
+      },
+    });
+    used.push(primaryPut.strike);
+  }
+  // Secondary put wall (next highest OI, but not same strike)
+  if (secondaryPut && secondaryPut.strike !== primaryPut?.strike) {
+    const side = wallSide(secondaryPut.strike, report.spot);
+    // Secondary is never fallback primary
+    lines.push({
+      yAxis: secondaryPut.strike,
+      includeInScale: inScale(secondaryPut.strike),
+      lineStyle: { color: palette.POSITIVE, type: "dashed", width: 1 },
+      label: {
+        position: "insideEndTop",
+        formatter: `${wallCode(false, side, false)} ${fmtMarkLevel(secondaryPut.strike)}`,
+      },
+    });
+    used.push(secondaryPut.strike);
+  }
+  // Near walls: same line style, explicit NEAR code so a 23,900 near wall is
+  // never confused with the 24,000 max-OI wall. Skipped when the max wall is
+  // already on that strike (it is the same level, not a second one).
+  const nearCalls = sortByField(report.wallsNear?.calls ?? [], "oi", "desc").slice(0, 1);
+  const nearPuts = sortByField(report.wallsNear?.puts ?? [], "oi", "desc").slice(0, 1);
+  for (const w of nearCalls) {
+    if (!fresh(w.strike)) continue;
     lines.push({
       yAxis: w.strike,
       includeInScale: inScale(w.strike),
-      lineStyle: { color: palette.NEGATIVE, type: "dashed", width: 1 },
-      label: { position: "insideEndTop", formatter: `CW ${w.strike}` },
+      lineStyle: { color: palette.NEGATIVE, type: "dotted", width: 1 },
+      label: { position: "insideEndTop", formatter: `NEAR CW ${fmtMarkLevel(w.strike)}` },
     });
     used.push(w.strike);
   }
-  for (const w of topPuts) {
+  for (const w of nearPuts) {
+    if (!fresh(w.strike)) continue;
     lines.push({
       yAxis: w.strike,
       includeInScale: inScale(w.strike),
-      lineStyle: { color: palette.POSITIVE, type: "dashed", width: 1 },
-      label: { position: "insideEndTop", formatter: `PW ${w.strike}` },
+      lineStyle: { color: palette.POSITIVE, type: "dotted", width: 1 },
+      label: { position: "insideEndTop", formatter: `NEAR PW ${fmtMarkLevel(w.strike)}` },
     });
     used.push(w.strike);
   }
@@ -208,7 +340,7 @@ export function buildMarkLines(
       yAxis: report.maxPain,
       includeInScale: inScale(report.maxPain),
       lineStyle: { color: palette.PRIMARY, type: "solid", width: 2 },
-      label: { position: "insideEndTop", formatter: `MP ${report.maxPain}` },
+      label: { position: "insideEndTop", formatter: `MP ${fmtMarkLevel(report.maxPain)}` },
     });
     used.push(report.maxPain);
   }
@@ -234,7 +366,7 @@ export function buildMarkLines(
         lineStyle: { color, type: lineType, width: 1 },
         label: {
           position: "insideEndTop",
-          formatter: `${code} ${Math.round(value).toLocaleString("en-IN")}`,
+          formatter: `${code} ${fmtMarkLevel(value)}`,
         },
       });
       used.push(value);

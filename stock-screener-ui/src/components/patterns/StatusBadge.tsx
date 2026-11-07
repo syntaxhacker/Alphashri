@@ -1,19 +1,6 @@
 import { Badge } from "@/ui";
 import type { PatternStatus } from "@/types/chartPatterns";
-
-const STATUS_COLORS: Record<string, string> = {
-  confirmed: "success",
-  forming: "info",
-  failed: "error",
-  marginal: "warning",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  confirmed: "Confirmed",
-  forming: "Forming",
-  failed: "Failed",
-  marginal: "Marginal",
-};
+import { statusBadgeTone, statusLabel } from "./patternTone";
 
 export interface StatusBadgeProps {
   status: PatternStatus | string | null | undefined;
@@ -23,10 +10,10 @@ export interface StatusBadgeProps {
 /** Small semantic chip for a pattern detection status. */
 export function StatusBadge({ status, "data-testid": testId }: StatusBadgeProps) {
   const key = String(status ?? "").toLowerCase();
-  const label = STATUS_LABELS[key] ?? (key ? key.charAt(0).toUpperCase() + key.slice(1) : "Unknown");
+  const label = statusLabel(status);
   return (
     <Badge
-      color={STATUS_COLORS[key] ?? "default"}
+      color={statusBadgeTone(status)}
       variant="light"
       size="sm"
       data-testid={testId ?? `patterns-status-${key || "unknown"}`}

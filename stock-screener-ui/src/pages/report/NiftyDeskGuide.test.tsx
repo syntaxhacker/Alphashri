@@ -33,17 +33,31 @@ describe("NiftyDeskGuide", () => {
     for (const entry of DESK_GUIDE_ENTRIES) {
       expect(within(modal).getByText(entry.term)).toBeInTheDocument();
     }
-    // The nine sections from the desk legend, in one dense 2-column grid.
-    expect(DESK_GUIDE_ENTRIES).toHaveLength(9);
+    // The ten sections from the desk legend, in one dense 3-column grid.
+    expect(DESK_GUIDE_ENTRIES).toHaveLength(10);
     expect(within(modal).getByText("COIL / NORMAL / EXPANDING")).toBeInTheDocument();
     expect(within(modal).getByText("HEATMAP")).toBeInTheDocument();
     expect(within(modal).getByText("GAMMA (Γ)")).toBeInTheDocument();
     expect(within(modal).getByText("MAX PAIN")).toBeInTheDocument();
+    expect(within(modal).getByText("PIN RISK")).toBeInTheDocument();
     expect(within(modal).getByText("PCR")).toBeInTheDocument();
     expect(within(modal).getByText("SB / LB")).toBeInTheDocument();
     expect(within(modal).getByText("FLOW STRIP")).toBeInTheDocument();
     expect(within(modal).getByText("CAS")).toBeInTheDocument();
     expect(within(modal).getByText("COSTS")).toBeInTheDocument();
+  });
+
+  test("PIN RISK explains the pin, the sweep-and-revert and the close-beyond confirmation", () => {
+    const pin = DESK_GUIDE_ENTRIES.find((entry) => entry.term === "PIN RISK");
+    expect(pin).toBeDefined();
+    expect(pin?.text).toMatch(/heavy OI wall/i);
+    expect(pin?.text).toMatch(/max pain ≥100 pts/i);
+    expect(pin?.text).toMatch(/sweep and revert/i);
+    expect(pin?.text).toMatch(/two consecutive 1-min closes/i);
+    // Ordering: it follows MAX PAIN and precedes PCR.
+    const terms = DESK_GUIDE_ENTRIES.map((entry) => entry.term);
+    expect(terms.indexOf("PIN RISK")).toBe(terms.indexOf("MAX PAIN") + 1);
+    expect(terms.indexOf("PIN RISK")).toBeLessThan(terms.indexOf("PCR"));
   });
 
   test("the close X dismisses the guide", async () => {

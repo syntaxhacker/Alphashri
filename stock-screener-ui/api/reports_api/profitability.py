@@ -27,16 +27,15 @@ error yields zeroed strategy rows + empty signals, never a 500.
 from __future__ import annotations
 
 import json
-import math
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Query
 
-import config as root_config
+from api.reports_api._time import now_iso as _now_iso
+from api.reports_api._numeric import safe_float
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -78,19 +77,9 @@ def clear_cache() -> None:
         pass
 
 
-def _now_iso() -> str:
-    try:
-        return datetime.now(root_config.IST).isoformat()
-    except Exception:
-        return datetime.now().astimezone().isoformat()
-
-
 def _finite(value: Any) -> Optional[float]:
-    try:
-        out = float(value)
-    except (TypeError, ValueError):
-        return None
-    return out if math.isfinite(out) else None
+    """Finite float or ``None`` — canonical ``safe_float`` with a ``None`` default."""
+    return safe_float(value, default=None)
 
 
 def _round2(value: Any) -> float:

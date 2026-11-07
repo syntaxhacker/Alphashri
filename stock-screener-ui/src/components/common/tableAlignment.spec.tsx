@@ -1,10 +1,17 @@
 // @vitest-environment happy-dom
 /**
- * Alignment contract smoke test for every screen's table.
- * Contract (implemented in shared TanStackTable):
- *  - text columns  -> header + cell left
- *  - numeric cols  -> header + cell right
- *  - meta.align overrides
+ * Alignment contract smoke test for every screen's table or grid panel.
+ *
+ * Contract:
+ *  - Components rendering a real <table> (shared TanStackTable) → check the
+ *    <table> path: thead th / tbody td alignment, text left, numeric right,
+ *    meta.align overrides.
+ *  - Components rewritten as CSS grids (IntervalMoversTable,
+ *    SectorAlertsList) → check the grid path: the container
+ *    (data-testid) must exist, header cells and body cells render with the
+ *    expected text alignment.
+ *  - A component rendering neither a <table> nor a detectable grid fails
+ *    with a clear message — the guard must never silently pass.
  */
 import { describe, it, expect } from "vitest";
 import { render, cleanup } from "@testing-library/react";
@@ -27,26 +34,63 @@ function wrap(ui: React.ReactNode) {
   return render(<UIProvider>{ui}</UIProvider>);
 }
 
-function grab(label: string) {
+/** Inline style first (reliable in happy-dom), computed style as fallback.
+ *  text-align initial value is "left"; happy-dom reports '' when unset.
+ */
+function alignOf(el: Element): string {
+  return (el as HTMLElement).style.textAlign || getComputedStyle(el).textAlign || "left";
+}
+
+/** Shared TanStackTable path: real <table> with thead/tbody. */
+function grabTable(label: string) {
   const table = document.body.querySelector("table");
-  expect(table, `${label}: table rendered`).toBeTruthy();
+  expect(table, `${label}: <table> rendered`).toBeTruthy();
   const ths = [...table!.querySelectorAll("thead th")];
   const firstRow = table!.querySelector("tbody tr");
   const tds = firstRow ? [...firstRow.querySelectorAll("td")] : [];
   const headerByText = new Map(
-    ths.map((th) => [th.textContent!.trim(), getComputedStyle(th).textAlign]),
+    ths.map((th) => [th.textContent!.trim(), alignOf(th)]),
   );
   const cellAligns = tds.map((td) => ({
     text: td.textContent!.trim(),
-    align: getComputedStyle(td).textAlign,
+    align: alignOf(td),
   }));
   return { headerByText, cellAligns };
+}
+
+/** CSS-grid panel path (IntervalMoversTable / SectorAlertsList).
+ *  Returns every grid row (direct child Boxes with display: grid) as an
+ *  array of { text, align } direct child cells. Row 0 is the header row
+ *  when the panel has one. Fails with a clear message when the container
+ *  or any grid row is missing.
+ */
+function grabGrid(testId: string) {
+  const container = document.body.querySelector<HTMLElement>(
+    `[data-testid="${testId}"]`,
+  );
+  expect(
+    container,
+    `grid panel: [data-testid="${testId}"] container rendered`,
+  ).toBeTruthy();
+  const rows = [...(container!.children as HTMLCollectionOf<HTMLElement>)].filter(
+    (row) => row.style.display === "grid" || getComputedStyle(row).display === "grid",
+  );
+  expect(
+    rows.length,
+    `grid panel: [data-testid="${testId}"] has at least one grid row`,
+  ).toBeGreaterThan(0);
+  return rows.map((row) =>
+    [...(row.children as HTMLCollectionOf<HTMLElement>)].map((cell) => ({
+      text: cell.textContent!.trim(),
+      align: alignOf(cell),
+    })),
+  );
 }
 
 const metric: MetricConfig = { value: "pe_ratio", label: "P/E", fmt: (v) => v.toFixed(1) };
 
 describe("table alignment across screens", () => {
-  it("IntervalMoversTable: text left, numeric right", () => {
+  it("IntervalMoversTable (grid): text left, numeric right", () => {
     wrap(
       <IntervalMoversTable
         movers={[
@@ -55,13 +99,18 @@ describe("table alignment across screens", () => {
         ]}
       />,
     );
-    const { headerByText, cellAligns } = grab("movers");
-    expect(headerByText.get("Stock")).toBe("left");
-    expect(headerByText.get("Prev")).toBe("right");
-    expect(headerByText.get("Now")).toBe("right");
-    expect(headerByText.get("Δ")).toBe("right");
-    expect(cellAligns.find((c) => c.text === "RELIANCE")!.align).toBe("left");
-    expect(cellAligns.find((c) => c.text.includes("1.10"))!.align).toBe("right");
+    const rows = grabGrid("interval-movers-table");
+    const [header, firstBody] = rows;
+    expect(header.map((c) => c.text)).toEqual(["Stock", "Prev", "Now", "Δ"]);
+    expect(header[0].align).toBe("left");
+    expect(header[1].align).toBe("right");
+    expect(header[2].align).toBe("right");
+    expect(header[3].align).toBe("right");
+    expect(firstBody.map((c) => c.text)).toEqual(["RELIANCE", "1.10%", "2.20%", "+1.10%"]);
+    expect(firstBody[0].align).toBe("left");
+    expect(firstBody[1].align).toBe("right");
+    expect(firstBody[2].align).toBe("right");
+    expect(firstBody[3].align).toBe("right");
   });
 
   it("ReplaySummaryPanel: strategy text left, numbers right", () => {
@@ -82,7 +131,7 @@ describe("table alignment across screens", () => {
         }}
       />,
     );
-    const { headerByText, cellAligns } = grab("replay-summary");
+    const { headerByText, cellAligns } = grabTable("replay-summary");
     expect(headerByText.get("Strategy")).toBe("left");
     expect(headerByText.get("Trades")).toBe("right");
     expect(headerByText.get("Win Rate")).toBe("right");
@@ -99,7 +148,7 @@ describe("table alignment across screens", () => {
         ]}
       />,
     );
-    const { headerByText, cellAligns } = grab("replay-positions");
+    const { headerByText, cellAligns } = grabTable("replay-positions");
     expect(headerByText.get("Symbol") ?? headerByText.get("Stock")).toBe("left");
     const qty = cellAligns.find((c) => c.text === "25");
     if (qty) expect(qty.align).toBe("right");
@@ -117,7 +166,7 @@ describe("table alignment across screens", () => {
         highlightedTradeId={null}
       />,
     );
-    const { headerByText, cellAligns } = grab("replay-tradelog");
+    const { headerByText, cellAligns } = grabTable("replay-tradelog");
     expect(headerByText.get("Symbol")).toBe("left");
     expect(headerByText.get("Qty")).toBe("right");
     const pnl = cellAligns.find((c) => c.text.includes("2387"));
@@ -132,7 +181,7 @@ describe("table alignment across screens", () => {
         ]}
       />,
     );
-    const { headerByText, cellAligns } = grab("options-positions");
+    const { headerByText, cellAligns } = grabTable("options-positions");
     expect(headerByText.get("Symbol")).toBe("left");
     expect(headerByText.get("Type")).toBe("center");
     const qty = cellAligns.find((c) => c.text === "75");
@@ -150,7 +199,7 @@ describe("table alignment across screens", () => {
         isLoading={false}
       />,
     );
-    const { headerByText, cellAligns } = grab("perf-view");
+    const { headerByText, cellAligns } = grabTable("perf-view");
     expect(headerByText.get("Strategy")).toBe("left");
     expect(headerByText.get("Total Trades")).toBe("right");
     expect(headerByText.get("Win Rate")).toBe("right");
@@ -172,14 +221,14 @@ describe("table alignment across screens", () => {
         metricMax={50}
       />,
     );
-    const { headerByText, cellAligns } = grab("heatmap-list");
+    const { headerByText, cellAligns } = grabTable("heatmap-list");
     expect(headerByText.get("Symbol")).toBe("left");
     expect(headerByText.get("P/E")).toBe("right");
     const price = cellAligns.find((c) => c.text.includes("2950"));
     if (price) expect(price.align).toBe("right");
   });
 
-  it("SectorAlertsList: time/sector left, move badge rendered", () => {
+  it("SectorAlertsList (grid): time/sector cells, SURGING/DROPPING badge", () => {
     wrap(
       <SectorAlertsList
         alerts={[
@@ -188,12 +237,13 @@ describe("table alignment across screens", () => {
         ]}
       />,
     );
-    const { headerByText, cellAligns } = grab("sector-alerts");
-    expect(headerByText.get("Time")).toBe("left");
-    expect(headerByText.get("Sector")).toBe("left");
-    expect(headerByText.get("Move")).toBe("left");
-    expect(cellAligns.find((c) => c.text === "IT")!.align).toBe("left");
-    expect(cellAligns.some((c) => c.text.includes("SURGING"))).toBe(true);
+    const rows = grabGrid("sector-alerts-table");
+    expect(rows.length).toBe(2);
+    expect(rows[0].map((c) => c.text)).toEqual(["10:30:00", "IT", "SURGING (1.50%)"]);
+    expect(rows[1].map((c) => c.text)).toEqual(["10:31:00", "Banking", "DROPPING (-0.80%)"]);
+    const moveCells = rows.flatMap((row) => row.slice(2));
+    expect(moveCells.some((c) => c.text.startsWith("SURGING"))).toBe(true);
+    expect(moveCells.some((c) => c.text.startsWith("DROPPING"))).toBe(true);
   });
 
   it("SectorTable: sector left, numeric right", () => {
@@ -205,9 +255,21 @@ describe("table alignment across screens", () => {
         ]}
       />,
     );
-    const { headerByText, cellAligns } = grab("sector");
+    const { headerByText, cellAligns } = grabTable("sector");
     expect(headerByText.get("Sector") ?? headerByText.get("Change")).toBe("left");
     const chg = cellAligns.find((c) => c.text.includes("1.25"));
     if (chg) expect(chg.align).toBe("right");
+  });
+
+  it("fails loudly when a screen renders neither <table> nor grid", () => {
+    expect(() => {
+      wrap(<div data-testid="plain-panel">no structure here</div>);
+      grabTable("plain-panel");
+    }).toThrowError(/<table> rendered/);
+    expect(() => {
+      cleanup();
+      wrap(<div data-testid="plain-panel">no structure here</div>);
+      grabGrid("plain-panel");
+    }).toThrowError(/grid panel/);
   });
 });

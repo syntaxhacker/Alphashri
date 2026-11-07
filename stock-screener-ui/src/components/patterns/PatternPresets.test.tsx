@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import type { PatternFilters } from "@/types/chartPatterns";
@@ -66,12 +66,21 @@ describe("PatternPresets", () => {
   test("applies a built-in preset through applyFilters", async () => {
     const props = makeProps();
     r(<PatternPresets {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-preset-fresh_reversals"));
+    fireEvent.change(screen.getByTestId("patterns-preset-select-input"), { target: { value: "builtin:fresh_reversals" } });
     expect(props.applyFilters).toHaveBeenCalledWith({
       family: ["reversal"],
       formed_within_bars: 3,
       sort: "newest",
     });
+  });
+
+  test("re-applying the same preset fires again (action select, no sticky value)", () => {
+    const props = makeProps();
+    r(<PatternPresets {...props} />);
+    const select = screen.getByTestId("patterns-preset-select-input");
+    fireEvent.change(select, { target: { value: "builtin:fresh_reversals" } });
+    fireEvent.change(select, { target: { value: "builtin:fresh_reversals" } });
+    expect(props.applyFilters).toHaveBeenCalledTimes(2);
   });
 
   test("saves the current filters to localStorage and lists the preset", async () => {
@@ -184,28 +193,28 @@ describe("PatternPresets", () => {
   test("applies the bullish built-in preset payload", async () => {
     const props = makeProps();
     r(<PatternPresets {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-preset-bullish_setups"));
+    fireEvent.change(screen.getByTestId("patterns-preset-select-input"), { target: { value: "builtin:bullish_setups" } });
     expect(props.applyFilters).toHaveBeenCalledWith({ direction: ["bullish"] });
   });
 
   test("applies the latest_formed built-in preset payload", async () => {
     const props = makeProps();
     r(<PatternPresets {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-preset-latest_formed"));
+    fireEvent.change(screen.getByTestId("patterns-preset-select-input"), { target: { value: "builtin:latest_formed" } });
     expect(props.applyFilters).toHaveBeenCalledWith({ formed_within_bars: 3, sort: "newest" });
   });
 
   test("applies the near_52w_high built-in preset payload", async () => {
     const props = makeProps();
     r(<PatternPresets {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-preset-near_52w_high"));
+    fireEvent.change(screen.getByTestId("patterns-preset-select-input"), { target: { value: "builtin:near_52w_high" } });
     expect(props.applyFilters).toHaveBeenCalledWith({ max_52w_gap: 3, sort: "newest" });
   });
 
   test("applies the near_breakout built-in preset payload", async () => {
     const props = makeProps();
     r(<PatternPresets {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-preset-near_breakout"));
+    fireEvent.change(screen.getByTestId("patterns-preset-select-input"), { target: { value: "builtin:near_breakout" } });
     expect(props.applyFilters).toHaveBeenCalledWith({
       pattern_id: ["consolidation"],
       min_base_days: 60,
@@ -217,7 +226,7 @@ describe("PatternPresets", () => {
   test("applies the high_conviction built-in preset payload", async () => {
     const props = makeProps();
     r(<PatternPresets {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-preset-high_conviction"));
+    fireEvent.change(screen.getByTestId("patterns-preset-select-input"), { target: { value: "builtin:high_conviction" } });
     expect(props.applyFilters).toHaveBeenCalledWith({
       min_confidence: 70,
       min_breakout_score: 60,
@@ -231,14 +240,15 @@ describe("PatternPresets", () => {
     r(<PatternPresets {...props} />);
 
     expect(screen.queryByTestId("patterns-preset-saved")).not.toBeInTheDocument();
-    expect(screen.getByTestId("patterns-preset-fresh_reversals")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-preset-select-input")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-preset-select-input")).toHaveValue("");
     expect(props.applyFilters).not.toHaveBeenCalled();
   });
 
   test("applies the high_rel_vol built-in preset payload", async () => {
     const props = makeProps();
     r(<PatternPresets {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-preset-high_rel_vol"));
+    fireEvent.change(screen.getByTestId("patterns-preset-select-input"), { target: { value: "builtin:high_rel_vol" } });
     expect(props.applyFilters).toHaveBeenCalledWith({
       min_rel_volume: 1.5,
       min_volume_m: 5,

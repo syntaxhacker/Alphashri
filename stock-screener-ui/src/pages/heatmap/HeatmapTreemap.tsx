@@ -5,12 +5,6 @@ import MenuItem from "@mui/material/MenuItem";
 import ReactECharts from "echarts-for-react";
 import type { HeatmapStock } from "../../api/heatmap";
 import {
-  TOOLTIP_DARK_BG,
-  TOOLTIP_LIGHT_BG,
-  TOOLTIP_DARK_BORDER,
-  TOOLTIP_LIGHT_BORDER,
-  TOOLTIP_DARK_TEXT,
-  TOOLTIP_LIGHT_TEXT,
   BG,
   SURFACE,
   CREAM,
@@ -22,13 +16,32 @@ import {
 } from "../../config/colors";
 import {
   METRICS,
-  getMetricValue,
   getHeatmapMetricColor,
-  getHeatmapMetricTextColor,
   isSignedHeatmapMetric,
-  formatMarketCap,
   type MetricConfig,
 } from "./heatmapUtils";
+import {
+  buildStockTreemapOption,
+  getStockMetricRange,
+  resolveStockMetric,
+  type StockTreemapStyle,
+} from "../../components/heatmap/stockTreemap";
+
+/** Surface-specific look: NSE heatmap tiles. Shared data/tooltip live in stockTreemap.ts. */
+const HEATMAP_TREEMAP_STYLE: StockTreemapStyle = {
+  borderDark: SURFACE,
+  borderLight: CREAM,
+  label: {
+    fontSize: 10,
+    fontWeight: "bold",
+    lineHeight: 14,
+    textBorderColor: BG,
+    textBorderWidth: 0.5,
+  },
+  colorSaturation: [0.35, 0.5],
+  changePositive: "var(--mui-palette-success-main)",
+  changeNegative: "var(--mui-palette-error-main)",
+};
 
 export interface HeatmapTreemapProps {
   stocks: HeatmapStock[];
@@ -56,15 +69,13 @@ export function HeatmapTreemap({
   const isDark = typeof document !== "undefined" ? document.documentElement.getAttribute("data-dark") === "true" : false;
   const chartRef = useRef<ReactECharts>(null);
 
-  const activeMetric = metrics.find((m) => m.value === metric) || metrics[0];
+  const activeMetric = resolveStockMetric(metrics, metric);
   const metricKey = activeMetric.value;
 
-  const metricValues = useMemo(
-    () => stocks.map((stock) => getMetricValue(stock, metricKey)),
+  const { min: metricMin, max: metricMax } = useMemo(
+    () => getStockMetricRange(stocks, metricKey),
     [stocks, metricKey],
   );
-  const metricMin = metricValues.length ? Math.min(...metricValues) : 0;
-  const metricMax = metricValues.length ? Math.max(...metricValues) : 1;
   const handleChartClick = useCallback(
     (params: { name?: string }) => {
       if (params?.name) onSymbolClick?.(params.name);
@@ -72,123 +83,10 @@ export function HeatmapTreemap({
     [onSymbolClick],
   );
 
-  const chartOption = useMemo(() => {
-    const data = stocks.map((stock) => {
-      const mv = getMetricValue(stock, metricKey);
-      const color = getHeatmapMetricColor(metricKey, mv, metricMin, metricMax);
-      const textColor = getHeatmapMetricTextColor(metricKey, mv, metricMin, metricMax);
-      const extra = stock as HeatmapStock & Record<string, unknown>;
-      return {
-        name: stock.symbol,
-        value: 1,
-        path: stock.symbol,
-        nameFull: stock.name,
-        sector: stock.sector,
-        price: stock.price,
-        change: stock.change_pct,
-        mcap: stock.market_cap,
-        pe: stock.pe_ratio,
-        score: extra.score,
-        gap52: extra.to_52w_high,
-        metricLabel: activeMetric.label,
-        metricValue: activeMetric.fmt(mv),
-        label: { color: textColor },
-        itemStyle: { color },
-      };
-    });
-
-    const tooltipBg = isDark ? TOOLTIP_DARK_BG : TOOLTIP_LIGHT_BG;
-    const tooltipBorder = isDark ? TOOLTIP_DARK_BORDER : TOOLTIP_LIGHT_BORDER;
-    const tooltipText = isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT;
-
-    return {
-      tooltip: {
-        trigger: "item",
-        backgroundColor: tooltipBg,
-        borderColor: tooltipBorder,
-        textStyle: { color: tooltipText },
-        formatter: (params: { data?: Record<string, unknown> }) => {
-          const d = params.data;
-          if (!d) return "";
-          const lines = [
-            `<div style="font-weight:bold;font-size:14px;color:${tooltipText}">${d.name}</div>`,
-            `<div style="color:${tooltipText};font-size:12px;opacity:0.8">${d.nameFull}</div>`,
-            `<div style="margin-top:8px">`,
-            `  <div style="color:${tooltipText}">${d.metricLabel}: <b>${d.metricValue}</b></div>`,
-          ];
-          if (d.pe != null && Number(d.pe) > 0) {
-            lines.push(`  <div style="color:${tooltipText}">P/E: <b>${d.pe}</b></div>`);
-          }
-          if (d.mcap != null && Number(d.mcap) > 0) {
-            lines.push(`  <div style="color:${tooltipText}">MCap: <b>${formatMarketCap(Number(d.mcap))}</b></div>`);
-          }
-          if (d.gap52 != null && d.gap52 !== "") {
-            lines.push(`  <div style="color:${tooltipText}">52W Gap: <b>${Number(d.gap52).toFixed(2)}%</b></div>`);
-          }
-          if (d.score != null && d.score !== "") {
-            lines.push(`  <div style="color:${tooltipText}">Score: <b>${d.score}</b></div>`);
-          }
-          if (d.price != null && Number(d.price) > 0) {
-            lines.push(`  <div style="color:${tooltipText}">Price: <b>₹${Number(d.price).toFixed(2)}</b></div>`);
-          }
-          if (d.change != null && d.change !== "") {
-            const ch = Number(d.change);
-            const col = ch >= 0 ? "var(--mui-palette-success-main)" : "var(--mui-palette-error-main)";
-            lines.push(
-              `  <div style="color:${col}">Change: <b>${ch >= 0 ? "+" : ""}${ch.toFixed(2)}%</b></div>`,
-            );
-          }
-          if (d.sector) {
-            lines.push(`  <div style="color:${tooltipText}">Sector: ${d.sector}</div>`);
-          }
-          lines.push(`</div>`);
-          return lines.join("\n");
-        },
-      },
-      series: [
-        {
-          type: "treemap",
-          sort: false,
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          roam: false,
-          squareRatio: 1,
-          label: {
-            show: true,
-            formatter: (params: { name?: string; data?: { metricValue?: string } }) =>
-              `${params.name}\n${params.data?.metricValue ?? ""}`,
-            fontSize: 10,
-            fontWeight: "bold",
-            lineHeight: 14,
-            textBorderColor: BG,
-            textBorderWidth: 0.5,
-          },
-          breadcrumb: { show: false },
-          itemStyle: {
-            borderColor: isDark ? SURFACE : CREAM,
-            borderWidth: 1,
-            gapWidth: 0,
-          },
-          levels: [
-            {
-              itemStyle: {
-                borderColor: isDark ? SURFACE : CREAM,
-                borderWidth: 0,
-                gapWidth: 0,
-              },
-            },
-            {
-              colorSaturation: [0.35, 0.5],
-              itemStyle: { borderColorSaturation: 0.6, gapWidth: 0, borderWidth: 1 },
-            },
-          ],
-          data,
-        },
-      ],
-    };
-  }, [stocks, activeMetric, metricKey, metricMin, metricMax, isDark, metrics]);
+  const chartOption = useMemo(
+    () => buildStockTreemapOption(stocks, metricKey, metrics, isDark, HEATMAP_TREEMAP_STYLE),
+    [stocks, metricKey, metrics, isDark],
+  );
 
   return (
     <Box data-testid={testId} sx={{ display: "flex", flexDirection: "column", gap: 0, flex: 1, minHeight: 0, width: "100%", overflow: "hidden" }}>

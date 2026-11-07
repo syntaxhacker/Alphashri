@@ -1,3 +1,4 @@
+import { formatNumberIN } from "@/utils/ui-helpers";
 import { memo, useMemo } from "react";
 import Box from "@mui/material/Box";
 import type { ReactNode } from "react";
@@ -409,7 +410,7 @@ function NiftyDeltaPositioningInner({
           title="The curve is cumulative OI×delta across the chain (what defines the Δ pivot); the columns are today's initiated delta per strike. Both are restricted to the ±750 point band around spot."
           sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
         >
-          {`Profile ±${POSITIONING_WINDOW_PTS} pts${atmStrike !== null ? ` · ATM ${atmStrike.toLocaleString("en-IN")}` : ""} · curve > 0 = long δ · bars = initiated δ`}
+          {`Profile ±${POSITIONING_WINDOW_PTS} pts${atmStrike !== null ? ` · ATM ${formatNumberIN(atmStrike)}` : ""} · curve > 0 = long δ · bars = initiated δ`}
         </Text>
 
         {/* Fills the row: the panel stretches to the analytics row height

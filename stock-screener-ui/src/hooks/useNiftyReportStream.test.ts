@@ -2,7 +2,12 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, cleanup, act } from "@testing-library/react";
-import { reportWsUrl, useNiftyReportStream } from "./useNiftyReportStream";
+import {
+  reportWsUrl,
+  setLiveTick,
+  useNiftyReportStream,
+  useNiftySpotTick,
+} from "./useNiftyReportStream";
 
 vi.mock("@/state/auth", () => ({ getAccessToken: () => "tok123" }));
 
@@ -41,6 +46,7 @@ function installMockWs() {
 
 beforeEach(() => {
   installMockWs();
+  setLiveTick(null);
 });
 afterEach(() => {
   cleanup();
@@ -205,13 +211,48 @@ describe("useNiftyReportStream", () => {
     expect(result.current.connected).toBe(true);
   });
 
-  test("a tick frame exposes tick.spot without touching the report", async () => {
-    const { result } = renderHook(() =>
-      useNiftyReportStream({ expiry: undefined, enabled: true }),
-    );
+  test("a tick frame pushes into the spot store without touching the report or the caller state", async () => {
+    let rendered = 0;
+    const hook = renderHook(() => {
+      rendered += 1;
+      return useNiftyReportStream({ expiry: undefined, enabled: true });
+    });
+    const { result } = renderHook(() => useNiftySpotTick());
     const ws = MockWebSocket.instances[0];
-    expect(result.current.tick).toBeNull();
+    expect(result.current).toBeNull();
+    act(() => {
+      ws.open();
+    });
+    const beforeTick = rendered;
 
+    act(() => {
+      ws.receive({
+        type: "tick",
+        spot: 23123.5,
+        ts: "2026-10-12T10:00:01+05:30",
+        change_pct: 0.12,
+      });
+    });
+    await waitFor(() => expect(result.current).not.toBeNull());
+    expect(result.current?.spot).toBe(23123.5);
+    expect(result.current?.ts).toBe("2026-10-12T10:00:01+05:30");
+    expect(result.current?.change_pct).toBe(0.12);
+    // Ticks are spot-only — the report snapshot is untouched.
+    expect(hook.result.current.report).toBeNull();
+    // The tick is not part of the hook's return value: only the socket's
+    // `connected` state may re-render the stream consumer.
+    expect(hook.result.current).not.toHaveProperty("tick");
+    expect(rendered).toBe(beforeTick);
+  });
+
+  test("disabling the stream clears the last live tick", async () => {
+    const { rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useNiftyReportStream({ expiry: undefined, enabled }),
+      { initialProps: { enabled: true } },
+    );
+    const { result } = renderHook(() => useNiftySpotTick());
+    const ws = MockWebSocket.instances[0];
     act(() => {
       ws.open();
       ws.receive({
@@ -221,15 +262,15 @@ describe("useNiftyReportStream", () => {
         change_pct: 0.12,
       });
     });
-    await waitFor(() => expect(result.current.tick).not.toBeNull());
-    expect(result.current.tick?.spot).toBe(23123.5);
-    expect(result.current.tick?.ts).toBe("2026-10-12T10:00:01+05:30");
-    expect(result.current.tick?.change_pct).toBe(0.12);
-    // Ticks are spot-only — the report snapshot is untouched.
-    expect(result.current.report).toBeNull();
+    await waitFor(() => expect(result.current?.spot).toBe(23123.5));
+
+    rerender({ enabled: false });
+    await waitFor(() => expect(result.current).toBeNull());
   });
 
-  test("disabling the stream clears the last live tick", async () => {
+  test("disabling the stream releases the pushed report, tape and sensex", async () => {
+    // EOD/replay must not keep pinning the last live frame (~1-2 MB) for as
+    // long as the tab stays open.
     const { result, rerender } = renderHook(
       ({ enabled }: { enabled: boolean }) =>
         useNiftyReportStream({ expiry: undefined, enabled }),
@@ -238,24 +279,21 @@ describe("useNiftyReportStream", () => {
     const ws = MockWebSocket.instances[0];
     act(() => {
       ws.open();
-      ws.receive({
-        type: "tick",
-        spot: 23123.5,
-        ts: "2026-10-12T10:00:01+05:30",
-        change_pct: 0.12,
-      });
+      ws.receive({ type: "report", data: REPORT_DATA });
     });
-    await waitFor(() => expect(result.current.tick?.spot).toBe(23123.5));
+    await waitFor(() => expect(result.current.report).not.toBeNull());
 
     rerender({ enabled: false });
-    await waitFor(() => expect(result.current.tick).toBeNull());
-    expect(result.current.connected).toBe(false);
+    await waitFor(() => expect(result.current.report).toBeNull());
+    expect(result.current.tape).toBeNull();
+    expect(result.current.sensex).toBeNull();
   });
 
   test("a tick frame with a non-finite spot is ignored", async () => {
-    const { result } = renderHook(() =>
+    const hook = renderHook(() =>
       useNiftyReportStream({ expiry: undefined, enabled: true }),
     );
+    const { result } = renderHook(() => useNiftySpotTick());
     const ws = MockWebSocket.instances[0];
     act(() => {
       ws.open();
@@ -266,7 +304,7 @@ describe("useNiftyReportStream", () => {
         change_pct: null,
       });
     });
-    await waitFor(() => expect(result.current.tick?.spot).toBe(23123.5));
+    await waitFor(() => expect(result.current?.spot).toBe(23123.5));
 
     act(() => {
       // Non-finite spots arrive as JSON null (or NaN-ish strings).
@@ -275,8 +313,8 @@ describe("useNiftyReportStream", () => {
     });
     await new Promise((r) => setTimeout(r, 20));
     // Last good tick stays on screen.
-    expect(result.current.tick?.spot).toBe(23123.5);
-    expect(result.current.report).toBeNull();
+    expect(result.current?.spot).toBe(23123.5);
+    expect(hook.result.current.report).toBeNull();
   });
 
   test("expiry is sent as a query param and a change reconnects", () => {

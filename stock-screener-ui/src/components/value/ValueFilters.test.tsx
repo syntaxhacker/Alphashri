@@ -51,12 +51,12 @@ describe("ValueFilters", () => {
   test("sort and limit selects emit values", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    r(<ValueFilters filters={{ sort: "score_desc", limit: 100 }} onChange={onChange} />);
+    r(<ValueFilters filters={{ sort: "score", limit: 100 }} onChange={onChange} />);
     await user.click(
       screen.getByTestId("value-filter-sort").querySelector('[role="combobox"]') as HTMLElement,
     );
     await user.click(await screen.findByRole("option", { name: "P/E ↑" }));
-    expect(onChange).toHaveBeenCalledWith({ sort: "pe_asc" });
+    expect(onChange).toHaveBeenCalledWith({ sort: "pe" });
 
     await user.click(
       screen.getByTestId("value-filter-limit").querySelector('[role="combobox"]') as HTMLElement,

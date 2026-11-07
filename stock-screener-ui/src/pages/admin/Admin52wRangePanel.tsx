@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { usePolling } from "@/hooks/usePolling";
 import {
   Alert, Badge, Button, Checkbox, Group, Loader, Paper, Progress, Stack, Text,
 } from "@/ui";
@@ -8,7 +9,7 @@ import { useAuth } from "../../components/auth/AuthProvider2";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../../components/common/compact";
 import type { Week52RangeAdminStatus } from "../../types/admin";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+import { API_BASE } from "@/api/config";
 
 function formatDateTime(isoString: string): string {
   try {
@@ -97,11 +98,7 @@ export function Admin52wRangePanel() {
     }
   };
 
-  useEffect(() => {
-    fetchStatus();
-    const id = setInterval(fetchStatus, 5000);
-    return () => clearInterval(id);
-  }, [fetchStatus]);
+  usePolling(fetchStatus, 5000, { immediate: true, skipIfRunning: false });
 
   const job = data?.job;
   const db = data?.database;

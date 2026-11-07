@@ -1,3 +1,4 @@
+import { formatNumberIN } from "@/utils/ui-helpers";
 import { memo, useMemo } from "react";
 import Box from "@mui/material/Box";
 import { MiniLineChart, type MiniSeries } from "@/components/common/charts/MiniLineChart";
@@ -237,7 +238,7 @@ export function spotVsFlip(
   const d = s - f;
   if (d === 0) return "at flip";
   const side = d > 0 ? "above" : "below";
-  return `${Math.abs(Math.round(d)).toLocaleString("en-IN")} pts ${side} flip`;
+  return `${formatNumberIN(Math.abs(Math.round(d)))} pts ${side} flip`;
 }
 
 interface NiftyGammaTimeProps {

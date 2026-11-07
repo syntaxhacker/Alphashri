@@ -113,6 +113,23 @@ function r(jsx: React.ReactElement) {
   return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
 }
 
+
+/** Open a MultiSelect and click one of its options, scoped to its own listbox
+ * (the presets Select also exposes a "Bearish" option, and closing popups can
+ * briefly leave two listboxes mounted). */
+async function pickMultiOption(selectTestId: string, name: string | RegExp) {
+  const combo = within(screen.getByTestId(selectTestId)).getByRole("combobox");
+  await userEvent.click(combo);
+  let listbox: HTMLElement | null = null;
+  for (let i = 0; i < 40 && !listbox; i += 1) {
+    const id = combo.getAttribute("aria-controls");
+    listbox = id ? document.getElementById(id) : null;
+    if (!listbox) await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  if (!listbox) throw new Error(`listbox for ${selectTestId} never opened`);
+  await userEvent.click(within(listbox).getByRole("option", { name }));
+}
+
 describe("PatternFilterRail", () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => cleanup());
@@ -121,19 +138,17 @@ describe("PatternFilterRail", () => {
     r(<PatternFilterRail {...makeProps()} />);
     expect(screen.getByTestId("patterns-filter-rail")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-presets")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-preset-fresh_reversals")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-family-reversal")).toHaveTextContent("Reversal (1)");
-    expect(screen.getByTestId("patterns-direction-bullish")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-direction-bearish")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-status-filter-forming")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-preset-select")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-family-select")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-direction-select")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-status-select")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-quality-select")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-formed-within")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-formed-within")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-formed-within-select")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-sort")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-filter-sort-confidence")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-filter-sort-newest")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-filter-sort-range_pos")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-filter-sort-breakout")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-sort-select")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-history")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-history-3")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-min-base")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-max-range")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-min-confidence")).toBeInTheDocument();
@@ -174,7 +189,7 @@ describe("PatternFilterRail", () => {
     );
   });
 
-  test("prefers summary family counts and falls back to page counts per family", () => {
+  test("prefers summary family counts and falls back to page counts per family", async () => {
     const props = makeProps({
       summary: {
         scanned: 500,
@@ -189,15 +204,17 @@ describe("PatternFilterRail", () => {
       },
     });
     r(<PatternFilterRail {...props} />);
-    expect(screen.getByTestId("patterns-family-reversal")).toHaveTextContent("Reversal (300)");
-    expect(screen.getByTestId("patterns-family-continuation")).toHaveTextContent("Continuation (12)");
+    await userEvent.click(within(screen.getByTestId("patterns-family-select")).getByRole("combobox"));
+    expect(await screen.findByRole("option", { name: "Reversal (300)" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "Continuation (12)" })).toBeInTheDocument();
     // No summary entry -> falls back to the (zero) page-derived count.
-    expect(screen.getByTestId("patterns-family-curve_cup")).toHaveTextContent("Curve & Cup (0)");
+    expect(await screen.findByRole("option", { name: "Curve & Cup (0)" })).toBeInTheDocument();
   });
 
-  test("falls back to page counts when no summary is provided", () => {
+  test("falls back to page counts when no summary is provided", async () => {
     r(<PatternFilterRail {...makeProps({ summary: null })} />);
-    expect(screen.getByTestId("patterns-family-reversal")).toHaveTextContent("Reversal (1)");
+    await userEvent.click(within(screen.getByTestId("patterns-family-select")).getByRole("combobox"));
+    expect(await screen.findByRole("option", { name: "Reversal (1)" })).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-pattern-ascending_channel")).toHaveTextContent(
       "Ascending Channel (1)",
     );
@@ -229,18 +246,18 @@ describe("PatternFilterRail", () => {
   test("toggles family / direction / status filters", async () => {
     const props = makeProps();
     r(<PatternFilterRail {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-family-reversal"));
+    await pickMultiOption("patterns-family-select", /^Reversal/);
     expect(props.setFilter).toHaveBeenCalledWith("family", ["reversal"]);
-    await userEvent.click(screen.getByTestId("patterns-direction-bearish"));
+    await pickMultiOption("patterns-direction-select", "Bearish");
     expect(props.setFilter).toHaveBeenCalledWith("direction", ["bearish"]);
-    await userEvent.click(screen.getByTestId("patterns-status-filter-confirmed"));
+    await pickMultiOption("patterns-status-select", "Confirmed");
     expect(props.setFilter).toHaveBeenCalledWith("status", ["confirmed"]);
   });
 
   test("removes an already-selected family", async () => {
     const props = makeProps({ filters: { ...FILTERS, family: ["reversal"] } });
     r(<PatternFilterRail {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-family-reversal"));
+    await pickMultiOption("patterns-family-select", /^Reversal/);
     expect(props.setFilter).toHaveBeenCalledWith("family", []);
   });
 
@@ -249,30 +266,30 @@ describe("PatternFilterRail", () => {
     r(<PatternFilterRail {...props} />);
     await userEvent.selectOptions(screen.getByTestId("patterns-quality-select"), "strong");
     expect(props.setFilter).toHaveBeenCalledWith("quality", "strong");
-    await userEvent.click(screen.getByTestId("patterns-formed-within-5"));
+    fireEvent.change(screen.getByTestId("patterns-filter-formed-within-select"), { target: { value: "5" } });
     expect(props.setFilter).toHaveBeenCalledWith("formed_within_bars", 5);
   });
 
   test("formed-within presets include 1 and 60", async () => {
     const props = makeProps();
     r(<PatternFilterRail {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-formed-within-1"));
+    fireEvent.change(screen.getByTestId("patterns-filter-formed-within-select"), { target: { value: "1" } });
     expect(props.setFilter).toHaveBeenCalledWith("formed_within_bars", 1);
-    await userEvent.click(screen.getByTestId("patterns-formed-within-60"));
+    fireEvent.change(screen.getByTestId("patterns-filter-formed-within-select"), { target: { value: "60" } });
     expect(props.setFilter).toHaveBeenCalledWith("formed_within_bars", 60);
   });
 
   test("selects the newest-first sort", async () => {
     const props = makeProps();
     r(<PatternFilterRail {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-filter-sort-newest"));
+    fireEvent.change(screen.getByTestId("patterns-filter-sort-select"), { target: { value: "newest" } });
     expect(props.setFilter).toHaveBeenCalledWith("sort", "newest");
   });
 
   test("selects the confidence sort", async () => {
     const props = makeProps({ filters: { ...FILTERS, sort: "newest" } });
     r(<PatternFilterRail {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-filter-sort-confidence"));
+    fireEvent.change(screen.getByTestId("patterns-filter-sort-select"), { target: { value: "confidence" } });
     expect(props.setFilter).toHaveBeenCalledWith("sort", "confidence");
   });
 
@@ -288,14 +305,14 @@ describe("PatternFilterRail", () => {
   test("sets the base-length preset", async () => {
     const props = makeProps();
     r(<PatternFilterRail {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-filter-min-base-90"));
+    fireEvent.change(screen.getByTestId("patterns-filter-min-base-select"), { target: { value: "90" } });
     expect(props.setFilter).toHaveBeenCalledWith("min_base_days", 90);
   });
 
   test("clears the base-length preset back to Any", async () => {
     const props = makeProps({ filters: { ...FILTERS, min_base_days: 90 } });
     r(<PatternFilterRail {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-filter-min-base-any"));
+    fireEvent.change(screen.getByTestId("patterns-filter-min-base-select"), { target: { value: "any" } });
     expect(props.setFilter).toHaveBeenCalledWith("min_base_days", null);
   });
 
@@ -315,10 +332,9 @@ describe("PatternFilterRail", () => {
     expect(props.setFilter).not.toHaveBeenCalledWith("max_range_pct", expect.anything());
   });
 
-  test("sort newest option renders as Latest formed", () => {
+  test("renders the sort dropdown", () => {
     r(<PatternFilterRail {...makeProps()} />);
-    expect(screen.getByTestId("patterns-filter-sort-newest")).toHaveTextContent("Latest formed");
-    expect(screen.getByTestId("patterns-filter-sort-confidence")).toHaveTextContent("Confidence");
+    expect(screen.getByTestId("patterns-filter-sort-select")).toBeInTheDocument();
   });
 
   test("enters a 52W gap percentage", () => {
@@ -396,7 +412,7 @@ describe("PatternFilterRail", () => {
   test("clicking a preset calls applyFilters with its patch", async () => {
     const props = makeProps();
     r(<PatternFilterRail {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-preset-fresh_reversals"));
+    fireEvent.change(screen.getByTestId("patterns-preset-select-input"), { target: { value: "builtin:fresh_reversals" } });
     expect(props.applyFilters).toHaveBeenCalledWith({
       family: ["reversal"],
       formed_within_bars: 3,
@@ -416,9 +432,9 @@ describe("PatternFilterRail", () => {
     r(<PatternFilterRail {...makeProps({ layout: "panel" })} />);
     expect(screen.getByTestId("patterns-filter-rail")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-presets")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-family-reversal")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-direction-bullish")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-status-filter-forming")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-family-select")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-direction-select")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-status-select")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-quality-select")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-formed-within")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-sort")).toBeInTheDocument();
@@ -431,34 +447,23 @@ describe("PatternFilterRail", () => {
   test("clearing quality back to Any stores null", async () => {
     const props = makeProps({ filters: { ...FILTERS, quality: "strong" } });
     r(<PatternFilterRail {...props} />);
-    fireEvent.change(screen.getByTestId("patterns-quality-select"), { target: { value: "" } });
+    // "Any" is a real sentinel value: a blank option made the select show an
+    // empty box instead of the word Any.
+    fireEvent.change(screen.getByTestId("patterns-quality-select"), { target: { value: "any" } });
     expect(props.setFilter).toHaveBeenCalledWith("quality", null);
   });
 
-  test("formed-within numeric input sets the value", () => {
+  test("formed-within dropdown sets the value", () => {
     const props = makeProps();
     r(<PatternFilterRail {...props} />);
-    const input = within(screen.getByTestId("patterns-filter-formed-within")).getByRole(
-      "spinbutton",
-    );
-    fireEvent.change(input, { target: { value: "10" } });
+    fireEvent.change(screen.getByTestId("patterns-filter-formed-within-select"), { target: { value: "10" } });
     expect(props.setFilter).toHaveBeenCalledWith("formed_within_bars", 10);
   });
 
-  test("clearing the formed-within input stores null", () => {
+  test("choosing Any in the formed-within dropdown stores null", () => {
     const props = makeProps({ filters: { ...FILTERS, formed_within_bars: 10 } });
     r(<PatternFilterRail {...props} />);
-    const input = within(screen.getByTestId("patterns-filter-formed-within")).getByRole(
-      "spinbutton",
-    );
-    fireEvent.change(input, { target: { value: "" } });
-    expect(props.setFilter).toHaveBeenCalledWith("formed_within_bars", null);
-  });
-
-  test("clicking the active formed-within preset clears it", async () => {
-    const props = makeProps({ filters: { ...FILTERS, formed_within_bars: 5 } });
-    r(<PatternFilterRail {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-formed-within-5"));
+    fireEvent.change(screen.getByTestId("patterns-filter-formed-within-select"), { target: { value: "any" } });
     expect(props.setFilter).toHaveBeenCalledWith("formed_within_bars", null);
   });
 
@@ -472,15 +477,8 @@ describe("PatternFilterRail", () => {
   test("sets the 30-day base-length preset", async () => {
     const props = makeProps();
     r(<PatternFilterRail {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-filter-min-base-30"));
+    fireEvent.change(screen.getByTestId("patterns-filter-min-base-select"), { target: { value: "30" } });
     expect(props.setFilter).toHaveBeenCalledWith("min_base_days", 30);
-  });
-
-  test("clicking the active base-length preset clears it", async () => {
-    const props = makeProps({ filters: { ...FILTERS, min_base_days: 90 } });
-    r(<PatternFilterRail {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-filter-min-base-90"));
-    expect(props.setFilter).toHaveBeenCalledWith("min_base_days", null);
   });
 
   test("clearing the max range input stores null", () => {
@@ -496,9 +494,9 @@ describe("PatternFilterRail", () => {
       filters: { ...FILTERS, direction: ["bullish"], status: ["confirmed"] },
     });
     r(<PatternFilterRail {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-direction-bullish"));
+    await pickMultiOption("patterns-direction-select", "Bullish");
     expect(props.setFilter).toHaveBeenCalledWith("direction", []);
-    await userEvent.click(screen.getByTestId("patterns-status-filter-confirmed"));
+    await pickMultiOption("patterns-status-select", "Confirmed");
     expect(props.setFilter).toHaveBeenCalledWith("status", []);
   });
 
@@ -521,15 +519,27 @@ describe("PatternFilterRail", () => {
   test("selects the range_pos (Near breakout) sort", async () => {
     const props = makeProps();
     r(<PatternFilterRail {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-filter-sort-range_pos"));
+    fireEvent.change(screen.getByTestId("patterns-filter-sort-select"), { target: { value: "range_pos" } });
     expect(props.setFilter).toHaveBeenCalledWith("sort", "range_pos");
   });
 
-  test("selects the breakout sort", async () => {
+  test("shows the match-in-order switch with 2+ patterns selected", () => {
+    const props = makeProps({
+      patterns: [
+        { pattern_id: "consolidation", name: "Consolidation", family: "continuation", direction: "neutral", description: "" },
+        { pattern_id: "rising_wedge", name: "Rising Wedge", family: "reversal", direction: "bearish", description: "" },
+      ],
+      filters: { ...FILTERS, pattern_id: ["consolidation", "rising_wedge"] },
+    });
+    r(<PatternFilterRail {...props} />);
+    expect(screen.getByTestId("patterns-filter-sequence")).toBeInTheDocument();
+  });
+
+  test("selects 3 patterns per symbol", async () => {
     const props = makeProps();
     r(<PatternFilterRail {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-filter-sort-breakout"));
-    expect(props.setFilter).toHaveBeenCalledWith("sort", "breakout");
+    await userEvent.click(screen.getByTestId("patterns-filter-history-3"));
+    expect(props.setFilter).toHaveBeenCalledWith("history", 3);
   });
 
   test("renders the Volume scan inputs", () => {
@@ -660,5 +670,39 @@ describe("PatternFilterRail", () => {
     r(<PatternFilterRail {...makeProps({ layout: "panel" })} />);
     expect(screen.getByTestId("patterns-filter-min-confidence")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-min-breakout")).toBeInTheDocument();
+  });
+
+  test("advanced section starts open when advanced filters are already applied", () => {
+    const props = makeProps({
+      layout: "panel",
+      filters: { ...FILTERS, min_confidence: 70, trendlines: "support" },
+    });
+    r(<PatternFilterRail {...props} />);
+    const trigger = screen.getByTestId("patterns-filter-advanced");
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(trigger).toHaveTextContent("Advanced ▾");
+  });
+
+  test("advanced section is collapsed by default and toggles aria-expanded", async () => {
+    const props = makeProps({ layout: "panel" });
+    r(<PatternFilterRail {...props} />);
+    const trigger = screen.getByTestId("patterns-filter-advanced");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(trigger).toHaveTextContent("Advanced ▸");
+    expect(document.getElementById("patterns-advanced-section")).not.toBeNull();
+    await userEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+  });
+
+  test("the default 10d volume baseline does not force Advanced open", () => {
+    const props = makeProps({
+      layout: "panel",
+      filters: { ...FILTERS, min_avg_volume_10d: 150 },
+    });
+    r(<PatternFilterRail {...props} />);
+    expect(screen.getByTestId("patterns-filter-advanced")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
   });
 });

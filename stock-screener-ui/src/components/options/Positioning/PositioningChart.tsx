@@ -1,3 +1,4 @@
+import { formatNumberIN } from "@/utils/ui-helpers";
 import { useEffect } from "react";
 import Box from "@mui/material/Box";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
@@ -31,7 +32,7 @@ export function PositioningChart({
           const v = (p as { value?: number; name?: string })?.value;
           if (v === undefined || v === null) return "";
           const sign = v < 0 ? "-" : "";
-          const abs = Math.abs(Math.round(v)).toLocaleString("en-IN");
+          const abs = formatNumberIN(Math.abs(Math.round(v)));
           const name = (p as { name?: string })?.name ?? "";
           return `Strike ${name}<br/>Net ${sign}${abs} Cr`;
         },

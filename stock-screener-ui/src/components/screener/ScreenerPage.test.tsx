@@ -8,6 +8,10 @@ import userEvent from "@testing-library/user-event";
 import { ScreenerPage, mapDashboardPanelToScreener, DEFAULT_DASHBOARD_UNIVERSE } from "./ScreenerPage";
 import { UIProvider } from "@/ui";
 
+// This page mounts the full screener table (hundreds of SymbolLinks) inside
+// MemoryRouter; under a full-suite run the 5s default is not enough.
+vi.setConfig({ testTimeout: 20_000 });
+
 const render = (ui: ReactElement, options?: any) => {
   const { initialRoute, ...rtlOptions } = options ?? {};
   return rtlRender(

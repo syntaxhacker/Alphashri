@@ -73,6 +73,8 @@ def contract_index() -> dict:
     strike (a multiple of 50 in 5000..40000) — resolving the ``26O13`` vs
     ``26SEP`` tag ambiguity by construction rather than by regex guesswork.
     """
+    if not MANIFEST.exists():
+        return {}
     man = json.loads(MANIFEST.read_text())
     out: dict = {}
     for c in man["contracts"]:

@@ -606,15 +606,16 @@ def render_unusual(unusual: dict) -> list[str]:
 # momentum speed (pure, unit-tested)
 # ---------------------------------------------------------------------------
 # NSE Closing Auction Session (since 3 Aug 2026): continuous F&O-stock
-# trading ends at 15:15 IST, the index print is frozen 15:15–15:30 (no
-# continuous matching), and the official close is the CAS print (~15:30).
+# trading ends at 15:15 IST, the index print is frozen 15:15–15:35 (no
+# continuous matching), and the official close is the CAS print (~15:35).
+# F&O trades until 15:40.
 CAS_START_MIN = 15 * 60 + 15
-CAS_END_MIN = 15 * 60 + 30  # exclusive
-CAS_WARNING = "CAS: index print frozen (15:15–15:30); official close from OHLC"
+CAS_END_MIN = 15 * 60 + 35  # exclusive
+CAS_WARNING = "CAS: index print frozen (15:15–15:35); official close from OHLC"
 
 
 def is_cas_window(now=None) -> bool:
-    """True when ``now`` (IST) falls in the 15:15–15:30 CAS freeze window.
+    """True when ``now`` (IST) falls in the 15:15–15:35 CAS freeze window.
 
     Naive datetimes are assumed IST; aware ones are converted to IST.
     ``None`` checks the current IST time. Never raises.

@@ -31,8 +31,9 @@ from typing import Optional
 
 from fastapi import APIRouter, Query
 
-import config as root_config
 from api.reports_api._numeric import safe_float as _f
+from api.reports_api._time import now_iso as _now_iso
+from api.reports_api._time import today_str as _today_str
 from chart_patterns.candles import fetch_for_timeframe, frame_last_date
 from chart_patterns.parallel import max_workers, run_symbols
 from chart_patterns.universes import get_universe
@@ -66,20 +67,6 @@ def clear_today_cache() -> None:
         _TODAY_CACHE.clear()
     except Exception:
         pass
-
-
-def _now_iso() -> str:
-    try:
-        return datetime.now(root_config.IST).isoformat()
-    except Exception:
-        return datetime.now().astimezone().isoformat()
-
-
-def _today_str() -> str:
-    try:
-        return datetime.now(root_config.IST).strftime("%Y-%m-%d")
-    except Exception:
-        return datetime.now().astimezone().strftime("%Y-%m-%d")
 
 
 def _normalize_spark(values: list[float], n: int = 30) -> list[float]:

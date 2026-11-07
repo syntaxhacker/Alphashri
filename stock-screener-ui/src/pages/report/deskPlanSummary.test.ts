@@ -45,6 +45,29 @@ describe("summarizeDeskPlan — bearish read", () => {
     expect(summary.headline.length).toBeLessThanOrEqual(MAX_HEADLINE_LENGTH);
   });
 
+  test("cut and target print whole index points, not the derived decimals", () => {
+    // Live tape: trigger 22,448 → stop = trigger + buffer (22,424.98) and a
+    // projected target (22,129.53). Every other level on the page is an
+    // integer, so the headline rounds; the reasons block keeps full precision.
+    const rounded = summarizeDeskPlan(
+      bearishPlan({
+        bear: {
+          do: {
+            action: FULL_ACTION,
+            trigger: "1-min close below 22,448",
+            stop: 22_424.98,
+            target: 22_129.53,
+            rr: 1.9,
+          },
+        },
+      }),
+    );
+    expect(rounded.headline).toContain("cut 22,425");
+    expect(rounded.headline).toContain("target 22,130");
+    expect(rounded.headline).not.toContain("22,424.98");
+    expect(rounded.headline).not.toContain("22,129.53");
+  });
+
   test("confidence counts the four directional reasons and stays capped", () => {
     expect(summary.confidence).toBe(83);
     expect(summary.confidence).toBeGreaterThan(60);

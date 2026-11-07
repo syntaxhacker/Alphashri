@@ -7,12 +7,13 @@ import {
 } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
 
-test.describe("Nifty Report - OI tape panel", () => {
+test.describe("Index Report - OI tape panel", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
     await setupNiftyTapeMocks(page);
-    await page.goto("/report/nifty");
+    await page.goto("/report/index");
+    await page.locator('[data-testid="nifty-desk-toggle"]').getByText("RESEARCH").click();
     await page.waitForSelector('[data-testid="nifty-tape-panel"]', { timeout: 10000 });
   });
 
@@ -54,7 +55,7 @@ test.describe("Nifty Report - OI tape panel", () => {
   });
 });
 
-test.describe("Nifty Report - OI tape empty state", () => {
+test.describe("Index Report - OI tape empty state", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
@@ -68,7 +69,8 @@ test.describe("Nifty Report - OI tape empty state", () => {
         body: JSON.stringify({ rows: [] }),
       });
     });
-    await page.goto("/report/nifty");
+    await page.goto("/report/index");
+    await page.locator('[data-testid="nifty-desk-toggle"]').getByText("RESEARCH").click();
     await page.waitForSelector('[data-testid="nifty-tape-panel"]', { timeout: 10000 });
   });
 
@@ -80,7 +82,7 @@ test.describe("Nifty Report - OI tape empty state", () => {
   });
 });
 
-test.describe("Nifty Report - OI tape auto-refresh", () => {
+test.describe("Index Report - OI tape auto-refresh", () => {
   test("live auto-refresh refetches tape", async ({ page }) => {
     let tapeHits = 0;
     await setupApiMocks(page);
@@ -97,7 +99,8 @@ test.describe("Nifty Report - OI tape auto-refresh", () => {
         body: JSON.stringify(mockNiftyTape),
       });
     });
-    await page.goto("/report/nifty");
+    await page.goto("/report/index");
+    await page.locator('[data-testid="nifty-desk-toggle"]').getByText("RESEARCH").click();
     await page.waitForSelector('[data-testid="nifty-tape-panel"]', { timeout: 10000 });
 
     // No sleeps: poll the request counter until the live loop refetches.

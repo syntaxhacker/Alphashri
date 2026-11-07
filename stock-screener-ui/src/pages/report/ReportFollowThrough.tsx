@@ -171,6 +171,7 @@ export function ReportFollowThroughTable({
           emptyMessage={emptyMessage}
           stickyHeader
           bare
+          dense
           initialState={{ sorting: [{ id: "ret_pct", desc: true }] }}
           onRowClick={onOpenSymbol ? (row) => onOpenSymbol(row.symbol) : undefined}
           getRowTestId={(row) => `${testId}-row-${row.symbol}`}

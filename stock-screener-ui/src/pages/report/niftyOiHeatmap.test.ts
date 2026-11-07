@@ -5,8 +5,9 @@ import { afterEach, describe, expect, test } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
-import { buildOiHeatmap, heatmapReadText, readHeatmap, type ChainTuple, type HeatmapTapeRow } from "./niftyOiHeatmap";
+import { buildOiHeatmap, heatmapReadText, readHeatmap, type HeatmapTapeRow } from "./niftyOiHeatmap";
 import { HEATMAP_CE, HEATMAP_FLIP, HEATMAP_MP, HEATMAP_PE, HEATMAP_SPOT, NiftyOiHeatmap } from "./NiftyOiHeatmap";
+import type { ChainTuple } from "./chainTuple";
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
   return createElement(UIProvider, null, children);
@@ -216,7 +217,7 @@ describe("heatmap read", () => {
   test("renders the one-line read", () => {
     const read = readHeatmap(buildOiHeatmap(readRows, { bucketMin: 5, widthPts: 500 }));
     expect(heatmapReadText(read)).toBe(
-      "Call writers pressing 25,750 · put buyers at 25,700 · spot 25,760 below max pain 25,800",
+      "CE OI build at 25,750 · PE OI build at 25,700 · spot 25,760 below max pain 25,800",
     );
   });
 
@@ -239,12 +240,43 @@ describe("NiftyOiHeatmap render", () => {
     row(iso(30), 25780, chainAt(STRIKES, 25780, 4500, 1300)),
   ];
 
-  test("renders one rect per bucket × strike plus a spot line", () => {
+  test("paints the cells on one canvas instead of a rect per bucket × strike", () => {
     r(createElement(NiftyOiHeatmap, { rows: twoBuckets, bucketMin: 5, widthPts: 500 }));
     const m = buildOiHeatmap(twoBuckets, { bucketMin: 5, widthPts: 500 });
-    expect(screen.getAllByTestId("nifty-heatmap-cell")).toHaveLength(m.cells.length);
+    const canvas = screen.getByTestId("nifty-heatmap-canvas");
+    expect(canvas.tagName.toLowerCase()).toBe("canvas");
+    expect(canvas.getAttribute("data-cells")).toBe(String(m.cells.length));
     expect(m.cells.length).toBe(m.buckets.length * m.strikes.length);
+    // No per-cell DOM nodes survive — the paint lives in the bitmap.
+    expect(screen.queryAllByTestId("nifty-heatmap-cell")).toHaveLength(0);
     expect(screen.getByTestId("nifty-heatmap-spotline")).toBeInTheDocument();
+  });
+
+  test("canvas sits behind the SVG box and takes no pointer events", () => {
+    r(createElement(NiftyOiHeatmap, { rows: twoBuckets, bucketMin: 5, widthPts: 500 }));
+    const canvas = screen.getByTestId("nifty-heatmap-canvas");
+    expect(canvas.style.position).toBe("absolute");
+    expect(canvas.style.pointerEvents).toBe("none");
+    expect(canvas.getAttribute("aria-hidden")).toBe("true");
+    const svg = screen.getByTestId("nifty-heatmap-svg");
+    // The SVG stretches the viewBox onto its box, so the canvas overlay lands
+    // on the same geometry the marks are drawn in.
+    expect(svg.getAttribute("preserveAspectRatio")).toBe("none");
+    expect(Number(svg.style.zIndex)).toBeGreaterThan(Number(canvas.style.zIndex || 0));
+  });
+
+  test("a 1-minute ±500 tape stays one canvas node, not thousands of rects", () => {
+    const wide = Array.from({ length: 21 }, (_, i) => 24750 + i * 50);
+    const rows = Array.from({ length: 121 }, (_, i) =>
+      row(iso(i), 25750, chainAt(wide, 25750, 1000 + i, 1000 + i)),
+    );
+    r(createElement(NiftyOiHeatmap, { rows, bucketMin: 1, widthPts: 500 }));
+    const m = buildOiHeatmap(rows, { bucketMin: 1, widthPts: 500 });
+    expect(m.cells.length).toBeGreaterThan(1000);
+    expect(screen.getByTestId("nifty-heatmap-canvas").getAttribute("data-cells")).toBe(
+      String(m.cells.length),
+    );
+    expect(screen.queryAllByTestId("nifty-heatmap-cell")).toHaveLength(0);
   });
 
   test("marks max-pain and flip dashed lines", () => {
@@ -384,7 +416,7 @@ describe("NiftyOiHeatmap render", () => {
     ];
     r(createElement(NiftyOiHeatmap, { rows, bucketMin: 5, widthPts: 500 }));
     expect(screen.getByTestId("nifty-heatmap-read")).toHaveTextContent(
-      "Call writers pressing 25,750 · put buyers at 25,700 · spot 25,760 below max pain 25,800",
+      "CE OI build at 25,750 · PE OI build at 25,700 · spot 25,760 below max pain 25,800",
     );
   });
 
@@ -392,5 +424,212 @@ describe("NiftyOiHeatmap render", () => {
     r(createElement(NiftyOiHeatmap, { rows: [{ t: T0, spot: 25750 }] }));
     expect(screen.getByTestId("nifty-heatmap-empty")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-heatmap-empty-text")).toHaveTextContent("no tape chain");
+  });
+});
+
+describe("heatmap metric", () => {
+  test("volume and premium read their own tuple columns", () => {
+    const rows = [
+      { t: "2026-10-23T09:15:00", spot: 22500, chain: { "22500": [100, 100, 1000, 1000, 5000, 4000] } },
+      { t: "2026-10-23T09:16:00", spot: 22500, chain: { "22500": [110, 100, 1200, 1000, 9000, 4000] } },
+    ] as never;
+    const last = (metric: "oi" | "volume" | "premium") => {
+      const m = buildOiHeatmap(rows, { bucketMin: 1, metric });
+      return m.cells[m.cells.length - 1];
+    };
+    expect(last("oi").ceDoi).toBe(200);
+    expect(last("volume").ceDoi).toBe(4000);
+    expect(last("premium").ceDoi).toBe(10);
+  });
+});
+
+describe("premium evidence (buyer vs writer)", () => {
+  /** One 5m build at 25,750 (CE) and 25,700 (PE); premium deltas are inputs. */
+  function readText(cePrem: number, pePrem: number): string {
+    const rows: HeatmapTapeRow[] = [
+      {
+        t: iso(0),
+        spot: 25750,
+        max_pain: 25700,
+        chain: {
+          "25750": [10, 20, 1000, 1000, 1, 1],
+          "25700": [10, 20, 1000, 1000, 1, 1],
+        },
+      },
+      {
+        t: iso(6),
+        spot: 25760,
+        max_pain: 25700,
+        chain: {
+          // CE OI +5000, PE OI +4000; LTP moves by the premium delta.
+          "25750": [10 + cePrem, 20, 6000, 1000, 1, 1],
+          "25700": [10, 20 + pePrem, 1000, 5000, 1, 1],
+        },
+      },
+    ];
+    return heatmapReadText(readHeatmap(buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500 })));
+  }
+
+  test("OI up + premium up is buying", () => {
+    expect(readText(5, 5)).toBe(
+      "call buyers at 25,750 · put buyers at 25,700 · spot 25,760 above max pain 25,700",
+    );
+  });
+
+  test("OI up + premium down is writing", () => {
+    expect(readText(-5, -5)).toBe(
+      "call writers at 25,750 · put writers at 25,700 · spot 25,760 above max pain 25,700",
+    );
+  });
+
+  test("mixed legs name each side independently", () => {
+    expect(readText(5, -5)).toContain("call buyers at 25,750");
+    expect(readText(5, -5)).toContain("put writers at 25,700");
+    expect(readText(-5, 5)).toContain("call writers at 25,750");
+    expect(readText(-5, 5)).toContain("put buyers at 25,700");
+  });
+
+  test("missing premium evidence falls back to the neutral OI build", () => {
+    expect(readText(0, 0)).toBe(
+      "CE OI build at 25,750 · PE OI build at 25,700 · spot 25,760 above max pain 25,700",
+    );
+  });
+});
+
+describe("session-anchored time axis", () => {
+  test("startTime pads the axis from 09:15 and leaves the missing minutes empty", () => {
+    const rows = [row(iso(15), 25750, chainAt(STRIKES, 25750, 1000, 1000))]; // first tape row 09:30
+    const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500, startTime: iso(0) });
+    expect(m.buckets[0].startLabel).toBe("09:15");
+    expect(m.buckets.length).toBeGreaterThan(1);
+    // 09:15 / 09:20 / 09:25 are padded empties, 09:30 carries the first row.
+    expect(m.buckets[0].spot).toBeNull();
+    expect(m.buckets[1].spot).toBeNull();
+    expect(m.buckets[2].spot).toBeNull();
+    expect(m.buckets[3].spot).toBe(25750);
+    // Empty buckets still own one flat cell per strike (the column exists).
+    const firstBucketCells = m.cells.filter((c) => c.bucket === 0);
+    expect(firstBucketCells).toHaveLength(STRIKES.length);
+    expect(firstBucketCells.every((c) => c.ceDoi === null && c.peDoi === null)).toBe(true);
+  });
+
+  test("without startTime the axis still begins at the first tape row", () => {
+    const rows = [row(iso(15), 25750, chainAt(STRIKES, 25750, 1000, 1000))];
+    const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500 });
+    expect(m.buckets[0].startLabel).toBe("09:30");
+    expect(m.buckets[0].spot).toBe(25750);
+  });
+
+  test("draws the persisted flow-flip vertical guide", () => {
+    const rows = [
+      row(iso(0), 25750, chainAt(STRIKES, 25750, 1000, 1000)),
+      row(iso(6), 25760, chainAt(STRIKES, 25760, 2000, 1000)),
+    ];
+    r(
+      createElement(NiftyOiHeatmap, {
+        rows,
+        bucketMin: 5,
+        widthPts: 500,
+        startTime: iso(0),
+        flipAt: iso(30),
+      }),
+    );
+    const line = screen.getByTestId("heatmap-flip-line");
+    expect(line.tagName.toLowerCase()).toBe("line");
+    expect(line.getAttribute("stroke-dasharray")).toBe("3 3");
+    expect(line.querySelector("title")?.textContent).toContain("Last 5m flow flip");
+    // The guide sits inside the plot, at a bucket centre.
+    expect(Number(line.getAttribute("x1"))).toBeGreaterThan(64);
+  });
+});
+
+
+describe("premium evidence edge cases", () => {
+  /** One 5m bucket pair; OI deltas are caller inputs, premium deltas too. */
+  function readWith(opts: {
+    ceOi: [number, number];
+    peOi: [number, number];
+    cePrem: [number, number];
+    pePrem: [number, number];
+  }): string {
+    const rows: HeatmapTapeRow[] = [
+      {
+        t: iso(0),
+        spot: 25750,
+        max_pain: 25700,
+        chain: {
+          "25750": [opts.cePrem[0], 20, opts.ceOi[0], 1000, 1, 1],
+          "25700": [10, opts.pePrem[0], 1000, opts.peOi[0], 1, 1],
+        },
+      },
+      {
+        t: iso(6),
+        spot: 25760,
+        max_pain: 25700,
+        chain: {
+          "25750": [opts.cePrem[1], 20, opts.ceOi[1], 1000, 1, 1],
+          "25700": [10, opts.pePrem[1], 1000, opts.peOi[1], 1, 1],
+        },
+      },
+    ];
+    return heatmapReadText(readHeatmap(buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500 })));
+  }
+
+  test("premium present but OI flat/negative omits the clauses — never mislabels", () => {
+    // CE OI unchanged, PE OI unwinds; both premiums tick up. Neither leg
+    // qualifies as a build, so neither may read as "buyers".
+    const text = readWith({
+      ceOi: [6000, 6000],
+      peOi: [5000, 4000],
+      cePrem: [10, 15],
+      pePrem: [20, 26],
+    });
+    expect(text).not.toMatch(/call buyers|call writers|put buyers|put writers/);
+    expect(text).not.toMatch(/CE OI build|PE OI build/);
+    expect(text).toBe("spot 25,760 above max pain 25,700");
+  });
+
+  test("premium present but one OI leg negative — only the building leg speaks", () => {
+    // CE OI unwinds (short covering) with premium UP — not an OI build, so no
+    // call clause even though premium evidence exists. PE OI builds with
+    // premium up → put buyers.
+    const text = readWith({
+      ceOi: [6000, 4800],
+      peOi: [3000, 4200],
+      cePrem: [10, 16],
+      pePrem: [20, 25],
+    });
+    expect(text).not.toMatch(/call/);
+    expect(text).toContain("put buyers at 25,700");
+    expect(text).toContain("spot 25,760 above max pain 25,700");
+  });
+});
+
+describe("session-anchored time axis edge cases", () => {
+  test("first row exactly at 09:15 pads nothing", () => {
+    const rows = [row(iso(0), 25750, chainAt(STRIKES, 25750, 1000, 1000)), row(iso(6), 25760, chainAt(STRIKES, 25760, 2000, 1000))];
+    const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500, startTime: iso(0) });
+    expect(m.buckets.map((b) => b.startLabel)).toEqual(["09:15", "09:20"]);
+    // No padded empty leading buckets — every bucket carries a representative.
+    expect(m.buckets.every((b) => b.spot !== null)).toBe(true);
+    expect(m.buckets[0].spot).toBe(25750);
+  });
+
+  test("first row before 09:15 ignores the later startTime — axis keeps the tape's start", () => {
+    const rows = [row("2026-10-14T09:10:00+05:30", 25750, chainAt(STRIKES, 25750, 1000, 1000))];
+    const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500, startTime: iso(0) }); // asks for 09:15
+    expect(m.buckets[0].startLabel).toBe("09:10");
+    expect(m.buckets[0].spot).toBe(25750);
+    // No phantom leading bucket was inserted before the tape's own start.
+    expect(m.buckets).toHaveLength(1);
+  });
+
+  test("an unparseable startTime is ignored and the axis begins at the tape", () => {
+    const rows = [row(iso(15), 25750, chainAt(STRIKES, 25750, 1000, 1000))]; // 09:30
+    const withGarbage = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500, startTime: "not-a-time" });
+    const without = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500 });
+    expect(withGarbage.buckets.map((b) => b.startLabel)).toEqual(without.buckets.map((b) => b.startLabel));
+    expect(withGarbage.buckets[0].startLabel).toBe("09:30");
+    expect(withGarbage.buckets[0].spot).toBe(25750);
   });
 });

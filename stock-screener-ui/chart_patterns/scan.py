@@ -172,6 +172,19 @@ def _load_symbols(universe: str):
     return _normalize_universe(raw)
 
 
+def _latest_record(records: list[dict]) -> dict:
+    def bars(record: dict):
+        value = record.get("bars_ago")
+        return value if isinstance(value, (int, float)) else float("inf")
+
+    floor = min(bars(record) for record in records)
+    pool = [record for record in records if bars(record) == floor]
+    return max(
+        pool,
+        key=lambda record: (str(record.get("end_date") or ""), record.get("confidence") or 0),
+    )
+
+
 def _hit_to_dict(hit) -> dict:
     if isinstance(hit, dict):
         return dict(hit)
@@ -386,6 +399,8 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
         enriched.append(record)
 
     if enriched:
+        if len(enriched) > 1:
+            enriched = [_latest_record(enriched)]
         try:
             store.save_hits(job_id, enriched)
         except Exception:

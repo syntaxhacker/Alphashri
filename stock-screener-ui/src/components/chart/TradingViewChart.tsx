@@ -6,7 +6,6 @@ import {
   HistogramSeries,
   LineSeries,
   LineStyle,
-  TickMarkType,
   createSeriesMarkers,
   type IChartApi,
   type ISeriesApi,
@@ -28,7 +27,8 @@ import {
   AUTOSCALE_RANGE_PAD_PCT,
 } from "@/utils/chart/types";
 import { filterVisibleTrades } from "@/utils/chart/normalizeCommon";
-import { formatISTCrosshair, formatISTTick } from "@/utils/istChartTime";
+import { tvTickMarkFormatter, tvTimeFormatter } from "@/utils/tvTimeFormat";
+import { toEpochSeconds } from "@/utils/chart/time";
 
 export interface TradingViewChartProps {
   candles: ReplayCandle[];
@@ -46,7 +46,15 @@ export interface TradingViewChartProps {
   emaData?: { label: string; color: string; data: (number | null)[] }[];
   /** Amber dot markers pinned to a price (e.g. candle closes at max pain).
    *  Rendered as a line-less scatter series so the dot sits on the price. */
-  touchMarkers?: { time: string; value: number }[];
+  touchMarkers?: {
+    time: string;
+    value: number;
+    shape?: "circle" | "arrowUp" | "arrowDown";
+    color?: string;
+    position?: "aboveBar" | "belowBar";
+    text?: string;
+    size?: number;
+  }[];
   /** RSI(period) series aligned index-wise to `candles`; rendered in its own pane. */
   rsiData?: { period: number; data: (number | null)[] };
   /** Active position entry / SL / TP levels */
@@ -76,30 +84,6 @@ export interface TradingViewChartHandle {
   zoomToTimeRange: (fromTime: string, toTime: string) => void;
 }
 
-const toTime = (t: string): Time => (new Date(t.replace(" ", "T")).getTime() / 1000) as Time;
-
-/** Crosshair time label — IST (lightweight-charts otherwise shows UTC). */
-function tvTimeFormatter(time: Time): string {
-  return typeof time === "number" ? formatISTCrosshair(time) : "";
-}
-
-/** Axis tick labels — IST, granularity-aware. */
-function tvTickMarkFormatter(time: Time, tickMarkType: TickMarkType): string {
-  if (typeof time !== "number") return "";
-  switch (tickMarkType) {
-    case TickMarkType.Year:
-      return formatISTTick(time, "year");
-    case TickMarkType.Month:
-      return formatISTTick(time, "month");
-    case TickMarkType.DayOfMonth:
-      return formatISTTick(time, "day");
-    case TickMarkType.TimeWithSeconds:
-      return formatISTTick(time, "timeSeconds");
-    default:
-      return formatISTTick(time, "time");
-  }
-}
-
 /** Buy unless explicitly a short/sell side. Accepts BUY/SELL and LONG/SHORT. */
 function isBuySide(side?: string): boolean {
   const v = (side || "BUY").toUpperCase();
@@ -124,6 +108,118 @@ function toLineStyle(type: string): LineStyle {
 function clampWidth(w?: number): LineWidth {
   const n = Math.round(w ?? 1);
   return (n < 1 ? 1 : n > 4 ? 4 : n) as LineWidth;
+}
+
+/**
+ * Stable identities for the optional props' defaults.
+ *
+ * A `= []` default parameter allocates a new array on every render, so every
+ * `useCallback`/`useEffect` that depends on it changes identity on every parent
+ * render — which re-subscribed the time-scale handler, rebuilt the
+ * `ResizeObserver` and re-registered the window `resize` listener on every
+ * report poll. One constant per prop keeps those identities stable.
+ */
+const EMPTY_TRADES: ReplayTrade[] = [];
+const EMPTY_MARK_LINES: MarkLineData[] = [];
+const EMPTY_PRICE_AREAS: PriceAreaData[] = [];
+const EMPTY_EMA: { label: string; color: string; data: (number | null)[] }[] = [];
+const EMPTY_TOUCH_MARKERS: NonNullable<TradingViewChartProps["touchMarkers"]> = [];
+/** Shared "no entry-label geometry" value (see `entryGeometry`). */
+const EMPTY_ENTRY_GEOMETRY: { barTimes: number[]; byTime: Map<number, ReplayCandle> } = {
+  barTimes: [],
+  byTime: new Map(),
+};
+
+/**
+ * Content signature of the horizontal overlays.
+ *
+ * The report poll hands us brand-new arrays with identical content every cycle.
+ * Rebuilding every price line for that (remove + create per level) churns the
+ * series' price-line collection for nothing, so the overlay effect compares this
+ * signature and skips the rebuild when nothing actually moved.
+ */
+export function markOverlaySignature(
+  markLines: MarkLineData[] | undefined,
+  livePosition?: UnifiedLivePosition,
+  extra = "",
+): string {
+  const levels = (markLines ?? [])
+    .map(
+      (ml) =>
+        `${ml.yAxis}|${ml.lineStyle.color}|${ml.lineStyle.width}|${ml.lineStyle.type}|${ml.label.formatter}|${ml.includeInScale ? 1 : 0}`,
+    )
+    .join(";");
+  const live =
+    livePosition != null
+      ? `${livePosition.entry_price}|${livePosition.stop_loss ?? ""}|${livePosition.take_profit ?? ""}`
+      : "";
+  return `${extra}#${levels}#${live}`;
+}
+
+/**
+ * Content signature of the candle + volume series.
+ *
+ * The report poll hands us a brand-new array with identical content every
+ * tick, and `setData` re-serialises and re-pushes every bar. Rolling hash
+ * over every field keeps this O(n) with no allocation; identical inputs
+ * always produce the same signature.
+ */
+function candleSignature(candles: ReplayCandle[]): string {
+  if (candles.length === 0) return "0";
+  let h = 2166136261 >>> 0;
+  const mixNum = (n: number) => {
+    h = Math.imul(h ^ Math.round((Number.isFinite(n) ? n : 0) * 100), 16777619) >>> 0;
+  };
+  for (const c of candles) {
+    const t = c.time;
+    for (let i = 0; i < t.length; i++) {
+      h = Math.imul(h ^ t.charCodeAt(i), 16777619) >>> 0;
+    }
+    mixNum(c.open);
+    mixNum(c.high);
+    mixNum(c.low);
+    mixNum(c.close);
+    mixNum(c.volume ?? 0);
+  }
+  return `${candles.length}|${h}`;
+}
+
+/**
+ * Content signature of one EMA series' pushed points.
+ *
+ * The report poll hands us brand-new EMA arrays every cycle; `setData`
+ * re-serialises every point even when nothing moved. Label + colour + the
+ * exact (time, value) points that would be pushed keeps this O(n) and
+ * lets the effect skip unchanged series.
+ */
+function emaDataSignature(
+  ema: { label: string; color: string },
+  points: LineData[],
+): string {
+  let h = 2166136261 >>> 0;
+  const mixNum = (n: number) => {
+    h = Math.imul(h ^ Math.round((Number.isFinite(n) ? n : 0) * 100), 16777619) >>> 0;
+  };
+  for (const p of points) {
+    mixNum(p.time as number);
+    mixNum(p.value);
+  }
+  return `${ema.label}|${ema.color}|${points.length}|${h}`;
+}
+
+/** Signature of the autoscale closure's inputs: rendered bars range, spot,
+ *  included levels and the fit toggle. The provider captures exactly these,
+ *  so an unchanged signature means an equivalent closure — skip re-applying. */
+function autoscaleSignature(
+  fitMarkLines: boolean,
+  bars: VisibleBarsRange | null,
+  spot: number,
+  levels: number[],
+): string {
+  if (!fitMarkLines) return "off";
+  const barsPart = bars ? `${bars.low}|${bars.high}` : "none";
+  const spotPart = Number.isFinite(spot) ? String(spot) : "nan";
+  return `on|${barsPart}|${spotPart}|${levels.join(",")}`;
 }
 
 /** Minimal shape of lightweight-charts' autoscale result used here. */
@@ -286,14 +382,14 @@ const NT_VOL_DOWN = "rgba(100, 116, 139, 0.40)";
 
 export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewChartProps>(function TradingViewChart({
   candles,
-  trades = [],
+  trades = EMPTY_TRADES,
   highlightedTradeId,
   showAllTrades,
   height,
-  markLines,
-  priceAreas,
-  emaData,
-  touchMarkers,
+  markLines = EMPTY_MARK_LINES,
+  priceAreas = EMPTY_PRICE_AREAS,
+  emaData = EMPTY_EMA,
+  touchMarkers = EMPTY_TOUCH_MARKERS,
   rsiData,
   livePosition,
   theme = "default",
@@ -309,11 +405,24 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
   const markersRef = useRef<ReturnType<typeof createSeriesMarkers> | null>(null);
   const priceLinesRef = useRef<IPriceLine[]>([]);
   const emaSeriesRef = useRef<ISeriesApi<"Line">[]>([]);
+  /** `label|color` signature of the EMA series currently attached. */
+  const emaSigRef = useRef<string>("");
+  /** Per-series content signature of the EMA data currently pushed. */
+  const emaDataSigRef = useRef<string[]>([]);
+  /** Signature of the price lines currently attached (see `markOverlaySignature`). */
+  const markSigRef = useRef<string | null>(null);
+  /** Signature of the candle/volume data currently pushed (see `candleSignature`). */
+  const dataSigRef = useRef<string | null>(null);
+  /** Signature of the applied autoscale closure inputs (see `autoscaleSignature`). */
+  const autoscaleSigRef = useRef<string | null>(null);
   const rsiSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const rsiPriceLinesRef = useRef<IPriceLine[]>([]);
   const heightRef = useRef(height);
   const onReadyRef = useRef(onChartReady);
   onReadyRef.current = onChartReady;
+  /** Latest mark lines for the (memoised) overlay painter — see `drawEntryLabels`. */
+  const markLinesRef = useRef(markLines);
+  markLinesRef.current = markLines;
   const overlayRef = useRef<HTMLCanvasElement>(null);
   /** Pending pan/zoom/resize redraw frame — cancelled on cleanup. */
   const rafRef = useRef<number | null>(null);
@@ -401,8 +510,17 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       chartRef.current = null;
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
+      // The markers plugin is attached to the (now destroyed) candle series:
+      // drop the reference so nothing can push into a dead primitive, and so the
+      // marker effect re-applies markers after a recreate (`ready` dep).
+      markersRef.current = null;
       priceLinesRef.current = [];
+      markSigRef.current = null;
+      dataSigRef.current = null;
+      autoscaleSigRef.current = null;
       emaSeriesRef.current = [];
+      emaSigRef.current = "";
+      emaDataSigRef.current = [];
       rsiSeriesRef.current = null;
       rsiPriceLinesRef.current = [];
     };
@@ -447,7 +565,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     rsiSeriesRef.current = series;
 
     const points = data
-      .map((v, i) => (v == null || !isFinite(v) || !candles[i] ? null : { time: toTime(candles[i].time), value: v }))
+      .map((v, i) => (v == null || !isFinite(v) || !candles[i] ? null : { time: toEpochSeconds(candles[i].time), value: v }))
       .filter((d): d is LineData => d !== null)
       .sort((a, b) => (a.time as number) - (b.time as number));
     series.setData(points);
@@ -490,10 +608,9 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     zoomToTimeRange: (fromTime: string, toTime: string) => {
       const chart = chartRef.current;
       if (!chart) return;
-      const t = (s: string) => (new Date(s.replace(" ", "T")).getTime() / 1000) as Time;
-      const from = t(fromTime);
-      const to = t(toTime);
-      if (!Number.isFinite(from as number) || !Number.isFinite(to as number)) {
+      const from = toEpochSeconds(fromTime);
+      const to = toEpochSeconds(toTime);
+      if (!Number.isFinite(from) || !Number.isFinite(to)) {
         chart.timeScale().fitContent();
         return;
       }
@@ -504,6 +621,9 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
   // simple per docs: setData on candles change, fitContent once
   useEffect(() => {
     if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
+    const dataSig = `${theme}|${chartType}|${candleSignature(candles)}`;
+    if (dataSigRef.current === dataSig) return;
+    dataSigRef.current = dataSig;
     if (candles.length === 0) {
       candleSeriesRef.current.setData([]);
       volumeSeriesRef.current.setData([]);
@@ -511,13 +631,13 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     }
     if (chartType === "line") {
       const lineData: LineData[] = candles
-        .map((c) => ({ time: toTime(c.time), value: c.close }))
+        .map((c) => ({ time: toEpochSeconds(c.time), value: c.close }))
         .sort((a, b) => (a.time as number) - (b.time as number));
       candleSeriesRef.current.setData(lineData as any);
     } else {
       const candleData: CandlestickData[] = candles
         .map((c) => ({
-          time: toTime(c.time),
+          time: toEpochSeconds(c.time),
           open: c.open,
           high: c.high,
           low: c.low,
@@ -537,7 +657,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
 
     const volData: HistogramData[] = candles
       .map((c) => ({
-        time: toTime(c.time),
+        time: toEpochSeconds(c.time),
         value: c.volume,
         color: c.close >= c.open
           ? (theme === "nt" ? NT_VOL_UP : withAlpha(palette.POSITIVE, 0.9))
@@ -547,10 +667,25 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     volumeSeriesRef.current.setData(volData as any);
   }, [candles, theme, chartType]);
 
-  // horizontal overlay levels: ORB / pivots / 52W / highlighted SL-TP / position
+  // Horizontal overlay levels: ORB / pivots / 52W / highlighted SL-TP / position.
+  //
+  // Split in two. The **price lines** only rebuild when their content actually
+  // changes — the report poll hands us new arrays with identical content, and
+  // remove+create per level on every poll churned the series' price-line
+  // collection (and its axis pane views) for no visual change. The
+  // **autoscale provider** is refreshed whenever the candles move, because it
+  // captures the rendered window's range.
+  const markSig = useMemo(
+    () => markOverlaySignature(markLines, livePosition, `${theme}|${fitMarkLines ? 1 : 0}`),
+    [markLines, livePosition, theme, fitMarkLines],
+  );
+
   useEffect(() => {
     const series = candleSeriesRef.current;
     if (!series) return;
+    if (markSigRef.current === markSig) return;
+    markSigRef.current = markSig;
+
     priceLinesRef.current.forEach((l) => {
       try {
         series.removePriceLine(l);
@@ -576,7 +711,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       priceLinesRef.current.push(line);
     };
 
-    (markLines || []).forEach((ml) => {
+    markLines.forEach((ml) => {
       // Far reference levels stay as lines (still discoverable via the left
       // edge badges below) but their gutter label + in-chart title are
       // suppressed: an off-screen line's title pins to the panel edge, so
@@ -585,41 +720,6 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       const near = !fitMarkLines || ml.includeInScale !== false;
       add(ml.yAxis, ml.lineStyle.color, ml.lineStyle.width, toLineStyle(ml.lineStyle.type), near ? ml.label.formatter : "", near);
     });
-
-    // Horizontal levels do not affect lightweight-charts' autoscale, so only
-    // near levels (flagged `includeInScale`) are folded into the candle
-    // series' range. Far reference levels stay drawn but must not stretch the
-    // axis: a 22,500 fuel line under a 22,700 low used to push the whole
-    // session into the lower third of the panel.
-    //
-    // The provider is anchored on the rendered window's min-low / max-high
-    // (not the last price): the engine can hand back a tight last-price
-    // slice, and without the bars floor the early session bars clip above
-    // the panel. Level widening stays capped at 1.3× the bars' span.
-    if (fitMarkLines) {
-      const bars = visibleBarsRange(candles);
-      const spot = candles.length > 0 ? candles[candles.length - 1].close : NaN;
-      const levels = (markLines || [])
-        .filter((ml) => ml.includeInScale)
-        .map((ml) => ml.yAxis)
-        .filter((v) => Number.isFinite(v) && v > 0);
-      series.applyOptions({
-        autoscaleInfoProvider:
-          !bars && levels.length === 0
-            ? undefined
-            : (original) =>
-                extendAutoscaleWithLevels(original(), levels, {
-                  spot,
-                  barsRange: bars,
-                }),
-      });
-      // Near levels add at most ±5% around the candles; 5% margins each side
-      // keep the visible axis at ~1.2× the session range instead of the
-      // default 10% (which left the tape looking cramped).
-      series.priceScale().applyOptions({ scaleMargins: { top: 0.05, bottom: 0.05 } });
-    } else {
-      series.applyOptions({ autoscaleInfoProvider: undefined });
-    }
 
     if (livePosition) {
       add(livePosition.entry_price, palette.PRIMARY, 1, LineStyle.Solid, `Entry ${livePosition.entry_price}`);
@@ -630,41 +730,107 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
         add(livePosition.take_profit, palette.POSITIVE, 1, LineStyle.Dashed, `TP ${livePosition.take_profit}`);
       }
     }
-  }, [markLines, livePosition, theme, fitMarkLines, candles]);
+  }, [markSig, markLines, livePosition, theme, fitMarkLines, ready]);
 
-  // EMA overlays (line series aligned to candles)
+  // Horizontal levels do not affect lightweight-charts' autoscale, so only
+  // near levels (flagged `includeInScale`) are folded into the candle
+  // series' range. Far reference levels stay drawn but must not stretch the
+  // axis: a 22,500 fuel line under a 22,700 low used to push the whole
+  // session into the lower third of the panel.
+  //
+  // The provider is anchored on the rendered window's min-low / max-high
+  // (not the last price): the engine can hand back a tight last-price
+  // slice, and without the bars floor the early session bars clip above
+  // the panel. Level widening stays capped at 1.3× the bars' span.
+  useEffect(() => {
+    const series = candleSeriesRef.current;
+    if (!series) return;
+    const bars = fitMarkLines ? visibleBarsRange(candles) : null;
+    const spot =
+      fitMarkLines && candles.length > 0 ? candles[candles.length - 1].close : NaN;
+    const levels = fitMarkLines
+      ? markLines
+          .filter((ml) => ml.includeInScale)
+          .map((ml) => ml.yAxis)
+          .filter((v) => Number.isFinite(v) && v > 0)
+      : [];
+    const sig = autoscaleSignature(fitMarkLines, bars, spot, levels);
+    if (autoscaleSigRef.current === sig) return;
+    autoscaleSigRef.current = sig;
+    if (!fitMarkLines) {
+      series.applyOptions({ autoscaleInfoProvider: undefined });
+      return;
+    }
+    series.applyOptions({
+      autoscaleInfoProvider:
+        !bars && levels.length === 0
+          ? undefined
+          : (original) =>
+              extendAutoscaleWithLevels(original(), levels, {
+                spot,
+                barsRange: bars,
+              }),
+    });
+    // Near levels add at most ±5% around the candles; 5% margins each side
+    // keep the visible axis at ~1.2× the session range instead of the
+    // default 10% (which left the tape looking cramped).
+    series.priceScale().applyOptions({ scaleMargins: { top: 0.05, bottom: 0.05 } });
+  }, [markLines, fitMarkLines, candles, ready]);
+
+  // EMA overlays (line series aligned to candles).
+  //
+  // Reuse the existing series when the EMA *set* (label/colour) is unchanged and
+  // only push new data: the poll rebuilt both line series (addSeries +
+  // removeSeries) every cycle even though the overlay never changed. Each
+  // series' pushed points are signature-checked, so unchanged data skips
+  // `setData` too.
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
-    emaSeriesRef.current.forEach((s) => {
-      try {
-        chart.removeSeries(s);
-      } catch {
-        /* noop */
-      }
-    });
-    emaSeriesRef.current = [];
-
-    if (!emaData || emaData.length === 0 || candles.length === 0) return;
-
-    emaData.forEach((ema) => {
-      const series = chart.addSeries(LineSeries, {
-        color: ema.color,
-        lineWidth: 1 as LineWidth,
-        priceLineVisible: false,
-        lastValueVisible: false,
-        crosshairMarkerVisible: false,
+    const wanted = candles.length === 0 ? EMPTY_EMA : emaData;
+    const sig = wanted.map((ema) => `${ema.label}|${ema.color}`).join(",");
+    const reusable =
+      emaSeriesRef.current.length === wanted.length && emaSigRef.current === sig;
+    if (!reusable) {
+      emaSeriesRef.current.forEach((s) => {
+        try {
+          chart.removeSeries(s);
+        } catch {
+          /* noop */
+        }
       });
+      emaSeriesRef.current = [];
+      emaSigRef.current = sig;
+      emaDataSigRef.current = [];
+      for (const ema of wanted) {
+        emaSeriesRef.current.push(
+          chart.addSeries(LineSeries, {
+            color: ema.color,
+            lineWidth: 1 as LineWidth,
+            priceLineVisible: false,
+            lastValueVisible: false,
+            crosshairMarkerVisible: false,
+          }),
+        );
+      }
+    }
+    if (wanted.length === 0) return;
+
+    emaSeriesRef.current.forEach((series, i) => {
+      const ema = wanted[i];
+      if (!ema) return;
       const data: LineData[] = ema.data
-        .map((v, i) =>
-          v == null || !isFinite(v) || !candles[i] ? null : { time: toTime(candles[i].time), value: v },
+        .map((v, idx) =>
+          v == null || !isFinite(v) || !candles[idx] ? null : { time: toEpochSeconds(candles[idx].time), value: v },
         )
         .filter((d): d is LineData => d !== null)
         .sort((a, b) => (a.time as number) - (b.time as number));
+      const dsig = emaDataSignature(ema, data);
+      if (emaDataSigRef.current[i] === dsig) return;
+      emaDataSigRef.current[i] = dsig;
       series.setData(data);
-      emaSeriesRef.current.push(series);
     });
-  }, [emaData, candles]);
+  }, [emaData, candles, ready]);
 
   // markers — lightweight-charts v5 uses createSeriesMarkers plugin, not series.setMarkers
   useEffect(() => {
@@ -676,7 +842,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
         const isBuy = isBuySide(t.side);
         const isHighlighted = highlightedTradeId === (t as any).id;
         return {
-          time: toTime(t.entry_time),
+          time: toEpochSeconds(t.entry_time),
           position: isBuy ? ("belowBar" as const) : ("aboveBar" as const),
           color: isBuy ? ENTRY_BUY_COLOR : ENTRY_SELL_COLOR,
           shape: isBuy ? ("arrowUp" as const) : ("arrowDown" as const),
@@ -690,7 +856,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
         const isHighlighted = highlightedTradeId === (t as any).id;
         const isBuy = isBuySide(t.side);
         return {
-          time: toTime(t.exit_time),
+          time: toEpochSeconds(t.exit_time),
           position: (isBuy ? "aboveBar" : "belowBar") as "aboveBar" | "belowBar",
           color: t.exit_reason === "TP" ? EXIT_TP_COLOR : t.exit_reason === "SL" ? EXIT_SL_COLOR : EXIT_OTHER_COLOR,
           shape: "circle" as const,
@@ -704,12 +870,12 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     const touchMarkerList = (touchMarkers ?? [])
       .filter((m) => Number.isFinite(m.value))
       .map((m) => ({
-        time: toTime(m.time),
-        position: "belowBar" as const,
-        color: palette.WARNING,
-        shape: "circle" as const,
-        text: "",
-        size: 1,
+        time: toEpochSeconds(m.time),
+        position: (m.position ?? "belowBar") as "aboveBar" | "belowBar",
+        color: m.color ?? palette.WARNING,
+        shape: (m.shape ?? "circle") as "circle" | "arrowUp" | "arrowDown",
+        text: m.text ?? "",
+        size: m.size ?? 1,
       }));
     const allMarkers = [...markers, ...exitMarkers, ...touchMarkerList].sort(
       (a, b) => (a.time as number) - (b.time as number),
@@ -719,24 +885,27 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     } catch {
       /* noop */
     }
-  }, [trades, highlightedTradeId, showAllTrades, entryLabels, touchMarkers]);
+  }, [trades, highlightedTradeId, showAllTrades, entryLabels, touchMarkers, ready]);
 
   // Larger BUY/SELL pills over entry markers (opt-in): lightweight-charts marker
   // text size is fixed, so draw our own canvas labels for readability.
   // Sorted bar times + time→candle index, rebuilt only when the candle set
   // changes — the overlay redraws on every pan/zoom frame and must not re-sort.
+  // Skipped entirely when `entryLabels` is off (the common case: the report
+  // chart), so a new candle array per poll does not rebuild it either.
   const entryGeometry = useMemo(() => {
+    if (!entryLabels) return EMPTY_ENTRY_GEOMETRY;
     const barTimes = candles
-      .map((c) => toTime(c.time) as number)
+      .map((c) => toEpochSeconds(c.time) as number)
       .filter((n) => Number.isFinite(n))
       .sort((a, b) => a - b);
-    const byTime = new Map<number, (typeof candles)[number]>();
+    const byTime = new Map<number, ReplayCandle>();
     for (const c of candles) {
-      const tn = toTime(c.time) as number;
+      const tn = toEpochSeconds(c.time) as number;
       if (Number.isFinite(tn)) byTime.set(tn, c);
     }
     return { barTimes, byTime };
-  }, [candles]);
+  }, [candles, entryLabels]);
 
   const drawEntryLabels = useCallback(() => {
     const chart = chartRef.current;
@@ -792,10 +961,11 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     // their horizontal line sits off-screen. Keep them discoverable as small
     // edge badges (top = above the visible range, bottom = below) instead of
     // silently dropping the level.
-    if (fitMarkLines && markLines && markLines.length > 0) {
+    if (fitMarkLines) {
+      const lines = markLinesRef.current;
       const above: MarkLineData[] = [];
       const below: MarkLineData[] = [];
-      for (const ml of markLines) {
+      for (const ml of lines) {
         const y = series.priceToCoordinate(ml.yAxis);
         if (y == null || !Number.isFinite(y)) continue;
         if (y < 0) above.push(ml);
@@ -881,7 +1051,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     };
 
     const coordFor = (timeStr: string, isBuy: boolean, price: number, isExit: boolean) => {
-      const snapped = snapTime(toTime(timeStr) as number);
+      const snapped = snapTime(toEpochSeconds(timeStr) as number);
       if (snapped == null) return null;
       const x = chart.timeScale().timeToCoordinate(snapped as Time);
       const bar = byTime.get(snapped);
@@ -909,7 +1079,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
         if (c) drawPill(c.x, c.y, reason, color, isBuy);
       }
     }
-  }, [entryLabels, trades, highlightedTradeId, showAllTrades, entryGeometry, priceAreas, markLines, fitMarkLines]);
+  }, [entryLabels, trades, highlightedTradeId, showAllTrades, entryGeometry, priceAreas, markSig, fitMarkLines]);
 
   useEffect(() => { drawEntryLabels(); }, [drawEntryLabels, ready]);
 
@@ -937,7 +1107,17 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
-      chart.timeScale().unsubscribeVisibleLogicalRangeChange(onRedraw);
+      // The chart-creation effect's cleanup runs first and has already called
+      // `chart.remove()`. Unsubscribing from a removed chart throws, and a
+      // throw here would skip the ResizeObserver/ window-listener teardown —
+      // leaving both (and this closure's candle arrays) alive forever.
+      if (chartRef.current === chart) {
+        try {
+          chart.timeScale().unsubscribeVisibleLogicalRangeChange(onRedraw);
+        } catch {
+          /* chart already disposed */
+        }
+      }
       ro?.disconnect();
       window.removeEventListener("resize", onRedraw);
     };

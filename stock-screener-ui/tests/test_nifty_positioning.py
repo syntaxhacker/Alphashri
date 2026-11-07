@@ -37,14 +37,16 @@ class TestClassConvention:
             ("CE", "SC", 1),
             ("CE", "SB", -1),
             ("CE", "LU", -1),
-            # House convention, mirrored from getUnusualSentimentTone.
+            # Put side reads the delta the position represents (long put = -):
+            # writers open / buyers sell out are bullish, buyers open / shorts
+            # buy back are bearish.
             ("PE", "SB", 1),
-            ("PE", "SC", 1),
+            ("PE", "LU", 1),
             ("PE", "LB", -1),
-            ("PE", "LU", -1),
+            ("PE", "SC", -1),
         ],
     )
-    def test_class_sign_matches_frontend_convention(self, side, code, expected):
+    def test_class_sign_reads_position_delta_per_side(self, side, code, expected):
         assert class_sign({"label": code}, side) == expected
 
     def test_unknown_class_is_neutral(self):
@@ -53,12 +55,12 @@ class TestClassConvention:
 
 
 class TestVerdict:
-    def test_signed_delta_flow_does_not_veto_a_class_weighted_initiation(self):
-        # 2026-10-21 repro: put writing + call buying (positive gross) while
-        # the SIGNED-delta book and today's signed flow are both negative.
-        # The verdict reads the class-weighted pair, so the signed flow — a
-        # different convention, which agrees with the class-weighted numbers
-        # on only ~6% of a session — must not veto it.
+    def test_signed_delta_flow_vetoes_a_one_sided_class_read(self):
+        # 2026-11-02 11:52 repro: the day-versus-prior-close read is ~100%
+        # bullish (put writing + call buying) while put OI is added faster than
+        # call OI, so the signed-delta flow is negative. The veto exists for
+        # exactly this: the class-weighted read may not claim bullish through a
+        # down-move. It is one-way — flow can veto, never add, a direction.
         rows = [
             row(
                 23_000,
@@ -72,7 +74,7 @@ class TestVerdict:
         assert pos["flow_class"] > 0
         assert pos["initiated"] > 0
         assert pos["bull_cr"] > pos["bear_cr"] * 1.25  # gross dominance
-        assert pos["verdict"] == "bullish"
+        assert pos["verdict"] == "balanced"
 
     def test_clean_bullish_agreement(self):
         rows = [

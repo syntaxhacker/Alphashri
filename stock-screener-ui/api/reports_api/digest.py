@@ -17,6 +17,9 @@ from typing import Any, Callable, Optional
 
 from fastapi import APIRouter, Depends, Query
 
+from api.reports_api._time import now_ist as _now_ist
+from api.reports_api._time import today_str as _today_str
+
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 MAX_CHARS = 1500
@@ -34,24 +37,6 @@ def is_digest_enabled() -> bool:
 
 def get_digest_universe() -> str:
     return (os.getenv("REPORT_DIGEST_UNIVERSE", "nifty500") or "nifty500").strip().lower() or "nifty500"
-
-
-def _today_str() -> str:
-    try:
-        import config as _cfg
-
-        return datetime.now(_cfg.IST).strftime("%Y-%m-%d")
-    except Exception:
-        return datetime.now().astimezone().strftime("%Y-%m-%d")
-
-
-def _now_ist() -> datetime:
-    try:
-        import config as _cfg
-
-        return datetime.now(_cfg.IST)
-    except Exception:
-        return datetime.now().astimezone()
 
 
 # ---------------------------------------------------------------------------

@@ -226,7 +226,17 @@ def parse_fii_dii_payload(payload, prefer: str = "NSE_EQ|CASH") -> dict:
     net = _as_float(latest.get("net_value", latest.get("net", latest.get("net_buy"))))
     if net is None and buy is not None and sell is not None:
         net = buy - sell
-    return {"buy": buy, "sell": sell, "net": net}
+    # The endpoint reports the LATEST COMPLETED session, so the UI must be able
+    # to say which day these flows belong to (on Monday morning it is Friday's).
+    session = None
+    try:
+        from datetime import datetime, timedelta, timezone
+
+        ist = timezone(timedelta(hours=5, minutes=30))
+        session = datetime.fromtimestamp(_ts(latest) / 1000.0, tz=ist).strftime("%Y-%m-%d")
+    except Exception:
+        session = None
+    return {"buy": buy, "sell": sell, "net": net, "date": session}
 
 
 def _to_ist(moment):

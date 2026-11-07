@@ -51,6 +51,14 @@ Fyers is used only to download historical 1-min option candles for research
 
 The engine stops scanning at 15:10. Any straddle/option must be closed **before 15:10**.
 
+**Intraday only — never overnight.** Every position is opened and closed inside
+the same session. Expiry choice is a **gamma / liquidity** choice, not a
+hold-to-expiry plan: we trade the premium's intraday move and exit in minutes,
+so expiry break-even and `pop` are irrelevant. Judge a trade by
+`delta x expected intraday points` versus spread + round-trip costs (roughly
+`costs / (delta x lot)` index points to cover), never by what it would be worth
+on expiry day.
+
 ---
 
 ## 3. Daily runbook
@@ -96,6 +104,12 @@ python scripts/agent_options_check.py
 6. **Cut before 15:10.**
 7. **VWAP is not available** (index feed has no volume) → use the **30-min TWAP** printed by the checker.
 8. One open position at a time unless deliberately scaling a *winning* range-sell.
+9. **Intraday only — no overnight carry, ever.** A position is judged on its
+   premium move from entry to exit inside the session. Ignore expiry break-even,
+   held-to-expiry `pop` and "6 DTE" framing when deciding; those describe a
+   different trade. The only expiry question is "is this contract liquid and
+   responsive enough for the intraday move I expect?" (ATM on the front weekly
+   is usually the answer; 0-DTE when the front weekly *is* today).
 
 **Sizing:** 1 lot default; scale only a working range-sell (short straddle margin ≈ ₹1.9 L/lot on NIFTY at 23k).
 
@@ -140,6 +154,44 @@ The loop auto-exits any ledger position at its **stop/target** — `enter` is en
 - **Paper only.** `live_trading = 0` everywhere; nothing here routes real orders.
 
 ---
+
+### Max-pain reject — `nifty_maxpain` (added 2026-10-28)
+
+Study: `scripts/market/maxpain_touches.py` (48 touches / 8 sessions) and
+`scripts/market/maxpain_strategy_study.py` (causal entries, 1 lot, real costs).
+
+What the tape says:
+
+* **Holding above max pain pumps** — when the next 30 min stayed above the
+  level, median fwd30 was **+45 / +145 / +24 pts** (1st / 2nd / 3rd+ touch,
+  86–100% chance of a ≥30-pt up move).
+* **Losing max pain does not reliably dump** — P(down ≥30) only **43–50%**.
+* **But the "buy CE on the hold" trade loses** after a 5-min confirmation
+  (PF 0.25–0.66 in every timing variant). The pump is largely short-covering
+  already reflected in the premium; buying it late pays for the move.
+* **The PE side pays:** failed hold + below the 30-min TWAP + bear flow
+  (put buying / call writing) → ATM PE, **strict stop the moment spot
+  reclaims max pain (+0)**, 30% premium SL / 60% TP / 30-min hold, **only
+  touches 1–4**, no entries after 14:30.
+  Engine replay (`scripts/market/run_maxpain_bot.py`): **9 trades, +₹8,624,
+  PF 5.57, 44% win**, 2/5 losing days. The old +15 reclaim stop and
+  touch 5+ produced 16 trades at PF 1.91 — the extra touches bled
+  (Oct 14 −1,329, Oct 19 −661/−679, Oct 28 −2,106), and the 4th touch
+  (Oct 19 11:58, +₹2,449) is why the cap is 4, not 3.
+  Caveat: one trade (Oct 21 +₹6,210) is 72% of the net; ex-that it is
+  +₹2,414 over 8 trades. Treat it as a tail strategy, not a money printer.
+
+Run it (opt-in — **not** in `AGENT_STRATEGIES` until forward-tested):
+
+```bash
+# replay every recorded day
+.venv/bin/python scripts/market/run_maxpain_bot.py
+
+# live paper, only this strategy
+.venv/bin/python -m options_paper.live --strategies nifty_maxpain --interval 60
+```
+
+The CE hold/pump leg exists behind `allow_ce=True` for research; leave it off.
 
 ## 7. Learning loop
 

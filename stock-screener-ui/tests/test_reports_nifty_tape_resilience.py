@@ -126,7 +126,7 @@ class TestTickFailureIsSurvivable:
             return _fake_report()
 
         with patch.object(nifty, "_compute_live", AsyncMock(side_effect=flaky)), \
-                patch("trading.utils.is_market_open", return_value=True):
+                patch("trading.utils.is_derivatives_open", return_value=True):
             task = asyncio.create_task(nifty.start_nifty_tape_task(poll_sec=0.05))
             try:
                 await asyncio.sleep(0.6)

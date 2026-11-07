@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePolling } from "../../../hooks/usePolling";
 
 import { fetchUsDates, fetchUsEod, fetchUsLive, fetchUsPrice, fetchUsStatus, fetchUsTape } from "../../../api/usReport";
 import type { UsEod, UsMode, UsRow, UsStatus } from "../../../types/usReport";
@@ -255,9 +256,9 @@ export function useUsReport(root: string, mode: UsMode): UsReportState {
   }, [root, mode, date, nonce]);
 
   // ---- playback ------------------------------------------------------------
-  useEffect(() => {
-    if (!playing || mode !== "eod" || frames.length < 2) return undefined;
-    const id = setInterval(() => {
+  const playbackMs = Math.max(40, Math.round(1000 / Math.max(1, speed)));
+  usePolling(
+    () => {
       setCursorState((c) => {
         if (c >= frames.length - 1) {
           setPlaying(false);
@@ -265,9 +266,10 @@ export function useUsReport(root: string, mode: UsMode): UsReportState {
         }
         return c + 1;
       });
-    }, Math.max(40, Math.round(1000 / Math.max(1, speed))));
-    return () => clearInterval(id);
-  }, [playing, mode, frames.length, speed]);
+    },
+    playbackMs,
+    { enabled: playing && mode === "eod" && frames.length >= 2, skipIfRunning: false },
+  );
 
   const liveRow = liveFrames.length ? liveFrames[liveFrames.length - 1] : row;
   const frame = mode === "live" ? liveRow : (frames[cursor] ?? (frames.length ? frames[frames.length - 1] : null));

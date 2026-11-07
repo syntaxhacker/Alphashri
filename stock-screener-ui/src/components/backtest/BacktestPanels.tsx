@@ -5,7 +5,6 @@ import {
   BacktestResultsTable,
   BacktestProgress,
   BacktestHistory,
-  BacktestChartTabs,
 } from ".";
 
 interface BacktestLeftPanelProps {
@@ -118,76 +117,5 @@ export function BacktestLeftPanel({
         <BacktestHistory active={activeTab === "history"} onLoad={() => setActiveTab("results")} />
       </Tabs.Panel>
     </Tabs>
-  );
-}
-
-interface BacktestRightPanelProps {
-  showCharts: boolean;
-  results: any[] | null;
-  symbols: string[];
-  selectedChartSymbol: string | null;
-  onSymbolSelect: (symbol: string | null) => void;
-  zoomValue: any;
-  onZoomChange: (value: any) => void;
-  chartDataMap: Map<string, any>;
-  chartLoading: string | null;
-  onTradeClick: (tradeIndex: number) => void;
-  holidays: any[];
-  tradeHistory: any[] | null;
-  tradeHistorySymbol: string | null;
-  tradeSortColumn: string;
-  tradeSortDirection: "asc" | "desc";
-  onTradeSort: (column: string) => void;
-  onTradeRowClick: (tradeIndex: number) => void;
-  onCloseTradeHistory: () => void;
-  selectedTf: string | null;
-  onTfChange: (tf: string | null) => void;
-}
-
-export function BacktestRightPanel({
-  showCharts,
-  results,
-  symbols,
-  selectedChartSymbol,
-  onSymbolSelect,
-  zoomValue,
-  onZoomChange,
-  chartDataMap,
-  chartLoading,
-  onTradeClick,
-  holidays,
-  selectedTf,
-  onTfChange,
-}: BacktestRightPanelProps) {
-  if (!showCharts || !results || results.length === 0) {
-    return null;
-  }
-
-  return (
-    <Box
-      sx={{
-        flex: 1,
-        minHeight: 0,
-        minWidth: 0,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "stretch",
-        overflow: "hidden",
-      }}
-    >
-      <BacktestChartTabs
-        symbols={symbols}
-        selectedSymbol={selectedChartSymbol}
-        onSymbolSelect={onSymbolSelect}
-        zoomValue={zoomValue}
-        onZoomChange={onZoomChange}
-        chartDataMap={chartDataMap}
-        chartLoading={!!chartLoading}
-        onTradeClick={onTradeClick}
-        holidays={holidays}
-        selectedTf={selectedTf}
-        onTfChange={onTfChange}
-      />
-    </Box>
   );
 }

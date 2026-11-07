@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import Box from "@mui/material/Box";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -6,7 +6,7 @@ import { Button, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { PanelModal } from "@/components/common/PanelModal";
 import { TanStackTable } from "@/components/common/TanStackTable";
-import { formatSignedPnl } from "@/utils/ui-helpers";
+import { formatSignedPnl, formatNumberIN } from "@/utils/ui-helpers";
 import type { PaperPosition } from "@/types/paperTrading";
 import type { NiftyStrike } from "@/types/niftyReport";
 import {
@@ -46,7 +46,7 @@ function toneFor(value: number | null): string {
 
 const NUM = (v: number): ReactNode => (
   <Text span size="xs" fw={500} sx={{ fontFamily: palette.MONO }}>
-    {v.toLocaleString("en-IN")}
+    {formatNumberIN(v)}
   </Text>
 );
 
@@ -90,7 +90,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
       const strike = info.getValue() as number | null;
       return (
         <Text span size="xs" sx={{ fontFamily: palette.MONO }}>
-          {strike === null ? "—" : strike.toLocaleString("en-IN")}
+          {strike === null ? "—" : formatNumberIN(strike)}
         </Text>
       );
     },
@@ -225,7 +225,7 @@ function GreekStat({ testId, label, value }: { testId: string; label: string; va
  * (symbol/opt/strike/side/qty/entry/mark/P&L/stop/target) and the book greeks
  * (Δ Γ Θ V) summed from the live chain, refreshed on open and every 30s.
  */
-export function NiftyPositionsDrawer({
+export function NiftyPositionsDrawerInner({
   positions,
   strikes,
   onRefresh,
@@ -360,8 +360,8 @@ export function NiftyPositionsDrawer({
                   borderColor: `${palette.TERM_BORDER} !important`,
                   fontSize: "10px !important",
                   fontFamily: `${palette.MONO} !important`,
-                  padding: "4px 8px !important",
-                  height: "25px !important",
+                  padding: "2px 8px !important",
+                  height: "22px !important",
                   lineHeight: 1.1,
                 },
               }}
@@ -372,6 +372,8 @@ export function NiftyPositionsDrawer({
                 dataTestId="nifty-positions-table"
                 emptyMessage="No open paper positions"
                 enableSorting={false}
+                stickyHeader
+                dense
                 style={{ minWidth: 0 }}
               />
             </Box>
@@ -381,3 +383,8 @@ export function NiftyPositionsDrawer({
     </>
   );
 }
+
+/** Memoised: the parent repaints on the ~1 s spot tick; the book (`positions`)
+ *  only changes on its own refresh. */
+export const NiftyPositionsDrawer = memo(NiftyPositionsDrawerInner);
+NiftyPositionsDrawer.displayName = "NiftyPositionsDrawer";

@@ -33,12 +33,12 @@ import asyncio
 import logging
 import threading
 import time
-from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 import config
+from api.reports_api._time import now_iso as _ist_now_iso, today_str as _ist_today
 from api.reports_api import nifty as nifty_report
 from api.reports_api import nifty_stream
 
@@ -136,9 +136,9 @@ async def nifty_spot_tick_task(interval_sec: float = SPOT_POLL_INTERVAL_SEC) -> 
     while True:
         try:
             try:
-                from trading.utils import is_market_open
+                from trading.utils import is_derivatives_open
 
-                market_open = bool(is_market_open())
+                market_open = bool(is_derivatives_open())
             except asyncio.CancelledError:
                 raise
             except Exception:
@@ -227,23 +227,6 @@ async def _reject_bad_token(websocket: WebSocket, token: Optional[str]) -> bool:
             pass
         return True
     return False
-
-
-def _ist_now_iso() -> str:
-    try:
-        return datetime.now(config.IST).isoformat()
-    except Exception:
-        # A tz-AWARE stamp even on the fallback path: a naive one is read as
-        # local time by every consumer and silently shifts the tape by hours.
-        return datetime.now().astimezone().isoformat()
-
-
-def _ist_today() -> str:
-    """IST session date (``YYYY-MM-DD``) of the SPOT poller's baseline."""
-    try:
-        return datetime.now(config.IST).strftime("%Y-%m-%d")
-    except Exception:
-        return datetime.now().astimezone().strftime("%Y-%m-%d")
 
 
 def _build_tape_payload() -> Optional[dict]:

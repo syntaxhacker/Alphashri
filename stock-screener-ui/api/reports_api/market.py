@@ -29,13 +29,16 @@ import math
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from pathlib import Path
 from statistics import mean, median
 from typing import Any, Optional
 
 from fastapi import APIRouter, Query
 
+from api.reports_api._time import now_iso as _now_iso
+from api.reports_api._time import today_str as _today_str
+from api.reports_api._dates import parse_day as _parse_date
+from api.reports_api._numeric import safe_float
 from api.utils import _sanitize_for_json
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
@@ -108,11 +111,8 @@ def normalize_spark(closes: list[float], limit: int = SPARK_BARS) -> list[float]
 
 
 def _finite(value: Any) -> Optional[float]:
-    try:
-        out = float(value)
-    except (TypeError, ValueError):
-        return None
-    return out if math.isfinite(out) else None
+    """Finite float or ``None`` — canonical ``safe_float`` with a ``None`` default."""
+    return safe_float(value, default=None)
 
 
 def _fmt_times(value: Optional[float], suffix: str) -> str:
@@ -128,34 +128,6 @@ def _cr(value_rupees: Optional[float]) -> str:
     if cr >= 1000:
         return f"\u20b9{cr / 1000:.1f}k Cr"
     return f"\u20b9{cr:.1f} Cr"
-
-
-def _today_str() -> str:
-    try:
-        import config as _cfg
-
-        return datetime.now(_cfg.IST).strftime("%Y-%m-%d")
-    except Exception:
-        return datetime.now().astimezone().strftime("%Y-%m-%d")
-
-
-def _now_iso() -> str:
-    try:
-        import config as _cfg
-
-        return datetime.now(_cfg.IST).isoformat()
-    except Exception:
-        return datetime.now().astimezone().isoformat()
-
-
-def _parse_date(value: Optional[str]) -> str:
-    text = (value or "").strip()
-    if not text:
-        return _today_str()
-    try:
-        return datetime.strptime(text[:10], "%Y-%m-%d").strftime("%Y-%m-%d")
-    except ValueError:
-        return _today_str()
 
 
 def _row_symbol(row: dict) -> str:

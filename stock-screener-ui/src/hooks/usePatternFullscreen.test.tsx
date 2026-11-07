@@ -12,11 +12,13 @@ import {
 
 vi.mock("../api/chartPatterns", () => ({
   fetchSymbolChart: vi.fn(),
+  fetchPatternHit: vi.fn(),
 }));
 
-import { fetchSymbolChart } from "../api/chartPatterns";
+import { fetchPatternHit, fetchSymbolChart } from "../api/chartPatterns";
 
 const mockedFetchSymbolChart = vi.mocked(fetchSymbolChart);
+const mockedFetchPatternHit = vi.mocked(fetchPatternHit);
 
 function makeHit(overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
   return {
@@ -115,6 +117,35 @@ describe("usePatternFullscreen", () => {
     await waitFor(() => expect(screen.getByTestId("fs-hit")).toHaveTextContent("falling_wedge"));
     expect(screen.getByTestId("fs-symbol")).toHaveTextContent("IRCON");
     expect(screen.getByTestId("fs-count")).toHaveTextContent("2");
+    expect(screen.getByTestId("fs-loading")).toHaveTextContent("no");
+  });
+
+  test("openFromCard uses the stored hit and skips live detection", async () => {
+    const slim = makeHit({ id: 7, trendlines: [], pivots: [] });
+    const full = makeHit({
+      id: 7,
+      trendlines: [[{ t: "2026-08-01", price: 100 }, { t: "2026-09-20", price: 120 }]],
+      pivots: [{ t: "2026-08-01", price: 100, kind: "low" }],
+    });
+    mockedFetchPatternHit.mockResolvedValue(full);
+    mockedFetchSymbolChart.mockResolvedValue({ candles: [], hits: [], trend_lines: [] } as never);
+    let api!: ReturnType<typeof usePatternFullscreen>;
+    render(
+      <UIProvider>
+        <Harness onReady={(a) => { api = a; }} />
+      </UIProvider>,
+    );
+    await act(async () => {
+      api.openFromCard(slim);
+    });
+    await waitFor(() => expect(screen.getByTestId("fs-hit")).toHaveTextContent("falling_wedge"));
+    expect(mockedFetchPatternHit).toHaveBeenCalledWith(7);
+    expect(mockedFetchSymbolChart).toHaveBeenCalledWith(
+      "IRCON",
+      "1D",
+      expect.objectContaining({ detectPatterns: false }),
+    );
+    expect(screen.getByTestId("fs-count")).toHaveTextContent("1");
     expect(screen.getByTestId("fs-loading")).toHaveTextContent("no");
   });
 

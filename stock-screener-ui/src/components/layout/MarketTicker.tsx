@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
+import { usePolling } from "@/hooks/usePolling";
 import { Box, Text, Skeleton } from "@/ui";
 import * as palette from "@/ui/palette";
 import { useMarketTickerEnabled } from "../../hooks/useMarketTickerEnabled";
@@ -218,7 +219,7 @@ function TickerLoadingState({ background }: { background: string }) {
       }}
     >
       {[1, 2, 3, 4, 5, 6].map((i) => (
-        <Skeleton key={i} width={88} height={14} />
+        <Skeleton key={i} w={88} h={14} />
       ))}
     </Box>
   );
@@ -271,12 +272,91 @@ function findTodayHoliday() {
   return getHolidayState().holidays.find((h) => h.date === today) ?? null;
 }
 
-export function MarketTicker() {
-  const [enabled] = useMarketTickerEnabled();
-  const [data, setData] = useState<MarketTickerData | null>(null);
+/**
+ * Single source of truth for "is the exchange open right now?" — the sidebar
+ * status dot and the tape must never disagree, and both need the holiday that
+ * explains a closure.
+ */
+function useMarketState() {
   useStoreSubscription(subscribeToHolidays);
   const closed = isMarketClosedToday();
-  const holiday = closed ? findTodayHoliday() : null;
+  return { closed, holiday: closed ? findTodayHoliday() : null };
+}
+
+/**
+ * Standalone market-state indicator for the sidebar. The old top app bar was
+ * the only place that said whether the exchange was open; removing that bar
+ * must not remove the information, so the dot + label lives next to the brand.
+ */
+export const MarketStatus = memo(function MarketStatus({ compact = false }: { compact?: boolean }) {
+  const { closed, holiday } = useMarketState();
+  const label = closed ? "Market closed" : "Market live";
+  const detail = closed ? holiday?.description : null;
+  const title = detail ? `${label} · ${detail}` : label;
+
+  return (
+    <Box
+      data-testid="app-market-status"
+      title={title}
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: compact ? "center" : "flex-start",
+        gap: compact ? 0 : 0.75,
+        minWidth: 0,
+        px: compact ? 0 : 0.25,
+        overflow: "hidden",
+      }}
+    >
+      <Box
+        aria-hidden
+        data-testid="app-market-status-dot"
+        sx={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          flexShrink: 0,
+          bgcolor: closed ? "text.disabled" : palette.POSITIVE,
+        }}
+      />
+      {!compact ? (
+        <>
+          <Text size="sm" fw={600} c="dimmed" style={{ fontSize: 9.5, lineHeight: 1.2, whiteSpace: "nowrap" }}>
+            {label}
+          </Text>
+          {detail ? (
+            <Text
+              size="sm"
+              c="dimmed"
+              style={{ fontSize: 9.5, lineHeight: 1.2 }}
+              sx={{ opacity: 0.75, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+            >
+              · {detail}
+            </Text>
+          ) : null}
+        </>
+      ) : null}
+    </Box>
+  );
+});
+
+interface MarketTickerProps {
+  /**
+   * `full` (default) keeps the legacy behaviour: tape when live, status text
+   * when closed. `tape` renders the tape only — the sidebar owns the status,
+   * so the page must not reserve a strip for it outside market hours.
+   */
+  variant?: "full" | "tape";
+}
+
+export const MarketTicker = memo(function MarketTicker({ variant = "full" }: MarketTickerProps) {
+  const [enabled] = useMarketTickerEnabled();
+  const [data, setData] = useState<MarketTickerData | null>(null);
+  const { closed, holiday } = useMarketState();
+  const tickers = data?.tickers;
+  // Ordering is derived from the fetched payload only: tooltip/hover renders
+  // must not re-sort the tape.
+  const sortedSymbols = useMemo(() => (tickers ? sortTickersByPriority(tickers) : []), [tickers]);
 
   const fetchTicker = useCallback(async () => {
     if (isMarketClosedToday()) return;
@@ -292,13 +372,11 @@ export function MarketTicker() {
     }
   }, []);
 
-  useEffect(() => {
-    if (!enabled || closed) return;
-    fetchTicker();
-    const interval = setInterval(fetchTicker, POLL_INTERVAL_MS);
-
-    return () => clearInterval(interval);
-  }, [enabled, closed, fetchTicker]);
+  usePolling(fetchTicker, POLL_INTERVAL_MS, {
+    enabled: enabled && !closed,
+    immediate: true,
+    skipIfRunning: false,
+  });
 
   if (!enabled) {
     return null;
@@ -307,6 +385,7 @@ export function MarketTicker() {
   // A closed exchange has no tape to poll: state the reason instead of
   // leaving skeletons (or a blank flex row) sitting in the header.
   if (closed) {
+    if (variant === "tape") return null;
     return <TickerStatus label="Market closed" detail={holiday?.description} />;
   }
 
@@ -318,15 +397,14 @@ export function MarketTicker() {
     return <TickerErrorState background="background.paper" />;
   }
 
-  const tickers = data.tickers || {};
-  const sortedSymbols = sortTickersByPriority(tickers);
   const lastUpdated = formatLastUpdated(data.last_updated);
+  const rows = tickers ?? {};
 
   return (
     <TickerContainer background="background.paper" title={`Updated: ${lastUpdated}`}>
       {sortedSymbols.map((symbol) => (
-        <TickerItem key={symbol} symbol={symbol} item={tickers[symbol]} />
+        <TickerItem key={symbol} symbol={symbol} item={rows[symbol]} />
       ))}
     </TickerContainer>
   );
-}
+});

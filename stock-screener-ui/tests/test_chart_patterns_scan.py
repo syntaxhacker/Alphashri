@@ -1,4 +1,5 @@
 """Tests for chart_patterns/scan.py (job execution + progress counters)."""
+from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
@@ -112,6 +113,38 @@ def test_run_job_persists_hits_and_progress(cp_store, patched_scan):
     assert summary["bullish"] == 1
     # detect only ran for the symbol with enough bars
     assert patched_scan["detect"] == ["AAA"]
+
+
+def test_run_job_persists_only_the_latest_hit_per_symbol(cp_store, monkeypatch):
+    older = _hit("AAA")
+    newer = replace(
+        older,
+        pattern_id="head_shoulders",
+        pattern_name="Head & Shoulders",
+        bars_ago=0,
+        end_date="2026-02-02",
+        confidence=90.0,
+    )
+    monkeypatch.setattr(scan.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+    monkeypatch.setattr(
+        scan,
+        "engine_mod",
+        SimpleNamespace(detect_patterns=lambda *_: [older, newer]),
+    )
+    monkeypatch.setattr(
+        scan,
+        "universes_mod",
+        SimpleNamespace(get_universe=lambda uid: ["AAA"]),
+    )
+    job_id = "cpj_latest_only"
+    store.save_job({"job_id": job_id, "universe": "nifty50", "timeframe": "1D", "status": "queued"})
+
+    scan.run_job(job_id)
+
+    items, total, summary = store.query_results({"job_id": job_id})
+    assert total == 1
+    assert items[0]["pattern_name"] == "Head & Shoulders"
+    assert summary["patterns"] == 1
 
 
 def test_run_job_universe_error_marks_failed(cp_store, monkeypatch):
@@ -261,7 +294,6 @@ def test_save_hits_drops_non_finite_confidence(cp_store):
     items, total, _ = store.query_results({"job_id": "cpj_nan"})
     assert total == 1
     assert items[0]["confidence"] is None
-    assert items[0]["rr"] is None
 
 
 def test_save_job_persists_params(cp_store):

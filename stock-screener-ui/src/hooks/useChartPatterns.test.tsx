@@ -50,6 +50,8 @@ const CONTRACT_KEYS = [
   "patterns",
   "timeframe",
   "setTimeframe",
+  "selectedTimeframes",
+  "setSelectedTimeframes",
   "lookbackBars",
   "setLookbackBars",
   "universe",

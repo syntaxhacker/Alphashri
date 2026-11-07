@@ -33,6 +33,12 @@ import {
   tapeHeat,
 } from "./tapeFormat";
 import { hexToRgba } from "@/utils/color";
+import {
+  REPORT_FONT,
+  REPORT_LINE_HEIGHT,
+  REPORT_FONT_WEIGHT,
+  REPORT_PAD,
+} from "./reportTokens";
 
 /** Numeric cell with tabular figures + ellipsis; optional full-bleed tint. */
 function tapeCell(
@@ -56,14 +62,14 @@ function tapeCell(
       style={tint ? { background: tint } : undefined}
       sx={{
         display: "block",
-        margin: tint ? "-4px -8px" : undefined,
-        padding: tint ? "4px 8px" : undefined,
+        margin: tint ? `-${REPORT_PAD.xs}px -${REPORT_PAD.sm}px` : undefined,
+        padding: tint ? `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` : undefined,
         overflow: "hidden",
         textOverflow: "ellipsis",
         fontVariantNumeric: "tabular-nums",
       }}
     >
-      <Text size="xs" span c={color ?? tone ?? "default"} fw={bold || tone ? 700 : 400}>
+      <Text span c={color ?? tone ?? "default"} fw={bold || tone ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.normal} style={{ fontSize: REPORT_FONT.xs }}>
         {value}
       </Text>
     </Box>
@@ -93,11 +99,11 @@ function tapeHeader(title: string, sub?: string, tip?: string) {
   return (
     <Box
       title={tip ? `${title} — ${tip}` : undefined}
-      sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: 1.15 }}
+      sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: REPORT_LINE_HEIGHT.tight }}
     >
-      <Box component="span" sx={{ fontSize: 11, fontWeight: 600 }}>{title}</Box>
+      <Box component="span" sx={{ fontSize: REPORT_FONT.xs, fontWeight: REPORT_FONT_WEIGHT.semibold }}>{title}</Box>
       {sub ? (
-        <Box component="span" sx={{ fontSize: 9, fontWeight: 400, opacity: 0.65, whiteSpace: "nowrap" }}>
+        <Box component="span" sx={{ fontSize: REPORT_FONT.micro, fontWeight: REPORT_FONT_WEIGHT.normal, opacity: 0.65, whiteSpace: "nowrap" }}>
           {sub}
         </Box>
       ) : null}
@@ -163,11 +169,11 @@ export function getNiftyTapeColumns(
               fontVariantNumeric: "tabular-nums",
             }}
           >
-            <Text size="xs" span fw={700} c={TAPE_SPOT}>
+            <Text span fw={REPORT_FONT_WEIGHT.bold} c={TAPE_SPOT} style={{ fontSize: REPORT_FONT.sm }}>
               {formatTapePrice(row.spot)}
             </Text>
             {arrow ? (
-              <Text size="xs" span fw={700} c={arrowColor}>
+              <Text span fw={REPORT_FONT_WEIGHT.bold} c={arrowColor} style={{ fontSize: REPORT_FONT.xs }}>
                 {arrow}
               </Text>
             ) : null}

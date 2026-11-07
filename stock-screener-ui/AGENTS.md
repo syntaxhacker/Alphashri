@@ -327,6 +327,61 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 - **NSE APIs are blocked in this environment (403/404)** — take the Nifty 50 constituent list from Wikipedia instead of `get_nifty_stocks_from_nseindia()`. India also has **BSE duplicate rows with different tickers** (`M_M`, `J_KBANK`) → keep NSE only.
 - **Do not inspect `app.routes` to check router registration in this FastAPI version.** Included routers are stored as `_IncludedRouter` wrappers (no `.path`), so a naive `[p.path for p in app.routes if "value" in p.path]` returns `[]` even when the route works. Verify with `TestClient(app).get(...)` — never by path introspection.
 
+## API Docs (Swagger / OpenAPI)
+- **Live docs**: FastAPI serves them by default on the API process — `http://localhost:8765/docs` (Swagger UI), `/redoc` (ReDoc), `/openapi.json` (raw schema). They are public in production (no auth to view; auth is still required to call protected routes). `api_server_fastapi.py` prints the `/docs` URL on startup.
+- **Auth in the UI**: the schema declares one HTTP bearer scheme, `bearerAuth` (`api/auth.py`). Use **Authorize** with the `access_token` from `POST /api/auth/login`; Swagger adds `Authorization: Bearer <token>` to try-it-out requests. 122+ of ~281 operations are protected.
+- **Schema metadata** lives in `api_server_fastapi.py`: `OPENAPI_TAGS` (ordered tag groups + descriptions) and `_API_DESCRIPTION` (markdown quickstart). `version` comes from `APP_VERSION` (default `0.1.0`).
+- **Checked-in spec**: `openapi.yaml` at the repo root is generated, not hand-written — **never edit it by hand**. Regenerate after any route/schema change:
+  ```bash
+  .venv/bin/python scripts/export_openapi.py          # write openapi.yaml
+  .venv/bin/python scripts/export_openapi.py --check  # exit 1 when stale
+  ```
+- **Drift guard**: `tests/contract/test_openapi_sync.py` fails when `openapi.yaml` differs from `app.openapi()`, when any operation is missing a tag, when `bearerAuth` disappears, or when the path count drops below the floor. Run:
+  ```bash
+  .venv/bin/python -m pytest tests/contract/test_openapi_sync.py -q
+  ```
+- **Adding an endpoint**: always pass `tags=[...]` (pick an existing tag from `OPENAPI_TAGS`, or add a new tag entry there with a description), add `summary=`, and set `response_model=` where practical. Then run the export script and the drift test in the same commit.
+- **Not in the schema**: WebSocket routes (`/ws/orderflow`, `/ws/nifty/*`) never appear in OpenAPI; document them in the router docstring instead.
+- **Agent rule — API discovery starts at the schema, not the source**: to learn endpoints, params or response shapes, read `openapi.yaml` (or `GET /openapi.json`) first and filter to the tag. Do **not** read `api/**/*.py` end-to-end just to discover a route — that is the failure this section exists to prevent. Only open a router file when the schema is demonstrably incomplete (then add `summary`/`description`/`response_model` and re-export), or when debugging handler behaviour after the call shape is already known.
+- **Agent rule — never hand-type a token**: protected routes (`security: [{'bearerAuth': []}]`, padlock in Swagger) return `401` without `Authorization: Bearer`. Mint a real one with the QA account instead of copying a token literal from a prompt or previous run (that token will be rejected as invalid):
+  ```bash
+  TOKEN=$(curl -s -X POST http://localhost:8765/api/auth/login \
+    -H 'Content-Type: application/json' \
+    -d '{"email":"qa@test.com","password":"qa123"}' \
+    | python3 -c "import json,sys; print(json.load(sys.stdin).get('access_token',''))")
+  ```
+  Public reads that need no token: `/api/chart-patterns/symbol/{symbol}`, `/api/chart-patterns/results`, `/api/chart-patterns/timeframes`, `/api/chart-patterns/patterns`, `/api/chart-patterns/market-status`, `/api/market-ticker`, `/health`. Auth-gated: `/api/chart-patterns/detect`, `/api/chart-patterns/scan`, `/api/paper/*`, `/api/bots*`, `/api/screeners*`.
+
+## Index Report — generic underlyings (SENSEX / RELIANCE)
+
+- **Routing**: NIFTY uses `/api/reports/nifty/*` (recorder, tape, replay, bursts). SENSEX/RELIANCE use the generic namespace `/api/reports/options/{symbol}/live|tape|chain10s|replay|snapshot|bursts`; never call the NIFTY recorder for another symbol.
+- **Candles**: the generic `live` payload (and `?candles=1`) can return `intraday: []`/`candles: []`, and a cold fetch may return the previous session. `src/pages/report/niftyChartData.ts` owns the fallback:
+  - `sessionDateOf(report)` = `report.date || report.market.session_date`
+  - `candlesFromTape(rows, sessionDate)` builds 1-min OHLC from consecutive tape spots (`open = prev spot`, `close = current`), skipping invalid spots
+  - `candlesFromSpotPoints(points, sessionDate)` builds **true 1-min OHLC from the 10-second chain snapshots** (6 points/minute during session): `open` = first spot, `close` = last spot, `high`/`low` = extremes — so **wicks exist**. This is the **preferred** source when the 10s chain is available; the tape fallback (`candlesFromTape`) produces no wicks.
+  - `selectBaseCandles(...)` = intraday > EOD candles > tape/spotPoints, each session-filtered; `clipToAsOf` applies the replay playhead
+  - This prevents the two-day chart (previous session + today's tape → overnight jump).
+- **Flow windows**: NIFTY gets `flow_window` server-side; generic underlyings don't. `src/pages/report/niftyFlowRead.ts` `flowWindowFromTape(rows)` derives the 5m/15m CE−PE OI windows from `tape.rows` (`ce_oi`/`pe_oi` must survive `normalizeTapeRow`). `NiftyReportPanel` uses `report.flow_window ?? flowWindowFromTape(tapeRows)` for the strip, `FLOW FLIP` badge, chart dot and heatmap line.
+- **Generic live poll**: NIFTY uses a WebSocket (`useNiftyReportStream`) for live updates. **Generic underlyings (SENSEX/RELIANCE) have no WebSocket** — they poll the generic `/options/{symbol}/live` + tape + bursts endpoints every **~15 s** in live mode (see `NiftyReportPanel.tsx` lines 1487–1550). Each poll uses an `AbortController` with a 15 s timeout.
+- **Units**: `control.flow_bias` is ₹ crore for NIFTY only; generic underlyings use a different premium unit, so `NiftyFlowWindows showSessionValue={symbol === "NIFTY"}` hides the amount and keeps the verdict.
+- **Walls**: the decision strip's `MAX-OI CALL/PUT` and the chart's `CW/PW` lines use the **walls payload** (`fetchOptionsWalls`) — the same source as the walls card. `report.walls` is only a fallback. The chart adds dotted `NEAR CW/PW` for `wallsNear` when it differs.
+- **0-DTE**: SENSEX expiry can be today; its tape starts when the recorder starts, so heatmap/flow history may be only a few minutes at the open. Show what exists; never fabricate earlier minutes.
+- **Tests**: `niftyChartData.test.ts`, `niftyFlowRead.test.ts`/`NiftyFlowWindows.test.tsx`, `NiftyChartPanel.test.tsx`, `niftyOiHeatmap.test.ts(x)`, `NiftyReportPanel.test.tsx`.
+
+## niftyChartData.ts — pure chart data helpers
+
+- `sessionDateOf(report)` — extracts the session date from `report.date` or `report.market.session_date`
+- `isOnSession(time, sessionDate)` — guards candle inclusion to the correct session
+- `candlesFromTape(rows, sessionDate)` — last-resort spot path: folds consecutive 1-min tape spots into bars where `high`/`low` never exceed the body (no wicks). Kept only when 10s chain is absent.
+- `candlesFromSpotPoints(points, sessionDate)` — **builds true 1-min OHLC from 10s chain** (6 points/min). `open` = first spot, `close` = last, `high`/`low` = extremes (wicks). Filters to `sessionDate`, drops non-finite/non-positive spots, sorts by `t`, groups by minute key (`t.slice(0,16)`). **Preferred over tape fallback** whenever chain feed is available.
+- `selectBaseCandles(report, tapeCandles, sessionDate)` — priority: intraday > EOD candles > tape/spotPoints (each session-filtered). A source whose rows all fall outside the session is skipped entirely.
+- `clipToAsOf(candles, asOf)` — stops the series at the replay playhead (ISO string comparison).
+
+## niftyFlowRead.ts — two-layer flow read
+
+- **Layer 1 (1-minute read)**: `OiPoint`, `FlowRead`, `readFlow`, `rollingRead`, `premiumResidual` — reads the dominant side of the 1-minute OI move, using premium change as tiebreaker (OI direction alone is ambiguous).
+- **Layer 2 (Rolling 5m/15m OI windows + flip lifecycle)**: `flowWindowFromTape`, `classifyFlowLeg`, `detectFlowFlip`, `detectFlipChange`, `loadStoredFlip`, `saveStoredFlip`, `sessionTone` — derives 5m/15m CE/PE OI windows from a generic underlying's tape (NIFTY gets `flow_window` server-side; generic underlyings compute it here). The flip watcher seeds on first sight and only reports a real sign change / newly-disagreeing 5m leg afterwards. Persisted per symbol/mode/date with 30-min TTL.
+
 ## Chart Cache
 - `api/paper/chart_cache.py` — pickle-based disk cache at `experiments/data/chart_cache/{date}/{symbol}.pkl`
 - Returns `(df, is_cached)` tuple — chart response includes `"cached": true/false`
@@ -422,8 +477,8 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - See [MUTATION_TESTING.md](./MUTATION_TESTING.md) for advanced testing guide
 
 ## Agent Fleet / Subagent Routing
-- When spawning subagents (background research / implementation fleets), **default to the cheap "Muse" model**: `opencode-go/muse-spark-1.3-contributor` ("Muse Spark 1.3 Contributor", ~$0.10/M). For literally-$0 use `opencode-go/beam-free` or `opencode-go/longcat-2.5-preview-free`.
-- Note: the model listed as `opencode/muse-spark-1.3-contributor-free` is **not selectable** for subagents — use the `opencode-go/…contributor` id.
+- **Default subagent model: `opencode/nemotron-3.5-super-vl-free` ("Nemotron 3.5 Super VL Free", $0).** Use it for every subagent unless the user names a different model. Do not fall back to Muse.
+- Free-tier quota is finite — if a free model returns `Free usage limit reached`, report it and retry later or escalate that one agent, stating why.
 - Escalate a single agent to a stronger model **only** for correctness-critical work (adversarial verification, final holdout) and state why.
 - Long-running loop protocol (waves, ledger, gates, **fill-honesty audit**) lives in the **`non-stop`** skill.
 

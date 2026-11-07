@@ -4,14 +4,14 @@
  * data; the store is the single source of truth.
  */
 
-import { useCallback } from "react";
-import { useStoreSubscription } from "./useStoreSubscription";
+import { useCallback, useSyncExternalStore } from "react";
 import type { JobDTO, PatternFilters } from "../types/chartPatterns";
 import {
   subscribe,
   getChartPatternsState,
   loadSymbolDetail,
   selectTimeframe,
+  selectTimeframes,
   selectUniverse,
   selectSymbols,
   setFilter,
@@ -32,6 +32,8 @@ export interface UseChartPatternsResult {
   patterns: ReturnType<typeof getChartPatternsState>["patterns"];
   timeframe: string;
   setTimeframe: (v: string) => void;
+  selectedTimeframes: string[];
+  setSelectedTimeframes: (v: string[]) => void;
   lookbackBars: number | null;
   setLookbackBars: (v: number | null) => void;
   universe: string;
@@ -73,8 +75,7 @@ export interface UseChartPatternsResult {
 }
 
 export function useChartPatterns(): UseChartPatternsResult {
-  useStoreSubscription(subscribe);
-  const state = getChartPatternsState();
+  const state = useSyncExternalStore(subscribe, getChartPatternsState, getChartPatternsState);
 
   // Stable identity: components use `setFilter` in effect dependency arrays, so a
   // fresh closure per render would re-trigger those effects (and reload loops).
@@ -102,6 +103,8 @@ export function useChartPatterns(): UseChartPatternsResult {
     patterns: state.patterns,
     timeframe: state.timeframe,
     setTimeframe: selectTimeframe,
+    selectedTimeframes: state.selectedTimeframes,
+    setSelectedTimeframes: selectTimeframes,
     lookbackBars: state.lookbackBars,
     setLookbackBars,
     universe: state.universe,

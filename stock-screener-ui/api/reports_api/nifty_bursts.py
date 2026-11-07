@@ -28,6 +28,8 @@ from __future__ import annotations
 import statistics
 from typing import Any, Iterable, Optional
 
+from api.reports_api._numeric import safe_float
+from api.reports_api._time import minutes_between as _gap_minutes
 from api.reports_api.nifty_fuel import basis_text, fuel_state, plan_allowed
 
 # ------------------------------------------------------------------ constants
@@ -51,12 +53,10 @@ NIFTY_LOT_SIZE = 65
 NEWS_WINDOW_MIN = 10.0
 
 
+# Backwards-compatible alias: safe_float with default=0.0 matches the old
+# semantics (None/unparseable/NaN/inf -> 0.0).
 def _f(value: Any, default: float = 0.0) -> float:
-    try:
-        out = float(value)
-    except (TypeError, ValueError):
-        return default
-    return out if out == out else default  # NaN guard
+    return safe_float(value, default)
 
 
 def severity_for_score(score: float) -> str:
@@ -137,15 +137,6 @@ def _ordered_rows(rows: Iterable[dict]) -> list[dict]:
             by_t[t] = r
     return [by_t[k] for k in sorted(by_t)]
 
-
-def _gap_minutes(a: dict, b: dict) -> Optional[int]:
-    from datetime import datetime
-
-    try:
-        return int((datetime.fromisoformat(str(b.get("t"))) -
-                    datetime.fromisoformat(str(a.get("t")))).total_seconds() // 60)
-    except (ValueError, TypeError):
-        return None
 
 
 def _is_contiguous(a: dict, b: dict, max_gap: int = MAX_BURST_GAP_MIN) -> bool:
@@ -866,6 +857,33 @@ def attach_news(
     return bursts
 
 
+def _flow_leg(burst: dict[str, Any], call: bool, building: bool) -> str:
+    """Which option leg the burst implies — from WHO traded, not the OI arrow.
+
+    ``call``/``put`` says *which side* moved; the premium direction says *who*
+    did it (``classify_flow``): an unwind with a falling premium is a long
+    liquidation (bearish), an unwind with a rising premium is writer covering
+    (bullish). The legacy rule only read the side, so 2026-10-23 11:19 printed
+    "LONGS LIQUIDATING" next to "BUY CE". Mirrors the web ``resolveOiDirection``.
+
+    Precedence: explicit ``bearish`` verdict → ``flow`` label → legacy OI rule
+    (kept for replayed bursts recorded before the flow label existed).
+    """
+    bearish = burst.get("bearish")
+    if isinstance(bearish, bool):
+        return "PE" if bearish else "CE"
+    flow = str(burst.get("flow") or "").strip().lower()
+    if flow == "covering":          # shorts bought back → upside
+        return "CE"
+    if flow == "liquidation":       # longs sold out → downside
+        return "PE"
+    if flow == "buyers":            # paid up: puts bought / calls lifted
+        return "PE" if not call else "CE"
+    if flow == "writers":           # sold premium: calls capped / puts floored
+        return "CE" if not call else "PE"
+    return "PE" if call == building else "CE"
+
+
 def derive_oi_signal(
     burst: dict[str, Any],
     strikes: Optional[list[dict]],
@@ -878,7 +896,9 @@ def derive_oi_signal(
 ) -> Optional[dict[str, Any]]:
     """Mechanical option suggestion for a burst (heuristic, not advice).
 
-    Direction follows the OI move, not just the side:
+    Direction follows WHO traded when the flow label is present: the side says
+    which leg moved, the premium direction says whether it was writers covering
+    (bullish) or longs liquidating (bearish). Legacy fallback (no flow):
       call build  → ceiling  → buy PE     call unwind → covering → buy CE
       put  build  → floor    → buy CE     put  unwind → support  → buy PE
 
@@ -909,7 +929,7 @@ def derive_oi_signal(
         leg = str(burst.get("leg") or ("CE" if call else "PE")).upper()
         leg = "CE" if leg == "CE" else "PE"
     else:
-        leg = "PE" if call == building else "CE"
+        leg = _flow_leg(burst, call, building)
 
     fuel = burst.get("fuel_state")
     if fuel is None:
@@ -957,14 +977,33 @@ def derive_oi_signal(
         basis = (f"short-covering squeeze — {burst.get('side')} wall {wall_txt} "
                  f"broken while that side unwound "
                  f"{abs(_f(burst.get('delta'))):,.0f} units")
-    elif call:
-        basis = ("call OI build — writers adding ceiling → fade with puts"
-                 if building else
-                 "call OI unwind — writers covering → upside fuel → buy calls")
     else:
-        basis = ("put OI build — writers adding floor → fade with calls"
-                 if building else
-                 "put OI unwind — support removed → downside fuel → buy puts")
+        side_txt = "call" if call else "put"
+        flow_txt = str(burst.get("flow") or "").strip().lower()
+        if flow_txt == "covering":
+            basis = (f"{side_txt} OI unwind + covering — shorts bought back "
+                     f"→ upside fuel → buy calls")
+        elif flow_txt == "liquidation":
+            basis = (f"{side_txt} OI unwind + liquidation — longs sold out "
+                     f"→ downside fuel → buy puts")
+        elif flow_txt == "buyers":
+            basis = (f"{side_txt} OI build + buyers — "
+                     + ("buyers paid up → downside fuel → buy puts"
+                        if leg == "PE" else
+                        "buyers lifting offers → upside fuel → buy calls"))
+        elif flow_txt == "writers":
+            basis = (f"{side_txt} OI build + writers — "
+                     + ("writers adding ceiling → fade with puts"
+                        if leg == "PE" else
+                        "writers adding floor → fade with calls"))
+        elif call:
+            basis = ("call OI build — writers adding ceiling → fade with puts"
+                     if building else
+                     "call OI unwind — writers covering → upside fuel → buy calls")
+        else:
+            basis = ("put OI build — writers adding floor → fade with calls"
+                     if building else
+                     "put OI unwind — support removed → downside fuel → buy puts")
 
     # Trend gate: a counter-trend plan is the wrong side of the tape — emit
     # nothing instead of a plan that says "skip". A squeeze is with the break

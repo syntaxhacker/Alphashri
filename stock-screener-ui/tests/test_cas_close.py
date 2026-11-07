@@ -19,7 +19,7 @@ def _ist(hh_mm: str):
 @pytest.mark.parametrize("mod", [desk_is_cas, eod.is_cas_window, nifty_mod.is_cas_window])
 @pytest.mark.parametrize(
     "hh_mm, expected",
-    [("15:14", False), ("15:15", True), ("15:29", True), ("15:30", False)],
+    [("15:14", False), ("15:15", True), ("15:29", True), ("15:30", True), ("15:34", True), ("15:35", False)],
 )
 def test_is_cas_window_boundaries(mod, hh_mm, expected):
     assert mod(_ist(hh_mm)) is expected
@@ -42,7 +42,7 @@ def test_desk_render_warns_in_cas_window():
     payload = _minimal_payload()
     out = desk_render(payload, now=_ist("15:20"))
     assert CAS_WARNING in out
-    assert "CAS: index print frozen (15:15–15:30); official close from OHLC" in out
+    assert "CAS: index print frozen (15:15–15:35); official close from OHLC" in out
     plain = desk_render(payload, now=_ist("14:00"))
     assert CAS_WARNING not in plain
 
@@ -142,9 +142,90 @@ async def test_tape_row_flagged_in_cas_window(monkeypatch, tmp_path):
     monkeypatch.setattr(nifty_mod, "tape_path", lambda date_str: tmp_path / f"{date_str}.jsonl")
     row = await _record_at(monkeypatch, "15:20")
     assert row.get("cas") is True
+    assert row.get("spot_frozen") is True
 
 
 async def test_tape_row_unflagged_outside_window(monkeypatch, tmp_path):
     monkeypatch.setattr(nifty_mod, "tape_path", lambda date_str: tmp_path / f"{date_str}.jsonl")
     row = await _record_at(monkeypatch, "14:00")
     assert "cas" not in row
+    assert "spot_frozen" not in row
+
+
+def test_spot_frozen_end_min_is_1540():
+    assert nifty_mod.SPOT_FROZEN_END_MIN == 15 * 60 + 40
+
+
+async def test_tape_row_spot_frozen_until_1540(monkeypatch, tmp_path):
+    monkeypatch.setattr(nifty_mod, "tape_path", lambda date_str: tmp_path / f"{date_str}.jsonl")
+    # 15:15-15:40: spot is frozen/fixed through the 15:40 F&O close.
+    for hh_mm, flagged in [("15:15", True), ("15:35", True), ("15:38", True), ("15:39", True), ("15:40", False), ("15:14", False)]:
+        row = await _record_at(monkeypatch, hh_mm)
+        if flagged:
+            assert row.get("cas") is True, hh_mm
+            assert row.get("spot_frozen") is True, hh_mm
+        else:
+            assert "cas" not in row, hh_mm
+            assert "spot_frozen" not in row, hh_mm
+
+
+def test_reconcile_closed_market_spot_market_open_none_uses_market_open(
+        monkeypatch):
+    """Regression: ``market_open=None`` must call ``_market_open()`` (a
+    ``NameError`` on ``_derivatives_open`` used to slip through)."""
+    monkeypatch.setattr(nifty_mod, "_market_open", lambda: False)
+    report = {
+        "spot": 23810.85,
+        "intraday": [{"time": "2026-10-21T15:27:00+05:30", "open": 23731.85,
+                      "high": 23731.85, "low": 23731.85, "close": 23731.85}],
+    }
+    out = nifty_mod.reconcile_closed_market_spot(report, market_open=None)
+    assert out["spot"] == 23731.85
+    assert out["spot_source"] == "last_candle_close"
+    assert out["spot_chain"] == 23810.85
+
+    monkeypatch.setattr(nifty_mod, "_market_open", lambda: True)
+    out2 = nifty_mod.reconcile_closed_market_spot(report, market_open=None)
+    assert out2 is report  # no-op while open
+
+
+def test_detect_data_stale_market_open_none_uses_market_open(monkeypatch):
+    """Regression: watchdog must not raise ``NameError`` when
+    ``market_open=None``."""
+    rows = [{"t": "2026-10-21T10:00:30+05:30", "spot": 23700.0}]
+    now = _ist("10:08")
+    monkeypatch.setattr(nifty_mod, "_market_open", lambda: True)
+    alert = nifty_mod.detect_data_stale(rows, now=now, market_open=None)
+    assert alert is not None and alert["type"] == "data_stale"
+
+    monkeypatch.setattr(nifty_mod, "_market_open", lambda: False)
+    assert nifty_mod.detect_data_stale(rows, now=now, market_open=None) is None
+
+
+def test_detect_no_tape_alert_market_open_none_uses_market_open(monkeypatch):
+    """Regression: ``detect_no_tape_alert`` must not raise ``NameError`` when
+    ``market_open=None``."""
+    from datetime import datetime
+    class _Date:
+        pass
+    today = nifty_mod._today_str()
+    now = _ist("10:00")
+    # Force _today_str to the IST date of `now` so date_str matches.
+    monkeypatch.setattr(nifty_mod, "_today_str", lambda: today)
+    monkeypatch.setattr(nifty_mod, "_market_open", lambda: True)
+    alert = nifty_mod.detect_no_tape_alert(today, [], now=now, market_open=None)
+    assert alert is not None and alert["type"] == "data_stale"
+
+    monkeypatch.setattr(nifty_mod, "_market_open", lambda: False)
+    assert nifty_mod.detect_no_tape_alert(
+        today, [], now=now, market_open=None) is None
+
+
+def test_overlay_ws_blocks_market_open_none_uses_market_open(monkeypatch):
+    """Regression: ``_overlay_ws_blocks`` must not raise ``NameError`` when
+    ``market_open=None``."""
+    monkeypatch.setattr(nifty_mod, "_market_open", lambda: True)
+    report = {"spot": 23000.0, "intraday": []}
+    snapshot = {"spot": 23100.0}
+    out = nifty_mod._overlay_ws_blocks(report, snapshot, market_open=None)
+    assert out["spot"] == 23100.0

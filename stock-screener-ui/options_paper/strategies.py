@@ -1006,6 +1006,152 @@ class NiftyPinReversal(Strategy):
         return None
 
 
+class NiftyMaxPain(Strategy):
+    """Max-pain reject → ATM put (the side the tape actually pays for).
+
+    Causal study (``scripts/market/maxpain_strategy_study.py``, 10 sessions):
+    the "hold above max pain → buy CE" leg lost in every timing variant
+    (PF 0.25–0.66), while "lose max pain + below the 30-min TWAP + bear flow
+    → buy PE" made +₹7,445 at PF 2.22 (13 trades, 54% win). The bot therefore
+    trades the rejection by default; the hold/pump leg is behind ``allow_ce``.
+
+    Flow (5-min OI + premium): call buying / put writing = bull; call writing /
+    put buying = bear. A touch is |spot - max_pain| <= ``touch_pts`` after being
+    outside the band, with a 15-min cooldown. Confirmation is
+    ``confirm_min`` later; the engine fills on the next bar.
+    """
+
+    name = "nifty_maxpain"
+    underlying = "NIFTY"
+
+    def __init__(self, touch_pts: float = 10.0, confirm_min: int = 5,
+                 max_touches: int = 4, allow_ce: bool = False,
+                 cooldown_min: int = 15, twap_bars: int = 30,
+                 no_entry_after: _time = _time(14, 30),
+                 reclaim_pts: float = 0.0, **kw):
+        kw.setdefault("sl_pct", 0.30)
+        kw.setdefault("tp_pct", 0.60)
+        kw.setdefault("max_hold_min", 30)
+        super().__init__(**kw)
+        self.touch_pts = float(touch_pts)
+        self.confirm_min = int(confirm_min)
+        self.max_touches = int(max_touches)
+        self.allow_ce = bool(allow_ce)
+        self.cooldown_min = int(cooldown_min)
+        self.twap_bars = int(twap_bars)
+        # Late max-pain rejects are the worst of the sample (14:14-15:08 legs
+        # cost -2,226 over 4 trades); no new entries after this time.
+        self.no_entry_after = no_entry_after
+        # Strict structural stop: a PE is invalid the moment spot reclaims
+        # max pain (+ reclaim_pts). +15 gave back too much (Oct 14 -3,396,
+        # Oct 28 -2,106); +0 with touches<=4 backtests best (PF 5.57).
+        self.reclaim_pts = float(reclaim_pts)
+        self.reset()
+
+    def reset(self) -> None:
+        self.touch_count = 0
+        self.pending: dict | None = None
+        self.last_touch_t = None
+        self.fired_for_touch = None
+
+    def prepare(self, ticks: list[Tick], ctx: dict) -> None:
+        self.reset()
+
+    def _twap(self, ticks: list[Tick], i: int) -> float:
+        lo = max(0, i - self.twap_bars + 1)
+        vals = [t.spot for t in ticks[lo:i + 1] if t.spot > 0]
+        return sum(vals) / len(vals) if vals else 0.0
+
+    def _flow(self, ticks: list[Tick], i: int) -> tuple[bool, bool]:
+        """(bull_flow, bear_flow) from 5-min OI + ATM premium changes."""
+        j = max(0, i - 5)
+        a, b = ticks[j], ticks[i]
+        d_ce = b.ce_oi - a.ce_oi
+        d_pe = b.pe_oi - a.pe_oi
+        d_cp = b.ce_ltp - a.ce_ltp if b.atm_strike == a.atm_strike else 0.0
+        d_pp = b.pe_ltp - a.pe_ltp if b.atm_strike == a.atm_strike else 0.0
+        bull = bear = 0
+        if d_ce >= 300_000:
+            if d_cp > 0:
+                bull += 1
+            elif d_cp < 0:
+                bear += 1
+        if d_ce <= -300_000 and d_cp > 0:
+            bull += 1
+        if d_pe >= 300_000:
+            if d_pp < 0:
+                bull += 1
+            elif d_pp > 0:
+                bear += 1
+        if d_pe <= -300_000 and d_pp > 0:
+            bear += 1
+        return bull > bear, bear > bull
+
+    def entry_signal(self, i: int, tk: Tick, ticks: list[Tick],
+                     ctx: dict) -> Signal | None:
+        mp = float(tk.max_pain or 0.0)
+        if mp <= 0 or i < 1:
+            return None
+        if tk.t.time() >= self.no_entry_after:
+            return None
+
+        # Detect a fresh entry into the max-pain band.
+        prev = ticks[i - 1]
+        prev_mp = float(prev.max_pain or 0.0)
+        if prev_mp > 0:
+            prev_dist = abs(prev.spot - prev_mp)
+            dist = abs(tk.spot - mp)
+            if prev_dist > self.touch_pts >= dist:
+                if (self.last_touch_t is None
+                        or (tk.t - self.last_touch_t).total_seconds() >= self.cooldown_min * 60):
+                    self.touch_count += 1
+                    self.last_touch_t = tk.t
+                    self.pending = {"idx": i, "t": tk.t, "mp": mp, "n": self.touch_count}
+                    self.fired_for_touch = None
+
+        p = self.pending
+        if p is None or self.fired_for_touch == p["n"]:
+            return None
+        elapsed = (tk.t - p["t"]).total_seconds() / 60.0
+        if elapsed < self.confirm_min:
+            return None
+        if elapsed > self.confirm_min + 10:
+            self.pending = None
+            return None
+
+        seg = ticks[p["idx"] + 1 : i + 1]
+        hold = bool(seg) and all(t.spot >= p["mp"] - 5 for t in seg)
+        twap = self._twap(ticks, i)
+        above = twap > 0 and tk.spot > twap
+        bull, bear = self._flow(ticks, i)
+
+        side = None
+        reason = ""
+        if hold and above and bull and self.allow_ce:
+            side = "CE"
+            reason = f"max-pain hold {p['mp']:.0f} + bull flow"
+        elif (not hold) and (not above) and bear and p["n"] <= self.max_touches:
+            side = "PE"
+            reason = f"max-pain {p['mp']:.0f} lost + bear flow + below TWAP"
+
+        if side is None:
+            return None
+        self.fired_for_touch = p["n"]
+        self.pending = None
+        return Signal(side, reason, "LONG")
+
+    def exit_hook(self, pos: Position, tk: Tick, ticks: list[Tick],
+                  ctx: dict) -> str | None:
+        mp = float(tk.max_pain or 0.0)
+        if mp <= 0:
+            return None
+        if pos.opt == "PE" and tk.spot > mp + self.reclaim_pts:
+            return f"max-pain reclaimed +{self.reclaim_pts:g}"
+        if pos.opt == "CE" and tk.spot < mp - self.reclaim_pts:
+            return f"max-pain lost -{self.reclaim_pts:g}"
+        return None
+
+
 # --------------------------------------------------------------------------
 # Registry
 # --------------------------------------------------------------------------
@@ -1019,6 +1165,7 @@ REGISTRY: dict[str, type[Strategy]] = {
     NiftyOpenStraddle.name: NiftyOpenStraddle,
     NiftySpotScalp.name: NiftySpotScalp,
     NiftyPinReversal.name: NiftyPinReversal,
+    NiftyMaxPain.name: NiftyMaxPain,
 }
 
 STRATEGY_LABELS = {
@@ -1031,6 +1178,7 @@ STRATEGY_LABELS = {
     "nifty_open_straddle": "NIFTY ATM straddle at open (naked long vol)",
     "nifty_spot_scalp": "NIFTY spot momentum scalp (continuous)",
     "nifty_pin_reversal": "NIFTY pin reversal (failed break at tested level)",
+    "nifty_maxpain": "NIFTY max-pain reject (PE; hold/pump behind a flag)",
 }
 
 

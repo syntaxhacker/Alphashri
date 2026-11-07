@@ -69,15 +69,15 @@ describe("NiftyReplayBar", () => {
     expect(within(bar).getByTestId("nifty-replay-time")).toHaveTextContent("09:15");
     expect(within(bar).getByTestId("nifty-replay-count")).toHaveTextContent("1/3");
     expect(within(bar).getByTestId("nifty-replay-coverage-strip")).toBeInTheDocument();
-    // 3 recorded minutes out of the 375-minute session → 0.8%, shown as 3/375.
+    // 3 recorded minutes out of the 385-minute session → 0.8%, shown as 3/385.
     expect(within(bar).getByTestId("nifty-replay-coverage")).toHaveTextContent("0.8%");
-    expect(within(bar).getByTestId("nifty-replay-coverage")).toHaveTextContent("3/375");
+    expect(within(bar).getByTestId("nifty-replay-coverage")).toHaveTextContent("3/385");
     // Frame 0 is 09:15 and frame 1 is 10:30 → 74 minutes are skipped.
     expect(within(bar).getByTestId("nifty-replay-gap")).toHaveTextContent("+74m");
     // The missing-minute count lives in the tooltip, not in the 24px bar.
     expect(within(bar).getByTestId("nifty-replay-coverage")).toHaveAttribute(
       "title",
-      expect.stringContaining("372"),
+      expect.stringContaining("382"),
     );
     expect(bar).toHaveStyle({ height: "24px" });
   });

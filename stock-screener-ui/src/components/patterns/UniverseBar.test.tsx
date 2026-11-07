@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
-import type { Universe } from "@/types/chartPatterns";
+import type { JobDTO, Universe } from "@/types/chartPatterns";
 import { UniverseBar, type UniverseBarProps } from "./UniverseBar";
 
 const UNIVERSES: Universe[] = [
@@ -113,5 +113,45 @@ describe("UniverseBar", () => {
   test("renders no status line when there is no error", () => {
     r(<UniverseBar {...makeProps({ error: null })} />);
     expect(screen.queryByTestId("patterns-status-line")).not.toBeInTheDocument();
+  });
+
+  test("shows the inline status only while a scan is live", () => {
+    const running: JobDTO = {
+      job_id: "cpj_1",
+      universe: "nifty500",
+      timeframe: "1D",
+      status: "running",
+      total: 500,
+      done: 120,
+      failed: 0,
+      skipped: 0,
+      queue_position: null,
+      started_at: "2026-10-03T09:00:00",
+      finished_at: null,
+      data_through: null,
+      error: null,
+    };
+    r(<UniverseBar {...makeProps({ job: running, scanning: true })} />);
+    expect(screen.getByTestId("patterns-job-status-wrap")).toHaveAttribute("data-visible", "true");
+  });
+
+  test("hides the inline status once the scan is complete (stat strip owns it)", () => {
+    const completed: JobDTO = {
+      job_id: "cpj_2",
+      universe: "nifty500",
+      timeframe: "1D",
+      status: "completed",
+      total: 500,
+      done: 500,
+      failed: 0,
+      skipped: 0,
+      queue_position: null,
+      started_at: "2026-10-03T09:00:00",
+      finished_at: "2026-10-03T09:02:00",
+      data_through: "2026-09-30",
+      error: null,
+    };
+    r(<UniverseBar {...makeProps({ job: completed })} />);
+    expect(screen.getByTestId("patterns-job-status-wrap")).toHaveAttribute("data-visible", "false");
   });
 });

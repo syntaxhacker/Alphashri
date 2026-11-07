@@ -6,7 +6,6 @@ import {
   Box,
   Divider,
   Loader,
-  Paper,
   Select,
   Tab,
   Tabs,
@@ -14,6 +13,7 @@ import {
   Text,
   ToolbarRow,
 } from "@/ui";
+import { CompactPanel } from "../common/compact";
 import { useValueScan } from "../../hooks/useValueScan";
 import {
   VALUE_MARKETS,
@@ -41,7 +41,7 @@ export function ValuePanel({ initialFilters = {}, onRowClick, sectorOptions = []
   const [filters, setFilters] = useState<ValueFilters>(() => ({
     market: "india",
     limit: 100,
-    sort: "score_desc",
+    sort: "score",
     ...initialFilters,
   }));
   const [selected, setSelected] = useState<ValueRow | null>(null);
@@ -81,8 +81,8 @@ export function ValuePanel({ initialFilters = {}, onRowClick, sectorOptions = []
     .join(" · ");
 
   return (
-    <Paper data-testid="value-panel" p={16}>
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+    <CompactPanel testId="value-panel">
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
         <ToolbarRow justify="space-between" data-testid="value-header">
           <ToolbarRow gap={8}>
             <Text size="sm" fw={700} data-testid="value-title">
@@ -193,6 +193,6 @@ export function ValuePanel({ initialFilters = {}, onRowClick, sectorOptions = []
         </ToolbarRow>
       </Box>
       <ValueDetailDrawer row={selected} onClose={() => setSelected(null)} />
-    </Paper>
+    </CompactPanel>
   );
 }

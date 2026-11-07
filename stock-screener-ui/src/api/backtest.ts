@@ -29,9 +29,8 @@ import {
 } from "../state/backtest";
 import { buildChartData } from "./chartBuilder";
 import { fetchWithAuth } from "../state/auth";
-import { showNotification, showError } from "@/ui";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+import { showError } from "@/ui";
+import { API_BASE } from "@/api/config";
 
 function showBacktestError(message: string) {
   showError("Backtest Error", message);

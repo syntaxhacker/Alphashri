@@ -1,40 +1,55 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useChartPatterns } from "@/hooks/useChartPatterns";
 import { usePatternUrlSync } from "@/hooks/usePatternUrlSync";
-import { loadCatalog, triggerReplayScan } from "@/state/chartPatterns";
+import { DEFAULT_TIMEFRAME, loadCatalog, triggerReplayScan } from "@/state/chartPatterns";
 import { PatternsPage } from "./PatternsPage";
 import type { ReplayScanArgs } from "@/components/patterns/ReplayScanControl";
-
-// Bootstrap once per app session (StrictMode-safe): load timeframe registry,
-// universes, catalog, then the first result page.
-let catalogRequested = false;
+import type { IndexGroup } from "@/config/indexGroups";
 
 /** Route entry for `/patterns` — wires the store hook to the presentational page. */
 export function PatternsContainer() {
   const vm = useChartPatterns();
   const [tab, setTab] = useState<"scan" | "watch">("scan");
+  const [view, setView] = useState<"matrix" | "list" | "grid">("matrix");
+  const [indexGroup, setIndexGroup] = useState<IndexGroup>("all");
+  const [members, setMembers] = useState<string | null>(null);
+  const catalogRequested = useRef(false);
 
   // Mirror universe/timeframe/filters to the URL so a filtered view is shareable.
   usePatternUrlSync({
     universe: vm.universe,
     timeframe: vm.timeframe,
+    selectedTimeframes: vm.selectedTimeframes,
     lookbackBars: vm.lookbackBars,
     computeTrendlines: vm.computeTrendlines,
     tab,
+    view,
+    indexGroup,
+    members,
     filters: vm.filters,
     setUniverse: vm.setUniverse,
     setTimeframe: vm.setTimeframe,
+    setSelectedTimeframes: vm.setSelectedTimeframes,
     setLookbackBars: vm.setLookbackBars,
     setComputeTrendlines: vm.setComputeTrendlines,
     setTab,
+    setView,
+    setIndexGroup,
+    setMembers,
     applyFilters: vm.applyFilters,
   });
 
   useEffect(() => {
-    if (catalogRequested) return;
-    catalogRequested = true;
+    if (catalogRequested.current) return;
+    catalogRequested.current = true;
     void loadCatalog();
   }, []);
+
+  useEffect(() => {
+    if (vm.timeframes.length === 0) return;
+    if (vm.timeframes.some((tf) => tf.id === vm.timeframe)) return;
+    vm.setTimeframe(DEFAULT_TIMEFRAME);
+  }, [vm.timeframes, vm.timeframe, vm.setTimeframe]);
 
   return (
     <PatternsPage
@@ -43,6 +58,8 @@ export function PatternsContainer() {
       patterns={vm.patterns}
       timeframe={vm.timeframe}
       setTimeframe={vm.setTimeframe}
+      selectedTimeframes={vm.selectedTimeframes}
+      setSelectedTimeframes={vm.setSelectedTimeframes}
       lookbackBars={vm.lookbackBars}
       setLookbackBars={vm.setLookbackBars}
       universe={vm.universe}
@@ -73,6 +90,12 @@ export function PatternsContainer() {
       replayAsOf={vm.lastScanAsOf}
       tab={tab}
       setTab={setTab}
+      view={view}
+      setView={setView}
+      indexGroup={indexGroup}
+      setIndexGroup={setIndexGroup}
+      members={members}
+      setMembers={setMembers}
     />
   );
 }

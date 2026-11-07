@@ -8,6 +8,7 @@ import type {
 } from "../types/strategies";
 import * as api from "../api/strategies";
 import { fetchWithAuth } from "./auth";
+import { API_BASE } from "@/api/config";
 
 const initialState: StrategiesState = {
   strategies: [],
@@ -230,7 +231,6 @@ export async function loadAllPerformance(): Promise<void> {
   setLoading(true);
   setError(null);
   try {
-    const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
     const response = await fetchWithAuth(`${API_BASE}/api/paper/trades?limit=5000&days_back=365`);
     const data = await response.json();
     const trades = data.trades || [];

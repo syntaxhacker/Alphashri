@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { usePolling } from "@/hooks/usePolling";
 import { useNavigate } from "react-router-dom";
 import { Box, Button, Divider, Indicator, Overlay, ScrollArea, Stack } from "@/ui";
 import { IconNews } from "@tabler/icons-react";
@@ -112,24 +113,12 @@ function useAutoRefresh(
   autoRefreshMs: string,
 ) {
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const autoRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    if (autoRefreshRef.current) {
-      clearInterval(autoRefreshRef.current);
-      autoRefreshRef.current = null;
-    }
-    const ms = parseInt(autoRefreshMs, 10);
-    if (ms > 0) {
-      autoRefreshRef.current = setInterval(() => {
-        setIsRefreshing(true);
-        loadNews(true).finally(() => setIsRefreshing(false));
-      }, ms);
-    }
-    return () => {
-      if (autoRefreshRef.current) clearInterval(autoRefreshRef.current);
-    };
-  }, [autoRefreshMs, loadNews]);
+  const ms = parseInt(autoRefreshMs, 10);
+  usePolling(() => {
+    setIsRefreshing(true);
+    loadNews(true).finally(() => setIsRefreshing(false));
+  }, ms, { skipIfRunning: false });
 
   useEffect(() => {
     saveAutoRefresh(autoRefreshMs);

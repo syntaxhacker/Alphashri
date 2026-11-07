@@ -1,14 +1,28 @@
+import { formatNumberIN } from "@/utils/ui-helpers";
 import { memo, useMemo, useState } from "react";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
-import { SegmentedControl, Text } from "@/ui";
+import { Button, SegmentedControl, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { TradingViewChart } from "@/components/chart/TradingViewChart";
 import { CompactPanel } from "@/components/common/compact";
 import { EmptyCompact } from "@/components/common/states";
 import { NiftyDepthMap } from "./NiftyDepthMap";
+import { useNiftyPatternScan } from "./useNiftyPatternScan";
+import { buildPatternOverlay } from "./niftyPatternOverlay";
+import { wallEventOverlay, type WallBurstLike } from "./niftyWallEventOverlay";
+import { fillCandleGaps } from "./niftyCandles";
+import {
+  candlesFromSpotPoints,
+  candlesFromTape,
+  clipToAsOf,
+  isOnSession,
+  pickFreshestCandles,
+  sessionDateOf,
+  type SpotPoint,
+} from "./niftyChartData";
 import { gexSideLevels } from "./NiftyGexProfile";
-import { maxPainTouches, MAX_PAIN_TOUCH_TOL } from "./maxPainTouches";
+import { maxPainTouches } from "./maxPainTouches";
 import { hexToRgba } from "@/utils/color";
 import {
   buildMarkLines,
@@ -24,6 +38,7 @@ import type {
   NiftyGex,
   NiftyReport,
   NiftyReportMode,
+  NiftyTape,
 } from "@/types/niftyReport";
 
 /**
@@ -41,6 +56,16 @@ export {
   mergeCollidingLabels,
   resampleCandles,
 } from "./niftyChartMath";
+export {
+  candlesFromSpotPoints,
+  candlesFromTape,
+  clipToAsOf,
+  isOnSession,
+  pickFreshestCandles,
+  sessionDateOf,
+  type SpotPoint,
+  type TapeSpotPoint,
+} from "./niftyChartData";
 
 /** Chart height presets (px) for the "Nifty chart" panel size control. */
 export const CHART_HEIGHTS = { s: 180, m: 320, l: 520, xl: 760 } as const;
@@ -103,8 +128,12 @@ export function LevelLegend({ live, gex, spot }: LevelLegendProps) {
       sides?.above?.kind === "fuel",
   };
   const items: { code: string; color: string; meaning: string; zone?: boolean }[] = [
-    { code: "CW", color: palette.NEGATIVE, meaning: "top call-OI wall · resistance", zone: true },
-    { code: "PW", color: palette.POSITIVE, meaning: "top put-OI wall · support", zone: true },
+    { code: "CW", color: palette.NEGATIVE, meaning: "max-OI call wall above spot · resistance", zone: true },
+    { code: "CW↓", color: palette.NEGATIVE, meaning: "call wall below spot · broken resistance / support", zone: true },
+    { code: "CW (BELOW)", color: palette.NEGATIVE, meaning: "call wall below spot (no call above) · broken resistance", zone: true },
+    { code: "PW", color: palette.POSITIVE, meaning: "max-OI put wall below spot · support", zone: true },
+    { code: "PW↑", color: palette.POSITIVE, meaning: "put wall above spot · broken support / resistance", zone: true },
+    { code: "PW (ABOVE)", color: palette.POSITIVE, meaning: "put wall above spot (no put below) · broken support", zone: true },
     { code: "MP", color: palette.PRIMARY, meaning: "max pain · expiry magnet", zone: true },
   ];
   if (live) {
@@ -167,6 +196,10 @@ interface NiftyChartPanelProps {
   report: NiftyReport;
   mode: NiftyReportMode;
   view: "chart" | "depth";
+  /** Underlying shown in the panel chrome (NIFTY, SENSEX, RELIANCE). */
+  symbol?: string;
+  /** Replay/EOD cutoff: never draw candles after the playhead. */
+  asOf?: string;
   /** Desk-mode fullscreen: renders a ⤢ button in the header action row. */
   onExpand?: () => void;
   /** Controlled bar timeframe (uncontrolled 1m default when absent). */
@@ -176,6 +209,30 @@ interface NiftyChartPanelProps {
   initialSize?: ChartSize;
   /** Notifies the parent when S/M/L/XL changes, so a DESK row can size to it. */
   onSizeChange?: (size: ChartSize) => void;
+  /**
+   * Fill mode without the 300px desk cap. The inline desk uses the cap so the
+   * band below keeps its height; a pane that owns the whole viewport (the
+   * fullscreen modal, or a desk row with nothing under it) passes this so the
+   * chart stretches instead of leaving a black band.
+   */
+  fillContainer?: boolean;
+  /** Wall test/rejection/break alerts from the bursts feed, drawn as chart lines/markers. */
+  bursts?: WallBurstLike[] | null;
+  /** Per-minute tape. Its `spot` fills minutes the candle feed dropped, so a
+   *  hole does not become a jump on the chart. */
+  tape?: Pick<NiftyTape, "rows"> | null;
+  /** 10-second chain snapshots (same feed as the OI strip). When present,
+   *  true 1-minute OHLC is built from them — wicks included — for underlyings
+   *  whose endpoint carries no candles (SENSEX/RELIANCE). Needs ≥2 valid
+   *  minutes; otherwise the tape path is used. */
+  spotPoints?: readonly SpotPoint[] | null;
+  /** Persisted last 5m flow sign flip (ISO). Draws a no-text marker on the
+   *  candle close at that time — the chart engine has no vertical line, and a
+   *  point marker is the least invasive way to mark the flip bar. */
+  flipAt?: string | null;
+  /** Max-OI walls from the same payload the walls card renders. Keeps the
+   *  chart's CW/PW lines and the card from naming different strikes. */
+  maxWalls?: { calls: { strike: number; oi: number }[]; puts: { strike: number; oi: number }[] } | null;
 }
 
 /**
@@ -188,11 +245,19 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
   report,
   mode,
   view,
+  symbol = "NIFTY",
+  asOf,
   onExpand,
   timeframe,
   onTimeframeChange,
   initialSize = "fill",
   onSizeChange,
+  fillContainer = false,
+  bursts,
+  tape,
+  spotPoints = null,
+  flipAt = null,
+  maxWalls = null,
 }: NiftyChartPanelProps) {
   const [chartSize, setChartSize] = useState<ChartSize>(initialSize);
   /** `null` = fill the panel (autoSize); a number = fixed preset. */
@@ -201,7 +266,7 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
   /** DESK fill cap: the chart body never takes more than 300px of the row,
    *  so the FLOW band below (heatmap + strip) gets the remaining height.
    *  Explicit presets (S/M/L/XL) keep their requested height. */
-  const fillCap = chartHeight == null ? { maxHeight: FILL_MAX_HEIGHT, minHeight: FILL_MIN_HEIGHT } : {};
+  const fillCap = chartHeight == null && !fillContainer ? { maxHeight: FILL_MAX_HEIGHT, minHeight: FILL_MIN_HEIGHT } : {};
   const handleSizeChange = (v: string) => {
     const next = v as ChartSize;
     setChartSize(next);
@@ -210,6 +275,9 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
   /** Chart bar timeframe: 1m native; 5m/15m resampled client-side. */
   const [internalTf, setInternalTf] = useState<ChartTimeframe>("1m");
   const chartTf = timeframe ?? internalTf;
+  const { state: patternScan, scan: scanPatterns } = useNiftyPatternScan();
+  // Default ON: a scan that returns a pattern should draw it. The chip toggles.
+  const [drawPattern, setDrawPattern] = useState(true);
   const handleTfChange = (v: string) => {
     const next = v as ChartTimeframe;
     if (onTimeframeChange) onTimeframeChange(next);
@@ -226,28 +294,68 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
     setDepthEverShown(true);
   }
 
+  /**
+   * Keep the lightweight-charts engine mounted once it has plotted a bar.
+   * A poll that briefly returns no intraday candles (pre-open, a feed hiccup,
+   * a replay boundary) used to unmount `TradingViewChart` — destroying and
+   * rebuilding every canvas, series and price line on the next poll. The empty
+   * state is still shown; the chart is just hidden instead of torn down.
+   */
+  const [candlesEverShown, setCandlesEverShown] = useState(false);
+
+  const linesReport = useMemo(
+    () => (maxWalls ? { ...report, walls: maxWalls } : report),
+    [report, maxWalls],
+  );
   const markLines = useMemo(
     () =>
       buildMarkLines(
-        report,
+        linesReport,
         mode === "live" && !!report.gex,
-        labelGapPctFor(report, chartHeight ?? FILL_LABEL_HEIGHT),
+        labelGapPctFor(linesReport, chartHeight ?? FILL_LABEL_HEIGHT),
       ),
-    [report, mode, chartSize],
+    [linesReport, report.gex, mode, chartSize],
+  );
+
+  /** The chart's session date. A live generic report can carry a candle
+   *  series from the previous completed session (the first cold fetch) while
+   *  the tape already belongs to today; mixing them drew two days with an
+   *  overnight jump. Everything below is scoped to this date. */
+  const sessionDate = sessionDateOf(report);
+
+  // Generic underlyings (SENSEX/RELIANCE) have no candle endpoint today: the
+  // fast options-live payload and `?candles=1` both return an empty intraday
+  // series. The 10-second chain feed does carry a spot, so prefer that: six
+  // snapshots a minute give true OHLC (open = first spot, close = last,
+  // high/low the extremes) with real wicks. The 1-minute tape is the
+  // last-resort fallback — its bars span open→close only (no wicks).
+  const spotCandles = useMemo(
+    () => candlesFromSpotPoints(spotPoints ?? [], sessionDate),
+    [spotPoints, sessionDate],
+  );
+  const tapeCandles = useMemo(
+    () => candlesFromTape(tape?.rows ?? [], sessionDate),
+    [tape, sessionDate],
   );
 
   /** 1-minute intraday candles when present, else the 15-min EOD candles —
    *  each resampled to the selected timeframe (1m passes through). */
-  const chartCandles = useMemo(
-    () =>
-      resampleCandles(
-        report?.intraday && report.intraday.length > 0
-          ? report.intraday
-          : (report?.candles ?? []),
-        CHART_TF_MINUTES[chartTf],
-      ),
-    [report, chartTf],
-  );
+  const chartCandles = useMemo(() => {
+    const base = pickFreshestCandles(report, spotCandles, tapeCandles, sessionDate);
+    // The REST snapshot carries the whole day. On replay, stop at the
+    // playhead so the chart cannot show candles from the future.
+    const clipped = clipToAsOf(base, asOf);
+    // Repair poisoned bars and re-fill dropped minutes from the tape BEFORE
+    // resampling: a 0.00 close or a five-minute hole otherwise blows up the
+    // price scale / prints a fake jump. The tape is session-scoped too, so a
+    // previous day's tape can never be appended to today's base.
+    const filled = fillCandleGaps(clipped, {
+      tape: (tape?.rows ?? []).filter((row) => isOnSession(row.t, sessionDate)),
+    });
+    return resampleCandles(filled, CHART_TF_MINUTES[chartTf]);
+  }, [report, chartTf, asOf, tape, spotCandles, tapeCandles, sessionDate]);
+
+  if (chartCandles.length > 0 && !candlesEverShown) setCandlesEverShown(true);
 
   /** EMA9 (warning) + EMA20 (primary), recomputed on the displayed candles so
    *  the overlays always match the selected timeframe. The backend `emas`
@@ -260,23 +368,112 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
     ];
   }, [chartCandles]);
 
-  /** Bars whose close sits on the report's max pain (within 10 pts). */
+  /**
+   * Detected-pattern overlay (trendlines + breakout/target/stop).
+   *
+   * Only when the scan matches the DISPLAYED timeframe: a 15m pattern drawn on
+   * 1m bars is a lie. Switching TF hides the overlay until the next scan.
+   */
+  const patternOverlay = useMemo(() => {
+    if (!drawPattern || patternScan.status !== "ready" || patternScan.tf !== chartTf) return null;
+    const hit = patternScan.hits[0];
+    if (!hit) return null;
+    return buildPatternOverlay(hit, chartCandles);
+  }, [drawPattern, patternScan, chartTf, chartCandles]);
+
+  const chartEmaData = useMemo(
+    () => (patternOverlay ? [...emaData, ...patternOverlay.lines] : emaData),
+    [emaData, patternOverlay],
+  );
+  // The bursts feed always carries the whole session, while an EOD replay is
+  // clipped at the playhead. Without this guard a 15:29 break is drawn (and
+  // its wall/target lines added) while the replay clock still reads 09:17 —
+  // look-ahead that makes the chart lie about what was knowable at the time.
+  const wallOverlay = useMemo(() => {
+    if (!asOf) return wallEventOverlay(bursts);
+    const cutoff = Date.parse(asOf);
+    if (!Number.isFinite(cutoff)) return wallEventOverlay(bursts);
+    const scoped = (bursts ?? []).filter((burst) => {
+      if (!burst.t) return true;
+      const t = Date.parse(burst.t);
+      return !Number.isFinite(t) || t <= cutoff;
+    });
+    return wallEventOverlay(scoped);
+  }, [bursts, asOf]);
+  const chartMarkLines = useMemo(
+    () => [...markLines, ...(patternOverlay?.markLines ?? []), ...wallOverlay.markLines],
+    [markLines, patternOverlay, wallOverlay],
+  );
+
+  /** Bars whose close sits on the report's max pain (tolerance derived from strike step). */
   const mpTouches = useMemo(
     () =>
       maxPainTouches(
         chartCandles.map((c) => ({ value: c.close, maxPain: report.maxPain, time: c.time })),
-        MAX_PAIN_TOUCH_TOL,
+        report,
       ),
-    [chartCandles, report.maxPain],
+    [chartCandles, report.maxPain, report.strikes],
   );
+  /** Flow-flip marker: the candle at/before the flip stamp, drawn as a small
+   *  amber dot on its close with no text (lightweight-charts has no vertical
+   *  price-line primitive; a marker is the least invasive overlay). */
+  const flipMarker = useMemo(() => {
+    if (!flipAt || chartCandles.length === 0) return [];
+    const flipMs = Date.parse(flipAt);
+    if (!Number.isFinite(flipMs)) return [];
+    let best = chartCandles[0];
+    let bestMs = Number.NEGATIVE_INFINITY;
+    for (const candle of chartCandles) {
+      const ms = Date.parse(candle.time);
+      if (!Number.isFinite(ms) || ms > flipMs) continue;
+      if (ms >= bestMs) {
+        best = candle;
+        bestMs = ms;
+      }
+    }
+    return [
+      {
+        time: best.time,
+        value: best.close,
+        shape: "circle" as const,
+        color: palette.WARNING,
+        position: "aboveBar" as const,
+        size: 2,
+      },
+    ];
+  }, [flipAt, chartCandles]);
+
   const touchMarkers = useMemo(
-    () => mpTouches.map((t) => ({ time: t.point.time, value: t.value })),
-    [mpTouches],
+    () => [
+      ...mpTouches.map((t) => ({ time: t.point.time, value: t.value })),
+      ...wallOverlay.markers,
+      ...flipMarker,
+    ],
+    [mpTouches, wallOverlay, flipMarker],
   );
 
   return (
     <CompactPanel
-      title={view === "depth" ? "Nifty depth map" : "Nifty chart"}
+      title={
+        <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.75 }}>
+          {view === "depth" ? `${symbol} depth map` : `${symbol} chart`}
+          {wallOverlay.markers.length > 0 ? (
+            <Text
+              component="span"
+              data-testid="nifty-chart-event-badge"
+              sx={{
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: 0.4,
+                textTransform: "uppercase",
+                color: "warning.main",
+              }}
+            >
+              {wallOverlay.markers.length} event{wallOverlay.markers.length === 1 ? "" : "s"}
+            </Text>
+          ) : null}
+        </Box>
+      }
       testId="nifty-chart-panel"
       sx={{
         minWidth: 0,
@@ -321,6 +518,17 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
               data={CHART_TF_OPTIONS}
               size="xs"
             />
+            <Button
+              data-testid="nifty-patterns-scan"
+              size="xs"
+              variant="subtle"
+              onClick={() => scanPatterns(chartTf)}
+              disabled={patternScan.status === "loading"}
+              title={`Run the chart-pattern detector on ${symbol} ${chartTf}`}
+              sx={{ minWidth: 0, px: "6px", py: 0, height: 20, fontSize: 9, fontWeight: 800, letterSpacing: "0.06em" }}
+            >
+              {patternScan.status === "loading" ? "…" : "PATTERNS"}
+            </Button>
             <SegmentedControl
               data-testid="nifty-chart-size"
               value={chartSize}
@@ -361,14 +569,24 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
           minHeight: 0,
         }}
       >
-        {chartCandles && chartCandles.length > 0 ? (
+        {chartCandles.length === 0 ? (
+          <EmptyCompact
+            data-testid="nifty-chart-empty"
+            title="No intraday candles"
+            description="Showing option-chain levels only."
+          />
+        ) : null}
+        {chartCandles.length > 0 || candlesEverShown ? (
           <Box
             data-testid="nifty-chart-wrap"
             data-fill={chartHeight == null ? "1" : undefined}
             data-mp-touches={mpTouches.length}
+            data-flip-marker={flipMarker.length > 0 ? "1" : "0"}
             style={chartHeight == null ? undefined : { height: chartHeight }}
             sx={{
-              display: "flex",
+              // Hidden (not unmounted) when a poll returns no candles — see
+              // `candlesEverShown`.
+              display: chartCandles.length > 0 ? "flex" : "none",
               flex: chartHeight == null ? 1 : undefined,
               width: "100%",
               maxWidth: "100%",
@@ -381,21 +599,118 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
           >
             <TradingViewChart
               candles={chartCandles}
-              markLines={markLines}
-              emaData={emaData}
+              markLines={chartMarkLines}
+              emaData={chartEmaData}
               touchMarkers={touchMarkers}
               {...(chartHeight != null ? { height: chartHeight } : {})}
               fitMarkLines
             />
           </Box>
-        ) : (
-          <EmptyCompact
-            data-testid="nifty-chart-empty"
-            title="No intraday candles"
-            description="Showing option-chain levels only."
-          />
-        )}
+        ) : null}
       </Box>
+      {patternScan.status !== "idle" && view === "chart" ? (
+        <Box
+          data-testid="nifty-patterns-strip"
+          data-status={patternScan.status}
+          title={
+            patternScan.status === "ready"
+              ? patternScan.hits.length
+                ? (() => {
+                    const h = patternScan.hits[0];
+                    const lvl = (v?: number | null) =>
+                      typeof v === "number" && Number.isFinite(v)
+                        ? formatNumberIN(Math.round(v))
+                        : "—";
+                    // The target is often off-scale by design (it would squash
+                    // the candles), so the tooltip always carries all three.
+                    return `${h.pattern_name} · ${h.direction} · ${Math.round(h.confidence)}% · ${h.status} · ${
+                      h.bars_ago === 0 ? "now" : `${h.bars_ago} bars ago`
+                    } · BRK ${lvl(h.breakout_level)} · TGT ${lvl(h.target)} · SL ${lvl(h.stop)}`;
+                  })()
+                : "No pattern in the scanned window"
+              : patternScan.status === "error"
+                ? patternScan.message
+                : `Scanning ${symbol} ${patternScan.tf}…`
+          }
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            height: 18,
+            minHeight: 18,
+            mt: "2px",
+            px: "4px",
+            fontFamily: palette.MONO,
+            fontSize: 9,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            color: palette.TEXT_MUTED,
+            borderTop: `1px solid ${palette.TERM_BORDER}`,
+          }}
+        >
+          <Box component="span" sx={{ fontWeight: 800, letterSpacing: "0.08em" }}>
+            PATTERNS {patternScan.tf}
+          </Box>
+          {patternScan.status === "loading" ? (
+            <Box component="span">scanning…</Box>
+          ) : patternScan.status === "error" ? (
+            <Box component="span" sx={{ color: palette.NEGATIVE }}>{patternScan.message}</Box>
+          ) : patternScan.hits.length === 0 ? (
+            <Box component="span">no pattern</Box>
+          ) : (
+            <>
+              <Box
+                component="span"
+                data-testid={`nifty-pattern-${patternScan.hits[0].pattern_id}`}
+                sx={{
+                  color:
+                    patternScan.hits[0].direction === "bullish"
+                      ? palette.POSITIVE
+                      : patternScan.hits[0].direction === "bearish"
+                        ? palette.NEGATIVE
+                        : palette.TEXT,
+                  fontWeight: 700,
+                }}
+              >
+                {patternScan.hits[0].pattern_name}
+                {patternScan.hits[0].direction === "bullish"
+                  ? " ↑"
+                  : patternScan.hits[0].direction === "bearish"
+                    ? " ↓"
+                    : " ·"}{" "}
+                {Math.round(patternScan.hits[0].confidence)}%
+              </Box>
+              <Box component="span" sx={{ opacity: 0.8 }}>
+                {patternScan.hits[0].status}
+              </Box>
+            </>
+          )}
+          <Box
+            component="span"
+            data-testid="nifty-patterns-draw"
+            data-on={drawPattern ? "1" : "0"}
+            role="button"
+            aria-pressed={drawPattern}
+            onClick={() => setDrawPattern((v) => !v)}
+            title={
+              patternScan.tf === chartTf
+                ? `${drawPattern ? "Hide" : "Show"} the pattern on the chart`
+                : `Pattern was scanned on ${patternScan.tf}; rescan on ${chartTf} to draw it here`
+            }
+            sx={{
+              ml: "auto",
+              cursor: "pointer",
+              fontWeight: 800,
+              letterSpacing: "0.06em",
+              color: drawPattern ? palette.PRIMARY : palette.TEXT_MUTED,
+              opacity: patternScan.tf === chartTf ? 1 : 0.5,
+              "&:hover": { color: palette.TEXT },
+            }}
+          >
+            {drawPattern ? "DRAW ON" : "DRAW OFF"}
+          </Box>
+        </Box>
+      ) : null}
       {depthEverShown ? (
         <Box
           data-testid="nifty-depth-view"

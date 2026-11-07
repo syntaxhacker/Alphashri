@@ -77,7 +77,7 @@ export function EventsPanel() {
         sx={{
           display: "flex",
           flexDirection: "column",
-          gap: 1,
+          gap: 0.5,
           minHeight: 0,
           height: "100%",
         }}
@@ -92,7 +92,7 @@ export function EventsPanel() {
         {shownAnomalies.length > 0 && (
           <Box
             data-testid="events-anomalies"
-            sx={{ display: "flex", flexDirection: "column", gap: 1 }}
+            sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}
           >
             <Text size="xs" fw={700} c="dimmed" tt="uppercase" sx={{ fontSize: 10, letterSpacing: "0.4px" }}>
               Unexplained moves
@@ -101,7 +101,7 @@ export function EventsPanel() {
               sx={{
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-                gap: 1,
+                gap: 0.5,
               }}
             >
               {shownAnomalies.map((anomaly) => (

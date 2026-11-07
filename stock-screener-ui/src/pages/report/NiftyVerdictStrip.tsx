@@ -1,3 +1,5 @@
+import { formatNumberIN } from "@/utils/ui-helpers";
+import { formatReportFixed } from "./reportFormat";
 import { memo, useMemo } from "react";
 import Box from "@mui/material/Box";
 import type { ReactNode } from "react";
@@ -6,6 +8,7 @@ import * as palette from "@/ui/palette";
 import { AnimatedValue } from "@/components/common/AnimatedValue";
 import { NiftyCoilGauge } from "./NiftyCoilGauge";
 import type {
+  NiftyControlBlock,
   NiftyControlVerdict,
   NiftyRegimeBlock,
   NiftyRegimeVerdict,
@@ -30,25 +33,62 @@ export function fmtVerdictNum(
   });
 }
 
-/** Signed change (always shows +/-) to 2 decimals, or dash when absent. */
-export function fmtVerdictChange(value: number | null | undefined): string {
+/**
+ * Alias — byte-identical to
+ * `formatReportFixed(v, { digits: 2, sign: "nonzero", minus: "-" })`.
+ * Kept as a named export because `NiftyVerdictStrip.test.tsx` imports it.
+ */
+export const fmtVerdictChange = (value: number | null | undefined): string =>
+  formatReportFixed(value, { digits: 2, sign: "nonzero", minus: "-" });
+
+/**
+ * Change-in-OI counts run to eight digits (81,301,220). Indian grouping at 9px
+ * turns that into `8,13,01,220` — unreadable and easy to misread as several
+ * numbers. Compact to millions/thousands with the sign kept, matching the
+ * INTEL strip's `ΔOI C +77M / P +38M` vocabulary instead of introducing a
+ * second unit system for the same field.
+ *
+ * This is OUR chain (report `control.ce_doi` / `pe_doi`), not Upstox's official
+ * series the INTEL strip prints — hence the `(chain)` label on the control line.
+ */
+export function fmtVerdictOi(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) {
     return VERDICT_DASH;
   }
   const sign = value > 0 ? "+" : value < 0 ? "-" : "";
-  return `${sign}${Math.abs(value).toFixed(2)}`;
+  const abs = Math.abs(value);
+  if (abs >= 1e6) return `${sign}${(abs / 1e6).toFixed(1)}M`;
+  if (abs >= 1e4) return `${sign}${Math.round(abs / 1e3)}K`;
+  return `${sign}${formatNumberIN(Math.round(abs))}`;
+}
+
+/**
+ * Control detail line. The ΔOI here is computed from the chain in this report;
+ * the INTEL strip shows Upstox's official series for the same session, so both
+ * lines name their source (`(chain)` vs `(official)`) instead of sharing a
+ * label over two different numbers.
+ */
+export function controlDetail(
+  control: NiftyControlBlock | null | undefined,
+): string {
+  return `ΔOI (chain) C ${fmtVerdictOi(control?.ce_doi)} P ${fmtVerdictOi(
+    control?.pe_doi,
+  )} · skew ${fmtVerdictNum(control?.skew, 2)}`;
 }
 
 const CONTROL_LABELS: Record<NiftyControlVerdict, string> = {
-  call_writers: "CALL WRITERS IN CONTROL",
-  put_writers: "PUT WRITERS IN CONTROL",
-  call_buyers: "CALL BUYERS IN CONTROL",
-  put_buyers: "PUT BUYERS IN CONTROL",
+  // Premium flow, not price control: name the action and the window instead of
+  // claiming the side is "in control". The session flow is cumulative, so the
+  // label must never be read as a directional forecast.
+  call_writers: "SESSION · CALL WRITING",
+  put_writers: "SESSION · PUT WRITING",
+  call_buyers: "SESSION · CALL BUYING",
+  put_buyers: "SESSION · PUT BUYING",
   // Flow unavailable (old snapshot): OI build is real but WHO built it is not
   // knowable, so the label stays neutral instead of asserting writers.
-  net_call_build: "CALL OI BUILDING",
-  net_put_build: "PUT OI BUILDING",
-  balanced: "BALANCED",
+  net_call_build: "OI BUILD · FLOW UNKNOWN",
+  net_put_build: "OI BUILD · FLOW UNKNOWN",
+  balanced: "SESSION · BALANCED",
 };
 
 /** Label for a control verdict; unknown/new values render a dash, never blank. */
@@ -229,7 +269,16 @@ const VerdictCell = memo(function VerdictCell({ testId, accent, primary, seconda
           c={accent}
           span
           truncate
-          style={{ fontSize: 11, lineHeight: 1.2, letterSpacing: "0.04em", minWidth: 0 }}
+          style={{
+            fontSize: 11,
+            lineHeight: 1.2,
+            letterSpacing: "0.04em",
+            minWidth: 0,
+            // The label is the meaning; the numbers beside it are detail.
+            // Let the 9px secondary ellipsize first — a clipped
+            // "CALL WRITERS IN CON…" hides the one word that matters.
+            flexShrink: 0,
+          }}
         >
           {primaryNode ?? primary}
         </Text>
@@ -317,9 +366,7 @@ function NiftyVerdictStripInner({ report, mode = "full" }: NiftyVerdictStripProp
   const strength = report.strength;
 
   const controlPrimary = controlLabel(control?.verdict);
-  const controlSecondary = `ΔOI C ${fmtVerdictNum(control?.ce_doi)} P ${fmtVerdictNum(
-    control?.pe_doi,
-  )} · skew ${fmtVerdictNum(control?.skew, 2)}`;
+  const controlSecondary = controlDetail(control);
 
   const regimePrimary = regime?.verdict
     ? resolveRegimeLabel(regime.verdict, regime)

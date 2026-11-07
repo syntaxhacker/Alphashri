@@ -1,18 +1,23 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { describe, expect, test, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import * as palette from "@/ui/palette";
 
 vi.mock("@/state/auth", () => ({ fetchWithAuth: vi.fn() }));
 
 import { normalizeReport } from "@/api/reportNifty";
+import { UIProvider } from "@/ui";
 import {
+  NiftyVerdictStrip,
   REGIME_LABELS,
   VERDICT_DASH,
   controlAccent,
+  controlDetail,
   controlLabel,
   fmtVerdictChange,
   fmtVerdictNum,
+  fmtVerdictOi,
   regimeAccent,
   regimeDetail,
   resolveRegimeLabel,
@@ -20,6 +25,8 @@ import {
   vixAccent,
 } from "./NiftyVerdictStrip";
 import type { NiftyRegimeBlock } from "@/types/niftyReport";
+
+afterEach(cleanup);
 
 describe("normalizeReport verdict blocks (snake_case -> typed, null-safe)", () => {
   const raw = {
@@ -71,6 +78,7 @@ describe("normalizeReport verdict blocks (snake_case -> typed, null-safe)", () =
       atm_pe_iv: 13.1,
       skew: -2.4,
       gex_regime: "short",
+      flow_bias: null,
     });
     expect(rep.regime?.verdict).toBe("range_sell_premium");
     expect(rep.regime?.straddle_pct).toBe(-20);
@@ -208,6 +216,32 @@ describe("verdict formatting helpers", () => {
     expect(fmtVerdictChange(0)).toBe("0.00");
     expect(fmtVerdictChange(null)).toBe(VERDICT_DASH);
   });
+
+  test("fmtVerdictOi compacts millions/thousands and dashes absent values", () => {
+    expect(fmtVerdictOi(5_530_000)).toBe("+5.5M");
+    expect(fmtVerdictOi(-1_200_000)).toBe("-1.2M");
+    expect(fmtVerdictOi(44_000)).toBe("+44K");
+    expect(fmtVerdictOi(1_000)).toBe("+1,000");
+    expect(fmtVerdictOi(null)).toBe(VERDICT_DASH);
+  });
+
+  test("controlDetail names the chain as the ΔOI source", () => {
+    // The INTEL strip prints Upstox's official ΔOI for the same session; the
+    // verdict strip's number is computed from our chain. One label over two
+    // sources made the two rows look like a contradiction.
+    expect(
+      controlDetail({
+        verdict: "call_writers",
+        ce_doi: 5_530_000,
+        pe_doi: -1_200_000,
+        atm_ce_iv: 12.5,
+        atm_pe_iv: 13.1,
+        skew: -2.4,
+        gex_regime: "short",
+      }),
+    ).toBe("ΔOI (chain) C +5.5M P -1.2M · skew -2.40");
+    expect(controlDetail(null)).toBe("ΔOI (chain) C — P — · skew —");
+  });
 });
 
 describe("resolveRegimeLabel (trend_buy follows the live RV/IV vote)", () => {
@@ -258,20 +292,41 @@ describe("resolveRegimeLabel (trend_buy follows the live RV/IV vote)", () => {
 });
 
 describe("control verdict labels", () => {
-  test("buyer verdicts name the participant", () => {
-    expect(controlLabel("put_buyers")).toBe("PUT BUYERS IN CONTROL");
-    expect(controlLabel("call_buyers")).toBe("CALL BUYERS IN CONTROL");
+  test("buyer verdicts name the action, not control", () => {
+    expect(controlLabel("put_buyers")).toBe("SESSION · PUT BUYING");
+    expect(controlLabel("call_buyers")).toBe("SESSION · CALL BUYING");
+  });
+
+  test("the rendered control cell carries the full SESSION label, never a truncated prefix", () => {
+    const report = normalizeReport({
+      control: {
+        verdict: "call_buyers",
+        ce_doi: 5_530_000,
+        pe_doi: -1_200_000,
+        atm_ce_iv: 12.5,
+        atm_pe_iv: 13.1,
+        skew: -2.4,
+        gex_regime: "short",
+      },
+    } as Record<string, unknown>);
+    render(<NiftyVerdictStrip report={report} />, { wrapper: UIProvider });
+    const primary = screen.getByTestId("nifty-verdict-control-primary");
+    // Exact, full string: the cell's CSS `truncate` may clip it visually on a
+    // narrow strip, but the text node itself must carry every segment — a
+    // shortened "SESSION · CALL…" would misread the session.
+    expect(primary).toHaveTextContent("SESSION · CALL BUYING");
+    expect(primary.textContent).toBe("SESSION · CALL BUYING");
   });
 
   test("missing flow degrades to a neutral OI-build label", () => {
-    expect(controlLabel("net_put_build")).toBe("PUT OI BUILDING");
-    expect(controlLabel("net_call_build")).toBe("CALL OI BUILDING");
+    expect(controlLabel("net_put_build")).toBe("OI BUILD · FLOW UNKNOWN");
+    expect(controlLabel("net_call_build")).toBe("OI BUILD · FLOW UNKNOWN");
   });
 
   test("known verdicts keep their existing labels, absent -> dash", () => {
-    expect(controlLabel("call_writers")).toBe("CALL WRITERS IN CONTROL");
-    expect(controlLabel("put_writers")).toBe("PUT WRITERS IN CONTROL");
-    expect(controlLabel("balanced")).toBe("BALANCED");
+    expect(controlLabel("call_writers")).toBe("SESSION · CALL WRITING");
+    expect(controlLabel("put_writers")).toBe("SESSION · PUT WRITING");
+    expect(controlLabel("balanced")).toBe("SESSION · BALANCED");
     expect(controlLabel(null)).toBe(VERDICT_DASH);
     expect(controlLabel(undefined)).toBe(VERDICT_DASH);
   });

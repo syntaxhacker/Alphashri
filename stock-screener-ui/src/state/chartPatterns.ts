@@ -61,6 +61,11 @@ export const DEFAULT_PATTERN_FILTERS: PatternFilters = {
   symbol: null,
   symbols: [],
   q: "",
+  history: 1,
+  sequence: false,
+  sequence_gap_days: 20,
+  sequence_max_bars: null,
+  sequence_step_status: [],
   min_base_days: null,
   max_range_pct: null,
   max_52w_gap: null,
@@ -83,6 +88,7 @@ export interface ChartPatternsState {
   patterns: PatternDef[];
   families: PatternFamily[];
   timeframe: string;
+  selectedTimeframes: string[];
   universe: string;
   /** Lookback window in bars (null = Auto / server default). */
   lookbackBars: number | null;
@@ -116,6 +122,7 @@ function createInitialState(): ChartPatternsState {
     patterns: [],
     families: [],
     timeframe: DEFAULT_TIMEFRAME,
+    selectedTimeframes: [DEFAULT_TIMEFRAME],
     universe: "",
     lookbackBars: null,
     filters: { ...DEFAULT_PATTERN_FILTERS },
@@ -249,7 +256,7 @@ export function setPatterns(patterns: PatternDef[], families: PatternFamily[]): 
 }
 
 export function setTimeframe(timeframe: string): void {
-  patch({ timeframe });
+  patch({ timeframe, selectedTimeframes: [timeframe] });
 }
 
 export function setUniverse(universe: string): void {
@@ -387,8 +394,21 @@ export async function loadCatalog(): Promise<void> {
       fetchUniverses(),
       fetchPatternCatalog(),
     ]);
+    const known = new Set(timeframes.map((tf) => tf.id));
+    const seed =
+      state.selectedTimeframes.length > 0 ? state.selectedTimeframes : [state.timeframe];
+    const selected = seed.filter((id) => known.has(id));
+    if (known.has(state.timeframe) && !selected.includes(state.timeframe)) {
+      selected.unshift(state.timeframe);
+    }
+    if (selected.length === 0 && known.has(DEFAULT_TIMEFRAME)) selected.push(DEFAULT_TIMEFRAME);
+    const primary = selected.includes(state.timeframe)
+      ? state.timeframe
+      : (selected[0] ?? DEFAULT_TIMEFRAME);
     patch({
       timeframes,
+      selectedTimeframes: selected.length > 0 ? selected : [primary],
+      timeframe: primary,
       universes: universes.universes,
       defaultUniverse: universes.default || state.defaultUniverse,
       universe: state.universe || universes.default,
@@ -730,6 +750,13 @@ export async function triggerScan(
   const universe = overrides.universe ?? state.universe;
   const timeframe = overrides.timeframe ?? state.timeframe;
   const symbols = universe === CUSTOM_UNIVERSE ? state.filters.symbols : undefined;
+  // An empty custom scope would be sent as `universe:"custom", symbols:[]`,
+  // which the API rejects with a 422 "unknown universe". Fail fast with a
+  // friendly message instead of a network round-trip.
+  if (universe === CUSTOM_UNIVERSE && (!symbols || symbols.length === 0)) {
+    patch({ error: "Custom scope is empty — add at least one symbol (or pick a universe)." });
+    return;
+  }
   const lookback = state.lookbackBars;
   const refresh = overrides.refresh ?? false;
   const asOf = overrides.asOfDate ?? overrides.as_of_date ?? state.filters.to_date ?? null;
@@ -887,10 +914,34 @@ async function reloadSelection(overrides: Partial<PatternsQuery>): Promise<void>
 
 /** Switch timeframe and reload results/summary; clears the open symbol detail. */
 export function selectTimeframe(timeframe: string): void {
-  // No-op first: re-selecting the active value must not wipe the open detail.
-  if (timeframe === state.timeframe) return;
-  patch({ timeframe, selectedSymbol: null, detail: null, detailChart: null, error: null });
-  void reloadSelection({ timeframe });
+  selectTimeframes([timeframe]);
+}
+
+function sameSelection(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+/** Select one or more timeframes; the first is the primary for results/scans. */
+export function selectTimeframes(next: string[]): void {
+  const order = new Map(state.timeframes.map((tf, index) => [tf.id, index]));
+  const known = state.timeframes.length > 0 ? new Set(order.keys()) : null;
+  const selected = Array.from(
+    new Set((next ?? []).map((value) => String(value ?? "").trim()).filter(Boolean)),
+  )
+    .filter((id) => !known || known.has(id))
+    .sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
+  const resolved = selected.length > 0 ? selected : [DEFAULT_TIMEFRAME];
+  const primary = resolved.includes(state.timeframe) ? state.timeframe : resolved[0];
+  const primaryChanged = primary !== state.timeframe;
+  if (!primaryChanged && sameSelection(resolved, state.selectedTimeframes)) return;
+  patch({
+    selectedTimeframes: resolved,
+    timeframe: primary,
+    ...(primaryChanged
+      ? { selectedSymbol: null, detail: null, detailChart: null, error: null }
+      : {}),
+  });
+  if (primaryChanged) void reloadSelection({ timeframe: primary });
 }
 
 /** Switch universe and reload results/summary; clears the open symbol detail. */

@@ -40,9 +40,18 @@ class TestClassSign:
     def test_put_short_buildup_bullish(self):
         assert class_sign("SB", "PE") == 1
 
-    def test_short_cover_bullish_both_sides(self):
+    def test_short_cover_sign_follows_the_side(self):
+        # A call short buys the call back (+delta) -> bullish.
+        # A put short buys the put back (-delta removed, so support leaves)
+        # -> bearish. The two sides are NOT symmetric.
         assert class_sign("SC", "CE") == 1
-        assert class_sign("SC", "PE") == 1
+        assert class_sign("SC", "PE") == -1
+
+    def test_long_unwind_sign_follows_the_side(self):
+        # A call buyer selling out removes +delta -> bearish.
+        # A put buyer selling out removes -delta (pressure leaves) -> bullish.
+        assert class_sign("LU", "CE") == -1
+        assert class_sign("LU", "PE") == 1
 
     def test_unknown_is_neutral(self):
         assert class_sign("Neutral", "CE") == 0
@@ -55,8 +64,9 @@ class TestClassSign:
 
     def test_full_name_without_label_maps_to_code(self):
         assert class_sign("Long Buildup", "CE") == 1
-        assert class_sign("Short Covering", "PE") == 1
+        assert class_sign("Short Covering", "PE") == -1
         assert class_sign("Long Unwinding", "CE") == -1
+        assert class_sign("Long Unwinding", "PE") == 1
 
     def test_neutral_dict_is_zero(self):
         assert class_sign({"type": "Neutral", "label": "Neutral"}, "CE") == 0
@@ -277,3 +287,125 @@ class TestDeltaFlipLevel:
             {"strike": 20000, "net_state": -10},
         ]
         assert delta_flip_level(strikes) == 20100
+
+
+class TestPutSideMapping:
+    """Regression for the swapped put-side ``SC``/``LU`` cells.
+
+    The class must be read through the delta exposure it represents (long call
+    ``+``, long put ``-``), not through the option's own price tone:
+
+    * put ``LB`` buyers open  -> ``-`` (bearish)
+    * put ``SC`` shorts close -> ``-`` (writers buy the puts back; the long-delta
+      support they provided leaves the book)
+    * put ``SB`` writers open -> ``+`` (bullish)
+    * put ``LU`` buyers close -> ``+`` (put buyers sell out; short-delta
+      pressure leaves the book)
+
+    The old map credited put ``SC`` as bullish and put ``LU`` as bearish. On a
+    falling tape those are the two cells that fire, so the split read ~99%
+    bullish — the 2026-11-02 11:52 frame printed 171,106 Cr bull vs 387 Cr
+    bear while the index broke 23,300.
+    """
+
+    @staticmethod
+    def _falling_tape() -> list[dict]:
+        """Falling tape (spot 23,250, broke 23,300) with mixed put activity.
+
+        Premiums are measured against the prior close: calls down, puts up.
+        Put OI is mostly unwinding (writers covering after the slide) plus one
+        genuine put-buying build at 23,500.
+        """
+        return [
+            # strike, calls, puts
+            _row(23100, _leg(2_000_000, 0, 0.70, "Neutral"),
+                 _leg(9_000_000, -4_000_000, 0.40, "SC")),
+            _row(23200, _leg(5_000_000, 20_000, 0.62, "SB"),
+                 _leg(12_000_000, -7_500_000, 0.55, "SC")),
+            _row(23300, _leg(4_000_000, -10_000, 0.45, "LU"),
+                 _leg(10_000_000, -6_000_000, 0.63, "SC")),
+            _row(23400, _leg(3_000_000, 10_000, 0.28, "SB"),
+                 _leg(4_000_000, -2_500_000, 0.38, "SC")),
+            _row(23500, _leg(1_000_000, 0, 0.16, "Neutral"),
+                 _leg(2_000_000, 100_000, 0.20, "LB")),
+        ]
+
+    def test_falling_tape_put_short_covering_is_bearish(self):
+        out = compute_positioning(self._falling_tape(), spot=23250)
+        # Old map: bull 24,307.9 Cr / bear 92.3 Cr (99.6% bullish).
+        assert out["bull_cr"] == 0.0
+        assert out["bear_cr"] == pytest.approx(24_400.2, rel=1e-3)
+        assert out["initiated"] < 0
+        assert out["split_pct"] == 100.0
+        # Exit legs: |dOI| signs ``initiated`` while the same-class flow keeps
+        # dOI's sign, so the like-for-like confirmation disagrees -> balanced.
+        # The point of the fix is that the split no longer claims bullish.
+        assert out["verdict"] != "bullish"
+
+    def test_put_buyers_are_bearish_evidence(self):
+        # Falling tape where the put build is buyers paying up, not writers.
+        rows = [
+            _row(23200, _leg(5_000_000, 20_000, 0.62, "SB"),
+                 _leg(12_000_000, 6_000_000, 0.55, "LB")),
+            _row(23300, _leg(4_000_000, -10_000, 0.45, "LU"),
+                 _leg(10_000_000, 3_000_000, 0.63, "LB")),
+            _row(23400, _leg(3_000_000, 10_000, 0.28, "SB"),
+                 _leg(4_000_000, 500_000, 0.38, "LB")),
+        ]
+        out = compute_positioning(rows, spot=23250)
+        assert out["bull_cr"] == 0.0
+        assert out["bear_cr"] > 10_000
+        assert out["initiated"] < 0
+        assert out["verdict"] == "bearish"
+        # Put buyers are the largest single leg evidence.
+        pe_legs = [s["pe"] for s in out["strikes"] if s["pe"]["class"] == "LB"]
+        assert pe_legs and all(leg["initiated"] < 0 for leg in pe_legs)
+
+    def test_up_tape_put_long_unwinding_is_bullish(self):
+        # Mirror case: calls bought, put longs sell out. Under the old map the
+        # put LU legs were subtracted as bearish; now they confirm the rise.
+        rows = [
+            _row(23200, _leg(6_000_000, 5_000_000, 0.55, "LB"),
+                 _leg(8_000_000, -4_000_000, 0.40, "LU")),
+            _row(23300, _leg(4_000_000, 1_000_000, 0.63, "LB"),
+                 _leg(6_000_000, -900_000, 0.30, "LU")),
+        ]
+        out = compute_positioning(rows, spot=23250)
+        assert out["bear_cr"] == 0.0
+        assert out["bull_cr"] > 10_000
+        assert out["initiated"] > 0
+        assert out["verdict"] == "bullish"
+        pe_legs = [s["pe"] for s in out["strikes"] if s["pe"]["class"] == "LU"]
+        assert pe_legs and all(leg["initiated"] > 0 for leg in pe_legs)
+
+    def test_mixed_tape_keeps_both_sides_represented(self):
+        # Genuine two-way initiation: call buyers + put buyers. Neither side
+        # may be zeroed out by the mapping.
+        rows = [
+            _row(23200, _leg(5_000_000, 2_000_000, 0.50, "LB"),
+                 _leg(6_000_000, 2_000_000, 0.50, "LB")),
+        ]
+        out = compute_positioning(rows, spot=23250)
+        assert out["bull_cr"] == pytest.approx(out["bear_cr"], rel=1e-6)
+        assert out["bull_cr"] > 0
+        assert out["split_pct"] == pytest.approx(50.0)
+
+    def test_one_sided_up_day_split_is_vetoed_by_raw_flow(self):
+        """The 2026-11-02 11:52 shape, scaled down.
+
+        Day-over-day the tape is UP (calls bought, puts written), so the class
+        read is ~100% bullish, but put OI is added faster than call OI and the
+        raw signed-delta flow is negative. The split may stay one-sided; the
+        verdict must not print "bullish" on it.
+        """
+        rows = [
+            _row(23200, _leg(6_000_000, 2_000_000, 0.50, "LB"),
+                 _leg(9_000_000, 4_000_000, 0.50, "SB")),
+            _row(23300, _leg(5_000_000, 0, 0.40, "Neutral"),
+                 _leg(4_000_000, -50_000, 0.30, "LU")),
+        ]
+        out = compute_positioning(rows, spot=23250)
+        assert out["bull_cr"] > out["bear_cr"] * 100
+        assert out["initiated"] > 0
+        assert out["flow"] < 0
+        assert out["verdict"] == "balanced"

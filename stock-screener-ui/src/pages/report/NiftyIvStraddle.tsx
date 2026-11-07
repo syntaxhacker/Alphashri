@@ -1,5 +1,6 @@
 import { memo, useMemo } from "react";
 import * as palette from "@/ui/palette";
+import { median } from "@/utils/reportParsers";
 import { MiniLineChart, type MiniSeries } from "@/components/common/charts/MiniLineChart";
 import { CompactPanel, CompactStat, CompactStatGrid } from "@/components/common/compact";
 import { EmptyState } from "@/components/common/states";
@@ -140,11 +141,7 @@ function inferBarMinutes(candles?: ReplayCandle[], defaultMin = 1): number {
     if (d > 0) deltas.push(d);
   }
   if (!deltas.length) return defaultMin;
-  deltas.sort((a, b) => a - b);
-  const mid = Math.floor(deltas.length / 2);
-  const median =
-    deltas.length % 2 ? deltas[mid] : (deltas[mid - 1] + deltas[mid]) / 2;
-  return Math.max(1, median);
+  return Math.max(1, median(deltas));
 }
 
 /**

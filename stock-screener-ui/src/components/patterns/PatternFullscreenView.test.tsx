@@ -13,8 +13,8 @@ vi.mock("./PatternTradingViewChart", () => ({
 
 // Native-select stub so the fullscreen TF wiring is deterministic (the real MUI
 // Select needs popup interaction). Testids + onChange contracts preserved.
-vi.mock("./TimeframeSelect", () => ({
-  TimeframeSelect: ({ timeframes, value, onChange }: any) => {
+vi.mock("./ChartTimeframeSelect", () => ({
+  ChartTimeframeSelect: ({ timeframes, value, onChange }: any) => {
     const source =
       (timeframes as any[]).length > 0 ? (timeframes as any[]) : [{ id: value, label: value }];
     return (
@@ -94,6 +94,7 @@ describe("PatternFullscreenView", () => {
     r(<PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
     expect(screen.getByTestId("patterns-detail-pivots")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-detail-pivots-toggle")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-key-point-legend")).toHaveTextContent("L1 Swing low");
   });
 
   test("renders nothing but the TV chart when no hit is selected", () => {
@@ -122,12 +123,12 @@ describe("PatternFullscreenView", () => {
     expect(screen.getByTestId("patterns-tv-chart")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-chart-legend")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-chart-legend-item-TLS")).toBeInTheDocument();
-    // Level guides are toggleable from the legend too.
-    expect(screen.getByTestId("patterns-chart-legend-item-Breakout")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-chart-legend-item-Target")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-chart-legend-item-Stop")).toBeInTheDocument();
-    // Swing-pivot markers get a single toggle entry.
-    expect(screen.getByTestId("patterns-chart-legend-item-Pivots")).toBeInTheDocument();
+    // Risk levels and dot markers are not drawn any more.
+    expect(screen.queryByTestId("patterns-chart-legend-item-Breakout")).toBeNull();
+    expect(screen.queryByTestId("patterns-chart-legend-item-Target")).toBeNull();
+    expect(screen.queryByTestId("patterns-chart-legend-item-Stop")).toBeNull();
+    expect(screen.queryByTestId("patterns-chart-legend-item-Pivots")).toBeNull();
+    expect(screen.queryByTestId("patterns-chart-legend-item-Key points")).toBeNull();
   });
 
   test("legend entries toggle the series on/off", () => {
@@ -152,15 +153,8 @@ describe("PatternFullscreenView", () => {
     fireEvent.click(item);
     expect(screen.getByTestId("patterns-chart-legend-item-TLS")).toHaveAttribute("aria-pressed", "false");
 
-    const target = screen.getByTestId("patterns-chart-legend-item-Target");
-    expect(target).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(target);
-    expect(screen.getByTestId("patterns-chart-legend-item-Target")).toHaveAttribute("aria-pressed", "false");
-
-    const pivots = screen.getByTestId("patterns-chart-legend-item-Pivots");
-    expect(pivots).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(pivots);
-    expect(screen.getByTestId("patterns-chart-legend-item-Pivots")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByTestId("patterns-chart-legend-item-Target")).toBeNull();
+    expect(screen.queryByTestId("patterns-chart-legend-item-Pivots")).toBeNull();
   });
 
   test("renders nothing when closed", () => {
@@ -295,10 +289,10 @@ describe("PatternFullscreenView patterns list (single-select)", () => {
       />,
     );
     expect(screen.getByTestId("patterns-fullscreen-list")).toBeInTheDocument();
-    expect(screen.getByText("Patterns (2)")).toBeInTheDocument();
-    // Newest first.
+    expect(screen.getByText("Patterns (1)")).toBeInTheDocument();
+    // Only the newest pattern is listed.
     expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent("Bull Flag");
-    expect(screen.getByTestId("patterns-fullscreen-list-item-1")).toHaveTextContent("Falling Wedge");
+    expect(screen.queryByTestId("patterns-fullscreen-list-item-1")).not.toBeInTheDocument();
     // The newest (active) row is selected…
     expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveAttribute(
       "data-selected",
@@ -309,7 +303,96 @@ describe("PatternFullscreenView patterns list (single-select)", () => {
     expect(screen.getByTestId("patterns-detail-pivots")).toBeInTheDocument();
   });
 
-  test("clicking a row calls onSelectHit with that hit (single replace)", () => {
+  test("docked variant renders the rail beside the results, not a modal", async () => {
+    const onClose = vi.fn();
+    const onMaximize = vi.fn();
+    r(
+      <PatternFullscreenView
+        opened
+        docked
+        onClose={onClose}
+        onMaximize={onMaximize}
+        hit={HIT}
+        candles={[]}
+      />,
+    );
+
+    expect(screen.getByTestId("patterns-chart-dock")).toBeInTheDocument();
+    expect(screen.queryByTestId("patterns-fullscreen-modal")).toBeNull();
+    expect(screen.getByTestId("patterns-chart-toolbar")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-fullscreen-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-tv-chart")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId("patterns-chart-close"));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByTestId("patterns-chart-expand"));
+    expect(onMaximize).toHaveBeenCalledTimes(1);
+  });
+
+  test("docked variant renders the prev/next stepper with a position label", async () => {
+    const onPrev = vi.fn();
+    const onNext = vi.fn();
+    r(
+      <PatternFullscreenView
+        opened
+        docked
+        onClose={vi.fn()}
+        onPrev={onPrev}
+        onNext={onNext}
+        positionLabel="3 / 48"
+        hit={HIT}
+        candles={[]}
+      />,
+    );
+    expect(screen.getByTestId("patterns-chart-position")).toHaveTextContent("3 / 48");
+    await userEvent.click(screen.getByTestId("patterns-chart-prev"));
+    await userEvent.click(screen.getByTestId("patterns-chart-next"));
+    expect(onPrev).toHaveBeenCalledTimes(1);
+    expect(onNext).toHaveBeenCalledTimes(1);
+  });
+
+  test("the modal keeps the prev/next stepper when maximized", () => {
+    r(
+      <PatternFullscreenView
+        opened
+        onClose={vi.fn()}
+        onPrev={vi.fn()}
+        onNext={vi.fn()}
+        positionLabel="2 / 9"
+        hit={HIT}
+        candles={[]}
+      />,
+    );
+    expect(screen.getByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-chart-position")).toHaveTextContent("2 / 9");
+    expect(screen.getByTestId("patterns-chart-prev")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-chart-next")).toBeInTheDocument();
+  });
+
+  test("docked replay shows a Live control that clears the as-of", async () => {
+    const onLive = vi.fn();
+    r(
+      <PatternFullscreenView
+        opened
+        docked
+        onClose={vi.fn()}
+        asOf="2026-09-20T15:30"
+        onLive={onLive}
+        hit={HIT}
+        candles={[]}
+      />,
+    );
+    await userEvent.click(screen.getByTestId("patterns-chart-live"));
+    expect(onLive).toHaveBeenCalledTimes(1);
+  });
+
+  test("docked variant hides the expand control when no maximize handler is given", () => {
+    r(<PatternFullscreenView opened docked onClose={vi.fn()} hit={HIT} candles={[]} />);
+    expect(screen.getByTestId("patterns-chart-dock")).toBeInTheDocument();
+    expect(screen.queryByTestId("patterns-chart-expand")).toBeNull();
+  });
+
+  test("clicking the row selects the newest hit", () => {
     const onSelectHit = vi.fn();
     r(
       <PatternFullscreenView
@@ -321,8 +404,8 @@ describe("PatternFullscreenView patterns list (single-select)", () => {
         candles={[]}
       />,
     );
-    fireEvent.click(screen.getByTestId("patterns-fullscreen-list-item-1"));
+    fireEvent.click(screen.getByTestId("patterns-fullscreen-list-item-0"));
     expect(onSelectHit).toHaveBeenCalledTimes(1);
-    expect(onSelectHit).toHaveBeenCalledWith(OLD);
+    expect(onSelectHit).toHaveBeenCalledWith(NEW);
   });
 });

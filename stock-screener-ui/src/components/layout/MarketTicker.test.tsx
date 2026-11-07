@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, cleanup, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MarketTicker } from "./MarketTicker";
+import { MarketTicker, MarketStatus } from "./MarketTicker";
 import { UIProvider } from "@/ui";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 import { isMarketClosedToday, getHolidayState } from "../../state/holidays";
@@ -462,5 +462,86 @@ describe("MarketTicker", () => {
     expect(screen.queryByTestId("market-ticker")).not.toBeInTheDocument();
     // Fetch should not be called when disabled
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("tape variant renders nothing when the market is closed", () => {
+    // The sidebar owns the closed status; the main column must not reserve a
+    // 22px strip for a tape that has nothing to show.
+    vi.mocked(isMarketClosedToday).mockReturnValue(true);
+    render(
+      <UIProvider>
+        <MarketTicker variant="tape" />
+      </UIProvider>,
+    );
+    expect(screen.queryByTestId("market-ticker")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("market-ticker-status")).not.toBeInTheDocument();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("tape variant renders the tape when the market is open", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        tickers: {
+          "^NSEI": { symbol: "^NSEI", name: "Nifty 50", price: 25000, change: 12, change_percent: 0.05, is_positive: true },
+        },
+        last_updated: new Date().toISOString(),
+        loading: false,
+        error: null,
+      }),
+    });
+
+    render(
+      <UIProvider>
+        <MarketTicker variant="tape" />
+      </UIProvider>,
+    );
+
+    // Wait for the fetched tape items, not just the loading shell: the loading
+    // node is replaced on the state update, so a plain element handle goes stale.
+    expect(await screen.findByTestId("ticker-nsei")).toBeInTheDocument();
+  });
+});
+
+describe("MarketStatus", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(isMarketClosedToday).mockReturnValue(false);
+    setupBrowserMocks();
+  });
+
+  afterEach(() => cleanup());
+
+  it("states the market is closed (dot + label) without a tape", () => {
+    vi.mocked(isMarketClosedToday).mockReturnValue(true);
+    render(
+      <UIProvider>
+        <MarketStatus />
+      </UIProvider>,
+    );
+    expect(screen.getByTestId("app-market-status")).toBeInTheDocument();
+    expect(screen.getByTestId("app-market-status-dot")).toBeInTheDocument();
+    expect(screen.getByText("Market closed")).toBeInTheDocument();
+  });
+
+  it("hides the label but keeps the dot when compact (collapsed rail)", () => {
+    vi.mocked(isMarketClosedToday).mockReturnValue(true);
+    render(
+      <UIProvider>
+        <MarketStatus compact />
+      </UIProvider>,
+    );
+    expect(screen.getByTestId("app-market-status-dot")).toBeInTheDocument();
+    expect(screen.queryByText("Market closed")).not.toBeInTheDocument();
+    expect(screen.getByTestId("app-market-status").getAttribute("title")).toContain("Market closed");
+  });
+
+  it("reports a live market during trading hours", () => {
+    render(
+      <UIProvider>
+        <MarketStatus />
+      </UIProvider>,
+    );
+    expect(screen.getByText("Market live")).toBeInTheDocument();
   });
 });

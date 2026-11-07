@@ -3,7 +3,7 @@ import Box from "@mui/material/Box";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { NiftyPositioningStrike } from "@/types/niftyReport";
-import { sortByField } from "@/utils/ui-helpers";
+import { sortByField, formatNumberIN } from "@/utils/ui-helpers";
 
 /** Strike half-width kept around spot — same band as the option-chain OI. */
 const DELTA_PROFILE_WINDOW_PTS = 750;
@@ -131,7 +131,7 @@ export function DeltaProfileChart({
   points,
   spot = null,
   flip = null,
-  formatValue = (v) => Math.round(v).toLocaleString("en-IN"),
+  formatValue = (v) => formatNumberIN(Math.round(v)),
   testId = "nifty-positioning-profile",
   emptyMessage = "No strike breakdown",
 }: DeltaProfileChartProps) {
@@ -308,8 +308,8 @@ export function DeltaProfileChart({
           sx={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", flexShrink: 0 }}
         >
           {hoverPoint
-            ? `${hoverPoint.strike.toLocaleString("en-IN")} · cum ${formatValue(hoverPoint.cumulative)} · flow ${formatValue(hoverPoint.netInitiated)}`
-            : `${points[0].strike.toLocaleString("en-IN")}–${points[points.length - 1].strike.toLocaleString("en-IN")}`}
+            ? `${formatNumberIN(hoverPoint.strike)} · cum ${formatValue(hoverPoint.cumulative)} · flow ${formatValue(hoverPoint.netInitiated)}`
+            : `${formatNumberIN(points[0].strike)}–${formatNumberIN(points[points.length - 1].strike)}`}
         </Text>
       </Box>
     </Box>

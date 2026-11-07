@@ -1,6 +1,6 @@
 import { fetchWithAuth } from "../state/auth";
+import { API_BASE } from "@/api/config";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 const VALUE_SCAN_API = `${API_BASE}/api/value/scan`;
 
 export type ValueMarket = "india" | "usa" | "global";

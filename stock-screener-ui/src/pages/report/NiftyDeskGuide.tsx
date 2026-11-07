@@ -6,7 +6,7 @@ import * as palette from "@/ui/palette";
 import { PanelModal } from "@/components/common/PanelModal";
 
 /**
- * One-page desk glossary. Nine terms, two columns, no nested cards — the
+ * One-page desk glossary. Ten terms, three columns, no nested cards — the
  * reader scans once and never needs the legend again.
  */
 interface DeskGuideEntry {
@@ -30,6 +30,10 @@ export const DESK_GUIDE_ENTRIES: readonly DeskGuideEntry[] = [
   {
     term: "MAX PAIN",
     text: "The expiry settlement that hurts option buyers most; a magnet into expiry.",
+  },
+  {
+    term: "PIN RISK",
+    text: "Pin = spot parked on a heavy OI wall with max pain ≥100 pts on the far side. Into expiry, breaks from that spot usually sweep and revert — don't buy the break unless two consecutive 1-min closes land beyond the wall.",
   },
   {
     term: "PCR",

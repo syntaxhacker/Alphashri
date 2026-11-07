@@ -1,4 +1,5 @@
-import { useEffect, useMemo, memo } from "react";
+import { useMemo } from "react";
+import { usePolling } from "@/hooks/usePolling";
 import { Text, Badge, Loader, Center, ActionIcon } from "@/ui";
 import Box from "@mui/material/Box";
 import { IconRefresh } from "@tabler/icons-react";
@@ -16,11 +17,7 @@ export function ActivityFeed() {
   useStoreSubscription(subscribe);
   const state = getPaperTradingState();
 
-  useEffect(() => {
-    fetchActivityFeed();
-    const interval = setInterval(() => fetchActivityFeed(), 15000);
-    return () => clearInterval(interval);
-  }, []);
+  usePolling(() => fetchActivityFeed(), 15000, { immediate: true, skipIfRunning: false });
 
   const columns = useMemo<ColumnDef<ActivityEvent>[]>(
     () => [
@@ -29,6 +26,7 @@ export function ActivityFeed() {
         header: "Time",
         accessorKey: "timestamp",
         size: 72,
+        meta: { align: "left" },
         cell: ({ row }) => (
           <Text className="paper-activity-time" size="xs" c="dimmed" sx={{ fontFamily: "monospace", fontSize: 11 }}>
             {formatTimeOnly(row.original.timestamp)}
@@ -39,6 +37,7 @@ export function ActivityFeed() {
         id: "type",
         header: "Type",
         size: 72,
+        meta: { align: "center" },
         accessorFn: (row: ActivityEvent) => row.type,
         cell: ({ row }) => {
           const ev = row.original;
@@ -60,6 +59,7 @@ export function ActivityFeed() {
         header: "Symbol",
         accessorKey: "symbol",
         size: 88,
+        meta: { align: "left" },
         cell: ({ row }) => (
           <Text className="paper-activity-symbol" fw={600} size="xs" c={palette.PRIMARY} sx={{ fontSize: 11 }}>
             {row.original.symbol}
@@ -70,6 +70,7 @@ export function ActivityFeed() {
         id: "side",
         header: "Side",
         size: 64,
+        meta: { align: "center" },
         accessorFn: (row: ActivityEvent) => row.direction || row.side,
         cell: ({ row }) => (
           <Text className="paper-activity-side" size="xs" c="dimmed" sx={{ fontSize: 11 }}>
@@ -81,6 +82,7 @@ export function ActivityFeed() {
         id: "entry",
         header: "Entry",
         size: 110,
+        meta: { align: "right" },
         cell: ({ row }) => {
           const ev = row.original;
           return (
@@ -94,6 +96,7 @@ export function ActivityFeed() {
         id: "exit",
         header: "Exit",
         size: 96,
+        meta: { align: "right" },
         cell: ({ row }) => {
           const ev = row.original;
           const isExit = ev.type === "trade_exit" || !!ev.exit_price;
@@ -112,6 +115,7 @@ export function ActivityFeed() {
         id: "pnl",
         header: "P&L",
         size: 120,
+        meta: { align: "right" },
         accessorFn: (row: ActivityEvent) => row.net_pnl ?? row.pnl ?? 0,
         cell: ({ row }) => {
           const ev = row.original;
@@ -130,6 +134,7 @@ export function ActivityFeed() {
         id: "strategy",
         header: "Strategy",
         size: 140,
+        meta: { align: "left" },
         accessorKey: "strategy_name",
         cell: ({ row }) =>
           row.original.strategy_name ? (
@@ -146,6 +151,7 @@ export function ActivityFeed() {
         id: "reason",
         header: "Reason",
         accessorKey: "exit_reason",
+        meta: { align: "left" },
         enableSorting: false,
         cell: ({ row }) => (
           <Text className="paper-activity-reason" size="xs" c="dimmed" sx={{ fontSize: 11 }} truncate>
@@ -166,7 +172,7 @@ export function ActivityFeed() {
   }
 
   return (
-    <Box className="paper-activity-feed" id="paper-activity-feed" sx={{ display: "flex", flexDirection: "column", gap: 1, p: 1, width: "100%" }}>
+    <Box className="paper-activity-feed" id="paper-activity-feed" sx={{ display: "flex", flexDirection: "column", gap: 0.5, p: 0.5, width: "100%" }}>
       <CompactPanel
         title="Activity Feed"
         action={
@@ -175,7 +181,7 @@ export function ActivityFeed() {
           </ActionIcon>
         }
       >
-        <Box className="paper-activity-table-wrap" id="paper-activity-table-wrap" sx={{ display: "flex", flexDirection: "column", minHeight: 0, border: `1px solid ${palette.BORDER}`, borderRadius: 1, overflow: "hidden", bgcolor: palette.SURFACE }}>
+        <Box className="paper-activity-table-wrap" id="paper-activity-table-wrap" sx={{ display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden", bgcolor: palette.SURFACE }}>
           <TanStackTable<ActivityEvent>
             className="paper-activity-table"
             data={state.activityEvents}
@@ -184,6 +190,7 @@ export function ActivityFeed() {
             loading={state.activityLoading}
             emptyMessage="No recent activity. Trades will appear here as they happen."
             stickyHeader
+            dense
           />
         </Box>
       </CompactPanel>

@@ -171,7 +171,7 @@ function HistoryFilters({
         </Stack>
       </Box>
 
-      <Box className="paper-trades-header" sx={{ flex: "none", display: "flex", alignItems: "center", justifyContent: "space-between", px: 1, py: 1 }} data-testid="trades-header" id="trades-header">
+      <Box className="paper-trades-header" sx={{ flex: "none", display: "flex", alignItems: "center", justifyContent: "space-between", px: 0.75, py: 0.5 }} data-testid="trades-header" id="trades-header">
         <Text className="paper-trades-header-title" size="xs" fw={600} c="dimmed" tt="uppercase">
           Trade History
         </Text>
@@ -195,7 +195,7 @@ const DaySummary = memo(function DaySummary({
   const pnlColor = getPnLTextColor(dayPnl);
 
   return (
-    <Box className="paper-day-summary" id={`paper-day-summary-${date}`} sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1, py: 0.5, gap: 1, flexWrap: "nowrap" }} data-testid={`day-header-${date}`}>
+    <Box className="paper-day-summary" id={`paper-day-summary-${date}`} sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 0.75, py: 0.25, gap: 0.5, flexWrap: "nowrap" }} data-testid={`day-header-${date}`}>
       <Box className="paper-day-summary-left" sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "nowrap" }}>
         <Text className="paper-day-summary-toggle" size="xs" c="dimmed" sx={{ lineHeight: 1 }}>
           {expanded ? "▾" : "▸"}
@@ -242,8 +242,8 @@ const TradeStats = memo(function TradeStats({ trade }: { trade: PaperTrade }) {
   ];
 
   return (
-    <Box className="paper-trade-stats" id={`paper-trade-stats-${trade.trade_id}`} sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 1, width: "100%" }}>
-      <Box className="paper-trade-stats-entry" id={`paper-trade-stats-entry-${trade.trade_id}`} sx={{ p: 1, border: "1px solid var(--mui-palette-divider)", borderRadius: 1, bgcolor: "var(--mui-palette-background-paper)", minWidth: 0, width: "100%" }}>
+    <Box className="paper-trade-stats" id={`paper-trade-stats-${trade.trade_id}`} sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 0.5, width: "100%" }}>
+      <Box className="paper-trade-stats-entry" id={`paper-trade-stats-entry-${trade.trade_id}`} sx={{ p: 0.5, border: 0, borderRadius: 0, bgcolor: "transparent", minWidth: 0, width: "100%" }}>
         <Text className="paper-trade-stats-entry-title" id={`paper-trade-stats-entry-title-${trade.trade_id}`} size="xs" fw={700} c="dimmed" tt="uppercase" sx={{ letterSpacing: 0.6, pb: 0.5, mb: 0.25, borderBottom: "1px solid var(--mui-palette-divider)" }}>Entry</Text>
         {entryContext.map((item) => (
           <Box key={item.label} className="paper-trade-stats-row" id={`paper-trade-stats-row-${trade.trade_id}-${item.label.replace(/\s+/g, "-").toLowerCase()}`} sx={{ display: "flex", alignItems: "center", py: 0.35, gap: 0.35, borderBottom: "1px solid var(--mui-palette-divider)", "&:last-child": { borderBottom: 0, pb: 0 } }}>
@@ -252,7 +252,7 @@ const TradeStats = memo(function TradeStats({ trade }: { trade: PaperTrade }) {
           </Box>
         ))}
       </Box>
-      <Box className="paper-trade-stats-exit" id={`paper-trade-stats-exit-${trade.trade_id}`} sx={{ p: 1, border: "1px solid var(--mui-palette-divider)", borderRadius: 1, bgcolor: "var(--mui-palette-background-paper)", minWidth: 0, width: "100%" }}>
+      <Box className="paper-trade-stats-exit" id={`paper-trade-stats-exit-${trade.trade_id}`} sx={{ p: 0.5, border: 0, borderRadius: 0, bgcolor: "transparent", minWidth: 0, width: "100%" }}>
         <Text className="paper-trade-stats-exit-title" id={`paper-trade-stats-exit-title-${trade.trade_id}`} size="xs" fw={700} c="dimmed" tt="uppercase" sx={{ letterSpacing: 0.6, pb: 0.5, mb: 0.25, borderBottom: "1px solid var(--mui-palette-divider)" }}>Exit</Text>
         {exitContext.map((item) => (
           <Box key={item.label} className="paper-trade-stats-row" id={`paper-trade-stats-row-${trade.trade_id}-${item.label.replace(/\s+/g, "-").toLowerCase()}`} sx={{ display: "flex", alignItems: "center", py: 0.35, gap: 0.35, borderBottom: "1px solid var(--mui-palette-divider)", "&:last-child": { borderBottom: 0, pb: 0 } }}>
@@ -316,7 +316,7 @@ const TradeNotesEditor = memo(function TradeNotesEditor({ trade }: { trade: Pape
 
 const TradeDetail = memo(function TradeDetail({ trade }: { trade: PaperTrade }) {
   return (
-    <Box className="paper-trade-detail" id={`paper-trade-detail-${trade.trade_id}`} sx={{ px: 2, py: 1.5, bgcolor: "var(--mui-palette-background-default)", borderTop: "1px solid var(--mui-palette-divider)" }}>
+    <Box className="paper-trade-detail" id={`paper-trade-detail-${trade.trade_id}`} sx={{ px: 1, py: 0.5, bgcolor: "var(--mui-palette-background-default)", borderTop: "1px solid var(--mui-palette-divider)" }}>
       <Stack className="paper-trade-detail-stack" id={`paper-trade-detail-stack-${trade.trade_id}`} spacing={1} sx={{ width: "100%" }}>
         <TradeStats trade={trade} />
         <TradeNotesEditor trade={trade} />
@@ -392,6 +392,7 @@ function TradeHistoryTable({
       {
         id: "toggle",
         header: "",
+        meta: { align: "center" },
         enableSorting: false,
         cell: ({ row }) => (
           <ActionIcon
@@ -421,31 +422,36 @@ function TradeHistoryTable({
         id: "symbol",
         header: "Symbol",
         accessorKey: "symbol",
+        meta: { align: "left" },
         cell: ({ row }) => <ClickableSymbol symbol={row.original.symbol} />,
       },
       {
         id: "side",
         header: "Side",
         accessorKey: "side",
+        meta: { align: "center" },
         cell: ({ row }) => <SideBadge side={row.original.side} />,
       },
-      { id: "quantity", header: "Qty", accessorKey: "quantity", cell: ({ row }) => <>{row.original.quantity}</> },
+      { id: "quantity", header: "Qty", accessorKey: "quantity", meta: { align: "right" }, cell: ({ row }) => <>{row.original.quantity}</> },
       {
         id: "entry_price",
         header: "Entry",
         accessorKey: "entry_price",
+        meta: { align: "right" },
         cell: ({ row }) => <>₹{row.original.entry_price.toFixed(2)}</>,
       },
       {
         id: "exit_price",
         header: "Exit Price",
         accessorKey: "exit_price",
+        meta: { align: "right" },
         cell: ({ row }) => <>{row.original.exit_price != null ? `₹${row.original.exit_price.toFixed(2)}` : "-"}</>,
       },
       {
         id: "hold_duration_minutes",
         header: "Hold",
         accessorKey: "hold_duration_minutes",
+        meta: { align: "right" },
         cell: ({ row }) => (
           <Text className="paper-cell-hold" size="sm">
             {row.original.hold_duration_minutes != null ? formatDuration(row.original.hold_duration_minutes) : "-"}
@@ -456,12 +462,14 @@ function TradeHistoryTable({
         id: "stop_loss",
         header: "SL",
         accessorKey: "stop_loss",
+        meta: { align: "right" },
         cell: ({ row }) => <>{row.original.stop_loss != null ? `₹${row.original.stop_loss.toFixed(2)}` : "-"}</>,
       },
       {
         id: "take_profit",
         header: "TP",
         accessorKey: "take_profit",
+        meta: { align: "right" },
         cell: ({ row }) => (
           <>{row.original.take_profit != null && row.original.take_profit > 0 ? `₹${row.original.take_profit.toFixed(2)}` : "-"}</>
         ),
@@ -470,6 +478,7 @@ function TradeHistoryTable({
         id: "pnl_pct",
         header: "P&L%",
         accessorKey: "pnl_pct",
+        meta: { align: "right" },
         cell: ({ row }) => {
           const pct = row.original.pnl_pct;
           return (
@@ -483,6 +492,7 @@ function TradeHistoryTable({
         id: "net_pnl",
         header: "P&L",
         accessorKey: "net_pnl",
+        meta: { align: "right" },
         cell: ({ row }) => (
           <Text className="paper-cell-pnl" c={getPnLTextColor(row.original.net_pnl)} fw={600} size="sm">
             ₹{formatNumber(row.original.net_pnl)}
@@ -493,12 +503,14 @@ function TradeHistoryTable({
         id: "exit_reason",
         header: "Exit Reason",
         accessorKey: "exit_reason",
+        meta: { align: "center" },
         enableSorting: false,
         cell: ({ row }) => <ExitReasonBadge reason={row.original.exit_reason} />,
       },
       {
         id: "strategy_name",
         header: "Strategy",
+        meta: { align: "left" },
         enableSorting: false,
         cell: ({ row }) => (
           <Anchor
@@ -514,6 +526,7 @@ function TradeHistoryTable({
       {
         id: "bot_name",
         header: "Bot",
+        meta: { align: "left" },
         enableSorting: false,
         cell: ({ row }) => (
           <Anchor
@@ -538,6 +551,8 @@ function TradeHistoryTable({
       columns={columns}
       rowWindowSize={120}
       fillContainer
+      stickyHeader
+      dense
       enableGrouping
       grouping={["date"]}
       initialState={{

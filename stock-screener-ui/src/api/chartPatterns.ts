@@ -15,6 +15,8 @@ import type {
   JobStatus,
   MarketStatus,
   PatternHitDTO,
+  IndexMembersResponse,
+  PatternMatrixResponse,
   PatternSummary,
   ScanProvenance,
   SymbolDetail,
@@ -26,6 +28,7 @@ import type {
 } from "../types/chartPatterns";
 import { fetchWithAuth } from "../state/auth";
 import { API_BASE } from "./config";
+import { readSseStream } from "./sse";
 
 const CHART_PATTERNS_BASE = `${API_BASE}/api/chart-patterns`;
 
@@ -232,6 +235,37 @@ export async function startScan(req: ScanRequest): Promise<ScanResponse> {
   return (await response.json()) as ScanResponse;
 }
 
+export interface DetectResponse {
+  symbol: string;
+  timeframe: string;
+  data_through: string | null;
+  hits: PatternHitDTO[];
+  count: number;
+}
+
+/**
+ * Synchronous single-symbol detection (`POST /detect`).
+ *
+ * The queued scan is the right tool for a universe; a chart button needs an
+ * answer in seconds even when a 500-symbol job owns the queue.
+ */
+export async function detectPatterns(
+  symbol: string,
+  timeframe: string,
+  lookback_bars = 150,
+): Promise<DetectResponse> {
+  const response = await fetchWithAuth(`${CHART_PATTERNS_BASE}/detect`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ symbol, timeframe, lookback_bars }),
+  });
+  if (!response.ok) {
+    const { detail } = await readError(response, `Pattern check failed (${response.status})`);
+    throw new Error(detail);
+  }
+  return (await response.json()) as DetectResponse;
+}
+
 export async function fetchJob(id: string): Promise<JobDTO> {
   return getJson<JobDTO>(
     `${CHART_PATTERNS_BASE}/jobs/${encodeURIComponent(id)}`,
@@ -272,6 +306,20 @@ export async function fetchSymbolDetail(symbol: string, timeframe: string): Prom
   return getJson<SymbolDetail>(
     `${CHART_PATTERNS_BASE}/symbol/${encodeURIComponent(symbol)}?${params.toString()}`,
     `Failed to load ${symbol}`,
+  );
+}
+
+export async function fetchIndexMembers(indexId: string): Promise<IndexMembersResponse> {
+  return getJson<IndexMembersResponse>(
+    `${CHART_PATTERNS_BASE}/index/${encodeURIComponent(indexId)}/members`,
+    "Failed to load index members",
+  );
+}
+
+export async function fetchPatternHit(hitId: number): Promise<PatternHitDTO> {
+  return getJson<PatternHitDTO>(
+    `${CHART_PATTERNS_BASE}/hit/${hitId}`,
+    "Failed to fetch pattern hit",
   );
 }
 
@@ -340,79 +388,6 @@ export interface StreamHandlers<TMeta, TItem> {
   onDone?: () => void;
   onError?: (error: Error) => void;
   signal?: AbortSignal;
-}
-
-type SseHandler = (event: string, data: string) => void;
-
-/**
- * Shared SSE reader (mirrors `src/hooks/useLivePrices.ts`): buffers
- * `ReadableStream` chunks, splits frames on `\n\n`, parses `event:`/`data:`
- * lines and dispatches each event. Never throws — transport/parse failures
- * are reported via `onStreamError` (abort is silent).
- */
-async function readSseStream(
-  response: Response,
-  onEvent: SseHandler,
-  onStreamError: (error: Error) => void,
-  signal?: AbortSignal,
-): Promise<void> {
-  const body = response.body;
-  if (!body) {
-    onStreamError(new Error("Empty stream response"));
-    return;
-  }
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  const onAbort = (): void => {
-    try {
-      void reader.cancel();
-    } catch {
-      /* non-fatal */
-    }
-  };
-  signal?.addEventListener("abort", onAbort, { once: true });
-  try {
-    for (;;) {
-      if (signal?.aborted) return;
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const parts = buffer.split("\n\n");
-      buffer = parts.pop() ?? "";
-      for (const part of parts) {
-        if (!part.trim()) continue;
-        let eventType = "";
-        const dataLines: string[] = [];
-        for (const line of part.split("\n")) {
-          if (line.startsWith("event:")) eventType = line.slice(6).trim();
-          else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
-          else if (line.startsWith(":")) continue;
-        }
-        if (!eventType) continue;
-        onEvent(eventType, dataLines.join("\n"));
-      }
-    }
-    if (buffer.trim()) {
-      let eventType = "";
-      const dataLines: string[] = [];
-      for (const line of buffer.split("\n")) {
-        if (line.startsWith("event:")) eventType = line.slice(6).trim();
-        else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
-      }
-      if (eventType) onEvent(eventType, dataLines.join("\n"));
-    }
-  } catch (err) {
-    if ((err as Error)?.name === "AbortError" || signal?.aborted) return;
-    onStreamError(err instanceof Error ? err : new Error("Stream read failed"));
-  } finally {
-    signal?.removeEventListener("abort", onAbort);
-    try {
-      reader.releaseLock();
-    } catch {
-      /* non-fatal */
-    }
-  }
 }
 
 function dispatchSse<TMeta, TItem>(
@@ -485,14 +460,16 @@ export async function streamResults(
       onError?.(err);
     },
   };
-  await readSseStream(
-    response,
-    (event, data) => dispatchSse(event, data, wrapped),
-    (err) => {
-      if (!finished) onError?.(err);
-    },
-    signal,
-  );
+  try {
+    await readSseStream(
+      response,
+      (frame) => dispatchSse(frame.event, frame.data, wrapped),
+      { signal },
+    );
+  } catch (err) {
+    if ((err as Error)?.name === "AbortError" || signal?.aborted) return;
+    if (!finished) onError?.(err instanceof Error ? err : new Error("Stream read failed"));
+  }
 }
 
 /**
@@ -534,14 +511,16 @@ export async function streamWatch(
       onError?.(err);
     },
   };
-  await readSseStream(
-    response,
-    (event, data) => dispatchSse(event, data, wrapped),
-    (err) => {
-      if (!finished) onError?.(err);
-    },
-    signal,
-  );
+  try {
+    await readSseStream(
+      response,
+      (frame) => dispatchSse(frame.event, frame.data, wrapped),
+      { signal },
+    );
+  } catch (err) {
+    if ((err as Error)?.name === "AbortError" || signal?.aborted) return;
+    if (!finished) onError?.(err instanceof Error ? err : new Error("Stream read failed"));
+  }
 }
 
 /** Serialize a `WatchQuery` into a query string for `GET /watch`. */
@@ -570,6 +549,24 @@ export async function fetchWatch(query: WatchQuery): Promise<WatchPayload> {
     "Failed to fetch breakout watch",
   );
   return { ...data, items: data.items ?? [] };
+}
+
+export interface PatternMatrixOptions {
+  limit?: number;
+  timeframes?: string[];
+}
+
+export async function fetchPatternMatrix(
+  universe: string,
+  options: PatternMatrixOptions = {},
+): Promise<PatternMatrixResponse> {
+  const params = new URLSearchParams({ universe });
+  if (options.limit != null) params.set("limit", String(options.limit));
+  for (const timeframe of options.timeframes ?? []) params.append("timeframes", timeframe);
+  return getJson<PatternMatrixResponse>(
+    `${CHART_PATTERNS_BASE}/matrix?${params.toString()}`,
+    "Failed to fetch pattern matrix",
+  );
 }
 
 /** Holiday-aware market open state (`GET /api/chart-patterns/market-status`). */

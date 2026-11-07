@@ -25,7 +25,7 @@ from typing import Any, Iterable, Optional, Union
 
 import pandas as pd
 
-from market_data.market_data import _lookback_days
+from market_data.market_data import _lookback_days, _resample_rule
 
 CACHE_DIR = Path(__file__).resolve().parent.parent / "experiments" / "data" / "pattern_cache" / "candles"
 
@@ -39,16 +39,6 @@ CACHE_VERSION = 3
 #: 5-minute window keeps repeat screens instant without serving stale data
 #: across sessions (the session pin takes over once the market closes).
 TODAY_TTL_SECONDS = 300
-
-# Target minutes -> pandas resample rule for targets that are NOT native Upstox
-# units (3m is fetched as 1m; 2h/3h/4h are fetched as 1h then resampled).
-_RESAMPLE_RULE = {
-    3: "3min",
-    120: "2h",
-    180: "3h",
-    240: "4h",
-}
-
 
 def _attr(spec: Any, name: str, default=None):
     """Read a field from a TFSpec dataclass, namedtuple or dict."""
@@ -352,14 +342,14 @@ def clear_cache(
 
 
 def _resample(df: pd.DataFrame, tf_minutes: int) -> pd.DataFrame:
-    """Resample OHLCV to tf_minutes using a rule map covering non-native targets.
+    """Resample OHLCV to tf_minutes using a rule derived from the target width.
 
     Bins are anchored to the IST session (Asia/Kolkata midnight), not UTC
     midnight: the index is converted to IST before ``resample`` and back to its
     original timezone after, so 2h/3h/3min bins align with the NSE session open.
     """
-    rule = _RESAMPLE_RULE.get(int(tf_minutes))
-    if rule is None or df is None or df.empty:
+    rule = _resample_rule(int(tf_minutes))
+    if df is None or df.empty:
         return df
     agg = {
         "open": "first",
@@ -512,12 +502,22 @@ def fetch_for_timeframe(
         if df is None or df.empty:
             return None
 
-        _write_cached(
-            cache_path,
-            df,
-            is_today,
-            session_pin=(frame_last_date(df) if tf_id == "1D" else None),
-        )
+        # Never cache a partial provider response. A transient fetch can return
+        # only the current session (e.g. 8 bars of 15m) while the requested
+        # window spans days; the short frame then feeds every caller for the
+        # TTL and a pattern scan silently reports "no pattern" because it can
+        # never reach the 60-bar detector minimum. Skip the write, still return
+        # the frame so the caller can use whatever arrived.
+        cacheable = True
+        if lookback_bars and minutes < 1440:
+            cacheable = len(df) >= min(int(lookback_bars), 60)
+        if cacheable:
+            _write_cached(
+                cache_path,
+                df,
+                is_today,
+                session_pin=(frame_last_date(df) if tf_id == "1D" else None),
+            )
 
     if include_partial_today and tf_id == "1D" and is_today:
         df = _with_partial_today(df, symbol, api_client)

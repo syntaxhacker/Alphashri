@@ -1,4 +1,5 @@
-export function formatTimeLabel(value: string): string {
-  if (!value || !value.includes("T")) return value;
-  return value.split("T")[1].substring(0, 5);
-}
+/**
+ * Re-exports from unified chart time utilities.
+ * @deprecated Use `@/utils/chart/time` directly for new code.
+ */
+export { formatChartTimeLabel as formatTimeLabel } from "@/utils/chart/time";

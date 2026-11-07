@@ -1,13 +1,5 @@
 import { describe, expect, test } from "vitest";
-import {
-  SESSION_END_MIN,
-  SESSION_MINUTES,
-  SESSION_START_MIN,
-  computeReplayCoverage,
-  coverageTone,
-  minuteLabel,
-  minuteOfDay,
-} from "./niftyReplayCoverage";
+import { SESSION_START_MIN, SESSION_END_MIN, SESSION_MINUTES, computeReplayCoverage, coverageTone, minuteLabel, minuteOfDay } from "./niftyReplayCoverage";
 
 const iso = (min: number) => {
   const h = String(Math.floor(min / 60)).padStart(2, "0");
@@ -32,6 +24,8 @@ describe("minuteOfDay", () => {
 
 describe("computeReplayCoverage", () => {
   test(`a full session is ${SESSION_MINUTES} minutes at 100%`, () => {
+    expect(SESSION_MINUTES).toBe(385);
+    expect(SESSION_END_MIN).toBe(939);
     const frames = Array.from({ length: SESSION_MINUTES }, (_, i) => ({
       t: iso(SESSION_START_MIN + i),
     }));
@@ -51,7 +45,7 @@ describe("computeReplayCoverage", () => {
     // 09:15 → 10:32 is missing (78 minutes) before the first frame.
     expect(c.gaps[0]).toEqual({ start: SESSION_START_MIN, end: 632, minutes: 78 });
     // …but the largest hole is the afternoon after the last frame (10:34).
-    expect(c.largestGap).toEqual({ start: 635, end: SESSION_END_MIN, minutes: 295 });
+    expect(c.largestGap).toEqual({ start: 635, end: SESSION_END_MIN, minutes: 305 });
   });
 
   test("holes between frames are counted once and become stepMissing", () => {
@@ -97,6 +91,6 @@ describe("coverageTone / minuteLabel", () => {
 
   test("labels", () => {
     expect(minuteLabel(SESSION_START_MIN)).toBe("09:15");
-    expect(minuteLabel(SESSION_END_MIN)).toBe("15:29");
+    expect(minuteLabel(SESSION_END_MIN)).toBe("15:39");
   });
 });

@@ -475,6 +475,17 @@ def _compute_screener(provider, mode, screener, profile_filters):
     return _sanitize_for_json(data)
 
 
+def _spawn_task(label: str, factory, *, started: str = "🔄 {label} started", failed: str = "⚠️ {label} failed: {e}"):
+    """Create a background task; return None on failure (matches existing fail-soft startup)."""
+    try:
+        task = asyncio.create_task(factory())
+        print(started.format(label=label))
+        return task
+    except Exception as e:
+        print(failed.format(label=label, e=e))
+        return None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print(f'🚀 Alphashri API starting...')
@@ -491,6 +502,8 @@ async def lifespan(app: FastAPI):
     _digest_task = None
     _touch_task = None
     _nifty_tape_task = None
+    _nifty_snapshot_task = None
+    _chain10s_task = None
     _us_tape_task = None
     _nifty_stream_task = None
     _nifty_oi_task = None
@@ -545,65 +558,23 @@ async def lifespan(app: FastAPI):
                 print("📰 News poller started")
             except Exception as e:
                 print(f"⚠️ News poller failed: {e} {traceback.format_exc()}")
-            try:
-                _prefetch_task = asyncio.create_task(news_startup_prefetch())
-                print("📰 News prefetch scheduled")
-            except Exception as e:
-                print(f"⚠️ News prefetch failed: {e}")
-            try:
-                prewarm = asyncio.create_task(screener_prewarm_task())
-                print("🔄 Screener pre-warm started")
-            except Exception as e:
-                print(f"⚠️ Screener prewarm failed: {e}")
+            _prefetch_task = _spawn_task("News prefetch", news_startup_prefetch, started="📰 News prefetch scheduled")
+            prewarm = _spawn_task("Screener pre-warm", screener_prewarm_task, started="🔄 Screener pre-warm started", failed="⚠️ Screener prewarm failed: {e}")
 
-            try:
-                _52w_task = asyncio.create_task(compute_52w_ranges_task())
-                print("📊 52W Range background task started")
-            except Exception as e:
-                print(f"⚠️ 52W Range task failed: {e}")
-                _52w_task = None
+            _52w_task = _spawn_task("52W Range", compute_52w_ranges_task, started="📊 52W Range background task started", failed="⚠️ 52W Range task failed: {e}")
 
-            try:
-                _recovery_task = asyncio.create_task(bot_auto_recovery_task())
-                print("🔄 Bot auto-recovery task started")
-            except Exception as e:
-                print(f"⚠️ Bot auto-recovery task failed: {e}")
+            _recovery_task = _spawn_task("Bot auto-recovery", bot_auto_recovery_task, started="🔄 Bot auto-recovery task started", failed="⚠️ Bot auto-recovery task failed: {e}")
 
-            try:
-                _db_backup_task = asyncio.create_task(db_backup_task())
-                print("💾 DB backup task started")
-            except Exception as e:
-                print(f"⚠️ DB backup task failed: {e}")
-                _db_backup_task = None
+            _db_backup_task = _spawn_task("DB backup", db_backup_task, started="💾 DB backup task started", failed="⚠️ DB backup task failed: {e}")
 
-            try:
-                _orderflow_recorder_task = asyncio.create_task(recorder_task())
-                print("🎙️ Order-flow recorder task started")
-            except Exception as e:
-                print(f"⚠️ Order-flow recorder task failed: {e}")
-                _orderflow_recorder_task = None
+            _orderflow_recorder_task = _spawn_task("Order-flow recorder", recorder_task, started="🎙️ Order-flow recorder task started", failed="⚠️ Order-flow recorder task failed: {e}")
 
-            try:
-                _patterns_task = asyncio.create_task(chart_patterns_bootstrap_task())
-                print("📐 Chart-patterns background task started")
-            except Exception as e:
-                print(f"⚠️ Chart-patterns task failed: {e}")
-                _patterns_task = None
+            _patterns_task = _spawn_task("Chart-patterns", chart_patterns_bootstrap_task, started="📐 Chart-patterns background task started", failed="⚠️ Chart-patterns task failed: {e}")
 
-            try:
-                _watch_task = asyncio.create_task(watch_snapshot_task())
-                print("👀 Watch snapshot background task started")
-            except Exception as e:
-                print(f"⚠️ Watch snapshot task failed: {e}")
-                _watch_task = None
+            _watch_task = _spawn_task("Watch snapshot", watch_snapshot_task, started="👀 Watch snapshot background task started", failed="⚠️ Watch snapshot task failed: {e}")
 
-            try:
-                from api.screener_api.dashboard import dashboard_prewarm_task
-                _dashboard_task = asyncio.create_task(dashboard_prewarm_task())
-                print("📊 Screener dashboard prewarm task started")
-            except Exception as e:
-                print(f"⚠️ Screener dashboard prewarm failed: {e}")
-                _dashboard_task = None
+            from api.screener_api.dashboard import dashboard_prewarm_task
+            _dashboard_task = _spawn_task("Screener dashboard prewarm", dashboard_prewarm_task, started="📊 Screener dashboard prewarm task started", failed="⚠️ Screener dashboard prewarm failed: {e}")
 
             try:
                 from api.reports_api.digest import report_digest_task
@@ -618,13 +589,28 @@ async def lifespan(app: FastAPI):
                 print(f"⚠️ Touch recorder failed: {e}")
                 _touch_task = None
 
+            from api.reports_api.nifty import start_nifty_tape_task
+            _nifty_tape_task = _spawn_task("Nifty OI tape", start_nifty_tape_task, started="📼 Nifty OI tape task started", failed="⚠️ Nifty tape task failed: {e}")
+
+            from api.reports_api.nifty import nifty_snapshot_task, SNAPSHOT_REFRESH_SEC
+            _nifty_snapshot_task = _spawn_task("Nifty snapshot refresh", nifty_snapshot_task, started=f"📸 Nifty snapshot refresh task started ({SNAPSHOT_REFRESH_SEC:.0f}s)", failed="⚠️ Nifty snapshot refresh failed: {e}")
+
+            from api.reports_api.options_recorder import start_options_recorder_task
+            _options_recorder_task = _spawn_task("Options recorder (SENSEX/RELIANCE)", start_options_recorder_task, started="📼 Options recorder (SENSEX/RELIANCE) started", failed="⚠️ Options recorder failed: {e}")
+
             try:
-                from api.reports_api.nifty import start_nifty_tape_task
-                _nifty_tape_task = asyncio.create_task(start_nifty_tape_task())
-                print("📼 Nifty OI tape task started")
+                from api.reports_api.chain10s import start_chain10s_task
+                _chain10s_task = start_chain10s_task()
+                print("⏱️ 10s chain snapshots task started" if _chain10s_task else "⏱️ 10s chain snapshots disabled")
             except Exception as e:
-                print(f"⚠️ Nifty tape task failed: {e}")
-                _nifty_tape_task = None
+                print(f"⚠️ 10s chain task failed: {e}")
+
+            try:
+                from api.reports_api.ticks import start_tick_tape_task
+                _tick_tape_task = start_tick_tape_task()
+                print("⏱️ 1s spot tick tape task started" if _tick_tape_task else "⏱️ 1s spot tick tape disabled")
+            except Exception as e:
+                print(f"⚠️ 1s tick tape task failed: {e}")
             try:
                 from api.reports_api.us_tape import start_us_tape_task
                 _us_tape_task = start_us_tape_task()
@@ -632,13 +618,8 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 print(f"⚠️ US tape task failed: {e}")
                 _us_tape_task = None
-            try:
-                from api.reports_api.nifty_stream import nifty_burst_watch_task
-                _nifty_stream_task = asyncio.create_task(nifty_burst_watch_task())
-                print("📡 Nifty burst stream watcher started")
-            except Exception as e:
-                print(f"⚠️ Nifty burst stream watcher failed: {e}")
-                _nifty_stream_task = None
+            from api.reports_api.nifty_stream import nifty_burst_watch_task
+            _nifty_stream_task = _spawn_task("Nifty burst stream watcher", nifty_burst_watch_task, started="📡 Nifty burst stream watcher started", failed="⚠️ Nifty burst stream watcher failed: {e}")
             try:
                 from api.reports_api.nifty_ws import start_nifty_spot_tick_task
                 _nifty_spot_task = start_nifty_spot_tick_task()
@@ -686,14 +667,8 @@ async def lifespan(app: FastAPI):
                 _nifty_oi_task = None
 
             # --- Event Radar ---
-            try:
-                from api.event_radar.poller import event_radar_poller
-
-                _event_radar_task = asyncio.create_task(event_radar_poller())
-                print("📅 Event radar poller started (calendar + tripwire)")
-            except Exception as e:
-                print(f"⚠️ Event radar poller failed: {e}")
-                _event_radar_task = None
+            from api.event_radar.poller import event_radar_poller
+            _event_radar_task = _spawn_task("Event radar poller", event_radar_poller, started="📅 Event radar poller started (calendar + tripwire)")
     except Exception as e:
         import traceback
         print(f"❌ Startup failed: {e}")
@@ -739,6 +714,10 @@ async def lifespan(app: FastAPI):
         _touch_task.cancel()
     if _nifty_tape_task:
         _nifty_tape_task.cancel()
+    if _nifty_snapshot_task:
+        _nifty_snapshot_task.cancel()
+    if _chain10s_task:
+        _chain10s_task.cancel()
     if _us_tape_task:
         _us_tape_task.cancel()
     try:
@@ -785,7 +764,93 @@ async def lifespan(app: FastAPI):
     print("🔌 Redis closed, DB pool disposed")
 
 
-app = FastAPI(title="Alphashri API", lifespan=lifespan)
+OPENAPI_TAGS = [
+    {"name": "health", "description": "Liveness / readiness probes."},
+    {"name": "auth", "description": "Registration, login, refresh, logout and current-user."},
+    {"name": "screeners", "description": "Saved screener CRUD (user-defined screens)."},
+    {"name": "screener", "description": "Screener scans, saved profiles and 52-week range data."},
+    {"name": "chart", "description": "OHLCV chart preview and per-symbol price series."},
+    {"name": "chart-patterns", "description": "Candlestick pattern detection, scans and timeframes."},
+    {"name": "Paper Trading", "description": "Paper portfolio, positions, trades and order simulation."},
+    {"name": "Paper Trading Live", "description": "Server-sent live price stream for open paper positions."},
+    {"name": "Bots", "description": "Multi-strategy bot lifecycle, status, logs and performance."},
+    {"name": "strategies", "description": "Strategy configuration CRUD and templates."},
+    {"name": "strategy-performance", "description": "Aggregated strategy performance metrics."},
+    {"name": "strategy-runner", "description": "Strategy runner control plane."},
+    {"name": "backtest", "description": "Backtest runs, progress, results and cost model."},
+    {"name": "reports", "description": "Generated market reports and delivery."},
+    {"name": "reports-nifty", "description": "Nifty report, bursts, structure, positioning and verdicts."},
+    {"name": "reports-nifty-intel", "description": "Nifty intelligence aggregates."},
+    {"name": "reports-us", "description": "US market reports and tape."},
+    {"name": "options", "description": "Options chain, analytics and sentiment."},
+    {"name": "options-report", "description": "Options report generation."},
+    {"name": "options-walls", "description": "Options wall / gamma exposure levels."},
+    {"name": "options-recorder", "description": "Options tick recorder control."},
+    {"name": "options-history", "description": "Historical options data."},
+    {"name": "market-ticker", "description": "Live index and commodity ticker data."},
+    {"name": "symbols", "description": "Symbol search and instrument lookup."},
+    {"name": "news", "description": "News feed, articles and sources."},
+    {"name": "news-charts", "description": "News-linked chart annotations."},
+    {"name": "value", "description": "Deep Value screener (India / USA / Global)."},
+    {"name": "events", "description": "Event Radar: scheduled corporate catalysts and intraday tripwires."},
+    {"name": "sector", "description": "Sector rotation and sector-level analytics."},
+    {"name": "rotation", "description": "Market rotation analytics."},
+    {"name": "correlation", "description": "Cross-asset correlation matrices."},
+    {"name": "heatmap", "description": "Market heatmap data."},
+    {"name": "holidays", "description": "Exchange holiday calendar."},
+    {"name": "agri", "description": "Agri commodity endpoints."},
+    {"name": "brokers", "description": "Broker connections and OAuth."},
+    {"name": "replay", "description": "Historical replay engine."},
+    {"name": "experiments", "description": "Research experiment tracking."},
+    {"name": "poc", "description": "POC / NQ strategy tooling."},
+    {"name": "Order Flow", "description": "Order flow, depth and tape (incl. /ws WebSocket bridge)."},
+    {"name": "Notifications", "description": "User notifications."},
+    {"name": "Trading Agents", "description": "Multi-agent LLM chat, analysis and streaming."},
+    {"name": "admin", "description": "Admin-only maintenance endpoints."},
+    {"name": "debug", "description": "Diagnostics — not for production use."},
+]
+
+_API_DESCRIPTION = """\
+Market data, screener, paper-trading and bot APIs for Indian (NSE) and US markets.
+
+## Authentication
+1. `POST /api/auth/login` with `{"email": "...", "password": "..."}`.
+2. Copy `access_token` from the response.
+3. Click **Authorize** (top right), paste the token into the `bearerAuth` field.
+4. Send requests; the UI adds `Authorization: Bearer <token>`.
+
+## Notes
+- Base URL in local development: `http://localhost:8765`.
+- WebSocket routes (`/ws/orderflow`, `/ws/nifty/*`) are not represented in this schema.
+- Endpoints marked with a padlock require a bearer token.
+"""
+
+app = FastAPI(
+    title="Alphashri API",
+    description=_API_DESCRIPTION,
+    version=os.getenv("APP_VERSION", "0.1.0"),
+    contact={"name": "Alphashri Support"},
+    license_info={"name": "Proprietary"},
+    servers=[
+        {"url": "http://localhost:8765", "description": "Local development"},
+    ],
+    openapi_tags=OPENAPI_TAGS,
+    lifespan=lifespan,
+)
+
+
+def _include_api(module_path: str, router_attr: str, label: str, msg: str | None = None) -> bool:
+    """Import and mount a router; fail soft and print like the existing blocks."""
+    try:
+        import importlib
+
+        module = importlib.import_module(module_path)
+        app.include_router(getattr(module, router_attr))
+        print(msg or f"✅ {label} API loaded")
+        return True
+    except Exception as e:
+        print(f"⚠️ Could not load {label} API: {e}")
+        return False
 
 
 class DynamicCORSMiddleware(BaseHTTPMiddleware):
@@ -809,15 +874,11 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(DynamicCORSMiddleware)
 
-_sector_dashboard_dir = _project_root / 'historical_sector_cycles'
-if _sector_dashboard_dir.exists():
-    app.mount("/sector", StaticFiles(directory=str(_sector_dashboard_dir), html=True), name="sector_dashboard")
 
-
-@app.get("/health")
-@app.get("/api/health")
-@app.head("/health")
-@app.head("/api/health")
+@app.get("/health", tags=["health"], summary="Liveness probe")
+@app.get("/api/health", tags=["health"], summary="Liveness probe")
+@app.head("/health", tags=["health"])
+@app.head("/api/health", tags=["health"])
 async def health():
     return {'status': 'ok', 'timestamp': datetime.now(config.IST).isoformat()}
 
@@ -848,7 +909,7 @@ def _seed_user_screeners(session, user_id: int):
     pass
 
 
-@app.get("/api/screeners")
+@app.get("/api/screeners", tags=["screeners"], summary="List saved screeners")
 async def get_screeners(user: User = Depends(get_current_user)):
     session = SessionLocal()
     try:
@@ -902,7 +963,7 @@ async def get_screeners(user: User = Depends(get_current_user)):
         session.close()
 
 
-@app.post("/api/screeners")
+@app.post("/api/screeners", tags=["screeners"], summary="Create a saved screener")
 async def create_screener(
     screener: ScreenerCreate,
     user: User = Depends(get_current_user)
@@ -930,7 +991,7 @@ async def create_screener(
         session.close()
 
 
-@app.put("/api/screeners/{screener_id}")
+@app.put("/api/screeners/{screener_id}", tags=["screeners"], summary="Update a saved screener")
 async def update_screener(
     screener_id: int,
     screener: ScreenerUpdate,
@@ -967,7 +1028,7 @@ async def update_screener(
         session.close()
 
 
-@app.delete("/api/screeners/{screener_id}")
+@app.delete("/api/screeners/{screener_id}", tags=["screeners"], summary="Delete a saved screener")
 async def delete_screener(
     screener_id: int,
     user: User = Depends(get_current_user)
@@ -988,7 +1049,7 @@ async def delete_screener(
         session.close()
 
 
-@app.get("/api/screener")
+@app.get("/api/screener", tags=["screener"], summary="Run the screener scan")
 async def get_screener_data(
     provider: str = Query(default='upstox'),
     mode: str = Query(default='intraday'),
@@ -1062,7 +1123,7 @@ async def get_screener_data(
     return response
 
 
-@app.get("/api/52w-range")
+@app.get("/api/52w-range", tags=["screener"], summary="52-week range for one symbol")
 async def get_52w_range(symbol: str = Query(...)):
     """Get 52-week high/low for a single symbol. Checks Redis first, falls back to DB."""
     from cache.redis_client import cache_get
@@ -1087,7 +1148,7 @@ async def get_52w_range(symbol: str = Query(...)):
         db.close()
 
 
-@app.get("/api/52w-range/bulk")
+@app.get("/api/52w-range/bulk", tags=["screener"], summary="52-week ranges for many symbols")
 async def get_52w_range_bulk():
     """Get 52W ranges for all symbols. Returns dict of {symbol: {high, low, close}}."""
     from cache.redis_client import cache_get
@@ -1108,12 +1169,7 @@ async def get_52w_range_bulk():
         db.close()
 
 
-try:
-    from api.strategy_performance import router as strategy_performance_router
-    app.include_router(strategy_performance_router)
-    print("✅ Strategy Performance API loaded at /api/strategy-performance")
-except Exception as e:
-    print(f"⚠️ Could not load strategy performance API: {e}")
+_include_api("api.strategy_performance", "router", "strategy performance", msg="✅ Strategy Performance API loaded at /api/strategy-performance")
 
 # ======
 # Router includes — existing modules
@@ -1131,12 +1187,7 @@ try:
 except Exception as e:
     print(f"⚠️ Could not load paper trading API: {e}")
 
-try:
-    from api.auth import router as auth_router
-    app.include_router(auth_router)
-    print("✅ Auth API loaded at /api/auth")
-except Exception as e:
-    print(f"⚠️ Could not load auth API: {e}")
+_include_api("api.auth", "router", "auth", msg="✅ Auth API loaded at /api/auth")
 
 try:
     from api.strategies import router as strategies_router
@@ -1150,131 +1201,50 @@ except ImportError as e:
 except Exception as e:
     print(f"⚠️ Could not load strategies API: {e}")
 
-try:
-    from api.market_ticker import router as market_ticker_router
-    app.include_router(market_ticker_router)
-    print("✅ Market Ticker API loaded at /api/market-ticker")
-except Exception as e:
-    print(f"⚠️ Could not load market ticker API: {e}")
+_include_api("api.market_ticker", "router", "market ticker", msg="✅ Market Ticker API loaded at /api/market-ticker")
 
-try:
-    from api.bots_api import router as bots_router
-    app.include_router(bots_router)
-    print("✅ Bots API loaded at /api/bots")
-except Exception as e:
-    print(f"⚠️ Could not load bots API: {e}")
+_include_api("api.bots_api", "router", "bots", msg="✅ Bots API loaded at /api/bots")
 
-try:
-    from api.brokers import router as brokers_router
-    app.include_router(brokers_router)
-    print("✅ Brokers API loaded at /api/brokers")
-except Exception as e:
-    print(f"⚠️ Could not load brokers API: {e}")
+_include_api("api.brokers", "router", "brokers", msg="✅ Brokers API loaded at /api/brokers")
 
-try:
-    from api.sector import router as sector_router
-    app.include_router(sector_router)
-    print("✅ Sector API loaded at /api/sector")
-except Exception as e:
-    print(f"⚠️ Could not load sector API: {e}")
+_include_api("api.sector", "router", "sector", msg="✅ Sector API loaded at /api/sector")
 
-try:
-    # import from the SUBMODULE, not the package: `from api.value_scan import router`
-    # can resolve to the module (or a stale attribute) after other imports have
-    # touched the package, which silently registers an APIRouter with no routes.
-    from api.value_scan.router import router as value_scan_router
-    app.include_router(value_scan_router)
-    print("✅ Value scan API loaded at /api/value")
-except Exception as e:
-    print(f"⚠️ Could not load value scan API: {e}")
+_include_api("api.rotation", "router", "rotation", msg="✅ Rotation API loaded at /api/rotation")
 
-try:
-    from api.options import router as options_router
-    app.include_router(options_router)
-    print("✅ Options API loaded at /api/options")
-except Exception as e:
-    print(f"⚠️ Could not load options API: {e}")
+# import from the SUBMODULE, not the package: `from api.value_scan import router`
+# can resolve to the module (or a stale attribute) after other imports have
+# touched the package, which silently registers an APIRouter with no routes.
+_include_api("api.value_scan.router", "router", "value scan", msg="✅ Value scan API loaded at /api/value")
 
-try:
-    from api.premium_tracker import router as premium_tracker_router
-    app.include_router(premium_tracker_router)
-    print("✅ Premium Tracker API loaded at /api/options/premium-tracker")
-except Exception as e:
-    print(f"⚠️ Could not load premium tracker API: {e}")
+_include_api("api.options", "router", "options", msg="✅ Options API loaded at /api/options")
 
-try:
-    from api.news_charts import router as news_charts_router
-    app.include_router(news_charts_router)
-    print("✅ News Charts API loaded at /api/news")
-except Exception as e:
-    print(f"⚠️ Could not load news charts API: {e}")
+_include_api("api.premium_tracker", "router", "premium tracker", msg="✅ Premium Tracker API loaded at /api/options/premium-tracker")
 
-try:
-    from api.holidays import router as holidays_router
-    app.include_router(holidays_router)
-    print("✅ Holidays API loaded at /api/holidays")
-except Exception as e:
-    print(f"⚠️ Could not load holidays API: {e}")
+_include_api("api.news_charts", "router", "news charts", msg="✅ News Charts API loaded at /api/news")
+
+_include_api("api.holidays", "router", "holidays", msg="✅ Holidays API loaded at /api/holidays")
+
+_include_api("api.agri.router", "router", "agri", msg="✅ Agri API loaded at /api/agri")
 
 # ======
 # Router includes — new modules
 # ======
 
-try:
-    from api.backtest_routes import router as backtest_router
-    app.include_router(backtest_router)
-    print("✅ Backtest API loaded at /api/backtest")
-except Exception as e:
-    print(f"⚠️ Could not load backtest API: {e}")
+_include_api("api.backtest_routes", "router", "backtest", msg="✅ Backtest API loaded at /api/backtest")
 
-try:
-    from api.experiment_routes import router as experiments_router
-    app.include_router(experiments_router)
-    print("✅ Experiments API loaded at /api/experiments")
-except Exception as e:
-    print(f"⚠️ Could not load experiments API: {e}")
+_include_api("api.experiment_routes", "router", "experiments", msg="✅ Experiments API loaded at /api/experiments")
 
-try:
-    from api.chart import router as chart_router
-    app.include_router(chart_router)
-    print("✅ Chart API loaded at /api/chart")
-except Exception as e:
-    print(f"⚠️ Could not load chart API: {e}")
+_include_api("api.chart", "router", "chart", msg="✅ Chart API loaded at /api/chart")
 
-try:
-    from api.chart_patterns import router as chart_patterns_router
-    app.include_router(chart_patterns_router)
-    print("✅ Chart Patterns API loaded at /api/chart-patterns")
-except Exception as e:
-    print(f"⚠️ Could not load chart patterns API: {e}")
+_include_api("api.chart_patterns", "router", "chart patterns", msg="✅ Chart Patterns API loaded at /api/chart-patterns")
 
-try:
-    from api.pattern_images import router as pattern_images_router
-    app.include_router(pattern_images_router)
-    print("✅ Pattern Images API loaded at /api/chart-patterns/images")
-except Exception as e:
-    print(f"⚠️ Could not load pattern images API: {e}")
+_include_api("api.pattern_images", "router", "pattern images", msg="✅ Pattern Images API loaded at /api/chart-patterns/images")
 
-try:
-    from api.heatmap import router as heatmap_router
-    app.include_router(heatmap_router)
-    print("✅ Heatmap API loaded at /api/heatmap")
-except Exception as e:
-    print(f"⚠️ Could not load heatmap API: {e}")
+_include_api("api.heatmap", "router", "heatmap", msg="✅ Heatmap API loaded at /api/heatmap")
 
-try:
-    from api.symbols import router as symbols_router
-    app.include_router(symbols_router)
-    print("✅ Symbols API loaded at /api/symbols")
-except Exception as e:
-    print(f"⚠️ Could not load symbols API: {e}")
+_include_api("api.symbols", "router", "symbols", msg="✅ Symbols API loaded at /api/symbols")
 
-try:
-    from api.news_routes import router as news_router
-    app.include_router(news_router)
-    print("✅ News API loaded")
-except Exception as e:
-    print(f"⚠️ Could not load news API: {e}")
+_include_api("api.news_routes", "router", "news", msg="✅ News API loaded")
 
 try:
     from api.admin_routes import router as admin_router
@@ -1286,47 +1256,33 @@ try:
 except Exception as e:
     print(f"⚠️ Could not load admin API: {e}")
 
-try:
-    from api.replay_api import router as replay_router
-    app.include_router(replay_router)
-    print("✅ Replay API loaded at /api/replay")
-except Exception as e:
-    print(f"⚠️ Could not load replay API: {e}")
+_include_api("api.replay_api", "router", "replay", msg="✅ Replay API loaded at /api/replay")
 
-try:
-    from api.strategy_runner_api import router as strategy_runner_router
-    app.include_router(strategy_runner_router)
-    print("✅ Strategy Runner API loaded at /api/strategy-runner")
-except Exception as e:
-    print(f"⚠️ Could not load strategy runner API: {e}")
+_include_api("api.strategy_runner_api", "router", "strategy runner", msg="✅ Strategy Runner API loaded at /api/strategy-runner")
 
-try:
-    from api.debug_api import router as debug_router
-    app.include_router(debug_router)
-    print("✅ Debug API loaded at /api/debug")
-except Exception as e:
-    print(f"⚠️ Could not load debug API: {e}")
+_include_api("api.reports_api.breadth", "router", "breadth", msg="✅ Breadth API loaded at /api/reports/breadth")
 
-try:
-    from api.correlation import router as correlation_router
-    app.include_router(correlation_router)
-    print("✅ Correlation API loaded at /api/correlation")
-except Exception as e:
-    print(f"⚠️ Could not load correlation API: {e}")
+_include_api("api.reports_api.movers", "router", "index movers", msg="✅ Index Movers API loaded at /api/reports/movers")
 
-try:
-    from api.trading_agents import router as trading_agents_router
-    app.include_router(trading_agents_router)
-    print("✅ TradingAgents API loaded at /api/trading-agents")
-except Exception as e:
-    print(f"⚠️ Could not load TradingAgents API: {e}")
+_include_api("api.reports_api.chain10s", "router", "10s chain", msg="✅ 10s chain API loaded at /api/reports/nifty/chain10s")
 
-try:
-    from api.poc_nq import router as poc_nq_router
-    app.include_router(poc_nq_router)
-    print("✅ POC NQ API loaded at /api/poc/nq")
-except Exception as e:
-    print(f"⚠️ Could not load POC NQ API: {e}")
+_include_api("api.reports_api.ticks", "router", "tick tape", msg="✅ Tick tape API loaded at /api/reports/nifty/ticks")
+
+_include_api("api.reports_api.options_report", "router", "options report", msg="✅ Options report API loaded at /api/reports/options")
+
+_include_api("api.reports_api.options_recorder", "router", "options recorder status", msg="✅ Options recorder status API loaded at /api/reports/options/recorder/status")
+
+_include_api("api.reports_api.options_history", "router", "options history", msg="✅ Options history API loaded at /api/reports/options/...")
+
+_include_api("api.reports_api.options_walls", "router", "options walls", msg="✅ Options walls API loaded at /api/reports/options/{symbol}/walls")
+
+_include_api("api.debug_api", "router", "debug", msg="✅ Debug API loaded at /api/debug")
+
+_include_api("api.correlation", "router", "correlation", msg="✅ Correlation API loaded at /api/correlation")
+
+_include_api("api.trading_agents", "router", "TradingAgents", msg="✅ TradingAgents API loaded at /api/trading-agents")
+
+_include_api("api.poc_nq", "router", "POC NQ", msg="✅ POC NQ API loaded at /api/poc/nq")
 
 try:
     from api.orderflow_stream import router as orderflow_router
@@ -1335,90 +1291,30 @@ try:
 except Exception as e:
     print(f"⚠️ Could not load Order Flow bridge: {e}")
 
-try:
-    from api.screener_api.dashboard import router as screener_dashboard_router
-    app.include_router(screener_dashboard_router)
-    print("✅ Screener Dashboard API loaded at /api/screener/dashboard")
-except Exception as e:
-    print(f"⚠️ Could not load screener dashboard API: {e}")
+_include_api("api.screener_api.dashboard", "router", "screener dashboard", msg="✅ Screener Dashboard API loaded at /api/screener/dashboard")
 
-try:
-    from api.reports_api.delivery import router as reports_delivery_router
-    app.include_router(reports_delivery_router)
-    print("✅ Reports delivery/events API loaded at /api/reports")
-except Exception as e:
-    print(f"⚠️ Could not load reports delivery API: {e}")
+_include_api("api.reports_api.delivery", "router", "reports delivery", msg="✅ Reports delivery/events API loaded at /api/reports")
 
-try:
-    from api.reports_api.events_feed import router as reports_events_feed_router
-    app.include_router(reports_events_feed_router)
-    print("✅ Reports events feed API loaded at /api/reports/events/upcoming|recent")
-except Exception as e:
-    print(f"⚠️ Could not load reports events feed API: {e}")
+_include_api("api.reports_api.events_feed", "router", "reports events feed", msg="✅ Reports events feed API loaded at /api/reports/events/upcoming|recent")
 
-try:
-    from api.reports_api.breakouts import router as reports_breakouts_router
-    app.include_router(reports_breakouts_router)
-    print("✅ Reports API loaded at /api/reports")
-except Exception as e:
-    print(f"⚠️ Could not load reports API: {e}")
+_include_api("api.reports_api.breakouts", "router", "reports", msg="✅ Reports API loaded at /api/reports")
 
-try:
-    from api.reports_api.followthrough import router as reports_followthrough_router
-    app.include_router(reports_followthrough_router)
-    print("✅ Reports follow-through API loaded at /api/reports/follow-through")
-except Exception as e:
-    print(f"⚠️ Could not load reports follow-through API: {e}")
+_include_api("api.reports_api.followthrough", "router", "reports follow-through", msg="✅ Reports follow-through API loaded at /api/reports/follow-through")
 
-try:
-    from api.reports_api.profitability import router as reports_profitability_router
-    app.include_router(reports_profitability_router)
-    print("✅ Reports profitability API loaded at /api/reports/profitability")
-except Exception as e:
-    print(f"⚠️ Could not load reports profitability API: {e}")
+_include_api("api.reports_api.profitability", "router", "reports profitability", msg="✅ Reports profitability API loaded at /api/reports/profitability")
 
-try:
-    from api.reports_api.market import router as reports_router
-    app.include_router(reports_router)
-    print("✅ Reports API loaded at /api/reports")
-except Exception as e:
-    print(f"⚠️ Could not load reports API: {e}")
+_include_api("api.reports_api.market", "router", "reports", msg="✅ Reports API loaded at /api/reports")
 
-try:
-    from api.reports_api.digest import router as reports_digest_router
-    app.include_router(reports_digest_router)
-    print("✅ Reports digest API loaded at /api/reports/digest/send")
-except Exception as e:
-    print(f"⚠️ Could not load reports digest API: {e}")
+_include_api("api.reports_api.digest", "router", "reports digest", msg="✅ Reports digest API loaded at /api/reports/digest/send")
 
-try:
-    from api.reports_api.nifty import router as nifty_report_router
-    app.include_router(nifty_report_router)
-    print("✅ Nifty Report API loaded at /api/reports/nifty")
-except Exception as e:
-    print(f"⚠️ Could not load Nifty Report API: {e}")
+_include_api("api.reports_api.nifty", "router", "Nifty Report", msg="✅ Nifty Report API loaded at /api/reports/nifty")
 
-try:
-    from api.reports_api.us import router as us_report_router
-    app.include_router(us_report_router)
-    print("✅ US Report API loaded at /api/reports/us")
-except Exception as e:
-    print(f"⚠️ Could not load US Report API: {e}")
+_include_api("api.reports_api.us", "router", "US Report", msg="✅ US Report API loaded at /api/reports/us")
 
-try:
-    from api.reports_api.nifty_ws import router as nifty_ws_router
-    app.include_router(nifty_ws_router)
-    print("✅ Nifty WS API loaded at /ws/nifty/report + /ws/nifty/bursts")
-except Exception as e:
-    print(f"⚠️ Could not load Nifty WS API: {e}")
+_include_api("api.reports_api.nifty_ws", "router", "Nifty WS", msg="✅ Nifty WS API loaded at /ws/nifty/report + /ws/nifty/bursts")
 
 # --- Event Radar ---
-try:
-    from api.event_radar.router import router as event_radar_router
-    app.include_router(event_radar_router)
-    print("✅ Event radar API loaded at /api/events")
-except Exception as e:
-    print(f"⚠️ Could not load event radar API: {e}")
+_include_api("api.event_radar.router", "router", "event radar", msg="✅ Event radar API loaded at /api/events")
 
 if __name__ == '__main__':
     port = config.PORT

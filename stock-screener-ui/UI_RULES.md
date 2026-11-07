@@ -36,3 +36,46 @@ Mantine-only props are silently dropped — that is the root cause of "stretched
    - `npx vitest run src/test/ui-guard.test.ts`
    - `npx vitest run src/ui/inputs/inputs.w-h.test.tsx`
    - the feature's unit tests + its E2E spec.
+
+## 6. Sector Dashboard / Rotation (hard-won rules)
+
+### Density and typography
+- Default is dense: page title 12px, description 10px, section headers 11px, table headers 9–10px, table numbers 10–10.5px, row height 18–24px.
+- No hero headings or large stat cards. Use the 28px inline summary strip.
+- Page header 36px, tabs 32px, panel headers 28px, layout gaps 4–8px.
+- Never wrap tables in `Card` + `CardContent` + `TableContainer` + `Stack` + `Grid`. Use the shared `TanStackTable` directly (`dense`, `fillContainer`, `rowWindowSize`).
+- Empty panels collapse; no large blank card bodies. Alerts and interval movers are compact custom lists, auto-height; Top Gainers fills the remaining right-rail height.
+
+### Table / Visual switch
+- Exactly two views: `Table` (dense table + rail) and `Visual` (heatmap + table + rail).
+- Both views MUST use the same grid columns: `minmax(0, 2.4fr) minmax(320px, 1fr)` at `lg`. Never change widths when toggling.
+- Toggle is a compact 22px two-button control with 9.5px labels; default `Table`; URL state is `?tab=dashboard&dash=visual`.
+- Do not add a layout that widens/narrows the table or rail on view change.
+
+### Data colors
+- Every signed number is colored: change, RS, A/D (green >, red <, neutral =), and each top-mover value. Never render a plain `+x%` / `-x%` string.
+- Heatmap uses only muted `SECTOR_*` tokens; no neon/light green/red. Labels are white; never use `colorSaturation` or dark `textBorder` on labels (they dim them). Use a subtle shadow.
+- No AI-slop purple/pink, no saturated full-panel fills.
+
+### Market hours
+- Market open is IST 09:15–15:30 on weekdays and non-holidays (`isMarketOpenNow`).
+- After close: no polling; one snapshot only; header shows `MARKET CLOSED`; refresh disabled; updated timestamp must stay unchanged.
+- Never use `isMarketClosedToday()` as a time check; it only covers holidays/weekends.
+
+### Sector / theme rotation
+- Historical Cycles is removed entirely: tab, iframe, and static mount. Do not reintroduce unless explicitly asked.
+- Rotation is MUI-only: no ECharts, no TanStackTable. CSS/MUI RRG, MUI table board/matrix, MUI drawer members.
+- Use real index/theme membership; no invented sector-level money flow. Call it rotation/participation; FII/DII is market-level.
+- Rotation URL state: `tab`, `dash`, `kind`, `period`, `min`, `group`; preserve other params.
+
+### Verification
+- Run targeted unit tests, `src/test/ui-guard.test.ts`, `src/ui/inputs/inputs.w-h.test.tsx`, build, lint.
+- Screenshot via chrome-devtools at a real desktop viewport in both `Table` and `Visual` states.
+- Measure table/rail widths before and after toggling; they must be identical.
+- When the user says "dense until I stop", choose the denser option, but never use 6px slop or unreadable 6–8px text.
+
+### No market-data computation in the UI
+- Backend owns: candle cleaning + gap fill (`intraday[].synthetic`), spot vs last close (`spot_source`, `spot_chain`), IV/skew/straddle sanity, RV/IV, wall test/rejection/break events, freshness (`data_stale`).
+- The UI renders and formats only. Allowed: memoized O(n) resample (1m→5m/15m), EMA series, annotations from server events, number/date formatting.
+- Forbidden: re-deriving indicators from raw payloads, fabricating/gap-filling candles, event detection, per-tick scans, O(n²) work, deep JSON copies inside render.
+- If a value is missing, add it to the API response — never compute it in React.

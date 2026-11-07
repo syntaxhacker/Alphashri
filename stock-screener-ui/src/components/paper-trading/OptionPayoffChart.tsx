@@ -1,3 +1,4 @@
+import { formatNumberIN } from "@/utils/ui-helpers";
 import { useEffect, useMemo, useState } from "react";
 import { ActionIcon, Badge, Collapse, Text } from "@/ui";
 import Box from "@mui/material/Box";
@@ -25,7 +26,7 @@ const CHART_HEIGHT = 210;
 
 function fmtInr(value: number): string {
   const sign = value < 0 ? "-" : "";
-  return `${sign}\u20B9${Math.abs(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+  return `${sign}\u20B9${formatNumberIN(Math.abs(value))}`;
 }
 
 function fmtK(value: number): string {
@@ -214,7 +215,7 @@ export function OptionPayoffCard({ trade }: { trade: PaperTrade }) {
           </Badge>
           <Box sx={{ display: "flex", gap: 2, ml: 1, flexWrap: "wrap", alignItems: "center" }}>
             <Stat label="Underlying" value={contract.underlying} />
-            <Stat label="Strike" value={contract.strike.toLocaleString("en-IN")} />
+            <Stat label="Strike" value={formatNumberIN(contract.strike)} />
             <Stat label="Qty" value={String(trade.quantity)} />
             <Stat label="Entry" value={fmtInr(trade.entry_price)} />
             {breakeven != null && <Stat label="Breakeven" value={fmtInr(breakeven)} />}

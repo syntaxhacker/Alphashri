@@ -557,4 +557,39 @@ describe("NiftyDepthMap active gate", () => {
     rerender(<NiftyDepthMap report={mockReport({ spot: 25800 })} />);
     expect(depthMocks.setOption).toHaveBeenCalledTimes(2);
   });
+
+  test("the option is pushed with notMerge so a long-lived tab cannot accumulate", () => {
+    r(<NiftyDepthMap report={mockReport()} />);
+    // Second arg of the first setOption call: full replacement, no merge-mode
+    // re-patching of ECharts' internal model on every 10s poll.
+    expect(depthMocks.setOption.mock.calls[0]?.[1]).toEqual({
+      notMerge: true,
+      lazyUpdate: false,
+    });
+  });
+
+  test("a report update does not re-layout the chart (resize is activation-only)", () => {
+    const { rerender } = r(<NiftyDepthMap report={mockReport()} />);
+    expect(depthMocks.resize).toHaveBeenCalledTimes(1);
+    rerender(<NiftyDepthMap report={mockReport({ spot: 25800 })} />);
+    rerender(<NiftyDepthMap report={mockReport({ spot: 25810 })} />);
+    expect(depthMocks.resize).toHaveBeenCalledTimes(1);
+    expect(depthMocks.setOption).toHaveBeenCalledTimes(3);
+  });
+
+  test("a transient empty poll keeps the ECharts engine mounted", () => {
+    const { rerender } = r(<NiftyDepthMap report={mockReport()} />);
+    expect(depthMocks.mounts).toBe(1);
+
+    rerender(<NiftyDepthMap report={mockReport({ strikes: [] })} />);
+    expect(screen.getByTestId("nifty-depth-empty")).toBeInTheDocument();
+    // Engine stays mounted (hidden) instead of being disposed and re-inited on
+    // the next poll — see the echarts-for-react unmount-before-`finished` leak.
+    expect(screen.getByTestId("nifty-depth-echarts")).toBeInTheDocument();
+    expect(depthMocks.mounts).toBe(1);
+
+    rerender(<NiftyDepthMap report={mockReport()} />);
+    expect(screen.queryByTestId("nifty-depth-empty")).not.toBeInTheDocument();
+    expect(depthMocks.mounts).toBe(1);
+  });
 });

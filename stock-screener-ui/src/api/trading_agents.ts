@@ -4,8 +4,9 @@
  */
 
 import { fetchWithAuth } from "../state/auth";
+import { iterateSse, readSseStream } from "./sse";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+import { API_BASE } from "@/api/config";
 const TRADING_AGENTS_BASE = `${API_BASE}/api/trading-agents`;
 
 export interface Conversation {
@@ -162,43 +163,29 @@ export async function* streamStockAnalysis(
     throw new Error("No response body");
   }
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
+  for await (const frame of iterateSse(response)) {
+    if (frame.data === "[DONE]") {
+      return;
+    }
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-
-    for (const line of lines) {
-      if (line.startsWith("data: ")) {
-        const data = line.slice(6);
-        if (data === "[DONE]") return;
-
-        try {
-          const parsed = JSON.parse(data);
-          // Determine event type from data
-          if (parsed.ticker && !parsed.stats) {
-            yield { event: "connected", data: parsed };
-          } else if (parsed.percent !== undefined) {
-            yield { event: "progress", data: parsed };
-          } else if (parsed.section) {
-            yield { event: "report", data: parsed };
-          } else if (parsed.error) {
-            yield { event: "error", data: parsed };
-          } else if (parsed.stats || parsed.decision) {
-            yield { event: "complete", data: parsed };
-          } else {
-            yield { event: "status", data: parsed };
-          }
-        } catch {
-          // Not JSON, skip
-        }
+    try {
+      const parsed = JSON.parse(frame.data);
+      // Determine event type from data
+      if (parsed.ticker && !parsed.stats) {
+        yield { event: "connected", data: parsed };
+      } else if (parsed.percent !== undefined) {
+        yield { event: "progress", data: parsed };
+      } else if (parsed.section) {
+        yield { event: "report", data: parsed };
+      } else if (parsed.error) {
+        yield { event: "error", data: parsed };
+      } else if (parsed.stats || parsed.decision) {
+        yield { event: "complete", data: parsed };
+      } else {
+        yield { event: "status", data: parsed };
       }
+    } catch {
+      // Not JSON, skip
     }
   }
 }
@@ -297,38 +284,13 @@ export async function fetchWithSSE(
     throw new Error("No response body");
   }
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-
-    for (const line of lines) {
-      if (line.startsWith("event: ")) {
-        const event = line.slice(7);
-        const dataLine = lines.shift();
-        if (dataLine?.startsWith("data: ")) {
-          try {
-            const data = JSON.parse(dataLine.slice(6));
-            onEvent(event, data);
-          } catch {
-            onEvent(event, dataLine.slice(6));
-          }
-        }
-      } else if (line.startsWith("data: ")) {
-        try {
-          const data = JSON.parse(line.slice(6));
-          onEvent("message", data);
-        } catch {
-          onEvent("message", line.slice(6));
-        }
-      }
+  await readSseStream(response, (frame) => {
+    let data: unknown = frame.data;
+    try {
+      data = JSON.parse(frame.data);
+    } catch {
+      /* keep raw string when the payload is not JSON */
     }
-  }
+    onEvent(frame.event, data);
+  });
 }

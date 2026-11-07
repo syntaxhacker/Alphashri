@@ -3,6 +3,7 @@ import { ActionIcon, Box, Text, Tooltip } from "@/ui";
 import { TEXT_MUTED, WARNING } from "@/ui/palette";
 import { IconChevronRight } from "@tabler/icons-react";
 import type { EventDTO } from "../../types/events";
+import { SymbolLink } from "../common/SymbolLink";
 import { EventTypeBadge } from "./EventTypeBadge";
 
 const MONTHS = [
@@ -60,9 +61,13 @@ export function buildEventColumns(onOpen: (event: EventDTO) => void): ColumnDef<
       cell: ({ row }) => {
         const event = row.original;
         return (
-          <Text size="xs" fw={700} data-testid={`event-symbol-${event.id}`}>
-            {event.symbol}
-          </Text>
+          <SymbolLink
+            symbol={event.symbol}
+            testId={`event-symbol-${event.id}`}
+            chartTestId={`event-chart-${event.id}`}
+            size="xs"
+            weight={700}
+          />
         );
       },
     },
@@ -176,6 +181,7 @@ export function buildEventColumns(onOpen: (event: EventDTO) => void): ColumnDef<
           <ActionIcon
             size="xs"
             variant="subtle"
+            style={{ width: 16, height: 16, minHeight: 16, padding: 0 }}
             aria-label={`Open ${event.symbol} event`}
             data-testid={`event-open-${event.id}`}
             onClick={(e) => {

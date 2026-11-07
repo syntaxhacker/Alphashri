@@ -51,15 +51,17 @@ export function ReplayScanControl({
           disabled={disabled}
           data-testid={`${testIdPrefix}-toggle`}
         />
-        <Button
-          size="xs"
-          variant="outline"
-          onClick={run}
-          disabled={disabled || !enabled}
-          data-testid={`${testIdPrefix}-run`}
-        >
-          Run replay
-        </Button>
+        {enabled ? (
+          <Button
+            size="xs"
+            variant="outline"
+            onClick={run}
+            disabled={disabled}
+            data-testid={`${testIdPrefix}-run`}
+          >
+            Run replay
+          </Button>
+        ) : null}
       </ToolbarRow>
       {enabled ? (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>

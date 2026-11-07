@@ -63,6 +63,10 @@ LEDGER = book.JOURNAL_DIR / "agent_positions.json"
 #: per position (``manual enter --trail-pct / --be-trigger``).
 DEFAULT_BE_TRIGGER = 0.08
 DEFAULT_TRAIL_PCT = 0.20
+# The trail must protect a winner BEFORE the breakeven trigger. On 2026-10-30
+# a short peaked at +5.1% (below the 8% BE trigger) and the gate left the stop
+# at the original 145; the wall broke and a +₹1,170 winner closed −₹1,188.
+TRAIL_ARM = 0.02
 #: The trail may give back at most 90% of the profit (a 100% trail would give
 #: back everything and stop out at breakeven).
 MAX_TRAIL_PCT = 0.9
@@ -178,6 +182,37 @@ def _save_triggers(triggers: list) -> None:
 # Marking
 # --------------------------------------------------------------------------
 def _last_tick():
+    """Latest market tick — the 10-second chain first, the 1-minute tape last.
+
+    The tape is written once a minute (``TAPE_INTERVAL_SEC = 60``), so a stop
+    could sit unseen for up to 60 s. The chain10s file is the same Upstox
+    chain sampled every 10 s; marking against it keeps the paper stops honest.
+    """
+    try:
+        path = (tape.REPO_ROOT / "experiments" / "data" / "nifty_chain10s"
+                / f"{datetime.now().strftime('%Y-%m-%d')}.jsonl")
+        if path.exists():
+            with path.open("rb") as fh:
+                fh.seek(0, 2)
+                size = fh.tell()
+                fh.seek(max(0, size - 65536))
+                lines = fh.read().decode("utf-8", "ignore").strip().splitlines()
+            if lines:
+                row = json.loads(lines[-1])
+                t = datetime.fromisoformat(row["t"])
+                age = (datetime.now(t.tzinfo) - t).total_seconds()
+                rows = row.get("rows") or []
+                chain = {float(r[0]): (float(r[1]), float(r[4])) for r in rows}
+                spot = float(row.get("spot") or 0.0)
+                if age <= 90 and chain and spot > 0:
+                    atm = min(chain, key=lambda s: abs(s - spot))
+                    ce, pe = chain[atm]
+                    return tape.Tick(t=t, spot=spot, atm_strike=atm,
+                                     ce_ltp=ce, pe_ltp=pe, ce_iv=0.0, pe_iv=0.0,
+                                     expiry=str(row.get("expiry") or ""),
+                                     chain=chain)
+    except Exception:
+        pass
     ticks = tape.load_tape(datetime.now().strftime("%Y-%m-%d"))
     return ticks[-1] if ticks else None
 
@@ -494,23 +529,26 @@ def _manage_positions(tk) -> list:
             best_fav = ((entry - best) / entry) if short else ((best - entry) / entry)
             be_trigger = float(p.get("be_trigger", DEFAULT_BE_TRIGGER))
             trail_pct = float(p.get("trail_pct", DEFAULT_TRAIL_PCT))
+            trail_arm = float(p.get("trail_arm", TRAIL_ARM))
+            hold_min = float(p.get("hold_min", 0.0))
+            held = _hold_min(p.get("entry_time"), tk.t)
             ratchet = None
-            if be_trigger > 0 and best_fav >= be_trigger:
-                be_pts = costs.break_even_move_points(entry, qty,
-                                                      is_short=short)
-                if getattr(be_pts, "found", True):
-                    ratchet = ((entry - float(be_pts)) if short
-                               else (entry + float(be_pts)))
-            trail_armed = (best_fav >= be_trigger if be_trigger > 0
-                           else best_fav > 0)
-            if trail_pct > 0 and trail_armed:
-                # The trail gives back a fraction of the **profit**, not a
-                # fraction of the premium.
-                trail_stop = (entry - (1 - trail_pct) * (entry - best) if short
-                              else entry + (1 - trail_pct) * (best - entry))
-                ratchet = (trail_stop if ratchet is None
-                           else (min(ratchet, trail_stop) if short
-                                 else max(ratchet, trail_stop)))
+            if held >= hold_min:
+                if be_trigger > 0 and best_fav >= be_trigger:
+                    be_pts = costs.break_even_move_points(entry, qty,
+                                                          is_short=short)
+                    if getattr(be_pts, "found", True):
+                        ratchet = ((entry - float(be_pts)) if short
+                                   else (entry + float(be_pts)))
+                trail_armed = best_fav >= trail_arm
+                if trail_pct > 0 and trail_armed:
+                    # The trail gives back a fraction of the **profit**, not a
+                    # fraction of the premium.
+                    trail_stop = (entry - (1 - trail_pct) * (entry - best) if short
+                                  else entry + (1 - trail_pct) * (best - entry))
+                    ratchet = (trail_stop if ratchet is None
+                               else (min(ratchet, trail_stop) if short
+                                     else max(ratchet, trail_stop)))
             if ratchet is not None:
                 new_stop = min(stop, ratchet) if short else max(stop, ratchet)
                 if abs(new_stop - stop) > 1e-9:
@@ -584,6 +622,8 @@ def cmd_enter(args) -> int:
         # The ratchet parameters travel WITH the position: the runner's
         # ratchet reads them off the ledger.
         "be_trigger": be_trigger, "trail_pct": trail_pct,
+        "trail_arm": float(getattr(args, "trail_arm", TRAIL_ARM)),
+        "hold_min": float(getattr(args, "hold_min", 0.0)),
         "last_px": {args.opt.upper(): float(args.premium), "at": tk.t.isoformat()},
         "tag": getattr(args, "tag", "") or "",
         "reason": args.reason or "agent discretionary",
@@ -591,7 +631,8 @@ def cmd_enter(args) -> int:
     _append_positions([pos])
     print(f"OPENED {direction} {pos['opt']} {pos['strike']:.0f} @ {pos['entry_premium']:.2f} "
           f"x{qty} | stop {pos['stop']:.2f} target {pos['target']:.2f} "
-          f"| trail {trail_pct:.0%} be@{be_trigger:.0%} "
+          f"| trail {trail_pct:.0%} arm@{float(getattr(args, 'trail_arm', TRAIL_ARM)):.0%} "
+          f"hold{float(getattr(args, 'hold_min', 0.0)):.0f}m be@{be_trigger:.0%} "
           f"| spot {tk.spot:.1f} at {tk.t:%H:%M}")
     return 0
 
@@ -683,6 +724,10 @@ def main(argv=None) -> int:
     e.add_argument("--be-trigger", type=float, default=DEFAULT_BE_TRIGGER,
                    help="the favourable move (as a fraction of the entry "
                         "premium) that arms the breakeven ratchet (0 disables)")
+    e.add_argument("--trail-arm", type=float, default=TRAIL_ARM,
+                   help="the favourable move (fraction of premium) that arms the trail")
+    e.add_argument("--hold-min", type=float, default=0.0,
+                   help="minutes before the trail/breakeven ratchet may move the stop")
     e.set_defaults(func=cmd_enter)
     s = sub.add_parser("status"); s.set_defaults(func=cmd_status)
     t = sub.add_parser("trigger")

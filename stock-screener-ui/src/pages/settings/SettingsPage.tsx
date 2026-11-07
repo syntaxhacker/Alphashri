@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { usePolling } from "@/hooks/usePolling";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -46,12 +47,15 @@ export function SettingsPage() {
 
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(() => {
+  }, [fetchStatus]);
+  usePolling(
+    () => {
       if (isMarketClosedToday()) return;
       fetchStatus();
-    }, 60000);
-    return () => clearInterval(interval);
-  }, [fetchStatus]);
+    },
+    60000,
+    { skipIfRunning: false },
+  );
 
   useEffect(() => {
     const connected = searchParams.get("upstox") === "connected";

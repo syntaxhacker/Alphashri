@@ -19,6 +19,8 @@
  * is declared locally and both snake_case / camelCase time fields work.
  */
 
+import { chainLeg } from "./chainTuple";
+
 /** Minimal tape row — only `t` plus the optional per-strike chain. */
 export interface ParticipantFlowRow {
   t: string;
@@ -43,12 +45,6 @@ export interface ParticipantFlowBucket {
   /** (buyers + cover) − writers across both legs. */
   net: number;
 }
-
-/** Chain leg indexes: `[ce_ltp, pe_ltp, ce_oi, pe_oi, ce_vol, pe_vol]`. */
-const CE_LTP_IDX = 0;
-const PE_LTP_IDX = 1;
-const CE_OI_IDX = 2;
-const PE_OI_IDX = 3;
 
 function finiteOrNull(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
@@ -196,17 +192,17 @@ export function buildParticipantFlow(
     const strikes = new Set([...Object.keys(chainBefore), ...Object.keys(chainAfter)]);
     for (const key of strikes) {
       if (!Number.isFinite(Number(key))) continue;
-      const legBefore = chainBefore[key];
-      const legAfter = chainAfter[key];
-      if (!Array.isArray(legBefore) || !Array.isArray(legAfter)) continue;
-      const ceOiBefore = finiteOrNull(legBefore[CE_OI_IDX]);
-      const ceOiAfter = finiteOrNull(legAfter[CE_OI_IDX]);
-      const peOiBefore = finiteOrNull(legBefore[PE_OI_IDX]);
-      const peOiAfter = finiteOrNull(legAfter[PE_OI_IDX]);
-      const cePremBefore = finiteOrNull(legBefore[CE_LTP_IDX]);
-      const cePremAfter = finiteOrNull(legAfter[CE_LTP_IDX]);
-      const pePremBefore = finiteOrNull(legBefore[PE_LTP_IDX]);
-      const pePremAfter = finiteOrNull(legAfter[PE_LTP_IDX]);
+      const strike = Number(key);
+      const legBefore = chainLeg(chainBefore, strike);
+      const legAfter = chainLeg(chainAfter, strike);
+      const ceOiBefore = legBefore.ceOi;
+      const ceOiAfter = legAfter.ceOi;
+      const peOiBefore = legBefore.peOi;
+      const peOiAfter = legAfter.peOi;
+      const cePremBefore = legBefore.ceLtp;
+      const cePremAfter = legAfter.ceLtp;
+      const pePremBefore = legBefore.peLtp;
+      const pePremAfter = legAfter.peLtp;
       if (ceOiBefore !== null && ceOiAfter !== null && cePremBefore !== null && cePremAfter !== null) {
         const dOi = ceOiAfter - ceOiBefore;
         const dPrem = cePremAfter - cePremBefore;

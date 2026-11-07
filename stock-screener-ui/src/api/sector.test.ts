@@ -61,6 +61,25 @@ describe("fetchSectorPerformance", () => {
     );
   });
 
+  it("adds force=true when bypassing the server cache", async () => {
+    const mockData: SectorResponse = {
+      sectors: [],
+      updated_at: "2024-01-01T10:00:00Z",
+    };
+
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => mockData,
+    } as Response);
+
+    await fetchSectorPerformance("india", undefined, true);
+
+    expect(mockedFetch).toHaveBeenCalledWith(
+      "http://localhost:8765/api/sector?market=india&force=true",
+      expect.any(Object),
+    );
+  });
+
   it("passes AbortSignal when provided", async () => {
     const mockSignal = new AbortController().signal;
     const mockData: SectorResponse = {

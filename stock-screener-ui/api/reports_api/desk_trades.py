@@ -25,7 +25,8 @@ from typing import Any, Iterable, Optional
 
 from fastapi import APIRouter, Query
 
-import config
+from api.reports_api._dates import validate_date
+from api.reports_api._time import today_str as _today_str
 
 router = APIRouter()
 
@@ -395,22 +396,8 @@ def collect_desk_trades(date_str: str,
 # Route
 # ---------------------------------------------------------------------------
 
-def _today_str() -> str:
-    return datetime.now(config.IST).strftime("%Y-%m-%d")
-
-
-def _validate_date(date_str: str) -> str:
-    try:
-        datetime.strptime(date_str, "%Y-%m-%d")
-    except ValueError:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=400,
-                            detail=f"bad date: {date_str!r}, want YYYY-MM-DD")
-    return date_str
-
-
 @router.get("/nifty/desk-trades")
 def get_desk_trades(date: Optional[str] = Query(
         default=None, description="Journal date YYYY-MM-DD (default: today)")):
     """Entry/exit markers + open book + realised summary for ``date``."""
-    return collect_desk_trades(_validate_date(date or _today_str()))
+    return collect_desk_trades(validate_date(date or _today_str()))

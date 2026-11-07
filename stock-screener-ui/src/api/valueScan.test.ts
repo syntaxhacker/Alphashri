@@ -37,14 +37,14 @@ describe("buildValueScanUrl", () => {
       limit: 50,
       max_pe: 15,
       min_roe: 12,
-      sort: "score_desc",
+      sort: "score",
     });
     expect(url).toContain("market=usa");
     expect(url).toContain("preset=DEEP");
     expect(url).toContain("limit=50");
     expect(url).toContain("max_pe=15");
     expect(url).toContain("min_roe=12");
-    expect(url).toContain("sort=score_desc");
+    expect(url).toContain("sort=score");
   });
 
   test("omits empty filters and joins sectors", () => {

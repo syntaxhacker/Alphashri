@@ -1,7 +1,8 @@
 import type { ReplayConfig, ReplayEvent, ReplaySavedConfig } from "../types/replay";
 import { fetchWithAuth } from "../state/auth";
+import { readSseStream } from "./sse";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+import { API_BASE } from "@/api/config";
 
 export async function fetchReplaySymbols(): Promise<string[]> {
   const response = await fetch(`${API_BASE}/api/replay/symbols`);
@@ -34,31 +35,21 @@ export function runReplay(
         throw new Error(`Replay failed: ${response.status}`);
       }
 
-      const reader = response.body!.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (!cancelled) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-
-        const parts = buffer.split("\n\n");
-        buffer = parts.pop() || "";
-
-        for (const part of parts) {
-          const dataLine = part.split("\n").find((l) => l.startsWith("data: "));
-          if (!dataLine) continue;
-
+      await readSseStream(
+        response,
+        (frame) => {
+          if (cancelled) {
+            return;
+          }
           try {
-            const event: ReplayEvent = JSON.parse(dataLine.slice(6));
+            const event: ReplayEvent = JSON.parse(frame.data);
             onEvent(event);
           } catch {
             // skip malformed events
           }
-        }
-      }
+        },
+        { signal: controller.signal },
+      );
 
       if (!cancelled) onComplete();
     } catch (err) {

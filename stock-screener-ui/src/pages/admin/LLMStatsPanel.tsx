@@ -9,7 +9,7 @@ import type { LLMStats, LLMRun, ModelUsage } from "../../types/admin";
 import { formatCost, formatResponseTime, formatDateTime, truncateUrl } from "./formatters";
 import { getStatusColor } from "../../utils/ui-helpers";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+import { API_BASE } from "@/api/config";
 
 function ModelBadges({ models }: { models: ModelUsage[] }) {
   if (!models || models.length === 0) return null;

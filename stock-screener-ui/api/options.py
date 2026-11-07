@@ -17,7 +17,6 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from db.models import get_shared_broker_token
 import config
 from api.fyers_options import resolve_fyers_option_symbol
 from api.positioning import compute_positioning
@@ -32,7 +31,6 @@ UPSTOX_BASE = "https://api.upstox.com/v2"
 # DB connection silently fell back to a months-old token instead of reporting
 # "not connected".
 PROJECT_ROOT = Path(config.BASE_DIR)
-TOKEN_FILE = PROJECT_ROOT / ".upstox_token.json"
 
 
 class OptionGreeks(BaseModel):
@@ -151,10 +149,49 @@ AVAILABLE_UNDERLYINGS = [
 
 
 def get_instrument_key(underlying: str) -> str:
+    up = str(underlying or "").upper()
     for u in AVAILABLE_UNDERLYINGS:
-        if u["symbol"] == underlying:
+        if u["symbol"] == up:
             return u["instrument_key"]
+    # F&O stocks: the option chain takes the UNDERLYING equity key
+    # (NSE_EQ|ISIN), not a synthetic NSE_INDEX|RELIANCE.
+    stock = _stock_instrument_map().get(up)
+    if stock:
+        return stock
     return f"NSE_INDEX|{underlying}"
+
+
+#: ``trading_symbol``/company name -> NSE_EQ instrument key. Lazy, 1h TTL.
+_STOCK_MAP: dict = {"ts": 0.0, "map": {}}
+
+
+def _stock_instrument_map() -> dict:
+    now = time.monotonic()
+    if _STOCK_MAP["map"] and now - _STOCK_MAP["ts"] < 3600:
+        return _STOCK_MAP["map"]
+    path = PROJECT_ROOT.parent / "upstox_trader" / "config_and_utils" / "nse_instruments.json"
+    mapping: dict[str, str] = {}
+    try:
+        if path.exists():
+            with open(path) as fh:
+                data = json.load(fh)
+            for item in data:
+                if item.get("segment") != "NSE_EQ" or item.get("instrument_type") != "EQ":
+                    continue
+                key = item.get("instrument_key")
+                if not key:
+                    continue
+                sym = str(item.get("trading_symbol") or "").upper()
+                if sym:
+                    mapping[sym] = key
+                name = str(item.get("name") or "").upper()
+                if name:
+                    mapping.setdefault(name, key)
+    except Exception:
+        return _STOCK_MAP["map"]
+    _STOCK_MAP["map"] = mapping
+    _STOCK_MAP["ts"] = now
+    return mapping
 
 
 #: Token lookups are a synchronous SQLite round-trip. One Nifty tape tick used
@@ -163,53 +200,29 @@ def get_instrument_key(underlying: str) -> str:
 #: Under write contention that is 5s per lookup (SQLAlchemy's SQLite
 #: ``busy_timeout``) — measured as the repeated /api/health timeouts. The
 #: token only changes on OAuth reconnect, so a short TTL is safe and keeps a
-#: reconnect visible within seconds.
+#: reconnect visible within seconds. Resolution now lives in
+#: :mod:`api.upstox_token` (DB -> token file; no env fallback).
 _TOKEN_TTL_SEC = 30.0
-_token_cache: dict = {"token": None, "ts": 0.0}
 
 
 def clear_upstox_token_cache() -> None:
     """Drop the cached token (call after an OAuth connect/disconnect)."""
-    _token_cache["token"] = None
-    _token_cache["ts"] = 0.0
+    from api.upstox_token import clear_upstox_token_cache as _clear
+
+    _clear()
 
 
 def get_upstox_token() -> str:
     """Get Upstox access token from DB or token file (30s in-process cache).
 
-    Environment variable fallback is intentionally not used to ensure
-    disconnect properly clears the connection state. Tokens should be
-    managed via the OAuth flow (stored in DB).
+    Resolution order: DB (OAuth) -> token file. Environment variable
+    fallback is intentionally not used so that disconnect properly clears
+    the connection state. Tokens should be managed via the OAuth flow
+    (stored in DB). Raises HTTPException(401) when no token is configured.
     """
-    now = time.monotonic()
-    cached = _token_cache["token"]
-    if cached and now - _token_cache["ts"] < _TOKEN_TTL_SEC:
-        return cached
+    from api.upstox_token import require_upstox_token
 
-    token = None
-    # 1. Check database first (OAuth tokens)
-    token_data = get_shared_broker_token("upstox")
-    if token_data and token_data.get("access_token"):
-        token = token_data["access_token"]
-
-    # 2. Check token file (legacy fallback)
-    if not token and TOKEN_FILE.exists():
-        try:
-            with open(TOKEN_FILE, "r") as f:
-                token_data = json.load(f)
-            token = token_data.get("access_token")
-        except (json.JSONDecodeError, KeyError):
-            token = None
-
-    if token:
-        _token_cache["token"] = token
-        _token_cache["ts"] = now
-        return token
-
-    raise HTTPException(
-        status_code=401,
-        detail="Upstox access token not configured. Go to Settings to connect your Upstox account."
-    )
+    return require_upstox_token(use_env=False, cache_ttl=_TOKEN_TTL_SEC)
 
 
 #: Hard ceiling for a single Upstox REST call. The chain/contract endpoints

@@ -14,13 +14,23 @@ import { store } from "./state/store";
 import "@/ui/styles.css";
 
 if (import.meta.env.VITE_SENTRY_DSN) {
+  // Session Replay records every DOM mutation. On the Index Report (1 Hz spot
+  // tick, thousands of table cells, chart overlays) it can pin hundreds of MB
+  // for the life of the tab. Keep it opt-in for a deliberate debugging run.
+  const replayEnabled = import.meta.env.VITE_SENTRY_REPLAY === "1";
   Sentry.init({
     dsn: import.meta.env.VITE_SENTRY_DSN,
     environment: import.meta.env.MODE,
-    integrations: [Sentry.browserTracingIntegration(), Sentry.replayIntegration()],
+    integrations: [
+      Sentry.browserTracingIntegration(),
+      ...(replayEnabled
+        ? [Sentry.replayIntegration({ maskAllText: true, blockAllMedia: true })]
+        : []),
+    ],
     tracesSampleRate: 0.1,
-    replaysSessionSampleRate: 0.1,
-    replaysOnErrorSampleRate: 1.0,
+    ...(replayEnabled
+      ? { replaysSessionSampleRate: 0.05, replaysOnErrorSampleRate: 0.25 }
+      : {}),
   });
 }
 

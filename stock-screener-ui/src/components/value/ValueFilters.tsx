@@ -20,11 +20,11 @@ interface ValueFiltersProps {
 }
 
 const SORT_OPTIONS = [
-  { value: "score_desc", label: "Score ↓" },
-  { value: "pe_asc", label: "P/E ↑" },
-  { value: "fcf_desc", label: "FCF% ↓" },
-  { value: "div_desc", label: "Div% ↓" },
-  { value: "roe_desc", label: "ROE% ↓" },
+  { value: "score", label: "Score ↓" },
+  { value: "pe", label: "P/E ↑" },
+  { value: "fcf_yield", label: "FCF% ↓" },
+  { value: "dist_52w", label: "52W dist ↑" },
+  { value: "roe", label: "ROE% ↓" },
 ];
 
 const LIMIT_OPTIONS = [
@@ -101,7 +101,7 @@ export function ValueFilters({ filters, onChange, sectorOptions = [] }: ValueFil
         <Select
           label="Sort"
           data={SORT_OPTIONS}
-          value={filters.sort ?? "score_desc"}
+          value={filters.sort ?? "score"}
           onChange={(v) => onChange({ sort: v ?? undefined })}
           w={130}
           size="sm"

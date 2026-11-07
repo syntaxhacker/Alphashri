@@ -1,3 +1,4 @@
+import { formatNumberIN } from "@/utils/ui-helpers";
 import { memo, useMemo } from "react";
 import Box from "@mui/material/Box";
 import { Text } from "@/ui";
@@ -45,7 +46,7 @@ const PAD_B = 18;
 /** Strike with Indian grouping (`23,500`), dash when absent. */
 export function formatWallStrike(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return "—";
-  return Math.round(v).toLocaleString("en-IN");
+  return formatNumberIN(Math.round(v));
 }
 
 /** Step path (`H` then `V`) through finite points; gaps break the path. */

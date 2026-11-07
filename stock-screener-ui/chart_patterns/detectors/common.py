@@ -377,6 +377,27 @@ def fit_window_pair(
     return H, L, upper, lower
 
 
+def _fit_pair(
+    df: pd.DataFrame,
+    ctx: dict,
+    start: int,
+    max_pivots: int | None = None,
+) -> tuple[
+    list[tuple[int, float]],
+    list[tuple[int, float]],
+    tuple[float, float, float],
+    tuple[float, float, float],
+] | None:
+    """Fit swing-high and swing-low lines to the trailing pivots in a window.
+
+    Single source for the pivot-window fit previously duplicated as
+    ``detectors/reversal._fit_pair`` (always ``max_pivots=None``) and
+    ``detectors/continuation._fit_pair`` (default 5, but every call site passes
+    ``max_pivots=None``). Delegates to :func:`fit_window_pair`.
+    """
+    return fit_window_pair(df, ctx, start, max_pivots=max_pivots)
+
+
 def pattern_end(
     H: list[tuple[int, float]],
     L: list[tuple[int, float]],

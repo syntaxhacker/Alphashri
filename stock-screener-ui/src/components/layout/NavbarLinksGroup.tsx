@@ -34,6 +34,11 @@ export function NavbarLinksGroup({
       data-testid={testId}
       data-active={active || undefined}
       id={`nav-link-${label.toLowerCase().replace(/\s+/g, "-")}`}
+      // The rail collapses to an icon strip, so the visible text disappears.
+      // Keep the name on the interactive element itself — a Tooltip wrapper is
+      // a sibling span and never contributes to the button's accessible name.
+      aria-label={label}
+      title={label}
       sx={{
         borderRadius: 1,
         justifyContent: collapsed ? "center" : "flex-start",

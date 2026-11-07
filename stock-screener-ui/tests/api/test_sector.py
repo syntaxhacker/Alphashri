@@ -29,6 +29,7 @@ from api.sector import (
     StockMover,
     SectorResponse,
     get_sector_performance,
+    clear_sector_cache,
 )
 
 
@@ -42,6 +43,14 @@ SAMPLE_SECTOR_DATA = pd.DataFrame({
     'RSI': [65.0, 45.0, 70.0, 55.0, 48.0, 72.0],
     'ADX': [35.0, 25.0, 40.0, 20.0, 30.0, 38.0],
 })
+
+
+@pytest.fixture(autouse=True)
+def _clear_response_cache():
+    """The endpoint caches per (market, limit); keep tests isolated."""
+    clear_sector_cache()
+    yield
+    clear_sector_cache()
 
 
 @pytest.fixture
@@ -248,3 +257,70 @@ class TestSectorEndpoints:
         data = _fetch_sector_data(mock_tvquery_cls, sector_client, params={"market": "india"})
         parsed = datetime.fromisoformat(data["last_updated"])
         assert isinstance(parsed, datetime)
+
+
+class TestSectorResponseCache:
+    """The dashboard polls this endpoint; one upstream scan is shared briefly."""
+
+    @patch('api.sector.TVQuery')
+    def test_repeat_request_within_ttl_uses_cache(self, mock_tvquery_cls, sector_client):
+        mock_query = _setup_mock_tvquery(mock_tvquery_cls)
+
+        first = sector_client.get("/api/sector", params={"market": "india"})
+        second = sector_client.get("/api/sector", params={"market": "india"})
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert mock_query.get_scanner_data.call_count == 1
+        assert first.json()["last_updated"] == second.json()["last_updated"]
+
+    @patch('api.sector.TVQuery')
+    def test_cache_is_per_market(self, mock_tvquery_cls, sector_client):
+        mock_query = _setup_mock_tvquery(mock_tvquery_cls)
+
+        sector_client.get("/api/sector", params={"market": "india"})
+        sector_client.get("/api/sector", params={"market": "america"})
+
+        assert mock_query.get_scanner_data.call_count == 2
+
+    @patch('api.sector.TVQuery')
+    def test_force_bypasses_cache(self, mock_tvquery_cls, sector_client):
+        mock_query = _setup_mock_tvquery(mock_tvquery_cls)
+
+        sector_client.get("/api/sector", params={"market": "india"})
+        sector_client.get("/api/sector", params={"market": "india", "force": "true"})
+
+        assert mock_query.get_scanner_data.call_count == 2
+
+    @patch('api.sector.TVQuery')
+    def test_expired_entry_refetches(self, mock_tvquery_cls, sector_client):
+        mock_query = _setup_mock_tvquery(mock_tvquery_cls)
+
+        with patch('api.sector.SECTOR_CACHE_TTL_SECONDS', 0.0):
+            sector_client.get("/api/sector", params={"market": "india"})
+            sector_client.get("/api/sector", params={"market": "india"})
+
+        assert mock_query.get_scanner_data.call_count == 2
+
+    @patch('api.sector.TVQuery')
+    def test_failed_refresh_serves_recent_stale_snapshot(self, mock_tvquery_cls, sector_client):
+        mock_query = _setup_mock_tvquery(mock_tvquery_cls)
+        first = sector_client.get("/api/sector", params={"market": "india"})
+        assert first.status_code == 200
+
+        mock_query.get_scanner_data.side_effect = Exception("TradingView timeout")
+        with patch('api.sector.SECTOR_CACHE_TTL_SECONDS', 0.0):
+            second = sector_client.get("/api/sector", params={"market": "india"})
+
+        assert second.status_code == 200
+        assert second.json()["last_updated"] == first.json()["last_updated"]
+
+    @patch('api.sector.TVQuery')
+    def test_error_without_snapshot_still_500s(self, mock_tvquery_cls, sector_client):
+        mock_query = _setup_mock_tvquery(mock_tvquery_cls)
+        mock_query.get_scanner_data.side_effect = Exception("TradingView timeout")
+
+        response = sector_client.get("/api/sector", params={"market": "india"})
+
+        assert response.status_code == 500
+        assert "TradingView timeout" in response.json()["detail"]

@@ -14,6 +14,7 @@
 import type { NiftyTape, NiftyTapeRow } from "@/types/niftyReport";
 import * as palette from "@/ui/palette";
 import { hexToRgba } from "@/utils/color";
+import { ascTapeByTime } from "./tapeRange";
 import {
   formatReportClock,
   formatReportCompact,
@@ -27,7 +28,7 @@ import {
  * desk, blue call/put deltas, brown Net, blue/brown Spot-flip).
  * Scoped to this table only; the global app palette stays untouched.
  */
-export const TAPE_TERM_BG = "#000000";
+export const TAPE_TERM_BG = palette.BG;
 export const TAPE_SPOT = "#F2CC60";
 export const TAPE_CALL_DOI = "#80B5FF";
 export const TAPE_PUT_DOI = "#8AA4C2";
@@ -133,7 +134,7 @@ export function tapeHeat(
  * The first recorded row (and any unparseable pair) has no entry.
  */
 export function computeSpotDeltas(rows: NiftyTapeRow[]): Map<string, number> {
-  const asc = [...rows].sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
+  const asc = ascTapeByTime(rows);
   const out = new Map<string, number>();
   for (let i = 1; i < asc.length; i++) {
     const prev = asc[i - 1];
@@ -162,7 +163,7 @@ export function computeTapeSession(rows: NiftyTapeRow[]): {
   let spotLo = Infinity;
   let maxCallDoi = 0;
   let maxPutDoi = 0;
-  const asc = [...rows].sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
+  const asc = ascTapeByTime(rows);
   for (const r of rows) {
     if (Number.isFinite(r.spot)) {
       spotHi = Math.max(spotHi, r.spot);
@@ -235,7 +236,7 @@ export function getTapeBaseline(tape?: NiftyTape, rows?: NiftyTapeRow[]): string
       : "";
   if (explicit) return explicit;
   if (rows && rows.length > 0) {
-    const asc = [...rows].sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
+    const asc = ascTapeByTime(rows);
     const hhmm = formatTapeBaseline(asc[0]?.t);
     if (hhmm) return hhmm;
   }
@@ -270,7 +271,7 @@ export function buildTapeHead(
   wallPut: number;
   spot: number;
 } {
-  const asc = [...rows].sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
+  const asc = ascTapeByTime(rows);
   const first = asc[0];
   const last = asc[asc.length - 1];
   const pick = (rowVal: number, sumVal?: number): number =>
