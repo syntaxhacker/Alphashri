@@ -1755,3 +1755,121 @@ def test_symbol_chart_detect_patterns_engine_error_still_200(cp_client, monkeypa
     body = chart.json()
     assert body["hits"] == []
     assert len(body["candles"]) == 80
+
+
+# ---------------------------------------------------------------------------
+# GET /hit/{hit_id}: fullscreen opens a single stored row (404 closes it).
+# ---------------------------------------------------------------------------
+
+
+def _seed_hit_row(job_id: str = "cpj_hit") -> int:
+    store.save_job({
+        "job_id": job_id, "universe": "nifty500", "timeframe": "1D", "status": "completed",
+    })
+    store.save_hits(job_id, [_hit("IRCON", name="Ircon International")])
+    items, _, _ = store.query_results({"job_id": job_id})
+    assert len(items) == 1
+    return items[0]["id"]
+
+
+def test_get_hit_returns_stored_row(cp_client, test_db_engine, monkeypatch):
+    # ``get_hit`` imports SessionLocal directly instead of using ``get_db``, so
+    # bind the module-level session factory to the in-memory test engine.
+    factory = sessionmaker(autocommit=False, autoflush=False, bind=test_db_engine)
+    monkeypatch.setattr("db.database.SessionLocal", factory)
+    hit_id = _seed_hit_row()
+
+    resp = cp_client.get(f"/api/chart-patterns/hit/{hit_id}")
+    assert resp.status_code == 200
+    row = resp.json()
+
+    assert row["id"] == hit_id
+    assert row["job_id"] == "cpj_hit"
+    assert row["symbol"] == "IRCON"
+    assert row["name"] == "Ircon International"
+    assert row["timeframe"] == "1D"
+    assert row["pattern_id"] == "falling_wedge"
+    assert row["pattern_name"] == "Falling Wedge"
+    assert row["family"] == "reversal"
+    assert row["direction"] == "bullish"
+    assert row["status"] == "confirmed"
+    assert row["quality"] == "strong"
+    assert row["confidence"] == pytest.approx(78.4)
+    assert row["start_date"] == "2026-04-26"
+    assert row["end_date"] == "2026-09-26"
+    assert row["start_price"] == pytest.approx(129.8)
+    assert row["end_price"] == pytest.approx(112.6)
+    assert row["breakout_level"] == pytest.approx(112.6)
+    assert row["target"] == pytest.approx(129.6)
+    assert row["stop"] == pytest.approx(102.5)
+    assert row["rr"] == pytest.approx(1.7)
+    assert row["bars_ago"] == 1
+    assert row["volume_confirmed"] is True
+    assert row["trendlines"] == _hit("IRCON")["trendlines"]
+    assert row["notes"] == "synthetic"
+
+
+def test_get_hit_unknown_id_404(cp_client, test_db_engine, monkeypatch):
+    factory = sessionmaker(autocommit=False, autoflush=False, bind=test_db_engine)
+    monkeypatch.setattr("db.database.SessionLocal", factory)
+    _seed_hit_row()
+
+    resp = cp_client.get("/api/chart-patterns/hit/999999")
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Pattern hit not found"
+
+
+def test_get_hit_non_integer_id_422(cp_client):
+    resp = cp_client.get("/api/chart-patterns/hit/not-an-id")
+    assert resp.status_code == 422
+    detail = resp.json()["detail"]
+    assert isinstance(detail, list) and detail
+    assert any("hit_id" in err.get("loc", []) for err in detail)
+
+
+# ---------------------------------------------------------------------------
+# /results consolidation filters (base_days / range_pct) — store-level filters
+# exist in test_chart_patterns_consolidation.py; this pins the endpoint contract.
+# ---------------------------------------------------------------------------
+
+
+def test_results_consolidation_filters(cp_client):
+    store.save_job({
+        "job_id": "cpj_cons_api", "universe": "nifty500", "timeframe": "1D",
+        "status": "completed",
+    })
+    store.save_hits("cpj_cons_api", [
+        dict(_hit("LONG_TIGHT"), base_days=180, range_pct=6.0),
+        dict(_hit("SHORT_TIGHT"), base_days=30, range_pct=5.0),
+        dict(_hit("LONG_WIDE"), base_days=150, range_pct=18.0),
+    ])
+
+    base_only = cp_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_cons_api", "min_base_days": 90},
+    )
+    assert base_only.status_code == 200
+    assert {item["symbol"] for item in base_only.json()["items"]} == {"LONG_TIGHT", "LONG_WIDE"}
+
+    range_only = cp_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_cons_api", "max_range_pct": 10.0},
+    )
+    assert range_only.status_code == 200
+    assert {item["symbol"] for item in range_only.json()["items"]} == {"LONG_TIGHT", "SHORT_TIGHT"}
+
+    both = cp_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_cons_api", "min_base_days": 90, "max_range_pct": 10.0},
+    )
+    assert both.status_code == 200
+    body = both.json()
+    assert body["total"] == 1
+    assert body["items"][0]["symbol"] == "LONG_TIGHT"
+
+    summary = cp_client.get(
+        "/api/chart-patterns/summary",
+        params={"job_id": "cpj_cons_api", "min_base_days": 90, "max_range_pct": 10.0},
+    )
+    assert summary.status_code == 200
+    assert summary.json()["patterns"] == 1

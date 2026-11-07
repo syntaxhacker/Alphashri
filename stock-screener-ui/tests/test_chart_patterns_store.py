@@ -177,6 +177,55 @@ def test_delete_hits_for_keeps_current_job(cp_store):
     assert total_new == 1
 
 
+def test_delete_hits_for_isolates_universes_same_timeframe(cp_store):
+    """Superseding one universe must never wipe another scope's results."""
+    store.save_job({"job_id": "cpj_n50_old", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
+    store.save_hits("cpj_n50_old", [_hit("AAA")])
+    store.save_job({"job_id": "cpj_n50_keep", "universe": "nifty50", "timeframe": "1D", "status": "running"})
+    store.save_hits("cpj_n50_keep", [_hit("BBB")])
+    store.save_job({"job_id": "cpj_n500", "universe": "nifty500", "timeframe": "1D", "status": "completed"})
+    store.save_hits("cpj_n500", [_hit("CCC")])
+    store.save_job({"job_id": "cpj_custom", "universe": "custom", "timeframe": "1D", "status": "completed"})
+    store.save_hits("cpj_custom", [_hit("DDD")])
+
+    assert store.delete_hits_for("nifty50", "1D", keep_job_id="cpj_n50_keep") == 1
+
+    _, total_old, _ = store.query_results({"job_id": "cpj_n50_old"})
+    _, total_keep, _ = store.query_results({"job_id": "cpj_n50_keep"})
+    _, total_n500, _ = store.query_results({"job_id": "cpj_n500"})
+    _, total_custom, _ = store.query_results({"job_id": "cpj_custom"})
+    assert total_old == 0
+    assert total_keep == 1
+    assert total_n500 == 1
+    assert total_custom == 1
+
+
+def test_delete_hits_for_isolates_timeframes_same_universe(cp_store):
+    """A 1D supersede must leave the same universe's 15m rows intact."""
+    store.save_job({"job_id": "cpj_n50_1d", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
+    store.save_hits("cpj_n50_1d", [_hit("AAA")])
+    store.save_job({"job_id": "cpj_n50_15m", "universe": "nifty50", "timeframe": "15m", "status": "completed"})
+    store.save_hits("cpj_n50_15m", [_hit("BBB", timeframe="15m")])
+
+    assert store.delete_hits_for("nifty50", "1D") == 1
+
+    _, total_1d, _ = store.query_results({"job_id": "cpj_n50_1d"})
+    _, total_15m, _ = store.query_results({"job_id": "cpj_n50_15m"})
+    assert total_1d == 0
+    assert total_15m == 1
+
+
+def test_delete_hits_for_no_matching_jobs_is_noop(cp_store):
+    store.save_job({"job_id": "cpj_keep", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
+    store.save_hits("cpj_keep", [_hit("AAA")])
+
+    assert store.delete_hits_for("nope_universe", "1D") == 0
+    assert store.delete_hits_for("nifty50", "15m") == 0
+
+    _, total, _ = store.query_results({"job_id": "cpj_keep"})
+    assert total == 1
+
+
 def test_latest_completed_job_returns_newest(cp_store):
     store.save_job({
         "job_id": "cpj_old_c", "universe": "nifty50", "timeframe": "1D",
@@ -360,3 +409,18 @@ def test_symbol_detail_attaches_breakout_score(cp_store):
     detail = store.get_symbol_detail("AAA", "1D")
 
     assert detail["patterns"][0]["breakout_score"] == 90.5
+
+
+def test_delete_hits_for_scopes_custom_scans_by_symbol(cp_store):
+    store.save_job({"job_id": "cpj_old", "universe": "custom", "timeframe": "1D",
+                    "status": "completed", "total": 2, "done": 2})
+    store.save_job({"job_id": "cpj_new", "universe": "custom", "timeframe": "1D",
+                    "status": "completed", "total": 1, "done": 1})
+    store.save_hits("cpj_old", [_hit("INFY"), _hit("BSE")])
+    store.save_hits("cpj_new", [_hit("BSE")])
+
+    deleted = store.delete_hits_for("custom", "1D", keep_job_id="cpj_new", symbols=["BSE"])
+
+    assert deleted == 1
+    items, _, _ = store.query_results({"universe": "custom", "timeframe": "1D"})
+    assert sorted(row["symbol"] for row in items) == ["BSE", "INFY"]
