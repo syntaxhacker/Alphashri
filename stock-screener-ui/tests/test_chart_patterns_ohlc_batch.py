@@ -58,6 +58,28 @@ def _batch_bar(open_=210.0, high=212.0, low=209.0, close=211.0, volume=5000.0):
     return md._ohlc_bar_frame(open_, high, low, close, volume)
 
 
+def _ist_at(hour: int = 10, minute: int = 30, day_offset: int = 0) -> datetime:
+    import config
+    from datetime import timedelta as _timedelta
+
+    base = datetime.now(config.IST).replace(
+        hour=hour, minute=minute, second=0, microsecond=0
+    )
+    return base - _timedelta(days=day_offset)
+
+
+def _epoch_ms(dt: datetime) -> int:
+    return int(dt.timestamp() * 1000)
+
+
+def _today_ts_ms(hour: int = 10, minute: int = 30) -> int:
+    return _epoch_ms(_ist_at(hour, minute, 0))
+
+
+def _yesterday_ts_ms(hour: int = 10, minute: int = 30) -> int:
+    return _epoch_ms(_ist_at(hour, minute, 1))
+
+
 @pytest.fixture
 def cp_store(test_db_engine):
     from sqlalchemy.orm import sessionmaker
@@ -99,18 +121,19 @@ def test_fetch_ohlc_batch_parses_mocked_response(monkeypatch):
     def fake_ohlc(*args, **kwargs):
         calls["interval"] = kwargs.get("interval")
         calls["keys"] = kwargs.get("instrument_key")
+        ts = _today_ts_ms()
         return {
             "data": {
                 "NSE_EQ|123": {
                     "live_ohlc": {
                         "open": 100.0, "high": 110.0, "low": 90.0,
-                        "close": 105.0, "volume": 5000.0,
+                        "close": 105.0, "volume": 5000.0, "ts": ts,
                     },
                 },
                 "NSE_EQ|456": {
                     "live_ohlc": {
                         "open": 200.0, "high": 210.0, "low": 190.0,
-                        "close": 205.0, "volume": 6000.0,
+                        "close": 205.0, "volume": 6000.0, "ts": ts,
                     },
                 },
             },
@@ -298,3 +321,212 @@ def test_scan_non_trading_day_skips_batch(cp_store, monkeypatch, tmp_path):
     assert tape_calls == []
     items, total, _ = store.query_results({"job_id": "cpj_nonsession"})
     assert total == 1
+
+
+# ---------------------------------------------------------------------------
+# Freshness: stale quotes (yesterday / pre-market) yield no bar.
+# ---------------------------------------------------------------------------
+
+
+def _mock_batch(monkeypatch, key_map, data):
+    monkeypatch.setattr(
+        md, "get_api_client",
+        lambda: SimpleNamespace(auth_handler=SimpleNamespace(access_token="tok")),
+    )
+    monkeypatch.setattr(md, "_ohlc_instrument_keys", lambda syms: dict(key_map))
+    monkeypatch.setattr(
+        "upstox_client.api.market_quote_v3_api.MarketQuoteV3Api.get_market_quote_ohlc",
+        lambda *args, **kwargs: {"data": data},
+    )
+
+
+def test_fetch_ohlc_batch_rejects_stale_timestamp(monkeypatch):
+    """Yesterday's session close is not stamped as today's bar."""
+    _mock_batch(
+        monkeypatch,
+        {"FRESH": "NSE_EQ|111", "STALE": "NSE_EQ|222"},
+        {
+            "NSE_EQ|111": {
+                "live_ohlc": {
+                    "open": 100.0, "high": 110.0, "low": 90.0,
+                    "close": 105.0, "volume": 1000.0, "ts": _today_ts_ms(),
+                },
+            },
+            "NSE_EQ|222": {
+                "live_ohlc": {
+                    "open": 100.0, "high": 110.0, "low": 90.0,
+                    "close": 105.0, "volume": 1000.0, "ts": _yesterday_ts_ms(),
+                },
+            },
+        },
+    )
+    out = md.fetch_ohlc_batch(["FRESH", "STALE"])
+    assert set(out) == {"FRESH"}
+
+
+def test_fetch_ohlc_batch_rejects_stale_iso_timestamp(monkeypatch):
+    """ISO-string timestamps are checked in IST the same way."""
+    stale_iso = _ist_at(10, 30, day_offset=1).isoformat()
+    _mock_batch(
+        monkeypatch,
+        {"STALE": "NSE_EQ|222"},
+        {
+            "NSE_EQ|222": {
+                "live_ohlc": {
+                    "open": 100.0, "high": 110.0, "low": 90.0,
+                    "close": 105.0, "volume": 1000.0, "ts": stale_iso,
+                },
+            },
+        },
+    )
+    assert md.fetch_ohlc_batch(["STALE"]) == {}
+
+
+def test_fetch_ohlc_batch_accepts_after_close_timestamp(monkeypatch):
+    """After-hours quote with today's timestamp still yields the bar."""
+    monkeypatch.setattr("trading.utils.is_market_open", lambda *a, **k: False)
+    _mock_batch(
+        monkeypatch,
+        {"RELIANCE": "NSE_EQ|123"},
+        {
+            "NSE_EQ|123": {
+                "live_ohlc": {
+                    "open": 100.0, "high": 110.0, "low": 90.0,
+                    "close": 105.0, "volume": 5000.0, "ts": _today_ts_ms(16, 0),
+                },
+            },
+        },
+    )
+    out = md.fetch_ohlc_batch(["RELIANCE"])
+    assert set(out) == {"RELIANCE"}
+
+
+def test_fetch_ohlc_batch_pre_market_guard_rejects_without_timestamp(monkeypatch):
+    """No timestamp pre-market: no bar (scan's tape path returns nothing)."""
+    monkeypatch.setattr("trading.utils.is_market_open", lambda *a, **k: False)
+    monkeypatch.setattr("trading.utils.is_trading_holiday", lambda *a, **k: False)
+    # Pin wall clock to pre-market so the after-close clause cannot accept.
+    real_datetime = datetime
+
+    class _FakeDateTime(real_datetime):
+        @classmethod
+        def now(cls, tz=None):
+            fixed = real_datetime(2026, 11, 6, 8, 0, tzinfo=md._IST)
+            return fixed if tz is not None else fixed.replace(tzinfo=None)
+
+    monkeypatch.setattr(md, "datetime", _FakeDateTime)
+    _mock_batch(
+        monkeypatch,
+        {"RELIANCE": "NSE_EQ|123"},
+        {
+            "NSE_EQ|123": {
+                "live_ohlc": {
+                    "open": 100.0, "high": 110.0, "low": 90.0,
+                    "close": 105.0, "volume": 5000.0,
+                },
+            },
+        },
+    )
+    assert md.fetch_ohlc_batch(["RELIANCE"]) == {}
+
+
+def test_fetch_ohlc_batch_in_session_guard_accepts_without_timestamp(monkeypatch):
+    """No timestamp in-session: the guard accepts the quote."""
+    monkeypatch.setattr("trading.utils.is_market_open", lambda *a, **k: True)
+    _mock_batch(
+        monkeypatch,
+        {"RELIANCE": "NSE_EQ|123"},
+        {
+            "NSE_EQ|123": {
+                "live_ohlc": {
+                    "open": 100.0, "high": 110.0, "low": 90.0,
+                    "close": 105.0, "volume": 5000.0,
+                },
+            },
+        },
+    )
+    out = md.fetch_ohlc_batch(["RELIANCE"])
+    assert set(out) == {"RELIANCE"}
+
+
+def test_fetch_ohlc_batch_duplicate_keys_emit_both_symbols(monkeypatch):
+    """Two symbols sharing one instrument key both get the bar."""
+    monkeypatch.setattr(
+        md, "get_api_client",
+        lambda: SimpleNamespace(auth_handler=SimpleNamespace(access_token="tok")),
+    )
+    monkeypatch.setattr(
+        md, "_ohlc_instrument_keys",
+        lambda syms: {"AAA": "NSE_EQ|999", "BBB": "NSE_EQ|999"},
+    )
+    calls = {}
+
+    def fake_ohlc(*args, **kwargs):
+        calls["keys"] = kwargs.get("instrument_key")
+        return {
+            "data": {
+                "NSE_EQ|999": {
+                    "live_ohlc": {
+                        "open": 300.0, "high": 310.0, "low": 290.0,
+                        "close": 305.0, "volume": 7000.0, "ts": _today_ts_ms(),
+                    },
+                },
+            },
+        }
+
+    monkeypatch.setattr(
+        "upstox_client.api.market_quote_v3_api.MarketQuoteV3Api.get_market_quote_ohlc",
+        fake_ohlc,
+    )
+    out = md.fetch_ohlc_batch(["AAA", "BBB"])
+    assert set(out) == {"AAA", "BBB"}
+    for df in out.values():
+        assert df.iloc[0]["close"] == 305.0
+    assert calls["keys"] == "NSE_EQ|999"
+
+
+def test_fetch_ohlc_batch_missing_symbol_yields_no_bar(monkeypatch):
+    """A symbol absent from the response gets no bar (scan tape fallback)."""
+    _mock_batch(
+        monkeypatch,
+        {"AAA": "NSE_EQ|111", "BBB": "NSE_EQ|222"},
+        {
+            "NSE_EQ|111": {
+                "live_ohlc": {
+                    "open": 100.0, "high": 110.0, "low": 90.0,
+                    "close": 105.0, "volume": 1000.0, "ts": _today_ts_ms(),
+                },
+            },
+        },
+    )
+    out = md.fetch_ohlc_batch(["AAA", "BBB"])
+    assert set(out) == {"AAA"}
+
+
+def test_batch_bar_session_allowed_truth_table(monkeypatch):
+    import config
+
+    friday = datetime(2026, 11, 6, tzinfo=config.IST)
+    monkeypatch.setattr("trading.utils.is_trading_holiday", lambda *a, **k: False)
+    # Pre-market weekday: rejected.
+    assert md._batch_bar_session_allowed(
+        friday.replace(hour=8, minute=0)
+    ) is False
+    # In-session weekday: accepted via is_market_open.
+    assert md._batch_bar_session_allowed(
+        friday.replace(hour=10, minute=30)
+    ) is True
+    # After-close weekday: accepted via the after-close clause.
+    assert md._batch_bar_session_allowed(
+        friday.replace(hour=16, minute=0)
+    ) is True
+    # Weekend after-close: still rejected (not a session).
+    saturday = datetime(2026, 11, 7, tzinfo=config.IST)
+    assert md._batch_bar_session_allowed(
+        saturday.replace(hour=16, minute=0)
+    ) is False
+    # Holiday after-close: rejected.
+    monkeypatch.setattr("trading.utils.is_trading_holiday", lambda *a, **k: True)
+    assert md._batch_bar_session_allowed(
+        friday.replace(hour=16, minute=0)
+    ) is False

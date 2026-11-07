@@ -779,10 +779,11 @@ def _ohlc_instrument_keys(symbols: list[str]) -> dict[str, str]:
 def _ohlc_bar_frame(open_, high, low, close, volume, day=None) -> pd.DataFrame:
     """Single-row daily bar indexed at the session's IST midnight (UTC).
 
-    Same index convention as :func:`_synthesize_bar_from_tape`, so a batch bar
-    and a tape-synthesized bar are interchangeable (same OHLCV + timestamp)
-    and can replace one another in a daily frame without shifting detection
-    input.
+    Shares the same index convention as :func:`_synthesize_bar_from_tape`
+    (session IST midnight in UTC), so a batch bar slots into a daily frame
+    the same way a tape-synthesized bar does. OHLCV is only approximately
+    equivalent — quote open/high/low/close/volume vs 1-minute tape
+    aggregation — not byte-identical.
     """
     if day is None:
         day = datetime.now(_IST).date()
@@ -805,6 +806,215 @@ def _ohlc_bar_frame(open_, high, low, close, volume, day=None) -> pd.DataFrame:
             row["volume"] = 0.0
     ts = pd.Timestamp(day).tz_localize(_IST).tz_convert("UTC")
     return pd.DataFrame([row], index=pd.DatetimeIndex([ts]))
+
+
+def _ohlc_block(quote):
+    """Return the OHLC block used for one quote (live_ohlc > ohlc > quote).
+
+    Mirrors the block selection in :func:`_quote_ohlcv` so the freshness
+    check reads the timestamp of the same block that supplies OHLCV.
+    Never raises.
+    """
+    if quote is None:
+        return None
+    try:
+        if isinstance(quote, dict):
+            return quote.get("live_ohlc") or quote.get("ohlc") or quote
+        return (
+            getattr(quote, "live_ohlc", None)
+            or getattr(quote, "ohlc", None)
+            or quote
+        )
+    except Exception:
+        return None
+
+
+def _ts_raw(obj, names) -> object:
+    """First non-None ``names`` value from a dict or model object."""
+    if obj is None:
+        return None
+    for name in names:
+        try:
+            if isinstance(obj, dict):
+                value = obj.get(name)
+            else:
+                value = getattr(obj, name, None)
+        except Exception:
+            value = None
+        if value is not None:
+            return value
+    return None
+
+
+def _parse_ts_ist_date(value):
+    """IST calendar date of a quote timestamp, else None.
+
+    Accepts epoch seconds or milliseconds (int/float or numeric string),
+    ISO strings, datetimes and pandas Timestamps. SDK ``OhlcV3.ts`` is an
+    int epoch; naive values are assumed UTC (Upstox tape convention).
+    Never raises.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        if isinstance(value, (int, float)):
+            num = float(value)
+            if num <= 0:
+                return None
+            if num > 1e11:  # epoch milliseconds
+                ts = pd.Timestamp(int(num), unit="ms", tz="UTC")
+            elif num > 1e9:  # epoch seconds
+                ts = pd.Timestamp(int(num), unit="s", tz="UTC")
+            else:
+                return None
+            return ts.tz_convert(_IST).date()
+        if isinstance(value, datetime):
+            ts = pd.Timestamp(value)
+            if pd.isna(ts):
+                return None
+            if ts.tz is None:
+                ts = ts.tz_localize("UTC")
+            return ts.tz_convert(_IST).date()
+        if isinstance(value, str):
+            text = value.strip()
+            if not text:
+                return None
+            # Numeric epoch carried as a string.
+            if text.replace(".", "", 1).lstrip("-").isdigit():
+                try:
+                    return _parse_ts_ist_date(float(text))
+                except Exception:
+                    return None
+            ts = pd.Timestamp(text)
+            if pd.isna(ts):
+                return None
+            if ts.tz is None:
+                ts = ts.tz_localize("UTC")
+            return ts.tz_convert(_IST).date()
+        ts = pd.Timestamp(value)
+        if pd.isna(ts):
+            return None
+        if ts.tz is None:
+            ts = ts.tz_localize("UTC")
+        return ts.tz_convert(_IST).date()
+    except Exception:
+        return None
+
+
+def _quote_ts_ist_date(quote):
+    """IST date of the quote's own session timestamp, else None.
+
+    Preferred source is the OHLC block's ``ts`` (SDK ``OhlcV3.ts``;
+    ``MarketQuoteOHLCV3`` carries no quote-level timestamp), falling back
+    to quote-level ``last_traded_timestamp``/``timestamp``/
+    ``last_trade_time`` when the block has none. Never raises.
+    """
+    try:
+        block = _ohlc_block(quote)
+    except Exception:
+        return None
+    raw = _ts_raw(block, ["ts", "timestamp", "last_traded_timestamp", "last_trade_time"])
+    if raw is not None:
+        parsed = _parse_ts_ist_date(raw)
+        if parsed is not None:
+            return parsed
+    if block is not quote:
+        raw_quote = _ts_raw(
+            quote, ["last_traded_timestamp", "timestamp", "last_trade_time", "ts"]
+        )
+        if raw_quote is not None:
+            return _parse_ts_ist_date(raw_quote)
+    return None
+
+
+def _batch_bar_session_allowed(now=None) -> bool:
+    """Fallback freshness guard when the quote carries no timestamp.
+
+    Accepts the batch bar only during the live session
+    (:func:`trading.utils.is_market_open`) or after the 15:30 IST close
+    on a trading day (the final bar). Pre-market, weekend and holiday
+    quotes — where Upstox returns the previous session's close — are
+    rejected so the scan falls back to the per-symbol tape path (which
+    returns nothing pre-market). Never raises; fails closed.
+    """
+    if now is None:
+        try:
+            now = datetime.now(_IST)
+        except Exception:
+            return False
+    if not isinstance(now, datetime):
+        return False
+    try:
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=_IST)
+        else:
+            now = now.astimezone(_IST)
+    except Exception:
+        return False
+    try:
+        from trading.utils import is_market_open, is_trading_holiday
+    except Exception:
+        try:
+            if now.weekday() >= 5:
+                return False
+            minutes = now.hour * 60 + now.minute
+            if 9 * 60 + 15 <= minutes <= 15 * 60 + 30:
+                return True
+            return minutes >= 15 * 60 + 30
+        except Exception:
+            return False
+    try:
+        try:
+            if is_market_open(now):
+                return True
+        except TypeError:
+            if is_market_open():
+                return True
+    except Exception:
+        pass
+    try:
+        if now.weekday() >= 5:
+            return False
+    except Exception:
+        return False
+    try:
+        try:
+            if is_trading_holiday(now):
+                return False
+        except TypeError:
+            if is_trading_holiday():
+                return False
+    except Exception:
+        pass
+    try:
+        close = datetime(now.year, now.month, now.day, 15, 30, tzinfo=_IST)
+    except Exception:
+        try:
+            return now.hour * 60 + now.minute >= 15 * 60 + 30
+        except Exception:
+            return False
+    return now >= close
+
+
+def _quote_is_fresh(quote) -> bool:
+    """True when a batch quote belongs to today's IST session.
+
+    When the quote carries a trustworthy timestamp (OHLC block ``ts`` or
+    quote-level ``last_traded_timestamp``/``timestamp``) its IST date must
+    equal today. Without one, the session-time guard applies (live
+    session or after-close on a trading day). Never raises.
+    """
+    try:
+        ts_date = _quote_ts_ist_date(quote)
+    except Exception:
+        ts_date = None
+    if ts_date is not None:
+        try:
+            today = datetime.now(_IST).date()
+        except Exception:
+            return False
+        return ts_date == today
+    return _batch_bar_session_allowed()
 
 
 def _quote_ohlcv(quote) -> Optional[tuple]:
@@ -857,9 +1067,19 @@ def fetch_ohlc_batch(
     Resolves instrument keys (DB ``Instrument`` table), chunks at most
     ``_OHLC_BATCH_CHUNK`` keys per request, and builds one synthetic daily bar
     per symbol keyed by trading symbol (upper). Each bar is indexed at the
-    session's IST midnight in UTC — identical to what
-    :func:`_synthetic_today_bar` produces — so it can be appended to a daily
-    frame in place of a per-symbol 1-minute tape fetch.
+    session's IST midnight in UTC — the same index convention as
+    :func:`_synthetic_today_bar` (OHLCV only approximately equivalent: quote
+    OHLC/volume vs 1-minute tape aggregation) — so it can be appended to a
+    daily frame in place of a per-symbol 1-minute tape fetch.
+
+    Freshness: a quote is accepted only when it belongs to today's IST
+    session. When the quote carries a trustworthy timestamp (OHLC block
+    ``ts`` or quote-level ``last_traded_timestamp``/``timestamp``) its IST
+    date must equal today; without one the session-time guard applies —
+    accepted only live (``is_market_open()``) or after the 15:30 IST close
+    on a trading day. Stale/pre-market quotes (which carry the previous
+    session's close) are rejected so the scan falls back to the per-symbol
+    tape path.
 
     Never raises: returns ``{}`` on any failure (missing OAuth token, unresolved
     keys, HTTP error, bad payload) and ``{}`` for an empty symbol list.
@@ -885,8 +1105,12 @@ def fetch_ohlc_batch(
         mq = MarketQuoteV3Api(ApiClient(configuration))
     except Exception:
         return {}
-    sym_by_key = {key: sym for sym, key in keys.items()}
-    key_list = [keys[s] for s in syms if s in keys]
+    # Symbols may share an instrument key (alias rows); keep every symbol
+    # per key so both emit the bar, and dedupe keys for the wire.
+    syms_by_key: dict[str, list[str]] = {}
+    for sym, key in keys.items():
+        syms_by_key.setdefault(key, []).append(sym)
+    key_list = list(dict.fromkeys(keys[s] for s in syms if s in keys))
     out: dict[str, pd.DataFrame] = {}
     try:
         for i in range(0, len(key_list), _OHLC_BATCH_CHUNK):
@@ -905,13 +1129,16 @@ def fetch_ohlc_batch(
             if not isinstance(data, dict):
                 continue
             for key, quote in data.items():
-                sym = sym_by_key.get(key)
-                if not sym:
+                syms_for_key = syms_by_key.get(key)
+                if not syms_for_key:
                     continue
                 vals = _quote_ohlcv(quote)
                 if vals is None:
                     continue
-                out[sym] = _ohlc_bar_frame(*vals)
+                if not _quote_is_fresh(quote):
+                    continue
+                for sym in syms_for_key:
+                    out[sym] = _ohlc_bar_frame(*vals)
     except Exception:
         pass
     return out
