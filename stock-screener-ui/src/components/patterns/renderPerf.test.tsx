@@ -2,11 +2,11 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
-import { Profiler, act } from "react";
-import { UIProvider } from "@/ui";
+import { memo, Profiler, act } from "react";
+import { SimpleGrid, UIProvider } from "@/ui";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import type { MatrixCell, PatternMatrixRow } from "./symbolMatrix";
-import { PatternCard } from "./PatternCard";
+import { PatternCard, type PatternCardProps } from "./PatternCard";
 import { PatternGrid } from "./PatternGrid";
 import { PatternMiniChart } from "./PatternMiniChart";
 import {
@@ -442,4 +442,71 @@ describe("PatternSymbolMatrix render counts", () => {
     expect(screen.getByTestId("patterns-matrix-row-CCC")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-matrix-row-AAA")).toBeInTheDocument();
   });
+});
+
+describe("render perf — 200-card grid (results limit)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetChartPatternsState();
+  });
+  afterEach(() => {
+    cleanup();
+    resetChartPatternsState();
+  });
+
+  /** Wraps PatternCard so the test can count how many times a card actually renders. */
+  interface CountingCardProps extends PatternCardProps {
+    counter: { renders: number };
+  }
+  function countingCard(props: CountingCardProps) {
+    props.counter.renders += 1;
+    return <PatternCard {...props} />;
+  }
+  const CountingCard = memo(countingCard);
+
+  test("mount 200 cards — wall ms + card render counts", () => {
+    const counter = { renders: 0 };
+    const hits = Array.from({ length: 200 }, (_, i) => makeHit(1000 + i, `P${i}`));
+    const t0 = performance.now();
+    renderWithUI(
+      <SimpleGrid data-testid="patterns-grid" cols={4} spacing={16}>
+        {hits.map((hit) => <CountingCard key={hit.id} hit={hit} counter={counter} />)}
+      </SimpleGrid>
+    );
+    const mountMs = performance.now() - t0;
+    // eslint-disable-next-line no-console
+    console.log(
+      `[PERF] mount 200 cards: ${mountMs.toFixed(2)} ms, card renders=${counter.renders}`,
+    );
+    expect(screen.getByTestId("patterns-grid")).toBeInTheDocument();
+    expect(screen.getAllByTestId("patterns-card")).toHaveLength(200);
+    expect(screen.getByTestId("patterns-card-P0-falling_wedge")).toBeInTheDocument();
+    expect(counter.renders).toBe(200);
+  }, 20000);
+
+  test("update 200 cards with identical hits — card render count stays flat", () => {
+    const counter = { renders: 0 };
+    const hits = Array.from({ length: 200 }, (_, i) => makeHit(1000 + i, `P${i}`));
+    const { rerender } = renderWithUI(
+      <SimpleGrid data-testid="patterns-grid" cols={4} spacing={16}>
+        {hits.map((hit) => <CountingCard key={hit.id} hit={hit} counter={counter} />)}
+      </SimpleGrid>
+    );
+    const mountRenders = counter.renders;
+    const t0 = performance.now();
+    act(() => {
+      rerender(
+        <SimpleGrid data-testid="patterns-grid" cols={4} spacing={16}>
+          {hits.map((hit) => <CountingCard key={hit.id} hit={hit} counter={counter} />)}
+        </SimpleGrid>
+      );
+    });
+    const updateMs = performance.now() - t0;
+    // eslint-disable-next-line no-console
+    console.log(
+      `[PERF] update 200 cards identical: ${updateMs.toFixed(2)} ms, card renders=${counter.renders} (mount ${mountRenders})`,
+    );
+    expect(screen.getAllByTestId("patterns-card")).toHaveLength(200);
+    expect(counter.renders).toBe(mountRenders); // memo bails out: zero extra card renders
+  }, 20000);
 });

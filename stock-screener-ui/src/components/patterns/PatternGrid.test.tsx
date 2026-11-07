@@ -191,4 +191,14 @@ describe("PatternGrid missing coverage", () => {
     r(<PatternGrid hits={[makeHit({ id: 1 })]} onSelect={vi.fn()} />);
     expect(screen.getByTestId("mini-stub")).toHaveAttribute("data-trendlines-view", "both");
   });
+
+  test("renders the 200-hit results limit", () => {
+    const hits = Array.from({ length: 200 }, (_, i) => makeHit({ id: 1000 + i, symbol: `S${i}` }));
+    r(<PatternGrid hits={hits} onSelect={vi.fn()} />);
+    expect(screen.getByTestId("patterns-grid")).toBeInTheDocument();
+    expect(screen.getAllByTestId("patterns-card")).toHaveLength(200);
+    expect(screen.getAllByTestId("mini-stub")).toHaveLength(200);
+    expect(screen.getByTestId("patterns-card-S0-falling_wedge")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-card-S199-falling_wedge")).toBeInTheDocument();
+  }, 20000);
 });

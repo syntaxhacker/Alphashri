@@ -395,3 +395,18 @@ describe("PatternCard missing coverage", () => {
     expect(screen.queryByTestId("patterns-card-52w-gap")).toBeNull();
   });
 });
+
+describe("PatternCard offscreen containment", () => {
+  afterEach(() => cleanup());
+
+  test("content-visibility containment adds no wrapper and keeps every testid", () => {
+    const { container } = r(<PatternCard hit={HIT} />);
+    expect(container.children).toHaveLength(1);
+    const card = container.children[0];
+    expect(card).not.toBeNull();
+    expect(card).toHaveAttribute("data-testid", "patterns-card-IRCON-falling_wedge");
+    expect(screen.getByTestId("patterns-card")).toBeInTheDocument();
+    expect(screen.getByTestId("mini-stub")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-status-confirmed")).toBeInTheDocument();
+  });
+});

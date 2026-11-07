@@ -207,6 +207,10 @@ export const PatternCard = memo(function PatternCard({
         cursor: onClick ? "pointer" : "default",
         transition: "border-color 120ms ease",
         "&:hover": onClick ? { borderColor: "primary.main" } : undefined,
+        // Offscreen containment: the browser skips layout/paint for cards
+        // outside the visible area while the user scrolls a long results grid.
+        contentVisibility: "auto",
+        containIntrinsicSize: "300px 480px",
       }}
     >
       <Box
