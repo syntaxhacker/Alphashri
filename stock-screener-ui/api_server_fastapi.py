@@ -32,6 +32,7 @@ from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.middleware.gzip import DEFAULT_EXCLUDED_CONTENT_TYPES, GZipMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 import uvicorn
@@ -874,6 +875,18 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(DynamicCORSMiddleware)
 
+# GZip cuts the patterns read path (`/results` ~6.9 MB raw at 500-bar cards)
+# to ~1.2 MB on the wire; browsers accept it by default. The excluded-types
+# list is pinned (not left to the library default) because it guarantees the
+# SSE streams (`text/event-stream`) never buffer behind a gzip layer — events
+# must interleave immediately, and `Cache-Control: no-cache` alone does not
+# prevent compression.
+app.add_middleware(
+    GZipMiddleware,
+    minimum_size=1024,
+    exclude_content_types=DEFAULT_EXCLUDED_CONTENT_TYPES,
+)
+
 
 @app.get("/health", tags=["health"], summary="Liveness probe")
 @app.get("/api/health", tags=["health"], summary="Liveness probe")
@@ -1217,6 +1230,8 @@ _include_api("api.rotation", "router", "rotation", msg="✅ Rotation API loaded 
 _include_api("api.value_scan.router", "router", "value scan", msg="✅ Value scan API loaded at /api/value")
 
 _include_api("api.options", "router", "options", msg="✅ Options API loaded at /api/options")
+
+_include_api("api.fyers_bridge", "router", "fyers bridge", msg="✅ Fyers bridge API loaded at /api/fyers-bridge")
 
 _include_api("api.premium_tracker", "router", "premium tracker", msg="✅ Premium Tracker API loaded at /api/options/premium-tracker")
 

@@ -1,4 +1,6 @@
 """API tests for /api/chart-patterns (in-memory DB, mocked V3 fetch)."""
+import asyncio
+import gzip
 import threading
 
 import numpy as np
@@ -7,6 +9,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
+from starlette.middleware.gzip import DEFAULT_EXCLUDED_CONTENT_TYPES, GZipMiddleware
 
 import api.chart_patterns as cp_api
 from api.auth import get_current_user
@@ -1945,3 +1948,222 @@ def test_sanitize_for_json_preserves_existing_behaviour(cp_client):
     assert result["nested"] == [{"a": None}]
 
     json.dumps(result, allow_nan=False)
+
+
+# ---------------------------------------------------------------------------
+# GZip wire bytes (patterns read path)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def gz_app(test_db_engine):
+    """Router app with production gzip wiring, driven at ASGI level.
+
+    TestClient transparently decodes gzip, so it cannot observe wire bytes;
+    driving the ASGI app directly can (``http.response.body`` bytes).
+    """
+    factory = sessionmaker(autocommit=False, autoflush=False, bind=test_db_engine)
+    store.set_session_factory(factory)
+    jobs.reset()
+
+    app = FastAPI()
+    app.include_router(router)
+    app.add_middleware(
+        GZipMiddleware,
+        minimum_size=1024,
+        exclude_content_types=DEFAULT_EXCLUDED_CONTENT_TYPES,
+    )
+
+    def override_get_db():
+        session = factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = lambda: _FakeUser()
+
+    try:
+        cp_api._clear_read_caches()
+        yield app
+    finally:
+        cp_api._clear_read_caches()
+        app.dependency_overrides.clear()
+        jobs.reset()
+        store.reset_session_factory()
+
+
+async def _raw_asgi_get(app, path, accept_encoding):
+    """Drive the ASGI app; return (status, headers, raw wire body)."""
+    sent = []
+    scope = {
+        "type": "http",
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": path.split("?")[0],
+        "raw_path": path.split("?")[0].encode(),
+        "query_string": (path.split("?", 1)[1].encode() if "?" in path else b""),
+        "root_path": "",
+        "headers": [(b"accept-encoding", accept_encoding.encode()),
+                    (b"host", b"testserver")],
+        "state": {},
+        "client": ("testclient", 50000),
+        "server": ("testserver", 80),
+    }
+
+    async def receive():
+        return {"type": "http.request", "body": b""}
+
+    async def send(message):
+        sent.append(message)
+
+    await app(scope, receive, send)
+    start = next(m for m in sent if m["type"] == "http.response.start")
+    body = b"".join(
+        m.get("body", b"") for m in sent if m["type"] == "http.response.body"
+    )
+    return start["status"], dict(start["headers"]), body
+
+
+@pytest.fixture
+def gz_client(test_db_engine):
+    """Router app with the production gzip wiring (minimum_size=1024).
+
+    Mirrors ``api_server_fastapi``'s registration so the wire contracts
+    (header on large JSON, identical parsed body, tiny stays uncompressed)
+    are tested rather than assumed.
+    """
+    factory = sessionmaker(autocommit=False, autoflush=False, bind=test_db_engine)
+    store.set_session_factory(factory)
+    jobs.reset()
+
+    app = FastAPI()
+    app.include_router(router)
+    app.add_middleware(
+        GZipMiddleware,
+        minimum_size=1024,
+        exclude_content_types=DEFAULT_EXCLUDED_CONTENT_TYPES,
+    )
+
+    def override_get_db():
+        session = factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = lambda: _FakeUser()
+
+    try:
+        cp_api._clear_read_caches()
+        with TestClient(app) as client:
+            yield client
+    finally:
+        cp_api._clear_read_caches()
+        app.dependency_overrides.clear()
+        jobs.reset()
+        store.reset_session_factory()
+
+
+def test_gzip_middleware_registered_on_production_app():
+    """The full app registers GZipMiddleware with minimum_size=1024."""
+    from api_server_fastapi import app
+
+    by_cls = {getattr(m, "cls", type(m)): m.kwargs for m in app.user_middleware}
+    assert GZipMiddleware in by_cls
+    assert by_cls[GZipMiddleware]["minimum_size"] == 1024
+
+
+def test_large_results_response_is_gzipped_with_identical_body(gz_client, monkeypatch):
+    """A multi-MB ``/results`` body is gzipped; the parsed body is unchanged."""
+    store.save_job({
+        "job_id": "cpj_gz", "universe": "nifty500", "timeframe": "1D",
+        "status": "completed", "total": 10,
+    })
+    store.save_hits("cpj_gz", [_hit(f"GZ{i:03d}") for i in range(10)])
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(500))
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df, lookback_bars=None: {"support": None, "resistance": None},
+    )
+
+    plain = gz_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_gz"},
+        headers={"Accept-Encoding": "identity"},
+    )
+    assert plain.status_code == 200
+    assert "content-encoding" not in plain.headers
+    assert len(plain.content) > 1024
+
+    gz = gz_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_gz"},
+        headers={"Accept-Encoding": "gzip"},
+    )
+    assert gz.status_code == 200
+    assert gz.headers.get("content-encoding") == "gzip"
+    assert gz.json() == plain.json()
+    assert len(gz.json()["items"]) == 10
+
+
+def test_small_summary_response_is_not_gzipped(gz_client):
+    """Bodies under ``minimum_size`` stay uncompressed (no Content-Encoding)."""
+    store.save_job({
+        "job_id": "cpj_gz_small", "universe": "nifty500", "timeframe": "1D",
+        "status": "completed",
+    })
+    store.save_hits("cpj_gz_small", [_hit("AAA")])
+
+    resp = gz_client.get(
+        "/api/chart-patterns/summary",
+        params={"job_id": "cpj_gz_small"},
+        headers={"Accept-Encoding": "gzip"},
+    )
+    assert resp.status_code == 200
+    assert "content-encoding" not in resp.headers
+
+
+def test_results_auto_returns_whole_fetched_window(cp_client, monkeypatch):
+    """Auto (no ``lookback_bars``) still shows the whole window — range unchanged."""
+    store.save_job({
+        "job_id": "cpj_auto", "universe": "nifty500", "timeframe": "1D",
+        "status": "completed",
+    })
+    store.save_hits("cpj_auto", [_hit("AAA")])
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df, lookback_bars=None: {"support": None, "resistance": None},
+    )
+
+    resp = cp_client.get("/api/chart-patterns/results", params={"job_id": "cpj_auto"})
+    assert resp.status_code == 200
+    assert len(resp.json()["items"][0]["candles"]) == 80
+
+
+def test_gzip_wire_bytes_decompress_to_identical_payload(gz_app, monkeypatch):
+    """Raw ASGI wire bytes: gzipped is smaller and inflates to the identity body."""
+    store.save_job({
+        "job_id": "cpj_gz_wire", "universe": "nifty500", "timeframe": "1D",
+        "status": "completed", "total": 10,
+    })
+    store.save_hits("cpj_gz_wire", [_hit(f"GZ{i:03d}") for i in range(10)])
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(500))
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df, lookback_bars=None: {"support": None, "resistance": None},
+    )
+    path = "/api/chart-patterns/results?job_id=cpj_gz_wire"
+
+    _, plain_headers, plain_body = asyncio.run(_raw_asgi_get(gz_app, path, "identity"))
+    _, gz_headers, gz_body = asyncio.run(_raw_asgi_get(gz_app, path, "gzip"))
+
+    assert b"content-encoding" not in plain_headers
+    assert gz_headers[b"content-encoding"] == b"gzip"
+    assert gz_body[:2] == b"\x1f\x8b", "expected gzip magic bytes on the wire"
+    assert gzip.decompress(gz_body) == plain_body
+    assert len(gz_body) < 0.5 * len(plain_body)
