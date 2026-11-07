@@ -204,7 +204,9 @@ def _cache_path(tf_id: str, symbol: str, as_of_date: Optional[str] = None,
     return CACHE_DIR / str(tf_id) / f"{base}.v{CACHE_VERSION}.pkl"
 
 
-def _read_cached(path: Path, is_today: bool) -> Optional[pd.DataFrame]:
+def _read_cached(
+    path: Path, is_today: bool, is_daily: bool = False
+) -> Optional[pd.DataFrame]:
     if not path.exists():
         return None
     try:
@@ -213,17 +215,25 @@ def _read_cached(path: Path, is_today: bool) -> Optional[pd.DataFrame]:
             if meta_path.exists():
                 with open(meta_path, "r") as f:
                     meta = json.load(f)
-                from trading import utils as trading_utils
-
-                try:
-                    market_open = trading_utils.is_market_open()
-                except Exception:
-                    market_open = True
-                if market_open:
-                    if time.time() - meta.get("ts", 0) > TODAY_TTL_SECONDS:
+                session = _last_completed_session().isoformat()
+                if is_daily:
+                    # Completed daily sessions are immutable. Once the frame
+                    # includes the last completed session it stays valid for
+                    # the whole session — no 5-minute refetch.
+                    if meta.get("session") != session:
                         return None
-                elif meta.get("session") != _last_completed_session().isoformat():
-                    return None
+                else:
+                    from trading import utils as trading_utils
+
+                    try:
+                        market_open = trading_utils.is_market_open()
+                    except Exception:
+                        market_open = True
+                    if market_open:
+                        if time.time() - meta.get("ts", 0) > TODAY_TTL_SECONDS:
+                            return None
+                    elif meta.get("session") != session:
+                        return None
             else:
                 return None
         with open(path, "rb") as f:
@@ -233,6 +243,24 @@ def _read_cached(path: Path, is_today: bool) -> Optional[pd.DataFrame]:
         return df
     except Exception:
         return None
+
+
+def _read_pickle_any(path: Path) -> Optional[pd.DataFrame]:
+    """Read a cache entry ignoring freshness (for incremental top-ups)."""
+    try:
+        if not path.exists():
+            return None
+        with open(path, "rb") as f:
+            df = pickle.load(f)
+        return df if isinstance(df, pd.DataFrame) and not df.empty else None
+    except Exception:
+        return None
+
+
+def _merge_frames(old: pd.DataFrame, new: pd.DataFrame) -> pd.DataFrame:
+    """Append only the rows that are new/updated, newest wins."""
+    merged = pd.concat([old, new])
+    return merged[~merged.index.duplicated(keep="last")].sort_index()
 
 
 def _write_cached(
@@ -471,7 +499,9 @@ def fetch_for_timeframe(
 
     is_today = _is_today(to_date)
     cache_path = _cache_path(tf_id, symbol, as_of_part if as_of_part else None, variant=variant)
-    cached = None if force_refresh else _read_cached(cache_path, is_today)
+    cached = None if force_refresh else _read_cached(
+        cache_path, is_today, is_daily=(tf_id == "1D")
+    )
     if provenance is not None:
         try:
             _fill_provenance(provenance, cache_path, cached is not None)
@@ -480,24 +510,42 @@ def fetch_for_timeframe(
     if cached is not None:
         df = cached
     else:
-        if source_tf:
-            src_spec = _resolve_timeframe(source_tf)
-            src_minutes = int(_attr(src_spec, "minutes", minutes) or minutes)
-            fetch_tf_id = source_tf
-        else:
-            src_minutes = minutes
-            fetch_tf_id = tf_id
+        df = None
+        # Incremental 1D top-up: when a stale entry lags the last completed
+        # session, fetch only the missing tail instead of the whole window.
+        if is_today and tf_id == "1D" and not source_tf and not force_refresh:
+            stale = _read_pickle_any(cache_path)
+            if stale is not None:
+                last_cached = frame_last_date(stale)
+                if last_cached and last_cached < _last_completed_session().isoformat():
+                    tail = fetch_candles_for_timeframe(
+                        symbol,
+                        tf_id,
+                        from_date=last_cached,
+                        to_date=to_date,
+                        api_client=api_client,
+                    )
+                    if tail is not None and not tail.empty:
+                        df = _merge_frames(stale, tail)
+        if df is None:
+            if source_tf:
+                src_spec = _resolve_timeframe(source_tf)
+                src_minutes = int(_attr(src_spec, "minutes", minutes) or minutes)
+                fetch_tf_id = source_tf
+            else:
+                src_minutes = minutes
+                fetch_tf_id = tf_id
 
-        df = fetch_candles_for_timeframe(
-            symbol,
-            fetch_tf_id,
-            from_date=eff_from,
-            to_date=to_date,
-            api_client=api_client,
-        )
+            df = fetch_candles_for_timeframe(
+                symbol,
+                fetch_tf_id,
+                from_date=eff_from,
+                to_date=to_date,
+                api_client=api_client,
+            )
 
-        if df is not None and not df.empty and source_tf and minutes and minutes != src_minutes:
-            df = _resample(df, minutes)
+            if df is not None and not df.empty and source_tf and minutes and minutes != src_minutes:
+                df = _resample(df, minutes)
 
         if df is None or df.empty:
             return None
@@ -534,6 +582,30 @@ def _today_is_session() -> bool:
         return True
 
 
+_PARTIAL_CACHE: dict[tuple[str, str], tuple[float, Optional[pd.DataFrame]]] = {}
+_PARTIAL_TTL_SECONDS = 30.0
+
+
+def _cached_synthetic_today(api, symbol: str) -> Optional[pd.DataFrame]:
+    """Today's synthetic bar, cached for a short window (30 s)."""
+    from market_data.market_data import _synthetic_today_bar
+
+    try:
+        from trading.timezone import IST
+        day = datetime.now(IST).strftime("%Y-%m-%d")
+    except Exception:
+        day = datetime.now().strftime("%Y-%m-%d")
+    key = (str(symbol).upper(), day)
+    hit = _PARTIAL_CACHE.get(key)
+    if hit is not None and time.time() - hit[0] < _PARTIAL_TTL_SECONDS:
+        return hit[1]
+    synth = _synthetic_today_bar(api, str(symbol).upper())
+    if len(_PARTIAL_CACHE) > 5000:
+        _PARTIAL_CACHE.clear()
+    _PARTIAL_CACHE[key] = (time.time(), synth)
+    return synth
+
+
 def _with_partial_today(
     df: pd.DataFrame, symbol: str, api_client=None
 ) -> Optional[pd.DataFrame]:
@@ -562,7 +634,7 @@ def _with_partial_today(
         api = api_client if api_client is not None else get_api_client()
         if api is None:
             return df
-        synth = _synthetic_today_bar(api, str(symbol).upper())
+        synth = _cached_synthetic_today(api, symbol)
         if synth is None or synth.empty:
             return df
         if _has_session_bar(df, synth.index[0]):
