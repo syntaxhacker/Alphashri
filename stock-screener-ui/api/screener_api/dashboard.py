@@ -43,6 +43,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, Query
 
 from api.utils import _sanitize_for_json
+from api.tv_auth import tv_scanner_data
 
 router = APIRouter(prefix="/api/screener", tags=["screener"])
 
@@ -148,7 +149,7 @@ def _fetch_tv_frame() -> Any:
         .set_markets("india")
         .limit(TV_LIMIT)
     )
-    _, df = q.get_scanner_data()
+    _, df = tv_scanner_data(q)
     return df
 
 

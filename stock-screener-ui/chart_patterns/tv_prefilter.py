@@ -17,6 +17,7 @@ alongside TV's ``relative_volume_10d_calc``: TV's field uses a different
 from __future__ import annotations
 
 import logging
+from api.tv_auth import tv_scanner_data
 
 log = logging.getLogger(__name__)
 
@@ -87,7 +88,7 @@ def fetch_tv_volume_metrics(symbols: list[str], *, limit: int | None = None) -> 
         # mixes in other markets' tickers and drops valid symbols.
         try:
             query = Query().set_tickers(*tickers).select(*TV_COLUMNS)
-            _, df = query.get_scanner_data()
+            _, df = tv_scanner_data(query)
         except Exception as exc:
             log.warning("TV prefilter: scanner batch failed (%s)", exc)
             failed.extend(batch)
