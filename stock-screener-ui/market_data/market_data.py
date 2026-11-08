@@ -759,18 +759,21 @@ _OHLC_BATCH_CHUNK = 500
 def _ohlc_instrument_keys(symbols: list[str]) -> dict[str, str]:
     """Map trading symbols to Upstox instrument keys (DB ``Instrument`` table).
 
-    Same source as ``chart_patterns.watch._instrument_keys``; returns ``{}``
-    when the instruments table is unavailable. Never raises.
+    Single source for OHLC and watch live-price lookups; returns ``{}`` when
+    the instruments table is unavailable. Never raises.
     """
     try:
         from api.symbols import _load_instruments
+        from chart_patterns._symbols import norm_symbol
 
-        want = {str(s).upper() for s in symbols}
+        want = {norm_symbol(s) for s in symbols}
+        want.discard("")
         out: dict[str, str] = {}
         for inst in _load_instruments() or []:
-            sym = inst.get("trading_symbol")
-            if sym in want and inst.get("instrument_key"):
-                out[str(sym).upper()] = str(inst["instrument_key"])
+            sym = norm_symbol(inst.get("trading_symbol"))
+            key = inst.get("instrument_key")
+            if sym and sym in want and key:
+                out[sym] = str(key)
         return out
     except Exception:
         return {}

@@ -158,3 +158,19 @@ def test_missing_or_bad_instruments_file_never_raises(tmp_path, monkeypatch):
     universes.set_instruments_path(garbage)
     tags_mod._membership.cache_clear()
     assert tags_mod.tags_for("ANYTHING") == []
+
+
+# ---------------------------------------------------------------------------
+# Symbol normalization (shared helper)
+# ---------------------------------------------------------------------------
+
+
+def test_norm_symbol_case_and_blank():
+    from chart_patterns._symbols import norm_symbol, norm_symbols
+
+    assert norm_symbol("reliance") == "RELIANCE"
+    assert norm_symbol(" RELIANCE ") == "RELIANCE"
+    assert norm_symbol("RELIANCE") == "RELIANCE"
+    assert norm_symbol(None) == ""
+    assert norm_symbol("") == ""
+    assert norm_symbols(["reliance", " tcs ", None, "", "TCS"]) == ["RELIANCE", "TCS", "TCS"]

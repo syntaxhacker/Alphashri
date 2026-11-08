@@ -702,6 +702,123 @@ def test_near52w_row_short_frame_skipped():
     assert watch_mod._near52w_row("AAA", _near52w_frame(n=10)) is None
 
 
+def test_near52w_row_latest_bar_equals_prior_high():
+    """Latest bar re-touches the prior 52W high exactly: touched=True,
+    last_touch_date = latest session, trigger_date = bar that set prior high."""
+    import pandas as pd
+
+    idx = pd.date_range("2026-01-01", periods=30, freq="D", tz="UTC")
+    high = [90.0 + i * 0.1 for i in range(30)]
+    high[25] = 100.0  # 2026-01-26 sets the prior high
+    high[29] = 100.0  # latest bar re-touches it exactly
+    close = [h - 1.0 for h in high]
+    low = [h - 2.0 for h in high]
+    df = pd.DataFrame(
+        {
+            "open": close,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": [1000.0] * 30,
+        },
+        index=idx,
+    )
+    row = watch_mod._near52w_row("AAA", df)
+    assert row is not None
+    assert row["trigger_level"] == pytest.approx(100.0)
+    assert row["last_high"] == pytest.approx(100.0)
+    assert row["touched"] is True
+    assert row["trigger_date"] == "2026-01-26"  # bar that set prior_high
+    assert row["last_touch_date"] == "2026-01-30"  # latest bar re-touched
+    assert row["high_gap"] == pytest.approx(0.0)
+
+
+def test_near52w_row_utc_1830_ist_next_day():
+    """A bar stamped 18:30 UTC belongs to the next IST session date, so
+    trigger_date/last_touch_date use the IST date, not the raw UTC date."""
+    import pandas as pd
+
+    idx = pd.DatetimeIndex(
+        [pd.Timestamp(f"2026-01-{d:02d} 18:30", tz="UTC") for d in range(1, 26)]
+    )
+    high = [90.0] * 25
+    high[23] = 100.0  # 2026-01-24 18:30 UTC -> IST 2026-01-25
+    close = [h - 1.0 for h in high]
+    low = [h - 2.0 for h in high]
+    df = pd.DataFrame(
+        {
+            "open": close,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": [1000.0] * 25,
+        },
+        index=idx,
+    )
+    row = watch_mod._near52w_row("AAA", df)
+    assert row is not None
+    assert row["trigger_level"] == pytest.approx(100.0)
+    assert row["trigger_date"] == "2026-01-25"  # IST next day from 18:30 UTC
+    assert row["last_touch_date"] == "2026-01-25"
+    assert row["touched"] is False  # latest bar (90) never reaches 100
+
+
+def test_near52w_accumulation_helpers():
+    """Extracted pure accumulation helpers reproduce _near52w_row math."""
+    # Rising closes on flat volume -> positive OBV slope of exactly 1.0.
+    assert watch_mod._obv_slope([10.0, 11.0, 12.0], [10.0, 10.0, 10.0], 9.0) == pytest.approx(
+        1.0
+    )
+    assert watch_mod._obv_slope([], [], 0.0) == pytest.approx(0.0)
+    # All up -> up volume itself (30.0); all down -> 0.0; all flat -> neutral 1.0.
+    assert watch_mod._updown_ratio([10.0, 11.0, 12.0], [10.0, 10.0, 10.0], 9.0) == pytest.approx(
+        30.0
+    )
+    assert watch_mod._updown_ratio([12.0, 11.0, 10.0], [10.0, 10.0, 10.0], 13.0) == pytest.approx(
+        0.0
+    )
+    assert watch_mod._updown_ratio([10.0, 10.0, 10.0], [10.0, 10.0, 10.0], 10.0) == pytest.approx(
+        1.0
+    )
+    # Mean vol last 5 (200) / mean vol last 20 (125).
+    vols = [100.0] * 15 + [200.0] * 5
+    assert watch_mod._vol_ratio(vols, 5, 20) == pytest.approx(1.6)
+    assert watch_mod._vol_ratio([], 5, 20) == pytest.approx(1.0)
+    assert watch_mod._vol_ratio([0.0] * 20, 5, 20) == pytest.approx(1.0)
+    # min(low,5) > min(low,10) > min(low,20).
+    assert watch_mod._rising_lows([1.0] * 10 + [2.0] * 5 + [3.0] * 5) is True
+    assert watch_mod._rising_lows([3.0] * 20) is False
+    assert watch_mod._rising_lows([1.0, 2.0]) is False
+
+
+def test_cache_read_rejects_stale_and_corrupt(tmp_path):
+    """Shared cache read rejects corrupt payloads, wrong session, and wrong
+    version; serves a valid one. Covers both cache levels' validation."""
+    import pickle
+
+    from chart_patterns.watch import _cache_read, _cache_write, DETECTOR_VERSION
+
+    path = tmp_path / "cache.pkl"
+
+    path.write_bytes(b"not a pickle at all")
+    assert _cache_read(path, "2026-01-01") is None
+
+    _cache_write(path, "2026-01-01", {"rows": [{"a": 1}]}, sibling_glob="*.pkl")
+    assert _cache_read(path, "2026-02-02") is None  # wrong session
+    path.write_bytes(pickle.dumps({"session": "2026-01-01", "version": 999, "rows": []}))
+    assert _cache_read(path, "2026-01-01") is None  # wrong version
+
+    payload = _cache_read(path, "2026-01-01")
+    assert payload is None  # still wrong version
+
+    _cache_write(path, "2026-01-01", {"rows": [{"a": 1}]}, sibling_glob="*.pkl")
+    payload = _cache_read(path, "2026-01-01")
+    assert payload is not None
+    assert payload["session"] == "2026-01-01"
+    assert payload["version"] == DETECTOR_VERSION
+    assert payload["rows"] == [{"a": 1}]
+
+
 def test_near52w_old_high_ignored_aplltd():
     """APLLTD regression: a 367-day-old 998 high sits inside tail(252) (only
     28 bars total) so the old 252-bar lookback wrongly made it prior_high and
