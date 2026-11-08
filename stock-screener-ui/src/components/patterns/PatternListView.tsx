@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Badge, Box, Text } from "@/ui";
+import { Box, Text } from "@/ui";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
 import type { PatternHitDTO } from "@/types/chartPatterns";
@@ -15,6 +15,8 @@ import { triggerDistancePct } from "./triggerDistance";
 import { directionGlyph, directionTone } from "./symbolMatrix";
 import { qualityBadgeTone, qualityLabel } from "./patternTone";
 import { formatPrice } from "./shared";
+import { formatSignedPct1, hitChangePct } from "./patternFormat";
+import { PatternTags, rowTags } from "./rowBadges";
 
 export interface PatternListViewProps {
   hits: PatternHitDTO[];
@@ -33,19 +35,6 @@ export interface PatternListViewProps {
   onSymbolOpen?: (symbol: string) => void;
 }
 
-/**
- * Backend-supplied `tags` not yet in the canonical `PatternHitDTO` type
- * (local extension only). Results are equities, so only the F&O badge is
- * shown — an ETF tag is tolerated (no crash) but never rendered.
- */
-type PatternHitExt = PatternHitDTO & { tags?: string[] };
-
-/** True when the backend `tags` array carries `tag`. Never throws on missing. */
-function hitHasTag(hit: PatternHitDTO, tag: string): boolean {
-  const tags = (hit as PatternHitExt).tags;
-  return Array.isArray(tags) && tags.includes(tag);
-}
-
 /** Rail sort -> the column the table seeds its sort indicator from. */
 function sortingFor(sort?: string): { id: string; desc: boolean }[] {
   if (sort === "newest") return [{ id: "bars_ago", desc: false }];
@@ -62,24 +51,10 @@ function priceOf(hit: PatternHitDTO): number | null {
   return hit.last_close ?? hit.end_price ?? null;
 }
 
-/** Day change when available, otherwise the pattern-window move. */
-function changePctOf(hit: PatternHitDTO): number {
-  if (hit.day_change_pct != null) return hit.day_change_pct;
-  return hit.start_price !== 0 ? ((hit.end_price - hit.start_price) / hit.start_price) * 100 : 0;
-}
-
 /** Range percentage with at most one decimal (`13` not `13.0`). */
 function gapPct(value: number | null | undefined): string {
   if (value == null) return "—";
   return `${Number.isInteger(value) ? String(value) : value.toFixed(1)}%`;
-}
-
-/** Signed distance to the trigger: `+4.7%` / `−0.8%`, `—` when unknown.
- * A proper minus sign (U+2212) is used for below-trigger values. */
-function formatTriggerDistance(distance: number | null | undefined): string {
-  if (distance == null || !Number.isFinite(distance)) return "—";
-  const sign = distance >= 0 ? "+" : "−";
-  return `${sign}${Math.abs(distance).toFixed(1)}%`;
 }
 
 /** Compact direction glyph: ▲ bullish / ▼ bearish / ◆ otherwise (value kept in title/aria). */
@@ -146,7 +121,6 @@ export function PatternListView({
         cell: (info) => {
           const symbol = info.getValue<string>();
           const canShowMembers = Boolean(onShowMembers && hasIndexMembers(symbol));
-          const showFno = hitHasTag(info.row.original, "F&O");
           return (
             <Box sx={{ display: "flex", alignItems: "center", gap: "2px", minWidth: 0 }}>
               <SymbolLink
@@ -158,11 +132,15 @@ export function PatternListView({
                 onPreviewEnd={onSymbolPreviewEnd}
                 sx={{ flex: 1 }}
               />
-              {showFno ? (
-                <Badge color="info" size="xs" data-testid={`patterns-list-tag-fno-${symbol}`}>
-                  {"F&O"}
-                </Badge>
-              ) : null}
+              {/* Results are equities, so only the F&O badge is shown — an ETF
+                  tag is tolerated (no crash) but never rendered. */}
+              <PatternTags
+                tags={rowTags(info.row.original)}
+                symbol={symbol}
+                testIdPrefix="patterns-list"
+                showEtf={false}
+                compact
+              />
               {canShowMembers ? (
                 <MembersButton
                   symbol={symbol}
@@ -288,7 +266,7 @@ export function PatternListView({
       {
         id: "chg",
         header: "Chg %",
-        accessorFn: changePctOf,
+        accessorFn: hitChangePct,
         size: 90,
         meta: { align: "right" },
         cell: (info) => {
@@ -311,7 +289,7 @@ export function PatternListView({
         meta: { align: "right" },
         cell: (info) => {
           const distance = info.getValue<number | null>();
-          const text = formatTriggerDistance(distance);
+          const text = formatSignedPct1(distance);
           const tone = distance == null ? "text.disabled" : distance > 0 ? "success" : "text.secondary";
           return (
             <Text size="sm" fw={600} c={tone} truncate>

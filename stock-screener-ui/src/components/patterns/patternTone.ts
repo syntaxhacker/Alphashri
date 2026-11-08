@@ -1,11 +1,17 @@
 import { QUALITY_INFO } from "@/config/patternCatalog";
 import {
+  INFO,
+  NEUTRAL,
+  NEGATIVE,
   PATTERN_CONFIRMED,
   PATTERN_FAILED,
   PATTERN_FORMING,
   PATTERN_MARGINAL,
+  POSITIVE,
   TEXT_MUTED,
+  WARNING,
 } from "@/ui/palette";
+import type { DisplayTone } from "./patternDisplayStatus";
 
 /** Semantic badge colours (MUI palette tokens). */
 export type BadgeTone = "success" | "info" | "error" | "warning" | "primary" | "default";
@@ -79,4 +85,29 @@ export function changeChartColor(value: number | null | undefined): string {
 export function changeTextTone(value: number | null | undefined): TextTone {
   if (value == null || !Number.isFinite(value)) return "dimmed";
   return value >= 0 ? "success" : "error";
+}
+
+/** `TextTone` → raw chart/hex colour. Unknown tones mute to `TEXT_MUTED`. */
+export function textToneChartColor(tone: string | null | undefined): string {
+  switch (String(tone ?? "").toLowerCase()) {
+    case "success":
+      return POSITIVE;
+    case "error":
+      return NEGATIVE;
+    default:
+      return TEXT_MUTED;
+  }
+}
+
+const DISPLAY_TONE_COLOR: Record<DisplayTone, string> = {
+  success: POSITIVE,
+  warning: WARNING,
+  error: NEGATIVE,
+  info: INFO,
+  neutral: NEUTRAL,
+};
+
+/** Derived display-status tone → palette colour (status pill dot + text). */
+export function displayToneColor(tone: DisplayTone): string {
+  return DISPLAY_TONE_COLOR[tone] ?? NEUTRAL;
 }

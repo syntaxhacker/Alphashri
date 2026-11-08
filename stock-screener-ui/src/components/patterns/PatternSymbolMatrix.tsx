@@ -11,15 +11,14 @@ import { MembersButton } from "./MembersButton";
 import {
   directionGlyph,
   directionTone,
-  formatMatrixPct,
-  formatMatrixPrice,
   formatTfLabel,
   isFresherHit,
   matrixTfOrder,
   type MatrixCell,
   type PatternMatrixRow,
 } from "./symbolMatrix";
-import { changeTextTone } from "./patternTone";
+import { formatMatrixPct, formatMatrixPrice, formatRangePos, formatScore } from "./patternFormat";
+import { changeTextTone, textToneChartColor } from "./patternTone";
 
 export interface PatternSymbolMatrixProps {
   rows: PatternMatrixRow[];
@@ -40,8 +39,6 @@ export interface PatternSymbolMatrixProps {
 }
 
 const MAX_CHIPS = 8;
-
-const TONE_COLOR: Record<string, string> = { success: palette.POSITIVE, error: palette.NEGATIVE, dimmed: palette.TEXT_MUTED };
 
 const STATUS_RANK: Record<string, number> = { confirmed: 0, forming: 1, failed: 2, marginal: 2 };
 const DIRECTION_RANK: Record<string, number> = { bullish: 0, bearish: 1, neutral: 2 };
@@ -190,7 +187,7 @@ const TfGlyph = memo(function TfGlyph({ cell }: { cell: MatrixCell | undefined }
       }
       sx={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "1px" }}
     >
-      <Box component="span" sx={{ color: TONE_COLOR[tone], fontSize: 11, lineHeight: 1, fontWeight: 700 }}>
+      <Box component="span" sx={{ color: textToneChartColor(tone), fontSize: 11, lineHeight: 1, fontWeight: 700 }}>
         {directionGlyph(cell.direction)}
       </Box>
       {cell.count > 1 ? (
@@ -204,7 +201,7 @@ const TfGlyph = memo(function TfGlyph({ cell }: { cell: MatrixCell | undefined }
 
 const PatternChip = memo(function PatternChip({ hit, onSelect }: { hit: PatternHitDTO; onSelect: (hit: PatternHitDTO) => void }) {
   matrixStats.patternChipRenders += 1;
-  const color = TONE_COLOR[directionTone(hit.direction)];
+  const color = textToneChartColor(directionTone(hit.direction));
   const label = `${hit.pattern_name} ${formatTfLabel(hit.timeframe)}`;
   return (
     <Box
@@ -344,11 +341,7 @@ export function PatternSymbolMatrix({
         accessorFn: (row) => row.best?.confidence ?? null,
         size: 66,
         meta: { align: "right" },
-        cell: (info) => {
-          const value = info.getValue<number | null>();
-          const text = value == null || !Number.isFinite(value) ? "—" : value.toFixed(1);
-          return <NumText>{text}</NumText>;
-        },
+        cell: (info) => <NumText>{formatScore(info.getValue<number | null>())}</NumText>,
       },
       {
         id: "pos",
@@ -356,11 +349,7 @@ export function PatternSymbolMatrix({
         accessorFn: (row) => row.best?.range_pos ?? null,
         size: 64,
         meta: { align: "right" },
-        cell: (info) => {
-          const value = info.getValue<number | null>();
-          const text = value == null || !Number.isFinite(value) ? "—" : `${Math.round(value)}%`;
-          return <NumText>{text}</NumText>;
-        },
+        cell: (info) => <NumText>{formatRangePos(info.getValue<number | null>())}</NumText>,
       },
       {
         id: "patterns",

@@ -33,19 +33,8 @@ export function formatTfLabel(tf: string): string {
   return raw.toUpperCase();
 }
 
-export function formatMatrixPrice(v: number | null | undefined): string {
-  if (v == null || !Number.isFinite(v)) return "—";
-  return `₹${v.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
-
-export function formatMatrixPct(v: number | null | undefined): string {
-  if (v == null || !Number.isFinite(v)) return "—";
-  const sign = v >= 0 ? "+" : "";
-  return `${sign}${v.toFixed(2)}%`;
-}
+// Canonical home is `./patternFormat`; re-exported so existing imports keep working.
+export { formatMatrixPrice, formatMatrixPct } from "./patternFormat";
 
 export function directionTone(
   direction: string | null | undefined,
