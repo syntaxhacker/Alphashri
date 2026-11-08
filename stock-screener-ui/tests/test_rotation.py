@@ -11,13 +11,13 @@ from fastapi.testclient import TestClient
 
 from api import rotation
 from api.rotation import (
-    PERIOD_FIELDS,
     RotationMover,
     _build_overview,
     _percentile,
     _quadrant,
     _status,
 )
+from api.tv import PERFORMANCE_FIELDS
 
 
 def _frame() -> pd.DataFrame:
@@ -86,7 +86,7 @@ def _frame() -> pd.DataFrame:
 def _benchmark() -> dict:
     return {
         "benchmark": "NIFTY 50",
-        "returns": {period: 0.0 for period in PERIOD_FIELDS},
+        "returns": {period: 0.0 for period in PERFORMANCE_FIELDS},
         "vix": 12.5,
         "vix_change": -2.1,
     }
@@ -243,7 +243,7 @@ def test_rotation_endpoint_returns_payload(monkeypatch):
                 "kind": "sector",
                 "members": 2,
                 "covered": 2,
-                "returns": {period: 1.0 for period in PERIOD_FIELDS},
+                "returns": {period: 1.0 for period in PERFORMANCE_FIELDS},
                 "rs_1m": 1.0,
                 "rs_1w": 1.0,
                 "rs_pct": 80.0,

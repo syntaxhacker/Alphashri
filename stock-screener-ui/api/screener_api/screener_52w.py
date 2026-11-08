@@ -9,7 +9,7 @@ import os
 from datetime import datetime
 
 import config
-from api.tv_auth import tv_scanner_data
+from api.tv import get_scanner_data
 
 from trading.week52_range_lookup import load_all_52w_ranges
 
@@ -399,7 +399,7 @@ def _enrich_with_tv_scanner_data(stocks: list[dict]) -> None:
                     'RSI', 'ADX', 'Perf.W'
                 )
             )
-            _, df = tv_scanner_data(q)
+            _, df = get_scanner_data(q)
             if df is None or df.empty:
                 continue
             for _, row in df.iterrows():

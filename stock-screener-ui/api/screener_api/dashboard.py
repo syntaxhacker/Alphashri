@@ -43,31 +43,11 @@ from typing import Any, Optional
 from fastapi import APIRouter, Query
 
 from api.utils import _sanitize_for_json
-from api.tv_auth import tv_scanner_data
+from api.tv import get_scanner_data, SCREENER_COLUMNS
 
 router = APIRouter(prefix="/api/screener", tags=["screener"])
 
-TV_FIELDS = [
-    "name",
-    "close",
-    "change",
-    "volume",
-    "average_volume_10d_calc",
-    "relative_volume_10d_calc",
-    "market_cap_basic",
-    "logoid",
-    "gap",
-    "price_52_week_high",
-    "price_52_week_low",
-    "ATR",
-    "RSI",
-    "VWAP",
-    "high",
-    "low",
-    "Value.Traded",
-    "sector",
-    "industry",
-]
+TV_FIELDS = list(SCREENER_COLUMNS)
 
 LOGO_URL = "https://s3-symbol-logo.tradingview.com/{logoid}.svg"
 _LOGOID_RE = re.compile(r"^[A-Za-z0-9-]+$")
@@ -149,7 +129,7 @@ def _fetch_tv_frame() -> Any:
         .set_markets("india")
         .limit(TV_LIMIT)
     )
-    _, df = tv_scanner_data(q)
+    _, df = get_scanner_data(q)
     return df
 
 

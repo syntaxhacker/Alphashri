@@ -13,7 +13,7 @@ import pandas as pd
 import requests
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from api.tv_auth import get_tv_cookies, tv_scanner_data
+from api.tv import get_scanner_data, scan_raw, PERFORMANCE_FIELDS
 from tradingview_screener import Query as TVQuery, col
 
 from api.sector import _load_theme_membership
@@ -21,16 +21,7 @@ from config import IST
 
 router = APIRouter(prefix="/api/rotation", tags=["rotation"])
 
-PERIOD_FIELDS: Dict[str, str] = {
-    "1D": "change",
-    "1W": "Perf.W",
-    "1M": "Perf.1M",
-    "3M": "Perf.3M",
-    "6M": "Perf.6M",
-    "YTD": "Perf.YTD",
-    "1Y": "Perf.Y",
-}
-PERIODS = list(PERIOD_FIELDS)
+PERIODS = list(PERFORMANCE_FIELDS)
 KINDS = ("sector", "industry", "theme")
 Market = Literal["india", "america"]
 Kind = Literal["sector", "industry", "theme"]
@@ -128,7 +119,7 @@ def _fetch_rotation_frame(market: str, limit: int = FRAME_LIMIT) -> pd.DataFrame
     else:
         query = query.where(col("sector") != "")
     query = query.order_by("market_cap_basic", ascending=False).limit(limit)
-    _, df = tv_scanner_data(query)
+    _, df = get_scanner_data(query)
     return df
 
 
@@ -158,25 +149,14 @@ def _fetch_benchmark(market: str) -> Dict[str, Any]:
         "vix_change": None,
     }
     try:
-        request_kwargs = {
-            "json": payload,
-            "timeout": 20,
-            "headers": {"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"},
-        }
-        cookies = get_tv_cookies()
-        if cookies:
-            request_kwargs["cookies"] = cookies
-        response = requests.post(
-            f"https://scanner.tradingview.com/{market}/scan",
-            **request_kwargs,
-        )
+        response = scan_raw(market, payload, timeout=20)
         response.raise_for_status()
         for row in response.json().get("data", []):
             values = dict(zip(columns, row.get("d") or []))
             if row.get("s") == meta["symbol"]:
                 output["returns"] = {
                     period: _finite(values.get(column))
-                    for period, column in PERIOD_FIELDS.items()
+                    for period, column in PERFORMANCE_FIELDS.items()
                 }
             elif row.get("s") == meta["vix"]:
                 output["vix"] = _finite(values.get("close"), None) if values.get("close") is not None else None
@@ -259,7 +239,7 @@ def _make_row(
     slug: Optional[str] = None,
     category: Optional[str] = None,
 ) -> Dict[str, Any]:
-    returns = {period: round(_weighted_return(group, column), 2) for period, column in PERIOD_FIELDS.items()}
+    returns = {period: round(_weighted_return(group, column), 2) for period, column in PERFORMANCE_FIELDS.items()}
     advances = int((pd.to_numeric(group["change"], errors="coerce") > 0).sum())
     declines = int((pd.to_numeric(group["change"], errors="coerce") < 0).sum())
     breadth = round(advances / (advances + declines) * 100, 1) if advances + declines else 50.0
@@ -300,7 +280,7 @@ def _build_for_kind(
     if frame is None or frame.empty:
         return []
     unique = frame.drop_duplicates(subset=["name"]).copy()
-    for column in PERIOD_FIELDS.values():
+    for column in PERFORMANCE_FIELDS.values():
         unique[column] = pd.to_numeric(unique[column], errors="coerce")
     unique["market_cap_basic"] = pd.to_numeric(unique["market_cap_basic"], errors="coerce")
     unique["relative_volume"] = pd.to_numeric(unique["relative_volume"], errors="coerce")
