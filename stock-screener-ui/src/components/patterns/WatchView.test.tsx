@@ -635,6 +635,101 @@ describe("WatchView near_52w", () => {
   });
 });
 
+describe("WatchView last-touch badge", () => {
+  function badgeRow(symbol: string, extra: Record<string, unknown>): WatchRow {
+    return {
+      symbol,
+      setup_id: "breakout",
+      trigger_level: 1000,
+      invalidate_level: 900,
+      base_days: 60,
+      range_pct: 5,
+      confidence: 70,
+      status: "forming",
+      end_date: "2026-09-30",
+      ltp: 990,
+      rel_volume: 2.0,
+      vol_adj: 1.1,
+      pct_to_trigger: 1.0,
+      state: "armed",
+      ...extra,
+    } as WatchRow;
+  }
+
+  function badgePayload(items: WatchRow[]): WatchPayload {
+    return {
+      setup: "breakout",
+      min_rel_volume: 0.7,
+      updated_at: "2026-09-30T15:30:00+05:30",
+      items,
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetchWatchSetups.mockResolvedValue(SETUPS);
+    mockFetchMarketStatus.mockResolvedValue({
+      open: true,
+      holiday: false,
+      now_ist: "2026-09-30T10:00:00+05:30",
+      reason: "open",
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  test("PDSL-shaped row renders the last-touch badge with short date and full date in the title", async () => {
+    mockFetchWatch.mockResolvedValue(
+      badgePayload([
+        badgeRow("PDSL", { touched: false, last_touch_date: "2026-11-05" }),
+        badgeRow("TOUCHED", { touched: true }),
+        badgeRow("PLAIN", { touched: false }),
+      ]),
+    );
+    r(<WatchView universe="nifty500" timeframe="1D" />);
+    await waitFor(() => expect(screen.getByTestId("watch-row-PDSL")).toBeInTheDocument());
+
+    const badge = screen.getByTestId("watch-last-touch-PDSL");
+    expect(badge).toHaveTextContent("touched 5 Nov");
+    expect(screen.getByTitle("52W high touched 2026-11-05")).toBeInTheDocument();
+    // Not the live "touched" badge.
+    expect(screen.queryByTestId("watch-touched-PDSL")).not.toBeInTheDocument();
+  });
+
+  test("touched:true still renders the original badge and not the dated one", async () => {
+    mockFetchWatch.mockResolvedValue(
+      badgePayload([
+        badgeRow("PDSL", { touched: false, last_touch_date: "2026-11-05" }),
+        badgeRow("TOUCHED", { touched: true }),
+        badgeRow("PLAIN", { touched: false }),
+      ]),
+    );
+    r(<WatchView universe="nifty500" timeframe="1D" />);
+    await waitFor(() => expect(screen.getByTestId("watch-row-TOUCHED")).toBeInTheDocument());
+
+    expect(screen.getByTestId("watch-touched-TOUCHED")).toHaveTextContent("touched");
+    expect(screen.queryByTestId("watch-last-touch-TOUCHED")).not.toBeInTheDocument();
+  });
+
+  test("row with neither touched nor last_touch_date renders no touched badge", async () => {
+    mockFetchWatch.mockResolvedValue(
+      badgePayload([
+        badgeRow("PDSL", { touched: false, last_touch_date: "2026-11-05" }),
+        badgeRow("TOUCHED", { touched: true }),
+        badgeRow("PLAIN", { touched: false }),
+      ]),
+    );
+    r(<WatchView universe="nifty500" timeframe="1D" />);
+    await waitFor(() => expect(screen.getByTestId("watch-row-PLAIN")).toBeInTheDocument());
+
+    expect(screen.queryByTestId("watch-touched-PLAIN")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("watch-last-touch-PLAIN")).not.toBeInTheDocument();
+  });
+});
+
 describe("WatchView snapshot age", () => {
   const UPDATED_AT = "2026-09-30T15:30:00+05:30";
   const at = (iso: string) => new Date(iso).getTime();
