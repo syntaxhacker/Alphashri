@@ -2195,3 +2195,181 @@ def test_gzip_wire_bytes_decompress_to_identical_payload(gz_app, monkeypatch):
     assert gz_body[:2] == b"\x1f\x8b", "expected gzip magic bytes on the wire"
     assert gzip.decompress(gz_body) == plain_body
     assert len(gz_body) < 0.5 * len(plain_body)
+
+
+# ---------------------------------------------------------------------------
+# Extracted helper parity (DRY refactor) — these guard the shared implementations
+# that replaced duplicated inline blocks in the batch and SSE paths.
+# ---------------------------------------------------------------------------
+
+
+def test_json_response_sanitizes_and_serializes_strictly():
+    import json
+
+    resp = cp_api._json_response({"nan": float("nan"), "inf": float("inf"), "ok": 1})
+
+    assert resp.status_code == 200
+    body = json.loads(resp.body)
+    assert body == {"nan": None, "inf": None, "ok": 1}
+    assert resp.media_type == "application/json"
+
+
+def test_last_close_change_edge_cases():
+    assert cp_api._last_close_change(None) == (None, None)
+    assert cp_api._last_close_change(pd.DataFrame()) == (None, None)
+
+    single = _make_df(1)
+    assert cp_api._last_close_change(single) == (100.0, 0.0)
+
+    two = pd.DataFrame({"close": [100.0, 110.0]})
+    assert cp_api._last_close_change(two) == (110.0, 10.0)
+
+    prev_zero = pd.DataFrame({"close": [0.0, 5.0]})
+    assert cp_api._last_close_change(prev_zero) == (5.0, 0.0)
+
+
+def test_clamped_candle_series_matches_reference_across_limits():
+    from chart_patterns import candles
+
+    df = _make_df(20)
+    for lookback, limit in [(None, None), (5, 3), (5, None), (None, 4), (50, 50), (0, 2)]:
+        expected = candles.candles_to_series(
+            cp_api._clamp_to_lookback(df, lookback), limit
+        )
+        assert cp_api._clamped_candle_series(df, lookback, limit) == expected, (
+            lookback,
+            limit,
+        )
+
+    assert cp_api._clamped_candle_series(None, 10, 10) == []
+    assert cp_api._clamped_candle_series(pd.DataFrame(), 10, 10) == []
+
+
+def test_item_fetch_key_and_distinct_keys():
+    items = [
+        {"symbol": "AAA", "timeframe": "1D"},
+        {"symbol": "AAA", "timeframe": "1D"},
+        {"symbol": "AAA"},                       # falls back to default
+        {"symbol": "BBB", "timeframe": "1h"},
+        {"symbol": None},                        # no symbol -> None
+        {"timeframe": "1D"},                     # no symbol -> None
+        "not-a-dict",
+    ]
+    assert cp_api._item_fetch_key(items[0], "1h") == ("AAA", "1D")
+    assert cp_api._item_fetch_key(items[2], "1h") == ("AAA", "1h")
+    assert cp_api._item_fetch_key(items[4], "1D") is None
+    assert cp_api._item_fetch_key(items[6], "1D") is None
+
+    assert cp_api._distinct_fetch_keys(items, "1h") == [
+        ("AAA", "1D"),
+        ("AAA", "1h"),
+        ("BBB", "1h"),
+    ]
+    # No default and no per-item timeframe -> nothing fetchable.
+    assert cp_api._distinct_fetch_keys([{"symbol": "AAA"}], None) == []
+
+
+def test_cache_setdefault_first_writer_wins_with_and_without_lock():
+    cache = {}
+    cp_api._cache_setdefault(cache, "k", 1)
+    cp_api._cache_setdefault(cache, "k", 2)
+    assert cache == {"k": 1}
+
+    lock = threading.Lock()
+    cache2 = {}
+    cp_api._cache_setdefault(cache2, "k", "first", lock)
+    cp_api._cache_setdefault(cache2, "k", "second", lock)
+    assert cache2 == {"k": "first"}
+
+
+def test_fetch_candles_retry_success_after_transient_failure(monkeypatch):
+    from chart_patterns import candles
+
+    calls = []
+
+    def _flaky(symbol, timeframe, lookback_bars=None):
+        calls.append((symbol, timeframe, lookback_bars))
+        if len(calls) == 1:
+            raise RuntimeError("429")
+        return "df"
+
+    monkeypatch.setattr(candles, "fetch_for_timeframe", _flaky)
+    monkeypatch.setattr(cp_api._time, "sleep", lambda _s: None)
+
+    assert cp_api._fetch_candles_retry("AAA", "1D", 100) == "df"
+    assert calls == [("AAA", "1D", 100), ("AAA", "1D", 100)]
+
+
+def test_fetch_candles_retry_returns_none_after_two_failures(monkeypatch, caplog):
+    from chart_patterns import candles
+
+    calls = []
+
+    def _always_fail(symbol, timeframe, lookback_bars=None):
+        calls.append(1)
+        raise RuntimeError("down")
+
+    monkeypatch.setattr(candles, "fetch_for_timeframe", _always_fail)
+    monkeypatch.setattr(cp_api._time, "sleep", lambda _s: None)
+
+    assert cp_api._fetch_candles_retry("AAA", "1D", 100) is None
+    assert len(calls) == 2
+
+    with caplog.at_level("WARNING"):
+        assert cp_api._fetch_candles_retry("AAA", "1D", 100, log_failure=True) is None
+    assert any("candle fetch failed" in rec.message for rec in caplog.records)
+
+
+def test_iter_completed_results_yields_values():
+    import queue
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futs = [pool.submit(lambda v=v: v) for v in (1, 2, 3)]
+        out = queue.Queue()
+        got = list(cp_api._iter_completed_results(futs, threading.Event(), out))
+
+    assert sorted(got) == [1, 2, 3]
+    assert out.empty()
+
+
+def test_iter_completed_results_enqueues_error_and_stops():
+    import queue
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _boom():
+        raise ValueError("nope")
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futs = [pool.submit(_boom), pool.submit(lambda: 99)]
+        out = queue.Queue()
+        got = list(cp_api._iter_completed_results(futs, threading.Event(), out))
+
+    assert got == []
+    kind, msg = out.get_nowait()
+    assert kind == "error"
+    assert "nope" in msg
+
+
+def test_iter_completed_results_honours_stop():
+    import queue
+    from concurrent.futures import ThreadPoolExecutor
+
+    stop = threading.Event()
+    stop.set()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        futs = [pool.submit(lambda: 1)]
+        out = queue.Queue()
+        got = list(cp_api._iter_completed_results(futs, stop, out))
+
+    assert got == []
+    assert out.empty()
+
+
+def test_candle_fields_delegates_to_last_close_change(monkeypatch):
+    df = pd.DataFrame({"close": [100.0, 110.0]})
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: df)
+
+    fields = cp_api._candle_fields("AAA", "1D")
+
+    assert fields == {"last_close": 110.0, "day_change_pct": 10.0, "history_bars": 2}

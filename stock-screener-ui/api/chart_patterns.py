@@ -14,7 +14,7 @@ import threading
 import time as _time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-from typing import Optional
+from typing import NamedTuple, Optional
 
 from sqlalchemy.orm import Session
 
@@ -55,6 +55,19 @@ def _strip_risk_fields(items) -> None:
         if isinstance(item, dict):
             for key in _RISK_FIELDS:
                 item.pop(key, None)
+
+
+def _json_response(payload) -> JSONResponse:
+    """Sanitize once, then serialize directly instead of letting FastAPI re-encode.
+
+    Every endpoint previously wrote ``JSONResponse(content=_sanitize_for_json(x))``
+    (or ``return _sanitize_for_json(x)``). The dict form makes FastAPI run a
+    second full ``jsonable_encoder`` traversal — costly on candle-heavy cards.
+    Both forms produce the same wire body: ``_sanitize_for_json`` has already
+    flattened every leaf, and ``JSONResponse`` refuses NaN/Inf (``allow_nan``
+    is off), so nothing sanitizable reaches the encoder either way.
+    """
+    return JSONResponse(content=_sanitize_for_json(payload))
 
 
 # ---------------------------------------------------------------------------
@@ -447,7 +460,7 @@ def _slice_candles(df, start_date, end_date, max_bars: int = config.CARD_MAX_BAR
     hi = min(n - 1, ei + max(pad, 30))
     length = hi - lo + 1
     if length <= max_bars:
-        return candles.candles_to_series(df.iloc[lo:hi + 1], max_bars)
+        return _fast_candle_series(df.iloc[lo:hi + 1], max_bars)
     # Uniform downsample across the whole window, always keeping pattern
     # endpoints. Exactly max_bars points are picked (lo/hi from the linspace
     # edges, si/ei swapped in for their nearest non-critical neighbour), so
@@ -455,7 +468,7 @@ def _slice_candles(df, start_date, end_date, max_bars: int = config.CARD_MAX_BAR
     # the pattern head.
     if max_bars < 2:
         keep = [i for i in (si, ei) if 0 <= i < n][:max(1, max_bars)] if max_bars else []
-        return candles.candles_to_series(df.iloc[keep], max(1, max_bars))
+        return _fast_candle_series(df.iloc[keep], max(1, max_bars))
     grid = {lo + round(k * (length - 1) / (max_bars - 1)) for k in range(max_bars)}
     grid = {g for g in grid if lo <= g <= hi}
     grid |= {lo, hi}
@@ -477,7 +490,7 @@ def _slice_candles(df, start_date, end_date, max_bars: int = config.CARD_MAX_BAR
         rest = [g for i, g in enumerate(rest) if i not in drop_idx]
         ordered = sorted(keep | set(rest))
     window = df.iloc[ordered]
-    return candles.candles_to_series(window, len(window))
+    return _fast_candle_series(window, len(window))
 
 
 def _stored_trend_lines(item) -> Optional[list]:
@@ -616,6 +629,55 @@ def _fast_candle_series(frame, limit) -> list:
         return candles.candles_to_series(frame, limit)
 
 
+def _last_close_change(df) -> tuple[Optional[float], Optional[float]]:
+    """Last close and its 2dp % change vs the previous bar, or ``(None, None)``.
+
+    Shared by card enrichment (:func:`_finalize_item`) and the ``/symbol``
+    header (:func:`_candle_fields`) so both report the same number from the
+    same frame instead of two copies of the arithmetic drifting apart.
+    """
+    if df is None or getattr(df, "empty", True):
+        return None, None
+    try:
+        vals = df["close"].to_numpy()
+        close = float(vals[-1])
+        prev = float(vals[-2]) if len(vals) > 1 else close
+        change = ((close - prev) / prev * 100.0) if prev else 0.0
+        return close, round(change, 2)
+    except Exception:
+        return None, None
+
+
+def _clamped_candle_series(df, lookback_bars, limit) -> list:
+    """Candle series tail-clamped to the Lookback, then to the chart limit.
+
+    ``tail(N)`` followed by ``tail(limit)`` is ``tail(min(N, limit))``, so the
+    clamp and the limit collapse into one series conversion. Never raises: a
+    broken frame yields ``[]`` (same fail-soft stance as :func:`_finalize_item`).
+    """
+    try:
+        frame = _clamp_to_lookback(df, lookback_bars)
+        if frame is None or getattr(frame, "empty", True):
+            return []
+        return _fast_candle_series(frame, limit)
+    except Exception:
+        return []
+
+
+def _cache_setdefault(cache, key, value, lock=None) -> None:
+    """Insert ``value`` under ``key`` unless present; ``lock`` guards sharing.
+
+    Batch and SSE paths share one per-request cache dict across threads, and
+    first writer wins (duplicate ``(symbol, timeframe)`` work is wasted, not
+    fatal).
+    """
+    if lock is None:
+        cache.setdefault(key, value)
+        return
+    with lock:
+        cache.setdefault(key, value)
+
+
 def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache, lock=None, current_sig=None):
     """Attach a candle window + last close/day change + trend lines to one item.
 
@@ -629,21 +691,16 @@ def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache
     """
     if isinstance(item, dict):
         item.setdefault("tags", tags_for(str(item.get("symbol") or "")))
+    if current_sig is None:
+        current_sig = config.trendline_signature()
+    stored_lines = _stored_trend_lines(item) if _stored_lines_fresh(item, current_sig) else None
     if key is None:
         if isinstance(item, dict):
-            if current_sig is None:
-                current_sig = config.trendline_signature()
-            fresh = _stored_lines_fresh(item, current_sig)
-            stored_lines = _stored_trend_lines(item) if fresh else None
             item.setdefault("candles", [])
             item.setdefault("last_close", None)
             item.setdefault("day_change_pct", None)
-            item["trend_lines"] = [] if not compute_trendlines else (stored_lines if stored_lines is not None else [])
+            item["trend_lines"] = (stored_lines or []) if compute_trendlines else []
         return item
-    if current_sig is None:
-        current_sig = config.trendline_signature()
-    fresh = _stored_lines_fresh(item, current_sig)
-    stored_lines = _stored_trend_lines(item) if fresh else None
     # Per-key candle window + closes: result sets repeat (symbol, timeframe)
     # across patterns; rebuilding the series per item is the dominant
     # enrichment cost. Cache under a namespaced key in the shared ``tl_cache``
@@ -655,33 +712,10 @@ def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache
     if cached is not None:
         item["candles"], item["last_close"], item["day_change_pct"] = cached
     else:
-        try:
-            if df is not None and not getattr(df, "empty", True):
-                frame = _clamp_to_lookback(df, lookback_bars)
-                candle_series = _fast_candle_series(frame, config.CHART_MAX_BARS)
-            else:
-                candle_series = []
-        except Exception:
-            candle_series = []
-        if df is not None and not getattr(df, "empty", True):
-            try:
-                last = float(df["close"].iloc[-1])
-                prev = float(df["close"].iloc[-2]) if len(df) > 1 else last
-                last_close = last
-                day_change = round(((last - prev) / prev * 100.0) if prev else 0.0, 2)
-            except Exception:
-                last_close = None
-                day_change = None
-        else:
-            last_close = None
-            day_change = None
+        candle_series = _clamped_candle_series(df, lookback_bars, config.CHART_MAX_BARS)
+        last_close, day_change = _last_close_change(df)
         if isinstance(tl_cache, dict):
-            entry = (candle_series, last_close, day_change)
-            if lock is not None:
-                with lock:
-                    tl_cache.setdefault(series_key, entry)
-            else:
-                tl_cache[series_key] = entry
+            _cache_setdefault(tl_cache, series_key, (candle_series, last_close, day_change), lock)
         item["candles"] = candle_series
         item["last_close"] = last_close
         item["day_change_pct"] = day_change
@@ -699,17 +733,68 @@ def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache
                 computed = {"support": None, "resistance": None}
         except Exception:
             computed = {"support": None, "resistance": None}
-        if lock is not None:
-            with lock:
-                tl_cache.setdefault(key, computed)
-        else:
-            tl_cache[key] = computed
+        _cache_setdefault(tl_cache, key, computed, lock)
     try:
         res = tl_cache[key] or {}
         item["trend_lines"] = [v for v in (res.get("support"), res.get("resistance")) if v]
     except Exception:
         item["trend_lines"] = []
     return item
+
+
+def _item_fetch_key(item, default_timeframe: Optional[str] = None):
+    """``(symbol, timeframe)`` fetch key for a result item, or ``None``.
+
+    Shared by the batch (:func:`_enrich_with_candles`) and SSE
+    (:func:`_stream_results_worker`) paths so an item resolves the same frame
+    in both — a per-item ``timeframe`` wins over the request default.
+    """
+    if not isinstance(item, dict):
+        return None
+    symbol = item.get("symbol")
+    timeframe = item.get("timeframe") or default_timeframe
+    if not symbol or not timeframe:
+        return None
+    return (symbol, timeframe)
+
+
+def _distinct_fetch_keys(items, default_timeframe: Optional[str] = None) -> list:
+    """Distinct per-item fetch keys, first-seen order (stable enrichment order)."""
+    ordered: list = []
+    seen: set = set()
+    for item in items:
+        key = _item_fetch_key(item, default_timeframe)
+        if key is None or key in seen:
+            continue
+        seen.add(key)
+        ordered.append(key)
+    return ordered
+
+
+def _fetch_candles_retry(symbol, timeframe, lookback_bars, *, log_failure: bool = False):
+    """``fetch_for_timeframe`` with one retry; ``None`` after both attempts fail.
+
+    Candle fetches routinely hit transient Upstox 429s (especially with bots
+    consuming the shared budget), so a single retry turns most of those into
+    hits instead of candle-less cards. ``_enrich_with_candles`` logs the final
+    failure; the SSE worker stays quiet (the stream already surfaces errors).
+    """
+    last_exc = None
+    for attempt in (0, 1):
+        try:
+            return candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=lookback_bars)
+        except Exception as exc:  # noqa: BLE001 - fail-soft per card
+            last_exc = exc
+            if attempt == 0:
+                _time.sleep(0.5)
+    if log_failure:
+        import logging as _logging
+
+        _logging.getLogger(__name__).warning(
+            "card enrich: candle fetch failed for %s %s: %s",
+            symbol, timeframe, last_exc,
+        )
+    return None
 
 
 def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bars: int = config.CARD_MAX_BARS,
@@ -732,49 +817,17 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
     items = list(items or [])
 
     def _fetch_one(key) -> object:
-        """One ``(symbol, timeframe)`` frame; ``None`` on any failure.
-
-        Retries once: candle fetches routinely hit transient Upstox 429s
-        (especially with bots consuming the shared budget), and a single
-        retry turns most of those into hits instead of candle-less cards.
-        """
-        import logging as _logging
-        import time as _time
-
-        symbol, timeframe = key
-        last_exc: Exception | None = None
-        for attempt in (0, 1):
-            try:
-                return candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=fetch_lb)
-            except Exception as exc:  # noqa: BLE001 - fail-soft per card
-                last_exc = exc
-                if attempt == 0:
-                    _time.sleep(0.5)
-        _logging.getLogger(__name__).warning(
-            "card enrich: candle fetch failed for %s %s: %s",
-            symbol, timeframe, last_exc,
-        )
-        return None
+        return _fetch_candles_retry(key[0], key[1], fetch_lb, log_failure=True)
 
     # Phase 1: collect the distinct fetch keys in first-seen order, then fan
     # the disk-cached ``fetch_for_timeframe`` calls out over a bounded thread
-    # pool. Serial fetching here is the market-hours bottleneck (each fetch
-    # is ~0.5-3s under contention, so a 24-card page takes 20-40s); threads
+    # pool. Serial fetching is the market-hours bottleneck (each fetch is
+    # ~0.5-3s under contention, so a 24-card page takes 20-40s); threads
     # overlap the I/O waits while pandas work stays on this thread below.
     # ``run_symbols`` does not fit (its worker takes a bare symbol, but each
     # key also carries its own timeframe), so only ``max_workers()`` is
     # reused for the pool bound.
-    ordered_keys: list = []
-    seen_keys: set = set()
-    for item in items:
-        symbol = item.get("symbol") if isinstance(item, dict) else None
-        timeframe = (item.get("timeframe") if isinstance(item, dict) else None) or default_timeframe
-        if not symbol or not timeframe:
-            continue
-        key = (symbol, timeframe)
-        if key not in seen_keys:
-            seen_keys.add(key)
-            ordered_keys.append(key)
+    ordered_keys = _distinct_fetch_keys(items, default_timeframe)
     cache: dict = {}
     if len(ordered_keys) == 1:
         cache[ordered_keys[0]] = _fetch_one(ordered_keys[0])
@@ -799,9 +852,7 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
     # Phase 2: per-item enrichment in the original order (clamp, series,
     # last close/day change, stored-vs-recomputed trendlines) — unchanged.
     for item in items:
-        symbol = item.get("symbol") if isinstance(item, dict) else None
-        timeframe = (item.get("timeframe") if isinstance(item, dict) else None) or default_timeframe
-        key = (symbol, timeframe) if (symbol and timeframe) else None
+        key = _item_fetch_key(item, default_timeframe)
         _finalize_item(
             item, cache.get(key) if key is not None else None, key=key,
             lookback_bars=lookback_bars, compute_trendlines=compute_trendlines,
@@ -883,17 +934,17 @@ def _normalize_symbol_list(raw) -> list[str]:
 
 @router.get("/timeframes")
 async def get_timeframes():
-    return _sanitize_for_json({"timeframes": _timeframes_payload()})
+    return _json_response({"timeframes": _timeframes_payload()})
 
 
 @router.get("/universes")
 async def get_universes():
-    return _sanitize_for_json({"universes": _universes_payload(), "default": "nifty50"})
+    return _json_response({"universes": _universes_payload(), "default": "nifty50"})
 
 
 @router.get("/patterns")
 async def get_patterns():
-    return _sanitize_for_json({"families": list(_FAMILIES), "patterns": _patterns_payload()})
+    return _json_response({"families": list(_FAMILIES), "patterns": _patterns_payload()})
 
 
 @router.post("/detect")
@@ -918,10 +969,10 @@ def detect_one(request: DetectRequest, user: User = Depends(get_current_user)):
     except Exception as exc:  # noqa: BLE001 - surface a clean 502
         raise HTTPException(status_code=502, detail=f"candles unavailable: {exc}") from exc
     if df is None or getattr(df, "empty", True):
-        return {"symbol": symbol, "timeframe": tf, "data_through": None, "hits": [], "count": 0}
+        return _json_response({"symbol": symbol, "timeframe": tf, "data_through": None, "hits": [], "count": 0})
     data_through = candles.frame_last_date(df)
     if len(df) < scan_mod._resolve_min_bars(tf):
-        return {"symbol": symbol, "timeframe": tf, "data_through": data_through, "hits": [], "count": 0}
+        return _json_response({"symbol": symbol, "timeframe": tf, "data_through": data_through, "hits": [], "count": 0})
     if len(df) > lookback:
         df = df.iloc[-lookback:]
     try:
@@ -939,13 +990,15 @@ def detect_one(request: DetectRequest, user: User = Depends(get_current_user)):
     # (scan._process_symbol → _latest_record).
     if len(items) > 1:
         items = [scan_mod._latest_record(items)]
-    return {
+    # Sanitized like every other endpoint: a NaN in a detector float would
+    # otherwise make JSONResponse (allow_nan=False) 500 the request.
+    return _json_response({
         "symbol": symbol,
         "timeframe": tf,
         "data_through": data_through,
         "hits": items,
         "count": len(items),
-    }
+    })
 
 
 @router.post("/scan")
@@ -1048,7 +1101,7 @@ async def create_scan(request: ScanRequest, user: User = Depends(get_current_use
                 "max_queue": jobs.PATTERN_SCAN_MAX_QUEUE,
             },
         )
-    return _sanitize_for_json({
+    return _json_response({
         "job_id": dto["job_id"],
         "status": dto["status"],
         "queue_position": dto["queue_position"],
@@ -1059,7 +1112,7 @@ async def create_scan(request: ScanRequest, user: User = Depends(get_current_use
 @router.get("/jobs")
 async def list_jobs(active: int = Query(0, ge=0, le=1)):
     rows = jobs.list_active() if active else store.list_jobs(limit=50)
-    return _sanitize_for_json({"jobs": rows})
+    return _json_response({"jobs": rows})
 
 
 @router.get("/jobs/{job_id}")
@@ -1067,7 +1120,7 @@ async def get_job(job_id: str):
     dto = jobs.get_job(job_id)
     if not dto:
         raise HTTPException(status_code=404, detail="job not found")
-    return _sanitize_for_json(dto)
+    return _json_response(dto)
 
 
 def _build_filters(
@@ -1099,6 +1152,94 @@ def _build_filters(
         "from_date": from_date,
         "to_date": to_date,
     }
+
+
+class _ResultsQuery(NamedTuple):
+    """Resolved query for the ``/results`` and ``/results/stream`` twins."""
+
+    filters: dict
+    limit: int
+    offset: int
+    lookback_bars: Optional[int]
+    compute_trendlines: bool
+
+
+def _results_query(
+    job_id: Optional[str] = Query(None),
+    universe: Optional[str] = Query(None),
+    timeframe: Optional[str] = Query(None),
+    family: Optional[list[str]] = Query(None),
+    direction: Optional[list[str]] = Query(None),
+    status: Optional[list[str]] = Query(None),
+    quality: Optional[str] = Query(None),
+    formed_within_bars: Optional[int] = Query(None),
+    volume_confirmed: Optional[bool] = Query(None),
+    min_rr: Optional[float] = Query(None),
+    symbol: Optional[list[str]] = Query(None),
+    pattern_id: Optional[list[str]] = Query(None),
+    min_base_days: Optional[int] = Query(None),
+    max_range_pct: Optional[float] = Query(None),
+    q: Optional[str] = Query(None),
+    sort: str = Query("confidence"),
+    limit: int = Query(100, ge=1, le=config.RESULTS_MAX_LIMIT),
+    offset: int = Query(0, ge=0),
+    lookback_bars: Optional[int] = Query(None),
+    compute_trendlines: bool = Query(True),
+    max_52w_gap: Optional[float] = Query(None),
+    min_range_pos: Optional[float] = Query(None),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+) -> _ResultsQuery:
+    """Query params shared by ``/results`` and ``/results/stream``.
+
+    Declared in the same order as the original endpoint signatures so the
+    generated OpenAPI parameter list is unchanged. FastAPI hoists a
+    dependency's query params in declaration order; both routes have no other
+    query params, so the operation stays byte-identical.
+    """
+    return _ResultsQuery(
+        filters=_build_filters(
+            job_id, universe, timeframe, family, direction, status, quality,
+            formed_within_bars, volume_confirmed, min_rr, symbol, pattern_id,
+            min_base_days, max_range_pct, q, sort=sort, max_52w_gap=max_52w_gap,
+            min_range_pos=min_range_pos, from_date=from_date, to_date=to_date,
+        ),
+        limit=limit,
+        offset=offset,
+        lookback_bars=lookback_bars,
+        compute_trendlines=compute_trendlines,
+    )
+
+
+def _summary_filters(
+    job_id: Optional[str] = Query(None),
+    universe: Optional[str] = Query(None),
+    timeframe: Optional[str] = Query(None),
+    family: Optional[list[str]] = Query(None),
+    direction: Optional[list[str]] = Query(None),
+    status: Optional[list[str]] = Query(None),
+    quality: Optional[str] = Query(None),
+    formed_within_bars: Optional[int] = Query(None),
+    volume_confirmed: Optional[bool] = Query(None),
+    min_rr: Optional[float] = Query(None),
+    symbol: Optional[list[str]] = Query(None),
+    pattern_id: Optional[list[str]] = Query(None),
+    min_base_days: Optional[int] = Query(None),
+    max_range_pct: Optional[float] = Query(None),
+    q: Optional[str] = Query(None),
+    sort: str = Query("confidence"),
+    max_52w_gap: Optional[float] = Query(None),
+    min_range_pos: Optional[float] = Query(None),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+) -> dict:
+    """Query params for ``/summary`` (same filter set, no paging/chart knobs)."""
+    return _build_filters(
+        job_id, universe, timeframe, family, direction, status, quality,
+        formed_within_bars, volume_confirmed, min_rr, symbol, pattern_id,
+        min_base_days, max_range_pct, q, sort=sort, max_52w_gap=max_52w_gap,
+        min_range_pos=min_range_pos, from_date=from_date, to_date=to_date,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1140,6 +1281,32 @@ def _sse_event(name: str, payload) -> str:
     return f"event: {name}\ndata: {json.dumps(payload)}\n\n"
 
 
+def _iter_completed_results(futs, stop, out):
+    """Yield finished futures' results in completion order; abort on stop/failure.
+
+    Shared by the results and watch stream workers: both bridge a
+    ``ThreadPoolExecutor`` to ``_drain_stream_queue`` via ``out``. On a task
+    failure the error is enqueued once (``("error", message)``) and pending
+    futures are cancelled; both exits end iteration so the caller's
+    ``finally`` still terminates the queue with ``("end", None)``.
+    """
+    for fut in as_completed(futs):
+        if stop.is_set():
+            for pending in futs:
+                pending.cancel()
+            return
+        try:
+            yield fut.result()
+        except Exception as exc:
+            try:
+                out.put(("error", str(exc)[:300]))
+            except Exception:
+                pass
+            for pending in futs:
+                pending.cancel()
+            return
+
+
 def _stream_results_worker(items, *, default_timeframe, fetch_lb, lookback_bars,
                            compute_trendlines, out, stop):
     """Enrich each item on a bounded pool, enqueueing as results arrive.
@@ -1157,16 +1324,7 @@ def _stream_results_worker(items, *, default_timeframe, fetch_lb, lookback_bars,
         with lock:
             if key in df_cache:
                 return df_cache[key]
-        df = None
-        for attempt in (0, 1):
-            try:
-                df = candles.fetch_for_timeframe(key[0], key[1], lookback_bars=fetch_lb)
-                break
-            except Exception:
-                if attempt == 0:
-                    import time as _time
-
-                    _time.sleep(0.5)
+        df = _fetch_candles_retry(key[0], key[1], fetch_lb)
         with lock:
             df_cache.setdefault(key, df)
         return df_cache.get(key)
@@ -1174,9 +1332,7 @@ def _stream_results_worker(items, *, default_timeframe, fetch_lb, lookback_bars,
     def _task(item):
         if stop.is_set():
             return None
-        symbol = item.get("symbol") if isinstance(item, dict) else None
-        timeframe = (item.get("timeframe") if isinstance(item, dict) else None) or default_timeframe
-        key = (symbol, timeframe) if (symbol and timeframe) else None
+        key = _item_fetch_key(item, default_timeframe)
         df = _cached_fetch(key) if key is not None else None
         return _finalize_item(
             item, df, key=key, lookback_bars=lookback_bars,
@@ -1188,21 +1344,7 @@ def _stream_results_worker(items, *, default_timeframe, fetch_lb, lookback_bars,
         workers = max(1, min(_STREAM_POOL_WORKERS, len(items) or 1))
         with ThreadPoolExecutor(max_workers=workers) as pool:
             futs = [pool.submit(_task, item) for item in items]
-            for fut in as_completed(futs):
-                if stop.is_set():
-                    for pending in futs:
-                        pending.cancel()
-                    break
-                try:
-                    enriched = fut.result()
-                except Exception as exc:
-                    try:
-                        out.put(("error", str(exc)[:300]))
-                    except Exception:
-                        pass
-                    for pending in futs:
-                        pending.cancel()
-                    break
+            for enriched in _iter_completed_results(futs, stop, out):
                 if enriched is None:
                     continue
                 try:
@@ -1303,54 +1445,23 @@ async def _results_sse_events(items, *, default_timeframe, lookback_bars,
 
 
 @router.get("/results")
-async def get_results(
-    job_id: Optional[str] = Query(None),
-    universe: Optional[str] = Query(None),
-    timeframe: Optional[str] = Query(None),
-    family: Optional[list[str]] = Query(None),
-    direction: Optional[list[str]] = Query(None),
-    status: Optional[list[str]] = Query(None),
-    quality: Optional[str] = Query(None),
-    formed_within_bars: Optional[int] = Query(None),
-    volume_confirmed: Optional[bool] = Query(None),
-    min_rr: Optional[float] = Query(None),
-    symbol: Optional[list[str]] = Query(None),
-    pattern_id: Optional[list[str]] = Query(None),
-    min_base_days: Optional[int] = Query(None),
-    max_range_pct: Optional[float] = Query(None),
-    q: Optional[str] = Query(None),
-    sort: str = Query("confidence"),
-    limit: int = Query(100, ge=1, le=config.RESULTS_MAX_LIMIT),
-    offset: int = Query(0, ge=0),
-    lookback_bars: Optional[int] = Query(None),
-    compute_trendlines: bool = Query(True),
-    max_52w_gap: Optional[float] = Query(None),
-    min_range_pos: Optional[float] = Query(None),
-    from_date: Optional[str] = Query(None),
-    to_date: Optional[str] = Query(None),
-):
-    filters = _build_filters(
-        job_id, universe, timeframe, family, direction, status, quality,
-        formed_within_bars, volume_confirmed, min_rr, symbol, pattern_id,
-        min_base_days, max_range_pct, q, sort=sort, max_52w_gap=max_52w_gap,
-        min_range_pos=min_range_pos, from_date=from_date, to_date=to_date,
+async def get_results(query: _ResultsQuery = Depends(_results_query)):
+    items, total, summary = store.query_results(
+        query.filters, limit=query.limit, offset=query.offset,
     )
-    items, total, summary = store.query_results(filters, limit=limit, offset=offset)
     # Candle enrichment may hit the (disk-cached) Upstox API on a miss — keep it
     # off the event loop so a slow/hung fetch cannot freeze the whole server.
     # The card window spans the active Lookback so mini-charts match the view.
-    await run_in_threadpool(_enrich_with_candles, items, timeframe, lookback_bars=lookback_bars,
-                            compute_trendlines=compute_trendlines)
+    await run_in_threadpool(_enrich_with_candles, items, query.filters.get("timeframe"),
+                            lookback_bars=query.lookback_bars,
+                            compute_trendlines=query.compute_trendlines)
     _strip_risk_fields(items)
-    # Already-sanitized payload: return it as a ready-rendered JSONResponse so
-    # FastAPI skips its jsonable_encoder pass (a second full traversal of the
-    # 700-bar-per-card candle arrays). The parsed body is unchanged.
-    return JSONResponse(content=_sanitize_for_json({
+    return _json_response({
         "items": items,
         "total": total,
         "summary": summary,
         "data_through": summary.get("data_through"),
-    }))
+    })
 
 
 @router.get("/index/{index_id}/members")
@@ -1379,7 +1490,7 @@ def get_index_members(index_id: str):
     }
     if key in NO_MEMBERS_INDEX_IDS:
         payload["note"] = "Volatility index has no constituent stocks."
-    return _sanitize_for_json(payload)
+    return _json_response(payload)
 
 
 @router.get("/hit/{hit_id}")
@@ -1389,37 +1500,11 @@ def get_hit(hit_id: int, db: Session = Depends(get_db)):
     row = db.query(PatternHit).filter(PatternHit.id == hit_id).first()
     if row is None:
         raise HTTPException(status_code=404, detail="Pattern hit not found")
-    return _sanitize_for_json(row.to_dict())
+    return _json_response(row.to_dict())
 
 
 @router.get("/results/stream")
-async def stream_results(
-    request: Request,
-    job_id: Optional[str] = Query(None),
-    universe: Optional[str] = Query(None),
-    timeframe: Optional[str] = Query(None),
-    family: Optional[list[str]] = Query(None),
-    direction: Optional[list[str]] = Query(None),
-    status: Optional[list[str]] = Query(None),
-    quality: Optional[str] = Query(None),
-    formed_within_bars: Optional[int] = Query(None),
-    volume_confirmed: Optional[bool] = Query(None),
-    min_rr: Optional[float] = Query(None),
-    symbol: Optional[list[str]] = Query(None),
-    pattern_id: Optional[list[str]] = Query(None),
-    min_base_days: Optional[int] = Query(None),
-    max_range_pct: Optional[float] = Query(None),
-    q: Optional[str] = Query(None),
-    sort: str = Query("confidence"),
-    limit: int = Query(100, ge=1, le=config.RESULTS_MAX_LIMIT),
-    offset: int = Query(0, ge=0),
-    lookback_bars: Optional[int] = Query(None),
-    compute_trendlines: bool = Query(True),
-    max_52w_gap: Optional[float] = Query(None),
-    min_range_pos: Optional[float] = Query(None),
-    from_date: Optional[str] = Query(None),
-    to_date: Optional[str] = Query(None),
-):
+async def stream_results(request: Request, query: _ResultsQuery = Depends(_results_query)):
     """SSE twin of ``GET /results`` (same query params, read-only, open).
 
     Events: ``meta`` → ``{total, summary, data_through}`` (immediately, before
@@ -1430,23 +1515,21 @@ async def stream_results(
     query itself is instant, only the enrichment is slow. Client disconnect
     stops production. Never raises mid-stream (``event: error`` + close).
     """
-    filters = _build_filters(
-        job_id, universe, timeframe, family, direction, status, quality,
-        formed_within_bars, volume_confirmed, min_rr, symbol, pattern_id,
-        min_base_days, max_range_pct, q, sort=sort, max_52w_gap=max_52w_gap,
-        min_range_pos=min_range_pos, from_date=from_date, to_date=to_date,
-    )
+    filters = query.filters
 
     async def _body():
         try:
-            items, total, summary = store.query_results(filters, limit=limit, offset=offset)
+            items, total, summary = store.query_results(
+                filters, limit=query.limit, offset=query.offset,
+            )
         except Exception as exc:
             yield _sse_event("error", {"message": str(exc)[:300]})
             return
         _strip_risk_fields(items)
         async for frame in _results_sse_events(
-            items, default_timeframe=timeframe, lookback_bars=lookback_bars,
-            compute_trendlines=compute_trendlines, total=total,
+            items, default_timeframe=filters.get("timeframe"),
+            lookback_bars=query.lookback_bars,
+            compute_trendlines=query.compute_trendlines, total=total,
             summary=summary, data_through=summary.get("data_through"),
             request=request,
         ):
@@ -1456,34 +1539,7 @@ async def stream_results(
 
 
 @router.get("/summary")
-async def get_summary(
-    job_id: Optional[str] = Query(None),
-    universe: Optional[str] = Query(None),
-    timeframe: Optional[str] = Query(None),
-    family: Optional[list[str]] = Query(None),
-    direction: Optional[list[str]] = Query(None),
-    status: Optional[list[str]] = Query(None),
-    quality: Optional[str] = Query(None),
-    formed_within_bars: Optional[int] = Query(None),
-    volume_confirmed: Optional[bool] = Query(None),
-    min_rr: Optional[float] = Query(None),
-    symbol: Optional[list[str]] = Query(None),
-    pattern_id: Optional[list[str]] = Query(None),
-    min_base_days: Optional[int] = Query(None),
-    max_range_pct: Optional[float] = Query(None),
-    q: Optional[str] = Query(None),
-    sort: str = Query("confidence"),
-    max_52w_gap: Optional[float] = Query(None),
-    min_range_pos: Optional[float] = Query(None),
-    from_date: Optional[str] = Query(None),
-    to_date: Optional[str] = Query(None),
-):
-    filters = _build_filters(
-        job_id, universe, timeframe, family, direction, status, quality,
-        formed_within_bars, volume_confirmed, min_rr, symbol, pattern_id,
-        min_base_days, max_range_pct, q, sort=sort, max_52w_gap=max_52w_gap,
-        min_range_pos=min_range_pos, from_date=from_date, to_date=to_date,
-    )
+async def get_summary(filters: dict = Depends(_summary_filters)):
     cache_key = (
         getattr(store, "_session_factory", None),
         _freeze_filters(filters),
@@ -1516,15 +1572,8 @@ def _candle_fields(symbol: str, timeframe: str) -> dict:
         df = None
     if df is None or getattr(df, "empty", True):
         return {"last_close": None, "day_change_pct": None, "history_bars": 0}
-    try:
-        # One array for both closes: avoids two column lookups + iloc slicing.
-        vals = df["close"].to_numpy()
-        close = float(vals[-1])
-        prev = float(vals[-2]) if len(vals) > 1 else close
-        change = ((close - prev) / prev * 100.0) if prev else 0.0
-        return {"last_close": close, "day_change_pct": round(change, 2), "history_bars": int(len(df))}
-    except Exception:
-        return {"last_close": None, "day_change_pct": None, "history_bars": int(len(df))}
+    last_close, day_change = _last_close_change(df)
+    return {"last_close": last_close, "day_change_pct": day_change, "history_bars": int(len(df))}
 
 
 @router.get("/symbol/{symbol}")
@@ -1542,7 +1591,7 @@ async def get_symbol(
     _strip_risk_fields(detail.get("patterns", []))
     if not detail.get("name"):
         detail["name"] = _lookup_name(symbol)
-    return JSONResponse(content=_sanitize_for_json(detail))
+    return _json_response(detail)
 
 
 def _live_hit_to_dict(hit, symbol: str, timeframe: str) -> Optional[dict]:
@@ -1629,7 +1678,7 @@ async def _asof_symbol_chart(
     if df is not None and not getattr(df, "empty", True):
         df = candles.truncate_frame_to(df, to_dt)
     empty = df is None or getattr(df, "empty", True)
-    series = candles.candles_to_series(_clamp_to_lookback(df, lookback_bars), limit) if not empty else []
+    series = _clamped_candle_series(df, lookback_bars, limit)
     if not compute_trendlines:
         trend_lines: list = []
     else:
@@ -1682,10 +1731,10 @@ async def get_symbol_chart(
     from_date: Optional[str] = Query(None),
 ):
     if as_of_date is not None:
-        return JSONResponse(content=_sanitize_for_json(await _asof_symbol_chart(
+        return _json_response(await _asof_symbol_chart(
             symbol, timeframe, limit, lookback_bars, compute_trendlines,
             detect_patterns, as_of_date, from_date,
-        )))
+        ))
     try:
         lb = lookback_bars if lookback_bars is not None else config.READ_LOOKBACK_BARS
         df = candles.fetch_for_timeframe(
@@ -1701,7 +1750,7 @@ async def get_symbol_chart(
     partial_last = bool(
         df is not None and getattr(df, "attrs", {}).get("partial_today", False)
     )
-    series = candles.candles_to_series(_clamp_to_lookback(df, lookback_bars), limit) if df is not None else []
+    series = _clamped_candle_series(df, lookback_bars, limit)
     if partial_last and series:
         series[-1]["is_partial"] = True
     detail = store.get_symbol_detail(symbol, timeframe)
@@ -1758,12 +1807,12 @@ async def get_symbol_chart(
             if overlay is not None:
                 overlays.append(overlay)
         payload["hits"] = hits
-    return JSONResponse(content=_sanitize_for_json(payload))
+    return _json_response(payload)
 
 
 @router.get("/watch/setups")
 async def get_watch_setups():
-    return _sanitize_for_json({"setups": watch_mod.public_setups()})
+    return _json_response({"setups": watch_mod.public_setups()})
 
 
 @router.get("/market-status")
@@ -1795,7 +1844,7 @@ async def market_status():
     try:
         is_open = bool(_market_utils.is_market_open(now)) if _market_utils is not None else False
     except Exception:
-        return _sanitize_for_json({
+        return _json_response({
             "open": False, "holiday": False,
             "now_ist": now.isoformat(), "reason": "clock unavailable",
         })
@@ -1811,7 +1860,7 @@ async def market_status():
         reason = "weekend"
     else:
         reason = "outside trading hours"
-    return _sanitize_for_json({
+    return _json_response({
         "open": is_open,
         "holiday": holiday,
         "now_ist": now.isoformat(),
@@ -1864,7 +1913,7 @@ async def get_watch(
     # returns instantly; only a miss/stale cache falls through to arm + live.
     snap = _watch_snapshot(setup, universe, timeframe)
     if snap is not None:
-        return _sanitize_for_json(snap)
+        return _json_response(snap)
     # Store reads + price/volume fan-out can block — keep them off the loop.
     rows = await run_in_threadpool(
         watch_mod.arm,
@@ -1882,7 +1931,7 @@ async def get_watch(
         _rank.get(it.get("state"), 3),
         abs(it["pct_to_trigger"]) if it.get("pct_to_trigger") is not None else 1e9,
     ))
-    return _sanitize_for_json({
+    return _json_response({
         "setup": setup,
         "min_rel_volume": min_rel_volume,
         "updated_at": datetime.now(root_config.IST).isoformat(),
@@ -1910,21 +1959,7 @@ def _stream_watch_live_worker(rows, *, min_rel_volume, out, stop):
                 pool.submit(watch_mod.live, list(chunk), min_rel_volume=min_rel_volume)
                 for chunk in chunks
             ]
-            for fut in as_completed(futs):
-                if stop.is_set():
-                    for pending in futs:
-                        pending.cancel()
-                    break
-                try:
-                    computed = fut.result()
-                except Exception as exc:
-                    try:
-                        out.put(("error", str(exc)[:300]))
-                    except Exception:
-                        pass
-                    for pending in futs:
-                        pending.cancel()
-                    break
+            for computed in _iter_completed_results(futs, stop, out):
                 for live_row in computed or []:
                     try:
                         out.put(("item", _sanitize_for_json(live_row)))
