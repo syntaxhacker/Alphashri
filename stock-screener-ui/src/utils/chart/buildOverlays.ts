@@ -1,6 +1,33 @@
 import type { UnifiedOverlay } from "./types";
 import { buildOverlayLineSeries } from "./overlayLine";
 
+/** Shared box-overlay skeleton: a thin dashed line with no tooltip or labels.
+ *
+ * `buildOverlays` and `buildBacktestChartOption` both painted box overlays with
+ * this identical `buildOverlayLineSeries` skeleton; only the data mapping
+ * differs (levels array + `extendSeriesData` here, `overlay.levels.top` via
+ * `mapOverlayDateValues` there), so data stays with the caller and the
+ * options object lives here.
+ */
+export function buildOverlayBoxSeries(
+  id: string,
+  name: string,
+  data: (number | null)[],
+  color: string,
+): any {
+  return buildOverlayLineSeries({
+    id,
+    name,
+    data,
+    z: 4,
+    color,
+    width: 0.5,
+    opacity: 0.5,
+    dash: true,
+    tooltip: false,
+  });
+}
+
 export function buildOverlays(
   overlays: UnifiedOverlay[],
   candles: { date?: string; time: string }[],
@@ -68,17 +95,7 @@ export function buildOverlays(
       const topData = extendSeriesData(mapLevelValues(overlay)!);
 
       series.push(
-        buildOverlayLineSeries({
-          id: `${overlay.id}_top`,
-          name: overlay.label,
-          data: topData,
-          z: 4,
-          color: overlay.color,
-          width: 0.5,
-          opacity: 0.5,
-          dash: true,
-          tooltip: false,
-        }),
+        buildOverlayBoxSeries(`${overlay.id}_top`, overlay.label, topData, overlay.color),
       );
     }
   }

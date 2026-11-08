@@ -6,22 +6,9 @@
 import { fetchWithAuth } from "../state/auth";
 import type { EventWatchResponse, RegimeResponse } from "../types/eventWatch";
 import { API_BASE } from "./config";
+import { parseReportJson } from "./report";
 
 const EVENTS_API_BASE = `${API_BASE}/api/reports/events`;
-
-async function parseOrThrow(response: Response, label: string): Promise<EventWatchResponse> {
-  if (!response.ok) {
-    let detail = `HTTP ${response.status}`;
-    try {
-      const error = await response.json();
-      if (error?.detail) detail = String(error.detail);
-    } catch {
-      // keep status fallback
-    }
-    throw new Error(detail || `Failed to fetch ${label}`);
-  }
-  return response.json();
-}
 
 export async function fetchUpcomingEvents(
   days: number = 7,
@@ -33,7 +20,7 @@ export async function fetchUpcomingEvents(
     signal,
   });
   if (response.status === 404) return null;
-  return parseOrThrow(response, "upcoming events");
+  return parseReportJson<EventWatchResponse>(response, "Failed to fetch upcoming events");
 }
 
 export async function fetchRecentEvents(
@@ -45,7 +32,7 @@ export async function fetchRecentEvents(
     signal,
   });
   if (response.status === 404) return null;
-  return parseOrThrow(response, "recent events");
+  return parseReportJson<EventWatchResponse>(response, "Failed to fetch recent events");
 }
 
 /** Nifty 50 vs 20DMA regime snapshot. Returns null when the endpoint is
@@ -53,15 +40,5 @@ export async function fetchRecentEvents(
 export async function fetchRegime(signal?: AbortSignal): Promise<RegimeResponse | null> {
   const response = await fetchWithAuth(`${EVENTS_API_BASE}/regime`, { signal });
   if (response.status === 404) return null;
-  if (!response.ok) {
-    let detail = `HTTP ${response.status}`;
-    try {
-      const error = await response.json();
-      if (error?.detail) detail = String(error.detail);
-    } catch {
-      // keep status fallback
-    }
-    throw new Error(detail || "Failed to fetch regime");
-  }
-  return response.json();
+  return parseReportJson<RegimeResponse>(response, "Failed to fetch regime");
 }

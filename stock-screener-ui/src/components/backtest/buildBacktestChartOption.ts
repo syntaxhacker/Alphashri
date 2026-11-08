@@ -5,6 +5,7 @@ import { getChartThemeColors, CANDLESTICK_ITEM_STYLE } from "../../utils/chartUt
 import { buildPivotSeries } from "../../utils/chartLineBuilders";
 import { mapOverlayDateValues } from "../../utils/chart/scaleHelpers";
 import { buildOverlayLineSeries } from "../../utils/chart/overlayLine";
+import { buildOverlayBoxSeries } from "../../utils/chart/buildOverlays";
 import {
   CHART_DARK_OVERLAY,
   CHART_LIGHT_OVERLAY,
@@ -173,19 +174,7 @@ export function buildChartOption(data: SymbolChartData, isDark: boolean): any {
       } else if (overlay.type === "box") {
         const topData = mapOverlayDateValues(candles, overlay.date, overlay.levels.top);
 
-        series.push(
-          buildOverlayLineSeries({
-            id: `${overlay.id}_top`,
-            name: overlay.label,
-            data: topData,
-            z: 4,
-            color: overlay.color,
-            width: 0.5,
-            opacity: 0.5,
-            dash: true,
-            tooltip: false,
-          }),
-        );
+        series.push(buildOverlayBoxSeries(`${overlay.id}_top`, overlay.label, topData, overlay.color));
       }
     });
   }
