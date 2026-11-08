@@ -14,6 +14,22 @@ import {
 } from "./helpers/backtestHelpers";
 import { runBacktest, clickFirstTradeRow } from "./helpers/flowsB";
 
+const tradeDetail = {
+  entry_price: 2450,
+  exit_price: 2520,
+  entry_time: "2024-01-15T09:30",
+  exit_time: "2024-01-15T14:30",
+  quantity: 100,
+  gross_pnl: 7000,
+  trading_costs: 500,
+  net_pnl: 6500,
+  net_pnl_pct: 2.65,
+  exit_reason: "TP",
+  hold_duration_minutes: 300,
+  or_high: 2525,
+  or_low: 2440,
+};
+
 const mockBacktestResults = {
   results: [
     { symbol: "NETWEB", net_pnl: 5000, trades: 5, win_rate: 60, pf: 1.8, tp_exits: 3, sl_exits: 2 },
@@ -107,21 +123,7 @@ const mockChartData = {
       time: "2024-01-15T09:30",
       date: "2024-01-15",
       price: 2450,
-      trade: {
-        entry_price: 2450,
-        exit_price: 2520,
-        entry_time: "2024-01-15T09:30",
-        exit_time: "2024-01-15T14:30",
-        quantity: 100,
-        gross_pnl: 7000,
-        trading_costs: 500,
-        net_pnl: 6500,
-        net_pnl_pct: 2.65,
-        exit_reason: "TP",
-        hold_duration_minutes: 300,
-        or_high: 2525,
-        or_low: 2440,
-      },
+      trade: tradeDetail,
     },
     {
       trade_id: 1,
@@ -129,21 +131,7 @@ const mockChartData = {
       time: "2024-01-15T14:30",
       date: "2024-01-15",
       price: 2520,
-      trade: {
-        entry_price: 2450,
-        exit_price: 2520,
-        entry_time: "2024-01-15T09:30",
-        exit_time: "2024-01-15T14:30",
-        quantity: 100,
-        gross_pnl: 7000,
-        trading_costs: 500,
-        net_pnl: 6500,
-        net_pnl_pct: 2.65,
-        exit_reason: "TP",
-        hold_duration_minutes: 300,
-        or_high: 2525,
-        or_low: 2440,
-      },
+      trade: tradeDetail,
     },
   ],
   date_range: { start: "2024-01-01", end: "2024-01-31" },

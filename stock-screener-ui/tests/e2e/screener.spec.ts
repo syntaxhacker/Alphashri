@@ -1,6 +1,15 @@
 import { test, expect } from "@playwright/test";
 import { apiRoute } from "../mocks/routeHelper";
 import { setupScreenerApp, openScreenerTable, openConfigTab } from "./helpers/flowsB";
+
+async function openCreateModal(page: Page) {
+  await page.goto("/?tab=screener");
+  await page.waitForSelector('[data-testid="tab-config"]', { timeout: 10000 });
+  await openConfigTab(page);
+  await page.click('[data-testid="create-screener-btn"]');
+  await page.waitForLoadState("networkidle");
+}
+
 test.describe("Screener - Data Display", () => {
   test.beforeEach(async ({ page }) => {
     await setupScreenerApp(page);
@@ -255,25 +264,13 @@ test.describe("Screener - Config Tab", () => {
     });
   });
   test("should open create modal when clicking Create button", async ({ page }) => {
-    await page.goto("/?tab=screener");
-    await page.waitForSelector('[data-testid="tab-config"]', {
-      timeout: 10000,
-    });
-    await openConfigTab(page);
-    await page.click('[data-testid="create-screener-btn"]');
-    await page.waitForLoadState("networkidle");
+    await openCreateModal(page);
     await expect(page.locator('[data-testid="inline-form"]')).toBeVisible({
       timeout: 10000,
     });
   });
   test("should show form fields in create modal", async ({ page }) => {
-    await page.goto("/?tab=screener");
-    await page.waitForSelector('[data-testid="tab-config"]', {
-      timeout: 10000,
-    });
-    await openConfigTab(page);
-    await page.click('[data-testid="create-screener-btn"]');
-    await page.waitForLoadState("networkidle");
+    await openCreateModal(page);
     await expect(page.locator('[data-testid="screener-name-input"]')).toBeVisible({
       timeout: 10000,
     });

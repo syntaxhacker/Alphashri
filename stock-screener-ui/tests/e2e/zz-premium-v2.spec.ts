@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { loginAsTestUser } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
-import { premiumTrackerSnapshot } from "./helpers/flowsB";
+import { premiumTrackerSnapshot } from "./helpers/premiumFixture";
 
 const snap = premiumTrackerSnapshot();
 

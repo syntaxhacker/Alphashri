@@ -10,7 +10,7 @@ import {
   navigateToPaperTradingSettings,
   openSettingsAndChangeInput,
 } from "./helpers/flowsB";
-import { TEST_BOT_UUID, setupBotApiMocks } from "./helpers/botHelpers";
+import { TEST_BOT_UUID, setupBotApiMocks, mockBotDetailRoute, mockBotSummaryRoute } from "./helpers/botHelpers";
 import { generateCandles } from "./helpers/chartHelpers";
 
 const TEST_DATE = "2026-04-24";
@@ -164,39 +164,8 @@ test.describe("Paper Trading - Bot Controls", () => {
   test("should update UI immediately after starting a bot", async ({ page }) => {
     let botRunning = false;
 
-    await page.route(apiRoute(`bots/${TEST_BOT_UUID}`), async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          id: TEST_BOT_UUID,
-          name: "Multi-ORB Test Bot",
-          is_active: true,
-          strategies: [],
-          running: botRunning,
-          pid: botRunning ? 22133 : null,
-        }),
-      });
-    });
-
-    await page.route(apiRoute("bots/summary"), async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify([
-          {
-            id: TEST_BOT_UUID,
-            name: "Multi-ORB Test Bot",
-            is_active: true,
-            running: botRunning,
-            pid: botRunning ? 22133 : null,
-            status: botRunning ? "running" : "stopped",
-            position_count: 0,
-            strategies: [],
-          },
-        ]),
-      });
-    });
+    await mockBotDetailRoute(page, TEST_BOT_UUID, () => botRunning);
+    await mockBotSummaryRoute(page, TEST_BOT_UUID, () => botRunning);
 
     await page.route(apiRoute(`bots/${TEST_BOT_UUID}/start`), async (route) => {
       botRunning = true;
@@ -222,20 +191,7 @@ test.describe("Paper Trading - Bot Controls", () => {
 
   test("should show Start Bot button when bot is not running", async ({ page }) => {
     // Mock bot as not running
-    await page.route(apiRoute(`bots/${TEST_BOT_UUID}`), async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          id: TEST_BOT_UUID,
-          name: "Multi-ORB Test Bot",
-          is_active: true,
-          strategies: [],
-          running: false,
-          pid: null,
-        }),
-      });
-    });
+    await mockBotDetailRoute(page, TEST_BOT_UUID, false);
 
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
@@ -245,24 +201,7 @@ test.describe("Paper Trading - Bot Controls", () => {
 
   test("should show Stop Bot button when bot is running", async ({ page }) => {
     // Mock bot summaries as running
-    await page.route(apiRoute("bots/summary"), async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify([
-          {
-            id: TEST_BOT_UUID,
-            name: "Multi-ORB Test Bot",
-            is_active: true,
-            running: true,
-            pid: 22133,
-            status: "running",
-            position_count: 2,
-            strategies: [],
-          },
-        ]),
-      });
-    });
+    await mockBotSummaryRoute(page, TEST_BOT_UUID, true, { positionCount: 2 });
 
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 

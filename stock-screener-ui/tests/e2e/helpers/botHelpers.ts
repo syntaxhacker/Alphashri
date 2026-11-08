@@ -216,21 +216,8 @@ export async function setupBotApiMocks(page: Page, options: SetupBotApiMocksOpti
     });
   });
 
-  await page.route(apiRoute("bots/[a-f0-9-]+/positions"), async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ positions, count: positions.length }),
-    });
-  });
-
-  await page.route(apiRoute("paper/positions"), async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ positions, count: positions.length }),
-    });
-  });
+  await mockPositionsRoute(page, "bots/[a-f0-9-]+/positions", positions);
+  await mockPositionsRoute(page, "paper/positions", positions);
 
   await page.route(apiRoute("bots/[a-f0-9-]+/scan"), async (route) => {
     await route.fulfill({
@@ -245,4 +232,66 @@ export async function setupBotApiMocks(page: Page, options: SetupBotApiMocksOpti
 
 export async function expectPositionsVisible(page: Page, timeout: number = 15000) {
   await expect(page.locator('[data-testid="positions-table-container"]')).toBeVisible({ timeout });
+}
+
+export async function mockPositionsRoute(page: Page, urlPattern: string, positions: object[]) {
+  await page.route(apiRoute(urlPattern), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ positions, count: positions.length }),
+    });
+  });
+}
+
+/** Mock the bot detail route. `running` may be a static boolean or a live getter. */
+export async function mockBotDetailRoute(
+  page: Page,
+  botId: string,
+  running: boolean | (() => boolean),
+) {
+  const isRunning = typeof running === "function" ? running() : running;
+  await page.route(apiRoute(`bots/${botId}`), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: botId,
+        name: "Multi-ORB Test Bot",
+        is_active: true,
+        strategies: [],
+        running: isRunning,
+        pid: isRunning ? 22133 : null,
+      }),
+    });
+  });
+}
+
+/** Mock the bots/summary route. `running` may be a static boolean or a live getter. */
+export async function mockBotSummaryRoute(
+  page: Page,
+  botId: string,
+  running: boolean | (() => boolean),
+  options: { positionCount?: number } = {},
+) {
+  const { positionCount = 0 } = options;
+  const isRunning = typeof running === "function" ? running() : running;
+  await page.route(apiRoute("bots/summary"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([
+        {
+          id: botId,
+          name: "Multi-ORB Test Bot",
+          is_active: true,
+          running: isRunning,
+          pid: isRunning ? 22133 : null,
+          status: isRunning ? "running" : "stopped",
+          position_count: positionCount,
+          strategies: [],
+        },
+      ]),
+    });
+  });
 }
