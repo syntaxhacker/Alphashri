@@ -6,47 +6,17 @@ vi.mock("../state/auth", () => ({
 
 import { fetchWithAuth } from "../state/auth";
 import { streamResults, streamWatch } from "./chartPatterns";
+import {
+  createErrorCapture,
+  createStreamCollector,
+  errorResponse,
+  makePatternHit as makeHit,
+  STREAM_META as META,
+  sseFrame as frame,
+  sseResponse,
+} from "./apiTestMocks";
 
 const mockedFetch = vi.mocked(fetchWithAuth);
-
-function sseResponse(chunks: string[]): Response {
-  const stream = new ReadableStream({
-    start(controller) {
-      for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk));
-      controller.close();
-    },
-  });
-  return { ok: true, status: 200, body: stream } as unknown as Response;
-}
-
-function errorResponse(status: number, body: unknown): Response {
-  return { ok: false, status, json: async () => body } as unknown as Response;
-}
-
-function frame(event: string, data: unknown): string {
-  return `event: ${event}\ndata: ${typeof data === "string" ? data : JSON.stringify(data)}\n\n`;
-}
-
-function makeHit(symbol: string, confidence: number): Record<string, unknown> {
-  return {
-    id: confidence,
-    symbol,
-    timeframe: "1D",
-    pattern_id: "falling_wedge",
-    pattern_name: "Falling Wedge",
-    family: "reversal",
-    direction: "bullish",
-    status: "confirmed",
-    quality: "strong",
-    confidence,
-  };
-}
-
-const META = {
-  total: 2,
-  summary: { scanned: 2, patterns: 2, in_view: 2, confirmed: 2, bullish: 2, bearish: 0, data_through: "2026-09-30" },
-  data_through: "2026-09-30",
-};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -63,36 +33,14 @@ describe("streamResults", () => {
       ]),
     );
 
-    const order: string[] = [];
-    const items: Array<Record<string, unknown>> = [];
-    let meta: unknown = null;
-    let done = false;
-    await streamResults(
-      { universe: "nifty500", timeframe: "1D" },
-      {
-        onMeta: (m) => {
-          order.push("meta");
-          meta = m;
-        },
-        onItem: (item) => {
-          order.push(`item:${(item as unknown as Record<string, unknown>).symbol}`);
-          items.push(item as unknown as Record<string, unknown>);
-        },
-        onDone: () => {
-          order.push("done");
-          done = true;
-        },
-        onError: () => {
-          throw new Error("must not error");
-        },
-      },
-    );
+    const collector = createStreamCollector();
+    await streamResults({ universe: "nifty500", timeframe: "1D" }, collector.handlers);
 
     // Meta shows early: it is the first event, before any item and before done.
-    expect(order).toEqual(["meta", "item:AAA", "item:BBB", "done"]);
-    expect((meta as typeof META).total).toBe(2);
-    expect(items.map((i) => i.symbol)).toEqual(["AAA", "BBB"]);
-    expect(done).toBe(true);
+    expect(collector.order).toEqual(["meta", "item:AAA", "item:BBB", "done"]);
+    expect((collector.getMeta() as typeof META).total).toBe(2);
+    expect(collector.items.map((i) => i.symbol)).toEqual(["AAA", "BBB"]);
+    expect(collector.isDone()).toBe(true);
 
     const [url, options] = mockedFetch.mock.calls[0] as [
       string,
@@ -132,52 +80,36 @@ describe("streamResults", () => {
 
   it("reports non-OK responses via onError and never throws", async () => {
     mockedFetch.mockResolvedValue(errorResponse(500, { detail: "stream boom" }));
-    let message: string | null = null;
+    const capture = createErrorCapture();
     await expect(
-      streamResults(
-        {},
-        {
-          onError: (err) => {
-            message = err.message;
-          },
-        },
-      ),
+      streamResults({}, { onError: capture.onError }),
     ).resolves.toBeUndefined();
-    expect(message).toBe("stream boom");
+    expect(capture.getMessage()).toBe("stream boom");
   });
 
   it("reports fetch rejections via onError and never throws", async () => {
     mockedFetch.mockRejectedValue(new Error("network down"));
-    let message: string | null = null;
+    const capture = createErrorCapture();
     await expect(
-      streamResults(
-        {},
-        {
-          onError: (err) => {
-            message = err.message;
-          },
-        },
-      ),
+      streamResults({}, { onError: capture.onError }),
     ).resolves.toBeUndefined();
-    expect(message).toBe("network down");
+    expect(capture.getMessage()).toBe("network down");
   });
 
   it("treats an `error` event as onError", async () => {
     mockedFetch.mockResolvedValue(sseResponse([frame("error", { message: "backend sad" })]));
-    let message: string | null = null;
+    const capture = createErrorCapture();
     let done = false;
     await streamResults(
       {},
       {
-        onError: (err) => {
-          message = err.message;
-        },
+        onError: capture.onError,
         onDone: () => {
           done = true;
         },
       },
     );
-    expect(message).toBe("backend sad");
+    expect(capture.getMessage()).toBe("backend sad");
     expect(done).toBe(false);
   });
 
@@ -217,32 +149,12 @@ describe("streamWatch", () => {
       ]),
     );
 
-    const order: string[] = [];
-    let meta: unknown = null;
-    let done = false;
-    await streamWatch(
-      { setup: "breakout", universe: "nifty500", timeframe: "1D" },
-      {
-        onMeta: (m) => {
-          order.push("meta");
-          meta = m;
-        },
-        onItem: (item) => {
-          order.push(`item:${(item as unknown as Record<string, unknown>).symbol}`);
-        },
-        onDone: () => {
-          order.push("done");
-          done = true;
-        },
-        onError: () => {
-          throw new Error("must not error");
-        },
-      },
-    );
+    const collector = createStreamCollector();
+    await streamWatch({ setup: "breakout", universe: "nifty500", timeframe: "1D" }, collector.handlers);
 
-    expect(order).toEqual(["meta", "item:AAA", "item:BBB", "done"]);
-    expect(meta).toEqual({ setup: "breakout", min_rel_volume: 0.7 });
-    expect(done).toBe(true);
+    expect(collector.order).toEqual(["meta", "item:AAA", "item:BBB", "done"]);
+    expect(collector.getMeta()).toEqual({ setup: "breakout", min_rel_volume: 0.7 });
+    expect(collector.isDone()).toBe(true);
 
     const [url, options] = mockedFetch.mock.calls[0] as [
       string,
@@ -255,17 +167,13 @@ describe("streamWatch", () => {
 
   it("reports failures via onError and never throws", async () => {
     mockedFetch.mockResolvedValue(errorResponse(500, { detail: "watch stream boom" }));
-    let message: string | null = null;
+    const capture = createErrorCapture();
     await expect(
       streamWatch(
         { setup: "breakout", universe: "nifty500", timeframe: "1D" },
-        {
-          onError: (err) => {
-            message = err.message;
-          },
-        },
+        { onError: capture.onError },
       ),
     ).resolves.toBeUndefined();
-    expect(message).toBe("watch stream boom");
+    expect(capture.getMessage()).toBe("watch stream boom");
   });
 });

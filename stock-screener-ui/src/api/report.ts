@@ -25,6 +25,25 @@ function todayIST(): string {
 
 export { todayIST };
 
+async function fetchReportJson<T>(
+  url: string,
+  signal: AbortSignal | undefined,
+  fallback: string,
+): Promise<T> {
+  const response = await fetchWithAuth(url, { signal });
+  if (!response.ok) {
+    let detail = `HTTP ${response.status}`;
+    try {
+      const error = await response.json();
+      if (error?.detail) detail = String(error.detail);
+    } catch {
+      // keep status fallback
+    }
+    throw new Error(detail || fallback);
+  }
+  return response.json();
+}
+
 export async function fetchDailyReport(
   date?: string,
   universe: string = "nifty500",
@@ -34,20 +53,11 @@ export async function fetchDailyReport(
     date: date || todayIST(),
     universe,
   });
-  const response = await fetchWithAuth(`${REPORTS_API_BASE}/daily?${params.toString()}`, {
+  return fetchReportJson<DailyReportResponse>(
+    `${REPORTS_API_BASE}/daily?${params.toString()}`,
     signal,
-  });
-  if (!response.ok) {
-    let detail = `HTTP ${response.status}`;
-    try {
-      const error = await response.json();
-      if (error?.detail) detail = String(error.detail);
-    } catch {
-      // keep status fallback
-    }
-    throw new Error(detail || "Failed to fetch daily report");
-  }
-  return response.json();
+    "Failed to fetch daily report",
+  );
 }
 
 export async function fetchReportBreakouts(
@@ -59,20 +69,11 @@ export async function fetchReportBreakouts(
     date: date || todayIST(),
     universe,
   });
-  const response = await fetchWithAuth(`${REPORTS_API_BASE}/breakouts?${params.toString()}`, {
+  return fetchReportJson<ReportBreakoutsResponse>(
+    `${REPORTS_API_BASE}/breakouts?${params.toString()}`,
     signal,
-  });
-  if (!response.ok) {
-    let detail = `HTTP ${response.status}`;
-    try {
-      const error = await response.json();
-      if (error?.detail) detail = String(error.detail);
-    } catch {
-      // keep status fallback
-    }
-    throw new Error(detail || "Failed to fetch report breakouts");
-  }
-  return response.json();
+    "Failed to fetch report breakouts",
+  );
 }
 
 export async function fetchReportFollowThrough(
@@ -84,20 +85,11 @@ export async function fetchReportFollowThrough(
     date: date || todayIST(),
     universe,
   });
-  const response = await fetchWithAuth(`${REPORTS_API_BASE}/follow-through?${params.toString()}`, {
+  return fetchReportJson<FollowThroughResponse>(
+    `${REPORTS_API_BASE}/follow-through?${params.toString()}`,
     signal,
-  });
-  if (!response.ok) {
-    let detail = `HTTP ${response.status}`;
-    try {
-      const error = await response.json();
-      if (error?.detail) detail = String(error.detail);
-    } catch {
-      // keep status fallback
-    }
-    throw new Error(detail || "Failed to fetch report follow-through");
-  }
-  return response.json();
+    "Failed to fetch report follow-through",
+  );
 }
 
 export async function fetchReportDelivery(
@@ -111,20 +103,11 @@ export async function fetchReportDelivery(
     universe,
     limit: String(limit),
   });
-  const response = await fetchWithAuth(`${REPORTS_API_BASE}/delivery?${params.toString()}`, {
+  return fetchReportJson<DeliveryResponse>(
+    `${REPORTS_API_BASE}/delivery?${params.toString()}`,
     signal,
-  });
-  if (!response.ok) {
-    let detail = `HTTP ${response.status}`;
-    try {
-      const error = await response.json();
-      if (error?.detail) detail = String(error.detail);
-    } catch {
-      // keep status fallback
-    }
-    throw new Error(detail || "Failed to fetch delivery report");
-  }
-  return response.json();
+    "Failed to fetch delivery report",
+  );
 }
 
 export async function fetchReportEvents(
@@ -138,18 +121,9 @@ export async function fetchReportEvents(
     ...(from ? { from } : {}),
     ...(to ? { to } : {}),
   });
-  const response = await fetchWithAuth(`${REPORTS_API_BASE}/events?${params.toString()}`, {
+  return fetchReportJson<ReportEventsResponse>(
+    `${REPORTS_API_BASE}/events?${params.toString()}`,
     signal,
-  });
-  if (!response.ok) {
-    let detail = `HTTP ${response.status}`;
-    try {
-      const error = await response.json();
-      if (error?.detail) detail = String(error.detail);
-    } catch {
-      // keep status fallback
-    }
-    throw new Error(detail || "Failed to fetch report events");
-  }
-  return response.json();
+    "Failed to fetch report events",
+  );
 }

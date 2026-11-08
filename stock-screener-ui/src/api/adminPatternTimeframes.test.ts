@@ -13,24 +13,9 @@ import {
   reorderAdminPatternTimeframes,
   setAdminPatternTimeframeEnabled,
 } from "./adminPatternTimeframes";
+import { errorResponse, nonJsonErrorResponse, okResponse } from "./apiTestMocks";
 
 const mockedFetch = vi.mocked(fetchWithAuth);
-
-function okResponse(body: unknown): Response {
-  return {
-    ok: true,
-    status: 200,
-    json: async () => body,
-  } as unknown as Response;
-}
-
-function errorResponse(status: number, body: unknown): Response {
-  return {
-    ok: false,
-    status,
-    json: async () => body,
-  } as unknown as Response;
-}
 
 const TIMEFRAME: AdminPatternTimeframe = {
   id: "1d",
@@ -80,13 +65,7 @@ describe("fetchAdminPatternTimeframes", () => {
   });
 
   it("falls back to the status message when the error body is not JSON", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: false,
-      status: 502,
-      json: async () => {
-        throw new Error("bad json");
-      },
-    } as unknown as Response);
+    mockedFetch.mockResolvedValue(nonJsonErrorResponse(502));
     await expect(fetchAdminPatternTimeframes(mockedFetch)).rejects.toThrow(
       "HTTP 502",
     );

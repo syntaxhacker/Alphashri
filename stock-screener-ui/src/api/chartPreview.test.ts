@@ -10,31 +10,11 @@ vi.mock("../state/auth", () => ({
 
 import { fetchWithAuth } from "../state/auth";
 import { fetchChartPreview, clearPreviewCache } from "./chartPreview";
-import type { ChartPreviewData } from "./chartPreview";
+import { makePreviewData, mockError, mockFetchError, mockFetchOk } from "./apiTestMocks";
 
 const mockedFetch = vi.mocked(fetchWithAuth);
 
-const mockData: ChartPreviewData = {
-  symbol: "TATASTEEL",
-  candles: [
-    {
-      time: "2024-01-01T09:15",
-      date: "2024-01-01",
-      time_str: "09:15",
-      open: 100,
-      high: 105,
-      low: 99,
-      close: 103,
-      volume: 1000,
-    },
-  ],
-  orb_zones: [
-    { date: "2024-01-01", date_raw: "2024-01-01", or_high: 105, or_low: 99, or_end_time: "09:45" },
-  ],
-  pivot_levels: [{ date: "2024-01-01", date_raw: "2024-01-01", pp: 102, r1: 106, s1: 98 }],
-  timeframe: 15,
-  total_candles: 1,
-};
+const mockData = makePreviewData();
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -50,10 +30,7 @@ describe("fetchChartPreview", () => {
   });
 
   it("makes API call for whitespace-only symbol (not validated by fetchChartPreview)", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => mockData,
-    } as Response);
+    mockFetchOk(mockedFetch, mockData);
 
     await fetchChartPreview("   ");
 
@@ -61,10 +38,7 @@ describe("fetchChartPreview", () => {
   });
 
   it("builds URL with symbol, tf, days, or_minutes params", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => mockData,
-    } as Response);
+    mockFetchOk(mockedFetch, mockData);
 
     await fetchChartPreview("TATASTEEL", 15, 5, 30);
 
@@ -76,10 +50,7 @@ describe("fetchChartPreview", () => {
   });
 
   it("uses default params when not specified", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => mockData,
-    } as Response);
+    mockFetchOk(mockedFetch, mockData);
 
     await fetchChartPreview("INFY");
 
@@ -90,10 +61,7 @@ describe("fetchChartPreview", () => {
   });
 
   it("returns data on successful fetch", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => mockData,
-    } as Response);
+    mockFetchOk(mockedFetch, mockData);
 
     const result = await fetchChartPreview("TATASTEEL");
 
@@ -101,10 +69,7 @@ describe("fetchChartPreview", () => {
   });
 
   it("returns null when response is not ok", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: false,
-      status: 500,
-    } as Response);
+    mockFetchError(mockedFetch, 500, {});
 
     const result = await fetchChartPreview("TATASTEEL");
 
@@ -112,10 +77,7 @@ describe("fetchChartPreview", () => {
   });
 
   it("returns data with error field instead of null", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ ...mockData, error: "Symbol not found" }),
-    } as Response);
+    mockFetchOk(mockedFetch, { ...mockData, error: "Symbol not found" });
 
     const result = await fetchChartPreview("BADSIGN");
 
@@ -124,7 +86,7 @@ describe("fetchChartPreview", () => {
   });
 
   it("returns null on network error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
+    mockError(mockedFetch, "Network error");
 
     const result = await fetchChartPreview("TATASTEEL");
 
@@ -142,10 +104,7 @@ describe("chartPreview cache", () => {
   });
 
   it("caches successful response and returns cached data on subsequent call", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => mockData,
-    } as Response);
+    mockFetchOk(mockedFetch, mockData);
 
     const result1 = await fetchChartPreview("TATASTEEL");
     const result2 = await fetchChartPreview("TATASTEEL");
@@ -156,10 +115,7 @@ describe("chartPreview cache", () => {
   });
 
   it("does not return stale cache after TTL expires", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => mockData,
-    } as Response);
+    mockFetchOk(mockedFetch, mockData);
 
     await fetchChartPreview("TATASTEEL");
 
@@ -171,10 +127,7 @@ describe("chartPreview cache", () => {
   });
 
   it("returns fresh cache within TTL", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => mockData,
-    } as Response);
+    mockFetchOk(mockedFetch, mockData);
 
     await fetchChartPreview("TATASTEEL");
 
@@ -186,10 +139,7 @@ describe("chartPreview cache", () => {
   });
 
   it("uses different cache keys for different symbols", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ ...mockData, symbol: "INFY" }),
-    } as Response);
+    mockFetchOk(mockedFetch, { ...mockData, symbol: "INFY" });
 
     await fetchChartPreview("TATASTEEL");
     await fetchChartPreview("INFY");
@@ -198,10 +148,7 @@ describe("chartPreview cache", () => {
   });
 
   it("uses different cache keys for different timeframes", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => mockData,
-    } as Response);
+    mockFetchOk(mockedFetch, mockData);
 
     await fetchChartPreview("TATASTEEL", 15);
     await fetchChartPreview("TATASTEEL", 30);
@@ -210,10 +157,7 @@ describe("chartPreview cache", () => {
   });
 
   it("uses different cache keys for different days", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => mockData,
-    } as Response);
+    mockFetchOk(mockedFetch, mockData);
 
     await fetchChartPreview("TATASTEEL", 15, 1);
     await fetchChartPreview("TATASTEEL", 15, 5);
@@ -222,17 +166,11 @@ describe("chartPreview cache", () => {
   });
 
   it("does not cache null results", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: false,
-      status: 500,
-    } as Response);
+    mockFetchError(mockedFetch, 500, {});
 
     await fetchChartPreview("BAD");
 
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => mockData,
-    } as Response);
+    mockFetchOk(mockedFetch, mockData);
 
     await fetchChartPreview("BAD");
 
@@ -240,17 +178,11 @@ describe("chartPreview cache", () => {
   });
 
   it("does not cache results with error field", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ ...mockData, error: "err" }),
-    } as Response);
+    mockFetchOk(mockedFetch, { ...mockData, error: "err" });
 
     await fetchChartPreview("BAD");
 
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => mockData,
-    } as Response);
+    mockFetchOk(mockedFetch, mockData);
 
     await fetchChartPreview("BAD");
 
@@ -268,10 +200,7 @@ describe("clearPreviewCache", () => {
   });
 
   it("clears all cache entries when called without symbol", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => mockData,
-    } as Response);
+    mockFetchOk(mockedFetch, mockData);
 
     await fetchChartPreview("TATASTEEL");
     await fetchChartPreview("INFY");
@@ -285,10 +214,7 @@ describe("clearPreviewCache", () => {
   });
 
   it("clears only entries for a specific symbol", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => mockData,
-    } as Response);
+    mockFetchOk(mockedFetch, mockData);
 
     await fetchChartPreview("TATASTEEL", 15);
     await fetchChartPreview("TATASTEEL", 30);

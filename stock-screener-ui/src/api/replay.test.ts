@@ -4,6 +4,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 global.fetch = vi.fn();
 
 import { fetchReplaySymbols, runReplay } from "./replay";
+import {
+  errorResponse,
+  mockGlobalFetchRejected,
+  mockGlobalFetchResponse,
+  okResponse,
+  sseDataResponse,
+  waitAsync,
+} from "./apiTestMocks";
 
 describe("fetchReplaySymbols", () => {
   beforeEach(() => {
@@ -12,10 +20,7 @@ describe("fetchReplaySymbols", () => {
 
   it("fetches and returns symbols array", async () => {
     const mockSymbols = ["TATASTEEL", "INFY", "RELIANCE"];
-    (global.fetch as any).mockResolvedValue({
-      ok: true,
-      json: async () => ({ symbols: mockSymbols }),
-    } as Response);
+    mockGlobalFetchResponse(okResponse({ symbols: mockSymbols }));
 
     const result = await fetchReplaySymbols();
 
@@ -24,10 +29,7 @@ describe("fetchReplaySymbols", () => {
   });
 
   it("returns empty array when response has no symbols", async () => {
-    (global.fetch as any).mockResolvedValue({
-      ok: true,
-      json: async () => ({}),
-    } as Response);
+    mockGlobalFetchResponse(okResponse({}));
 
     const result = await fetchReplaySymbols();
 
@@ -35,17 +37,13 @@ describe("fetchReplaySymbols", () => {
   });
 
   it("throws on network error", async () => {
-    (global.fetch as any).mockRejectedValue(new Error("Network error"));
+    mockGlobalFetchRejected("Network error");
 
     await expect(fetchReplaySymbols()).rejects.toThrow("Network error");
   });
 
   it("throws on non-ok response", async () => {
-    (global.fetch as any).mockResolvedValue({
-      ok: false,
-      status: 500,
-      json: async () => ({ detail: "Server error" }),
-    } as Response);
+    mockGlobalFetchResponse(errorResponse(500, { detail: "Server error" }));
 
     await expect(fetchReplaySymbols()).rejects.toThrow("Failed to fetch symbols: 500");
   });
@@ -67,8 +65,8 @@ describe("runReplay", () => {
       { type: "progress", percent: 50, message: "Halfway there" },
       { type: "complete", summary: "Done" },
     ];
-    const mockResponse = createMockSSEResponse(mockEvents);
-    (global.fetch as any).mockResolvedValue(mockResponse);
+    const mockResponse = sseDataResponse(mockEvents);
+    mockGlobalFetchResponse(mockResponse);
 
     const onEvent = vi.fn();
     const onError = vi.fn();
@@ -77,7 +75,7 @@ describe("runReplay", () => {
     const cancel = runReplay(mockConfig, onEvent, onError, onComplete);
 
     // Wait for all events to be processed
-    await waitForAsync();
+    await waitAsync();
 
     expect(onEvent).toHaveBeenCalledTimes(3);
     expect(onEvent).toHaveBeenNthCalledWith(1, mockEvents[0]);
@@ -90,13 +88,13 @@ describe("runReplay", () => {
 
   it("sends correct POST request with config as JSON", async () => {
     const mockConfig = { symbols: ["TATASTEEL"], start_date: "2024-01-01" };
-    const mockResponse = createMockSSEResponse([{ type: "complete" }]);
-    (global.fetch as any).mockResolvedValue(mockResponse);
+    const mockResponse = sseDataResponse([{ type: "complete" }]);
+    mockGlobalFetchResponse(mockResponse);
 
     const onEvent = vi.fn();
     runReplay(mockConfig, onEvent, vi.fn(), vi.fn());
 
-    await waitForAsync();
+    await waitAsync();
 
     const [url, options] = (global.fetch as any).mock.calls[0];
     expect(url).toBe("http://localhost:8765/api/replay/run");
@@ -108,8 +106,8 @@ describe("runReplay", () => {
   it("aborts when cancel function is called", async () => {
     const mockConfig = { symbols: ["TATASTEEL"] };
     const mockEvents = [{ type: "progress", percent: 25 }, { type: "complete" }];
-    const mockResponse = createMockSSEResponse(mockEvents);
-    (global.fetch as any).mockResolvedValue(mockResponse);
+    const mockResponse = sseDataResponse(mockEvents);
+    mockGlobalFetchResponse(mockResponse);
 
     const onEvent = vi.fn();
     const onError = vi.fn();
@@ -120,7 +118,7 @@ describe("runReplay", () => {
     // Cancel immediately
     cancel();
 
-    await waitForAsync();
+    await waitAsync();
 
     // onComplete should not be called because we cancelled
     expect(onComplete).not.toHaveBeenCalled();
@@ -128,8 +126,8 @@ describe("runReplay", () => {
 
   it("returns a cancel function", () => {
     const mockConfig = { symbols: ["TATASTEEL"] };
-    const mockResponse = createMockSSEResponse([]);
-    (global.fetch as any).mockResolvedValue(mockResponse);
+    const mockResponse = sseDataResponse([]);
+    mockGlobalFetchResponse(mockResponse);
 
     const cancel = runReplay(mockConfig, vi.fn(), vi.fn(), vi.fn());
 
@@ -138,7 +136,7 @@ describe("runReplay", () => {
 
   it("calls onError when fetch fails", async () => {
     const mockConfig = { symbols: ["TATASTEEL"] };
-    (global.fetch as any).mockRejectedValue(new Error("Network error"));
+    mockGlobalFetchRejected("Network error");
 
     const onEvent = vi.fn();
     const onError = vi.fn();
@@ -146,7 +144,7 @@ describe("runReplay", () => {
 
     runReplay(mockConfig, onEvent, onError, onComplete);
 
-    await waitForAsync();
+    await waitAsync();
 
     expect(onError).toHaveBeenCalledWith(expect.any(Error));
     expect(onEvent).not.toHaveBeenCalled();
@@ -155,11 +153,7 @@ describe("runReplay", () => {
 
   it("calls onError when response is not ok", async () => {
     const mockConfig = { symbols: ["TATASTEEL"] };
-    (global.fetch as any).mockResolvedValue({
-      ok: false,
-      status: 400,
-      statusText: "Bad Request",
-    } as Response);
+    mockGlobalFetchResponse(errorResponse(400, {}));
 
     const onEvent = vi.fn();
     const onError = vi.fn();
@@ -167,7 +161,7 @@ describe("runReplay", () => {
 
     runReplay(mockConfig, onEvent, onError, onComplete);
 
-    await waitForAsync();
+    await waitAsync();
 
     expect(onError).toHaveBeenCalledWith(expect.any(Error));
     expect(onComplete).not.toHaveBeenCalled();
@@ -175,13 +169,13 @@ describe("runReplay", () => {
 
   it("handles malformed SSE events gracefully", async () => {
     const mockConfig = { symbols: ["TATASTEEL"] };
-    const mockResponse = createMockSSEResponse([{ type: "complete" }]);
-    (global.fetch as any).mockResolvedValue(mockResponse);
+    const mockResponse = sseDataResponse([{ type: "complete" }]);
+    mockGlobalFetchResponse(mockResponse);
 
     const onEvent = vi.fn();
     runReplay(mockConfig, onEvent, vi.fn(), vi.fn());
 
-    await waitForAsync();
+    await waitAsync();
 
     // Should still have been called for valid event
     expect(onEvent).toHaveBeenCalledWith({ type: "complete" });
@@ -189,8 +183,8 @@ describe("runReplay", () => {
 
   it("passes AbortSignal to fetch", async () => {
     const mockConfig = { symbols: ["TATASTEEL"] };
-    const mockResponse = createMockSSEResponse([{ type: "complete" }]);
-    (global.fetch as any).mockResolvedValue(mockResponse);
+    const mockResponse = sseDataResponse([{ type: "complete" }]);
+    mockGlobalFetchResponse(mockResponse);
 
     new AbortController(); // Just verify abort controller can be created
 
@@ -200,34 +194,6 @@ describe("runReplay", () => {
     expect(cancel).toBeDefined();
     cancel();
 
-    await waitForAsync();
+    await waitAsync();
   });
 });
-
-// Helper to create mock SSE response with streaming body
-function createMockSSEResponse(events: any[], options: { delayRead?: boolean } = {}) {
-  const encoder = new TextEncoder();
-  const body = new ReadableStream({
-    async start(controller) {
-      for (const event of events) {
-        const chunk = `data: ${JSON.stringify(event)}\n\n`;
-        controller.enqueue(encoder.encode(chunk));
-        if (options.delayRead) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-      }
-      controller.close();
-    },
-  });
-
-  return {
-    ok: true,
-    body,
-    json: async () => ({ result: "ok" }),
-  } as unknown as Response;
-}
-
-// Helper to wait for async operations
-function waitForAsync(ms: number = 100): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}

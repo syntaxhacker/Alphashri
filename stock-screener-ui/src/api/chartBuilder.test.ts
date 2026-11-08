@@ -1,37 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { buildChartData, chartTradesToTrades } from "./chartBuilder";
-
-const makeRawCandle = (overrides: Record<string, unknown> = {}) => ({
-  index: [
-    "2025-10-24T09:15:00",
-    "2025-10-24T09:30:00",
-    "2025-10-24T10:00:00",
-    "2025-10-24T10:30:00",
-  ],
-  open: [100, 101, 103, 105],
-  high: [102, 104, 106, 108],
-  low: [99, 100, 102, 104],
-  close: [101, 103, 105, 107],
-  volume: [1000, 2000, 3000, 1500],
-  ...overrides,
-});
-
-const makeRawTrade = (overrides: Record<string, unknown> = {}) => ({
-  entry_price: 103,
-  exit_price: 107,
-  entry_time: "2025-10-24T10:00:00",
-  exit_time: "2025-10-24T10:30:00",
-  quantity: 10,
-  gross_pnl: 40,
-  gross_pnl_pct: 3.88,
-  trading_costs: 5,
-  net_pnl: 35,
-  net_pnl_pct: 3.4,
-  exit_reason: "TP" as const,
-  hold_duration_minutes: 30,
-  date: "2025-10-24",
-  ...overrides,
-});
+import { makeChartTrade, makeRawCandle, makeRawTrade } from "./apiTestMocks";
 
 describe("buildChartData", () => {
   test("builds chart data with correct structure", () => {
@@ -292,40 +261,6 @@ describe("buildChartData", () => {
 });
 
 describe("chartTradesToTrades", () => {
-  const makeChartTrade = (overrides: Record<string, unknown> = {}) => ({
-    trade_id: 1,
-    type: "entry" as const,
-    time: "2025-10-24T10:00",
-    candle_idx: 2,
-    date: "2025-10-24",
-    price: 103,
-    marker: { symbol: "triangle", color: "#58A6FF", size: 16 },
-    trade: {
-      entry_price: 103,
-      exit_price: 107,
-      entry_time: "2025-10-24T10:00:00",
-      exit_time: "2025-10-24T10:30:00",
-      quantity: 10,
-      gross_pnl: 40,
-      trading_costs: 5,
-      net_pnl: 35,
-      net_pnl_pct: 3.4,
-      exit_reason: "TP" as const,
-      hold_duration_minutes: 30,
-      or_high: undefined,
-      or_low: undefined,
-      pp: undefined,
-      r1: undefined,
-      s1: undefined,
-      r2: undefined,
-      s2: undefined,
-      gross_pnl_pct: 3.88,
-      "52w_high": undefined,
-      trailing_active: undefined,
-    },
-    ...overrides,
-  });
-
   test("filters to entry markers only", () => {
     const chartTrades = [
       makeChartTrade({ type: "entry", trade_id: 1 }),

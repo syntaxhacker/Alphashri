@@ -31,6 +31,7 @@ import {
   setLoading,
 } from "../state/paperTrading";
 import { fetchTrades as mockFetchTrades, refreshLiveData } from "./paperTrading";
+import { describeNormalizeBotPortfolio, mockError } from "./apiTestMocks";
 import {
   fetchPaperBotStatus,
   startPaperBot,
@@ -57,123 +58,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("normalizeBotPortfolio", () => {
-  it("normalizes a full portfolio object", () => {
-    const portfolio = {
-      initial_capital: 100000,
-      cash: 50000,
-      margin_used: 30000,
-      position_value: 70000,
-      unrealized_pnl: 2000,
-      realized_pnl: 5000,
-      total_value: 120000,
-      total_pnl: 7000,
-      total_pnl_pct: 7.0,
-      total_positions: 5,
-      trades: 20,
-      daily_pnl_pct: 2.0,
-      daily_trades: 3,
-      open_positions: 5,
-    };
-    const positions = [{ symbol: "TATASTEEL" }, { symbol: "INFY" }];
-
-    const result = normalizeBotPortfolio(portfolio, positions, 1000);
-
-    expect(result.initial_capital).toBe(100000);
-    expect(result.cash).toBe(50000);
-    expect(result.margin_used).toBe(30000);
-    expect(result.position_value).toBe(70000);
-    expect(result.unrealized_pnl).toBe(2000);
-    expect(result.realized_pnl).toBe(5000);
-    expect(result.total_value).toBe(120000);
-    expect(result.total_pnl).toBe(7000);
-    expect(result.total_pnl_pct).toBe(7.0);
-    expect(result.positions).toBe(5);
-    expect(result.trades).toBe(20);
-    expect(result.daily_pnl).toBe(3000);
-    expect(result.daily_pnl_pct).toBe(2.0);
-    expect(result.daily_trades).toBe(3);
-    expect(result.open_positions).toBe(5);
-    expect(result.max_daily_loss_pct).toBe(0);
-    expect(result.daily_loss_limit_exceeded).toBe(false);
-  });
-
-  it("handles null portfolio with defaults", () => {
-    const result = normalizeBotPortfolio(null, [], 0);
-
-    expect(result.initial_capital).toBe(0);
-    expect(result.cash).toBe(0);
-    expect(result.margin_used).toBe(0);
-    expect(result.position_value).toBe(0);
-    expect(result.unrealized_pnl).toBe(0);
-    expect(result.realized_pnl).toBe(0);
-    expect(result.total_value).toBe(0);
-    expect(result.total_pnl).toBe(0);
-    expect(result.total_pnl_pct).toBe(0);
-    expect(result.positions).toBe(0);
-    expect(result.trades).toBe(0);
-    expect(result.daily_pnl).toBe(0);
-    expect(result.daily_pnl_pct).toBe(0);
-    expect(result.daily_trades).toBe(0);
-    expect(result.open_positions).toBe(0);
-  });
-
-  it("uses positions.length as fallback for total_positions", () => {
-    const portfolio = { initial_capital: 100000 };
-    const positions = [{ symbol: "TATASTEEL" }, { symbol: "INFY" }];
-
-    const result = normalizeBotPortfolio(portfolio, positions, 0);
-
-    expect(result.positions).toBe(2);
-  });
-
-  it("uses capital_used as fallback for margin_used", () => {
-    const portfolio = { capital_used: 25000 };
-
-    const result = normalizeBotPortfolio(portfolio, [], 0);
-
-    expect(result.margin_used).toBe(25000);
-  });
-
-  it("uses total_trades as fallback for trades", () => {
-    const portfolio = { total_trades: 42 };
-
-    const result = normalizeBotPortfolio(portfolio, [], 0);
-
-    expect(result.trades).toBe(42);
-  });
-
-  it("computes daily_pnl_pct from initial_capital when not provided", () => {
-    const portfolio = { initial_capital: 100000 };
-
-    const result = normalizeBotPortfolio(portfolio, [], 500);
-
-    expect(result.daily_pnl).toBe(500);
-    expect(result.daily_pnl_pct).toBeCloseTo(0.5, 2);
-  });
-
-  it("returns 0 daily_pnl_pct when initial_capital is 0", () => {
-    const portfolio = { initial_capital: 0 };
-
-    const result = normalizeBotPortfolio(portfolio, [], 500);
-
-    expect(result.daily_pnl_pct).toBe(0);
-  });
-
-  it("converts string values to numbers", () => {
-    const portfolio = {
-      initial_capital: "100000",
-      unrealized_pnl: "2000",
-      cash: "50000",
-    };
-
-    const result = normalizeBotPortfolio(portfolio, [], 0);
-
-    expect(result.initial_capital).toBe(100000);
-    expect(result.unrealized_pnl).toBe(2000);
-    expect(result.cash).toBe(50000);
-  });
-});
+describeNormalizeBotPortfolio(normalizeBotPortfolio);
 
 describe("fetchPaperBotStatus", () => {
   it("fetches and returns bot status on success", async () => {
@@ -187,7 +72,7 @@ describe("fetchPaperBotStatus", () => {
   });
 
   it("returns null on error", async () => {
-    mockedApiFetch.mockRejectedValue(new Error("Network error"));
+    mockError(mockedApiFetch);
 
     const result = await fetchPaperBotStatus();
 
@@ -209,7 +94,7 @@ describe("startPaperBot", () => {
   });
 
   it("returns false on error", async () => {
-    mockedApiFetch.mockRejectedValue(new Error("Failed to start"));
+    mockError(mockedApiFetch, "Failed to start");
 
     const result = await startPaperBot();
 
@@ -231,7 +116,7 @@ describe("stopPaperBot", () => {
   });
 
   it("returns false on error", async () => {
-    mockedApiFetch.mockRejectedValue(new Error("Failed to stop"));
+    mockError(mockedApiFetch, "Failed to stop");
 
     const result = await stopPaperBot();
 
@@ -278,7 +163,7 @@ describe("fetchBotSummaries", () => {
   });
 
   it("returns empty array on error", async () => {
-    mockedApiFetch.mockRejectedValue(new Error("Network error"));
+    mockError(mockedApiFetch);
 
     const result = await fetchBotSummaries();
 
@@ -298,7 +183,7 @@ describe("listBots", () => {
   });
 
   it("returns empty array on error", async () => {
-    mockedApiFetch.mockRejectedValue(new Error("Network error"));
+    mockError(mockedApiFetch);
 
     const result = await listBots();
 
@@ -318,7 +203,7 @@ describe("getBot", () => {
   });
 
   it("returns null on error", async () => {
-    mockedApiFetch.mockRejectedValue(new Error("Not found"));
+    mockError(mockedApiFetch, "Not found");
 
     const result = await getBot("999");
 
@@ -345,7 +230,7 @@ describe("startBot", () => {
   });
 
   it("returns failure on error", async () => {
-    mockedApiFetch.mockRejectedValue(new Error("Failed to start"));
+    mockError(mockedApiFetch, "Failed to start");
 
     const result = await startBot("bot-123");
 
@@ -368,7 +253,7 @@ describe("stopBot", () => {
   });
 
   it("returns failure on error", async () => {
-    mockedApiFetch.mockRejectedValue(new Error("Failed to stop"));
+    mockError(mockedApiFetch, "Failed to stop");
 
     const result = await stopBot("bot-123");
 
@@ -393,7 +278,7 @@ describe("fetchBotPortfolio", () => {
   });
 
   it("returns null on error", async () => {
-    mockedApiFetch.mockRejectedValue(new Error("Network error"));
+    mockError(mockedApiFetch);
 
     const result = await fetchBotPortfolio("1");
 
@@ -422,7 +307,7 @@ describe("fetchBotPositions", () => {
   });
 
   it("returns empty array on error", async () => {
-    mockedApiFetch.mockRejectedValue(new Error("Network error"));
+    mockError(mockedApiFetch);
 
     const result = await fetchBotPositions("bot-1");
 
@@ -459,7 +344,7 @@ describe("fetchBotScanItems", () => {
   });
 
   it("returns empty items and null timestamp on error", async () => {
-    mockedApiFetch.mockRejectedValue(new Error("Network error"));
+    mockError(mockedApiFetch);
 
     const result = await fetchBotScanItems("bot-1");
 
@@ -499,7 +384,7 @@ describe("fetchBotStrategyPerformance", () => {
   });
 
   it("returns null on error", async () => {
-    mockedApiFetch.mockRejectedValue(new Error("Network error"));
+    mockError(mockedApiFetch);
 
     const result = await fetchBotStrategyPerformance("bot-1");
 
