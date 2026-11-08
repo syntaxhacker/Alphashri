@@ -20,6 +20,8 @@
  */
 
 import { chainLeg } from "./chainTuple";
+import { clockMinutes } from "./tapeRange";
+import { sortTapeRows } from "./tapeOrder";
 
 /** Minimal tape row — only `t` plus the optional per-strike chain. */
 export interface ParticipantFlowRow {
@@ -53,25 +55,7 @@ function finiteOrNull(v: unknown): number | null {
 }
 
 /** Minutes since midnight; `null` when the timestamp is unparseable. */
-export function flowClockMinutes(t: string | null | undefined): number | null {
-  const raw = String(t ?? "").trim();
-  if (!raw) return null;
-  const clock = /(\d{1,2}):(\d{2})/.exec(raw);
-  if (clock) {
-    const h = Number(clock[1]);
-    const m = Number(clock[2]);
-    if (Number.isFinite(h) && Number.isFinite(m) && h < 24 && m < 60) {
-      return h * 60 + m;
-    }
-    return null;
-  }
-  const parsed = Date.parse(raw);
-  if (Number.isFinite(parsed)) {
-    const d = new Date(parsed);
-    return d.getHours() * 60 + d.getMinutes();
-  }
-  return null;
-}
+export { clockMinutes as flowClockMinutes } from "./tapeRange";
 
 /** `HH:MM` label for a bucket start (`"—"` when unknown). */
 export function flowBucketLabel(startMin: number | null): string {
@@ -137,23 +121,11 @@ export function buildParticipantFlow(
   rows: ParticipantFlowRow[],
   opts?: { bucketMin?: number },
 ): ParticipantFlowBucket[] {
-  const bucketMin = opts?.bucketMin && opts.bucketMin > 0 ? opts.bucketMin : 30;
-  const list = Array.isArray(rows) ? rows : [];
-  if (list.length === 0) return [];
-
-  const indexed = list.map((row, i) => ({ row, i }));
-  indexed.sort((a, b) => {
-    const ta = flowClockMinutes(a.row?.t);
-    const tb = flowClockMinutes(b.row?.t);
-    if (ta === null && tb === null) return a.i - b.i;
-    if (ta === null) return 1;
-    if (tb === null) return -1;
-    return ta === tb ? a.i - b.i : ta - tb;
-  });
-  const ordered = indexed.map((x) => x.row);
+  const { bucketMin, ordered } = sortTapeRows(rows, 30, opts);
+  if (ordered.length === 0) return [];
 
   const starts = ordered.map((r) => {
-    const mins = flowClockMinutes(r?.t);
+    const mins = clockMinutes(r?.t);
     return mins === null ? null : Math.floor(mins / bucketMin) * bucketMin;
   });
 

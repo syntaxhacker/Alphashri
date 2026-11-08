@@ -1,11 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { get52wHighColumns } from "./52wHigh";
+import { fmtOf, expectDashForNullish } from "./columnTestFixtures";
 
 function findFmt(key: string) {
-  const cols = get52wHighColumns();
-  const col = cols.find((c) => c.key === key);
-  if (!col || !col.format) throw new Error(`no format for ${key}`);
-  return col.format as (v: any, row?: any) => any;
+  return fmtOf(get52wHighColumns, key) as (v: any, row?: any) => any;
 }
 
 describe("52wHigh columns", () => {
@@ -105,10 +103,7 @@ describe("52wHigh columns", () => {
       const r: any = fmt()(v);
       expect(r.value).toBe(exp);
     });
-    it("null/undefined -> dash", () => {
-      expect(fmt()(null)).toBe("-");
-      expect(fmt()(undefined)).toBe("-");
-    });
+    it("null/undefined -> dash", () => expectDashForNullish(fmt));
     it("handles 0 correctly not as falsy", () => {
       const r: any = fmt()(0);
       expect(r.value).toBe("Today");
@@ -124,10 +119,7 @@ describe("52wHigh columns", () => {
     ])("volume_m %s -> %s", (v, exp) => {
       expect(fmt()(v)).toBe(exp);
     });
-    it("null/undefined -> dash", () => {
-      expect(fmt()(null)).toBe("-");
-      expect(fmt()(undefined)).toBe("-");
-    });
+    it("null/undefined -> dash", () => expectDashForNullish(fmt));
     it("NaN -> NaN string dash fallback not crash", () => {
       expect(() => fmt()(NaN)).not.toThrow();
       expect(fmt()(NaN)).toBe("NaN");
@@ -140,10 +132,7 @@ describe("52wHigh columns", () => {
       expect(fmt()(1234567)).toBe((1234567).toLocaleString());
       expect(fmt()(0)).toBe("0");
     });
-    it("null -> dash", () => {
-      expect(fmt()(null)).toBe("-");
-      expect(fmt()(undefined)).toBe("-");
-    });
+    it("null -> dash", () => expectDashForNullish(fmt));
   });
 
   describe("rsi/adx", () => {

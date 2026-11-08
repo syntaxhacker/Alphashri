@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { setupApiMocks, loginAsTestUser, setupValueScanMocks } from "../mocks/apiResponses";
+import { collectConsoleErrors, enterValueScanApp } from "./helpers/flowsB";
 
 /**
  * Deep Value tab (GET /api/value/scan).
@@ -10,28 +10,8 @@ test.describe("Deep Value tab", () => {
 
   test.beforeEach(async ({ page }) => {
     consoleErrors.length = 0;
-    page.on("console", (msg) => {
-      if (msg.type() === "error" || msg.type() === "warning") {
-        const text = msg.text();
-        if (
-          text.includes("ws/") ||
-          text.includes("WebSocket") ||
-          text.includes("ERR_CONNECTION_REFUSED") ||
-          text.includes("hydration error") ||
-          text.includes("Maximum update depth") ||
-          // pre-existing repo-wide: the @/ui Tabs.Tab wrapper does not consume
-          // `leftSection`, so React logs an unknown-prop warning for every tab
-          // (dashboard / screener / correlation / config already do this).
-          text.includes("React does not recognize")
-        ) {
-          return;
-        }
-        consoleErrors.push(text);
-      }
-    });
-    await setupApiMocks(page);
-    await setupValueScanMocks(page);
-    await loginAsTestUser(page);
+    collectConsoleErrors(page);
+    await enterValueScanApp(page);
   });
 
   test.afterEach(() => {

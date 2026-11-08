@@ -8,6 +8,7 @@ import {
   mergeMatrixQuotes,
 } from "./symbolMatrix";
 import type { PatternHitDTO, PatternMatrixRow } from "@/types/chartPatterns";
+import { makePatternHit } from "./patternTestFixtures";
 
 describe("formatTfLabel", () => {
   test("maps the canonical timeframes to compact labels", () => {
@@ -120,32 +121,13 @@ function row(overrides: Partial<PatternMatrixRow> = {}): PatternMatrixRow {
 }
 
 function hit(overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
-  return {
-    id: 1,
+  return makePatternHit({
     symbol: "AAA",
     name: "AAA Co",
-    timeframe: "1D",
     pattern_id: "double_bottom",
     pattern_name: "Double Bottom",
-    family: "reversal",
-    direction: "bullish",
-    status: "confirmed",
-    quality: "strong",
-    confidence: 80,
-    start_date: "2026-01-01",
-    end_date: "2026-02-01",
-    start_price: 100,
-    end_price: 110,
-    breakout_level: 110,
-    target: 120,
-    stop: 95,
-    rr: 2,
-    bars_ago: 1,
-    volume_confirmed: true,
-    trendlines: [],
-    notes: "",
     ...overrides,
-  };
+  });
 }
 
 describe("mergeMatrixQuotes", () => {

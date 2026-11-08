@@ -86,14 +86,20 @@ export interface HealthResponse {
 }
 
 /**
+ * Parse a non-ok response body into an Error, falling back to the HTTP status.
+ * Every TradingAgents endpoint reports errors as `{ detail }` JSON.
+ */
+async function tradingAgentsError(response: Response, fallback: string): Promise<never> {
+  const error = await response.json().catch(() => ({ detail: fallback }));
+  throw new Error(error.detail || `HTTP ${response.status}`);
+}
+
+/**
  * Get available configuration options
  */
 export async function getTradingAgentsConfig(): Promise<ConfigResponse> {
   const response = await fetchWithAuth(`${TRADING_AGENTS_BASE}/config`);
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Failed to get config" }));
-    throw new Error(error.detail || `HTTP ${response.status}`);
-  }
+  if (!response.ok) await tradingAgentsError(response, "Failed to get config");
   return response.json();
 }
 
@@ -102,10 +108,7 @@ export async function getTradingAgentsConfig(): Promise<ConfigResponse> {
  */
 export async function checkTradingAgentsHealth(): Promise<HealthResponse> {
   const response = await fetchWithAuth(`${TRADING_AGENTS_BASE}/health`);
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Health check failed" }));
-    throw new Error(error.detail || `HTTP ${response.status}`);
-  }
+  if (!response.ok) await tradingAgentsError(response, "Health check failed");
   return response.json();
 }
 
@@ -121,10 +124,7 @@ export async function analyzeStock(request: AnalysisRequest): Promise<AnalysisRe
     body: JSON.stringify(request),
   });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Analysis failed" }));
-    throw new Error(error.detail || `HTTP ${response.status}`);
-  }
+  if (!response.ok) await tradingAgentsError(response, "Analysis failed");
   return response.json();
 }
 
@@ -154,10 +154,7 @@ export async function* streamStockAnalysis(
     },
   );
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Stream failed" }));
-    throw new Error(error.detail || `HTTP ${response.status}`);
-  }
+  if (!response.ok) await tradingAgentsError(response, "Stream failed");
 
   if (!response.body) {
     throw new Error("No response body");
@@ -202,10 +199,7 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
     body: JSON.stringify(request),
   });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Chat failed" }));
-    throw new Error(error.detail || `HTTP ${response.status}`);
-  }
+  if (!response.ok) await tradingAgentsError(response, "Chat failed");
   return response.json();
 }
 

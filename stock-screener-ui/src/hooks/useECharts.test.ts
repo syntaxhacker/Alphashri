@@ -2,42 +2,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act, cleanup } from "@testing-library/react";
 import { useECharts } from "./useECharts";
+import { attachMockDiv, applyOption, initChart, createMockECharts } from "./testFixtures";
 
-// Shared mock instance reference
-let mockChartInstance: any;
-
-// Mock echarts library
-const mockEcharts = {
-  init: vi.fn(() => {
-    mockChartInstance = {
-      setOption: vi.fn(),
-      resize: vi.fn(),
-      on: vi.fn(),
-      dispose: vi.fn(),
-    };
-    return mockChartInstance;
-  }),
-};
-
-function getChartInstance() {
-  return mockChartInstance;
-}
+const { mockEcharts, getChartInstance, install, uninstall } = createMockECharts();
 
 beforeEach(() => {
-  vi.stubEnv("NODE_ENV", "test");
-  global.ResizeObserver = vi.fn(() => ({
-    observe: vi.fn(),
-    disconnect: vi.fn(),
-  }));
-  // @ts-ignore
-  (window as any).echarts = mockEcharts;
+  install();
 });
 
 afterEach(() => {
-  vi.unstubAllEnvs();
   cleanup();
-  vi.clearAllMocks();
-  delete (window as any).echarts;
+  uninstall();
 });
 
 describe("useECharts", () => {
@@ -52,14 +27,7 @@ describe("useECharts", () => {
   it("initializes chart on first setChartOption call", async () => {
     const { result } = renderHook(() => useECharts({ isDark: false }));
 
-    const mockDiv = document.createElement("div");
-    Object.defineProperty(result.current.chartRef, "current", {
-      value: mockDiv,
-    });
-
-    await act(async () => {
-      await result.current.setChartOption({ series: [] });
-    });
+    const mockDiv = await initChart(result);
 
     expect(mockEcharts.init).toHaveBeenCalledWith(mockDiv, null);
   });
@@ -67,14 +35,7 @@ describe("useECharts", () => {
   it("initializes chart without theme (colors handled in options)", async () => {
     const { result } = renderHook(() => useECharts({ isDark: true }));
 
-    const mockDiv = document.createElement("div");
-    Object.defineProperty(result.current.chartRef, "current", {
-      value: mockDiv,
-    });
-
-    await act(async () => {
-      await result.current.setChartOption({ series: [] });
-    });
+    const mockDiv = await initChart(result);
 
     expect(mockEcharts.init).toHaveBeenCalledWith(mockDiv, null);
   });
@@ -83,14 +44,7 @@ describe("useECharts", () => {
     const mockOnClick = vi.fn();
     const { result } = renderHook(() => useECharts({ isDark: false, onChartClick: mockOnClick }));
 
-    const mockDiv = document.createElement("div");
-    Object.defineProperty(result.current.chartRef, "current", {
-      value: mockDiv,
-    });
-
-    await act(async () => {
-      await result.current.setChartOption({ series: [] });
-    });
+    await initChart(result);
 
     expect(getChartInstance().on).toHaveBeenCalledWith("click", mockOnClick);
   });
@@ -98,14 +52,7 @@ describe("useECharts", () => {
   it("does not register click handler without onChartClick", async () => {
     const { result } = renderHook(() => useECharts({ isDark: false }));
 
-    const mockDiv = document.createElement("div");
-    Object.defineProperty(result.current.chartRef, "current", {
-      value: mockDiv,
-    });
-
-    await act(async () => {
-      await result.current.setChartOption({ series: [] });
-    });
+    await initChart(result);
 
     expect(getChartInstance().on).not.toHaveBeenCalled();
   });
@@ -113,14 +60,7 @@ describe("useECharts", () => {
   it("calls setOption with not merge and resizes", async () => {
     const { result } = renderHook(() => useECharts({ isDark: false }));
 
-    const mockDiv = document.createElement("div");
-    Object.defineProperty(result.current.chartRef, "current", {
-      value: mockDiv,
-    });
-
-    await act(async () => {
-      await result.current.setChartOption({ title: { text: "Test" } });
-    });
+    await initChart(result, { title: { text: "Test" } });
 
     expect(getChartInstance().setOption).toHaveBeenCalledWith({ title: { text: "Test" } }, true);
     expect(getChartInstance().resize).toHaveBeenCalled();
@@ -131,14 +71,8 @@ describe("useECharts", () => {
 
     const { result } = renderHook(() => useECharts({ isDark: false }));
 
-    const mockDiv = document.createElement("div");
-    Object.defineProperty(result.current.chartRef, "current", {
-      value: mockDiv,
-    });
-
-    await act(async () => {
-      await result.current.setChartOption({ series: [] });
-    });
+    attachMockDiv(result.current.chartRef);
+    await applyOption(result, { series: [] });
 
     expect(mockEcharts.init).not.toHaveBeenCalled();
   });
@@ -146,21 +80,11 @@ describe("useECharts", () => {
   it("adds window resize listener on mount", async () => {
     const { result } = renderHook(() => useECharts({ isDark: false }));
 
-    const mockDiv = document.createElement("div");
-    Object.defineProperty(result.current.chartRef, "current", {
-      value: mockDiv,
-    });
-
-    await act(async () => {
-      await result.current.setChartOption({ series: [] });
-    });
+    await initChart(result);
   });
 
   it("adds ResizeObserver when available", async () => {
-    const mockDiv = document.createElement("div");
     const observeMock = vi.fn();
-
-    // Create a new ResizeObserver mock that tracks calls
     const roMock = vi.fn(() => ({
       observe: observeMock,
       disconnect: vi.fn(),
@@ -169,15 +93,8 @@ describe("useECharts", () => {
 
     const { result } = renderHook(() => useECharts({ isDark: false }));
 
-    // Set the ref
-    Object.defineProperty(result.current.chartRef, "current", {
-      value: mockDiv,
-    });
-
-    // Initialize chart
-    await act(async () => {
-      await result.current.setChartOption({ series: [] });
-    });
+    attachMockDiv(result.current.chartRef);
+    await applyOption(result, { series: [] });
 
     // Note: The current implementation doesn't create ResizeObserver after mount
     // because chartRef.current is null when useEffect runs
@@ -188,18 +105,8 @@ describe("useECharts", () => {
   it("handles multiple setChartOption calls", async () => {
     const { result } = renderHook(() => useECharts({ isDark: false }));
 
-    const mockDiv = document.createElement("div");
-    Object.defineProperty(result.current.chartRef, "current", {
-      value: mockDiv,
-    });
-
-    await act(async () => {
-      await result.current.setChartOption({ series: [{ type: "line" }] });
-    });
-
-    await act(async () => {
-      await result.current.setChartOption({ series: [{ type: "bar" }] });
-    });
+    await initChart(result, { series: [{ type: "line" }] });
+    await applyOption(result, { series: [{ type: "bar" }] });
 
     expect(getChartInstance().setOption).toHaveBeenCalledTimes(2);
   });
@@ -208,18 +115,8 @@ describe("useECharts", () => {
     const mockOnClick = vi.fn();
     const { result } = renderHook(() => useECharts({ isDark: false, onChartClick: mockOnClick }));
 
-    const mockDiv = document.createElement("div");
-    Object.defineProperty(result.current.chartRef, "current", {
-      value: mockDiv,
-    });
-
-    await act(async () => {
-      await result.current.setChartOption({ series: [] });
-    });
-
-    await act(async () => {
-      await result.current.setChartOption({ xAxis: { type: "category" } });
-    });
+    await initChart(result, { series: [] });
+    await applyOption(result, { xAxis: { type: "category" } });
 
     expect(getChartInstance().on).toHaveBeenCalledWith("click", mockOnClick);
     expect(getChartInstance().on).toHaveBeenCalledTimes(1);
@@ -228,11 +125,7 @@ describe("useECharts", () => {
   it("does not init after unmount while the echarts import is in flight", async () => {
     const { result, unmount } = renderHook(() => useECharts({ isDark: false }));
 
-    const mockDiv = document.createElement("div");
-    Object.defineProperty(result.current.chartRef, "current", {
-      value: mockDiv,
-      configurable: true,
-    });
+    attachMockDiv(result.current.chartRef, { configurable: true });
 
     let pending: Promise<void> | undefined;
     act(() => {

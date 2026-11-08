@@ -1,11 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { getMarketOpenGapColumns } from "./marketOpenGap";
+import { fmtOf, expectPctClass } from "./columnTestFixtures";
 
-function fmt(key: string) {
-  const c = getMarketOpenGapColumns().find((x) => x.key === key);
-  if (!c?.format) throw new Error(key);
-  return c.format as any;
-}
+const fmt = (key: string) => fmtOf(getMarketOpenGapColumns, key);
 
 describe("marketOpenGap columns", () => {
   it("7 columns", () => expect(getMarketOpenGapColumns().length).toBe(7));
@@ -23,11 +20,7 @@ describe("marketOpenGap columns", () => {
       [0, "+0.00%", "success"],
       [NaN, "NaN%", "error"],
       [Infinity, "+Infinity%", "success"],
-    ])("gap %s -> %s %s", (v, ev, ec) => {
-      const r: any = fmt("gap_pct")(v);
-      expect(r.value).toBe(ev);
-      expect(r.className).toBe(ec);
-    });
+    ])("gap %s -> %s %s", (v, ev, ec) => expectPctClass(fmt("gap_pct")(v), ev, ec));
   });
 
   describe("premarket_change", () => {
@@ -35,11 +28,7 @@ describe("marketOpenGap columns", () => {
       [1.5, "+1.50%", "success"],
       [-0.5, "-0.50%", "error"],
       [0, "+0.00%", "success"],
-    ])("premarket %s -> %s %s", (v, ev, ec) => {
-      const r: any = fmt("premarket_change")(v);
-      expect(r.value).toBe(ev);
-      expect(r.className).toBe(ec);
-    });
+    ])("premarket %s -> %s %s", (v, ev, ec) => expectPctClass(fmt("premarket_change")(v), ev, ec));
   });
 
   describe("day_change", () => {
@@ -51,8 +40,12 @@ describe("marketOpenGap columns", () => {
   });
 
   describe("volume_m", () => {
-    it("12.345 -> 12.35", () => expect(fmt("volume_m")(12.345)).toBe("12.35"));
-    it("null -> 0.00", () => expect(fmt("volume_m")(null)).toBe("0.00"));
+    it("12.345 -> 12.35", () => {
+      expect(fmt("volume_m")(12.345)).toBe("12.35");
+    });
+    it("null -> 0.00", () => {
+      expect(fmt("volume_m")(null)).toBe("0.00");
+    });
     it("undefined -> 0.00", () => expect(fmt("volume_m")(undefined)).toBe("0.00"));
     it("Infinity not throw", () => expect(() => fmt("volume_m")(Infinity)).not.toThrow());
   });

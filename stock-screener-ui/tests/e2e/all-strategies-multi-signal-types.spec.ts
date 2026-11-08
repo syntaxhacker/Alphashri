@@ -1,7 +1,13 @@
 import { test, expect, Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
-import { TEST_BOT_UUID, setupBotApiMocks, expectPositionsVisible } from "./helpers/botHelpers";
+import {
+  TEST_BOT_UUID,
+  setupBotApiMocks,
+  expectPositionsVisible,
+  gotoPaperAndSelectFirstBot,
+  mockPaperBotSnapshot,
+} from "./helpers/botHelpers";
 
 const ALL_STRATEGY_TYPES = [
   { id: 1, name: "ORB Conservative", strategy_type: "ORB", allocation: 0.3 },
@@ -57,17 +63,7 @@ async function setupMultiStrategyBot(
 }
 
 async function navigateToBot(page: Page) {
-  await page.goto("/paper");
-  await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
-  await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
-
-  await page.waitForSelector('[data-testid="bot-select"]', { state: "visible", timeout: 10000 });
-  await page.locator('[data-testid="bot-select"]').click();
-  await expect(page.getByRole("option").first()).toBeVisible({ timeout: 5000 });
-  await page.keyboard.press("ArrowDown");
-  await page.keyboard.press("Enter");
-
-  await page.getByTestId("tab-live").click();
+  await gotoPaperAndSelectFirstBot(page);
   await page.waitForLoadState("networkidle");
 }
 
@@ -219,19 +215,8 @@ test.describe("Multi-Strategy - Empty States", () => {
       });
     });
 
-    await page.route(apiRoute("paper/bot/snapshot"), async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          timestamp: new Date().toISOString(),
-          watchlist: [],
-          open_positions: [],
-          scan_items: [],
-          signals: [],
-        }),
-      });
-    });
+    // Registered after setupBotApiMocks so it wins the route match and blanks the snapshot.
+    await mockPaperBotSnapshot(page);
 
     await navigateToBot(page);
     const scanCard = page.locator('[data-testid="watchlist-scan-card"]');

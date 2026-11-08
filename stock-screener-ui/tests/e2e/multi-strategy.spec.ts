@@ -9,8 +9,65 @@ import {
   setupBotMocksForId,
   navigateToBot,
   verifyStrategyPanel,
+  mockPaperChartRoute,
 } from "./helpers/multiStrategyHelpers";
-import { apiRoute } from "../mocks/routeHelper";
+
+const ORB_CHART_RESPONSE = {
+  symbol: "TCS",
+  candles: [
+    {
+      time: "2026-03-02 09:15",
+      open: 3750,
+      high: 3760,
+      low: 3745,
+      close: 3755,
+      volume: 10000,
+    },
+    {
+      time: "2026-03-02 09:20",
+      open: 3755,
+      high: 3770,
+      low: 3750,
+      close: 3765,
+      volume: 15000,
+    },
+  ],
+  orb_levels: {
+    or_high: 3760,
+    or_low: 3745,
+  },
+  trades: [],
+};
+
+const CHART_52W_RESPONSE = {
+  symbol: "RELIANCE",
+  candles: [
+    {
+      time: "2026-03-02 09:15",
+      open: 2500,
+      high: 2510,
+      low: 2495,
+      close: 2505,
+      volume: 20000,
+    },
+    {
+      time: "2026-03-02 09:20",
+      open: 2505,
+      high: 2520,
+      low: 2500,
+      close: 2515,
+      volume: 25000,
+    },
+  ],
+  orb_levels: null,
+  week52_levels: {
+    high_52w: 2550,
+    low_52w: 2200,
+    distance_to_high_pct: 2.0,
+    near_high: true,
+  },
+  trades: [],
+};
 
 test.describe.configure({ mode: "default" });
 
@@ -108,7 +165,7 @@ test.describe("Multi-Strategy System - Watchlists", () => {
   test("should have separate watchlists per strategy type", async ({ page }) => {
     await navigateToBot(page, botId);
 
-    await verifyStrategyPanel(page, "ORB Conservative");
+    await verifyStrategyPanel(page);
     await expect(page.getByTestId("watchlist-scan-card")).toBeVisible();
   });
 });
@@ -145,7 +202,7 @@ test.describe("Multi-Strategy System - Positions Filter", () => {
   test("should filter positions by strategy tab", async ({ page }) => {
     await navigateToBot(page, botId);
 
-    await verifyStrategyPanel(page, "ORB Conservative");
+    await verifyStrategyPanel(page);
     await expect(page.getByTestId("positions-table-container")).toContainText("TCS");
   });
 });
@@ -163,7 +220,7 @@ test.describe("Multi-Strategy System - All Positions", () => {
   test("should show all positions by default", async ({ page }) => {
     await navigateToBot(page, botId);
 
-    await verifyStrategyPanel(page, "All");
+    await verifyStrategyPanel(page);
     const positionsTable = page.getByTestId("positions-table-container");
     await expect(positionsTable).toContainText("TCS");
     await expect(positionsTable).toContainText("INFY");
@@ -178,39 +235,7 @@ test.describe("Multi-Strategy System - Chart ORB Levels", () => {
     await loginAsTestUser(page);
     await setupPaperTradingMocks(page);
     await setupBotMocksForId(page, botId);
-
-    await page.route(apiRoute("paper/chart/"), async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          symbol: "TCS",
-          candles: [
-            {
-              time: "2026-03-02 09:15",
-              open: 3750,
-              high: 3760,
-              low: 3745,
-              close: 3755,
-              volume: 10000,
-            },
-            {
-              time: "2026-03-02 09:20",
-              open: 3755,
-              high: 3770,
-              low: 3750,
-              close: 3765,
-              volume: 15000,
-            },
-          ],
-          orb_levels: {
-            or_high: 3760,
-            or_low: 3745,
-          },
-          trades: [],
-        }),
-      });
-    });
+    await mockPaperChartRoute(page, ORB_CHART_RESPONSE);
   });
 
   test("should show ORB levels on chart for ORB positions", async ({ page }) => {
@@ -232,42 +257,7 @@ test.describe("Multi-Strategy System - Chart 52W Levels", () => {
     await loginAsTestUser(page);
     await setupPaperTradingMocks(page);
     await setupBotMocksForId(page, botId);
-
-    await page.route(apiRoute("paper/chart/"), async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          symbol: "RELIANCE",
-          candles: [
-            {
-              time: "2026-03-02 09:15",
-              open: 2500,
-              high: 2510,
-              low: 2495,
-              close: 2505,
-              volume: 20000,
-            },
-            {
-              time: "2026-03-02 09:20",
-              open: 2505,
-              high: 2520,
-              low: 2500,
-              close: 2515,
-              volume: 25000,
-            },
-          ],
-          orb_levels: null,
-          week52_levels: {
-            high_52w: 2550,
-            low_52w: 2200,
-            distance_to_high_pct: 2.0,
-            near_high: true,
-          },
-          trades: [],
-        }),
-      });
-    });
+    await mockPaperChartRoute(page, CHART_52W_RESPONSE);
   });
 
   test("should show 52W high line on chart for 52W positions (no 52W positions mocked, tab not rendered)", async ({

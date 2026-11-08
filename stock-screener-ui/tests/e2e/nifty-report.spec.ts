@@ -2,13 +2,17 @@ import { test, expect } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser, setupNiftyReportMocks } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
 
+async function setupNiftyReportPage(page: Page) {
+  await setupApiMocks(page);
+  await loginAsTestUser(page);
+  await setupNiftyReportMocks(page);
+  await page.goto("/report/index");
+  await page.waitForSelector('[data-testid="nifty-report-panel"]', { timeout: 10000 });
+}
+
 test.describe("Index Report - Live mode", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
-    await setupNiftyReportMocks(page);
-    await page.goto("/report/index");
-    await page.waitForSelector('[data-testid="nifty-report-panel"]', { timeout: 10000 });
+    await setupNiftyReportPage(page);
   });
 
   test("@smoke live mode renders stat strip + chart + OI rows from mock", async ({ page }) => {
@@ -33,11 +37,7 @@ test.describe("Index Report - Live mode", () => {
 
 test.describe("Index Report - EOD mode", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
-    await setupNiftyReportMocks(page);
-    await page.goto("/report/index");
-    await page.waitForSelector('[data-testid="nifty-report-panel"]', { timeout: 10000 });
+    await setupNiftyReportPage(page);
   });
 
   test("EOD mode: pick date via fill shows timeline events", async ({ page }) => {

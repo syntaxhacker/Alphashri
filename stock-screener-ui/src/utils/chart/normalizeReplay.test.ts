@@ -9,93 +9,88 @@ import {
   INDICATOR_BLUE_A,
   ORB_AREA,
 } from "../../config/colors";
+import {
+  makeReplayCandles,
+  makeReplayTrade,
+  makeORLevels,
+  makePivotLevels,
+  make52WLevels,
+  makeEMADataMap,
+  makeEMADataMapWithTimeframes,
+} from "./normalizeTestFixtures";
+
+type ReplayArgs = Parameters<typeof normalizeReplay>;
+type CallReplayInput = {
+  candles?: ReplayArgs[0];
+  trades?: ReplayArgs[1];
+  orLevels?: ReplayArgs[2];
+  pivotLevels?: ReplayArgs[3];
+  week52Levels?: ReplayArgs[4];
+  emaDataMap?: ReplayArgs[5];
+  symbol?: string;
+  isDark?: boolean;
+  highlightedTradeId?: ReplayArgs[8];
+  // Tests pass booleans and option-bags in these slots on purpose (legacy call shapes).
+  showAllTrades?: unknown;
+  rawCandles?: unknown;
+  // Tests pass `true` here on purpose (legacy call shapes).
+  activeTF?: unknown;
+  chartOptions?: ReplayArgs[12];
+};
 
 describe("normalizeReplay", () => {
-  const mockCandles = [
-    { time: "2025-01-15T09:30:00", open: 100, high: 110, low: 95, close: 105, volume: 1000 },
-    { time: "2025-01-15T09:31:00", open: 105, high: 108, low: 103, close: 107, volume: 800 },
-    { time: "2025-01-15T09:32:00", open: 107, high: 112, low: 106, close: 110, volume: 900 },
-  ];
+  const mockCandles = makeReplayCandles();
 
-  const mockTrades = [
-    {
-      id: 1,
-      symbol: "TEST",
-      entry_price: 100,
-      exit_price: 110,
-      entry_time: "2025-01-15T09:30:00",
-      exit_time: "2025-01-15T09:35:00",
-      exit_reason: "TP",
-      quantity: 10,
-      side: "BUY",
-      pnl: 10,
-      costs: 1,
-      candle_idx: 0,
-      exit_candle_idx: 2,
-    },
-  ];
+  const mockTrades = [makeReplayTrade()];
 
-  const mockORLevels = [
-    {
-      symbol: "TEST",
-      strategy: "orb",
-      from_index: 0,
-      to_index: 8,
-      or_high: 112,
-      or_low: 98,
-    },
-  ];
+  const mockORLevels = makeORLevels();
 
-  const mockPivotLevels = [
-    {
-      symbol: "TEST",
-      strategy: "pivot",
-      from_index: 0,
-      to_index: 10,
-      r2: 120,
-      r1: 115,
-      pp: 105,
-      s1: 95,
-      s2: 90,
-    },
-  ];
+  const mockPivotLevels = makePivotLevels();
 
-  const mock52WLevels = [
-    {
-      symbol: "TEST",
-      strategy: "52w",
-      from_index: 0,
-      to_index: 20,
-      high_52w: 150,
-      low_52w: 80,
-    },
-  ];
+  const mock52WLevels = make52WLevels();
 
-  const mockEMADataMap = {
-    TEST: {
-      ema_fast_period: 9,
-      ema_slow_period: 21,
-      timeframes: {
-        "5min": {
-          ema_fast: [100, 101, 102],
-          ema_slow: [99, 100, 101],
-        },
-      },
-    },
-  };
+  const mockEMADataMap = makeEMADataMap();
+
+  // Invoke the normalizer with shared defaults so each test only states its deltas.
+  const callReplay = ({
+    candles = mockCandles,
+    trades = [],
+    orLevels = mockORLevels,
+    pivotLevels = [],
+    week52Levels = [],
+    emaDataMap = {},
+    symbol = "TEST",
+    isDark = false,
+    highlightedTradeId,
+    showAllTrades,
+    rawCandles,
+    activeTF,
+    chartOptions,
+  }: CallReplayInput = {}) =>
+    normalizeReplay(
+      candles,
+      trades,
+      orLevels,
+      pivotLevels,
+      week52Levels,
+      emaDataMap,
+      symbol,
+      isDark,
+      highlightedTradeId,
+      showAllTrades as ReplayArgs[9],
+      rawCandles as ReplayArgs[10],
+      activeTF as ReplayArgs[11],
+      chartOptions,
+    );
 
   describe("candle normalization", () => {
     it("maps candles to UnifiedCandle format", () => {
-      const result = normalizeReplay(
-        mockCandles,
-        mockTrades,
-        mockORLevels,
-        mockPivotLevels,
-        mock52WLevels,
-        mockEMADataMap,
-        "TEST",
-        false,
-      );
+      const result = callReplay({
+        trades: mockTrades,
+        pivotLevels: mockPivotLevels,
+        week52Levels: mock52WLevels,
+        emaDataMap: mockEMADataMap,
+      });
       expect(result.candles).toHaveLength(3);
       expect(result.candles[0]).toMatchObject({
         time: "2025-01-15T09:30:00",
@@ -109,50 +104,30 @@ describe("normalizeReplay", () => {
 
     it("filters trades by selected symbol", () => {
       const tradesWithOther = [...mockTrades, { ...mockTrades[0], symbol: "OTHER", id: 2 }];
-      const result = normalizeReplay(
-        mockCandles,
-        tradesWithOther,
-        mockORLevels,
-        mockPivotLevels,
-        mock52WLevels,
-        mockEMADataMap,
-        "TEST",
-        false,
-      );
+      const result = callReplay({
+        trades: tradesWithOther,
+        pivotLevels: mockPivotLevels,
+        week52Levels: mock52WLevels,
+        emaDataMap: mockEMADataMap,
+      });
       expect(result.trades).toHaveLength(1);
       expect(result.trades[0].id).toBe(1);
     });
 
     it("maps trades with correct id", () => {
-      const result = normalizeReplay(
-        mockCandles,
-        mockTrades,
-        mockORLevels,
-        mockPivotLevels,
-        mock52WLevels,
-        mockEMADataMap,
-        "TEST",
-        false,
-      );
+      const result = callReplay({
+        trades: mockTrades,
+        pivotLevels: mockPivotLevels,
+        week52Levels: mock52WLevels,
+        emaDataMap: mockEMADataMap,
+      });
       expect(result.trades[0].id).toBe(1);
     });
   });
 
   describe("ORB overlays", () => {
     it("adds OR high and low overlays as lines", () => {
-      const result = normalizeReplay(
-        mockCandles,
-        [],
-        mockORLevels,
-        [],
-        [],
-        {},
-        "TEST",
-        false,
-        undefined,
-        undefined,
-        true,
-      );
+      const result = callReplay({ showAllTrades: true });
       const orHigh = result.overlays.find((o) => o.id.includes("or-high"));
       const orLow = result.overlays.find((o) => o.id.includes("or-low"));
       expect(orHigh).toBeDefined();
@@ -162,55 +137,19 @@ describe("normalizeReplay", () => {
     });
 
     it("includes strategy name in overlay labels", () => {
-      const result = normalizeReplay(
-        mockCandles,
-        [],
-        mockORLevels,
-        [],
-        [],
-        {},
-        "TEST",
-        false,
-        undefined,
-        undefined,
-        true,
-      );
+      const result = callReplay({ showAllTrades: true });
       const orHigh = result.overlays.find((o) => o.id === "or-high-orb");
       expect(orHigh?.label).toBe("OR High (orb)");
     });
 
     it("uses dashed [6,3] pattern for OR lines", () => {
-      const result = normalizeReplay(
-        mockCandles,
-        [],
-        mockORLevels,
-        [],
-        [],
-        {},
-        "TEST",
-        false,
-        undefined,
-        undefined,
-        true,
-      );
+      const result = callReplay({ showAllTrades: true });
       const orHigh = result.overlays.find((o) => o.id === "or-high-orb");
       expect(orHigh?.dash).toEqual([6, 3]);
     });
 
     it("sets OR levels with date range", () => {
-      const result = normalizeReplay(
-        mockCandles,
-        [],
-        mockORLevels,
-        [],
-        [],
-        {},
-        "TEST",
-        false,
-        undefined,
-        undefined,
-        true,
-      );
+      const result = callReplay({ showAllTrades: true });
       const orHigh = result.overlays.find((o) => o.id === "or-high-orb");
       expect(orHigh?.levels).toHaveLength(2);
       expect(orHigh?.levels[0]).toHaveProperty("date");
@@ -218,38 +157,15 @@ describe("normalizeReplay", () => {
     });
 
     it("hides OR lines when show_orb_zones is false", () => {
-      const result = normalizeReplay(
-        mockCandles,
-        [],
-        mockORLevels,
-        [],
-        [],
-        {},
-        "TEST",
-        false,
-        undefined, // highlightedTradeId
-        undefined, // showAllTrades
-        undefined, // rawCandles
-        undefined, // activeTF
-        { show_orb_zones: false }, // chartOptions
-      );
+      const result = callReplay({ chartOptions: { show_orb_zones: false } });
       expect(result.overlays.find((o) => o.id.includes("or-"))).toBeUndefined();
     });
 
     it("adds OR markAreas", () => {
-      const result = normalizeReplay(
-        mockCandles,
-        [],
-        mockORLevels,
-        [],
-        [],
-        {},
-        "TEST",
-        false,
-        undefined,
-        { show_orb_zones: false }, // actually true through default
-        true,
-      );
+      const result = callReplay({
+        showAllTrades: { show_orb_zones: false }, // actually true through default
+        rawCandles: true,
+      });
       expect(result.markAreas).toHaveLength(1);
       expect(result.markAreas[0]).toMatchObject({
         fromY: 98,
@@ -259,22 +175,22 @@ describe("normalizeReplay", () => {
     });
   });
 
+  // Pivot overlays drawn on the raw-false/activeTF-true legacy call shape.
+  const pivotReplay = () =>
+    callReplay({
+      pivotLevels: mockPivotLevels,
+      rawCandles: false,
+      activeTF: true,
+    });
+
   describe("Pivot overlays", () => {
     it("adds pivot level lines", () => {
-      const result = normalizeReplay(
-        mockCandles,
-        [],
-        [],
-        mockPivotLevels,
-        [],
-        {},
-        "TEST",
-        false,
-        undefined,
-        { show_pivot_levels: false }, // passing true via default
-        false,
-        true,
-      );
+      const result = callReplay({
+        pivotLevels: mockPivotLevels,
+        showAllTrades: { show_pivot_levels: false }, // passing true via default
+        rawCandles: false,
+        activeTF: true,
+      });
       const pivotLevels = ["r2", "r1", "pp", "s1", "s2"];
       for (const level of pivotLevels) {
         expect(result.overlays.find((o) => o.id === `${level}-pivot`)).toBeDefined();
@@ -282,20 +198,7 @@ describe("normalizeReplay", () => {
     });
 
     it("uses correct colors for pivot levels", () => {
-      const result = normalizeReplay(
-        mockCandles,
-        [],
-        [],
-        mockPivotLevels,
-        [],
-        {},
-        "TEST",
-        false,
-        undefined,
-        undefined,
-        false,
-        true,
-      );
+      const result = pivotReplay();
       const r1 = result.overlays.find((o) => o.id === "r1-pivot");
       expect(r1?.color).toBe(PIVOT_R1);
       const pp = result.overlays.find((o) => o.id === "pp-pivot");
@@ -305,20 +208,7 @@ describe("normalizeReplay", () => {
     });
 
     it("uses correct dash patterns", () => {
-      const result = normalizeReplay(
-        mockCandles,
-        [],
-        [],
-        mockPivotLevels,
-        [],
-        {},
-        "TEST",
-        false,
-        undefined,
-        undefined,
-        false,
-        true,
-      );
+      const result = pivotReplay();
       const r1 = result.overlays.find((o) => o.id === "r1-pivot");
       expect(r1?.dash).toEqual([6, 3]); // dashed
       const r2 = result.overlays.find((o) => o.id === "r2-pivot");
@@ -328,20 +218,12 @@ describe("normalizeReplay", () => {
 
   describe("52-week overlays", () => {
     it("adds 52W high line", () => {
-      const result = normalizeReplay(
-        mockCandles,
-        [],
-        [],
-        [],
-        mock52WLevels,
-        {},
-        "TEST",
-        false,
-        undefined,
-        { show_52w_high: false }, // true by default
-        false,
-        true,
-      );
+      const result = callReplay({
+        week52Levels: mock52WLevels,
+        showAllTrades: { show_52w_high: false }, // true by default
+        rawCandles: false,
+        activeTF: true,
+      });
       const high52w = result.overlays.find((o) => o.id === "52w-high-52w");
       expect(high52w).toBeDefined();
       expect(high52w?.color).toBe(PIVOT_52W_HIGH);
@@ -349,20 +231,11 @@ describe("normalizeReplay", () => {
     });
 
     it("adds 52W low line when > 0", () => {
-      const result = normalizeReplay(
-        mockCandles,
-        [],
-        [],
-        [],
-        mock52WLevels,
-        {},
-        "TEST",
-        false,
-        undefined,
-        undefined,
-        false,
-        true,
-      );
+      const result = callReplay({
+        week52Levels: mock52WLevels,
+        rawCandles: false,
+        activeTF: true,
+      });
       const low52w = result.overlays.find((o) => o.id === "52w-low-52w");
       expect(low52w).toBeDefined();
       expect(low52w?.color).toBe(PIVOT_52W_LOW);
@@ -372,20 +245,12 @@ describe("normalizeReplay", () => {
 
   describe("EMA integration", () => {
     it("adds EMA series when show_ema is true", () => {
-      const result = normalizeReplay(
-        mockCandles,
-        [],
-        [],
-        [],
-        [],
-        mockEMADataMap,
-        "TEST",
-        false,
-        undefined,
-        { show_ema: false }, // true by default
-        false,
-        true,
-      );
+      const result = callReplay({
+        emaDataMap: mockEMADataMap,
+        showAllTrades: { show_ema: false }, // true by default
+        rawCandles: false,
+        activeTF: true,
+      });
       expect(result.emaData).toHaveLength(2);
       expect(result.emaData[0]).toMatchObject({
         label: "EMA 9",
@@ -395,79 +260,34 @@ describe("normalizeReplay", () => {
     });
 
     it("selects correct timeframe based on activeTF", () => {
-      const emaDataMap = {
-        TEST: {
-          ema_fast_period: 9,
-          ema_slow_period: 21,
-          timeframes: {
-            "1min": { ema_fast: [100], ema_slow: [99] },
-            "5min": { ema_fast: [100, 101, 102], ema_slow: [99, 100, 101] },
-          },
-        },
-      };
-      const result = normalizeReplay(
-        mockCandles,
-        [],
-        [],
-        [],
-        [],
+      const emaDataMap = makeEMADataMapWithTimeframes({
+        "1min": { ema_fast: [100], ema_slow: [99] },
+        "5min": { ema_fast: [100, 101, 102], ema_slow: [99, 100, 101] },
+      });
+      const result = callReplay({
         emaDataMap,
-        "TEST",
-        false,
-        undefined, // highlightedTradeId
-        undefined, // showAllTrades
-        undefined, // rawCandles
-        5, // activeTF
-        undefined, // chartOptions
-      );
+        activeTF: 5,
+      });
       expect(result.emaData?.[0].data).toHaveLength(3);
     });
 
     it("fallback to first timeframe if specific not found", () => {
-      const emaDataMap = {
-        TEST: {
-          ema_fast_period: 9,
-          ema_slow_period: 21,
-          timeframes: {
-            "10min": { ema_fast: [100], ema_slow: [99] },
-          },
-        },
-      };
-      const result = normalizeReplay(
-        mockCandles,
-        [],
-        [],
-        [],
-        [],
+      const emaDataMap = makeEMADataMapWithTimeframes({
+        "10min": { ema_fast: [100], ema_slow: [99] },
+      });
+      const result = callReplay({
         emaDataMap,
-        "TEST",
-        false,
-        undefined, // highlightedTradeId
-        undefined, // showAllTrades
-        undefined, // rawCandles
-        5, // activeTF
-        undefined, // chartOptions
-      );
+        activeTF: 5,
+      });
       expect(result.emaData).toBeDefined();
       expect(result.emaData?.[0].data).toEqual([100]);
     });
 
     it("does not add EMA when show_ema is false", () => {
-      const result = normalizeReplay(
-        mockCandles,
-        [],
-        [],
-        [],
-        [],
-        mockEMADataMap,
-        "TEST",
-        false,
-        undefined, // highlightedTradeId
-        undefined, // showAllTrades
-        undefined, // rawCandles
-        undefined, // activeTF
-        { show_ema: false }, // chartOptions
-      );
+      const result = callReplay({
+        emaDataMap: mockEMADataMap,
+        chartOptions: { show_ema: false },
+      });
       expect(result.emaData).toBeUndefined();
     });
   });
@@ -481,21 +301,11 @@ describe("normalizeReplay", () => {
         { time: "2025-01-15T09:33:00" },
         { time: "2025-01-15T09:34:00" },
       ];
-      const result = normalizeReplay(
-        mockCandles,
-        [],
-        [{ ...mockORLevels[0], from_index: 0, to_index: 2 }],
-        [],
-        [],
-        {},
-        "TEST",
-        false,
-        undefined,
-        undefined,
+      const result = callReplay({
+        orLevels: [{ ...mockORLevels[0], from_index: 0, to_index: 2 }],
         rawCandles,
-        1,
-        undefined,
-      );
+        activeTF: 1,
+      });
       const orOverlay = result.overlays.find((o) => o.id.includes("or-high"));
       expect(orOverlay?.levels[0].date).toBe("2025-01-15"); // from 09:30
       expect(orOverlay?.levels[1].date).toBe("2025-01-15"); // to 09:32
@@ -503,21 +313,11 @@ describe("normalizeReplay", () => {
 
     it("handles out-of-bounds indices", () => {
       const rawCandles = [{ time: "2025-01-15T09:30:00" }];
-      const result = normalizeReplay(
-        mockCandles,
-        [],
-        [{ ...mockORLevels[0], from_index: 0, to_index: 100 }],
-        [],
-        [],
-        {},
-        "TEST",
-        false,
-        undefined, // highlightedTradeId
-        undefined, // showAllTrades
+      const result = callReplay({
+        orLevels: [{ ...mockORLevels[0], from_index: 0, to_index: 100 }],
         rawCandles, // rawCandles
-        5, // activeTF
-        undefined, // chartOptions
-      );
+        activeTF: 5, // activeTF
+      });
       // Should use clamped index for 100 -> 0 (last index)
       const orOverlay = result.overlays.find((o) => o.id.includes("or-high"));
       expect(orOverlay?.levels[1].date).toBe("2025-01-15");
@@ -526,63 +326,45 @@ describe("normalizeReplay", () => {
 
   describe("ChartInput configuration", () => {
     it("sets showVolume to false", () => {
-      const result = normalizeReplay(mockCandles, [], [], [], [], {}, "RELIANCE", false);
+      const result = callReplay({ symbol: "RELIANCE" });
       expect(result.showVolume).toBe(false);
     });
 
     it("sets showDataZoomSlider to false", () => {
-      const result = normalizeReplay(mockCandles, [], [], [], [], {}, "TEST", false);
+      const result = callReplay();
       expect(result.showDataZoomSlider).toBe(false);
     });
 
     it("sets showLegend to false", () => {
-      const result = normalizeReplay(mockCandles, [], [], [], [], {}, "TEST", false);
+      const result = callReplay();
       expect(result.showLegend).toBe(false);
     });
 
     it("passes through isDark", () => {
-      const result = normalizeReplay(mockCandles, [], [], [], [], {}, "TEST", true);
+      const result = callReplay({ isDark: true });
       expect(result.isDark).toBe(true);
     });
 
     it("parses highlightedTradeId to number", () => {
-      const result = normalizeReplay(
-        mockCandles,
-        mockTrades,
-        [],
-        [],
-        [],
-        {},
-        "TEST",
-        false,
-        1, // highlightedTradeId
-      );
+      const result = callReplay({
+        trades: mockTrades,
+        highlightedTradeId: 1,
+      });
       expect(result.highlightedTradeId).toBe(1);
     });
 
     it("passes through showAllTrades", () => {
-      const result = normalizeReplay(
-        mockCandles,
-        [],
-        [],
-        [],
-        [],
-        {},
-        "TEST",
-        false,
-        undefined, // highlightedTradeId
-        true, // showAllTrades
-        undefined, // rawCandles
-        undefined, // activeTF
-        {}, // chartOptions
-      );
+      const result = callReplay({
+        showAllTrades: true,
+        chartOptions: {},
+      });
       expect(result.showAllTrades).toBe(true);
     });
   });
 
   describe("edge cases", () => {
     it("handles empty arrays", () => {
-      const result = normalizeReplay([], [], [], [], [], {}, "TEST", false);
+      const result = callReplay({ candles: [], orLevels: [] });
       expect(result.candles).toEqual([]);
       expect(result.trades).toEqual([]);
       expect(result.overlays).toEqual([]);
@@ -603,7 +385,6 @@ describe("normalizeReplay", () => {
       expect(result.emaData).toBeUndefined();
       expect(result.markAreas).toEqual([]);
     });
-
     it("handles trades with missing exit data", () => {
       const incompleteTrades = [
         {
@@ -617,7 +398,7 @@ describe("normalizeReplay", () => {
           candle_idx: 0,
         },
       ];
-      const result = normalizeReplay(mockCandles, incompleteTrades, [], [], [], {}, "TEST", false);
+      const result = callReplay({ trades: incompleteTrades });
       expect(result.trades).toHaveLength(1);
       expect(result.trades[0].exit_price).toBeUndefined();
       expect(result.trades[0].exit_time).toBeUndefined();

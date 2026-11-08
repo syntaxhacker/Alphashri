@@ -46,7 +46,8 @@ vi.mock("@/api/reportNifty", () => ({
 
 // Keep the panel on Live regardless of when the suite runs (a closed-market
 // default would otherwise switch it to EOD on nights/weekends).
-vi.mock("@/utils/marketClock", () => ({
+vi.mock("@/utils/marketClock", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/utils/marketClock")>()),
   isMarketOpenIst: () => true,
 }));
 

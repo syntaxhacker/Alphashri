@@ -18,7 +18,8 @@ import {
   FLOW_NOISE_REL,
   FLIP_TTL_MS,
 } from "./niftyFlowRead";
-import type { NiftyStrike, OiPoint } from "@/types/niftyReport";
+import type { OiPoint } from "@/types/niftyReport";
+import { makeStrikes } from "./reportTestFixtures";
 
 describe("classifyFlowLeg", () => {
   test("call build + put unwind is a bid; the inverse is a put bid", () => {
@@ -231,17 +232,6 @@ describe("flip persistence", () => {
 });
 
 describe("flowNoiseFor and default noise constant", () => {
-  function makeStrikes(ceOi: number, peOi: number, count: number): NiftyStrike[] {
-    const strikes: NiftyStrike[] = [];
-    for (let i = 0; i < count; i++) {
-      strikes.push({
-        strike: 22_500 + i * 50,
-        ce: { oi: ceOi, ltp: 0, close: 0, prevOi: 0, oiChange: 0, priceChange: 0, sentiment: "Neutral", volume: 0, delta: 0.5, gamma: 0, theta: 0, vega: 0, iv: 0 },
-        pe: { oi: peOi, ltp: 0, close: 0, prevOi: 0, oiChange: 0, priceChange: 0, sentiment: "Neutral", volume: 0, delta: -0.5, gamma: 0, theta: 0, vega: 0, iv: 0 },
-      });
-    }
-    return strikes;
-  }
 
   test("exported FLOW_NOISE constant is 100_000 (NIFTY legacy default)", () => {
     expect(FLOW_NOISE).toBe(100_000);
@@ -308,15 +298,4 @@ describe("flowNoiseFor and default noise constant", () => {
     expect(result2).toBeNull();
   });
 
-  function makeStrikes(ceOi: number, peOi: number, count: number): NiftyStrike[] {
-    const strikes: NiftyStrike[] = [];
-    for (let i = 0; i < count; i++) {
-      strikes.push({
-        strike: 22_500 + i * 50,
-        ce: { oi: ceOi, ltp: 0, close: 0, prevOi: 0, oiChange: 0, priceChange: 0, sentiment: "Neutral", volume: 0, delta: 0.5, gamma: 0, theta: 0, vega: 0, iv: 0 },
-        pe: { oi: peOi, ltp: 0, close: 0, prevOi: 0, oiChange: 0, priceChange: 0, sentiment: "Neutral", volume: 0, delta: -0.5, gamma: 0, theta: 0, vega: 0, iv: 0 },
-      });
-    }
-    return strikes;
-  }
 });

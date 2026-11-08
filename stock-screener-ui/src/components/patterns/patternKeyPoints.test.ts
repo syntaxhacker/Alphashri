@@ -1,39 +1,18 @@
 import { describe, expect, test } from "vitest";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { buildPatternKeyPoints, keyPointMeanings } from "./patternKeyPoints";
-
-function pivot(t: string, price: number, kind: "high" | "low") {
-  return { t, price, kind };
-}
+import { makePatternHit, makePivot as pivot } from "./patternTestFixtures";
 
 function hit(pattern_id: string, pivots: ReturnType<typeof pivot>[]): PatternHitDTO {
-  return {
-    id: 1,
-    symbol: "TEST",
-    name: null,
-    timeframe: "1D",
-    pattern_id,
-    pattern_name: pattern_id,
-    family: "reversal",
-    direction: "bullish",
-    status: "confirmed",
-    quality: "strong",
-    confidence: 80,
-    start_date: "2026-01-01",
-    end_date: "2026-02-01",
-    start_price: 100,
-    end_price: 110,
-    breakout_level: 110,
-    target: 120,
-    stop: 95,
-    rr: 2,
-    bars_ago: 1,
-    volume_confirmed: true,
-    trendlines: [],
-    notes: "",
-    pivots,
-  };
+  return makePatternHit({ pattern_id, pattern_name: pattern_id, pivots });
 }
+
+const CUP_HANDLE_PIVOTS = [
+  pivot("2026-01-02", 110, "high"),
+  pivot("2026-01-10", 90, "low"),
+  pivot("2026-01-20", 108, "high"),
+  pivot("2026-01-25", 96, "low"),
+];
 
 function byLabel(points: ReturnType<typeof buildPatternKeyPoints>) {
   return Object.fromEntries(points.map((point) => [point.label, point.price]));
@@ -110,12 +89,7 @@ describe("buildPatternKeyPoints", () => {
 
   test("labels cup & handle: cup, both rims and the handle", () => {
     const points = buildPatternKeyPoints(
-      hit("cup_handle", [
-        pivot("2026-01-02", 110, "high"),
-        pivot("2026-01-10", 90, "low"),
-        pivot("2026-01-20", 108, "high"),
-        pivot("2026-01-25", 96, "low"),
-      ]),
+      hit("cup_handle", CUP_HANDLE_PIVOTS),
     );
     expect(byLabel(points)).toMatchObject({ C: 90, R1: 110, R2: 108, H: 96 });
   });
@@ -152,12 +126,7 @@ describe("buildPatternKeyPoints", () => {
     );
 
     const cup = buildPatternKeyPoints(
-      hit("cup_handle", [
-        pivot("2026-01-02", 110, "high"),
-        pivot("2026-01-10", 90, "low"),
-        pivot("2026-01-20", 108, "high"),
-        pivot("2026-01-25", 96, "low"),
-      ]),
+      hit("cup_handle", CUP_HANDLE_PIVOTS),
     );
     expect(keyPointMeanings("cup_handle", cup)).toContainEqual({ label: "H", meaning: "Handle" });
 

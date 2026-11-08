@@ -6,6 +6,7 @@
  */
 
 import type { NiftyBurst } from "@/types/niftyReport";
+import { formatFreshnessAge } from "./niftyDataFreshness";
 
 export interface NiftyFreshnessInput {
   /** Current wall-clock time (epoch ms). */
@@ -25,17 +26,6 @@ export interface NiftyFreshnessOutput {
   isStale: boolean;
   /** Tooltip detail. */
   detail: string;
-}
-
-/** Format milliseconds as `42s`, `3m`, `1h 4m`. */
-function formatAge(ms: number | null): string {
-  if (ms === null || !Number.isFinite(ms)) return "—";
-  const seconds = Math.max(0, Math.floor(ms / 1000));
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  return `${hours}h ${minutes % 60}m`;
 }
 
 /**
@@ -90,10 +80,10 @@ export function computeNiftyFreshness(input: NiftyFreshnessInput): NiftyFreshnes
   const isStale = ageMs > 120_000; // 2 minutes
 
   return {
-    label: isStale ? "STALE" : `DATA ${formatAge(ageMs)}`,
+    label: isStale ? "STALE" : `DATA ${formatFreshnessAge(ageMs)}`,
     isStale,
     detail: isStale
-      ? `Last update ${formatAge(ageMs)} ago (tape stopped)`
-      : `Last update ${formatAge(ageMs)} ago`,
+      ? `Last update ${formatFreshnessAge(ageMs)} ago (tape stopped)`
+      : `Last update ${formatFreshnessAge(ageMs)} ago`,
   };
 }

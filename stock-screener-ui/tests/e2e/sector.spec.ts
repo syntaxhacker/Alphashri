@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { setupSectorTest, gotoSector } from "./helpers/sectorHelpers";
+import { navigateToSectorViaSidebar } from "./helpers/flowsB";
 
 test.describe("Sector Dashboard - Navigation and Display", () => {
   test.beforeEach(async ({ page }) => {
@@ -7,12 +8,7 @@ test.describe("Sector Dashboard - Navigation and Display", () => {
   });
 
   test("should navigate to sector dashboard view", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
-    await page.locator('[data-testid="nav-sector"]').click();
-    await expect(page.locator('[data-testid="sector-analysis-view"]')).toBeVisible({
-      timeout: 5000,
-    });
+    await navigateToSectorViaSidebar(page);
     expect(page.url()).toContain("/sector");
   });
 
@@ -276,12 +272,7 @@ test.describe("Sector Dashboard - Navigation State", () => {
   });
 
   test("should update navigation active state when navigating to sector view", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
-    await page.locator('[data-testid="nav-sector"]').click();
-    await expect(page.locator('[data-testid="sector-analysis-view"]')).toBeVisible({
-      timeout: 5000,
-    });
+    await navigateToSectorViaSidebar(page);
   });
 
   test("should navigate to sector view from other views", async ({ page }) => {

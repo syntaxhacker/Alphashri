@@ -11,43 +11,35 @@ import {
   INDICATOR_BLUE_A,
   INDICATOR_BLUE_B,
 } from "../../config/colors";
+import { makePaperData, findPivotLines } from "./normalizeTestFixtures";
+
+type PaperFlags = {
+  isDark?: boolean;
+  selectedTradeId?: string | null;
+  showAllTrades?: boolean;
+  showOrbLines?: boolean;
+  showPivotLines?: boolean;
+  show52wLines?: boolean;
+  showEmaLines?: boolean;
+};
+
+// Invoke the normalizer with the show* flag positions filled in via an options object.
+const runPaper = (data: Parameters<typeof normalizePaper>[0], flags: PaperFlags = {}) =>
+  normalizePaper(
+    data,
+    flags.isDark ?? false,
+    flags.selectedTradeId,
+    flags.showAllTrades,
+    flags.showOrbLines,
+    flags.showPivotLines,
+    flags.show52wLines,
+    flags.showEmaLines,
+  );
 
 describe("normalizePaper", () => {
-  const mockPaperData = {
-    candles: [
-      {
-        time: "2025-01-15T09:30:00",
-        open: 100,
-        high: 110,
-        low: 95,
-        close: 105,
-        volume: 1000,
-      },
-      {
-        time: "2025-01-15T09:31:00",
-        open: 105,
-        high: 108,
-        low: 103,
-        close: 107,
-        volume: 800,
-      },
-    ],
-    trades: [
-      {
-        trade_id: "1",
-        entry_price: 100,
-        exit_price: 110,
-        entry_time: "2025-01-15T09:30:00",
-        exit_time: "2025-01-15T09:35:00",
-        exit_reason: "TP",
-        quantity: 10,
-        side: "BUY",
-        pnl: 10,
-        net_pnl: 10,
-        costs: 1,
-      },
-    ],
-  };
+  const mockPaperData = makePaperData();
+  const fullPivotLevels = { r2: 120, r1: 115, pp: 105, s1: 95, s2: 90 };
+  const pivotPaperData = () => ({ ...mockPaperData, pivot_levels: fullPivotLevels });
 
   describe("candle normalization", () => {
     it("maps candles to UnifiedCandle format", () => {
@@ -155,7 +147,7 @@ describe("normalizePaper", () => {
           or_minutes: 15,
         },
       };
-      const result = normalizePaper(data, false, undefined, false, true);
+      const result = runPaper(data, { showOrbLines: true });
       expect(result.markLines).toHaveLength(2);
       expect(result.markLines[0]).toMatchObject({
         yAxis: 112,
@@ -174,7 +166,7 @@ describe("normalizePaper", () => {
         ...mockPaperData,
         orb_levels: { or_high: 112, or_low: 98, or_minutes: 15 },
       };
-      const result = normalizePaper(data, false, undefined, false, true);
+      const result = runPaper(data, { showOrbLines: true });
       expect(result.markAreas).toHaveLength(1);
       expect(result.markAreas[0]).toMatchObject({
         from: "09:30",
@@ -190,14 +182,14 @@ describe("normalizePaper", () => {
         ...mockPaperData,
         orb_levels: { or_high: 112, or_low: 98 },
       };
-      const result = normalizePaper(data, false, undefined, false, true);
+      const result = runPaper(data, { showOrbLines: true });
       expect(result.markLines[0].label.formatter).toContain("OR-H 112");
       expect(result.markLines[0].label.formatter).not.toContain("(");
     });
 
     it("does not add OR lines when showOrbLines is false", () => {
       const data = { ...mockPaperData, orb_levels: { or_high: 112, or_low: 98 } };
-      const result = normalizePaper(data, false, undefined, false, false);
+      const result = runPaper(data, { showOrbLines: false });
       expect(result.markLines).toEqual([]);
       expect(result.markAreas).toEqual([]);
     });
@@ -205,17 +197,7 @@ describe("normalizePaper", () => {
 
   describe("Pivot lines", () => {
     it("adds pivot level lines when showPivotLines is true", () => {
-      const data = {
-        ...mockPaperData,
-        pivot_levels: {
-          r2: 120,
-          r1: 115,
-          pp: 105,
-          s1: 95,
-          s2: 90,
-        },
-      };
-      const result = normalizePaper(data, false, undefined, false, false, true);
+      const result = runPaper(pivotPaperData(), { showPivotLines: true });
       expect(result.markLines).toHaveLength(5);
       const levelNames = result.markLines.map((ml) => ml.label.formatter);
       expect(levelNames.some((f) => f.includes("R2"))).toBe(true);
@@ -226,16 +208,8 @@ describe("normalizePaper", () => {
     });
 
     it("uses correct colors for pivot levels", () => {
-      const data = {
-        ...mockPaperData,
-        pivot_levels: { r2: 120, r1: 115, pp: 105, s1: 95, s2: 90 },
-      };
-      const result = normalizePaper(data, false, undefined, false, false, true);
-      const r2 = result.markLines.find((ml) => ml.label.formatter.includes("R2"));
-      const r1 = result.markLines.find((ml) => ml.label.formatter.includes("R1"));
-      const pp = result.markLines.find((ml) => ml.label.formatter.includes("PP"));
-      const s1 = result.markLines.find((ml) => ml.label.formatter.includes("S1"));
-      const s2 = result.markLines.find((ml) => ml.label.formatter.includes("S2"));
+      const result = runPaper(pivotPaperData(), { showPivotLines: true });
+      const { r2, r1, pp, s1, s2 } = findPivotLines(result);
 
       expect(r2?.lineStyle.color).toBe(PIVOT_R1); // R2
       expect(r1?.lineStyle.color).toBe(PIVOT_R1); // R1
@@ -245,16 +219,8 @@ describe("normalizePaper", () => {
     });
 
     it("uses correct line styles", () => {
-      const data = {
-        ...mockPaperData,
-        pivot_levels: { r2: 120, r1: 115, pp: 105, s1: 95, s2: 90 },
-      };
-      const result = normalizePaper(data, false, undefined, false, false, true);
-      const r2 = result.markLines.find((ml) => ml.label.formatter.includes("R2"));
-      const r1 = result.markLines.find((ml) => ml.label.formatter.includes("R1"));
-      const pp = result.markLines.find((ml) => ml.label.formatter.includes("PP"));
-      const s1 = result.markLines.find((ml) => ml.label.formatter.includes("S1"));
-      const s2 = result.markLines.find((ml) => ml.label.formatter.includes("S2"));
+      const result = runPaper(pivotPaperData(), { showPivotLines: true });
+      const { r2, r1, pp, s1, s2 } = findPivotLines(result);
 
       expect(r2?.lineStyle.type).toBe("dotted");
       expect(r1?.lineStyle.type).toBe("dashed");
@@ -265,7 +231,7 @@ describe("normalizePaper", () => {
 
     it("does not add pivot lines when showPivotLines is false", () => {
       const data = { ...mockPaperData, pivot_levels: { pp: 105 } };
-      const result = normalizePaper(data, false, undefined, false, false, false);
+      const result = runPaper(data, { showPivotLines: false });
       expect(result.markLines.some((ml) => ml.label.formatter.includes("PP"))).toBe(false);
     });
   });
@@ -279,7 +245,7 @@ describe("normalizePaper", () => {
           low_52w: 80,
         },
       };
-      const result = normalizePaper(data, false, undefined, false, false, false, true);
+      const result = runPaper(data, { show52wLines: true });
       expect(result.markLines.some((ml) => ml.label.formatter.includes("52W-H"))).toBe(true);
       const highLine = result.markLines.find((ml) => ml.label.formatter.includes("52W-H"));
       expect(highLine?.yAxis).toBe(150);
@@ -293,7 +259,7 @@ describe("normalizePaper", () => {
         ...mockPaperData,
         week52_levels: { high_52w: 150, low_52w: 80 },
       };
-      const result = normalizePaper(data, false, undefined, false, false, false, true);
+      const result = runPaper(data, { show52wLines: true });
       expect(result.markLines.some((ml) => ml.label.formatter.includes("52W-L"))).toBe(true);
     });
 
@@ -302,13 +268,13 @@ describe("normalizePaper", () => {
         ...mockPaperData,
         week52_levels: { high_52w: 150, low_52w: 0 },
       };
-      const result = normalizePaper(data, false, undefined, false, false, false, true);
+      const result = runPaper(data, { show52wLines: true });
       expect(result.markLines.some((ml) => ml.label.formatter.includes("52W-L"))).toBe(false);
     });
 
     it("does not add 52W lines when show52wLines is false", () => {
       const data = { ...mockPaperData, week52_levels: { high_52w: 150 } };
-      const result = normalizePaper(data, false, undefined, false, false, false, false);
+      const result = runPaper(data, { show52wLines: false });
       expect(result.markLines.some((ml) => ml.label.formatter.includes("52W"))).toBe(false);
     });
   });
@@ -322,7 +288,7 @@ describe("normalizePaper", () => {
           ema_slow: { label: "EMA 21", color: INDICATOR_BLUE_B, data: [99, 100, 101] },
         },
       };
-      const result = normalizePaper(data, false, undefined, false, false, false, false, true);
+      const result = runPaper(data, { showEmaLines: true });
       expect(result.emaData).toHaveLength(2);
       expect(result.emaData[0]).toMatchObject({
         label: "EMA 9",
@@ -334,7 +300,7 @@ describe("normalizePaper", () => {
 
     it("does not add EMA when showEmaLines is false", () => {
       const data = { ...mockPaperData, ema_series: { ema_fast: { label: "EMA 9", data: [] } } };
-      const result = normalizePaper(data, false, undefined, false, false, false, false, false);
+      const result = runPaper(data, { showEmaLines: false });
       expect(result.emaData).toBeUndefined();
     });
   });
@@ -392,17 +358,17 @@ describe("normalizePaper", () => {
     });
 
     it("passes through isDark", () => {
-      const result = normalizePaper(mockPaperData, true);
+      const result = runPaper(mockPaperData, { isDark: true });
       expect(result.isDark).toBe(true);
     });
 
     it("looks up selectedTradeId by trade_id", () => {
-      const result = normalizePaper(mockPaperData, false, "1");
+      const result = runPaper(mockPaperData, { selectedTradeId: "1" });
       expect(result.highlightedTradeId).toBe(1);
     });
 
     it("returns null for non-existent selectedTradeId", () => {
-      const result = normalizePaper(mockPaperData, false, "nonexistent");
+      const result = runPaper(mockPaperData, { selectedTradeId: "nonexistent" });
       expect(result.highlightedTradeId).toBeNull();
     });
 
@@ -412,7 +378,7 @@ describe("normalizePaper", () => {
     });
 
     it("passes through showAllTrades", () => {
-      const result = normalizePaper(mockPaperData, false, undefined, true);
+      const result = runPaper(mockPaperData, { showAllTrades: true });
       expect(result.showAllTrades).toBe(true);
     });
   });

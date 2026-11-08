@@ -35,6 +35,7 @@ vi.mock("../state/holidays", () => ({
 }));
 
 import { apiFetch } from "../state/auth";
+import { describeNormalizeBotPortfolio, mockError } from "./apiTestMocks";
 import {
   normalizeBotPortfolio,
   fetchPositions,
@@ -65,120 +66,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("normalizeBotPortfolio", () => {
-  it("normalizes a full portfolio object", () => {
-    const portfolio = {
-      initial_capital: 100000,
-      cash: 50000,
-      margin_used: 30000,
-      position_value: 70000,
-      unrealized_pnl: 2000,
-      realized_pnl: 5000,
-      total_value: 120000,
-      total_pnl: 7000,
-      total_pnl_pct: 7.0,
-      total_positions: 5,
-      trades: 20,
-      daily_pnl_pct: 2.0,
-      daily_trades: 3,
-      open_positions: 5,
-    };
-
-    const result = normalizeBotPortfolio(portfolio, [], 1000);
-
-    expect(result.initial_capital).toBe(100000);
-    expect(result.cash).toBe(50000);
-    expect(result.margin_used).toBe(30000);
-    expect(result.position_value).toBe(70000);
-    expect(result.unrealized_pnl).toBe(2000);
-    expect(result.realized_pnl).toBe(5000);
-    expect(result.total_value).toBe(120000);
-    expect(result.total_pnl).toBe(7000);
-    expect(result.total_pnl_pct).toBe(7.0);
-    expect(result.positions).toBe(5);
-    expect(result.trades).toBe(20);
-    expect(result.daily_pnl).toBe(3000); // 1000 realized + 2000 unrealized
-    expect(result.daily_pnl_pct).toBe(2.0);
-    expect(result.daily_trades).toBe(3);
-    expect(result.open_positions).toBe(5);
-  });
-
-  it("handles null portfolio with defaults", () => {
-    const result = normalizeBotPortfolio(null, [], 0);
-
-    expect(result.initial_capital).toBe(0);
-    expect(result.cash).toBe(0);
-    expect(result.margin_used).toBe(0);
-    expect(result.position_value).toBe(0);
-    expect(result.unrealized_pnl).toBe(0);
-    expect(result.realized_pnl).toBe(0);
-    expect(result.total_value).toBe(0);
-    expect(result.total_pnl).toBe(0);
-    expect(result.total_pnl_pct).toBe(0);
-    expect(result.positions).toBe(0);
-    expect(result.trades).toBe(0);
-    expect(result.daily_pnl).toBe(0);
-    expect(result.daily_pnl_pct).toBe(0);
-    expect(result.daily_trades).toBe(0);
-    expect(result.open_positions).toBe(0);
-  });
-
-  it("uses positions.length as fallback for total_positions", () => {
-    const portfolio = { initial_capital: 100000 };
-    const positions = [{ symbol: "TATASTEEL" }, { symbol: "INFY" }];
-
-    const result = normalizeBotPortfolio(portfolio, positions, 0);
-
-    expect(result.positions).toBe(2);
-  });
-
-  it("uses capital_used as fallback for margin_used", () => {
-    const portfolio = { capital_used: 25000 };
-
-    const result = normalizeBotPortfolio(portfolio, [], 0);
-
-    expect(result.margin_used).toBe(25000);
-  });
-
-  it("uses total_trades as fallback for trades", () => {
-    const portfolio = { total_trades: 42 };
-
-    const result = normalizeBotPortfolio(portfolio, [], 0);
-
-    expect(result.trades).toBe(42);
-  });
-
-  it("computes daily_pnl_pct from initial_capital when not provided", () => {
-    const portfolio = { initial_capital: 100000 };
-
-    const result = normalizeBotPortfolio(portfolio, [], 500);
-
-    expect(result.daily_pnl).toBe(500);
-    expect(result.daily_pnl_pct).toBeCloseTo(0.5, 2);
-  });
-
-  it("returns 0 daily_pnl_pct when initial_capital is 0", () => {
-    const portfolio = { initial_capital: 0 };
-
-    const result = normalizeBotPortfolio(portfolio, [], 500);
-
-    expect(result.daily_pnl_pct).toBe(0);
-  });
-
-  it("converts string values to numbers", () => {
-    const portfolio = {
-      initial_capital: "100000",
-      unrealized_pnl: "2000",
-      cash: "50000",
-    };
-
-    const result = normalizeBotPortfolio(portfolio, [], 0);
-
-    expect(result.initial_capital).toBe(100000);
-    expect(result.unrealized_pnl).toBe(2000);
-    expect(result.cash).toBe(50000);
-  });
-});
+describeNormalizeBotPortfolio(normalizeBotPortfolio);
 
 describe("fetchPositions", () => {
   it("extracts positions array from response", async () => {
@@ -199,7 +87,7 @@ describe("fetchPositions", () => {
   });
 
   it("returns empty array on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
+    mockError(mockedFetch);
 
     const result = await fetchPositions();
 
@@ -255,7 +143,7 @@ describe("fetchTrades", () => {
   });
 
   it("returns empty array on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
+    mockError(mockedFetch);
 
     const result = await fetchTrades();
 
@@ -291,7 +179,7 @@ describe("fetchSymbolPerformance", () => {
   });
 
   it("returns empty array on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
+    mockError(mockedFetch);
 
     const result = await fetchSymbolPerformance();
 
@@ -319,7 +207,7 @@ describe("fetchDailyReport", () => {
   });
 
   it("returns null on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
+    mockError(mockedFetch);
 
     const result = await fetchDailyReport();
 
@@ -418,7 +306,7 @@ describe("fetchPaperChart", () => {
   });
 
   it("returns null on fetch error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
+    mockError(mockedFetch);
 
     const result = await fetchPaperChart("TATASTEEL");
 
@@ -440,7 +328,7 @@ describe("fetchPortfolio", () => {
   });
 
   it("returns null on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
+    mockError(mockedFetch);
 
     const result = await fetchPortfolio();
 
@@ -466,7 +354,7 @@ describe("healthCheck", () => {
   });
 
   it("returns false on network error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
+    mockError(mockedFetch);
 
     const result = await healthCheck();
 
@@ -554,7 +442,7 @@ describe("refreshLiveData", () => {
   });
 
   it("handles API errors gracefully (each sub-function catches its own error)", async () => {
-    mockedFetch.mockRejectedValue(new Error("API failed"));
+    mockError(mockedFetch, "API failed");
 
     const { setError, setLoading } = await import("../state/paperTrading");
 
@@ -594,7 +482,7 @@ describe("refreshHistoryData", () => {
   });
 
   it("handles API errors gracefully", async () => {
-    mockedFetch.mockRejectedValue(new Error("History error"));
+    mockError(mockedFetch, "History error");
 
     const { setError } = await import("../state/paperTrading");
 
@@ -632,7 +520,7 @@ describe("fetchStrategyConfig", () => {
   });
 
   it("returns null on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
+    mockError(mockedFetch);
 
     const result = await fetchStrategyConfig();
 
@@ -665,7 +553,7 @@ describe("updateStrategyConfig", () => {
   });
 
   it("returns false on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Update failed"));
+    mockError(mockedFetch, "Update failed");
 
     const result = await updateStrategyConfig({ sl_pct: 2.0 });
 
@@ -687,7 +575,7 @@ describe("resetStrategyConfig", () => {
   });
 
   it("returns false on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Reset failed"));
+    mockError(mockedFetch, "Reset failed");
 
     const result = await resetStrategyConfig();
 
@@ -737,7 +625,7 @@ describe("fetchAnalytics", () => {
   });
 
   it("returns null and clears loading on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
+    mockError(mockedFetch);
 
     const { setAnalyticsLoading } = await import("../state/paperTrading");
 
@@ -791,7 +679,7 @@ describe("fetchActivityFeed", () => {
   });
 
   it("returns empty array on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
+    mockError(mockedFetch);
 
     const result = await fetchActivityFeed();
 
@@ -831,7 +719,7 @@ describe("fetchAggregatedDashboard", () => {
   });
 
   it("returns null on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
+    mockError(mockedFetch);
 
     const result = await fetchAggregatedDashboard();
 

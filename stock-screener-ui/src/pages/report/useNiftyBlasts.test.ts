@@ -32,6 +32,17 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+/** Prime the hook under fake timers with an empty first fetch. */
+async function primeEmptyBlasts() {
+  vi.useFakeTimers();
+  vi.mocked(fetchNiftyBlasts).mockResolvedValueOnce([]);
+  const { result } = renderHook(() => useNiftyBlasts(true));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0);
+  });
+  return result;
+}
+
 describe("useNiftyBlasts", () => {
   test("primes history, then alerts only on a new blast", async () => {
     vi.useFakeTimers();
@@ -56,12 +67,7 @@ describe("useNiftyBlasts", () => {
 
 
   test("suppresses opening-bell noise below the raised gate", async () => {
-    vi.useFakeTimers();
-    vi.mocked(fetchNiftyBlasts).mockResolvedValueOnce([]);
-    const { result } = renderHook(() => useNiftyBlasts(true));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0);
-    });
+    const result = await primeEmptyBlasts();
 
     vi.mocked(fetchNiftyBlasts).mockResolvedValue([
       blast({
@@ -81,12 +87,7 @@ describe("useNiftyBlasts", () => {
   });
 
   test("allows a large opening blast, then holds the one-per-minute cue", async () => {
-    vi.useFakeTimers();
-    vi.mocked(fetchNiftyBlasts).mockResolvedValueOnce([]);
-    const { result } = renderHook(() => useNiftyBlasts(true));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0);
-    });
+    const result = await primeEmptyBlasts();
 
     vi.mocked(fetchNiftyBlasts).mockResolvedValue([
       blast({
@@ -116,12 +117,7 @@ describe("useNiftyBlasts", () => {
   });
 
   test("a volume blast uses the softer alert blip", async () => {
-    vi.useFakeTimers();
-    vi.mocked(fetchNiftyBlasts).mockResolvedValueOnce([]);
-    const { result } = renderHook(() => useNiftyBlasts(true));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0);
-    });
+    const result = await primeEmptyBlasts();
 
     vi.mocked(fetchNiftyBlasts).mockResolvedValue([
       blast({

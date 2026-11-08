@@ -8,41 +8,14 @@ import {
   useNiftyReportStream,
   useNiftySpotTick,
 } from "./useNiftyReportStream";
+import {
+  MockWebSocket,
+  installMockWs,
+  uninstallMockWs,
+  expectSingleReconnect,
+} from "../pages/report/reportTestFixtures";
 
 vi.mock("@/state/auth", () => ({ getAccessToken: () => "tok123" }));
-
-type Handler = ((ev: never) => void) | null;
-
-class MockWebSocket {
-  static instances: MockWebSocket[] = [];
-  url: string;
-  onopen: Handler = null;
-  onmessage: Handler = null;
-  onclose: Handler = null;
-  onerror: Handler = null;
-  closed = false;
-  constructor(url: string) {
-    this.url = url;
-    MockWebSocket.instances.push(this);
-  }
-  close() {
-    this.closed = true;
-  }
-  open() {
-    this.onopen?.({} as never);
-  }
-  receive(payload: unknown) {
-    const data = typeof payload === "string" ? payload : JSON.stringify(payload);
-    this.onmessage?.({ data } as never);
-  }
-}
-
-const REAL_WS = (globalThis as Record<string, unknown>).WebSocket;
-
-function installMockWs() {
-  MockWebSocket.instances = [];
-  (globalThis as Record<string, unknown>).WebSocket = MockWebSocket;
-}
 
 beforeEach(() => {
   installMockWs();
@@ -51,8 +24,27 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
-  (globalThis as Record<string, unknown>).WebSocket = REAL_WS;
+  uninstallMockWs();
 });
+
+/** Open the socket and push the canonical first tick (spot 23123.5), then wait
+ *  for the spot store to pick it up. `changePct` picks the finite (0.12) or
+ *  JSON-null payload variant. */
+async function openWithFirstTick(changePct: number | null) {
+  const { result } = renderHook(() => useNiftySpotTick());
+  const ws = MockWebSocket.instances[0];
+  act(() => {
+    ws.open();
+    ws.receive({
+      type: "tick",
+      spot: 23123.5,
+      ts: "2026-10-12T10:00:01+05:30",
+      change_pct: changePct,
+    });
+  });
+  await waitFor(() => expect(result.current?.spot).toBe(23123.5));
+  return { result, ws };
+}
 
 const REPORT_DATA = {
   mode: "live",
@@ -251,18 +243,7 @@ describe("useNiftyReportStream", () => {
         useNiftyReportStream({ expiry: undefined, enabled }),
       { initialProps: { enabled: true } },
     );
-    const { result } = renderHook(() => useNiftySpotTick());
-    const ws = MockWebSocket.instances[0];
-    act(() => {
-      ws.open();
-      ws.receive({
-        type: "tick",
-        spot: 23123.5,
-        ts: "2026-10-12T10:00:01+05:30",
-        change_pct: 0.12,
-      });
-    });
-    await waitFor(() => expect(result.current?.spot).toBe(23123.5));
+    const { result } = await openWithFirstTick(0.12);
 
     rerender({ enabled: false });
     await waitFor(() => expect(result.current).toBeNull());
@@ -293,18 +274,7 @@ describe("useNiftyReportStream", () => {
     const hook = renderHook(() =>
       useNiftyReportStream({ expiry: undefined, enabled: true }),
     );
-    const { result } = renderHook(() => useNiftySpotTick());
-    const ws = MockWebSocket.instances[0];
-    act(() => {
-      ws.open();
-      ws.receive({
-        type: "tick",
-        spot: 23123.5,
-        ts: "2026-10-12T10:00:01+05:30",
-        change_pct: null,
-      });
-    });
-    await waitFor(() => expect(result.current?.spot).toBe(23123.5));
+    const { result, ws } = await openWithFirstTick(null);
 
     act(() => {
       // Non-finite spots arrive as JSON null (or NaN-ish strings).
@@ -337,29 +307,9 @@ describe("useNiftyReportStream", () => {
     expect(MockWebSocket.instances).toHaveLength(0);
   });
 
-  test("error followed by close schedules a single reconnect (no socket doubling)", () => {
-    // Browsers fire `error` then `close` for one failure. Both handlers ran
-    // scheduleReconnect, so the first timer handle was overwritten and a
-    // second socket opened — doubling the live streams on every failure.
-    vi.useFakeTimers();
-    try {
-      renderHook(() => useNiftyReportStream({ expiry: undefined, enabled: true }));
-      expect(MockWebSocket.instances).toHaveLength(1);
-      const ws = MockWebSocket.instances[0];
-      act(() => {
-        ws.onerror?.({} as never);
-        ws.onclose?.({} as never);
-      });
-      // First backoff is 2s; the overwritten duplicate would fire at 4s and
-      // open a third socket — advancing past both must still leave exactly 2.
-      act(() => {
-        vi.advanceTimersByTime(10_000);
-      });
-      expect(MockWebSocket.instances).toHaveLength(2);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
+  expectSingleReconnect(() =>
+    renderHook(() => useNiftyReportStream({ expiry: undefined, enabled: true })),
+  );
 
   test("missing WebSocket global stays disconnected without throwing", () => {
     (globalThis as Record<string, unknown>).WebSocket = undefined;

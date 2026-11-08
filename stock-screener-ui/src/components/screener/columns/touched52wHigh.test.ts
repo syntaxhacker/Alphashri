@@ -1,11 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { getTouched52wColumns } from "./touched52wHigh";
+import { fmtOf, expectFmtValue } from "./columnTestFixtures";
 
-function fmt(key: string) {
-  const c = getTouched52wColumns().find((x) => x.key === key);
-  if (!c?.format) throw new Error(key);
-  return c.format as any;
-}
+const fmt = (key: string) => fmtOf(getTouched52wColumns, key);
 
 describe("touched52wHigh columns", () => {
   it("9 columns", () => expect(getTouched52wColumns().length).toBe(9));
@@ -53,8 +50,8 @@ describe("touched52wHigh columns", () => {
   });
 
   describe("volume_m", () => {
-    it("12.345 -> 12.35", () => expect(fmt("volume_m")(12.345)).toBe("12.35"));
-    it("null -> 0.00", () => expect(fmt("volume_m")(null)).toBe("0.00"));
+    it("12.345 -> 12.35", () => expectFmtValue(fmt("volume_m"), 12.345, "12.35"));
+    it("null -> 0.00", () => expectFmtValue(fmt("volume_m"), null, "0.00"));
   });
 
   it("all sortable", () => getTouched52wColumns().forEach((c) => expect(c.sortable).toBe(true)));

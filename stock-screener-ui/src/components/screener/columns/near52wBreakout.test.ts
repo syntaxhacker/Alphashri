@@ -1,19 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { getNear52wBreakoutColumns } from "./near52wBreakout";
+import { fmtOf, expectSymbolFirstSectorLast, expectPctClass } from "./columnTestFixtures";
 
-function fmt(key: string) {
-  const cols = getNear52wBreakoutColumns();
-  const c = cols.find((x) => x.key === key);
-  if (!c?.format) throw new Error(key);
-  return c.format as any;
-}
+const fmt = (key: string) => fmtOf(getNear52wBreakoutColumns, key);
 
 describe("near52wBreakout columns", () => {
   it("returns 9 columns symbol first sector last", () => {
-    const cols = getNear52wBreakoutColumns();
-    expect(cols.length).toBe(9);
-    expect(cols[0].key).toBe("symbol");
-    expect(cols[cols.length - 1].key).toBe("sector");
+    expectSymbolFirstSectorLast(getNear52wBreakoutColumns(), 9);
   });
 
   describe("to_52w_high gap %", () => {
@@ -52,11 +45,7 @@ describe("near52wBreakout columns", () => {
     it.each([
       [2.5, "+2.50%", "success"],
       [-1, "-1.00%", "error"],
-    ])("day_change %s", (v, ev, ec) => {
-      const r: any = fmt("day_change")(v);
-      expect(r.value).toBe(ev);
-      expect(r.className).toBe(ec);
-    });
+    ])("day_change %s", (v, ev, ec) => expectPctClass(fmt("day_change")(v), ev, ec));
   });
 
   describe("recent_return_5d / perf_w", () => {

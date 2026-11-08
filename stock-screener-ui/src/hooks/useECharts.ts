@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback } from "react";
+import { loadEcharts } from "../utils/loadEcharts";
 
 interface UseEChartsOptions {
   isDark: boolean;
@@ -9,14 +10,6 @@ interface UseEChartsReturn {
   chartRef: React.RefObject<HTMLDivElement | null>;
   chartInstance: React.MutableRefObject<any>;
   setChartOption: (option: any) => Promise<void>;
-}
-
-async function loadEcharts(): Promise<any> {
-  if ((window as any).echarts) return (window as any).echarts;
-  const mod = await import("echarts");
-  const lib = (mod as any).default ?? mod;
-  (window as any).echarts = lib;
-  return lib;
 }
 
 export function useECharts(options: UseEChartsOptions): UseEChartsReturn {

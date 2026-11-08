@@ -1,9 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { createElement, type ReactElement } from "react";
+import { createElement } from "react";
 import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
-import { UIProvider } from "@/ui";
+import { cleanup, screen } from "@testing-library/react";
 import { buildFlowEvents, clockLabel, groupFlowRuns, summarizeFlowRuns, type FlowTapeRow } from "./niftyFlowStrip";
 import {
   FLOW_BEAR,
@@ -12,23 +11,11 @@ import {
   NiftyFlowStrip,
   flowTickPct,
 } from "./NiftyFlowStrip";
-
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return createElement(UIProvider, null, children);
-}
-
-function r(jsx: ReactElement) {
-  return render(jsx, { wrapper: TestWrapper });
-}
+import { hm, r } from "./reportTestFixtures";
 
 afterEach(() => {
   cleanup();
 });
-
-function hm(i: number): string {
-  const total = 9 * 60 + 15 + i;
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
 
 function base(over: Partial<FlowTapeRow> = {}): FlowTapeRow {
   return {
@@ -366,12 +353,13 @@ describe("NiftyFlowStrip render", () => {
   });
 
   test("ticks are placed by wall-clock time, not event index", () => {
-    // Session 09:15–15:29. Two events 5 minutes apart must not land at
-    // 0% / 100% just because there are only two of them.
+    // Flow tape is derivatives-based: the session runs 09:15–15:40, not the
+    // cash 09:15–15:29. Two events 5 minutes apart must not land at 0% / 100%
+    // just because there are only two of them.
     expect(flowTickPct(hm(0))).toBe("0%");
-    expect(flowTickPct("15:29")).toBe("100%");
+    expect(flowTickPct("15:40")).toBe("100%");
     const early = Number.parseFloat(flowTickPct(hm(5)));
-    const late = Number.parseFloat(flowTickPct("15:00"));
+    const late = Number.parseFloat(flowTickPct("15:20"));
     expect(early).toBeGreaterThan(0);
     expect(early).toBeLessThan(3);
     expect(late).toBeGreaterThan(90);

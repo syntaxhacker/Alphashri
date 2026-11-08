@@ -11,6 +11,16 @@ import {
 } from "../helpers/tradeHistoryHelpers";
 import { mockTradeHistoryWithCount } from "../helpers/tradeHistoryHelpers";
 
+async function expandTradeRow(page: Page) {
+  await mockTradeHistoryWithSampleData(page);
+  await navigateToTradeHistoryWithBot(page);
+  await verifyHistoryPanelVisible(page);
+
+  const toggleBtn = page.locator('[data-testid="trade-detail-toggle-trade-1"]');
+  await expect(toggleBtn).toBeVisible();
+  await toggleBtn.click();
+}
+
 test.describe("Trade History - Display", () => {
   test.beforeEach(async ({ page }) => {
     await setupTradeHistoryMocks(page);
@@ -188,36 +198,20 @@ test.describe("Trade History - Trade Interactions", () => {
   });
 
   test("should expand trade row to show stats", async ({ page }) => {
-    await mockTradeHistoryWithSampleData(page);
-    await navigateToTradeHistoryWithBot(page);
-    await verifyHistoryPanelVisible(page);
-
-    const toggleBtn = page.locator('[data-testid="trade-detail-toggle-trade-1"]');
-    await expect(toggleBtn).toBeVisible();
-    await toggleBtn.click();
+    await expandTradeRow(page);
 
     await expect(page.locator('[data-testid="trade-reason-trade-1"]')).toBeVisible();
   });
 
   test("should show trade stats values when expanded", async ({ page }) => {
-    await mockTradeHistoryWithSampleData(page);
-    await navigateToTradeHistoryWithBot(page);
-    await verifyHistoryPanelVisible(page);
-
-    const toggleBtn = page.locator('[data-testid="trade-detail-toggle-trade-1"]');
-    await toggleBtn.click();
+    await expandTradeRow(page);
 
     await expect(page.locator('[data-testid="trade-reason-trade-1"]')).toBeVisible();
     await expect(page.locator('[data-testid="trade-notes-trade-1"]')).toBeVisible();
   });
 
   test("should show trade notes editor when expanded", async ({ page }) => {
-    await mockTradeHistoryWithSampleData(page);
-    await navigateToTradeHistoryWithBot(page);
-    await verifyHistoryPanelVisible(page);
-
-    const toggleBtn = page.locator('[data-testid="trade-detail-toggle-trade-1"]');
-    await toggleBtn.click();
+    await expandTradeRow(page);
 
     const reasonField = page.locator('[data-testid="trade-reason-trade-1"]');
     const notesField = page.locator('[data-testid="trade-notes-trade-1"]');
@@ -229,12 +223,7 @@ test.describe("Trade History - Trade Interactions", () => {
   });
 
   test("should allow editing trade notes", async ({ page }) => {
-    await mockTradeHistoryWithSampleData(page);
-    await navigateToTradeHistoryWithBot(page);
-    await verifyHistoryPanelVisible(page);
-
-    const toggleBtn = page.locator('[data-testid="trade-detail-toggle-trade-1"]');
-    await toggleBtn.click();
+    await expandTradeRow(page);
 
     const notesField = page.locator('[data-testid="trade-notes-trade-1"]');
     await notesField.fill("Test notes");
@@ -248,12 +237,7 @@ test.describe("Trade History - Trade Interactions", () => {
   });
 
   test("should show trade entry and exit prices when expanded", async ({ page }) => {
-    await mockTradeHistoryWithSampleData(page);
-    await navigateToTradeHistoryWithBot(page);
-    await verifyHistoryPanelVisible(page);
-
-    const toggleBtn = page.locator('[data-testid="trade-detail-toggle-trade-1"]');
-    await toggleBtn.click();
+    await expandTradeRow(page);
 
     await expect(page.locator('[data-testid="trade-reason-trade-1"]')).toBeVisible();
     const row = page.locator('[data-testid="trade-row-trade-1"]');
@@ -262,14 +246,11 @@ test.describe("Trade History - Trade Interactions", () => {
   });
 
   test("should collapse trade row on second toggle", async ({ page }) => {
-    await mockTradeHistoryWithSampleData(page);
-    await navigateToTradeHistoryWithBot(page);
-    await verifyHistoryPanelVisible(page);
+    await expandTradeRow(page);
 
-    const toggleBtn = page.locator('[data-testid="trade-detail-toggle-trade-1"]');
-    await toggleBtn.click();
     await expect(page.locator('[data-testid="trade-reason-trade-1"]')).toBeVisible();
 
+    const toggleBtn = page.locator('[data-testid="trade-detail-toggle-trade-1"]');
     await toggleBtn.click();
     // After collapse, the expanded detail should not be present
     await expect(page.locator('[data-testid="trade-reason-trade-1"]')).not.toBeVisible();

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   getBotsState,
   getCurrentView,
@@ -17,7 +17,13 @@ import {
   startBotAction,
   stopBotAction,
 } from "./bots";
-import type { BotConfig, BotsState } from "../types/bots";
+import type { BotsState } from "../types/bots";
+import {
+  createMockBot,
+  fakeTimersSandbox,
+  expectSubscribeReturnsUnsubscribe,
+  expectTriggerRerenderNotifies,
+} from "./stateTestFixtures";
 
 vi.mock("../api/bots", () => ({
   listBots: vi.fn(),
@@ -45,31 +51,8 @@ vi.mock("../utils/loading", () => ({
   }),
 }));
 
-function createMockBot(overrides: Partial<BotConfig> = {}): BotConfig {
-  return {
-    id: "bot-uuid-1",
-    name: "Test Bot",
-    is_active: true,
-    max_total_positions: 10,
-    max_total_capital_pct: 80,
-    strategies: [],
-    created_at: null,
-    updated_at: null,
-    running: false,
-    pid: null,
-    ...overrides,
-  };
-}
-
 describe("bots state", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
-  });
+  fakeTimersSandbox();
 
   it("has correct initial state", () => {
     const state = getBotsState();
@@ -105,13 +88,7 @@ describe("bots state", () => {
 });
 
 describe("view management", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
-  });
+  fakeTimersSandbox();
 
   it("initial view is 'list'", () => {
     expect(getCurrentView()).toBe("list");
@@ -132,37 +109,19 @@ describe("view management", () => {
 });
 
 describe("subscribe", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
-  });
+  fakeTimersSandbox();
 
   it("returns unsubscribe function", () => {
-    const unsub = subscribe(vi.fn());
-    expect(typeof unsub).toBe("function");
-    unsub();
+    expectSubscribeReturnsUnsubscribe(subscribe);
   });
 
   it("triggerRerender notifies all subscribers", () => {
-    const cb = vi.fn();
-    const unsub = subscribe(cb);
-    triggerRerender();
-    expect(cb).toHaveBeenCalledTimes(1);
-    unsub();
+    expectTriggerRerenderNotifies(subscribe, triggerRerender);
   });
 });
 
 describe("modal management", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
-  });
+  fakeTimersSandbox();
 
   it("openCreateModal sets showCreateModal true", async () => {
     const api = await import("../api/bots");
@@ -205,13 +164,7 @@ describe("modal management", () => {
 });
 
 describe("selectBot", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
-  });
+  fakeTimersSandbox();
 
   it("selects a bot and clears status/trades", () => {
     const bot = createMockBot({ running: false });
@@ -230,13 +183,7 @@ describe("selectBot", () => {
 });
 
 describe("clearError", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
-  });
+  fakeTimersSandbox();
 
   it("clears error state", async () => {
     const api = await import("../api/bots");
@@ -250,13 +197,7 @@ describe("clearError", () => {
 });
 
 describe("loadBots", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
-  });
+  fakeTimersSandbox();
 
   it("loads bots successfully", async () => {
     const api = await import("../api/bots");
@@ -288,13 +229,7 @@ describe("loadBots", () => {
 });
 
 describe("createBotAction", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
-  });
+  fakeTimersSandbox();
 
   it("creates bot and closes modal", async () => {
     const api = await import("../api/bots");
@@ -317,20 +252,20 @@ describe("createBotAction", () => {
   });
 });
 
+// API preamble shared by the deleteBotAction scenarios.
+const mockDeleteApis = async (count: number) => {
+  const api = await import("../api/bots");
+  vi.mocked(api.getBotTradeCount).mockResolvedValue({ count });
+  vi.mocked(api.deleteBot).mockResolvedValue({ message: "deleted" });
+  vi.mocked(api.listBots).mockResolvedValue([]);
+  return api;
+};
+
 describe("deleteBotAction", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
-  });
+  fakeTimersSandbox();
 
   it("prevents delete when trades exist", async () => {
-    const api = await import("../api/bots");
-    vi.mocked(api.getBotTradeCount).mockResolvedValue({ count: 5 });
-    vi.mocked(api.deleteBot).mockResolvedValue({ message: "deleted" });
-    vi.mocked(api.listBots).mockResolvedValue([]);
+    const api = await mockDeleteApis(5);
 
     const result = await deleteBotAction("bot-1");
     expect(result).toBe(false);
@@ -339,10 +274,7 @@ describe("deleteBotAction", () => {
   });
 
   it("deletes bot when no trades exist", async () => {
-    const api = await import("../api/bots");
-    vi.mocked(api.getBotTradeCount).mockResolvedValue({ count: 0 });
-    vi.mocked(api.deleteBot).mockResolvedValue({ message: "deleted" });
-    vi.mocked(api.listBots).mockResolvedValue([]);
+    const api = await mockDeleteApis(0);
 
     const result = await deleteBotAction("bot-1");
     expect(result).toBe(true);
@@ -351,13 +283,7 @@ describe("deleteBotAction", () => {
 });
 
 describe("startBotAction / stopBotAction", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
-  });
+  fakeTimersSandbox();
 
   it("starts bot successfully", async () => {
     const api = await import("../api/bots");

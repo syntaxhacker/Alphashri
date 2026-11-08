@@ -3,6 +3,9 @@ import { theme } from "../../config/theme";
 import { formatPercentage, normalizeTime } from "../../utils/ui-helpers";
 import { getChartThemeColors, CANDLESTICK_ITEM_STYLE } from "../../utils/chartUtils";
 import { buildPivotSeries } from "../../utils/chartLineBuilders";
+import { mapOverlayDateValues } from "../../utils/chart/scaleHelpers";
+import { buildOverlayLineSeries } from "../../utils/chart/overlayLine";
+import { buildOverlayBoxSeries } from "../../utils/chart/buildOverlays";
 import {
   CHART_DARK_OVERLAY,
   CHART_LIGHT_OVERLAY,
@@ -154,50 +157,24 @@ export function buildChartOption(data: SymbolChartData, isDark: boolean): any {
   if (visuals?.overlays) {
     visuals.overlays.forEach((overlay: any) => {
       if (overlay.type === "line") {
-        const lineData = candles.map((c) =>
-          overlay.date && c.date === overlay.date ? overlay.value : null,
-        );
+        const lineData = mapOverlayDateValues(candles, overlay.date, overlay.value);
 
-        series.push({
-          id: overlay.id,
-          name: overlay.label,
-          type: "line",
-          data: lineData,
-          showSymbol: false,
-          connectNulls: false,
-          silent: true,
-          z: 5,
-          lineStyle: {
+        series.push(
+          buildOverlayLineSeries({
+            id: overlay.id,
+            name: overlay.label,
+            data: lineData,
+            z: 5,
             color: overlay.color,
             width: 1,
-            type: overlay.dash ? "dashed" : "solid",
-          },
-          tooltip: { show: true },
-        });
-
-        if (!legendData.includes(overlay.label)) {
-          legendData.push(overlay.label);
-        }
-      } else if (overlay.type === "box") {
-        const topData = candles.map((c) =>
-          overlay.date && c.date === overlay.date ? overlay.levels.top : null,
+            dash: overlay.dash,
+            tooltip: true,
+          }),
         );
+      } else if (overlay.type === "box") {
+        const topData = mapOverlayDateValues(candles, overlay.date, overlay.levels.top);
 
-        series.push({
-          id: `${overlay.id}_top`,
-          name: overlay.label,
-          type: "line",
-          data: topData,
-          showSymbol: false,
-          connectNulls: false,
-          silent: true,
-          z: 4,
-          lineStyle: { color: overlay.color, width: 0.5, opacity: 0.5, type: "dashed" },
-        });
-
-        if (!legendData.includes(overlay.label)) {
-          legendData.push(overlay.label);
-        }
+        series.push(buildOverlayBoxSeries(`${overlay.id}_top`, overlay.label, topData, overlay.color));
       }
     });
   }

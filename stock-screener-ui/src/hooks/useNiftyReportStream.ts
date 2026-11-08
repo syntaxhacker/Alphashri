@@ -1,16 +1,9 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { API_BASE } from "@/api/config";
 import { normalizeReport, normalizeSensex, normalizeTapeRow } from "@/api/reportNifty";
+import { useNiftyStreamCore } from "./niftyStreamCore";
 import { getAccessToken } from "@/state/auth";
 import type { NiftyReport, NiftySensex, NiftyTape } from "@/types/niftyReport";
-
-/** Backoff schedule for a dropped socket: 1s, 2s, 4s … capped at 15s. */
-const MIN_RECONNECT_MS = 1_000;
-const MAX_RECONNECT_MS = 15_000;
-
-function backoffMs(attempt: number): number {
-  return Math.min(MIN_RECONNECT_MS * 2 ** attempt, MAX_RECONNECT_MS);
-}
 
 /**
  * Build the report WebSocket URL from an HTTP(S) API base.
@@ -117,6 +110,9 @@ export function useNiftySpotTick(): NiftySpotTick | null {
  * cleanly on unmount, when `enabled` goes false, or when `expiry` changes.
  * When the `WebSocket` global is missing (e.g. jsdom tests) the hook simply
  * stays disconnected so the caller falls back to polling.
+ *
+ * The reconnect / backoff / cleanup logic is shared with
+ * `useNiftyBurstStream` via `useNiftyStreamCore`.
  */
 export function useNiftyReportStream({
   expiry,
@@ -130,124 +126,63 @@ export function useNiftyReportStream({
   const [sensex, setSensex] = useState<NiftySensex | null>(null);
   const [connected, setConnected] = useState(false);
 
+  // When disabled, release the pushed frames and the live tick so EOD can't
+  // pin stale live data from the previous live session. `connected` is reset
+  // by the stream core's own disconnect handler (also on unmount).
   useEffect(() => {
     if (!enabled) {
-      setConnected(false);
-      // Drop the last live tick so switching to EOD cannot show a stale
-      // spot from the previous live session.
       setLiveTick(null);
-      // Release the last pushed frames too: the panel re-loads its own copy
-      // for the new context, and an EOD view must not pin the previous live
-      // report + tape (~1-2 MB each) for as long as the tab stays open.
       setReport(null);
       setTape(null);
       setSensex(null);
-      return;
     }
-    if (typeof WebSocket === "undefined") return;
+  }, [enabled]);
 
-    let ws: WebSocket | null = null;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let closed = false;
-    let attempt = 0;
-
-    const connect = () => {
-      if (closed) return;
-      timer = undefined;
-      let socket: WebSocket;
-      try {
-        socket = new WebSocket(
-          reportWsUrl(API_BASE, { expiry, token: getAccessToken() }),
-        );
-      } catch {
-        attempt += 1;
-        timer = setTimeout(connect, backoffMs(attempt));
-        return;
-      }
-      ws = socket;
-
-      socket.onopen = () => {
-        if (closed) return;
-        attempt = 0;
-        setConnected(true);
-      };
-
-      socket.onmessage = (event) => {
-        try {
-          const frame = JSON.parse(String(event.data)) as {
-            type?: string;
-            data?: unknown;
-            tape?: unknown;
-            sensex?: unknown;
-            spot?: unknown;
-            ts?: unknown;
-            change_pct?: unknown;
-          };
-          if (frame.type === "report" && frame.data) {
-            setReport(normalizeReport(frame.data as Record<string, unknown>));
-          } else if (frame.type === "tick") {
-            // Live spot only — never touches the report snapshot. A
-            // non-finite spot is ignored so the last good value stays.
-            const spot = typeof frame.spot === "number" ? frame.spot : NaN;
-            if (!Number.isFinite(spot)) return;
-            const ts = typeof frame.ts === "string" && frame.ts ? frame.ts : null;
-            const changePct =
-              typeof frame.change_pct === "number" && Number.isFinite(frame.change_pct)
-                ? frame.change_pct
-                : null;
-            setLiveTick({ spot, ts, change_pct: changePct });
-          } else if (frame.type === "aux") {
-            // Null sides mean "unchanged" — keep the last good value.
-            if (frame.tape !== null && frame.tape !== undefined) {
-              setTape(normalizeAuxTape(frame.tape));
-            }
-            if (frame.sensex !== null && frame.sensex !== undefined) {
-              setSensex(normalizeSensex(frame.sensex as Record<string, unknown>));
-            }
+  useNiftyStreamCore({
+    url: reportWsUrl(API_BASE, { expiry, token: getAccessToken() }),
+    enabled,
+    handlers: {
+      onOpen: () => setConnected(true),
+      // Browsers fire `error` then `close` for one failure; both handlers
+      // schedule one reconnect, so mark the stream disconnected on the first.
+      onReconnect: () => setConnected(false),
+      onDisconnect: () => setConnected(false),
+      onFrame: (frame) => {
+        const f = frame as {
+          type?: string;
+          data?: unknown;
+          tape?: unknown;
+          sensex?: unknown;
+          spot?: unknown;
+          ts?: unknown;
+          change_pct?: unknown;
+        };
+        if (f.type === "report" && f.data) {
+          setReport(normalizeReport(f.data as Record<string, unknown>));
+        } else if (f.type === "tick") {
+          // Live spot only — never touches the report snapshot. A
+          // non-finite spot is ignored so the last good value stays.
+          const spot = typeof f.spot === "number" ? f.spot : NaN;
+          if (!Number.isFinite(spot)) return;
+          const ts = typeof f.ts === "string" && f.ts ? f.ts : null;
+          const changePct =
+            typeof f.change_pct === "number" && Number.isFinite(f.change_pct)
+              ? f.change_pct
+              : null;
+          setLiveTick({ spot, ts, change_pct: changePct });
+        } else if (f.type === "aux") {
+          // Null sides mean "unchanged" — keep the last good value.
+          if (f.tape !== null && f.tape !== undefined) {
+            setTape(normalizeAuxTape(f.tape));
           }
-          // heartbeat / error frames carry no report — ignore them.
-        } catch {
-          /* ignore a malformed frame rather than dropping the stream */
+          if (f.sensex !== null && f.sensex !== undefined) {
+            setSensex(normalizeSensex(f.sensex as Record<string, unknown>));
+          }
         }
-      };
-
-      // Browsers fire `error` followed by `close` for a single failure —
-      // schedule only one reconnect, otherwise every failure doubles the
-      // live sockets (each streaming full reports) and the overwritten
-      // timer handle can never be cleared on cleanup.
-      const scheduleReconnect = () => {
-        if (closed || timer !== undefined) return;
-        setConnected(false);
-        attempt += 1;
-        timer = setTimeout(connect, backoffMs(attempt));
-      };
-      socket.onclose = scheduleReconnect;
-      socket.onerror = scheduleReconnect;
-    };
-
-    connect();
-
-    return () => {
-      closed = true;
-      if (timer !== undefined) {
-        clearTimeout(timer);
-        timer = undefined;
-      }
-      const socket = ws;
-      ws = null;
-      if (socket) {
-        // Detach first so close() itself cannot schedule a reconnect.
-        socket.onclose = null;
-        socket.onerror = null;
-        try {
-          socket.close();
-        } catch {
-          /* already closed */
-        }
-      }
-      setConnected(false);
-    };
-  }, [enabled, expiry]);
+        // heartbeat / error frames carry no report — ignore them.
+      },
+    },
+  });
 
   return { report, tape, sensex, connected };
 }

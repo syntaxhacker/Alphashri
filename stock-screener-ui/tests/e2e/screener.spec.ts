@@ -1,16 +1,21 @@
 import { test, expect } from "@playwright/test";
-import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
+import { setupScreenerApp, openScreenerTable, openConfigTab } from "./helpers/flowsB";
+
+async function openCreateModal(page: Page) {
+  await page.goto("/?tab=screener");
+  await page.waitForSelector('[data-testid="tab-config"]', { timeout: 10000 });
+  await openConfigTab(page);
+  await page.click('[data-testid="create-screener-btn"]');
+  await page.waitForLoadState("networkidle");
+}
+
 test.describe("Screener - Data Display", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
+    await setupScreenerApp(page);
   });
   test("should display stock data table", async ({ page }) => {
-    await page.goto("/?tab=screener");
-    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
-      timeout: 10000,
-    });
+    await openScreenerTable(page);
     const rows = page.locator('[data-testid="screener-table"] tbody tr');
     const count = await rows.count();
     expect(count).toBeGreaterThan(0);
@@ -25,20 +30,14 @@ test.describe("Screener - Data Display", () => {
     expect(headerTexts).toContain("Score");
   });
   test("should display stock symbols as clickable links", async ({ page }) => {
-    await page.goto("/?tab=screener");
-    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
-      timeout: 10000,
-    });
+    await openScreenerTable(page);
     const firstSymbol = page
       .locator('[data-testid="screener-table"] tbody a[data-testid^="symbol-link-"]')
       .first();
     await expect(firstSymbol).toBeVisible();
   });
   test("should display approaching and touched sections", async ({ page }) => {
-    await page.goto("/?tab=screener");
-    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
-      timeout: 10000,
-    });
+    await openScreenerTable(page);
 
     // Just check that the table has rows
     const rowCount = await page.locator('[data-testid="screener-table"] tbody tr').count();
@@ -57,8 +56,7 @@ test.describe("Screener - Data Display", () => {
 });
 test.describe("Screener - Screener Navigation", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
+    await setupScreenerApp(page);
   });
   test("@smoke should display screener navigation tabs", async ({ page }) => {
     await page.goto("/?tab=screener");
@@ -71,12 +69,7 @@ test.describe("Screener - Screener Navigation", () => {
   });
   test("should switch between screeners", async ({ page }) => {
     await page.goto("/?tab=screener");
-    await page.waitForLoadState("networkidle");
-
-    // Wait for table rows to be ready first
-    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
-      timeout: 15000,
-    });
+    await openScreenerTable(page, 15000);
 
     await page.locator('[data-testid="tab-correlation"]').click();
 
@@ -86,10 +79,7 @@ test.describe("Screener - Screener Navigation", () => {
     });
   });
   test("should show active screener highlighted", async ({ page }) => {
-    await page.goto("/?tab=screener");
-    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
-      timeout: 10000,
-    });
+    await openScreenerTable(page);
     await expect(page.locator('[data-testid="tab-screener"]')).toBeVisible();
     await expect(page.locator('[data-testid="tab-correlation"]')).toBeVisible();
   });
@@ -99,14 +89,10 @@ test.describe.configure({
 });
 test.describe("Screener - Auto Refresh", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
+    await setupScreenerApp(page);
   });
   test("should have auto-refresh input", async ({ page }) => {
-    await page.goto("/?tab=screener");
-    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
-      timeout: 10000,
-    });
+    await openScreenerTable(page);
     const autoRefreshInput = page.locator('[data-testid="auto-refresh-input"]');
     if ((await autoRefreshInput.count()) > 0) {
       await expect(autoRefreshInput).toBeVisible();
@@ -130,24 +116,17 @@ test.describe("Screener - Auto Refresh", () => {
 });
 test.describe("Screener - Summary Strip", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
+    await setupScreenerApp(page);
   });
   test("should display summary strip when data available", async ({ page }) => {
-    await page.goto("/?tab=screener");
-    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
-      timeout: 10000,
-    });
+    await openScreenerTable(page);
     const summaryStrip = page.locator('[data-testid="summary-strip"]');
     if ((await summaryStrip.count()) > 0) {
       await expect(summaryStrip).toBeVisible();
     }
   });
   test("should show market summary metrics", async ({ page }) => {
-    await page.goto("/?tab=screener");
-    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
-      timeout: 10000,
-    });
+    await openScreenerTable(page);
     const summaryStrip = page.locator('[data-testid="summary-strip"]');
     if ((await summaryStrip.count()) > 0) {
       const text = await summaryStrip.textContent();
@@ -157,24 +136,17 @@ test.describe("Screener - Summary Strip", () => {
 });
 test.describe("Screener - Trading List", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
+    await setupScreenerApp(page);
   });
   test("should display trading list textarea", async ({ page }) => {
-    await page.goto("/?tab=screener");
-    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
-      timeout: 10000,
-    });
+    await openScreenerTable(page);
     const tradingList = page.locator('[data-testid="trading-list"]');
     if ((await tradingList.count()) > 0) {
       await expect(tradingList).toBeVisible();
     }
   });
   test("should copy trading list to clipboard", async ({ page }) => {
-    await page.goto("/?tab=screener");
-    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
-      timeout: 10000,
-    });
+    await openScreenerTable(page);
     await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
     const copyBtn = page.locator("button:has-text('Copy')");
     if ((await copyBtn.count()) > 0) {
@@ -186,8 +158,7 @@ test.describe("Screener - Trading List", () => {
 });
 test.describe("Screener - Error Handling", () => {
   test("should show error state when API fails", async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
+    await setupScreenerApp(page);
     await page.route(apiRoute("screener"), async (route) => {
       await route.abort("failed");
     });
@@ -207,17 +178,14 @@ test.describe("Screener - Error Handling", () => {
       expect(count).toBeGreaterThan(0);
     }
   });
-  test.skip("reason: complex route handling conflicts between mock and retry logic", async ({
-    page,
-  }) => {
+  test.skip("reason: complex route handling conflicts between mock and retry logic", async () => {
     // Test is complex due to route handling conflicts - skipped for now
     // Can be reimplemented with proper mock setup if needed
   });
 });
 test.describe("Screener - Config Tab", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
+    await setupScreenerApp(page);
   });
   test("@smoke should display Config tab", async ({ page }) => {
     await page.goto("/?tab=screener");
@@ -231,8 +199,7 @@ test.describe("Screener - Config Tab", () => {
     await page.waitForSelector('[data-testid="tab-config"]', {
       timeout: 10000,
     });
-    await page.click('[data-testid="tab-config"]');
-    await page.waitForLoadState("networkidle");
+    await openConfigTab(page);
     const configHeader = page.locator('[data-testid="screener-configs-title"]');
     await expect(configHeader).toBeVisible({
       timeout: 10000,
@@ -243,8 +210,7 @@ test.describe("Screener - Config Tab", () => {
     await page.waitForSelector('[data-testid="tab-config"]', {
       timeout: 10000,
     });
-    await page.click('[data-testid="tab-config"]');
-    await page.waitForLoadState("networkidle");
+    await openConfigTab(page);
     const trendingOption = page.locator("text=Trending").first();
     await expect(trendingOption).toBeVisible({
       timeout: 10000,
@@ -255,8 +221,7 @@ test.describe("Screener - Config Tab", () => {
     await page.waitForSelector('[data-testid="tab-config"]', {
       timeout: 10000,
     });
-    await page.click('[data-testid="tab-config"]');
-    await page.waitForLoadState("networkidle");
+    await openConfigTab(page);
     const buyerInterest = page.locator("text=Buyer Interest+").first();
     await buyerInterest.click();
     const filterBadges = page.locator('[data-testid="screener-active-badge"]');
@@ -269,8 +234,7 @@ test.describe("Screener - Config Tab", () => {
     await page.waitForSelector('[data-testid="tab-config"]', {
       timeout: 10000,
     });
-    await page.click('[data-testid="tab-config"]');
-    await page.waitForLoadState("networkidle");
+    await openConfigTab(page);
     const previewSection = page.locator("text=PREVIEW");
     await expect(previewSection).toBeVisible({
       timeout: 10000,
@@ -281,8 +245,7 @@ test.describe("Screener - Config Tab", () => {
     await page.waitForSelector('[data-testid="tab-config"]', {
       timeout: 10000,
     });
-    await page.click('[data-testid="tab-config"]');
-    await page.waitForLoadState("networkidle");
+    await openConfigTab(page);
 
     // Check that "Active" badge is visible for Trending (default screener)
     const activeBadge = page.locator("text=Active");
@@ -295,34 +258,19 @@ test.describe("Screener - Config Tab", () => {
     await page.waitForSelector('[data-testid="tab-config"]', {
       timeout: 10000,
     });
-    await page.click('[data-testid="tab-config"]');
-    await page.waitForLoadState("networkidle");
+    await openConfigTab(page);
     await expect(page.locator('[data-testid="create-screener-btn"]')).toBeVisible({
       timeout: 10000,
     });
   });
   test("should open create modal when clicking Create button", async ({ page }) => {
-    await page.goto("/?tab=screener");
-    await page.waitForSelector('[data-testid="tab-config"]', {
-      timeout: 10000,
-    });
-    await page.click('[data-testid="tab-config"]');
-    await page.waitForLoadState("networkidle");
-    await page.click('[data-testid="create-screener-btn"]');
-    await page.waitForLoadState("networkidle");
+    await openCreateModal(page);
     await expect(page.locator('[data-testid="inline-form"]')).toBeVisible({
       timeout: 10000,
     });
   });
   test("should show form fields in create modal", async ({ page }) => {
-    await page.goto("/?tab=screener");
-    await page.waitForSelector('[data-testid="tab-config"]', {
-      timeout: 10000,
-    });
-    await page.click('[data-testid="tab-config"]');
-    await page.waitForLoadState("networkidle");
-    await page.click('[data-testid="create-screener-btn"]');
-    await page.waitForLoadState("networkidle");
+    await openCreateModal(page);
     await expect(page.locator('[data-testid="screener-name-input"]')).toBeVisible({
       timeout: 10000,
     });
@@ -335,8 +283,7 @@ test.describe("Screener - Config Tab", () => {
     await page.waitForSelector('[data-testid="tab-config"]', {
       timeout: 10000,
     });
-    await page.click('[data-testid="tab-config"]');
-    await page.waitForLoadState("networkidle");
+    await openConfigTab(page);
     await page.click('[data-testid="create-screener-btn"]');
     await page.waitForLoadState("networkidle");
     await expect(page.locator('[data-testid="confirm-create-btn"]')).toBeDisabled();
@@ -348,8 +295,7 @@ test.describe("Screener - Config Tab", () => {
     await page.waitForSelector('[data-testid="tab-config"]', {
       timeout: 10000,
     });
-    await page.click('[data-testid="tab-config"]');
-    await page.waitForLoadState("networkidle");
+    await openConfigTab(page);
     await page.click('[data-testid="create-screener-btn"]');
     await page.waitForLoadState("networkidle");
     await page.fill('[data-testid="screener-name-input"]', "Test");
@@ -364,8 +310,7 @@ test.describe("Screener - Config Tab", () => {
     await page.waitForSelector('[data-testid="tab-config"]', {
       timeout: 10000,
     });
-    await page.click('[data-testid="tab-config"]');
-    await page.waitForLoadState("networkidle");
+    await openConfigTab(page);
     await page.click('[data-testid="create-screener-btn"]');
     await page.waitForLoadState("networkidle");
     await expect(page.locator('[data-testid="preview-header"]')).toBeVisible({
