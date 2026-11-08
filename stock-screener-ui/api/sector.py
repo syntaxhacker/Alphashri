@@ -19,6 +19,7 @@ import requests
 from tradingview_screener import Query as TVQuery, col
 
 from config import IST
+from api.tv_auth import tv_scanner_data
 from db.database import SessionLocal
 from db.models.taxonomy import Theme, ThemeConstituent
 from api.utils import (
@@ -68,7 +69,7 @@ def _fetch_sector_data(market: str, limit: int) -> pd.DataFrame:
 
     query = query.order_by('market_cap_basic', ascending=False).limit(limit)
 
-    _, df = query.get_scanner_data()
+    _, df = tv_scanner_data(query)
     return df
 
 
@@ -649,7 +650,7 @@ def _fetch_group_data(market: str, limit: int) -> pd.DataFrame:
     else:
         q = q.where(col('sector') != '')
     q = q.order_by('market_cap_basic', ascending=False).limit(limit)
-    _, df = q.get_scanner_data()
+    _, df = tv_scanner_data(q)
     return df
 
 

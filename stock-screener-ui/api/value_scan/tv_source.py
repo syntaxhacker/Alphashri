@@ -18,6 +18,7 @@ from typing import Any, Optional
 
 import pandas as pd
 import requests
+from api.tv_auth import get_tv_cookies
 
 logger = logging.getLogger("value_scan.tv_source")
 
@@ -292,8 +293,15 @@ def fetch_frame(market: str) -> list[dict[str, Any]]:
     body = _request_body(market)
     headers = {"User-Agent": USER_AGENT, "Content-Type": "application/json"}
     try:
-        response = requests.post(url, json=body, headers=headers,
-                                 timeout=REQUEST_TIMEOUT)
+        request_kwargs = {
+            "json": body,
+            "headers": headers,
+            "timeout": REQUEST_TIMEOUT,
+        }
+        cookies = get_tv_cookies()
+        if cookies:
+            request_kwargs["cookies"] = cookies
+        response = requests.post(url, **request_kwargs)
         response.raise_for_status()
         payload = response.json()
     except TvSourceError:

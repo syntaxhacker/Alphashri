@@ -12,6 +12,7 @@ router = APIRouter(tags=["symbols"])
 
 from db.database import SessionLocal
 from db.models import Instrument
+from api.tv_auth import tv_scanner_data
 
 _instruments_cache: List[Dict] = []
 _instruments_loaded = False
@@ -136,7 +137,7 @@ def _search_tv(q: str, limit: int = 10) -> list[dict]:
             .order_by("market_cap_basic", ascending=False)
             .limit(200)
         )
-        _, df = tvq.get_scanner_data()
+        _, df = tv_scanner_data(tvq)
         if df is None or df.empty:
             return []
 

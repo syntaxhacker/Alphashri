@@ -9,6 +9,7 @@ Same call shapes this repo already uses:
 from __future__ import annotations
 
 import logging
+from api.tv_auth import tv_scanner_data
 
 from .markets import MarketSpec, normalize_symbol, strip_tv_prefix
 
@@ -60,7 +61,7 @@ def fetch_universe(
         .order_by("volume", ascending=False)
         .limit(limit)
     )
-    _, df = q.get_scanner_data()
+    _, df = tv_scanner_data(q)
     if df is None or df.empty:
         return []
     out: list[dict] = []
@@ -109,7 +110,7 @@ def fetch_snapshots(
                    for s in batch]
         try:
             q = Query().set_tickers(*tickers).select(*SNAPSHOT_COLUMNS)
-            _, df = q.get_scanner_data()
+            _, df = tv_scanner_data(q)
         except Exception as exc:
             log.warning("TV snapshot batch failed (%s): %s", market.key, exc)
             continue

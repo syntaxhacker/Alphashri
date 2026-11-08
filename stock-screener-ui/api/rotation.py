@@ -13,6 +13,7 @@ import pandas as pd
 import requests
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
+from api.tv_auth import get_tv_cookies, tv_scanner_data
 from tradingview_screener import Query as TVQuery, col
 
 from api.sector import _load_theme_membership
@@ -127,7 +128,7 @@ def _fetch_rotation_frame(market: str, limit: int = FRAME_LIMIT) -> pd.DataFrame
     else:
         query = query.where(col("sector") != "")
     query = query.order_by("market_cap_basic", ascending=False).limit(limit)
-    _, df = query.get_scanner_data()
+    _, df = tv_scanner_data(query)
     return df
 
 
@@ -157,11 +158,17 @@ def _fetch_benchmark(market: str) -> Dict[str, Any]:
         "vix_change": None,
     }
     try:
+        request_kwargs = {
+            "json": payload,
+            "timeout": 20,
+            "headers": {"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"},
+        }
+        cookies = get_tv_cookies()
+        if cookies:
+            request_kwargs["cookies"] = cookies
         response = requests.post(
             f"https://scanner.tradingview.com/{market}/scan",
-            json=payload,
-            timeout=20,
-            headers={"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"},
+            **request_kwargs,
         )
         response.raise_for_status()
         for row in response.json().get("data", []):
