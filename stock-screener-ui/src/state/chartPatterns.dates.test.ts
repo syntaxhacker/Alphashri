@@ -15,15 +15,11 @@ vi.mock("../api/chartPatterns", async () => {
     fetchSummary: vi.fn(),
     fetchSymbolDetail: vi.fn(),
     fetchSymbolChart: vi.fn(),
-    // Pin the stream to "unavailable" so tests deterministically exercise the
-    // non-streaming `fetchResults` fallback (real SSE would hit the network).
-    streamResults: vi.fn(async (_query: unknown, handlers: { onError?: (e: Error) => void }) => {
-      handlers.onError?.(new Error("stream unavailable"));
-    }),
+    streamResults: vi.fn(),
   };
 });
 
-import { startScan, fetchResults, fetchSummary } from "../api/chartPatterns";
+import { startScan, fetchResults, fetchSummary, streamResults } from "../api/chartPatterns";
 import {
   CUSTOM_UNIVERSE,
   DEFAULT_PATTERN_FILTERS,
@@ -40,6 +36,7 @@ const mocked = {
   startScan: vi.mocked(startScan),
   fetchResults: vi.mocked(fetchResults),
   fetchSummary: vi.mocked(fetchSummary),
+  streamResults: vi.mocked(streamResults),
 };
 
 function flush(): Promise<void> {
@@ -49,6 +46,13 @@ function flush(): Promise<void> {
 beforeEach(() => {
   vi.clearAllMocks();
   resetChartPatternsState();
+  // Pin the stream to "unavailable" so tests deterministically exercise the
+  // non-streaming `fetchResults` fallback (real SSE would hit the network).
+  mocked.streamResults.mockImplementation(
+    async (_query: unknown, handlers: { onError?: (e: Error) => void }) => {
+      handlers.onError?.(new Error("stream unavailable"));
+    },
+  );
   mocked.fetchResults.mockResolvedValue({ items: [], total: 0, summary: undefined as never, data_through: null });
   mocked.fetchSummary.mockResolvedValue({ scanned: 0, patterns: 0, in_view: 0, confirmed: 0, bullish: 0, bearish: 0, data_through: null });
   mocked.startScan.mockResolvedValue({ job_id: "cpj_1", status: "queued", queue_position: null, queue_size: 1 });

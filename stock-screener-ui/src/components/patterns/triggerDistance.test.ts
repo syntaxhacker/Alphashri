@@ -1,35 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { triggerDistancePct, triggerLevels } from "./triggerDistance";
+import { makePatternHit } from "./patternTestFixtures";
 
 function makeHit(overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
-  return {
-    id: 1,
-    symbol: "IRCON",
-    name: null,
-    timeframe: "1D",
-    pattern_id: "falling_wedge",
-    pattern_name: "Falling Wedge",
-    family: "reversal",
-    direction: "bullish",
-    status: "confirmed",
-    quality: "strong",
-    confidence: 80,
-    start_date: "2026-01-01",
-    end_date: "2026-02-01",
-    start_price: 100,
-    end_price: 110,
-    breakout_level: 110,
-    target: 120,
-    stop: 95,
-    rr: 2,
-    bars_ago: 1,
-    volume_confirmed: true,
-    trendlines: [],
-    pivots: [],
-    notes: "",
-    ...overrides,
-  };
+  return makePatternHit({ symbol: "IRCON", ...overrides });
 }
 
 describe("triggerLevels", () => {

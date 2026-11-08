@@ -1,18 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { getRsiReversalColumns } from "./rsiReversal";
+import { fmtOf, expectSymbolFirstSectorLast, expectPctClass } from "./columnTestFixtures";
 
-function fmt(key: string) {
-  const c = getRsiReversalColumns().find((x) => x.key === key);
-  if (!c?.format) throw new Error(key);
-  return c.format as any;
-}
+const fmt = (key: string) => fmtOf(getRsiReversalColumns, key);
 
 describe("rsiReversal columns", () => {
   it("7 columns symbol first sector last", () => {
-    const cols = getRsiReversalColumns();
-    expect(cols.length).toBe(7);
-    expect(cols[0].key).toBe("symbol");
-    expect(cols[cols.length - 1].key).toBe("sector");
+    expectSymbolFirstSectorLast(getRsiReversalColumns(), 7);
   });
 
   describe("rsi", () => {
@@ -43,11 +37,7 @@ describe("rsiReversal columns", () => {
       [1.25, "+1.25%", "success"],
       [-0.5, "-0.50%", "error"],
       [0, "+0.00%", "success"],
-    ])("day_change %s -> %s %s", (v, ev, ec) => {
-      const r: any = fmt("day_change")(v);
-      expect(r.value).toBe(ev);
-      expect(r.className).toBe(ec);
-    });
+    ])("day_change %s -> %s %s", (v, ev, ec) => expectPctClass(fmt("day_change")(v), ev, ec));
   });
 
   describe("volume_m", () => {

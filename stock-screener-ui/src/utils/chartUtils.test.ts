@@ -170,6 +170,23 @@ describe("insertHolidayGaps", () => {
     { date: "2025-01-15", type: "trading", description: "Republic Day" },
   ]);
 
+  const expectPreservesOriginalCandles = () => {
+    const result = insertHolidayGaps(candlesWithMissingDay, holidayMap);
+    candlesWithMissingDay.forEach((c) => {
+      expect(result.extendedTimeData).toContain(c.time);
+    });
+  };
+
+  const expectReturnsOriginalDataWhenNoGaps = () => {
+    const result = insertHolidayGaps(fullWeekCandles, {
+      trading: new Set(),
+      clearing: new Set(),
+      descriptions: new Map(),
+    });
+    expect(result.extendedTimeData).toEqual(fullWeekCandles.map((c) => c.time));
+    expect(result.hasGaps).toBe(false);
+  };
+
   it("inserts gap marker for missing holiday date", () => {
     const result = insertHolidayGaps(candlesWithMissingDay, holidayMap);
     expect(result.extendedTimeData.some((t) => t.includes("2025-01-15 [H]"))).toBe(true);
@@ -177,37 +194,19 @@ describe("insertHolidayGaps", () => {
   });
 
   it("preserves all original candles", () => {
-    const result = insertHolidayGaps(candlesWithMissingDay, holidayMap);
-    candlesWithMissingDay.forEach((c) => {
-      expect(result.extendedTimeData).toContain(c.time);
-    });
+    expectPreservesOriginalCandles();
   });
 
   it("returns original data when no gaps", () => {
-    const result = insertHolidayGaps(fullWeekCandles, {
-      trading: new Set(),
-      clearing: new Set(),
-      descriptions: new Map(),
-    });
-    expect(result.extendedTimeData).toEqual(fullWeekCandles.map((c) => c.time));
-    expect(result.hasGaps).toBe(false);
+    expectReturnsOriginalDataWhenNoGaps();
   });
 
   it("preserves all original candles", () => {
-    const result = insertHolidayGaps(candlesWithMissingDay, holidayMap);
-    candlesWithMissingDay.forEach((c) => {
-      expect(result.extendedTimeData).toContain(c.time);
-    });
+    expectPreservesOriginalCandles();
   });
 
   it("returns original data when no gaps", () => {
-    const result = insertHolidayGaps(fullWeekCandles, {
-      trading: new Set(),
-      clearing: new Set(),
-      descriptions: new Map(),
-    });
-    expect(result.extendedTimeData).toEqual(fullWeekCandles.map((c) => c.time));
-    expect(result.hasGaps).toBe(false);
+    expectReturnsOriginalDataWhenNoGaps();
   });
 
   it("handles empty candles", () => {

@@ -1,18 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { getNiftyMoversColumns } from "./niftyMovers";
+import { fmtOf, expectSymbolFirstSectorLast, expectPctClass } from "./columnTestFixtures";
 
-function fmt(key: string) {
-  const c = getNiftyMoversColumns().find((x) => x.key === key);
-  if (!c?.format) throw new Error(key);
-  return c.format as any;
-}
+const fmt = (key: string) => fmtOf(getNiftyMoversColumns, key);
 
 describe("niftyMovers columns", () => {
   it("7 columns symbol first sector last", () => {
-    const cols = getNiftyMoversColumns();
-    expect(cols.length).toBe(7);
-    expect(cols[0].key).toBe("symbol");
-    expect(cols[cols.length - 1].key).toBe("sector");
+    expectSymbolFirstSectorLast(getNiftyMoversColumns(), 7);
   });
 
   describe("impact_score", () => {
@@ -23,11 +17,7 @@ describe("niftyMovers columns", () => {
       [NaN, "NaN", "error"],
       [Infinity, "+Infinity", "success"],
       [-Infinity, "-Infinity", "error"],
-    ])("impact %s -> %s %s", (v, ev, ec) => {
-      const r: any = fmt("impact_score")(v);
-      expect(r.value).toBe(ev);
-      expect(r.className).toBe(ec);
-    });
+    ])("impact %s -> %s %s", (v, ev, ec) => expectPctClass(fmt("impact_score")(v), ev, ec));
   });
 
   describe("market_cap_b", () => {
