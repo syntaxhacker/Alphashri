@@ -15,6 +15,13 @@ import type {
   NiftyReport,
 } from "@/types/niftyReport";
 import type { ReplayCandle } from "@/types/replay";
+import {
+  tapeSpot,
+  spotPoint,
+  ohlcCandle,
+  spotCandle,
+  tapeCandle,
+} from "./reportTestFixtures";
 
 const SESSION = "2026-10-12";
 const PREV_SESSION = "2026-10-09";
@@ -29,15 +36,11 @@ function mockReport(overrides?: Record<string, unknown>): NiftyReport {
   } as unknown as NiftyReport;
 }
 
-function tapeRow(t: string, spot: number): TapeSpotPoint {
-  return { t, spot };
-}
-
 function sessionTape(): TapeSpotPoint[] {
   return [
-    tapeRow(`${SESSION}T09:15:00`, 25600),
-    tapeRow(`${SESSION}T09:16:00`, 25620),
-    tapeRow(`${SESSION}T09:17:00`, 25610),
+    tapeSpot(`${SESSION}T09:15:00`, 25600),
+    tapeSpot(`${SESSION}T09:16:00`, 25620),
+    tapeSpot(`${SESSION}T09:17:00`, 25610),
   ];
 }
 
@@ -144,12 +147,12 @@ describe("candlesFromTape", () => {
 
   test("skips invalid spots (0, negative, NaN, Infinity) and keeps prev on the last valid spot", () => {
     const rows: TapeSpotPoint[] = [
-      tapeRow(`${SESSION}T09:15:00`, 25600),
-      tapeRow(`${SESSION}T09:16:00`, 0),
-      tapeRow(`${SESSION}T09:17:00`, Number.NaN),
-      tapeRow(`${SESSION}T09:18:00`, -5),
-      tapeRow(`${SESSION}T09:19:00`, Number.POSITIVE_INFINITY),
-      tapeRow(`${SESSION}T09:20:00`, 25640),
+      tapeSpot(`${SESSION}T09:15:00`, 25600),
+      tapeSpot(`${SESSION}T09:16:00`, 0),
+      tapeSpot(`${SESSION}T09:17:00`, Number.NaN),
+      tapeSpot(`${SESSION}T09:18:00`, -5),
+      tapeSpot(`${SESSION}T09:19:00`, Number.POSITIVE_INFINITY),
+      tapeSpot(`${SESSION}T09:20:00`, 25640),
     ];
     const out = candlesFromTape(rows, SESSION);
     expect(out.map((c) => c.time)).toEqual([
@@ -163,7 +166,7 @@ describe("candlesFromTape", () => {
 
   test("drops tape rows from outside the session", () => {
     const rows: TapeSpotPoint[] = [
-      tapeRow(`${PREV_SESSION}T15:29:00`, 25000),
+      tapeSpot(`${PREV_SESSION}T15:29:00`, 25000),
       ...sessionTape(),
     ];
     const out = candlesFromTape(rows, SESSION);
@@ -182,8 +185,8 @@ describe("candlesFromTape", () => {
 
   test("keeps everything when no session is pinned", () => {
     const rows: TapeSpotPoint[] = [
-      tapeRow(`${PREV_SESSION}T15:29:00`, 25000),
-      tapeRow(`${SESSION}T09:15:00`, 25600),
+      tapeSpot(`${PREV_SESSION}T15:29:00`, 25000),
+      tapeSpot(`${SESSION}T09:15:00`, 25600),
     ];
     expect(candlesFromTape(rows, "").map((c) => c.time)).toEqual([
       `${PREV_SESSION}T15:29:00`,
@@ -193,10 +196,6 @@ describe("candlesFromTape", () => {
 });
 
 describe("candlesFromSpotPoints", () => {
-  function spotPoint(t: string, spot: number | null): SpotPoint {
-    return { t, spot };
-  }
-
   test("builds a true 1-minute OHLC with wicks beyond the body (6 points in one minute)", () => {
     const points: SpotPoint[] = [
       spotPoint(`${SESSION}T09:15:00`, 25600),
@@ -409,32 +408,10 @@ describe("pickFreshestCandles", () => {
   const SESSION = "2026-10-12";
   const PREV_SESSION = "2026-10-09";
 
-  function mockReport(overrides?: Record<string, unknown>): NiftyReport {
-    return {
-      mode: "live",
-      date: SESSION,
-      intraday: [],
-      candles: [],
-      ...overrides,
-    } as unknown as NiftyReport;
-  }
-
-  function intradayCandle(t: string, o: number, h: number, l: number, c: number): NiftyIntradayCandle {
-    return { time: t, open: o, high: h, low: l, close: c };
-  }
-
-  function spotCandle(t: string, o: number, h: number, l: number, c: number): NiftyIntradayCandle {
-    return { time: t, open: o, high: h, low: l, close: c, volume: 0 };
-  }
-
-  function tapeCandle(t: string, o: number, h: number, l: number, c: number): ReplayCandle {
-    return { time: t, open: o, high: h, low: l, close: c, volume: 0 };
-  }
-
   test("stale intraday (11:56) vs fresh spot points (12:20) → spots win", () => {
     const staleIntraday = [
-      intradayCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
-      intradayCandle(`${SESSION}T11:56:00`, 25700, 25720, 25680, 25710), // stale
+      ohlcCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
+      ohlcCandle(`${SESSION}T11:56:00`, 25700, 25720, 25680, 25710), // stale
     ];
     const freshSpots = [
       spotCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
@@ -457,8 +434,8 @@ describe("pickFreshestCandles", () => {
 
   test("fresh intraday vs older spots → intraday wins", () => {
     const freshIntraday = [
-      intradayCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
-      intradayCandle(`${SESSION}T12:20:00`, 25750, 25760, 25740, 25755), // fresh
+      ohlcCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
+      ohlcCandle(`${SESSION}T12:20:00`, 25750, 25760, 25740, 25755), // fresh
     ];
     const olderSpots = [
       spotCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
@@ -491,7 +468,7 @@ describe("pickFreshestCandles", () => {
 
   test("session filtering respected: previous-day intraday dropped, today's spots win", () => {
     const prevDayIntraday = [
-      intradayCandle(`${PREV_SESSION}T15:25:00`, 25000, 25010, 24990, 25005),
+      ohlcCandle(`${PREV_SESSION}T15:25:00`, 25000, 25010, 24990, 25005),
     ];
     const todaySpots = [
       spotCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
@@ -507,9 +484,9 @@ describe("pickFreshestCandles", () => {
 
   test("asOf clipping respected: only candles up to asOf are considered", () => {
     const intraday = [
-      intradayCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
-      intradayCandle(`${SESSION}T12:20:00`, 25750, 25760, 25740, 25755),
-      intradayCandle(`${SESSION}T13:00:00`, 25800, 25810, 25790, 25805),
+      ohlcCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
+      ohlcCandle(`${SESSION}T12:20:00`, 25750, 25760, 25740, 25755),
+      ohlcCandle(`${SESSION}T13:00:00`, 25800, 25810, 25790, 25805),
     ];
     const spots = [
       spotCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
@@ -526,11 +503,11 @@ describe("pickFreshestCandles", () => {
 
   test("candles (EOD) can win over intraday and spots when latest", () => {
     const intraday = [
-      intradayCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
+      ohlcCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
     ];
     const eodCandles = [
-      intradayCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
-      intradayCandle(`${SESSION}T15:29:00`, 25800, 25810, 25790, 25805), // latest
+      ohlcCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
+      ohlcCandle(`${SESSION}T15:29:00`, 25800, 25810, 25790, 25805), // latest
     ];
     const spots = [
       spotCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
@@ -550,8 +527,8 @@ describe("pickFreshestCandles", () => {
   });
   test("EOD candles are the fallback when no 1-minute source exists", () => {
     const eodCandles = [
-      intradayCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
-      intradayCandle(`${SESSION}T15:29:00`, 25800, 25810, 25790, 25805),
+      ohlcCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
+      ohlcCandle(`${SESSION}T15:29:00`, 25800, 25810, 25790, 25805),
     ];
     const report = mockReport({ intraday: [], candles: eodCandles });
     const out = pickFreshestCandles(report, [], [], SESSION);

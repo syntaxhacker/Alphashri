@@ -5,6 +5,7 @@ import type { NiftyStrike, NiftyTapeRow } from "@/types/niftyReport";
 import { detectOiBursts, burstToAlert } from "./niftyOiBursts";
 import type { OiBurst, OiSignal } from "./niftyOiBursts";
 import { useNiftyOiAlerts } from "./useNiftyOiAlerts";
+import { hm } from "./reportTestFixtures";
 
 // Sound/title are browser side-effects; assert the calls, never play audio in CI.
 vi.mock("./alertSound", () => ({
@@ -15,11 +16,6 @@ vi.mock("./alertSound", () => ({
   setAlertsMuted: vi.fn(),
 }));
 import { flashAlertTitle, playAlertSound } from "./alertSound";
-
-function hm(i: number): string {
-  const total = 9 * 60 + 15 + i;
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
 
 function tapeRow(t: string, callDoi: number, putDoi = 0): NiftyTapeRow {
   return {

@@ -114,3 +114,32 @@ export function resampleTape<T extends { t: string }>(rows: T[], minutes: TapeRa
 export function rangeLabel(range: TapeRange): string {
   return `${range}m`;
 }
+
+/**
+ * Minutes since midnight for a tape timestamp. Accepts bare clocks
+ * (`13:06`, `13:06:22`) and full ISO stamps (`2026-10-14T13:06:00+05:30`)
+ * via `Date.parse`; unparseable → `null`.
+ *
+ * Shared by `niftyParticipantFlow` (`flowClockMinutes`) and
+ * `niftyWallMigration` (`parseClockMinutes`) so the parse cannot drift
+ * between the two tape builders.
+ */
+export function clockMinutes(t: string | null | undefined): number | null {
+  const raw = String(t ?? "").trim();
+  if (!raw) return null;
+  const clock = /(\d{1,2}):(\d{2})/.exec(raw);
+  if (clock) {
+    const h = Number(clock[1]);
+    const m = Number(clock[2]);
+    if (Number.isFinite(h) && Number.isFinite(m) && h < 24 && m < 60) {
+      return h * 60 + m;
+    }
+    return null;
+  }
+  const parsed = Date.parse(raw);
+  if (Number.isFinite(parsed)) {
+    const d = new Date(parsed);
+    return d.getHours() * 60 + d.getMinutes();
+  }
+  return null;
+}

@@ -13,7 +13,7 @@
  * fields, and both snake_case and camelCase spellings are accepted.
  */
 
-import { minutesToHhmm } from "./tapeRange";
+import { clockMinutes, minutesToHhmm } from "./tapeRange";
 import { chainLeg } from "./chainTuple";
 
 /** Minimal tape row — only the fields the migration needs. */
@@ -56,39 +56,15 @@ function finiteOrNull(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/**
- * Minutes since midnight for a tape timestamp. Accepts IST ISO
- * (`2026-10-14T13:06:00+05:30`), bare clocks (`13:06`, `13:06:22`) and
- * falls back to `Date.parse`; unparseable → `null`.
- */
-export function parseClockMinutes(t: string | null | undefined): number | null {
-  const raw = String(t ?? "").trim();
-  if (!raw) return null;
-  const clock = /(\d{1,2}):(\d{2})/.exec(raw);
-  if (clock) {
-    const h = Number(clock[1]);
-    const m = Number(clock[2]);
-    if (Number.isFinite(h) && Number.isFinite(m) && h < 24 && m < 60) {
-      return h * 60 + m;
-    }
-    return null;
-  }
-  const parsed = Date.parse(raw);
-  if (Number.isFinite(parsed)) {
-    const d = new Date(parsed);
-    return (
-      d.getHours() * 60 + d.getMinutes()
-    );
-  }
-  return null;
-}
+/** Minutes since midnight for a tape timestamp — shared with the participant-flow builder. */
+export { clockMinutes as parseClockMinutes } from "./tapeRange";
 
 /** Floor a timestamp into its `bucketMin` bucket; `null` when unparseable. */
 export function bucketStartMinutes(
   t: string | null | undefined,
   bucketMin: number,
 ): number | null {
-  const mins = parseClockMinutes(t);
+  const mins = clockMinutes(t);
   if (mins === null) return null;
   const size = bucketMin > 0 ? bucketMin : 15;
   return Math.floor(mins / size) * size;
@@ -167,8 +143,8 @@ export function buildWallMigration(
 
   const indexed = list.map((row, i) => ({ row, i }));
   indexed.sort((a, b) => {
-    const ta = parseClockMinutes(a.row?.t);
-    const tb = parseClockMinutes(b.row?.t);
+    const ta = clockMinutes(a.row?.t);
+    const tb = clockMinutes(b.row?.t);
     if (ta === null && tb === null) return a.i - b.i;
     if (ta === null) return 1;
     if (tb === null) return -1;
