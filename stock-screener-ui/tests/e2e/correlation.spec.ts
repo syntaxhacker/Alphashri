@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { collectConsoleErrors } from "./helpers/flowsB";
 import { setupApiMocks, loginAsTestUser, setupCorrelationMocks } from "../mocks/apiResponses";
 
 test.describe("Correlation - UI", () => {
@@ -6,26 +7,12 @@ test.describe("Correlation - UI", () => {
 
   test.beforeEach(async ({ page }) => {
     consoleErrors.length = 0;
-    page.on("console", (msg) => {
-      if (msg.type() === "error" || msg.type() === "warning") {
-        const text = msg.text();
-        if (
-          text.includes("ws/") ||
-          text.includes("WebSocket") ||
-          text.includes("ERR_CONNECTION_REFUSED") ||
-          text.includes("Failed to fetch news") ||
-          text.includes("cannot be a descendant of") ||
-          text.includes("cannot contain a nested") ||
-          text.includes("hydration error") ||
-          text.includes("Maximum update depth") ||
-          text.includes("React does not recognize") ||
-          text.includes("out-of-range value")
-        ) {
-          return;
-        }
-        consoleErrors.push(text);
-      }
-    });
+    collectConsoleErrors(page, [
+      "Failed to fetch news",
+      "cannot be a descendant of",
+      "cannot contain a nested",
+      "out-of-range value",
+    ]);
     await setupApiMocks(page);
     await setupCorrelationMocks(page);
     await loginAsTestUser(page);

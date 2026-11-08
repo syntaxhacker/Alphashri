@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { testUser } from "../mocks/apiResponses";
-import { apiRoute } from "../mocks/routeHelper";
+import { loginAsTestUser } from "../mocks/apiResponses";
+import { runBacktest } from "./helpers/flowsB";
 import {
   setupFullBacktestMocks,
   mockBacktestStrategies,
@@ -35,27 +35,7 @@ test.describe("Backtest View - Navigation", () => {
   });
 
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      localStorage.setItem("alphashri_token", "test_access_token_12345");
-      localStorage.setItem("alphashri_refresh_token", "test_refresh_token_12345");
-      localStorage.setItem(
-        "alphashri_user",
-        JSON.stringify({
-          id: 1,
-          email: "test@alphashri.dev",
-          display_name: "TestUser",
-          initial_capital: 1000000,
-          created_at: "2026-01-01T00:00:00",
-        }),
-      );
-    });
-    await page.route(apiRoute("auth/me"), async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(testUser),
-      });
-    });
+    await loginAsTestUser(page);
     await mockBacktestStrategies(page);
   });
 
@@ -106,9 +86,7 @@ test.describe("Backtest View - Run Backtest", () => {
   });
 
   test("should run backtest and display results", async ({ page }) => {
-    await gotoBacktest(page);
-    await selectSymbolAndRun(page);
-    await waitForBacktestResult(page);
+    await runBacktest(page);
   });
 });
 

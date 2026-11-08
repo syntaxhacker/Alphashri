@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { setupApiMocks, testUser } from "../mocks/apiResponses";
+import { setupApiMocks, loginAsTestUser, testUser } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
 
 async function clearAuthStorage(page: Page) {
@@ -196,29 +196,7 @@ test.describe("Authentication - Register", () => {
 test.describe("Authentication - Logout", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
-    // Set authenticated state
-    await page.addInitScript(() => {
-      localStorage.setItem("alphashri_token", "test_access_token_12345");
-      localStorage.setItem("alphashri_refresh_token", "test_refresh_token_12345");
-      localStorage.setItem(
-        "alphashri_user",
-        JSON.stringify({
-          id: 1,
-          email: "test@alphashri.dev",
-          display_name: "TestUser",
-          initial_capital: 1000000,
-          created_at: "2026-01-01T00:00:00",
-        }),
-      );
-    });
-
-    await page.route(apiRoute("auth/me"), async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(testUser),
-      });
-    });
+    await loginAsTestUser(page);
   });
 
   test("should show user info in navbar footer", async ({ page }) => {
@@ -272,28 +250,7 @@ test.describe("Authentication - Logout", () => {
 test.describe("Authentication - Session", () => {
   test("should persist session on page refresh", async ({ page }) => {
     await setupApiMocks(page);
-    await page.addInitScript(() => {
-      localStorage.setItem("alphashri_token", "test_access_token_12345");
-      localStorage.setItem("alphashri_refresh_token", "test_refresh_token_12345");
-      localStorage.setItem(
-        "alphashri_user",
-        JSON.stringify({
-          id: 1,
-          email: "test@alphashri.dev",
-          display_name: "TestUser",
-          initial_capital: 1000000,
-          created_at: "2026-01-01T00:00:00",
-        }),
-      );
-    });
-
-    await page.route(apiRoute("auth/me"), async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(testUser),
-      });
-    });
+    await loginAsTestUser(page);
 
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });

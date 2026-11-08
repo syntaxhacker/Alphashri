@@ -1,8 +1,50 @@
 import { test, expect, Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
-import { TEST_BOT_UUID, setupBotApiMocks, createLivePosition } from "./helpers/botHelpers";
+import {
+  TEST_BOT_UUID,
+  setupBotApiMocks,
+  createLivePosition,
+  gotoPaperAndSelectFirstBot,
+} from "./helpers/botHelpers";
 import { generateCandles } from "./helpers/chartHelpers";
+
+const WEEK52_CHASER_OPTIONS = {
+  positionSymbol: "TCS",
+  strategyName: "52W Chaser",
+  orbLevels: null,
+  week52Levels: { high_52w: 3900, low_52w: 3400, distance_to_high_pct: 2.5, near_high: true },
+};
+
+const WEEK52_LIVE_POSITION = {
+  entry_price: 3850,
+  current_price: 3870,
+  pnl: 200,
+  pnl_pct: 0.52,
+  quantity: 20,
+};
+
+const EMA_CROSS_OPTIONS = {
+  positionSymbol: "INFY",
+  strategyName: "EMA Cross",
+  orbLevels: null,
+  pivotLevels: null,
+  emaData: {
+    ema_9: [1485, 1490, 1495, 1500, 1505, 1510, 1515, 1520, 1525, 1530],
+    ema_21: [1480, 1482, 1485, 1488, 1490, 1493, 1496, 1500, 1503, 1507],
+  },
+};
+
+const EMA_CROSS_LIVE_POSITION = {
+  symbol: "INFY",
+  entry_price: 1500,
+  current_price: 1510,
+  pnl: 200,
+  pnl_pct: 0.67,
+  quantity: 30,
+  stop_loss: 1470,
+  take_profit: 1550,
+};
 
 async function setupPaperWithChart(
   page: Page,
@@ -97,17 +139,7 @@ async function setupPaperWithChart(
 }
 
 async function navigateAndClickPosition(page: Page, symbol: string = "TCS") {
-  await page.goto("/paper");
-  await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
-  await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
-
-  await page.waitForSelector('[data-testid="bot-select"]', { state: "visible", timeout: 10000 });
-  await page.locator('[data-testid="bot-select"]').click();
-  await expect(page.getByRole("option").first()).toBeVisible({ timeout: 5000 });
-  await page.keyboard.press("ArrowDown");
-  await page.keyboard.press("Enter");
-
-  await page.getByTestId("tab-live").click();
+  await gotoPaperAndSelectFirstBot(page);
   // networkidle times out due to SSE live-price stream; wait for target element instead
   await page.waitForSelector('[data-testid^="position-row-"]', { timeout: 15000 });
 
@@ -213,16 +245,9 @@ test.describe("Paper Chart - SR Breakout Strategy", () => {
 test.describe("Paper Chart - 52W Chaser Strategy", () => {
   test("should display chart for 52W Chaser position with 52W levels", async ({ page }) => {
     await setupPaperWithChart(page, {
-      positionSymbol: "TCS",
-      strategyName: "52W Chaser",
-      orbLevels: null,
-      week52Levels: { high_52w: 3900, low_52w: 3400, distance_to_high_pct: 2.5, near_high: true },
+      ...WEEK52_CHASER_OPTIONS,
       livePosition: createLivePosition({
-        entry_price: 3850,
-        current_price: 3870,
-        pnl: 200,
-        pnl_pct: 0.52,
-        quantity: 20,
+        ...WEEK52_LIVE_POSITION,
         stop_loss: 3800,
         take_profit: 3950,
       }),
@@ -233,17 +258,8 @@ test.describe("Paper Chart - 52W Chaser Strategy", () => {
 
   test("should show 52W lines toggle", async ({ page }) => {
     await setupPaperWithChart(page, {
-      positionSymbol: "TCS",
-      strategyName: "52W Chaser",
-      orbLevels: null,
-      week52Levels: { high_52w: 3900, low_52w: 3400, distance_to_high_pct: 2.5, near_high: true },
-      livePosition: createLivePosition({
-        entry_price: 3850,
-        current_price: 3870,
-        pnl: 200,
-        pnl_pct: 0.52,
-        quantity: 20,
-      }),
+      ...WEEK52_CHASER_OPTIONS,
+      livePosition: createLivePosition(WEEK52_LIVE_POSITION),
     });
     await navigateAndClickPosition(page, "TCS");
     await page.locator('[data-testid="chart-more-button"]').click();
@@ -254,24 +270,8 @@ test.describe("Paper Chart - 52W Chaser Strategy", () => {
 test.describe("Paper Chart - EMA Cross Strategy", () => {
   test("should display chart for EMA Cross position with EMA overlays", async ({ page }) => {
     await setupPaperWithChart(page, {
-      positionSymbol: "INFY",
-      strategyName: "EMA Cross",
-      orbLevels: null,
-      pivotLevels: null,
-      emaData: {
-        ema_9: [1485, 1490, 1495, 1500, 1505, 1510, 1515, 1520, 1525, 1530],
-        ema_21: [1480, 1482, 1485, 1488, 1490, 1493, 1496, 1500, 1503, 1507],
-      },
-      livePosition: createLivePosition({
-        symbol: "INFY",
-        entry_price: 1500,
-        current_price: 1510,
-        pnl: 200,
-        pnl_pct: 0.67,
-        quantity: 30,
-        stop_loss: 1470,
-        take_profit: 1550,
-      }),
+      ...EMA_CROSS_OPTIONS,
+      livePosition: createLivePosition(EMA_CROSS_LIVE_POSITION),
     });
     await navigateAndClickPosition(page, "INFY");
     await verifyPaperChartRenders(page);
@@ -279,24 +279,8 @@ test.describe("Paper Chart - EMA Cross Strategy", () => {
 
   test("should show EMA lines toggle", async ({ page }) => {
     await setupPaperWithChart(page, {
-      positionSymbol: "INFY",
-      strategyName: "EMA Cross",
-      orbLevels: null,
-      pivotLevels: null,
-      emaData: {
-        ema_9: [1485, 1490, 1495, 1500, 1505, 1510, 1515, 1520, 1525, 1530],
-        ema_21: [1480, 1482, 1485, 1488, 1490, 1493, 1496, 1500, 1503, 1507],
-      },
-      livePosition: createLivePosition({
-        symbol: "INFY",
-        entry_price: 1500,
-        current_price: 1510,
-        pnl: 200,
-        pnl_pct: 0.67,
-        quantity: 30,
-        stop_loss: 1470,
-        take_profit: 1550,
-      }),
+      ...EMA_CROSS_OPTIONS,
+      livePosition: createLivePosition(EMA_CROSS_LIVE_POSITION),
     });
     await navigateAndClickPosition(page, "INFY");
     await page.locator('[data-testid="chart-more-button"]').click();

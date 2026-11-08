@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
+import { mockMarketTicker } from "./helpers/flowsB";
 
 const mockTickerResponse = {
   tickers: {
@@ -36,18 +36,7 @@ const mockTickerResponse = {
 
 test.describe("Market Ticker", () => {
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
-    });
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
-    await page.route(apiRoute("market-ticker"), async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(mockTickerResponse),
-      });
-    });
+    await mockMarketTicker(page, mockTickerResponse);
   });
 
   test("should display market ticker at the top of page", async ({ page }) => {
@@ -164,9 +153,7 @@ test.describe("Market Ticker", () => {
     await navigationPromise;
   });
 
-  test.skip("reason: auto-refresh interval is 30s by default, making test impractical to wait", async ({
-    page,
-  }) => {
+  test.skip("reason: auto-refresh interval is 30s by default, making test impractical to wait", async () => {
     // Auto-refresh requires waiting 30s, too long for E2E test
   });
 });

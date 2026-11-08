@@ -4,8 +4,13 @@ import {
   loginAsTestUser,
   setupPaperTradingMocks,
 } from "../helpers/multiStrategyHelpers";
-import { BOT_IDS, setupBotMocksForId, navigateToBot } from "./helpers/multiStrategyHelpers";
-import { apiRoute } from "../mocks/routeHelper";
+import {
+  BOT_IDS,
+  setupBotMocksForId,
+  navigateToBot,
+  mockPaperTradesRoute,
+  mockJournalSummaryRoute,
+} from "./helpers/multiStrategyHelpers";
 
 test.describe("Multi-Strategy System - Trade History", () => {
   const botId = BOT_IDS.tradeHistory;
@@ -15,50 +20,9 @@ test.describe("Multi-Strategy System - Trade History", () => {
     await loginAsTestUser(page);
     await setupPaperTradingMocks(page);
     await setupBotMocksForId(page, botId);
+    await mockPaperTradesRoute(page);
 
-    await page.route(apiRoute("paper/trades"), async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          trades: [
-            {
-              id: 1,
-              symbol: "TCS",
-              side: "BUY",
-              entry_price: 3750,
-              exit_price: 3800,
-              pnl: 500,
-              entry_time: "2026-03-02T09:30:00",
-              exit_time: "2026-03-02T11:00:00",
-              strategy_name: "ORB Conservative",
-              strategy_id: 1,
-            },
-            {
-              id: 2,
-              symbol: "INFY",
-              side: "BUY",
-              entry_price: 1480,
-              exit_price: 1500,
-              pnl: 400,
-              entry_time: "2026-03-02T10:00:00",
-              exit_time: "2026-03-02T14:00:00",
-              strategy_name: "ORB Aggressive",
-              strategy_id: 2,
-            },
-          ],
-          count: 2,
-        }),
-      });
-    });
-
-    await page.route(apiRoute("paper/journal/summary"), async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ total_pnl: 900, total_trades: 2, win_rate: 100 }),
-      });
-    });
+    await mockJournalSummaryRoute(page);
   });
 
   test("should show strategy in trade history", async ({ page }) => {
@@ -76,42 +40,7 @@ test.describe("Multi-Strategy System - History Filter", () => {
     await loginAsTestUser(page);
     await setupPaperTradingMocks(page);
     await setupBotMocksForId(page, botId);
-
-    await page.route(apiRoute("paper/trades"), async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          trades: [
-            {
-              id: 1,
-              symbol: "TCS",
-              side: "BUY",
-              entry_price: 3750,
-              exit_price: 3800,
-              pnl: 500,
-              entry_time: "2026-03-02T09:30:00",
-              exit_time: "2026-03-02T11:00:00",
-              strategy_name: "ORB Conservative",
-              strategy_id: 1,
-            },
-            {
-              id: 2,
-              symbol: "INFY",
-              side: "BUY",
-              entry_price: 1480,
-              exit_price: 1500,
-              pnl: 400,
-              entry_time: "2026-03-02T10:00:00",
-              exit_time: "2026-03-02T14:00:00",
-              strategy_name: "ORB Aggressive",
-              strategy_id: 2,
-            },
-          ],
-          count: 2,
-        }),
-      });
-    });
+    await mockPaperTradesRoute(page);
   });
 
   test("should filter history by strategy", async ({ page }) => {

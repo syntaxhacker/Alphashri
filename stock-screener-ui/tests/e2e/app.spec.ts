@@ -1,16 +1,14 @@
 import { test, expect } from "@playwright/test";
+import { mockTrendingResponse, setupPaperTradingMocks, setupMultiStrategyBotMocks } from "../mocks/apiResponses";
 import {
-  setupApiMocks,
-  mockTrendingResponse,
-  loginAsTestUser,
-  setupPaperTradingMocks,
-  setupMultiStrategyBotMocks,
-} from "../mocks/apiResponses";
+  setupScreenerApp,
+  openScreenerTable,
+  navigateToPaperTradingSettings,
+} from "./helpers/flowsB";
 
 test.describe("Alphashri", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
+    await setupScreenerApp(page);
   });
 
   test("@smoke should load the main page with title", async ({ page }) => {
@@ -19,15 +17,13 @@ test.describe("Alphashri", () => {
   });
 
   test("should display data table", async ({ page }) => {
-    await page.goto("/?tab=screener");
-    await page.waitForSelector('[data-testid="screener-table"] tbody tr', { timeout: 30000 });
+    await openScreenerTable(page, 30000);
     const rows = page.locator('[data-testid="screener-table"] tbody tr');
     await expect(rows.first()).toBeVisible();
   });
 
   test("should display mock stock data", async ({ page }) => {
-    await page.goto("/?tab=screener");
-    await page.waitForSelector('[data-testid="screener-table"] tbody tr', { timeout: 30000 });
+    await openScreenerTable(page, 30000);
 
     // Check that mock data is displayed - use more specific selector
     const firstSymbol = mockTrendingResponse.approaching[0].symbol;
@@ -39,30 +35,9 @@ test.describe.configure({ mode: "parallel" });
 
 test.describe("Paper Trading Settings", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
     await setupPaperTradingMocks(page);
     await setupMultiStrategyBotMocks(page);
   });
-
-  async function navigateToPaperTradingSettings(page: import("@playwright/test").Page) {
-    await page.goto("/paper", { timeout: 30000 });
-    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
-    await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({
-      timeout: 20000,
-    });
-
-    await expect(page.locator('[data-testid="tab-settings"]')).toBeVisible();
-
-    const settingsTab = page.locator('[data-testid="tab-settings"]');
-    await settingsTab.waitFor({ state: "visible", timeout: 10000 });
-
-    // Retry click in case of re-render
-    await settingsTab.click({ timeout: 10000, trial: true }).catch(() => {});
-    await settingsTab.click({ timeout: 10000 });
-
-    await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({ timeout: 10000 });
-  }
 
   test("should update Max Positions to 4, save, and persist on refresh", async ({ page }) => {
     await navigateToPaperTradingSettings(page);

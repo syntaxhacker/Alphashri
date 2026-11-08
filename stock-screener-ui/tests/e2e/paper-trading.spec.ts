@@ -6,6 +6,10 @@ import {
 } from "../helpers/paperTradingHelpers";
 import { setupApiMocks, loginAsTestUser, setupPaperTradingMocks } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
+import {
+  navigateToPaperTradingSettings,
+  openSettingsAndChangeInput,
+} from "./helpers/flowsB";
 import { TEST_BOT_UUID, setupBotApiMocks } from "./helpers/botHelpers";
 import { generateCandles } from "./helpers/chartHelpers";
 
@@ -521,61 +525,11 @@ test.describe("Paper Trading - Settings", () => {
   });
 
   test("should update ORB sl_pct and save", async ({ page }) => {
-    await navigateToPaperTradingSettings(page);
-
-    await page.route(apiRoute(`bots/${TEST_BOT_UUID}/config`), async (route) => {
-      const request = route.request();
-      const postData = JSON.parse(request.postData() || "{}");
-
-      if (request.method() === "PUT" && postData.strategy_configs) {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({ message: "Config updated", config: postData }),
-        });
-      } else {
-        await route.continue();
-      }
-    });
-
-    const slPctInput = page.locator('[data-testid="config-sl-pct"] input');
-    await slPctInput.fill("1.5");
-
-    const saveBtn = page.locator('[data-testid="save-settings-button"]');
-    await expect(saveBtn).toBeEnabled();
-    await saveBtn.click();
-
-    // Save resolves -> config is no longer dirty, label flips to "Saved".
-    await expect(saveBtn).toHaveText("Saved");
+    await openSettingsAndChangeInput(page, "config-sl-pct", "1.5");
   });
 
   test("should update Risk risk_per_trade", async ({ page }) => {
-    await navigateToPaperTradingSettings(page);
-
-    await page.route(apiRoute(`bots/${TEST_BOT_UUID}/config`), async (route) => {
-      const request = route.request();
-      const postData = JSON.parse(request.postData() || "{}");
-
-      if (request.method() === "PUT") {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({ message: "Config updated", config: postData }),
-        });
-      } else {
-        await route.continue();
-      }
-    });
-
-    const riskInput = page.locator('[data-testid="config-risk-per-trade"] input');
-    await riskInput.fill("2.0");
-
-    const saveBtn = page.locator('[data-testid="save-settings-button"]');
-    await expect(saveBtn).toBeEnabled();
-    await saveBtn.click();
-
-    // Save resolves -> config is no longer dirty, label flips to "Saved".
-    await expect(saveBtn).toHaveText("Saved");
+    await openSettingsAndChangeInput(page, "config-risk-per-trade", "2.0");
   });
 
   test("should reset settings to defaults", async ({ page }) => {
@@ -836,22 +790,6 @@ test.describe("Paper Trading - Chart Controls", () => {
     await expect(header).toContainText(SYMBOL);
   });
 });
-
-async function navigateToPaperTradingSettings(page: import("@playwright/test").Page) {
-  await page.goto("/paper", { timeout: 30000 });
-  await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
-  await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({
-    timeout: 20000,
-  });
-
-  await expect(page.locator('[data-testid="tab-settings"]')).toBeVisible();
-
-  const settingsTab = page.locator('[data-testid="tab-settings"]');
-  await settingsTab.waitFor({ state: "visible", timeout: 10000 });
-  await settingsTab.click({ timeout: 10000, force: true });
-
-  await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({ timeout: 15000 });
-}
 
 test.describe("Paper Trading - Settings Panel Sections", () => {
   test.beforeEach(async ({ page }) => {

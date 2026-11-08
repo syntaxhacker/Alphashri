@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
-import { apiRoute } from "../mocks/routeHelper";
+import { mockMarketTicker } from "./helpers/flowsB";
 
 test.describe("Layout - App Structure", () => {
   test.beforeEach(async ({ page }) => {
@@ -257,19 +257,7 @@ test.describe("Layout - Market Ticker", () => {
   };
 
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
-    });
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
-
-    await page.route(apiRoute("market-ticker"), async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(mockTickerData),
-      });
-    });
+    await mockMarketTicker(page, mockTickerData);
   });
 
   test("market-ticker is visible in the main column when the market is open", async ({ page }) => {

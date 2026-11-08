@@ -38,6 +38,41 @@ export function createLivePosition(overrides: LivePositionOverrides = {}): LiveP
   };
 }
 
+export async function mockPaperBotSnapshot(
+  page: Page,
+  options: { openPositions?: object[]; scanItems?: object[] } = {},
+) {
+  const { openPositions = [], scanItems = [] } = options;
+  await page.route(apiRoute("paper/bot/snapshot"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        timestamp: new Date().toISOString(),
+        watchlist: [],
+        open_positions: openPositions,
+        scan_items: scanItems,
+        signals: [],
+      }),
+    });
+  });
+}
+
+// Shared /paper entry flow: open the page, select the first bot in the dropdown, land on the Live tab.
+export async function gotoPaperAndSelectFirstBot(page: Page) {
+  await page.goto("/paper");
+  await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
+  await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
+
+  await page.waitForSelector('[data-testid="bot-select"]', { state: "visible", timeout: 10000 });
+  await page.locator('[data-testid="bot-select"]').click();
+  await expect(page.getByRole("option").first()).toBeVisible({ timeout: 5000 });
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+
+  await page.getByTestId("tab-live").click();
+}
+
 export interface SetupBotApiMocksOptions {
   botId?: string;
   botName?: string;
@@ -205,19 +240,7 @@ export async function setupBotApiMocks(page: Page, options: SetupBotApiMocksOpti
     });
   });
 
-  await page.route(apiRoute("paper/bot/snapshot"), async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        timestamp: new Date().toISOString(),
-        watchlist: [],
-        open_positions: positions,
-        scan_items: scanItems,
-        signals: [],
-      }),
-    });
-  });
+  await mockPaperBotSnapshot(page, { openPositions: positions, scanItems });
 }
 
 export async function expectPositionsVisible(page: Page, timeout: number = 15000) {
