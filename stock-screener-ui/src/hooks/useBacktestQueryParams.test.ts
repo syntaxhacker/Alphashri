@@ -27,6 +27,30 @@ const defaultState: BacktestConfigInput = {
   },
 };
 
+const chaserDefaults = {
+  entry_threshold_pct: 3.0,
+  stop_loss_pct: 3.0,
+  take_profit_pct: 5.0,
+  enable_trailing_stop: false,
+  trailing_stop_pct: 3.0,
+  trailing_activation_pct: 2.0,
+  max_holding_days: 30,
+  cooldown_days: 30,
+  trade_size: 100,
+  enable_filters: false,
+};
+
+function makeChaserState(symbols: string[]): BacktestConfigInput {
+  return {
+    ...defaultState,
+    selectedStrategy: "52w_chaser",
+    selectedSymbols: symbols,
+    days: 90,
+    includeCosts: false,
+    params: { ...chaserDefaults, entry_threshold_pct: 2.0, trade_size: 200 },
+  };
+}
+
 describe("encodeConfig / decodeConfig", () => {
   it("round-trips a payload", () => {
     const payload: BacktestConfigPayload = {
@@ -137,26 +161,7 @@ describe("configToPayload", () => {
   });
 
   it("combines multiple non-default fields", () => {
-    const chaserDefaults = {
-      entry_threshold_pct: 3.0,
-      stop_loss_pct: 3.0,
-      take_profit_pct: 5.0,
-      enable_trailing_stop: false,
-      trailing_stop_pct: 3.0,
-      trailing_activation_pct: 2.0,
-      max_holding_days: 30,
-      cooldown_days: 30,
-      trade_size: 100,
-      enable_filters: false,
-    };
-    const state: BacktestConfigInput = {
-      ...defaultState,
-      selectedStrategy: "52w_chaser",
-      selectedSymbols: ["TCS"],
-      days: 90,
-      includeCosts: false,
-      params: { ...chaserDefaults, entry_threshold_pct: 2.0, trade_size: 200 },
-    };
+    const state = makeChaserState(["TCS"]);
     expect(configToPayload(state)).toEqual({
       strategy: "52w_chaser",
       symbols: ["TCS"],
@@ -209,26 +214,7 @@ describe("urlToPayload", () => {
 
 describe("round-trip integration", () => {
   it("configToPayload → payloadToUrl → urlToPayload matches", () => {
-    const chaserDefaults = {
-      entry_threshold_pct: 3.0,
-      stop_loss_pct: 3.0,
-      take_profit_pct: 5.0,
-      enable_trailing_stop: false,
-      trailing_stop_pct: 3.0,
-      trailing_activation_pct: 2.0,
-      max_holding_days: 30,
-      cooldown_days: 30,
-      trade_size: 100,
-      enable_filters: false,
-    };
-    const state: BacktestConfigInput = {
-      ...defaultState,
-      selectedStrategy: "52w_chaser",
-      selectedSymbols: ["TCS", "RELIANCE"],
-      days: 90,
-      includeCosts: false,
-      params: { ...chaserDefaults, entry_threshold_pct: 2.0, trade_size: 200 },
-    };
+    const state = makeChaserState(["TCS", "RELIANCE"]);
 
     const payload = configToPayload(state);
     const url = payloadToUrl(payload);

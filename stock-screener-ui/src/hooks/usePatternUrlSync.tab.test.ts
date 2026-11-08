@@ -1,45 +1,30 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, cleanup } from "@testing-library/react";
-import { useSearchParams } from "react-router-dom";
+import { describe, it, expect, vi } from "vitest";
 import {
   parsePatternParams,
   buildPatternParams,
-  usePatternUrlSync,
   type UsePatternUrlSyncArgs,
 } from "./usePatternUrlSync";
 import { DEFAULT_PATTERN_FILTERS } from "../state/chartPatterns";
+import {
+  urlSyncSetSearchParams as setSearchParams,
+  setMockUrl,
+  urlSyncArgsBase,
+  registerUrlSyncTestHarness,
+  renderPatternUrlSync,
+} from "./testFixtures";
 
 vi.mock("react-router-dom", () => ({
   useSearchParams: vi.fn(() => [new URLSearchParams(), vi.fn()]),
 }));
 
-const mockedUseSearchParams = vi.mocked(useSearchParams);
-const setSearchParams = vi.fn();
-
-beforeEach(() => {
-  setSearchParams.mockClear();
-  mockedUseSearchParams.mockReturnValue([new URLSearchParams(), setSearchParams] as never);
-});
-
-afterEach(() => {
-  cleanup();
-  vi.clearAllMocks();
-});
+registerUrlSyncTestHarness();
 
 function makeArgs(overrides: Partial<UsePatternUrlSyncArgs> = {}): UsePatternUrlSyncArgs {
   return {
-    universe: "",
-    timeframe: "1D",
-    lookbackBars: null,
+    ...urlSyncArgsBase(),
     computeTrendlines: true,
-    filters: { ...DEFAULT_PATTERN_FILTERS },
-    setUniverse: vi.fn(),
-    setTimeframe: vi.fn(),
-    setLookbackBars: vi.fn(),
-    setComputeTrendlines: vi.fn(),
     setTab: vi.fn(),
-    applyFilters: vi.fn(),
     ...overrides,
   };
 }
@@ -97,24 +82,17 @@ describe("tab param", () => {
 
 describe("usePatternUrlSync tab", () => {
   it("applies tab=watch from the URL on mount", () => {
-    mockedUseSearchParams.mockReturnValue([
-      new URLSearchParams("tab=watch"),
-      setSearchParams,
-    ] as never);
+    setMockUrl("tab=watch");
 
     const args = makeArgs();
-    renderHook((props: UsePatternUrlSyncArgs) => usePatternUrlSync(props), {
-      initialProps: args,
-    });
+    renderPatternUrlSync(args);
 
     expect(args.setTab).toHaveBeenCalledWith("watch");
   });
 
   it("writes tab=watch to the URL on change", () => {
     const args = makeArgs();
-    const { rerender } = renderHook((props: UsePatternUrlSyncArgs) => usePatternUrlSync(props), {
-      initialProps: args,
-    });
+    const { rerender } = renderPatternUrlSync(args);
     expect(setSearchParams).not.toHaveBeenCalled();
 
     rerender({ ...args, tab: "watch" });
@@ -126,15 +104,10 @@ describe("usePatternUrlSync tab", () => {
 
   it("adopts an externally navigated tab=watch URL (back/forward)", () => {
     const args = makeArgs();
-    const { rerender } = renderHook((props: UsePatternUrlSyncArgs) => usePatternUrlSync(props), {
-      initialProps: args,
-    });
+    const { rerender } = renderPatternUrlSync(args);
     expect(args.setTab).not.toHaveBeenCalled();
 
-    mockedUseSearchParams.mockReturnValue([
-      new URLSearchParams("tab=watch"),
-      setSearchParams,
-    ] as never);
+    setMockUrl("tab=watch");
     rerender(args);
 
     expect(args.setTab).toHaveBeenCalledWith("watch");

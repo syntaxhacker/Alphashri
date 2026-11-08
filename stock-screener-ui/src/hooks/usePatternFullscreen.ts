@@ -178,6 +178,49 @@ export function usePatternFullscreen({
     new Map<string, { chart: SymbolChartPayload; ts: number }>(),
   );
 
+  // Shared landing pads for "symbol chart resolved" payloads: promote the
+  // newest hit and swap candles/trendlines (or just clear `loading` on
+  // error), dropping stale token responses. `extra` carries call-site state
+  // that must ride along (the as-of replay cutoff).
+  const applySymbolChart = (
+    chart: SymbolChartPayload,
+    symbol: string,
+    tf: string,
+    token: number,
+    extra?: Partial<FullscreenChartState>,
+  ) => {
+    if (chartRequestRef.current !== token) return;
+    const hits = sortHitsNewest(chart.hits ?? []);
+    setFullscreen((prev) =>
+      prev && prev.symbol === symbol && prev.timeframe === tf
+        ? {
+            ...prev,
+            ...extra,
+            hit: newestHit(hits),
+            hits,
+            candles: chart.candles ?? [],
+            overlays: [],
+            trendLines: chart.trend_lines ?? [],
+            loading: false,
+          }
+        : prev,
+    );
+  };
+
+  const applySymbolChartError = (
+    symbol: string,
+    tf: string,
+    token: number,
+    extra?: Partial<FullscreenChartState>,
+  ) => {
+    if (chartRequestRef.current !== token) return;
+    setFullscreen((prev) =>
+      prev && prev.symbol === symbol && prev.timeframe === tf
+        ? { ...prev, ...extra, loading: false }
+        : prev,
+    );
+  };
+
   const loadSymbolChart = (
     symbol: string,
     timeframe: string | undefined,
@@ -200,23 +243,7 @@ export function usePatternFullscreen({
       pinned,
     });
 
-    const apply = (chart: SymbolChartPayload) => {
-      if (chartRequestRef.current !== token) return;
-      const hits = sortHitsNewest(chart.hits ?? []);
-      setFullscreen((prev) =>
-        prev && prev.symbol === symbol && prev.timeframe === tf
-          ? {
-              ...prev,
-              hit: newestHit(hits),
-              hits,
-              candles: chart.candles ?? [],
-              overlays: [],
-              trendLines: chart.trend_lines ?? [],
-              loading: false,
-            }
-          : prev,
-      );
-    };
+    const apply = (chart: SymbolChartPayload) => applySymbolChart(chart, symbol, tf, token);
 
     const key = `${symbol}|${tf}`;
     const cached = symbolChartCacheRef.current.get(key);
@@ -234,14 +261,7 @@ export function usePatternFullscreen({
         symbolChartCacheRef.current.set(key, { chart, ts: Date.now() });
         apply(chart);
       })
-      .catch(() => {
-        if (chartRequestRef.current !== token) return;
-        setFullscreen((prev) =>
-          prev && prev.symbol === symbol && prev.timeframe === tf
-            ? { ...prev, loading: false }
-            : prev,
-        );
-      });
+      .catch(() => applySymbolChartError(symbol, tf, token));
   };
 
   const openFromSymbol = (symbol: string, timeframe?: string) =>
@@ -265,31 +285,8 @@ export function usePatternFullscreen({
       ...(asOf ? { asOf } : {}),
       ...(fromDate ? { fromDate } : {}),
     })
-      .then((chart) => {
-        if (chartRequestRef.current !== token) return;
-        const hits = sortHitsNewest(chart.hits ?? []);
-        setFullscreen((prev) =>
-          prev && prev.symbol === symbol && prev.timeframe === tf
-            ? {
-                ...prev,
-                hit: newestHit(hits),
-                hits,
-                candles: chart.candles ?? [],
-                overlays: [],
-                trendLines: chart.trend_lines ?? [],
-                loading: false,
-              }
-            : prev,
-        );
-      })
-      .catch(() => {
-        if (chartRequestRef.current !== token) return;
-        setFullscreen((prev) =>
-          prev && prev.symbol === symbol && prev.timeframe === tf
-            ? { ...prev, loading: false }
-            : prev,
-        );
-      });
+      .then((chart) => applySymbolChart(chart, symbol, tf, token))
+      .catch(() => applySymbolChartError(symbol, tf, token));
   };
 
   // Fullscreen as-of replay: re-runs detection truncated at the cutoff.
@@ -305,33 +302,8 @@ export function usePatternFullscreen({
       asOf: asOf ?? undefined,
       fromDate: fromDate ?? undefined,
     })
-      .then((chart) => {
-        if (chartRequestRef.current !== token) return;
-        const hits = sortHitsNewest(chart.hits ?? []);
-        setFullscreen((prev) =>
-          prev && prev.symbol === symbol && prev.timeframe === tf
-            ? {
-                ...prev,
-                asOf,
-                fromDate,
-                hit: newestHit(hits),
-                hits,
-                candles: chart.candles ?? [],
-                overlays: [],
-                trendLines: chart.trend_lines ?? [],
-                loading: false,
-              }
-            : prev,
-        );
-      })
-      .catch(() => {
-        if (chartRequestRef.current !== token) return;
-        setFullscreen((prev) =>
-          prev && prev.symbol === symbol && prev.timeframe === tf
-            ? { ...prev, asOf, fromDate, loading: false }
-            : prev,
-        );
-      });
+      .then((chart) => applySymbolChart(chart, symbol, tf, token, { asOf, fromDate }))
+      .catch(() => applySymbolChartError(symbol, tf, token, { asOf, fromDate }));
   };
 
   /** Fullscreen single-select: switch the chart to the chosen pattern. */
