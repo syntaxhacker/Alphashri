@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   getStrategiesState,
   getCurrentView,
@@ -16,7 +16,12 @@ import {
   updateStrategy,
   deleteStrategyAction,
 } from "./strategies";
-import type { StrategyConfig } from "../types/strategies";
+import {
+  createMockStrategy,
+  restoreSandbox,
+  expectSubscribeReturnsUnsubscribe,
+  expectTriggerRerenderNotifies,
+} from "./stateTestFixtures";
 
 vi.mock("../api/strategies", () => ({
   listStrategies: vi.fn(),
@@ -29,51 +34,8 @@ vi.mock("../api/strategies", () => ({
   listBots: vi.fn(),
 }));
 
-function createMockStrategy(overrides: Partial<StrategyConfig> = {}): StrategyConfig {
-  return {
-    id: "uuid-1",
-    internal_id: 1,
-    name: "ORB Strategy",
-    strategy_type: "orb",
-    parent_id: null,
-    is_template: false,
-    is_active: true,
-    is_default: true,
-    description: null,
-    or_minutes: 45,
-    sl_pct: 0.5,
-    tp_pct: 1.5,
-    min_or_range_pct: 0.2,
-    max_or_range_pct: 5,
-    max_positions: 5,
-    max_capital_per_trade_pct: 20,
-    max_daily_loss_pct: 3,
-    max_total_exposure_pct: 80,
-    risk_per_trade_pct: 2,
-    min_trade_value: 5000,
-    max_trade_value: 50000,
-    cooldown_minutes: 30,
-    max_distance_from_or_pct: 2,
-    brokerage_pct: 0.03,
-    min_brokerage: 20,
-    stt_pct: 0.1,
-    exchange_pct: 0.00345,
-    sebi_pct: 0.0001,
-    stamp_pct: 0.003,
-    gst_pct: 18,
-    created_at: null,
-    updated_at: null,
-    ...overrides,
-  };
-}
-
 describe("strategies state", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+  restoreSandbox();
 
   it("has correct initial state", () => {
     const state = getStrategiesState();
@@ -94,12 +56,7 @@ describe("strategies state", () => {
 });
 
 describe("view management", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+  restoreSandbox();
 
   it("initial view is 'templates'", () => {
     expect(getCurrentView()).toBe("tree");
@@ -120,35 +77,19 @@ describe("view management", () => {
 });
 
 describe("subscribe", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+  restoreSandbox();
 
   it("returns unsubscribe function", () => {
-    const unsub = subscribe(vi.fn());
-    expect(typeof unsub).toBe("function");
-    unsub();
+    expectSubscribeReturnsUnsubscribe(subscribe);
   });
 
   it("triggerRerender notifies all subscribers", () => {
-    const cb = vi.fn();
-    const unsub = subscribe(cb);
-    triggerRerender();
-    expect(cb).toHaveBeenCalledTimes(1);
-    unsub();
+    expectTriggerRerenderNotifies(subscribe, triggerRerender);
   });
 });
 
 describe("modal management", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+  restoreSandbox();
 
   it("openCreateModal sets showCreateModal true", () => {
     openCreateModal();
@@ -193,12 +134,7 @@ describe("modal management", () => {
 });
 
 describe("clearError", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+  restoreSandbox();
 
   it("clears error state", async () => {
     const api = await import("../api/strategies");
@@ -212,12 +148,7 @@ describe("clearError", () => {
 });
 
 describe("selectStrategy", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+  restoreSandbox();
 
   it("selects a strategy and clears performance", async () => {
     const api = await import("../api/strategies");
@@ -246,12 +177,7 @@ describe("selectStrategy", () => {
 });
 
 describe("loadStrategies", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+  restoreSandbox();
 
   it("loads strategies successfully", async () => {
     const api = await import("../api/strategies");
@@ -283,12 +209,7 @@ describe("loadStrategies", () => {
 });
 
 describe("createStrategy", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+  restoreSandbox();
 
   it("creates strategy and closes modal", async () => {
     const api = await import("../api/strategies");
@@ -316,12 +237,7 @@ describe("createStrategy", () => {
 });
 
 describe("updateStrategy", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+  restoreSandbox();
 
   it("updates strategy and closes edit modal", async () => {
     const api = await import("../api/strategies");
@@ -350,12 +266,7 @@ describe("updateStrategy", () => {
 });
 
 describe("deleteStrategyAction", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+  restoreSandbox();
 
   it("deletes strategy and clears selection", async () => {
     const api = await import("../api/strategies");

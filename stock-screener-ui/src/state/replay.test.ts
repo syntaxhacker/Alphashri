@@ -9,8 +9,22 @@ import type {
   ReplaySummary,
   ReplayProgress,
 } from "../types/replay";
+import { makeReplayTradeInput, makeOpenPositionInput } from "./stateTestFixtures";
 
 describe("replay state module", () => {
+  // Shared INFY counterpart position used by the auto-increment / close tests.
+  const addInfyPosition = () =>
+    replayModule.addOpenPosition(
+      makeOpenPositionInput({
+        symbol: "INFY",
+        entry_price: 200,
+        sl: 180,
+        tp: 220,
+        entry_time: "09:16",
+        quantity: 50,
+      }),
+    );
+
   beforeEach(() => {
     // Reset to initial state before each test
     replayModule.reset();
@@ -111,25 +125,8 @@ describe("replay state module", () => {
 
     it("clears previous data", () => {
       // Add some data first
-      replayModule.addTrade({
-        symbol: "TCS",
-        strategy: "ORB",
-        side: "LONG",
-        entry_price: 100,
-        exit_price: 110,
-        pnl: 10,
-        exit_reason: "TP",
-      });
-      replayModule.addOpenPosition({
-        symbol: "TCS",
-        strategy: "ORB",
-        side: "LONG",
-        entry_price: 100,
-        sl: 90,
-        tp: 110,
-        entry_time: "09:15",
-        quantity: 100,
-      });
+      replayModule.addTrade(makeReplayTradeInput());
+      replayModule.addOpenPosition(makeOpenPositionInput());
 
       replayModule.startRunning();
 
@@ -161,15 +158,7 @@ describe("replay state module", () => {
 
   describe("addTrade", () => {
     it("adds trade with auto-increment id", () => {
-      replayModule.addTrade({
-        symbol: "TCS",
-        strategy: "ORB",
-        side: "LONG",
-        entry_price: 100,
-        exit_price: 110,
-        pnl: 10,
-        exit_reason: "TP",
-      });
+      replayModule.addTrade(makeReplayTradeInput());
 
       const state = replayModule.getReplayState();
       expect(state.trades).toHaveLength(1);
@@ -178,24 +167,10 @@ describe("replay state module", () => {
     });
 
     it("increments id for subsequent trades", () => {
-      replayModule.addTrade({
-        symbol: "TCS",
-        strategy: "ORB",
-        side: "LONG",
-        entry_price: 100,
-        exit_price: 110,
-        pnl: 10,
-        exit_reason: "TP",
-      });
-      replayModule.addTrade({
-        symbol: "INFY",
-        strategy: "ORB",
-        side: "LONG",
-        entry_price: 200,
-        exit_price: 220,
-        pnl: 20,
-        exit_reason: "TP",
-      });
+      replayModule.addTrade(makeReplayTradeInput());
+      replayModule.addTrade(
+        makeReplayTradeInput({ symbol: "INFY", entry_price: 200, exit_price: 220, pnl: 20 }),
+      );
 
       const state = replayModule.getReplayState();
       expect(state.trades[1].id).toBe(2);
@@ -204,16 +179,7 @@ describe("replay state module", () => {
 
   describe("addOpenPosition", () => {
     it("adds open position with auto-increment id", () => {
-      replayModule.addOpenPosition({
-        symbol: "TCS",
-        strategy: "ORB",
-        side: "LONG",
-        entry_price: 100,
-        sl: 90,
-        tp: 110,
-        entry_time: "09:15",
-        quantity: 100,
-      });
+      replayModule.addOpenPosition(makeOpenPositionInput());
 
       const state = replayModule.getReplayState();
       expect(state.openPositions).toHaveLength(1);
@@ -221,26 +187,8 @@ describe("replay state module", () => {
     });
 
     it("increments id", () => {
-      replayModule.addOpenPosition({
-        symbol: "TCS",
-        strategy: "ORB",
-        side: "LONG",
-        entry_price: 100,
-        sl: 90,
-        tp: 110,
-        entry_time: "09:15",
-        quantity: 100,
-      });
-      replayModule.addOpenPosition({
-        symbol: "INFY",
-        strategy: "ORB",
-        side: "LONG",
-        entry_price: 200,
-        sl: 180,
-        tp: 220,
-        entry_time: "09:16",
-        quantity: 50,
-      });
+      replayModule.addOpenPosition(makeOpenPositionInput());
+      addInfyPosition();
 
       const state = replayModule.getReplayState();
       expect(state.openPositions[1].id).toBe(2);
@@ -249,26 +197,8 @@ describe("replay state module", () => {
 
   describe("closeOpenPosition", () => {
     it("removes position matching symbol and strategy", () => {
-      replayModule.addOpenPosition({
-        symbol: "TCS",
-        strategy: "ORB",
-        side: "LONG",
-        entry_price: 100,
-        sl: 90,
-        tp: 110,
-        entry_time: "09:15",
-        quantity: 100,
-      });
-      replayModule.addOpenPosition({
-        symbol: "INFY",
-        strategy: "ORB",
-        side: "LONG",
-        entry_price: 200,
-        sl: 180,
-        tp: 220,
-        entry_time: "09:16",
-        quantity: 50,
-      });
+      replayModule.addOpenPosition(makeOpenPositionInput());
+      addInfyPosition();
 
       replayModule.closeOpenPosition("TCS", "ORB");
 
@@ -278,26 +208,17 @@ describe("replay state module", () => {
     });
 
     it("keeps position with different strategy", () => {
-      replayModule.addOpenPosition({
-        symbol: "TCS",
-        strategy: "ORB",
-        side: "LONG",
-        entry_price: 100,
-        sl: 90,
-        tp: 110,
-        entry_time: "09:15",
-        quantity: 100,
-      });
-      replayModule.addOpenPosition({
-        symbol: "TCS",
-        strategy: "52W",
-        side: "LONG",
-        entry_price: 1000,
-        sl: 900,
-        tp: 1100,
-        entry_time: "09:16",
-        quantity: 10,
-      });
+      replayModule.addOpenPosition(makeOpenPositionInput());
+      replayModule.addOpenPosition(
+        makeOpenPositionInput({
+          strategy: "52W",
+          entry_price: 1000,
+          sl: 900,
+          tp: 1100,
+          entry_time: "09:16",
+          quantity: 10,
+        }),
+      );
 
       replayModule.closeOpenPosition("TCS", "ORB");
 
@@ -473,15 +394,7 @@ describe("replay state module", () => {
 
   describe("setHighlightedTrade", () => {
     it("sets highlighted trade id when valid", () => {
-      replayModule.addTrade({
-        symbol: "TCS",
-        strategy: "ORB",
-        side: "LONG",
-        entry_price: 100,
-        exit_price: 110,
-        pnl: 10,
-        exit_reason: "TP",
-      });
+      replayModule.addTrade(makeReplayTradeInput());
 
       replayModule.setHighlightedTrade(1);
 
@@ -489,15 +402,7 @@ describe("replay state module", () => {
     });
 
     it("updates highlightedTradeId and chart options when trade found", () => {
-      replayModule.addTrade({
-        symbol: "TCS",
-        strategy: "ORB",
-        side: "LONG",
-        entry_price: 100,
-        exit_price: 110,
-        pnl: 10,
-        exit_reason: "TP",
-      });
+      replayModule.addTrade(makeReplayTradeInput());
       replayModule.setChartOptions({ show_all_trades: true });
 
       replayModule.setHighlightedTrade(1);
@@ -561,15 +466,7 @@ describe("replay state module", () => {
     it("resets state to initial values", () => {
       // Modify state
       replayModule.setConfig({ date: "2025-01-01", strategy: "ORB" });
-      replayModule.addTrade({
-        symbol: "TCS",
-        strategy: "ORB",
-        side: "LONG",
-        entry_price: 100,
-        exit_price: 110,
-        pnl: 10,
-        exit_reason: "TP",
-      });
+      replayModule.addTrade(makeReplayTradeInput());
       replayModule.setSelectedSymbol("TCS");
       replayModule.setChartOptions({ show_orb_zones: true });
 
