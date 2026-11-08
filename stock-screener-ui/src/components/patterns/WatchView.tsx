@@ -85,6 +85,23 @@ function triggerDateOf(row: WatchRow): string | null | undefined {
   return (row as WatchRowExt).trigger_date;
 }
 
+const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "2026-11-05" → "5 Nov" (badge text; the year lives in the badge `title`). Null when missing/unparseable. */
+function shortDateOf(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso));
+  if (!m) return null;
+  const day = Number(m[3]);
+  if (!Number.isFinite(day) || day < 1 || day > 31) return null;
+  return `${day} ${MONTHS_SHORT[Number(m[2]) - 1]}`;
+}
+
+/** Last 52W-high touch date (null/undefined = never touched / unknown). */
+function lastTouchDateOf(row: WatchRow): string | null | undefined {
+  return (row as WatchRowExt).last_touch_date;
+}
+
 /**
  * F&O / ETF badges rendered next to the watch symbol. Additive only —
  * rows without `tags` render nothing extra.
@@ -158,6 +175,7 @@ function stateColor(state: WatchRow["state"]): "success" | "default" | "dimmed" 
 function stateCell(ctx: { getValue: () => unknown; row: { original: WatchRow } }) {
   const state = ctx.getValue() as WatchRow["state"];
   const row = ctx.row.original as WatchRow;
+  const lastTouch = lastTouchDateOf(row);
   return (
     <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
       <Badge color={stateColor(state)} size="xs" data-testid={`watch-state-${state}`}>
@@ -171,6 +189,15 @@ function stateCell(ctx: { getValue: () => unknown; row: { original: WatchRow } }
       {row.touched ? (
         <Badge color="info" size="xs" data-testid={`watch-touched-${row.symbol}`}>
           touched
+        </Badge>
+      ) : lastTouch ? (
+        <Badge
+          color="info"
+          size="xs"
+          data-testid={`watch-last-touch-${row.symbol}`}
+          title={`52W high touched ${lastTouch}`}
+        >
+          touched {shortDateOf(lastTouch)}
         </Badge>
       ) : null}
     </Box>
