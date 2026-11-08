@@ -26,6 +26,11 @@ describe("buildPivotSeries", () => {
     { date: "2025-01-19", date_raw: "2025-01-19", pp: 104, r1: 109, s1: 99 },
   ];
 
+  /** Build the pivot series once and run `assert` on each of R1/PP/S1. */
+  const expectEveryPivotSeries = (
+    assert: (series: ReturnType<typeof buildPivotSeries>[number]) => void,
+  ) => buildPivotSeries(mockCandles, mockPivotLevels).forEach(assert);
+
   describe("when pivot_levels is empty or null", () => {
     it("returns empty array for null", () => {
       const result = buildPivotSeries(mockCandles, null as any);
@@ -59,8 +64,7 @@ describe("buildPivotSeries", () => {
     });
 
     it("sets type to line", () => {
-      const result = buildPivotSeries(mockCandles, mockPivotLevels);
-      result.forEach((series) => expect(series.type).toBe("line"));
+      expectEveryPivotSeries((series) => expect(series.type).toBe("line"));
     });
 
     it("maps values correctly with date_raw fallback", () => {
@@ -97,8 +101,7 @@ describe("buildPivotSeries", () => {
     });
 
     it("sets line width to 1", () => {
-      const result = buildPivotSeries(mockCandles, mockPivotLevels);
-      result.forEach((series) => expect(series.lineStyle.width).toBe(1));
+      expectEveryPivotSeries((series) => expect(series.lineStyle.width).toBe(1));
     });
 
     it("sets correct line styles: R1 dashed, PP dotted, S1 dashed", () => {
@@ -122,33 +125,27 @@ describe("buildPivotSeries", () => {
     });
 
     it("sets z-index to 4", () => {
-      const result = buildPivotSeries(mockCandles, mockPivotLevels);
-      result.forEach((series) => expect(series.z).toBe(4));
+      expectEveryPivotSeries((series) => expect(series.z).toBe(4));
     });
 
     it("does not show symbols", () => {
-      const result = buildPivotSeries(mockCandles, mockPivotLevels);
-      result.forEach((series) => expect(series.showSymbol).toBe(false));
+      expectEveryPivotSeries((series) => expect(series.showSymbol).toBe(false));
     });
 
     it("does not connect nulls", () => {
-      const result = buildPivotSeries(mockCandles, mockPivotLevels);
-      result.forEach((series) => expect(series.connectNulls).toBe(false));
+      expectEveryPivotSeries((series) => expect(series.connectNulls).toBe(false));
     });
 
     it("sets silent to true", () => {
-      const result = buildPivotSeries(mockCandles, mockPivotLevels);
-      result.forEach((series) => expect(series.silent).toBe(true));
+      expectEveryPivotSeries((series) => expect(series.silent).toBe(true));
     });
 
     it("does not show symbols", () => {
-      const result = buildPivotSeries(mockCandles, mockPivotLevels);
-      result.forEach((series) => expect(series.showSymbol).toBe(false));
+      expectEveryPivotSeries((series) => expect(series.showSymbol).toBe(false));
     });
 
     it("does not connect nulls", () => {
-      const result = buildPivotSeries(mockCandles, mockPivotLevels);
-      result.forEach((series) => expect(series.connectNulls).toBe(false));
+      expectEveryPivotSeries((series) => expect(series.connectNulls).toBe(false));
     });
 
     it("uses date_raw as key but looks up by date", () => {

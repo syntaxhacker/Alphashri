@@ -9,7 +9,13 @@ import {
   buildHighlightMarkers,
   buildHighlightLevelSeries,
 } from "./chartUtils";
-import { makeCandles } from "./chart/chartTestFixtures";
+import {
+  makeCandles,
+  expectZeroOpenChange,
+  makeDarkTheme,
+  registerFormatVolumeMillionsTest,
+  registerFormatVolumeThousandsTest,
+} from "./chart/chartTestFixtures";
 import {
   POSITIVE,
   NEGATIVE,
@@ -26,23 +32,7 @@ import {
 } from "../config/colors";
 
 describe("getChartThemeColors", () => {
-  const darkTheme = {
-    colors: {
-      dark: {
-        7: CHART_DARK_BG,
-        5: CHART_DARK_SPLIT,
-        4: CHART_DARK_BORDER,
-        1: CHART_DARK_MUTED,
-      },
-      gray: {
-        8: CHART_DARK_TEXT,
-        6: CHART_DARK_MUTED,
-        3: CHART_DARK_BORDER,
-        2: CHART_DARK_SPLIT,
-      },
-    },
-    white: CHART_DARK_TEXT,
-  };
+  const darkTheme = makeDarkTheme();
 
   it("returns dark theme colors when isDark is true", () => {
     const result = getChartThemeColors(true, darkTheme);
@@ -74,8 +64,7 @@ describe("getCandleChange", () => {
   });
 
   it("handles zero open", () => {
-    const result = getCandleChange(0, 100);
-    expect(result.change).toBe("0");
+    expectZeroOpenChange();
   });
 });
 
@@ -100,15 +89,8 @@ describe("getCandleFromParams", () => {
 });
 
 describe("formatVolume", () => {
-  it("formats millions with M suffix", () => {
-    expect(formatVolume(1500000)).toBe("1.5M");
-    expect(formatVolume(2000000)).toBe("2.0M");
-  });
-
-  it("formats thousands with K suffix", () => {
-    expect(formatVolume(1500)).toBe("1.5K");
-    expect(formatVolume(1000)).toBe("1.0K");
-  });
+  registerFormatVolumeMillionsTest();
+  registerFormatVolumeThousandsTest();
 
   it("returns plain number for < 1000", () => {
     expect(formatVolume(999)).toBe("999");

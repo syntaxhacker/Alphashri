@@ -27,6 +27,25 @@ afterEach(() => {
   uninstallMockWs();
 });
 
+/** Open the socket and push the canonical first tick (spot 23123.5), then wait
+ *  for the spot store to pick it up. `changePct` picks the finite (0.12) or
+ *  JSON-null payload variant. */
+async function openWithFirstTick(changePct: number | null) {
+  const { result } = renderHook(() => useNiftySpotTick());
+  const ws = MockWebSocket.instances[0];
+  act(() => {
+    ws.open();
+    ws.receive({
+      type: "tick",
+      spot: 23123.5,
+      ts: "2026-10-12T10:00:01+05:30",
+      change_pct: changePct,
+    });
+  });
+  await waitFor(() => expect(result.current?.spot).toBe(23123.5));
+  return { result, ws };
+}
+
 const REPORT_DATA = {
   mode: "live",
   date: "2026-10-12",
@@ -224,18 +243,7 @@ describe("useNiftyReportStream", () => {
         useNiftyReportStream({ expiry: undefined, enabled }),
       { initialProps: { enabled: true } },
     );
-    const { result } = renderHook(() => useNiftySpotTick());
-    const ws = MockWebSocket.instances[0];
-    act(() => {
-      ws.open();
-      ws.receive({
-        type: "tick",
-        spot: 23123.5,
-        ts: "2026-10-12T10:00:01+05:30",
-        change_pct: 0.12,
-      });
-    });
-    await waitFor(() => expect(result.current?.spot).toBe(23123.5));
+    const { result } = await openWithFirstTick(0.12);
 
     rerender({ enabled: false });
     await waitFor(() => expect(result.current).toBeNull());
@@ -266,18 +274,7 @@ describe("useNiftyReportStream", () => {
     const hook = renderHook(() =>
       useNiftyReportStream({ expiry: undefined, enabled: true }),
     );
-    const { result } = renderHook(() => useNiftySpotTick());
-    const ws = MockWebSocket.instances[0];
-    act(() => {
-      ws.open();
-      ws.receive({
-        type: "tick",
-        spot: 23123.5,
-        ts: "2026-10-12T10:00:01+05:30",
-        change_pct: null,
-      });
-    });
-    await waitFor(() => expect(result.current?.spot).toBe(23123.5));
+    const { result, ws } = await openWithFirstTick(null);
 
     act(() => {
       // Non-finite spots arrive as JSON null (or NaN-ish strings).

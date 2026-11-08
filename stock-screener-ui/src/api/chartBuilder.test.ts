@@ -3,6 +3,20 @@ import { buildChartData, chartTradesToTrades } from "./chartBuilder";
 import { makeChartTrade, makeRawCandle, makeRawTrade } from "./apiTestMocks";
 
 describe("buildChartData", () => {
+  function expectSingleCandleTimeNormalized(indexEntry: string): void {
+    const candles = makeRawCandle({
+      index: [indexEntry],
+      open: [100],
+      high: [102],
+      low: [99],
+      close: [101],
+      volume: [500],
+    });
+    const result = buildChartData("TEST", candles, []);
+
+    expect(result.candles[0].time).toBe("2025-10-24T09:15");
+  }
+
   test("builds chart data with correct structure", () => {
     const result = buildChartData("RELIANCE", makeRawCandle(), [makeRawTrade()]);
 
@@ -29,31 +43,11 @@ describe("buildChartData", () => {
   });
 
   test("handles candles with +00:00 timezone suffix", () => {
-    const candles = makeRawCandle({
-      index: ["2025-10-24T09:15:00+00:00"],
-      open: [100],
-      high: [102],
-      low: [99],
-      close: [101],
-      volume: [500],
-    });
-    const result = buildChartData("TEST", candles, []);
-
-    expect(result.candles[0].time).toBe("2025-10-24T09:15");
+    expectSingleCandleTimeNormalized("2025-10-24T09:15:00+00:00");
   });
 
   test("handles candles with Z timezone suffix", () => {
-    const candles = makeRawCandle({
-      index: ["2025-10-24T09:15:00Z"],
-      open: [100],
-      high: [102],
-      low: [99],
-      close: [101],
-      volume: [500],
-    });
-    const result = buildChartData("TEST", candles, []);
-
-    expect(result.candles[0].time).toBe("2025-10-24T09:15");
+    expectSingleCandleTimeNormalized("2025-10-24T09:15:00Z");
   });
 
   test("skips candles with date-only strings (no time component)", () => {

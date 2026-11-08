@@ -51,6 +51,22 @@ function input(over: Partial<PreMoveInput> = {}): PreMoveInput {
   };
 }
 
+/** CE-covering scenario: OI starts unwinding after minute 24; the call
+ *  premium steps by `premStep` per minute (positive = bid, negative = falls). */
+function scoreCallCover(premStep: number) {
+  const pts = points().map((p, i) =>
+    i < 24
+      ? p
+      : { ...p, ce: p.ce - (i - 23) * 100_000, cePrem: p.cePrem + (i - 23) * premStep },
+  );
+  return scorePreMove({
+    points: pts,
+    rows: [],
+    pressure: null,
+    regime: { iv: 15, rv: 15 },
+  });
+}
+
 describe("scorePreMove", () => {
   test("the 13:19 setup arms on the positioning sequence", () => {
     const s = scorePreMove(input());
@@ -109,42 +125,14 @@ describe("scorePreMove", () => {
 
 describe("scorePreMove — call short-covering (2026-10-28 signature)", () => {
   test("arms when CE OI falls while the premium is bid", () => {
-    const pts = points().map((p, i) =>
-      i < 24
-        ? p
-        : {
-            ...p,
-            ce: p.ce - (i - 23) * 100_000,
-            cePrem: p.cePrem + (i - 23) * 0.2,
-          },
-    );
-    const s = scorePreMove({
-      points: pts,
-      rows: [],
-      pressure: null,
-      regime: { iv: 15, rv: 15 },
-    });
+    const s = scoreCallCover(0.2);
     expect(s.components.some((c) => c.key === "call-cover")).toBe(true);
     expect(s.reasons).toContain("calls covered");
     expect(s.score).toBeGreaterThanOrEqual(4);
   });
 
   test("does not award covering when the premium also falls", () => {
-    const pts = points().map((p, i) =>
-      i < 24
-        ? p
-        : {
-            ...p,
-            ce: p.ce - (i - 23) * 100_000,
-            cePrem: p.cePrem - (i - 23) * 2.0,
-          },
-    );
-    const s = scorePreMove({
-      points: pts,
-      rows: [],
-      pressure: null,
-      regime: { iv: 15, rv: 15 },
-    });
+    const s = scoreCallCover(-2.0);
     expect(s.components.some((c) => c.key === "call-cover")).toBe(false);
   });
 });

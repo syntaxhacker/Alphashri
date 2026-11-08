@@ -1,9 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { createElement, type ReactElement } from "react";
+import { createElement } from "react";
 import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
-import { UIProvider } from "@/ui";
+import { cleanup, screen } from "@testing-library/react";
 import { buildFlowEvents, clockLabel, groupFlowRuns, summarizeFlowRuns, type FlowTapeRow } from "./niftyFlowStrip";
 import {
   FLOW_BEAR,
@@ -12,15 +11,7 @@ import {
   NiftyFlowStrip,
   flowTickPct,
 } from "./NiftyFlowStrip";
-import { hm } from "./reportTestFixtures";
-
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return createElement(UIProvider, null, children);
-}
-
-function r(jsx: ReactElement) {
-  return render(jsx, { wrapper: TestWrapper });
-}
+import { hm, r } from "./reportTestFixtures";
 
 afterEach(() => {
   cleanup();

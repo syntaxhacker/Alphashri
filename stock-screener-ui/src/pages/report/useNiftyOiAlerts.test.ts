@@ -97,6 +97,14 @@ function useAlerts(
     : useNiftyOiAlerts(bursts, CHAIN, SPOT, ready, enabled, sessionKey, seedTrail);
 }
 
+/** Hook armed with an empty burst list — the session's first burst must fire. */
+function renderEmptyAlerts() {
+  return renderHook(
+    ({ bursts }: { bursts: OiBurst[] }) => useAlerts(bursts),
+    { initialProps: { bursts: [] as OiBurst[] } },
+  );
+}
+
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
@@ -142,10 +150,7 @@ describe("useNiftyOiAlerts", () => {
   });
 
   test("arms on an empty ready payload — the session's first burst is NOT swallowed", () => {
-    const { result, rerender } = renderHook(
-      ({ bursts }: { bursts: OiBurst[] }) => useAlerts(bursts),
-      { initialProps: { bursts: [] as OiBurst[] } },
-    );
+    const { result, rerender } = renderEmptyAlerts();
     expect(result.current.toasts).toEqual([]);
 
     // REGRESSION: if priming waited for a non-empty burst list, this — the
@@ -603,10 +608,7 @@ describe("useNiftyOiAlerts flow-aware direction", () => {
   }
 
   test("put unwind + covering threads into a BUY CE banner action", () => {
-    const { result, rerender } = renderHook(
-      ({ bursts }: { bursts: OiBurst[] }) => useAlerts(bursts),
-      { initialProps: { bursts: [] as OiBurst[] } },
-    );
+    const { result, rerender } = renderEmptyAlerts();
     act(() =>
       rerender({
         bursts: [
@@ -624,10 +626,7 @@ describe("useNiftyOiAlerts flow-aware direction", () => {
   });
 
   test("trend5m rescues a covering plan when the session trend lags", () => {
-    const { result, rerender } = renderHook(
-      ({ bursts }: { bursts: OiBurst[] }) => useAlerts(bursts),
-      { initialProps: { bursts: [] as OiBurst[] } },
-    );
+    const { result, rerender } = renderEmptyAlerts();
     act(() =>
       rerender({
         bursts: [
@@ -646,10 +645,7 @@ describe("useNiftyOiAlerts flow-aware direction", () => {
   });
 
   test("liquidation + downtrend threads into a BUY PE action", () => {
-    const { result, rerender } = renderHook(
-      ({ bursts }: { bursts: OiBurst[] }) => useAlerts(bursts),
-      { initialProps: { bursts: [] as OiBurst[] } },
-    );
+    const { result, rerender } = renderEmptyAlerts();
     act(() =>
       rerender({
         bursts: [

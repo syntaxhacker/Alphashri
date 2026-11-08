@@ -126,6 +126,14 @@ export function mockGlobalFetchRejected(message = "Network error"): void {
   (global.fetch as unknown as MockFn).mockRejectedValue(new Error(message));
 }
 
+/* ---------- fetchWithAuth module mock (chartPatterns tests) ---------- */
+
+export function fetchWithAuthModuleMock() {
+  return {
+    fetchWithAuth: vi.fn(),
+  };
+}
+
 /* ---------- normalizeBotPortfolio shared suite ---------- */
 
 export function makeFullPortfolio(): Record<string, unknown> {

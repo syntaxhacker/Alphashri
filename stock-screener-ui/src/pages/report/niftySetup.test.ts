@@ -49,6 +49,34 @@ function setupRadar(input: Omit<SetupInput, "metrics"> & { metrics?: SymbolMetri
   return setupRadarBase({ ...input, metrics: input.metrics ?? defaultMetrics });
 }
 
+/** Arrange for the symbol-scaling cases: coiled tape shifted onto the symbol's
+ *  spot, short-gamma book, pressure ratio 3. Only walls/pivots/strikes/metrics
+ *  differ between symbols. */
+function symbolRead({
+  spot,
+  wallsNear,
+  pivots,
+  strikes,
+  metrics,
+}: {
+  spot: number;
+  wallsNear: SetupInput["wallsNear"];
+  pivots: SetupInput["pivots"];
+  strikes: SetupInput["strikes"];
+  metrics: SymbolMetrics;
+}) {
+  return setupRadar({
+    rows: coilRows().map((r) => ({ ...r, spot: r.spot - 22_400 + spot })),
+    spot,
+    wallsNear,
+    gex: { regime: "short" } as never,
+    pivots,
+    strikes,
+    pressure: pressure(3),
+    metrics,
+  });
+}
+
 function makeMetrics(spot: number, strikeStep: number, lotSize: number = 65, maxWallOi: number = 11_000_000) {
   return symbolMetrics({
     spot,
@@ -148,14 +176,11 @@ describe("setupRadar", () => {
     const sensexWalls = { calls: [{ strike: 79_100, oi: 7_500_000, distance: 100 }], puts: [] };
     const sensexPivots = { pp: 79_050, r1: 79_200, s1: 78_900, prev: { high: 79_300, low: 78_800 } };
 
-    const read = setupRadar({
-      rows: coilRows().map((r) => ({ ...r, spot: r.spot - 22_400 + 79_000 })),
+    const read = symbolRead({
       spot: 79_000,
       wallsNear: sensexWalls,
-      gex: { regime: "short" } as never,
       pivots: sensexPivots as never,
       strikes: [{ strike: 79_100, ce: { sentiment: "Short Cover" }, pe: { sentiment: "Long Buildup" } }] as never,
-      pressure: pressure(3),
       metrics,
     });
 
@@ -167,14 +192,11 @@ describe("setupRadar", () => {
     const metrics = makeMetrics(79_000, 100, 20, 7_500_000);
     const sensexWalls = { calls: [{ strike: 79_300, oi: 7_500_000, distance: 300 }], puts: [] };
 
-    const read = setupRadar({
-      rows: coilRows().map((r) => ({ ...r, spot: r.spot - 22_400 + 79_000 })),
+    const read = symbolRead({
       spot: 79_000,
       wallsNear: sensexWalls,
-      gex: { regime: "short" } as never,
       pivots: { pp: 79_050, r1: 79_200, s1: 78_900, prev: { high: 79_300, low: 78_800 } } as never,
       strikes: [] as never,
-      pressure: pressure(3),
       metrics,
     });
 
@@ -190,14 +212,11 @@ describe("setupRadar", () => {
     const relianceWalls = { calls: [{ strike: 1_450, oi: 14_000_000, distance: 50 }], puts: [] };
     const reliancePivots = { pp: 1_420, r1: 1_480, s1: 1_380, prev: { high: 1_500, low: 1_350 } };
 
-    const read = setupRadar({
-      rows: coilRows().map((r) => ({ ...r, spot: r.spot - 22_400 + 1_400 })),
+    const read = symbolRead({
       spot: 1_400,
       wallsNear: relianceWalls,
-      gex: { regime: "short" } as never,
       pivots: reliancePivots as never,
       strikes: [{ strike: 1_450, ce: { sentiment: "Short Cover" }, pe: { sentiment: "Long Buildup" } }] as never,
-      pressure: pressure(3),
       metrics: makeMetrics(1_400, 50, 500, 14_000_000),
     });
 
@@ -209,14 +228,11 @@ describe("setupRadar", () => {
     const metrics = makeMetrics(1_400, 50, 500, 14_000_000);
     const relianceWalls = { calls: [{ strike: 1_450, oi: 1_000_000, distance: 50 }], puts: [] };
 
-    const read = setupRadar({
-      rows: coilRows().map((r) => ({ ...r, spot: r.spot - 22_400 + 1_400 })),
+    const read = symbolRead({
       spot: 1_400,
       wallsNear: relianceWalls,
-      gex: { regime: "short" } as never,
       pivots: { pp: 1_420, r1: 1_480, s1: 1_380, prev: { high: 1_500, low: 1_350 } } as never,
       strikes: [] as never,
-      pressure: pressure(3),
       metrics,
     });
 

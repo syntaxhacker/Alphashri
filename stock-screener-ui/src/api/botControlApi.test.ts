@@ -393,6 +393,19 @@ describe("fetchBotStrategyPerformance", () => {
 });
 
 describe("refreshBotLiveData", () => {
+  function queueTwoBotsMockResponses(): void {
+    mockedApiFetch
+      .mockResolvedValueOnce(({ running: true, pid: 111 }))
+      .mockResolvedValueOnce(({ portfolio: { total_value: 100, initial_capital: 100 }, watchlist: ["BOT1"] }))
+      .mockResolvedValueOnce(({ positions: [{ symbol: "BOT1_POS", side: "BUY" }] }))
+      .mockResolvedValueOnce(({ scan_items: [{ symbol: "BOT1_SCAN" }] }))
+      .mockResolvedValueOnce(({ running: true, pid: 222 }))
+      .mockResolvedValueOnce(({ portfolio: { total_value: 200, initial_capital: 200 }, watchlist: ["BOT2"] }))
+      .mockResolvedValueOnce(({ positions: [{ symbol: "BOT2_POS", side: "BUY" }] }))
+      .mockResolvedValueOnce(({ scan_items: [{ symbol: "BOT2_SCAN" }] }));
+    mockFetchTrades.mockResolvedValue([{ exit_time: new Date().toISOString(), net_pnl: 200 }]);
+  }
+
   it("refreshes all bot data and updates state", async () => {
     const scanTimestamp = "2026-08-04T11:00:00+05:30";
     mockedApiFetch
@@ -481,32 +494,12 @@ describe("refreshBotLiveData", () => {
 
   it("ignores stale responses when newer request started before first completed", async () => {
     // Setup mocks for Bot 1 (will be stale) and Bot 2 (winner)
-    mockedApiFetch
-      .mockResolvedValueOnce(({ running: true, pid: 111 }))
-      .mockResolvedValueOnce(({ portfolio: { total_value: 100, initial_capital: 100 }, watchlist: ["BOT1"] }))
-      .mockResolvedValueOnce(({ positions: [{ symbol: "BOT1_POS", side: "BUY" }] }))
-      .mockResolvedValueOnce(({ scan_items: [{ symbol: "BOT1_SCAN" }] }))
-      .mockResolvedValueOnce(({ running: true, pid: 222 }))
-      .mockResolvedValueOnce(({ portfolio: { total_value: 200, initial_capital: 200 }, watchlist: ["BOT2"] }))
-      .mockResolvedValueOnce(({ positions: [{ symbol: "BOT2_POS", side: "BUY" }] }))
-      .mockResolvedValueOnce(({ scan_items: [{ symbol: "BOT2_SCAN" }] }));
-
-    mockFetchTrades.mockResolvedValue([{ exit_time: new Date().toISOString(), net_pnl: 200 }]);
+    queueTwoBotsMockResponses();
 
     vi.clearAllMocks();
 
     // Restore mock implementations: Bot 1 (4 calls) + Bot 2 (4 calls) + 1 fetchTrades
-    mockedApiFetch
-      .mockResolvedValueOnce(({ running: true, pid: 111 }))
-      .mockResolvedValueOnce(({ portfolio: { total_value: 100, initial_capital: 100 }, watchlist: ["BOT1"] }))
-      .mockResolvedValueOnce(({ positions: [{ symbol: "BOT1_POS", side: "BUY" }] }))
-      .mockResolvedValueOnce(({ scan_items: [{ symbol: "BOT1_SCAN" }] }))
-      .mockResolvedValueOnce(({ running: true, pid: 222 }))
-      .mockResolvedValueOnce(({ portfolio: { total_value: 200, initial_capital: 200 }, watchlist: ["BOT2"] }))
-      .mockResolvedValueOnce(({ positions: [{ symbol: "BOT2_POS", side: "BUY" }] }))
-      .mockResolvedValueOnce(({ scan_items: [{ symbol: "BOT2_SCAN" }] }));
-
-    mockFetchTrades.mockResolvedValue([{ exit_time: new Date().toISOString(), net_pnl: 200 }]);
+    queueTwoBotsMockResponses();
 
     // Fire bot-1 without await, then await bot-2
     refreshBotLiveData("bot-1");

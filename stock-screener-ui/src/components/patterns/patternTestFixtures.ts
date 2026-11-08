@@ -1,6 +1,6 @@
 // Test-only shared fixtures for the pattern component tests.
 import { expect } from "vitest";
-import type { ChartCandle, PatternHitDTO } from "@/types/chartPatterns";
+import type { ChartCandle, PatternHitDTO, TrendLine } from "@/types/chartPatterns";
 import { buildPatternChartOption } from "./patternChartOption";
 
 export const IST_CANDLES: ChartCandle[] = [
@@ -16,6 +16,54 @@ export const UTC_CANDLES: ChartCandle[] = [
   { t: "2026-05-06T18:30:00+00:00", o: 105, h: 107, l: 101, c: 102, v: 900 },
   { t: "2026-05-07T18:30:00+00:00", o: 102, h: 108, l: 100, c: 107, v: 1200 },
 ];
+
+/** TLS-style standalone trend line; `line()` default in standaloneLines.test. */
+export function makeTrendLine(overrides: Partial<TrendLine> = {}): TrendLine {
+  return {
+    kind: "support",
+    start_date: "2026-04-01",
+    start_price: 99,
+    end_date: "2026-04-05",
+    end_price: 103,
+    slope: 1,
+    touches: 3,
+    span_bars: 5,
+    violations: 0,
+    ...overrides,
+  };
+}
+
+/** IRCON "Falling Wedge" hit row shared by patternTVData / standaloneLines. */
+export function makeIRCONHit(overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
+  return {
+    id: 1,
+    symbol: "IRCON",
+    name: "IRCON International Ltd.",
+    timeframe: "1D",
+    pattern_id: "falling_wedge",
+    pattern_name: "Falling Wedge",
+    family: "reversal",
+    direction: "bullish",
+    status: "confirmed",
+    quality: "strong",
+    confidence: 78.4,
+    start_date: "2026-04-01",
+    end_date: "2026-04-05",
+    start_price: 100,
+    end_price: 108,
+    breakout_level: 109,
+    target: 120,
+    stop: 99,
+    rr: 1.7,
+    bars_ago: 2,
+    volume_confirmed: true,
+    trendlines: [],
+    trend_lines: [],
+    pivots: [],
+    notes: "",
+    ...overrides,
+  };
+}
 
 export type PatternPivot = NonNullable<PatternHitDTO["pivots"]>[number];
 

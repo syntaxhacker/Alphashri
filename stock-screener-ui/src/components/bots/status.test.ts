@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { formatNumber, formatExitReason } from "../../utils/ui-helpers";
+import { THOUSANDS_K_CASES } from "../../utils/ui-helpers.test-fixtures";
 
 describe("formatExitReason", () => {
   test("maps target to Target", () => {
@@ -45,9 +46,9 @@ describe("formatNumber", () => {
 
   test("formats thousands with K suffix", () => {
     expect(formatNumber(1000)).toBe("1.0K");
-    expect(formatNumber(1500)).toBe("1.5K");
-    expect(formatNumber(10000)).toBe("10.0K");
-    expect(formatNumber(99999)).toBe("100.0K");
+    for (const [input, expected] of THOUSANDS_K_CASES) {
+      expect(formatNumber(input)).toBe(expected);
+    }
   });
 
   test("formats lakhs with L suffix", () => {

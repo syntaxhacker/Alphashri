@@ -4,14 +4,28 @@
 //
 // Imported by: useNiftyBurstStream.test, useNiftyReportStream.test,
 // niftyFlowStrip.test, useNiftyOiAlerts.test, niftyFlowRead.test,
-// niftyChartData.test.
+// niftyChartData.test, niftyOiHeatmap.test.
 
-import { act } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
+import { createElement, type ReactElement, type ReactNode } from "react";
 import { test, vi } from "vitest";
 import type { ChainTuple } from "./chainTuple";
+import { UIProvider } from "@/ui";
 import type { NiftyIntradayCandle, NiftyReport, NiftyStrike } from "@/types/niftyReport";
 import type { ReplayCandle } from "@/types/replay";
 import type { SpotPoint, TapeSpotPoint } from "./niftyChartData";
+
+// ---------------- Shared UI test harness ----------------
+
+/** UIProvider wrapper so report component tests render with the fin theme. */
+export function TestWrapper({ children }: { children: ReactNode }) {
+  return createElement(UIProvider, null, children);
+}
+
+/** render() bound to TestWrapper. */
+export function r(jsx: ReactElement) {
+  return render(jsx, { wrapper: TestWrapper });
+}
 
 // ---------------- Stream mocks (shared by useNiftyBurstStream / useNiftyReportStream) ----------------
 
@@ -88,6 +102,14 @@ export function expectSingleReconnect(render: () => void): void {
 export function hm(i: number): string {
   const total = 9 * 60 + 15 + i;
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+/** 09:15 + min minutes → minute-precision ISO string for the session date. */
+export function isoAt(min: number, session = "2026-10-14"): string {
+  const total = 9 * 60 + 15 + min;
+  const hh = String(Math.floor(total / 60)).padStart(2, "0");
+  const mm = String(total % 60).padStart(2, "0");
+  return `${session}T${hh}:${mm}:00+05:30`;
 }
 
 /** One tape spot `{ t, spot }`. */

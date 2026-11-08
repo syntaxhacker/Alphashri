@@ -29,6 +29,7 @@ import {
   normalizeTime,
 } from "./ui-helpers";
 import { POSITIVE, NEGATIVE, MARKER_TP, MARKER_SL, MARKER_EOD, EXIT_DEFAULT } from "../config/colors";
+import { THOUSANDS_K_CASES } from "./ui-helpers.test-fixtures";
 
 describe("formatCurrency", () => {
   test("formats positive numbers with rupee symbol", () => {
@@ -57,9 +58,9 @@ describe("formatNumber", () => {
   });
 
   test("formats thousands with K suffix", () => {
-    expect(formatNumber(1500)).toBe("1.5K");
-    expect(formatNumber(10000)).toBe("10.0K");
-    expect(formatNumber(99999)).toBe("100.0K");
+    for (const [input, expected] of THOUSANDS_K_CASES) {
+      expect(formatNumber(input)).toBe(expected);
+    }
   });
 
   test("formats lakhs with L suffix", () => {

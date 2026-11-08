@@ -1,53 +1,42 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { createElement, type ReactElement } from "react";
+import { createElement } from "react";
 import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
-import { UIProvider } from "@/ui";
+import { cleanup, screen } from "@testing-library/react";
 import * as palette from "@/ui/palette";
 import { buildOiHeatmap, heatmapReadText, readHeatmap, type HeatmapTapeRow } from "./niftyOiHeatmap";
 import { HEATMAP_CE, HEATMAP_FLIP, HEATMAP_MP, HEATMAP_PE, HEATMAP_SPOT, NiftyOiHeatmap } from "./NiftyOiHeatmap";
-import type { ChainTuple } from "./chainTuple";
-
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return createElement(UIProvider, null, children);
-}
-
-function r(jsx: ReactElement) {
-  return render(jsx, { wrapper: TestWrapper });
-}
+import { chainAt, isoAt, r } from "./reportTestFixtures";
 
 afterEach(() => {
   cleanup();
 });
-
-function chainAt(strikes: number[], spot: number, ceOi: number, peOi: number): Record<string, ChainTuple> {
-  const out: Record<string, ChainTuple> = {};
-  for (const s of strikes) {
-    void spot;
-    out[String(s)] = [10, 12, ceOi, peOi, 100, 100];
-  }
-  return out;
-}
 
 function row(t: string, spot: number, chain: HeatmapTapeRow["chain"], extra: Partial<HeatmapTapeRow> = {}): HeatmapTapeRow {
   return { t, spot, max_pain: 25700, flip: 25750, atm_strike: 25750, chain, ...extra };
 }
 
 const STRIKES = [25650, 25700, 25750, 25800, 25850];
-const T0 = "2026-10-14T09:15:00+05:30";
-
-function iso(min: number): string {
-  const total = 9 * 60 + 15 + min;
-  const hh = String(Math.floor(total / 60)).padStart(2, "0");
-  const mm = String(total % 60).padStart(2, "0");
-  return `2026-10-14T${hh}:${mm}:00+05:30`;
-}
+// CE +5000 build at 25750, PE +4000 build at 25700, spot below max pain — used by
+// the readHeatmap unit tests and the JSX read rendering test.
+const READ_ROWS = [
+  row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000), { max_pain: 25700 }),
+  row(
+    isoAt(6),
+    25760,
+    {
+      ...chainAt(STRIKES, 1000, 1000),
+      "25750": [10, 12, 6000, 1000, 1, 1], // CE +5000 → call build
+      "25700": [10, 12, 1000, 5000, 1, 1], // PE +4000 → put build
+    },
+    { max_pain: 25800 },
+  ),
+];
 
 describe("buildOiHeatmap", () => {
   test("groups rows into bucketMin buckets", () => {
     const rows = Array.from({ length: 10 }, (_, i) =>
-      row(iso(i), 25750 + i, chainAt(STRIKES, 25750, 1000, 1000)),
+      row(isoAt(i), 25750 + i, chainAt(STRIKES, 1000, 1000)),
     );
     const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500 });
     expect(m.empty).toBe(false);
@@ -58,7 +47,7 @@ describe("buildOiHeatmap", () => {
   });
 
   test("first bucket cells are flat with null deltas", () => {
-    const rows = [row(iso(0), 25750, chainAt(STRIKES, 25750, 1000, 1000)), row(iso(6), 25760, chainAt(STRIKES, 25760, 2000, 1000))];
+    const rows = [row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000)), row(isoAt(6), 25760, chainAt(STRIKES, 2000, 1000))];
     const m = buildOiHeatmap(rows, { bucketMin: 5 });
     const first = m.cells.filter((c) => c.bucket === 0);
     expect(first.length).toBeGreaterThan(0);
@@ -67,16 +56,16 @@ describe("buildOiHeatmap", () => {
 
   test("CE build reads red, PE build reads green", () => {
     const rows = [
-      row(iso(0), 25750, chainAt(STRIKES, 25750, 1000, 1000)),
-      row(iso(6), 25760, chainAt([25650, 25750], 25760, 5000, 1000)),
+      row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000)),
+      row(isoAt(6), 25760, chainAt([25650, 25750], 5000, 1000)),
     ];
     const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500 });
     const b1 = m.cells.filter((c) => c.bucket === 1);
     expect(b1.find((c) => c.strike === 25750)?.sign).toBe("ce");
     // PE-heavy strike: rebuild with PE dominance
     const rows2 = [
-      row(iso(0), 25750, chainAt(STRIKES, 25750, 1000, 1000)),
-      row(iso(6), 25760, { ...chainAt(STRIKES, 25760, 1000, 1000), "25850": [10, 12, 1000, 9000, 1, 1] }),
+      row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000)),
+      row(isoAt(6), 25760, { ...chainAt(STRIKES, 1000, 1000), "25850": [10, 12, 1000, 9000, 1, 1] }),
     ];
     const m2 = buildOiHeatmap(rows2, { bucketMin: 5, widthPts: 500 });
     expect(m2.cells.find((c) => c.bucket === 1 && c.strike === 25850)?.sign).toBe("pe");
@@ -84,8 +73,8 @@ describe("buildOiHeatmap", () => {
 
   test("delta arithmetic is current minus previous bucket", () => {
     const rows = [
-      row(iso(0), 25750, chainAt([25750], 25750, 1000, 2000)),
-      row(iso(6), 25760, chainAt([25750], 25760, 4000, 1500)),
+      row(isoAt(0), 25750, chainAt([25750], 1000, 2000)),
+      row(isoAt(6), 25760, chainAt([25750], 4000, 1500)),
     ];
     const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500 });
     const cell = m.cells.find((c) => c.bucket === 1 && c.strike === 25750);
@@ -95,9 +84,9 @@ describe("buildOiHeatmap", () => {
 
   test("intensity normalizes to the max |ΔOI|", () => {
     const rows = [
-      row(iso(0), 25750, chainAt(STRIKES, 25750, 1000, 1000)),
-      row(iso(6), 25760, {
-        ...chainAt(STRIKES, 25760, 1000, 1000),
+      row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000)),
+      row(isoAt(6), 25760, {
+        ...chainAt(STRIKES, 1000, 1000),
         "25750": [10, 12, 6000, 1000, 1, 1],
         "25800": [10, 12, 2000, 1000, 1, 1],
       }),
@@ -111,8 +100,8 @@ describe("buildOiHeatmap", () => {
   test("filters strikes outside spot ± width", () => {
     const wide = [...STRIKES, 24000, 27500];
     const rows = [
-      row(iso(0), 25750, chainAt(wide, 25750, 1000, 1000)),
-      row(iso(6), 25760, chainAt(wide, 25760, 2000, 1000)),
+      row(isoAt(0), 25750, chainAt(wide, 1000, 1000)),
+      row(isoAt(6), 25760, chainAt(wide, 2000, 1000)),
     ];
     const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500 });
     expect(m.strikes).not.toContain(24000);
@@ -122,8 +111,8 @@ describe("buildOiHeatmap", () => {
 
   test("missing chain yields the empty model", () => {
     const rows: HeatmapTapeRow[] = [
-      { t: iso(0), spot: 25750 },
-      { t: iso(6), spot: 25760, chain: {} },
+      { t: isoAt(0), spot: 25750 },
+      { t: isoAt(6), spot: 25760, chain: {} },
     ];
     const m = buildOiHeatmap(rows);
     expect(m.empty).toBe(true);
@@ -132,13 +121,13 @@ describe("buildOiHeatmap", () => {
 
   test("empty input and bad spots are empty", () => {
     expect(buildOiHeatmap([]).empty).toBe(true);
-    expect(buildOiHeatmap([{ t: iso(0), spot: 0 }]).empty).toBe(true);
+    expect(buildOiHeatmap([{ t: isoAt(0), spot: 0 }]).empty).toBe(true);
   });
 
   test("carries spot, max-pain and flip per bucket", () => {
     const rows = [
-      row(iso(0), 25750, chainAt(STRIKES, 25750, 1000, 1000), { max_pain: 25700, flip: 25800 }),
-      row(iso(6), 25760, chainAt(STRIKES, 25760, 2000, 1000), { max_pain: 25800, flip: 25700 }),
+      row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000), { max_pain: 25700, flip: 25800 }),
+      row(isoAt(6), 25760, chainAt(STRIKES, 2000, 1000), { max_pain: 25800, flip: 25700 }),
     ];
     const m = buildOiHeatmap(rows, { bucketMin: 5 });
     expect(m.buckets[1].spot).toBe(25760);
@@ -148,8 +137,8 @@ describe("buildOiHeatmap", () => {
 
   test("flags a bucket when an earlier row (not the representative) touches max pain", () => {
     const rows = [
-      row(iso(0), 25700, chainAt(STRIKES, 25700, 1000, 1000), { max_pain: 25700 }),
-      row(iso(4), 25800, chainAt(STRIKES, 25800, 2000, 1000), { max_pain: 25700 }),
+      row(isoAt(0), 25700, chainAt(STRIKES, 1000, 1000), { max_pain: 25700 }),
+      row(isoAt(4), 25800, chainAt(STRIKES, 2000, 1000), { max_pain: 25700 }),
     ];
     const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500 });
     expect(m.buckets).toHaveLength(1);
@@ -161,8 +150,8 @@ describe("buildOiHeatmap", () => {
 
   test("a bucket with no touching row keeps touch null", () => {
     const rows = [
-      row(iso(0), 25750, chainAt(STRIKES, 25750, 1000, 1000), { max_pain: 25500 }),
-      row(iso(4), 25800, chainAt(STRIKES, 25800, 2000, 1000), { max_pain: 25500 }),
+      row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000), { max_pain: 25500 }),
+      row(isoAt(4), 25800, chainAt(STRIKES, 2000, 1000), { max_pain: 25500 }),
     ];
     const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500 });
     expect(m.buckets[0].touch).toBeNull();
@@ -170,9 +159,9 @@ describe("buildOiHeatmap", () => {
 
   test("picks the closest touching row when several touch", () => {
     const rows = [
-      row(iso(0), 25708, chainAt(STRIKES, 25708, 1000, 1000), { max_pain: 25700 }),
-      row(iso(2), 25701, chainAt(STRIKES, 25701, 1500, 1000), { max_pain: 25700 }),
-      row(iso(4), 25800, chainAt(STRIKES, 25800, 2000, 1000), { max_pain: 25700 }),
+      row(isoAt(0), 25708, chainAt(STRIKES, 1000, 1000), { max_pain: 25700 }),
+      row(isoAt(2), 25701, chainAt(STRIKES, 1500, 1000), { max_pain: 25700 }),
+      row(isoAt(4), 25800, chainAt(STRIKES, 2000, 1000), { max_pain: 25700 }),
     ];
     const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500 });
     expect(m.buckets[0].touch).toMatchObject({ spot: 25701, distance: 1, label: "09:17" });
@@ -180,7 +169,7 @@ describe("buildOiHeatmap", () => {
 
   test("bucket start labels are the wall-clock bucket starts", () => {
     const rows = Array.from({ length: 10 }, (_, i) =>
-      row(iso(i), 25750, chainAt(STRIKES, 25750, 1000, 1000)),
+      row(isoAt(i), 25750, chainAt(STRIKES, 1000, 1000)),
     );
     const m = buildOiHeatmap(rows, { bucketMin: 5 });
     expect(m.buckets.map((b) => b.startLabel)).toEqual(["09:15", "09:20"]);
@@ -190,22 +179,8 @@ describe("buildOiHeatmap", () => {
 });
 
 describe("heatmap read", () => {
-  const readRows = [
-    row(iso(0), 25750, chainAt(STRIKES, 25750, 1000, 1000), { max_pain: 25700 }),
-    row(
-      iso(6),
-      25760,
-      {
-        ...chainAt(STRIKES, 25760, 1000, 1000),
-        "25750": [10, 12, 6000, 1000, 1, 1], // CE +5000 → call build
-        "25700": [10, 12, 1000, 5000, 1, 1], // PE +4000 → put build
-      },
-      { max_pain: 25800 },
-    ),
-  ];
-
   test("picks the largest CE and PE builds and compares spot to max pain", () => {
-    const read = readHeatmap(buildOiHeatmap(readRows, { bucketMin: 5, widthPts: 500 }));
+    const read = readHeatmap(buildOiHeatmap(READ_ROWS, { bucketMin: 5, widthPts: 500 }));
     expect(read.ceStrike).toBe(25750);
     expect(read.ceDoi).toBe(5000);
     expect(read.peStrike).toBe(25700);
@@ -215,7 +190,7 @@ describe("heatmap read", () => {
   });
 
   test("renders the one-line read", () => {
-    const read = readHeatmap(buildOiHeatmap(readRows, { bucketMin: 5, widthPts: 500 }));
+    const read = readHeatmap(buildOiHeatmap(READ_ROWS, { bucketMin: 5, widthPts: 500 }));
     expect(heatmapReadText(read)).toBe(
       "CE OI build at 25,750 · PE OI build at 25,700 · spot 25,760 below max pain 25,800",
     );
@@ -223,8 +198,8 @@ describe("heatmap read", () => {
 
   test("reads above max pain when spot is higher", () => {
     const rows = [
-      row(iso(0), 25750, chainAt(STRIKES, 25750, 1000, 1000), { max_pain: 25700 }),
-      row(iso(6), 25760, chainAt(STRIKES, 25760, 1000, 1000), { max_pain: 25700 }),
+      row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000), { max_pain: 25700 }),
+      row(isoAt(6), 25760, chainAt(STRIKES, 1000, 1000), { max_pain: 25700 }),
     ];
     const read = readHeatmap(buildOiHeatmap(rows, { bucketMin: 5 }));
     expect(read.spotVsMaxPain).toBe("above");
@@ -234,10 +209,10 @@ describe("heatmap read", () => {
 
 describe("NiftyOiHeatmap render", () => {
   const twoBuckets = [
-    row(iso(0), 25750, chainAt(STRIKES, 25750, 1000, 1000)),
-    row(iso(1), 25752, chainAt(STRIKES, 25752, 1100, 1050)),
-    row(iso(15), 25760, chainAt(STRIKES, 25760, 4000, 1200)),
-    row(iso(30), 25780, chainAt(STRIKES, 25780, 4500, 1300)),
+    row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000)),
+    row(isoAt(1), 25752, chainAt(STRIKES, 1100, 1050)),
+    row(isoAt(15), 25760, chainAt(STRIKES, 4000, 1200)),
+    row(isoAt(30), 25780, chainAt(STRIKES, 4500, 1300)),
   ];
 
   test("paints the cells on one canvas instead of a rect per bucket × strike", () => {
@@ -268,7 +243,7 @@ describe("NiftyOiHeatmap render", () => {
   test("a 1-minute ±500 tape stays one canvas node, not thousands of rects", () => {
     const wide = Array.from({ length: 21 }, (_, i) => 24750 + i * 50);
     const rows = Array.from({ length: 121 }, (_, i) =>
-      row(iso(i), 25750, chainAt(wide, 25750, 1000 + i, 1000 + i)),
+      row(isoAt(i), 25750, chainAt(wide, 1000 + i, 1000 + i)),
     );
     r(createElement(NiftyOiHeatmap, { rows, bucketMin: 1, widthPts: 500 }));
     const m = buildOiHeatmap(rows, { bucketMin: 1, widthPts: 500 });
@@ -359,8 +334,8 @@ describe("NiftyOiHeatmap render", () => {
 
   test("marks spot touching max pain with a dot on the spot line", () => {
     const rows = [
-      row(iso(0), 25750, chainAt(STRIKES, 25750, 1000, 1000), { max_pain: 25750 }),
-      row(iso(6), 25752, chainAt(STRIKES, 25752, 2000, 1000), { max_pain: 25754 }),
+      row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000), { max_pain: 25750 }),
+      row(isoAt(6), 25752, chainAt(STRIKES, 2000, 1000), { max_pain: 25754 }),
     ];
     r(createElement(NiftyOiHeatmap, { rows, bucketMin: 5, widthPts: 500 }));
     const dots = screen.getAllByTestId("nifty-heatmap-mp-touch");
@@ -379,8 +354,8 @@ describe("NiftyOiHeatmap render", () => {
     // representative does not (25,800). The circle must sit at 25,700, i.e.
     // below the representative spot on screen (larger cy).
     const rows = [
-      row(iso(0), 25700, chainAt(STRIKES, 25700, 1000, 1000), { max_pain: 25700 }),
-      row(iso(4), 25800, chainAt(STRIKES, 25800, 2000, 1000), { max_pain: 25700 }),
+      row(isoAt(0), 25700, chainAt(STRIKES, 1000, 1000), { max_pain: 25700 }),
+      row(isoAt(4), 25800, chainAt(STRIKES, 2000, 1000), { max_pain: 25700 }),
     ];
     r(createElement(NiftyOiHeatmap, { rows, bucketMin: 5, widthPts: 500 }));
     const dots = screen.getAllByTestId("nifty-heatmap-mp-touch");
@@ -393,35 +368,22 @@ describe("NiftyOiHeatmap render", () => {
 
   test("no dot when spot is far from max pain", () => {
     const rows = [
-      row(iso(0), 25750, chainAt(STRIKES, 25750, 1000, 1000), { max_pain: 25500 }),
-      row(iso(6), 25760, chainAt(STRIKES, 25760, 2000, 1000), { max_pain: 25500 }),
+      row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000), { max_pain: 25500 }),
+      row(isoAt(6), 25760, chainAt(STRIKES, 2000, 1000), { max_pain: 25500 }),
     ];
     r(createElement(NiftyOiHeatmap, { rows, bucketMin: 5, widthPts: 500 }));
     expect(screen.queryAllByTestId("nifty-heatmap-mp-touch")).toHaveLength(0);
   });
 
   test("renders the plain-English read for the tape", () => {
-    const rows = [
-      row(iso(0), 25750, chainAt(STRIKES, 25750, 1000, 1000), { max_pain: 25700 }),
-      row(
-        iso(6),
-        25760,
-        {
-          ...chainAt(STRIKES, 25760, 1000, 1000),
-          "25750": [10, 12, 6000, 1000, 1, 1],
-          "25700": [10, 12, 1000, 5000, 1, 1],
-        },
-        { max_pain: 25800 },
-      ),
-    ];
-    r(createElement(NiftyOiHeatmap, { rows, bucketMin: 5, widthPts: 500 }));
+    r(createElement(NiftyOiHeatmap, { rows: READ_ROWS, bucketMin: 5, widthPts: 500 }));
     expect(screen.getByTestId("nifty-heatmap-read")).toHaveTextContent(
       "CE OI build at 25,750 · PE OI build at 25,700 · spot 25,760 below max pain 25,800",
     );
   });
 
   test("empty chain renders the muted state", () => {
-    r(createElement(NiftyOiHeatmap, { rows: [{ t: T0, spot: 25750 }] }));
+    r(createElement(NiftyOiHeatmap, { rows: [{ t: isoAt(0), spot: 25750 }] }));
     expect(screen.getByTestId("nifty-heatmap-empty")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-heatmap-empty-text")).toHaveTextContent("no tape chain");
   });
@@ -448,7 +410,7 @@ describe("premium evidence (buyer vs writer)", () => {
   function readText(cePrem: number, pePrem: number): string {
     const rows: HeatmapTapeRow[] = [
       {
-        t: iso(0),
+        t: isoAt(0),
         spot: 25750,
         max_pain: 25700,
         chain: {
@@ -457,7 +419,7 @@ describe("premium evidence (buyer vs writer)", () => {
         },
       },
       {
-        t: iso(6),
+        t: isoAt(6),
         spot: 25760,
         max_pain: 25700,
         chain: {
@@ -498,8 +460,8 @@ describe("premium evidence (buyer vs writer)", () => {
 
 describe("session-anchored time axis", () => {
   test("startTime pads the axis from 09:15 and leaves the missing minutes empty", () => {
-    const rows = [row(iso(15), 25750, chainAt(STRIKES, 25750, 1000, 1000))]; // first tape row 09:30
-    const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500, startTime: iso(0) });
+    const rows = [row(isoAt(15), 25750, chainAt(STRIKES, 1000, 1000))]; // first tape row 09:30
+    const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500, startTime: isoAt(0) });
     expect(m.buckets[0].startLabel).toBe("09:15");
     expect(m.buckets.length).toBeGreaterThan(1);
     // 09:15 / 09:20 / 09:25 are padded empties, 09:30 carries the first row.
@@ -514,7 +476,7 @@ describe("session-anchored time axis", () => {
   });
 
   test("without startTime the axis still begins at the first tape row", () => {
-    const rows = [row(iso(15), 25750, chainAt(STRIKES, 25750, 1000, 1000))];
+    const rows = [row(isoAt(15), 25750, chainAt(STRIKES, 1000, 1000))];
     const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500 });
     expect(m.buckets[0].startLabel).toBe("09:30");
     expect(m.buckets[0].spot).toBe(25750);
@@ -522,16 +484,16 @@ describe("session-anchored time axis", () => {
 
   test("draws the persisted flow-flip vertical guide", () => {
     const rows = [
-      row(iso(0), 25750, chainAt(STRIKES, 25750, 1000, 1000)),
-      row(iso(6), 25760, chainAt(STRIKES, 25760, 2000, 1000)),
+      row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000)),
+      row(isoAt(6), 25760, chainAt(STRIKES, 2000, 1000)),
     ];
     r(
       createElement(NiftyOiHeatmap, {
         rows,
         bucketMin: 5,
         widthPts: 500,
-        startTime: iso(0),
-        flipAt: iso(30),
+        startTime: isoAt(0),
+        flipAt: isoAt(30),
       }),
     );
     const line = screen.getByTestId("heatmap-flip-line");
@@ -554,7 +516,7 @@ describe("premium evidence edge cases", () => {
   }): string {
     const rows: HeatmapTapeRow[] = [
       {
-        t: iso(0),
+        t: isoAt(0),
         spot: 25750,
         max_pain: 25700,
         chain: {
@@ -563,7 +525,7 @@ describe("premium evidence edge cases", () => {
         },
       },
       {
-        t: iso(6),
+        t: isoAt(6),
         spot: 25760,
         max_pain: 25700,
         chain: {
@@ -607,8 +569,8 @@ describe("premium evidence edge cases", () => {
 
 describe("session-anchored time axis edge cases", () => {
   test("first row exactly at 09:15 pads nothing", () => {
-    const rows = [row(iso(0), 25750, chainAt(STRIKES, 25750, 1000, 1000)), row(iso(6), 25760, chainAt(STRIKES, 25760, 2000, 1000))];
-    const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500, startTime: iso(0) });
+    const rows = [row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000)), row(isoAt(6), 25760, chainAt(STRIKES, 2000, 1000))];
+    const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500, startTime: isoAt(0) });
     expect(m.buckets.map((b) => b.startLabel)).toEqual(["09:15", "09:20"]);
     // No padded empty leading buckets — every bucket carries a representative.
     expect(m.buckets.every((b) => b.spot !== null)).toBe(true);
@@ -616,8 +578,8 @@ describe("session-anchored time axis edge cases", () => {
   });
 
   test("first row before 09:15 ignores the later startTime — axis keeps the tape's start", () => {
-    const rows = [row("2026-10-14T09:10:00+05:30", 25750, chainAt(STRIKES, 25750, 1000, 1000))];
-    const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500, startTime: iso(0) }); // asks for 09:15
+    const rows = [row("2026-10-14T09:10:00+05:30", 25750, chainAt(STRIKES, 1000, 1000))];
+    const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500, startTime: isoAt(0) }); // asks for 09:15
     expect(m.buckets[0].startLabel).toBe("09:10");
     expect(m.buckets[0].spot).toBe(25750);
     // No phantom leading bucket was inserted before the tape's own start.
@@ -625,7 +587,7 @@ describe("session-anchored time axis edge cases", () => {
   });
 
   test("an unparseable startTime is ignored and the axis begins at the tape", () => {
-    const rows = [row(iso(15), 25750, chainAt(STRIKES, 25750, 1000, 1000))]; // 09:30
+    const rows = [row(isoAt(15), 25750, chainAt(STRIKES, 1000, 1000))]; // 09:30
     const withGarbage = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500, startTime: "not-a-time" });
     const without = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500 });
     expect(withGarbage.buckets.map((b) => b.startLabel)).toEqual(without.buckets.map((b) => b.startLabel));
