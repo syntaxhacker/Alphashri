@@ -16,16 +16,40 @@ const SWING_BAR_SECONDS = 86400;
 const SYMBOL_PARAM = (def = "RELIANCE"): ReplayParamSpec =>
   ({ name: "symbol", label: "Symbol", type: "symbol", default: def });
 
+const timelineManual = (
+  id: string,
+  label: string,
+  barSeconds: number,
+  dates: string[],
+  daily: boolean,
+  params: ReplayParamSpec[],
+): ReplayPluginSpec => ({
+  id,
+  label,
+  mode: "timeline",
+  runMode: "manual",
+  barSeconds,
+  dates,
+  daily,
+  params,
+});
+
+const equityTimelineEntry = (
+  id: string,
+  label: string,
+  params: ReplayParamSpec[],
+): ReplayPluginSpec =>
+  timelineManual(id, label, EQUITY_BAR_SECONDS, INTRADAY_NSE_DATES, false, params);
+
+const swingTimelineEntry = (
+  id: string,
+  label: string,
+  params: ReplayParamSpec[],
+): ReplayPluginSpec =>
+  timelineManual(id, label, SWING_BAR_SECONDS, DAILY_DATES, true, params);
+
 export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
-  {
-    id: "orb",
-    label: "Opening Range Breakout",
-    mode: "timeline",
-    runMode: "manual",
-    barSeconds: EQUITY_BAR_SECONDS,
-    dates: INTRADAY_NSE_DATES,
-    daily: false,
-    params: [
+  equityTimelineEntry("orb", "Opening Range Breakout", [
       SYMBOL_PARAM(),
       { name: "or_minutes", label: "OR minutes", type: "int", default: 45 },
       { name: "sl_pct", label: "SL %", type: "float", default: 1.0 },
@@ -34,17 +58,8 @@ export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
       { name: "max_or_range_pct", label: "Max OR range %", type: "float", default: 3.0 },
       { name: "breakout_buffer_pct", label: "Breakout buffer %", type: "float", default: 0.3 },
       { name: "warmup", label: "Warmup bars", type: "int", default: 5 },
-    ],
-  },
-  {
-    id: "sr-breakout",
-    label: "Pivot S/R Breakout",
-    mode: "timeline",
-    runMode: "manual",
-    barSeconds: EQUITY_BAR_SECONDS,
-    dates: INTRADAY_NSE_DATES,
-    daily: false,
-    params: [
+    ]),
+  equityTimelineEntry("sr-breakout", "Pivot S/R Breakout", [
       SYMBOL_PARAM(),
       { name: "sl_pct", label: "SL %", type: "float", default: 1.5 },
       { name: "tp_pct", label: "TP %", type: "float", default: 2.5 },
@@ -53,17 +68,8 @@ export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
       { name: "max_distance_from_r1_pct", label: "Max distance from R1 %", type: "float", default: 5.0 },
       { name: "hist", label: "History (h)", type: "int", default: 8, min: 0, max: 24 },
       { name: "warmup", label: "Warmup bars", type: "int", default: 5 },
-    ],
-  },
-  {
-    id: "ema-cross",
-    label: "EMA 9/21 Crossover",
-    mode: "timeline",
-    runMode: "manual",
-    barSeconds: EQUITY_BAR_SECONDS,
-    dates: INTRADAY_NSE_DATES,
-    daily: false,
-    params: [
+    ]),
+  equityTimelineEntry("ema-cross", "EMA 9/21 Crossover", [
       SYMBOL_PARAM(),
       { name: "ema_fast_period", label: "EMA fast period", type: "int", default: 9 },
       { name: "ema_slow_period", label: "EMA slow period", type: "int", default: 21 },
@@ -72,8 +78,7 @@ export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
       { name: "enable_shorts", label: "Enable shorts", type: "bool", default: false },
       { name: "cooldown_bars", label: "Cooldown bars", type: "int", default: 3 },
       { name: "warmup", label: "Warmup bars", type: "int", default: 21 },
-    ],
-  },
+    ]),
   {
     id: "smc",
     label: "Smart Money Concepts",
@@ -88,15 +93,7 @@ export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
       { name: "warmup", label: "Warmup bars", type: "int", default: 30 },
     ],
   },
-  {
-    id: "52w-target",
-    label: "52W Target",
-    mode: "timeline",
-    runMode: "manual",
-    barSeconds: SWING_BAR_SECONDS,
-    dates: DAILY_DATES,
-    daily: true,
-    params: [
+  swingTimelineEntry("52w-target", "52W Target", [
       SYMBOL_PARAM("NETWEB"),
       { name: "lookback_days", label: "Lookback days", type: "int", default: 400 },
       { name: "sl_pct", label: "SL %", type: "float", default: 2.0 },
@@ -106,17 +103,8 @@ export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
       { name: "cooldown_days", label: "Cooldown days", type: "int", default: 7 },
       { name: "recent_touch_days", label: "Recent touch days", type: "int", default: 5 },
       { name: "warmup", label: "Warmup bars", type: "int", default: 20 },
-    ],
-  },
-  {
-    id: "blind-52w",
-    label: "Blind 52W",
-    mode: "timeline",
-    runMode: "manual",
-    barSeconds: SWING_BAR_SECONDS,
-    dates: DAILY_DATES,
-    daily: true,
-    params: [
+    ]),
+  swingTimelineEntry("blind-52w", "Blind 52W", [
       SYMBOL_PARAM("NETWEB"),
       { name: "lookback_days", label: "Lookback days", type: "int", default: 400 },
       { name: "near_high_threshold_pct", label: "Near-high threshold %", type: "float", default: 3.0 },
@@ -124,17 +112,8 @@ export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
       { name: "max_holding_days", label: "Max holding days", type: "int", default: 30 },
       { name: "sl_pct", label: "SL %", type: "float", default: 5.0 },
       { name: "warmup", label: "Warmup bars", type: "int", default: 20 },
-    ],
-  },
-  {
-    id: "short-52w-failed",
-    label: "Short Failed 52W Breakout",
-    mode: "timeline",
-    runMode: "manual",
-    barSeconds: SWING_BAR_SECONDS,
-    dates: DAILY_DATES,
-    daily: true,
-    params: [
+    ]),
+  swingTimelineEntry("short-52w-failed", "Short Failed 52W Breakout", [
       SYMBOL_PARAM("NETWEB"),
       { name: "lookback_days", label: "Lookback days", type: "int", default: 400 },
       { name: "sl_pct", label: "SL %", type: "float", default: 3.0 },
@@ -143,17 +122,8 @@ export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
       { name: "cooldown_days", label: "Cooldown days", type: "int", default: 15 },
       { name: "signal_lookback_days", label: "Signal lookback days", type: "int", default: 5 },
       { name: "warmup", label: "Warmup bars", type: "int", default: 20 },
-    ],
-  },
-  {
-    id: "adx-trend",
-    label: "ADX/DI Trend",
-    mode: "timeline",
-    runMode: "manual",
-    barSeconds: SWING_BAR_SECONDS,
-    dates: DAILY_DATES,
-    daily: true,
-    params: [
+    ]),
+  swingTimelineEntry("adx-trend", "ADX/DI Trend", [
       SYMBOL_PARAM("NETWEB"),
       { name: "lookback_days", label: "Lookback days", type: "int", default: 400 },
       { name: "sl_pct", label: "SL %", type: "float", default: 3.0 },
@@ -164,17 +134,8 @@ export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
       { name: "enable_shorts", label: "Enable shorts", type: "bool", default: true },
       { name: "adx_period", label: "ADX period", type: "int", default: 14 },
       { name: "warmup", label: "Warmup bars", type: "int", default: 30 },
-    ],
-  },
-  {
-    id: "volume-surge",
-    label: "Volume Surge Breakout",
-    mode: "timeline",
-    runMode: "manual",
-    barSeconds: SWING_BAR_SECONDS,
-    dates: DAILY_DATES,
-    daily: true,
-    params: [
+    ]),
+  swingTimelineEntry("volume-surge", "Volume Surge Breakout", [
       SYMBOL_PARAM("NETWEB"),
       { name: "lookback_days", label: "Lookback days", type: "int", default: 400 },
       { name: "sl_pct", label: "SL %", type: "float", default: 5.0 },
@@ -185,8 +146,7 @@ export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
       { name: "cooldown_days", label: "Cooldown days", type: "int", default: 10 },
       { name: "enable_shorts", label: "Enable shorts", type: "bool", default: false },
       { name: "warmup", label: "Warmup bars", type: "int", default: 20 },
-    ],
-  },
+    ]),
   {
     id: "smc-chop",
     label: "SMC Chop (mean reversion)",
