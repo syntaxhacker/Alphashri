@@ -3,6 +3,7 @@ import { theme } from "../../config/theme";
 import { formatPercentage, normalizeTime } from "../../utils/ui-helpers";
 import { getChartThemeColors, CANDLESTICK_ITEM_STYLE } from "../../utils/chartUtils";
 import { buildPivotSeries } from "../../utils/chartLineBuilders";
+import { mapOverlayDateValues } from "../../utils/chart/scaleHelpers";
 import {
   CHART_DARK_OVERLAY,
   CHART_LIGHT_OVERLAY,
@@ -154,9 +155,7 @@ export function buildChartOption(data: SymbolChartData, isDark: boolean): any {
   if (visuals?.overlays) {
     visuals.overlays.forEach((overlay: any) => {
       if (overlay.type === "line") {
-        const lineData = candles.map((c) =>
-          overlay.date && c.date === overlay.date ? overlay.value : null,
-        );
+        const lineData = mapOverlayDateValues(candles, overlay.date, overlay.value);
 
         series.push({
           id: overlay.id,
@@ -179,9 +178,7 @@ export function buildChartOption(data: SymbolChartData, isDark: boolean): any {
           legendData.push(overlay.label);
         }
       } else if (overlay.type === "box") {
-        const topData = candles.map((c) =>
-          overlay.date && c.date === overlay.date ? overlay.levels.top : null,
-        );
+        const topData = mapOverlayDateValues(candles, overlay.date, overlay.levels.top);
 
         series.push({
           id: `${overlay.id}_top`,

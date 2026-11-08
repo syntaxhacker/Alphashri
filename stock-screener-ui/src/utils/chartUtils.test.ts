@@ -9,6 +9,7 @@ import {
   buildHighlightMarkers,
   buildHighlightLevelSeries,
 } from "./chartUtils";
+import { makeCandles } from "./chart/chartTestFixtures";
 import {
   POSITIVE,
   NEGATIVE,
@@ -79,10 +80,7 @@ describe("getCandleChange", () => {
 });
 
 describe("getCandleFromParams", () => {
-  const candles = [
-    { open: 100, close: 105, high: 110, low: 95 },
-    { open: 105, close: 103, high: 108, low: 102 },
-  ];
+  const candles = makeCandles();
 
   it("returns null when no candlestick series", () => {
     const result = getCandleFromParams([{ seriesType: "line", dataIndex: 0 }], candles);

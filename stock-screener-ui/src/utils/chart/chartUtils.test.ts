@@ -8,6 +8,7 @@ import {
   insertHolidayGaps,
   CANDLESTICK_ITEM_STYLE,
 } from "../chartUtils";
+import { makeCandles } from "./chartTestFixtures";
 import {
   POSITIVE,
   NEGATIVE,
@@ -138,10 +139,7 @@ describe("getCandleChange", () => {
 });
 
 describe("getCandleFromParams", () => {
-  const candles = [
-    { open: 100, close: 105, high: 110, low: 95, volume: 1000, time: "09:30" },
-    { open: 105, close: 103, high: 108, low: 102, volume: 800, time: "09:31" },
-  ];
+  const candles = makeCandles();
 
   it("returns candle and change for candlestick series", () => {
     const params = [{ seriesType: "candlestick", dataIndex: 0 }];
