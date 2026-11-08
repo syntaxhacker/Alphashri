@@ -4,6 +4,7 @@ import { formatPercentage, normalizeTime } from "../../utils/ui-helpers";
 import { getChartThemeColors, CANDLESTICK_ITEM_STYLE } from "../../utils/chartUtils";
 import { buildPivotSeries } from "../../utils/chartLineBuilders";
 import { mapOverlayDateValues } from "../../utils/chart/scaleHelpers";
+import { buildOverlayLineSeries } from "../../utils/chart/overlayLine";
 import {
   CHART_DARK_OVERLAY,
   CHART_LIGHT_OVERLAY,
@@ -157,44 +158,34 @@ export function buildChartOption(data: SymbolChartData, isDark: boolean): any {
       if (overlay.type === "line") {
         const lineData = mapOverlayDateValues(candles, overlay.date, overlay.value);
 
-        series.push({
-          id: overlay.id,
-          name: overlay.label,
-          type: "line",
-          data: lineData,
-          showSymbol: false,
-          connectNulls: false,
-          silent: true,
-          z: 5,
-          lineStyle: {
+        series.push(
+          buildOverlayLineSeries({
+            id: overlay.id,
+            name: overlay.label,
+            data: lineData,
+            z: 5,
             color: overlay.color,
             width: 1,
-            type: overlay.dash ? "dashed" : "solid",
-          },
-          tooltip: { show: true },
-        });
-
-        if (!legendData.includes(overlay.label)) {
-          legendData.push(overlay.label);
-        }
+            dash: overlay.dash,
+            tooltip: true,
+          }),
+        );
       } else if (overlay.type === "box") {
         const topData = mapOverlayDateValues(candles, overlay.date, overlay.levels.top);
 
-        series.push({
-          id: `${overlay.id}_top`,
-          name: overlay.label,
-          type: "line",
-          data: topData,
-          showSymbol: false,
-          connectNulls: false,
-          silent: true,
-          z: 4,
-          lineStyle: { color: overlay.color, width: 0.5, opacity: 0.5, type: "dashed" },
-        });
-
-        if (!legendData.includes(overlay.label)) {
-          legendData.push(overlay.label);
-        }
+        series.push(
+          buildOverlayLineSeries({
+            id: `${overlay.id}_top`,
+            name: overlay.label,
+            data: topData,
+            z: 4,
+            color: overlay.color,
+            width: 0.5,
+            opacity: 0.5,
+            dash: true,
+            tooltip: false,
+          }),
+        );
       }
     });
   }

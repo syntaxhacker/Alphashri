@@ -11,9 +11,10 @@ import {
   POSITIVE,
   PRIMARY,
 } from "@/ui/palette";
-import { mapTimeSegment, mapTrendlines, pointsToSeriesData } from "./trendlineMapping";
+import { mapTrendlines, pointsToSeriesData } from "./trendlineMapping";
 import { formatChartTick, formatChartTimestamp } from "./datetime";
 import { formatCurrency } from "@/utils/ui-helpers";
+import { resolveVisibleStandalone, mapStandaloneLine } from "./standaloneLines";
 
 export const BOUNDARY_COLORS = PATTERN_BOUNDARY;
 
@@ -282,19 +283,11 @@ export function buildPatternChartOption({
   // straight start→end segment per line, drawn above the candles. View-only —
   // `trendlinesView` only controls which kinds are painted, never which
   // symbols/patterns match.
-  const standalone = standaloneTrendLines ?? hit?.trend_lines ?? [];
-  const visibleStandalone =
-    trendlinesView === "none"
-      ? []
-      : standalone.filter((line) =>
-          trendlinesView === "both" ? true : line?.kind === trendlinesView,
-        );
+  const visibleStandalone = resolveVisibleStandalone(standaloneTrendLines, hit, trendlinesView);
   visibleStandalone.forEach((line) => {
-    if (!line) return;
-    const name = line.kind === "support" ? "TLS" : "TLR";
-    const color = line.kind === "support" ? POSITIVE : NEGATIVE;
-    const points = mapTimeSegment(line.start_date, line.start_price, line.end_date, line.end_price, times);
-    if (!points || points.length === 0) return;
+    const mapped = mapStandaloneLine(line, times);
+    if (!mapped) return;
+    const { name, color, points } = mapped;
     // A degenerate single-point line draws nothing as a line — dot-mark it.
     const singlePoint = points.length <= 1;
     series.push({

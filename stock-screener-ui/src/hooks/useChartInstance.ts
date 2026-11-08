@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { loadEcharts } from "../utils/loadEcharts";
 import { buildChartOption } from "../components/chart/chartRenderer";
 import type { ChartPreviewData } from "../api/chartPreview";
 
@@ -13,14 +14,6 @@ interface UseChartInstanceOptions {
 interface UseChartInstanceResult {
   chartRef: React.RefObject<HTMLDivElement | null>;
   error: string | null;
-}
-
-async function loadEcharts(): Promise<any> {
-  if ((window as any).echarts) return (window as any).echarts;
-  const mod = await import("echarts");
-  const lib = (mod as any).default ?? mod;
-  (window as any).echarts = lib;
-  return lib;
 }
 
 export function useChartInstance({

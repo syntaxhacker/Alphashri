@@ -21,6 +21,7 @@
 
 import { chainLeg } from "./chainTuple";
 import { clockMinutes } from "./tapeRange";
+import { sortTapeRows } from "./tapeOrder";
 
 /** Minimal tape row — only `t` plus the optional per-strike chain. */
 export interface ParticipantFlowRow {
@@ -120,20 +121,8 @@ export function buildParticipantFlow(
   rows: ParticipantFlowRow[],
   opts?: { bucketMin?: number },
 ): ParticipantFlowBucket[] {
-  const bucketMin = opts?.bucketMin && opts.bucketMin > 0 ? opts.bucketMin : 30;
-  const list = Array.isArray(rows) ? rows : [];
-  if (list.length === 0) return [];
-
-  const indexed = list.map((row, i) => ({ row, i }));
-  indexed.sort((a, b) => {
-    const ta = clockMinutes(a.row?.t);
-    const tb = clockMinutes(b.row?.t);
-    if (ta === null && tb === null) return a.i - b.i;
-    if (ta === null) return 1;
-    if (tb === null) return -1;
-    return ta === tb ? a.i - b.i : ta - tb;
-  });
-  const ordered = indexed.map((x) => x.row);
+  const { bucketMin, ordered } = sortTapeRows(rows, 30, opts);
+  if (ordered.length === 0) return [];
 
   const starts = ordered.map((r) => {
     const mins = clockMinutes(r?.t);

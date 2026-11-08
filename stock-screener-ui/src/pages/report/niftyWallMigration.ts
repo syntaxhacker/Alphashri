@@ -15,6 +15,7 @@
 
 import { clockMinutes, minutesToHhmm } from "./tapeRange";
 import { chainLeg } from "./chainTuple";
+import { sortTapeRows } from "./tapeOrder";
 
 /** Minimal tape row — only the fields the migration needs. */
 export interface WallMigrationRow {
@@ -137,23 +138,12 @@ export function buildWallMigration(
   rows: WallMigrationRow[],
   opts?: { bucketMin?: number },
 ): WallMigrationBucket[] {
-  const bucketMin = opts?.bucketMin && opts.bucketMin > 0 ? opts.bucketMin : 15;
-  const list = Array.isArray(rows) ? rows : [];
-  if (list.length === 0) return [];
-
-  const indexed = list.map((row, i) => ({ row, i }));
-  indexed.sort((a, b) => {
-    const ta = clockMinutes(a.row?.t);
-    const tb = clockMinutes(b.row?.t);
-    if (ta === null && tb === null) return a.i - b.i;
-    if (ta === null) return 1;
-    if (tb === null) return -1;
-    return ta === tb ? a.i - b.i : ta - tb;
-  });
+  const { bucketMin, ordered } = sortTapeRows(rows, 15, opts);
+  if (ordered.length === 0) return [];
 
   const order: Array<number | null> = [];
   const groups = new Map<number | null, WallMigrationRow[]>();
-  for (const { row } of indexed) {
+  for (const row of ordered) {
     const start = bucketStartMinutes(row?.t, bucketMin);
     if (!groups.has(start)) {
       groups.set(start, []);

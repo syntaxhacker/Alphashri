@@ -1,14 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { ChartCandle, TrendLine } from "@/types/chartPatterns";
+import type { TrendLine } from "@/types/chartPatterns";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
 import { buildPatternChartOption } from "./patternChartOption";
-
-const CANDLES: ChartCandle[] = [
-  { t: "2026-05-04T09:15:00+05:30", o: 100, h: 104, l: 99, c: 103, v: 1000 },
-  { t: "2026-05-05T09:15:00+05:30", o: 103, h: 106, l: 102, c: 105, v: 1100 },
-  { t: "2026-05-06T09:15:00+05:30", o: 105, h: 107, l: 101, c: 102, v: 900 },
-  { t: "2026-05-07T09:15:00+05:30", o: 102, h: 108, l: 100, c: 107, v: 1200 },
-];
+import { IST_CANDLES as CANDLES, seriesOf } from "./patternTestFixtures";
 
 function makeLine(overrides: Partial<TrendLine> = {}): TrendLine {
   return {
@@ -40,9 +34,11 @@ interface SeriesLike {
   z?: number;
 }
 
-function seriesOf(option: Record<string, unknown>): SeriesLike[] {
-  return option.series as unknown as SeriesLike[];
-}
+const namesOf = (option: Record<string, unknown>) =>
+  seriesOf<{ name?: string }>(option).map((s) => s.name ?? "");
+
+const candleSeries = (option: Record<string, unknown>) =>
+  seriesOf<SeriesLike>(option).filter((s) => s.type === "candlestick");
 
 describe("buildPatternChartOption standalone trendlines", () => {
   it("draws support + resistance series when the view is both", () => {
@@ -51,7 +47,7 @@ describe("buildPatternChartOption standalone trendlines", () => {
       standaloneTrendLines: LINES,
       trendlinesView: "both",
     });
-    const series = seriesOf(option);
+    const series = seriesOf<SeriesLike>(option);
     const support = series.filter((s) => s.name === "TLS");
     const resistance = series.filter((s) => s.name === "TLR");
     expect(support).toHaveLength(1);
@@ -71,7 +67,7 @@ describe("buildPatternChartOption standalone trendlines", () => {
       standaloneTrendLines: LINES,
       trendlinesView: "both",
     });
-    const series = seriesOf(option);
+    const series = seriesOf<SeriesLike>(option);
     expect(series.find((s) => s.name === "TLS")?.endLabel?.formatter).toBe(
       "TLS · 3 touches",
     );
@@ -86,10 +82,10 @@ describe("buildPatternChartOption standalone trendlines", () => {
       standaloneTrendLines: LINES,
       trendlinesView: "support",
     });
-    const names = seriesOf(option).map((s) => s.name);
+    const names = namesOf(option);
     expect(names).toContain("TLS");
     expect(names).not.toContain("TLR");
-    expect(seriesOf(option).some((s) => s.type === "candlestick")).toBe(true);
+    expect(seriesOf<SeriesLike>(option).some((s) => s.type === "candlestick")).toBe(true);
   });
 
   it("draws only resistance lines when the view is resistance", () => {
@@ -98,7 +94,7 @@ describe("buildPatternChartOption standalone trendlines", () => {
       standaloneTrendLines: LINES,
       trendlinesView: "resistance",
     });
-    const names = seriesOf(option).map((s) => s.name);
+    const names = namesOf(option);
     expect(names).toContain("TLR");
     expect(names).not.toContain("TLS");
   });
@@ -109,11 +105,11 @@ describe("buildPatternChartOption standalone trendlines", () => {
       standaloneTrendLines: LINES,
       trendlinesView: "none",
     });
-    const names = seriesOf(option).map((s) => s.name);
+    const names = namesOf(option);
     expect(names).not.toContain("TLS");
     expect(names).not.toContain("TLR");
     // …but the candles are still drawn.
-    expect(seriesOf(option).some((s) => s.type === "candlestick")).toBe(true);
+    expect(seriesOf<SeriesLike>(option).some((s) => s.type === "candlestick")).toBe(true);
   });
 
   it("reads the hit's trend_lines when no explicit lines are passed", () => {
@@ -126,7 +122,7 @@ describe("buildPatternChartOption standalone trendlines", () => {
       } as never,
       trendlinesView: "both",
     });
-    const names = seriesOf(option).map((s) => s.name);
+    const names = namesOf(option);
     expect(names).toContain("TLS");
     expect(names).toContain("TLR");
   });
@@ -138,11 +134,11 @@ describe("buildPatternChartOption standalone trendlines", () => {
       trendlinesView: "both",
       compact: true,
     });
-    const names = seriesOf(option).map((s) => s.name);
+    const names = namesOf(option);
     expect(names).toContain("TLS");
     expect(names).toContain("TLR");
     expect(
-      seriesOf(option).find((s) => s.name === "TLS")?.endLabel,
+      seriesOf<SeriesLike>(option).find((s) => s.name === "TLS")?.endLabel,
     ).toBeUndefined();
   });
 
@@ -162,7 +158,7 @@ describe("buildPatternChartOption standalone trendlines", () => {
       standaloneTrendLines: [line],
       trendlinesView: "both",
     });
-    const resistance = seriesOf(option).find((s) => s.name === "TLR");
+    const resistance = seriesOf<SeriesLike>(option).find((s) => s.name === "TLR");
     expect(resistance).toBeDefined();
     const data = resistance?.data as Array<number | null>;
     expect(data).toHaveLength(CANDLES.length);
@@ -195,7 +191,7 @@ describe("buildPatternChartOption standalone trendlines", () => {
       standaloneTrendLines: [before, after],
       trendlinesView: "both",
     });
-    const names = seriesOf(option).map((s) => s.name);
+    const names = namesOf(option);
     expect(names).not.toContain("TLS");
     expect(names).not.toContain("TLR");
   });
@@ -208,8 +204,7 @@ describe("buildPatternChartOption candles are always present", () => {
       standaloneTrendLines: [],
       trendlinesView: "both",
     });
-    const series = seriesOf(option);
-    const candles = series.filter((s) => s.type === "candlestick");
+    const candles = candleSeries(option);
     expect(candles).toHaveLength(1);
     expect(candles[0].data).toHaveLength(CANDLES.length);
   });
@@ -221,21 +216,21 @@ describe("buildPatternChartOption candles are always present", () => {
       hit: { symbol: "IRCON", pattern_id: "falling_wedge" } as never,
       trendlinesView: "both",
     });
-    const series = seriesOf(option);
-    expect(series.filter((s) => s.type === "candlestick")).toHaveLength(1);
+    const series = seriesOf<SeriesLike>(option);
+    expect(candleSeries(option)).toHaveLength(1);
     expect(series.map((s) => s.name)).not.toContain("TLS");
     expect(series.map((s) => s.name)).not.toContain("TLR");
   });
 
   it("names the candle series after the hit symbol, defaulting to Price", () => {
-    const named = seriesOf(
+    const named = seriesOf<SeriesLike>(
       buildPatternChartOption({
         candles: CANDLES,
         hit: { symbol: "IRCON", pattern_id: "falling_wedge" } as never,
       }),
     ).find((s) => s.type === "candlestick");
     expect(named?.name).toBe("IRCON");
-    const fallback = seriesOf(
+    const fallback = seriesOf<SeriesLike>(
       buildPatternChartOption({ candles: CANDLES }),
     ).find((s) => s.type === "candlestick");
     expect(fallback?.name).toBe("Price");
@@ -243,7 +238,7 @@ describe("buildPatternChartOption candles are always present", () => {
 
   it("keeps candle data aligned to input order as [o, c, l, h]", () => {
     const option = buildPatternChartOption({ candles: CANDLES });
-    const candles = seriesOf(option).find((s) => s.type === "candlestick");
+    const candles = seriesOf<SeriesLike>(option).find((s) => s.type === "candlestick");
     expect(candles?.data).toEqual(CANDLES.map((c) => [c.o, c.c, c.l, c.h]));
   });
 
@@ -253,8 +248,8 @@ describe("buildPatternChartOption candles are always present", () => {
       standaloneTrendLines: LINES,
       trendlinesView: "both",
     });
-    const series = seriesOf(option);
-    const candles = series.filter((s) => s.type === "candlestick");
+    const series = seriesOf<SeriesLike>(option);
+    const candles = candleSeries(option);
     expect(candles).toHaveLength(1);
     expect(candles[0].data).toEqual([]);
     // No window → no standalone line can map.
@@ -300,8 +295,8 @@ describe("buildPatternChartOption compact vs large chrome", () => {
       trendlinesView: "both",
       large: true,
     });
-    const baseTls = seriesOf(base).find((s) => s.name === "TLS");
-    const bigTls = seriesOf(big).find((s) => s.name === "TLS");
+    const baseTls = seriesOf<SeriesLike>(base).find((s) => s.name === "TLS");
+    const bigTls = seriesOf<SeriesLike>(big).find((s) => s.name === "TLS");
     expect(baseTls?.lineStyle?.width).toBe(1.5);
     expect(bigTls?.lineStyle?.width).toBe(2);
     expect(baseTls?.endLabel?.formatter).toBe("TLS · 3 touches");
@@ -335,7 +330,7 @@ describe("buildPatternChartOption compact vs large chrome", () => {
       standaloneTrendLines: LINES,
       trendlinesView: "both",
     });
-    const series = seriesOf(option);
+    const series = seriesOf<SeriesLike>(option);
     const tls = series.find((s) => s.name === "TLS");
     const tlr = series.find((s) => s.name === "TLR");
     expect(tls?.lineStyle?.color).toBe(POSITIVE);
@@ -410,7 +405,7 @@ describe("buildPatternChartOption degenerate standalone lines", () => {
       standaloneTrendLines: [dot],
       trendlinesView: "both",
     });
-    const tls = seriesOf(option).find((s) => s.name === "TLS") as SeriesLike & {
+    const tls = seriesOf<SeriesLike>(option).find((s) => s.name === "TLS") as SeriesLike & {
       showSymbol?: boolean;
       symbol?: string;
       symbolSize?: number;

@@ -1,4 +1,5 @@
 import type { UnifiedOverlay } from "./types";
+import { buildOverlayLineSeries } from "./overlayLine";
 
 export function buildOverlays(
   overlays: UnifiedOverlay[],
@@ -28,60 +29,57 @@ export function buildOverlays(
       const lineData = extendSeriesData(mapLevelValues(overlay)!);
 
       const showLabels = overlay.showLabel !== false;
-      const value = overlay.levels[0]?.value;
 
-      series.push({
-        id: overlay.id,
-        name: overlay.label,
-        type: "line",
-        data: lineData,
-        showSymbol: false,
-        connectNulls: false,
-        silent: true,
-        z: 5,
-        lineStyle: {
+      series.push(
+        buildOverlayLineSeries({
+          id: overlay.id,
+          name: overlay.label,
+          data: lineData,
+          z: 5,
           color: overlay.color,
           width: 1,
-          type: overlay.dash ? overlay.dash : "solid",
-        },
-        tooltip: { show: true },
-        ...(showLabels
-          ? {
-              label: {
-                show: true,
-                position: "end",
-                formatter: `${value}`,
-                fontSize: 10,
-                color: overlay.color,
-                fontFamily: "monospace",
-              },
-              endLabel: {
-                show: true,
-                formatter: overlay.label,
-                fontSize: 9,
-                color: overlay.color,
-                fontFamily: "monospace",
-              },
-            }
-          : {}),
-      });
+          dash: overlay.dash,
+          tooltip: true,
+          ...(showLabels
+            ? {
+                label: {
+                  show: true,
+                  position: "end",
+                  formatter: `${overlay.levels[0]?.value}`,
+                  fontSize: 10,
+                  color: overlay.color,
+                  fontFamily: "monospace",
+                },
+                endLabel: {
+                  show: true,
+                  formatter: overlay.label,
+                  fontSize: 9,
+                  color: overlay.color,
+                  fontFamily: "monospace",
+                },
+              }
+            : {}),
+        }),
+      );
     } else if (overlay.type === "box") {
       const topValue = overlay.levels.length > 0 ? overlay.levels[0].value : null;
       if (topValue == null) continue;
 
       const topData = extendSeriesData(mapLevelValues(overlay)!);
 
-      series.push({
-        id: `${overlay.id}_top`,
-        name: overlay.label,
-        type: "line",
-        data: topData,
-        showSymbol: false,
-        connectNulls: false,
-        silent: true,
-        z: 4,
-        lineStyle: { color: overlay.color, width: 0.5, opacity: 0.5, type: "dashed" },
-      });
+      series.push(
+        buildOverlayLineSeries({
+          id: `${overlay.id}_top`,
+          name: overlay.label,
+          data: topData,
+          z: 4,
+          color: overlay.color,
+          width: 0.5,
+          opacity: 0.5,
+          dash: true,
+          tooltip: false,
+        }),
+      );
     }
   }
 

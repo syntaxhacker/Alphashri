@@ -9,8 +9,9 @@ import type {
 import { PATTERN_SERIES_COLORS } from "@/config/patterns";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
-import { mapTimeSegment, mapTrendlines } from "./trendlineMapping";
+import { mapTrendlines } from "./trendlineMapping";
 import { toEpochSeconds as toTVTime } from "@/utils/chart/time";
+import { resolveVisibleStandalone, mapStandaloneLine } from "./standaloneLines";
 
 /**
  * Colours assigned in order to the patterns drawn on one chart: the selected
@@ -254,19 +255,11 @@ export function buildPatternTVData({
   });
 
   // Standalone support/resistance 2-point segments, gated by the view filter.
-  const standalone = trendLines ?? hit?.trend_lines ?? [];
-  const visibleStandalone =
-    trendlinesView === "none"
-      ? []
-      : standalone.filter((line) =>
-          trendlinesView === "both" ? true : line?.kind === trendlinesView,
-        );
+  const visibleStandalone = resolveVisibleStandalone(trendLines, hit, trendlinesView);
   visibleStandalone.forEach((line) => {
-    if (!line) return;
-    const name = line.kind === "support" ? "TLS" : "TLR";
-    const color = line.kind === "support" ? POSITIVE : NEGATIVE;
-    const points = mapTimeSegment(line.start_date, line.start_price, line.end_date, line.end_price, times);
-    if (!points || points.length === 0) return;
+    const mapped = mapStandaloneLine(line, times);
+    if (!mapped) return;
+    const { name, color, points } = mapped;
     const tvPoints = dedupeByTime(
       points
         .map((p) => ({ time: epochAt(p.index), value: p.price }))
