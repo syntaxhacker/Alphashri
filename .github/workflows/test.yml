@@ -31,7 +31,7 @@ concurrency:
 jobs:
   pytest:
     name: Python Unit Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -90,7 +90,7 @@ jobs:
 
   frontend-lint-typecheck:
     name: Frontend Lint & TypeCheck
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -102,7 +102,7 @@ jobs:
         continue-on-error: true
   frontend-unit:
     name: Frontend Unit Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Full vitest suite on PRs to main exceeds 5 minutes; --changed on develop stays fast.
     timeout-minutes: 15
     steps:
@@ -125,7 +125,7 @@ jobs:
 
   e2e-smoke:
     name: E2E Smoke (22 tests)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     if: github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'main')
     steps:
@@ -209,7 +209,7 @@ jobs:
 
   e2e-full:
     name: E2E Full (shard ${{ matrix.shard }}/20)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     if: github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'pull_request' && github.base_ref == 'main')
     strategy:
