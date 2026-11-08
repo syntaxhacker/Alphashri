@@ -8,6 +8,7 @@ import {
   perfWCol,
   volumeMCol,
 } from "./base";
+import { numCol, fixedCellDash, daysAgoCell } from "./columnHelpers";
 
 export function getTouched52wColumns(): ColumnDef[] {
   return [
@@ -16,24 +17,8 @@ export function getTouched52wColumns(): ColumnDef[] {
     adxCol,
     dayChangeCol,
     recentReturn5dCol,
-    {
-      key: "high_52w",
-      label: "52W",
-      type: "number",
-      sortable: true,
-      format: (value: number) => ({ value: value?.toFixed(2) || "-" }),
-    },
-    {
-      key: "days_ago",
-      label: "Days Ago",
-      type: "number",
-      sortable: true,
-      format: (value: number | null) => {
-        if (value === null || value === undefined) return "-";
-        const suffix = value === 1 ? "d" : "d";
-        return { value: `${value}${suffix}` };
-      },
-    },
+    numCol("high_52w", "52W", (value: number) => fixedCellDash(value, 2)),
+    numCol("days_ago", "Days Ago", (value: number | null) => daysAgoCell(value)),
     perfWCol,
     volumeMCol,
   ];
