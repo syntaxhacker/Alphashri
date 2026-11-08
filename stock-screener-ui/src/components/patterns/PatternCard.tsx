@@ -6,18 +6,18 @@ import type { PatternHitDTO, TrendlinesView } from "@/types/chartPatterns";
 import { QUALITY_INFO } from "@/config/patternCatalog";
 import { SymbolLink } from "@/components/common/SymbolLink";
 import { hasIndexMembers } from "@/config/indexGroups";
-import {
-  INFO,
-  NEUTRAL,
-  NEGATIVE,
-  PATTERN_CONFIRMED,
-  PATTERN_FAILED,
-  POSITIVE,
-  WARNING,
-} from "@/ui/palette";
+import { PATTERN_CONFIRMED, PATTERN_FAILED } from "@/ui/palette";
 import { formatPrice } from "./shared";
-import { patternDisplayStatus, type DisplayTone } from "./patternDisplayStatus";
-import { changeChartColor, qualityLabel as qualityLabelFor } from "./patternTone";
+import { patternDisplayStatus } from "./patternDisplayStatus";
+import {
+  formatOneDecimal,
+  formatRangePos,
+  formatScore,
+  formatSignedPct1,
+  hitChangePct,
+  hitLastPrice,
+} from "./patternFormat";
+import { changeChartColor, displayToneColor, qualityLabel as qualityLabelFor } from "./patternTone";
 import { PatternMiniChart } from "./PatternMiniChart";
 
 export interface PatternCardProps {
@@ -33,11 +33,6 @@ export interface PatternCardProps {
   onSymbolPreviewEnd?: (symbol: string) => void;
   /** Chart icon: open the symbol in the right-side chart. */
   onSymbolOpen?: (symbol: string) => void;
-}
-
-/** Render a range percentage with at most one decimal (`13` not `13.0`). */
-function rangePct(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
@@ -115,22 +110,6 @@ function consolidationBounds(hit: PatternHitDTO): { lo: number | null; hi: numbe
   return { lo, hi };
 }
 
-/** Palette color for the status pill dot + text, keyed by the derived tone. */
-function displayToneColor(tone: DisplayTone): string {
-  switch (tone) {
-    case "success":
-      return POSITIVE;
-    case "warning":
-      return WARNING;
-    case "error":
-      return NEGATIVE;
-    case "info":
-      return INFO;
-    case "neutral":
-      return NEUTRAL;
-  }
-}
-
 /** One pattern result card in the grid. */
 export const PatternCard = memo(function PatternCard({
   hit,
@@ -143,9 +122,8 @@ export const PatternCard = memo(function PatternCard({
   onSymbolPreviewEnd,
   onSymbolOpen,
 }: PatternCardProps) {
-  const sinceStart = hit.start_price !== 0 ? ((hit.end_price - hit.start_price) / hit.start_price) * 100 : 0;
-  const lastPrice = hit.last_close ?? hit.end_price;
-  const changePct = hit.day_change_pct ?? sinceStart;
+  const lastPrice = hitLastPrice(hit);
+  const changePct = hitChangePct(hit);
   const barsLabel = `${hit.bars_ago} ${hit.timeframe} candle${hit.bars_ago === 1 ? "" : "s"} ago`;
   const baseDays = hit.base_days ?? 0;
   const isConsolidation = hit.pattern_id === "consolidation" || baseDays > 0;
@@ -171,11 +149,8 @@ export const PatternCard = memo(function PatternCard({
   const quality = qualityLabelFor(qualityKey, "—");
   const canShowMembers = Boolean(onShowMembers && hasIndexMembers(hit.symbol));
   const metrics = [
-    { label: "Score", value: hit.confidence != null ? hit.confidence.toFixed(1) : "—" },
-    {
-      label: "Pos",
-      value: hit.range_pos != null && Number.isFinite(hit.range_pos) ? `${Math.round(hit.range_pos)}%` : "—",
-    },
+    { label: "Score", value: formatScore(hit.confidence) },
+    { label: "Pos", value: formatRangePos(hit.range_pos) },
   ];
 
   return (
@@ -327,7 +302,7 @@ export const PatternCard = memo(function PatternCard({
                 whiteSpace: "nowrap",
               }}
             >
-              {`${triggerDistance >= 0 ? "+" : "−"}${Math.abs(triggerDistance).toFixed(1)}% to trigger`}
+              {`${formatSignedPct1(triggerDistance)} to trigger`}
             </Text>
           ) : null}
           {missingCandles ? (
@@ -445,7 +420,7 @@ export const PatternCard = memo(function PatternCard({
                 sx={{ fontSize: 9, lineHeight: 1.2 }}
               >
                 {hit.range_pct != null
-                  ? `Base ${baseDays}d · ${rangePct(hit.range_pct)}%`
+                  ? `Base ${baseDays}d · ${formatOneDecimal(hit.range_pct)}%`
                   : `Base ${baseDays}d`}
               </Text>
             ) : (
@@ -459,7 +434,7 @@ export const PatternCard = memo(function PatternCard({
                 data-testid="patterns-card-52w-gap"
                 sx={{ fontSize: 9, lineHeight: 1.2, textAlign: "right" }}
               >
-                52W: {rangePct(hit.to_52w_high)}%
+                52W: {formatOneDecimal(hit.to_52w_high)}%
               </Text>
             ) : null}
           </ToolbarRow>

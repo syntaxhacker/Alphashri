@@ -23,6 +23,7 @@ import functools
 import json
 from pathlib import Path
 
+from chart_patterns._symbols import norm_symbol
 from chart_patterns.universes import instruments_path
 
 #: One loaded copy each of the F&O and ETF symbol sets (small, immutable).
@@ -79,17 +80,17 @@ def etf_symbols() -> frozenset[str]:
 
 def is_fno(symbol: str) -> bool:
     """True when ``symbol`` is an NSE F&O equity underlying."""
-    return str(symbol).upper() in fno_symbols()
+    return norm_symbol(symbol) in fno_symbols()
 
 
 def is_etf(symbol: str) -> bool:
     """True when ``symbol`` is an ETF/fund unit (INF ISIN)."""
-    return str(symbol).upper() in etf_symbols()
+    return norm_symbol(symbol) in etf_symbols()
 
 
 def tags_for(symbol: str) -> list[str]:
     """Membership tags for ``symbol``: ``["F&O"]``, ``["ETF"]``, both, or ``[]``."""
-    sym = str(symbol).upper()
+    sym = norm_symbol(symbol)
     tags: list[str] = []
     if sym in fno_symbols():
         tags.append("F&O")

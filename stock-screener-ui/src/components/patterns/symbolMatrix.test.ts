@@ -2,8 +2,6 @@ import { describe, expect, test } from "vitest";
 import {
   directionGlyph,
   directionTone,
-  formatMatrixPct,
-  formatMatrixPrice,
   formatTfLabel,
   lastNHitsPerTimeframe,
   matrixTfOrder,
@@ -40,36 +38,12 @@ describe("formatTfLabel", () => {
   });
 });
 
-describe("formatMatrixPrice", () => {
-  test("renders rupees with two decimals and thousands separators", () => {
-    expect(formatMatrixPrice(1234.5)).toBe("₹1,234.50");
-    expect(formatMatrixPrice(1234567.891)).toBe("₹1,234,567.89");
-    expect(formatMatrixPrice(0)).toBe("₹0.00");
-    expect(formatMatrixPrice(-12.3)).toBe("₹-12.30");
-    expect(formatMatrixPrice(99)).toBe("₹99.00");
-  });
-
-  test("renders an em dash when the value is missing or not finite", () => {
-    expect(formatMatrixPrice(null)).toBe("—");
-    expect(formatMatrixPrice(undefined)).toBe("—");
-    expect(formatMatrixPrice(Number.NaN)).toBe("—");
-    expect(formatMatrixPrice(Number.POSITIVE_INFINITY)).toBe("—");
-  });
-});
-
-describe("formatMatrixPct", () => {
-  test("renders a signed two-decimal percentage", () => {
-    expect(formatMatrixPct(2.5)).toBe("+2.50%");
-    expect(formatMatrixPct(-1.234)).toBe("-1.23%");
-    expect(formatMatrixPct(0)).toBe("+0.00%");
-    expect(formatMatrixPct(12)).toBe("+12.00%");
-  });
-
-  test("renders an em dash when the value is missing or not finite", () => {
-    expect(formatMatrixPct(null)).toBe("—");
-    expect(formatMatrixPct(undefined)).toBe("—");
-    expect(formatMatrixPct(Number.NaN)).toBe("—");
-    expect(formatMatrixPct(Number.NEGATIVE_INFINITY)).toBe("—");
+describe("re-exported matrix formatters", () => {
+  test("symbolMatrix still re-exports the canonical patternFormat helpers", async () => {
+    const matrix = await import("./symbolMatrix");
+    const format = await import("./patternFormat");
+    expect(matrix.formatMatrixPrice).toBe(format.formatMatrixPrice);
+    expect(matrix.formatMatrixPct).toBe(format.formatMatrixPct);
   });
 });
 

@@ -36,6 +36,7 @@ import {
   fetchSymbolChart,
   streamResults,
 } from "../api/chartPatterns";
+import { normalizeFilterArray, normalizeSymbolList } from "../api/queryParams";
 
 /** Poll cadence while a scan job is queued/running. */
 export const POLL_INTERVAL_MS = 2000;
@@ -1042,9 +1043,7 @@ function sameSelection(a: string[], b: string[]): boolean {
 export function selectTimeframes(next: string[]): void {
   const order = new Map(state.timeframes.map((tf, index) => [tf.id, index]));
   const known = state.timeframes.length > 0 ? new Set(order.keys()) : null;
-  const selected = Array.from(
-    new Set((next ?? []).map((value) => String(value ?? "").trim()).filter(Boolean)),
-  )
+  const selected = normalizeFilterArray(next)
     .filter((id) => !known || known.has(id))
     .sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
   const resolved = selected.length > 0 ? selected : [DEFAULT_TIMEFRAME];
@@ -1084,14 +1083,7 @@ export function selectUniverse(universe: string): void {
  * Selecting symbols is what defines a custom scan — no preset universe needed.
  */
 export function selectSymbols(symbols: string[]): void {
-  const clean: string[] = [];
-  const seen = new Set<string>();
-  for (const raw of symbols ?? []) {
-    const symbol = String(raw ?? "").trim().toUpperCase();
-    if (!symbol || seen.has(symbol)) continue;
-    seen.add(symbol);
-    clean.push(symbol);
-  }
+  const clean = normalizeSymbolList(symbols);
   patch({
     universe: clean.length > 0 ? CUSTOM_UNIVERSE : state.universe,
     filters: { ...state.filters, symbols: clean },

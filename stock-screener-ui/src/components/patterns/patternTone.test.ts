@@ -2,13 +2,24 @@ import { describe, expect, test } from "vitest";
 import {
   changeChartColor,
   changeTextTone,
+  displayToneColor,
   qualityBadgeTone,
   qualityLabel,
   statusBadgeTone,
   statusChartColor,
   statusLabel,
+  textToneChartColor,
 } from "./patternTone";
-import { PATTERN_CONFIRMED, PATTERN_FAILED, TEXT_MUTED } from "@/ui/palette";
+import {
+  INFO,
+  NEUTRAL,
+  NEGATIVE,
+  PATTERN_CONFIRMED,
+  PATTERN_FAILED,
+  POSITIVE,
+  TEXT_MUTED,
+  WARNING,
+} from "@/ui/palette";
 
 describe("status helpers", () => {
   test("maps every known status to a badge tone and chart colour", () => {
@@ -59,5 +70,36 @@ describe("change helpers", () => {
     expect(changeChartColor(null)).toBe(TEXT_MUTED);
     expect(changeChartColor(Number.NaN)).toBe(TEXT_MUTED);
     expect(changeTextTone(undefined)).toBe("dimmed");
+  });
+});
+
+describe("textToneChartColor", () => {
+  test("maps each text tone to its raw colour", () => {
+    expect(textToneChartColor("success")).toBe(POSITIVE);
+    expect(textToneChartColor("error")).toBe(NEGATIVE);
+    expect(textToneChartColor("dimmed")).toBe(TEXT_MUTED);
+  });
+
+  test("is case-insensitive and mutes unknown/missing tones", () => {
+    expect(textToneChartColor("SUCCESS")).toBe(POSITIVE);
+    expect(textToneChartColor("Error")).toBe(NEGATIVE);
+    expect(textToneChartColor(null)).toBe(TEXT_MUTED);
+    expect(textToneChartColor(undefined)).toBe(TEXT_MUTED);
+    expect(textToneChartColor("")).toBe(TEXT_MUTED);
+    expect(textToneChartColor("primary")).toBe(TEXT_MUTED);
+  });
+});
+
+describe("displayToneColor", () => {
+  test("maps every display tone to its palette colour", () => {
+    expect(displayToneColor("success")).toBe(POSITIVE);
+    expect(displayToneColor("warning")).toBe(WARNING);
+    expect(displayToneColor("error")).toBe(NEGATIVE);
+    expect(displayToneColor("info")).toBe(INFO);
+    expect(displayToneColor("neutral")).toBe(NEUTRAL);
+  });
+
+  test("falls back to the neutral colour for an unknown tone", () => {
+    expect(displayToneColor("sideways" as never)).toBe(NEUTRAL);
   });
 });

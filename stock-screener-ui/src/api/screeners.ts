@@ -4,6 +4,13 @@ import type { ScreenerOption, SortDirection } from "../types";
 import { API_BASE } from "@/api/config";
 const SCREENERS_API = `${API_BASE}/api/screeners`;
 
+// Shared !ok handler: parse the server's `detail` message, falling back to the HTTP status.
+async function ensureOk(response: Response, fallback: string): Promise<void> {
+  if (response.ok) return;
+  const err = await response.json().catch(() => ({ detail: fallback }));
+  throw new Error(err.detail || `HTTP ${response.status}`);
+}
+
 export interface CreateScreenerPayload {
   name: string;
   description?: string;
@@ -19,10 +26,7 @@ export async function createScreener(payload: CreateScreenerPayload): Promise<Sc
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ detail: "Failed to create screener" }));
-    throw new Error(err.detail || `HTTP ${response.status}`);
-  }
+  await ensureOk(response, "Failed to create screener");
   return response.json();
 }
 
@@ -35,10 +39,7 @@ export async function updateScreener(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ detail: "Failed to update screener" }));
-    throw new Error(err.detail || `HTTP ${response.status}`);
-  }
+  await ensureOk(response, "Failed to update screener");
   return response.json();
 }
 
@@ -46,8 +47,5 @@ export async function deleteScreener(id: string): Promise<void> {
   const response = await fetchWithAuth(`${SCREENERS_API}/${id}`, {
     method: "DELETE",
   });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ detail: "Failed to delete screener" }));
-    throw new Error(err.detail || `HTTP ${response.status}`);
-  }
+  await ensureOk(response, "Failed to delete screener");
 }

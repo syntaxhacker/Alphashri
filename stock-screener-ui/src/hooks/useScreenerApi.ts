@@ -1,6 +1,12 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useApi, UseApiState } from "./useApi";
 import type { Stock, ScreenerData } from "../types";
+import {
+  approachingStocksOf,
+  buildScreenerApiUrl,
+  buildScreenerPreviewUrl,
+  type ScreenerFilterDefault,
+} from "@/api/screenerQuery";
 export interface ScreenerParams {
   provider?: string;
   mode?: string;
@@ -8,24 +14,9 @@ export interface ScreenerParams {
   columns?: string[];
   filters?: Record<string, string | number | boolean | undefined>;
 }
-import { API_BASE } from "@/api/config";
-function buildScreenerUrl(params: ScreenerParams): string {
-  const searchParams = new URLSearchParams();
-  searchParams.set("provider", params.provider || "upstox");
-  searchParams.set("mode", params.mode || "intraday");
-  searchParams.set("screener", params.screener);
-  if (params.filters) {
-    Object.entries(params.filters).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") {
-        searchParams.set(key, String(value));
-      }
-    });
-  }
-  return `${API_BASE}/api/screener?${searchParams.toString()}`;
-}
 export type ScreenerApiState = UseApiState<ScreenerData>;
 export function useScreenerApi(params: ScreenerParams): ScreenerApiState {
-  const url = buildScreenerUrl(params);
+  const url = buildScreenerApiUrl(params);
   const state = useApi<ScreenerData>({
     url,
     params: {},
@@ -59,21 +50,11 @@ export function useScreenerPreview(
   }, [activeScreener, columns, filters]);
   const buildPreviewUrl = useCallback(() => {
     const { activeScreener: screener, columns: cols, filters: filts } = paramsRef.current;
-    const searchParams = new URLSearchParams();
-    searchParams.set("provider", "upstox");
-    searchParams.set("mode", "intraday");
-    searchParams.set("screener", screener.replace("builtin:", ""));
-    if (cols && cols.length > 0) {
-      searchParams.set("columns", cols.join(","));
-    }
-    if (filts && filts.length > 0) {
-      filts.forEach((filter) => {
-        if (filter.default !== undefined) {
-          searchParams.set(filter.key, String(filter.default));
-        }
-      });
-    }
-    return `${API_BASE}/api/screener?${searchParams.toString()}`;
+    return buildScreenerPreviewUrl({
+      screener,
+      columns: cols,
+      filters: filts as unknown as ScreenerFilterDefault[] | undefined,
+    });
   }, []);
   const state = useApi<{
     approaching: Stock[];
@@ -84,9 +65,7 @@ export function useScreenerPreview(
   });
   useEffect(() => {
     if (state.data) {
-      setStocks(state.data.approaching || []);
-    }
-    if (state.error) {
+      setStocks(approachingStocksOf(state.data));
     }
   }, [state.data, state.error]);
   return {

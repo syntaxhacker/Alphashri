@@ -10,6 +10,7 @@ import type { CsvColumn } from "@/utils/copyCsv";
 import { isMarketOpenIst } from "@/utils/marketClock";
 import { useCopyFeedback } from "@/hooks/useCopyFeedback";
 import { SymbolLink } from "@/components/common/SymbolLink";
+import { PatternTags, hasTag, rowTags, shortIstDate } from "./rowBadges";
 
 /** Re-fetch cadence for the watch list while the market is open. */
 export const WATCH_POLL_MS = 60000;
@@ -65,62 +66,23 @@ const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 /**
  * Backend-supplied fields not yet in the canonical `WatchRow` type
  * (`src/types/chartPatterns.ts` is not owned here). Local extension only:
- * `tags` marks F&O underlyings / ETFs, `trigger_date` is the 52W-high
- * trigger date for `near_52w` rows.
+ * `trigger_date` is the 52W-high trigger date for `near_52w` rows,
+ * `last_touch_date` the last time the 52W high was touched. (`tags` is read
+ * via the shared `rowTags`/`hasTag` helpers instead.)
  */
 type WatchRowExt = WatchRow & {
-  tags?: string[];
   trigger_date?: string | null;
   last_touch_date?: string | null;
 };
-
-/** True when the backend `tags` array carries `tag`. Never throws on missing. */
-function hasTag(row: WatchRow, tag: string): boolean {
-  const tags = (row as WatchRowExt).tags;
-  return Array.isArray(tags) && tags.includes(tag);
-}
 
 /** 52W trigger date for `near_52w` rows (null/undefined = unknown). */
 function triggerDateOf(row: WatchRow): string | null | undefined {
   return (row as WatchRowExt).trigger_date;
 }
 
-const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** "2026-11-05" → "5 Nov" (badge text; the year lives in the badge `title`). Null when missing/unparseable. */
-function shortDateOf(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso));
-  if (!m) return null;
-  const day = Number(m[3]);
-  if (!Number.isFinite(day) || day < 1 || day > 31) return null;
-  return `${day} ${MONTHS_SHORT[Number(m[2]) - 1]}`;
-}
-
 /** Last 52W-high touch date (null/undefined = never touched / unknown). */
 function lastTouchDateOf(row: WatchRow): string | null | undefined {
   return (row as WatchRowExt).last_touch_date;
-}
-
-/**
- * F&O / ETF badges rendered next to the watch symbol. Additive only —
- * rows without `tags` render nothing extra.
- */
-function watchTagBadges(row: WatchRow) {
-  return (
-    <>
-      {hasTag(row, "F&O") ? (
-        <Badge color="info" size="xs" data-testid={`watch-tag-fno-${row.symbol}`}>
-          {"F&O"}
-        </Badge>
-      ) : null}
-      {hasTag(row, "ETF") ? (
-        <Badge color="warning" size="xs" data-testid={`watch-tag-etf-${row.symbol}`}>
-          ETF
-        </Badge>
-      ) : null}
-    </>
-  );
 }
 
 /**
@@ -197,7 +159,7 @@ function stateCell(ctx: { getValue: () => unknown; row: { original: WatchRow } }
           data-testid={`watch-last-touch-${row.symbol}`}
           title={`52W high touched ${lastTouch}`}
         >
-          touched {shortDateOf(lastTouch)}
+          touched {shortIstDate(lastTouch)}
         </Badge>
       ) : null}
     </Box>
@@ -214,7 +176,7 @@ const symbolCell = (ctx: WatchCellContext) => {
       <Text size="sm" fw={600}>
         {String(ctx.getValue())}
       </Text>
-      {watchTagBadges(row)}
+      <PatternTags tags={rowTags(row)} symbol={row.symbol} testIdPrefix="watch" compact />
     </Box>
   );
 };
@@ -769,7 +731,7 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
                     onPreview={onSymbolPreview}
                     onPreviewEnd={onSymbolPreviewEnd}
                   />
-                  {watchTagBadges(ctx.row.original)}
+                  <PatternTags tags={rowTags(ctx.row.original)} symbol={ctx.row.original.symbol} testIdPrefix="watch" compact />
                 </Box>
               );
             },

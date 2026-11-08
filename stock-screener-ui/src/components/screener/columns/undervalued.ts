@@ -1,61 +1,19 @@
 import type { ColumnDef } from "./index";
-import type { Stock } from "../../../types";
 import { symbolCol, scoreCol, sectorCol, dayChangeCol } from "./base";
+import { numCol, rupeePrice, fixedOrZero, pctOrEmpty } from "./columnHelpers";
 
 export function getUndervaluedColumns(): ColumnDef[] {
   return [
     symbolCol,
     scoreCol,
-    {
-      key: "tv_price",
-      label: "Price",
-      type: "number" as const,
-      sortable: true,
-      format: (value: number) => `₹${(value ?? 0).toFixed(2)}`,
-    },
+    numCol("tv_price", "Price", (value: number) => rupeePrice(value)),
     dayChangeCol,
-    {
-      key: "pe",
-      label: "P/E",
-      type: "number" as const,
-      sortable: true,
-      format: (value: number) => (value ?? 0).toFixed(1),
-    },
-    {
-      key: "pb",
-      label: "P/B",
-      type: "number" as const,
-      sortable: true,
-      format: (value: number) => (value ?? 0).toFixed(2),
-    },
-    {
-      key: "roe",
-      label: "ROE%",
-      type: "number" as const,
-      sortable: true,
-      format: (value: number) => `${(value ?? 0).toFixed(1)}%`,
-    },
-    {
-      key: "de",
-      label: "D/E",
-      type: "number" as const,
-      sortable: true,
-      format: (value: number) => (value ?? 0).toFixed(2),
-    },
-    {
-      key: "div_yield",
-      label: "Div%",
-      type: "number" as const,
-      sortable: true,
-      format: (value: number) => (value && value > 0 ? `${value.toFixed(1)}%` : ""),
-    },
-    {
-      key: "market_cap_b",
-      label: "Mcap(B)",
-      type: "number" as const,
-      sortable: true,
-      format: (value: number) => `₹${(value ?? 0).toFixed(1)}B`,
-    },
+    numCol("pe", "P/E", (value: number) => fixedOrZero(value, 1)),
+    numCol("pb", "P/B", (value: number) => fixedOrZero(value, 2)),
+    numCol("roe", "ROE%", (value: number) => `${fixedOrZero(value, 1)}%`),
+    numCol("de", "D/E", (value: number) => fixedOrZero(value, 2)),
+    numCol("div_yield", "Div%", (value: number) => pctOrEmpty(value, 1)),
+    numCol("market_cap_b", "Mcap(B)", (value: number) => `₹${fixedOrZero(value, 1)}B`),
     sectorCol,
   ];
 }
