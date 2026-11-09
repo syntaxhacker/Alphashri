@@ -231,11 +231,28 @@ def _read_cached(
                     meta = json.load(f)
                 session = _last_completed_session().isoformat()
                 if is_daily:
-                    # Completed daily sessions are immutable. Once the frame
-                    # includes the last completed session it stays valid for
-                    # the whole session — no 5-minute refetch.
-                    if meta.get("session") != session:
-                        return None
+                    # Completed daily sessions are immutable. A frame that
+                    # reaches the last completed session stays valid for the
+                    # whole session, and we additionally tolerate a frame up
+                    # to 3 calendar days behind (weekend / one-session lag) so
+                    # a cache stamped to an earlier session is still served
+                    # instead of refetching. Anything older (or stamped ahead
+                    # of the last completed session) is rejected as stale.
+                    meta_session = meta.get("session")
+                    if meta_session != session:
+                        try:
+                            ref_date = date.fromisoformat(session)
+                            meta_date = (
+                                date.fromisoformat(str(meta_session))
+                                if meta_session is not None else None
+                            )
+                        except (ValueError, TypeError):
+                            return None
+                        if meta_date is None:
+                            return None
+                        lag = (ref_date - meta_date).days
+                        if lag < 0 or lag > 3:
+                            return None
                 else:
                     from trading import utils as trading_utils
 
@@ -322,6 +339,14 @@ def _fill_provenance(prov: dict, path: Path, hit: bool) -> None:
             pass
     prov["cache_age_sec"] = age
     prov["session_pin"] = session
+    prov["cache_session"] = session
+    try:
+        _lcs = _last_completed_session().isoformat()
+    except Exception:
+        _lcs = None
+    # True when the served frame's meta session lags the last completed
+    # session (within the daily tolerance) — callers can mark it stale.
+    prov["session_stale"] = bool(hit and session and _lcs and session != _lcs)
 
 
 def _normalize_filter(value: Optional[Union[str, Iterable[str]]]) -> Optional[set]:
@@ -414,6 +439,49 @@ def _resample(df: pd.DataFrame, tf_minutes: int) -> pd.DataFrame:
     work = df.copy()
     work.index = ist_index
     out = work.resample(rule, label="left", closed="left").agg(available)
+    out = out.dropna(subset=["close"])
+    try:
+        if orig_tz is None:
+            out.index = out.index.tz_convert("UTC").tz_localize(None)
+        else:
+            out.index = out.index.tz_convert(orig_tz)
+    except Exception:
+        pass
+    return out
+
+
+def _resample_ohlcv(df: pd.DataFrame, rule: str) -> pd.DataFrame:
+    """Resample an OHLCV frame to a pandas offset rule anchored to IST.
+
+    ``rule`` is a raw pandas offset alias (e.g. ``"W-FRI"`` for weekly
+    candles or ``"ME"`` for month-end). Aggregates open=first, high=max,
+    low=min, close=last, volume=sum. Bins are anchored to the IST session
+    and the frame is returned in its original timezone. Never raises;
+    returns the input unchanged when it cannot be resampled.
+    """
+    if df is None or df.empty:
+        return df
+    agg = {
+        "open": "first",
+        "high": "max",
+        "low": "min",
+        "close": "last",
+        "volume": "sum",
+    }
+    available = {k: v for k, v in agg.items() if k in df.columns}
+    if "close" not in available:
+        return df
+    orig_tz = df.index.tz
+    try:
+        if orig_tz is None:
+            ist_index = df.index.tz_localize("UTC").tz_convert("Asia/Kolkata")
+        else:
+            ist_index = df.index.tz_convert("Asia/Kolkata")
+    except Exception:
+        ist_index = df.index
+    work = df.copy()
+    work.index = ist_index
+    out = work.resample(rule, label="right", closed="right").agg(available)
     out = out.dropna(subset=["close"])
     try:
         if orig_tz is None:

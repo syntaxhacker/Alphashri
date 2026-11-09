@@ -3037,6 +3037,110 @@ def test_symbol_chart_stale_first_takes_precedence_over_neg_cache(
     assert fetch_calls == []
 
 
+def _daily_df_business_days(start: str, end: str, base: float = 100.0) -> pd.DataFrame:
+    idx = pd.date_range(start, end, freq="B", tz="UTC")
+    close = np.arange(len(idx), dtype=float) + base
+    return pd.DataFrame(
+        {"open": close, "high": close + 1.0, "low": close - 1.0, "close": close, "volume": 1000.0},
+        index=idx,
+    )
+
+
+def test_symbol_chart_1w_stale_first_resamples_daily_cache(cp_client, monkeypatch, tmp_path):
+    """No exact 1W cache: the default 1D cache is resampled locally (W-FRI),
+    served cached/stale with as_of, no network fetch, background refresh kicked."""
+    store.save_hits("cpj_1w_res", [_hit("POWERMECH")])
+    df = _daily_df_business_days("2026-10-01", "2026-10-09")
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    _seed_live_edge_disk_cache("POWERMECH", "1D", df)  # default 1D entry, no 1W cache
+    _pin_last_completed_session(monkeypatch, "2026-10-09")
+    monkeypatch.setattr(cp_api, "_ist_session_date", lambda: "2026-10-09")
+    fetch_calls: list = []
+
+    def _recorder(symbol, timeframe, **kwargs):
+        fetch_calls.append((symbol, timeframe))
+        raise AssertionError("stale-first resample must not call fetch_for_timeframe")
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _recorder)
+    kicks = _kick_spy(monkeypatch)
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1W"}
+    )
+    assert chart.status_code == 200
+    body = chart.json()
+    assert body["cached"] is True and body["stale"] is True
+    assert body["as_of"] == "2026-10-09"
+    assert fetch_calls == [], "resample serve must not touch the network"
+    assert kicks == [("POWERMECH", "1W", config.READ_LOOKBACK_BARS)]
+    candles = body["candles"]
+    assert len(candles) == 2  # weeks ending Fri Oct 2 and Fri Oct 9
+    assert candles[0]["o"] == 100.0 and candles[0]["h"] == 102.0
+    assert candles[0]["l"] == 99.0 and candles[0]["c"] == 101.0 and candles[0]["v"] == 2000.0
+    assert candles[1]["o"] == 102.0 and candles[1]["c"] == 106.0
+    assert candles[1]["h"] == 107.0 and candles[1]["l"] == 101.0 and candles[1]["v"] == 5000.0
+
+
+def test_symbol_chart_1w_exact_cache_takes_precedence_over_resample(
+    cp_client, monkeypatch, tmp_path,
+):
+    """A fresh exact 1W cache is served as-is; the 1D resample fallback only
+    runs when no exact 1W/1M cache exists."""
+    store.save_hits("cpj_1w_exact", [_hit("POWERMECH")])
+    df = _daily_df_business_days("2026-10-01", "2026-10-09")
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    _seed_live_edge_disk_cache("POWERMECH", "1D", df)
+    _seed_live_edge_disk_cache("POWERMECH", "1W", df)  # exact 1W entry, session-current
+    _pin_last_completed_session(monkeypatch, "2026-10-09")
+    monkeypatch.setattr(cp_api, "_ist_session_date", lambda: "2026-10-09")
+    fetch_calls: list = []
+
+    def _recorder(symbol, timeframe, **kwargs):
+        fetch_calls.append((symbol, timeframe))
+        raise AssertionError("no fetch when an exact cache is served")
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _recorder)
+    kicks = _kick_spy(monkeypatch)
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1W"}
+    )
+    assert chart.status_code == 200
+    body = chart.json()
+    assert body["cached"] is True and body["stale"] is True
+    assert body["as_of"] == "2026-10-09"
+    assert len(body["candles"]) == len(df)  # exact cache served un-resampled
+    assert fetch_calls == []
+
+
+def test_symbol_chart_1w_no_daily_cache_uses_network(cp_client, monkeypatch, tmp_path):
+    """No 1D cache at all: the resample fallback has nothing to read, so the
+    normal (bounded) network path runs for 1W."""
+    store.save_hits("cpj_1w_net", [_hit("POWERMECH")])
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    _pin_last_completed_session(monkeypatch, "2026-10-09")
+    monkeypatch.setattr(cp_api, "_ist_session_date", lambda: "2026-10-09")
+    cp_api._chart_neg_cache.clear()
+    fetch_calls: list = []
+
+    def _recorder(symbol, timeframe, **kwargs):
+        fetch_calls.append((symbol, timeframe))
+        return _daily_df_business_days("2026-10-01", "2026-10-09")
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _recorder)
+    kicks = _kick_spy(monkeypatch)
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1W"}
+    )
+    assert chart.status_code == 200
+    body = chart.json()
+    assert "cached" not in body and "stale" not in body and "as_of" not in body
+    assert fetch_calls == [("POWERMECH", "1W")], "no 1D cache -> network fetch for 1W"
+    assert kicks == []
+    assert len(body["candles"]) == 7
+
+
 def test_pattern_hit_cache_hit_skips_engine_and_detector(cp_client, monkeypatch):
     """detect_patterns=1 caches hits/trend lines for the session: repeat
     calls neither re-run the engine nor the trendline detector."""

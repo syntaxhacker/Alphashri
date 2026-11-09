@@ -426,6 +426,10 @@ def _stale_first_frame(symbol: str, timeframe: str, lookback_bars) -> Optional[t
     Local-disk read only: one size-capped pickle, no network. Returns
     ``(df, as_of, read_ms)`` where ``as_of`` is the frame's last IST session
     date. Never raises.
+
+    For ``1W``/``1M`` with no exact (fresh) cache, falls back to resampling
+    the default ``1D`` cache locally (``W-FRI`` / month-end) so a weekly or
+    monthly chart loads instantly instead of going to the network.
     """
     try:
         lb = None if lookback_bars is None else int(lookback_bars)
@@ -440,49 +444,101 @@ def _stale_first_frame(symbol: str, timeframe: str, lookback_bars) -> Optional[t
             alt = candles._cache_path(timeframe, symbol, None)
             if alt != path:
                 candidates.append(alt)
+        chosen = None
         for candidate in candidates:
             try:
-                size = candidate.stat().st_size
+                candidate.stat().st_size
             except OSError:
                 continue
-            path = candidate
+            chosen = candidate
             break
-        else:
+        df = None
+        read_ms = 0.0
+        if chosen is not None:
+            try:
+                size = chosen.stat().st_size
+            except OSError:
+                size = 0
+            if size <= _STALE_FIRST_MAX_BYTES:
+                start = _time.monotonic()
+                df = candles._read_pickle_any(chosen)
+                read_ms = (_time.monotonic() - start) * 1000.0
+                if read_ms > _STALE_FIRST_DISK_BUDGET_MS:
+                    _chart_logger.warning(
+                        "chart_stale_first slow disk read symbol=%s timeframe=%s read_ms=%.0f",
+                        symbol, timeframe, read_ms,
+                    )
+        if df is not None:
+            as_of = candles.frame_last_date(df)
+            if as_of:
+                if timeframe == "1D":
+                    try:
+                        lcs = candles._last_completed_session().isoformat()
+                    except Exception:
+                        lcs = None
+                    # One stale session (or a weekend) is still worth serving:
+                    # the whole point is instant candles while the background
+                    # refresh runs.
+                    ok = bool(lcs) and as_of >= (
+                        datetime.fromisoformat(lcs) - timedelta(days=3)
+                    ).date().isoformat()
+                else:
+                    ok = as_of == _ist_session_date()
+                if ok:
+                    return df, as_of, read_ms
+        # Weekly/monthly resample fallback: no exact (fresh) 1W/1M cache, so
+        # resample the default 1D cache locally — capped work, no network.
+        if timeframe in ("1W", "1M"):
+            return _stale_first_resampled_daily(symbol, timeframe)
+        return None
+    except Exception:
+        return None
+
+
+def _stale_first_resampled_daily(symbol: str, timeframe: str) -> Optional[tuple]:
+    """Resample the default ``1D`` live-edge cache into ``1W`` (``W-FRI``) or
+    ``1M`` (month-end) candles. Network-free, local disk only.
+
+    Returns ``(df, as_of, read_ms)`` where ``as_of`` is the last session date
+    of the source daily frame (truthful "data through" date), or ``None`` when
+    there is no usable ``1D`` cache. The caller marks the result ``stale``.
+    """
+    try:
+        path = candles._cache_path("1D", symbol, None)
+        try:
+            size = path.stat().st_size
+        except OSError:
             return None
-        start = _time.monotonic()
         if size > _STALE_FIRST_MAX_BYTES:
             _chart_logger.info(
-                "chart_stale_first symbol=%s timeframe=%s skipped=size bytes=%d",
+                "chart_stale_first_resample skipped=size symbol=%s timeframe=%s bytes=%d",
                 symbol, timeframe, size,
             )
             return None
+        start = _time.monotonic()
         df = candles._read_pickle_any(path)
         read_ms = (_time.monotonic() - start) * 1000.0
-        if read_ms > _STALE_FIRST_DISK_BUDGET_MS:
-            _chart_logger.warning(
-                "chart_stale_first slow disk read symbol=%s timeframe=%s read_ms=%.0f",
-                symbol, timeframe, read_ms,
-            )
         if df is None:
             return None
         as_of = candles.frame_last_date(df)
         if not as_of:
             return None
-        if timeframe == "1D":
-            try:
-                lcs = candles._last_completed_session().isoformat()
-            except Exception:
-                lcs = None
-            # One stale session (or a weekend) is still worth serving: the
-            # whole point is instant candles while the background refresh runs.
-            ok = bool(lcs) and as_of >= (
-                datetime.fromisoformat(lcs) - timedelta(days=3)
-            ).date().isoformat()
-        else:
-            ok = as_of == _ist_session_date()
-        if not ok:
+        # Same 3-day freshness tolerance as the 1D stale-first path.
+        try:
+            lcs = candles._last_completed_session().isoformat()
+        except Exception:
+            lcs = None
+        if (
+            not lcs
+            or as_of
+            < (datetime.fromisoformat(lcs) - timedelta(days=3)).date().isoformat()
+        ):
             return None
-        return df, as_of, read_ms
+        rule = "W-FRI" if timeframe == "1W" else "ME"
+        out = candles._resample_ohlcv(df, rule)
+        if out is None or out.empty:
+            return None
+        return out, as_of, read_ms
     except Exception:
         return None
 
