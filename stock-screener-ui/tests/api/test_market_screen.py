@@ -6,13 +6,18 @@ the app is never introspected via ``app.routes``. ``api.tv.scan_frame`` is
 mocked so no network call is made.
 """
 
+import os
+import shutil
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from sys import path as sys_path
-from unittest.mock import patch
+from time import sleep, time
+from unittest.mock import Mock, patch
 
 import pandas as pd
 import pytest
+import requests
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -22,8 +27,13 @@ if str(ROOT) not in sys_path:
 from api_server_fastapi import app  # noqa: E402
 from api.market_screen.snapshot import (  # noqa: E402
     ALLOWED_UNIVERSES,
-    _MAX_LIMIT,
+    MAX_LIMIT,
     _cache,
+    _inflight,
+    _STALE_DIR,
+    _STALE_MAX_AGE_SEC,
+    _stale_path,
+    _save_stale_snapshot,
     build_snapshot,
     COLUMNS,
 )
@@ -56,7 +66,7 @@ EXPECTED_RELIANCE_ROW = {
     "sma20": 2880.0, "sma50": 2800.0, "sma200": 2600.0,
     "perf_w": 2.1, "perf_1m": 4.6, "perf_3m": 8.2,
     "high_52w": 3000.0, "low_52w": 1800.0, "pos_52w": 95.5,
-    "fno": False, "etf": False,
+    "fno": True, "etf": False,
 }
 
 
@@ -66,6 +76,13 @@ def _frame(records) -> pd.DataFrame:
     return coerce_numeric(df)
 
 
+def _clear_disk_stale() -> None:
+    """Wipe the market-screen disk-stale directory (test isolation)."""
+    if _STALE_DIR.exists():
+        shutil.rmtree(_STALE_DIR)
+    _STALE_DIR.mkdir(parents=True, exist_ok=True)
+
+
 @pytest.fixture(scope="module")
 def client():
     with TestClient(app) as test_client:
@@ -73,18 +90,21 @@ def client():
 
 
 @pytest.fixture(autouse=True)
-def clear_cache():
+def clear_state():
     _cache.clear()
+    _inflight.clear()
+    _clear_disk_stale()
     yield
     _cache.clear()
+    _inflight.clear()
+    _clear_disk_stale()
 
 
 @pytest.fixture
 def mock_tv():
     with patch("api.market_screen.snapshot.scan_frame") as scan, \
             patch("api.market_screen.snapshot.tv_feed_status",
-                  return_value={"mode": "streaming"}), \
-            patch("api.market_screen.snapshot.tags_for", return_value=[]):
+                  return_value={"mode": "streaming"}):
         yield scan
 
 
@@ -96,6 +116,9 @@ def test_snapshot_default_universe(client, mock_tv):
     assert body["universe"] == "all_equity"
     assert body["total"] == 1
     assert body["update_mode"] == "streaming"
+    assert body["cached"] is False
+    assert body["stale"] is False
+    assert body["age_sec"] >= 0
     datetime.fromisoformat(body["as_of"])
     assert body["as_of"].endswith("+05:30")
     assert body["rows"] == [EXPECTED_RELIANCE_ROW]
@@ -105,7 +128,7 @@ def test_snapshot_default_universe(client, mock_tv):
     assert kw["filters"] == ALL_EQUITY_FILTERS
     assert kw["sort"] == "market_cap_basic"
     assert kw["order"] == "desc"
-    assert kw["limit"] == _MAX_LIMIT
+    assert kw["limit"] == MAX_LIMIT
     assert kw.get("tickers", []) == []
 
 
@@ -179,22 +202,24 @@ def test_pos_52w_nulls(client, mock_tv):
     assert client.get("/api/market/snapshot?force=true").json()["rows"][0]["pos_52w"] == 75.0
 
 
-def test_fno_etf_tags(client):
+def test_fno_etf_tags_use_hoisted_sets(client):
+    """F&O/ETF membership comes from the hoisted sets, not per-row tags_for."""
     with patch("api.market_screen.snapshot.scan_frame") as scan, \
             patch("api.market_screen.snapshot.tv_feed_status",
-                  return_value={"mode": "delayed_streaming_900"}), \
-            patch("api.market_screen.snapshot.tags_for",
-                  side_effect=lambda s: ["F&O", "ETF"] if s == "RELIANCE" else []):
+                  return_value={"mode": "streaming"}), \
+            patch("api.market_screen.snapshot._FNO_SYMBOLS", {"RELIANCE"}), \
+            patch("api.market_screen.snapshot._ETF_SYMBOLS", {"RELIANCE", "NIFTYBEES"}):
         scan.return_value = _frame([
             dict(RELIANCE_ROW, name="NSE:RELIANCE"),
             dict(RELIANCE_ROW, name="NSE:TCS"),
+            dict(RELIANCE_ROW, name="NSE:NIFTYBEES"),
         ])
         body = client.get("/api/market/snapshot").json()
-        assert body["update_mode"] == "delayed_streaming_900"
-        assert body["rows"][0]["symbol"] == "RELIANCE"
-        assert body["rows"][0]["fno"] is True and body["rows"][0]["etf"] is True
-        assert body["rows"][1]["symbol"] == "TCS"
-        assert body["rows"][1]["fno"] is False and body["rows"][1]["etf"] is False
+        assert scan.call_count == 1
+        flags = {r["symbol"]: (r["fno"], r["etf"]) for r in body["rows"]}
+        assert flags["RELIANCE"] == (True, True)
+        assert flags["TCS"] == (False, False)
+        assert flags["NIFTYBEES"] == (False, True)
 
 
 def test_missing_numerics_are_null(client, mock_tv):
@@ -221,17 +246,20 @@ def test_cache_hit_avoids_refetch(client, mock_tv):
     mock_tv.return_value = _frame([RELIANCE_ROW])
     first = client.get("/api/market/snapshot").json()
     second = client.get("/api/market/snapshot").json()
-    assert {k: v for k, v in first.items() if k != "as_of"} == {
-        k: v for k, v in second.items() if k != "as_of"
-    }
+    assert first["rows"] == second["rows"]
     assert mock_tv.call_count == 1
+    assert first["cached"] is False and first["stale"] is False
+    assert second["cached"] is True and second["stale"] is False
+    assert second["age_sec"] >= 0
 
 
 def test_force_bypasses_cache(client, mock_tv):
     mock_tv.return_value = _frame([RELIANCE_ROW])
-    client.get("/api/market/snapshot")
-    client.get("/api/market/snapshot?force=true")
+    first = client.get("/api/market/snapshot").json()
+    second = client.get("/api/market/snapshot?force=true").json()
     assert mock_tv.call_count == 2
+    assert first["cached"] is False and second["cached"] is False
+    assert first["stale"] is False and second["stale"] is False
 
 
 def test_upstream_failure_502_without_cache(client, mock_tv):
@@ -242,18 +270,184 @@ def test_upstream_failure_502_without_cache(client, mock_tv):
         "market_source_unavailable: TV scanner blew up")
 
 
-def test_upstream_failure_serves_last_good(client, mock_tv):
+def test_upstream_failure_serves_stale_memory_entry(client, mock_tv):
+    """Upstream down + expired memory entry -> serve stale, cached=true, stale=true."""
     two = [RELIANCE_ROW, dict(RELIANCE_ROW, name="NSE:TCS", market_cap_basic=1.4e12)]
     mock_tv.return_value = _frame(two)
     first = client.get("/api/market/snapshot").json()
+    # Expire the in-memory entry, then make the upstream fail.
+    key = ("all_equity", MAX_LIMIT)
+    _cache[key]["expires_at"] = time() - 1
     mock_tv.side_effect = RuntimeError("gone")
     resp = client.get("/api/market/snapshot")
     assert resp.status_code == 200
-    assert {k: v for k, v in resp.json().items() if k != "as_of"} == {
-        k: v for k, v in first.items() if k != "as_of"
-    }
+    got = resp.json()
+    assert got["rows"] == first["rows"]
+    assert got["update_mode"] == first["update_mode"]
+    assert got["cached"] is True and got["stale"] is True
 
 
 def test_build_snapshot_rejects_bad_universe():
     with pytest.raises(ValueError, match="unknown universe"):
         build_snapshot("forex")
+
+
+# --------------------------------------------------------------------------- #
+# Singleflight: N concurrent misses/force requests == one TV scan
+# --------------------------------------------------------------------------- #
+
+def test_singleflight_concurrent_misses_are_one_scan():
+    """8 concurrent cold misses for the same key produce exactly 1 TV scan."""
+    _cache.clear()
+    _inflight.clear()
+
+    def slow_scan(*args, **kwargs):
+        sleep(0.25)
+        return _frame([RELIANCE_ROW])
+
+    with patch("api.market_screen.snapshot.scan_frame", side_effect=slow_scan) as scan, \
+            patch("api.market_screen.snapshot.tv_feed_status",
+                  return_value={"mode": "streaming"}):
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(
+                lambda _: build_snapshot("all_equity", MAX_LIMIT), range(8)))
+
+    assert scan.call_count == 1
+    for result in results:
+        assert result["cached"] is False and result["stale"] is False
+        assert result["rows"] == results[0]["rows"]
+
+
+def test_singleflight_force_requests_are_one_scan():
+    """8 concurrent force requests for the same key produce exactly 1 TV scan."""
+    _cache.clear()
+    _inflight.clear()
+
+    def slow_scan(*args, **kwargs):
+        sleep(0.25)
+        return _frame([RELIANCE_ROW])
+
+    with patch("api.market_screen.snapshot.scan_frame", side_effect=slow_scan) as scan, \
+            patch("api.market_screen.snapshot.tv_feed_status",
+                  return_value={"mode": "streaming"}):
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(
+                lambda _: build_snapshot("all_equity", MAX_LIMIT, True), range(8)))
+
+    assert scan.call_count == 1
+    assert all(r["cached"] is False and r["stale"] is False for r in results)
+
+
+# --------------------------------------------------------------------------- #
+# Stale-while-revalidate: disk snapshot on a cold start
+# --------------------------------------------------------------------------- #
+
+def test_cold_start_serves_disk_stale_snapshot():
+    """No memory cache + disk snapshot -> immediate stale serve from disk,
+    background refresh does exactly one scan."""
+    _cache.clear()
+    _inflight.clear()
+    _clear_disk_stale()
+
+    stored_rows = [EXPECTED_RELIANCE_ROW]
+    _save_stale_snapshot("all_equity", MAX_LIMIT,
+                         time() - 120, "2026-01-05T00:00:00+05:30",
+                         "streaming", stored_rows)
+
+    def slow_scan(*args, **kwargs):
+        sleep(0.5)
+        return _frame([dict(RELIANCE_ROW, name="NSE:TATA")])
+
+    with patch("api.market_screen.snapshot.scan_frame", side_effect=slow_scan) as scan, \
+            patch("api.market_screen.snapshot.tv_feed_status",
+                  return_value={"mode": "streaming"}):
+        out = build_snapshot("all_equity", MAX_LIMIT)
+
+    # Served from disk immediately: no synchronous scan, rows are the disk
+    # payload (symbol RELIANCE), not a fresh TATA scan.
+    assert out["stale"] is True and out["cached"] is False
+    assert out["rows"][0]["symbol"] == "RELIANCE"
+    assert out["rows"] == stored_rows
+    assert out["age_sec"] > 60
+
+    key = ("all_equity", MAX_LIMIT)
+    assert key in _inflight  # background refresh was started
+    _inflight[key]["event"].wait(timeout=5)
+    assert scan.call_count == 1
+
+    # Cache is now warm: next request is a fresh hit with the scanned rows.
+    out2 = build_snapshot("all_equity", MAX_LIMIT)
+    assert out2["cached"] is True and out2["stale"] is False
+    assert out2["rows"][0]["symbol"] == "TATA"
+    assert scan.call_count == 1
+
+
+def test_disk_stale_too_old_is_not_served():
+    _cache.clear()
+    _inflight.clear()
+    _clear_disk_stale()
+
+    _save_stale_snapshot("all_equity", MAX_LIMIT,
+                         time(), "2026-01-05T00:00:00+05:30",
+                         "streaming", [EXPECTED_RELIANCE_ROW])
+    # Make the file look ancient so it must be ignored.
+    path = _stale_path("all_equity", MAX_LIMIT)
+    old = time() - 2 * _STALE_MAX_AGE_SEC
+    os.utime(path, (old, old))
+
+    with patch("api.market_screen.snapshot.scan_frame") as scan, \
+            patch("api.market_screen.snapshot.tv_feed_status",
+                  return_value={"mode": "streaming"}):
+        scan.return_value = _frame([dict(RELIANCE_ROW, name="NSE:FRESH")])
+        out = build_snapshot("all_equity", MAX_LIMIT)
+
+    assert out["stale"] is False and out["cached"] is False
+    assert out["rows"][0]["symbol"] == "FRESH"  # fresh scan, not the ancient disk payload
+    assert scan.call_count == 1
+
+
+# --------------------------------------------------------------------------- #
+# 401 / delayed cookie self-heal
+# --------------------------------------------------------------------------- #
+
+def test_401_self_heal_refreshes_cookies_and_retries_once():
+    err = requests.HTTPError("401 Unauthorized")
+    err.response = Mock(status_code=401)
+    with patch("api.market_screen.snapshot.scan_frame",
+               side_effect=[err, _frame([RELIANCE_ROW])]) as scan, \
+            patch("api.market_screen.snapshot.tv_feed_status",
+                  return_value={"mode": "streaming"}), \
+            patch("api.market_screen.snapshot.refresh_tv_cookies") as refresh:
+        out = build_snapshot("all_equity", MAX_LIMIT)
+
+    assert scan.call_count == 2
+    assert refresh.call_count == 1
+    assert out["cached"] is False and out["stale"] is False
+    assert out["rows"][0]["symbol"] == "RELIANCE"
+
+
+def test_delayed_feed_self_heal_retries_once():
+    """Delayed feed -> refresh cookies once + retry once; still reports delayed."""
+    with patch("api.market_screen.snapshot.scan_frame",
+               return_value=_frame([RELIANCE_ROW])) as scan, \
+            patch("api.market_screen.snapshot.tv_feed_status",
+                  return_value={"mode": "delayed_streaming_900"}), \
+            patch("api.market_screen.snapshot.refresh_tv_cookies") as refresh:
+        out = build_snapshot("all_equity", MAX_LIMIT)
+
+    assert scan.call_count == 2
+    assert refresh.call_count == 1
+    assert out["update_mode"] == "delayed_streaming_900"
+    assert out["stale"] is False
+
+
+def test_streaming_feed_triggers_no_cookie_heal():
+    with patch("api.market_screen.snapshot.scan_frame") as scan, \
+            patch("api.market_screen.snapshot.tv_feed_status",
+                  return_value={"mode": "streaming"}), \
+            patch("api.market_screen.snapshot.refresh_tv_cookies") as refresh:
+        out = build_snapshot("all_equity", MAX_LIMIT)
+
+    assert scan.call_count == 1
+    assert refresh.call_count == 0
+    assert out["cached"] is False and out["stale"] is False
