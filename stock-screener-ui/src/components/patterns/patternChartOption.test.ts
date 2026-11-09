@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PatternOverlay } from "@/types/chartPatterns";
+import type { ChartCandle, PatternOverlay } from "@/types/chartPatterns";
 import { buildPatternChartOption } from "./patternChartOption";
 import { IST_CANDLES, UTC_CANDLES as CANDLES, UTC_HIT as HIT, expectCompactPivotMarkersOmitted, seriesOf } from "./patternTestFixtures";
 
@@ -209,5 +209,86 @@ describe("buildPatternChartOption instance identity", () => {
     const withLabel = seriesOf<Record<string, unknown>>(option).find((s) => s.endLabel);
     expect(withLabel?.labelLayout).toMatchObject({ hideOverlap: true });
     expect((option.grid as { top?: number }).top).toBeGreaterThanOrEqual(32);
+  });
+});
+
+describe("buildPatternChartOption performance", () => {
+  it("builds the full option for 714 daily candles in under 20ms (median of 20)", () => {
+    // Realistic fullscreen dock chart: 714 daily candles, naive engine
+    // timestamps (which never exact-match the ISO candle axis, so every point
+    // exercises the nearest lookup), 15 sibling overlays, 24 pivots, 6
+    // standalone TLS/TLR lines.
+    const candles: ChartCandle[] = [];
+    const start = new Date("2023-01-02T09:15:00+05:30").getTime();
+    let price = 100;
+    for (let i = 0; i < 714; i++) {
+      const t = new Date(start + i * 86400000).toISOString();
+      const o = price + (i % 7) - 3;
+      const c = o + ((i % 5) - 2);
+      price = c;
+      candles.push({ t, o, h: Math.max(o, c) + 1.5, l: Math.min(o, c) - 1.5, c, v: 1000 + i });
+    }
+    const naiveAt = (i: number) => candles[i]!.t.replace("T", " ").slice(0, 16);
+    const hit = {
+      ...HIT,
+      pivots: Array.from({ length: 24 }, (_, k) => ({
+        t: naiveAt(20 + k * 28),
+        price: 100 + k,
+        kind: (k % 2 === 0 ? "high" : "low") as "high" | "low",
+      })),
+      trend_lines: Array.from({ length: 6 }, (_, k) => ({
+        kind: (k % 2 === 0 ? "support" : "resistance") as "support" | "resistance",
+        start_date: candles[k * 10]!.t.slice(0, 10),
+        start_price: 90 + k * 2,
+        end_date: candles[600 + k * 5]!.t.slice(0, 10),
+        end_price: 110 + k * 2,
+        slope: 0.1,
+        touches: 3,
+        span_bars: 100,
+        violations: 0,
+      })),
+    };
+    const overlays = Array.from({ length: 15 }, (_, k) => ({
+      pattern_id: `pat_${k % 5}`,
+      pattern_name: `Pattern ${k % 5}`,
+      start_date: candles[50 + k * 30]!.t.slice(0, 10),
+      trendlines: [
+        [
+          { t: naiveAt(50 + k * 30), price: 98 + k },
+          { t: naiveAt(240 + k * 30), price: 112 + k },
+        ],
+        [
+          { t: naiveAt(50 + k * 30), price: 92 + k },
+          { t: naiveAt(240 + k * 30), price: 104 + k },
+        ],
+      ],
+    }));
+    const input = {
+      candles,
+      hit,
+      trendlines: [
+        [
+          { t: naiveAt(10), price: 100 },
+          { t: naiveAt(190), price: 115 },
+        ],
+        [
+          { t: naiveAt(10), price: 95 },
+          { t: naiveAt(190), price: 105 },
+        ],
+      ],
+      overlays,
+      compact: false,
+    };
+    // Warm up, then take the median of 20 single builds.
+    for (let i = 0; i < 5; i++) buildPatternChartOption(input);
+    const samples: number[] = [];
+    for (let i = 0; i < 20; i++) {
+      const t0 = performance.now();
+      buildPatternChartOption(input);
+      samples.push(performance.now() - t0);
+    }
+    samples.sort((a, b) => a - b);
+    const median = samples[Math.floor(samples.length / 2)]!;
+    expect(median).toBeLessThan(20);
   });
 });
