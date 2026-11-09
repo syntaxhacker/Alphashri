@@ -6,7 +6,10 @@ import {
   fetchMarketSnapshot,
   mapMarketRow,
   mapMarketSnapshot,
+  readCachedMarketSnapshot,
+  writeCachedMarketSnapshot,
 } from "./marketScreener";
+import type { MarketSnapshot } from "../types/marketScreener";
 import { fetchWithAuth } from "../state/auth";
 
 vi.mock("../state/auth", () => ({
@@ -25,6 +28,7 @@ function mockResponse(ok: boolean, body: unknown, status = 200): Response {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.sessionStorage.clear();
 });
 
 describe("buildMarketSnapshotUrl", () => {
@@ -216,5 +220,77 @@ describe("fetchMarketSnapshot", () => {
     const controller = new AbortController();
     await fetchMarketSnapshot({}, { signal: controller.signal });
     expect(mockFetchWithAuth.mock.calls[0][1]).toMatchObject({ signal: controller.signal });
+  });
+});
+
+describe("snapshot cache (sessionStorage)", () => {
+  function cachedSnapshot(overrides: Partial<MarketSnapshot> = {}): MarketSnapshot {
+    return {
+      asOf: "2026-11-06T15:30:00+05:30",
+      universe: "all_equity",
+      total: 2,
+      updateMode: "streaming",
+      rows: [
+        mapMarketRow({ symbol: "RELIANCE", close: 2946 }),
+        mapMarketRow({ symbol: "TCS", close: 3100 }),
+      ],
+      ...overrides,
+    };
+  }
+
+  test("write then read round-trips the snapshot per universe", () => {
+    writeCachedMarketSnapshot("all_equity", cachedSnapshot({ total: 123 }));
+    writeCachedMarketSnapshot("nifty500", cachedSnapshot({ universe: "nifty500", total: 500 }));
+    expect(readCachedMarketSnapshot("all_equity")?.total).toBe(123);
+    expect(readCachedMarketSnapshot("nifty500")?.total).toBe(500);
+    expect(readCachedMarketSnapshot("nifty50")).toBeNull();
+  });
+
+  test("read returns null for malformed JSON and clears the key", () => {
+    window.sessionStorage.setItem("alphashri.market_snapshot.v1.all_equity", "{oops");
+    expect(readCachedMarketSnapshot("all_equity")).toBeNull();
+    expect(window.sessionStorage.getItem("alphashri.market_snapshot.v1.all_equity")).toBeNull();
+  });
+
+  test("read returns null for a universe mismatch", () => {
+    window.sessionStorage.setItem(
+      "alphashri.market_snapshot.v1.all_equity",
+      JSON.stringify(cachedSnapshot({ universe: "nifty50" })),
+    );
+    expect(readCachedMarketSnapshot("all_equity")).toBeNull();
+  });
+
+  test("read returns null when a row has no usable symbol", () => {
+    window.sessionStorage.setItem(
+      "alphashri.market_snapshot.v1.all_equity",
+      JSON.stringify({ ...cachedSnapshot(), rows: [{ name: "ghost" }] }),
+    );
+    expect(readCachedMarketSnapshot("all_equity")).toBeNull();
+  });
+
+  test("read returns null when total is not a finite number", () => {
+    window.sessionStorage.setItem(
+      "alphashri.market_snapshot.v1.all_equity",
+      JSON.stringify({ ...cachedSnapshot(), total: "lots" }),
+    );
+    expect(readCachedMarketSnapshot("all_equity")).toBeNull();
+  });
+
+  test("an oversized payload is not written", () => {
+    const fat = mapMarketRow({ symbol: "FAT" });
+    const hugeRows = Array.from({ length: 4000 }, () => ({
+      ...fat,
+      name: "x".repeat(900),
+    }));
+    writeCachedMarketSnapshot("all_equity", cachedSnapshot({ rows: hugeRows, total: 4000 }));
+    expect(readCachedMarketSnapshot("all_equity")).toBeNull();
+  });
+
+  test("cache never stores filters — payload has exactly the snapshot keys", () => {
+    writeCachedMarketSnapshot("all_equity", cachedSnapshot());
+    const raw = window.sessionStorage.getItem("alphashri.market_snapshot.v1.all_equity");
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw as string) as Record<string, unknown>;
+    expect(Object.keys(parsed).sort()).toEqual(["asOf", "rows", "total", "universe", "updateMode"]);
   });
 });

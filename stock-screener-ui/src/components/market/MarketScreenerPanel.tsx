@@ -67,7 +67,7 @@ export function MarketScreenerPanel() {
   const dock = useSymbolDock();
   const isNarrow = useMediaQuery("(max-width: 1023px)");
 
-  const { rows, total, updateMode, asOf, isLoading, error, refresh } =
+  const { rows, total, updateMode, asOf, isLoading, error, refresh, stale: cachedStale, warming } =
     useMarketSnapshot(universe);
 
   // Filters belong to one universe's snapshot; carrying them across a universe
@@ -94,7 +94,10 @@ export function MarketScreenerPanel() {
   const sectors = useMemo(() => marketSectors(rows), [rows]);
   const tierCounts = useMemo(() => countByCapTier(rows), [rows]);
   const columns = useMemo(() => buildMarketColumns(), []);
-  const stale = useMemo(() => isSnapshotStale(asOf), [asOf]);
+  const stale = useMemo(
+    () => cachedStale || isSnapshotStale(asOf),
+    [cachedStale, asOf],
+  );
   const hasActiveFilters = chips.length > 0;
 
   const patchFilters = useCallback(
@@ -155,6 +158,9 @@ export function MarketScreenerPanel() {
       setRailCollapsed((collapsed) => !collapsed);
     }
   }, [isNarrow]);
+
+  const showWarmingHint =
+    universe === "all_equity" && warming && isLoading && error === null && rows.length === 0;
 
   const modeBadge = (() => {
     const mode = (updateMode ?? "").toLowerCase();
@@ -244,7 +250,13 @@ export function MarketScreenerPanel() {
           </Badge>
         </Tooltip>
         {stale ? (
-          <Tooltip label={`Snapshot is older than 15 minutes (as of ${asOf ?? "unknown"})`}>
+          <Tooltip
+            label={
+              cachedStale && isLoading
+                ? "Showing the last snapshot — refreshing in the background"
+                : `Snapshot is older than 15 minutes (as of ${asOf ?? "unknown"})`
+            }
+          >
             <Badge size="xs" variant="outline" color="warning" data-testid="market-stale-badge">
               Stale
             </Badge>
@@ -305,6 +317,39 @@ export function MarketScreenerPanel() {
           Reset
         </Button>
       </Paper>
+
+      {showWarmingHint ? (
+        <Box
+          role="status"
+          data-testid="market-warming-hint"
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1,
+            px: 1,
+            py: 0.5,
+            flexShrink: 0,
+            border: 1,
+            borderColor: BORDER,
+            borderRadius: 2,
+            bgcolor: SURFACE,
+          }}
+        >
+          <Loader size={12} />
+          <Text size="xs" c="dimmed" data-testid="market-warming-hint-text">
+            Still warming All NSE — switch to Nifty 500 for instant data
+          </Text>
+          <Box sx={{ flex: 1, minWidth: 0 }} />
+          <Button
+            size="xs"
+            variant="subtle"
+            onClick={() => setUniverse("nifty500")}
+            data-testid="market-warming-switch"
+          >
+            Switch to Nifty 500
+          </Button>
+        </Box>
+      ) : null}
 
       {showErrorBanner ? (
         <Box

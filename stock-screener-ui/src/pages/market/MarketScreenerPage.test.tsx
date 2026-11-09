@@ -105,6 +105,8 @@ function hookResult(overrides: Partial<UseMarketSnapshotResult> = {}): UseMarket
     error: null,
     refresh: vi.fn(),
     lastUpdated: new Date().toISOString(),
+    stale: false,
+    warming: false,
     ...overrides,
   };
 }

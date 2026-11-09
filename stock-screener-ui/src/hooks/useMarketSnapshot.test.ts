@@ -6,9 +6,13 @@ import { useMarketSnapshot } from "./useMarketSnapshot";
 import { fetchMarketSnapshot } from "../api/marketScreener";
 import type { MarketSnapshot, MarketUniverse } from "../types/marketScreener";
 
-vi.mock("../api/marketScreener", () => ({
-  fetchMarketSnapshot: vi.fn(),
-}));
+vi.mock("../api/marketScreener", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/marketScreener")>();
+  return {
+    ...actual,
+    fetchMarketSnapshot: vi.fn(),
+  };
+});
 
 const mockFetchMarketSnapshot = vi.mocked(fetchMarketSnapshot);
 
@@ -82,6 +86,7 @@ function makeSnapshot(overrides: Partial<MarketSnapshot> = {}): MarketSnapshot {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.sessionStorage.clear();
 });
 
 describe("useMarketSnapshot", () => {
@@ -189,5 +194,147 @@ describe("useMarketSnapshot", () => {
     await waitFor(() => expect(result.current.total).toBe(7));
     resolveFirst(makeSnapshot({ universe: "all_equity", total: 999 }));
     await waitFor(() => expect(result.current.total).toBe(7));
+  });
+
+  test("hydrates rows from the sessionStorage cache synchronously on mount", () => {
+    window.sessionStorage.setItem(
+      "alphashri.market_snapshot.v1.all_equity",
+      JSON.stringify(makeSnapshot({ total: 3 })),
+    );
+    mockFetchMarketSnapshot.mockReturnValue(new Promise(() => {}));
+    const { result } = renderHook(() => useMarketSnapshot("all_equity"));
+    expect(result.current.rows).toHaveLength(2);
+    expect(result.current.total).toBe(3);
+    expect(result.current.stale).toBe(true);
+    expect(result.current.isLoading).toBe(true);
+  });
+
+  test("hydrates from a different universe's cache on switch, instantly dropping the skeleton", async () => {
+    mockFetchMarketSnapshot.mockResolvedValue(makeSnapshot({ universe: "all_equity" }));
+    window.sessionStorage.setItem(
+      "alphashri.market_snapshot.v1.nse_fo",
+      JSON.stringify(makeSnapshot({ universe: "nse_fo", total: 42 })),
+    );
+    const { result, rerender } = renderHook(({ u }: { u: MarketUniverse }) => useMarketSnapshot(u), {
+      initialProps: { u: "all_equity" as MarketUniverse },
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    mockFetchMarketSnapshot.mockReturnValue(new Promise(() => {}));
+    rerender({ u: "nse_fo" });
+    expect(result.current.total).toBe(42);
+    expect(result.current.rows).toHaveLength(2);
+    expect(result.current.stale).toBe(true);
+  });
+
+  test("ignores malformed cached data and falls back to the skeleton", () => {
+    window.sessionStorage.setItem("alphashri.market_snapshot.v1.all_equity", "{not json");
+    mockFetchMarketSnapshot.mockReturnValue(new Promise(() => {}));
+    const { result } = renderHook(() => useMarketSnapshot("all_equity"));
+    expect(result.current.rows).toHaveLength(0);
+    expect(result.current.stale).toBe(false);
+    expect(result.current.isLoading).toBe(true);
+  });
+
+  test("stale cache is discarded when its rows fail shape validation", () => {
+    window.sessionStorage.setItem(
+      "alphashri.market_snapshot.v1.all_equity",
+      JSON.stringify({ ...makeSnapshot(), rows: [{ name: "no symbol" }] }),
+    );
+    mockFetchMarketSnapshot.mockReturnValue(new Promise(() => {}));
+    const { result } = renderHook(() => useMarketSnapshot("all_equity"));
+    expect(result.current.rows).toHaveLength(0);
+    expect(window.sessionStorage.getItem("alphashri.market_snapshot.v1.all_equity")).toBeNull();
+  });
+
+  test("fresh fetch replaces the cache and clears the stale flag", async () => {
+    window.sessionStorage.setItem(
+      "alphashri.market_snapshot.v1.all_equity",
+      JSON.stringify(makeSnapshot({ total: 3 })),
+    );
+    mockFetchMarketSnapshot.mockResolvedValue(makeSnapshot({ total: 9 }));
+    const { result } = renderHook(() => useMarketSnapshot("all_equity"));
+    expect(result.current.stale).toBe(true);
+    await waitFor(() => expect(result.current.stale).toBe(false));
+    expect(result.current.total).toBe(9);
+    expect(result.current.isLoading).toBe(false);
+    const cached = window.sessionStorage.getItem("alphashri.market_snapshot.v1.all_equity");
+    expect(cached).not.toBeNull();
+    expect(JSON.parse(cached as string).total).toBe(9);
+  });
+
+  test("timeout aborts the fetch after 15s and sets a clear error", async () => {
+    vi.useFakeTimers();
+    try {
+      mockFetchMarketSnapshot.mockReturnValue(new Promise(() => {}));
+      const { result } = renderHook(() => useMarketSnapshot("all_equity"));
+      expect(result.current.isLoading).toBe(true);
+      await act(async () => {
+        vi.advanceTimersByTime(15_000);
+      });
+      expect(result.current.error?.message).toBe("Market snapshot timed out");
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.warming).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("does not timeout before 15s — error stays null while pending", async () => {
+    vi.useFakeTimers();
+    try {
+      mockFetchMarketSnapshot.mockReturnValue(new Promise(() => {}));
+      const { result } = renderHook(() => useMarketSnapshot("nifty500"));
+      await act(async () => {
+        vi.advanceTimersByTime(14_999);
+      });
+      expect(result.current.error).toBeNull();
+      expect(result.current.isLoading).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("warming flag flips on after 4s of loading and clears when the fetch lands", async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveFetch!: (value: MarketSnapshot) => void;
+      mockFetchMarketSnapshot.mockReturnValue(
+        new Promise<MarketSnapshot>((res) => {
+          resolveFetch = res;
+        }),
+      );
+      const { result } = renderHook(() => useMarketSnapshot("all_equity"));
+      expect(result.current.warming).toBe(false);
+      await act(async () => {
+        vi.advanceTimersByTime(4_000);
+      });
+      expect(result.current.warming).toBe(true);
+      await act(async () => {
+        resolveFetch(makeSnapshot());
+        await Promise.resolve();
+      });
+      expect(result.current.warming).toBe(false);
+      expect(result.current.isLoading).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("warming never flips on when the fetch resolves before 4s", async () => {
+    vi.useFakeTimers();
+    try {
+      mockFetchMarketSnapshot.mockResolvedValue(makeSnapshot());
+      const { result } = renderHook(() => useMarketSnapshot("all_equity"));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(result.current.warming).toBe(false);
+      expect(result.current.isLoading).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
