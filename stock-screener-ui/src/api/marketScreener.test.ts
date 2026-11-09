@@ -72,24 +72,19 @@ describe("mapMarketSnapshot", () => {
           symbol: "RELIANCE",
           name: "Reliance Industries",
           sector: "Energy",
-          industry: "Oil & Gas",
           exchange: "NSE",
           close: 2946,
           change: 0.82,
-          volume: 1234567,
           relative_volume: 1.4,
-          market_cap: 1990000000000,
           market_cap_cr: 199000,
           cap_tier: "Large",
           rsi: 61.2,
           adx: 24.1,
-          atr: 45,
           sma20: 2880,
           sma50: 2800,
           sma200: 2600,
           perf_w: 2.1,
           perf_1m: 4.6,
-          perf_3m: 8.2,
           high_52w: 3000,
           low_52w: 1800,
           pos_52w: 95,
@@ -107,30 +102,98 @@ describe("mapMarketSnapshot", () => {
       symbol: "RELIANCE",
       name: "Reliance Industries",
       sector: "Energy",
-      industry: "Oil & Gas",
       exchange: "NSE",
       close: 2946,
       change: 0.82,
-      volume: 1234567,
       relativeVolume: 1.4,
-      marketCap: 1990000000000,
       marketCapCr: 199000,
       capTier: "large",
       rsi: 61.2,
       adx: 24.1,
-      atr: 45,
       sma20: 2880,
       sma50: 2800,
       sma200: 2600,
       perfW: 2.1,
       perf1m: 4.6,
-      perf3m: 8.2,
       high52w: 3000,
       low52w: 1800,
       pos52w: 95,
       fno: true,
       etf: false,
     });
+  });
+
+  test("mapped row excludes the unused snapshot fields (payload shrink)", () => {
+    const snapshot = mapMarketSnapshot({
+      as_of: "2026-11-06T15:30:00+05:30",
+      universe: "nifty50",
+      total: 1,
+      update_mode: "streaming",
+      rows: [
+        {
+          symbol: "RELIANCE",
+          name: "Reliance Industries",
+          sector: "Energy",
+          exchange: "NSE",
+          close: 2946,
+          change: 0.82,
+          relative_volume: 1.4,
+          market_cap_cr: 199000,
+          cap_tier: "large",
+          rsi: 61.2,
+          adx: 24.1,
+          sma20: 2880,
+          sma50: 2800,
+          sma200: 2600,
+          perf_w: 2.1,
+          perf_1m: 4.6,
+          high_52w: 3000,
+          low_52w: 1800,
+          pos_52w: 95,
+          fno: true,
+          etf: false,
+        },
+      ],
+    });
+    const row = snapshot.rows[0];
+    // The five fields dropped from the backend response must not reach components.
+    for (const field of ["industry", "volume", "marketCap", "atr", "perf3m"]) {
+      expect(row).not.toHaveProperty(field);
+    }
+    // Serialized row is smaller than an equivalent row carrying the dropped fields.
+    const before = JSON.stringify({
+      ...row,
+      industry: "Oil & Gas",
+      volume: 1234567,
+      marketCap: 1990000000000,
+      atr: 45,
+      perf3m: 8.2,
+    });
+    const after = JSON.stringify(row);
+    expect(after.length).toBeLessThan(before.length);
+    expect(Object.keys(row).sort()).toEqual([
+      "adx",
+      "capTier",
+      "change",
+      "close",
+      "etf",
+      "exchange",
+      "fno",
+      "high52w",
+      "low52w",
+      "name",
+      "perf1m",
+      "perfW",
+      "pos52w",
+      "relativeVolume",
+      "rsi",
+      "sector",
+      "sma20",
+      "sma200",
+      "sma50",
+      "symbol",
+      "marketCapCr",
+    ].sort());
   });
 
   test("null and missing numeric fields map to null", () => {

@@ -46,25 +46,23 @@ ALL_EQUITY_FILTERS = [
 
 RELIANCE_ROW = {
     "name": "NSE:RELIANCE", "description": "Reliance Industries",
-    "sector": "Energy", "industry": "Oil & Gas Refining", "exchange": "NSE",
-    "close": 2946.0, "change": 0.82, "volume": 1234567.0,
+    "sector": "Energy", "exchange": "NSE",
+    "close": 2946.0, "change": 0.82,
     "relative_volume_10d_calc": 1.4, "market_cap_basic": 1990000000000.0,
-    "RSI": 61.2, "ADX": 24.1, "ATR": 45.0,
+    "RSI": 61.2, "ADX": 24.1,
     "SMA20": 2880.0, "SMA50": 2800.0, "SMA200": 2600.0,
-    "Perf.W": 2.1, "Perf.1M": 4.6, "Perf.3M": 8.2,
+    "Perf.W": 2.1, "Perf.1M": 4.6,
     "price_52_week_high": 3000.0, "price_52_week_low": 1800.0,
     "update_mode": "streaming",
 }
 
 EXPECTED_RELIANCE_ROW = {
-    "symbol": "RELIANCE", "name": "Reliance Industries", "sector": "Energy",
-    "industry": "Oil & Gas Refining", "exchange": "NSE",
-    "close": 2946.0, "change": 0.82, "volume": 1234567.0,
-    "relative_volume": 1.4, "market_cap": 1990000000000.0,
-    "market_cap_cr": 199000.0, "cap_tier": "large",
-    "rsi": 61.2, "adx": 24.1, "atr": 45.0,
+    "symbol": "RELIANCE", "name": "Reliance Industries", "sector": "Energy", "exchange": "NSE",
+    "close": 2946.0, "change": 0.82,
+    "relative_volume": 1.4, "market_cap_cr": 199000.0, "cap_tier": "large",
+    "rsi": 61.2, "adx": 24.1,
     "sma20": 2880.0, "sma50": 2800.0, "sma200": 2600.0,
-    "perf_w": 2.1, "perf_1m": 4.6, "perf_3m": 8.2,
+    "perf_w": 2.1, "perf_1m": 4.6,
     "high_52w": 3000.0, "low_52w": 1800.0, "pos_52w": 95.5,
     "fno": True, "etf": False,
 }
@@ -130,6 +128,18 @@ def test_snapshot_default_universe(client, mock_tv):
     assert kw["order"] == "desc"
     assert kw["limit"] == MAX_LIMIT
     assert kw.get("tickers", []) == []
+
+
+def test_dropped_fields_absent_from_response(client, mock_tv):
+    """The five unused row fields never reach the client; market_cap_cr is kept."""
+    mock_tv.return_value = _frame([RELIANCE_ROW])
+    body = client.get("/api/market/snapshot").json()
+    assert len(body["rows"]) == 1
+    row = body["rows"][0]
+    for field in ("industry", "volume", "market_cap", "atr", "perf_3m"):
+        assert field not in row, field
+    assert "market_cap_cr" in row
+    assert len(row) == len(EXPECTED_RELIANCE_ROW)
 
 
 @pytest.mark.parametrize("universe", ["nifty50", "nifty500", "nse_fo"])
@@ -232,10 +242,10 @@ def test_missing_numerics_are_null(client, mock_tv):
     r = client.get("/api/market/snapshot").json()["rows"][0]
     assert r["symbol"] == "NODATA"
     assert r["name"] == "No Data"
-    assert r["sector"] is None and r["industry"] is None
-    for key in ("close", "change", "volume", "relative_volume", "market_cap",
-                "market_cap_cr", "rsi", "adx", "atr", "sma20", "sma50",
-                "sma200", "perf_w", "perf_1m", "perf_3m", "high_52w",
+    assert r["sector"] is None
+    for key in ("close", "change", "relative_volume", "market_cap_cr",
+                "rsi", "adx", "sma20", "sma50",
+                "sma200", "perf_w", "perf_1m", "high_52w",
                 "low_52w", "pos_52w"):
         assert r[key] is None, key
     assert r["cap_tier"] == "micro"

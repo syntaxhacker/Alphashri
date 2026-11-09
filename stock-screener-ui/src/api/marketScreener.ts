@@ -126,24 +126,19 @@ interface RawMarketRow {
   symbol?: unknown;
   name?: unknown;
   sector?: unknown;
-  industry?: unknown;
   exchange?: unknown;
   close?: unknown;
   change?: unknown;
-  volume?: unknown;
   relative_volume?: unknown;
-  market_cap?: unknown;
   market_cap_cr?: unknown;
   cap_tier?: unknown;
   rsi?: unknown;
   adx?: unknown;
-  atr?: unknown;
   sma20?: unknown;
   sma50?: unknown;
   sma200?: unknown;
   perf_w?: unknown;
   perf_1m?: unknown;
-  perf_3m?: unknown;
   high_52w?: unknown;
   low_52w?: unknown;
   pos_52w?: unknown;
@@ -182,24 +177,19 @@ export function mapMarketRow(raw: RawMarketRow | null | undefined): MarketRow {
     symbol: toText(r.symbol) ?? "",
     name: toText(r.name) ?? "",
     sector: toText(r.sector),
-    industry: toText(r.industry),
     exchange: toText(r.exchange),
     close: toNumber(r.close),
     change: toNumber(r.change),
-    volume: toNumber(r.volume),
     relativeVolume: toNumber(r.relative_volume),
-    marketCap: toNumber(r.market_cap),
     marketCapCr: toNumber(r.market_cap_cr),
     capTier: toText(r.cap_tier)?.toLowerCase() ?? null,
     rsi: toNumber(r.rsi),
     adx: toNumber(r.adx),
-    atr: toNumber(r.atr),
     sma20: toNumber(r.sma20),
     sma50: toNumber(r.sma50),
     sma200: toNumber(r.sma200),
     perfW: toNumber(r.perf_w),
     perf1m: toNumber(r.perf_1m),
-    perf3m: toNumber(r.perf_3m),
     high52w: toNumber(r.high_52w),
     low52w: toNumber(r.low_52w),
     pos52w: toNumber(r.pos_52w),
