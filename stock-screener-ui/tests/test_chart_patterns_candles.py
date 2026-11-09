@@ -1,11 +1,13 @@
 """Tests for session-aware candle caching in chart_patterns/candles.py."""
 import json
+import threading
 import time
 from datetime import date, datetime
 
 import pandas as pd
 import pytest
 
+import market_data.market_data as md
 from chart_patterns import candles as candles_mod
 
 IST = pytest.importorskip("trading.timezone").IST
@@ -242,3 +244,217 @@ def test_cache_path_is_versioned():
     assert candles_mod._cache_path("1D", "RELIANCE", as_of_date="2026-10-05").name == (
         f"RELIANCE.2026-10-05.v{candles_mod.CACHE_VERSION}.pkl"
     )
+
+
+# ---------------------------------------------------------------------------
+# Singleflight (in-flight coalescing) + negative (empty-result) cache
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def clean_singleflight():
+    candles_mod.clear_empty_cache()
+    with candles_mod._INFLIGHT_LOCK:
+        candles_mod._INFLIGHT.clear()
+    yield
+    candles_mod.clear_empty_cache()
+    with candles_mod._INFLIGHT_LOCK:
+        candles_mod._INFLIGHT.clear()
+
+
+def _fast_df(n: int = 10) -> pd.DataFrame:
+    idx = pd.date_range("2026-10-01", periods=n, freq="15min", tz="UTC")
+    base = [100.0 + i for i in range(n)]
+    return pd.DataFrame(
+        {
+            "open": base,
+            "high": [b + 1.0 for b in base],
+            "low": [b - 1.0 for b in base],
+            "close": base,
+            "volume": [1000.0] * n,
+        },
+        index=idx,
+    )
+
+
+def test_concurrent_calls_share_one_fetch(clean_singleflight, cache_dir, monkeypatch):
+    entered = threading.Event()
+    release = threading.Event()
+    calls = []
+
+    def fake_fetch(symbol, timeframe, **kwargs):
+        calls.append((symbol, timeframe))
+        entered.set()
+        assert release.wait(5)
+        return _fast_df()
+
+    monkeypatch.setattr(md, "fetch_candles_for_timeframe", fake_fetch)
+    results: dict[str, object] = {}
+
+    def run(name):
+        try:
+            results[name] = candles_mod.fetch_for_timeframe("AAA", "15m")
+        except Exception as exc:  # noqa: BLE001
+            results[name] = exc
+
+    t1 = threading.Thread(target=run, args=("a",))
+    t2 = threading.Thread(target=run, args=("b",))
+    t1.start()
+    assert entered.wait(5)
+    t2.start()
+    # Give the waiter time to join the in-flight slot.
+    time.sleep(0.1)
+    release.set()
+    t1.join(5)
+    t2.join(5)
+
+    assert calls == [("AAA", "15m")]
+    assert results["a"] is results["b"] or (
+        isinstance(results["a"], pd.DataFrame) and isinstance(results["b"], pd.DataFrame)
+        and len(results["a"]) == len(results["b"]) == 10
+    )
+    # Singleflight does not leak slots.
+    with candles_mod._INFLIGHT_LOCK:
+        assert candles_mod._INFLIGHT == {}
+
+
+def test_waiter_gets_none_when_leader_raises(clean_singleflight, cache_dir, monkeypatch):
+    entered = threading.Event()
+    release = threading.Event()
+
+    def fake_fetch(symbol, timeframe, **kwargs):
+        entered.set()
+        assert release.wait(5)
+        raise RuntimeError("upstox down")
+
+    monkeypatch.setattr(md, "fetch_candles_for_timeframe", fake_fetch)
+    results: dict[str, object] = {}
+
+    def run(name):
+        try:
+            results[name] = candles_mod.fetch_for_timeframe("AAA", "15m")
+        except Exception as exc:  # noqa: BLE001
+            results[name] = exc
+
+    t1 = threading.Thread(target=run, args=("a",))
+    t2 = threading.Thread(target=run, args=("b",))
+    t1.start()
+    assert entered.wait(5)
+    t2.start()
+    time.sleep(0.1)
+    release.set()
+    t1.join(5)
+    t2.join(5)
+
+    # One caller (the leader) sees the exception, the other (the waiter)
+    # fails soft with None — exactly one raise, never two network calls.
+    outcomes = list(results.values())
+    assert sum(isinstance(o, RuntimeError) for o in outcomes) == 1
+    assert outcomes.count(None) == 1
+    # The error is NOT negative-cached: a follow-up call reaches the feed again.
+    calls = []
+
+    def fake_fetch2(symbol, timeframe, **kwargs):
+        calls.append(symbol)
+        raise RuntimeError("upstox down")
+
+    monkeypatch.setattr(md, "fetch_candles_for_timeframe", fake_fetch2)
+    with pytest.raises(RuntimeError):
+        candles_mod.fetch_for_timeframe("AAA", "15m")
+    assert calls == ["AAA"]
+
+
+def test_empty_result_is_cached(clean_singleflight, cache_dir, monkeypatch):
+    calls = []
+
+    def fake_fetch(symbol, timeframe, **kwargs):
+        calls.append((symbol, timeframe))
+        return None
+
+    monkeypatch.setattr(md, "fetch_candles_for_timeframe", fake_fetch)
+    assert candles_mod.fetch_for_timeframe("AAA", "15m") is None
+    assert candles_mod.fetch_for_timeframe("AAA", "15m") is None
+    assert calls == [("AAA", "15m")]
+
+
+def test_empty_dataframe_result_is_cached(clean_singleflight, cache_dir, monkeypatch):
+    calls = []
+
+    def fake_fetch(symbol, timeframe, **kwargs):
+        calls.append(symbol)
+        return pd.DataFrame()
+
+    monkeypatch.setattr(md, "fetch_candles_for_timeframe", fake_fetch)
+    assert candles_mod.fetch_for_timeframe("AAA", "15m") is None
+    assert candles_mod.fetch_for_timeframe("AAA", "15m") is None
+    assert calls == ["AAA"]
+
+
+def test_error_is_not_cached(clean_singleflight, cache_dir, monkeypatch):
+    calls = []
+
+    def fake_fetch(symbol, timeframe, **kwargs):
+        calls.append(symbol)
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(md, "fetch_candles_for_timeframe", fake_fetch)
+    for _ in range(2):
+        with pytest.raises(RuntimeError):
+            candles_mod.fetch_for_timeframe("AAA", "15m")
+    assert calls == ["AAA", "AAA"]
+    assert candles_mod._EMPTY_CACHE == {}
+
+
+def test_empty_cache_is_scoped_per_symbol_and_timeframe(
+    clean_singleflight, cache_dir, monkeypatch
+):
+    calls = []
+
+    def fake_fetch(symbol, timeframe, **kwargs):
+        calls.append((symbol, timeframe))
+        return None
+
+    monkeypatch.setattr(md, "fetch_candles_for_timeframe", fake_fetch)
+    assert candles_mod.fetch_for_timeframe("AAA", "15m") is None
+    # Same symbol, different timeframe -> independent entry.
+    monkeypatch.setattr(md, "fetch_candles_for_timeframe",
+                        lambda s, tf, **k: (calls.append((s, tf)), _fast_df())[1])
+    assert candles_mod.fetch_for_timeframe("AAA", "1h") is not None
+    # Different symbol, same timeframe -> independent entry.
+    assert candles_mod.fetch_for_timeframe("BBB", "15m") is not None
+    # Original symbol/tf pair is still negative-cached.
+    assert candles_mod.fetch_for_timeframe("AAA", "15m") is None
+    assert calls == [("AAA", "15m"), ("AAA", "1h"), ("BBB", "15m")]
+
+
+def test_force_refresh_bypasses_empty_cache(clean_singleflight, cache_dir, monkeypatch):
+    monkeypatch.setattr(md, "fetch_candles_for_timeframe", lambda s, tf, **k: None)
+    assert candles_mod.fetch_for_timeframe("AAA", "15m") is None
+    monkeypatch.setattr(md, "fetch_candles_for_timeframe",
+                        lambda s, tf, **k: _fast_df())
+    out = candles_mod.fetch_for_timeframe("AAA", "15m", force_refresh=True)
+    assert out is not None and len(out) == 10
+
+
+def test_empty_cache_entry_expires(clean_singleflight, cache_dir, monkeypatch):
+    monkeypatch.setattr(candles_mod, "EMPTY_RESULT_TTL_SECONDS", 0.0)
+    calls = []
+
+    def fake_fetch(symbol, timeframe, **kwargs):
+        calls.append(symbol)
+        return None
+
+    monkeypatch.setattr(md, "fetch_candles_for_timeframe", fake_fetch)
+    assert candles_mod.fetch_for_timeframe("AAA", "15m") is None
+    assert candles_mod.fetch_for_timeframe("AAA", "15m") is None
+    assert calls == ["AAA", "AAA"]
+
+
+def test_non_empty_result_is_not_negative_cached(
+    clean_singleflight, cache_dir, monkeypatch
+):
+    monkeypatch.setattr(md, "fetch_candles_for_timeframe",
+                        lambda s, tf, **k: _fast_df())
+    out = candles_mod.fetch_for_timeframe("AAA", "15m")
+    assert out is not None
+    assert candles_mod._EMPTY_CACHE == {}

@@ -17,8 +17,11 @@ Historical data never expires.
 from __future__ import annotations
 
 import json
+import logging
 import pickle
+import threading
 import time
+from concurrent.futures import Future
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable, Optional, Union
@@ -26,6 +29,8 @@ from typing import Any, Iterable, Optional, Union
 import pandas as pd
 
 from market_data.market_data import _lookback_days, _resample_rule
+
+logger = logging.getLogger(__name__)
 
 CACHE_DIR = Path(__file__).resolve().parent.parent / "experiments" / "data" / "pattern_cache" / "candles"
 
@@ -39,6 +44,15 @@ CACHE_VERSION = 3
 #: 5-minute window keeps repeat screens instant without serving stale data
 #: across sessions (the session pin takes over once the market closes).
 TODAY_TTL_SECONDS = 300
+#: TTL for the candles-layer negative cache. A fetch that comes back
+#: empty/None (symbol missing, Upstox down, 429 wall) is remembered for this
+#: window so repeated chart clicks do not re-hammer the feed. Deliberately
+#: shorter than the disk TTL: empty results are an unhealthy signal, and a
+#: transient upstream failure should clear quickly. Non-empty frames are
+#: never held here (they go to the disk cache instead) and exceptions are
+#: never cached — each still propagates to its own caller.
+EMPTY_RESULT_TTL_SECONDS = 90.0
+_EMPTY_CACHE_MAX = 512
 
 def _attr(spec: Any, name: str, default=None):
     """Read a field from a TFSpec dataclass, namedtuple or dict."""
@@ -411,6 +425,127 @@ def _resample(df: pd.DataFrame, tf_minutes: int) -> pd.DataFrame:
     return out
 
 
+# ---------------------------------------------------------------------------
+# In-flight singleflight + negative (empty-result) cache
+#
+# Concurrent chart opens for the same symbol/timeframe must not each fire a
+# broker fetch (10–14 s apiece, and the shared Upstox budget cannot take it).
+# Two cheap guards live at this layer:
+#
+# * ``_INFLIGHT`` — a per-key singleflight. The first caller runs the fetch;
+#   later callers wait on its ``Future`` and share the exact result (or, if
+#   the fetch raised, get ``None`` instead of piling up duplicate requests).
+# * ``_EMPTY_CACHE`` — a short monotonic-TTL negative cache for empty/None
+#   results, scoped per session. Errors are deliberately NOT cached: a raise
+#   means something is broken, not that the symbol has no data, and callers
+#   (API retry, SSE worker) should see the failure each time.
+# ---------------------------------------------------------------------------
+
+_INFLIGHT: dict[tuple, Future] = {}
+_INFLIGHT_LOCK = threading.Lock()
+_EMPTY_CACHE: dict[tuple, float] = {}
+_EMPTY_LOCK = threading.Lock()
+
+
+def _fetch_key(symbol: str, tf_id: str, to_date: str, variant: Optional[str]) -> tuple:
+    """Singleflight/negative-cache key: (symbol, timeframe, session, window).
+
+    ``to_date`` doubles as the session for the live-edge path (today's IST
+    date) and the pinned end date for historical windows; ``variant`` encodes
+    lookback/from/as-of namespaces so different windows never coalesce.
+    """
+    return (str(symbol).upper(), str(tf_id), str(to_date), variant or "")
+
+
+def _empty_cache_get(key: tuple) -> bool:
+    now = time.monotonic()
+    with _EMPTY_LOCK:
+        expires = _EMPTY_CACHE.get(key)
+        if expires is None:
+            return False
+        if now < expires:
+            return True
+        _EMPTY_CACHE.pop(key, None)
+        return False
+
+
+def _empty_cache_put(key: tuple) -> None:
+    now = time.monotonic()
+    with _EMPTY_LOCK:
+        while len(_EMPTY_CACHE) >= _EMPTY_CACHE_MAX:
+            _EMPTY_CACHE.pop(next(iter(_EMPTY_CACHE)), None)
+        _EMPTY_CACHE[key] = now + EMPTY_RESULT_TTL_SECONDS
+
+
+def clear_empty_cache() -> None:
+    """Drop all negative-cache entries (tests + operator resets)."""
+    with _EMPTY_LOCK:
+        _EMPTY_CACHE.clear()
+
+
+def _is_empty_result(df: Optional[pd.DataFrame]) -> bool:
+    return df is None or (isinstance(df, pd.DataFrame) and df.empty)
+
+
+def _coalesced_fetch(key: tuple, fn, *, symbol: str, tf_id: str) -> Optional[pd.DataFrame]:
+    """Run ``fn`` once per ``key``; concurrent callers share the outcome.
+
+    The leader executes ``fn`` and re-raises on error (preserving the
+    pre-existing caller contract). Waiters receive the leader's frame/None,
+    or ``None`` when the leader raised — the same fail-soft shape the API's
+    ``_fetch_candles_retry`` already expects. The in-flight slot is always
+    released, and empty/None results are short-cached here (leader only).
+    """
+    started = time.monotonic()
+    with _INFLIGHT_LOCK:
+        fut = _INFLIGHT.get(key)
+        if fut is None:
+            fut = Future()
+            _INFLIGHT[key] = fut
+            leader = True
+        else:
+            leader = False
+    if leader:
+        try:
+            result = fn()
+        except BaseException as exc:
+            with _INFLIGHT_LOCK:
+                _INFLIGHT.pop(key, None)
+            fut.set_exception(exc)
+            logger.debug(
+                "candles fetch failed symbol=%s tf=%s coalesced=0 elapsed=%.2fs error=%s",
+                symbol, tf_id, time.monotonic() - started, exc,
+            )
+            raise
+        if _is_empty_result(result):
+            _empty_cache_put(key)
+            result = None
+        fut.set_result(result)
+        with _INFLIGHT_LOCK:
+            _INFLIGHT.pop(key, None)
+        rows = 0 if result is None else len(result)
+        logger.debug(
+            "candles fetch done symbol=%s tf=%s coalesced=0 rows=%d elapsed=%.2fs",
+            symbol, tf_id, rows, time.monotonic() - started,
+        )
+        return result
+    logger.debug("candles fetch coalesced symbol=%s tf=%s (joined in-flight fetch)", symbol, tf_id)
+    try:
+        result = fut.result()
+    except BaseException:
+        logger.debug(
+            "candles fetch coalesced symbol=%s tf=%s elapsed=%.2fs -> None (leader raised)",
+            symbol, tf_id, time.monotonic() - started,
+        )
+        return None
+    rows = 0 if result is None else len(result)
+    logger.debug(
+        "candles fetch coalesced symbol=%s tf=%s rows=%d elapsed=%.2fs",
+        symbol, tf_id, rows, time.monotonic() - started,
+    )
+    return result
+
+
 def fetch_for_timeframe(
     symbol: str,
     tf_id: str,
@@ -511,62 +646,78 @@ def fetch_for_timeframe(
     if cached is not None:
         df = cached
     else:
-        df = None
-        # Incremental 1D top-up: when a stale entry lags the last completed
-        # session, fetch only the missing tail instead of the whole window.
-        if is_today and tf_id == "1D" and not source_tf and not force_refresh:
-            stale = _read_pickle_any(cache_path)
-            if stale is not None:
-                last_cached = frame_last_date(stale)
-                if last_cached and last_cached < _last_completed_session().isoformat():
-                    tail = fetch_candles_for_timeframe(
+        fetch_key = _fetch_key(symbol, tf_id, to_date, variant)
+        if not force_refresh and _empty_cache_get(fetch_key):
+            # Negative hit: the feed produced nothing for this symbol/tf/session
+            # recently. Force refreshes bypass this; disk-cached data never does.
+            logger.debug(
+                "candles empty-cache hit symbol=%s tf=%s coalesced=0 rows=0",
+                symbol, tf_id,
+            )
+            df = None
+        else:
+            def _do_fetch() -> Optional[pd.DataFrame]:
+                out = None
+                # Incremental 1D top-up: when a stale entry lags the last completed
+                # session, fetch only the missing tail instead of the whole window.
+                if is_today and tf_id == "1D" and not source_tf and not force_refresh:
+                    stale = _read_pickle_any(cache_path)
+                    if stale is not None:
+                        last_cached = frame_last_date(stale)
+                        if last_cached and last_cached < _last_completed_session().isoformat():
+                            tail = fetch_candles_for_timeframe(
+                                symbol,
+                                tf_id,
+                                from_date=last_cached,
+                                to_date=to_date,
+                                api_client=api_client,
+                            )
+                            if tail is not None and not tail.empty:
+                                out = _merge_frames(stale, tail)
+                if out is None:
+                    if source_tf:
+                        src_spec = _resolve_timeframe(source_tf)
+                        src_minutes = int(_attr(src_spec, "minutes", minutes) or minutes)
+                        fetch_tf_id = source_tf
+                    else:
+                        src_minutes = minutes
+                        fetch_tf_id = tf_id
+
+                    out = fetch_candles_for_timeframe(
                         symbol,
-                        tf_id,
-                        from_date=last_cached,
+                        fetch_tf_id,
+                        from_date=eff_from,
                         to_date=to_date,
                         api_client=api_client,
                     )
-                    if tail is not None and not tail.empty:
-                        df = _merge_frames(stale, tail)
+
+                    if out is not None and not out.empty and source_tf and minutes and minutes != src_minutes:
+                        out = _resample(out, minutes)
+
+                if out is None or out.empty:
+                    return None
+
+                # Never cache a partial provider response. A transient fetch can return
+                # only the current session (e.g. 8 bars of 15m) while the requested
+                # window spans days; the short frame then feeds every caller for the
+                # TTL and a pattern scan silently reports "no pattern" because it can
+                # never reach the 60-bar detector minimum. Skip the write, still return
+                # the frame so the caller can use whatever arrived.
+                cacheable = True
+                if lookback_bars and minutes < 1440:
+                    cacheable = len(out) >= min(int(lookback_bars), 60)
+                if cacheable:
+                    _write_cached(
+                        cache_path,
+                        out,
+                        is_today,
+                        session_pin=(frame_last_date(out) if tf_id == "1D" else None),
+                    )
+                return out
+
+            df = _coalesced_fetch(fetch_key, _do_fetch, symbol=symbol, tf_id=tf_id)
         if df is None:
-            if source_tf:
-                src_spec = _resolve_timeframe(source_tf)
-                src_minutes = int(_attr(src_spec, "minutes", minutes) or minutes)
-                fetch_tf_id = source_tf
-            else:
-                src_minutes = minutes
-                fetch_tf_id = tf_id
-
-            df = fetch_candles_for_timeframe(
-                symbol,
-                fetch_tf_id,
-                from_date=eff_from,
-                to_date=to_date,
-                api_client=api_client,
-            )
-
-            if df is not None and not df.empty and source_tf and minutes and minutes != src_minutes:
-                df = _resample(df, minutes)
-
-        if df is None or df.empty:
             return None
-
-        # Never cache a partial provider response. A transient fetch can return
-        # only the current session (e.g. 8 bars of 15m) while the requested
-        # window spans days; the short frame then feeds every caller for the
-        # TTL and a pattern scan silently reports "no pattern" because it can
-        # never reach the 60-bar detector minimum. Skip the write, still return
-        # the frame so the caller can use whatever arrived.
-        cacheable = True
-        if lookback_bars and minutes < 1440:
-            cacheable = len(df) >= min(int(lookback_bars), 60)
-        if cacheable:
-            _write_cached(
-                cache_path,
-                df,
-                is_today,
-                session_pin=(frame_last_date(df) if tf_id == "1D" else None),
-            )
 
     if include_partial_today and tf_id == "1D" and is_today:
         df = _with_partial_today(df, symbol, api_client, partial_bar=partial_bar)
