@@ -15,7 +15,7 @@ import queue as _queue
 import threading
 import time as _time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import NamedTuple, Optional
 
 from sqlalchemy.orm import Session
@@ -459,7 +459,11 @@ def _stale_first_frame(symbol: str, timeframe: str, lookback_bars) -> Optional[t
                 lcs = candles._last_completed_session().isoformat()
             except Exception:
                 lcs = None
-            ok = bool(lcs) and as_of >= lcs
+            # One stale session (or a weekend) is still worth serving: the
+            # whole point is instant candles while the background refresh runs.
+            ok = bool(lcs) and as_of >= (
+                datetime.fromisoformat(lcs) - timedelta(days=3)
+            ).date().isoformat()
         else:
             ok = as_of == _ist_session_date()
         if not ok:

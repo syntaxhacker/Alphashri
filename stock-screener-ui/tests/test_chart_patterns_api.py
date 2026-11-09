@@ -823,6 +823,12 @@ def test_submit_same_scope_coalesces_scope_change_supersedes(cp_client):
         release.set()
 
 
+@pytest.fixture()
+def no_stale_first(monkeypatch):
+    """Disable the disk stale-first path for tests that exercise the network path."""
+    monkeypatch.setattr(cp_api, "_stale_first_frame", lambda *a, **k: None)
+
+
 # ---------------------------------------------------------------------------
 # lookback_bars (opt-in): forwarded into job params; out-of-range → 422.
 # ---------------------------------------------------------------------------
@@ -1078,7 +1084,7 @@ def test_symbol_chart_with_lookback_bars_forwards_and_returns_all(cp_client, mon
     assert len(chart.json()["candles"]) == 250
 
 
-def test_symbol_chart_without_lookback_bars_uses_default(cp_client, monkeypatch):
+def test_symbol_chart_without_lookback_bars_uses_default(cp_client, monkeypatch, no_stale_first):
     """Omitting `lookback_bars` keeps the previous 500-bar default fetch."""
     store.save_hits("cpj_chartlb_def", [_hit("IRCON")])
     seen = {}
@@ -1569,7 +1575,7 @@ def _partial_tape(day: str = "2020-06-01", n: int = 5):
     return SimpleNamespace(fetch_intraday_data_v3=lambda **kwargs: tape)
 
 
-def test_symbol_chart_1d_forwards_partial_flag(cp_client, monkeypatch):
+def test_symbol_chart_1d_forwards_partial_flag(cp_client, monkeypatch, no_stale_first):
     """The chart passes `include_partial_today=True` for 1D only."""
     store.save_hits("cpj_pflag", [_hit("IRCON")])
     seen = {}
@@ -1727,7 +1733,7 @@ def _live_hit(symbol: str = "IRCON"):
     )
 
 
-def test_symbol_chart_detect_patterns_returns_hits(cp_client, monkeypatch):
+def test_symbol_chart_detect_patterns_returns_hits(cp_client, monkeypatch, no_stale_first):
     from types import SimpleNamespace
 
     store.save_hits("cpj_live", [_hit("IRCON")])
@@ -1766,7 +1772,7 @@ def test_symbol_chart_detect_patterns_returns_hits(cp_client, monkeypatch):
     assert isinstance(body["trend_lines"], list)
 
 
-def test_symbol_chart_without_detect_patterns_keeps_old_shape(cp_client, monkeypatch):
+def test_symbol_chart_without_detect_patterns_keeps_old_shape(cp_client, monkeypatch, no_stale_first):
     from types import SimpleNamespace
 
     def _boom(df, timeframe, symbol):
@@ -1784,7 +1790,7 @@ def test_symbol_chart_without_detect_patterns_keeps_old_shape(cp_client, monkeyp
     assert len(body["overlays"]) == 1
 
 
-def test_symbol_chart_detect_patterns_engine_error_still_200(cp_client, monkeypatch):
+def test_symbol_chart_detect_patterns_engine_error_still_200(cp_client, monkeypatch, no_stale_first):
     from types import SimpleNamespace
 
     def _boom(df, timeframe, symbol):
@@ -2522,7 +2528,7 @@ def test_symbol_chart_negative_cache_keyed_by_session(cp_client, monkeypatch, tm
     assert calls == [("POWERMECH", "1D"), ("POWERMECH", "1D")], "new session re-fetches"
 
 
-def test_symbol_chart_normal_path_unchanged(cp_client, monkeypatch):
+def test_symbol_chart_normal_path_unchanged(cp_client, monkeypatch, no_stale_first):
     """A symbol with data returns the usual payload with no error/note fields,
     and the upstream fetch is called exactly as before (no caching of hits)."""
     store.save_hits("cpj_normal", [_hit("RELIANCE")])
@@ -3106,6 +3112,36 @@ def test_pattern_hit_cache_keyed_by_session(cp_client, monkeypatch):
         params={"timeframe": "1D", "detect_patterns": 1},
     )
     assert len(engine_calls) == 2
+
+
+def test_symbol_chart_stale_first_serves_one_session_behind(
+    cp_client, monkeypatch, tmp_path,
+):
+    """A frame one session behind (weekend/Monday before the fresh scan) is
+    still served instantly with stale=true; the refresh happens in background."""
+    df = _make_df_session_current(80, end="2026-11-08")
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    _seed_live_edge_disk_cache("POWERMECH", "1D", df, variant=_disk_cache_variant())
+    _pin_last_completed_session(monkeypatch, "2026-11-09")
+    fetch_calls: list = []
+
+    def _recorder(symbol, timeframe, **kwargs):
+        fetch_calls.append((symbol, timeframe))
+        return df
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _recorder)
+    _kick_spy(monkeypatch)
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/POWERMECH/chart",
+        params={"timeframe": "1D", "detect_patterns": 0},
+    )
+
+    assert chart.status_code == 200
+    body = chart.json()
+    assert body["cached"] is True and body["stale"] is True
+    assert body["as_of"] == "2026-11-08"
+    assert fetch_calls == []
 
 
 def test_kick_stale_first_refresh_refetches_with_force_refresh(cp_client, monkeypatch):
