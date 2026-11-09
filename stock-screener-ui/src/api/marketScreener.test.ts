@@ -1,0 +1,220 @@
+// @vitest-environment happy-dom
+import "@testing-library/jest-dom/vitest";
+import { describe, expect, test, vi, beforeEach } from "vitest";
+import {
+  buildMarketSnapshotUrl,
+  fetchMarketSnapshot,
+  mapMarketRow,
+  mapMarketSnapshot,
+} from "./marketScreener";
+import { fetchWithAuth } from "../state/auth";
+
+vi.mock("../state/auth", () => ({
+  fetchWithAuth: vi.fn(),
+}));
+
+const mockFetchWithAuth = vi.mocked(fetchWithAuth);
+
+function mockResponse(ok: boolean, body: unknown, status = 200): Response {
+  return {
+    ok,
+    status,
+    json: () => Promise.resolve(body),
+  } as Response;
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe("buildMarketSnapshotUrl", () => {
+  test("defaults to all_equity with the 4000 row cap", () => {
+    const url = buildMarketSnapshotUrl();
+    expect(url).toContain("/api/market/snapshot?");
+    expect(url).toContain("universe=all_equity");
+    expect(url).toContain("limit=4000");
+    expect(url).not.toContain("force=");
+  });
+
+  test("passes an explicit universe and limit", () => {
+    const url = buildMarketSnapshotUrl({ universe: "nifty500", limit: 500 });
+    expect(url).toContain("universe=nifty500");
+    expect(url).toContain("limit=500");
+  });
+
+  test("supports every universe value", () => {
+    for (const universe of ["all_equity", "nifty500", "nifty50", "nse_fo"]) {
+      expect(buildMarketSnapshotUrl({ universe: universe as never })).toContain(
+        `universe=${universe}`,
+      );
+    }
+  });
+
+  test("force=true is only sent when requested", () => {
+    expect(buildMarketSnapshotUrl({ force: true })).toContain("force=true");
+    expect(buildMarketSnapshotUrl({ force: false })).not.toContain("force=");
+  });
+});
+
+describe("mapMarketSnapshot", () => {
+  test("maps snake_case fields to camelCase", () => {
+    const snapshot = mapMarketSnapshot({
+      as_of: "2026-11-06T15:30:00+05:30",
+      universe: "nifty50",
+      total: 50,
+      update_mode: "streaming",
+      rows: [
+        {
+          symbol: "RELIANCE",
+          name: "Reliance Industries",
+          sector: "Energy",
+          industry: "Oil & Gas",
+          exchange: "NSE",
+          close: 2946,
+          change: 0.82,
+          volume: 1234567,
+          relative_volume: 1.4,
+          market_cap: 1990000000000,
+          market_cap_cr: 199000,
+          cap_tier: "Large",
+          rsi: 61.2,
+          adx: 24.1,
+          atr: 45,
+          sma20: 2880,
+          sma50: 2800,
+          sma200: 2600,
+          perf_w: 2.1,
+          perf_1m: 4.6,
+          perf_3m: 8.2,
+          high_52w: 3000,
+          low_52w: 1800,
+          pos_52w: 95,
+          fno: true,
+          etf: false,
+        },
+      ],
+    });
+    expect(snapshot.asOf).toBe("2026-11-06T15:30:00+05:30");
+    expect(snapshot.universe).toBe("nifty50");
+    expect(snapshot.total).toBe(50);
+    expect(snapshot.updateMode).toBe("streaming");
+    const row = snapshot.rows[0];
+    expect(row).toMatchObject({
+      symbol: "RELIANCE",
+      name: "Reliance Industries",
+      sector: "Energy",
+      industry: "Oil & Gas",
+      exchange: "NSE",
+      close: 2946,
+      change: 0.82,
+      volume: 1234567,
+      relativeVolume: 1.4,
+      marketCap: 1990000000000,
+      marketCapCr: 199000,
+      capTier: "large",
+      rsi: 61.2,
+      adx: 24.1,
+      atr: 45,
+      sma20: 2880,
+      sma50: 2800,
+      sma200: 2600,
+      perfW: 2.1,
+      perf1m: 4.6,
+      perf3m: 8.2,
+      high52w: 3000,
+      low52w: 1800,
+      pos52w: 95,
+      fno: true,
+      etf: false,
+    });
+  });
+
+  test("null and missing numeric fields map to null", () => {
+    const row = mapMarketRow({ symbol: "XYZ", close: null, rsi: undefined as never });
+    expect(row.close).toBeNull();
+    expect(row.rsi).toBeNull();
+    expect(row.marketCapCr).toBeNull();
+    expect(row.pos52w).toBeNull();
+    expect(row.fno).toBe(false);
+    expect(row.etf).toBe(false);
+    expect(row.capTier).toBeNull();
+  });
+
+  test("garbage numerics and empty text map to null", () => {
+    const row = mapMarketRow({
+      symbol: "  " as never,
+      close: "not-a-number" as never,
+      change: Number.NaN as never,
+      rsi: "" as never,
+      sector: 42 as never,
+    });
+    expect(row.symbol).toBe("");
+    expect(row.close).toBeNull();
+    expect(row.change).toBeNull();
+    expect(row.rsi).toBeNull();
+    expect(row.sector).toBeNull();
+  });
+
+  test("numeric strings are coerced, booleans loosened", () => {
+    const row = mapMarketRow({
+      symbol: "ABC",
+      close: "123.45" as never,
+      fno: 1 as never,
+      etf: "true" as never,
+    });
+    expect(row.close).toBe(123.45);
+    expect(row.fno).toBe(true);
+    expect(row.etf).toBe(true);
+  });
+
+  test("snapshot without rows yields an empty list and sane defaults", () => {
+    const snapshot = mapMarketSnapshot({});
+    expect(snapshot.rows).toEqual([]);
+    expect(snapshot.total).toBe(0);
+    expect(snapshot.updateMode).toBe("unknown");
+    expect(snapshot.asOf).toBeNull();
+    expect(snapshot.universe).toBe("all_equity");
+  });
+
+  test("total falls back to the row count when absent", () => {
+    const snapshot = mapMarketSnapshot({ rows: [{ symbol: "A" }, { symbol: "B" }] });
+    expect(snapshot.total).toBe(2);
+  });
+});
+
+describe("fetchMarketSnapshot", () => {
+  test("requests the snapshot url and maps the payload", async () => {
+    mockFetchWithAuth.mockResolvedValueOnce(
+      mockResponse(true, {
+        as_of: "2026-11-06T15:30:00+05:30",
+        universe: "nifty50",
+        total: 1,
+        update_mode: "streaming",
+        rows: [{ symbol: "RELIANCE", close: 2946, market_cap_cr: 199000 }],
+      }),
+    );
+    const result = await fetchMarketSnapshot({ universe: "nifty50", force: true });
+    const calledUrl = mockFetchWithAuth.mock.calls[0][0] as string;
+    expect(calledUrl).toContain("universe=nifty50");
+    expect(calledUrl).toContain("force=true");
+    expect(result.updateMode).toBe("streaming");
+    expect(result.rows[0].marketCapCr).toBe(199000);
+  });
+
+  test("throws the server detail on !ok", async () => {
+    mockFetchWithAuth.mockResolvedValueOnce(mockResponse(false, { detail: "bad universe" }, 400));
+    await expect(fetchMarketSnapshot({ universe: "nse_fo" })).rejects.toThrow("bad universe");
+  });
+
+  test("throws HTTP status when no detail is present", async () => {
+    mockFetchWithAuth.mockResolvedValueOnce(mockResponse(false, {}, 503));
+    await expect(fetchMarketSnapshot()).rejects.toThrow("503");
+  });
+
+  test("forwards AbortSignal via init", async () => {
+    mockFetchWithAuth.mockResolvedValueOnce(mockResponse(true, { rows: [] }));
+    const controller = new AbortController();
+    await fetchMarketSnapshot({}, { signal: controller.signal });
+    expect(mockFetchWithAuth.mock.calls[0][1]).toMatchObject({ signal: controller.signal });
+  });
+});

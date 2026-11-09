@@ -65,6 +65,48 @@ describe("TanStackTable", () => {
     expect(screen.queryByTestId("table-loading-state")).toBeNull();
   });
 
+  it("makes rows focusable and activates onRowClick with Enter and Space", () => {
+    const handleRowClick = vi.fn();
+    render(
+      <TanStackTable<TestItem>
+        data={data}
+        columns={columns}
+        onRowClick={handleRowClick}
+        getRowTestId={(row) => `kb-${row.id}`}
+      />,
+    );
+    const row = screen.getByTestId("kb-1");
+    expect(row).toHaveAttribute("tabindex", "0");
+    fireEvent.keyDown(row, { key: "Enter" });
+    expect(handleRowClick).toHaveBeenCalledWith(data[0]);
+    fireEvent.keyDown(row, { key: " " });
+    expect(handleRowClick).toHaveBeenCalledTimes(2);
+    expect(handleRowClick).toHaveBeenLastCalledWith(data[0]);
+  });
+
+  it("keeps rows out of the tab order when onRowClick is not provided", () => {
+    render(
+      <TanStackTable<TestItem>
+        data={data}
+        columns={columns}
+        getRowTestId={(row) => `plain-${row.id}`}
+      />,
+    );
+    expect(screen.getByTestId("plain-1")).not.toHaveAttribute("tabindex");
+  });
+
+  it("applies ariaLabel to the table element", () => {
+    render(
+      <TanStackTable<TestItem>
+        data={data}
+        columns={columns}
+        dataTestId="aria-table"
+        ariaLabel="Market screener results"
+      />,
+    );
+    expect(screen.getByTestId("aria-table")).toHaveAttribute("aria-label", "Market screener results");
+  });
+
   it("fires onRowClick with correct row data", async () => {
       const user = userEvent.setup();
     const handleRowClick = vi.fn();
