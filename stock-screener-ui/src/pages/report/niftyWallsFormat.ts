@@ -186,6 +186,9 @@ export const fmtVolMult = (value: number | null | undefined): string => {
 /** Minutes to the wall breaking → `~4m` / `<1m`; unknown → dash. */
 export const fmtTimeToBreak = (value: number | null | undefined): string => {
   if (value == null || !Number.isFinite(value)) return "—";
+  // A wall more than an hour away is context, not a countdown. The backend
+  // already nulls it; this guard keeps old payloads from printing "~114m".
+  if (value > 60) return "—";
   if (value < 1) return "<1m";
   return `~${Math.round(value)}m`;
 };

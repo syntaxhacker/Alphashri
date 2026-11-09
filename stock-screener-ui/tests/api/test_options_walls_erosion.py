@@ -101,6 +101,90 @@ def test_walls_erosion_enrichment(tmp_path, monkeypatch):
     assert max(below) in (24900.0, 25000.0)
 
 
+def _chain_for(spots):
+    """Chain with material strikes around a spot near 25,000 (call) / 24,900 (put)."""
+    return {
+        "24800": [320.0, 85.0, 500000.0, 3200000.0, 40000.0, 200000.0],
+        "24900": [300.0, 110.0, 1000000.0, 1000000.0, 60000.0, 150000.0],
+        "25000": [spots[-1] - 24900.0 + 100.0, 140.0, 4000000.0, 2000000.0, 100000.0, 180000.0],
+        "25100": [180.0, 160.0, 800000.0, 600000.0, 30000.0, 100000.0],
+        "25600": [120.0, 200.0, 2000000.0, 300000.0, 50000.0, 90000.0],
+    }
+
+
+def _write_spot_tape(path, spots):
+    base = datetime(2026, 11, 17, 11, 0, 0)
+    rows = []
+    for i, spot in enumerate(spots):
+        ts = (base + timedelta(minutes=i)).isoformat() + "+05:30"
+        chain = _chain_for(spots)
+        rows.append({
+            "t": ts, "spot": spot, "max_pain": 25000.0, "flip": 25100.0,
+            "net_gex": 0.0, "atm_strike": 25000.0, "expiry": DATE_STR, "chain": chain,
+        })
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+
+
+def _client_for_spots(tmp_path, monkeypatch, spots):
+    tape = tmp_path / f"{DATE_STR}.jsonl"
+    _write_spot_tape(tape, spots)
+    monkeypatch.setattr(
+        options_walls, "_tape_path", lambda symbol, ds: tape
+    )
+    app = FastAPI()
+    app.include_router(options_walls.router)
+    return TestClient(app)
+
+
+def _call_row(payload, strike):
+    return next(r for r in payload["calls"] if r["strike"] == strike)
+
+
+def test_time_to_break_call_rising_finite(tmp_path, monkeypatch):
+    # Spot rising toward the 25,000 call wall (above spot): finite ttb.
+    spots = [24800.0] * 30 + [24950.0, 24960.0, 24970.0, 24980.0, 24990.0]
+    client = _client_for_spots(tmp_path, monkeypatch, spots)
+    p = client.get(f"/api/reports/options/NIFTY/walls?date={DATE_STR}").json()
+    row = _call_row(p, 25000.0)
+    assert row["time_to_break_min"] is not None
+    assert row["time_to_break_min"] > 0
+
+
+def test_time_to_break_call_falling_none(tmp_path, monkeypatch):
+    # Spot falling away from the 25,000 call wall: None.
+    spots = [24990.0] * 30 + [24950.0, 24940.0, 24930.0, 24920.0, 24910.0]
+    client = _client_for_spots(tmp_path, monkeypatch, spots)
+    p = client.get(f"/api/reports/options/NIFTY/walls?date={DATE_STR}").json()
+    row = _call_row(p, 25000.0)
+    assert row["time_to_break_min"] is None
+
+
+def test_time_to_break_far_wall_none(tmp_path, monkeypatch):
+    # Far wall (25,600) with slow drift -> distance/velocity > 60 -> None.
+    spots = [24980.0] * 34 + [24990.0]
+    client = _client_for_spots(tmp_path, monkeypatch, spots)
+    p = client.get(f"/api/reports/options/NIFTY/walls?date={DATE_STR}").json()
+    row = _call_row(p, 25600.0)
+    assert row["time_to_break_min"] is None
+
+
+def test_time_to_break_put_down_finite_put_up_none(tmp_path, monkeypatch):
+    # Put moving down toward 24,900 put wall (below spot): finite.
+    spots_down = [25010.0] * 30 + [25000.0, 24995.0, 24990.0, 24985.0, 24980.0]
+    client = _client_for_spots(tmp_path, monkeypatch, spots_down)
+    p = client.get(f"/api/reports/options/NIFTY/walls?date={DATE_STR}").json()
+    put_row = next(r for r in p["puts"] if r["strike"] == 24900.0)
+    assert put_row["time_to_break_min"] is not None
+    assert put_row["time_to_break_min"] > 0
+
+    # Put moving up (away from 24,900 wall below spot): None.
+    spots_up = [24980.0] * 30 + [24985.0, 24990.0, 24995.0, 25000.0, 25010.0]
+    client = _client_for_spots(tmp_path, monkeypatch, spots_up)
+    p = client.get(f"/api/reports/options/NIFTY/walls?date={DATE_STR}").json()
+    put_row = next(r for r in p["puts"] if r["strike"] == 24900.0)
+    assert put_row["time_to_break_min"] is None
+
+
 def test_missing_tape_returns_404(tmp_path, monkeypatch):
     missing = tmp_path / f"{DATE_STR}.jsonl"
     monkeypatch.setattr(

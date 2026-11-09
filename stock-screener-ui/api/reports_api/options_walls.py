@@ -794,12 +794,16 @@ def compute_wall_state(
                 (side == "call" and strike > spot)
                 or (side == "put" and strike < spot)
             )
-            if toward:
+            moving_toward = (
+                (side == "call" and spot_drift > 0)
+                or (side == "put" and spot_drift < 0)
+            )
+            if toward and moving_toward:
                 velocity = abs(spot_drift) / 5.0
-                if velocity > 0:
-                    ttb = abs(distance_pts) / velocity
-        if ttb is not None:
-            ttb = round(min(ttb, 120.0), 2)
+                if velocity >= 0.5:
+                    candidate = abs(distance_pts) / velocity
+                    if candidate <= 60.0:
+                        ttb = round(candidate, 2)
 
         return {
             "strike": strike,

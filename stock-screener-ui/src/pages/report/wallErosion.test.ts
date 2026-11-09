@@ -143,6 +143,7 @@ describe("numeric formatters", () => {
     expect(fmtTimeToBreak(0)).toBe("<1m");
     expect(fmtTimeToBreak(3.7)).toBe("~4m");
     expect(fmtTimeToBreak(12)).toBe("~12m");
+    expect(fmtTimeToBreak(114)).toBe("—");
     expect(fmtTimeToBreak(null)).toBe("—");
     expect(fmtTimeToBreak(Number.NaN)).toBe("—");
   });
