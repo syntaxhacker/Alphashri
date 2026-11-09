@@ -5,7 +5,7 @@ import { CompactStat, CompactStatGrid } from "@/components/common/compact";
 import * as palette from "@/ui/palette";
 import type { SimStrategyResult } from "@/types/reportSim";
 import { payoffCurve } from "@/components/options/PremiumTracker/payoff";
-import { fmtInr, fmtSignedInr, toneFor } from "./simFormat";
+import { fmtInr, fmtSignedInr, fmtTime, toneFor } from "./simFormat";
 import { payoffSummary, toPayoffLegs } from "./simPayoff";
 import type { StrategyView } from "./simView";
 
@@ -79,6 +79,11 @@ export function SimPayoff({ strategy, view, spot, height = 280 }: SimPayoffProps
     strategy != null &&
     strategy.payoff.spots.length > 0 &&
     strategy.payoff.expiry.length > 0;
+  // Declared before the effect so the dependency array can reference them.
+  // `strategy` is null-safe here: the mark is only consumed inside the
+  // effect, which returns early when there is no strategy.
+  const mark = view?.total ?? (strategy?.total ?? 0);
+  const markTime = view?.equity.at(-1)?.t ?? null;
 
   useEffect(() => {
     if (!strategy || !hasPayoff) return;
@@ -224,14 +229,49 @@ export function SimPayoff({ strategy, view, spot, height = 280 }: SimPayoffProps
                   color: palette.TERM_SPOT,
                 },
               },
+              {
+                yAxis: mark,
+                lineStyle: { color: toneColor(mark), type: "dotted", width: 1 },
+                label: {
+                  formatter:
+                    "MARK " +
+                    fmtSignedInr(mark) +
+                    (markTime ? " @ " + fmtTime(markTime) : ""),
+                  position: "insideStartTop",
+                  fontSize: 12,
+                  color: toneColor(mark),
+                },
+              },
               ...breakevenLines,
             ],
           },
           markPoint: { data: markPointData },
         },
-      ],
+        {
+          type: "scatter",
+          name: "mark",
+            symbolSize: 9,
+            z: 6,
+            itemStyle: {
+              color: toneColor(mark),
+              borderColor: palette.TERM_BG,
+              borderWidth: 2,
+            },
+            data: [[spot, mark]],
+            label: {
+              formatter:
+                "MARK " +
+                fmtSignedInr(mark) +
+                (markTime ? " @ " + fmtTime(markTime) : ""),
+              position: "bottom",
+              fontSize: 12,
+              backgroundColor: palette.TERM_BG,
+              padding: [2, 4],
+            },
+          },
+        ],
     });
-  }, [strategy, spot, hasPayoff]);
+  }, [strategy, spot, hasPayoff, mark, markTime]);
 
   if (!strategy || !hasPayoff) {
     return (
