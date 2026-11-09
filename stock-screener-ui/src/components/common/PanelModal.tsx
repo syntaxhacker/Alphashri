@@ -15,11 +15,17 @@ export interface PanelModalProps {
   children: ReactNode;
   actions?: ReactNode;
   /**
-   * `drawer` docks the shell to the right edge: full viewport height, fixed
-   * ~720px rail on desktop, square edge. Used by the gamma/positions read-outs
-   * so they read as a side panel rather than a second full-screen dialog.
+   * `drawer` docks the shell to the right edge: full viewport height, rail
+   * pinned to `drawerWidth` (capped at 74vw) on desktop, square edge. Used by
+   * the gamma/positions read-outs so they read as a side panel rather than a
+   * second full-screen dialog.
    */
   variant?: "modal" | "drawer";
+  /**
+   * Desktop drawer width in px. Defaults to 720; the paper is capped at
+   * `min(drawerWidth, 74vw)` so the report stays visible beside the drawer.
+   */
+  drawerWidth?: number;
   /**
    * Desktop paper width in px. Defaults to the full-width 92vw shell; a
    * compact dialog passes e.g. 1040 to cap a content-hugging panel.
@@ -45,6 +51,7 @@ export function PanelModal({
   actions,
   variant = "modal",
   maxWidth,
+  drawerWidth,
   autoHeight = false,
   maxHeight = "80vh",
 }: PanelModalProps) {
@@ -75,15 +82,23 @@ export function PanelModal({
           : undefined
       }
       slotProps={{
+        backdrop: {
+          // A drawer exists so the report stays readable beside it; the
+          // default 50% scrim hides exactly what the side panel is for.
+          sx: isDrawer ? { backgroundColor: "rgba(0,0,0,0.18)" } : undefined,
+        },
         paper: {
           sx: {
             width: isDrawer
-              ? { xs: "100%", lg: 720 }
+              ? {
+                  xs: "100%",
+                  lg: `min(${drawerWidth ?? 720}px, 74vw)`,
+                }
               : compact
                 ? { xs: "100%", lg: width }
                 : { xs: "100%", lg: "92vw" },
             maxWidth: isDrawer
-              ? { lg: 720 }
+              ? { lg: `min(${drawerWidth ?? 720}px, 74vw)` }
               : compact && maxWidth != null
                 ? { lg: maxWidth }
                 : { lg: "92vw" },

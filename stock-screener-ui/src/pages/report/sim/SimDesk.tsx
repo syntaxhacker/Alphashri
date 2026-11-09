@@ -23,6 +23,7 @@ import type {
   SimTemplate,
 } from "@/types/reportSim";
 import { formatNumberIN } from "@/utils/ui-helpers";
+import { isDerivativesOpenIst } from "@/utils/marketClock";
 import {
   SIM_TEMPLATES,
   buildLadder,
@@ -97,6 +98,15 @@ export function SimDesk({
     [report],
   );
   const spot = finite(report?.spot) ? report.spot : result?.spot ?? 0;
+  // After the close there is nothing to poll: force the recorded-session view
+  // even if the parent report was manually left on Live. The time gate is the
+  // primary one — an EOD report's `is_open` can be absent on older snapshots.
+  const marketClosed = !isDerivativesOpenIst() || report?.market?.is_open === false;
+  const effectiveMode: "live" | "eod" = marketClosed ? "eod" : mode;
+  const runDate =
+    effectiveMode === "eod"
+      ? date || report?.date || report?.market?.session_date || undefined
+      : undefined;
 
   useEffect(() => {
     let alive = true;
@@ -129,7 +139,7 @@ export function SimDesk({
       const next = await runSim(
         {
           symbol,
-          date: mode === "eod" ? date : undefined,
+          date: runDate,
           strategies,
           costs: true,
           slippageTicks: 0,
@@ -144,7 +154,7 @@ export function SimDesk({
     } finally {
       if (abortRef.current === controller) setLoading(false);
     }
-  }, [strategies, symbol, date, mode]);
+  }, [strategies, symbol, runDate]);
 
   const runRef = useRef(run);
   runRef.current = run;
@@ -152,13 +162,13 @@ export function SimDesk({
   useEffect(() => {
     if (!open) return;
     void runRef.current();
-  }, [open, symbol, date, mode]);
+  }, [open, symbol, runDate, effectiveMode]);
 
   useEffect(() => {
-    if (!open || !live || mode !== "live") return;
+    if (!open || !live || effectiveMode !== "live") return;
     const id = window.setInterval(() => void runRef.current(), LIVE_REFRESH_MS);
     return () => window.clearInterval(id);
-  }, [open, live, mode]);
+  }, [open, live, effectiveMode]);
 
   const selectedSpec = strategies.find((item) => item.id === selectedId) ?? strategies[0];
 
@@ -188,7 +198,8 @@ export function SimDesk({
     [strategies, selectedId],
   );
 
-  const asOf = mode === "eod" ? (replay?.snapshots?.[replayIndex]?.t ?? null) : null;
+  const asOf =
+    effectiveMode === "eod" ? (replay?.snapshots?.[replayIndex]?.t ?? null) : null;
   const selectedResult = selectedStrategy(result, selectedId);
   const view: StrategyView | null = selectedResult
     ? strategyViewAt(selectedResult, asOf)
@@ -224,8 +235,8 @@ export function SimDesk({
 
       <PanelModal
         open={open}
-        variant="modal"
-        maxWidth={1240}
+        variant="drawer"
+        drawerWidth={1080}
         title={`SIM DESK · ${symbol}`}
         onClose={() => setOpen(false)}
         actions={
@@ -244,7 +255,12 @@ export function SimDesk({
             >
               {fillModel}
             </Text>
-            {mode === "live" ? (
+            {marketClosed ? (
+              <Badge data-testid="sim-market-closed" size="xs" color="warning" variant="outline">
+                MARKET CLOSED · EOD
+              </Badge>
+            ) : null}
+            {effectiveMode === "live" ? (
               <Switch
                 data-testid="sim-live"
                 size="xs"
@@ -267,8 +283,8 @@ export function SimDesk({
       >
         <Box sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
           <SimContextStrip
-            mode={mode}
-            date={date}
+            mode={effectiveMode}
+            date={runDate ?? date}
             expiry={expiryText}
             dte={dteText}
             spot={spotText}
@@ -291,7 +307,7 @@ export function SimDesk({
             <Box
               data-testid="sim-rail"
               sx={{
-                width: { xs: "100%", md: 280 },
+                width: { xs: "100%", md: 260 },
                 flexShrink: 0,
                 display: "flex",
                 flexDirection: "column",

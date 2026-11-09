@@ -6,7 +6,12 @@ import userEvent from "@testing-library/user-event";
 import type { SimRunResult, SimStrategyResult, SimTrade } from "@/types/reportSim";
 import type { NiftyOptionSide, NiftyReport } from "@/types/niftyReport";
 import { fetchSimStrategies, runSim } from "@/api/reportSim";
+import { isDerivativesOpenIst } from "@/utils/marketClock";
 import { SimDesk } from "./SimDesk";
+
+vi.mock("@/utils/marketClock", () => ({
+  isDerivativesOpenIst: vi.fn(() => true),
+}));
 
 vi.mock("@/api/reportSim", () => ({
   fetchSimStrategies: vi.fn(),
@@ -23,6 +28,7 @@ vi.mock("@/hooks/useECharts", () => ({
 
 const mockRunSim = vi.mocked(runSim);
 const mockFetchStrategies = vi.mocked(fetchSimStrategies);
+const mockMarketOpen = vi.mocked(isDerivativesOpenIst);
 
 const STRATEGY_ID = "sc-1";
 
@@ -151,6 +157,7 @@ async function openDesk(user: ReturnType<typeof userEvent.setup>) {
 }
 
 beforeEach(() => {
+  mockMarketOpen.mockReturnValue(true);
   mockRunSim.mockReset();
   mockFetchStrategies.mockReset();
   mockRunSim.mockResolvedValue(runResult());
@@ -167,10 +174,23 @@ describe("SimDesk", () => {
     const user = userEvent.setup();
     await openDesk(user);
 
+    expect(document.querySelector('[data-variant="drawer"]')).not.toBeNull();
     expect(screen.getByTestId("sim-leg-0-strike")).toHaveValue("ATM");
     expect(screen.getByTestId("sim-leg-0-resolved")).toHaveTextContent("24900");
     expect(screen.getByTestId("sim-context")).toHaveTextContent("LIVE");
     await waitFor(() => expect(mockRunSim).toHaveBeenCalled());
+  });
+
+  test("forces the EOD view after the close", async () => {
+    mockMarketOpen.mockReturnValue(false);
+    const user = userEvent.setup();
+    await openDesk(user);
+
+    expect(screen.getByTestId("sim-context")).toHaveTextContent("EOD");
+    expect(screen.getByTestId("sim-market-closed")).toBeInTheDocument();
+    expect(screen.queryByTestId("sim-live")).toBeNull();
+    await waitFor(() => expect(mockRunSim).toHaveBeenCalled());
+    expect(mockRunSim.mock.calls[0][0].date).toBe("2026-11-09");
   });
 
   test("runs the selected strategies with costs on", async () => {
