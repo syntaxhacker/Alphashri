@@ -314,6 +314,17 @@ export function SimDesk({
             tapeLag={tapeLagText}
             deskTotal={deskTotalText}
           />
+          {result?.expiryNote ? (
+            <Text
+              data-testid="sim-expiry-note"
+              size="xs"
+              fw={600}
+              c="warning.main"
+              sx={{ lineHeight: 1.45 }}
+            >
+              ⚠ {result.expiryNote}
+            </Text>
+          ) : null}
 
           <Box
             sx={{

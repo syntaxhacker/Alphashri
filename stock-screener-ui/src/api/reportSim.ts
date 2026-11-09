@@ -302,6 +302,7 @@ export function normalizeSimRunResult(payload: unknown): SimRunResult {
     combined: normalizeCombined(r.combined),
     tapeLagSec: num(pick(r, "tapeLagSec", "tape_lag_sec")),
     fillModel: str(pick(r, "fillModel", "fill_model")),
+    expiryNote: nullableStr(pick(r, "expiryNote", "expiry_note")),
   };
 }
 

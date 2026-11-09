@@ -1318,12 +1318,43 @@ def _chain10s_chain(expiry: Optional[str] = None,
     return (frame_expiry or expiry or "", _safe_float(frame.get("spot")), rows)
 
 
+def pick_nearest_expiry(
+    expiries: list[dict[str, Any]],
+    today: str,
+    include_today: bool,
+) -> Optional[dict[str, Any]]:
+    """Nearest listed expiry, including today's 0-DTE contract while open.
+
+    The old rule was strictly-future (``days_to_expiry > 0``). On a
+    holiday-shifted expiry day that skipped the preponed 0-DTE contract and
+    recorded the next weekly instead (2026-11-09 is the case: the 2026-11-10
+    expiry was preponed because 10 Nov is a holiday, but the tape captured
+    2026-11-17). After the derivatives close, skipping today is correct.
+    """
+    def eligible(entry: dict[str, Any]) -> bool:
+        days = entry.get("days_to_expiry")
+        if days is not None:
+            try:
+                value = float(days)
+            except (TypeError, ValueError):
+                return False
+            return value >= 0 if include_today else value > 0
+        value = str(entry.get("date") or "")
+        return value >= today if include_today else value > today
+
+    for entry in expiries:
+        if isinstance(entry, dict) and eligible(entry):
+            return entry
+    return expiries[0] if expiries else None
+
+
 async def _fetch_chain_payload(expiry: Optional[str]) -> tuple[str, dict]:
     """Resolve the nearest expiry (when needed) and fetch one raw chain payload.
 
-    When ``expiry`` is not provided, the **nearest expiry strictly after today**
-    is chosen (``days_to_expiry > 0``). This avoids picking a chain that expires
-    today and may already be settled/illiquid.
+    When ``expiry`` is not provided, the nearest expiry that is today-or-later
+    while the derivatives session is open is chosen; after the close, only a
+    strictly-future expiry counts. The 0-DTE chain is the liquid one on expiry
+    day, so skipping it (the old rule) recorded the next weekly instead.
 
     Raises ``HTTPException(502)`` when no expiry is listed or the fetch fails.
     """
@@ -1335,24 +1366,18 @@ async def _fetch_chain_payload(expiry: Optional[str]) -> tuple[str, dict]:
         expiries = listing.get("expiries", [])
         if not expiries:
             raise HTTPException(status_code=502, detail="no NIFTY expiries available")
-        # Pick the nearest non-expiring chain. Prefer the listed
-        # `days_to_expiry`; when an older listing omits it, fall back to the
-        # date comparison. If neither yields a future expiry, keep the first
-        # listing (test fixtures and stale feeds) instead of 502-ing the desk.
-        today = _today_str()
+        from trading.utils import is_derivatives_open
 
-        def _is_future(entry: dict) -> bool:
-            days = entry.get("days_to_expiry")
-            if days is not None:
-                try:
-                    return float(days) > 0
-                except (TypeError, ValueError):
-                    return False
-            return str(entry.get("date") or "") > today
-
-        future_expiries = [e for e in expiries if _is_future(e)]
-        chosen = future_expiries or expiries
-        expiry = chosen[0]["date"]
+        # During the session the nearest expiry can be today (0 DTE). Only
+        # after the derivatives close is "strictly after today" safe.
+        chosen = pick_nearest_expiry(
+            expiries,
+            _today_str(),
+            include_today=is_derivatives_open(),
+        )
+        if chosen is None:
+            raise HTTPException(status_code=502, detail="no NIFTY expiry available")
+        expiry = chosen["date"]
 
     try:
         payload = await fetch_upstox("/option/chain", {

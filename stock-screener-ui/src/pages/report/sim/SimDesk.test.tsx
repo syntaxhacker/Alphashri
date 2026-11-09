@@ -181,6 +181,19 @@ describe("SimDesk", () => {
     await waitFor(() => expect(mockRunSim).toHaveBeenCalled());
   });
 
+  test("shows the preponed-expiry warning from the run", async () => {
+    mockRunSim.mockResolvedValue({
+      ...runResult(),
+      expiryNote: "2026-11-09 was the 0-DTE expiry; the tape recorded 2026-11-17.",
+    });
+    const user = userEvent.setup();
+    await openDesk(user);
+
+    expect(await screen.findByTestId("sim-expiry-note")).toHaveTextContent(
+      "0-DTE",
+    );
+  });
+
   test("forces the EOD view after the close", async () => {
     mockMarketOpen.mockReturnValue(false);
     const user = userEvent.setup();

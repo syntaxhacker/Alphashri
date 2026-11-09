@@ -101,6 +101,24 @@ def _body(strategies: list[dict] | None = None, **overrides) -> dict:
 
 
 # --------------------------------------------------------------------------
+# Preponed expiry note
+# --------------------------------------------------------------------------
+def test_preponed_expiry_note_flags_nifty_2026_11_09():
+    note = sim.preponed_expiry_note("NIFTY", "2026-11-09", "2026-11-17")
+    assert note is not None
+    assert "0-DTE" in note
+    assert "2026-11-17" in note
+
+
+def test_preponed_expiry_note_is_none_for_sensex_2026_11_09():
+    assert sim.preponed_expiry_note("SENSEX", "2026-11-09", "2026-11-12") is None
+
+
+def test_preponed_expiry_note_is_none_on_a_normal_monday():
+    assert sim.preponed_expiry_note("NIFTY", "2026-11-02", "2026-11-03") is None
+
+
+# --------------------------------------------------------------------------
 # Templates
 # --------------------------------------------------------------------------
 def test_templates_have_the_built_in_structures(client):
@@ -131,7 +149,7 @@ def test_run_returns_camel_case_payload(client, monkeypatch):
     payload = response.json()
 
     assert set(payload) == {
-        "symbol", "date", "expiry", "dte", "asOf", "spot", "lotSize",
+        "symbol", "date", "expiry", "dte", "asOf", "spot", "lotSize", "expiryNote",
         "lotVerified", "coverage", "strategies", "combined", "tapeLagSec",
         "fillModel",
     }
@@ -150,6 +168,7 @@ def test_run_returns_camel_case_payload(client, monkeypatch):
     }
     assert payload["tapeLagSec"] == 0
     assert payload["fillModel"] == sim.FILL_MODEL
+    assert "0-DTE" in payload["expiryNote"]
 
     strategy = payload["strategies"][0]
     assert strategy["id"] == "s1"

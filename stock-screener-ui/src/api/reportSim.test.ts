@@ -57,6 +57,7 @@ const snakeRun = {
   },
   tape_lag_sec: 12,
   fill_model: "next-minute close + 1 tick",
+  expiry_note: "2026-11-09 was the 0-DTE expiry; the tape recorded 2026-11-17.",
   combined: {
     realized: 1250,
     unrealized: 340,
@@ -304,6 +305,7 @@ describe("runSim", () => {
     expect(result.lotVerified).toBe(true);
     expect(result.tapeLagSec).toBe(12);
     expect(result.fillModel).toBe("next-minute close + 1 tick");
+    expect(result.expiryNote).toContain("0-DTE");
   });
 
   test("normalizes coverage, combined, strategies, legs and trades", async () => {

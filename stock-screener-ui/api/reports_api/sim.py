@@ -11,7 +11,7 @@ import json
 import re
 from collections import Counter
 from datetime import date as _date
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from pathlib import Path
 from typing import Any, Optional, Union
 
@@ -24,6 +24,7 @@ from options_paper import structures, tape
 from options_paper.spec import get_lot
 from options_paper.structure_engine import ExecSpec, run_specs
 from options_paper.tape import Tick, _to_tick
+from trading.holidays_seed import CLEARING_HOLIDAYS_2026, TRADING_HOLIDAYS_2026
 
 router = APIRouter(prefix="/api/reports/sim", tags=["report-sim"])
 
@@ -51,6 +52,53 @@ _DEFAULT_EXEC = {
     "trailPct": 0.0,
     "eodExit": "15:10",
 }
+
+#: Weekly expiry weekday (Mon=0): NIFTY Tuesday, SENSEX Thursday.
+_EXPIRY_WEEKDAY = {"NIFTY": 1, "SENSEX": 3}
+
+
+def preponed_expiry_note(
+    symbol: str,
+    session_date: str,
+    recorded_expiry: str | None,
+) -> str | None:
+    """Explain a tape that captured the next weekly on a preponed expiry day.
+
+    On 2026-11-09 the nominal NIFTY expiry (Tuesday 2026-11-10) was a holiday,
+    so the 0-DTE contract expired on Monday 2026-11-09. The recorder's old
+    strictly-future rule skipped it and wrote the 2026-11-17 weekly — still a
+    real chain, but not the session's expiry. The UI must say so instead of
+    presenting the next weekly's DTE as the session DTE.
+    """
+    weekday = _EXPIRY_WEEKDAY.get(symbol)
+    if weekday is None:
+        return None
+    try:
+        day = _date.fromisoformat(session_date)
+        expiry_day = _date.fromisoformat(recorded_expiry) if recorded_expiry else None
+    except (TypeError, ValueError):
+        return None
+    if expiry_day is None or expiry_day <= day:
+        return None
+
+    nominal = day
+    while nominal.weekday() != weekday:
+        nominal += timedelta(days=1)
+    holidays = {
+        value for value, _ in TRADING_HOLIDAYS_2026
+    } | {
+        value for value, _ in CLEARING_HOLIDAYS_2026
+    }
+    preponed = nominal
+    while preponed.weekday() >= 5 or preponed in holidays:
+        preponed -= timedelta(days=1)
+    if preponed != day:
+        return None
+    return (
+        f"{session_date} was the 0-DTE expiry: the {nominal.isoformat()} expiry "
+        f"was preponed because that day is a holiday. The tape captured the next "
+        f"expiry ({recorded_expiry}), so its DTE is not the session's true 0."
+    )
 
 
 # --------------------------------------------------------------------------
@@ -412,4 +460,5 @@ def run_simulation(body: RunIn) -> dict[str, Any]:
         },
         "tapeLagSec": tape_lag_sec,
         "fillModel": FILL_MODEL,
+        "expiryNote": preponed_expiry_note(symbol, date_str, expiry),
     }

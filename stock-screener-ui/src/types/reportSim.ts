@@ -184,6 +184,8 @@ export interface SimRunResult {
   tapeLagSec: number;
   /** Assumptions echoed back by the engine so the UI can print them. */
   fillModel: string;
+  /** Set when the recorded chain is not the session's true expiry. */
+  expiryNote?: string | null;
 }
 
 export interface SimTemplate {
