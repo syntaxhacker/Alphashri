@@ -16,7 +16,7 @@ vi.mock("../../hooks/useMarketSnapshot", () => ({
 
 const mockUseMarketSnapshot = vi.mocked(useMarketSnapshot);
 
-function row(symbol: string): MarketRow {
+function row(symbol: string, overrides: Partial<MarketRow> = {}): MarketRow {
   return {
     symbol,
     name: `${symbol} Ltd`,
@@ -39,6 +39,7 @@ function row(symbol: string): MarketRow {
     pos52w: 66,
     fno: false,
     etf: false,
+    ...overrides,
   };
 }
 
@@ -184,31 +185,34 @@ describe("MarketScreenerPanel — non-blocking filters", () => {
     });
 
     // Immediate path: chip and active-filter count reflect the click within the
-    // same synchronous render — no waiting for a transition.
+    // same synchronous render — no waiting for a transition. The result count
+    // is computed from the immediate filters too (filter-only, no sort), so it
+    // is honest with the chips on the same commit instead of lagging the
+    // deferred table by one transition. (RTL flushes pending scheduler work at
+    // the end of `act`, so this harness cannot observe the pre-commit frame —
+    // commit timing is asserted in the browser, not here.)
     expect(screen.getByTestId("market-filter-chip-sma200")).toBeInTheDocument();
     expect(screen.getByTestId("market-filter-count")).toHaveTextContent("1");
-    // The table is deliberately NOT recomputed yet — the deferred copy of the
-    // filters still drives `filteredRows`, so a click never blocks on
-    // re-rendering the full row set.
-    expect(screen.getByTestId("market-result-count")).toHaveTextContent("496 / 496");
-    expect(screen.getByTestId("market-row-SYM001")).toBeInTheDocument();
+    // Alternating close=100/50 vs sma200=70 → even indices pass → 248 match.
+    expect(screen.getByTestId("market-result-count")).toHaveTextContent("248 / 496");
+    expect(screen.getByTestId("market-grid")).toBeInTheDocument();
 
-    // `filterMarketRows` is not re-invoked by further non-filter interaction:
+    // `filterOnlyMarketRows` is not re-invoked by further non-filter interaction:
     // no synchronous 496-row filter pass blocks the UI. (The deferred render is
     // committed by React's scheduler in the browser; happy-dom does not process
     // that scheduler work, so the test covers the synchronous guarantee above.)
-    const filterSpy = vi.spyOn(marketFilters, "filterMarketRows");
+    const filterSpy = vi.spyOn(marketFilters, "filterOnlyMarketRows");
     act(() => {
       fireEvent.click(screen.getByTestId("market-rail-toggle"));
     });
     expect(filterSpy.mock.calls.length).toBe(0);
-    expect(screen.getByTestId("market-result-count")).toHaveTextContent("496 / 496");
+    expect(screen.getByTestId("market-result-count")).toHaveTextContent("248 / 496");
   });
 
   test("non-filter interactions do not re-run the filter pipeline", () => {
     const rows = buildBenchRows(496);
     mockUseMarketSnapshot.mockReturnValue(hookResult({ rows, total: rows.length }));
-    const filterSpy = vi.spyOn(marketFilters, "filterMarketRows");
+    const filterSpy = vi.spyOn(marketFilters, "filterOnlyMarketRows");
     r(<MarketScreenerPanel />);
 
     const callsBefore = filterSpy.mock.calls.length;

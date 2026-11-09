@@ -7,8 +7,10 @@ import {
   countByCapTier,
   defaultMarketFilters,
   filterMarketRows,
+  filterOnlyMarketRows,
   marketSectors,
   sortMarketRows,
+  MARKET_SORT_OPTIONS,
   type MarketFilterState,
 } from "./marketFilters";
 import type { MarketRow } from "../../types/marketScreener";
@@ -283,6 +285,31 @@ describe("filterMarketRows", () => {
 
   test("empty input yields empty output", () => {
     expect(filterMarketRows([], filters({ rsiMin: 10 }))).toEqual([]);
+  });
+});
+
+describe("filterOnlyMarketRows", () => {
+  test("returns matches in input order (no sort)", () => {
+    const divergent = [
+      row("DAYWINNER", { change: 9, marketCapCr: 100 }),
+      row("CAPWINNER", { change: 1, marketCapCr: 99999 }),
+    ];
+    // Default sort is mcap_desc, so a sorted pipeline would flip these;
+    // the filter-only pass must preserve input order.
+    expect(filterOnlyMarketRows(divergent, defaultMarketFilters()).map((r) => r.symbol)).toEqual([
+      "DAYWINNER",
+      "CAPWINNER",
+    ]);
+    expect(symbols(filterOnlyMarketRows(ROWS, filters({ rsiMin: 60 })))).toEqual(["LARGECO"]);
+  });
+
+  test("filterMarketRows is the filter-only pass composed with sort", () => {
+    for (const key of MARKET_SORT_OPTIONS.map((o) => o.value)) {
+      const f = filters({ sort: key });
+      expect(filterMarketRows(ROWS, f).map((r) => r.symbol)).toEqual(
+        sortMarketRows(filterOnlyMarketRows(ROWS, f), key).map((r) => r.symbol),
+      );
+    }
   });
 });
 

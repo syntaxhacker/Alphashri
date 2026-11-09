@@ -1,4 +1,5 @@
 import {
+  memo,
   useCallback,
   useDeferredValue,
   useEffect,
@@ -31,14 +32,16 @@ import {
 import { BORDER, SURFACE, FIN_HEADER_H } from "@/ui/palette";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { MARKET_UNIVERSES, DEFAULT_MARKET_UNIVERSE } from "../../api/marketScreener";
+import type { ColumnDef } from "@tanstack/react-table";
 import type { MarketRow, MarketUniverse } from "../../types/marketScreener";
 import {
   buildMarketFilterChips,
   countActiveMarketFilters,
   defaultMarketFilters,
-  filterMarketRows,
+  filterOnlyMarketRows,
   marketSectors,
   countByCapTier,
+  sortMarketRows,
   type MarketFilterState,
 } from "./marketFilters";
 import { buildMarketColumns } from "./marketColumns";
@@ -56,6 +59,62 @@ function isSnapshotStale(asOf: string | null): boolean {
   if (Number.isNaN(parsed)) return false;
   return Date.now() - parsed > STALE_AFTER_MS;
 }
+
+// Isolated memo boundary: chips/count/toolbar re-render on every filter click,
+// but the 496-row grid must not re-reconcile until its `data` actually changes
+// (i.e. the deferred pass commits). Without this, the synchronous commit that
+// carries the chip/count text also re-renders every row.
+const MarketGrid = memo(function MarketGrid({
+  data,
+  columns,
+  hasActiveFilters,
+  onResetFilters,
+  onRowClick,
+  getRowStyle,
+  getRowTestId,
+}: {
+  data: MarketRow[];
+  columns: ColumnDef<MarketRow>[];
+  hasActiveFilters: boolean;
+  onResetFilters: () => void;
+  onRowClick: (row: MarketRow) => void;
+  getRowStyle: (row: MarketRow) => { backgroundColor: string } | undefined;
+  getRowTestId: (row: MarketRow) => string;
+}) {
+  return (
+    <TanStackTable
+      data={data}
+      columns={columns}
+      dataTestId="market-grid"
+      ariaLabel="Market screener results"
+      rowWindowSize={80}
+      fillContainer
+      dense
+      minTableWidth={1000}
+      enableSorting
+      stickyHeader
+      initialState={{ sorting: [{ id: "market_cap_cr", desc: true }] }}
+      onRowClick={onRowClick}
+      getRowStyle={getRowStyle}
+      getRowTestId={getRowTestId}
+      emptyMessage={
+        hasActiveFilters ? "No rows match the current filters" : "No market data"
+      }
+      emptyAction={
+        hasActiveFilters ? (
+          <Button
+            size="xs"
+            variant="subtle"
+            onClick={onResetFilters}
+            data-testid="market-empty-reset"
+          >
+            Reset filters
+          </Button>
+        ) : undefined
+      }
+    />
+  );
+});
 
 export function MarketScreenerPanel() {
   const [universe, setUniverse] = useState<MarketUniverse>(DEFAULT_MARKET_UNIVERSE);
@@ -79,13 +138,25 @@ export function MarketScreenerPanel() {
     setSearch("");
   }, [universe]);
 
-  // `filters`/`search` drive chips + the active-filter count immediately; the
-  // table consumes deferred copies so a filter click never blocks on
-  // synchronously re-rendering the full row set (496 Nifty-500 rows take
-  // ~1s of synchronous layout).
-  const filteredRows = useMemo(
-    () => filterMarketRows(rows, { ...deferredFilters, search: deferredSearch }),
+  // `filters`/`search` drive chips + the active-filter count + the match count
+  // immediately; the table consumes deferred copies so a filter click never
+  // blocks on re-rendering the full row set. Filter and sort are separate
+  // memos: the sort re-runs only when the filtered set (or the sort key)
+  // changes — never on toolbar/rail re-renders.
+  const deferredUnsorted = useMemo(
+    () => filterOnlyMarketRows(rows, { ...deferredFilters, search: deferredSearch }),
     [rows, deferredFilters, deferredSearch],
+  );
+  const filteredRows = useMemo(
+    () => sortMarketRows(deferredUnsorted, deferredFilters.sort),
+    [deferredUnsorted, deferredFilters.sort],
+  );
+  // Count from the immediate filters (filter-only, no sort) — keeps the
+  // toolbar honest with the chips on the same commit instead of lagging the
+  // deferred table by one transition.
+  const matchCount = useMemo(
+    () => filterOnlyMarketRows(rows, { ...filters, search }).length,
+    [rows, filters, search],
   );
   const chips = useMemo(
     () => buildMarketFilterChips({ ...filters, search }),
@@ -291,11 +362,11 @@ export function MarketScreenerPanel() {
           size="xs"
           c="dimmed"
           truncate
-          title={`${formatNumberIN(filteredRows.length)} of ${formatNumberIN(rows.length)} loaded rows match (universe total ${formatNumberIN(total)})`}
+          title={`${formatNumberIN(matchCount)} of ${formatNumberIN(rows.length)} loaded rows match (universe total ${formatNumberIN(total)})`}
           data-testid="market-result-count"
           sx={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}
         >
-          {formatNumberIN(filteredRows.length)} / {formatNumberIN(rows.length)}
+          {formatNumberIN(matchCount)} / {formatNumberIN(rows.length)}
         </Text>
         <Tooltip label="Refresh snapshot">
           <span>
@@ -536,36 +607,14 @@ export function MarketScreenerPanel() {
               </Button>
             </Paper>
           ) : (
-            <TanStackTable
+            <MarketGrid
               data={filteredRows}
               columns={columns}
-              dataTestId="market-grid"
-              ariaLabel="Market screener results"
-              rowWindowSize={80}
-              fillContainer
-              dense
-              minTableWidth={1000}
-              enableSorting
-              stickyHeader
-              initialState={{ sorting: [{ id: "market_cap_cr", desc: true }] }}
+              hasActiveFilters={hasActiveFilters}
+              onResetFilters={resetFilters}
               onRowClick={handleRowClick}
               getRowStyle={getRowStyle}
               getRowTestId={getRowTestId}
-              emptyMessage={
-                hasActiveFilters ? "No rows match the current filters" : "No market data"
-              }
-              emptyAction={
-                hasActiveFilters ? (
-                  <Button
-                    size="xs"
-                    variant="subtle"
-                    onClick={resetFilters}
-                    data-testid="market-empty-reset"
-                  >
-                    Reset filters
-                  </Button>
-                ) : undefined
-              }
             />
           )}
         </Box>

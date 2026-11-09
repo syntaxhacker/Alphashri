@@ -3533,8 +3533,16 @@ def get_nifty_tape(date: Optional[str] = Query(default=None, description="Tape d
     # Honest baseline: deltas are measured vs the day's FIRST recorded row,
     # which may be well after the open when the recorder booted late.
     baseline_t = rows[0].get("t") if rows else None
-    return {"date": date_str, "interval_sec": TAPE_INTERVAL_SEC,
-            "baseline_t": baseline_t, "rows": rows}
+    payload = {"date": date_str, "interval_sec": TAPE_INTERVAL_SEC,
+               "baseline_t": baseline_t, "rows": rows}
+    # Pre-encoded response: the tape payload is ~3MB of plain JSON primitives
+    # parsed via json.loads, so FastAPI's jsonable_encoder pass is a pure
+    # deep-copy (~500ms for a full day's 368 rows). The bytes below use the
+    # exact JSONResponse.render settings, so the wire output is identical.
+    from fastapi.responses import Response
+    body = json.dumps(payload, ensure_ascii=False, allow_nan=False,
+                      separators=(",", ":")).encode("utf-8")
+    return Response(content=body, media_type="application/json")
 
 
 @router.get("/nifty/replay/dates", dependencies=[Depends(get_current_user)])

@@ -15,7 +15,7 @@ import queue as _queue
 import threading
 import time as _time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import NamedTuple, Optional
 
 from sqlalchemy.orm import Session
@@ -239,6 +239,28 @@ _CHART_FETCH_TIMEOUT_SEC = float(os.environ.get("CHART_FETCH_TIMEOUT_SEC", "7.0"
 _CHART_NEG_CACHE_TTL_SEC = float(os.environ.get("CHART_NEG_CACHE_TTL_SEC", "300.0"))
 _CHART_NEG_CACHE_MAX = 256
 
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+
+
+#: Max calendar-day lag (daily bars only print on NSE sessions, so this is
+#: effectively "N sessions behind") beyond which stale-first refuses to serve a
+#: cached frame and falls through to the normal (bounded) network path. On
+#: network failure the endpoint returns an error instead of an ancient cached
+#: frame — a stale frame older than this is never served as current.
+#: Env-overridable; default 3 keeps the previous 3-day tolerance.
+_MAX_STALE_DAYS = _env_int("CHART_MAX_STALE_DAYS", 3)
+
+#: Background refresh: max fetch attempts and bounded backoff (seconds) between
+#: them, so a transient Upstox 429/timeout cannot pin the cache forever.
+_MAX_REFRESH_ATTEMPTS = _env_int("CHART_REFRESH_MAX_ATTEMPTS", 3)
+_REFRESH_BACKOFF_SEC = (0.0, 2.0, 5.0)
+
+
 _chart_neg_cache: dict[tuple[str, str, str], tuple[float, dict]] = {}
 _chart_neg_cache_lock = threading.Lock()
 _chart_logger = logging.getLogger(__name__)
@@ -346,6 +368,32 @@ def _log_chart_fetch(
         "chart_fetch symbol=%s timeframe=%s elapsed_ms=%.0f rows=%d cache_hit=%s timeout=%s error=%s stale_fallback=%s",
         symbol, timeframe, elapsed_ms, rows, bool(cache_hit), bool(timeout), error or "",
         "true" if stale_fallback else "false",
+    )
+
+
+def _session_lag_days(as_of: Optional[str], expected: Optional[str]) -> Optional[int]:
+    """Calendar-day lag of ``as_of`` behind ``expected`` (sessions for daily
+    frames, which only print on trading days). ``None`` when unparseable."""
+    if not as_of or not expected:
+        return None
+    try:
+        return (date.fromisoformat(expected) - date.fromisoformat(as_of)).days
+    except (ValueError, TypeError):
+        return None
+
+
+def _log_refresh_result(symbol: str, timeframe: str, *, attempt: int,
+                        max_attempts: int, rows: int, as_of: Optional[str],
+                        expected_as_of: Optional[str], fresh: bool,
+                        lag_days: Optional[int], elapsed_ms: float,
+                        error: Optional[str] = None) -> None:
+    """One structured line per background refresh attempt / final give-up."""
+    _chart_logger.info(
+        "chart_stale_first_refresh symbol=%s timeframe=%s attempt=%d/%d rows=%d "
+        "as_of=%s expected_as_of=%s fresh=%s lag_days=%s elapsed_ms=%.0f error=%s",
+        symbol, timeframe, attempt, max_attempts, rows,
+        as_of or "", expected_as_of or "", fresh,
+        lag_days if lag_days is not None else "", elapsed_ms, error or "",
     )
 
 
@@ -471,17 +519,24 @@ def _stale_first_frame(symbol: str, timeframe: str, lookback_bars) -> Optional[t
         if df is not None:
             as_of = candles.frame_last_date(df)
             if as_of:
+                try:
+                    lcs = candles._last_completed_session().isoformat()
+                except Exception:
+                    lcs = None
                 if timeframe == "1D":
-                    try:
-                        lcs = candles._last_completed_session().isoformat()
-                    except Exception:
-                        lcs = None
                     # One stale session (or a weekend) is still worth serving:
                     # the whole point is instant candles while the background
-                    # refresh runs.
-                    ok = bool(lcs) and as_of >= (
-                        datetime.fromisoformat(lcs) - timedelta(days=3)
-                    ).date().isoformat()
+                    # refresh runs. Anything beyond the max-staleness cap is
+                    # refused so the caller falls through to the live fetch.
+                    lag = _session_lag_days(as_of, lcs)
+                    ok = bool(lcs) and lag is not None and lag <= _MAX_STALE_DAYS
+                    if not ok and lcs:
+                        _chart_logger.info(
+                            "chart_stale_first rejected=stale symbol=%s timeframe=%s "
+                            "as_of=%s expected_as_of=%s lag_days=%s max_stale_days=%d",
+                            symbol, timeframe, as_of, lcs,
+                            lag if lag is not None else "", _MAX_STALE_DAYS,
+                        )
                 else:
                     ok = as_of == _ist_session_date()
                 if ok:
@@ -544,7 +599,8 @@ def _stale_first_resampled_daily(symbol: str, timeframe: str) -> Optional[tuple]
 
 
 def _kick_stale_first_refresh(symbol: str, timeframe: str, lookback_bars) -> bool:
-    """Re-fetch the default live-edge frame in a daemon thread.
+    """Re-fetch the default live-edge frame in a daemon thread, with bounded
+    retries so a transient Upstox 429/timeout cannot pin the cache forever.
 
     The request never waits on this; the fresh frame lands in the disk cache
     for the next poll. ``force_refresh`` bypasses the disk read and the
@@ -558,20 +614,65 @@ def _kick_stale_first_refresh(symbol: str, timeframe: str, lookback_bars) -> boo
         _refresh_inflight.add(key)
 
     def _run() -> None:
+        last_exc: Optional[Exception] = None
         try:
-            candles.fetch_for_timeframe(
-                key[0], key[1],
-                lookback_bars=None if lookback_bars is None else int(lookback_bars),
-                include_partial_today=False,
-                force_refresh=True,
-            )
-        except Exception:
-            _chart_logger.warning(
-                "chart_stale_first_refresh failed symbol=%s timeframe=%s", key[0], key[1],
-            )
+            try:
+                expected_as_of = candles._last_completed_session().isoformat()
+            except Exception:
+                expected_as_of = None
+            for attempt in range(1, _MAX_REFRESH_ATTEMPTS + 1):
+                attempt_started = _time.monotonic()
+                exc: Optional[Exception] = None
+                try:
+                    df = candles.fetch_for_timeframe(
+                        key[0], key[1],
+                        lookback_bars=None if lookback_bars is None else int(lookback_bars),
+                        include_partial_today=False,
+                        force_refresh=True,
+                    )
+                except Exception as e:  # noqa: BLE001 - background refresh never propagates
+                    exc = e
+                    df = None
+                last_exc = exc or last_exc
+                rows = 0
+                as_of: Optional[str] = None
+                fresh = False
+                lag_days: Optional[int] = None
+                if df is not None and not getattr(df, "empty", True):
+                    rows = int(len(df))
+                    as_of = candles.frame_last_date(df)
+                    lag_days = _session_lag_days(as_of, expected_as_of)
+                    fresh = bool(expected_as_of and as_of and as_of >= expected_as_of)
+                elapsed_ms = (_time.monotonic() - attempt_started) * 1000.0
+                _log_refresh_result(
+                    key[0], key[1], attempt=attempt,
+                    max_attempts=_MAX_REFRESH_ATTEMPTS, rows=rows, as_of=as_of,
+                    expected_as_of=expected_as_of, fresh=fresh, lag_days=lag_days,
+                    elapsed_ms=elapsed_ms,
+                    error=None if exc is None else str(exc)[:200],
+                )
+                # A non-empty frame (even one that lags the daily API) is the
+                # best available data — fetch_for_timeframe has already written
+                # it to the cache — so stop retrying and let the next poll serve
+                # it (marked with expected_as_of when it lags).
+                if df is not None and not getattr(df, "empty", True):
+                    return
+                # Empty frame (Upstox returned nothing this session) or an
+                # exception: retry after bounded backoff.
+                if attempt < _MAX_REFRESH_ATTEMPTS:
+                    try:
+                        _time.sleep(_REFRESH_BACKOFF_SEC[
+                            min(attempt - 1, len(_REFRESH_BACKOFF_SEC) - 1)])
+                    except Exception:
+                        pass
         finally:
             with _refresh_inflight_lock:
                 _refresh_inflight.discard(key)
+        _chart_logger.warning(
+            "chart_stale_first_refresh exhausted symbol=%s timeframe=%s "
+            "attempts=%d last_error=%s", key[0], key[1], _MAX_REFRESH_ATTEMPTS,
+            str(last_exc)[:200] if last_exc else "",
+        )
 
     threading.Thread(target=_run, name=f"chart-stale-refresh-{key[0]}-{key[1]}", daemon=True).start()
     return True
@@ -2230,6 +2331,10 @@ async def get_symbol_chart(
                 trend_lines = []
             else:
                 trend_lines = _detect_trend_lines(df, lookback_bars, stored_fresh_lines)
+            try:
+                chart_lcs = candles._last_completed_session().isoformat()
+            except Exception:
+                chart_lcs = None
             payload = {
                 "symbol": symbol_u,
                 "timeframe": timeframe,
@@ -2241,6 +2346,15 @@ async def get_symbol_chart(
                 "as_of": as_of,
                 "note": f"served cached frame (through {as_of}); refreshing in background",
             }
+            # Mark the expected session clearly when Upstox daily data lags the
+            # last completed session, so the UI can badge "data through as_of,
+            # expected through expected_as_of" instead of a permanent stale badge.
+            if chart_lcs and as_of and as_of < chart_lcs:
+                payload["expected_as_of"] = chart_lcs
+                payload["note"] = (
+                    f"served cached frame (through {as_of}); Upstox daily data "
+                    f"expected through {chart_lcs}; refreshing in background"
+                )
             if detect_patterns:
                 payload["hits"] = list(hits_block["hits"])
                 _store_pattern_block(symbol_u, timeframe, session, hits_block, compute_trendlines)

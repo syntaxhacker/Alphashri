@@ -368,26 +368,26 @@ describe("ScreenerPage", () => {
     expect(screen.getByTestId("screener-page")).toBeInTheDocument();
   });
 
-  it("displays loading state", () => {
+  it("displays loading state", async () => {
     render(
       <UIProvider>
         <ScreenerPage {...defaultProps} isLoading={true} approachingStocks={[]} touchedStocks={[]} />
       </UIProvider>,
     );
-    expect(screen.getByTestId("screener-loading")).toBeInTheDocument();
+    expect(await screen.findByTestId("screener-loading")).toBeInTheDocument();
   });
 
-  it("displays error state with retry button", () => {
+  it("displays error state with retry button", async () => {
     const errorMsg = "Failed to fetch data";
     render(
       <UIProvider>
         <ScreenerPage {...defaultProps} error={errorMsg} />
       </UIProvider>,
     );
-    expect(screen.getByTestId("screener-error-container")).toBeInTheDocument();
+    expect(await screen.findByTestId("screener-error-container")).toBeInTheDocument();
     expect(screen.getByText("Screener failed to load")).toBeInTheDocument();
     expect(screen.getByText(errorMsg)).toBeInTheDocument();
-    expect(screen.getByTestId("screener-retry-btn")).toBeInTheDocument();
+    expect(await screen.findByTestId("screener-retry-btn")).toBeInTheDocument();
   });
 
   it("calls onRefresh when retry button clicked", async () => {
@@ -397,48 +397,48 @@ describe("ScreenerPage", () => {
         <ScreenerPage {...defaultProps} error="Error occurred" />
       </UIProvider>,
     );
-    await user.click(screen.getByTestId("screener-retry-btn"));
+    await user.click(await screen.findByTestId("screener-retry-btn"));
     expect(defaultProps.onRefresh).toHaveBeenCalledTimes(1);
   });
 
-  it("displays empty state when no stocks", () => {
+  it("displays empty state when no stocks", async () => {
     render(
       <UIProvider>
         <ScreenerPage {...defaultProps} approachingStocks={[]} touchedStocks={[]} />
       </UIProvider>,
     );
-    expect(screen.getByTestId("screener-empty")).toBeInTheDocument();
+    expect(await screen.findByTestId("screener-empty")).toBeInTheDocument();
   });
 
-  it("displays approaching stocks section when data exists", () => {
+  it("displays approaching stocks section when data exists", async () => {
     render(
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
     );
-    expect(screen.getByTestId("screener-approaching-section")).toBeInTheDocument();
+    expect(await screen.findByTestId("screener-approaching-section")).toBeInTheDocument();
     expect(screen.getByText(`Approaching (${mockApproachingStocks.length})`)).toBeInTheDocument();
   });
 
-  it("displays touched stocks section when data exists", () => {
+  it("displays touched stocks section when data exists", async () => {
     render(
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
     );
-    expect(screen.getByTestId("screener-touched-section")).toBeInTheDocument();
+    expect(await screen.findByTestId("screener-touched-section")).toBeInTheDocument();
     expect(screen.getByText(`Touched (${mockTouchedStocks.length})`)).toBeInTheDocument();
   });
 
-  it("renders table view by default", () => {
+  it("renders table view by default", async () => {
     render(
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
     );
     // Both approaching and touched sections render tables
-    expect(screen.getByTestId("screener-table-approaching")).toBeInTheDocument();
-    expect(screen.getByTestId("screener-table-touched")).toBeInTheDocument();
+    expect(await screen.findByTestId("screener-table-approaching")).toBeInTheDocument();
+    expect(await screen.findByTestId("screener-table-touched")).toBeInTheDocument();
   });
 
   it("switches to heatmap view when view mode changes", async () => {
@@ -450,8 +450,8 @@ describe("ScreenerPage", () => {
     );
     await user.click(screen.getByTestId("view-heatmap"));
     // Both approaching and touched sections render heatmaps
-    expect(screen.getByTestId("screener-heatmap-approaching")).toBeInTheDocument();
-    expect(screen.getByTestId("screener-heatmap-touched")).toBeInTheDocument();
+    expect(await screen.findByTestId("screener-heatmap-approaching")).toBeInTheDocument();
+    expect(await screen.findByTestId("screener-heatmap-touched")).toBeInTheDocument();
   });
 
   it("switches back to table view", async () => {
@@ -463,13 +463,13 @@ describe("ScreenerPage", () => {
     );
     // Switch to heatmap first
     await user.click(screen.getByTestId("view-heatmap"));
-    expect(screen.getByTestId("screener-heatmap-approaching")).toBeInTheDocument();
-    expect(screen.getByTestId("screener-heatmap-touched")).toBeInTheDocument();
+    expect(await screen.findByTestId("screener-heatmap-approaching")).toBeInTheDocument();
+    expect(await screen.findByTestId("screener-heatmap-touched")).toBeInTheDocument();
 
     // Switch back to table
     await user.click(screen.getByTestId("view-table"));
-    expect(screen.getByTestId("screener-table-approaching")).toBeInTheDocument();
-    expect(screen.getByTestId("screener-table-touched")).toBeInTheDocument();
+    expect(await screen.findByTestId("screener-table-approaching")).toBeInTheDocument();
+    expect(await screen.findByTestId("screener-table-touched")).toBeInTheDocument();
   });
 
   it("calls onSymbolClick when symbol is clicked in table", async () => {
@@ -627,14 +627,14 @@ describe("ScreenerPage", () => {
     expect(screen.queryByTestId("screener-touched-section")).not.toBeInTheDocument();
   });
 
-  it("renders both sections when both have stocks", () => {
+  it("renders both sections when both have stocks", async () => {
     render(
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
     );
-    expect(screen.getByTestId("screener-approaching-section")).toBeInTheDocument();
-    expect(screen.getByTestId("screener-touched-section")).toBeInTheDocument();
+    expect(await screen.findByTestId("screener-approaching-section")).toBeInTheDocument();
+    expect(await screen.findByTestId("screener-touched-section")).toBeInTheDocument();
   });
 
   it("renders the groups performance panel beside the screener table", () => {
@@ -665,8 +665,8 @@ describe("ScreenerPage", () => {
     // Dashboard toolbar replaces the screener select with the universe select
     expect(screen.getByTestId("dashboard-universe-select")).toBeInTheDocument();
     expect(screen.queryByTestId("screener-select")).not.toBeInTheDocument();
-    // Screener table is mounted but hidden while dashboard is active
-    expect(screen.getByTestId("screener-table-approaching")).not.toBeVisible();
+    // Dashboard landing does not mount the screener subtree (mount-on-first-visit)
+    expect(screen.queryByTestId("screener-table-approaching")).not.toBeInTheDocument();
   });
 
   it("switches from dashboard to screener and back", async () => {
@@ -680,12 +680,12 @@ describe("ScreenerPage", () => {
     expect(screen.getByTestId("dashboard-view")).toBeVisible();
 
     await user.click(screen.getByTestId("tab-screener"));
-    expect(screen.getByTestId("screener-table-approaching")).toBeVisible();
+    expect(await screen.findByTestId("screener-table-approaching")).toBeVisible();
     expect(screen.getByTestId("screener-select")).toBeInTheDocument();
 
     await user.click(screen.getByTestId("tab-dashboard"));
     expect(screen.getByTestId("dashboard-view")).toBeVisible();
-    expect(screen.getByTestId("screener-table-approaching")).not.toBeVisible();
+    expect(screen.queryByTestId("screener-table-approaching")).not.toBeVisible();
   });
 
   it("does not fetch the market snapshot until the Market tab is opened", async () => {
@@ -704,6 +704,20 @@ describe("ScreenerPage", () => {
     });
     expect(await screen.findByTestId("market-screener", undefined, { timeout: 10_000 })).toBeInTheDocument();
     expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
+  });
+
+  it("does not mount the dashboard or screener panels on the Market tab", () => {
+    render(
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>,
+      { initialRoute: "/?tab=market" },
+    );
+    expect(dashboardMounts.count).toBe(0);
+    expect(screen.queryByTestId("dashboard-view")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("screener-table-approaching")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("group-performance-panel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("market-tab-panel")).toBeInTheDocument();
   });
 
   it("does not fetch value scan or events endpoints on Dashboard or Market tabs", async () => {
@@ -846,7 +860,7 @@ describe("ScreenerPage", () => {
     );
     await user.click(screen.getByTestId("dashboard-open-scan-near_52w"));
     expect(onScreenerChange).toHaveBeenCalledWith("52w_high");
-    expect(screen.getByTestId("screener-table-approaching")).toBeVisible();
+    expect(await screen.findByTestId("screener-table-approaching")).toBeVisible();
   });
 
   it("onOpenScan for gainers opens the Screener tab without changing profile", async () => {
@@ -860,7 +874,7 @@ describe("ScreenerPage", () => {
     );
     await user.click(screen.getByTestId("dashboard-open-scan-gainers"));
     expect(onScreenerChange).not.toHaveBeenCalled();
-    expect(screen.getByTestId("screener-table-approaching")).toBeVisible();
+    expect(await screen.findByTestId("screener-table-approaching")).toBeVisible();
   });
 
   it("dashboard refresh remounts the DashboardView", async () => {

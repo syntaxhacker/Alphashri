@@ -405,7 +405,9 @@ class TestTapeEndpoint:
                           AsyncMock(return_value=_fake_report())):
             await record_nifty_tape_tick(now=_ist(9, 15))
             await record_nifty_tape_tick(now=_ist(9, 16))
-        out = get_nifty_tape(date="2026-10-13")
+        resp = get_nifty_tape(date="2026-10-13")
+        assert resp.media_type == "application/json"
+        out = json.loads(resp.body)
         assert out["date"] == "2026-10-13"
         assert out["interval_sec"] == 60
         assert len(out["rows"]) == 2
@@ -423,10 +425,61 @@ class TestTapeEndpoint:
                           AsyncMock(return_value=_fake_report())):
             await record_nifty_tape_tick(now=_ist(12, 4))
             await record_nifty_tape_tick(now=_ist(12, 5))
-        out = get_nifty_tape(date="2026-10-13")
+        resp = get_nifty_tape(date="2026-10-13")
+        out = json.loads(resp.body)
         assert out["baseline_t"] == _ist(12, 4).isoformat()
         assert out["baseline_t"] == out["rows"][0]["t"]
         assert out["baseline_t"] < out["rows"][-1]["t"]
+
+    async def test_wire_bytes_match_fastapi_pipeline(self, _tmp_tape):
+        """The pre-encoded Response carries exactly what FastAPI would send.
+
+        The tape payload is plain JSON primitives (parsed via json.loads),
+        so skipping jsonable_encoder must not change a single byte. The
+        reference is the real pipeline: encoder + JSONResponse render.
+        """
+        from fastapi.encoders import jsonable_encoder
+        from starlette.responses import JSONResponse
+
+        with patch.object(nifty, "_compute_live",
+                          AsyncMock(return_value=_fake_report())):
+            await record_nifty_tape_tick(now=_ist(9, 15))
+            await record_nifty_tape_tick(now=_ist(9, 16))
+        rows = derive_tape_rows(read_tape("2026-10-13"))
+        expected = JSONResponse(jsonable_encoder({
+            "date": "2026-10-13",
+            "interval_sec": nifty.TAPE_INTERVAL_SEC,
+            "baseline_t": rows[0].get("t") if rows else None,
+            "rows": rows,
+        })).body
+        resp = get_nifty_tape(date="2026-10-13")
+        assert resp.status_code == 200
+        assert resp.media_type == "application/json"
+        assert resp.body == expected
+
+    def test_wire_bytes_preserve_unicode_and_floats(self, _tmp_tape):
+        """Non-ASCII text and floats survive the fast path byte-identically."""
+        from fastapi.encoders import jsonable_encoder
+        from starlette.responses import JSONResponse
+
+        (nifty.TAPE_DIR / "2026-10-13.jsonl").write_text(
+            json.dumps({
+                "t": "2026-10-13T09:15:00+05:30",
+                "spot": 25000.125, "ce_oi": 1000, "pe_oi": 2000,
+                "ce_vol": 5000, "pe_vol": 6000, "pcr_oi": 2.0,
+                "expiry": "2026-10-15-héllo",
+                "walls": {"calls": [], "puts": []},
+            }) + "\n", encoding="utf-8")
+        rows = derive_tape_rows(read_tape("2026-10-13"))
+        expected = JSONResponse(jsonable_encoder({
+            "date": "2026-10-13",
+            "interval_sec": nifty.TAPE_INTERVAL_SEC,
+            "baseline_t": rows[0].get("t") if rows else None,
+            "rows": rows,
+        })).body
+        resp = get_nifty_tape(date="2026-10-13")
+        assert resp.body == expected
+        assert "héllo".encode("utf-8") in resp.body
 
 
 class TestGapJournal:
