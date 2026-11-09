@@ -13,6 +13,14 @@ function wallsAt(tag: string): WallsPayload {
   return { symbol: "NIFTY", read: tag } as unknown as WallsPayload;
 }
 
+function wallsWithLastT(tag: string, lastT: string): WallsPayload {
+  return {
+    symbol: "NIFTY",
+    read: tag,
+    freshness: { last_t: lastT, age_sec: 0, stale: false, rows: 0, gaps: [] },
+  } as unknown as WallsPayload;
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((res) => {
@@ -311,5 +319,115 @@ describe("useReplayWalls", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(result.current.walls?.read).toBe("sensex");
+  });
+
+  test("paints the requested cutoff when scrubbing forward", async () => {
+    vi.useFakeTimers();
+    const first = deferred<WallsPayload | null>();
+    const fetcher = vi.fn().mockReturnValue(first.promise);
+    const { result } = renderHook(
+      (props: Props) => useReplayWalls(baseProps(fetcher, props)),
+      { initialProps: { at: "2026-11-09T11:36:00+05:30" } },
+    );
+
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      first.resolve(wallsWithLastT("11:36", "2026-11-09T11:36:00+05:30"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.walls?.freshness.last_t).toBe(
+      "2026-11-09T11:36:00+05:30",
+    );
+    expect(result.current.syncing).toBe(false);
+  });
+
+  test("paints an older cutoff when the playhead moves backwards", async () => {
+    vi.useFakeTimers();
+    const first = deferred<WallsPayload | null>();
+    const second = deferred<WallsPayload | null>();
+    const fetcher = vi
+      .fn()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    const { result, rerender } = renderHook(
+      (props: Props) => useReplayWalls(baseProps(fetcher, props)),
+      { initialProps: { at: "2026-11-09T11:36:00+05:30" } },
+    );
+
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      first.resolve(wallsWithLastT("11:36", "2026-11-09T11:36:00+05:30"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.walls?.freshness.last_t).toBe(
+      "2026-11-09T11:36:00+05:30",
+    );
+
+    // Scrub back to 11:33: the older frame must paint, not be discarded.
+    rerender({ at: "2026-11-09T11:33:00+05:30" });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls[1][2]).toBe("2026-11-09T11:33:00+05:30");
+
+    await act(async () => {
+      second.resolve(wallsWithLastT("11:33", "2026-11-09T11:33:00+05:30"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.walls?.freshness.last_t).toBe(
+      "2026-11-09T11:33:00+05:30",
+    );
+  });
+
+  test("a late future response does not overwrite an older playhead", async () => {
+    vi.useFakeTimers();
+    const late = deferred<WallsPayload | null>(); // 11:36, started first
+    const now = deferred<WallsPayload | null>(); // 11:33, started second
+    const fetcher = vi
+      .fn()
+      .mockReturnValueOnce(late.promise)
+      .mockReturnValueOnce(now.promise);
+    const { result, rerender } = renderHook(
+      (props: Props) => useReplayWalls(baseProps(fetcher, props)),
+      { initialProps: { at: "2026-11-09T11:36:00+05:30" } },
+    );
+
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    // Let the throttle window elapse while the 11:36 request is still in flight.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+
+    // User scrubs back to 11:33: the window has elapsed, so the newest cutoff
+    // starts now even though the 11:36 request is still in flight.
+    rerender({ at: "2026-11-09T11:33:00+05:30" });
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls[1][2]).toBe("2026-11-09T11:33:00+05:30");
+
+    // The 11:33 response lands first and paints.
+    await act(async () => {
+      now.resolve(wallsWithLastT("11:33", "2026-11-09T11:33:00+05:30"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.walls?.freshness.last_t).toBe(
+      "2026-11-09T11:33:00+05:30",
+    );
+
+    // The stale 11:36 response arrives late — it must be discarded.
+    await act(async () => {
+      late.resolve(wallsWithLastT("11:36", "2026-11-09T11:36:00+05:30"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.walls?.freshness.last_t).toBe(
+      "2026-11-09T11:33:00+05:30",
+    );
   });
 });
