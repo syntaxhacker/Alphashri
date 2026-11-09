@@ -108,6 +108,7 @@ import { scorePreMove, seedPreMoveHistory } from "./niftyPreMove";
 import type { PreMoveScore } from "./niftyPreMove";
 import { NiftySqueezeRadar, type WallSnapshot } from "./NiftySqueezeRadar";
 import { NiftyWallsCard } from "./NiftyWallsCard";
+import { NiftyWallErosionBoard } from "./NiftyWallErosionBoard";
 import { useReplayWalls } from "./useReplayWalls";
 import { NiftyWallsExpanded } from "./NiftyWallsExpanded";
 import { resolveWallBoard } from "./niftyWallsFormat";
@@ -4484,8 +4485,17 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               history={preMoveHistory}
               wallHistory={mode === "live" ? wallHistory : EMPTY_WALL_HISTORY}
               spotMove1m={spotMove1m}
+              walls={walls}
             />
           )}
+
+          {/* Nearest call/put wall erosion: OI, volume, premium flow, fuel
+              score and time-to-break. The card below keeps the full table. */}
+          <NiftyWallErosionBoard
+            walls={walls}
+            symbol={symbol}
+            asOf={mode === "eod" ? replay?.snapshots?.[replayIndex]?.t ?? null : null}
+          />
 
           {/* Wall erosion / 0-DTE pin state: backend-computed, all walls in
               one place, expandable to the full erosion matrix. */}

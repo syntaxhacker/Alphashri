@@ -1,12 +1,14 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { memo, useMemo } from "react";
 import Box from "@mui/material/Box";
+import type { WallsPayload, WallsRow } from "@/api/reportNifty";
 import * as palette from "@/ui/palette";
 import type { NiftyReport, NiftyWall } from "@/types/niftyReport";
 import type { PreMoveScore } from "./niftyPreMove";
 import { armedSpans, type PreMovePoint } from "./niftyPreMoveHistory";
 import type { SetupRead } from "./niftySetup";
-import { resolveWallBoard } from "./niftyWallsFormat";
+import { resolveWallBoard, fmtPct } from "./niftyWallsFormat";
+import { pickNearestWalls, isPreBlast } from "./wallErosion";
 import { symbolMetrics, type SymbolMetrics } from "./symbolMetrics";
 
 export interface NiftySqueezeRadarProps {
@@ -20,6 +22,8 @@ export interface NiftySqueezeRadarProps {
   spotMove1m?: number | null;
   /** Optional pre-computed symbol metrics (avoids re-deriving). */
   metrics?: SymbolMetrics;
+  /** Latest walls payload (nearest walls + erosion fuel); optional. */
+  walls?: WallsPayload | null;
 }
 
 export interface WallSnapshot {
@@ -38,17 +42,19 @@ export const SQUEEZE_CALIBRATION = {
 };
 
 type Side = "ce" | "pe";
-type Stage = "QUIET" | "ARMING" | "TRIGGER";
+type Stage = "QUIET" | "ARMING" | "PRE-BLAST" | "TRIGGER";
 
 const STAGE_COLOR: Record<Stage, string> = {
   QUIET: palette.TEXT_MUTED,
   ARMING: palette.WARNING,
+  "PRE-BLAST": palette.WARNING,
   TRIGGER: palette.POSITIVE,
 };
 
 const STAGE_LABEL: Record<Stage, string> = {
   QUIET: "QUIET",
   ARMING: "ARMING",
+  "PRE-BLAST": "PRE-BLAST",
   TRIGGER: "TRIGGER",
 };
 
@@ -95,8 +101,8 @@ function fmtTime(ms: number): string {
  * The old timeline drew five cryptic swimlanes and a spiky score; this shows
  * the three things a trader actually needs:
  *
- * 1. **Proximity** (0-100): distance to the wall being tested (50%), flow
- *    score (30%), setup gates (20%).
+ * 1. **Proximity** (0-100): distance to the wall being tested (35%), flow
+ *    score (20%), setup gates (15%), wall erosion (30%).
  * 2. **The wall** in points: `22,700 · 25 pts away`, with the OI at it.
  * 3. **The stage**: QUIET -> ARMING -> TRIGGER (ARM = prepare, TRIGGER = trade).
  *
@@ -115,6 +121,7 @@ export function NiftySqueezeRadarInner({
   wallHistory = [],
   spotMove1m = null,
   metrics,
+  walls = null,
 }: NiftySqueezeRadarProps) {
   const { up, down } = pickWalls(report);
   const upDist = up ? Math.abs(wallDistance(up, report.spot)) : Infinity;
@@ -131,7 +138,21 @@ export function NiftySqueezeRadarInner({
   const distScore = hasWall ? clamp01(1 - distance / effectiveRange) : 0;
   const flowScore = clamp01(preMove.score / Math.max(preMove.max, 1));
   const gateScore = setup.gates.length > 0 ? clamp01(setup.score / setup.gates.length) : 0;
-  const proximity = Math.round(100 * (0.5 * distScore + 0.3 * flowScore + 0.2 * gateScore));
+  // Nearest wall on either side from the walls payload: the heavier-fuel side
+  // wins, falling back to the side spot is already closest to.
+  const nearest = pickNearestWalls(walls ?? null);
+  const callFuel = nearest.call?.fuel_score ?? 0;
+  const putFuel = nearest.put?.fuel_score ?? 0;
+  const erosionRow: WallsRow | null =
+    callFuel > putFuel || (callFuel === putFuel && side === "ce")
+      ? nearest.call ?? nearest.put ?? null
+      : nearest.put ?? nearest.call ?? null;
+  const erodeScore = Math.round(clamp01((erosionRow?.fuel_score ?? 0) / 100) * 100);
+  const erosion30m = erosionRow?.erosion_30m ?? null;
+
+  const proximity = Math.round(
+    100 * clamp01(0.35 * distScore + 0.20 * flowScore + 0.15 * gateScore + 0.30 * (erodeScore / 100)),
+  );
 
   const lastSpot = report.spot;
   const priorSpot = history.length >= 6 ? history[history.length - 6].spot : null;
@@ -141,9 +162,14 @@ export function NiftySqueezeRadarInner({
   const moveForBreak = spotMove1m ?? move60;
   const priceBreak = Math.abs(moveForBreak) >= m.squeezePriceBreakPts;
 
-  const stage: Stage =
-    setup.state === "TRIGGER" || priceBreak || (hasWall && distance <= m.squeezeAtWallPts && preMove.state === "armed")
-      ? "TRIGGER"
+  const isTrigger =
+    setup.state === "TRIGGER" ||
+    priceBreak ||
+    (hasWall && distance <= m.squeezeAtWallPts && preMove.state === "armed");
+  const stage: Stage = isTrigger
+    ? "TRIGGER"
+    : isPreBlast(erosionRow, walls?.regime)
+      ? "PRE-BLAST"
       : preMove.state === "armed" || (proximity >= 45 && (flowScore >= 0.3 || gateScore >= 0.5))
         ? "ARMING"
         : "QUIET";
@@ -176,6 +202,9 @@ export function NiftySqueezeRadarInner({
     ? `${formatNumberIN(wall.strike)} ${side === "ce" ? "CE" : "PE"}`
     : "no wall";
   const directionLabel = side === "ce" ? "above" : "below";
+  const gammaLabel = walls?.regime === "LONG" ? "LONG" : walls?.regime === "SHORT" ? "SHORT" : "—";
+  const distScorePct = Math.round(distScore * 100);
+  const flowScorePct = Math.round(flowScore * 100);
 
   // Sparkline geometry.
   const n = history.length;
@@ -191,9 +220,10 @@ export function NiftySqueezeRadarInner({
       data-stage={stage}
       data-proximity={proximity}
       title={
-        `proximity = 0.50 x distance (${Math.round(distScore * 100)}) ` +
-        `+ 0.30 x flow (${Math.round(flowScore * 100)}) ` +
-        `+ 0.20 x setup (${Math.round(gateScore * 100)})`
+        `proximity = 0.35 x distance (${distScorePct}) ` +
+        `+ 0.20 x flow (${flowScorePct}) ` +
+        `+ 0.15 x setup (${Math.round(gateScore * 100)}) ` +
+        `+ 0.30 x erosion (${erodeScore})`
       }
       sx={{
         width: "100%",
@@ -223,7 +253,7 @@ export function NiftySqueezeRadarInner({
             py: "1px",
             border: `1px solid ${STAGE_COLOR[stage]}`,
             borderRadius: "3px",
-            bgcolor: stage === "TRIGGER" ? "rgba(63,185,80,0.14)" : stage === "ARMING" ? "rgba(210,153,34,0.12)" : "transparent",
+            bgcolor: stage === "TRIGGER" ? "rgba(63,185,80,0.14)" : stage === "ARMING" || stage === "PRE-BLAST" ? "rgba(210,153,34,0.12)" : "transparent",
             color: STAGE_COLOR[stage],
             fontSize: 9,
             fontWeight: 800,
@@ -239,7 +269,8 @@ export function NiftySqueezeRadarInner({
         >
           {wallLabel}
           <Box component="span" sx={{ color: palette.TEXT_MUTED, fontWeight: 500 }}>
-            {" "}· {hasWall ? `${distance.toFixed(0)} pts ${directionLabel}` : "—"}
+            {" "}
+          · {hasWall ? `${distance.toFixed(0)} pts ${directionLabel}${erosion30m != null ? ` · ${fmtPct(erosion30m)}/30m` : ""}` : "—"}
           </Box>
         </Box>
         {wall ? (
@@ -286,6 +317,13 @@ export function NiftySqueezeRadarInner({
           <Box component="span" sx={{ fontSize: 8, color: palette.TEXT_MUTED, letterSpacing: "0.04em" }}>
             AT LEVEL
           </Box>
+        </Box>
+      </Box>
+
+      {/* Row 1.5: score decomposition — distance / flow / erosion / gamma regime */}
+      <Box sx={{ display: "flex", alignItems: "center", gap: "4px", fontSize: 8, color: palette.TEXT_MUTED, minWidth: 0 }}>
+        <Box component="span" data-testid="squeeze-erosion">
+          DIST {distScorePct} · FLOW {flowScorePct} · ERODE {erodeScore} · Γ {gammaLabel}
         </Box>
       </Box>
 

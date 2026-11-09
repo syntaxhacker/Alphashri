@@ -13,16 +13,24 @@ import {
   dist,
   erosionColor,
   firstBreakEvent,
+  erosionArrow,
+  flowLabel,
+  flowTone,
   fmtNum,
   fmtOI,
   fmtPct,
+  fmtPremChange,
+  fmtRate,
   fmtSignedOI,
+  fmtVolMult,
   formatDte,
   lastBreakEvent,
   newOiTint,
+  statusTone,
   wallsMaxOi,
 } from "./niftyWallsFormat";
 import { wallCode, wallSide } from "./niftyChartMath";
+import { fuelTone, pickNearestWalls, type WallErosionView, wallErosionView } from "./wallErosion";
 import {
   REPORT_FONT,
   REPORT_ROW,
@@ -61,6 +69,222 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
       >
         {value}
       </Typography>
+    </Box>
+  );
+}
+
+function toneColor(tone: "positive" | "warning" | "negative" | "muted"): string {
+  switch (tone) {
+    case "positive":
+      return palette.POSITIVE;
+    case "negative":
+      return palette.NEGATIVE;
+    case "warning":
+      return palette.WARNING;
+    default:
+      return palette.TEXT_MUTED;
+  }
+}
+
+function flowToneColor(tone: "bull" | "bear" | "muted"): string {
+  return tone === "bull" ? palette.POSITIVE : tone === "bear" ? palette.NEGATIVE : palette.TEXT_MUTED;
+}
+
+// Call-wall erosion is upside fuel for the desk and put-wall erosion is
+// downside fuel, so colour the erosion cells by that fuel direction (side +
+// status) — never by the erosion sign alone.
+function wallFuelColor(side: "CALL" | "PUT", row: WallsRow): string {
+  const arrow = erosionArrow(side, row.status ?? "");
+  if (arrow === "▲") return palette.POSITIVE;
+  if (arrow === "▼") return palette.NEGATIVE;
+  return toneColor(statusTone(row.status));
+}
+
+function NearestSide({
+  view,
+  side,
+  flowTestId,
+}: {
+  view: WallErosionView;
+  side: "CALL" | "PUT";
+  flowTestId?: string;
+}) {
+  const statusColor = toneColor(view.statusTone);
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: `${REPORT_PAD.xs}px`,
+        minWidth: 0,
+        flexShrink: 0,
+      }}
+    >
+      <Typography
+        sx={{
+          fontSize: REPORT_FONT.micro,
+          fontWeight: REPORT_FONT_WEIGHT.extrabold,
+          color: palette.TEXT_MUTED,
+          letterSpacing: REPORT_LETTER_SPACING.wide,
+          flexShrink: 0,
+        }}
+      >
+        {side}
+      </Typography>
+      <Typography
+        sx={{
+          fontSize: REPORT_FONT.sm,
+          lineHeight: REPORT_LINE_HEIGHT.snug,
+          fontVariantNumeric: "tabular-nums",
+          minWidth: 0,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          flexShrink: 0,
+        }}
+      >
+        {view.strikeText}
+      </Typography>
+      {view.arrow !== "—" && (
+        <Typography
+          sx={{
+            fontSize: REPORT_FONT.micro,
+            fontWeight: REPORT_FONT_WEIGHT.extrabold,
+            color: view.arrow === "▲" ? palette.POSITIVE : palette.NEGATIVE,
+            flexShrink: 0,
+          }}
+        >
+          {view.arrow}
+        </Typography>
+      )}
+      {view.statusText !== "—" && (
+        <Box
+          sx={{
+            border: `1px solid ${statusColor}`,
+            color: statusColor,
+            borderRadius: `${REPORT_RADIUS.sm}px`,
+            px: `${REPORT_PAD.xs}px`,
+            py: 1,
+            fontSize: REPORT_FONT.micro,
+            fontWeight: REPORT_FONT_WEIGHT.extrabold,
+            flexShrink: 0,
+          }}
+        >
+          {view.statusText}
+        </Box>
+      )}
+      <Typography
+        sx={{
+          fontSize: REPORT_FONT.micro,
+          color: palette.TEXT_MUTED,
+          flexShrink: 0,
+          minWidth: 0,
+        }}
+      >
+        {view.distanceText}
+      </Typography>
+      <Typography
+        sx={{
+          fontSize: REPORT_FONT.micro,
+          color: palette.TEXT_MUTED,
+          flexShrink: 0,
+        }}
+      >
+        OI {view.oiText}
+      </Typography>
+      <Typography
+        sx={{
+          fontSize: REPORT_FONT.micro,
+          color: palette.TEXT_MUTED,
+          flexShrink: 0,
+        }}
+      >
+        30m {view.erosion30Text}
+      </Typography>
+      <Typography
+        data-testid={flowTestId}
+        sx={{
+          fontSize: REPORT_FONT.micro,
+          fontWeight: REPORT_FONT_WEIGHT.bold,
+          color: flowToneColor(view.flowTone),
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          minWidth: 0,
+          flexShrink: 0,
+        }}
+      >
+        {view.flowText} · vol {view.volText}
+      </Typography>
+    </Box>
+  );
+}
+
+/**
+ * Compact strip above the two wall tables: the nearest call/put wall per
+ * side, with flow, volume, fuel score and time-to-break. Renders nothing
+ * when neither side has a nearest wall.
+ */
+function NearestStrip({ walls }: { walls: WallsPayload }) {
+  const { call, put } = pickNearestWalls(walls);
+  if (!call && !put) return null;
+
+  const callView = call ? wallErosionView(call, "CALL") : null;
+  const putView = put ? wallErosionView(put, "PUT") : null;
+  const fuelScore = Math.max(callView?.fuelScore ?? 0, putView?.fuelScore ?? 0);
+  const tone = fuelTone(fuelScore);
+  const primary = (callView?.fuelScore ?? 0) >= (putView?.fuelScore ?? 0) ? callView : putView;
+  const timeText = primary?.timeText;
+
+  return (
+    <Box
+      data-testid="nifty-walls-nearest"
+      sx={{
+        gridColumn: "1 / -1",
+        display: "flex",
+        alignItems: "center",
+        gap: `${REPORT_PAD.sm}px`,
+        minWidth: 0,
+        flexWrap: "wrap",
+      }}
+    >
+      <Typography
+        sx={{
+          fontSize: REPORT_FONT.micro,
+          fontWeight: REPORT_FONT_WEIGHT.extrabold,
+          color: palette.TEXT_MUTED,
+          letterSpacing: REPORT_LETTER_SPACING.wide,
+          flexShrink: 0,
+        }}
+      >
+        NEAREST
+      </Typography>
+      {callView && <NearestSide view={callView} side="CALL" flowTestId="nifty-walls-nearest-flow" />}
+      {putView && <NearestSide view={putView} side="PUT" />}
+      <Box
+        sx={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: `${REPORT_PAD.xs}px`,
+          border: `1px solid ${toneColor(tone)}`,
+          color: toneColor(tone),
+          borderRadius: `${REPORT_RADIUS.sm}px`,
+          px: `${REPORT_PAD.xs}px`,
+          py: `${REPORT_PAD.xs}px`,
+          fontSize: REPORT_FONT.micro,
+          fontWeight: REPORT_FONT_WEIGHT.extrabold,
+          letterSpacing: REPORT_LETTER_SPACING.wide,
+          flexShrink: 0,
+        }}
+        data-testid="nifty-walls-nearest-fuel"
+      >
+        {tone === "warning" ? "PRE-BLAST" : "FUEL"} {fuelScore}
+      </Box>
+      {timeText && timeText !== "—" && (
+        <Typography sx={{ fontSize: REPORT_FONT.micro, color: palette.TEXT_MUTED, flexShrink: 0 }}>
+          {timeText} to break
+        </Typography>
+      )}
     </Box>
   );
 }
@@ -108,130 +332,203 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
           </Typography>
         ))}
       </Box>
-      {rows.slice(0, 3).map((row) => (
-        <Box
-          key={`${side}-${row.strike}`}
-          sx={{
-            display: "grid",
-            gridTemplateColumns: cols,
-            columnGap: `${REPORT_PAD.xs}px`,
-            alignItems: "center",
-            py: `${REPORT_PAD.xs}px`,
-            pl: `${REPORT_PAD.sm}px`,
-            minHeight: REPORT_ROW.walls,
-            borderLeft: row.tracked ? `2px solid ${color}` : "2px solid transparent",
-            bgcolor: row.tracked ? palette.SURFACE_ALT : "transparent",
-            transition: "background-color 180ms ease",
-            "@media (prefers-reduced-motion: reduce)": { transition: "none" },
-          }}
-        >
-          <Typography
+      {rows.slice(0, 3).map((row) => {
+        const view = wallErosionView(row, side);
+        const nearest = Boolean(row.nearest);
+        const tracked = Boolean(row.tracked);
+        const flowLabelText = flowLabel(row.flow);
+        const volText = fmtVolMult(row.vol_mult);
+        const flowSuffix =
+          flowLabelText !== "—" || volText !== "—" ? `${flowLabelText} · vol ${volText}` : "—";
+        const parts = row.fuel_parts;
+        const partsTitle = parts
+          ? ` · parts: erosion ${parts.erosion}, volume ${parts.volume}, proximity ${parts.proximity}, gamma ${parts.gamma}, flow ${parts.flow}`
+          : "";
+        const cellColor = wallFuelColor(side, row);
+        const border = nearest
+          ? `2px solid ${cellColor}`
+          : tracked
+            ? `2px solid ${color}`
+            : "2px solid transparent";
+        return (
+          <Box
+            key={`${side}-${row.strike}`}
             sx={{
-              fontSize: REPORT_FONT.sm,
-              lineHeight: REPORT_LINE_HEIGHT.snug,
-              fontWeight: row.tracked ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.medium,
-              color: row.tracked ? color : palette.TEXT_COLOR,
-              fontVariantNumeric: "tabular-nums",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
+              display: "grid",
+              gridTemplateColumns: cols,
+              columnGap: `${REPORT_PAD.xs}px`,
+              alignItems: "center",
+              py: `${REPORT_PAD.xs}px`,
+              pl: `${REPORT_PAD.sm}px`,
+              minHeight: REPORT_ROW.walls,
+              borderLeft: border,
+              bgcolor: (nearest || tracked) ? palette.SURFACE_ALT : "transparent",
+              transition: "background-color 180ms ease",
+              "@media (prefers-reduced-motion: reduce)": { transition: "none" },
             }}
           >
-            {fmtNum(row.strike)}
-            <span style={{ fontSize: REPORT_FONT.micro, marginLeft: 3, color: palette.TEXT_MUTED }}>
-              {wallCode(side === "CALL", wallSide(row.strike, spot), false)}
-            </span>
-          </Typography>
-          <Box
-            title={`Old ${fmtOI(row.oi_open)} → new ${fmtOI(row.oi)}`}
-            sx={{ position: "relative", minWidth: 0, alignSelf: "stretch", display: "flex", alignItems: "center", justifyContent: "flex-end" }}
-          >
+            <Box sx={{ display: "flex", flexDirection: "column", gap: `${REPORT_PAD.xs}px`, minWidth: 0 }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: `${REPORT_PAD.xs}px`,
+                  minWidth: 0,
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontSize: REPORT_FONT.sm,
+                    lineHeight: REPORT_LINE_HEIGHT.snug,
+                    fontWeight: tracked ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.medium,
+                    color: tracked ? color : palette.TEXT_COLOR,
+                    fontVariantNumeric: "tabular-nums",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {fmtNum(row.strike)}
+                </Typography>
+                {nearest && (
+                  <Box
+                    sx={{
+                      width: 3,
+                      height: 3,
+                      borderRadius: "50%",
+                      bgcolor: cellColor,
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
+                {view.arrow !== "—" && (
+                  <Typography
+                    sx={{
+                      fontSize: REPORT_FONT.micro,
+                      fontWeight: REPORT_FONT_WEIGHT.extrabold,
+                      color: cellColor,
+                      marginLeft: `${REPORT_PAD.xs}px`,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {view.arrow}
+                  </Typography>
+                )}
+                <span style={{ fontSize: REPORT_FONT.micro, marginLeft: 3, color: palette.TEXT_MUTED }}>
+                  {wallCode(side === "CALL", wallSide(row.strike, spot), false)}
+                </span>
+              </Box>
+              <Typography
+                sx={{
+                  fontSize: REPORT_FONT.micro,
+                  lineHeight: REPORT_LINE_HEIGHT.tight,
+                  color: flowToneColor(flowTone(row.flow)),
+                  fontWeight: REPORT_FONT_WEIGHT.bold,
+                  minWidth: 0,
+                }}
+                title={
+                  flowSuffix !== "—"
+                    ? `${flowLabelText} · vol ${volText} · prem ${fmtPremChange(row.prem_chg_5m)} · fuel ${view.fuelScore}${partsTitle}`
+                    : undefined
+                }
+                data-testid={`nifty-walls-${side.toLowerCase()}-${row.strike}-flow`}
+              >
+                {flowSuffix}
+              </Typography>
+            </Box>
             <Box
-              sx={{
-                position: "absolute",
-                left: 0,
-                right: 0,
-                bottom: 0,
-                height: 2,
-                bgcolor: palette.SURFACE,
-                overflow: "hidden",
-              }}
+              title={`Old ${fmtOI(row.oi_open)} → new ${fmtOI(row.oi)}`}
+              sx={{ position: "relative", minWidth: 0, alignSelf: "stretch", display: "flex", alignItems: "center", justifyContent: "flex-end" }}
             >
               <Box
                 sx={{
-                  width: `${Math.min(100, (row.oi / maxOi) * 100)}%`,
-                  height: "100%",
-                  bgcolor: color,
-                  opacity: 0.55,
-                  transition: "width 280ms cubic-bezier(.22,1,.36,1)",
-                  "@media (prefers-reduced-motion: reduce)": { transition: "none" },
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: 2,
+                  bgcolor: palette.SURFACE,
+                  overflow: "hidden",
                 }}
-              />
+              >
+                <Box
+                  sx={{
+                    width: `${Math.min(100, (row.oi / maxOi) * 100)}%`,
+                    height: "100%",
+                    bgcolor: color,
+                    opacity: 0.55,
+                    transition: "width 280ms cubic-bezier(.22,1,.36,1)",
+                    "@media (prefers-reduced-motion: reduce)": { transition: "none" },
+                  }}
+                />
+              </Box>
+              <Typography
+                sx={{
+                  fontSize: REPORT_FONT.sm,
+                  lineHeight: REPORT_LINE_HEIGHT.snug,
+                  textAlign: "right",
+                  fontVariantNumeric: "tabular-nums",
+                  color: palette.TEXT_COLOR,
+                }}
+              >
+                {fmtOI(row.oi)}
+              </Typography>
             </Box>
             <Typography
+              title={`Old ${fmtOI(row.oi_open)} → new ${fmtOI(row.oi)} · ${fmtPct(row.new_oi_pct)} of old book`}
               sx={{
                 fontSize: REPORT_FONT.sm,
                 lineHeight: REPORT_LINE_HEIGHT.snug,
                 textAlign: "right",
                 fontVariantNumeric: "tabular-nums",
-                color: palette.TEXT_COLOR,
+                color: erosionColor(row.new_oi),
+                bgcolor: newOiTint(row.new_oi, rows),
+                borderRadius: `${REPORT_RADIUS.sm}px`,
+                px: `${REPORT_PAD.xs}px`,
+                transition: "background-color 220ms ease",
+                "@media (prefers-reduced-motion: reduce)": { transition: "none" },
               }}
             >
-              {fmtOI(row.oi)}
+              {fmtSignedOI(row.new_oi)}
+            </Typography>
+            <Typography
+              title={row.erosion_5m != null ? `5m erosion ${fmtPct(row.erosion_5m)} · 30m rate ${fmtRate(row.erosion_rate_30m)}` : undefined}
+              sx={{
+                fontSize: REPORT_FONT.sm,
+                lineHeight: REPORT_LINE_HEIGHT.snug,
+                textAlign: "right",
+                color: cellColor,
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {fmtPct(row.erosion_5m)}
+            </Typography>
+            <Typography
+              title={`30m erosion ${fmtPct(row.erosion_30m)} · rate ${fmtRate(row.erosion_rate_30m)} · prem ${fmtPremChange(row.prem_chg_5m)}`}
+              sx={{
+                fontSize: REPORT_FONT.sm,
+                lineHeight: REPORT_LINE_HEIGHT.snug,
+                textAlign: "right",
+                color: cellColor,
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {fmtPct(row.erosion_30m)}
+            </Typography>
+            <Typography
+              sx={{
+                fontSize: REPORT_FONT.sm,
+                lineHeight: REPORT_LINE_HEIGHT.snug,
+                textAlign: "right",
+                color: palette.TEXT_MUTED,
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {dist(row.distance_pct)}
             </Typography>
           </Box>
-          <Typography
-            title={`Old ${fmtOI(row.oi_open)} → new ${fmtOI(row.oi)} · ${fmtPct(row.new_oi_pct)} of old book`}
-            sx={{
-              fontSize: REPORT_FONT.sm,
-              lineHeight: REPORT_LINE_HEIGHT.snug,
-              textAlign: "right",
-              fontVariantNumeric: "tabular-nums",
-              color: erosionColor(row.new_oi),
-              bgcolor: newOiTint(row.new_oi, rows),
-              borderRadius: `${REPORT_RADIUS.sm}px`,
-              px: `${REPORT_PAD.xs}px`,
-              transition: "background-color 220ms ease",
-              "@media (prefers-reduced-motion: reduce)": { transition: "none" },
-            }}
-          >
-            {fmtSignedOI(row.new_oi)}
-          </Typography>
-          <Typography
-            sx={{
-              fontSize: REPORT_FONT.sm,
-              lineHeight: REPORT_LINE_HEIGHT.snug,
-              textAlign: "right",
-              color: erosionColor(row.erosion_5m),
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {fmtPct(row.erosion_5m)}
-          </Typography>
-          <Typography
-            sx={{
-              fontSize: REPORT_FONT.sm,
-              lineHeight: REPORT_LINE_HEIGHT.snug,
-              textAlign: "right",
-              color: erosionColor(row.erosion_30m),
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {fmtPct(row.erosion_30m)}
-          </Typography>
-          <Typography
-            sx={{
-              fontSize: REPORT_FONT.sm,
-              lineHeight: REPORT_LINE_HEIGHT.snug,
-              textAlign: "right",
-              color: palette.TEXT_MUTED,
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {dist(row.distance_pct)}
-          </Typography>
-        </Box>
-      ))}
+        );
+      })}
     </Box>
   );
 }
@@ -459,67 +756,68 @@ export function NiftyWallsCardInner({
           alignItems: "start",
         }}
       >
+        <NearestStrip walls={walls} />
         <Box sx={{ minWidth: 0 }}>
           <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", rowGap: `${REPORT_PAD.xs}px` }}>
             <Chip
-              size="small"
-              label={walls.state.replace("_", " ")}
-              sx={{
-                height: 18,
-                fontSize: REPORT_FONT.xs,
-                fontWeight: REPORT_FONT_WEIGHT.extrabold,
-                letterSpacing: REPORT_LETTER_SPACING.wide,
-                color: stateColor,
-                bgcolor: "transparent",
-                border: `1px solid ${stateColor}`,
-                "& .MuiChip-label": { px: `${REPORT_PAD.xs}px` },
-              }}
-            />
-            {dteLabel && (
-              <Typography
-                sx={{
-                  fontSize: REPORT_FONT.xs,
-                  fontWeight: REPORT_FONT_WEIGHT.bold,
-                  color: walls.expiry_day ? palette.WARNING : palette.TEXT_MUTED,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {dteLabel}
-              </Typography>
-            )}
-            <Typography sx={{ fontSize: REPORT_FONT.xs, color: palette.TEXT_MUTED, whiteSpace: "nowrap" }}>
-              {walls.expiry ?? "—"} · tape {walls.freshness.last_t.slice(11, 16)}
-            </Typography>
-            {walls.freshness.stale && (
-              <Chip
                 size="small"
-                label="STALE"
+                label={walls.state.replace("_", " ")}
                 sx={{
-                  height: 17,
+                  height: 18,
                   fontSize: REPORT_FONT.xs,
-                  color: palette.WARNING,
+                  fontWeight: REPORT_FONT_WEIGHT.extrabold,
+                  letterSpacing: REPORT_LETTER_SPACING.wide,
+                  color: stateColor,
                   bgcolor: "transparent",
-                  border: `1px solid ${palette.WARNING}`,
+                  border: `1px solid ${stateColor}`,
                   "& .MuiChip-label": { px: `${REPORT_PAD.xs}px` },
                 }}
               />
-            )}
-          </Stack>
+              {dteLabel && (
+                <Typography
+                  sx={{
+                    fontSize: REPORT_FONT.xs,
+                    fontWeight: REPORT_FONT_WEIGHT.bold,
+                    color: walls.expiry_day ? palette.WARNING : palette.TEXT_MUTED,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {dteLabel}
+                </Typography>
+              )}
+              <Typography sx={{ fontSize: REPORT_FONT.xs, color: palette.TEXT_MUTED, whiteSpace: "nowrap" }}>
+                {walls.expiry ?? "—"} · tape {walls.freshness.last_t.slice(11, 16)}
+              </Typography>
+              {walls.freshness.stale && (
+                <Chip
+                  size="small"
+                  label="STALE"
+                  sx={{
+                    height: 17,
+                    fontSize: REPORT_FONT.xs,
+                    color: palette.WARNING,
+                    bgcolor: "transparent",
+                    border: `1px solid ${palette.WARNING}`,
+                    "& .MuiChip-label": { px: `${REPORT_PAD.xs}px` },
+                  }}
+                />
+              )}
+            </Stack>
 
-          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: `${REPORT_PAD.md}px`, rowGap: `${REPORT_PAD.xs}px`, mt: `${REPORT_PAD.sm}px` }}>
-            <Stat label="SPOT" value={fmtNum(walls.spot, 2)} />
-            <Stat label="MAX PAIN" value={fmtNum(walls.max_pain)} />
-            <Stat
-              label="PIN"
-              value={`${walls.pin_distance_pts > 0 ? "+" : ""}${fmtNum(walls.pin_distance_pts, 0)} (${walls.pin_distance_pct.toFixed(2)}%)`}
-              color={pinColor}
-            />
-            <Stat
-              label="GEX"
-              value={walls.gex_degraded ? "n/a" : fmtNum(walls.net_gex, 1)}
-              color={walls.gex_degraded ? palette.TEXT_MUTED : palette.TEXT_COLOR}
-            />
-          </Box>
+            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: `${REPORT_PAD.md}px`, rowGap: `${REPORT_PAD.xs}px`, mt: `${REPORT_PAD.sm}px` }}>
+              <Stat label="SPOT" value={fmtNum(walls.spot, 2)} />
+              <Stat label="MAX PAIN" value={fmtNum(walls.max_pain)} />
+              <Stat
+                label="PIN"
+                value={`${walls.pin_distance_pts > 0 ? "+" : ""}${fmtNum(walls.pin_distance_pts, 0)} (${walls.pin_distance_pct.toFixed(2)}%)`}
+                color={pinColor}
+              />
+              <Stat
+                label="GEX"
+                value={walls.gex_degraded ? "n/a" : fmtNum(walls.net_gex, 1)}
+                color={walls.gex_degraded ? palette.TEXT_MUTED : palette.TEXT_COLOR}
+              />
+            </Box>
 
         </Box>
 

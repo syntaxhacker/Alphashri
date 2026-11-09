@@ -1727,6 +1727,25 @@ export async function fetchOptionsExpiries(
 // Walls / 0-DTE pin state — backend-computed, the UI only renders it.
 // ---------------------------------------------------------------------------
 
+/** Writer/long behaviour on the wall, as classified by the backend. */
+export type WallsFlow =
+  | "WRITERS_COVERING"
+  | "LONG_UNWIND"
+  | "WRITERS_ADDING"
+  | "LONG_BUILD"
+  | "UNKNOWN";
+
+export type WallsStatus = "BREACHED" | "ERODING" | "BUILDING" | "STABLE";
+
+/** Sub-scores behind `fuel_score`; each a 0-100 share of its bucket. */
+export interface WallsFuelParts {
+  erosion: number;
+  volume: number;
+  proximity: number;
+  gamma: number;
+  flow: number;
+}
+
 export interface WallsRow {
   strike: number;
   oi: number;
@@ -1737,7 +1756,27 @@ export interface WallsRow {
   new_oi_pct?: number | null;
   ltp?: number | null;
   erosion_5m?: number | null;
+  erosion_15m?: number | null;
   erosion_30m?: number | null;
+  erosion_60m?: number | null;
+  /** Erosion velocity, fraction of OI per minute (negative = unwinding). */
+  erosion_rate_30m?: number | null;
+  vol_5m?: number | null;
+  vol_30m?: number | null;
+  /** 5-minute volume as a multiple of its own 30-minute baseline. */
+  vol_mult?: number | null;
+  /** Same-side ATM premium change over 5 minutes, fraction. */
+  prem_chg_5m?: number | null;
+  flow?: WallsFlow | null;
+  /** BREACHED/ERODING = wall is failing; BUILDING = wall is firming. */
+  status?: WallsStatus;
+  /** 0-100 "how imminent is the break" — NOT a P&L number. */
+  fuel_score?: number;
+  fuel_parts?: WallsFuelParts | null;
+  time_to_break_min?: number | null;
+  oi_history?: number[];
+  /** Backend flags the nearest call/put wall so the UI can pin it. */
+  nearest?: boolean;
   distance_pts?: number | null;
   distance_pct?: number | null;
   tracked?: boolean;
@@ -1840,6 +1879,9 @@ export interface WallsPayload {
   cross: boolean;
   calls: WallsRow[];
   puts: WallsRow[];
+  /** Backend-picked nearest walls; absent on older snapshots. */
+  nearest_call?: WallsRow | null;
+  nearest_put?: WallsRow | null;
   events: WallsEvent[];
   history: WallsHistoryPoint[];
   /** Strike x time erosion/build grid; absent on old snapshots. */

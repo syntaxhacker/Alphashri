@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import type { NiftyReport } from "@/types/niftyReport";
+import type { WallsPayload } from "@/api/reportNifty";
 import type { PreMovePoint } from "./niftyPreMoveHistory";
 import type { PreMoveScore } from "./niftyPreMove";
 import type { SetupRead } from "./niftySetup";
@@ -102,8 +103,8 @@ describe("NiftySqueezeRadar", () => {
     expect(screen.getByTestId("nifty-squeeze-wall")).toHaveTextContent("25 pts");
     expect(screen.getByTestId("nifty-squeeze-stage")).toHaveTextContent("ARMING");
     expect(screen.getByTestId("nifty-squeeze-proximity").textContent).toMatch(/^\d+%$/);
-    // 25/120 distance + 5/9 flow + 3/5 setup -> ~68%
-    expect(screen.getByTestId("nifty-squeeze-proximity")).toHaveTextContent("68%");
+    // 0.35×distance(79) + 0.20×flow(56) + 0.15×setup(60) + 0.30×erosion(0) -> 48%
+    expect(screen.getByTestId("nifty-squeeze-proximity")).toHaveTextContent("48%");
     // wall OI 8.5M -> 8.3M = erosion, shown as a green down-arrow.
     expect(screen.getByTestId("nifty-squeeze-wall-delta")).toHaveTextContent("▼");
     expect(screen.getByTestId("nifty-squeeze-wall-delta")).toHaveTextContent("2.0L");
@@ -154,9 +155,9 @@ describe("NiftySqueezeRadar", () => {
       />,
     );
 
-    // ~46% proximity from distance alone, but no flow/setup edge -> QUIET.
+    // 0.35×distance(92) -> ~32%, no flow/setup edge -> QUIET.
     expect(screen.getByTestId("nifty-squeeze-stage")).toHaveTextContent("QUIET");
-    expect(screen.getByTestId("nifty-squeeze-proximity").textContent).toMatch(/^4[0-9]%$/);
+    expect(screen.getByTestId("nifty-squeeze-proximity").textContent).toMatch(/^3[0-9]%$/);
   });
 
   it("marks a fast move as TRIGGER even with no flow edge (NIFTY: 15-pt break)", () => {
@@ -274,5 +275,69 @@ describe("NiftySqueezeRadar", () => {
     );
     expect(screen.getByTestId("nifty-squeeze-wall")).toHaveTextContent("79,100 CE");
     expect(screen.getByTestId("nifty-squeeze-proximity").textContent).toMatch(/^\d+%$/);
+  });
+
+  it("moves to PRE-BLAST when the nearest wall is eroding in a SHORT regime", () => {
+    const walls = {
+      regime: "SHORT",
+      nearest_call: {
+        strike: 22_700,
+        oi: 8_300_000,
+        status: "ERODING",
+        fuel_score: 80,
+        vol_mult: 1.3,
+        erosion_30m: -0.034,
+        distance_pts: 25,
+      },
+    } as unknown as WallsPayload;
+
+    render(
+      <NiftySqueezeRadar
+        report={report({})}
+        preMove={preMove}
+        setup={setup}
+        history={history}
+        walls={walls}
+      />,
+    );
+
+    expect(screen.getByTestId("nifty-squeeze-stage")).toHaveTextContent("PRE-BLAST");
+    expect(screen.getByTestId("squeeze-erosion")).toHaveTextContent(/DIST 79 · FLOW 56 · ERODE 80 · Γ SHORT/);
+    expect(screen.getByTestId("nifty-squeeze-wall")).toHaveTextContent(/-3\.4%\/30m/);
+  });
+
+  it("does not show PRE-BLAST for a LONG regime or low fuel", () => {
+    const strongWall = {
+      strike: 22_700,
+      oi: 8_300_000,
+      status: "ERODING",
+      fuel_score: 80,
+      vol_mult: 1.3,
+      erosion_30m: -0.034,
+      distance_pts: 25,
+    };
+
+    render(
+      <NiftySqueezeRadar
+        report={report({})}
+        preMove={preMove}
+        setup={setup}
+        history={history}
+        walls={{ regime: "LONG", nearest_call: strongWall } as unknown as WallsPayload}
+      />,
+    );
+    expect(screen.getByTestId("nifty-squeeze-stage")).not.toHaveTextContent("PRE-BLAST");
+    cleanup();
+
+    render(
+      <NiftySqueezeRadar
+        report={report({})}
+        preMove={preMove}
+        setup={setup}
+        history={history}
+        walls={{ regime: "SHORT", nearest_call: { ...strongWall, fuel_score: 40 } } as unknown as WallsPayload}
+      />,
+    );
+    expect(screen.getByTestId("nifty-squeeze-stage")).not.toHaveTextContent("PRE-BLAST");
   });
 });

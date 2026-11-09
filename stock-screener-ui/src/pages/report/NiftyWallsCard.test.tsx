@@ -71,12 +71,32 @@ const walls: WallsPayload = {
   near: true,
   cross: true,
   calls: [
-    { strike: 74200, oi: 5923820, oi_open: 6123820, new_oi: -200000, new_oi_pct: -0.032, erosion_5m: -0.01, erosion_30m: -0.05, distance_pct: 0.14, tracked: false },
+    {
+      strike: 74200,
+      oi: 5923820,
+      oi_open: 6123820,
+      new_oi: -200000,
+      new_oi_pct: -0.032,
+      erosion_5m: -0.01,
+      erosion_30m: -0.034,
+      erosion_rate_30m: -0.0011,
+      vol_mult: 1.3,
+      prem_chg_5m: 0.012,
+      flow: "WRITERS_COVERING",
+      status: "ERODING",
+      fuel_score: 78,
+      fuel_parts: { erosion: 55, volume: 80, proximity: 75, gamma: 60, flow: 70 },
+      time_to_break_min: 4,
+      oi_history: [5_900_000, 5_923_820],
+      distance_pct: 0.14,
+      tracked: false,
+      nearest: true,
+    },
     { strike: 74000, oi: 8169120, oi_open: 6969120, new_oi: 1200000, new_oi_pct: 0.172, erosion_5m: -0.02, erosion_30m: -0.1388, distance_pct: -0.13, tracked: true },
   ],
   puts: [
     { strike: 73500, oi: 7940520, oi_open: 6740520, new_oi: 1200000, new_oi_pct: 0.178, erosion_5m: 0.04, erosion_30m: 0.18, distance_pct: -0.8, tracked: true },
-    { strike: 73700, oi: 5543550, oi_open: 5543550, new_oi: 0, new_oi_pct: 0, erosion_5m: 0.01, erosion_30m: 0.02, distance_pct: -0.53, tracked: false },
+    { strike: 73700, oi: 5543550, oi_open: 5543550, new_oi: 0, new_oi_pct: 0, erosion_5m: 0.01, erosion_30m: 0.02, distance_pct: -0.53, tracked: false, flow: "WRITERS_ADDING", status: "ERODING" },
   ],
   events: [
     {
@@ -313,6 +333,36 @@ describe("NiftyWallsCard", () => {
     expect(within(card).getByTestId("levels-pe-NIFTY")).toHaveTextContent("24,600");
     // One card only: no second levels-in-play panel inside the walls card.
     expect(within(card).queryByTestId("levels-in-play")).toBeNull();
+  });
+
+  it("shows the nearest-wall erosion strip above both tables", () => {
+    render(<NiftyWallsCard walls={walls} onExpand={onExpand} />);
+
+    const strip = screen.getByTestId("nifty-walls-nearest");
+    expect(strip).toHaveTextContent("NEAREST");
+    expect(strip).toHaveTextContent("WRITERS COVERING");
+    expect(strip).toHaveTextContent("1.3×");
+    expect(strip).toHaveTextContent("78");
+    expect(strip).toHaveTextContent("~4m");
+    expect(screen.getByTestId("nifty-walls-nearest-flow")).toHaveTextContent("WRITERS COVERING · vol 1.3×");
+    expect(screen.getByTestId("nifty-walls-nearest-fuel")).toHaveTextContent("PRE-BLAST 78");
+  });
+
+  it("hides the nearest strip when both sides are empty", () => {
+    render(<NiftyWallsCard walls={{ ...walls, calls: [], puts: [] }} onExpand={onExpand} />);
+    expect(screen.queryByTestId("nifty-walls-nearest")).toBeNull();
+  });
+
+  it("marks the nearest row and shows the side-aware erosion arrow and flow suffix on each row", () => {
+    render(<NiftyWallsCard walls={walls} onExpand={onExpand} />);
+
+    const callTable = screen.getByTestId("nifty-walls-call");
+    expect(within(callTable).getByText("▲")).toBeInTheDocument();
+    expect(within(callTable).getByTestId("nifty-walls-call-74200-flow")).toHaveTextContent("WRITERS COVERING · vol 1.3×");
+
+    const putTable = screen.getByTestId("nifty-walls-put");
+    expect(within(putTable).getByText("▼")).toBeInTheDocument();
+    expect(within(putTable).getByTestId("nifty-walls-put-73700-flow")).toHaveTextContent("WRITERS ADDING · vol —");
   });
 });
 

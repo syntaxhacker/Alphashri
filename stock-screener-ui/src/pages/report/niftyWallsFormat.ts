@@ -102,6 +102,101 @@ export const firstBreakEvent = (events: WallsEvent[]): WallsEvent | undefined =>
 export const lastBreakEvent = (events: WallsEvent[]): WallsEvent | undefined =>
   [...events].reverse().find((event) => event.kind === "BREAK");
 
+/** Wall flow token → human label; unknown/missing → dash. */
+export const flowLabel = (flow: string | null | undefined): string => {
+  switch ((flow ?? "").trim().toUpperCase()) {
+    case "WRITERS_COVERING":
+      return "WRITERS COVERING";
+    case "LONG_UNWIND":
+      return "LONG UNWIND";
+    case "WRITERS_ADDING":
+      return "WRITERS ADDING";
+    case "LONG_BUILD":
+      return "LONG BUILD";
+    default:
+      return "—";
+  }
+};
+
+/** Flow read mapped onto the desk's bull/bear vocabulary; unknown → muted. */
+export const flowTone = (flow: string | null | undefined): "bull" | "bear" | "muted" => {
+  switch ((flow ?? "").trim().toUpperCase()) {
+    case "WRITERS_COVERING":
+    case "LONG_BUILD":
+      return "bull";
+    case "LONG_UNWIND":
+    case "WRITERS_ADDING":
+      return "bear";
+    default:
+      return "muted";
+  }
+};
+
+/** Wall health chip tone; unknown → muted. */
+export const statusTone = (
+  status: string | null | undefined,
+): "positive" | "warning" | "negative" | "muted" => {
+  switch ((status ?? "").trim().toUpperCase()) {
+    case "BUILDING":
+      return "positive";
+    case "ERODING":
+      return "warning";
+    case "BREACHED":
+      return "negative";
+    default:
+      return "muted";
+  }
+};
+
+/**
+ * Direction glyph for a wall: `▲` = the upside fuel, `▼` = the downside fuel.
+ * A CALL wall failing (or broken) releases the upside; a PUT wall failing
+ * releases the downside. BUILDING strengthens the wall, the opposite read.
+ */
+export const erosionArrow = (
+  side: "CALL" | "PUT",
+  status: string | null | undefined,
+): "▲" | "▼" | "—" => {
+  const sideDir = side === "CALL" ? "▲" : "▼";
+  const against = side === "CALL" ? "▼" : "▲";
+  switch ((status ?? "").trim().toUpperCase()) {
+    case "ERODING":
+    case "BREACHED":
+      return sideDir;
+    case "BUILDING":
+      return against;
+    default:
+      return "—";
+  }
+};
+
+/** Erosion velocity, fraction/min → `-0.11%/min`. */
+export const fmtRate = (value: number | null | undefined): string => {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const pct = value * 100;
+  return `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%/min`;
+};
+
+/** Volume multiple → `1.3×`; negative/non-finite → dash (ratio is ≥ 0 by definition). */
+export const fmtVolMult = (value: number | null | undefined): string => {
+  if (value == null || !Number.isFinite(value) || value < 0) return "—";
+  return `${value.toFixed(1)}×`;
+};
+
+/** Minutes to the wall breaking → `~4m` / `<1m`; unknown → dash. */
+export const fmtTimeToBreak = (value: number | null | undefined): string => {
+  if (value == null || !Number.isFinite(value)) return "—";
+  if (value < 1) return "<1m";
+  return `~${Math.round(value)}m`;
+};
+
+/** Premium change, fraction → `+1.2%`. */
+export const fmtPremChange = (value: number | null | undefined): string => {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const pct = value * 100;
+  return `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
+};
+
 /**
  * Resolve the wall board to use: prefer `near` when it has at least one call
  * or put entry; otherwise fall back to `full`. Both arguments can be null/
