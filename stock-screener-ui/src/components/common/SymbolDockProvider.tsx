@@ -62,7 +62,7 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
       if (fullscreenRef.current?.pinned) return;
       if (previewTimerRef.current) window.clearTimeout(previewTimerRef.current);
       previewTimerRef.current = window.setTimeout(() => {
-        previewFromSymbol(symbol);
+        previewFromSymbol(symbol, undefined, false);
       }, PREVIEW_DEBOUNCE_MS);
     },
     [isDesktop, previewFromSymbol],
@@ -95,7 +95,7 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
         navigate(`/chart/${encodeURIComponent(symbol)}`);
         return;
       }
-      openFromSymbol(symbol);
+      openFromSymbol(symbol, undefined, false);
     },
     [isDesktop, openFromSymbol, navigate, clearTimers],
   );

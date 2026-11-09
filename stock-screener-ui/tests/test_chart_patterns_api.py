@@ -2,6 +2,7 @@
 import asyncio
 import gzip
 import threading
+import time as _time
 
 import numpy as np
 import pandas as pd
@@ -2373,3 +2374,151 @@ def test_candle_fields_delegates_to_last_close_change(monkeypatch):
     fields = cp_api._candle_fields("AAA", "1D")
 
     assert fields == {"last_close": 110.0, "day_change_pct": 10.0, "history_bars": 2}
+
+
+# ---------------------------------------------------------------------------
+# Symbol chart fetch: hard timeout + negative cache for empty results.
+# ---------------------------------------------------------------------------
+
+
+def _hanging_fetch(symbol, timeframe, **kwargs):
+    """Simulate a hung Upstox/TV feed that never returns."""
+    import threading as _threading
+
+    _threading.Event().wait(30)
+    return None
+
+
+def test_symbol_chart_fetch_timeout_returns_empty_200(cp_client, monkeypatch):
+    """A hung upstream fetch is aborted at the timeout: HTTP 200 with
+    ``{"candles":[]}`` plus a clear ``error``/``note``, never 500, and the
+    wait is bounded well below the hung call's 30s."""
+    store.save_hits("cpj_timeout", [_hit("POWERMECH")])
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _hanging_fetch)
+    monkeypatch.setattr(cp_api, "_CHART_FETCH_TIMEOUT_SEC", 0.2)
+    cp_api._chart_neg_cache.clear()
+
+    started = _time.monotonic()
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/POWERMECH/chart",
+        params={"timeframe": "1D", "detect_patterns": 1},
+    )
+    elapsed = _time.monotonic() - started
+
+    assert chart.status_code == 200
+    body = chart.json()
+    assert body["candles"] == []
+    assert body["error"] == "fetch_timeout"
+    assert "exceeded" in body["note"] and "0s" in body["note"]
+    assert body["symbol"] == "POWERMECH" and body["timeframe"] == "1D"
+    assert set(body) >= {"symbol", "timeframe", "candles", "overlays", "trend_lines", "error", "note"}
+    # The timeout bound the wait: nowhere near the 30s hang.
+    assert elapsed < 5, f"fetch was not bounded: {elapsed:.1f}s"
+
+
+def test_symbol_chart_fetch_error_returns_empty_200(cp_client, monkeypatch):
+    """A transient upstream failure (DNS, 429...) returns 200 + empty candles
+    with error/note and is not negative-cached, so a recovered feed retries."""
+    store.save_hits("cpj_err", [_hit("POWERMECH")])
+    calls = []
+
+    def _flaky(symbol, timeframe, **kwargs):
+        calls.append(1)
+        raise RuntimeError("Temporary failure in name resolution")
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _flaky)
+    monkeypatch.setattr(cp_api, "_CHART_FETCH_TIMEOUT_SEC", 7.0)
+    cp_api._chart_neg_cache.clear()
+
+    first = cp_client.get("/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1D"})
+    assert first.status_code == 200
+    assert first.json()["candles"] == []
+    assert first.json()["error"] == "fetch_error"
+    assert "name resolution" in first.json()["note"]
+    # Transient errors are not cached: the next click retries the fetch.
+    second = cp_client.get("/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1D"})
+    assert second.status_code == 200
+    assert len(calls) == 2, "fetch must be retried for transient errors"
+
+
+def test_symbol_chart_empty_result_negative_cache(cp_client, monkeypatch):
+    """An empty fetch is cached per (symbol, timeframe, session): the repeat
+    click is answered instantly without calling the upstream fetch again."""
+    store.save_hits("cpj_neg", [_hit("POWERMECH")])
+    calls = []
+
+    def _empty(symbol, timeframe, **kwargs):
+        calls.append((symbol, timeframe))
+        return None
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _empty)
+    cp_api._chart_neg_cache.clear()
+
+    first = cp_client.get("/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1D"})
+    assert first.status_code == 200
+    assert first.json()["candles"] == []
+    assert first.json()["error"] == "no_data"
+
+    # Same symbol/timeframe/session → cache hit, upstream not re-called.
+    second = cp_client.get("/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1D"})
+    assert second.status_code == 200
+    assert second.json() == first.json()
+    assert calls == [("POWERMECH", "1D")], "negative cache must skip the re-fetch"
+
+    # A different symbol is not covered by this cache entry.
+    third = cp_client.get("/api/chart-patterns/symbol/RELIANCE/chart", params={"timeframe": "1D"})
+    assert third.status_code == 200
+    assert calls == [("POWERMECH", "1D"), ("RELIANCE", "1D")]
+
+
+def test_symbol_chart_negative_cache_keyed_by_session(cp_client, monkeypatch):
+    """Negative-cache entries never outlive the IST session: a new session
+    date re-fetches even within the TTL."""
+    store.save_hits("cpj_neg_sess", [_hit("POWERMECH")])
+    calls = []
+    sessions = iter(["2026-01-01", "2026-01-01", "2026-01-02"])
+
+    def _empty(symbol, timeframe, **kwargs):
+        calls.append((symbol, timeframe))
+        return None
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _empty)
+    monkeypatch.setattr(cp_api, "_ist_session_date", lambda: next(sessions))
+    cp_api._chart_neg_cache.clear()
+
+    cp_client.get("/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1D"})
+    cp_client.get("/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1D"})
+    assert calls == [("POWERMECH", "1D")]
+    cp_client.get("/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1D"})
+    assert calls == [("POWERMECH", "1D"), ("POWERMECH", "1D")], "new session re-fetches"
+
+
+def test_symbol_chart_normal_path_unchanged(cp_client, monkeypatch):
+    """A symbol with data returns the usual payload with no error/note fields,
+    and the upstream fetch is called exactly as before (no caching of hits)."""
+    store.save_hits("cpj_normal", [_hit("RELIANCE")])
+    calls = []
+
+    def _df(symbol, timeframe, **kwargs):
+        calls.append((symbol, timeframe))
+        return _make_df(80)
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _df)
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df, lookback_bars=None: {"support": None, "resistance": None},
+    )
+    cp_api._chart_neg_cache.clear()
+
+    chart = cp_client.get("/api/chart-patterns/symbol/RELIANCE/chart", params={"timeframe": "1D", "limit": 50})
+    assert chart.status_code == 200
+    body = chart.json()
+    assert body["symbol"] == "RELIANCE"
+    assert len(body["candles"]) == 50
+    assert body["candles"][0]["t"] and "o" in body["candles"][0]
+    assert "error" not in body and "note" not in body
+    assert set(body) == {"symbol", "timeframe", "candles", "overlays", "trend_lines"}
+    # Every click re-fetches (successful results are not negative-cached).
+    again = cp_client.get("/api/chart-patterns/symbol/RELIANCE/chart", params={"timeframe": "1D", "limit": 50})
+    assert again.status_code == 200
+    assert calls == [("RELIANCE", "1D"), ("RELIANCE", "1D")]

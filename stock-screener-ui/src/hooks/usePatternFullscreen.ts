@@ -27,6 +27,8 @@ export interface FullscreenChartState {
   trendLines: TrendLine[];
   /** True while a fullscreen fetch/reload is in flight. */
   loading: boolean;
+  /** False = candles-only (market/global dock); skips pattern detection. */
+  detectPatterns?: boolean;
   /** As-of replay cutoff (ISO local datetime, null = live). */
   asOf: string | null;
   /** Replay window start (ISO local datetime, null = any). */
@@ -225,6 +227,7 @@ export function usePatternFullscreen({
     symbol: string,
     timeframe: string | undefined,
     pinned: boolean,
+    detectPatterns: boolean = true,
   ) => {
     const tf = timeframe ?? defaultTimeframe;
     const token = chartRequestRef.current + 1;
@@ -238,14 +241,26 @@ export function usePatternFullscreen({
       overlays: [],
       trendLines: [],
       loading: true,
+      detectPatterns,
       asOf: null,
       fromDate: null,
       pinned,
     });
 
-    const apply = (chart: SymbolChartPayload) => applySymbolChart(chart, symbol, tf, token);
+    const startedAt = performance.now();
+    console.info("[chart-dock] open", { symbol, timeframe: tf, pinned });
+    const apply = (chart: SymbolChartPayload) => {
+      console.info("[chart-dock] loaded", {
+        symbol,
+        timeframe: tf,
+        candles: chart.candles?.length ?? 0,
+        hits: chart.hits?.length ?? 0,
+        ms: Math.round(performance.now() - startedAt),
+      });
+      applySymbolChart(chart, symbol, tf, token);
+    };
 
-    const key = `${symbol}|${tf}`;
+    const key = `${symbol}|${tf}|${detectPatterns ? "p" : "l"}`;
     const cached = symbolChartCacheRef.current.get(key);
     if (cached && Date.now() - cached.ts < SYMBOL_CHART_CACHE_MS) {
       apply(cached.chart);
@@ -253,7 +268,7 @@ export function usePatternFullscreen({
     }
 
     void fetchSymbolChart(symbol, tf, {
-      detectPatterns: true,
+      detectPatterns,
       ...(lookbackBars != null ? { lookbackBars } : {}),
       computeTrendlines,
     })
@@ -261,15 +276,23 @@ export function usePatternFullscreen({
         symbolChartCacheRef.current.set(key, { chart, ts: Date.now() });
         apply(chart);
       })
-      .catch(() => applySymbolChartError(symbol, tf, token));
+      .catch((err) => {
+        console.warn("[chart-dock] failed", {
+          symbol,
+          timeframe: tf,
+          ms: Math.round(performance.now() - startedAt),
+          error: err instanceof Error ? err.message : String(err),
+        });
+        applySymbolChartError(symbol, tf, token);
+      });
   };
 
-  const openFromSymbol = (symbol: string, timeframe?: string) =>
-    loadSymbolChart(symbol, timeframe, true);
+  const openFromSymbol = (symbol: string, timeframe?: string, detectPatterns: boolean = true) =>
+    loadSymbolChart(symbol, timeframe, true, detectPatterns);
 
   /** Hover preview: same widget, but dismissible (pinned = false). */
-  const previewFromSymbol = (symbol: string, timeframe?: string) =>
-    loadSymbolChart(symbol, timeframe, false);
+  const previewFromSymbol = (symbol: string, timeframe?: string, detectPatterns: boolean = true) =>
+    loadSymbolChart(symbol, timeframe, false, detectPatterns);
 
   // Fullscreen timeframe switch: re-runs detection on the new timeframe,
   // swaps candles/trendlines, promotes the newest hit. Preserves as-of.
@@ -281,7 +304,7 @@ export function usePatternFullscreen({
     const { symbol, asOf, fromDate } = current;
     setFullscreen({ ...current, timeframe: tf, loading: true });
     void fetchSymbolChart(symbol, tf, {
-      detectPatterns: true,
+      detectPatterns: current.detectPatterns !== false,
       ...(asOf ? { asOf } : {}),
       ...(fromDate ? { fromDate } : {}),
     })

@@ -9,6 +9,8 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import json
+import logging
+import os
 import queue as _queue
 import threading
 import time as _time
@@ -209,6 +211,87 @@ def _clear_read_caches() -> None:
     with _read_cache_lock:
         _summary_cache.clear()
         _matrix_cache.clear()
+
+
+# ---------------------------------------------------------------------------
+# Symbol chart fetch: hard timeout + negative cache for empty results.
+#
+# A missing/slow symbol (Upstox DNS failure, hung feed) must not hold
+# ``GET /symbol/{symbol}/chart`` for 30s and then repeat the wait on every
+# click. The upstream fetch is capped by ``CHART_FETCH_TIMEOUT_SEC``; on
+# timeout or an empty frame the endpoint answers ``{"candles":[]}`` with an
+# ``error``/``note`` instead of 500. Empty results are cached per
+# ``(symbol, timeframe, IST session)`` for ~5 minutes so a repeat click is
+# instant; entries never outlive the session they were taken in.
+# ---------------------------------------------------------------------------
+
+#: Hard upper bound on one symbol-chart candle fetch (seconds). Env-overridable
+#: for deployments on slower feeds; 0 disables the cap.
+_CHART_FETCH_TIMEOUT_SEC = float(os.environ.get("CHART_FETCH_TIMEOUT_SEC", "7.0"))
+#: TTL of a negative (empty-result) cache entry (seconds).
+_CHART_NEG_CACHE_TTL_SEC = float(os.environ.get("CHART_NEG_CACHE_TTL_SEC", "300.0"))
+_CHART_NEG_CACHE_MAX = 256
+
+_chart_neg_cache: dict[tuple[str, str, str], tuple[float, dict]] = {}
+_chart_neg_cache_lock = threading.Lock()
+_chart_logger = logging.getLogger(__name__)
+
+
+def _ist_session_date() -> str:
+    """Today's IST session date — the date component of the negative-cache key."""
+    return datetime.now(root_config.IST).strftime("%Y-%m-%d")
+
+
+def _chart_neg_cache_get(symbol: str, timeframe: str, session: str) -> Optional[dict]:
+    now = _time.monotonic()
+    key = (str(symbol).upper(), str(timeframe), session)
+    with _chart_neg_cache_lock:
+        entry = _chart_neg_cache.get(key)
+        if entry is None:
+            return None
+        expires, payload = entry
+        if now < expires:
+            return payload
+        _chart_neg_cache.pop(key, None)
+        return None
+
+
+def _chart_neg_cache_put(symbol: str, timeframe: str, session: str, payload: dict) -> None:
+    now = _time.monotonic()
+    key = (str(symbol).upper(), str(timeframe), session)
+    with _chart_neg_cache_lock:
+        while len(_chart_neg_cache) >= _CHART_NEG_CACHE_MAX:
+            _chart_neg_cache.pop(next(iter(_chart_neg_cache)), None)
+        _chart_neg_cache[key] = (now + _CHART_NEG_CACHE_TTL_SEC, payload)
+
+
+def _chart_empty_payload(symbol: str, timeframe: str, *, reason: str, note: str) -> dict:
+    """Empty chart answer carrying a machine-readable ``error`` + human ``note``."""
+    return {
+        "symbol": str(symbol).upper(),
+        "timeframe": timeframe,
+        "candles": [],
+        "overlays": [],
+        "trend_lines": [],
+        "error": reason,
+        "note": note,
+    }
+
+
+def _log_chart_fetch(
+    symbol: str,
+    timeframe: str,
+    *,
+    elapsed_ms: float,
+    rows: int,
+    cache_hit: bool,
+    timeout: bool,
+    error: Optional[str],
+) -> None:
+    _chart_logger.info(
+        "chart_fetch symbol=%s timeframe=%s elapsed_ms=%.0f rows=%d cache_hit=%s timeout=%s error=%s",
+        symbol, timeframe, elapsed_ms, rows, bool(cache_hit), bool(timeout), error or "",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1735,14 +1818,72 @@ async def get_symbol_chart(
             symbol, timeframe, limit, lookback_bars, compute_trendlines,
             detect_patterns, as_of_date, from_date,
         ))
+    symbol_u = str(symbol).strip().upper()
+    session = _ist_session_date()
+
+    # Negative cache hit: this (symbol, timeframe) already returned no
+    # candles this session — answer instantly, no upstream fetch at all.
+    neg = _chart_neg_cache_get(symbol_u, timeframe, session)
+    if neg is not None:
+        _log_chart_fetch(
+            symbol_u, timeframe, elapsed_ms=0.0, rows=0,
+            cache_hit=True, timeout=False, error=None,
+        )
+        return _json_response(neg)
+
+    start = _time.monotonic()
     try:
         lb = lookback_bars if lookback_bars is not None else config.READ_LOOKBACK_BARS
-        df = candles.fetch_for_timeframe(
-            symbol, timeframe, lookback_bars=lb,
-            include_partial_today=(timeframe == "1D"),
+        df = await asyncio.wait_for(
+            run_in_threadpool(
+                candles.fetch_for_timeframe,
+                symbol_u, timeframe,
+                lookback_bars=lb,
+                include_partial_today=(timeframe == "1D"),
+            ),
+            timeout=_CHART_FETCH_TIMEOUT_SEC,
         )
-    except Exception:
+    except asyncio.TimeoutError:
         df = None
+        elapsed_ms = (_time.monotonic() - start) * 1000.0
+        reason = "fetch_timeout"
+        note = (
+            f"candle fetch for {symbol_u} {timeframe} exceeded "
+            f"{_CHART_FETCH_TIMEOUT_SEC:.0f}s and was aborted"
+        )
+        payload = _chart_empty_payload(symbol_u, timeframe, reason=reason, note=note)
+        _chart_neg_cache_put(symbol_u, timeframe, session, payload)
+        _log_chart_fetch(
+            symbol_u, timeframe, elapsed_ms=elapsed_ms, rows=0,
+            cache_hit=False, timeout=True, error=reason,
+        )
+        return _json_response(payload)
+    except Exception as exc:  # noqa: BLE001 - transient upstream failure, never 500
+        df = None
+        elapsed_ms = (_time.monotonic() - start) * 1000.0
+        reason = "fetch_error"
+        note = str(exc)[:200]
+        payload = _chart_empty_payload(symbol_u, timeframe, reason=reason, note=note)
+        # Transient errors are NOT cached: the next click retries (still bounded
+        # by the timeout) so a recovered feed isn't papered over for 5 minutes.
+        _log_chart_fetch(
+            symbol_u, timeframe, elapsed_ms=elapsed_ms, rows=0,
+            cache_hit=False, timeout=False, error=reason,
+        )
+        return _json_response(payload)
+
+    elapsed_ms = (_time.monotonic() - start) * 1000.0
+    rows = 0 if df is None or getattr(df, "empty", True) else int(len(df))
+    if df is None or getattr(df, "empty", True):
+        reason = "no_data"
+        note = f"no candles for {symbol_u} {timeframe} in session {session}"
+        payload = _chart_empty_payload(symbol_u, timeframe, reason=reason, note=note)
+        _chart_neg_cache_put(symbol_u, timeframe, session, payload)
+        _log_chart_fetch(
+            symbol_u, timeframe, elapsed_ms=elapsed_ms, rows=0,
+            cache_hit=False, timeout=False, error=reason,
+        )
+        return _json_response(payload)
     # The fetch window carries ~1.5x headroom; clamp the displayed chart to
     # exactly the requested Lookback (Auto keeps the whole window). A trailing
     # synthetic session bar (1D only) is flagged for distinct UI rendering;
