@@ -50,6 +50,12 @@ export const SIM_TEMPLATES: SimTemplate[] = [
     [leg("BUY", "CE", "ATM"), leg("BUY", "PE", "ATM")],
   ),
   template(
+    "short-straddle",
+    "Short straddle",
+    "Sell ATM call + put. Max profit is the credit; a gamma blast hurts both tails.",
+    [leg("SELL", "CE", "ATM"), leg("SELL", "PE", "ATM")],
+  ),
+  template(
     "bull-call-spread",
     "Bull call spread",
     "Buy ATM call, sell a higher call. Capped bullish debit spread.",

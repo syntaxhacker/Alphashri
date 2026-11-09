@@ -22,7 +22,8 @@ DATE = "2026-11-09"
 EXPIRY = "2026-11-13"
 
 TEMPLATE_IDS = [
-    "long-call", "long-put", "long-straddle", "bull-call-spread",
+    "long-call", "long-put", "long-straddle", "short-straddle",
+    "bull-call-spread",
     "bear-put-spread", "bull-put-spread", "bear-call-spread",
     "short-strangle", "iron-condor",
 ]
