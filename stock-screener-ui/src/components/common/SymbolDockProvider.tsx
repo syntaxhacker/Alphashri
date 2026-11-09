@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
-import { Box, Loader, Text, useMediaQuery } from "@/ui";
+import { Box, Loader, Text, Badge, Tooltip, useMediaQuery } from "@/ui";
 import { useNavigate } from "react-router-dom";
 import { usePatternFullscreen } from "@/hooks/usePatternFullscreen";
 import { FALLBACK_TIMEFRAMES } from "@/components/patterns/TimeframeSelect";
@@ -138,6 +138,22 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
             overflow: "hidden",
           }}
         >
+          {fullscreen?.stale ? (
+            <Box
+              sx={{
+                position: "absolute",
+                bottom: 8,
+                right: 8,
+                zIndex: 1200,
+              }}
+            >
+              <Tooltip label="Showing cached candles; refreshing in background">
+                <Badge size="xs" variant="outline" color="warning" data-testid="dock-stale">
+                  {fullscreen?.dataAsOf ? `Cached ${fullscreen.dataAsOf}` : "Cached"}
+                </Badge>
+              </Tooltip>
+            </Box>
+          ) : null}
           {fullscreen?.patternsLoading && (
             <Box
               data-testid="dock-patterns-loading"

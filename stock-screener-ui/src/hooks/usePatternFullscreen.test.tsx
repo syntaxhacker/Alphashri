@@ -722,6 +722,147 @@ describe("usePatternFullscreen", () => {
     expect(screen.getByTestId("fs-count")).toHaveTextContent("0");
   });
 
+  // --- Stale-first disk cache markers ---
+
+  test("a stale-first payload marks the chart stale with its as_of date", async () => {
+    const staleChart = {
+      candles: [candle()],
+      hits: [],
+      trend_lines: [],
+      cached: true,
+      stale: true,
+      as_of: "2026-11-06",
+    } as never;
+    mockedFetchSymbolChart.mockResolvedValue(staleChart);
+    let api!: ReturnType<typeof usePatternFullscreen>;
+    render(
+      <UIProvider>
+        <Harness onReady={(a) => { api = a; }} />
+      </UIProvider>,
+    );
+    await act(async () => {
+      api.openFromSymbol("IRCON");
+    });
+    await waitFor(() => expect(screen.getByTestId("fs-loading")).toHaveTextContent("no"));
+    expect(api.fullscreen?.stale).toBe(true);
+    expect(api.fullscreen?.dataAsOf).toBe("2026-11-06");
+    expect(mockedFetchSymbolChart).toHaveBeenCalledTimes(2);
+  });
+
+  test("a fresh payload clears the stale marker", async () => {
+    const staleChart = {
+      candles: [candle()],
+      hits: [],
+      trend_lines: [],
+      cached: true,
+      stale: true,
+      as_of: "2026-11-06",
+    } as never;
+    mockedFetchSymbolChart.mockResolvedValue(staleChart);
+    let api!: ReturnType<typeof usePatternFullscreen>;
+    render(
+      <UIProvider>
+        <Harness onReady={(a) => { api = a; }} />
+      </UIProvider>,
+    );
+    await act(async () => {
+      api.openFromSymbol("IRCON");
+    });
+    await waitFor(() => expect(api.fullscreen?.stale).toBe(true));
+
+    // Re-open a different symbol with fresh payloads: cache keys are
+    // per-symbol, so this bypasses the 60 s in-memory cache of the stale chart.
+    mockedFetchSymbolChart.mockResolvedValue({
+      candles: [candle()],
+      hits: [],
+      trend_lines: [],
+      cached: false,
+      stale: false,
+    } as never);
+    await act(async () => {
+      api.openFromSymbol("RELIANCE");
+    });
+    await waitFor(() => expect(screen.getByTestId("fs-loading")).toHaveTextContent("no"));
+    expect(api.fullscreen?.stale).toBe(false);
+    expect(api.fullscreen?.dataAsOf).toBeNull();
+  });
+
+  test("switching symbol clears the stale marker before the new frame arrives", async () => {
+    const staleChart = {
+      candles: [candle()],
+      hits: [],
+      trend_lines: [],
+      cached: true,
+      stale: true,
+      as_of: "2026-11-06",
+    } as never;
+    mockedFetchSymbolChart.mockResolvedValue(staleChart);
+    let api!: ReturnType<typeof usePatternFullscreen>;
+    render(
+      <UIProvider>
+        <Harness onReady={(a) => { api = a; }} />
+      </UIProvider>,
+    );
+    await act(async () => {
+      api.openFromSymbol("IRCON");
+    });
+    await waitFor(() => expect(api.fullscreen?.stale).toBe(true));
+
+    let resolvePhase1!: (v: unknown) => void;
+    mockedFetchSymbolChart.mockReset();
+    mockedFetchSymbolChart.mockResolvedValue(staleChart);
+    mockedFetchSymbolChart.mockImplementationOnce(
+      () => new Promise((resolve) => { resolvePhase1 = resolve; }),
+    );
+    await act(async () => {
+      api.openFromSymbol("RELIANCE");
+    });
+    // Synchronous reset: the badge must not linger over the loading state.
+    expect(api.fullscreen?.symbol).toBe("RELIANCE");
+    expect(api.fullscreen?.stale).toBe(false);
+    expect(api.fullscreen?.dataAsOf).toBeNull();
+
+    await act(async () => {
+      resolvePhase1({
+        candles: [candle()],
+        hits: [],
+        trend_lines: [],
+        cached: true,
+        stale: true,
+        as_of: "2026-11-07",
+      });
+    });
+  });
+
+  test("stale survives unrelated updates until a fresh frame arrives", async () => {
+    const staleChart = {
+      candles: [candle()],
+      hits: [],
+      trend_lines: [],
+      cached: true,
+      stale: true,
+      as_of: "2026-11-06",
+    } as never;
+    mockedFetchSymbolChart.mockResolvedValue(staleChart);
+    let api!: ReturnType<typeof usePatternFullscreen>;
+    render(
+      <UIProvider>
+        <Harness onReady={(a) => { api = a; }} />
+      </UIProvider>,
+    );
+    await act(async () => {
+      api.openFromSymbol("IRCON");
+    });
+    await waitFor(() => expect(api.fullscreen?.stale).toBe(true));
+    const hit = makeHit({ id: null });
+    await act(async () => {
+      api.selectFullscreenHit(hit);
+    });
+    expect(api.fullscreen?.stale).toBe(true);
+    expect(api.fullscreen?.dataAsOf).toBe("2026-11-06");
+    expect(api.fullscreen?.hit).toBe(hit);
+  });
+
   test("switching symbol ignores a stale phase-2 response", async () => {
     let resolvePhase2IRCON!: (v: unknown) => void;
     const irconCandle = candle({ c: 120 });

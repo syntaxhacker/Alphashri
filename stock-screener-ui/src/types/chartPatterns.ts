@@ -264,6 +264,12 @@ export interface ChartPayload {
    * Candles are truncated at this timestamp and `hits` filtered to the window.
    */
   as_of?: string | null;
+  /**
+   * Stale-first marker: a cached disk frame served while a background
+   * refresh runs. Fresh wire responses omit these (or send `cached:false`).
+   */
+  cached?: boolean;
+  stale?: boolean;
 }
 
 /** User-facing result filters (the filter rail). */

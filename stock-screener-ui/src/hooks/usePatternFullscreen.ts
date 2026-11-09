@@ -15,6 +15,14 @@ import {
 type SymbolChartPayload = Awaited<ReturnType<typeof fetchSymbolChart>>;
 const SYMBOL_CHART_CACHE_MS = 60_000;
 
+/** Stale markers from a chart payload — only an explicit `stale:true` marks the frame; anything else (absent, `cached:false`) is fresh. */
+const staleFields = (
+  chart: SymbolChartPayload,
+): Pick<FullscreenChartState, "stale" | "dataAsOf"> =>
+  chart.stale === true
+    ? { stale: true, dataAsOf: chart.as_of ?? null }
+    : { stale: false, dataAsOf: null };
+
 export interface FullscreenChartState {
   symbol: string;
   hit: PatternHitDTO | null;
@@ -35,6 +43,17 @@ export interface FullscreenChartState {
   asOf: string | null;
   /** Replay window start (ISO local datetime, null = any). */
   fromDate: string | null;
+  /**
+   * `true` while the rendered candles come from the server's stale disk
+   * cache (`cached:true, stale:true`) and a background refresh is in flight.
+   * Cleared only by a fresh frame — never by selection/timeframe transitions.
+   */
+  stale?: boolean;
+  /**
+   * The stale frame's last session date (`YYYY-MM-DD`, from the payload's
+   * `as_of`); null when the frame is fresh. Drives the dock's "Cached" badge.
+   */
+  dataAsOf?: string | null;
   /**
    * `true` when the user explicitly opened the chart (row/card click, chart
    * icon). `false` for a hover preview, which the host may auto-dismiss.
@@ -134,6 +153,8 @@ export function usePatternFullscreen({
       asOf: null,
       fromDate: null,
       pinned: true,
+      stale: false,
+      dataAsOf: null,
     });
 
     const fullHit = stored ? fetchPatternHit(hit.id as number).catch(() => hit) : Promise.resolve(hit);
@@ -154,6 +175,7 @@ export function usePatternFullscreen({
           prev && prev.hit && fullscreenHitIdentity(prev.hit) === identity
             ? {
                 ...prev,
+                ...staleFields(chart),
                 hit: resolved,
                 hits: [resolved],
                 candles: chart.candles?.length ? chart.candles : prev.candles,
@@ -200,6 +222,7 @@ export function usePatternFullscreen({
         ? {
             ...prev,
             ...extra,
+            ...staleFields(chart),
             hit: newestHit(hits),
             hits,
             candles: chart.candles ?? [],
@@ -271,6 +294,7 @@ export function usePatternFullscreen({
         prev && prev.symbol === symbol && prev.timeframe === tf
           ? {
               ...prev,
+              ...staleFields(chart),
               candles: chart.candles ?? [],
               overlays: [],
               trendLines: chart.trend_lines ?? [],
@@ -309,6 +333,7 @@ export function usePatternFullscreen({
         prev && prev.symbol === symbol && prev.timeframe === tf
           ? {
               ...prev,
+              ...staleFields(chart),
               hit: newestHit(hits),
               hits,
               trendLines: chart.trend_lines ?? [],
@@ -408,6 +433,8 @@ export function usePatternFullscreen({
       fromDate: null,
       pinned,
       patternsLoading: undefined,
+      stale: false,
+      dataAsOf: null,
     });
 
     void runTwoPhase(symbol, tf, token, detectPatterns, startedAt, {
