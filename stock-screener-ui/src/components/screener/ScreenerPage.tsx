@@ -1,4 +1,4 @@
-import { useState, useCallback, lazy, Suspense, useTransition } from "react";
+import { useState, useCallback, lazy, Suspense, useTransition, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import MuiStack from "@mui/material/Stack";
 import Paper from "@mui/material/Paper";
@@ -8,7 +8,12 @@ import { IconTable, IconChartDots, IconSettings, IconLayoutDashboard, IconRefres
 import * as state from "../../state";
 import { DashboardView } from "./DashboardView";
 import { ScreenerHeader } from "./ScreenerHeader";
-import { ScreenerContent } from "./ScreenerContent";
+// ScreenerContent pulls the table + heatmap (echarts) graph — several MB of
+// module evaluation on the critical path of every landing. Load it on first
+// render of the Screener tab, not at page boot.
+const ScreenerContent = lazy(() =>
+  import("./ScreenerContent").then((m) => ({ default: m.ScreenerContent })),
+);
 import { SelectionBar } from "./SelectionBar";
 import { screenerHasSideFilters } from "./ScreenerSidePanel";
 import { GroupPerformancePanel } from "./GroupPerformancePanel";
@@ -30,6 +35,21 @@ import {
   fetchCorrelationData,
 } from "../../state/correlation";
 import type { Stock } from "../../types";
+
+let marketTabPrefetch: Promise<unknown> | null = null;
+/**
+ * Warm the Market chunk. Hover/focus/idle all share one promise, so the
+ * chunk is requested at most once and never eagerly on mount.
+ */
+function prefetchMarketTab() {
+  if (!marketTabPrefetch) {
+    marketTabPrefetch = import("../../pages/market/MarketScreenerPage").catch(() => {
+      // Failed chunk loads must not wedge future prefetch attempts.
+      marketTabPrefetch = null;
+    });
+  }
+  return marketTabPrefetch;
+}
 
 interface ScreenerPageProps {
   screenerOptions: Array<{ id: string; label: string; description?: string }>;
@@ -174,6 +194,37 @@ export function ScreenerPage({
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
   const [showLastClose, setShowLastClose] = useState(false);
   const universe = universeProp ?? internalUniverse;
+
+  // Mount the expensive dashboard/screener panels on first visit, then keep
+  // them alive. Landing on ?tab=market must not pay the dashboard fetch or
+  // the screener table's module/render cost.
+  const [visitedTabs, setVisitedTabs] = useState<ReadonlySet<string>>(
+    () => new Set([activeTab]),
+  );
+  useEffect(() => {
+    setVisitedTabs((prev) => {
+      if (prev.has(activeTab)) return prev;
+      const next = new Set(prev);
+      next.add(activeTab);
+      return next;
+    });
+  }, [activeTab]);
+  const visited = useMemo(() => new Set(visitedTabs).add(activeTab), [visitedTabs, activeTab]);
+
+  // Warm the Market chunk once the browser is idle after mount; hover/focus
+  // on the tab does the same sooner. Never blocks the initial load.
+  useEffect(() => {
+    const w = window as unknown as {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (typeof w.requestIdleCallback === "function") {
+      const id = w.requestIdleCallback(prefetchMarketTab, { timeout: 2500 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const id = window.setTimeout(prefetchMarketTab, 1500);
+    return () => window.clearTimeout(id);
+  }, []);
   const handleUniverseChange = useCallback(
     (u: string) => {
       if (onUniverseChange) {
@@ -324,7 +375,7 @@ export function ScreenerPage({
                 <Tabs.Tab value="events" leftSection={<IconCalendarEvent size={14} />} data-testid="tab-events" style={{ minHeight: 32 }}>
                   Events
                 </Tabs.Tab>
-                <Tabs.Tab value="market" leftSection={<IconWorld size={14} />} data-testid="tab-market" style={{ minHeight: 32 }}>
+                <Tabs.Tab value="market" leftSection={<IconWorld size={14} />} data-testid="tab-market" style={{ minHeight: 32 }} onMouseEnter={prefetchMarketTab} onFocus={prefetchMarketTab}>
                   Market
                 </Tabs.Tab>
                 <Tabs.Tab value="correlation" leftSection={<IconChartDots size={14} />} data-testid="tab-correlation" style={{ minHeight: 32 }}>
@@ -396,48 +447,56 @@ export function ScreenerPage({
             data-testid="dashboard-panel"
             sx={{ display: isDashboard ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}
           >
-            <DashboardView
-              key={`dashboard-${dashboardRefreshKey}`}
-              universe={universe}
-              onOpenSymbol={onSymbolClick}
-              onOpenScan={handleOpenScan}
-            />
+            {visited.has("dashboard") ? (
+              <DashboardView
+                key={`dashboard-${dashboardRefreshKey}`}
+                universe={universe}
+                onOpenSymbol={onSymbolClick}
+                onOpenScan={handleOpenScan}
+              />
+            ) : null}
           </Box>
           <Box sx={{ display: activeTab === "screener" ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, gap: 1 }}>
-            <GroupPerformancePanel />
-            <Paper
-              elevation={0}
-              sx={{
-                flex: 1,
-                minWidth: 0,
-                minHeight: 0,
-                display: "flex",
-                flexDirection: "column",
-                overflow: "hidden",
-                border: 1,
-                borderColor: BORDER,
-                borderRadius: 2,
-                bgcolor: SURFACE,
-                opacity: isPending ? 0.6 : 1,
-              }}
-            >
-              <CompactAlerts activeScreener={activeScreener} warning={warning} />
-              {hasSideFilters && <ScreenerInlineFilters activeScreener={activeScreener} embedded />}
-              <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column", p: 0.5, gap: 0.5 }}>
-                <ScreenerContent
-                  approachingStocks={approachingStocks}
-                  touchedStocks={touchedStocks}
-                  isLoading={isLoading}
-                  error={error}
-                  onRefresh={onRefresh}
-                  onSymbolClick={onSymbolClick}
-                  onSymbolHover={onSymbolHover}
-                  activeScreener={activeScreener}
-                  viewMode={viewMode}
-                />
-                <SelectionBar onCompare={handleCompare} />
-              </Box>
-            </Paper>
+            {visited.has("screener") ? (
+              <>
+                <GroupPerformancePanel />
+                <Paper
+                  elevation={0}
+                  sx={{
+                    flex: 1,
+                    minWidth: 0,
+                    minHeight: 0,
+                    display: "flex",
+                    flexDirection: "column",
+                    overflow: "hidden",
+                    border: 1,
+                    borderColor: BORDER,
+                    borderRadius: 2,
+                    bgcolor: SURFACE,
+                    opacity: isPending ? 0.6 : 1,
+                  }}
+                >
+                  <CompactAlerts activeScreener={activeScreener} warning={warning} />
+                  {hasSideFilters && <ScreenerInlineFilters activeScreener={activeScreener} embedded />}
+                  <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column", p: 0.5, gap: 0.5 }}>
+                    <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
+                      <ScreenerContent
+                        approachingStocks={approachingStocks}
+                        touchedStocks={touchedStocks}
+                        isLoading={isLoading}
+                        error={error}
+                        onRefresh={onRefresh}
+                        onSymbolClick={onSymbolClick}
+                        onSymbolHover={onSymbolHover}
+                        activeScreener={activeScreener}
+                        viewMode={viewMode}
+                      />
+                    </Suspense>
+                    <SelectionBar onCompare={handleCompare} />
+                  </Box>
+                </Paper>
+              </>
+            ) : null}
           </Box>
           <Box
             data-testid="deep-value-panel"

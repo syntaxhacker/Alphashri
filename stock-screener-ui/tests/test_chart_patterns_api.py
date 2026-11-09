@@ -1,6 +1,7 @@
 """API tests for /api/chart-patterns (in-memory DB, mocked V3 fetch)."""
 import asyncio
 import gzip
+import json
 import logging
 import pickle
 import threading
@@ -3286,11 +3287,17 @@ def test_kick_stale_first_refresh_dedupes_inflight(cp_client):
         cp_api._clear_chart_caches()
 
 
-def test_kick_stale_first_refresh_swallows_fetch_errors(cp_client, monkeypatch):
+def test_kick_stale_first_refresh_retries_then_gives_up(cp_client, monkeypatch):
+    """A failing refresh retries with bounded backoff, then gives up without
+    crashing and without leaving the pair stuck in-flight."""
+    calls = []
+
     def _boom(symbol, timeframe, **kwargs):
+        calls.append(1)
         raise RuntimeError("feed down")
 
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _boom)
+    monkeypatch.setattr(cp_api._time, "sleep", lambda _s: None)  # bounded backoff must not sleep in tests
 
     import types as _types
 
@@ -3304,4 +3311,223 @@ def test_kick_stale_first_refresh_swallows_fetch_errors(cp_client, monkeypatch):
     monkeypatch.setattr(cp_api, "threading", _types.SimpleNamespace(Thread=_SyncThread))
     ok = cp_api._kick_stale_first_refresh("POWERMECH", "5m", None)
     assert ok is True
+    assert len(calls) == cp_api._MAX_REFRESH_ATTEMPTS, "refresh must retry, not fail once"
+    assert cp_api._refresh_inflight == set()
+
+
+# ---------------------------------------------------------------------------
+# Background refresh: success updates cache/meta and as_of advances;
+# failure keeps the stale frame with retry; max-staleness refuses old frames;
+# no duplicate refresh storms.
+# ---------------------------------------------------------------------------
+
+
+def _sync_threading(monkeypatch):
+    """Make threading.Thread run targets synchronously (deterministic refresh)."""
+    import types as _types
+
+    class _SyncThread:
+        def __init__(self, target, name=None, daemon=None):
+            self._target = target
+
+        def start(self):
+            self._target()
+
+    monkeypatch.setattr(cp_api.threading, "Thread", _SyncThread)
+
+
+def _seed_stale_cache(candles_mod, tmp_path, symbol, as_of, session_pin=None, variant=None):
+    """Write a 1D live-edge cache entry ending on ``as_of`` with an old ts."""
+    path = candles_mod._cache_path("1D", symbol, variant=variant)
+    df = _make_df_session_current(80, end=as_of)
+    candles_mod._write_cached(path, df, is_today=True, session_pin=session_pin or as_of)
+    return path, df
+
+
+def test_refresh_success_updates_cache_and_meta(cp_client, monkeypatch, tmp_path):
+    """A successful background refresh rewrites the disk cache + .meta with the
+    fresh frame's session so the served as_of advances."""
+    import market_data.market_data as md
+    from chart_patterns import candles
+
+    monkeypatch.setattr(candles, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(candles, "_is_today", lambda *a, **k: True)
+    _pin_last_completed_session(monkeypatch, "2026-11-09")
+    fresh = _make_df_session_current(80, end="2026-11-09")
+    monkeypatch.setattr(
+        md, "fetch_candles_for_timeframe",
+        lambda symbol, timeframe, **kwargs: fresh,
+    )
+    # The refresh is kicked with lookback_bars=500 -> lb500 variant cache path.
+    path, _stale = _seed_stale_cache(candles, tmp_path, "POWERMECH", "2026-11-08", variant="lb500")
+    old_meta_ts = json.loads(path.with_suffix(".meta").read_text())["ts"]
+
+    started = []
+    class _SyncThread:
+        def __init__(self, target, name=None, daemon=None):
+            self._target = target
+        def start(self):
+            started.append(1); self._target()
+    import types as _types
+    monkeypatch.setattr(cp_api, "threading", _types.SimpleNamespace(Thread=_SyncThread))
+
+    ok = cp_api._kick_stale_first_refresh("POWERMECH", "1D", 500)
+    assert ok is True and len(started) == 1
+    assert cp_api._refresh_inflight == set()
+
+    meta = json.loads(path.with_suffix(".meta").read_text())
+    assert meta["session"] == "2026-11-09", meta
+    assert meta["ts"] > old_meta_ts, "meta ts must advance"
+    served = candles._read_pickle_any(path)
+    assert candles.frame_last_date(served) == "2026-11-09"
+
+
+def test_stale_first_as_of_advances_after_refresh(cp_client, monkeypatch, tmp_path):
+    """End to end: first poll serves the stale frame (as_of 2026-11-08) with
+    expected_as_of=2026-11-09; the background refresh writes the fresh frame and
+    the next poll serves as_of=2026-11-09."""
+    import market_data.market_data as md
+
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(cp_api.candles, "_is_today", lambda *a, **k: True)
+    _pin_last_completed_session(monkeypatch, "2026-11-09")
+    fresh = _make_df_session_current(80, end="2026-11-09")
+    monkeypatch.setattr(
+        md, "fetch_candles_for_timeframe",
+        lambda symbol, timeframe, **kwargs: fresh,
+    )
+    _seed_stale_cache(cp_api.candles, tmp_path, "POWERMECH", "2026-11-08")
+    _sync_threading(monkeypatch)
+
+    store.save_hits("cpj_advance", [_hit("POWERMECH")])
+    first = cp_client.get("/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1D"})
+    assert first.status_code == 200
+    b1 = first.json()
+    assert b1["cached"] is True and b1["stale"] is True
+    assert b1["as_of"] == "2026-11-08"
+    assert b1.get("expected_as_of") == "2026-11-09"
+    assert "expected through 2026-11-09" in b1["note"]
+
+    second = cp_client.get("/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1D"})
+    assert second.status_code == 200
+    b2 = second.json()
+    assert b2["as_of"] == "2026-11-09", b2
+    assert "expected_as_of" not in b2
+
+
+def test_refresh_failure_keeps_stale_with_retry(cp_client, monkeypatch, tmp_path):
+    """A failing background refresh retries _MAX_REFRESH_ATTEMPTS times, keeps
+    the stale cache, and clears the in-flight marker."""
+    import market_data.market_data as md
+
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(cp_api.candles, "_is_today", lambda *a, **k: True)
+    _pin_last_completed_session(monkeypatch, "2026-11-09")
+    _seed_stale_cache(cp_api.candles, tmp_path, "POWERMECH", "2026-11-08")
+
+    calls = []
+    def _boom(symbol, timeframe, **kwargs):
+        calls.append(1)
+        raise RuntimeError("feed down")
+    monkeypatch.setattr(md, "fetch_candles_for_timeframe", _boom)
+    monkeypatch.setattr(cp_api._time, "sleep", lambda _s: None)
+    _sync_threading(monkeypatch)
+
+    store.save_hits("cpj_retry", [_hit("POWERMECH")])
+    first = cp_client.get("/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1D"})
+    assert first.status_code == 200
+    b1 = first.json()
+    assert b1["as_of"] == "2026-11-08"
+    assert b1.get("expected_as_of") == "2026-11-09"
+    assert len(calls) == cp_api._MAX_REFRESH_ATTEMPTS, "refresh retries on failure"
+
+    # Cache untouched: the next poll still serves the stale frame.
+    second = cp_client.get("/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1D"})
+    assert second.status_code == 200
+    assert second.json()["as_of"] == "2026-11-08"
+    assert len(calls) == 2 * cp_api._MAX_REFRESH_ATTEMPTS
+
+
+def test_stale_first_too_stale_falls_to_network(cp_client, monkeypatch, tmp_path):
+    """A frame older than the max-staleness cap is not served stale-first;
+    the request falls through to the normal network path (no refresh kick).
+    Raising the cap makes the same frame eligible again."""
+    import market_data.market_data as md
+
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(cp_api.candles, "_is_today", lambda *a, **k: True)
+    _pin_last_completed_session(monkeypatch, "2026-11-09")
+
+    fresh = _make_df_session_current(80, end="2026-11-09")
+    fetch_calls = []
+    monkeypatch.setattr(
+        md, "fetch_candles_for_timeframe",
+        lambda symbol, timeframe, **kwargs: (fetch_calls.append((symbol, timeframe)), fresh)[1],
+    )
+    kicks = _kick_spy(monkeypatch)
+
+    # Phase 1: 4 sessions behind, default cap is 3 days -> stale-first refuses,
+    # the network fetch serves fresh 2026-11-09 (no cached/stale badge).
+    _seed_stale_cache(cp_api.candles, tmp_path, "POWERMECH", "2026-11-05")
+    store.save_hits("cpj_stale_refuse", [_hit("POWERMECH")])
+    resp = cp_client.get("/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1D"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "cached" not in body and "stale" not in body and "as_of" not in body
+    assert "expected_as_of" not in body
+    assert fetch_calls == [("POWERMECH", "1D")]
+    assert kicks == [], "no refresh kick on the network path"
+
+    # Phase 2: raising the cap makes the same (still-cached) 2026-11-05 frame
+    # eligible for stale-first again; no new network fetch. Seed the lb500
+    # variant too, since _stale_first_frame reads it before the default entry.
+    _seed_stale_cache(cp_api.candles, tmp_path, "POWERMECH", "2026-11-05")
+    _seed_stale_cache(cp_api.candles, tmp_path, "POWERMECH", "2026-11-05", variant="lb500")
+    monkeypatch.setattr(cp_api, "_MAX_STALE_DAYS", 10)
+    again = cp_client.get("/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1D"})
+    b = again.json()
+    assert b["cached"] is True and b["stale"] is True
+    assert b["as_of"] == "2026-11-05"
+    assert b.get("expected_as_of") == "2026-11-09"
+    assert fetch_calls == [("POWERMECH", "1D")]  # stale-first served, no re-fetch
+
+
+def test_refresh_dedupes_no_storm(cp_client, monkeypatch, tmp_path):
+    """Concurrent refresh kicks for the same (symbol, timeframe) do not launch
+    duplicate fetches; the second kick is deduped while one is in flight."""
+    import market_data.market_data as md
+    from chart_patterns import candles
+
+    monkeypatch.setattr(candles, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(candles, "_is_today", lambda *a, **k: True)
+    _pin_last_completed_session(monkeypatch, "2026-11-09")
+    _seed_stale_cache(candles, tmp_path, "POWERMECH", "2026-11-08")
+
+    gate = threading.Event()
+    calls = []
+    def _slow(symbol, timeframe, **kwargs):
+        calls.append(1)
+        gate.wait(5)
+        return _make_df_session_current(80, end="2026-11-09")
+    monkeypatch.setattr(md, "fetch_candles_for_timeframe", _slow)
+
+    store.save_hits("cpj_nostorm", [_hit("POWERMECH")])
+    resp = cp_client.get("/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1D"})
+    assert resp.status_code == 200
+
+    deadline = _time.monotonic() + 5
+    while _time.monotonic() < deadline and ("POWERMECH", "1D") not in cp_api._refresh_inflight:
+        _time.sleep(0.02)
+    assert ("POWERMECH", "1D") in cp_api._refresh_inflight, "background refresh did not start"
+
+    assert cp_api._kick_stale_first_refresh("POWERMECH", "1D", 500) is False
+
+    gate.set()
+    deadline = _time.monotonic() + 10
+    while _time.monotonic() < deadline and len(calls) < 1:
+        _time.sleep(0.02)
+    assert len(calls) == 1, "no duplicate refresh storm: exactly one fetch"
+    deadline = _time.monotonic() + 5
+    while _time.monotonic() < deadline and cp_api._refresh_inflight:
+        _time.sleep(0.02)
     assert cp_api._refresh_inflight == set()

@@ -125,12 +125,16 @@ export function sortMarketRows(rows: MarketRow[], sort: MarketSortKey): MarketRo
   return [...rows].sort(SORT_COMPARATORS[sort] ?? SORT_COMPARATORS.day_desc);
 }
 
-export function filterMarketRows(
+/**
+ * Filter-only pass. No sort — callers that only need a row subset or a count
+ * must not pay for the sort.
+ */
+export function filterOnlyMarketRows(
   rows: MarketRow[],
   filters: MarketFilterState,
 ): MarketRow[] {
   const search = filters.search.trim().toLowerCase();
-  const filtered = rows.filter((row) => {
+  return rows.filter((row) => {
     if (search) {
       if (!searchableText(row).includes(search)) return false;
     }
@@ -151,7 +155,13 @@ export function filterMarketRows(
     if (filters.sector && row.sector !== filters.sector) return false;
     return true;
   });
-  return sortMarketRows(filtered, filters.sort);
+}
+
+export function filterMarketRows(
+  rows: MarketRow[],
+  filters: MarketFilterState,
+): MarketRow[] {
+  return sortMarketRows(filterOnlyMarketRows(rows, filters), filters.sort);
 }
 
 /** Distinct, alphabetically sorted sectors present in the snapshot. */

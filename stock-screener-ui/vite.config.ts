@@ -38,6 +38,12 @@ export default defineConfig(({ mode }) => {
             if (id.includes("node_modules/react") || id.includes("node_modules/react-dom") || id.includes("node_modules/react-router-dom")) return "vendor";
             if (id.includes("@mui/") || id.includes("@emotion/")) return "mui";
             if (id.includes("@tanstack")) return "tanstack";
+            // echarts-for-react imports React. Keep it out of the shared "echarts"
+            // chunk so React is not duplicated into the 373 kB echarts bundle and
+            // the entry shell does not statically pull in the chart engine.
+            // echarts-for-react is only consumed by lazy page chunks (heatmap,
+            // report, options, paper trading), which pull echarts in lazily.
+            if (id.includes("echarts-for-react")) return undefined;
             if (id.includes("echarts") || id.includes("zrender")) return "echarts";
             if (id.includes("node_modules/@tabler/icons-react")) return "icons";
           },
