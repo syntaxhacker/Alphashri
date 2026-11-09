@@ -48,6 +48,7 @@ import { NiftyFlowStrip } from "./NiftyFlowStrip";
 import { NiftyIntelStrip } from "./NiftyIntelStrip";
 import { NiftyGammaStrip } from "./NiftyGammaStrip";
 import { NiftyPositionsDrawer } from "./NiftyPositionsDrawer";
+import { SimDesk } from "./sim/SimDesk";
 import { NiftyDeskGuide } from "./NiftyDeskGuide";
 import { NiftyWallMigration } from "./NiftyWallMigration";
 import { NiftyParticipantFlow } from "./NiftyParticipantFlow";
@@ -3778,6 +3779,14 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             </Box>
           )}
           <Box sx={{ flex: 1, minWidth: 8 }} />
+          <SimDesk
+            symbol={symbol}
+            mode={mode}
+            date={date}
+            report={report}
+            replay={replay}
+            replayIndex={replayIndex}
+          />
           <NiftyPositionsDrawer
             positions={paperPositions}
             strikes={report?.strikes}
