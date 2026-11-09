@@ -187,17 +187,49 @@ vi.mock("../../api/marketScreener", async (importOriginal) => {
   return { ...actual, fetchMarketSnapshot: vi.fn() };
 });
 
-// EventsPanel and ValuePanel are mounted-but-hidden on every render and fire
-// real /api fetches on mount (with a 300ms debounce for the value scan). This
-// suite does not exercise them, so mocking them keeps it hermetic — and keeps
-// their network churn from starving userEvent's timers in the tab tests.
-vi.mock("../events/EventsPanel", () => ({
-  EventsPanel: () => <div data-testid="events-panel" />,
+// The real panels fetch on mount (value scan via a 300ms debounce, events
+// calendar + anomalies via the events store). These mocks fire the same API
+// calls on mount so the suite can prove the panels only mount — and only hit
+// the network — when their tab is active.
+const valueScanSpy = vi.hoisted(() => vi.fn(async () => ({})));
+const fetchEventsSpy = vi.hoisted(() => vi.fn(async () => ({})));
+const fetchAnomaliesSpy = vi.hoisted(() => vi.fn(async () => ({})));
+
+vi.mock("../../api/valueScan", () => ({
+  valueScan: valueScanSpy,
 }));
 
-vi.mock("../value/ValuePanel", () => ({
-  ValuePanel: () => <div data-testid="value-panel" />,
+vi.mock("../../api/events", () => ({
+  fetchEvents: fetchEventsSpy,
+  fetchAnomalies: fetchAnomaliesSpy,
 }));
+
+vi.mock("../events/EventsPanel", async () => {
+  const React = await import("react");
+  return {
+    EventsPanel: () => {
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      React.useEffect(() => {
+        void fetchEventsSpy({ market: "us" });
+        void fetchAnomaliesSpy("2026-11-09");
+      }, []);
+      return <div data-testid="events-panel" />;
+    },
+  };
+});
+
+vi.mock("../value/ValuePanel", async () => {
+  const React = await import("react");
+  return {
+    ValuePanel: () => {
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      React.useEffect(() => {
+        void valueScanSpy({ market: "india", limit: 100, sort: "score" });
+      }, []);
+      return <div data-testid="value-panel" />;
+    },
+  };
+});
 
 const mockFetchMarketSnapshot = vi.mocked(fetchMarketSnapshot);
 
@@ -672,6 +704,86 @@ describe("ScreenerPage", () => {
     });
     expect(await screen.findByTestId("market-screener", undefined, { timeout: 10_000 })).toBeInTheDocument();
     expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
+  });
+
+  it("does not fetch value scan or events endpoints on Dashboard or Market tabs", async () => {
+    const user = userEvent.setup();
+    render(
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>,
+      { initialRoute: "/" },
+    );
+    expect(valueScanSpy).not.toHaveBeenCalled();
+    expect(fetchEventsSpy).not.toHaveBeenCalled();
+    expect(fetchAnomaliesSpy).not.toHaveBeenCalled();
+    // Panels stay in the DOM (hidden) but must not mount their contents
+    expect(screen.getByTestId("deep-value-panel")).not.toBeVisible();
+    expect(screen.getByTestId("events-tab-panel")).not.toBeVisible();
+    expect(screen.queryByTestId("value-panel")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("events-panel")).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("tab-market"));
+    await waitFor(() => expect(mockFetchMarketSnapshot).toHaveBeenCalledTimes(1), {
+      timeout: 10_000,
+    });
+    expect(valueScanSpy).not.toHaveBeenCalled();
+    expect(fetchEventsSpy).not.toHaveBeenCalled();
+    expect(fetchAnomaliesSpy).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("value-panel")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("events-panel")).not.toBeInTheDocument();
+  });
+
+  it("fetches the value scan only when the Deep Value tab is opened, and remounts on re-entry", async () => {
+    const user = userEvent.setup();
+    render(
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>,
+      { initialRoute: "/" },
+    );
+    expect(valueScanSpy).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId("tab-deepvalue"));
+    await waitFor(() => expect(valueScanSpy).toHaveBeenCalledTimes(1), { timeout: 10_000 });
+    expect(await screen.findByTestId("value-panel", undefined, { timeout: 10_000 })).toBeInTheDocument();
+    expect(fetchEventsSpy).not.toHaveBeenCalled();
+    expect(fetchAnomaliesSpy).not.toHaveBeenCalled();
+
+    // Switching away unmounts; coming back remounts and refetches
+    await user.click(screen.getByTestId("tab-dashboard"));
+    expect(screen.queryByTestId("value-panel")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("tab-deepvalue"));
+    await waitFor(() => expect(valueScanSpy).toHaveBeenCalledTimes(2), { timeout: 10_000 });
+  });
+
+  it("fetches the events endpoints only when the Events tab is opened, and remounts on re-entry", async () => {
+    const user = userEvent.setup();
+    render(
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>,
+      { initialRoute: "/" },
+    );
+    expect(fetchEventsSpy).not.toHaveBeenCalled();
+    expect(fetchAnomaliesSpy).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId("tab-events"));
+    await waitFor(() => {
+      expect(fetchEventsSpy).toHaveBeenCalledTimes(1);
+      expect(fetchAnomaliesSpy).toHaveBeenCalledTimes(1);
+    }, { timeout: 10_000 });
+    expect(await screen.findByTestId("events-panel", undefined, { timeout: 10_000 })).toBeInTheDocument();
+    expect(valueScanSpy).not.toHaveBeenCalled();
+
+    // Switching away unmounts; coming back remounts and refetches
+    await user.click(screen.getByTestId("tab-dashboard"));
+    expect(screen.queryByTestId("events-panel")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("tab-events"));
+    await waitFor(() => {
+      expect(fetchEventsSpy).toHaveBeenCalledTimes(2);
+      expect(fetchAnomaliesSpy).toHaveBeenCalledTimes(2);
+    }, { timeout: 10_000 });
   });
 
   it("keeps correlation and config tabs working alongside dashboard", async () => {
