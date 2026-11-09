@@ -29,6 +29,7 @@ No writes, no network, no background task.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import statistics
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -138,6 +139,45 @@ def _pct_change(now: float, prev: float) -> Optional[float]:
     return round((now - prev) / prev, 4)
 
 
+def _vol(chain: dict, strike: float, side: str) -> Optional[float]:
+    """Side volume from the chain cell: index 4 = CE, 5 = PE."""
+    cell = (chain or {}).get(str(int(strike))) or [None] * 6
+    value = cell[4] if side == "call" else cell[5]
+    return _safe_float(value) if value is not None else None
+
+
+def _prior_row(rows: list[dict], index: int, minutes: int) -> Optional[dict]:
+    """Latest row at least ``minutes`` before rows[index] (rows sorted by t)."""
+    target = _epoch(rows[index].get("t")) - minutes * 60
+    for j in range(index - 1, -1, -1):
+        if _epoch(rows[j].get("t")) <= target:
+            return rows[j]
+    return None
+
+
+def _vol_delta(rows: list[dict], index: int, side: str, strike: float,
+               minutes: int) -> Optional[float]:
+    """Volume delta over the last ``minutes``; volume is cumulative per day."""
+    prior = _prior_row(rows, index, minutes)
+    if prior is None:
+        return None
+    now_v = _vol(_chain(rows[index]), strike, side)
+    then_v = _vol(_chain(prior), strike, side)
+    if now_v is None or then_v is None:
+        return None
+    return max(0.0, now_v - then_v)
+
+
+def _median(values: list[float]) -> Optional[float]:
+    if not values:
+        return None
+    return statistics.median(values)
+
+
+def _clamp(value: float, low: float, high: float) -> float:
+    return min(high, max(low, value))
+
+
 def _scan_events(
     rows: list[dict], window_min: int, expiry_day: bool
 ) -> list[dict]:
@@ -218,6 +258,40 @@ def _nearest_strike(chain: dict, spot: float) -> Optional[float]:
         if distance < best_dist:
             best, best_dist = strike, distance
     return best
+
+
+def _material_nearest(
+    chain: dict, spot: float, side: str, top_n: int
+) -> Optional[float]:
+    """Nearest material wall on the spot's side.
+
+    Primary: among the top-N walls by OI, the closest strike above spot (call)
+    / below spot (put). Fallback: the closest strike whose OI is at least 25%
+    of the top wall's OI, on the spot's side. Returns None when none
+    qualifies (keeps noisy far-OTM strikes out of the nearest-wall slot).
+    """
+    if not spot:
+        return None
+    top = _top(chain, side, top_n)
+    if not top:
+        return None
+    top_oi = top[0][0]
+    floor = 0.25 * top_oi
+    # All strikes in the chain with material OI (>= 25% of the top wall).
+    material = [
+        s for oi, s in _top(chain, side, max(len(chain), 1)) if oi >= floor
+    ]
+    if side == "call":
+        primary = [s for _, s in top if s > spot]
+        if primary:
+            return min(primary)
+        candidates = [s for s in material if s > spot]
+        return min(candidates) if candidates else None
+    primary = [s for _, s in top if s < spot]
+    if primary:
+        return max(primary)
+    candidates = [s for s in material if s < spot]
+    return max(candidates) if candidates else None
 
 
 def _build_wall_map(
@@ -413,6 +487,15 @@ def compute_wall_state(
     regime: Optional[str] = None
     if spot and flip is not None:
         regime = "SHORT" if spot < flip else "LONG"
+    chain = _chain(last)
+
+    # Nearest wall strikes: material walls first (top-N by OI on the spot's
+    # side), falling back to strikes with OI >= 25% of the top wall. Always
+    # shown in calls/puts (even outside top-N by OI) and exposed at payload
+    # level as nearest_call / nearest_put.
+    nearest_call_strike = _material_nearest(chain, spot, "call", top_n)
+    nearest_put_strike = _material_nearest(chain, spot, "put", top_n)
+
     exp = str(expiry or last.get("expiry") or "")
     dte: Optional[int] = None
     if exp:
@@ -425,9 +508,17 @@ def compute_wall_state(
 
     base = _nearest(rows, last_epoch - window_min * 60)
     base5 = _nearest(rows, last_epoch - 5 * 60)
-    chain = _chain(last)
+    base15 = _nearest(rows, last_epoch - 15 * 60)
+    base30 = _nearest(rows, last_epoch - 30 * 60)
+    base60 = _nearest(rows, last_epoch - 60 * 60)
     base_chain = _chain(base)
     base5_chain = _chain(base5)
+    base15_chain = _chain(base15)
+    base30_chain = _chain(base30)
+    base60_chain = _chain(base60)
+    last_index = len(rows) - 1
+    spot_5 = _safe_float(base5.get("spot")) if base5 else None
+    spot_drift = (spot - spot_5) if (spot and spot_5 is not None) else None
     # Session-open OI: the "old" book before today's new participants.
     open_chain = _chain(rows[0])
 
@@ -446,13 +537,13 @@ def compute_wall_state(
 
     call_oi = _oi(chain, call_strike, "call") if call_strike else 0.0
     call_oi_5m = _oi(base5_chain, call_strike, "call") if call_strike else 0.0
-    call_oi_30m = _oi(base_chain, call_strike, "call") if call_strike else 0.0
+    call_oi_window = _oi(base_chain, call_strike, "call") if call_strike else 0.0
     put_oi = _oi(chain, call_strike, "put") if call_strike else 0.0
-    put_oi_30m = _oi(base_chain, call_strike, "put") if call_strike else 0.0
+    put_oi_window = _oi(base_chain, call_strike, "put") if call_strike else 0.0
 
     call_erosion_5m = _pct_change(call_oi, call_oi_5m)
-    call_erosion_30m = _pct_change(call_oi, call_oi_30m)
-    put_build_30m = _pct_change(put_oi, put_oi_30m)
+    call_erosion_window = _pct_change(call_oi, call_oi_window)
+    put_build_window = _pct_change(put_oi, put_oi_window)
     mp_drift = round(max_pain - _safe_float(base.get("max_pain")), 2)
     pin_pts = round(spot - max_pain, 2) if spot else 0.0
     pin_pct = round(pin_pts / spot * 100, 3) if spot else 0.0
@@ -465,8 +556,12 @@ def compute_wall_state(
         )
     )
     cross = bool(call_strike and spot > call_strike and base_spot <= call_strike)
-    erosion_ok = call_erosion_30m is not None and call_erosion_30m <= -EROSION_MIN
-    put_ok = put_build_30m is not None and put_build_30m >= PUT_BUILD_MIN
+    erosion_ok = (
+        call_erosion_window is not None and call_erosion_window <= -EROSION_MIN
+    )
+    put_ok = (
+        put_build_window is not None and put_build_window >= PUT_BUILD_MIN
+    )
     drift_ok = mp_drift > DRIFT_MIN
     brk = bool(expiry_day and near and cross and erosion_ok and put_ok and drift_ok)
 
@@ -502,10 +597,12 @@ def compute_wall_state(
         reasons.append(f"call wall {call_strike:,.0f}")
     if put_strike:
         reasons.append(f"put wall {put_strike:,.0f}")
-    if call_erosion_30m is not None:
-        reasons.append(f"call wall {call_erosion_30m * 100:+.1f}% / {window_min}m")
-    if put_build_30m is not None:
-        reasons.append(f"put build {put_build_30m * 100:+.1f}%")
+    if call_erosion_window is not None:
+        reasons.append(
+            f"call wall {call_erosion_window * 100:+.1f}% / {window_min}m"
+        )
+    if put_build_window is not None:
+        reasons.append(f"put build {put_build_window * 100:+.1f}%")
     if mp_drift:
         reasons.append(f"max pain {mp_drift:+.0f}")
     if flip is not None:
@@ -543,8 +640,8 @@ def compute_wall_state(
         source = last_break or {
             "wall": call_strike,
             "spot": spot,
-            "erosion_30m": call_erosion_30m,
-            "put_build_30m": put_build_30m,
+            "erosion_30m": call_erosion_window,
+            "put_build_30m": put_build_window,
             "max_pain_drift": mp_drift,
             "max_pain": max_pain,
             "at": last_t,
@@ -565,15 +662,15 @@ def compute_wall_state(
     # --- one-line story for the map header / READ panel -------------------
     read_parts: list[str] = []
     if call_strike:
-        if call_erosion_30m is not None:
+        if call_erosion_window is not None:
             read_parts.append(
-                f"call wall {call_strike:,.0f} {call_erosion_30m * 100:+.1f}% / {window_min}m"
+                f"call wall {call_strike:,.0f} {call_erosion_window * 100:+.1f}% / {window_min}m"
             )
         else:
             read_parts.append(f"call wall {call_strike:,.0f}")
     if put_strike:
-        if put_build_30m is not None:
-            read_parts.append(f"put {put_strike:,.0f} {put_build_30m * 100:+.1f}%")
+        if put_build_window is not None:
+            read_parts.append(f"put {put_strike:,.0f} {put_build_window * 100:+.1f}%")
         else:
             read_parts.append(f"put {put_strike:,.0f}")
     if max_pain:
@@ -589,31 +686,183 @@ def compute_wall_state(
         )
     read = " · ".join(read_parts)
 
-    # --- all walls (current top N) ----------------------------------------
+    # --- all walls (current top N, plus the nearest wall) -----------------
+    def _flow_label(oi_5m: Optional[float], prem_5m: Optional[float]) -> str:
+        """5-min OI sign + premium sign -> flow classification."""
+        oi_down = oi_5m is not None and oi_5m < 0
+        oi_up = oi_5m is not None and oi_5m > 0
+        prem_up = prem_5m is not None and prem_5m > 0.005
+        prem_down = prem_5m is not None and prem_5m < -0.005
+        if oi_down and prem_up:
+            return "WRITERS_COVERING"
+        if oi_down and prem_down:
+            return "LONG_UNWIND"
+        if oi_up and prem_up:
+            return "LONG_BUILD"
+        if oi_up and prem_down:
+            return "WRITERS_ADDING"
+        return "UNKNOWN"
+
+    def _status_label(side: str, strike: float,
+                      erosion_30m: Optional[float]) -> str:
+        if side == "call":
+            breached = strike is not None and bool(spot) and spot > strike
+        else:
+            breached = strike is not None and bool(spot) and spot < strike
+        if breached:
+            return "BREACHED"
+        if erosion_30m is not None and erosion_30m <= -0.02:
+            return "ERODING"
+        if erosion_30m is not None and erosion_30m >= 0.02:
+            return "BUILDING"
+        return "STABLE"
+
+    def _vol_mult(side: str, strike: float,
+                  vol_5: Optional[float]) -> Optional[float]:
+        """vol_5m vs the median 5-min volume delta over the last window_min rows."""
+        if vol_5 is None:
+            return None
+        window = rows[-window_min:] if window_min < len(rows) else rows
+        deltas: list[float] = []
+        for offset in range(len(window)):
+            index = len(rows) - len(window) + offset
+            delta = _vol_delta(rows, index, side, strike, 5)
+            if delta is not None:
+                deltas.append(delta)
+        med = _median(deltas)
+        if not med:
+            return None
+        return vol_5 / med
+
+    def _row_dict(side: str, strike: float) -> dict:
+        now_oi = _oi(chain, strike, side)
+        five = _oi(base5_chain, strike, side)
+        fifteen = _oi(base15_chain, strike, side)
+        thirty = _oi(base30_chain, strike, side)
+        sixty = _oi(base60_chain, strike, side)
+        open_oi = _oi(open_chain, strike, side)
+        now_ltp = _ltp(chain, strike, side)
+        ltp_5 = _ltp(base5_chain, strike, side)
+
+        erosion_5m = _pct_change(now_oi, five)
+        erosion_15m = _pct_change(now_oi, fifteen)
+        erosion_30m = _pct_change(now_oi, thirty)
+        erosion_60m = _pct_change(now_oi, sixty)
+        erosion_rate_30m = (
+            round(erosion_30m / 30.0, 6) if erosion_30m is not None else None
+        )
+
+        prem_chg_5m: Optional[float] = None
+        if now_ltp is not None:
+            prem_chg_5m = _pct_change(now_ltp, ltp_5)
+
+        vol_5 = _vol_delta(rows, last_index, side, strike, 5)
+        vol_30 = _vol_delta(rows, last_index, side, strike, 30)
+        vol_mult = _vol_mult(side, strike, vol_5)
+
+        flow = _flow_label(erosion_5m, prem_chg_5m)
+        status = _status_label(side, strike, erosion_30m)
+
+        distance_pts = round(strike - spot, 2) if spot else None
+        distance_pct = (
+            round((strike - spot) / spot * 100, 3) if spot else None
+        )
+
+        e = erosion_30m if erosion_30m is not None else 0.0
+        erosion_part = round(_clamp(-e / 0.03, 0.0, 1.0) * 35)
+        vm = vol_mult if vol_mult is not None else 1.0
+        volume_part = round(_clamp((vm - 1.0) / 1.5, 0.0, 1.0) * 20)
+        proximity_part = 0
+        if spot and distance_pts is not None:
+            proximity_part = round(
+                _clamp(1.0 - abs(distance_pts) / (spot * 0.003), 0.0, 1.0) * 25
+            )
+        gamma_part = 10 if regime == "SHORT" else 0
+        flow_part = 10 if flow in ("WRITERS_COVERING", "LONG_UNWIND") else 0
+        fuel_parts = {
+            "erosion": int(erosion_part),
+            "volume": int(volume_part),
+            "proximity": int(proximity_part),
+            "gamma": int(gamma_part),
+            "flow": int(flow_part),
+        }
+        fuel_score = min(100, max(0, int(round(sum(fuel_parts.values())))))
+
+        ttb: Optional[float] = None
+        if distance_pts is not None and spot_drift is not None:
+            toward = (
+                (side == "call" and strike > spot)
+                or (side == "put" and strike < spot)
+            )
+            if toward:
+                velocity = abs(spot_drift) / 5.0
+                if velocity > 0:
+                    ttb = abs(distance_pts) / velocity
+        if ttb is not None:
+            ttb = round(min(ttb, 120.0), 2)
+
+        return {
+            "strike": strike,
+            "oi": now_oi,
+            "oi_open": open_oi,
+            "new_oi": round(now_oi - open_oi, 2),
+            "new_oi_pct": _pct_change(now_oi, open_oi),
+            "ltp": now_ltp,
+            "erosion_5m": erosion_5m,
+            "erosion_15m": erosion_15m,
+            "erosion_30m": erosion_30m,
+            "erosion_60m": erosion_60m,
+            "erosion_rate_30m": erosion_rate_30m,
+            "vol_5m": vol_5,
+            "vol_30m": vol_30,
+            "vol_mult": vol_mult,
+            "prem_chg_5m": prem_chg_5m,
+            "flow": flow,
+            "status": status,
+            "fuel_score": fuel_score,
+            "fuel_parts": fuel_parts,
+            "time_to_break_min": ttb,
+            "oi_history": [_oi(_chain(r), strike, side) for r in rows[-30:]],
+            "distance_pts": distance_pts,
+            "distance_pct": distance_pct,
+            "tracked": bool(call_strike == strike if side == "call"
+                            else put_strike == strike),
+            "nearest": bool(
+                (side == "call" and strike == nearest_call_strike)
+                or (side == "put" and strike == nearest_put_strike)
+            ),
+        }
+
     def _rows_for(side: str) -> list[dict]:
         out: list[dict] = []
-        for oi_now, strike in _top(chain, side, top_n):
-            now_oi = _oi(chain, strike, side)
-            five = _oi(base5_chain, strike, side)
-            thirty = _oi(base_chain, strike, side)
-            open_oi = _oi(open_chain, strike, side)
-            out.append({
-                "strike": strike,
-                "oi": now_oi,
-                "oi_open": open_oi,
-                "new_oi": round(now_oi - open_oi, 2),
-                "new_oi_pct": _pct_change(now_oi, open_oi),
-                "ltp": _ltp(chain, strike, side),
-                "erosion_5m": _pct_change(now_oi, five),
-                "erosion_30m": _pct_change(now_oi, thirty),
-                "distance_pts": round(strike - spot, 2) if spot else None,
-                "distance_pct": round((strike - spot) / spot * 100, 3) if spot else None,
-                "tracked": bool(call_strike == strike if side == "call" else put_strike == strike),
-            })
+        seen: set[float] = set()
+        for _oi_now, strike in _top(chain, side, top_n):
+            out.append(_row_dict(side, strike))
+            seen.add(strike)
+        # The nearest wall is always shown, even outside the top-N by OI.
+        nearest_strike = (
+            nearest_call_strike if side == "call" else nearest_put_strike
+        )
+        if nearest_strike is not None and nearest_strike not in seen:
+            out.append(_row_dict(side, nearest_strike))
         return out
 
     calls = _rows_for("call")
     puts = _rows_for("put")
+
+    nearest_call = next((row for row in calls if row.get("nearest")), None)
+    nearest_put = next((row for row in puts if row.get("nearest")), None)
+
+    # Tracked-wall erosion on the true 30m / 5m bases (the MiniHistory label
+    # says 30m, so it must be 30m, not the state window).
+    tracked_call_erosion_30m = (
+        _pct_change(call_oi, _oi(base30_chain, call_strike, "call"))
+        if call_strike else None
+    )
+    tracked_put_build_30m = (
+        _pct_change(put_oi, _oi(base30_chain, call_strike, "put"))
+        if call_strike else None
+    )
 
     # --- history for the expanded matrix ----------------------------------
     history: list[dict] = []
@@ -668,13 +917,15 @@ def compute_wall_state(
         "reasons": reasons,
         "call_wall": _wall(chain, base_chain, open_chain, "call", call_strike, spot),
         "put_wall": _wall(chain, base_chain, open_chain, "put", put_strike, spot),
-        "tracked_call_erosion_30m": call_erosion_30m,
+        "tracked_call_erosion_30m": tracked_call_erosion_30m,
         "tracked_call_erosion_5m": call_erosion_5m,
-        "tracked_put_build_30m": put_build_30m,
+        "tracked_put_build_30m": tracked_put_build_30m,
         "near": near,
         "cross": cross,
         "calls": calls,
         "puts": puts,
+        "nearest_call": nearest_call,
+        "nearest_put": nearest_put,
         "events": events,
         "history": history,
         "wall_map": wall_map,
