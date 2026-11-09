@@ -4,7 +4,8 @@ import json
 
 import pytest
 
-from api import tv_auth
+from api.tv import auth as tv_auth
+from api.tv import client as tv_client
 
 
 @pytest.fixture(autouse=True)
@@ -70,7 +71,7 @@ def test_get_tv_cookies_refresh_forces_retry(monkeypatch):
 
 
 def test_tv_scanner_data_passes_cookies(monkeypatch):
-    monkeypatch.setattr(tv_auth, "get_tv_cookies", lambda **kw: {"sessionid": "abc"})
+    monkeypatch.setattr(tv_client, "get_tv_cookies", lambda **kw: {"sessionid": "abc"})
 
     class Query:
         kwargs = None
@@ -79,14 +80,14 @@ def test_tv_scanner_data_passes_cookies(monkeypatch):
             Query.kwargs = kwargs
             return 3, "frame"
 
-    result = tv_auth.tv_scanner_data(Query())
+    result = tv_client.get_scanner_data(Query())
 
     assert result == (3, "frame")
     assert Query.kwargs == {"cookies": {"sessionid": "abc"}}
 
 
 def test_tv_scanner_data_without_cookies(monkeypatch):
-    monkeypatch.setattr(tv_auth, "get_tv_cookies", lambda **kw: None)
+    monkeypatch.setattr(tv_client, "get_tv_cookies", lambda **kw: None)
 
     class Query:
         kwargs = None
@@ -95,7 +96,7 @@ def test_tv_scanner_data_without_cookies(monkeypatch):
             Query.kwargs = kwargs
             return 0, "frame"
 
-    assert tv_auth.tv_scanner_data(Query()) == (0, "frame")
+    assert tv_client.get_scanner_data(Query()) == (0, "frame")
     assert Query.kwargs == {}
 
 

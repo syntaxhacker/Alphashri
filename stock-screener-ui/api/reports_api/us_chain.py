@@ -13,12 +13,12 @@ All timestamps are **America/New_York**. US tape dates must never use IST —
 from __future__ import annotations
 
 import datetime as dt
-import json
-import urllib.request
 from typing import Any
 from zoneinfo import ZoneInfo
 
 from curl_cffi import requests
+
+from api.tv import scan_raw
 
 ET = ZoneInfo("America/New_York")
 
@@ -74,14 +74,10 @@ def front_contract(root: str = "NQ") -> dict[str, Any]:
 def tv_price(ticker: str, timeout: int = 20) -> float | None:
     """Live-ish last price from TradingView's futures scanner."""
     body = {"symbols": {"tickers": [ticker], "query": {"types": []}}, "columns": ["close"]}
-    req = urllib.request.Request(
-        "https://scanner.tradingview.com/futures/scan",
-        data=json.dumps(body).encode(),
-        headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"},
-    )
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310
-            return float(json.load(r)["data"][0]["d"][0])
+        response = scan_raw("futures", body, timeout=timeout)
+        response.raise_for_status()
+        return float(response.json()["data"][0]["d"][0])
     except Exception:  # noqa: BLE001
         return None
 

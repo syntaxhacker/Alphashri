@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from api.event_radar.sources import tradingview
 from api.event_radar.sources.tradingview import (
     COLUMNS,
     DIVIDEND_CONFIDENCE,
@@ -32,26 +33,29 @@ class FakeResponse:
         return self.payload
 
 
-class FakeClient:
-    def __init__(self, response):
-        self.response = response
-        self.calls: list[dict] = []
+def _install_scan(monkeypatch, response=None, exc=None):
+    calls: list[dict] = []
 
-    def post(self, url, json=None, headers=None, timeout=None):
-        self.calls.append(
-            {"url": url, "json": json, "headers": headers, "timeout": timeout}
-        )
-        return self.response
+    def fake_scan_raw(market, body, *, timeout=None, headers=None):
+        calls.append({"market": market, "json": body, "timeout": timeout})
+        if exc is not None:
+            raise exc
+        return response
+
+    monkeypatch.setattr(tradingview, "scan_raw", fake_scan_raw)
+    return calls
 
 
 class TestRequest:
-    def test_body_and_url(self):
-        client = FakeClient(FakeResponse(_load("tv_scanner_america.json")))
-        fetch_events(client, market="america", days_ahead=120, limit=1500, now=NOW)
+    def test_body_and_url(self, monkeypatch):
+        calls = _install_scan(
+            monkeypatch, FakeResponse(_load("tv_scanner_america.json"))
+        )
+        fetch_events(market="america", days_ahead=120, limit=1500, now=NOW)
 
-        assert len(client.calls) == 1
-        call = client.calls[0]
-        assert call["url"] == "https://scanner.tradingview.com/america/scan"
+        assert len(calls) == 1
+        call = calls[0]
+        assert call["market"] == "america"
         assert call["timeout"] == 30
         body = call["json"]
         assert body["columns"] == list(COLUMNS)
@@ -64,32 +68,27 @@ class TestRequest:
         assert filters[0]["operation"] == "greater"
         assert filters[0]["right"] == int(NOW.timestamp())
 
-    def test_market_is_in_the_url(self):
-        client = FakeClient(FakeResponse({"data": []}))
-        fetch_events(client, market="india", now=NOW)
-        assert client.calls[0]["url"] == (
-            "https://scanner.tradingview.com/india/scan"
-        )
-        assert client.calls[0]["json"]["markets"] == ["india"]
+    def test_market_is_in_the_url(self, monkeypatch):
+        calls = _install_scan(monkeypatch, FakeResponse({"data": []}))
+        fetch_events(market="india", now=NOW)
+        assert calls[0]["market"] == "india"
+        assert calls[0]["json"]["markets"] == ["india"]
 
-    def test_non_200_raises_with_status(self):
-        client = FakeClient(FakeResponse({}, status_code=500))
+    def test_non_200_raises_with_status(self, monkeypatch):
+        _install_scan(monkeypatch, FakeResponse({}, status_code=500))
         with pytest.raises(RuntimeError, match="500"):
-            fetch_events(client, now=NOW)
+            fetch_events(now=NOW)
 
-    def test_transport_error_is_wrapped(self):
-        class Broken:
-            def post(self, *args, **kwargs):
-                raise OSError("connection reset")
-
+    def test_transport_error_is_wrapped(self, monkeypatch):
+        _install_scan(monkeypatch, exc=OSError("connection reset"))
         with pytest.raises(RuntimeError, match="tv_source_unavailable"):
-            fetch_events(Broken(), now=NOW)
+            fetch_events(now=NOW)
 
 
 class TestParsing:
-    def test_recorded_payload(self):
-        client = FakeClient(FakeResponse(_load("tv_scanner_america.json")))
-        events = fetch_events(client, days_ahead=120, now=NOW)
+    def test_recorded_payload(self, monkeypatch):
+        _install_scan(monkeypatch, FakeResponse(_load("tv_scanner_america.json")))
+        events = fetch_events(days_ahead=120, now=NOW)
 
         assert len(events) == 3  # ORCL earnings, MSFT earnings + dividend
 
@@ -110,30 +109,26 @@ class TestParsing:
         assert dividends[0].title == "MSFT ex-dividend"
         assert dividends[0].confidence == DIVIDEND_CONFIDENCE
 
-    def test_epoch_is_seconds_not_milliseconds(self):
-        events = fetch_events(
-            FakeClient(FakeResponse(_load("tv_scanner_america.json"))), now=NOW
-        )
+    def test_epoch_is_seconds_not_milliseconds(self, monkeypatch):
+        _install_scan(monkeypatch, FakeResponse(_load("tv_scanner_america.json")))
+        events = fetch_events(now=NOW)
         assert events[0].event_date == "2026-11-12"
 
-    def test_null_zero_and_out_of_window_rows_are_skipped(self):
-        symbols = {ev.symbol for ev in fetch_events(
-            FakeClient(FakeResponse(_load("tv_scanner_america.json"))), now=NOW
-        )}
+    def test_null_zero_and_out_of_window_rows_are_skipped(self, monkeypatch):
+        _install_scan(monkeypatch, FakeResponse(_load("tv_scanner_america.json")))
+        symbols = {ev.symbol for ev in fetch_events(now=NOW)}
         assert symbols == {"ORCL", "MSFT"}  # NVDA null, XYZ 0, FAR too far, PAST past
 
-    def test_days_ahead_limits_the_horizon(self):
-        events = fetch_events(
-            FakeClient(FakeResponse(_load("tv_scanner_america.json"))),
-            days_ahead=30,
-            now=NOW,
-        )
+    def test_days_ahead_limits_the_horizon(self, monkeypatch):
+        _install_scan(monkeypatch, FakeResponse(_load("tv_scanner_america.json")))
+        events = fetch_events(days_ahead=30, now=NOW)
         assert [ev.event_date for ev in events] == ["2026-11-12"]
 
-    def test_duplicate_rows_are_deduped(self):
+    def test_duplicate_rows_are_deduped(self, monkeypatch):
         row = {"s": "NASDAQ:ORCL", "d": ["NASDAQ:ORCL", "Oracle", "NASDAQ", 1794441600, None]}
         payload = {"data": [row, dict(row)]}
-        events = fetch_events(FakeClient(FakeResponse(payload)), now=NOW)
+        _install_scan(monkeypatch, FakeResponse(payload))
+        events = fetch_events(now=NOW)
         assert len(events) == 1
 
     @pytest.mark.parametrize(
@@ -146,60 +141,65 @@ class TestParsing:
             {"s": "X", "d": ["N/A", "junk", "NASDAQ", 1794441600, None]},
         ],
     )
-    def test_malformed_rows_are_skipped(self, entry):
-        assert fetch_events(FakeClient(FakeResponse({"data": [entry]})), now=NOW) == []
+    def test_malformed_rows_are_skipped(self, monkeypatch, entry):
+        _install_scan(monkeypatch, FakeResponse({"data": [entry]}))
+        assert fetch_events(now=NOW) == []
 
-    def test_bare_list_row_is_accepted(self):
+    def test_bare_list_row_is_accepted(self, monkeypatch):
         payload = {"data": [["NASDAQ:ORCL", "Oracle", "NASDAQ", 1794441600, None]]}
-        events = fetch_events(FakeClient(FakeResponse(payload)), now=NOW)
+        _install_scan(monkeypatch, FakeResponse(payload))
+        events = fetch_events(now=NOW)
         assert events[0].symbol == "ORCL"
 
-    def test_missing_text_columns_are_none(self):
+    def test_missing_text_columns_are_none(self, monkeypatch):
         payload = {"data": [["NASDAQ:ORCL", None, "NASDAQ", 1794441600, None]]}
-        events = fetch_events(FakeClient(FakeResponse(payload)), now=NOW)
+        _install_scan(monkeypatch, FakeResponse(payload))
+        events = fetch_events(now=NOW)
         assert events[0].name is None
         assert events[0].exchange == "NASDAQ"
 
-    def test_unknown_exchange_is_dropped(self):
+    def test_unknown_exchange_is_dropped(self, monkeypatch):
         # `america` carries OTC/foreign listings with no exchange label; a US
         # calendar must never show them.
         payload = {"data": [["NASDAQ:ORCL", "Oracle", None, 1794441600, None]]}
-        assert fetch_events(FakeClient(FakeResponse(payload)), now=NOW) == []
+        _install_scan(monkeypatch, FakeResponse(payload))
+        assert fetch_events(now=NOW) == []
 
-    def test_overflowing_epoch_is_skipped(self):
+    def test_overflowing_epoch_is_skipped(self, monkeypatch):
         payload = {"data": [["NASDAQ:ORCL", "Oracle", "NASDAQ", 1e30, None]]}
-        assert fetch_events(FakeClient(FakeResponse(payload)), now=NOW) == []
+        _install_scan(monkeypatch, FakeResponse(payload))
+        assert fetch_events(now=NOW) == []
 
-    def test_unparseable_payload_returns_empty(self):
+    def test_unparseable_payload_returns_empty(self, monkeypatch):
         class BadJson(FakeResponse):
             def json(self):
                 raise ValueError("not json")
 
-        client = FakeClient(BadJson(None))
-        assert fetch_events(client, now=NOW) == []
+        _install_scan(monkeypatch, BadJson(None))
+        assert fetch_events(now=NOW) == []
 
-    def test_junk_epochs_are_skipped(self):
+    def test_junk_epochs_are_skipped(self, monkeypatch):
         rows = [
             {"s": "A", "d": ["A", "A Corp", "NYSE", "abc", None]},
             {"s": "B", "d": ["B", "B Corp", "NYSE", float("nan"), float("inf")]},
             {"s": "C", "d": ["C", "C Corp", "NYSE", -5, None]},
         ]
-        assert fetch_events(FakeClient(FakeResponse({"data": rows})), now=NOW) == []
+        _install_scan(monkeypatch, FakeResponse({"data": rows}))
+        assert fetch_events(now=NOW) == []
 
     @pytest.mark.parametrize("payload", [{}, {"data": None}, [1, 2], None])
-    def test_bad_payload_returns_empty(self, payload):
-        assert fetch_events(FakeClient(FakeResponse(payload)), now=NOW) == []
+    def test_bad_payload_returns_empty(self, monkeypatch, payload):
+        _install_scan(monkeypatch, FakeResponse(payload))
+        assert fetch_events(now=NOW) == []
 
-    def test_naive_now_is_treated_as_utc(self):
+    def test_naive_now_is_treated_as_utc(self, monkeypatch):
         naive = dt.datetime(2026, 10, 29, 12, 0)
-        events = fetch_events(
-            FakeClient(FakeResponse(_load("tv_scanner_america.json"))), now=naive
-        )
+        _install_scan(monkeypatch, FakeResponse(_load("tv_scanner_america.json")))
+        events = fetch_events(now=naive)
         assert events[0].event_date == "2026-11-12"
 
-    def test_now_defaults_to_real_clock(self):
+    def test_now_defaults_to_real_clock(self, monkeypatch):
         # Only asserts it runs and returns events without raising on tz handling.
-        events = fetch_events(
-            FakeClient(FakeResponse(_load("tv_scanner_america.json")))
-        )
+        _install_scan(monkeypatch, FakeResponse(_load("tv_scanner_america.json")))
+        events = fetch_events()
         assert isinstance(events, list)

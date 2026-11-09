@@ -87,7 +87,7 @@ def _from_env() -> Optional[Any]:
 def _from_browser() -> Optional[Any]:
     """Read TradingView cookies from the local browser (dev machines only)."""
     try:
-        root = Path(__file__).resolve().parents[2]
+        root = Path(__file__).resolve().parents[3]
         if str(root) not in sys.path:
             sys.path.insert(0, str(root))
         from upstox_trader.screeners.tv_cookies import get_tradingview_cookies
@@ -131,14 +131,6 @@ def get_tv_cookies(*, force: bool = False):
             len(jar) if jar is not None else 0,
         )
         return jar
-
-
-def tv_scanner_data(query):
-    """Run a ``tradingview_screener.Query`` with the best available auth."""
-    cookies = get_tv_cookies()
-    if cookies:
-        return query.get_scanner_data(cookies=cookies)
-    return query.get_scanner_data()
 
 
 def refresh_tv_cookies():

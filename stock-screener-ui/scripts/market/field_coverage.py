@@ -15,10 +15,11 @@ import json
 import sys
 from pathlib import Path
 
-import requests
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from market.tv_client import HEADERS, MARKETS  # noqa: E402
+from api.tv import scan_raw  # noqa: E402
 
 FIELDS = {
     "identity": ["name", "description", "type", "sector", "industry", "exchange", "currency"],
@@ -43,7 +44,6 @@ ALL_FIELDS = [f for group in FIELDS.values() for f in group]
 
 def probe(market: str) -> dict[str, str]:
     """Return {field: 'ok'|'empty'|'null'} for one market."""
-    url = MARKETS.get(market, "https://scanner.tradingview.com/{market}/scan").format(market=market)
     body = {
         "markets": [market],
         "symbols": {"tickers": [], "query": {"types": []}},
@@ -51,7 +51,7 @@ def probe(market: str) -> dict[str, str]:
         "range": [0, 400],
         "ignore_unknown_fields": True,
     }
-    resp = requests.post(url, json=body, headers=HEADERS, timeout=40)
+    resp = scan_raw(market, body, timeout=40)
     resp.raise_for_status()
     payload = resp.json()
     rows = payload.get("data", [])

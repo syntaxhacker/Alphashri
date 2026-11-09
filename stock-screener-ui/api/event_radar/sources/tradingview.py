@@ -1,7 +1,7 @@
 """TradingView scanner adapter — the earnings / ex-dividend backbone.
 
 This is the boring half of the calendar, and it is the half users open the tab
-for on any given day. The public scanner (no auth) exposes
+for on any given day. The scanner (via :mod:`api.tv`, auth cookies) exposes
 ``earnings_release_next_date`` and ``dividend_ex_date_upcoming`` as **one** row
 per symbol, so a single POST covers the whole US market window.
 
@@ -22,15 +22,11 @@ from typing import Any
 
 from ..contract import Event
 from ..normalize import clean_symbol, dedupe, make_event_id
+from api.tv import scan_raw
 
 logger = logging.getLogger("event_radar.tradingview")
 
-SCANNER_URL = "https://scanner.tradingview.com/{market}/scan"
 REQUEST_TIMEOUT = 30
-USER_AGENT = (
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
-)
 
 #: Column order is the response row order — do not reorder without updating
 #: :func:`_row_values` and the fixture.
@@ -110,7 +106,7 @@ def _text(value: Any) -> str | None:
 
 
 def fetch_events(
-    client: Any,
+    client: Any = None,
     market: str = "america",
     days_ahead: int = 120,
     limit: int = 1500,
@@ -121,6 +117,11 @@ def fetch_events(
     The server-side filter only drops already-reported earnings; the horizon and
     the dividend window are applied here so one scan can serve several UI
     windows without a second request.
+
+    ``client`` is accepted for backwards compatibility with the event-radar
+    router, which still passes one positionally; the request always goes
+    through :func:`api.tv.scan_raw` so it carries the shared headers and the
+    real-time auth cookies.
     """
     clock = now or dt.datetime.now(dt.timezone.utc)
     if clock.tzinfo is None:
@@ -130,11 +131,9 @@ def fetch_events(
     horizon = today + dt.timedelta(days=days_ahead)
 
     body = _request_body(market, int(clock.timestamp()), limit)
-    url = SCANNER_URL.format(market=market)
-    headers = {"User-Agent": USER_AGENT, "Content-Type": "application/json"}
 
     try:
-        response = client.post(url, json=body, headers=headers, timeout=REQUEST_TIMEOUT)
+        response = scan_raw(market, body, timeout=REQUEST_TIMEOUT)
     except OSError as exc:
         raise RuntimeError(f"tv_source_unavailable: request failed ({exc})") from exc
 
@@ -243,7 +242,6 @@ __all__ = [
     "COLUMNS",
     "DIVIDEND_CONFIDENCE",
     "EARNINGS_CONFIDENCE",
-    "SCANNER_URL",
     "US_EXCHANGES",
     "fetch_events",
 ]

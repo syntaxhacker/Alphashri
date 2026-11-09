@@ -14,38 +14,22 @@ options chains. No API keys, no auth, no cookies.
 from __future__ import annotations
 
 import datetime as dt
+import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 import pandas as pd
-import requests
 
-SCANNER_URL = "https://scanner.tradingview.com/{market}/scan"
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
-    ),
-    "Content-Type": "application/json",
-}
-TIMEOUT = 30
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
-MARKETS = {
-    "america": "https://scanner.tradingview.com/america/scan",
-    "india": "https://scanner.tradingview.com/india/scan",
-    "futures": "https://scanner.tradingview.com/futures/scan",
-}
+# HEADERS/MARKETS are re-exported for scripts/market/field_coverage.py.
+from api.tv import HEADERS, MARKETS, add_symbol, scan_frame  # noqa: E402
 
-# Columns that are strings (never coerced to float)
-TEXT_COLUMNS = {"name", "description", "sector", "industry", "exchange", "type", "update_mode"}
-
-
-def _coerce(df: pd.DataFrame) -> pd.DataFrame:
-    """Coerce every non-text column to numeric, leaving NaN where TV returns null."""
-    for col in df.columns:
-        if col not in TEXT_COLUMNS:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-    return df
+#: Scanner columns for a plain price/liquidity frame (script default).
+DEFAULT_COLUMNS = ["name", "description", "close", "change", "volume"]
 
 
 def scan(
@@ -63,32 +47,15 @@ def scan(
     ``[{"left": "change", "operation": "less", "right": -2}]``.
     Multiple filters are ANDed by the endpoint.
     """
-    url = MARKETS.get(market, SCANNER_URL.format(market=market))
-    body: dict[str, Any] = {
-        "markets": [market],
-        "symbols": {"tickers": list(tickers or []), "query": {"types": []}},
-        "columns": list(columns or ["name", "description", "close", "change", "volume"]),
-        "range": [0, limit],
-        "ignore_unknown_fields": True,
-    }
-    if filters:
-        body["filter"] = list(filters)
-    if sort:
-        body["sort"] = {"sortBy": sort, "sortOrder": order}
-
-    resp = requests.post(url, json=body, headers=HEADERS, timeout=TIMEOUT)
-    resp.raise_for_status()
-    payload = resp.json()
-    rows = [dict(zip(body["columns"], row["d"])) for row in payload.get("data", [])]
-    df = pd.DataFrame(rows, columns=list(body["columns"]))
-    return _coerce(df)
-
-
-def add_symbol(df: pd.DataFrame) -> pd.DataFrame:
-    """Attach a ``sym`` column (ticker without exchange prefix) to a scanner frame."""
-    if "name" in df.columns:
-        df = df.assign(sym=df["name"].astype(str).str.split(":").str[-1])
-    return df
+    return scan_frame(
+        market,
+        columns=columns or DEFAULT_COLUMNS,
+        filters=filters,
+        sort=sort,
+        order=order,
+        limit=limit,
+        tickers=tickers,
+    )
 
 
 def scanner_frame(market: str, **kwargs: Any) -> pd.DataFrame:

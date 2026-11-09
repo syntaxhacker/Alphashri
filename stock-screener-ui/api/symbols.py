@@ -12,7 +12,7 @@ router = APIRouter(tags=["symbols"])
 
 from db.database import SessionLocal
 from db.models import Instrument
-from api.tv_auth import tv_scanner_data
+from api.tv import get_scanner_data, normalize_tv_symbol, to_tv_ticker
 
 _instruments_cache: List[Dict] = []
 _instruments_loaded = False
@@ -41,71 +41,6 @@ def _load_instruments():
         print(f"⚠️ Failed to load instruments from database: {e}")
         _instruments_loaded = True
         return _instruments_cache
-
-
-def normalize_tv_symbol(raw: str) -> str:
-    """
-    Normalize a raw value from TradingView (ticker like 'NSE:IDEA' or 'name' like 'BAJAJ_AUTO')
-    to the bare trading_symbol used in our local Instrument table and most of the app.
-
-    Rules (kept conservative so it can be adopted elsewhere later without breaking things):
-      - Strip leading NSE: / BSE: (and variants)
-      - Uppercase + strip
-      - Normalize common TV separators (_ , spaces) toward the local convention (turn _ into - for cases like BAJAJ_AUTO -> BAJAJ-AUTO)
-      - Light suffix strip (EQ, .NS etc) — mirrors some of what news mapper does but TV-specific
-    This is a pure function. Existing ad-hoc .replace('NSE:','') calls in heatmap.py,
-    screener_scan.py etc. are left completely untouched.
-
-    Reverse: see to_tv_ticker().
-    """
-    if not raw:
-        return ""
-    s = str(raw).upper().strip()
-
-    # Strip common exchange suffixes FIRST (before char removal), handling dotted and dashed forms
-    for suf in (".NS", ".BO", "-NS", "-BO", "-EQ", " EQ", "EQ", "NS", "BO"):
-        if s.endswith(suf):
-            s = s[: -len(suf)].strip()
-            break
-
-    # Strip exchange: prefix (handle the DF column weirdness too by taking last token if needed)
-    for pref in ("NSE:", "BSE:", "NSE_EQ:", "BSE_EQ:", "NSE-"):
-        if s.startswith(pref):
-            s = s[len(pref):].strip()
-            break
-    # If still looks like "TICKER    NSE:FOO" garbage from bad DF series str(), try to recover last token
-    if "NSE:" in s or "BSE:" in s:
-        parts = s.replace("\n", " ").split()
-        for p in reversed(parts):
-            if p.startswith("NSE:") or p.startswith("BSE:"):
-                s = p.split(":", 1)[1] if ":" in p else p
-                break
-
-    # TV often uses _ where local instruments use - (e.g. BAJAJ_AUTO vs BAJAJ-AUTO)
-    # We turn _ into - to increase chance of matching local trading_symbol.
-    # Do not touch & — local keeps M&M, and TV also returns M&M for set_tickers.
-    s = s.replace("_", "-").replace(" ", "")
-
-    # Final light dot cleanup (after suffix handling)
-    s = s.replace(".", "")
-
-    return s.strip()
-
-
-def to_tv_ticker(bare_symbol: str, exchange: str = "NSE") -> str:
-    """
-    Turn a local bare trading_symbol (e.g. 'IDEA', 'BAJAJ-AUTO') into a TV ticker
-    suitable for set_tickers() or other TV APIs: 'NSE:IDEA' or 'NSE:BAJAJ-AUTO'.
-
-    This is the other direction of the normalized matching.
-    """
-    if not bare_symbol:
-        return ""
-    sym = normalize_tv_symbol(bare_symbol)  # clean it first
-    ex = (exchange or "NSE").upper().strip()
-    if not ex.endswith(":"):
-        ex = ex + ":"
-    return f"{ex}{sym}"
 
 
 def _search_tv(q: str, limit: int = 10) -> list[dict]:
@@ -137,7 +72,7 @@ def _search_tv(q: str, limit: int = 10) -> list[dict]:
             .order_by("market_cap_basic", ascending=False)
             .limit(200)
         )
-        _, df = tv_scanner_data(tvq)
+        _, df = get_scanner_data(tvq)
         if df is None or df.empty:
             return []
 

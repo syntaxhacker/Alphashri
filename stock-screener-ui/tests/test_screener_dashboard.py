@@ -314,9 +314,9 @@ def test_cached_flag_on_second_hit():
 
 
 def test_dashboard_passes_tv_cookies(monkeypatch):
-    import api.tv_auth as tv_auth
+    import api.tv.client as tv_client
 
-    monkeypatch.setattr(tv_auth, "get_tv_cookies", lambda **kw: {"sessionid": "abc"})
+    monkeypatch.setattr(tv_client, "get_tv_cookies", lambda **kw: {"sessionid": "abc"})
     _FakeQuery.last_kwargs = None
 
     _client().get("/api/screener/dashboard")

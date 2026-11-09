@@ -36,7 +36,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, Query
 
 from api.reports_api._time import now_iso as _now_iso
-from api.tv_auth import tv_scanner_data
+from api.tv import get_scanner_data
 from api.reports_api._time import today_str as _today_str
 from api.reports_api._dates import parse_day as _parse_date
 from api.reports_api._numeric import safe_float
@@ -145,7 +145,7 @@ def _fetch_tv_frame() -> Any:
     from tradingview_screener import Query
 
     q = Query().select(*TV_FIELDS).set_markets("india").limit(TV_LIMIT)
-    _, df = tv_scanner_data(q)
+    _, df = get_scanner_data(q)
     return df
 
 

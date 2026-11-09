@@ -17,10 +17,13 @@ alongside TV's ``relative_volume_10d_calc``: TV's field uses a different
 from __future__ import annotations
 
 import logging
-from api.tv_auth import tv_scanner_data
+from api.tv import get_scanner_data
 
 log = logging.getLogger(__name__)
 
+#: Minimal frame for the volume gates. A strict subset of
+#: ``api.tv.columns.SCREENER_COLUMNS``; listed explicitly because the batch
+#: must not pull ~20 unused fields per row.
 TV_COLUMNS = (
     "name",
     "volume",
@@ -62,7 +65,7 @@ def fetch_tv_volume_metrics(symbols: list[str], *, limit: int | None = None) -> 
     """
     try:
         from tradingview_screener import Query
-        from api.symbols import normalize_tv_symbol, to_tv_ticker
+        from api.tv import normalize_tv_symbol, to_tv_ticker
     except Exception as exc:
         log.warning("TV prefilter: tradingview_screener unavailable (%s)", exc)
         return {}
@@ -88,7 +91,7 @@ def fetch_tv_volume_metrics(symbols: list[str], *, limit: int | None = None) -> 
         # mixes in other markets' tickers and drops valid symbols.
         try:
             query = Query().set_tickers(*tickers).select(*TV_COLUMNS)
-            _, df = tv_scanner_data(query)
+            _, df = get_scanner_data(query)
         except Exception as exc:
             log.warning("TV prefilter: scanner batch failed (%s)", exc)
             failed.extend(batch)
