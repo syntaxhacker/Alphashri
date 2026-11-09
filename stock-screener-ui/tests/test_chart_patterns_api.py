@@ -1,6 +1,8 @@
 """API tests for /api/chart-patterns (in-memory DB, mocked V3 fetch)."""
 import asyncio
 import gzip
+import logging
+import pickle
 import threading
 import time as _time
 
@@ -66,6 +68,14 @@ def cp_client(test_db_engine):
     store.set_session_factory(factory)
     jobs.reset()
 
+    # Hermetic caches: the candles layer keeps a process-global negative
+    # cache (90s TTL) for empty fetches — a real fetch earlier in the run
+    # would otherwise short-circuit even monkeypatched inner fetches.
+    clear_empty = getattr(cp_api.candles, "clear_empty_cache", None)
+    if callable(clear_empty):
+        clear_empty()
+    cp_api._chart_neg_cache.clear()
+
     app = FastAPI()
     app.include_router(router)
 
@@ -85,6 +95,9 @@ def cp_client(test_db_engine):
             yield client
     finally:
         cp_api._clear_read_caches()
+        if callable(clear_empty):
+            clear_empty()
+        cp_api._chart_neg_cache.clear()
         app.dependency_overrides.clear()
         jobs.reset()
         store.reset_session_factory()
@@ -1609,6 +1622,9 @@ def test_symbol_chart_1d_empty_tape_has_no_partial_mark(cp_client, monkeypatch, 
     store.save_hits("cpj_pempty", [_hit("IRCON")])
     base = _partial_daily_base()
     monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    # The synthetic-today bar is process-cached for 30s; drop any bar the
+    # preceding test pinned for this symbol or the tape never gets consulted.
+    cp_api.candles._PARTIAL_CACHE.clear()
     monkeypatch.setattr(
         "market_data.market_data.fetch_candles_for_timeframe",
         lambda symbol, timeframe, **kwargs: base,
@@ -2389,12 +2405,22 @@ def _hanging_fetch(symbol, timeframe, **kwargs):
     return None
 
 
-def test_symbol_chart_fetch_timeout_returns_empty_200(cp_client, monkeypatch):
+def _seed_live_edge_disk_cache(symbol, timeframe, df, variant=None):
+    """Write ``df`` to the default live-edge cache entry (CACHE_DIR must be pinned first)."""
+    path = cp_api.candles._cache_path(timeframe, symbol, None, variant=variant)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "wb") as f:
+        pickle.dump(df, f)
+    return path
+
+
+def test_symbol_chart_fetch_timeout_returns_empty_200(cp_client, monkeypatch, tmp_path):
     """A hung upstream fetch is aborted at the timeout: HTTP 200 with
     ``{"candles":[]}`` plus a clear ``error``/``note``, never 500, and the
     wait is bounded well below the hung call's 30s."""
     store.save_hits("cpj_timeout", [_hit("POWERMECH")])
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _hanging_fetch)
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
     monkeypatch.setattr(cp_api, "_CHART_FETCH_TIMEOUT_SEC", 0.2)
     cp_api._chart_neg_cache.clear()
 
@@ -2416,7 +2442,7 @@ def test_symbol_chart_fetch_timeout_returns_empty_200(cp_client, monkeypatch):
     assert elapsed < 5, f"fetch was not bounded: {elapsed:.1f}s"
 
 
-def test_symbol_chart_fetch_error_returns_empty_200(cp_client, monkeypatch):
+def test_symbol_chart_fetch_error_returns_empty_200(cp_client, monkeypatch, tmp_path):
     """A transient upstream failure (DNS, 429...) returns 200 + empty candles
     with error/note and is not negative-cached, so a recovered feed retries."""
     store.save_hits("cpj_err", [_hit("POWERMECH")])
@@ -2427,6 +2453,7 @@ def test_symbol_chart_fetch_error_returns_empty_200(cp_client, monkeypatch):
         raise RuntimeError("Temporary failure in name resolution")
 
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _flaky)
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
     monkeypatch.setattr(cp_api, "_CHART_FETCH_TIMEOUT_SEC", 7.0)
     cp_api._chart_neg_cache.clear()
 
@@ -2441,7 +2468,7 @@ def test_symbol_chart_fetch_error_returns_empty_200(cp_client, monkeypatch):
     assert len(calls) == 2, "fetch must be retried for transient errors"
 
 
-def test_symbol_chart_empty_result_negative_cache(cp_client, monkeypatch):
+def test_symbol_chart_empty_result_negative_cache(cp_client, monkeypatch, tmp_path):
     """An empty fetch is cached per (symbol, timeframe, session): the repeat
     click is answered instantly without calling the upstream fetch again."""
     store.save_hits("cpj_neg", [_hit("POWERMECH")])
@@ -2452,6 +2479,7 @@ def test_symbol_chart_empty_result_negative_cache(cp_client, monkeypatch):
         return None
 
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _empty)
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
     cp_api._chart_neg_cache.clear()
 
     first = cp_client.get("/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1D"})
@@ -2471,7 +2499,7 @@ def test_symbol_chart_empty_result_negative_cache(cp_client, monkeypatch):
     assert calls == [("POWERMECH", "1D"), ("RELIANCE", "1D")]
 
 
-def test_symbol_chart_negative_cache_keyed_by_session(cp_client, monkeypatch):
+def test_symbol_chart_negative_cache_keyed_by_session(cp_client, monkeypatch, tmp_path):
     """Negative-cache entries never outlive the IST session: a new session
     date re-fetches even within the TTL."""
     store.save_hits("cpj_neg_sess", [_hit("POWERMECH")])
@@ -2483,6 +2511,7 @@ def test_symbol_chart_negative_cache_keyed_by_session(cp_client, monkeypatch):
         return None
 
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _empty)
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
     monkeypatch.setattr(cp_api, "_ist_session_date", lambda: next(sessions))
     cp_api._chart_neg_cache.clear()
 
@@ -2522,3 +2551,172 @@ def test_symbol_chart_normal_path_unchanged(cp_client, monkeypatch):
     again = cp_client.get("/api/chart-patterns/symbol/RELIANCE/chart", params={"timeframe": "1D", "limit": 50})
     assert again.status_code == 200
     assert calls == [("RELIANCE", "1D"), ("RELIANCE", "1D")]
+
+
+# ---------------------------------------------------------------------------
+# Symbol chart fetch: stale disk-cache fallback on upstream failure.
+#
+# When the upstream fetch times out / errors / returns nothing, the endpoint
+# serves the default live-edge disk cache entry (a completed-session frame)
+# marked cached/stale with as_of pinned to the frame's last session — never
+# as current data, and only for the live-edge file the fetch itself uses.
+# ---------------------------------------------------------------------------
+
+
+def _disk_cache_variant() -> str:
+    return f"lb{config.READ_LOOKBACK_BARS}"
+
+
+def test_symbol_chart_fetch_timeout_stale_fallback_returns_cached_frame(
+    cp_client, monkeypatch, tmp_path, caplog,
+):
+    """Timeout + a live-edge disk frame → 200 with the cached candles marked
+    stale/cached and as_of = the frame's last session; never passed off as
+    current, and the wait stays bounded by the timeout."""
+    store.save_hits("cpj_stale_to", [_hit("POWERMECH")])
+    df = _make_df(80)
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    _seed_live_edge_disk_cache("POWERMECH", "1D", df, variant=_disk_cache_variant())
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _hanging_fetch)
+    monkeypatch.setattr(cp_api, "_CHART_FETCH_TIMEOUT_SEC", 0.2)
+    cp_api._chart_neg_cache.clear()
+    expected_as_of = cp_api.candles.frame_last_date(df)
+
+    with caplog.at_level(logging.INFO, logger="api.chart_patterns"):
+        started = _time.monotonic()
+        chart = cp_client.get(
+            "/api/chart-patterns/symbol/POWERMECH/chart",
+            params={"timeframe": "1D", "detect_patterns": 1},
+        )
+        elapsed = _time.monotonic() - started
+
+    assert chart.status_code == 200
+    body = chart.json()
+    assert body["symbol"] == "POWERMECH" and body["timeframe"] == "1D"
+    assert body["cached"] is True and body["stale"] is True
+    assert body["as_of"] == expected_as_of
+    assert "served last cached frame" in body["note"]
+    assert "timed out" in body["note"]
+    assert "error" not in body
+    assert len(body["candles"]) == 80
+    assert body["candles"][-1]["c"] == pytest.approx(float(df["close"].iloc[-1]))
+    assert body["overlays"] == [] and body["trend_lines"] == []
+    assert elapsed < 5, f"fetch was not bounded: {elapsed:.1f}s"
+    joined = [rec.getMessage() for rec in caplog.records]
+    assert any("chart_fetch" in m and "stale_fallback=true" in m for m in joined), joined
+    # A stale serve is a data serve, not an empty result: must not neg-cache.
+    assert cp_api._chart_neg_cache == {}
+
+
+def test_symbol_chart_fetch_timeout_no_cache_stays_empty(cp_client, monkeypatch, tmp_path, caplog):
+    """Timeout + no disk frame → the current ``error:"fetch_timeout"`` empty
+    response, logged with stale_fallback=false."""
+    store.save_hits("cpj_stale_miss", [_hit("POWERMECH")])
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)  # empty: no cache
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _hanging_fetch)
+    monkeypatch.setattr(cp_api, "_CHART_FETCH_TIMEOUT_SEC", 0.2)
+    cp_api._chart_neg_cache.clear()
+
+    with caplog.at_level(logging.INFO, logger="api.chart_patterns"):
+        chart = cp_client.get(
+            "/api/chart-patterns/symbol/POWERMECH/chart",
+            params={"timeframe": "1D"},
+        )
+
+    assert chart.status_code == 200
+    body = chart.json()
+    assert body["candles"] == []
+    assert body["error"] == "fetch_timeout"
+    assert "stale" not in body and "cached" not in body
+    joined = [rec.getMessage() for rec in caplog.records]
+    assert any("chart_fetch" in m and "stale_fallback=false" in m for m in joined), joined
+
+
+def test_symbol_chart_fetch_error_stale_fallback_returns_cached_frame(
+    cp_client, monkeypatch, tmp_path,
+):
+    """A transient upstream exception also falls back to the cached frame, and
+    — like the empty response — is not negative-cached, so the next click
+    retries upstream (and serves stale again while it fails)."""
+    store.save_hits("cpj_stale_err", [_hit("POWERMECH")])
+    df = _make_df(60)
+    calls = []
+
+    def _boom(symbol, timeframe, **kwargs):
+        calls.append(1)
+        raise RuntimeError("Temporary failure in name resolution")
+
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    _seed_live_edge_disk_cache("POWERMECH", "1D", df, variant=_disk_cache_variant())
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _boom)
+    cp_api._chart_neg_cache.clear()
+
+    for _ in range(2):
+        resp = cp_client.get("/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1D"})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["stale"] is True and body["cached"] is True
+        assert body["as_of"] == cp_api.candles.frame_last_date(df)
+        assert "served last cached frame" in body["note"]
+        assert len(body["candles"]) == 60
+    assert len(calls) == 2, "stale fallback must not suppress the retry"
+
+
+def test_symbol_chart_empty_result_stale_fallback_returns_cached_frame(
+    cp_client, monkeypatch, tmp_path,
+):
+    """An empty upstream frame falls back to the cached frame and is not
+    negative-cached (the neg cache is for genuinely empty answers)."""
+    store.save_hits("cpj_stale_nd", [_hit("POWERMECH")])
+    df = _make_df(50)
+    calls = []
+
+    def _empty(symbol, timeframe, **kwargs):
+        calls.append((symbol, timeframe))
+        return None
+
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    _seed_live_edge_disk_cache("POWERMECH", "1D", df, variant=_disk_cache_variant())
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _empty)
+    cp_api._chart_neg_cache.clear()
+
+    for _ in range(2):
+        resp = cp_client.get("/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1D"})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["stale"] is True
+        assert len(body["candles"]) == 50
+    assert calls == [("POWERMECH", "1D"), ("POWERMECH", "1D")]
+    assert cp_api._chart_neg_cache == {}
+
+
+def test_symbol_chart_stale_fallback_ignores_historical_namespace(
+    cp_client, monkeypatch, tmp_path,
+):
+    """A frame cached only under an as-of/historical namespace is a different
+    session window — it must never be served for the live-edge request, even
+    on upstream timeout (no cross-session fallback)."""
+    store.save_hits("cpj_stale_xs", [_hit("POWERMECH")])
+    df = _make_df(70)
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    historical = cp_api.candles._cache_path(
+        "1D", "POWERMECH", "2026-01-14", variant=_disk_cache_variant(),
+    )
+    historical.parent.mkdir(parents=True, exist_ok=True)
+    with open(historical, "wb") as f:
+        pickle.dump(df, f)
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _hanging_fetch)
+    monkeypatch.setattr(cp_api, "_CHART_FETCH_TIMEOUT_SEC", 0.2)
+    cp_api._chart_neg_cache.clear()
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/POWERMECH/chart",
+        params={"timeframe": "1D"},
+    )
+
+    assert chart.status_code == 200
+    body = chart.json()
+    assert body["candles"] == []
+    assert body["error"] == "fetch_timeout"
+    assert "stale" not in body and "cached" not in body

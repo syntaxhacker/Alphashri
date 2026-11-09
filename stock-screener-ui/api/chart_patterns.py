@@ -223,6 +223,13 @@ def _clear_read_caches() -> None:
 # ``error``/``note`` instead of 500. Empty results are cached per
 # ``(symbol, timeframe, IST session)`` for ~5 minutes so a repeat click is
 # instant; entries never outlive the session they were taken in.
+#
+# When the upstream fails (timeout / error / no data) and the default
+# live-edge disk cache entry holds a completed-session frame, the endpoint
+# serves that frame marked ``cached``/``stale`` with ``as_of`` set to the
+# frame's last session — never as current data. The read is local disk,
+# adds no network call, and never applies to historical/as-of namespaced
+# cache files.
 # ---------------------------------------------------------------------------
 
 #: Hard upper bound on one symbol-chart candle fetch (seconds). Env-overridable
@@ -278,6 +285,52 @@ def _chart_empty_payload(symbol: str, timeframe: str, *, reason: str, note: str)
     }
 
 
+def _stale_chart_fallback(
+    symbol: str,
+    timeframe: str,
+    *,
+    fetch_lookback: Optional[int],
+    clamp_lookback: Optional[int],
+    limit: int,
+    reason: str,
+) -> Optional[dict]:
+    """Last good on-disk frame for the live-edge cache entry, else ``None``.
+
+    Read-only and network-free. Only the default live-edge entry the fetch
+    itself would have used (matching ``lb{N}`` lookback variant) is
+    considered — historical/as-of namespaced files are never served. A frame
+    from an earlier session is returned solely with ``cached``/``stale`` set
+    and ``as_of`` pinned to the frame's last session date, so it can never
+    present itself as current data. Never raises.
+    """
+    try:
+        lb = None if fetch_lookback is None else int(fetch_lookback)
+        variant = f"lb{lb}" if lb is not None else None
+        path = candles._cache_path(timeframe, symbol, None, variant=variant)
+        df = candles._read_pickle_any(path)
+        if df is None:
+            return None
+        as_of = candles.frame_last_date(df)
+        if not as_of:
+            return None
+        series = _clamped_candle_series(df, clamp_lookback, limit)
+        if not series:
+            return None
+    except Exception:
+        return None
+    return {
+        "symbol": str(symbol).upper(),
+        "timeframe": timeframe,
+        "candles": series,
+        "overlays": [],
+        "trend_lines": [],
+        "cached": True,
+        "stale": True,
+        "as_of": as_of,
+        "note": f"served last cached frame (through {as_of}); {reason}",
+    }
+
+
 def _log_chart_fetch(
     symbol: str,
     timeframe: str,
@@ -287,10 +340,12 @@ def _log_chart_fetch(
     cache_hit: bool,
     timeout: bool,
     error: Optional[str],
+    stale_fallback: bool = False,
 ) -> None:
     _chart_logger.info(
-        "chart_fetch symbol=%s timeframe=%s elapsed_ms=%.0f rows=%d cache_hit=%s timeout=%s error=%s",
+        "chart_fetch symbol=%s timeframe=%s elapsed_ms=%.0f rows=%d cache_hit=%s timeout=%s error=%s stale_fallback=%s",
         symbol, timeframe, elapsed_ms, rows, bool(cache_hit), bool(timeout), error or "",
+        "true" if stale_fallback else "false",
     )
 
 
@@ -1832,8 +1887,8 @@ async def get_symbol_chart(
         return _json_response(neg)
 
     start = _time.monotonic()
+    lb = lookback_bars if lookback_bars is not None else config.READ_LOOKBACK_BARS
     try:
-        lb = lookback_bars if lookback_bars is not None else config.READ_LOOKBACK_BARS
         df = await asyncio.wait_for(
             run_in_threadpool(
                 candles.fetch_for_timeframe,
@@ -1851,11 +1906,23 @@ async def get_symbol_chart(
             f"candle fetch for {symbol_u} {timeframe} exceeded "
             f"{_CHART_FETCH_TIMEOUT_SEC:.0f}s and was aborted"
         )
+        stale = _stale_chart_fallback(
+            symbol_u, timeframe,
+            fetch_lookback=lb, clamp_lookback=lookback_bars, limit=limit,
+            reason=f"upstream timed out after {_CHART_FETCH_TIMEOUT_SEC:.0f}s",
+        )
+        if stale is not None:
+            _log_chart_fetch(
+                symbol_u, timeframe, elapsed_ms=elapsed_ms,
+                rows=len(stale["candles"]), cache_hit=True,
+                timeout=True, error=reason, stale_fallback=True,
+            )
+            return _json_response(stale)
         payload = _chart_empty_payload(symbol_u, timeframe, reason=reason, note=note)
         _chart_neg_cache_put(symbol_u, timeframe, session, payload)
         _log_chart_fetch(
             symbol_u, timeframe, elapsed_ms=elapsed_ms, rows=0,
-            cache_hit=False, timeout=True, error=reason,
+            cache_hit=False, timeout=True, error=reason, stale_fallback=False,
         )
         return _json_response(payload)
     except Exception as exc:  # noqa: BLE001 - transient upstream failure, never 500
@@ -1863,12 +1930,24 @@ async def get_symbol_chart(
         elapsed_ms = (_time.monotonic() - start) * 1000.0
         reason = "fetch_error"
         note = str(exc)[:200]
+        stale = _stale_chart_fallback(
+            symbol_u, timeframe,
+            fetch_lookback=lb, clamp_lookback=lookback_bars, limit=limit,
+            reason="upstream fetch error",
+        )
+        if stale is not None:
+            _log_chart_fetch(
+                symbol_u, timeframe, elapsed_ms=elapsed_ms,
+                rows=len(stale["candles"]), cache_hit=True,
+                timeout=False, error=reason, stale_fallback=True,
+            )
+            return _json_response(stale)
         payload = _chart_empty_payload(symbol_u, timeframe, reason=reason, note=note)
         # Transient errors are NOT cached: the next click retries (still bounded
         # by the timeout) so a recovered feed isn't papered over for 5 minutes.
         _log_chart_fetch(
             symbol_u, timeframe, elapsed_ms=elapsed_ms, rows=0,
-            cache_hit=False, timeout=False, error=reason,
+            cache_hit=False, timeout=False, error=reason, stale_fallback=False,
         )
         return _json_response(payload)
 
@@ -1877,11 +1956,23 @@ async def get_symbol_chart(
     if df is None or getattr(df, "empty", True):
         reason = "no_data"
         note = f"no candles for {symbol_u} {timeframe} in session {session}"
+        stale = _stale_chart_fallback(
+            symbol_u, timeframe,
+            fetch_lookback=lb, clamp_lookback=lookback_bars, limit=limit,
+            reason=f"upstream returned no candles in session {session}",
+        )
+        if stale is not None:
+            _log_chart_fetch(
+                symbol_u, timeframe, elapsed_ms=elapsed_ms,
+                rows=len(stale["candles"]), cache_hit=True,
+                timeout=False, error=reason, stale_fallback=True,
+            )
+            return _json_response(stale)
         payload = _chart_empty_payload(symbol_u, timeframe, reason=reason, note=note)
         _chart_neg_cache_put(symbol_u, timeframe, session, payload)
         _log_chart_fetch(
             symbol_u, timeframe, elapsed_ms=elapsed_ms, rows=0,
-            cache_hit=False, timeout=False, error=reason,
+            cache_hit=False, timeout=False, error=reason, stale_fallback=False,
         )
         return _json_response(payload)
     # The fetch window carries ~1.5x headroom; clamp the displayed chart to
