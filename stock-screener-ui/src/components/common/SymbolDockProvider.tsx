@@ -3,6 +3,7 @@ import { Box, Loader, useMediaQuery } from "@/ui";
 import { useNavigate } from "react-router-dom";
 import { usePatternFullscreen } from "@/hooks/usePatternFullscreen";
 import { SymbolDockContext, type SymbolDockApi } from "./symbolDockContext";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 // The chart engine is heavy; only download it once a dock is actually opened.
 const PatternFullscreenView = lazy(() =>
@@ -135,6 +136,7 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
             overflow: "hidden",
           }}
         >
+          <ErrorBoundary label="Chart" resetKey={fullscreen?.symbol}>
           <Suspense
             fallback={
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1 }}>
@@ -160,6 +162,7 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
               onLive={() => undefined}
             />
           </Suspense>
+          </ErrorBoundary>
         </Box>
       ) : null}
     </SymbolDockContext.Provider>

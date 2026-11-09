@@ -13,6 +13,7 @@ import { SelectionBar } from "./SelectionBar";
 import { screenerHasSideFilters } from "./ScreenerSidePanel";
 import { GroupPerformancePanel } from "./GroupPerformancePanel";
 import { ScreenerInlineFilters } from "./ScreenerInlineFilters";
+import { ErrorBoundary } from "../common/ErrorBoundary";
 
 const CorrelationTab = lazy(() => import("./CorrelationTab").then((m) => ({ default: m.CorrelationTab })));
 const ScreenerConfigView = lazy(() => import("./ScreenerConfigView").then((m) => ({ default: m.ScreenerConfigView })));
@@ -459,7 +460,9 @@ export function ScreenerPage({
             sx={{ display: isMarketTab ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden" }}
           >
             <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
-              {isMarketTab ? <MarketTab /> : null}
+              <ErrorBoundary label="Market screener">
+                {isMarketTab ? <MarketTab /> : null}
+              </ErrorBoundary>
             </Suspense>
           </Box>
           <Box sx={{ display: activeTab === "correlation" || activeTab === "config" ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}>
