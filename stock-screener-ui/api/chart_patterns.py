@@ -350,6 +350,266 @@ def _log_chart_fetch(
 
 
 # ---------------------------------------------------------------------------
+# Symbol chart fetch: stale-first serving + pattern-hit cache.
+#
+# For live ``GET /symbol/{symbol}/chart`` (no replay/as-of) the default
+# live-edge disk cache is checked *before* the network. A session-current
+# frame is returned immediately with ``cached``/``stale`` set and ``as_of``
+# pinned to its last session — never as current data — while a daemon thread
+# re-fetches in the background so the next poll sees fresh candles. "Session
+# current" means: an intraday frame must carry a bar from today (IST); a 1D
+# frame must reach the last completed session. The read is one local pickle,
+# size-capped, adds no network call, and never applies to replay/as-of
+# requests.
+#
+# ``detect_patterns`` results (and the trend lines computed alongside them)
+# are cached per ``(symbol, timeframe, IST session)`` for ~5 minutes so a
+# fullscreen poll does not re-run the detector when nothing changed. Entries
+# never apply across sessions.
+# ---------------------------------------------------------------------------
+
+#: Largest default live-edge pickle the stale-first read will touch (bytes).
+_STALE_FIRST_MAX_BYTES = int(os.environ.get("CHART_STALE_FIRST_MAX_BYTES", str(16 * 1024 * 1024)))
+#: Expected upper bound (ms) for the stale-first disk read; breaches are logged.
+_STALE_FIRST_DISK_BUDGET_MS = float(os.environ.get("CHART_STALE_FIRST_DISK_BUDGET_MS", "250"))
+_PATTERN_HIT_CACHE_TTL_SEC = float(os.environ.get("CHART_PATTERN_HIT_CACHE_TTL_SEC", "300.0"))
+_PATTERN_HIT_CACHE_MAX = 256
+
+_pattern_hit_cache: dict[tuple[str, str, str], tuple[float, dict]] = {}
+_pattern_hit_cache_lock = threading.Lock()
+#: (symbol, timeframe) pairs with an in-flight background refresh (dedupe).
+_refresh_inflight: set[tuple[str, str]] = set()
+_refresh_inflight_lock = threading.Lock()
+
+
+def _pattern_hit_cache_get(symbol: str, timeframe: str, session: str) -> Optional[dict]:
+    now = _time.monotonic()
+    key = (str(symbol).upper(), str(timeframe), session)
+    with _pattern_hit_cache_lock:
+        entry = _pattern_hit_cache.get(key)
+        if entry is None:
+            return None
+        expires, payload = entry
+        if now < expires:
+            return payload
+        _pattern_hit_cache.pop(key, None)
+        return None
+
+
+def _pattern_hit_cache_put(symbol: str, timeframe: str, session: str, payload: dict) -> None:
+    now = _time.monotonic()
+    key = (str(symbol).upper(), str(timeframe), session)
+    with _pattern_hit_cache_lock:
+        while len(_pattern_hit_cache) >= _PATTERN_HIT_CACHE_MAX:
+            _pattern_hit_cache.pop(next(iter(_pattern_hit_cache)), None)
+        _pattern_hit_cache[key] = (now + _PATTERN_HIT_CACHE_TTL_SEC, payload)
+
+
+def _clear_pattern_hit_cache() -> None:
+    """Drop the pattern-hit cache (tests + operator resets)."""
+    with _pattern_hit_cache_lock:
+        _pattern_hit_cache.clear()
+
+
+def _clear_chart_caches() -> None:
+    """Drop every symbol-chart cache (tests + operator resets)."""
+    with _chart_neg_cache_lock:
+        _chart_neg_cache.clear()
+    _clear_pattern_hit_cache()
+    with _refresh_inflight_lock:
+        _refresh_inflight.clear()
+
+
+def _stale_first_frame(symbol: str, timeframe: str, lookback_bars) -> Optional[tuple]:
+    """Default live-edge disk frame when session-current, else ``None``.
+
+    Local-disk read only: one size-capped pickle, no network. Returns
+    ``(df, as_of, read_ms)`` where ``as_of`` is the frame's last IST session
+    date. Never raises.
+    """
+    try:
+        lb = None if lookback_bars is None else int(lookback_bars)
+        variant = f"lb{lb}" if lb is not None else None
+        path = candles._cache_path(timeframe, symbol, None, variant=variant)
+        start = _time.monotonic()
+        try:
+            size = path.stat().st_size
+        except OSError:
+            return None
+        if size > _STALE_FIRST_MAX_BYTES:
+            _chart_logger.info(
+                "chart_stale_first symbol=%s timeframe=%s skipped=size bytes=%d",
+                symbol, timeframe, size,
+            )
+            return None
+        df = candles._read_pickle_any(path)
+        read_ms = (_time.monotonic() - start) * 1000.0
+        if read_ms > _STALE_FIRST_DISK_BUDGET_MS:
+            _chart_logger.warning(
+                "chart_stale_first slow disk read symbol=%s timeframe=%s read_ms=%.0f",
+                symbol, timeframe, read_ms,
+            )
+        if df is None:
+            return None
+        as_of = candles.frame_last_date(df)
+        if not as_of:
+            return None
+        if timeframe == "1D":
+            try:
+                lcs = candles._last_completed_session().isoformat()
+            except Exception:
+                lcs = None
+            ok = bool(lcs) and as_of >= lcs
+        else:
+            ok = as_of == _ist_session_date()
+        if not ok:
+            return None
+        return df, as_of, read_ms
+    except Exception:
+        return None
+
+
+def _kick_stale_first_refresh(symbol: str, timeframe: str, lookback_bars) -> bool:
+    """Re-fetch the default live-edge frame in a daemon thread.
+
+    The request never waits on this; the fresh frame lands in the disk cache
+    for the next poll. ``force_refresh`` bypasses the disk read and the
+    empty-result negative caches so the refresh actually rewrites the cache.
+    Returns ``False`` when a refresh for the pair is already in flight.
+    """
+    key = (str(symbol).upper(), str(timeframe))
+    with _refresh_inflight_lock:
+        if key in _refresh_inflight:
+            return False
+        _refresh_inflight.add(key)
+
+    def _run() -> None:
+        try:
+            candles.fetch_for_timeframe(
+                key[0], key[1],
+                lookback_bars=None if lookback_bars is None else int(lookback_bars),
+                include_partial_today=False,
+                force_refresh=True,
+            )
+        except Exception:
+            _chart_logger.warning(
+                "chart_stale_first_refresh failed symbol=%s timeframe=%s", key[0], key[1],
+            )
+        finally:
+            with _refresh_inflight_lock:
+                _refresh_inflight.discard(key)
+
+    threading.Thread(target=_run, name=f"chart-stale-refresh-{key[0]}-{key[1]}", daemon=True).start()
+    return True
+
+
+def _stored_overlays_and_lines(symbol_u: str, timeframe: str) -> tuple[list, list]:
+    """Stored-scan overlays + fresh stored trend lines. Never raises."""
+    overlays: list = []
+    stored_fresh_lines: list = []
+    try:
+        detail = store.get_symbol_detail(symbol_u, timeframe)
+    except Exception:
+        detail = {}
+    try:
+        chart_sig = config.trendline_signature()
+    except Exception:
+        chart_sig = None
+    for pattern in (detail.get("patterns", []) if isinstance(detail, dict) else []):
+        if pattern.get("trendlines"):
+            overlays.append({
+                "pattern_id": pattern.get("pattern_id"),
+                "pattern_name": pattern.get("pattern_name"),
+                "direction": pattern.get("direction"),
+                "trendlines": pattern.get("trendlines"),
+                "start_date": pattern.get("start_date"),
+                "end_date": pattern.get("end_date"),
+                "id": pattern.get("id"),
+            })
+        if not stored_fresh_lines and _stored_lines_fresh(pattern, chart_sig):
+            stored_fresh_lines = list(pattern.get("trend_lines") or [])
+    return overlays, stored_fresh_lines
+
+
+def _detect_trend_lines(df, lookback_bars, stored_fresh_lines) -> list:
+    if stored_fresh_lines:
+        return list(stored_fresh_lines)
+    try:
+        _res = trendlines_mod.detect_trendlines(df, lookback_bars=lookback_bars)
+        return [v for v in (_res.get("support"), _res.get("resistance")) if v] if isinstance(_res, dict) else []
+    except Exception:
+        return []
+
+
+def _pattern_block(df, symbol_u: str, timeframe: str, session: str, lookback_bars,
+                   compute_trendlines: bool, stored_fresh_lines) -> dict:
+    """Hits/trend lines for the live chart, pattern-hit-cache aware.
+
+    Shared by the network path and the stale-first path. On a cache hit (same
+    IST session) the engine/detector are not re-run. Returns a dict with
+    ``hits``, ``live_overlays``, ``trend_lines`` (``None`` when not computed)
+    and ``cache_hit``. Never raises.
+    """
+    cached = _pattern_hit_cache_get(symbol_u, timeframe, session)
+    if cached is not None:
+        cached_tl = cached.get("trend_lines")
+        tl_ok = False
+        if cached_tl is not None:
+            try:
+                tl_ok = cached.get("trend_lines_sig") == config.trendline_signature()
+            except Exception:
+                tl_ok = True
+        if not compute_trendlines:
+            trend_lines: Optional[list] = []
+        elif tl_ok:
+            trend_lines = list(cached_tl)
+        else:
+            trend_lines = _detect_trend_lines(df, lookback_bars, stored_fresh_lines)
+        return {
+            "hits": list(cached.get("hits") or []),
+            "live_overlays": list(cached.get("live_overlays") or []),
+            "trend_lines": trend_lines,
+            "cache_hit": True,
+        }
+    hits: list = []
+    live_overlays: list = []
+    if df is not None and not getattr(df, "empty", True) and engine_mod is not None:
+        try:
+            live = engine_mod.detect_patterns(df, timeframe, symbol_u) or []
+        except Exception:
+            live = []
+        for hit in live:
+            record = _live_hit_to_dict(hit, symbol_u, timeframe)
+            if record is not None:
+                hits.append(record)
+    for record in hits:
+        overlay = _live_overlay(record)
+        if overlay is not None:
+            live_overlays.append(overlay)
+    trend_lines = _detect_trend_lines(df, lookback_bars, stored_fresh_lines) if compute_trendlines else None
+    return {
+        "hits": hits,
+        "live_overlays": live_overlays,
+        "trend_lines": trend_lines,
+        "cache_hit": False,
+    }
+
+
+def _store_pattern_block(symbol_u: str, timeframe: str, session: str, block: dict,
+                         compute_trendlines: bool) -> None:
+    try:
+        sig = config.trendline_signature() if compute_trendlines else None
+    except Exception:
+        sig = None
+    _pattern_hit_cache_put(symbol_u, timeframe, session, {
+        "hits": list(block["hits"]),
+        "live_overlays": list(block["live_overlays"]),
+        "trend_lines": list(block["trend_lines"]) if compute_trendlines and block["trend_lines"] is not None else None,
+        "trend_lines_sig": sig,
+    })
+
+
+# ---------------------------------------------------------------------------
 # Resolvers
 # ---------------------------------------------------------------------------
 
@@ -1875,6 +2135,51 @@ async def get_symbol_chart(
         ))
     symbol_u = str(symbol).strip().upper()
     session = _ist_session_date()
+    lb = lookback_bars if lookback_bars is not None else config.READ_LOOKBACK_BARS
+
+    # Stale-first: a session-current frame in the default live-edge disk cache
+    # is served immediately (marked cached/stale) while a daemon thread
+    # refreshes the cache for the next poll. Replay/as-of never takes this.
+    stale_first = _stale_first_frame(symbol_u, timeframe, lb)
+    if stale_first is not None:
+        df, as_of, read_ms = stale_first
+        series = _clamped_candle_series(df, lookback_bars, limit)
+        if series:
+            overlays, stored_fresh_lines = _stored_overlays_and_lines(symbol_u, timeframe)
+            hits_block = None
+            if detect_patterns:
+                hits_block = _pattern_block(df, symbol_u, timeframe, session, lookback_bars, compute_trendlines, stored_fresh_lines)
+                overlays.extend(hits_block["live_overlays"])
+            if hits_block is not None and hits_block["trend_lines"] is not None:
+                trend_lines = hits_block["trend_lines"]
+            elif not compute_trendlines:
+                trend_lines = []
+            else:
+                trend_lines = _detect_trend_lines(df, lookback_bars, stored_fresh_lines)
+            payload = {
+                "symbol": symbol_u,
+                "timeframe": timeframe,
+                "candles": series,
+                "overlays": overlays,
+                "trend_lines": trend_lines,
+                "cached": True,
+                "stale": True,
+                "as_of": as_of,
+                "note": f"served cached frame (through {as_of}); refreshing in background",
+            }
+            if detect_patterns:
+                payload["hits"] = list(hits_block["hits"])
+                _store_pattern_block(symbol_u, timeframe, session, hits_block, compute_trendlines)
+            _kick_stale_first_refresh(symbol_u, timeframe, lb)
+            _log_chart_fetch(
+                symbol_u, timeframe, elapsed_ms=read_ms, rows=len(series),
+                cache_hit=True, timeout=False, error=None, stale_fallback=True,
+            )
+            _chart_logger.info(
+                "chart_stale_first symbol=%s timeframe=%s read_ms=%.0f as_of=%s",
+                symbol_u, timeframe, read_ms, as_of,
+            )
+            return _json_response(payload)
 
     # Negative cache hit: this (symbol, timeframe) already returned no
     # candles this session — answer instantly, no upstream fetch at all.
@@ -1887,7 +2192,6 @@ async def get_symbol_chart(
         return _json_response(neg)
 
     start = _time.monotonic()
-    lb = lookback_bars if lookback_bars is not None else config.READ_LOOKBACK_BARS
     try:
         df = await asyncio.wait_for(
             run_in_threadpool(
@@ -1985,60 +2289,29 @@ async def get_symbol_chart(
     series = _clamped_candle_series(df, lookback_bars, limit)
     if partial_last and series:
         series[-1]["is_partial"] = True
-    detail = store.get_symbol_detail(symbol, timeframe)
-    overlays = []
-    stored_fresh_lines: list = []
-    # Reuse fresh scan-time lines so fullscreen agrees with the cards;
-    # stale lines (detector changed) fall through to the recompute below.
-    chart_sig = config.trendline_signature()
-    for pattern in detail.get("patterns", []):
-        if pattern.get("trendlines"):
-            overlays.append({
-                "pattern_id": pattern.get("pattern_id"),
-                "pattern_name": pattern.get("pattern_name"),
-                "direction": pattern.get("direction"),
-                "trendlines": pattern.get("trendlines"),
-                "start_date": pattern.get("start_date"),
-                "end_date": pattern.get("end_date"),
-                "id": pattern.get("id"),
-            })
-        # Reuse fresh scan-time lines so fullscreen agrees with the cards;
-        # stale lines (detector changed) fall through to the recompute below.
-        if not stored_fresh_lines and _stored_lines_fresh(pattern, chart_sig):
-            stored_fresh_lines = list(pattern.get("trend_lines") or [])
-    if not compute_trendlines:
+    overlays, stored_fresh_lines = _stored_overlays_and_lines(symbol_u, timeframe)
+    hits_block = None
+    if detect_patterns:
+        hits_block = _pattern_block(df, symbol_u, timeframe, session, lookback_bars, compute_trendlines, stored_fresh_lines)
+        overlays.extend(hits_block["live_overlays"])
+    if hits_block is not None and hits_block["trend_lines"] is not None:
+        trend_lines = hits_block["trend_lines"]
+    elif not compute_trendlines:
         trend_lines = []
-    elif stored_fresh_lines:
-        trend_lines = stored_fresh_lines
     else:
-        try:
-            _res = trendlines_mod.detect_trendlines(df, lookback_bars=lookback_bars)
-            trend_lines = [v for v in (_res.get("support"), _res.get("resistance")) if v] if isinstance(_res, dict) else []
-        except Exception:
-            trend_lines = []
+        # Reuse fresh scan-time lines so fullscreen agrees with the cards;
+        # stale lines (detector changed) fall through to the recompute.
+        trend_lines = _detect_trend_lines(df, lookback_bars, stored_fresh_lines)
     payload = {
-        "symbol": symbol.upper(),
+        "symbol": symbol_u,
         "timeframe": timeframe,
         "candles": series,
         "overlays": overlays,
         "trend_lines": trend_lines,
     }
     if detect_patterns:
-        hits: list = []
-        if df is not None and not getattr(df, "empty", True) and engine_mod is not None:
-            try:
-                live = engine_mod.detect_patterns(df, timeframe, symbol) or []
-            except Exception:
-                live = []
-            for hit in live:
-                record = _live_hit_to_dict(hit, symbol, timeframe)
-                if record is not None:
-                    hits.append(record)
-        for record in hits:
-            overlay = _live_overlay(record)
-            if overlay is not None:
-                overlays.append(overlay)
-        payload["hits"] = hits
+        payload["hits"] = list(hits_block["hits"])
+        _store_pattern_block(symbol_u, timeframe, session, hits_block, compute_trendlines)
     return _json_response(payload)
 
 

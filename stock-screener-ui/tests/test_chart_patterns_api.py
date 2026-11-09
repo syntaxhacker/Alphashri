@@ -74,7 +74,7 @@ def cp_client(test_db_engine):
     clear_empty = getattr(cp_api.candles, "clear_empty_cache", None)
     if callable(clear_empty):
         clear_empty()
-    cp_api._chart_neg_cache.clear()
+    cp_api._clear_chart_caches()
 
     app = FastAPI()
     app.include_router(router)
@@ -97,7 +97,7 @@ def cp_client(test_db_engine):
         cp_api._clear_read_caches()
         if callable(clear_empty):
             clear_empty()
-        cp_api._chart_neg_cache.clear()
+        cp_api._clear_chart_caches()
         app.dependency_overrides.clear()
         jobs.reset()
         store.reset_session_factory()
@@ -2720,3 +2720,448 @@ def test_symbol_chart_stale_fallback_ignores_historical_namespace(
     assert body["candles"] == []
     assert body["error"] == "fetch_timeout"
     assert "stale" not in body and "cached" not in body
+
+
+# ---------------------------------------------------------------------------
+# Symbol chart fetch: stale-first serving + pattern-hit cache.
+#
+# Live requests check the default live-edge disk cache before the network and
+# serve a session-current frame marked cached/stale (with as_of) while a
+# background refresh rewrites the cache. Pattern detections/trend lines are
+# cached per (symbol, timeframe, IST session) for ~5 minutes.
+# ---------------------------------------------------------------------------
+
+
+def _make_df_session_current(n: int = 80, end: str = "2026-11-09") -> pd.DataFrame:
+    idx = pd.date_range(end=pd.Timestamp(end, tz="UTC"), periods=n, freq="D")
+    base = np.linspace(100.0, 130.0, n)
+    return pd.DataFrame(
+        {"open": base, "high": base + 1.0, "low": base - 1.0, "close": base, "volume": 1000.0},
+        index=idx,
+    )
+
+
+def _kick_spy(monkeypatch) -> list:
+    calls: list = []
+    monkeypatch.setattr(
+        cp_api, "_kick_stale_first_refresh",
+        lambda symbol, timeframe, lb: calls.append((symbol, timeframe, lb)) or True,
+    )
+    return calls
+
+
+def _pin_last_completed_session(monkeypatch, day: str = "2026-11-09"):
+    from datetime import date as _date
+
+    year, month, dom = (int(p) for p in day.split("-"))
+    monkeypatch.setattr(
+        cp_api.candles, "_last_completed_session", lambda now=None: _date(year, month, dom)
+    )
+
+
+def test_symbol_chart_stale_first_serves_cached_frame_immediately(
+    cp_client, monkeypatch, tmp_path,
+):
+    """Session-current disk frame → instant 200, no network call, cached/stale
+    flags with as_of, a background refresh is kicked, and the pattern engine is
+    consulted only once (hits cached for the rest of the session TTL)."""
+    from types import SimpleNamespace
+
+    store.save_hits("cpj_sf_hit", [_hit("POWERMECH")])
+    df = _make_df_session_current(80)
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    _seed_live_edge_disk_cache("POWERMECH", "1D", df, variant=_disk_cache_variant())
+    _pin_last_completed_session(monkeypatch, "2026-11-09")
+    fetch_calls: list = []
+
+    def _recorder(symbol, timeframe, **kwargs):
+        fetch_calls.append((symbol, timeframe))
+        return _make_df_session_current(80)
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _recorder)
+    kicks = _kick_spy(monkeypatch)
+    engine_calls: list = []
+
+    def fake_detect(df_, timeframe, symbol):
+        engine_calls.append(1)
+        return [_live_hit(symbol)]
+
+    monkeypatch.setattr(cp_api, "engine_mod", SimpleNamespace(detect_patterns=fake_detect))
+
+    started = _time.monotonic()
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/POWERMECH/chart",
+        params={"timeframe": "1D", "detect_patterns": 1},
+    )
+    elapsed = _time.monotonic() - started
+
+    assert chart.status_code == 200
+    body = chart.json()
+    assert body["cached"] is True and body["stale"] is True
+    assert body["as_of"] == "2026-11-09"
+    assert "served cached frame" in body["note"] and "background" in body["note"]
+    assert "error" not in body
+    assert len(body["candles"]) == 80
+    assert fetch_calls == [], "stale-first must not touch the network"
+    assert kicks == [("POWERMECH", "1D", config.READ_LOOKBACK_BARS)]
+    assert body["hits"] and body["hits"][0]["pattern_id"] == "double_bottom"
+    assert len(engine_calls) == 1
+    assert elapsed < 2.0, f"stale-first was not instant: {elapsed:.1f}s"
+
+    again = cp_client.get(
+        "/api/chart-patterns/symbol/POWERMECH/chart",
+        params={"timeframe": "1D", "detect_patterns": 1},
+    )
+    assert again.status_code == 200
+    assert again.json()["hits"] == body["hits"]
+    assert len(engine_calls) == 1, "second call must be served from the pattern-hit cache"
+    assert fetch_calls == []
+    assert len(kicks) == 2
+
+
+def test_symbol_chart_stale_first_miss_uses_network_path(cp_client, monkeypatch, tmp_path):
+    """No disk frame (or a frame from an older session) → the normal network
+    path runs unchanged: no cached/stale fields, fetch called, no refresh kick."""
+    store.save_hits("cpj_sf_miss", [_hit("POWERMECH")])
+    df = _make_df(80)  # 2026-01 window: not session-current
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    _seed_live_edge_disk_cache("POWERMECH", "1D", df, variant=_disk_cache_variant())
+    _pin_last_completed_session(monkeypatch, "2026-11-09")
+    fetch_calls: list = []
+
+    def _recorder(symbol, timeframe, **kwargs):
+        fetch_calls.append((symbol, timeframe))
+        return _make_df_session_current(80)
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _recorder)
+    kicks = _kick_spy(monkeypatch)
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/POWERMECH/chart",
+        params={"timeframe": "1D"},
+    )
+    assert chart.status_code == 200
+    body = chart.json()
+    assert "cached" not in body and "stale" not in body
+    assert "as_of" not in body
+    assert fetch_calls == [("POWERMECH", "1D")]
+    assert kicks == []
+
+
+def test_symbol_chart_replay_as_of_skips_stale_first(cp_client, monkeypatch, tmp_path):
+    """Replay/as-of requests never take the stale-first path, even when a
+    session-current disk frame exists."""
+    store.save_hits("cpj_sf_replay", [_hit("POWERMECH")])
+    df = _make_df_session_current(80)
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    _seed_live_edge_disk_cache("POWERMECH", "1D", df, variant=_disk_cache_variant())
+    _pin_last_completed_session(monkeypatch, "2026-11-09")
+    fetch_calls: list = []
+
+    def _recorder(symbol, timeframe, **kwargs):
+        fetch_calls.append(kwargs)
+        return _make_df_session_current(80)
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _recorder)
+    kicks = _kick_spy(monkeypatch)
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/POWERMECH/chart",
+        params={"timeframe": "1D", "as_of_date": "2026-11-05"},
+    )
+    assert chart.status_code == 200
+    body = chart.json()
+    assert "cached" not in body and "stale" not in body
+    assert kicks == [], "replay must not kick a background refresh"
+    assert fetch_calls and fetch_calls[0].get("as_of_date") == "2026-11-05"
+
+
+def test_symbol_chart_stale_first_intraday_requires_today(cp_client, monkeypatch, tmp_path):
+    """An intraday frame whose last bar is not today (IST) is not served
+    stale-first; a frame ending today is."""
+    store.save_hits("cpj_sf_5m", [_hit("POWERMECH")])
+    monkeypatch.setattr(cp_api, "_ist_session_date", lambda: "2026-11-09")
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    yesterday = _make_df_session_current(80, end="2026-11-08")
+    _seed_live_edge_disk_cache("POWERMECH", "5m", yesterday, variant=_disk_cache_variant())
+    fetch_calls: list = []
+
+    def _recorder(symbol, timeframe, **kwargs):
+        fetch_calls.append((symbol, timeframe))
+        return _make_df_session_current(80)
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _recorder)
+    kicks = _kick_spy(monkeypatch)
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/POWERMECH/chart",
+        params={"timeframe": "5m"},
+    )
+    assert chart.status_code == 200
+    body = chart.json()
+    assert "cached" not in body and "stale" not in body
+    assert fetch_calls == [("POWERMECH", "5m")]
+    assert kicks == []
+
+
+def test_symbol_chart_stale_first_intraday_today_frame_served(cp_client, monkeypatch, tmp_path):
+    store.save_hits("cpj_sf_5m_hit", [_hit("POWERMECH")])
+    monkeypatch.setattr(cp_api, "_ist_session_date", lambda: "2026-11-09")
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    today = _make_df_session_current(80, end="2026-11-09")
+    _seed_live_edge_disk_cache("POWERMECH", "5m", today, variant=_disk_cache_variant())
+    fetch_calls: list = []
+
+    def _recorder(symbol, timeframe, **kwargs):
+        fetch_calls.append((symbol, timeframe))
+        return _make_df_session_current(80, end="2026-11-09")
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _recorder)
+    kicks = _kick_spy(monkeypatch)
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/POWERMECH/chart",
+        params={"timeframe": "5m"},
+    )
+    assert chart.status_code == 200
+    body = chart.json()
+    assert body["cached"] is True and body["stale"] is True
+    assert body["as_of"] == "2026-11-09"
+    assert fetch_calls == []
+    assert kicks == [("POWERMECH", "5m", config.READ_LOOKBACK_BARS)]
+
+
+def test_symbol_chart_stale_first_uses_lookback_variant(cp_client, monkeypatch, tmp_path):
+    """A frame cached under a lb250 variant serves only lookback_bars=250
+    requests; the default lookback variant is a separate entry."""
+    store.save_hits("cpj_sf_lb", [_hit("POWERMECH")])
+    df = _make_df_session_current(80)
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    _seed_live_edge_disk_cache("POWERMECH", "1D", df, variant="lb250")
+    _pin_last_completed_session(monkeypatch, "2026-11-09")
+    fetch_calls: list = []
+
+    def _recorder(symbol, timeframe, **kwargs):
+        fetch_calls.append((symbol, timeframe))
+        return _make_df_session_current(80)
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _recorder)
+    kicks = _kick_spy(monkeypatch)
+
+    hit = cp_client.get(
+        "/api/chart-patterns/symbol/POWERMECH/chart",
+        params={"timeframe": "1D", "lookback_bars": 250},
+    )
+    assert hit.status_code == 200
+    assert hit.json()["cached"] is True and hit.json()["stale"] is True
+    assert fetch_calls == []
+    miss = cp_client.get(
+        "/api/chart-patterns/symbol/POWERMECH/chart",
+        params={"timeframe": "1D"},
+    )
+    assert miss.status_code == 200
+    assert "cached" not in miss.json()
+    assert fetch_calls == [("POWERMECH", "1D")]
+    assert len(kicks) == 1
+
+
+def test_symbol_chart_stale_first_oversized_frame_falls_back_to_network(
+    cp_client, monkeypatch, tmp_path,
+):
+    """An on-disk frame bigger than the byte cap is never read by the
+    stale-first path."""
+    store.save_hits("cpj_sf_big", [_hit("POWERMECH")])
+    df = _make_df_session_current(80)
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    _seed_live_edge_disk_cache("POWERMECH", "1D", df, variant=_disk_cache_variant())
+    _pin_last_completed_session(monkeypatch, "2026-11-09")
+    monkeypatch.setattr(cp_api, "_STALE_FIRST_MAX_BYTES", 10)
+    fetch_calls: list = []
+
+    def _recorder(symbol, timeframe, **kwargs):
+        fetch_calls.append((symbol, timeframe))
+        return _make_df_session_current(80)
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _recorder)
+    kicks = _kick_spy(monkeypatch)
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/POWERMECH/chart",
+        params={"timeframe": "1D"},
+    )
+    assert chart.status_code == 200
+    body = chart.json()
+    assert "cached" not in body and "stale" not in body
+    assert fetch_calls == [("POWERMECH", "1D")]
+    assert kicks == []
+
+
+def test_symbol_chart_stale_first_takes_precedence_over_neg_cache(
+    cp_client, monkeypatch, tmp_path,
+):
+    """A session-current frame is served even if an empty result was negative
+    cached earlier — real (stale) data beats an empty answer."""
+    store.save_hits("cpj_sf_neg", [_hit("POWERMECH")])
+    df = _make_df_session_current(80)
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    _seed_live_edge_disk_cache("POWERMECH", "1D", df, variant=_disk_cache_variant())
+    _pin_last_completed_session(monkeypatch, "2026-11-09")
+    cp_api._chart_neg_cache_put(
+        "POWERMECH", "1D", cp_api._ist_session_date(),
+        {"symbol": "POWERMECH", "timeframe": "1D", "candles": [],
+         "overlays": [], "trend_lines": [], "error": "no_data", "note": "cached empty"},
+    )
+    fetch_calls: list = []
+
+    def _recorder(symbol, timeframe, **kwargs):
+        fetch_calls.append((symbol, timeframe))
+        return _make_df_session_current(80)
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _recorder)
+    _kick_spy(monkeypatch)
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/POWERMECH/chart",
+        params={"timeframe": "1D"},
+    )
+    assert chart.status_code == 200
+    body = chart.json()
+    assert body["cached"] is True and body["stale"] is True
+    assert len(body["candles"]) == 80
+    assert fetch_calls == []
+
+
+def test_pattern_hit_cache_hit_skips_engine_and_detector(cp_client, monkeypatch):
+    """detect_patterns=1 caches hits/trend lines for the session: repeat
+    calls neither re-run the engine nor the trendline detector."""
+    from types import SimpleNamespace
+
+    store.save_hits("cpj_patcache", [_hit("IRCON")])
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+    engine_calls: list = []
+    detect_calls: list = []
+
+    def fake_detect(df_, timeframe, symbol):
+        engine_calls.append(1)
+        return [_live_hit(symbol)]
+
+    def fake_tl(df_, lookback_bars=None):
+        detect_calls.append(1)
+        return {"support": _fake_trendline("support"), "resistance": None}
+
+    monkeypatch.setattr(cp_api, "engine_mod", SimpleNamespace(detect_patterns=fake_detect))
+    monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", fake_tl)
+
+    first = cp_client.get(
+        "/api/chart-patterns/symbol/IRCON/chart",
+        params={"timeframe": "1D", "detect_patterns": 1},
+    )
+    second = cp_client.get(
+        "/api/chart-patterns/symbol/IRCON/chart",
+        params={"timeframe": "1D", "detect_patterns": 1},
+    )
+    assert first.status_code == second.status_code == 200
+    assert first.json()["hits"] == second.json()["hits"]
+    assert first.json()["trend_lines"] == second.json()["trend_lines"]
+    assert first.json()["trend_lines"] == [_fake_trendline("support")]
+    assert len(engine_calls) == 1
+    assert len(detect_calls) == 1
+
+
+def test_pattern_hit_cache_keyed_by_session(cp_client, monkeypatch):
+    """Pattern entries never apply across IST sessions."""
+    from types import SimpleNamespace
+
+    store.save_hits("cpj_patsess", [_hit("IRCON")])
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+    sessions = {"cur": "2026-11-09"}
+    monkeypatch.setattr(cp_api, "_ist_session_date", lambda: sessions["cur"])
+    engine_calls: list = []
+
+    def fake_detect(df_, timeframe, symbol):
+        engine_calls.append(1)
+        return [_live_hit(symbol)]
+
+    monkeypatch.setattr(cp_api, "engine_mod", SimpleNamespace(detect_patterns=fake_detect))
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df_, lookback_bars=None: {"support": None, "resistance": None},
+    )
+
+    cp_client.get(
+        "/api/chart-patterns/symbol/IRCON/chart",
+        params={"timeframe": "1D", "detect_patterns": 1},
+    )
+    assert len(engine_calls) == 1
+    sessions["cur"] = "2026-11-10"
+    cp_client.get(
+        "/api/chart-patterns/symbol/IRCON/chart",
+        params={"timeframe": "1D", "detect_patterns": 1},
+    )
+    assert len(engine_calls) == 2, "a new session must recompute"
+    # The original session's entry is still valid within its TTL.
+    sessions["cur"] = "2026-11-09"
+    cp_client.get(
+        "/api/chart-patterns/symbol/IRCON/chart",
+        params={"timeframe": "1D", "detect_patterns": 1},
+    )
+    assert len(engine_calls) == 2
+
+
+def test_kick_stale_first_refresh_refetches_with_force_refresh(cp_client, monkeypatch):
+    """The background refresh re-fetches with force_refresh=True and never
+    requests the synthetic partial bar (which must not reach the disk cache)."""
+    calls: list = []
+
+    def _recorder(symbol, timeframe, **kwargs):
+        calls.append({"symbol": symbol, "timeframe": timeframe, **kwargs})
+        return _make_df(10)
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _recorder)
+
+    class _SyncThread:
+        def __init__(self, target, name=None, daemon=None):
+            self._target = target
+
+        def start(self):
+            self._target()
+
+    import types as _types
+
+    monkeypatch.setattr(cp_api, "threading", _types.SimpleNamespace(Thread=_SyncThread))
+    ok = cp_api._kick_stale_first_refresh("powermech", "1D", 500)
+    assert ok is True
+    assert calls == [{
+        "symbol": "POWERMECH", "timeframe": "1D",
+        "lookback_bars": 500, "include_partial_today": False, "force_refresh": True,
+    }]
+    assert cp_api._refresh_inflight == set()
+
+
+def test_kick_stale_first_refresh_dedupes_inflight(cp_client):
+    cp_api._refresh_inflight.add(("POWERMECH", "1D"))
+    try:
+        assert cp_api._kick_stale_first_refresh("POWERMECH", "1D", 500) is False
+    finally:
+        cp_api._clear_chart_caches()
+
+
+def test_kick_stale_first_refresh_swallows_fetch_errors(cp_client, monkeypatch):
+    def _boom(symbol, timeframe, **kwargs):
+        raise RuntimeError("feed down")
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _boom)
+
+    import types as _types
+
+    class _SyncThread:
+        def __init__(self, target, name=None, daemon=None):
+            self._target = target
+
+        def start(self):
+            self._target()
+
+    monkeypatch.setattr(cp_api, "threading", _types.SimpleNamespace(Thread=_SyncThread))
+    ok = cp_api._kick_stale_first_refresh("POWERMECH", "5m", None)
+    assert ok is True
+    assert cp_api._refresh_inflight == set()
