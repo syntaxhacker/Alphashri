@@ -36,7 +36,7 @@ from api.reports_api._numeric import safe_float as _safe_float, safe_int as _saf
 from api.reports_api._time import today_str as _today_str
 from api.reports_api.desk_trades import router as desk_trades_router
 from api.reports_api.nifty_intel import router as nifty_intel_router
-from api.reports_api.nifty_fuel import basis_text, fuel_state, structure_evidence
+from api.reports_api.nifty_fuel import basis_text, fuel_state, structure_evidence, setup_for_burst
 from api.reports_api.nifty_bursts import (
     NEWS_WINDOW_MIN,
     OI_BURST_MIN_ABS,
@@ -4281,6 +4281,22 @@ def get_nifty_bursts(
             if b["structure"]:
                 b["invalidation"] = b["structure"].get("level")
             b["signal"] = derive_oi_signal(b, strikes, spot, trend=b_trend)
+            try:
+                side = str(b.get("side") or "call").lower()
+                wall = levels.get("wall_calls" if side == "call" else "wall_puts")
+                if wall is None:
+                    wall = b.get("wall")
+                b.update(setup_for_burst(
+                    side=side,
+                    fuel=b.get("fuel_state"),
+                    trend=b_trend,
+                    spot=_safe_float(b.get("spot")) or None,
+                    wall=_safe_float(wall) or None,
+                    burst_type=b.get("type"),
+                    score=_safe_float(b.get("score")) or None,
+                ))
+            except Exception:
+                pass
             if (b.get("signal") is None and strikes and spot
                     and b.get("type") not in ("coil", "squeeze", "premium", "wall",
                                               "wall_test", "rejection", "break",
