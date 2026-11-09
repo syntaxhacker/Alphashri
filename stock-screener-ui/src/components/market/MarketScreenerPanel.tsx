@@ -31,7 +31,7 @@ import {
 import { BORDER, SURFACE, FIN_HEADER_H } from "@/ui/palette";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { MARKET_UNIVERSES, DEFAULT_MARKET_UNIVERSE } from "../../api/marketScreener";
-import type { MarketUniverse } from "../../types/marketScreener";
+import type { MarketRow, MarketUniverse } from "../../types/marketScreener";
 import {
   buildMarketFilterChips,
   countActiveMarketFilters,
@@ -62,6 +62,7 @@ export function MarketScreenerPanel() {
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const [filters, setFilters] = useState<MarketFilterState>(() => defaultMarketFilters());
+  const deferredFilters = useDeferredValue(filters);
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
@@ -78,11 +79,13 @@ export function MarketScreenerPanel() {
     setSearch("");
   }, [universe]);
 
-  // Only the query passed to filterMarketRows is deferred — chips and the
-  // active-filter count must reflect what the user is typing right now.
+  // `filters`/`search` drive chips + the active-filter count immediately; the
+  // table consumes deferred copies so a filter click never blocks on
+  // synchronously re-rendering the full row set (496 Nifty-500 rows take
+  // ~1s of synchronous layout).
   const filteredRows = useMemo(
-    () => filterMarketRows(rows, { ...filters, search: deferredSearch }),
-    [rows, filters, deferredSearch],
+    () => filterMarketRows(rows, { ...deferredFilters, search: deferredSearch }),
+    [rows, deferredFilters, deferredSearch],
   );
   const chips = useMemo(
     () => buildMarketFilterChips({ ...filters, search }),
@@ -177,6 +180,26 @@ export function MarketScreenerPanel() {
   const showInitialLoading = isLoading && rows.length === 0;
   const showError = error !== null && rows.length === 0;
   const showErrorBanner = error !== null && !isLoading && rows.length > 0;
+
+  // Stable callbacks: TanStackTable must not receive new function identities
+  // on every render (that would destabilize row event handlers).
+  const handleRowClick = useCallback(
+    (row: MarketRow) => {
+      setSelectedSymbol(row.symbol);
+      dock.open(row.symbol);
+    },
+    [dock],
+  );
+
+  const getRowStyle = useCallback(
+    (row: MarketRow) =>
+      row.symbol === selectedSymbol
+        ? { backgroundColor: "var(--mui-palette-action-selected)" }
+        : undefined,
+    [selectedSymbol],
+  );
+
+  const getRowTestId = useCallback((row: MarketRow) => `market-row-${row.symbol}`, []);
 
   const rail = (
     <MarketFilterRail
@@ -525,16 +548,9 @@ export function MarketScreenerPanel() {
               enableSorting
               stickyHeader
               initialState={{ sorting: [{ id: "market_cap_cr", desc: true }] }}
-              onRowClick={(row) => {
-                setSelectedSymbol(row.symbol);
-                dock.open(row.symbol);
-              }}
-              getRowStyle={(row) =>
-                row.symbol === selectedSymbol
-                  ? { backgroundColor: "var(--mui-palette-action-selected)" }
-                  : undefined
-              }
-              getRowTestId={(row) => `market-row-${row.symbol}`}
+              onRowClick={handleRowClick}
+              getRowStyle={getRowStyle}
+              getRowTestId={getRowTestId}
               emptyMessage={
                 hasActiveFilters ? "No rows match the current filters" : "No market data"
               }

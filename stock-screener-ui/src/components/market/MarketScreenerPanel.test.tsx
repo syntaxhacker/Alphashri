@@ -1,11 +1,12 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { act, fireEvent, render, screen, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { UIProvider } from "@/ui";
 import { MarketScreenerPanel } from "./MarketScreenerPanel";
 import { useMarketSnapshot } from "../../hooks/useMarketSnapshot";
+import * as marketFilters from "./marketFilters";
 import type { MarketRow } from "../../types/marketScreener";
 import type { UseMarketSnapshotResult } from "../../hooks/useMarketSnapshot";
 
@@ -156,5 +157,73 @@ describe("MarketScreenerPanel — stale cache, warming hint, timeout", () => {
     expect(screen.getByTestId("market-error-banner-message")).toHaveTextContent(
       "Market snapshot timed out",
     );
+  });
+});
+
+describe("MarketScreenerPanel — non-blocking filters", () => {
+  function buildBenchRows(count: number): MarketRow[] {
+    const rows: MarketRow[] = [];
+    for (let i = 0; i < count; i += 1) {
+      rows.push(
+        row(`SYM${String(i).padStart(3, "0")}`, {
+          close: i % 2 === 0 ? 100 : 50,
+          sma200: 70,
+        }),
+      );
+    }
+    return rows;
+  }
+
+  test("chip + active-count update immediately; table data is deferred", async () => {
+    const rows = buildBenchRows(496);
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows, total: rows.length }));
+    r(<MarketScreenerPanel />);
+
+    expect(screen.getByTestId("market-grid")).toBeInTheDocument();
+    expect(screen.getByTestId("market-result-count")).toHaveTextContent("496 / 496");
+    expect(screen.queryByTestId("market-filter-count")).toBeNull();
+
+    const sma200 = screen.getByTestId("market-filter-above-sma200");
+    act(() => {
+      fireEvent.click(sma200);
+    });
+
+    // Immediate path: chip and active-filter count reflect the click within the
+    // same synchronous render — no waiting for a transition.
+    expect(screen.getByTestId("market-filter-chip-sma200")).toBeInTheDocument();
+    expect(screen.getByTestId("market-filter-count")).toHaveTextContent("1");
+    // The table is deliberately NOT recomputed yet — the deferred copy of the
+    // filters still drives `filteredRows`, so a click never blocks on
+    // re-rendering the full row set.
+    expect(screen.getByTestId("market-result-count")).toHaveTextContent("496 / 496");
+    expect(screen.getByTestId("market-row-SYM001")).toBeInTheDocument();
+
+    // `filterMarketRows` is not re-invoked by further non-filter interaction:
+    // no synchronous 496-row filter pass blocks the UI. (The deferred render is
+    // committed by React's scheduler in the browser; happy-dom does not process
+    // that scheduler work, so the test covers the synchronous guarantee above.)
+    const filterSpy = vi.spyOn(marketFilters, "filterMarketRows");
+    act(() => {
+      fireEvent.click(screen.getByTestId("market-rail-toggle"));
+    });
+    expect(filterSpy.mock.calls.length).toBe(0);
+    expect(screen.getByTestId("market-result-count")).toHaveTextContent("496 / 496");
+  });
+
+  test("non-filter interactions do not re-run the filter pipeline", () => {
+    const rows = buildBenchRows(496);
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows, total: rows.length }));
+    const filterSpy = vi.spyOn(marketFilters, "filterMarketRows");
+    r(<MarketScreenerPanel />);
+
+    const callsBefore = filterSpy.mock.calls.length;
+    expect(callsBefore).toBeGreaterThan(0);
+
+    act(() => {
+      fireEvent.click(screen.getByTestId("market-rail-toggle"));
+    });
+
+    expect(filterSpy.mock.calls.length).toBe(callsBefore);
+    expect(screen.getByTestId("market-result-count")).toHaveTextContent("496 / 496");
   });
 });
