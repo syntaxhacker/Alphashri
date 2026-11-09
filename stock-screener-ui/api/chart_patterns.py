@@ -431,11 +431,25 @@ def _stale_first_frame(symbol: str, timeframe: str, lookback_bars) -> Optional[t
         lb = None if lookback_bars is None else int(lookback_bars)
         variant = f"lb{lb}" if lb is not None else None
         path = candles._cache_path(timeframe, symbol, None, variant=variant)
-        start = _time.monotonic()
-        try:
-            size = path.stat().st_size
-        except OSError:
+        # A chart asks for the READ_LOOKBACK_BARS variant (e.g. lb500); if that
+        # file was never written, the default live-edge frame is still a valid
+        # stale fallback. This is what makes a symbol chart load instantly
+        # after any prior fetch, regardless of the lookback variant.
+        candidates = [path]
+        if variant is not None:
+            alt = candles._cache_path(timeframe, symbol, None)
+            if alt != path:
+                candidates.append(alt)
+        for candidate in candidates:
+            try:
+                size = candidate.stat().st_size
+            except OSError:
+                continue
+            path = candidate
+            break
+        else:
             return None
+        start = _time.monotonic()
         if size > _STALE_FIRST_MAX_BYTES:
             _chart_logger.info(
                 "chart_stale_first symbol=%s timeframe=%s skipped=size bytes=%d",
