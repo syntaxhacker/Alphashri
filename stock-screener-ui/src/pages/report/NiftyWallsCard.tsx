@@ -30,7 +30,7 @@ import {
   wallsMaxOi,
 } from "./niftyWallsFormat";
 import { wallCode, wallSide } from "./niftyChartMath";
-import { fuelTone, pickNearestWalls, type WallErosionView, wallErosionView } from "./wallErosion";
+import { wallErosionView } from "./wallErosion";
 import {
   REPORT_FONT,
   REPORT_ROW,
@@ -98,195 +98,6 @@ function wallFuelColor(side: "CALL" | "PUT", row: WallsRow): string {
   if (arrow === "▲") return palette.POSITIVE;
   if (arrow === "▼") return palette.NEGATIVE;
   return toneColor(statusTone(row.status));
-}
-
-function NearestSide({
-  view,
-  side,
-  flowTestId,
-}: {
-  view: WallErosionView;
-  side: "CALL" | "PUT";
-  flowTestId?: string;
-}) {
-  const statusColor = toneColor(view.statusTone);
-  return (
-    <Box
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        gap: `${REPORT_PAD.xs}px`,
-        minWidth: 0,
-        flexShrink: 0,
-      }}
-    >
-      <Typography
-        sx={{
-          fontSize: REPORT_FONT.micro,
-          fontWeight: REPORT_FONT_WEIGHT.extrabold,
-          color: palette.TEXT_MUTED,
-          letterSpacing: REPORT_LETTER_SPACING.wide,
-          flexShrink: 0,
-        }}
-      >
-        {side}
-      </Typography>
-      <Typography
-        sx={{
-          fontSize: REPORT_FONT.sm,
-          lineHeight: REPORT_LINE_HEIGHT.snug,
-          fontVariantNumeric: "tabular-nums",
-          minWidth: 0,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          flexShrink: 0,
-        }}
-      >
-        {view.strikeText}
-      </Typography>
-      {view.arrow !== "—" && (
-        <Typography
-          sx={{
-            fontSize: REPORT_FONT.micro,
-            fontWeight: REPORT_FONT_WEIGHT.extrabold,
-            color: view.arrow === "▲" ? palette.POSITIVE : palette.NEGATIVE,
-            flexShrink: 0,
-          }}
-        >
-          {view.arrow}
-        </Typography>
-      )}
-      {view.statusText !== "—" && (
-        <Box
-          sx={{
-            border: `1px solid ${statusColor}`,
-            color: statusColor,
-            borderRadius: `${REPORT_RADIUS.sm}px`,
-            px: `${REPORT_PAD.xs}px`,
-            py: 1,
-            fontSize: REPORT_FONT.micro,
-            fontWeight: REPORT_FONT_WEIGHT.extrabold,
-            flexShrink: 0,
-          }}
-        >
-          {view.statusText}
-        </Box>
-      )}
-      <Typography
-        sx={{
-          fontSize: REPORT_FONT.micro,
-          color: palette.TEXT_MUTED,
-          flexShrink: 0,
-          minWidth: 0,
-        }}
-      >
-        {view.distanceText}
-      </Typography>
-      <Typography
-        sx={{
-          fontSize: REPORT_FONT.micro,
-          color: palette.TEXT_MUTED,
-          flexShrink: 0,
-        }}
-      >
-        OI {view.oiText}
-      </Typography>
-      <Typography
-        sx={{
-          fontSize: REPORT_FONT.micro,
-          color: palette.TEXT_MUTED,
-          flexShrink: 0,
-        }}
-      >
-        30m {view.erosion30Text}
-      </Typography>
-      <Typography
-        data-testid={flowTestId}
-        sx={{
-          fontSize: REPORT_FONT.micro,
-          fontWeight: REPORT_FONT_WEIGHT.bold,
-          color: flowToneColor(view.flowTone),
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          minWidth: 0,
-          flexShrink: 0,
-        }}
-      >
-        {view.flowText} · vol {view.volText}
-      </Typography>
-    </Box>
-  );
-}
-
-/**
- * Compact strip above the two wall tables: the nearest call/put wall per
- * side, with flow, volume, fuel score and time-to-break. Renders nothing
- * when neither side has a nearest wall.
- */
-function NearestStrip({ walls }: { walls: WallsPayload }) {
-  const { call, put } = pickNearestWalls(walls);
-  if (!call && !put) return null;
-
-  const callView = call ? wallErosionView(call, "CALL") : null;
-  const putView = put ? wallErosionView(put, "PUT") : null;
-  const fuelScore = Math.max(callView?.fuelScore ?? 0, putView?.fuelScore ?? 0);
-  const tone = fuelTone(fuelScore);
-  const primary = (callView?.fuelScore ?? 0) >= (putView?.fuelScore ?? 0) ? callView : putView;
-  const timeText = primary?.timeText;
-
-  return (
-    <Box
-      data-testid="nifty-walls-nearest"
-      sx={{
-        gridColumn: "1 / -1",
-        display: "flex",
-        alignItems: "center",
-        gap: `${REPORT_PAD.sm}px`,
-        minWidth: 0,
-        flexWrap: "wrap",
-      }}
-    >
-      <Typography
-        sx={{
-          fontSize: REPORT_FONT.micro,
-          fontWeight: REPORT_FONT_WEIGHT.extrabold,
-          color: palette.TEXT_MUTED,
-          letterSpacing: REPORT_LETTER_SPACING.wide,
-          flexShrink: 0,
-        }}
-      >
-        NEAREST
-      </Typography>
-      {callView && <NearestSide view={callView} side="CALL" flowTestId="nifty-walls-nearest-flow" />}
-      {putView && <NearestSide view={putView} side="PUT" />}
-      <Box
-        sx={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: `${REPORT_PAD.xs}px`,
-          border: `1px solid ${toneColor(tone)}`,
-          color: toneColor(tone),
-          borderRadius: `${REPORT_RADIUS.sm}px`,
-          px: `${REPORT_PAD.xs}px`,
-          py: `${REPORT_PAD.xs}px`,
-          fontSize: REPORT_FONT.micro,
-          fontWeight: REPORT_FONT_WEIGHT.extrabold,
-          letterSpacing: REPORT_LETTER_SPACING.wide,
-          flexShrink: 0,
-        }}
-        data-testid="nifty-walls-nearest-fuel"
-      >
-        {tone === "warning" ? "PRE-BLAST" : "FUEL"} {fuelScore}
-      </Box>
-      {timeText && timeText !== "—" && (
-        <Typography sx={{ fontSize: REPORT_FONT.micro, color: palette.TEXT_MUTED, flexShrink: 0 }}>
-          {timeText} to break
-        </Typography>
-      )}
-    </Box>
-  );
 }
 
 function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number }) {
@@ -756,7 +567,6 @@ export function NiftyWallsCardInner({
           alignItems: "start",
         }}
       >
-        <NearestStrip walls={walls} />
         <Box sx={{ minWidth: 0 }}>
           <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", rowGap: `${REPORT_PAD.xs}px` }}>
             <Chip

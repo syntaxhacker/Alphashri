@@ -335,23 +335,7 @@ describe("NiftyWallsCard", () => {
     expect(within(card).queryByTestId("levels-in-play")).toBeNull();
   });
 
-  it("shows the nearest-wall erosion strip above both tables", () => {
-    render(<NiftyWallsCard walls={walls} onExpand={onExpand} />);
 
-    const strip = screen.getByTestId("nifty-walls-nearest");
-    expect(strip).toHaveTextContent("NEAREST");
-    expect(strip).toHaveTextContent("WRITERS COVERING");
-    expect(strip).toHaveTextContent("1.3×");
-    expect(strip).toHaveTextContent("78");
-    expect(strip).toHaveTextContent("~4m");
-    expect(screen.getByTestId("nifty-walls-nearest-flow")).toHaveTextContent("WRITERS COVERING · vol 1.3×");
-    expect(screen.getByTestId("nifty-walls-nearest-fuel")).toHaveTextContent("PRE-BLAST 78");
-  });
-
-  it("hides the nearest strip when both sides are empty", () => {
-    render(<NiftyWallsCard walls={{ ...walls, calls: [], puts: [] }} onExpand={onExpand} />);
-    expect(screen.queryByTestId("nifty-walls-nearest")).toBeNull();
-  });
 
   it("marks the nearest row and shows the side-aware erosion arrow and flow suffix on each row", () => {
     render(<NiftyWallsCard walls={walls} onExpand={onExpand} />);
