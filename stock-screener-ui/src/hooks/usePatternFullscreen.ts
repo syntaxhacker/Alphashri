@@ -25,8 +25,10 @@ export interface FullscreenChartState {
   candles: ChartCandle[];
   overlays: PatternOverlay[];
   trendLines: TrendLine[];
-  /** True while a fullscreen fetch/reload is in flight. */
+  /** True while a fullscreen fetch/reload is in flight (phase 1: candles). */
   loading: boolean;
+  /** True while phase-2 pattern detection is in flight (candles already rendered). */
+  patternsLoading?: boolean;
   /** False = candles-only (market/global dock); skips pattern detection. */
   detectPatterns?: boolean;
   /** As-of replay cutoff (ISO local datetime, null = live). */
@@ -223,6 +225,164 @@ export function usePatternFullscreen({
     );
   };
 
+  // Two-phase symbol chart load: phase 1 fetches candles only (detectPatterns=0)
+  // and renders them immediately; phase 2 runs detection (detectPatterns=1)
+  // asynchronously so the chart is never blocked by pattern computation. Each
+  // phase is gated by the shared request token so a symbol/timeframe switch
+  // cancels stale in-flight responses. Cache keys are split by phase
+  // (`symbol|tf|l` = candles, `symbol|tf|p` = patterns) so a lite cache can
+  // never hide hits.
+  const runTwoPhase = (
+    symbol: string,
+    tf: string,
+    token: number,
+    detectPatterns: boolean,
+    startedAt: number,
+    extra: {
+      lookbackBars?: number | null;
+      computeTrendlines?: boolean;
+      asOf?: string;
+      fromDate?: string;
+    },
+  ) => {
+    const baseOpts = {
+      ...(extra.lookbackBars != null ? { lookbackBars: extra.lookbackBars } : {}),
+      ...(extra.asOf ? { asOf: extra.asOf } : {}),
+      ...(extra.fromDate ? { fromDate: extra.fromDate } : {}),
+    };
+    // `computeTrendlines` is only forwarded when explicitly provided — the
+    // timeframe switch deliberately omits it (server default), matching the
+    // pre-two-phase wire shape exactly.
+    if (extra.computeTrendlines != null) {
+      (baseOpts as { computeTrendlines?: boolean }).computeTrendlines = extra.computeTrendlines;
+    }
+
+    // Phase 1 commit: candles/trendlines only, loading cleared. Never touches hits.
+    const applyCandles = (chart: SymbolChartPayload) => {
+      if (chartRequestRef.current !== token) return;
+      console.info("[chart-dock] loaded", {
+        symbol,
+        timeframe: tf,
+        candles: chart.candles?.length ?? 0,
+        hits: 0,
+        ms: Math.round(performance.now() - startedAt),
+      });
+      setFullscreen((prev) =>
+        prev && prev.symbol === symbol && prev.timeframe === tf
+          ? {
+              ...prev,
+              candles: chart.candles ?? [],
+              overlays: [],
+              trendLines: chart.trend_lines ?? [],
+              loading: false,
+            }
+          : prev,
+      );
+    };
+
+    const applyCandlesError = (err: unknown) => {
+      if (chartRequestRef.current !== token) return;
+      console.warn("[chart-dock] failed", {
+        symbol,
+        timeframe: tf,
+        ms: Math.round(performance.now() - startedAt),
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setFullscreen((prev) =>
+        prev && prev.symbol === symbol && prev.timeframe === tf
+          ? { ...prev, loading: false }
+          : prev,
+      );
+    };
+
+    // Phase 2 commit: hits/trendlines only (candles from phase 1 are kept).
+    const applyPatterns = (chart: SymbolChartPayload) => {
+      if (chartRequestRef.current !== token) return;
+      const hits = sortHitsNewest(chart.hits ?? []);
+      console.info("[chart-dock] patterns loaded", {
+        symbol,
+        timeframe: tf,
+        hits: hits.length,
+        ms: Math.round(performance.now() - startedAt),
+      });
+      setFullscreen((prev) =>
+        prev && prev.symbol === symbol && prev.timeframe === tf
+          ? {
+              ...prev,
+              hit: newestHit(hits),
+              hits,
+              trendLines: chart.trend_lines ?? [],
+              patternsLoading: false,
+            }
+          : prev,
+      );
+    };
+
+    const applyPatternsError = (err: unknown) => {
+      if (chartRequestRef.current !== token) return;
+      console.warn("[chart-dock] patterns failed", {
+        symbol,
+        timeframe: tf,
+        ms: Math.round(performance.now() - startedAt),
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setFullscreen((prev) =>
+        prev && prev.symbol === symbol && prev.timeframe === tf
+          ? { ...prev, patternsLoading: false }
+          : prev,
+      );
+    };
+
+    // Phase 2: pattern detection — started after phase 1 commits, never blocks candles.
+    const phase2 = async () => {
+      if (chartRequestRef.current !== token) return;
+      setFullscreen((prev) =>
+        prev && prev.symbol === symbol && prev.timeframe === tf
+          ? { ...prev, patternsLoading: true }
+          : prev,
+      );
+      const key = `${symbol}|${tf}|p`;
+      const cached = symbolChartCacheRef.current.get(key);
+      if (cached && Date.now() - cached.ts < SYMBOL_CHART_CACHE_MS) {
+        applyPatterns(cached.chart);
+        return;
+      }
+      try {
+        const chart = await fetchSymbolChart(symbol, tf, { detectPatterns: true, ...baseOpts });
+        if (chartRequestRef.current !== token) return;
+        symbolChartCacheRef.current.set(key, { chart, ts: Date.now() });
+        applyPatterns(chart);
+      } catch (err) {
+        applyPatternsError(err);
+      }
+    };
+
+    // Phase 1: candles only — render immediately, then kick off phase 2.
+    const phase1 = async () => {
+      const key = `${symbol}|${tf}|l`;
+      const cached = symbolChartCacheRef.current.get(key);
+      if (cached && Date.now() - cached.ts < SYMBOL_CHART_CACHE_MS) {
+        applyCandles(cached.chart);
+        if (detectPatterns) await phase2();
+        return;
+      }
+      try {
+        const chart = await fetchSymbolChart(symbol, tf, {
+          detectPatterns: false,
+          ...baseOpts,
+        });
+        if (chartRequestRef.current !== token) return;
+        symbolChartCacheRef.current.set(key, { chart, ts: Date.now() });
+        applyCandles(chart);
+        if (detectPatterns) await phase2();
+      } catch (err) {
+        applyCandlesError(err);
+      }
+    };
+
+    void phase1();
+  };
+
   const loadSymbolChart = (
     symbol: string,
     timeframe: string | undefined,
@@ -232,6 +392,8 @@ export function usePatternFullscreen({
     const tf = timeframe ?? defaultTimeframe;
     const token = chartRequestRef.current + 1;
     chartRequestRef.current = token;
+    const startedAt = performance.now();
+    console.info("[chart-dock] open", { symbol, timeframe: tf, pinned });
     setFullscreen({
       symbol,
       hit: null,
@@ -245,46 +407,13 @@ export function usePatternFullscreen({
       asOf: null,
       fromDate: null,
       pinned,
+      patternsLoading: undefined,
     });
 
-    const startedAt = performance.now();
-    console.info("[chart-dock] open", { symbol, timeframe: tf, pinned });
-    const apply = (chart: SymbolChartPayload) => {
-      console.info("[chart-dock] loaded", {
-        symbol,
-        timeframe: tf,
-        candles: chart.candles?.length ?? 0,
-        hits: chart.hits?.length ?? 0,
-        ms: Math.round(performance.now() - startedAt),
-      });
-      applySymbolChart(chart, symbol, tf, token);
-    };
-
-    const key = `${symbol}|${tf}|${detectPatterns ? "p" : "l"}`;
-    const cached = symbolChartCacheRef.current.get(key);
-    if (cached && Date.now() - cached.ts < SYMBOL_CHART_CACHE_MS) {
-      apply(cached.chart);
-      return;
-    }
-
-    void fetchSymbolChart(symbol, tf, {
-      detectPatterns,
-      ...(lookbackBars != null ? { lookbackBars } : {}),
+    void runTwoPhase(symbol, tf, token, detectPatterns, startedAt, {
+      lookbackBars,
       computeTrendlines,
-    })
-      .then((chart) => {
-        symbolChartCacheRef.current.set(key, { chart, ts: Date.now() });
-        apply(chart);
-      })
-      .catch((err) => {
-        console.warn("[chart-dock] failed", {
-          symbol,
-          timeframe: tf,
-          ms: Math.round(performance.now() - startedAt),
-          error: err instanceof Error ? err.message : String(err),
-        });
-        applySymbolChartError(symbol, tf, token);
-      });
+    });
   };
 
   const openFromSymbol = (symbol: string, timeframe?: string, detectPatterns: boolean = true) =>
@@ -294,22 +423,24 @@ export function usePatternFullscreen({
   const previewFromSymbol = (symbol: string, timeframe?: string, detectPatterns: boolean = true) =>
     loadSymbolChart(symbol, timeframe, false, detectPatterns);
 
-  // Fullscreen timeframe switch: re-runs detection on the new timeframe,
-  // swaps candles/trendlines, promotes the newest hit. Preserves as-of.
+  // Fullscreen timeframe switch: candles first (phase 1), then patterns only
+  // when the current chart has detection enabled (phase 2). Preserves as-of.
   const changeFullscreenTimeframe = (tf: string) => {
     const current = fullscreen;
     if (!current || tf === current.timeframe) return;
     const token = chartRequestRef.current + 1;
     chartRequestRef.current = token;
     const { symbol, asOf, fromDate } = current;
-    setFullscreen({ ...current, timeframe: tf, loading: true });
-    void fetchSymbolChart(symbol, tf, {
-      detectPatterns: current.detectPatterns !== false,
-      ...(asOf ? { asOf } : {}),
-      ...(fromDate ? { fromDate } : {}),
-    })
-      .then((chart) => applySymbolChart(chart, symbol, tf, token))
-      .catch(() => applySymbolChartError(symbol, tf, token));
+    const startedAt = performance.now();
+    setFullscreen({ ...current, timeframe: tf, loading: true, patternsLoading: undefined });
+    void runTwoPhase(symbol, tf, token, current.detectPatterns !== false, startedAt, {
+      asOf,
+      fromDate,
+      // Deliberately omitted: the pre-two-phase timeframe switch did not send
+      // compute_trendlines (server default). Keeping it off preserves the exact
+      // wire shape existing call sites assert against.
+      computeTrendlines: undefined,
+    });
   };
 
   // Fullscreen as-of replay: re-runs detection truncated at the cutoff.

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
-import { Box, Loader, useMediaQuery } from "@/ui";
+import { Box, Loader, Text, useMediaQuery } from "@/ui";
 import { useNavigate } from "react-router-dom";
 import { usePatternFullscreen } from "@/hooks/usePatternFullscreen";
 import { FALLBACK_TIMEFRAMES } from "@/components/patterns/TimeframeSelect";
@@ -138,6 +138,32 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
             overflow: "hidden",
           }}
         >
+          {fullscreen?.patternsLoading && (
+            <Box
+              data-testid="dock-patterns-loading"
+              sx={{
+                position: "absolute",
+                top: 8,
+                right: 8,
+                zIndex: 1200,
+                pointerEvents: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: 0.5,
+                border: 1,
+                borderColor: "divider",
+                borderRadius: 1,
+                bgcolor: "background.paper",
+                px: 0.75,
+                py: 0.25,
+              }}
+            >
+              <Loader size="xs" />
+              <Text size="xs" fw="medium">
+                Computing patterns…
+              </Text>
+            </Box>
+          )}
           <ErrorBoundary label="Chart" resetKey={fullscreen?.symbol}>
           <Suspense
             fallback={

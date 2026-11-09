@@ -1361,6 +1361,14 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
     await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
     await screen.findByTestId("patterns-fullscreen-modal");
     fetchSymbolChart.mockClear();
+    // Phase 1 (candles only) then phase 2 (detection) — two-phase timeframe switch.
+    fetchSymbolChart.mockResolvedValueOnce({
+      symbol: "IRCON",
+      timeframe: "1h",
+      candles: [{ t: "2026-09-26T09:15:00+05:30", o: 100, h: 115, l: 98, c: 112, v: 1000 }],
+      hits: [],
+      trend_lines: [],
+    });
     fetchSymbolChart.mockResolvedValueOnce({
       symbol: "IRCON",
       timeframe: "1h",
@@ -1400,6 +1408,14 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
     await screen.findByTestId("patterns-fullscreen-modal");
     expect(screen.getByTestId("patterns-fullscreen-modal")).toHaveTextContent("Falling Wedge");
     fetchSymbolChart.mockClear();
+    // Phase 1 (candles only) then phase 2 (detection, no hits) — two-phase timeframe switch.
+    fetchSymbolChart.mockResolvedValueOnce({
+      symbol: "IRCON",
+      timeframe: "1h",
+      candles: [{ t: "2026-09-26T09:15:00+05:30", o: 100, h: 115, l: 98, c: 112, v: 1000 }],
+      hits: [],
+      trend_lines: [],
+    });
     fetchSymbolChart.mockResolvedValueOnce({
       symbol: "IRCON",
       timeframe: "1h",
