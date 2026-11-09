@@ -365,3 +365,69 @@ describe("buildMarketFilterChips", () => {
     expect(chips.map((c) => c.label)).toEqual(["MCap ≥ 5000 Cr", "Above SMA 200"]);
   });
 });
+
+describe("search index", () => {
+  test("rebuilt when rows are replaced (snapshot refresh)", () => {
+    const before = [row("AAA", { name: "Alpha Energy", sector: "Energy" })];
+    const filters = (search: string): MarketFilterState => ({
+      ...defaultMarketFilters(),
+      search,
+      sort: "symbol_asc",
+    });
+    expect(filterMarketRows(before, filters("energy")).map((r) => r.symbol)).toEqual(["AAA"]);
+
+    const after = [row("AAA", { name: "Alpha Renewables", sector: "Utilities" })];
+    expect(filterMarketRows(after, filters("energy"))).toEqual([]);
+    expect(filterMarketRows(after, filters("utilities")).map((r) => r.symbol)).toEqual(["AAA"]);
+    expect(filterMarketRows(after, filters("renewables")).map((r) => r.symbol)).toEqual(["AAA"]);
+  });
+
+  test("matches symbol, name and sector case-insensitively with trimmed query", () => {
+    const rows = [row("RELIANCE", { name: "Reliance Industries", sector: "Energy" })];
+    const filters = (search: string): MarketFilterState => ({
+      ...defaultMarketFilters(),
+      search,
+      sort: "symbol_asc",
+    });
+    for (const q of ["reliance", "RELIANCE", "  Reliance  ", "Industries", "energy"]) {
+      expect(filterMarketRows(rows, filters(q))).toHaveLength(1);
+    }
+    expect(filterMarketRows(rows, filters("absent"))).toHaveLength(0);
+  });
+});
+
+describe("filter benchmark", () => {
+  const SECTORS = ["IT", "Energy", "FMCG", "Auto", "Pharma", "Banks", "Metals", "Telecom"];
+  const benchRows: MarketRow[] = Array.from({ length: 3227 }, (_, i) =>
+    row(`SYM${String(i).padStart(4, "0")}`, {
+      name: `Company ${i} ${SECTORS[i % SECTORS.length]} Ltd`,
+      sector: SECTORS[i % SECTORS.length],
+      marketCapCr: 100 + (i * 37) % 200000,
+      change: ((i * 13) % 200) / 10 - 10,
+      rsi: (i * 7) % 100,
+      pos52w: (i * 11) % 100,
+    }),
+  );
+  const benchFilters: MarketFilterState = {
+    ...defaultMarketFilters(),
+    search: "company 12",
+    sort: "mcap_desc",
+  };
+
+  test("median of 10 runs over 3,227 rows stays under 10ms", () => {
+    // Warm-up so the WeakMap index is built before timing.
+    filterMarketRows(benchRows, benchFilters);
+
+    const samples: number[] = [];
+    for (let i = 0; i < 10; i += 1) {
+      const start = performance.now();
+      filterMarketRows(benchRows, benchFilters);
+      samples.push(performance.now() - start);
+    }
+    const sorted = [...samples].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    // eslint-disable-next-line no-console
+    console.log(`filterMarketRows median=${median.toFixed(2)}ms samples=${samples.map((s) => s.toFixed(2)).join(",")}`);
+    expect(median).toBeLessThan(10);
+  });
+});

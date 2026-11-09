@@ -48,6 +48,7 @@ import { useMarketSnapshot } from "../../hooks/useMarketSnapshot";
 import { useSymbolDock } from "../common/symbolDockContext";
 
 const STALE_AFTER_MS = 15 * 60 * 1000;
+const UNIVERSE_OPTIONS = MARKET_UNIVERSES.map((o) => ({ value: o.value, label: o.label }));
 
 function isSnapshotStale(asOf: string | null): boolean {
   if (!asOf) return false;
@@ -223,7 +224,7 @@ export function MarketScreenerPanel() {
         <Select
           value={universe}
           onChange={(v) => v && setUniverse(v as MarketUniverse)}
-          data={MARKET_UNIVERSES.map((o) => ({ value: o.value, label: o.label }))}
+          data={UNIVERSE_OPTIONS}
           size="xs"
           w={120}
           aria-label="Market universe"
