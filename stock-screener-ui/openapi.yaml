@@ -5332,23 +5332,29 @@ paths:
       description: 'SSE twin of ``GET /watch`` (same query params, read-only, open).
 
 
-        Events: ``meta`` → ``{setup, min_rel_volume}`` (immediately);
+        Events: ``meta`` → ``{setup, min_rel_volume}`` (immediately), then a
 
-        ``item`` → one live row; ``done`` → ``{}``. ``arm()`` rows are cheap
+        second ``meta`` → ``{setup, min_rel_volume, total}`` after ``arm()`` so
 
-        (store read / session cache) so they resolve fast; each ``live()`` row
+        the UI can show progress; ``item`` → one live row; ``done`` → ``{}``.
 
-        streams as computed on a bounded pool (``queue.Queue`` bridge, like
+        ``arm()`` rows are cheap (store read / session cache) so they resolve
 
-        ``api/paper/live_stream.py``). A fresh precomputed snapshot
+        fast; each ``live()`` row streams as computed on a bounded pool
 
-        (``watch.get_snapshot``) is emitted item-by-item instead. Client
+        (``queue.Queue`` bridge, like ``api/paper/live_stream.py``). Rows are
 
-        disconnect stops production. Never raises mid-stream (``event: error``
+        fanned to ``watch.live`` in ``_STREAM_LIVE_CHUNK``-sized chunks so one
 
-        + close). Unknown setups 404 before the stream starts (same as
+        batched price/volume call serves up to 50 armed names instead of one call
 
-        ``/watch``).'
+        per row. A fresh precomputed snapshot (``watch.get_snapshot``) is emitted
+
+        item-by-item instead. Client disconnect stops production. Never raises
+
+        mid-stream (``event: error`` + close). Unknown setups 404 before the
+
+        stream starts (same as ``/watch``).'
       operationId: stream_watch_api_chart_patterns_watch_stream_get
       parameters:
       - in: query
@@ -6226,6 +6232,58 @@ paths:
       summary: Get Ticker
       tags:
       - market-ticker
+  /api/market/snapshot:
+    get:
+      description: Return the whole NSE market (one TV scan) shaped for the screener.
+      operationId: market_snapshot_api_market_snapshot_get
+      parameters:
+      - description: 'Universe: all_equity (default), nifty50, nifty500 or nse_fo.'
+        in: query
+        name: universe
+        required: false
+        schema:
+          default: all_equity
+          description: 'Universe: all_equity (default), nifty50, nifty500 or nse_fo.'
+          title: Universe
+          type: string
+      - description: Max rows returned (1..4000).
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 4000
+          description: Max rows returned (1..4000).
+          maximum: 4000
+          minimum: 1
+          title: Limit
+          type: integer
+      - description: Bypass the 15s in-process cache and re-fetch from TradingView.
+        in: query
+        name: force
+        required: false
+        schema:
+          default: false
+          description: Bypass the 15s in-process cache and re-fetch from TradingView.
+          title: Force
+          type: boolean
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                title: Response Market Snapshot Api Market Snapshot Get
+                type: object
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: NSE market snapshot for the one-page screener
+      tags:
+      - market
   /api/news:
     get:
       operationId: get_news_api_news_get
@@ -10917,9 +10975,7 @@ paths:
         required: false
         schema:
           default: india
-          enum:
-          - india
-          - america
+          pattern: ^(india|america)$
           title: Market
           type: string
       - in: query
@@ -10971,9 +11027,7 @@ paths:
         required: false
         schema:
           default: india
-          enum:
-          - india
-          - america
+          pattern: ^(india|america)$
           title: Market
           type: string
       - in: query
@@ -11025,10 +11079,7 @@ paths:
         required: false
         schema:
           default: sector
-          enum:
-          - sector
-          - industry
-          - theme
+          pattern: ^(sector|industry|theme)$
           title: Classify
           type: string
       - in: query
@@ -11036,14 +11087,7 @@ paths:
         required: false
         schema:
           default: 1D
-          enum:
-          - 1D
-          - 1W
-          - 1M
-          - 3M
-          - 6M
-          - YTD
-          - 1Y
+          pattern: ^(1D|1W|1M|3M|6M|YTD|1Y)$
           title: Period
           type: string
       - in: query
@@ -11051,9 +11095,7 @@ paths:
         required: false
         schema:
           default: india
-          enum:
-          - india
-          - america
+          pattern: ^(india|america)$
           title: Market
           type: string
       - in: query
@@ -12155,6 +12197,8 @@ tags:
   name: news-charts
 - description: Deep Value screener (India / USA / Global).
   name: value
+- description: NSE market snapshot powering the one-page screener.
+  name: market
 - description: 'Event Radar: scheduled corporate catalysts and intraday tripwires.'
   name: events
 - description: Sector rotation and sector-level analytics.

@@ -793,6 +793,7 @@ OPENAPI_TAGS = [
     {"name": "news", "description": "News feed, articles and sources."},
     {"name": "news-charts", "description": "News-linked chart annotations."},
     {"name": "value", "description": "Deep Value screener (India / USA / Global)."},
+    {"name": "market", "description": "NSE market snapshot powering the one-page screener."},
     {"name": "events", "description": "Event Radar: scheduled corporate catalysts and intraday tripwires."},
     {"name": "sector", "description": "Sector rotation and sector-level analytics."},
     {"name": "rotation", "description": "Market rotation analytics."},
@@ -1232,6 +1233,7 @@ _include_api("api.rotation", "router", "rotation", msg="✅ Rotation API loaded 
 # can resolve to the module (or a stale attribute) after other imports have
 # touched the package, which silently registers an APIRouter with no routes.
 _include_api("api.value_scan.router", "router", "value scan", msg="✅ Value scan API loaded at /api/value")
+_include_api("api.market_screen.router", "router", "market screen", msg="✅ Market Screen API loaded at /api/market")
 
 _include_api("api.options", "router", "options", msg="✅ Options API loaded at /api/options")
 
