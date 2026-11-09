@@ -170,6 +170,17 @@ export function SimDesk({
     return () => window.clearInterval(id);
   }, [open, live, effectiveMode]);
 
+  // A newly added or edited strategy has no row in the last result. Debounce
+  // a fresh run so the desk never sits on a stale "Run the desk" state.
+  const lastRunStrategiesRef = useRef(strategies);
+  useEffect(() => {
+    if (!open) return;
+    if (lastRunStrategiesRef.current === strategies) return;
+    lastRunStrategiesRef.current = strategies;
+    const id = window.setTimeout(() => void runRef.current(), 600);
+    return () => window.clearTimeout(id);
+  }, [strategies, open]);
+
   const selectedSpec = strategies.find((item) => item.id === selectedId) ?? strategies[0];
 
   const addStrategy = useCallback(
@@ -206,9 +217,15 @@ export function SimDesk({
     : null;
   const combined = result ? combinedViewAt(result, asOf) : null;
 
-  const coverage = result?.coverage;
-  const coverageText = coverage
-    ? `${finite(coverage.frames) ? coverage.frames : "—"} frames · ${fmtTime(coverage.first)}→${fmtTime(coverage.last)} · ${finite(coverage.gaps) ? coverage.gaps : "—"} gaps`
+  // Coverage must stop at the playhead too: the full-day frame count would
+  // reveal how long the session ran while scrubbing the open.
+  const coverageFrames = view?.equity.length ?? 0;
+  const coverageText = result
+    ? `${coverageFrames} frame${coverageFrames === 1 ? "" : "s"} · ${fmtTime(
+        view?.equity[0]?.t,
+      )}→${fmtTime(view?.equity.at(-1)?.t)}${
+        asOf ? "" : ` · ${finite(result.coverage.gaps) ? result.coverage.gaps : "—"} gaps`
+      }`
     : "—";
   const fillModel = result?.fillModel || "next-minute close fill · costs on · 0 slippage";
   const expiryText = result?.expiry || report?.expiry || "—";
@@ -414,7 +431,13 @@ export function SimDesk({
                   />
                 ) : null}
                 {tab === "payoff" ? (
-                  <SimPayoff strategy={selectedResult} view={view} spot={spot} />
+                  <SimPayoff
+                    strategy={selectedResult}
+                    view={view}
+                    planLegs={selectedSpec?.legs ?? []}
+                    entryTime={selectedSpec?.exec.entryTime}
+                    spot={spot}
+                  />
                 ) : null}
                 {tab === "runs" ? (
                   <SimRuns strategy={selectedResult} view={view} asOf={asOf} />

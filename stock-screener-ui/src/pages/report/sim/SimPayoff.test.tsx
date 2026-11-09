@@ -43,14 +43,38 @@ function strategy(): SimStrategyResult {
   };
 }
 
+function openTrade() {
+  return {
+    id: "t-1",
+    strategyId: "sc-1",
+    strategyName: "Long call",
+    legs: [],
+    entryTime: "2026-11-09T09:35:00+05:30",
+    exitTime: "",
+    entrySpot: 25000,
+    exitSpot: 25000,
+    entryPremium: 100,
+    exitPremium: 100,
+    lots: 1,
+    qty: 65,
+    grossPnl: 1234,
+    costs: 0,
+    netPnl: 1234,
+    points: 19,
+    exitReason: "OPEN",
+    holdMin: 25,
+    priced: true,
+  };
+}
+
 function view(overrides: Partial<StrategyView> = {}): StrategyView {
   return {
     equity: [{ t: "2026-11-09T10:00:00+05:30", pnl: 1234 }],
-    trades: [],
+    trades: [openTrade()],
     realized: 0,
     unrealized: 1234,
     total: 1234,
-    stats: { trades: 0, winRate: 0, profitFactor: 0, avgHoldMin: 0, maxDrawdown: 0 },
+    stats: { trades: 1, winRate: 0, profitFactor: 0, avgHoldMin: 0, maxDrawdown: 0 },
     ...overrides,
   };
 }
@@ -122,6 +146,32 @@ describe("SimPayoff", () => {
     expect(scatter?.data).toEqual([[25000, 2222]]);
     expect(scatter?.symbolSize).toBe(9);
     expect(scatter?.z).toBe(6);
+  });
+
+  test("shows the plan, not the entry structure, before the fill", () => {
+    render(
+      <SimPayoff
+        strategy={strategy()}
+        view={view({
+          equity: [{ t: "2026-11-09T09:15:00+05:30", pnl: 0 }],
+          trades: [],
+          realized: 0,
+          unrealized: 0,
+          total: 0,
+        })}
+        planLegs={[{ action: "SELL", opt: "CE", strike: "ATM+2", lots: 1 }]}
+        entryTime="09:35"
+        spot={25000}
+      />,
+    );
+
+    expect(screen.getByTestId("sim-payoff-not-entered")).toBeInTheDocument();
+    expect(screen.queryByTestId("sim-payoff-debit")).toBeNull();
+    expect(screen.queryByTestId("sim-payoff-max-profit")).toBeNull();
+    expect(screen.queryByTestId("sim-payoff-max-loss")).toBeNull();
+    expect(screen.getByTestId("sim-payoff-total")).toHaveTextContent("₹0");
+    expect(screen.getByText(/SELL CE ATM\+2/)).toBeInTheDocument();
+    expect(setChartOption).not.toHaveBeenCalled();
   });
 
   test("shows the empty state until the desk runs", () => {

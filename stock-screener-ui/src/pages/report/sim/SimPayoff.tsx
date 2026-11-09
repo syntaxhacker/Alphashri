@@ -1,18 +1,22 @@
 import { useEffect, useMemo } from "react";
-import { Box, Text } from "@/ui";
+import { Badge, Box, Text } from "@/ui";
 import { useECharts } from "@/hooks/useECharts";
 import { CompactStat, CompactStatGrid } from "@/components/common/compact";
 import * as palette from "@/ui/palette";
-import type { SimStrategyResult } from "@/types/reportSim";
+import type { SimLegSpec, SimStrategyResult } from "@/types/reportSim";
 import { payoffCurve } from "@/components/options/PremiumTracker/payoff";
 import { fmtInr, fmtSignedInr, fmtTime, toneFor } from "./simFormat";
 import { payoffSummary, toPayoffLegs } from "./simPayoff";
+import { legLabel } from "./simSpec";
 import type { StrategyView } from "./simView";
 
 interface SimPayoffProps {
   strategy: SimStrategyResult | null;
   /** Playhead slice; realized/total come from here, never the finished day. */
   view?: StrategyView | null;
+  /** The user's plan (ATM refs), safe to show before the entry fill. */
+  planLegs?: SimLegSpec[];
+  entryTime?: string;
   spot: number;
   height?: number;
 }
@@ -66,7 +70,14 @@ function plotWindow(
   return { lo: Math.max(1, loRef - pad), hi: hiRef + pad };
 }
 
-export function SimPayoff({ strategy, view, spot, height = 280 }: SimPayoffProps) {
+export function SimPayoff({
+  strategy,
+  view,
+  planLegs = [],
+  entryTime = "09:35",
+  spot,
+  height = 280,
+}: SimPayoffProps) {
   const { chartRef, setChartOption } = useECharts({ isDark: true });
   // The backend caps max profit/loss at the plotted range. The shared payoff
   // helper knows a naked short tail (null = unbounded), so the stat never
@@ -84,9 +95,12 @@ export function SimPayoff({ strategy, view, spot, height = 280 }: SimPayoffProps
   // effect, which returns early when there is no strategy.
   const mark = view?.total ?? (strategy?.total ?? 0);
   const markTime = view?.equity.at(-1)?.t ?? null;
+  // The backend resolves strikes and premiums at the entry fill. Before that
+  // bar, those are future data: show the plan, never the entry structure.
+  const entered = view ? view.trades.length > 0 : true;
 
   useEffect(() => {
-    if (!strategy || !hasPayoff) return;
+    if (!strategy || !hasPayoff || !entered) return;
     const legs = toPayoffLegs(strategy.legs);
     const strikes = strategy.legs.map((leg) => leg.strike);
     const { lo, hi } = plotWindow(strikes, strategy.breakevens, spot);
@@ -271,7 +285,7 @@ export function SimPayoff({ strategy, view, spot, height = 280 }: SimPayoffProps
           },
         ],
     });
-  }, [strategy, spot, hasPayoff, mark, markTime]);
+  }, [strategy, spot, hasPayoff, entered, mark, markTime]);
 
   if (!strategy || !hasPayoff) {
     return (
@@ -295,11 +309,13 @@ export function SimPayoff({ strategy, view, spot, height = 280 }: SimPayoffProps
   const realized = view?.realized ?? strategy.realized;
   const unrealized = view?.unrealized ?? strategy.unrealized;
   const total = view?.total ?? strategy.total;
+  const planText = planLegs.length > 0 ? planLegs.map(legLabel).join(" · ") : "No legs";
 
   return (
     <Box
       data-testid="sim-payoff"
       sx={{
+        position: "relative",
         display: "flex",
         flexDirection: "column",
         flex: 1,
@@ -313,40 +329,74 @@ export function SimPayoff({ strategy, view, spot, height = 280 }: SimPayoffProps
         data-testid="sim-payoff-chart"
         sx={{ width: "100%", height, flex: "0 0 auto", minWidth: 0 }}
       />
-      <Text size="xs" c="dimmed">
-        Expiry payoff at these strikes, before costs. Shaded green above zero,
-        red below.
-        {unbounded ? " A naked tail is unbounded beyond the plotted window." : ""}
-      </Text>
-      <CompactStatGrid cols={4} spacing={4}>
-        <CompactStat
-          dense
-          data-testid="sim-payoff-debit"
-          label="Net debit"
-          value={fmtInr(strategy.netDebit)}
-        />
-        <CompactStat
-          dense
-          data-testid="sim-payoff-max-profit"
-          label="Max profit"
-          tone={palette.POSITIVE}
-          value={
-            summary.maxProfit == null ? "unbounded" : fmtInr(summary.maxProfit)
-          }
-        />
-        <CompactStat
-          dense
-          data-testid="sim-payoff-max-loss"
-          label="Max loss"
-          tone={palette.NEGATIVE}
-          value={summary.maxLoss == null ? "unbounded" : fmtInr(summary.maxLoss)}
-        />
-        <CompactStat
-          dense
-          data-testid="sim-payoff-breakevens"
-          label="Breakevens"
-          value={breakevenText(strategy.breakevens)}
-        />
+      {!entered ? (
+        <Box
+          data-testid="sim-payoff-not-entered"
+          sx={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 2,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 0.75,
+            px: 2,
+            textAlign: "center",
+            bgcolor: palette.TERM_BG,
+          }}
+        >
+          <Badge color="warning" variant="outline" size="xs">
+            NOT ENTERED
+          </Badge>
+          <Text size="sm">Plan: {planText}</Text>
+          <Text size="xs" c="dimmed">
+            {strategy.skipped
+              ? `Skipped: ${strategy.skipped}`
+              : `Payoff, net debit and breakevens unlock after the fill (entry ${entryTime} + the next recorded minute).`}
+          </Text>
+        </Box>
+      ) : null}
+      {entered ? (
+        <Text size="xs" c="dimmed">
+          Expiry payoff at these strikes, before costs. Shaded green above zero,
+          red below.
+          {unbounded ? " A naked tail is unbounded beyond the plotted window." : ""}
+        </Text>
+      ) : null}
+      <CompactStatGrid cols={entered ? 4 : 3} spacing={4}>
+        {entered ? (
+          <>
+            <CompactStat
+              dense
+              data-testid="sim-payoff-debit"
+              label="Net debit"
+              value={fmtInr(strategy.netDebit)}
+            />
+            <CompactStat
+              dense
+              data-testid="sim-payoff-max-profit"
+              label="Max profit"
+              tone={palette.POSITIVE}
+              value={
+                summary.maxProfit == null ? "unbounded" : fmtInr(summary.maxProfit)
+              }
+            />
+            <CompactStat
+              dense
+              data-testid="sim-payoff-max-loss"
+              label="Max loss"
+              tone={palette.NEGATIVE}
+              value={summary.maxLoss == null ? "unbounded" : fmtInr(summary.maxLoss)}
+            />
+            <CompactStat
+              dense
+              data-testid="sim-payoff-breakevens"
+              label="Breakevens"
+              value={breakevenText(strategy.breakevens)}
+            />
+          </>
+        ) : null}
         <CompactStat
           dense
           data-testid="sim-payoff-realized"
