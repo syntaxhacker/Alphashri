@@ -11,10 +11,11 @@ import {
   POSITIVE,
   PRIMARY,
 } from "@/ui/palette";
-import { mapTrendlines, pointsToSeriesData } from "./trendlineMapping";
+import { pointsToSeriesData } from "./trendlineMapping";
+import { createAxisIndex } from "./axisIndex";
 import { formatChartTick, formatChartTimestamp } from "./datetime";
 import { formatCurrency } from "@/utils/ui-helpers";
-import { resolveVisibleStandalone, mapStandaloneLine } from "./standaloneLines";
+import { resolveVisibleStandalone } from "./standaloneLines";
 
 export const BOUNDARY_COLORS = PATTERN_BOUNDARY;
 
@@ -138,6 +139,9 @@ export function buildPatternChartOption({
 }: PatternChartOptionInput): Record<string, unknown> {
   const times = candles.map((c) => c.t);
 
+  // Axis parses once per build; every trendline/pivot/standalone lookup below
+  // reuses it instead of re-parsing the candle times per group/line/pivot.
+  const axis = createAxisIndex(times);
   const markData: Array<Record<string, unknown>> = [];
   if (!compact && hit) {
     if (hit.breakout_level) {
@@ -229,7 +233,7 @@ export function buildPatternChartOption({
   // a suffix while the first instance keeps the clean readable name.
   const nameCounts = new Map<string, number>();
   groups.forEach((group, index) => {
-    const mapped = mapTrendlines(group.lines, times);
+    const mapped = axis.mapTrendlines(group.lines);
     if (mapped.length === 0) return;
     const color = PATTERN_COLORS[index % PATTERN_COLORS.length];
     const seen = nameCounts.get(group.name) ?? 0;
@@ -285,7 +289,7 @@ export function buildPatternChartOption({
   // symbols/patterns match.
   const visibleStandalone = resolveVisibleStandalone(standaloneTrendLines, hit, trendlinesView);
   visibleStandalone.forEach((line) => {
-    const mapped = mapStandaloneLine(line, times);
+    const mapped = axis.mapStandaloneLine(line);
     if (!mapped) return;
     const { name, color, points } = mapped;
     // A degenerate single-point line draws nothing as a line — dot-mark it.
@@ -333,7 +337,7 @@ export function buildPatternChartOption({
   if (!compact && hit?.pivots?.length && times.length > 0) {
     hit.pivots.forEach((pivot) => {
       if (!pivot || !pivot.t) return;
-      const [point] = mapTrendlines([[{ t: pivot.t, price: pivot.price }]], times);
+      const [point] = axis.mapTrendlines([[{ t: pivot.t, price: pivot.price }]]);
       const mappedPoint = point?.[0];
       if (!mappedPoint || mappedPoint.index < 0) return;
       pivotMarkers.push({

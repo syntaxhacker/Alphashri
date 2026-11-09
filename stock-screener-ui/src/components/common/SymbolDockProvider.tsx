@@ -1,8 +1,10 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
-import { Box, Loader, useMediaQuery } from "@/ui";
+import { Box, Loader, Text, Badge, Tooltip, useMediaQuery } from "@/ui";
 import { useNavigate } from "react-router-dom";
 import { usePatternFullscreen } from "@/hooks/usePatternFullscreen";
+import { FALLBACK_TIMEFRAMES } from "@/components/patterns/TimeframeSelect";
 import { SymbolDockContext, type SymbolDockApi } from "./symbolDockContext";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 // The chart engine is heavy; only download it once a dock is actually opened.
 const PatternFullscreenView = lazy(() =>
@@ -34,6 +36,7 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
     fullscreen,
     openFromSymbol,
     previewFromSymbol,
+    changeFullscreenTimeframe,
     pinFullscreen,
     closeFullscreen,
     selectFullscreenHit,
@@ -62,7 +65,7 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
       if (fullscreenRef.current?.pinned) return;
       if (previewTimerRef.current) window.clearTimeout(previewTimerRef.current);
       previewTimerRef.current = window.setTimeout(() => {
-        previewFromSymbol(symbol);
+        previewFromSymbol(symbol, undefined, false);
       }, PREVIEW_DEBOUNCE_MS);
     },
     [isDesktop, previewFromSymbol],
@@ -135,6 +138,49 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
             overflow: "hidden",
           }}
         >
+          {fullscreen?.stale ? (
+            <Box
+              sx={{
+                position: "absolute",
+                bottom: 8,
+                right: 8,
+                zIndex: 1200,
+              }}
+            >
+              <Tooltip label="Showing cached candles; refreshing in background">
+                <Badge size="xs" variant="outline" color="warning" data-testid="dock-stale">
+                  {fullscreen?.dataAsOf ? `Cached ${fullscreen.dataAsOf}` : "Cached"}
+                </Badge>
+              </Tooltip>
+            </Box>
+          ) : null}
+          {fullscreen?.patternsLoading && (
+            <Box
+              data-testid="dock-patterns-loading"
+              sx={{
+                position: "absolute",
+                top: 8,
+                right: 8,
+                zIndex: 1200,
+                pointerEvents: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: 0.5,
+                border: 1,
+                borderColor: "divider",
+                borderRadius: 1,
+                bgcolor: "background.paper",
+                px: 0.75,
+                py: 0.25,
+              }}
+            >
+              <Loader size="xs" />
+              <Text size="xs" fw="medium">
+                Computing patterns…
+              </Text>
+            </Box>
+          )}
+          <ErrorBoundary label="Chart" resetKey={fullscreen?.symbol}>
           <Suspense
             fallback={
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1 }}>
@@ -153,6 +199,8 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
               trendLines={fullscreen?.trendLines ?? []}
               trendlinesView="both"
               timeframe={fullscreen?.timeframe}
+              timeframes={FALLBACK_TIMEFRAMES}
+              onTimeframeChange={changeFullscreenTimeframe}
               loading={fullscreen?.loading ?? false}
               asOf={fullscreen?.asOf ?? null}
               fromDate={fullscreen?.fromDate ?? null}
@@ -160,6 +208,7 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
               onLive={() => undefined}
             />
           </Suspense>
+          </ErrorBoundary>
         </Box>
       ) : null}
     </SymbolDockContext.Provider>

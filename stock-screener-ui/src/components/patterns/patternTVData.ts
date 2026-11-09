@@ -9,9 +9,9 @@ import type {
 import { PATTERN_SERIES_COLORS } from "@/config/patterns";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
-import { mapTrendlines } from "./trendlineMapping";
 import { toEpochSeconds as toTVTime } from "@/utils/chart/time";
-import { resolveVisibleStandalone, mapStandaloneLine } from "./standaloneLines";
+import { createAxisIndex } from "./axisIndex";
+import { resolveVisibleStandalone } from "./standaloneLines";
 
 /**
  * Colours assigned in order to the patterns drawn on one chart: the selected
@@ -143,17 +143,21 @@ export function buildPatternTVData({
   const times = candles.map((c) => c.t);
   if (times.length === 0) return empty;
 
+  // Axis parses once per build; every group/standalone lookup below reuses it.
+  const axis = createAxisIndex(times);
+
   /** Epoch per candle index; non-finite when the timestamp is unparseable. */
+  const epochs: number[] = times.map(toTVTime);
   const epochAt = (index: number): number =>
-    index >= 0 && index < times.length ? toTVTime(times[index] as string) : NaN;
+    index >= 0 && index < epochs.length ? epochs[index]! : NaN;
 
   // Candles: dedupe by epoch (last bar wins), sorted ascending.
   const byEpoch = new Map<number, ChartCandle>();
-  for (const c of candles) {
-    const t = toTVTime(c.t);
-    if (!Number.isFinite(t)) continue;
+  candles.forEach((c, i) => {
+    const t = epochs[i]!;
+    if (!Number.isFinite(t)) return;
     byEpoch.set(t, c);
-  }
+  });
   const sortedEpochs = [...byEpoch.keys()].sort((a, b) => a - b);
   const tvCandles: TVCandle[] = sortedEpochs.map((t) => {
     const c = byEpoch.get(t) as ChartCandle;
@@ -225,7 +229,7 @@ export function buildPatternTVData({
   const nameCounts = new Map<string, number>();
   const lines: TVLine[] = [];
   groups.forEach((group, index) => {
-    const mapped = mapTrendlines(group.lines, times);
+    const mapped = axis.mapTrendlines(group.lines);
     if (mapped.length === 0) return;
     const color = PATTERN_TV_COLORS[index % PATTERN_TV_COLORS.length] as string;
     const seen = nameCounts.get(group.name) ?? 0;
@@ -257,7 +261,7 @@ export function buildPatternTVData({
   // Standalone support/resistance 2-point segments, gated by the view filter.
   const visibleStandalone = resolveVisibleStandalone(trendLines, hit, trendlinesView);
   visibleStandalone.forEach((line) => {
-    const mapped = mapStandaloneLine(line, times);
+    const mapped = axis.mapStandaloneLine(line);
     if (!mapped) return;
     const { name, color, points } = mapped;
     const tvPoints = dedupeByTime(

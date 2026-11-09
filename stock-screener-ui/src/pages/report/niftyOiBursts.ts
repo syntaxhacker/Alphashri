@@ -95,6 +95,21 @@ export interface OiBurst {
   news?: NiftyBurstNews[];
   /** Session trend at this minute (attached by the panel from the tape). */
   trend?: "up" | "down" | null;
+  /** Backend setup classification + playbook (added 2026-11). */
+  setup?:
+    | "short_squeeze"
+    | "wall_squeeze"
+    | "put_squeeze"
+    | "fresh_long"
+    | "fresh_short"
+    | "put_floor"
+    | "call_cap"
+    | string;
+  setup_label?: string;
+  horizon?: "scalp" | "swing" | "watch" | string;
+  trigger?: number | null;
+  playbook?: string;
+  confidence?: string;
   /** "squeeze" = wall break (momentum); "strike" = single-strike explosion;
    *  wall events = strike-wall test/rejection/break; "data_stale" = system
    *  warning that the tape stopped updating. */
@@ -947,6 +962,41 @@ export function burstToAlert(
         structure.direction === "up" ? "above" : "below"
       } the ${formatNumberIN(structure.level)} ${structure.kind ?? "level"})`
     : `@ ${formatNumberIN(Math.round(burst.spot))}`;
+
+  const setupMetrics = burst.setup_label
+    ? [
+        { label: "SETUP", value: burst.setup_label },
+        ...(burst.horizon ? [{ label: "MODE", value: burst.horizon.toUpperCase() }] : []),
+        ...(burst.trigger != null ? [{ label: "TRIGGER", value: formatNumberIN(burst.trigger) }] : []),
+      ]
+    : [];
+
+  // A covering burst at/near a call wall is a *scalp watch*, not the usual
+  // "no trade" suppressed plan: spot was still below the wall at detection
+  // (e.g. 24,995 vs 25,000 on 2026-11-09 11:35:58) and the break happens
+  // seconds later. Surface the playbook without pretending it is a swing plan.
+  if (burst.setup === "short_squeeze" && (!signal || burst.plan_suppressed === true)) {
+    const trig = burst.trigger != null ? formatNumberIN(burst.trigger) : "the wall";
+    return {
+      id: burst.id,
+      kind: "oi_burst",
+      severity: burst.severity,
+      symbol: "NIFTY",
+      title: `SHORT SQUEEZE · scalp · wait for ${trig}`,
+      detail: `${what} ${where}. ${
+        burst.playbook ?? "Wait for a 1-min close through the wall; exit if the OI rebuilds."
+      } ${scoreTxt}. Heuristic, not advice.`,
+      metrics: [
+        ...setupMetrics,
+        { label: "ΔOI", value: compact(burst.delta), tone },
+        { label: "SPOT", value: burst.spot.toLocaleString("en-IN", { maximumFractionDigits: 0 }) },
+      ],
+      ts: Date.parse(burst.t) || Date.now(),
+      source: `Nifty tape · ${burstTimeLabel(burst.t)} IST · setup watch`,
+      href: "/report/index",
+      actionable: false,
+    } as MarketAlert;
+  }
   // The level the plan needs before it is a trade, and the "already spent" flag.
   const level = structure?.level ?? signal?.strike ?? null;
   const levelTxt = level != null ? formatNumberIN(level) : "";
@@ -973,6 +1023,7 @@ export function burstToAlert(
 
   const metrics = signal
     ? [
+        ...setupMetrics,
         { label: "ENTRY", value: signal.entry.toFixed(2) },
         ...(freshness?.live != null
           ? [{ label: "LIVE", value: freshness.live.toFixed(2) }]
@@ -984,6 +1035,7 @@ export function burstToAlert(
         ...(fuel ? [{ label: "FUEL", value: spent ? "spent" : "fresh" }] : []),
       ]
     : [
+        ...setupMetrics,
         { label: "ΔOI", value: compact(burst.delta), tone },
         { label: "CUM", value: compact(burst.cumDoi), tone: burst.cumDoi >= 0 ? ("up" as const) : ("down" as const) },
         { label: "TICK", value: compact(burst.tickVol) },
@@ -1008,7 +1060,13 @@ export function burstToAlert(
         }`
       : "plan withheld by the trend/structure filter";
 
-  const title = stale && signal
+  const setupPrefix =
+    burst.setup === "wall_squeeze"
+      ? "WALL SQUEEZE · "
+      : burst.setup === "fresh_long"
+        ? "FRESH BUY · "
+        : "";
+  const baseTitle = stale && signal
     ? `RE-PRICE · BUY ${signal.leg} ${formatNumberIN(signal.strike)} · ${staleTxt}`
     : suppressed
       ? `NO TRADE · ${noTradeWhy}`
@@ -1019,6 +1077,7 @@ export function burstToAlert(
         : burst.type === "coil"
           ? `COILING @ ${typeof burst.wall === "number" ? formatNumberIN(burst.wall) : "wall"}`
           : `${sideLabel} OI burst ${compact(burst.delta)} in 1 min`;
+  const title = setupPrefix && !baseTitle.startsWith("NO TRADE") ? `${setupPrefix}${baseTitle}` : baseTitle;
 
   const whyTxt =
     burst.type === "squeeze"
@@ -1049,7 +1108,7 @@ export function burstToAlert(
           ? `${what} ${where}. ${whyTxt}. ${doTxt}.${guardTxt ? ` ${guardTxt}.` : ""}${
               staleTxt ? ` ${staleTxt} — re-price before trading.` : ""
             } ${scoreTxt}. Heuristic, not advice.`
-          : `${what} ${where}. ${whyTxt}. ${doTxt}.${guardTxt ? ` ${guardTxt}.` : ""} ${scoreTxt} · ${burstTimeLabel(burst.t)} IST`;
+          : `${what} ${where}. ${whyTxt}. ${doTxt}.${guardTxt ? ` ${guardTxt}.` : ""}${burst.playbook ? ` ${burst.playbook}` : ""} ${scoreTxt} · ${burstTimeLabel(burst.t)} IST`;
 
   // Candidate catalyst: lead with the headline nearest the burst.
   const headline = burst.news?.[0];

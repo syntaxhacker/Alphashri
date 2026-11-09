@@ -31,7 +31,7 @@ import {
 import { BORDER, SURFACE, FIN_HEADER_H } from "@/ui/palette";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { MARKET_UNIVERSES, DEFAULT_MARKET_UNIVERSE } from "../../api/marketScreener";
-import type { MarketUniverse } from "../../types/marketScreener";
+import type { MarketRow, MarketUniverse } from "../../types/marketScreener";
 import {
   buildMarketFilterChips,
   countActiveMarketFilters,
@@ -48,6 +48,7 @@ import { useMarketSnapshot } from "../../hooks/useMarketSnapshot";
 import { useSymbolDock } from "../common/symbolDockContext";
 
 const STALE_AFTER_MS = 15 * 60 * 1000;
+const UNIVERSE_OPTIONS = MARKET_UNIVERSES.map((o) => ({ value: o.value, label: o.label }));
 
 function isSnapshotStale(asOf: string | null): boolean {
   if (!asOf) return false;
@@ -61,13 +62,14 @@ export function MarketScreenerPanel() {
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const [filters, setFilters] = useState<MarketFilterState>(() => defaultMarketFilters());
+  const deferredFilters = useDeferredValue(filters);
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const dock = useSymbolDock();
   const isNarrow = useMediaQuery("(max-width: 1023px)");
 
-  const { rows, total, updateMode, asOf, isLoading, error, refresh } =
+  const { rows, total, updateMode, asOf, isLoading, error, refresh, stale: cachedStale, warming } =
     useMarketSnapshot(universe);
 
   // Filters belong to one universe's snapshot; carrying them across a universe
@@ -77,11 +79,13 @@ export function MarketScreenerPanel() {
     setSearch("");
   }, [universe]);
 
-  // Only the query passed to filterMarketRows is deferred — chips and the
-  // active-filter count must reflect what the user is typing right now.
+  // `filters`/`search` drive chips + the active-filter count immediately; the
+  // table consumes deferred copies so a filter click never blocks on
+  // synchronously re-rendering the full row set (496 Nifty-500 rows take
+  // ~1s of synchronous layout).
   const filteredRows = useMemo(
-    () => filterMarketRows(rows, { ...filters, search: deferredSearch }),
-    [rows, filters, deferredSearch],
+    () => filterMarketRows(rows, { ...deferredFilters, search: deferredSearch }),
+    [rows, deferredFilters, deferredSearch],
   );
   const chips = useMemo(
     () => buildMarketFilterChips({ ...filters, search }),
@@ -94,7 +98,10 @@ export function MarketScreenerPanel() {
   const sectors = useMemo(() => marketSectors(rows), [rows]);
   const tierCounts = useMemo(() => countByCapTier(rows), [rows]);
   const columns = useMemo(() => buildMarketColumns(), []);
-  const stale = useMemo(() => isSnapshotStale(asOf), [asOf]);
+  const stale = useMemo(
+    () => cachedStale || isSnapshotStale(asOf),
+    [cachedStale, asOf],
+  );
   const hasActiveFilters = chips.length > 0;
 
   const patchFilters = useCallback(
@@ -156,6 +163,9 @@ export function MarketScreenerPanel() {
     }
   }, [isNarrow]);
 
+  const showWarmingHint =
+    universe === "all_equity" && warming && isLoading && error === null && rows.length === 0;
+
   const modeBadge = (() => {
     const mode = (updateMode ?? "").toLowerCase();
     if (mode === "streaming") {
@@ -170,6 +180,26 @@ export function MarketScreenerPanel() {
   const showInitialLoading = isLoading && rows.length === 0;
   const showError = error !== null && rows.length === 0;
   const showErrorBanner = error !== null && !isLoading && rows.length > 0;
+
+  // Stable callbacks: TanStackTable must not receive new function identities
+  // on every render (that would destabilize row event handlers).
+  const handleRowClick = useCallback(
+    (row: MarketRow) => {
+      setSelectedSymbol(row.symbol);
+      dock.open(row.symbol);
+    },
+    [dock],
+  );
+
+  const getRowStyle = useCallback(
+    (row: MarketRow) =>
+      row.symbol === selectedSymbol
+        ? { backgroundColor: "var(--mui-palette-action-selected)" }
+        : undefined,
+    [selectedSymbol],
+  );
+
+  const getRowTestId = useCallback((row: MarketRow) => `market-row-${row.symbol}`, []);
 
   const rail = (
     <MarketFilterRail
@@ -217,7 +247,7 @@ export function MarketScreenerPanel() {
         <Select
           value={universe}
           onChange={(v) => v && setUniverse(v as MarketUniverse)}
-          data={MARKET_UNIVERSES.map((o) => ({ value: o.value, label: o.label }))}
+          data={UNIVERSE_OPTIONS}
           size="xs"
           w={120}
           aria-label="Market universe"
@@ -244,7 +274,13 @@ export function MarketScreenerPanel() {
           </Badge>
         </Tooltip>
         {stale ? (
-          <Tooltip label={`Snapshot is older than 15 minutes (as of ${asOf ?? "unknown"})`}>
+          <Tooltip
+            label={
+              cachedStale && isLoading
+                ? "Showing the last snapshot — refreshing in the background"
+                : `Snapshot is older than 15 minutes (as of ${asOf ?? "unknown"})`
+            }
+          >
             <Badge size="xs" variant="outline" color="warning" data-testid="market-stale-badge">
               Stale
             </Badge>
@@ -305,6 +341,39 @@ export function MarketScreenerPanel() {
           Reset
         </Button>
       </Paper>
+
+      {showWarmingHint ? (
+        <Box
+          role="status"
+          data-testid="market-warming-hint"
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1,
+            px: 1,
+            py: 0.5,
+            flexShrink: 0,
+            border: 1,
+            borderColor: BORDER,
+            borderRadius: 2,
+            bgcolor: SURFACE,
+          }}
+        >
+          <Loader size={12} />
+          <Text size="xs" c="dimmed" data-testid="market-warming-hint-text">
+            Still warming All NSE — switch to Nifty 500 for instant data
+          </Text>
+          <Box sx={{ flex: 1, minWidth: 0 }} />
+          <Button
+            size="xs"
+            variant="subtle"
+            onClick={() => setUniverse("nifty500")}
+            data-testid="market-warming-switch"
+          >
+            Switch to Nifty 500
+          </Button>
+        </Box>
+      ) : null}
 
       {showErrorBanner ? (
         <Box
@@ -479,16 +548,9 @@ export function MarketScreenerPanel() {
               enableSorting
               stickyHeader
               initialState={{ sorting: [{ id: "market_cap_cr", desc: true }] }}
-              onRowClick={(row) => {
-                setSelectedSymbol(row.symbol);
-                dock.open(row.symbol);
-              }}
-              getRowStyle={(row) =>
-                row.symbol === selectedSymbol
-                  ? { backgroundColor: "var(--mui-palette-action-selected)" }
-                  : undefined
-              }
-              getRowTestId={(row) => `market-row-${row.symbol}`}
+              onRowClick={handleRowClick}
+              getRowStyle={getRowStyle}
+              getRowTestId={getRowTestId}
               emptyMessage={
                 hasActiveFilters ? "No rows match the current filters" : "No market data"
               }

@@ -404,6 +404,42 @@ async def watch_snapshot_task():
         except Exception as e:
             print(f"[Watch] Snapshot task error: {e}")
             await asyncio.sleep(60)
+
+
+async def market_snapshot_prewarm_task():
+    """Keep ``all_equity`` market snapshot warm.
+
+    Prompt first run shortly after startup, then every
+    ``MARKET_SCREEN_PREWARM_INTERVAL_SEC`` (default 60s), gated to market
+    hours. The TV scan runs off the event loop and never blocks the lifespan
+    or any request.
+    """
+    import os
+
+    interval = int(os.environ.get("MARKET_SCREEN_PREWARM_INTERVAL_SEC", "60"))
+    first = True
+    while True:
+        try:
+            if first:
+                await asyncio.sleep(2)
+                first = False
+            else:
+                await asyncio.sleep(interval)
+            if not _is_market_hours():
+                continue
+            from api.market_screen.snapshot import (
+                MAX_LIMIT as _snapshot_max_limit,
+                build_snapshot,
+            )
+            await asyncio.to_thread(build_snapshot, "all_equity", _snapshot_max_limit, False)
+            print("[Market Snapshot] all_equity prewarm complete")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[Market Snapshot] prewarm error: {e}")
+            await asyncio.sleep(30)
+
+
 async def touch_recorder_task():
     """Persist daily 52W touches once per day after market close.
 
@@ -510,6 +546,7 @@ async def lifespan(app: FastAPI):
     _nifty_oi_task = None
     _nifty_spot_task = None
     _nifty_md_task = None
+    _market_snapshot_task = None
     ci = _ci_mode()
     redis_connected = False
     try:
@@ -576,6 +613,7 @@ async def lifespan(app: FastAPI):
 
             from api.screener_api.dashboard import dashboard_prewarm_task
             _dashboard_task = _spawn_task("Screener dashboard prewarm", dashboard_prewarm_task, started="📊 Screener dashboard prewarm task started", failed="⚠️ Screener dashboard prewarm failed: {e}")
+            _market_snapshot_task = _spawn_task("Market snapshot prewarm", market_snapshot_prewarm_task, started="📸 Market snapshot prewarm started", failed="⚠️ Market snapshot prewarm failed: {e}")
 
             try:
                 from api.reports_api.digest import report_digest_task
@@ -704,6 +742,8 @@ async def lifespan(app: FastAPI):
         _watch_task.cancel()
     if _dashboard_task:
         _dashboard_task.cancel()
+    if _market_snapshot_task:
+        _market_snapshot_task.cancel()
     if _digest_task:
         _digest_task.cancel()
     try:

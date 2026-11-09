@@ -6,6 +6,7 @@ import { LoginForm, RegisterForm } from "./components/auth/LoginForm2";
 import { NotificationContainer } from "./components/notifications/NotificationContainer";
 import { PreviewChartProvider } from "./components/common/PreviewChartProvider";
 import { SymbolDockProvider } from "./components/common/SymbolDockProvider";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { AppLayout } from "./components/layout/AppLayout";
 import { NewsWebSocketProvider } from "./state/newsWebSocket";
 import { loadHolidays } from "./state/holidays";
@@ -84,6 +85,7 @@ function AppContent() {
       <PreviewChartProvider>
         <SymbolDockProvider>
           <Suspense fallback={<Center><Loader /></Center>}>
+            <ErrorBoundary label="Page">
             <Routes>
             <Route path="/" element={<ScreenerContainer />} />
             <Route path="/backtest" element={<BacktestPage />} />
@@ -114,7 +116,8 @@ function AppContent() {
             <Route path="/poc/replay/:strategyId" element={<ReplayStrategyPage />} />
             <Route path="/chart/:symbol?" element={<ChartView />} />
             <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+            </Routes>
+            </ErrorBoundary>
         </Suspense>
         </SymbolDockProvider>
       </PreviewChartProvider>

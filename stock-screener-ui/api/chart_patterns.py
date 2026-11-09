@@ -9,11 +9,13 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import json
+import logging
+import os
 import queue as _queue
 import threading
 import time as _time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import NamedTuple, Optional
 
 from sqlalchemy.orm import Session
@@ -209,6 +211,476 @@ def _clear_read_caches() -> None:
     with _read_cache_lock:
         _summary_cache.clear()
         _matrix_cache.clear()
+
+
+# ---------------------------------------------------------------------------
+# Symbol chart fetch: hard timeout + negative cache for empty results.
+#
+# A missing/slow symbol (Upstox DNS failure, hung feed) must not hold
+# ``GET /symbol/{symbol}/chart`` for 30s and then repeat the wait on every
+# click. The upstream fetch is capped by ``CHART_FETCH_TIMEOUT_SEC``; on
+# timeout or an empty frame the endpoint answers ``{"candles":[]}`` with an
+# ``error``/``note`` instead of 500. Empty results are cached per
+# ``(symbol, timeframe, IST session)`` for ~5 minutes so a repeat click is
+# instant; entries never outlive the session they were taken in.
+#
+# When the upstream fails (timeout / error / no data) and the default
+# live-edge disk cache entry holds a completed-session frame, the endpoint
+# serves that frame marked ``cached``/``stale`` with ``as_of`` set to the
+# frame's last session — never as current data. The read is local disk,
+# adds no network call, and never applies to historical/as-of namespaced
+# cache files.
+# ---------------------------------------------------------------------------
+
+#: Hard upper bound on one symbol-chart candle fetch (seconds). Env-overridable
+#: for deployments on slower feeds; 0 disables the cap.
+_CHART_FETCH_TIMEOUT_SEC = float(os.environ.get("CHART_FETCH_TIMEOUT_SEC", "7.0"))
+#: TTL of a negative (empty-result) cache entry (seconds).
+_CHART_NEG_CACHE_TTL_SEC = float(os.environ.get("CHART_NEG_CACHE_TTL_SEC", "300.0"))
+_CHART_NEG_CACHE_MAX = 256
+
+_chart_neg_cache: dict[tuple[str, str, str], tuple[float, dict]] = {}
+_chart_neg_cache_lock = threading.Lock()
+_chart_logger = logging.getLogger(__name__)
+
+
+def _ist_session_date() -> str:
+    """Today's IST session date — the date component of the negative-cache key."""
+    return datetime.now(root_config.IST).strftime("%Y-%m-%d")
+
+
+def _chart_neg_cache_get(symbol: str, timeframe: str, session: str) -> Optional[dict]:
+    now = _time.monotonic()
+    key = (str(symbol).upper(), str(timeframe), session)
+    with _chart_neg_cache_lock:
+        entry = _chart_neg_cache.get(key)
+        if entry is None:
+            return None
+        expires, payload = entry
+        if now < expires:
+            return payload
+        _chart_neg_cache.pop(key, None)
+        return None
+
+
+def _chart_neg_cache_put(symbol: str, timeframe: str, session: str, payload: dict) -> None:
+    now = _time.monotonic()
+    key = (str(symbol).upper(), str(timeframe), session)
+    with _chart_neg_cache_lock:
+        while len(_chart_neg_cache) >= _CHART_NEG_CACHE_MAX:
+            _chart_neg_cache.pop(next(iter(_chart_neg_cache)), None)
+        _chart_neg_cache[key] = (now + _CHART_NEG_CACHE_TTL_SEC, payload)
+
+
+def _chart_empty_payload(symbol: str, timeframe: str, *, reason: str, note: str) -> dict:
+    """Empty chart answer carrying a machine-readable ``error`` + human ``note``."""
+    return {
+        "symbol": str(symbol).upper(),
+        "timeframe": timeframe,
+        "candles": [],
+        "overlays": [],
+        "trend_lines": [],
+        "error": reason,
+        "note": note,
+    }
+
+
+def _stale_chart_fallback(
+    symbol: str,
+    timeframe: str,
+    *,
+    fetch_lookback: Optional[int],
+    clamp_lookback: Optional[int],
+    limit: int,
+    reason: str,
+) -> Optional[dict]:
+    """Last good on-disk frame for the live-edge cache entry, else ``None``.
+
+    Read-only and network-free. Only the default live-edge entry the fetch
+    itself would have used (matching ``lb{N}`` lookback variant) is
+    considered — historical/as-of namespaced files are never served. A frame
+    from an earlier session is returned solely with ``cached``/``stale`` set
+    and ``as_of`` pinned to the frame's last session date, so it can never
+    present itself as current data. Never raises.
+    """
+    try:
+        lb = None if fetch_lookback is None else int(fetch_lookback)
+        variant = f"lb{lb}" if lb is not None else None
+        path = candles._cache_path(timeframe, symbol, None, variant=variant)
+        df = candles._read_pickle_any(path)
+        if df is None:
+            return None
+        as_of = candles.frame_last_date(df)
+        if not as_of:
+            return None
+        series = _clamped_candle_series(df, clamp_lookback, limit)
+        if not series:
+            return None
+    except Exception:
+        return None
+    return {
+        "symbol": str(symbol).upper(),
+        "timeframe": timeframe,
+        "candles": series,
+        "overlays": [],
+        "trend_lines": [],
+        "cached": True,
+        "stale": True,
+        "as_of": as_of,
+        "note": f"served last cached frame (through {as_of}); {reason}",
+    }
+
+
+def _log_chart_fetch(
+    symbol: str,
+    timeframe: str,
+    *,
+    elapsed_ms: float,
+    rows: int,
+    cache_hit: bool,
+    timeout: bool,
+    error: Optional[str],
+    stale_fallback: bool = False,
+) -> None:
+    _chart_logger.info(
+        "chart_fetch symbol=%s timeframe=%s elapsed_ms=%.0f rows=%d cache_hit=%s timeout=%s error=%s stale_fallback=%s",
+        symbol, timeframe, elapsed_ms, rows, bool(cache_hit), bool(timeout), error or "",
+        "true" if stale_fallback else "false",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Symbol chart fetch: stale-first serving + pattern-hit cache.
+#
+# For live ``GET /symbol/{symbol}/chart`` (no replay/as-of) the default
+# live-edge disk cache is checked *before* the network. A session-current
+# frame is returned immediately with ``cached``/``stale`` set and ``as_of``
+# pinned to its last session — never as current data — while a daemon thread
+# re-fetches in the background so the next poll sees fresh candles. "Session
+# current" means: an intraday frame must carry a bar from today (IST); a 1D
+# frame must reach the last completed session. The read is one local pickle,
+# size-capped, adds no network call, and never applies to replay/as-of
+# requests.
+#
+# ``detect_patterns`` results (and the trend lines computed alongside them)
+# are cached per ``(symbol, timeframe, IST session)`` for ~5 minutes so a
+# fullscreen poll does not re-run the detector when nothing changed. Entries
+# never apply across sessions.
+# ---------------------------------------------------------------------------
+
+#: Largest default live-edge pickle the stale-first read will touch (bytes).
+_STALE_FIRST_MAX_BYTES = int(os.environ.get("CHART_STALE_FIRST_MAX_BYTES", str(16 * 1024 * 1024)))
+#: Expected upper bound (ms) for the stale-first disk read; breaches are logged.
+_STALE_FIRST_DISK_BUDGET_MS = float(os.environ.get("CHART_STALE_FIRST_DISK_BUDGET_MS", "250"))
+_PATTERN_HIT_CACHE_TTL_SEC = float(os.environ.get("CHART_PATTERN_HIT_CACHE_TTL_SEC", "300.0"))
+_PATTERN_HIT_CACHE_MAX = 256
+
+_pattern_hit_cache: dict[tuple[str, str, str], tuple[float, dict]] = {}
+_pattern_hit_cache_lock = threading.Lock()
+#: (symbol, timeframe) pairs with an in-flight background refresh (dedupe).
+_refresh_inflight: set[tuple[str, str]] = set()
+_refresh_inflight_lock = threading.Lock()
+
+
+def _pattern_hit_cache_get(symbol: str, timeframe: str, session: str) -> Optional[dict]:
+    now = _time.monotonic()
+    key = (str(symbol).upper(), str(timeframe), session)
+    with _pattern_hit_cache_lock:
+        entry = _pattern_hit_cache.get(key)
+        if entry is None:
+            return None
+        expires, payload = entry
+        if now < expires:
+            return payload
+        _pattern_hit_cache.pop(key, None)
+        return None
+
+
+def _pattern_hit_cache_put(symbol: str, timeframe: str, session: str, payload: dict) -> None:
+    now = _time.monotonic()
+    key = (str(symbol).upper(), str(timeframe), session)
+    with _pattern_hit_cache_lock:
+        while len(_pattern_hit_cache) >= _PATTERN_HIT_CACHE_MAX:
+            _pattern_hit_cache.pop(next(iter(_pattern_hit_cache)), None)
+        _pattern_hit_cache[key] = (now + _PATTERN_HIT_CACHE_TTL_SEC, payload)
+
+
+def _clear_pattern_hit_cache() -> None:
+    """Drop the pattern-hit cache (tests + operator resets)."""
+    with _pattern_hit_cache_lock:
+        _pattern_hit_cache.clear()
+
+
+def _clear_chart_caches() -> None:
+    """Drop every symbol-chart cache (tests + operator resets)."""
+    with _chart_neg_cache_lock:
+        _chart_neg_cache.clear()
+    _clear_pattern_hit_cache()
+    with _refresh_inflight_lock:
+        _refresh_inflight.clear()
+
+
+def _stale_first_frame(symbol: str, timeframe: str, lookback_bars) -> Optional[tuple]:
+    """Default live-edge disk frame when session-current, else ``None``.
+
+    Local-disk read only: one size-capped pickle, no network. Returns
+    ``(df, as_of, read_ms)`` where ``as_of`` is the frame's last IST session
+    date. Never raises.
+
+    For ``1W``/``1M`` with no exact (fresh) cache, falls back to resampling
+    the default ``1D`` cache locally (``W-FRI`` / month-end) so a weekly or
+    monthly chart loads instantly instead of going to the network.
+    """
+    try:
+        lb = None if lookback_bars is None else int(lookback_bars)
+        variant = f"lb{lb}" if lb is not None else None
+        path = candles._cache_path(timeframe, symbol, None, variant=variant)
+        # A chart asks for the READ_LOOKBACK_BARS variant (e.g. lb500); if that
+        # file was never written, the default live-edge frame is still a valid
+        # stale fallback. This is what makes a symbol chart load instantly
+        # after any prior fetch, regardless of the lookback variant.
+        candidates = [path]
+        if variant is not None:
+            alt = candles._cache_path(timeframe, symbol, None)
+            if alt != path:
+                candidates.append(alt)
+        chosen = None
+        for candidate in candidates:
+            try:
+                candidate.stat().st_size
+            except OSError:
+                continue
+            chosen = candidate
+            break
+        df = None
+        read_ms = 0.0
+        if chosen is not None:
+            try:
+                size = chosen.stat().st_size
+            except OSError:
+                size = 0
+            if size <= _STALE_FIRST_MAX_BYTES:
+                start = _time.monotonic()
+                df = candles._read_pickle_any(chosen)
+                read_ms = (_time.monotonic() - start) * 1000.0
+                if read_ms > _STALE_FIRST_DISK_BUDGET_MS:
+                    _chart_logger.warning(
+                        "chart_stale_first slow disk read symbol=%s timeframe=%s read_ms=%.0f",
+                        symbol, timeframe, read_ms,
+                    )
+        if df is not None:
+            as_of = candles.frame_last_date(df)
+            if as_of:
+                if timeframe == "1D":
+                    try:
+                        lcs = candles._last_completed_session().isoformat()
+                    except Exception:
+                        lcs = None
+                    # One stale session (or a weekend) is still worth serving:
+                    # the whole point is instant candles while the background
+                    # refresh runs.
+                    ok = bool(lcs) and as_of >= (
+                        datetime.fromisoformat(lcs) - timedelta(days=3)
+                    ).date().isoformat()
+                else:
+                    ok = as_of == _ist_session_date()
+                if ok:
+                    return df, as_of, read_ms
+        # Weekly/monthly resample fallback: no exact (fresh) 1W/1M cache, so
+        # resample the default 1D cache locally — capped work, no network.
+        if timeframe in ("1W", "1M"):
+            return _stale_first_resampled_daily(symbol, timeframe)
+        return None
+    except Exception:
+        return None
+
+
+def _stale_first_resampled_daily(symbol: str, timeframe: str) -> Optional[tuple]:
+    """Resample the default ``1D`` live-edge cache into ``1W`` (``W-FRI``) or
+    ``1M`` (month-end) candles. Network-free, local disk only.
+
+    Returns ``(df, as_of, read_ms)`` where ``as_of`` is the last session date
+    of the source daily frame (truthful "data through" date), or ``None`` when
+    there is no usable ``1D`` cache. The caller marks the result ``stale``.
+    """
+    try:
+        path = candles._cache_path("1D", symbol, None)
+        try:
+            size = path.stat().st_size
+        except OSError:
+            return None
+        if size > _STALE_FIRST_MAX_BYTES:
+            _chart_logger.info(
+                "chart_stale_first_resample skipped=size symbol=%s timeframe=%s bytes=%d",
+                symbol, timeframe, size,
+            )
+            return None
+        start = _time.monotonic()
+        df = candles._read_pickle_any(path)
+        read_ms = (_time.monotonic() - start) * 1000.0
+        if df is None:
+            return None
+        as_of = candles.frame_last_date(df)
+        if not as_of:
+            return None
+        # Same 3-day freshness tolerance as the 1D stale-first path.
+        try:
+            lcs = candles._last_completed_session().isoformat()
+        except Exception:
+            lcs = None
+        if (
+            not lcs
+            or as_of
+            < (datetime.fromisoformat(lcs) - timedelta(days=3)).date().isoformat()
+        ):
+            return None
+        rule = "W-FRI" if timeframe == "1W" else "ME"
+        out = candles._resample_ohlcv(df, rule)
+        if out is None or out.empty:
+            return None
+        return out, as_of, read_ms
+    except Exception:
+        return None
+
+
+def _kick_stale_first_refresh(symbol: str, timeframe: str, lookback_bars) -> bool:
+    """Re-fetch the default live-edge frame in a daemon thread.
+
+    The request never waits on this; the fresh frame lands in the disk cache
+    for the next poll. ``force_refresh`` bypasses the disk read and the
+    empty-result negative caches so the refresh actually rewrites the cache.
+    Returns ``False`` when a refresh for the pair is already in flight.
+    """
+    key = (str(symbol).upper(), str(timeframe))
+    with _refresh_inflight_lock:
+        if key in _refresh_inflight:
+            return False
+        _refresh_inflight.add(key)
+
+    def _run() -> None:
+        try:
+            candles.fetch_for_timeframe(
+                key[0], key[1],
+                lookback_bars=None if lookback_bars is None else int(lookback_bars),
+                include_partial_today=False,
+                force_refresh=True,
+            )
+        except Exception:
+            _chart_logger.warning(
+                "chart_stale_first_refresh failed symbol=%s timeframe=%s", key[0], key[1],
+            )
+        finally:
+            with _refresh_inflight_lock:
+                _refresh_inflight.discard(key)
+
+    threading.Thread(target=_run, name=f"chart-stale-refresh-{key[0]}-{key[1]}", daemon=True).start()
+    return True
+
+
+def _stored_overlays_and_lines(symbol_u: str, timeframe: str) -> tuple[list, list]:
+    """Stored-scan overlays + fresh stored trend lines. Never raises."""
+    overlays: list = []
+    stored_fresh_lines: list = []
+    try:
+        detail = store.get_symbol_detail(symbol_u, timeframe)
+    except Exception:
+        detail = {}
+    try:
+        chart_sig = config.trendline_signature()
+    except Exception:
+        chart_sig = None
+    for pattern in (detail.get("patterns", []) if isinstance(detail, dict) else []):
+        if pattern.get("trendlines"):
+            overlays.append({
+                "pattern_id": pattern.get("pattern_id"),
+                "pattern_name": pattern.get("pattern_name"),
+                "direction": pattern.get("direction"),
+                "trendlines": pattern.get("trendlines"),
+                "start_date": pattern.get("start_date"),
+                "end_date": pattern.get("end_date"),
+                "id": pattern.get("id"),
+            })
+        if not stored_fresh_lines and _stored_lines_fresh(pattern, chart_sig):
+            stored_fresh_lines = list(pattern.get("trend_lines") or [])
+    return overlays, stored_fresh_lines
+
+
+def _detect_trend_lines(df, lookback_bars, stored_fresh_lines) -> list:
+    if stored_fresh_lines:
+        return list(stored_fresh_lines)
+    try:
+        _res = trendlines_mod.detect_trendlines(df, lookback_bars=lookback_bars)
+        return [v for v in (_res.get("support"), _res.get("resistance")) if v] if isinstance(_res, dict) else []
+    except Exception:
+        return []
+
+
+def _pattern_block(df, symbol_u: str, timeframe: str, session: str, lookback_bars,
+                   compute_trendlines: bool, stored_fresh_lines) -> dict:
+    """Hits/trend lines for the live chart, pattern-hit-cache aware.
+
+    Shared by the network path and the stale-first path. On a cache hit (same
+    IST session) the engine/detector are not re-run. Returns a dict with
+    ``hits``, ``live_overlays``, ``trend_lines`` (``None`` when not computed)
+    and ``cache_hit``. Never raises.
+    """
+    cached = _pattern_hit_cache_get(symbol_u, timeframe, session)
+    if cached is not None:
+        cached_tl = cached.get("trend_lines")
+        tl_ok = False
+        if cached_tl is not None:
+            try:
+                tl_ok = cached.get("trend_lines_sig") == config.trendline_signature()
+            except Exception:
+                tl_ok = True
+        if not compute_trendlines:
+            trend_lines: Optional[list] = []
+        elif tl_ok:
+            trend_lines = list(cached_tl)
+        else:
+            trend_lines = _detect_trend_lines(df, lookback_bars, stored_fresh_lines)
+        return {
+            "hits": list(cached.get("hits") or []),
+            "live_overlays": list(cached.get("live_overlays") or []),
+            "trend_lines": trend_lines,
+            "cache_hit": True,
+        }
+    hits: list = []
+    live_overlays: list = []
+    if df is not None and not getattr(df, "empty", True) and engine_mod is not None:
+        try:
+            live = engine_mod.detect_patterns(df, timeframe, symbol_u) or []
+        except Exception:
+            live = []
+        for hit in live:
+            record = _live_hit_to_dict(hit, symbol_u, timeframe)
+            if record is not None:
+                hits.append(record)
+    for record in hits:
+        overlay = _live_overlay(record)
+        if overlay is not None:
+            live_overlays.append(overlay)
+    trend_lines = _detect_trend_lines(df, lookback_bars, stored_fresh_lines) if compute_trendlines else None
+    return {
+        "hits": hits,
+        "live_overlays": live_overlays,
+        "trend_lines": trend_lines,
+        "cache_hit": False,
+    }
+
+
+def _store_pattern_block(symbol_u: str, timeframe: str, session: str, block: dict,
+                         compute_trendlines: bool) -> None:
+    try:
+        sig = config.trendline_signature() if compute_trendlines else None
+    except Exception:
+        sig = None
+    _pattern_hit_cache_put(symbol_u, timeframe, session, {
+        "hits": list(block["hits"]),
+        "live_overlays": list(block["live_overlays"]),
+        "trend_lines": list(block["trend_lines"]) if compute_trendlines and block["trend_lines"] is not None else None,
+        "trend_lines_sig": sig,
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -1735,14 +2207,152 @@ async def get_symbol_chart(
             symbol, timeframe, limit, lookback_bars, compute_trendlines,
             detect_patterns, as_of_date, from_date,
         ))
-    try:
-        lb = lookback_bars if lookback_bars is not None else config.READ_LOOKBACK_BARS
-        df = candles.fetch_for_timeframe(
-            symbol, timeframe, lookback_bars=lb,
-            include_partial_today=(timeframe == "1D"),
+    symbol_u = str(symbol).strip().upper()
+    session = _ist_session_date()
+    lb = lookback_bars if lookback_bars is not None else config.READ_LOOKBACK_BARS
+
+    # Stale-first: a session-current frame in the default live-edge disk cache
+    # is served immediately (marked cached/stale) while a daemon thread
+    # refreshes the cache for the next poll. Replay/as-of never takes this.
+    stale_first = _stale_first_frame(symbol_u, timeframe, lb)
+    if stale_first is not None:
+        df, as_of, read_ms = stale_first
+        series = _clamped_candle_series(df, lookback_bars, limit)
+        if series:
+            overlays, stored_fresh_lines = _stored_overlays_and_lines(symbol_u, timeframe)
+            hits_block = None
+            if detect_patterns:
+                hits_block = _pattern_block(df, symbol_u, timeframe, session, lookback_bars, compute_trendlines, stored_fresh_lines)
+                overlays.extend(hits_block["live_overlays"])
+            if hits_block is not None and hits_block["trend_lines"] is not None:
+                trend_lines = hits_block["trend_lines"]
+            elif not compute_trendlines:
+                trend_lines = []
+            else:
+                trend_lines = _detect_trend_lines(df, lookback_bars, stored_fresh_lines)
+            payload = {
+                "symbol": symbol_u,
+                "timeframe": timeframe,
+                "candles": series,
+                "overlays": overlays,
+                "trend_lines": trend_lines,
+                "cached": True,
+                "stale": True,
+                "as_of": as_of,
+                "note": f"served cached frame (through {as_of}); refreshing in background",
+            }
+            if detect_patterns:
+                payload["hits"] = list(hits_block["hits"])
+                _store_pattern_block(symbol_u, timeframe, session, hits_block, compute_trendlines)
+            _kick_stale_first_refresh(symbol_u, timeframe, lb)
+            _log_chart_fetch(
+                symbol_u, timeframe, elapsed_ms=read_ms, rows=len(series),
+                cache_hit=True, timeout=False, error=None, stale_fallback=True,
+            )
+            _chart_logger.info(
+                "chart_stale_first symbol=%s timeframe=%s read_ms=%.0f as_of=%s",
+                symbol_u, timeframe, read_ms, as_of,
+            )
+            return _json_response(payload)
+
+    # Negative cache hit: this (symbol, timeframe) already returned no
+    # candles this session — answer instantly, no upstream fetch at all.
+    neg = _chart_neg_cache_get(symbol_u, timeframe, session)
+    if neg is not None:
+        _log_chart_fetch(
+            symbol_u, timeframe, elapsed_ms=0.0, rows=0,
+            cache_hit=True, timeout=False, error=None,
         )
-    except Exception:
+        return _json_response(neg)
+
+    start = _time.monotonic()
+    try:
+        df = await asyncio.wait_for(
+            run_in_threadpool(
+                candles.fetch_for_timeframe,
+                symbol_u, timeframe,
+                lookback_bars=lb,
+                include_partial_today=(timeframe == "1D"),
+            ),
+            timeout=_CHART_FETCH_TIMEOUT_SEC,
+        )
+    except asyncio.TimeoutError:
         df = None
+        elapsed_ms = (_time.monotonic() - start) * 1000.0
+        reason = "fetch_timeout"
+        note = (
+            f"candle fetch for {symbol_u} {timeframe} exceeded "
+            f"{_CHART_FETCH_TIMEOUT_SEC:.0f}s and was aborted"
+        )
+        stale = _stale_chart_fallback(
+            symbol_u, timeframe,
+            fetch_lookback=lb, clamp_lookback=lookback_bars, limit=limit,
+            reason=f"upstream timed out after {_CHART_FETCH_TIMEOUT_SEC:.0f}s",
+        )
+        if stale is not None:
+            _log_chart_fetch(
+                symbol_u, timeframe, elapsed_ms=elapsed_ms,
+                rows=len(stale["candles"]), cache_hit=True,
+                timeout=True, error=reason, stale_fallback=True,
+            )
+            return _json_response(stale)
+        payload = _chart_empty_payload(symbol_u, timeframe, reason=reason, note=note)
+        _chart_neg_cache_put(symbol_u, timeframe, session, payload)
+        _log_chart_fetch(
+            symbol_u, timeframe, elapsed_ms=elapsed_ms, rows=0,
+            cache_hit=False, timeout=True, error=reason, stale_fallback=False,
+        )
+        return _json_response(payload)
+    except Exception as exc:  # noqa: BLE001 - transient upstream failure, never 500
+        df = None
+        elapsed_ms = (_time.monotonic() - start) * 1000.0
+        reason = "fetch_error"
+        note = str(exc)[:200]
+        stale = _stale_chart_fallback(
+            symbol_u, timeframe,
+            fetch_lookback=lb, clamp_lookback=lookback_bars, limit=limit,
+            reason="upstream fetch error",
+        )
+        if stale is not None:
+            _log_chart_fetch(
+                symbol_u, timeframe, elapsed_ms=elapsed_ms,
+                rows=len(stale["candles"]), cache_hit=True,
+                timeout=False, error=reason, stale_fallback=True,
+            )
+            return _json_response(stale)
+        payload = _chart_empty_payload(symbol_u, timeframe, reason=reason, note=note)
+        # Transient errors are NOT cached: the next click retries (still bounded
+        # by the timeout) so a recovered feed isn't papered over for 5 minutes.
+        _log_chart_fetch(
+            symbol_u, timeframe, elapsed_ms=elapsed_ms, rows=0,
+            cache_hit=False, timeout=False, error=reason, stale_fallback=False,
+        )
+        return _json_response(payload)
+
+    elapsed_ms = (_time.monotonic() - start) * 1000.0
+    rows = 0 if df is None or getattr(df, "empty", True) else int(len(df))
+    if df is None or getattr(df, "empty", True):
+        reason = "no_data"
+        note = f"no candles for {symbol_u} {timeframe} in session {session}"
+        stale = _stale_chart_fallback(
+            symbol_u, timeframe,
+            fetch_lookback=lb, clamp_lookback=lookback_bars, limit=limit,
+            reason=f"upstream returned no candles in session {session}",
+        )
+        if stale is not None:
+            _log_chart_fetch(
+                symbol_u, timeframe, elapsed_ms=elapsed_ms,
+                rows=len(stale["candles"]), cache_hit=True,
+                timeout=False, error=reason, stale_fallback=True,
+            )
+            return _json_response(stale)
+        payload = _chart_empty_payload(symbol_u, timeframe, reason=reason, note=note)
+        _chart_neg_cache_put(symbol_u, timeframe, session, payload)
+        _log_chart_fetch(
+            symbol_u, timeframe, elapsed_ms=elapsed_ms, rows=0,
+            cache_hit=False, timeout=False, error=reason, stale_fallback=False,
+        )
+        return _json_response(payload)
     # The fetch window carries ~1.5x headroom; clamp the displayed chart to
     # exactly the requested Lookback (Auto keeps the whole window). A trailing
     # synthetic session bar (1D only) is flagged for distinct UI rendering;
@@ -1753,60 +2363,29 @@ async def get_symbol_chart(
     series = _clamped_candle_series(df, lookback_bars, limit)
     if partial_last and series:
         series[-1]["is_partial"] = True
-    detail = store.get_symbol_detail(symbol, timeframe)
-    overlays = []
-    stored_fresh_lines: list = []
-    # Reuse fresh scan-time lines so fullscreen agrees with the cards;
-    # stale lines (detector changed) fall through to the recompute below.
-    chart_sig = config.trendline_signature()
-    for pattern in detail.get("patterns", []):
-        if pattern.get("trendlines"):
-            overlays.append({
-                "pattern_id": pattern.get("pattern_id"),
-                "pattern_name": pattern.get("pattern_name"),
-                "direction": pattern.get("direction"),
-                "trendlines": pattern.get("trendlines"),
-                "start_date": pattern.get("start_date"),
-                "end_date": pattern.get("end_date"),
-                "id": pattern.get("id"),
-            })
-        # Reuse fresh scan-time lines so fullscreen agrees with the cards;
-        # stale lines (detector changed) fall through to the recompute below.
-        if not stored_fresh_lines and _stored_lines_fresh(pattern, chart_sig):
-            stored_fresh_lines = list(pattern.get("trend_lines") or [])
-    if not compute_trendlines:
+    overlays, stored_fresh_lines = _stored_overlays_and_lines(symbol_u, timeframe)
+    hits_block = None
+    if detect_patterns:
+        hits_block = _pattern_block(df, symbol_u, timeframe, session, lookback_bars, compute_trendlines, stored_fresh_lines)
+        overlays.extend(hits_block["live_overlays"])
+    if hits_block is not None and hits_block["trend_lines"] is not None:
+        trend_lines = hits_block["trend_lines"]
+    elif not compute_trendlines:
         trend_lines = []
-    elif stored_fresh_lines:
-        trend_lines = stored_fresh_lines
     else:
-        try:
-            _res = trendlines_mod.detect_trendlines(df, lookback_bars=lookback_bars)
-            trend_lines = [v for v in (_res.get("support"), _res.get("resistance")) if v] if isinstance(_res, dict) else []
-        except Exception:
-            trend_lines = []
+        # Reuse fresh scan-time lines so fullscreen agrees with the cards;
+        # stale lines (detector changed) fall through to the recompute.
+        trend_lines = _detect_trend_lines(df, lookback_bars, stored_fresh_lines)
     payload = {
-        "symbol": symbol.upper(),
+        "symbol": symbol_u,
         "timeframe": timeframe,
         "candles": series,
         "overlays": overlays,
         "trend_lines": trend_lines,
     }
     if detect_patterns:
-        hits: list = []
-        if df is not None and not getattr(df, "empty", True) and engine_mod is not None:
-            try:
-                live = engine_mod.detect_patterns(df, timeframe, symbol) or []
-            except Exception:
-                live = []
-            for hit in live:
-                record = _live_hit_to_dict(hit, symbol, timeframe)
-                if record is not None:
-                    hits.append(record)
-        for record in hits:
-            overlay = _live_overlay(record)
-            if overlay is not None:
-                overlays.append(overlay)
-        payload["hits"] = hits
+        payload["hits"] = list(hits_block["hits"])
+        _store_pattern_block(symbol_u, timeframe, session, hits_block, compute_trendlines)
     return _json_response(payload)
 
 

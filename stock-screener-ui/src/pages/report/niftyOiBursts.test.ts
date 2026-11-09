@@ -201,6 +201,42 @@ describe("burstToAlert", () => {
     expect(a.title).toContain("-50.0K");
     expect(a.metrics?.find((m) => m.label === "ΔOI")?.tone).toBe("down");
   });
+
+  test("short squeeze is a scalp watch with a trigger and playbook", () => {
+    const rows = callSeries([...Array.from({ length: 12 }, () => 1_000), -198_575]);
+    const b = {
+      ...detectOiBursts(rows)[0],
+      setup: "short_squeeze",
+      setup_label: "SHORT SQUEEZE",
+      horizon: "scalp",
+      trigger: 25_000,
+      playbook: "Wait for a 1-min close above 25,000; exit if OI rebuilds.",
+    };
+    const a = burstToAlert(b);
+    expect(a.title).toContain("SHORT SQUEEZE");
+    expect(a.title).toContain("25,000");
+    expect(a.actionable).toBe(false);
+    expect(a.detail).toContain("exit if OI rebuilds");
+    expect(a.metrics?.find((m) => m.label === "MODE")?.value).toBe("SCALP");
+    expect(a.metrics?.find((m) => m.label === "TRIGGER")?.value).toBe("25,000");
+  });
+
+  test("fresh buying carries the setup and swing mode", () => {
+    const rows = callSeries([...Array.from({ length: 12 }, () => 1_000), 60_000]);
+    const b = {
+      ...detectOiBursts(rows)[0],
+      setup: "fresh_long",
+      setup_label: "FRESH BUYING",
+      horizon: "swing",
+      trigger: 22_700,
+      playbook: "Buy the first pullback holding the breakout.",
+    };
+    const a = burstToAlert(b);
+    expect(a.title).toContain("FRESH BUY");
+    expect(a.metrics?.find((m) => m.label === "SETUP")?.value).toBe("FRESH BUYING");
+    expect(a.metrics?.find((m) => m.label === "MODE")?.value).toBe("SWING");
+    expect(a.detail).toContain("first pullback");
+  });
 });
 
 describe("burst news tagging", () => {

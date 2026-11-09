@@ -96,6 +96,19 @@ function isAboveSma(close: number | null, sma: number | null): boolean {
   return close !== null && sma !== null && close > sma;
 }
 
+// Rows are treated as immutable; in-place mutation of a cached row would serve a
+// stale haystack. When the snapshot refreshes, new row objects arrive and the
+// WeakMap entry is rebuilt automatically.
+const searchIndexCache = new WeakMap<MarketRow, string>();
+
+function searchableText(row: MarketRow): string {
+  const cached = searchIndexCache.get(row);
+  if (cached !== undefined) return cached;
+  const haystack = `${row.symbol} ${row.name} ${row.sector ?? ""}`.toLowerCase();
+  searchIndexCache.set(row, haystack);
+  return haystack;
+}
+
 const SORT_COMPARATORS: Record<MarketSortKey, (a: MarketRow, b: MarketRow) => number> = {
   day_desc: (a, b) => (b.change ?? -Infinity) - (a.change ?? -Infinity),
   day_asc: (a, b) => (a.change ?? Infinity) - (b.change ?? Infinity),
@@ -119,8 +132,7 @@ export function filterMarketRows(
   const search = filters.search.trim().toLowerCase();
   const filtered = rows.filter((row) => {
     if (search) {
-      const haystack = `${row.symbol} ${row.name} ${row.sector ?? ""}`.toLowerCase();
-      if (!haystack.includes(search)) return false;
+      if (!searchableText(row).includes(search)) return false;
     }
     if (filters.capTiers.size > 0) {
       const tier = (row.capTier ?? "").toLowerCase();

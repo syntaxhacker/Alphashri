@@ -49,6 +49,18 @@ function makeHit(overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
   };
 }
 
+function candle(overrides: Partial<{ t: string; o: number; h: number; l: number; c: number; v: number }> = {}) {
+  return {
+    t: "2026-09-20",
+    o: 118,
+    h: 122,
+    l: 117,
+    c: 120,
+    v: 1000,
+    ...overrides,
+  };
+}
+
 function Harness({
   onReady,
   scopeKey,
@@ -70,6 +82,7 @@ function Harness({
       <span data-testid="fs-count">{api.fullscreen?.hits.length ?? 0}</span>
       <span data-testid="fs-candles">{api.fullscreen?.candles.length ?? 0}</span>
       <span data-testid="fs-loading">{api.fullscreen?.loading ? "yes" : "no"}</span>
+      <span data-testid="fs-patterns-loading">{api.fullscreen?.patternsLoading ? "yes" : "no"}</span>
     </div>
   );
 }
@@ -115,6 +128,7 @@ describe("usePatternFullscreen", () => {
   test("openFromSymbol promotes the newest hit", async () => {
     const older = makeHit({ id: 1, pattern_id: "double_bottom", end_date: "2026-08-01", bars_ago: 30 });
     const newer = makeHit({ id: null, pattern_id: "falling_wedge", end_date: "2026-09-20", bars_ago: 5 });
+    // Phase 1 (detectPatterns=0) + phase 2 (detectPatterns=1) both resolve immediately.
     mockedFetchSymbolChart.mockResolvedValue({ candles: [], hits: [older, newer], trend_lines: [] } as never);
     let api!: ReturnType<typeof usePatternFullscreen>;
     render(
@@ -129,6 +143,20 @@ describe("usePatternFullscreen", () => {
     expect(screen.getByTestId("fs-symbol")).toHaveTextContent("IRCON");
     expect(screen.getByTestId("fs-count")).toHaveTextContent("2");
     expect(screen.getByTestId("fs-loading")).toHaveTextContent("no");
+    expect(screen.getByTestId("fs-patterns-loading")).toHaveTextContent("no");
+    expect(mockedFetchSymbolChart).toHaveBeenCalledTimes(2);
+    expect(mockedFetchSymbolChart).toHaveBeenNthCalledWith(
+      1,
+      "IRCON",
+      "1D",
+      expect.objectContaining({ detectPatterns: false }),
+    );
+    expect(mockedFetchSymbolChart).toHaveBeenNthCalledWith(
+      2,
+      "IRCON",
+      "1D",
+      expect.objectContaining({ detectPatterns: true }),
+    );
   });
 
   test("openFromCard uses the stored hit and skips live detection", async () => {
@@ -183,7 +211,7 @@ describe("usePatternFullscreen", () => {
     await act(async () => {
       resolveFirst({ candles: [], hits: [makeHit({ symbol: "IRCON" })], trend_lines: [] });
     });
-    // The newer RELIANCE selection stands.
+    // The newer RELIANCE selection stands; the stale IRCON phase-1 response is dropped.
     expect(screen.getByTestId("fs-symbol")).toHaveTextContent("RELIANCE");
   });
 
@@ -202,6 +230,7 @@ describe("usePatternFullscreen", () => {
     await act(async () => {
       api.changeFullscreenTimeframe("1h");
     });
+    // Last call is phase 2 (detection enabled) for the new timeframe.
     expect(mockedFetchSymbolChart).toHaveBeenLastCalledWith("IRCON", "1h", expect.objectContaining({ detectPatterns: true }));
     await act(async () => {
       api.closeFullscreen();
@@ -333,7 +362,7 @@ describe("usePatternFullscreen", () => {
       confidence: 80,
       end_price: 120,
     });
-    const candles = [{ t: "2026-09-20", o: 118, h: 122, l: 117, c: 120, v: 1000 }];
+    const candles = [candle({ c: 120 })];
     mockedFetchPatternHit.mockRejectedValueOnce(new Error("Pattern hit not found"));
     mockedFetchSymbolChart.mockResolvedValueOnce({
       candles,
@@ -373,15 +402,11 @@ describe("usePatternFullscreen", () => {
   });
 
   test("openFromSymbol with zero hits leaves hit null and still exposes candles", async () => {
-    const candles = [
-      { t: "2026-09-20", o: 118, h: 122, l: 117, c: 120, v: 1000 },
-      { t: "2026-09-21", o: 120, h: 125, l: 119, c: 124, v: 1400 },
-    ];
-    mockedFetchSymbolChart.mockResolvedValueOnce({
-      candles,
-      hits: [],
-      trend_lines: [],
-    } as never);
+    const candles = [candle(), candle({ t: "2026-09-21", c: 124 })];
+    // Phase 1 (candles) then phase 2 (detection) — both resolve with no hits.
+    mockedFetchSymbolChart
+      .mockResolvedValueOnce({ candles, hits: [], trend_lines: [] } as never)
+      .mockResolvedValueOnce({ candles, hits: [], trend_lines: [] } as never);
     let api!: ReturnType<typeof usePatternFullscreen>;
     render(
       <UIProvider>
@@ -393,7 +418,7 @@ describe("usePatternFullscreen", () => {
     });
     await waitFor(() => expect(screen.getByTestId("fs-symbol")).toHaveTextContent("IRCON"));
     await waitFor(() => expect(screen.getByTestId("fs-loading")).toHaveTextContent("no"));
-    expect(mockedFetchSymbolChart).toHaveBeenCalledTimes(1);
+    expect(mockedFetchSymbolChart).toHaveBeenCalledTimes(2);
     expect(mockedFetchSymbolChart).toHaveBeenCalledWith(
       "IRCON",
       "1D",
@@ -413,7 +438,7 @@ describe("usePatternFullscreen", () => {
     try {
       vi.setSystemTime(0);
       const chart = {
-        candles: [{ t: "2026-09-20", o: 118, h: 122, l: 117, c: 120, v: 1000 }],
+        candles: [candle()],
         hits: [makeHit()],
         trend_lines: [],
       };
@@ -424,31 +449,7 @@ describe("usePatternFullscreen", () => {
           <Harness onReady={(a) => { api = a; }} />
         </UIProvider>,
       );
-      // First open fetches and populates the symbol|timeframe cache entry.
-      await act(async () => {
-        api.openFromSymbol("IRCON");
-      });
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-      expect(mockedFetchSymbolChart).toHaveBeenCalledTimes(1);
-      expect(screen.getByTestId("fs-symbol")).toHaveTextContent("IRCON");
-      expect(screen.getByTestId("fs-loading")).toHaveTextContent("no");
-
-      // Second open inside the 60 s window must hit the cache, not the wire.
-      await act(async () => {
-        api.openFromSymbol("IRCON");
-      });
-      await act(async () => {
-        await Promise.resolve();
-      });
-      expect(mockedFetchSymbolChart).toHaveBeenCalledTimes(1);
-      expect(screen.getByTestId("fs-symbol")).toHaveTextContent("IRCON");
-      expect(screen.getByTestId("fs-loading")).toHaveTextContent("no");
-
-      // Once the entry ages past SYMBOL_CHART_CACHE_MS (60_000) it fetches again.
-      vi.setSystemTime(60_001);
+      // First open: phase 1 (candles) + phase 2 (patterns) each hit the wire.
       await act(async () => {
         api.openFromSymbol("IRCON");
       });
@@ -457,11 +458,35 @@ describe("usePatternFullscreen", () => {
         await Promise.resolve();
       });
       expect(mockedFetchSymbolChart).toHaveBeenCalledTimes(2);
+      expect(screen.getByTestId("fs-symbol")).toHaveTextContent("IRCON");
+      expect(screen.getByTestId("fs-loading")).toHaveTextContent("no");
+
+      // Second open inside the 60 s window: both phases served from cache, no wire call.
+      await act(async () => {
+        api.openFromSymbol("IRCON");
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(mockedFetchSymbolChart).toHaveBeenCalledTimes(2);
+      expect(screen.getByTestId("fs-symbol")).toHaveTextContent("IRCON");
+      expect(screen.getByTestId("fs-loading")).toHaveTextContent("no");
+
+      // Once the entry ages past SYMBOL_CHART_CACHE_MS (60_000) both phases refetch.
+      vi.setSystemTime(60_001);
+      await act(async () => {
+        api.openFromSymbol("IRCON");
+      });
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(mockedFetchSymbolChart).toHaveBeenCalledTimes(4);
       expect(mockedFetchSymbolChart).toHaveBeenNthCalledWith(
         1,
         "IRCON",
         "1D",
-        expect.objectContaining({ detectPatterns: true }),
+        expect.objectContaining({ detectPatterns: false }),
       );
       expect(mockedFetchSymbolChart).toHaveBeenNthCalledWith(
         2,
@@ -480,24 +505,22 @@ describe("usePatternFullscreen", () => {
   test("a late card response never overwrites a newer symbol open", async () => {
     let resolveCardChart!: (v: unknown) => void;
     const clicked = makeHit({ id: 7, symbol: "IRCON", pattern_id: "falling_wedge" });
+    const relianceCandle = candle({ t: "2026-09-20", c: 11 });
+    const doubleBottom = makeHit({
+      id: null,
+      symbol: "RELIANCE",
+      pattern_id: "double_bottom",
+      end_date: "2026-09-20",
+      bars_ago: 2,
+    });
     mockedFetchPatternHit.mockResolvedValue(makeHit({ id: 7, symbol: "IRCON" }));
+    // Call 1: openFromCard chart (pending). Calls 2-3: RELIANCE phase 1 + phase 2.
     mockedFetchSymbolChart
       .mockImplementationOnce(
         () => new Promise((resolve) => { resolveCardChart = resolve; }),
       )
-      .mockResolvedValueOnce({
-        candles: [{ t: "2026-09-20", o: 10, h: 12, l: 9, c: 11, v: 500 }],
-        hits: [
-          makeHit({
-            id: null,
-            symbol: "RELIANCE",
-            pattern_id: "double_bottom",
-            end_date: "2026-09-20",
-            bars_ago: 2,
-          }),
-        ],
-        trend_lines: [],
-      } as never);
+      .mockResolvedValueOnce({ candles: [relianceCandle], hits: [doubleBottom], trend_lines: [] } as never)
+      .mockResolvedValueOnce({ candles: [relianceCandle], hits: [doubleBottom], trend_lines: [] } as never);
     let api!: ReturnType<typeof usePatternFullscreen>;
     render(
       <UIProvider>
@@ -514,7 +537,7 @@ describe("usePatternFullscreen", () => {
     // The stale card chart resolves late — the token guard must drop it.
     await act(async () => {
       resolveCardChart({
-        candles: [{ t: "2026-09-20", o: 118, h: 122, l: 117, c: 120, v: 1000 }],
+        candles: [candle({ t: "2026-09-20", c: 120 })],
         hits: [makeHit({ symbol: "IRCON", pattern_id: "falling_wedge" })],
         trend_lines: [],
       });
@@ -525,7 +548,7 @@ describe("usePatternFullscreen", () => {
     expect(screen.getByTestId("fs-loading")).toHaveTextContent("no");
     expect(api.fullscreen?.symbol).toBe("RELIANCE");
     expect(api.fullscreen?.hit?.pattern_id).toBe("double_bottom");
-    expect(mockedFetchSymbolChart).toHaveBeenCalledTimes(2);
+    expect(mockedFetchSymbolChart).toHaveBeenCalledTimes(3);
     expect(mockedFetchSymbolChart).toHaveBeenNthCalledWith(
       1,
       "IRCON",
@@ -536,7 +559,347 @@ describe("usePatternFullscreen", () => {
       2,
       "RELIANCE",
       "1D",
+      expect.objectContaining({ detectPatterns: false }),
+    );
+    expect(mockedFetchSymbolChart).toHaveBeenNthCalledWith(
+      3,
+      "RELIANCE",
+      "1D",
       expect.objectContaining({ detectPatterns: true }),
     );
+  });
+
+  // --- Two-phase load tests ---
+
+  test("phase 1 renders candles before phase 2 resolves", async () => {
+    let resolvePhase1!: (v: unknown) => void;
+    let resolvePhase2!: (v: unknown) => void;
+    mockedFetchSymbolChart
+      .mockImplementationOnce(() => new Promise((resolve) => { resolvePhase1 = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolvePhase2 = resolve; }));
+    const candles = [candle()];
+    let api!: ReturnType<typeof usePatternFullscreen>;
+    render(
+      <UIProvider>
+        <Harness onReady={(a) => { api = a; }} />
+      </UIProvider>,
+    );
+    await act(async () => {
+      api.openFromSymbol("IRCON");
+    });
+    // Phase 1 still in flight: nothing rendered yet.
+    expect(screen.getByTestId("fs-candles")).toHaveTextContent("0");
+    expect(screen.getByTestId("fs-loading")).toHaveTextContent("yes");
+    expect(screen.getByTestId("fs-patterns-loading")).toHaveTextContent("no");
+
+    await act(async () => {
+      resolvePhase1({ candles, hits: [], trend_lines: [] });
+    });
+    // Candles committed, loading cleared, phase 2 now in flight.
+    expect(screen.getByTestId("fs-candles")).toHaveTextContent("1");
+    expect(screen.getByTestId("fs-loading")).toHaveTextContent("no");
+    expect(screen.getByTestId("fs-patterns-loading")).toHaveTextContent("yes");
+    expect(screen.getByTestId("fs-hit")).toHaveTextContent("none");
+
+    await act(async () => {
+      resolvePhase2({ candles, hits: [makeHit({ id: null })], trend_lines: [] });
+    });
+    expect(screen.getByTestId("fs-count")).toHaveTextContent("1");
+    expect(screen.getByTestId("fs-patterns-loading")).toHaveTextContent("no");
+    expect(mockedFetchSymbolChart).toHaveBeenCalledTimes(2);
+    expect(mockedFetchSymbolChart).toHaveBeenNthCalledWith(
+      1,
+      "IRCON",
+      "1D",
+      expect.objectContaining({ detectPatterns: false }),
+    );
+    expect(mockedFetchSymbolChart).toHaveBeenNthCalledWith(
+      2,
+      "IRCON",
+      "1D",
+      expect.objectContaining({ detectPatterns: true }),
+    );
+  });
+
+  test("patternsLoading is true between the two phases", async () => {
+    let resolvePhase1!: (v: unknown) => void;
+    let resolvePhase2!: (v: unknown) => void;
+    mockedFetchSymbolChart
+      .mockImplementationOnce(() => new Promise((resolve) => { resolvePhase1 = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolvePhase2 = resolve; }));
+    let api!: ReturnType<typeof usePatternFullscreen>;
+    render(
+      <UIProvider>
+        <Harness onReady={(a) => { api = a; }} />
+      </UIProvider>,
+    );
+    await act(async () => {
+      api.openFromSymbol("IRCON");
+    });
+    expect(screen.getByTestId("fs-patterns-loading")).toHaveTextContent("no");
+
+    await act(async () => {
+      resolvePhase1({ candles: [], hits: [], trend_lines: [] });
+    });
+    expect(screen.getByTestId("fs-patterns-loading")).toHaveTextContent("yes");
+
+    await act(async () => {
+      resolvePhase2({ candles: [], hits: [], trend_lines: [] });
+    });
+    expect(screen.getByTestId("fs-patterns-loading")).toHaveTextContent("no");
+  });
+
+  test("phase 2 updates hits while keeping phase-1 candles", async () => {
+    const candles = [candle()];
+    mockedFetchSymbolChart
+      .mockResolvedValueOnce({ candles, hits: [], trend_lines: [] } as never)
+      .mockResolvedValueOnce({
+        candles,
+        hits: [makeHit({ id: null, pattern_id: "double_bottom" })],
+        trend_lines: [],
+      } as never);
+    let api!: ReturnType<typeof usePatternFullscreen>;
+    render(
+      <UIProvider>
+        <Harness onReady={(a) => { api = a; }} />
+      </UIProvider>,
+    );
+    await act(async () => {
+      api.openFromSymbol("IRCON");
+    });
+    await waitFor(() => expect(screen.getByTestId("fs-count")).toHaveTextContent("1"));
+    await waitFor(() => expect(screen.getByTestId("fs-hit")).toHaveTextContent("double_bottom"));
+    expect(screen.getByTestId("fs-candles")).toHaveTextContent("1");
+    expect(screen.getByTestId("fs-loading")).toHaveTextContent("no");
+    expect(screen.getByTestId("fs-patterns-loading")).toHaveTextContent("no");
+    expect(api.fullscreen?.candles).toEqual(candles);
+  });
+
+  test("phase 2 failure keeps the phase-1 candles", async () => {
+    const candles = [candle()];
+    mockedFetchSymbolChart
+      .mockResolvedValueOnce({ candles, hits: [], trend_lines: [] } as never)
+      .mockRejectedValueOnce(new Error("detection boom"));
+    let api!: ReturnType<typeof usePatternFullscreen>;
+    render(
+      <UIProvider>
+        <Harness onReady={(a) => { api = a; }} />
+      </UIProvider>,
+    );
+    await act(async () => {
+      api.openFromSymbol("IRCON");
+    });
+    await waitFor(() => expect(screen.getByTestId("fs-loading")).toHaveTextContent("no"));
+    await waitFor(() => expect(screen.getByTestId("fs-patterns-loading")).toHaveTextContent("no"));
+    // Candles survived the failed detection; no hits were applied.
+    expect(screen.getByTestId("fs-candles")).toHaveTextContent("1");
+    expect(screen.getByTestId("fs-count")).toHaveTextContent("0");
+    expect(screen.getByTestId("fs-hit")).toHaveTextContent("none");
+    expect(mockedFetchSymbolChart).toHaveBeenCalledTimes(2);
+  });
+
+  test("detectPatterns=false makes exactly one request (candles only)", async () => {
+    const candles = [candle()];
+    mockedFetchSymbolChart.mockResolvedValue({ candles, hits: [], trend_lines: [] } as never);
+    let api!: ReturnType<typeof usePatternFullscreen>;
+    render(
+      <UIProvider>
+        <Harness onReady={(a) => { api = a; }} />
+      </UIProvider>,
+    );
+    await act(async () => {
+      api.openFromSymbol("IRCON", undefined, false);
+    });
+    await waitFor(() => expect(screen.getByTestId("fs-loading")).toHaveTextContent("no"));
+    expect(mockedFetchSymbolChart).toHaveBeenCalledTimes(1);
+    expect(mockedFetchSymbolChart).toHaveBeenCalledWith(
+      "IRCON",
+      "1D",
+      expect.objectContaining({ detectPatterns: false }),
+    );
+    expect(screen.getByTestId("fs-patterns-loading")).toHaveTextContent("no");
+    expect(screen.getByTestId("fs-candles")).toHaveTextContent("1");
+    expect(screen.getByTestId("fs-count")).toHaveTextContent("0");
+  });
+
+  // --- Stale-first disk cache markers ---
+
+  test("a stale-first payload marks the chart stale with its as_of date", async () => {
+    const staleChart = {
+      candles: [candle()],
+      hits: [],
+      trend_lines: [],
+      cached: true,
+      stale: true,
+      as_of: "2026-11-06",
+    } as never;
+    mockedFetchSymbolChart.mockResolvedValue(staleChart);
+    let api!: ReturnType<typeof usePatternFullscreen>;
+    render(
+      <UIProvider>
+        <Harness onReady={(a) => { api = a; }} />
+      </UIProvider>,
+    );
+    await act(async () => {
+      api.openFromSymbol("IRCON");
+    });
+    await waitFor(() => expect(screen.getByTestId("fs-loading")).toHaveTextContent("no"));
+    expect(api.fullscreen?.stale).toBe(true);
+    expect(api.fullscreen?.dataAsOf).toBe("2026-11-06");
+    expect(mockedFetchSymbolChart).toHaveBeenCalledTimes(2);
+  });
+
+  test("a fresh payload clears the stale marker", async () => {
+    const staleChart = {
+      candles: [candle()],
+      hits: [],
+      trend_lines: [],
+      cached: true,
+      stale: true,
+      as_of: "2026-11-06",
+    } as never;
+    mockedFetchSymbolChart.mockResolvedValue(staleChart);
+    let api!: ReturnType<typeof usePatternFullscreen>;
+    render(
+      <UIProvider>
+        <Harness onReady={(a) => { api = a; }} />
+      </UIProvider>,
+    );
+    await act(async () => {
+      api.openFromSymbol("IRCON");
+    });
+    await waitFor(() => expect(api.fullscreen?.stale).toBe(true));
+
+    // Re-open a different symbol with fresh payloads: cache keys are
+    // per-symbol, so this bypasses the 60 s in-memory cache of the stale chart.
+    mockedFetchSymbolChart.mockResolvedValue({
+      candles: [candle()],
+      hits: [],
+      trend_lines: [],
+      cached: false,
+      stale: false,
+    } as never);
+    await act(async () => {
+      api.openFromSymbol("RELIANCE");
+    });
+    await waitFor(() => expect(screen.getByTestId("fs-loading")).toHaveTextContent("no"));
+    expect(api.fullscreen?.stale).toBe(false);
+    expect(api.fullscreen?.dataAsOf).toBeNull();
+  });
+
+  test("switching symbol clears the stale marker before the new frame arrives", async () => {
+    const staleChart = {
+      candles: [candle()],
+      hits: [],
+      trend_lines: [],
+      cached: true,
+      stale: true,
+      as_of: "2026-11-06",
+    } as never;
+    mockedFetchSymbolChart.mockResolvedValue(staleChart);
+    let api!: ReturnType<typeof usePatternFullscreen>;
+    render(
+      <UIProvider>
+        <Harness onReady={(a) => { api = a; }} />
+      </UIProvider>,
+    );
+    await act(async () => {
+      api.openFromSymbol("IRCON");
+    });
+    await waitFor(() => expect(api.fullscreen?.stale).toBe(true));
+
+    let resolvePhase1!: (v: unknown) => void;
+    mockedFetchSymbolChart.mockReset();
+    mockedFetchSymbolChart.mockResolvedValue(staleChart);
+    mockedFetchSymbolChart.mockImplementationOnce(
+      () => new Promise((resolve) => { resolvePhase1 = resolve; }),
+    );
+    await act(async () => {
+      api.openFromSymbol("RELIANCE");
+    });
+    // Synchronous reset: the badge must not linger over the loading state.
+    expect(api.fullscreen?.symbol).toBe("RELIANCE");
+    expect(api.fullscreen?.stale).toBe(false);
+    expect(api.fullscreen?.dataAsOf).toBeNull();
+
+    await act(async () => {
+      resolvePhase1({
+        candles: [candle()],
+        hits: [],
+        trend_lines: [],
+        cached: true,
+        stale: true,
+        as_of: "2026-11-07",
+      });
+    });
+  });
+
+  test("stale survives unrelated updates until a fresh frame arrives", async () => {
+    const staleChart = {
+      candles: [candle()],
+      hits: [],
+      trend_lines: [],
+      cached: true,
+      stale: true,
+      as_of: "2026-11-06",
+    } as never;
+    mockedFetchSymbolChart.mockResolvedValue(staleChart);
+    let api!: ReturnType<typeof usePatternFullscreen>;
+    render(
+      <UIProvider>
+        <Harness onReady={(a) => { api = a; }} />
+      </UIProvider>,
+    );
+    await act(async () => {
+      api.openFromSymbol("IRCON");
+    });
+    await waitFor(() => expect(api.fullscreen?.stale).toBe(true));
+    const hit = makeHit({ id: null });
+    await act(async () => {
+      api.selectFullscreenHit(hit);
+    });
+    expect(api.fullscreen?.stale).toBe(true);
+    expect(api.fullscreen?.dataAsOf).toBe("2026-11-06");
+    expect(api.fullscreen?.hit).toBe(hit);
+  });
+
+  test("switching symbol ignores a stale phase-2 response", async () => {
+    let resolvePhase2IRCON!: (v: unknown) => void;
+    const irconCandle = candle({ c: 120 });
+    const relCandle = candle({ t: "2026-09-20", c: 11 });
+    const relHit = makeHit({ id: null, symbol: "RELIANCE", pattern_id: "double_bottom" });
+    const irconHit = makeHit({ id: null, symbol: "IRCON", pattern_id: "falling_wedge" });
+    // Call 1: IRCON phase 1. Call 2: IRCON phase 2 (pending). Calls 3-4: RELIANCE phase 1 + phase 2.
+    mockedFetchSymbolChart
+      .mockResolvedValueOnce({ candles: [irconCandle], hits: [], trend_lines: [] } as never)
+      .mockImplementationOnce(() => new Promise((resolve) => { resolvePhase2IRCON = resolve; }))
+      .mockResolvedValueOnce({ candles: [relCandle], hits: [], trend_lines: [] } as never)
+      .mockResolvedValueOnce({ candles: [relCandle], hits: [relHit], trend_lines: [] } as never);
+    let api!: ReturnType<typeof usePatternFullscreen>;
+    render(
+      <UIProvider>
+        <Harness onReady={(a) => { api = a; }} />
+      </UIProvider>,
+    );
+    await act(async () => {
+      api.openFromSymbol("IRCON");
+    });
+    await waitFor(() => expect(screen.getByTestId("fs-loading")).toHaveTextContent("no"));
+    expect(screen.getByTestId("fs-symbol")).toHaveTextContent("IRCON");
+
+    await act(async () => {
+      api.openFromSymbol("RELIANCE");
+    });
+    await waitFor(() => expect(screen.getByTestId("fs-symbol")).toHaveTextContent("RELIANCE"));
+    await waitFor(() => expect(screen.getByTestId("fs-hit")).toHaveTextContent("double_bottom"));
+
+    // The stale IRCON phase-2 response resolves late — the token guard drops it.
+    await act(async () => {
+      resolvePhase2IRCON({ candles: [irconCandle], hits: [irconHit], trend_lines: [] });
+    });
+    expect(screen.getByTestId("fs-symbol")).toHaveTextContent("RELIANCE");
+    expect(screen.getByTestId("fs-hit")).toHaveTextContent("double_bottom");
+    expect(screen.getByTestId("fs-count")).toHaveTextContent("1");
+    expect(mockedFetchSymbolChart).toHaveBeenCalledTimes(4);
   });
 });

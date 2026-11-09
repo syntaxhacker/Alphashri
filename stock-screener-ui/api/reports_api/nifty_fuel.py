@@ -157,3 +157,131 @@ def basis_text(fuel: Optional[str], side: str, structure: Optional[dict],
     if not structure:
         return f"{s} OI {what}{where} · no level closed — no trade"
     return f"{s} OI {what}{where} · structure broken in this direction"
+
+
+# Setup labels for the alert layer. These are deliberately separate from the
+# fuel 2x2: the same "writers covering" is a short squeeze on calls, a put
+# squeeze on puts, and a no-trade liquidity event away from a wall.
+SETUP_SHORT_SQUEEZE = "short_squeeze"
+SETUP_WALL_SQUEEZE = "wall_squeeze"
+SETUP_PUT_SQUEEZE = "put_squeeze"
+SETUP_FRESH_LONG = "fresh_long"
+SETUP_FRESH_SHORT = "fresh_short"
+SETUP_PUT_FLOOR = "put_floor"
+SETUP_CALL_CAP = "call_cap"
+
+
+def setup_for_burst(
+    *,
+    side: str,
+    fuel: Optional[str],
+    trend: Optional[str] = None,
+    spot: Optional[float] = None,
+    wall: Optional[float] = None,
+    burst_type: Optional[str] = None,
+    score: Optional[float] = None,
+) -> dict:
+    """Classify a burst into the alert setup + playbook.
+
+    ``short_squeeze`` is a *scalp* alert: wait for the wall break/retest, never
+    chase the first spike. ``fresh_long`` is a swing alert only when the
+    session trend is up. Everything else is a watch/heads-up.
+    """
+    s = "put" if str(side).lower() == "put" else "call"
+    trig = float(wall) if wall else None
+    trig_txt = f"{trig:,.0f}" if trig else "the level"
+
+    if burst_type == "squeeze":
+        if s == "call":
+            return {
+                "setup": SETUP_WALL_SQUEEZE,
+                "setup_label": "WALL SQUEEZE",
+                "horizon": "swing",
+                "trigger": trig,
+                "confidence": "high" if (score or 0) >= 2 else "medium",
+                "playbook": (
+                    f"Wait for a retest of {trig_txt} to hold; buy CE/futures, "
+                    f"stop back below {trig_txt}; target the next wall. "
+                    "Exit if call OI rebuilds or 5m flow flips."
+                ),
+            }
+        return {
+            "setup": SETUP_PUT_SQUEEZE,
+            "setup_label": "PUT SQUEEZE",
+            "horizon": "scalp",
+            "trigger": trig,
+            "confidence": "medium",
+            "playbook": (
+                f"Wait for a 1-min close below {trig_txt}; scalp puts, "
+                f"stop back above {trig_txt}; exit on put OI rebuild."
+            ),
+        }
+
+    if s == "call" and fuel == FUEL_WRITERS_COVERING:
+        return {
+            "setup": SETUP_SHORT_SQUEEZE,
+            "setup_label": "SHORT SQUEEZE",
+            "horizon": "scalp",
+            "trigger": trig,
+            "confidence": "medium",
+            "playbook": (
+                f"Wait for a 1-min close above {trig_txt}; buy the retest, "
+                f"stop back below {trig_txt}; scalp 5-15m. "
+                "Exit if call OI rebuilds or 5m flow flips."
+            ),
+        }
+    if s == "call" and fuel == FUEL_FRESH_BUYERS:
+        return {
+            "setup": SETUP_FRESH_LONG,
+            "setup_label": "FRESH BUYING",
+            "horizon": "swing" if trend == "up" else "watch",
+            "trigger": trig,
+            "confidence": "high" if trend == "up" else "medium",
+            "playbook": (
+                "Buy the first pullback holding the breakout/VWAP; stop below "
+                "the base; trail. Exit if CE OI rises while premium stalls."
+            ),
+        }
+    if s == "put" and fuel == FUEL_FRESH_SELLERS:
+        return {
+            "setup": SETUP_PUT_FLOOR,
+            "setup_label": "PUT FLOOR",
+            "horizon": "watch",
+            "trigger": trig,
+            "confidence": "medium",
+            "playbook": (
+                f"Put writers defending {trig_txt}; bull put spread or buy the "
+                "dip with a stop below the put wall."
+            ),
+        }
+    if s == "put" and fuel == FUEL_WRITERS_COVERING:
+        return {
+            "setup": SETUP_PUT_SQUEEZE,
+            "setup_label": "PUT SQUEEZE",
+            "horizon": "scalp",
+            "trigger": trig,
+            "confidence": "medium",
+            "playbook": (
+                f"Wait for a 1-min close below {trig_txt}; scalp puts, "
+                f"stop back above {trig_txt}; exit on put OI rebuild."
+            ),
+        }
+    if s == "call" and fuel == FUEL_FRESH_SELLERS:
+        return {
+            "setup": SETUP_CALL_CAP,
+            "setup_label": "CALL CAP",
+            "horizon": "watch",
+            "trigger": trig,
+            "confidence": "medium",
+            "playbook": "Writers capping the level; fade rallies only after a rejection, not before.",
+        }
+    if s == "put" and fuel == FUEL_FRESH_BUYERS:
+        return {
+            "setup": SETUP_FRESH_SHORT,
+            "setup_label": "FRESH SHORT",
+            "horizon": "watch",
+            "trigger": trig,
+            "confidence": "medium",
+            "playbook": "Put buyers pressing; short only on a failed bounce, stop above the level.",
+        }
+    return {}
