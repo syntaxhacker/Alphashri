@@ -1,7 +1,7 @@
 """TradingView scanner data source for the Deep Value tab.
 
-Fetches one fundamentals + technicals frame per market from the public
-TradingView scanner (no auth). Exactly one HTTP POST per ``fetch_frame`` call.
+Fetches one fundamentals + technicals frame per market through the shared
+:mod:`api.tv` client. Exactly one HTTP POST per ``fetch_frame`` call.
 
 Markets:
   india  -> scanner ``india``
@@ -14,102 +14,26 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Optional
+from typing import Any
 
 import pandas as pd
-import requests
-from api.tv_auth import get_tv_cookies
 
-logger = logging.getLogger("value_scan.tv_source")
-
-SCANNER_URL = "https://scanner.tradingview.com/{segment}/scan"
-REQUEST_TIMEOUT = 40
-USER_AGENT = (
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+from api.tv import (
+    CORE_FIELDS,
+    EXCHANGE_PREFERENCE,
+    FRAME_LIMIT,
+    GLOBAL_COUNTRIES,
+    MARKET_CURRENCY,  # noqa: F401  (re-exported for api.value_scan.router)
+    MARKETS,
+    MCAP_FLOOR,
+    NON_GLOBAL_COUNTRIES,
+    NUMERIC_COLUMNS,
+    USA_EXCHANGES,
+    VALUE_COLUMNS,
+    scan_frame,
 )
 
-#: market key -> scanner URL segment
-MARKETS: dict[str, str] = {
-    "india": "india",
-    "usa": "america",
-    "global": "global",
-}
-
-#: reporting currency per market ("mixed" = per-row listing currency)
-MARKET_CURRENCY: dict[str, str] = {
-    "india": "INR",
-    "usa": "USD",
-    "global": "mixed",
-}
-
-#: server-side market-cap pre-filter floors, in native units
-MCAP_FLOOR: dict[str, float] = {
-    "india": 1e9,
-    "usa": 2e9,
-    "global": 1e9,
-}
-
-#: how many names the single request may pull back (sorted by market cap desc).
-#: The USA universe holds ~5.2k names above $2bn, so 4000 keeps the whole
-#: large-cap value universe inside one request. GLOBAL needs a much bigger
-#: window: every US mega-cap has 8-10 foreign lines (NVDA alone had 8), so a
-#: 4k window is almost entirely US-company lines and leaves only ~400 genuine
-#: international names.
-FRAME_LIMIT: dict[str, int] = {
-    "india": 4000,
-    "usa": 4000,
-    "global": 12000,
-}
-
-#: countries scanned for the global universe (no "global" STOCKS market exists)
-GLOBAL_COUNTRIES = [
-    "uk", "germany", "japan", "hongkong", "korea", "canada", "australia",
-    "taiwan", "singapore", "france", "sweden", "spain", "italy",
-    "netherlands", "switzerland", "brazil",
-]
-
-#: allowed listing exchanges for the usa universe
-USA_EXCHANGES = {"NASDAQ", "NYSE", "AMEX"}
-
-#: domiciles excluded from the GLOBAL universe (they belong to the USA tab)
-_NON_GLOBAL_COUNTRIES = {"united states"}
-
-#: preferred exchanges when deduping a multiply-listed global company
-EXCHANGE_PREFERENCE = [
-    "NASDAQ", "NYSE", "AMEX", "LSE", "XETRA", "TSE", "TSX", "HKEX",
-    "ASX", "EPA", "AMS", "SWX", "BME", "BIT", "KRX", "TWSE", "SGX",
-]
-
-#: columns requested from the scanner (all verified present)
-COLUMNS = [
-    "name", "description", "type", "sector", "industry", "exchange", "country",
-    "currency", "close", "change", "open", "high", "low", "volume",
-    "relative_volume_10d_calc", "market_cap_basic", "total_revenue",
-    "net_income", "total_debt", "free_cash_flow_ttm", "price_earnings_ttm",
-    "price_sales_ratio", "price_book_fq", "return_on_equity_fq",
-    "gross_margin_ttm", "operating_margin_ttm", "return_on_assets_fq",
-    "debt_to_equity_fq", "current_ratio", "quick_ratio",
-    "total_revenue_yoy_growth_ttm",
-    "earnings_per_share_diluted_yoy_growth_ttm",
-    "earnings_per_share_diluted_ttm", "revenue_per_share_ttm",
-    "dividends_yield_current", "SMA20", "SMA50", "SMA100", "SMA200",
-    "EMA20", "EMA50", "RSI", "Recommend.All", "Recommend.MA", "ADX",
-    "ATR", "beta_1_year", "Volatility.D", "Perf.W", "Perf.1M", "Perf.3M",
-    "Perf.Y", "price_52_week_high", "price_52_week_low",
-]
-
-#: numeric columns coerced with pd.to_numeric(errors="coerce")
-NUMERIC_COLUMNS = [c for c in COLUMNS if c not in (
-    "name", "description", "type", "sector", "industry", "exchange", "country",
-    "currency",
-)]
-
-#: core fields used by frame_summary() to judge completeness
-CORE_FIELDS = [
-    "market_cap_basic", "price_earnings_ttm", "price_book_fq",
-    "return_on_equity_fq", "free_cash_flow_ttm", "close",
-]
+logger = logging.getLogger("value_scan.tv_source")
 
 
 class TvSourceError(Exception):
@@ -124,68 +48,13 @@ def _markets_for(market: str) -> list[str]:
     return list(GLOBAL_COUNTRIES)
 
 
-def _request_body(market: str) -> dict[str, Any]:
-    return {
-        "markets": _markets_for(market),
-        "symbols": {"tickers": [], "query": {"types": []}},
-        "columns": list(COLUMNS),
-        "filter": [
-            {"left": "market_cap_basic", "operation": "greater",
-             "right": MCAP_FLOOR[market]},
-            # Push the type filter to the server: the scanner universe is mostly
-            # funds and depositary receipts, and without this the 1-request
-            # frame would be ~50% dead rows (and far too small to rank).
-            {"left": "type", "operation": "equal", "right": "stock"},
-        ],
-        "sort": {"sortBy": "market_cap_basic", "sortOrder": "desc"},
-        "range": [0, FRAME_LIMIT[market]],
-        "ignore_unknown_fields": True,
-    }
-
-
-def _coerce(value: Any) -> Optional[float]:
-    """Coerce a scanner value to float, returning None when missing."""
+def _is_missing(value: Any) -> bool:
     if value is None:
-        return None
+        return True
     try:
-        result = pd.to_numeric(value, errors="coerce")
-    except Exception:
-        return None
-    try:
-        if pd.isna(result):
-            return None
-    except Exception:
-        return None
-    return float(result)
-
-
-def _parse_payload(payload: Any) -> list[dict[str, Any]]:
-    """Parse a scanner response into column-keyed row dicts.
-
-    Accepts the live TradingView shape ``{"data": [{"s": ..., "d": [...]}]}``
-    (values in COLUMNS order) and the bare-list shape ``{"data": [[...]]}``.
-    """
-    if not isinstance(payload, dict):
-        raise TvSourceError("value_source_unavailable: unexpected payload type")
-    data = payload.get("data")
-    if not data:
-        raise TvSourceError("value_source_unavailable: empty scanner payload")
-    rows: list[dict[str, Any]] = []
-    for entry in data:
-        if isinstance(entry, dict):
-            values = entry.get("d", [])
-        elif isinstance(entry, (list, tuple)):
-            values = entry
-        else:
-            continue
-        row: dict[str, Any] = {}
-        for i, col in enumerate(COLUMNS):
-            raw = values[i] if i < len(values) else None
-            row[col] = _coerce(raw) if col in NUMERIC_COLUMNS else raw
-        rows.append(row)
-    if not rows:
-        raise TvSourceError("value_source_unavailable: empty scanner payload")
-    return rows
+        return bool(pd.isna(value))
+    except (TypeError, ValueError):
+        return False
 
 
 def _root_symbol(raw: Any, currency: Any) -> str:
@@ -243,7 +112,7 @@ def _apply_hygiene(market: str, rows: list[dict[str, Any]]) -> list[dict[str, An
             # a US company listed in Frankfurt/SIX/Milan shows country
             # "United States" and belongs to the USA tab, not to GLOBAL.
             country = str(row.get("country") or "").strip()
-            if country and country.lower() in _NON_GLOBAL_COUNTRIES:
+            if country and country.lower() in NON_GLOBAL_COUNTRIES:
                 continue
             root = _root_symbol(row.get("name"), row.get("currency"))
             if sum(1 for ch in root if ch.isalpha()) < 2:
@@ -281,36 +150,62 @@ def _apply_hygiene(market: str, rows: list[dict[str, Any]]) -> list[dict[str, An
     return list(best.values())
 
 
+def _rows_from_frame(df: pd.DataFrame) -> list[dict[str, Any]]:
+    """Convert a ``scan_frame`` DataFrame into column-keyed row dicts.
+
+    Nulls become ``None`` rather than NaN: downstream scoring treats
+    ``is not None`` as "present", and a NaN would silently pass that check.
+    """
+    rows: list[dict[str, Any]] = []
+    for record in df.to_dict(orient="records"):
+        row: dict[str, Any] = {}
+        for col in VALUE_COLUMNS:
+            raw = record.get(col)
+            if _is_missing(raw):
+                row[col] = None
+            elif col in NUMERIC_COLUMNS:
+                try:
+                    row[col] = float(raw)
+                except (TypeError, ValueError):
+                    row[col] = None
+            else:
+                row[col] = raw
+        rows.append(row)
+    return rows
+
+
 def fetch_frame(market: str) -> list[dict[str, Any]]:
     """Fetch one fundamentals frame for ``market``.
 
-    Issues EXACTLY ONE HTTP POST. Raises :class:`TvSourceError` on HTTP
-    failure or on an empty/unusable payload.
+    Issues EXACTLY ONE HTTP POST through :func:`api.tv.scan_frame`. Raises
+    :class:`TvSourceError` on HTTP failure or on an empty/unusable payload.
     """
     if market not in MARKETS:
         raise TvSourceError(f"value_source_unavailable: unknown market '{market}'")
-    url = SCANNER_URL.format(segment=MARKETS[market])
-    body = _request_body(market)
-    headers = {"User-Agent": USER_AGENT, "Content-Type": "application/json"}
     try:
-        request_kwargs = {
-            "json": body,
-            "headers": headers,
-            "timeout": REQUEST_TIMEOUT,
-        }
-        cookies = get_tv_cookies()
-        if cookies:
-            request_kwargs["cookies"] = cookies
-        response = requests.post(url, **request_kwargs)
-        response.raise_for_status()
-        payload = response.json()
-    except TvSourceError:
-        raise
+        df = scan_frame(
+            market,
+            columns=VALUE_COLUMNS,
+            filters=[
+                {"left": "market_cap_basic", "operation": "greater",
+                 "right": MCAP_FLOOR[market]},
+                # Push the type filter to the server: the scanner universe is
+                # mostly funds and depositary receipts, and without this the
+                # 1-request frame would be ~50% dead rows (and far too small
+                # to rank).
+                {"left": "type", "operation": "equal", "right": "stock"},
+            ],
+            sort="market_cap_basic",
+            limit=FRAME_LIMIT[market],
+            markets=_markets_for(market),
+        )
     except Exception as exc:
         raise TvSourceError(
             f"value_source_unavailable: scanner request failed ({exc})"
         ) from exc
-    rows = _parse_payload(payload)
+    rows = _rows_from_frame(df)
+    if not rows:
+        raise TvSourceError("value_source_unavailable: empty scanner payload")
     return _apply_hygiene(market, rows)
 
 

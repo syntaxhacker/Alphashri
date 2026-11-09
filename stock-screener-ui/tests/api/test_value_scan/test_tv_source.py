@@ -5,11 +5,8 @@ import math
 import pytest
 import requests
 
-from api.value_scan import tv_source
+from api.tv import FRAME_LIMIT, GLOBAL_COUNTRIES, VALUE_COLUMNS
 from api.value_scan.tv_source import (
-    COLUMNS,
-    FRAME_LIMIT,
-    GLOBAL_COUNTRIES,
     TvSourceError,
     fetch_frame,
     frame_summary,
@@ -18,7 +15,7 @@ from api.value_scan.tv_source import (
 
 def _entry(name, exchange="NSE", type_="stock", currency="INR",
            mcap=5e9, pe=12.0, **overrides):
-    """Build one {"s", "d"} scanner entry with values in COLUMNS order."""
+    """Build one {"s", "d"} scanner entry with values in VALUE_COLUMNS order."""
     base = {
         "name": name, "description": f"{name} Ltd", "type": type_,
         "sector": "Energy", "industry": "Oil & Gas", "exchange": exchange,
@@ -44,7 +41,7 @@ def _entry(name, exchange="NSE", type_="stock", currency="INR",
         "price_52_week_low": 80.0,
     }
     base.update(overrides)
-    return {"s": f"{exchange}:{name}", "d": [base[c] for c in COLUMNS]}
+    return {"s": f"{exchange}:{name}", "d": [base[c] for c in VALUE_COLUMNS]}
 
 
 class _FakeResponse:
@@ -63,12 +60,13 @@ class _FakeResponse:
 def _mock_post(monkeypatch, payload=None, status_code=200):
     calls = []
 
-    def fake_post(url, json=None, headers=None, timeout=None):
-        calls.append({"url": url, "json": json,
-                      "headers": headers, "timeout": timeout})
+    def fake_post(url, json=None, headers=None, timeout=None, **kwargs):
+        calls.append({"url": url, "json": json, "headers": headers,
+                      "timeout": timeout, "cookies": kwargs.get("cookies")})
         return _FakeResponse(payload, status_code)
 
-    monkeypatch.setattr(tv_source.requests, "post", fake_post)
+    # tv_source delegates to api.tv.client, which shares the requests module.
+    monkeypatch.setattr(requests, "post", fake_post)
     return calls
 
 
@@ -102,7 +100,7 @@ class TestFetchFrameUrlAndBody:
                                 "sortOrder": "desc"}
         assert body["range"] == [0, FRAME_LIMIT["india"]]
         assert body["ignore_unknown_fields"] is True
-        assert body["columns"] == COLUMNS
+        assert body["columns"] == VALUE_COLUMNS
         mcap_filter = [f for f in body["filter"]
                        if f.get("left") == "market_cap_basic"]
         assert mcap_filter, "expected a market_cap pre-filter"

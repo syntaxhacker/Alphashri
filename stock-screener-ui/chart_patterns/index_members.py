@@ -13,11 +13,11 @@ import requests
 
 from chart_patterns.constituents import NIFTY50, NIFTY100, NIFTY200, NIFTY500
 from chart_patterns.indices import INDEX_KEYS, INDEX_LABELS
+from api.tv import scan_raw
 
 logger = logging.getLogger(__name__)
 
 NIFTY_CSV_BASE = "https://www.niftyindices.com/IndexConstituent/"
-TV_SCANNER_URL = "https://scanner.tradingview.com/india/scan"
 CACHE_TTL_SECONDS = 6 * 60 * 60
 
 INDEX_CSV_FILES: dict[str, str] = {
@@ -158,12 +158,7 @@ def _load_tv_index_map() -> dict[str, set[str]]:
             "columns": ["name", "indexes"],
             "range": [0, 10000],
         }
-        response = requests.post(
-            TV_SCANNER_URL,
-            json=payload,
-            timeout=30,
-            headers={"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"},
-        )
+        response = scan_raw("india", payload, timeout=30)
         response.raise_for_status()
         by_index: dict[str, set[str]] = {}
         for row in response.json().get("data", []):

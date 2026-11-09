@@ -26,10 +26,16 @@ import datetime as dt
 import json
 import sys
 import time
-import urllib.request
+from pathlib import Path
 from typing import Any
 
 from curl_cffi import requests
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from api.tv import scan_raw  # noqa: E402
 
 BASE = "https://www.barchart.com/proxies/core-api/v1"
 HEADERS = {
@@ -274,14 +280,10 @@ def render_summary(r: dict[str, Any]) -> None:
 def tv_price(symbol: str = "CME_MINI:NQ1!") -> float | None:
     """Live-ish last price from TradingView's scanner (falls back to None)."""
     body = {"symbols": {"tickers": [symbol], "query": {"types": []}}, "columns": ["close"]}
-    req = urllib.request.Request(
-        "https://scanner.tradingview.com/futures/scan",
-        data=json.dumps(body).encode(),
-        headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"},
-    )
     try:
-        with urllib.request.urlopen(req, timeout=20) as r:  # noqa: S310
-            return float(json.load(r)["data"][0]["d"][0])
+        response = scan_raw("futures", body, timeout=20)
+        response.raise_for_status()
+        return float(response.json()["data"][0]["d"][0])
     except Exception:  # noqa: BLE001
         return None
 

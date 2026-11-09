@@ -392,3 +392,58 @@ class TestSymbolSearch:
 
                 symbols = [r['symbol'] for r in data['results']]
                 assert 'HDFCBANK' in symbols
+
+
+class TestTvSymbolNormalization:
+    """Regression: bare suffixes (NS/BO/EQ) are not exchange suffixes.
+
+    The old local normalizer stripped ``NS``/``BO``/``EQ`` from any symbol, so
+    ``SIEMENS`` became ``SIEME``, ``20MICRONS`` became ``20MICRO`` and ``CONS``
+    became ``CO``. Those 19 symbols were silently unqueryable on the scanner.
+    """
+
+    #: Real NSE symbols whose tail collides with a naive suffix strip.
+    COLLIDING = ("SIEMENS", "20MICRONS", "CONS", "TEMBO")
+
+    def test_colliding_symbols_survive_normalization(self):
+        from api.symbols import normalize_tv_symbol
+
+        for symbol in self.COLLIDING:
+            assert normalize_tv_symbol(symbol) == symbol
+            assert normalize_tv_symbol(f"NSE:{symbol}") == symbol
+            assert normalize_tv_symbol(f"BSE:{symbol}") == symbol
+
+    def test_colliding_symbols_round_trip_through_tv_ticker(self):
+        from api.symbols import normalize_tv_symbol, to_tv_ticker
+
+        for symbol in self.COLLIDING:
+            ticker = to_tv_ticker(symbol)
+            assert ticker == f"NSE:{symbol}"
+            assert normalize_tv_symbol(ticker) == symbol
+
+    def test_to_tv_ticker_uses_underscore_for_hyphens(self):
+        from api.symbols import to_tv_ticker
+
+        assert to_tv_ticker("BAJAJ-AUTO") == "NSE:BAJAJ_AUTO"
+        assert to_tv_ticker("BOSCH-HCIL") == "NSE:BOSCH_HCIL"
+
+    def test_bajaj_auto_round_trip(self):
+        from api.symbols import normalize_tv_symbol, to_tv_ticker
+
+        ticker = to_tv_ticker("BAJAJ-AUTO")
+        assert normalize_tv_symbol(ticker) == "BAJAJ-AUTO"
+        assert normalize_tv_symbol("BAJAJ_AUTO") == "BAJAJ-AUTO"
+
+    def test_dotted_and_dashed_suffixes_still_strip(self):
+        from api.symbols import normalize_tv_symbol
+
+        assert normalize_tv_symbol("SIEMENS.NS") == "SIEMENS"
+        assert normalize_tv_symbol("SIEMENS-EQ") == "SIEMENS"
+        assert normalize_tv_symbol("20MICRONS.BO") == "20MICRONS"
+
+    def test_symbols_api_reuses_the_shared_implementation(self):
+        import api.symbols as symbols_api
+        import api.tv as tv
+
+        assert symbols_api.normalize_tv_symbol is tv.normalize_tv_symbol
+        assert symbols_api.to_tv_ticker is tv.to_tv_ticker

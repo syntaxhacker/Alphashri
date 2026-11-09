@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """QA: run the Deep Value scoring engine against the LIVE TradingView universe.
 
-Uses the repo's own scanner client (scripts/market/tv_client.py) and the
-production scoring module (api/value_scan/scoring.py + filters.py) so the
-ranking can be sanity-checked against known names.
+Routes the scanner call through the single-source transport in ``api.tv``
+(``scan_frame`` + auth cookies) and scores with the production module
+(api/value_scan/scoring.py + filters.py) so the ranking can be sanity-checked
+against known names.
 
 Run:
     .venv/bin/python scripts/market/qa_value_engine.py --market usa
@@ -17,11 +18,13 @@ from pathlib import Path
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "scripts"))
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
 
-from market.tv_client import scanner_frame  # noqa: E402
+from api.tv import MARKETS, USA_EXCHANGES, add_symbol, scan_frame  # noqa: E402
 from api.value_scan import filters as vf  # noqa: E402
 from api.value_scan import scoring as vs  # noqa: E402
 
@@ -39,28 +42,33 @@ COLUMNS = [
     "Perf.W", "Perf.1M", "Perf.3M", "Perf.Y", "price_52_week_high", "price_52_week_low",
 ]
 
-MARKETS = {
-    "india": ("india", {"NSE", "BSE"}),
-    "usa": ("america", {"NASDAQ", "NYSE", "AMEX"}),
+#: Exchange whitelist per --market (applied after the scan; not TV transport).
+INDIA_EXCHANGES = {"NSE", "BSE"}
+_EXCHANGES = {
+    "india": INDIA_EXCHANGES,
+    "usa": USA_EXCHANGES,
 }
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--market", default="usa", choices=sorted(MARKETS))
+    ap.add_argument("--market", default="usa", choices=["india", "usa"])
     ap.add_argument("--preset", default="SERIOUS")
     ap.add_argument("--top", type=int, default=25)
     ap.add_argument("--limit", type=int, default=1500)
     args = ap.parse_args()
 
-    tv_market, exchanges = MARKETS[args.market]
-    df = scanner_frame(
-        tv_market,
-        columns=COLUMNS,
-        filters=[{"left": "market_cap_basic", "operation": "greater", "right": 1_000_000_000}],
-        sort="market_cap_basic",
-        order="desc",
-        limit=args.limit,
+    tv_market = MARKETS[args.market]
+    exchanges = _EXCHANGES[args.market]
+    df = add_symbol(
+        scan_frame(
+            tv_market,
+            columns=COLUMNS,
+            filters=[{"left": "market_cap_basic", "operation": "greater", "right": 1_000_000_000}],
+            sort="market_cap_basic",
+            order="desc",
+            limit=args.limit,
+        )
     )
     if df.empty:
         print("empty frame", file=sys.stderr)
