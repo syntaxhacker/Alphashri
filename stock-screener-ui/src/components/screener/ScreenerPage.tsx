@@ -4,7 +4,7 @@ import MuiStack from "@mui/material/Stack";
 import Paper from "@mui/material/Paper";
 import { Box, Tabs, Text, Select, Skeleton, ActionIcon, Switch, Tooltip } from "@/ui";
 import { BORDER, SURFACE } from "@/ui/palette";
-import { IconTable, IconChartDots, IconSettings, IconLayoutDashboard, IconRefresh, IconCoins, IconCalendarEvent } from "@tabler/icons-react";
+import { IconTable, IconChartDots, IconSettings, IconLayoutDashboard, IconRefresh, IconCoins, IconCalendarEvent, IconWorld } from "@tabler/icons-react";
 import * as state from "../../state";
 import { DashboardView } from "./DashboardView";
 import { ScreenerHeader } from "./ScreenerHeader";
@@ -18,6 +18,9 @@ const CorrelationTab = lazy(() => import("./CorrelationTab").then((m) => ({ defa
 const ScreenerConfigView = lazy(() => import("./ScreenerConfigView").then((m) => ({ default: m.ScreenerConfigView })));
 const DeepValueTab = lazy(() => import("../value/ValuePanel").then((m) => ({ default: m.ValuePanel })));
 const EventsTab = lazy(() => import("../events/EventsPanel").then((m) => ({ default: m.EventsPanel })));
+const MarketTab = lazy(() =>
+  import("../../pages/market/MarketScreenerPage").then((m) => ({ default: m.MarketScreenerPage })),
+);
 import {
   setSymbols,
   setTimeframe,
@@ -164,6 +167,7 @@ export function ScreenerPage({
   const activeTab = searchParams.get("tab") || "dashboard";
   const isValueTab = activeTab === "deepvalue";
   const isEventsTab = activeTab === "events";
+  const isMarketTab = activeTab === "market";
   const [isPending, startTransition] = useTransition();
   const [internalUniverse, setInternalUniverse] = useState(DEFAULT_DASHBOARD_UNIVERSE);
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
@@ -283,6 +287,10 @@ export function ScreenerPage({
               <Text size="xs" fw={600} data-testid="events-tab-label" sx={{ width: 148, flexShrink: 0 }}>
                 Event calendar
               </Text>
+            ) : isMarketTab ? (
+              <Text size="xs" fw={600} data-testid="market-tab-label" sx={{ width: 148, flexShrink: 0 }}>
+                Market
+              </Text>
             ) : (
               <Select
                 value={activeScreener}
@@ -315,6 +323,9 @@ export function ScreenerPage({
                 <Tabs.Tab value="events" leftSection={<IconCalendarEvent size={14} />} data-testid="tab-events" style={{ minHeight: 32 }}>
                   Events
                 </Tabs.Tab>
+                <Tabs.Tab value="market" leftSection={<IconWorld size={14} />} data-testid="tab-market" style={{ minHeight: 32 }}>
+                  Market
+                </Tabs.Tab>
                 <Tabs.Tab value="correlation" leftSection={<IconChartDots size={14} />} data-testid="tab-correlation" style={{ minHeight: 32 }}>
                   Correlation
                 </Tabs.Tab>
@@ -325,9 +336,11 @@ export function ScreenerPage({
             </Tabs>
           </Box>
           <Box sx={{ flex: 1, minWidth: 0, px: 1, display: "flex", justifyContent: "center", overflow: "hidden" }}>
-            <Text size="xs" c="dimmed" truncate sx={{ fontSize: 11 }} title={status} data-testid="screener-status">
-              {status}
-            </Text>
+            {isMarketTab ? null : (
+              <Text size="xs" c="dimmed" truncate sx={{ fontSize: 11 }} title={status} data-testid="screener-status">
+                {status}
+              </Text>
+            )}
           </Box>
           <Box sx={{ flexShrink: 0, display: "flex", alignItems: "center", flexWrap: "nowrap" }}>
             {isDashboard ? (
@@ -354,7 +367,7 @@ export function ScreenerPage({
                   </ActionIcon>
                 </Tooltip>
               </Box>
-            ) : isValueTab ? null : isEventsTab ? null : (
+            ) : isValueTab ? null : isEventsTab ? null : isMarketTab ? null : (
               <ScreenerHeader
               status={status}
               isLoading={isLoading}
@@ -439,6 +452,14 @@ export function ScreenerPage({
           >
             <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
               <EventsTab />
+            </Suspense>
+          </Box>
+          <Box
+            data-testid="market-tab-panel"
+            sx={{ display: isMarketTab ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden" }}
+          >
+            <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
+              {isMarketTab ? <MarketTab /> : null}
             </Suspense>
           </Box>
           <Box sx={{ display: activeTab === "correlation" || activeTab === "config" ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}>

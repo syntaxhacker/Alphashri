@@ -7,6 +7,7 @@ import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { ScreenerPage, mapDashboardPanelToScreener, DEFAULT_DASHBOARD_UNIVERSE } from "./ScreenerPage";
 import { UIProvider } from "@/ui";
+import { fetchMarketSnapshot } from "../../api/marketScreener";
 
 // This page mounts the full screener table (hundreds of SymbolLinks) inside
 // MemoryRouter; under a full-suite run the 5s default is not enough.
@@ -181,6 +182,64 @@ vi.mock("../../state/correlation", () => ({
   clearSelectedSymbols: vi.fn(),
 }));
 
+vi.mock("../../api/marketScreener", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../api/marketScreener")>();
+  return { ...actual, fetchMarketSnapshot: vi.fn() };
+});
+
+// EventsPanel and ValuePanel are mounted-but-hidden on every render and fire
+// real /api fetches on mount (with a 300ms debounce for the value scan). This
+// suite does not exercise them, so mocking them keeps it hermetic — and keeps
+// their network churn from starving userEvent's timers in the tab tests.
+vi.mock("../events/EventsPanel", () => ({
+  EventsPanel: () => <div data-testid="events-panel" />,
+}));
+
+vi.mock("../value/ValuePanel", () => ({
+  ValuePanel: () => <div data-testid="value-panel" />,
+}));
+
+const mockFetchMarketSnapshot = vi.mocked(fetchMarketSnapshot);
+
+// The Market tab is lazy and mounts on activation — keep its fetch off the
+// network so the screener's other tests stay hermetic.
+const marketSnapshot = {
+  asOf: new Date().toISOString(),
+  universe: "all_equity",
+  total: 1,
+  updateMode: "streaming",
+  rows: [
+    {
+      symbol: "RELIANCE",
+      name: "Reliance Industries",
+      sector: "Energy",
+      industry: "Oil & Gas",
+      exchange: "NSE",
+      close: 2946,
+      change: 0.82,
+      volume: 1234567,
+      relativeVolume: 1.4,
+      marketCap: 1990000000000,
+      marketCapCr: 199000,
+      capTier: "large",
+      rsi: 61,
+      adx: 24,
+      atr: 45,
+      sma20: 2880,
+      sma50: 2800,
+      sma200: 2600,
+      perfW: 2.1,
+      perf1m: 4.6,
+      perf3m: 8.2,
+      high52w: 3000,
+      low52w: 1800,
+      pos52w: 95,
+      fno: true,
+      etf: false,
+    },
+  ],
+};
+
 const dashboardMounts = vi.hoisted(() => ({ count: 0 }));
 
 vi.mock("./DashboardView", async () => {
@@ -261,6 +320,7 @@ describe("ScreenerPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dashboardMounts.count = 0;
+    mockFetchMarketSnapshot.mockResolvedValue(marketSnapshot);
   });
 
   afterEach(() => {
@@ -596,6 +656,24 @@ describe("ScreenerPage", () => {
     expect(screen.getByTestId("screener-table-approaching")).not.toBeVisible();
   });
 
+  it("does not fetch the market snapshot until the Market tab is opened", async () => {
+    const user = userEvent.setup();
+    render(
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>,
+      { initialRoute: "/" },
+    );
+    expect(mockFetchMarketSnapshot).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("market-screener")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("tab-market"));
+    await waitFor(() => expect(mockFetchMarketSnapshot).toHaveBeenCalledTimes(1), {
+      timeout: 10_000,
+    });
+    expect(await screen.findByTestId("market-screener", undefined, { timeout: 10_000 })).toBeInTheDocument();
+    expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
+  });
+
   it("keeps correlation and config tabs working alongside dashboard", async () => {
     const user = userEvent.setup();
     render(
@@ -605,18 +683,21 @@ describe("ScreenerPage", () => {
       { initialRoute: "/" },
     );
     await user.click(screen.getByTestId("tab-correlation"));
-    await waitFor(() =>
-      expect(screen.queryByTestId("dashboard-view")).not.toBeVisible(),
+    await waitFor(
+      () => expect(screen.queryByTestId("dashboard-view")).not.toBeVisible(),
+      { timeout: 10_000 },
     );
-    expect(await screen.findByTestId("correlation-tab")).toBeInTheDocument();
+    expect(await screen.findByTestId("correlation-tab", undefined, { timeout: 10_000 })).toBeInTheDocument();
     await user.click(screen.getByTestId("tab-config"));
-    await waitFor(() =>
-      expect(screen.queryByTestId("dashboard-view")).not.toBeVisible(),
+    await waitFor(
+      () => expect(screen.queryByTestId("dashboard-view")).not.toBeVisible(),
+      { timeout: 10_000 },
     );
-    expect(await screen.findByTestId("screener-config-view")).toBeInTheDocument();
+    expect(await screen.findByTestId("screener-config-view", undefined, { timeout: 10_000 })).toBeInTheDocument();
     await user.click(screen.getByTestId("tab-dashboard"));
-    await waitFor(() =>
-      expect(screen.getByTestId("dashboard-view")).toBeVisible(),
+    await waitFor(
+      () => expect(screen.getByTestId("dashboard-view")).toBeVisible(),
+      { timeout: 10_000 },
     );
   });
 

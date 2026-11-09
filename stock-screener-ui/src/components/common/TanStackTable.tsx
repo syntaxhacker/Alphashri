@@ -54,6 +54,8 @@ interface Props<T> {
   emptyIcon?: ReactNode;
   emptyAction?: ReactNode;
   onRowClick?: (row: T) => void;
+  /** Accessible name for the <table> element (e.g. "Market screener results"). */
+  ariaLabel?: string;
   getRowClassName?: (row: T) => string | undefined;
   getRowStyle?: (row: T) => CSSProperties | undefined;
   getRowTestId?: (row: T, index: number) => string | undefined;
@@ -139,6 +141,7 @@ export function TanStackTable<T>({
   emptyIcon,
   emptyAction,
   onRowClick,
+  ariaLabel,
   getRowClassName,
   getRowStyle,
   getRowTestId,
@@ -284,6 +287,7 @@ export function TanStackTable<T>({
         <Box
           component="table"
           data-testid={dataTestId}
+          aria-label={ariaLabel}
           id={dataTestId ? `paper-tanstack-table-${dataTestId}` : undefined}
           style={{ width: "100%", tableLayout: hasSizedColumns ? "fixed" : "auto", minWidth: minTableWidth ?? Math.max(640, visibleColumnCount * 96), ...style } as React.CSSProperties}
           sx={{
@@ -324,6 +328,12 @@ export function TanStackTable<T>({
                   "& .paper-tanstack-cell .MuiTypography-root, & .paper-tanstack-header-cell .MuiTypography-root":
                     { lineHeight: 1.15 },
                 }),
+            // Keyboard-activated rows (onRowClick) need a visible focus ring —
+            // the row itself is the tab stop, not anything inside it.
+            "& tbody tr:focus-visible": {
+              outline: `2px solid ${palette.PRIMARY}`,
+              outlineOffset: -2,
+            },
           }}
           className={`paper-tanstack-table ${className || ""}`}
         >
@@ -421,6 +431,17 @@ export function TanStackTable<T>({
                       key={row.id}
                       style={{ cursor: onRowClick ? "pointer" : undefined, ...getRowStyle?.(row.original) }}
                       onClick={() => onRowClick?.(row.original)}
+                      onKeyDown={
+                        onRowClick
+                          ? (event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                onRowClick(row.original);
+                              }
+                            }
+                          : undefined
+                      }
+                      tabIndex={onRowClick ? 0 : undefined}
                       className={getRowClassName?.(row.original)}
                       data-testid={getRowTestId?.(row.original, index)}
                       {...getRowAttributes?.(row.original, index)}
