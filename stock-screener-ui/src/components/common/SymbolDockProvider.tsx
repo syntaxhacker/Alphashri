@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, type ReactNode
 import { Box, Loader, useMediaQuery } from "@/ui";
 import { useNavigate } from "react-router-dom";
 import { usePatternFullscreen } from "@/hooks/usePatternFullscreen";
+import { FALLBACK_TIMEFRAMES } from "@/components/patterns/TimeframeSelect";
 import { SymbolDockContext, type SymbolDockApi } from "./symbolDockContext";
 import { ErrorBoundary } from "./ErrorBoundary";
 
@@ -35,6 +36,7 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
     fullscreen,
     openFromSymbol,
     previewFromSymbol,
+    changeFullscreenTimeframe,
     pinFullscreen,
     closeFullscreen,
     selectFullscreenHit,
@@ -96,7 +98,7 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
         navigate(`/chart/${encodeURIComponent(symbol)}`);
         return;
       }
-      openFromSymbol(symbol, undefined, false);
+      openFromSymbol(symbol);
     },
     [isDesktop, openFromSymbol, navigate, clearTimers],
   );
@@ -155,6 +157,8 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
               trendLines={fullscreen?.trendLines ?? []}
               trendlinesView="both"
               timeframe={fullscreen?.timeframe}
+              timeframes={FALLBACK_TIMEFRAMES}
+              onTimeframeChange={changeFullscreenTimeframe}
               loading={fullscreen?.loading ?? false}
               asOf={fullscreen?.asOf ?? null}
               fromDate={fullscreen?.fromDate ?? null}
