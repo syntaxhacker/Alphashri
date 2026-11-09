@@ -491,13 +491,15 @@ def envelope_line(
     P = sorted(pivots, key=lambda t: t[0]) if pivots else []
     if len(P) < 2:
         return None
-    # Fully vectorised over pivot pairs: one NumPy pass scores every ``(i, j)``
-    # pair instead of a Python loop per pair per bar. The per-cell arithmetic
-    # (``q0 + slope * (x - x0)``, ``d > tol``) is the same IEEE-754 float64
-    # sequence as the scalar loop, rows run in the same ``(i, j)`` order, and
-    # the winner is the first row with the minimal ``(viol, -span)`` key —
-    # exactly the scalar loop's strict-``<`` pick. Rows are chunked so peak
-    # memory stays bounded on pivot-dense frames.
+    # Vectorised over pivot pairs. Every pair (i, j) scores (violations, -span)
+    # over bars in its own span [x0, x1]; cells outside the span never count, so
+    # each pair is scored only over the bars its line is actually drawn across.
+    # Violations for all pairs are counted in one np.bincount pass; the winner is
+    # the first pair (pair order = triu_indices) with the minimal (viol, -span)
+    # key under strict ``<`` improvement -- identical to the reference scalar
+    # loop. ``worst`` (max pierce depth) is reported for the winning pair only and
+    # is recomputed once after selection, so it can never influence which pair
+    # wins.
     boundary = df["high"].to_numpy(dtype=float) if side == "upper" else df["low"].to_numpy(dtype=float)
     n = len(boundary)
     # Frame-scoped memo: detectors ask for the same boundary repeatedly within
@@ -534,42 +536,68 @@ def envelope_line(
     Q1 = qs[rows_j]
     span = X1 - X0
     slopes = (Q1 - Q0) / span
-    grid = np.arange(n, dtype=float)
-    best = None
-    rows_per_chunk = max(1, min(len(X0), 1_000_000 // max(n, 1)))
-    for blk in range(0, len(X0), rows_per_chunk):
-        s = slice(blk, blk + rows_per_chunk)
-        y = Q0[s, None] + slopes[s, None] * (grid[None, :] - X0[s, None])
-        seg = (grid[None, :] >= X0[s, None]) & (grid[None, :] <= X1[s, None])
+    counts = span.astype(np.int64) + 1  # bars in [x0, x1], inclusive
+    num_pairs = len(X0)
+    best_key = None
+    best = -1
+    viol = np.zeros(num_pairs, dtype=np.int64)
+    # Cell budget per block keeps peak memory bounded; blocks run in pair order
+    # so the global first-wins tie-break is unchanged.
+    blk_pairs = max(1, 1_000_000 // max(n, 1))
+    for p0 in range(0, num_pairs, blk_pairs):
+        p1 = min(p0 + blk_pairs, num_pairs)
+        sl = slice(p0, p1)
+        b_counts = counts[sl]
+        b_total = int(b_counts.sum())
+        Pidx = np.repeat(np.arange(p0, p1), b_counts)
+        cell_idx = np.arange(b_total)
+        starts = np.cumsum(b_counts) - b_counts
+        K = (X0[Pidx] + (cell_idx - np.repeat(starts, b_counts))).astype(np.int64)
+        Kf = K.astype(np.float64)
+        y = Q0[Pidx] + slopes[Pidx] * (Kf - X0[Pidx])
         if side == "upper":
-            d = boundary[None, :] - y
+            d = boundary[K] - y  # violation: price pierces above the line
         else:
-            d = y - boundary[None, :]
-        over = seg & (d > tol)
-        viol = over.sum(axis=1)
-        worst = np.where(over, d, -np.inf).max(axis=1)
-        w = int(np.lexsort((-(span[s]), viol))[0])
-        key = (int(viol[w]), -int(span[s][w]))
-        if best is None or key < best["key"]:
-            slope = float(slopes[s][w])
-            x0 = int(X0[s][w])
-            best = {
-                "key": key,
-                "slope": slope,
-                "intercept": float(Q0[s][w]) - slope * x0,
-                "x0": x0,
-                "q0": float(Q0[s][w]),
-                "x1": int(X1[s][w]),
-                "q1": float(Q1[s][w]),
-                "viol": int(viol[w]),
-                "worst": float(worst[w]) if viol[w] > 0 else 0.0,
-            }
+            d = y - boundary[K]  # violation: price pierces below the line
+        over = d > tol
+        viol[sl] = np.bincount(Pidx, weights=over.astype(np.uint8), minlength=p1 - p0).astype(np.int64)
+        for k in range(p0, p1):
+            key = (int(viol[k]), -int(span[k]))
+            if best_key is None or key < best_key:
+                best_key = key
+                best = k
+    if best < 0:
+        return None
+    # Winner's cells are contiguous ([start, start+count)), so its worst pierce
+    # depth is one small vectorised reduction instead of per-row work.
+    x0b = int(X0[best])
+    x1b = int(X1[best])
+    Kb = np.arange(x0b, x1b + 1, dtype=np.int64)
+    Kbf = Kb.astype(np.float64)
+    yb = float(Q0[best]) + float(slopes[best]) * (Kbf - X0[best])
+    if side == "upper":
+        db = boundary[Kb] - yb
+    else:
+        db = yb - boundary[Kb]
+    overb = db > tol
+    worst = float(db[overb].max()) if bool(overb.any()) else 0.0
+    slope = float(slopes[best])
+    result = {
+        "slope": slope,
+        "intercept": float(Q0[best]) - slope * x0b,
+        "x0": x0b,
+        "q0": float(Q0[best]),
+        "x1": x1b,
+        "q1": float(Q1[best]),
+        "viol": int(viol[best]),
+        "worst": worst,
+    }
     if entry is not None and memo_key is not None:
         if len(entry.envelope) >= _ENVELOPE_ENTRY_MAX:
             entry.envelope.clear()
         # Store a private copy: the caller owns the returned dict and may edit it.
-        entry.envelope[memo_key] = dict(best) if best is not None else None
-    return best
+        entry.envelope[memo_key] = dict(result)
+    return result
 
 
 def count_touches(

@@ -852,6 +852,66 @@ class TestEnvelopeLine:
         assert edited == fresh
         assert edited["viol"] == 5
 
+    def test_matches_independent_scalar_reference_on_random_frames(self):
+        """``envelope_line`` must match a direct scalar implementation exactly
+        (same pivot-pair order, same ``(viol, -span)`` first-wins tie-break, same
+        ``worst`` pierce depth) so detector output stays byte-identical across
+        any future re-implementation.
+        """
+
+        def scalar(df, pivots, side, tol):
+            P = sorted(pivots, key=lambda t: t[0]) if pivots else []
+            if len(P) < 2:
+                return None
+            boundary = (df["high"].to_numpy(dtype=float) if side == "upper"
+                        else df["low"].to_numpy(dtype=float))
+            xs = [int(p) for p, _ in P]
+            qs = [float(q) for _, q in P]
+            best = None
+            for i in range(len(P)):
+                for j in range(i + 1, len(P)):
+                    x0, x1 = xs[i], xs[j]
+                    if x1 <= x0:
+                        continue
+                    q0, q1 = qs[i], qs[j]
+                    span = x1 - x0
+                    slope = (q1 - q0) / span
+                    viol = 0
+                    worst = 0.0
+                    for x in range(x0, x1 + 1):
+                        line = q0 + slope * (x - x0)
+                        d = (boundary[x] - line) if side == "upper" else (line - boundary[x])
+                        if d > tol:
+                            viol += 1
+                            if d > worst:
+                                worst = d
+                    key = (viol, -span)
+                    if best is None or key < best[0]:
+                        best = (key, slope, q0 - slope * x0, x0, q0, x1, q1, viol, worst)
+            if best is None:
+                return None
+            _, slope, intercept, x0, q0, x1, q1, viol, worst = best
+            return {"slope": slope, "intercept": intercept, "x0": x0, "q0": q0,
+                    "x1": x1, "q1": q1, "viol": viol, "worst": worst}
+
+        rng = np.random.default_rng(20240601)
+        for trial in range(60):
+            n = int(rng.integers(8, 120))
+            idx = pd.date_range("2024-01-01", periods=n, freq="D", tz="UTC")
+            close = 100.0 + np.cumsum(rng.normal(0.0, 2.0, n))
+            high = close + rng.uniform(0.2, 2.0, n)
+            low = close - rng.uniform(0.2, 2.0, n)
+            df = pd.DataFrame({"open": close, "high": high, "low": low,
+                               "close": close, "volume": 1000.0}, index=idx)
+            m = int(rng.integers(2, min(25, n // 2)))
+            pos = np.sort(rng.choice(np.arange(n), size=m, replace=False))
+            pivots = [(int(p), float(rng.uniform(60.0, 160.0))) for p in pos]
+            side = rng.choice(["upper", "lower"])
+            tol = float(rng.choice([0.0, 0.25, 1.0, 3.0]))
+            expected = scalar(df, pivots, side, tol)
+            actual = F.envelope_line(df, pivots, side, tol)
+            assert expected == actual, (f"trial={trial} n={n} m={m} side={side} tol={tol}")
+
 
 class TestPenetrationRatio:
     def test_never_pierced_upper(self):
