@@ -214,15 +214,13 @@ describe("SimDesk", () => {
     });
   });
 
-  test("shows the payoff and runs tabs", async () => {
+  test("shows build, payoff and runs in one view", async () => {
     const user = userEvent.setup();
     await openDesk(user);
 
-    await user.click(screen.getByText("PAYOFF"));
+    expect(screen.getByTestId("sim-builder")).toBeInTheDocument();
     expect(await screen.findByTestId("sim-payoff-debit")).toHaveTextContent("Net debit");
     expect(screen.getByTestId("sim-payoff-total")).toHaveTextContent("Total");
-
-    await user.click(screen.getByText("RUNS"));
     expect(await screen.findByTestId("sim-trades-table")).toBeInTheDocument();
     expect(screen.getByText("Win rate")).toBeInTheDocument();
     expect(screen.getByText("Net")).toBeInTheDocument();

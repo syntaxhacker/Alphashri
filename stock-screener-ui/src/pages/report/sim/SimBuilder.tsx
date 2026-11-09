@@ -170,7 +170,7 @@ export function SimBuilder({
         data-testid="sim-name"
         label="Strategy name"
         size="xs"
-        w={260}
+        w="100%"
         value={strategy.name}
         onChange={(name) => onChange({ ...strategy, name })}
       />
@@ -215,7 +215,7 @@ export function SimBuilder({
                 <Select
                   data-testid={`sim-leg-${index}-action`}
                   size="xs"
-                  w={90}
+                  w={84}
                   data={ACTIONS}
                   value={leg.action}
                   onChange={(value) => {
@@ -225,19 +225,19 @@ export function SimBuilder({
                 <Select
                   data-testid={`sim-leg-${index}-opt`}
                   size="xs"
-                  w={80}
+                  w={70}
                   data={OPTS}
                   value={leg.opt}
                   onChange={(value) => {
                     if (value) patchLeg(index, { opt: value as SimLegSpec["opt"] });
                   }}
                 />
-                <Box sx={{ display: "flex", flexDirection: "column", width: 150 }}>
+                <Box sx={{ display: "flex", flexDirection: "column", width: 100 }}>
                   <TextInput
                     data-testid={`sim-leg-${index}-strike`}
                     size="xs"
                     w="100%"
-                    placeholder="ATM / ATM+2 / 24900"
+                    placeholder="ATM+2 / 24900"
                     value={leg.strike}
                     onChange={(strike) => patchLeg(index, { strike })}
                   />
@@ -256,7 +256,7 @@ export function SimBuilder({
                 <NumberInput
                   data-testid={`sim-leg-${index}-lots`}
                   size="xs"
-                  w={80}
+                  w={56}
                   label="Lots"
                   min={1}
                   max={50}

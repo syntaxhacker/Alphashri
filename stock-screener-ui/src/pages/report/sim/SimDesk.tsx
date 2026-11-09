@@ -7,7 +7,6 @@ import {
   Button,
   Divider,
   Group,
-  SegmentedControl,
   Select,
   Switch,
   Text,
@@ -38,6 +37,20 @@ import { SimRuns } from "./SimRuns";
 import { combinedViewAt, selectedStrategy, strategyViewAt } from "./simView";
 import type { StrategyView } from "./simView";
 
+function SectionLabel({ children }: { children: string }) {
+  return (
+    <Text
+      span
+      size="xs"
+      fw={700}
+      c="dimmed"
+      sx={{ textTransform: "uppercase", letterSpacing: "0.06em" }}
+    >
+      {children}
+    </Text>
+  );
+}
+
 export interface SimDeskProps {
   symbol: string;
   mode: "live" | "eod";
@@ -46,14 +59,6 @@ export interface SimDeskProps {
   replay: NiftyReplay | null;
   replayIndex: number;
 }
-
-type Tab = "build" | "payoff" | "runs";
-
-const TABS = [
-  { value: "build", label: "BUILD" },
-  { value: "payoff", label: "PAYOFF" },
-  { value: "runs", label: "RUNS" },
-];
 
 const LIVE_REFRESH_MS = 10_000;
 
@@ -87,7 +92,6 @@ export function SimDesk({
   const [result, setResult] = useState<SimRunResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("build");
   const [live, setLive] = useState(true);
   const [templates, setTemplates] = useState<SimTemplate[]>(SIM_TEMPLATES);
 
@@ -190,7 +194,6 @@ export function SimDesk({
       const next = { ...created, id };
       setStrategies((prev) => [...prev, next]);
       setSelectedId(id);
-      setTab("build");
     },
     [strategies],
   );
@@ -324,7 +327,7 @@ export function SimDesk({
             <Box
               data-testid="sim-rail"
               sx={{
-                width: { xs: "100%", md: 260 },
+                width: { xs: "100%", md: 220 },
                 flexShrink: 0,
                 display: "flex",
                 flexDirection: "column",
@@ -367,10 +370,7 @@ export function SimDesk({
                     size="xs"
                     variant={item.id === selectedId ? "light" : "subtle"}
                     sx={{ flex: 1, minWidth: 0, justifyContent: "flex-start" }}
-                    onClick={() => {
-                      setSelectedId(item.id);
-                      setTab("build");
-                    }}
+                    onClick={() => setSelectedId(item.id)}
                   >
                     {item.name}
                   </Button>
@@ -399,14 +399,7 @@ export function SimDesk({
                 gap: 1,
               }}
             >
-              <ToolbarRow justify="space-between">
-                <SegmentedControl
-                  data-testid="sim-tabs"
-                  size="xs"
-                  data={TABS}
-                  value={tab}
-                  onChange={(value) => setTab(value as Tab)}
-                />
+              <ToolbarRow justify="flex-end">
                 {asOf ? (
                   <Badge data-testid="sim-playhead" size="xs" color="warning" variant="outline">
                     PLAYHEAD {fmtTime(asOf)}
@@ -420,17 +413,33 @@ export function SimDesk({
                 </Alert>
               ) : null}
 
-              <Box sx={{ flex: 1, minHeight: 0, minWidth: 0, display: "flex", flexDirection: "column" }}>
-                {tab === "build" && selectedSpec ? (
-                  <SimBuilder
-                    strategy={selectedSpec}
-                    ladder={ladder}
-                    spot={spot}
-                    errors={validationErrors}
-                    onChange={updateStrategy}
-                  />
-                ) : null}
-                {tab === "payoff" ? (
+              <Box
+                data-testid="sim-view"
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: {
+                    xs: "minmax(0, 1fr)",
+                    lg: "minmax(320px, 0.92fr) minmax(380px, 1.08fr)",
+                  },
+                  gap: 1,
+                  alignItems: "start",
+                  minWidth: 0,
+                }}
+              >
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
+                  <SectionLabel>Build</SectionLabel>
+                  {selectedSpec ? (
+                    <SimBuilder
+                      strategy={selectedSpec}
+                      ladder={ladder}
+                      spot={spot}
+                      errors={validationErrors}
+                      onChange={updateStrategy}
+                    />
+                  ) : null}
+                </Box>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
+                  <SectionLabel>Payoff</SectionLabel>
                   <SimPayoff
                     strategy={selectedResult}
                     view={view}
@@ -438,10 +447,12 @@ export function SimDesk({
                     entryTime={selectedSpec?.exec.entryTime}
                     spot={spot}
                   />
-                ) : null}
-                {tab === "runs" ? (
-                  <SimRuns strategy={selectedResult} view={view} asOf={asOf} />
-                ) : null}
+                </Box>
+              </Box>
+
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
+                <SectionLabel>Runs</SectionLabel>
+                <SimRuns strategy={selectedResult} view={view} asOf={asOf} />
               </Box>
             </Box>
           </Box>
