@@ -1767,6 +1767,9 @@ export interface WallsRow {
   vol_mult?: number | null;
   /** Same-side ATM premium change over 5 minutes, fraction. */
   prem_chg_5m?: number | null;
+  /** Same-side premium change over 15 / 30 minutes, fraction. */
+  prem_chg_15m?: number | null;
+  prem_chg_30m?: number | null;
   flow?: WallsFlow | null;
   /** BREACHED/ERODING = wall is failing; BUILDING = wall is firming. */
   status?: WallsStatus;
@@ -1775,6 +1778,8 @@ export interface WallsRow {
   fuel_parts?: WallsFuelParts | null;
   time_to_break_min?: number | null;
   oi_history?: number[];
+  /** Same-side LTP per minute for the last 30 tape minutes; nulls are gaps. */
+  ltp_history?: (number | null)[];
   /** Backend flags the nearest call/put wall so the UI can pin it. */
   nearest?: boolean;
   distance_pts?: number | null;

@@ -743,6 +743,8 @@ def compute_wall_state(
         open_oi = _oi(open_chain, strike, side)
         now_ltp = _ltp(chain, strike, side)
         ltp_5 = _ltp(base5_chain, strike, side)
+        ltp_15 = _ltp(base15_chain, strike, side)
+        ltp_30 = _ltp(base30_chain, strike, side)
 
         erosion_5m = _pct_change(now_oi, five)
         erosion_15m = _pct_change(now_oi, fifteen)
@@ -755,6 +757,14 @@ def compute_wall_state(
         prem_chg_5m: Optional[float] = None
         if now_ltp is not None:
             prem_chg_5m = _pct_change(now_ltp, ltp_5)
+
+        prem_chg_15m: Optional[float] = None
+        if now_ltp is not None:
+            prem_chg_15m = _pct_change(now_ltp, ltp_15)
+
+        prem_chg_30m: Optional[float] = None
+        if now_ltp is not None:
+            prem_chg_30m = _pct_change(now_ltp, ltp_30)
 
         vol_5 = _vol_delta(rows, last_index, side, strike, 5)
         vol_30 = _vol_delta(rows, last_index, side, strike, 30)
@@ -821,12 +831,15 @@ def compute_wall_state(
             "vol_30m": vol_30,
             "vol_mult": vol_mult,
             "prem_chg_5m": prem_chg_5m,
+            "prem_chg_15m": prem_chg_15m,
+            "prem_chg_30m": prem_chg_30m,
             "flow": flow,
             "status": status,
             "fuel_score": fuel_score,
             "fuel_parts": fuel_parts,
             "time_to_break_min": ttb,
             "oi_history": [_oi(_chain(r), strike, side) for r in rows[-30:]],
+            "ltp_history": [_ltp(_chain(r), strike, side) for r in rows[-30:]],
             "distance_pts": distance_pts,
             "distance_pct": distance_pct,
             "tracked": bool(call_strike == strike if side == "call"

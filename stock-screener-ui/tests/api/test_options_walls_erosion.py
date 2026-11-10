@@ -72,6 +72,15 @@ def test_walls_erosion_enrichment(tmp_path, monkeypatch):
     assert row["vol_5m"] > 0
     assert row["vol_mult"] > 1
     assert row["prem_chg_5m"] > 0
+    assert row["prem_chg_15m"] > 0
+    assert row["prem_chg_30m"] > 0
+
+    history = row["ltp_history"]
+    assert isinstance(history, list) and len(history) > 0
+    finite = [v for v in history if v is not None and isinstance(v, (int, float))]
+    assert finite
+    assert finite[-1] == pytest.approx(260.0, abs=0.5)
+
     assert row["flow"] == "WRITERS_COVERING"
     assert row["status"] in ("ERODING", "BREACHED")
     assert row["fuel_score"] >= 70
