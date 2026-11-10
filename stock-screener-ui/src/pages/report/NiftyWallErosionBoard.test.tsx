@@ -127,12 +127,29 @@ describe("NiftyWallErosionBoard", () => {
     expect(screen.getByText(/as of 15:05/)).toBeInTheDocument();
   });
 
-  it("renders the empty state when walls is null", () => {
+  it("keeps the same two-row shape when walls is null", () => {
     render(<NiftyWallErosionBoard walls={null} />);
 
     const board = screen.getByTestId("wall-erosion-board");
-    expect(within(board).getByText("Waiting for walls data.")).toBeInTheDocument();
-    expect(within(board).queryByTestId("wall-erosion-call")).toBeNull();
+    expect(board).toBeInTheDocument();
+    expect(screen.getByTestId("wall-erosion-skeleton")).toBeInTheDocument();
+    expect(within(board).queryByText("Waiting for walls data.")).toBeNull();
+
+    // Same two rows as the loaded state — the strip never collapses.
+    expect(within(board).getAllByTestId("wall-erosion-row")).toHaveLength(2);
+    expect(within(board).getByTestId("wall-erosion-call")).toBeInTheDocument();
+    expect(within(board).getByTestId("wall-erosion-put")).toBeInTheDocument();
+
+    const call = within(board).getByTestId("wall-erosion-call");
+    expect(within(call).getAllByText("—").length).toBeGreaterThan(0);
+    expect(within(call).getByText("FUEL 0")).toBeInTheDocument();
+
+    const put = within(board).getByTestId("wall-erosion-put");
+    expect(within(put).getAllByText("—").length).toBeGreaterThan(0);
+    expect(within(put).getByText("FUEL 0")).toBeInTheDocument();
+
+    // Header slots stay in place so the title bar keeps its height.
+    expect(within(board).getByText("as of —")).toBeInTheDocument();
   });
 
   it("renders dashes instead of crashing when wall fields are missing", () => {
@@ -170,5 +187,33 @@ describe("NiftyWallErosionBoard", () => {
     const call = screen.getByTestId("wall-erosion-call");
     expect(within(call).getByText("spot crossed")).toBeInTheDocument();
     expect(within(call).queryByText(/to break/)).toBeNull();
+  });
+
+  it("renders exactly two rows and no skeleton for a full payload", () => {
+    render(<NiftyWallErosionBoard walls={makeWalls()} />);
+
+    const body = screen.getByTestId("wall-erosion-body");
+    const rows = within(body).getAllByTestId("wall-erosion-row");
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.getAttribute("data-side"))).toEqual([
+      "CALL",
+      "PUT",
+    ]);
+    expect(screen.queryByTestId("wall-erosion-skeleton")).toBeNull();
+  });
+
+  it("pins the body to a fixed two-row layout in both states", () => {
+    const { unmount } = render(<NiftyWallErosionBoard walls={null} />);
+    const emptyBody = screen.getByTestId("wall-erosion-body");
+    expect(emptyBody.getAttribute("data-layout")).toBe("fixed");
+    expect(emptyBody.getAttribute("data-rows")).toBe("2");
+    expect(within(emptyBody).getAllByTestId("wall-erosion-row")).toHaveLength(2);
+    unmount();
+
+    render(<NiftyWallErosionBoard walls={makeWalls()} />);
+    const fullBody = screen.getByTestId("wall-erosion-body");
+    expect(fullBody.getAttribute("data-layout")).toBe("fixed");
+    expect(fullBody.getAttribute("data-rows")).toBe("2");
+    expect(within(fullBody).getAllByTestId("wall-erosion-row")).toHaveLength(2);
   });
 });
