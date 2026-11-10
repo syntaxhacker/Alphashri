@@ -41,6 +41,27 @@ import {
   REPORT_LETTER_SPACING,
 } from "./reportTokens";
 
+/** The walls band always reserves three rows per side: the Index Report is a
+ *  one-page layout, so a thin payload (or a null payload) must never shrink
+ *  the card. */
+const WALLS_ROWS = 3;
+
+/** Capped columns: strike minmax(0,210px) so strike and numbers stay one unit;
+ *  OI 48px, NEW 48px, 5m 40px, 30m 40px, DIST 44px stay fixed and readable. */
+const WALLS_COLS = "minmax(0, 210px) 48px 48px 40px 40px 44px";
+
+const WALLS_HEADINGS = ["OI", "NEW", "5m", "30m", "DIST"] as const;
+
+/** Fixed reservation for the READ/SEQ and tracked-history columns so the null
+ *  skeleton keeps the same band height as the populated card. */
+const WALLS_RESERVED_H = 96;
+
+/** The walls band grid: state/stats | CALL | PUT | READ+SEQ | tracked history. */
+const WALLS_GRID_COLS = {
+  xs: "minmax(0,1fr)",
+  md: "250px 1fr 1fr minmax(280px,1fr) minmax(120px,1fr)",
+} as const;
+
 function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
     <Box sx={{ minWidth: 0, py: "1px" }}>
@@ -100,18 +121,81 @@ function wallFuelColor(side: "CALL" | "PUT", row: WallsRow): string {
   return toneColor(statusTone(row.status));
 }
 
+/** A reserved row slot: same grid, same two-line strike cell and the same
+ *  row height as a live row, so the table never shrinks. */
+function WallPlaceholderRow({ side }: { side: "CALL" | "PUT" }) {
+  return (
+    <Box
+      data-testid={`nifty-walls-${side.toLowerCase()}-placeholder`}
+      data-placeholder="true"
+      data-wall-row="true"
+      sx={{
+        display: "grid",
+        gridTemplateColumns: WALLS_COLS,
+        columnGap: `${REPORT_PAD.xs}px`,
+        alignItems: "center",
+        py: `${REPORT_PAD.xs}px`,
+        pl: `${REPORT_PAD.sm}px`,
+        minHeight: REPORT_ROW.walls,
+        borderLeft: "2px solid transparent",
+      }}
+    >
+      <Box sx={{ display: "flex", flexDirection: "column", gap: `${REPORT_PAD.xs}px`, minWidth: 0 }}>
+        <Typography
+          sx={{
+            fontSize: REPORT_FONT.sm,
+            lineHeight: REPORT_LINE_HEIGHT.snug,
+            color: palette.TEXT_MUTED,
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          —
+        </Typography>
+        <Typography
+          sx={{
+            fontSize: REPORT_FONT.micro,
+            lineHeight: REPORT_LINE_HEIGHT.tight,
+            color: palette.TEXT_MUTED,
+          }}
+        >
+          —
+        </Typography>
+      </Box>
+      {WALLS_HEADINGS.map((heading) => (
+        <Typography
+          key={heading}
+          sx={{
+            fontSize: REPORT_FONT.sm,
+            lineHeight: REPORT_LINE_HEIGHT.snug,
+            textAlign: "right",
+            color: palette.TEXT_MUTED,
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          —
+        </Typography>
+      ))}
+    </Box>
+  );
+}
+
 function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number }) {
   const color = side === "CALL" ? palette.NEGATIVE : palette.POSITIVE;
   const maxOi = wallsMaxOi(rows);
-  // Capped columns: strike minmax(0,210px) so strike and numbers stay one unit;
-  // OI 48px, NEW 48px, 5m 40px, 30m 40px, DIST 44px stay fixed and readable.
-  const cols = "minmax(0, 210px) 48px 48px 40px 40px 44px";
+  const sideKey = side.toLowerCase();
+  // Three rows always: the missing ones are reserved slots, so a one-wall
+  // payload leaves the table exactly as tall as a three-wall payload.
+  const placeholders = Math.max(0, WALLS_ROWS - Math.min(rows.length, WALLS_ROWS));
+  const display: (WallsRow | null)[] = [
+    ...rows.slice(0, WALLS_ROWS),
+    ...Array.from({ length: placeholders }, () => null),
+  ];
   return (
-    <Box data-testid={`nifty-walls-${side.toLowerCase()}`} sx={{ minWidth: 0 }}>
+    <Box data-testid={`nifty-walls-${sideKey}`} sx={{ minWidth: 0 }}>
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: cols,
+          gridTemplateColumns: WALLS_COLS,
           columnGap: `${REPORT_PAD.xs}px`,
           borderBottom: `1px solid ${palette.BORDER}`,
           pb: `${REPORT_PAD.xs}px`,
@@ -128,7 +212,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
         >
           {side}
         </Typography>
-        {["OI", "NEW", "5m", "30m", "DIST"].map((heading) => (
+        {WALLS_HEADINGS.map((heading) => (
           <Typography
             key={heading}
             title={heading === "NEW" ? "New OI since session open (old book → new book)" : undefined}
@@ -143,7 +227,10 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
           </Typography>
         ))}
       </Box>
-      {rows.slice(0, 3).map((row) => {
+      {display.map((row, index) => {
+        if (!row) {
+          return <WallPlaceholderRow key={`${side}-placeholder-${index}`} side={side} />;
+        }
         const view = wallErosionView(row, side);
         const nearest = Boolean(row.nearest);
         const tracked = Boolean(row.tracked);
@@ -164,9 +251,10 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
         return (
           <Box
             key={`${side}-${row.strike}`}
+            data-wall-row="true"
             sx={{
               display: "grid",
-              gridTemplateColumns: cols,
+              gridTemplateColumns: WALLS_COLS,
               columnGap: `${REPORT_PAD.xs}px`,
               alignItems: "center",
               py: `${REPORT_PAD.xs}px`,
@@ -469,6 +557,160 @@ function MiniHistory({ walls }: { walls: WallsPayload }) {
   );
 }
 
+/** Muted placeholder block used by the null-payload skeleton. */
+function SkeletonBar({ height, width = "100%" }: { height: number; width?: number | string }) {
+  return (
+    <Box
+      sx={{
+        height: `${height}px`,
+        width: typeof width === "number" ? `${width}px` : width,
+        borderRadius: `${REPORT_RADIUS.sm}px`,
+        bgcolor: palette.SURFACE_ALT,
+      }}
+    />
+  );
+}
+
+/** Mirrors the `Stat` block (label over value) so the reserved stats column
+ *  keeps the height of the live one. */
+function SkeletonStat() {
+  return (
+    <Box sx={{ minWidth: 0, py: "1px" }}>
+      <SkeletonBar height={11} width="42%" />
+      <SkeletonBar height={15} width="68%" />
+    </Box>
+  );
+}
+
+/** The levels rows live inside this card in both states — dropping them on a
+ *  null payload would change the card height by the levels band. */
+function WallsLevelsBlock({ levels }: { levels?: ReactNode }) {
+  if (!levels) return null;
+  return (
+    <Box
+      sx={{
+        borderTop: `1px solid ${palette.BORDER}`,
+        pt: `${REPORT_PAD.sm}px`,
+        minWidth: 0,
+      }}
+    >
+      {levels}
+    </Box>
+  );
+}
+
+/** Null-payload skeleton: same bands, same row counts and the same reserved
+ *  heights as the populated card, so the one-page Index Report never reflows
+ *  when the walls payload arrives.
+ *
+ *  Height budget: the CALL/PUT tables are the tallest band (~21px header +
+ *  3 rows of ~31px ≈ 114px) and both states render exactly three rows per
+ *  side, so the skeleton body lands on the same height as the populated one.
+ *  The READ/SEQ and tracked-history bands are reserved at 96px so they can
+ *  never collapse below the live bands. */
+function WallsSkeleton({ emptyText }: { emptyText: string }) {
+  return (
+    <Box
+      data-testid="nifty-walls-skeleton"
+      sx={{
+        display: "grid",
+        gridTemplateColumns: WALLS_GRID_COLS,
+        gap: `${REPORT_PAD.sm}px`,
+        p: `${REPORT_PAD.sm}px`,
+        alignItems: "start",
+      }}
+    >
+      <Box data-testid="nifty-walls-skeleton-strip" sx={{ minWidth: 0 }}>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ alignItems: "center", flexWrap: "wrap", rowGap: `${REPORT_PAD.xs}px` }}
+        >
+          <SkeletonBar height={18} width={64} />
+          <SkeletonBar height={12} width={46} />
+          <SkeletonBar height={12} width={108} />
+        </Stack>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            columnGap: `${REPORT_PAD.md}px`,
+            rowGap: `${REPORT_PAD.xs}px`,
+            mt: `${REPORT_PAD.sm}px`,
+          }}
+        >
+          <SkeletonStat />
+          <SkeletonStat />
+          <SkeletonStat />
+          <SkeletonStat />
+        </Box>
+        <Typography sx={{ fontSize: REPORT_FONT.xs, color: palette.TEXT_MUTED, mt: `${REPORT_PAD.xs}px` }}>
+          {emptyText}
+        </Typography>
+      </Box>
+
+      <WallTable side="CALL" rows={[]} spot={0} />
+      <WallTable side="PUT" rows={[]} spot={0} />
+
+      <Box
+        data-testid="nifty-walls-skeleton-read"
+        sx={{
+          minHeight: WALLS_RESERVED_H,
+          minWidth: 0,
+          borderLeft: `1px solid ${palette.BORDER}`,
+          pl: `${REPORT_PAD.sm}px`,
+          display: "flex",
+          flexDirection: "column",
+          gap: `${REPORT_PAD.xs}px`,
+        }}
+      >
+        <Typography
+          sx={{
+            fontSize: REPORT_FONT.micro,
+            fontWeight: REPORT_FONT_WEIGHT.extrabold,
+            color: palette.TEXT_MUTED,
+            letterSpacing: REPORT_LETTER_SPACING.wider,
+          }}
+        >
+          READ
+        </Typography>
+        <SkeletonBar height={10} width="92%" />
+        <SkeletonBar height={10} width="76%" />
+        <SkeletonBar height={10} width="84%" />
+        <Typography
+          sx={{
+            fontSize: REPORT_FONT.micro,
+            fontWeight: REPORT_FONT_WEIGHT.extrabold,
+            color: palette.TEXT_MUTED,
+            letterSpacing: REPORT_LETTER_SPACING.wider,
+            mt: `${REPORT_PAD.sm}px`,
+          }}
+        >
+          SEQ
+        </Typography>
+        <SkeletonBar height={10} width="60%" />
+      </Box>
+
+      <Box
+        data-testid="nifty-walls-skeleton-history"
+        sx={{
+          minHeight: WALLS_RESERVED_H,
+          minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: `${REPORT_PAD.xs}px`,
+        }}
+      >
+        <SkeletonBar height={11} width="58%" />
+        <SkeletonBar height={10} width="34%" />
+        <SkeletonBar height={18} />
+        <SkeletonBar height={10} width="34%" />
+        <SkeletonBar height={18} />
+      </Box>
+    </Box>
+  );
+}
+
 export function NiftyWallsCardInner({
   walls,
   onExpand,
@@ -512,9 +754,8 @@ export function NiftyWallsCardInner({
   if (!walls) {
     return (
       <CompactPanel title="WALLS" testId="nifty-walls-card" padded={false}>
-        <Box sx={{ p: `${REPORT_PAD.sm}px`, minHeight: 44, display: "flex", alignItems: "center" }}>
-          <Typography sx={{ fontSize: REPORT_FONT.xs, color: palette.TEXT_MUTED }}>{emptyText}</Typography>
-        </Box>
+        <WallsSkeleton emptyText={emptyText} />
+        <WallsLevelsBlock levels={levels} />
       </CompactPanel>
     );
   }
@@ -561,7 +802,7 @@ export function NiftyWallsCardInner({
         sx={{
           display: "grid",
           // Widened wall tables: 250px | flex | flex | minmax(280px,1fr) | flex
-          gridTemplateColumns: { xs: "minmax(0,1fr)", md: "250px 1fr 1fr minmax(280px,1fr) minmax(120px,1fr)" },
+          gridTemplateColumns: WALLS_GRID_COLS,
           gap: `${REPORT_PAD.sm}px`,
           p: `${REPORT_PAD.sm}px`,
           alignItems: "start",
@@ -725,17 +966,7 @@ export function NiftyWallsCardInner({
 
         <MiniHistory walls={walls} />
       </Box>
-      {levels && (
-        <Box
-          sx={{
-            borderTop: `1px solid ${palette.BORDER}`,
-            pt: `${REPORT_PAD.sm}px`,
-            minWidth: 0,
-          }}
-        >
-          {levels}
-        </Box>
-      )}
+      <WallsLevelsBlock levels={levels} />
     </CompactPanel>
   );
 }

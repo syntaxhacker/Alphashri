@@ -337,6 +337,77 @@ describe("NiftyWallsCard", () => {
 
 
 
+  it("renders a reserved skeleton instead of a one-line empty row when there is no payload", () => {
+    render(<NiftyWallsCard walls={null} onExpand={onExpand} />);
+
+    expect(screen.getByTestId("nifty-walls-card")).toBeInTheDocument();
+    const skeleton = screen.getByTestId("nifty-walls-skeleton");
+    expect(skeleton).toBeInTheDocument();
+
+    const callTable = within(skeleton).getByTestId("nifty-walls-call");
+    const putTable = within(skeleton).getByTestId("nifty-walls-put");
+    expect(within(callTable).getAllByTestId("nifty-walls-call-placeholder")).toHaveLength(3);
+    expect(within(putTable).getAllByTestId("nifty-walls-put-placeholder")).toHaveLength(3);
+    expect(callTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
+    expect(putTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
+
+    // The READ/SEQ and tracked-history bands stay reserved, so the card keeps
+    // its height; the old empty state was a single 44px line.
+    expect(screen.getByTestId("nifty-walls-skeleton-read")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-walls-skeleton-history")).toBeInTheDocument();
+    expect(screen.getByText("No walls data.")).toBeInTheDocument();
+  });
+
+  it("keeps the caller empty text visible in the skeleton", () => {
+    render(<NiftyWallsCard walls={null} onExpand={onExpand} emptyText="Waiting for walls data." />);
+
+    expect(screen.getByText("Waiting for walls data.")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-walls-skeleton")).toBeInTheDocument();
+  });
+
+  it("reserves three rows per side when the payload carries a single wall", () => {
+    render(
+      <NiftyWallsCard
+        walls={{ ...walls, calls: [walls.calls[0]], puts: [walls.puts[0]] }}
+        onExpand={onExpand}
+      />,
+    );
+
+    const callTable = screen.getByTestId("nifty-walls-call");
+    expect(callTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
+    expect(within(callTable).getAllByTestId("nifty-walls-call-placeholder")).toHaveLength(2);
+
+    const putTable = screen.getByTestId("nifty-walls-put");
+    expect(putTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
+    expect(within(putTable).getAllByTestId("nifty-walls-put-placeholder")).toHaveLength(2);
+
+    // Every reserved cell is an em dash.
+    const placeholder = within(callTable).getAllByTestId("nifty-walls-call-placeholder")[0];
+    expect(within(placeholder).getAllByText("—").length).toBeGreaterThanOrEqual(6);
+    expect(placeholder).toHaveAttribute("data-placeholder", "true");
+  });
+
+  it("renders three rows with no reserved slots when the payload carries three walls", () => {
+    render(
+      <NiftyWallsCard
+        walls={{
+          ...walls,
+          calls: [walls.calls[0], walls.calls[1], { ...walls.calls[0], strike: 73800 }],
+          puts: [walls.puts[0], walls.puts[1], { ...walls.puts[0], strike: 73300 }],
+        }}
+        onExpand={onExpand}
+      />,
+    );
+
+    const callTable = screen.getByTestId("nifty-walls-call");
+    expect(callTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
+    expect(within(callTable).queryAllByTestId("nifty-walls-call-placeholder")).toHaveLength(0);
+
+    const putTable = screen.getByTestId("nifty-walls-put");
+    expect(putTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
+    expect(within(putTable).queryAllByTestId("nifty-walls-put-placeholder")).toHaveLength(0);
+  });
+
   it("marks the nearest row and shows the side-aware erosion arrow and flow suffix on each row", () => {
     render(<NiftyWallsCard walls={walls} onExpand={onExpand} />);
 
