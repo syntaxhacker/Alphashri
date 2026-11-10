@@ -266,6 +266,14 @@ describe("NiftyWallsCard", () => {
     expect(onExpand).toHaveBeenCalledTimes(1);
   });
 
+  it("opens the pressure desk from the card action", () => {
+    const onOpenDesk = vi.fn();
+    render(<NiftyWallsCard walls={walls} onExpand={onExpand} onOpenDesk={onOpenDesk} />);
+
+    fireEvent.click(screen.getByTestId("nifty-walls-desk"));
+    expect(onOpenDesk).toHaveBeenCalledTimes(1);
+  });
+
   it("dismisses the alert and persists the dismissal", () => {
     render(<NiftyWallsCard walls={walls} onExpand={onExpand} />);
 

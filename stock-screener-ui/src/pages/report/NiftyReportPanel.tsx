@@ -109,6 +109,7 @@ import type { PreMoveScore } from "./niftyPreMove";
 import { NiftySqueezeRadar, type WallSnapshot } from "./NiftySqueezeRadar";
 import { NiftyWallsCard } from "./NiftyWallsCard";
 import { NiftyWallErosionBoard } from "./NiftyWallErosionBoard";
+import { NiftyPressureDesk } from "./NiftyPressureDesk";
 import { useReplayWalls } from "./useReplayWalls";
 import { NiftyWallsExpanded } from "./NiftyWallsExpanded";
 import { resolveWallBoard } from "./niftyWallsFormat";
@@ -1097,6 +1098,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   const [sensexError, setSensexError] = useState<string | null>(null);
   const [tape, setTape] = useState<NiftyTape | null>(null);
   const [wallsOpen, setWallsOpen] = useState(false);
+  const [deskOpen, setDeskOpen] = useState(false);
   const [moversOpen, setMoversOpen] = useState(false);
   const openMovers = useCallback(() => setMoversOpen(true), []);
   const closeMovers = useCallback(() => setMoversOpen(false), []);
@@ -4557,6 +4559,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
           <NiftyWallsCard
             walls={walls}
             onExpand={openWalls}
+            onOpenDesk={() => setDeskOpen(true)}
             emptyText={mode === "eod" ? "No tape at this replay time." : "Waiting for walls data."}
             levels={symbol === "NIFTY" ? <LevelsInPlayContent report={report} sensex={sensex} /> : undefined}
           />
@@ -4566,6 +4569,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             onClose={closeWalls}
             onReplayBreak={mode === "eod" && replay ? handleReplayBreak : undefined}
           />
+          <NiftyPressureDesk open={deskOpen} walls={walls} onClose={() => setDeskOpen(false)} />
           {(symbol === "NIFTY" || symbol === "SENSEX") && (
             <IndexMoversModal
               open={moversOpen}

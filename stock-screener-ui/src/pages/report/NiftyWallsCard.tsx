@@ -714,11 +714,14 @@ function WallsSkeleton({ emptyText }: { emptyText: string }) {
 export function NiftyWallsCardInner({
   walls,
   onExpand,
+  onOpenDesk,
   emptyText = "No walls data.",
   levels,
 }: {
   walls: WallsPayload | null;
   onExpand: () => void;
+  /** Opens the deeper pressure desk (phase plane + selected-wall path). */
+  onOpenDesk?: () => void;
   emptyText?: string;
   /** Optional dense levels rows (e.g. LevelsInPlayContent) rendered inside
    *  this same card, after the walls grid. */
@@ -787,14 +790,27 @@ export function NiftyWallsCardInner({
       testId="nifty-walls-card"
       padded={false}
       action={
-        <Button
-          size="small"
-          variant="outlined"
-          onClick={onExpand}
-          sx={{ py: 0, px: `${REPORT_PAD.sm}px`, minWidth: 0, fontSize: REPORT_FONT.micro }}
-        >
-          EXPAND
-        </Button>
+        <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
+          {onOpenDesk ? (
+            <Button
+              size="small"
+              variant="outlined"
+              data-testid="nifty-walls-desk"
+              onClick={onOpenDesk}
+              sx={{ py: 0, px: `${REPORT_PAD.sm}px`, minWidth: 0, fontSize: REPORT_FONT.micro }}
+            >
+              DESK
+            </Button>
+          ) : null}
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={onExpand}
+            sx={{ py: 0, px: `${REPORT_PAD.sm}px`, minWidth: 0, fontSize: REPORT_FONT.micro }}
+          >
+            EXPAND
+          </Button>
+        </Stack>
       }
       sx={{ borderTop: "none" }}
     >
