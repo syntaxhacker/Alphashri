@@ -9,6 +9,15 @@ import { UIProvider } from "@/ui";
 import { NiftyReportPanel } from "./NiftyReportPanel";
 import type { NiftyReport } from "@/types/niftyReport";
 
+vi.mock("@/api/holidays_api", () => ({
+  fetchHolidayCheck: vi.fn().mockResolvedValue({
+    date: "2026-11-10",
+    is_holiday: false,
+    type: null,
+    description: null,
+  }),
+}));
+
 vi.mock("@/api/reportNifty", () => ({
   fetchLiveNifty: vi.fn(),
   fetchLiveSensex: vi.fn(),

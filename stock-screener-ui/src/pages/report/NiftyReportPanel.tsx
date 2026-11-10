@@ -161,6 +161,7 @@ import {
   computeReplayCoverage,
 } from "./niftyReplayCoverage";
 import { isDerivativesOpenIst } from "@/utils/marketClock";
+import { fetchHolidayCheck } from "@/api/holidays_api";
 
 export interface NiftyReportPanelProps {
   onOpenSymbol?: (s: string) => void;
@@ -1086,6 +1087,10 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   // newest recorded day (the bootstrap effect lives just above `load`).
   const [booted, setBooted] = useState(false);
   const wasOpenAtMount = useRef(isDerivativesOpenIst());
+  /** Today's exchange holiday, from /api/holidays/check. The frontend session
+   *  clock is weekday/time-only, so a Tuesday holiday would otherwise look
+   *  "live" and hit the broker token. */
+  const holidayTodayRef = useRef(false);
   const [report, setReport] = useState<NiftyReport | null>(null);
   const [sensex, setSensex] = useState<NiftySensex | null>(null);
   const [sensexLoading, setSensexLoading] = useState(false);
@@ -1431,13 +1436,22 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
     let alive = true;
     void (async () => {
       try {
-        if (!isDerivativesOpenIst()) {
-          const dates = await fetchNiftyReplayDates();
-          if (alive && dates.length > 0) {
-            autoEodRef.current = true;
-            setMode("eod");
-            setDate(dates[0]);
-          }
+        const today = new Date().toLocaleDateString("en-CA", {
+          timeZone: "Asia/Kolkata",
+        });
+        const [rawDates, holiday] = await Promise.all([
+          fetchNiftyReplayDates(),
+          fetchHolidayCheck(today).catch(() => null),
+        ]);
+        const dates = Array.isArray(rawDates) ? rawDates : [];
+        const isHoliday = Boolean(holiday?.is_holiday);
+        holidayTodayRef.current = isHoliday;
+        // A holiday is closed even when the weekday clock says otherwise.
+        if (alive && (isHoliday || !isDerivativesOpenIst()) && dates.length > 0) {
+          autoEodRef.current = true;
+          wasOpenAtMount.current = false;
+          setMode("eod");
+          setDate(dates[0]);
         }
       } catch {
         // A failed/absent dates lookup must never block the first load — the
@@ -1479,7 +1493,8 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   const genericAutoEodRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (symbol === "NIFTY" || mode !== "live") return;
-    if (historyDates.length === 0 || isDerivativesOpenIst()) return;
+    if (historyDates.length === 0) return;
+    if (isDerivativesOpenIst() && !holidayTodayRef.current) return;
     if (genericAutoEodRef.current.has(symbol)) return;
     genericAutoEodRef.current.add(symbol);
     autoEodRef.current = true;
@@ -1492,7 +1507,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   usePolling(
     () => {
       if (!autoEodRef.current) return;
-      if (!isDerivativesOpenIst()) return;
+      if (!isDerivativesOpenIst() || holidayTodayRef.current) return;
       autoEodRef.current = false;
       setMode("live");
       setDate("");
@@ -1562,7 +1577,27 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
       } catch (e) {
         if (!alive || requestId !== requestIdRef.current || controller.signal.aborted) return;
         setNowMs(Date.now());
-        setError(e instanceof Error ? e.message : `Failed to load ${symbol} report`);
+        const message =
+          e instanceof Error ? e.message : `Failed to load ${symbol} report`;
+        if (mode === "live" && /401|token|unauthor|expired/i.test(message)) {
+          try {
+            const dates = await fetchOptionsReplayDates(
+              symbol,
+              controller.signal,
+            );
+            if (dates.length > 0) {
+              autoEodRef.current = true;
+              wasOpenAtMount.current = false;
+              setMode("eod");
+              setDate(dates[0]);
+              setError(null);
+              return;
+            }
+          } catch {
+            // Fall through to the visible error.
+          }
+        }
+        setError(message);
       } finally {
         window.clearTimeout(timeoutId);
         if (requestId === requestIdRef.current) {
@@ -1800,7 +1835,27 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
       // Keep the last-good report on screen; the full error alert only
       // renders when there is no cached data (see below).
       setNowMs(Date.now());
-      setError(e instanceof Error ? e.message : "Failed to load Nifty report");
+      const message =
+        e instanceof Error ? e.message : "Failed to load Nifty report";
+      // A live-only auth failure (e.g. expired Upstox token on a holiday) must
+      // not blank the report: fall back to the newest recorded session, which
+      // reads the tape and needs no broker token.
+      if (mode === "live" && /401|token|unauthor|expired/i.test(message)) {
+        try {
+          const dates = await fetchNiftyReplayDates(controller.signal);
+          if (dates.length > 0) {
+            autoEodRef.current = true;
+            wasOpenAtMount.current = false;
+            setMode("eod");
+            setDate(dates[0]);
+            setError(null);
+            return;
+          }
+        } catch {
+          // Fall through to the visible error.
+        }
+      }
+      setError(message);
     } finally {
       if (requestId === requestIdRef.current) {
         requestControllerRef.current = null;

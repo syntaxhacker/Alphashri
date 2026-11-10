@@ -34,6 +34,15 @@ async function openSideTab(key: "chain" | "heatmap") {
   fireEvent.click(await screen.findByTestId(`nifty-side-tab-${key}`));
 }
 
+vi.mock("@/api/holidays_api", () => ({
+  fetchHolidayCheck: vi.fn().mockResolvedValue({
+    date: "2026-11-10",
+    is_holiday: false,
+    type: null,
+    description: null,
+  }),
+}));
+
 vi.mock("@/api/reportNifty", () => ({
   fetchLiveNifty: vi.fn(),
   fetchLiveSensex: vi.fn(),
