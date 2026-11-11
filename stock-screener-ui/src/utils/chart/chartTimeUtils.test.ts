@@ -50,17 +50,14 @@ describe("formatTimeLabel", () => {
     expect(formatTimeLabel("9")).toBe("9");
   });
 
-  it("handles epoch milliseconds (formats in local timezone)", () => {
+  it("handles epoch milliseconds (formats in IST)", () => {
     // 2025-01-15T09:30:00Z = 15:00 IST (UTC+5:30)
     const ms = Date.UTC(2025, 0, 15, 9, 30, 0);
-    // In IST timezone this formats as 15:00; in UTC as 09:30
-    const result = formatTimeLabel(ms);
-    expect(result).toMatch(/^\d{2}:\d{2}$/);
+    expect(formatTimeLabel(ms)).toBe("15:00");
   });
 
-  it("handles epoch seconds (formats in local timezone)", () => {
+  it("handles epoch seconds (formats in IST)", () => {
     const sec = Date.UTC(2025, 0, 15, 9, 30, 0) / 1000;
-    const result = formatTimeLabel(sec);
-    expect(result).toMatch(/^\d{2}:\d{2}$/);
+    expect(formatTimeLabel(sec)).toBe("15:00");
   });
 });
