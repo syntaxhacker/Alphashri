@@ -250,8 +250,8 @@ export async function mockBotDetailRoute(
   botId: string,
   running: boolean | (() => boolean),
 ) {
-  const isRunning = typeof running === "function" ? running() : running;
   await page.route(apiRoute(`bots/${botId}`), async (route) => {
+    const isRunning = typeof running === "function" ? running() : running;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -275,8 +275,8 @@ export async function mockBotSummaryRoute(
   options: { positionCount?: number } = {},
 ) {
   const { positionCount = 0 } = options;
-  const isRunning = typeof running === "function" ? running() : running;
   await page.route(apiRoute("bots/summary"), async (route) => {
+    const isRunning = typeof running === "function" ? running() : running;
     await route.fulfill({
       status: 200,
       contentType: "application/json",

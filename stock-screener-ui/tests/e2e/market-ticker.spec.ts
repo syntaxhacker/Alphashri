@@ -98,7 +98,7 @@ test.describe("Market Ticker", () => {
     await page.waitForSelector('[data-testid="market-ticker"]', { timeout: 10000 });
 
     const ticker = page.locator('[data-testid="market-ticker"]');
-    await expect(ticker).toContainText("Updated:");
+    await expect(ticker).toHaveAttribute("title", /Updated:/);
   });
 
   test("should show error state when API fails", async ({ page }) => {

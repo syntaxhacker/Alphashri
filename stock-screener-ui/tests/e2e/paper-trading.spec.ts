@@ -618,7 +618,6 @@ test.describe("Paper Trading - Chart Controls", () => {
 
     await page.waitForSelector('[data-testid="bot-select"]', { state: "visible", timeout: 15000 });
     await page.locator('[data-testid="bot-select"]').click({ timeout: 15000 });
-    await expect(page.getByRole("listbox")).toBeVisible();
     await page.keyboard.press("Enter");
 
     await page.getByTestId("tab-live").click();
@@ -711,13 +710,8 @@ test.describe("Paper Trading - Chart Controls", () => {
     const timeframeSelect = page.getByTestId("chart-timeframe-select");
     await expect(timeframeSelect).toBeVisible();
 
-    await timeframeSelect.click();
-    await expect(page.getByRole("listbox")).toBeVisible();
-
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("Enter");
-    await expect(page.getByRole("listbox")).not.toBeVisible();
-
+    // Native <select> (not searchable): drive it via selectOption; no listbox role is produced.
+    await page.selectOption('[data-testid="chart-timeframe-select"] select', "5min");
     await expect(page.getByTestId("paper-chart-header")).toBeVisible();
   });
 

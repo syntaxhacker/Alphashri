@@ -1,307 +1,181 @@
 import { test, expect, Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
-import {
-  generateCandles,
-  expectChartVisible,
-  gotoChart,
-  createOrbZone,
-  createPivotLevels,
-} from "./helpers/chartHelpers";
+import { gotoChart } from "./helpers/chartHelpers";
+
+/**
+ * Chart Preview — `/chart/:symbol` (pattern workspace).
+ *
+ * The route now renders `ChartView` → `PatternChartBody` →
+ * `PatternTradingViewChart` (lightweight-charts, `data-testid="patterns-tv-chart"`),
+ * NOT the old ECharts candlestick chart. It talks to
+ * `GET /api/chart-patterns/timeframes` and
+ * `GET /api/chart-patterns/symbol/{symbol}/chart`, both mocked here.
+ *
+ * The old chart-preview contract (`candlestick-chart`, `chart-or-select`,
+ * `chart-pivots-checkbox`, `chart-52w-checkbox`, `chart-footer`,
+ * `chart-controls`, `chart-timeframe-select`, `tradingview-chart`) belonged to
+ * the replaced ORB chart-preview and does not exist on this page, so this spec
+ * targets the current UI without resurrecting those controls in source.
+ */
+
+function makeCandles(
+  count = 10,
+  base = 1480,
+  date = "2026-03-02",
+): Array<{ t: string; o: number; h: number; l: number; c: number; v: number }> {
+  const times = [
+    "09:15",
+    "09:30",
+    "09:45",
+    "10:00",
+    "10:15",
+    "10:30",
+    "10:45",
+    "11:00",
+    "11:15",
+    "11:30",
+  ];
+  const candles: Array<{ t: string; o: number; h: number; l: number; c: number; v: number }> = [];
+  for (let i = 0; i < count; i++) {
+    const o = base + Math.random() * 50 - 25;
+    candles.push({
+      t: `${date}T${times[i % times.length]}`,
+      o: +o.toFixed(2),
+      h: +(o + 10 + Math.random() * 10).toFixed(2),
+      l: +(o - 10 - Math.random() * 10).toFixed(2),
+      c: +(o + Math.random() * 20 - 10).toFixed(2),
+      v: Math.floor(50000 + Math.random() * 100000),
+    });
+  }
+  return candles;
+}
+
+const TIMEFRAMES = [
+  { id: "1m", label: "1m" },
+  { id: "5m", label: "5m" },
+  { id: "15m", label: "15m" },
+  { id: "30m", label: "30m" },
+  { id: "1h", label: "1h" },
+  { id: "1D", label: "1D" },
+];
+
+function chartPayload(symbol: string, candles: ReturnType<typeof makeCandles>) {
+  return {
+    symbol,
+    timeframe: "1D",
+    candles,
+    overlays: [],
+    trend_lines: [],
+    hits: [],
+  };
+}
 
 async function setupChartPreviewMock(
   page: Page,
-  data: {
-    symbol: string;
-    orbZones?: any[];
-    pivotLevels?: any[];
-    week52Levels?: any;
-    trades?: any[];
-  },
+  data: { symbol?: string; base?: number; count?: number } = {},
 ) {
   await setupApiMocks(page);
   await loginAsTestUser(page);
 
-  const candles = generateCandles(
-    10,
-    data.symbol === "TCS"
-      ? 3750
-      : data.symbol === "RELIANCE"
-        ? 2500
-        : data.symbol === "HDFC"
-          ? 1600
-          : 1480,
-  );
+  const symbol = data.symbol ?? "RELIANCE";
+  const candles = makeCandles(data.count ?? 10, data.base ?? 1480);
 
-  const chartData: any = {
-    symbol: data.symbol,
-    candles,
-    timeframe: 15,
-    or_minutes: 45,
-    total_candles: candles.length,
-    orb_zones: data.orbZones || [],
-    pivot_levels: data.pivotLevels || [],
-    trades: data.trades || [],
-  };
-
-  if (data.week52Levels) {
-    chartData.high_52w = data.week52Levels.high_52w;
-  }
-
-  await page.route(apiRoute("chart/preview/"), async (route) => {
+  await page.route(apiRoute("chart-patterns/timeframes"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(chartData),
+      body: JSON.stringify({ timeframes: TIMEFRAMES }),
+    });
+  });
+
+  await page.route(apiRoute("chart-patterns/symbol/[^/]+/chart"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(chartPayload(symbol, candles)),
     });
   });
 }
 
-async function expectTradingViewChart(page: Page, timeout: number = 10000) {
-  await expect(page.locator('[data-testid="tradingview-chart"]')).toBeVisible({ timeout });
-  await expect(page.locator('[data-testid="tradingview-chart"] canvas').first()).toBeVisible({
+async function expectPatternChart(page: Page, timeout: number = 10000) {
+  await expect(page.locator('[data-testid="patterns-tv-chart"]')).toBeVisible({ timeout });
+  await expect(page.locator('[data-testid="patterns-tv-chart"] canvas').first()).toBeVisible({
     timeout,
   });
 }
 
-// The chart controls migrated from native <select> to a MUI Select wrapper
-// (see src/ui/inputs/Select.tsx): the data-testid sits on the FormControl
-// div, the current value renders as [role="combobox"], and options open in a
-// Menu portal as [role="option"]. locator.selectOption() cannot drive it.
-async function selectMuiSelectOption(page: Page, testId: string, optionName: string) {
-  await page.locator(`[data-testid="${testId}"] [role="combobox"]`).click();
-  // exact: option labels overlap as substrings ("5m" is inside "15m").
-  await page.getByRole("option", { name: optionName, exact: true }).click();
+/** `ChartTimeframeSelect` renders a non-searchable `@/ui` `Select`, i.e. a
+ *  native `<select>` inside a FormControl div (no `[role="combobox"]`).
+ *  Options are never "visible" boxes, so we wait for the option to be
+ *  attached (the server ladder loads asynchronously) then use `selectOption`. */
+async function selectTimeframe(page: Page, value: string) {
+  const select = page.locator('[data-testid="patterns-timeframe-select"] select');
+  await expect(select).toBeVisible();
+  const option = page.locator(`[data-testid="patterns-timeframe-select"] option[value="${value}"]`);
+  await expect(option).toHaveCount(1);
+  await select.selectOption(value);
 }
 
-test.describe("Chart Preview - ORB Strategy Levels", () => {
-  test("should display chart with ORB data", async ({ page }) => {
-    await setupChartPreviewMock(page, {
-      symbol: "RELIANCE",
-      orbZones: [createOrbZone("2026-03-02", 2540, 2490, "09:45")],
-      pivotLevels: [createPivotLevels("2026-03-02", 2520, 2560, 2480, 2590, 2450)],
-    });
+test.describe("Chart Preview - Symbol Chart", () => {
+  test("should render the pattern chart for a symbol", async ({ page }) => {
+    await setupChartPreviewMock(page, { symbol: "RELIANCE" });
     await gotoChart(page, "RELIANCE");
-    await expectChartVisible(page);
+    await expectPatternChart(page);
     await expect(page.locator('[data-testid="chart-title"]')).toContainText("RELIANCE");
-  });
-
-  test("should display ORB high and low lines", async ({ page }) => {
-    await setupChartPreviewMock(page, {
-      symbol: "RELIANCE",
-      orbZones: [createOrbZone("2026-03-02", 2540, 2490, "09:45")],
-      pivotLevels: [createPivotLevels("2026-03-02", 2520, 2560, 2480, 2590, 2450)],
-    });
-    await gotoChart(page, "RELIANCE");
-    await expectChartVisible(page);
-    await expectTradingViewChart(page);
-    await expect(page.locator('[data-testid="chart-or-select"]')).toBeVisible();
-  });
-
-  test("should display ORB high and low lines with data", async ({ page }) => {
-    await setupChartPreviewMock(page, {
-      symbol: "RELIANCE",
-      orbZones: [createOrbZone("2026-03-02", 2540, 2490, "09:45")],
-    });
-    await gotoChart(page, "RELIANCE");
-    await expectChartVisible(page);
-    await expectTradingViewChart(page);
-    await expect(page.locator('[data-testid="chart-or-select"]')).toBeVisible();
-  });
-});
-
-test.describe("Chart Preview - Pivot Levels", () => {
-  test("should display pivot levels (PP, R1, S1)", async ({ page }) => {
-    await setupChartPreviewMock(page, {
-      symbol: "RELIANCE",
-      pivotLevels: [createPivotLevels("2026-03-02", 2520, 2560, 2480, 2590, 2450)],
-    });
-    await gotoChart(page, "RELIANCE");
-    await expectChartVisible(page);
-    // Toggle pivot lines on (defaults to off)
-    const pivotsCheckbox = page.locator('[data-testid="chart-pivots-checkbox"]');
-    await pivotsCheckbox.check();
-    await expect(pivotsCheckbox).toBeChecked();
-    await expectTradingViewChart(page);
-  });
-});
-
-test.describe("Chart Preview - 52W Levels", () => {
-  test("should display chart with 52W levels data", async ({ page }) => {
-    await setupChartPreviewMock(page, {
-      symbol: "TCS",
-      week52Levels: { high_52w: 3900, low_52w: 3400, distance_to_high_pct: 2.5, near_high: true },
-    });
-    await gotoChart(page, "TCS");
-    await expectChartVisible(page);
-    await expect(page.locator('[data-testid="chart-title"]')).toContainText("TCS");
-  });
-
-  test("should render chart with 52W levels in API response", async ({ page }) => {
-    await setupChartPreviewMock(page, {
-      symbol: "TCS",
-      week52Levels: { high_52w: 3900, low_52w: 3400, distance_to_high_pct: 2.5, near_high: true },
-    });
-    await gotoChart(page, "TCS");
-    await expectChartVisible(page);
-    await expectTradingViewChart(page);
-    await expect(page.locator('[data-testid="chart-footer"]')).toContainText("52W High");
-  });
-});
-
-test.describe("Chart Preview - Trade Markers", () => {
-  test("should display chart with trade data in response", async ({ page }) => {
-    await setupChartPreviewMock(page, {
-      symbol: "HDFC",
-      trades: [
-        {
-          symbol: "HDFC",
-          side: "BUY",
-          entry_price: 1635,
-          entry_time: "2026-03-02T10:15:00",
-          quantity: 10,
-          strategy: "ORB Conservative",
-        },
-        {
-          symbol: "HDFC",
-          side: "SELL",
-          exit_price: 1655,
-          exit_time: "2026-03-02T10:30:00",
-          quantity: 10,
-          pnl: 200,
-          strategy: "ORB Conservative",
-        },
-      ],
-    });
-    await gotoChart(page, "HDFC");
-    await expectChartVisible(page);
-    await expectTradingViewChart(page);
-    await expect(page.locator('[data-testid="chart-title"]')).toContainText("HDFC");
   });
 });
 
 test.describe("Chart Preview - Timeframe Switching", () => {
-  // `option` is the dropdown label (TIMEFRAMES in src/config/constants.ts —
-  // note 60 renders as "1h"); the footer always renders the numeric value as
-  // `TF: <n>m` (ChartFooter).
-  const timeframes = [
-    { value: "1", option: "1m" },
-    { value: "5", option: "5m" },
-    { value: "15", option: "15m" },
-    { value: "30", option: "30m" },
-    { value: "60", option: "1h" },
-  ];
+  test("should display the timeframe selector", async ({ page }) => {
+    await setupChartPreviewMock(page, { symbol: "RELIANCE" });
+    await gotoChart(page, "RELIANCE");
+    await expectPatternChart(page);
+    await expect(page.locator('[data-testid="patterns-timeframe-select"]')).toBeVisible();
+  });
 
-  for (const tf of timeframes) {
-    test(`should switch to ${tf.option} timeframe`, async ({ page }) => {
+  for (const tf of TIMEFRAMES) {
+    test(`should switch to ${tf.label} timeframe`, async ({ page }) => {
       await setupChartPreviewMock(page, { symbol: "RELIANCE" });
       await gotoChart(page, "RELIANCE");
-      await expectChartVisible(page);
-      const tfSelect = page.locator('[data-testid="chart-timeframe-select"]');
-      await expect(tfSelect).toBeVisible();
-      await selectMuiSelectOption(page, "chart-timeframe-select", tf.option);
-      await expectChartVisible(page, 5000);
-      const footer = page.locator('[data-testid="chart-footer"]');
-      await expect(footer).toContainText(`TF: ${tf.value}m`);
+      await expectPatternChart(page);
+      await selectTimeframe(page, tf.id);
+      await expect(
+        page.locator('[data-testid="patterns-timeframe-select"] select'),
+      ).toHaveValue(tf.id);
+      await expectPatternChart(page);
     });
   }
 
-  test("should display timeframe selector dropdown", async ({ page }) => {
-    await setupChartPreviewMock(page, { symbol: "RELIANCE" });
-    await gotoChart(page, "RELIANCE");
-    await expectChartVisible(page);
-    await expect(page.locator('[data-testid="chart-timeframe-select"]')).toBeVisible();
-  });
-
   test("should refresh chart data when timeframe changes", async ({ page }) => {
-    let requestCount = 0;
     await setupApiMocks(page);
     await loginAsTestUser(page);
-    await page.route(apiRoute("chart/preview/"), async (route) => {
-      requestCount++;
+    let chartRequests = 0;
+    await page.route(apiRoute("chart-patterns/timeframes"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({
-          symbol: "RELIANCE",
-          candles: generateCandles(10, 2500),
-          timeframe: 15,
-          or_minutes: 45,
-          total_candles: 10,
-          orb_zones: [],
-          pivot_levels: [],
-        }),
+        body: JSON.stringify({ timeframes: TIMEFRAMES }),
+      });
+    });
+    await page.route(apiRoute("chart-patterns/symbol/[^/]+/chart"), async (route) => {
+      chartRequests++;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(chartPayload("RELIANCE", makeCandles(10, 2500))),
       });
     });
     await gotoChart(page, "RELIANCE");
-    await expectChartVisible(page);
-    const initialCount = requestCount;
-    await selectMuiSelectOption(page, "chart-timeframe-select", "30m");
-    await expectChartVisible(page, 5000);
-    expect(requestCount).toBeGreaterThan(initialCount);
-  });
-});
-
-test.describe("Chart Preview - OR Minutes Setting", () => {
-  test("should change OR minutes setting", async ({ page }) => {
-    await setupChartPreviewMock(page, {
-      symbol: "RELIANCE",
-      orbZones: [createOrbZone("2026-03-02", 2540, 2490, "09:45")],
-    });
-    await gotoChart(page, "RELIANCE");
-    await expectChartVisible(page);
-    const orSelect = page.locator('[data-testid="chart-or-select"]');
-    await expect(orSelect).toBeVisible();
-    await selectMuiSelectOption(page, "chart-or-select", "OR 30m");
-    await expectChartVisible(page, 5000);
-    await expect(page.locator('[data-testid="chart-footer"]')).toContainText("OR: 30m");
-  });
-});
-
-test.describe("Chart Preview - Pivot Toggle", () => {
-  test("should toggle pivots checkbox", async ({ page }) => {
-    await setupChartPreviewMock(page, {
-      symbol: "RELIANCE",
-      pivotLevels: [createPivotLevels("2026-03-02", 2520, 2560, 2480, 2590, 2450)],
-    });
-    await gotoChart(page, "RELIANCE");
-    await expectChartVisible(page);
-    const pivotsCheckbox = page.locator('[data-testid="chart-pivots-checkbox"]');
-    await expect(pivotsCheckbox).toBeVisible();
-    await pivotsCheckbox.uncheck();
-    await expectChartVisible(page, 5000);
-    await pivotsCheckbox.check();
-    await expectChartVisible(page, 5000);
-  });
-});
-
-test.describe("Chart Preview - Combined Overlays (All Strategy Types)", () => {
-  test("should render chart with ORB + Pivot + 52W overlays simultaneously", async ({ page }) => {
-    await setupChartPreviewMock(page, {
-      symbol: "RELIANCE",
-      orbZones: [createOrbZone("2026-03-02", 2540, 2490, "09:45")],
-      pivotLevels: [createPivotLevels("2026-03-02", 2520, 2560, 2480, 2590, 2450)],
-      week52Levels: { high_52w: 2600, low_52w: 2200, distance_to_high_pct: 4.0, near_high: false },
-    });
-    await gotoChart(page, "RELIANCE");
-    await expectChartVisible(page);
-    // The 52W Checkbox renders with a label, so the ui/Checkbox wrapper
-    // exposes -group/-label siblings (no -wrapper element). Toggle via the
-    // label like a user would; the data-testid itself is on the input.
-    await page.locator('[data-testid="chart-52w-checkbox-label"]').click();
-    await expect(page.locator('[data-testid="chart-52w-checkbox"]')).toBeChecked();
-    await expectTradingViewChart(page);
-    await expect(page.locator('[data-testid="chart-footer"]')).toContainText("52W High");
+    await expectPatternChart(page);
+    const initialCount = chartRequests;
+    await selectTimeframe(page, "30m");
+    await expect.poll(async () => chartRequests, { timeout: 10000 }).toBeGreaterThan(initialCount);
+    await expectPatternChart(page);
   });
 });
 
 test.describe("Chart Preview - Navigation and Controls", () => {
-  test("should show chart controls", async ({ page }) => {
-    await setupChartPreviewMock(page, { symbol: "RELIANCE" });
-    await gotoChart(page, "RELIANCE");
-    await expect(page.locator('[data-testid="chart-controls"]')).toBeVisible({ timeout: 10000 });
-  });
-
   test("should show back button", async ({ page }) => {
     await setupChartPreviewMock(page, { symbol: "RELIANCE" });
     await gotoChart(page, "RELIANCE");
@@ -314,7 +188,7 @@ test.describe("Chart Preview - Navigation and Controls", () => {
     await page.goto("/");
     await expect(page.locator('[data-testid="app-shell"]')).toBeVisible({ timeout: 10000 });
     await gotoChart(page, "RELIANCE", { waitUntil: "domcontentloaded" });
-    await expectChartVisible(page);
+    await expectPatternChart(page);
     await page.locator('[data-testid="chart-back-btn"]').click();
     await expect(page.locator('[data-testid="app-shell"]')).toBeVisible({ timeout: 10000 });
     expect(page.url()).not.toContain("/chart/RELIANCE");
@@ -325,19 +199,20 @@ test.describe("Chart Preview - Navigation and Controls", () => {
     await gotoChart(page, "RELIANCE");
     await expect(page.locator('[data-testid="chart-title"]')).toContainText("RELIANCE");
   });
-
-  test("should show candle count in footer", async ({ page }) => {
-    await setupChartPreviewMock(page, { symbol: "RELIANCE" });
-    await gotoChart(page, "RELIANCE");
-    await expect(page.locator('[data-testid="chart-footer"]')).toContainText("candles");
-  });
 });
 
 test.describe("Chart Preview - Error and Edge Cases", () => {
   test("should show error when API fails", async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
-    await page.route(apiRoute("chart/preview/"), async (route) => {
+    await page.route(apiRoute("chart-patterns/timeframes"), async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ timeframes: TIMEFRAMES }),
+      });
+    });
+    await page.route(apiRoute("chart-patterns/symbol/[^/]+/chart"), async (route) => {
       await route.abort("failed");
     });
     await gotoChart(page, "INVALID");
@@ -349,7 +224,14 @@ test.describe("Chart Preview - Error and Edge Cases", () => {
   test("should show error for 500 response", async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
-    await page.route(apiRoute("chart/preview/"), async (route) => {
+    await page.route(apiRoute("chart-patterns/timeframes"), async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ timeframes: TIMEFRAMES }),
+      });
+    });
+    await page.route(apiRoute("chart-patterns/symbol/[^/]+/chart"), async (route) => {
       await route.fulfill({
         status: 500,
         contentType: "application/json",
@@ -363,80 +245,71 @@ test.describe("Chart Preview - Error and Edge Cases", () => {
   test("should handle empty candle data", async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
-    await page.route(apiRoute("chart/preview/"), async (route) => {
+    await page.route(apiRoute("chart-patterns/timeframes"), async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ timeframes: TIMEFRAMES }),
+      });
+    });
+    await page.route(apiRoute("chart-patterns/symbol/[^/]+/chart"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
           symbol: "EMPTY",
+          timeframe: "1D",
           candles: [],
-          orb_zones: [],
-          pivot_levels: [],
-          timeframe: 15,
-          or_minutes: 45,
-          total_candles: 0,
-          error: "No data",
+          overlays: [],
+          trend_lines: [],
+          hits: [],
         }),
       });
     });
     await gotoChart(page, "EMPTY");
-    await expect(
-      page.locator('[data-testid="chart-error"], [data-testid="chart-loading"]'),
-    ).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('[data-testid="chart-empty"]')).toBeVisible({ timeout: 5000 });
   });
 
   test("should handle missing symbol parameter", async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
     await page.goto("/chart");
-
-    await expect(
-      page
-        .locator(
-          '[data-testid="chart-view-error"], [data-testid="chart-error"], [data-testid="chart-back-btn"]',
-        )
-        .first(),
-    ).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('[data-testid="chart-view-error"]').first()).toBeVisible({
+      timeout: 5000,
+    });
   });
 });
 
 test.describe("Chart Preview - Responsive", () => {
-  test("should render on mobile viewport", async ({ page }) => {
-    await setupChartPreviewMock(page, { symbol: "RELIANCE" });
-    await page.setViewportSize({ width: 375, height: 667 });
-    await gotoChart(page, "RELIANCE");
-    await expectChartVisible(page);
-  });
+  const viewports = [
+    { name: "mobile", width: 375, height: 667 },
+    { name: "tablet", width: 768, height: 1024 },
+    { name: "desktop", width: 1920, height: 1080 },
+  ];
 
-  test("should render on tablet viewport", async ({ page }) => {
-    await setupChartPreviewMock(page, { symbol: "RELIANCE" });
-    await page.setViewportSize({ width: 768, height: 1024 });
-    await gotoChart(page, "RELIANCE");
-    await expectChartVisible(page);
-  });
-
-  test("should render on desktop viewport", async ({ page }) => {
-    await setupChartPreviewMock(page, { symbol: "RELIANCE" });
-    await page.setViewportSize({ width: 1920, height: 1080 });
-    await gotoChart(page, "RELIANCE");
-    await expectChartVisible(page);
-  });
+  for (const vp of viewports) {
+    test(`should render on ${vp.name} viewport`, async ({ page }) => {
+      await setupChartPreviewMock(page, { symbol: "RELIANCE" });
+      await page.setViewportSize(vp);
+      await gotoChart(page, "RELIANCE");
+      await expectPatternChart(page);
+    });
+  }
 });
 
 test.describe("Chart Preview - Data Zoom", () => {
-  test("should have dataZoom configured", async ({ page }) => {
+  test("should render chart with canvas", async ({ page }) => {
     await setupChartPreviewMock(page, { symbol: "RELIANCE" });
     await gotoChart(page, "RELIANCE");
-    await expectChartVisible(page);
-    await expectTradingViewChart(page);
-    const canvasCount = await page.locator('[data-testid="tradingview-chart"] canvas').count();
+    await expectPatternChart(page);
+    const canvasCount = await page.locator('[data-testid="patterns-tv-chart"] canvas').count();
     expect(canvasCount).toBeGreaterThan(0);
   });
 
   test("should support zoom via mouse wheel", async ({ page }) => {
     await setupChartPreviewMock(page, { symbol: "RELIANCE" });
     await gotoChart(page, "RELIANCE");
-    const container = page.locator('[data-testid="candlestick-chart"]');
+    const container = page.locator('[data-testid="patterns-tv-chart"]');
     await container.hover({ position: { x: 200, y: 200 } });
     await page.mouse.wheel(0, -100);
     await expect(container).toBeVisible({ timeout: 5000 });
@@ -445,7 +318,7 @@ test.describe("Chart Preview - Data Zoom", () => {
   test("should support pan via drag", async ({ page }) => {
     await setupChartPreviewMock(page, { symbol: "RELIANCE" });
     await gotoChart(page, "RELIANCE");
-    const container = page.locator('[data-testid="candlestick-chart"]');
+    const container = page.locator('[data-testid="patterns-tv-chart"]');
     const box = await container.boundingBox();
     if (box) {
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -461,24 +334,23 @@ test.describe("Chart Preview - Loading State", () => {
   test("should show loading while fetching data", async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
-    await page.route(apiRoute("chart/preview/"), async (route) => {
+    await page.route(apiRoute("chart-patterns/timeframes"), async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ timeframes: TIMEFRAMES }),
+      });
+    });
+    await page.route(apiRoute("chart-patterns/symbol/[^/]+/chart"), async (route) => {
       await new Promise((resolve) => setTimeout(resolve, 500));
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({
-          symbol: "RELIANCE",
-          candles: generateCandles(5),
-          timeframe: 15,
-          or_minutes: 45,
-          total_candles: 5,
-          orb_zones: [],
-          pivot_levels: [],
-        }),
+        body: JSON.stringify(chartPayload("RELIANCE", makeCandles(5))),
       });
     });
     await gotoChart(page, "RELIANCE");
     await expect(page.locator('[data-testid="chart-loading"]')).toBeVisible();
-    await expectChartVisible(page);
+    await expectPatternChart(page);
   });
 });

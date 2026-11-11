@@ -11,7 +11,7 @@ test.describe("News Panel - Basic Functionality", () => {
     await openRootPage(page);
     const toggleBtn = page.locator('[data-testid="news-toggle-btn"]');
     await expect(toggleBtn).toBeVisible({ timeout: 15000 });
-    await expect(toggleBtn).toContainText("NEWS");
+    await expect(toggleBtn).toHaveAttribute("aria-label", "News");
   });
 
   test("should open panel when toggle button is clicked", async ({ page }) => {
@@ -105,15 +105,12 @@ test.describe("News Panel - Source Switching", () => {
   test("should allow switching news sources", async ({ page }) => {
     await openRootPage(page);
     await openNewsPanel(page);
-    const sourceSelector = page
+    const sourceSelect = page
       .locator('[data-testid="news-panel"]')
-      .locator(".news-source-select");
-    await sourceSelector.click();
-    await expect(page.getByRole("option", { name: "Economic Times" })).toBeVisible({
-      timeout: 5000,
-    });
-    await page.getByRole("option", { name: "Economic Times" }).click();
-    await expect(sourceSelector.locator(".MuiSelect-select")).toHaveText("Economic Times");
+      .locator('[data-testid="news-source-select"] select');
+    await expect(page.getByRole("option", { name: "Economic Times" })).toBeAttached();
+    await sourceSelect.selectOption("economictimes");
+    await expect(sourceSelect).toHaveValue("economictimes");
   });
 });
 
@@ -319,13 +316,10 @@ test.describe("News Page - Source Filtering", () => {
 
   test("should filter news by source", async ({ page }) => {
     await gotoNewsPage(page);
-    const sourceSelector = page.locator('[data-testid="source-selector"]');
-    if ((await sourceSelector.count()) > 0) {
-      await sourceSelector.click();
-      await expect(page.getByRole("option", { name: "Economic Times" })).toBeVisible({
-        timeout: 5000,
-      });
-      await page.getByRole("option", { name: "Economic Times" }).click();
+    const sourceSelect = page.locator('[data-testid="source-selector"] select');
+    if ((await sourceSelect.count()) > 0) {
+      await expect(page.getByRole("option", { name: "Economic Times" })).toBeAttached();
+      await sourceSelect.selectOption("economictimes");
       await expect(page.locator('[data-testid="news-list-item"]').first()).toBeVisible({
         timeout: 5000,
       });
