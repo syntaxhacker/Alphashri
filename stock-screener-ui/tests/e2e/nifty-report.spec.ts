@@ -45,7 +45,10 @@ test.describe("Index Report - EOD mode", () => {
       timeout: 10000,
     });
 
-    await page.locator('[data-testid="nifty-mode-toggle"]').getByText("EOD").click();
+    await page
+      .locator('[data-testid="nifty-mode-toggle"]')
+      .getByRole("button", { name: "EOD" })
+      .click();
     const dateInput = page.locator('[data-testid="nifty-date-input"]');
     await expect(dateInput).toBeVisible();
     await dateInput.fill("2026-10-10");
@@ -84,7 +87,10 @@ test.describe("Index Report - EOD mode", () => {
       timeout: 10000,
     });
 
-    await page.locator('[data-testid="nifty-mode-toggle"]').getByText("EOD").click();
+    await page
+      .locator('[data-testid="nifty-mode-toggle"]')
+      .getByRole("button", { name: "EOD" })
+      .click();
     const dateInput = page.locator('[data-testid="nifty-date-input"]');
     await expect(dateInput).toBeVisible();
     await dateInput.fill("2026-10-11");

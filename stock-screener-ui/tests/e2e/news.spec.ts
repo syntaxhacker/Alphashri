@@ -11,7 +11,7 @@ test.describe("News Panel - Basic Functionality", () => {
     await openRootPage(page);
     const toggleBtn = page.locator('[data-testid="news-toggle-btn"]');
     await expect(toggleBtn).toBeVisible({ timeout: 15000 });
-    await expect(toggleBtn).toContainText("NEWS");
+    await expect(toggleBtn).toHaveAttribute("aria-label", "News");
   });
 
   test("should open panel when toggle button is clicked", async ({ page }) => {

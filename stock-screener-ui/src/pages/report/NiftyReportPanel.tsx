@@ -3698,6 +3698,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             onChange={handleSymbolChange}
             data={SYMBOL_SELECT_DATA}
             size="xs"
+            w={130}
             h={22}
             sx={SYMBOL_SELECT_SX}
           />
@@ -3742,6 +3743,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             onChange={handleExpiryChange}
             data={expiryData}
             size="xs"
+            w={120}
             h={22}
             sx={EXPIRY_SELECT_SX}
           />
@@ -3861,6 +3863,33 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             onScrub={scrubReplay}
             onTogglePlay={handleReplayPlayToggle}
           />
+        )}
+        {mode === "eod" && (report?.timeline?.length ?? 0) > 0 && (
+          <Box
+            data-testid="nifty-timeline"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+              padding: "4px 8px",
+              borderTop: `1px solid ${palette.TERM_BORDER}`,
+              marginTop: 4,
+            }}
+          >
+            {report!.timeline.map((event, i) => (
+              <Box
+                key={`${event.time}-${i}`}
+                data-testid={`nifty-timeline-item-${i}`}
+                style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10 }}
+              >
+                <Text size="xs" c="dimmed" style={{ width: 44, flexShrink: 0, fontFamily: palette.MONO, fontVariantNumeric: "tabular-nums" }}>
+                  {event.time}
+                </Text>
+                <Text size="xs" fw={700}>{event.title}</Text>
+                {event.detail && <Text size="xs" c="dimmed" style={{ marginLeft: 4 }}>{event.detail}</Text>}
+              </Box>
+            ))}
+          </Box>
         )}
       </CompactPanel>
 

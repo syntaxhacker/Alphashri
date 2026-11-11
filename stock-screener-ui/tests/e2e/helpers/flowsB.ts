@@ -58,6 +58,7 @@ export async function mockMarketTicker(page: Page, tickerData: unknown) {
 
 /** Navigate to the paper trading settings panel (shared by app.spec + paper-trading.spec). */
 export async function navigateToPaperTradingSettings(page: Page) {
+  await loginAsTestUser(page);
   await page.goto("/paper", { timeout: 30000 });
   await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
