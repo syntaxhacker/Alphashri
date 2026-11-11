@@ -380,7 +380,7 @@ export function ScreenerPage({
               </Tabs.List>
             </Tabs>
           </Box>
-          <Box className="flex-1 min-w-0 px-2 flex justify-center overflow-hidden">
+          <Box className="flex-1 px-2 flex justify-center overflow-hidden min-w-[80px]">
             {isMarketTab ? null : (
               <Text size="xs" c="dimmed" truncate className="text-[11px]" title={status} data-testid="screener-status">
                 {status}

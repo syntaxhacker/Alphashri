@@ -70,7 +70,7 @@ export function Checkbox({
         disabled={disabled}
         id={id}
         data-testid={testId}
-        className="peer sr-only"
+        className="peer absolute inset-0 w-full h-full cursor-pointer appearance-none bg-transparent border-none z-10"
       />
       <span className={boxClass}>
         {indeterminate ? "—" : checked ? "✔" : ""}

@@ -3526,6 +3526,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             onChange={handleSymbolChange}
             data={SYMBOL_SELECT_DATA}
             size="xs"
+            w={130}
             h={22}
             className={SYMBOL_SELECT_CLASS}
           />
@@ -3570,6 +3571,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             onChange={handleExpiryChange}
             data={expiryData}
             size="xs"
+            w={120}
             h={22}
             className={EXPIRY_SELECT_CLASS}
           />
@@ -3698,6 +3700,31 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             onScrub={scrubReplay}
             onTogglePlay={handleReplayPlayToggle}
           />
+        )}
+        {/* EOD timeline events from the day's recorded report (open / midday / close, etc.).
+            Rendered from `report.timeline` once an EOD date has been picked. */}
+        {mode === "eod" && report?.timeline?.length > 0 && (
+          <Box data-testid="nifty-timeline" className="flex flex-col gap-1 px-2 pt-1 pb-1 border-t border-fin-border mt-1">
+            {report.timeline.map((event, i) => (
+              <Box
+                key={event.time}
+                data-testid={`nifty-timeline-item-${i}`}
+                className="flex items-center gap-1.5 px-1 text-[10px]"
+              >
+                <Text size="xs" c="dimmed" className="w-[44px] shrink-0 font-mono tabular-nums">
+                  {event.time}
+                </Text>
+                <Text size="xs" fw={700}>
+                  {event.title}
+                </Text>
+                {event.detail && (
+                  <Text size="xs" c="dimmed" className="ml-1">
+                    {event.detail}
+                  </Text>
+                )}
+              </Box>
+            ))}
+          </Box>
         )}
       </CompactPanel>
 

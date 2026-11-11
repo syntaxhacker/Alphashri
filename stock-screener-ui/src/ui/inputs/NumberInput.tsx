@@ -123,7 +123,12 @@ export function NumberInput({
         {suffix && <span className="shrink-0 text-fin-text-muted">{suffix}</span>}
       </div>
       {helperText && (
-        <span className={cn("text-xs", isError ? "text-fin-negative" : "text-fin-text-muted")}>{helperText}</span>
+        <span
+          className={cn("text-xs", isError ? "text-fin-negative" : "text-fin-text-muted")}
+          {...(isError ? (_errorProps as Record<string, unknown> | undefined) : undefined)}
+        >
+          {helperText}
+        </span>
       )}
     </div>
   );
