@@ -2,6 +2,7 @@
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
 
 export default defineConfig(({ mode }) => {
@@ -15,6 +16,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       react(),
+      tailwindcss(),
       // React Compiler disabled: the app is built on mutable module stores
       // read during render (`useStoreSubscription` + `get*State()`), which the
       // compiler memoizes as pure and renders stale (empty panels under lazy
@@ -36,7 +38,6 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks(id: string) {
             if (id.includes("node_modules/react") || id.includes("node_modules/react-dom") || id.includes("node_modules/react-router-dom")) return "vendor";
-            if (id.includes("@mui/") || id.includes("@emotion/")) return "mui";
             if (id.includes("@tanstack")) return "tanstack";
             // echarts-for-react imports React. Keep it out of the shared "echarts"
             // chunk so React is not duplicated into the 373 kB echarts bundle and

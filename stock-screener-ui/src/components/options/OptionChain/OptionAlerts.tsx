@@ -1,8 +1,8 @@
 import { Text, Badge, ThemeIcon, Timeline, TimelineItem } from "@/ui";
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
+import { Box } from "@/ui";
 import { IconBellRinging, IconBolt, IconWall, IconActivity } from "@tabler/icons-react";
 import { useMemo } from "react";
+import * as palette from "@/ui/palette";
 import { CompactPanel } from "../../common/compact";
 
 interface OptionAlertsProps {
@@ -72,8 +72,8 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
 
   return (
     <CompactPanel id="option-alerts" className="option-alerts-panel" data-testid="options-alerts-panel">
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }} className="alerts-header" data-testid="options-alerts-header">
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+      <Box className="flex items-center justify-center gap-[8px] p-[8px] w-full alerts-header" data-testid="options-alerts-header">
+        <Box className="flex items-center gap-[8px]">
           <ThemeIcon color="warning" variant="light">
             <IconBellRinging size={18} />
           </ThemeIcon>
@@ -87,8 +87,8 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
       </Box>
 
       {alerts.length === 0 ? (
-        <Box sx={{ py: 2, display: "flex", alignItems: "center", justifyContent: "center" }} className="alerts-empty-state" data-testid="options-alerts-empty">
-          <Text size="sm" c="dimmed">
+        <Box className="py-[16px] flex items-center justify-center alerts-empty-state" data-testid="options-alerts-empty">
+          <Text size="sm" className="text-fin-text-muted">
             Waiting for unusual activity patterns...
           </Text>
         </Box>
@@ -96,12 +96,12 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
         <Timeline active={0} bulletSize={24} lineWidth={2} className="alerts-timeline" data-testid="options-alerts-timeline">
           {alerts.map((alert, i) => (
             <TimelineItem key={i} bullet={alert.icon} color={alert.color} className="alert-item" data-testid={`options-alert-item-${i}`} title={
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
-                  <Text size="sm" fw={700}>{alert.title}</Text>
-                  <Badge size="sm" color={alert.intensity === "Critical" ? "error" : "primary"}>{alert.intensity}</Badge>
-                </Box>
-              }>
-              <Text size="sm" c="dimmed" mt={4}>
+              <Box className="flex items-center justify-between w-full">
+                <Text size="sm" fw={700}>{alert.title}</Text>
+                <Badge size="sm" color={alert.intensity === "Critical" ? "error" : "primary"}>{alert.intensity}</Badge>
+              </Box>
+            }>
+              <Text size="sm" className="text-fin-text-muted" style={{ marginTop: 32 }}>
                 {alert.description}
               </Text>
             </TimelineItem>
@@ -112,9 +112,9 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
       <Box
         className="alerts-profit-tip"
         data-testid="options-alerts-profit-tip"
-        sx={{ mt: 1, pt: 1, borderTop: 1, borderColor: "divider" }}
+        style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${palette.BORDER}` }}
       >
-        <Text size="sm" fw={600} c="primary">
+        <Text size="sm" fw={600} className="text-fin-primary">
           💡 HOW TO PROFIT: When a "Squeeze" alert appears near the spot price, consider a quick bullish trade. When a "Wall" appears, expect the price to reverse from that strike.
         </Text>
       </Box>

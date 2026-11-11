@@ -38,9 +38,9 @@ interface BacktestConfigProps {
 
 function Field({ label, span, children }: { label?: string; span?: boolean; children: React.ReactNode }) {
   return (
-    <Box sx={{ gridColumn: span ? "1 / -1" : undefined, display: "flex", flexDirection: "column", gap: "2px", minWidth: 0 }}>
+    <Box className="flex flex-col gap-0.25 min-w-0" style={{ gridColumn: span ? "1 / -1" : undefined, display: "flex", flexDirection: "column", gap: "2px", minWidth: 0 }}>
       {label ? (
-        <Text size="xs" c="dimmed" fw={700} sx={{ letterSpacing: 0.5, textTransform: "uppercase", fontSize: 10, lineHeight: 1.2 }}>
+        <Text size="xs" c="dimmed" fw={700} style={{ letterSpacing: 0.5, textTransform: "uppercase", fontSize: 10, lineHeight: 1.2 }}>
           {label}
         </Text>
       ) : null}
@@ -157,7 +157,8 @@ export function BacktestConfig({
     <Box
       id="config-form"
       data-testid="strategy-config"
-      sx={{ p: "6px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", alignItems: "start" }}
+      className="p-1.5 grid grid-cols-2 gap-1.5 items-start"
+      style={{ padding: "6px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", alignItems: "start" }}
     >
       <Field label="Strategy" span>
         <Select
@@ -174,7 +175,7 @@ export function BacktestConfig({
           w="100%"
         />
         {selectedVariationData?.description && (
-          <Text size="xs" c="dimmed" sx={{ mt: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <Text size="xs" c="dimmed" style={{ marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {selectedVariationData.description}
           </Text>
         )}
@@ -195,7 +196,7 @@ export function BacktestConfig({
           </Field>
         ))
       ) : (
-        <Text size="xs" c="dimmed" sx={{ gridColumn: "1 / -1" }}>
+        <Text size="xs" c="dimmed" style={{ gridColumn: "1 / -1" }}>
           Select a strategy to configure parameters
         </Text>
       )}
@@ -214,7 +215,7 @@ export function BacktestConfig({
       </Field>
 
       <Field label="Options">
-        <Box sx={{ display: "flex", alignItems: "center", minHeight: 32 }}>
+        <Box className="flex items-center" style={{ display: "flex", alignItems: "center", minHeight: 32 }}>
           <Checkbox
             data-testid="include-costs-checkbox"
             label="Include Costs"
@@ -225,7 +226,7 @@ export function BacktestConfig({
         </Box>
       </Field>
 
-      <Box sx={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: 0.5 }}>
+      <Box className="flex justify-end gap-2" style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: 4 }}>
         <Button
           variant="filled"
           size="sm"
@@ -246,7 +247,7 @@ export function BacktestConfig({
               p={0}
               w={28}
               data-testid="run-menu-btn"
-              sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+              className="flex items-center justify-center"
             >
               <IconChevronDown size={12} />
             </Button>

@@ -1,9 +1,8 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { memo, useMemo } from "react";
-import Box from "@mui/material/Box";
+import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { CompactPanel, CompactStat } from "@/components/common/compact";
-import { Text } from "@/ui";
 import { spotVsFlip } from "./NiftyGammaTime";
 import { MiniLineChart } from "@/components/common/charts/MiniLineChart";
 import type {
@@ -480,12 +479,11 @@ function GexLevelValue(level: GexSideLevel | null) {
       {formatGexStrike(level.strike)}
       <Box
         component="span"
-        sx={{
+        className="ml-[4px] whitespace-nowrap"
+        style={{
           fontSize: 9,
           fontWeight: 400,
-          ml: 0.5,
-          color: "text.secondary",
-          whiteSpace: "nowrap",
+          color: palette.TEXT_MUTED,
         }}
       >
         ({formatGexCr(level.netGex)})
@@ -527,25 +525,19 @@ function NiftyGexProfileInner({ gex, spot }: NiftyGexProfileProps) {
     <CompactPanel
       title="GEX profile"
       testId="nifty-gex-profile-panel"
-      sx={{
-        background: palette.TERM_BG,
+      style={{
+        backgroundColor: palette.TERM_BG,
         border: `1px solid ${palette.TERM_BORDER}`,
         borderColor: palette.TERM_BORDER,
-        borderRadius: 1,
+        borderRadius: 8,
       }}
     >
       {/* Tight stat row: plain grid instead of CompactStatGrid (whose
           wrapper padding costs ~12px). All three stats, labels, values and
           unit hints are unchanged — only the chrome shrinks. */}
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, width: "100%", minWidth: 0 }}>
+      <Box className="flex flex-col gap-[4px] w-full min-w-0">
         <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-            gap: 0.5,
-            width: "100%",
-            minWidth: 0,
-          }}
+          className="grid grid-cols-[repeat(4,minmax(0,1fr))] gap-[4px] w-full min-w-0"
         >
           <CompactStat
             data-testid="nifty-gex-profile-net"
@@ -584,26 +576,19 @@ function NiftyGexProfileInner({ gex, spot }: NiftyGexProfileProps) {
             The regime chip keeps `nifty-gex-profile-regime` for callers/tests. */}
         <Box
           data-testid="nifty-gex-profile-regime"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 0.75,
-            flexWrap: "wrap",
-            minWidth: 0,
-          }}
+          className="flex items-center gap-[6px] flex-wrap min-w-0"
         >
           <Text
             size="xs"
             span
             fw={700}
             title="Regime = cumulative γ up to spot (the side of the flip spot trades on)"
-            sx={{
+            className="whitespace-nowrap"
+            style={{
               color: regimeTone,
               border: `1px solid ${regimeTone}`,
-              borderRadius: 0.75,
-              px: 0.5,
-              py: 0.1,
-              whiteSpace: "nowrap",
+              borderRadius: 6,
+              padding: "4px 2px",
             }}
           >
             {regimeText}
@@ -613,20 +598,16 @@ function NiftyGexProfileInner({ gex, spot }: NiftyGexProfileProps) {
               size="xs"
               span
               title={regimeSentence}
-              sx={{
-                color: "text.secondary",
-                minWidth: 0,
-                flex: 1,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
+              className="min-w-0 flex-1 overflow-hidden truncate whitespace-nowrap"
+              style={{
+                color: palette.TEXT_MUTED,
               }}
             >
               {regimeSentence}
             </Text>
           )}
           {flipDistance && (
-            <Text size="xs" span c="dimmed" sx={{ whiteSpace: "nowrap" }}>
+            <Text size="xs" span c="dimmed" className="whitespace-nowrap">
               Spot {formatGexStrike(Number.isFinite(spot) ? spot : null)} · {flipDistance}
             </Text>
           )}
@@ -649,7 +630,7 @@ function NiftyGexProfileInner({ gex, spot }: NiftyGexProfileProps) {
         {/* Explicit px height (never vh): ECharts/SVG need a non-zero fixed
             box, and vh balloons on tall monitors. 120px still resolves the
             single gamma-profile curve; the line spans the full inner box. */}
-        <Box sx={{ width: "100%", minWidth: 0 }}>
+        <Box className="w-full min-w-0">
           <MiniLineChart
             series={chart.series}
             labels={chart.labels}
@@ -669,7 +650,7 @@ function NiftyGexProfileInner({ gex, spot }: NiftyGexProfileProps) {
             span
             c="dimmed"
             title="x: strike · y: net dealer gamma in ₹ Cr/pt on a sqrt scale (so the big walls don't flatten every other strike). Above the 0 line dealers dampen moves at that strike (magnet); below it they amplify them (fuel). SPOT / ZERO mark today's spot and the gamma flip. Support/resistance are positive-gamma pin magnets below/above spot; a negative-gamma strike is fuel on its own side, never support or resistance."
-            sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+            className="whitespace-nowrap overflow-hidden truncate"
           >
             x: strike · y: net γ (₹ Cr/pt, √ scale) · above 0 = dampening, below 0 = amplifying
           </Text>

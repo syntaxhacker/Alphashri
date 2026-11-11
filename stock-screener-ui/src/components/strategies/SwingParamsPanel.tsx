@@ -11,10 +11,10 @@ interface SwingParamsPanelProps {
 export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingParamsPanelProps) {
   return (
     <Tabs.Panel value="52w" keepMounted className="strategy-form-tab-panel" data-testid="strategy-panel-52w">
-      <Stack spacing={1} gap="sm" mt="sm" sx={{ gap: 1, p: 1 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Entry Threshold %</Text>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+      <Stack spacing={1} gap="sm" mt="sm" className="p-2">
+        <Box className="flex items-center gap-2 p-2">
+          <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Entry Threshold %</Text>
+          <Box className="flex-1 flex items-center">
             <NumberInput
               size="sm"
               name="entry_threshold_pct"
@@ -33,9 +33,9 @@ export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingP
           tpDefault={initialValues.tp_pct}
           isSwing={isSwing}
         />
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Trailing Stop %</Text>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+        <Box className="flex items-center gap-2 p-2">
+          <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Trailing Stop %</Text>
+          <Box className="flex-1 flex items-center">
             <NumberInput
               size="sm"
               name="trailing_stop_pct"
@@ -48,9 +48,9 @@ export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingP
             />
           </Box>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Max Holding Days</Text>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+        <Box className="flex items-center gap-2 p-2">
+          <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Max Holding Days</Text>
+          <Box className="flex-1 flex items-center">
             <NumberInput
               size="sm"
               name="max_holding_days"
@@ -62,9 +62,9 @@ export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingP
             />
           </Box>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Cooldown Days</Text>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+        <Box className="flex items-center gap-2 p-2">
+          <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Cooldown Days</Text>
+          <Box className="flex-1 flex items-center">
             <NumberInput
               size="sm"
               name="cooldown_days"
@@ -78,9 +78,9 @@ export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingP
         </Box>
         {is52wChaser && (
           <>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-              <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Enable Trailing Stop</Text>
-              <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+            <Box className="flex items-center gap-2 p-2">
+              <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Enable Trailing Stop</Text>
+              <Box className="flex-1 flex items-center">
                 <Switch
                   label=""
                   name="enable_trailing_stop"
@@ -89,9 +89,9 @@ export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingP
                 />
               </Box>
             </Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-              <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Enable Filters</Text>
-              <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+            <Box className="flex items-center gap-2 p-2">
+              <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Enable Filters</Text>
+              <Box className="flex-1 flex items-center">
                 <Switch
                   label="ADX/RSI/Volume/MA"
                   name="enable_filters"
@@ -100,9 +100,9 @@ export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingP
                 />
               </Box>
             </Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-              <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Trailing Activation %</Text>
-              <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+            <Box className="flex items-center gap-2 p-2">
+              <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Trailing Activation %</Text>
+              <Box className="flex-1 flex items-center">
                 <NumberInput
                   size="sm"
                   name="trailing_activation_pct"

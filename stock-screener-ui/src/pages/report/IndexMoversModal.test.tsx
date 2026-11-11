@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, act } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { IndexMoversModal } from "./IndexMoversModal";
 import { fetchIndexMovers, IndexMoversResponse } from "@/api/indexMovers";
@@ -51,8 +51,8 @@ describe("IndexMoversModal", () => {
   });
 
   it("shows loading state initially", async () => {
-    let resolve: (v: IndexMoversResponse) => void;
-    const promise = new Promise<IndexMoversResponse>((r) => { resolve = r; });
+    let _resolve: (v: IndexMoversResponse) => void;
+    const promise = new Promise<IndexMoversResponse>((r) => { _resolve = r; });
     mockFetchIndexMovers.mockReturnValue(promise);
 
     render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);

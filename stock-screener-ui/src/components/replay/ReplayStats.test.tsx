@@ -4,7 +4,7 @@ import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { ReplayStats } from "./ReplayStats";
-import type { ReplayTrade, ReplaySummary } from "../../types/replay";
+import type { ReplaySummary } from "../../types/replay";
 
 afterEach(() => {
   cleanup();

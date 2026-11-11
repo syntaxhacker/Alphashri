@@ -1,8 +1,8 @@
-import { Text, useColorScheme, useTheme } from "@/ui";
-import Box from "@mui/material/Box";
+import { Text, useColorScheme } from "@/ui";
+import { Box } from "@/ui";
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
-import { IV_AREA_START, IV_AREA_END, CHART_DROPDOWN } from "@/ui/palette";
+import * as palette from "@/ui/palette";
 import { CompactPanel } from "../../common/compact";
 
 interface IVSkewChartProps {
@@ -10,7 +10,6 @@ interface IVSkewChartProps {
 }
 
 export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
-  const theme = useTheme();
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
 
@@ -31,9 +30,9 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
         const data = params[0];
         return `Strike: ${data.name}<br/>IV: ${data.value}%`;
       },
-      backgroundColor: isDark ? CHART_DROPDOWN : "var(--mui-palette-background-paper)",
+      backgroundColor: isDark ? palette.CHART_DROPDOWN : palette.SURFACE,
       textStyle: {
-        color: isDark ? "var(--mui-palette-common-white)" : "var(--mui-palette-text-primary)",
+        color: isDark ? palette.TEXT : "#0D1117",
         fontSize: 12,
       },
     },
@@ -46,14 +45,14 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
     xAxis: {
       type: "category",
       data: chartData.map((d) => d.strike),
-      axisLabel: { color: "var(--mui-palette-text-secondary)", fontSize: 12 },
-      axisLine: { lineStyle: { color: isDark ? "var(--mui-palette-divider)" : "var(--mui-palette-divider)" } },
+      axisLabel: { color: palette.TEXT_MUTED, fontSize: 12 },
+      axisLine: { lineStyle: { color: palette.BORDER } },
     },
     yAxis: {
       type: "value",
-      axisLabel: { color: "var(--mui-palette-text-secondary)", fontSize: 12, formatter: "{value}%" },
+      axisLabel: { color: palette.TEXT_MUTED, fontSize: 12, formatter: "{value}%" },
       splitLine: {
-        lineStyle: { color: isDark ? "var(--mui-palette-divider)" : "var(--mui-palette-divider)", type: "dashed" },
+        lineStyle: { color: palette.BORDER, type: "dashed" },
       },
     },
     series: [
@@ -62,7 +61,7 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
         type: "line",
         smooth: true,
         symbol: "none",
-        lineStyle: { width: 3, color: (theme as any).palette?.primary?.main ?? "var(--mui-palette-primary-main)" },
+        lineStyle: { width: 3, color: palette.PRIMARY },
         areaStyle: {
           color: {
             type: "linear",
@@ -71,8 +70,8 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: IV_AREA_START },
-              { offset: 1, color: IV_AREA_END },
+              { offset: 0, color: palette.IV_AREA_START },
+              { offset: 1, color: palette.IV_AREA_END },
             ],
           },
         },
@@ -82,11 +81,11 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
 
   return (
     <CompactPanel className="iv-skew-chart-panel" data-testid="options-iv-skew-chart">
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }} className="iv-skew-header">
-        <Text size="sm" fw={800} c="primary" style={{ letterSpacing: "0.5px" }}>
+      <Box className="flex items-center justify-center w-full iv-skew-header" gap={1} p="sm">
+        <Text size="sm" fw={800} className="text-fin-primary" style={{ letterSpacing: "0.5px" }}>
           VOLATILITY SMILE (IV SKEW)
         </Text>
-        <Text size="sm" c="dimmed">
+        <Text size="sm" className="text-fin-text-muted">
           Predicts market turbulence
         </Text>
       </Box>

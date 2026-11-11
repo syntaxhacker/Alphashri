@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 
 import { Box, Button, Select, Text, ToolbarRow } from "@/ui";
-import { INFO, MONO, NEGATIVE, POSITIVE, WARNING } from "@/ui/palette";
+import { INFO, NEGATIVE, POSITIVE, SCALE_DARK, WARNING } from "@/ui/palette";
+import type { CSSProperties } from "react";
 import type { UsMode, UsRoot } from "../../../types/usReport";
 import { UsChart } from "./UsChart";
 import { UsLadder } from "./UsLadder";
@@ -23,11 +24,11 @@ const SPEEDS = [
 
 function Stat({ label, value, color, testId }: { label: string; value: string; color?: string; testId?: string }) {
   return (
-    <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5, minWidth: 0 }} data-testid={testId}>
-      <Text size="xs" c="dimmed" span sx={{ fontSize: 9, letterSpacing: 0.3, whiteSpace: "nowrap" }}>
+    <Box className="flex items-baseline gap-1 min-w-0" data-testid={testId}>
+      <Text size="xs" c="dimmed" span className="text-[9px] tracking-[0.3px] whitespace-nowrap">
         {label}
       </Text>
-      <Text size="xs" span sx={{ fontFamily: MONO, fontWeight: 700, color, fontSize: 11, whiteSpace: "nowrap" }}>
+      <Text size="xs" span className="font-mono font-bold text-[11px] whitespace-nowrap" style={{ color }}>
         {value}
       </Text>
     </Box>
@@ -56,23 +57,14 @@ export function UsReportPage() {
   return (
     <Box
       data-testid="us-report"
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        height: "100%",
-        minHeight: 0,
-        gap: "4px",
-        p: "6px",
-        overflow: "hidden",
-        fontVariantNumeric: "tabular-nums",
-      }}
+      className="flex flex-col h-full min-h-0 gap-1 p-[6px] overflow-hidden tabular-nums"
     >
       {/* ---- controls ---- */}
       <ToolbarRow gap={6} data-testid="us-toolbar" style={{ minHeight: 26 }}>
-        <Text size="xs" fw={800} span sx={{ letterSpacing: 0.8, fontSize: 11 }}>
+        <Text size="xs" fw={800} span className="tracking-[0.8px] text-[11px]">
           US FUTURES
         </Text>
-        <Box sx={{ display: "flex", gap: "2px" }}>
+        <Box className="flex gap-0.5">
           {ROOTS.map((r) => (
             <Button
               key={r.id}
@@ -82,13 +74,13 @@ export function UsReportPage() {
               title={r.enabled ? r.id : "coming later"}
               onClick={() => r.enabled && setRoot(r.id)}
               data-testid={`us-root-${r.id}`}
-              sx={{ minWidth: 34, height: 22, px: 0.75, fontSize: 10 }}
+              style={{ minWidth: 34, height: 22, paddingLeft: 6, paddingRight: 6, fontSize: 10 }}
             >
               {r.id}
             </Button>
           ))}
         </Box>
-        <Box sx={{ display: "flex", gap: "2px" }}>
+        <Box className="flex gap-0.5">
           {(["live", "eod"] as UsMode[]).map((m) => (
             <Button
               key={m}
@@ -96,13 +88,13 @@ export function UsReportPage() {
               variant={mode === m ? "filled" : "subtle"}
               onClick={() => setMode(m)}
               data-testid={`us-mode-${m}`}
-              sx={{ minWidth: 42, height: 22, px: 0.75, fontSize: 10, textTransform: "uppercase" }}
+              style={{ minWidth: 42, height: 22, paddingLeft: 6, paddingRight: 6, fontSize: 10, textTransform: "uppercase" }}
             >
               {m}
             </Button>
           ))}
         </Box>
-        <Box sx={{ display: "flex", gap: "2px" }}>
+        <Box className="flex gap-0.5">
           {[1, 5, 15].map((v) => (
             <Button
               key={v}
@@ -110,7 +102,7 @@ export function UsReportPage() {
               variant={tf === v ? "filled" : "subtle"}
               onClick={() => setTf(v)}
               data-testid={`us-tf-${v}`}
-              sx={{ minWidth: 26, height: 22, px: 0.5, fontSize: 10 }}
+              style={{ minWidth: 26, height: 22, paddingLeft: 4, paddingRight: 4, fontSize: 10 }}
             >
               {v}m
             </Button>
@@ -127,24 +119,22 @@ export function UsReportPage() {
             data-testid="us-date"
           />
         )}
-        <Box sx={{ flex: 1 }} />
-        <Text size="xs" span sx={{ fontFamily: MONO, fontSize: 10 }}>
+        <Box className="flex-1" />
+        <Text size="xs" span className="font-mono text-[10px]">
           {row ? `${row.contract} · ${row.series} · exp ${row.expiry}` : "—"}
         </Text>
         <Box
-          sx={{
-            width: 6,
-            height: 6,
-            borderRadius: "50%",
-            bgcolor: us.status?.market_open ? POSITIVE : "var(--mui-palette-text-disabled)",
+          className="w-1.5 h-1.5 rounded-full"
+          style={{
+            backgroundColor: us.status?.market_open ? POSITIVE : SCALE_DARK[3],
             boxShadow: us.status?.market_open ? `0 0 6px ${POSITIVE}` : "none",
           }}
           data-testid="us-session-dot"
         />
-        <Text size="xs" c="dimmed" span sx={{ fontSize: 9 }}>
+        <Text size="xs" c="dimmed" span className="text-[9px]">
           {us.status?.market_open ? "RTH" : "CLOSED"} {fmtTime(us.status?.now_et)} ET
         </Text>
-        <Button size="xs" variant="subtle" onClick={us.refresh} data-testid="us-refresh" sx={{ height: 22, fontSize: 10 }}>
+        <Button size="xs" variant="subtle" onClick={us.refresh} data-testid="us-refresh" style={{ height: 22, fontSize: 10 }}>
           REFRESH
         </Button>
       </ToolbarRow>
@@ -152,16 +142,7 @@ export function UsReportPage() {
       {/* ---- stats strip ---- */}
       <Box
         data-testid="us-stats"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: "10px",
-          flexWrap: "wrap",
-          px: "4px",
-          py: "2px",
-          borderTop: "1px solid var(--mui-palette-divider)",
-          borderBottom: "1px solid var(--mui-palette-divider)",
-        }}
+        className="flex items-center gap-[10px] flex-wrap px-1 py-[2px] border-t border-b border-fin-border"
       >
         <Stat label="SPOT" value={row ? fmtNum(row.spot) : "—"} color={INFO} testId="us-spot" />
         <Stat label="CHG" value={row ? fmtPct(row.change_pct) : "—"} color={chgColor} testId="us-change" />
@@ -174,7 +155,7 @@ export function UsReportPage() {
         <Stat label="VOL" value={fmtCompact(row?.volume)} testId="us-vol" />
         <Stat label="MIN" value={mode === "eod" ? `${us.cursor + 1}/${us.frames.length}` : String(us.status?.iterations ?? "—")} />
         {us.error && (
-          <Text size="xs" span sx={{ color: NEGATIVE, fontSize: 9 }}>
+          <Text size="xs" span className="text-[9px]" style={{ color: NEGATIVE }}>
             {us.error}
           </Text>
         )}
@@ -184,16 +165,8 @@ export function UsReportPage() {
       {mode === "eod" && us.eod && (
         <Box
           data-testid="us-eod"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            flexWrap: "wrap",
-            px: "4px",
-            py: "1px",
-            borderBottom: "1px solid var(--mui-palette-divider)",
-            bgcolor: "rgba(88,166,255,0.04)",
-          }}
+          className="flex items-center gap-[10px] flex-wrap px-1 py-[1px] border-b border-fin-border"
+          style={{ backgroundColor: "rgba(88,166,255,0.04)" }}
         >
           <Stat label="OPEN" value={fmtInt(us.eod.open)} />
           <Stat label="HIGH" value={fmtInt(us.eod.high)} color={POSITIVE} />
@@ -207,30 +180,23 @@ export function UsReportPage() {
       )}
 
       {/* ---- ladder + chart ---- */}
-      <Box sx={{ display: "flex", gap: "4px", flex: 1, minHeight: 0 }}>
-        <Box sx={{ width: 400, minWidth: 340, display: "flex", flexDirection: "column" }}>
+      <Box className="flex gap-1 flex-1 min-h-0">
+        <Box className="w-[400px] min-w-[340px] flex flex-col">
           {row ? <UsLadder row={row} /> : null}
         </Box>
-        <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "4px" }}>
+        <Box className="flex-1 min-w-0 flex flex-col gap-1">
           <UsChart frames={us.frames} cursor={us.cursor} bucket={tf} />
           {mode === "eod" && (
             <Box
               data-testid="us-playback"
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: "4px",
-                height: 26,
-                px: "4px",
-                border: "1px solid var(--mui-palette-divider)",
-              }}
+              className="flex items-center gap-1 h-[26px] px-1 border border-fin-border"
             >
               <Button
                 size="xs"
                 variant="subtle"
                 onClick={() => us.setCursor(0)}
                 disabled={!us.frames.length}
-                sx={{ minWidth: 24, height: 20, px: 0.5, fontSize: 10 }}
+                style={{ minWidth: 24, height: 20, paddingLeft: 4, paddingRight: 4, fontSize: 10 }}
                 aria-label="Jump to first frame"
               >
                 |&lt;
@@ -241,7 +207,7 @@ export function UsReportPage() {
                 onClick={us.togglePlay}
                 disabled={us.frames.length < 2}
                 data-testid="us-play"
-                sx={{ minWidth: 28, height: 20, px: 0.5, fontSize: 10 }}
+                style={{ minWidth: 28, height: 20, paddingLeft: 4, paddingRight: 4, fontSize: 10 }}
               >
                 {us.playing ? "||" : ">"}
               </Button>
@@ -250,7 +216,7 @@ export function UsReportPage() {
                 variant="subtle"
                 onClick={() => us.setCursor(us.frames.length - 1)}
                 disabled={!us.frames.length}
-                sx={{ minWidth: 24, height: 20, px: 0.5, fontSize: 10 }}
+                style={{ minWidth: 24, height: 20, paddingLeft: 4, paddingRight: 4, fontSize: 10 }}
                 aria-label="Jump to last frame"
               >
                 &gt;|
@@ -263,29 +229,10 @@ export function UsReportPage() {
                 value={Math.min(us.cursor, Math.max(0, us.frames.length - 1))}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => us.setCursor(Number(e.target.value))}
                 data-testid="us-seek"
-                sx={{
-                  flex: 1,
-                  accentColor: INFO,
-                  height: 12,
-                  cursor: "pointer",
-                  appearance: "none",
-                  bgcolor: "transparent",
-                  "&::-webkit-slider-runnable-track": {
-                    height: 2,
-                    bgcolor: "var(--mui-palette-divider)",
-                    borderRadius: 1,
-                  },
-                  "&::-webkit-slider-thumb": {
-                    appearance: "none",
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    bgcolor: INFO,
-                    mt: "-3px",
-                  },
-                }}
+                className="flex-1 h-3 cursor-pointer appearance-none bg-transparent [&::-webkit-slider-runnable-track]:h-[2px] [&::-webkit-slider-runnable-track]:bg-[var(--color-fin-border)] [&::-webkit-slider-runnable-track]:rounded-[1px] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:-mt-[3px] [&::-webkit-slider-thumb]:bg-[var(--us-thumb)]"
+                style={{ accentColor: INFO, "--us-thumb": INFO } as CSSProperties}
               />
-              <Box sx={{ width: 64 }}>
+              <Box className="w-16">
                 <Select
                   size="xs"
                   value={String(us.speed)}
@@ -294,7 +241,7 @@ export function UsReportPage() {
                   data-testid="us-speed"
                 />
               </Box>
-              <Text size="xs" span sx={{ fontFamily: MONO, fontSize: 10, minWidth: 92, textAlign: "right" }}>
+              <Text size="xs" span className="font-mono text-[10px] min-w-[92px] text-right">
                 {row ? `${fmtTime(row.t)} · ${fmtInt(row.spot)}` : "—"}
               </Text>
             </Box>
@@ -305,27 +252,10 @@ export function UsReportPage() {
       {/* ---- strikes strip ---- */}
       <Box
         data-testid="us-strikes"
-        sx={{
-          height: 118,
-          border: "1px solid var(--mui-palette-divider)",
-          display: "flex",
-          flexDirection: "column",
-          fontFamily: MONO,
-          fontSize: 10,
-          lineHeight: "14px",
-          overflow: "hidden",
-        }}
+        className="h-[118px] border border-fin-border flex flex-col font-mono text-[10px] leading-[14px] overflow-hidden"
       >
         <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: "70px 70px 70px 70px 70px 70px 1fr",
-            px: "4px",
-            color: "var(--mui-palette-text-secondary)",
-            borderBottom: "1px solid var(--mui-palette-divider)",
-            fontSize: 9,
-            letterSpacing: 0.4,
-          }}
+          className="grid grid-cols-[70px_70px_70px_70px_70px_70px_1fr] px-1 text-fin-text-muted border-b border-fin-border text-[9px] tracking-[0.4px]"
         >
           <span>STRIKE</span>
           <span style={{ textAlign: "right" }}>CALL OI</span>
@@ -335,27 +265,23 @@ export function UsReportPage() {
           <span style={{ textAlign: "right" }}>NET OI</span>
           <span style={{ textAlign: "right" }}>GEX $m</span>
         </Box>
-        <Box sx={{ flex: 1, overflow: "auto" }}>
+        <Box className="flex-1 overflow-auto">
           {topStrikes.map((s) => {
             const net = s.c_oi - s.p_oi;
             return (
               <Box
                 key={s.k}
                 data-testid={`us-strike-${s.k}`}
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: "70px 70px 70px 70px 70px 70px 1fr",
-                  px: "4px",
-                  bgcolor: s.k === row?.put_wall || s.k === row?.call_wall ? "rgba(255,255,255,0.04)" : "transparent",
-                }}
+                className="grid grid-cols-[70px_70px_70px_70px_70px_70px_1fr] px-1"
+                style={{ backgroundColor: s.k === row?.put_wall || s.k === row?.call_wall ? "rgba(255,255,255,0.04)" : "transparent" }}
               >
                 <span style={{ fontWeight: s.k === row?.max_pain ? 800 : 500, color: s.k === row?.max_pain ? WARNING : undefined }}>
                   {fmtInt(s.k)}
                 </span>
                 <span style={{ textAlign: "right", color: POSITIVE }}>{fmtInt(s.c_oi)}</span>
-                <span style={{ textAlign: "right", color: "var(--mui-palette-text-secondary)" }}>{fmtInt(s.c_vol)}</span>
+                <span style={{ textAlign: "right", color: "var(--color-fin-text-muted)" }}>{fmtInt(s.c_vol)}</span>
                 <span style={{ textAlign: "right", color: NEGATIVE }}>{fmtInt(s.p_oi)}</span>
-                <span style={{ textAlign: "right", color: "var(--mui-palette-text-secondary)" }}>{fmtInt(s.p_vol)}</span>
+                <span style={{ textAlign: "right", color: "var(--color-fin-text-muted)" }}>{fmtInt(s.p_vol)}</span>
                 <span style={{ textAlign: "right", color: net >= 0 ? POSITIVE : NEGATIVE }}>{net > 0 ? "+" : ""}{fmtInt(net)}</span>
                 <span style={{ textAlign: "right", color: s.g ? (s.g >= 0 ? POSITIVE : NEGATIVE) : undefined }}>{s.g ? fmtNum(s.g, 1) : "–"}</span>
               </Box>

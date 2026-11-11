@@ -6,25 +6,25 @@ export function buildSummaryItems(items: SummaryItem[]): SummaryItem[] {
 }
 
 const COLOR_MAP: Record<string, string> = {
-  green: "var(--mui-palette-success-main)",
-  teal: "var(--mui-palette-info-main)",
-  red: "var(--mui-palette-error-main)",
-  blue: "var(--mui-palette-primary-main)",
-  cyan: "var(--mui-palette-info-main)",
-  violet: "var(--mui-palette-secondary-main)",
-  orange: "var(--mui-palette-warning-main)",
-  gray: "var(--mui-palette-secondary-main)",
+  green: "var(--color-fin-positive)",
+  teal: "var(--color-fin-info)",
+  red: "var(--color-fin-negative)",
+  blue: "var(--color-fin-primary)",
+  cyan: "var(--color-fin-info)",
+  violet: "var(--color-fin-text-muted)",
+  orange: "var(--color-fin-warning)",
+  gray: "var(--color-fin-text-muted)",
 };
 export function getTone(item: SummaryItem): string {
   if (item.color) {
-    return COLOR_MAP[item.color] || "var(--mui-palette-text-primary)";
+    return COLOR_MAP[item.color] || "var(--color-fin-text)";
   }
-  return "var(--mui-palette-text-primary)";
+  return "var(--color-fin-text)";
 }
 
 export function ScreenerSummary({ summary }: ScreenerSummaryProps) {
   return (
-    <CompactStatGrid sx={{ gap: 1, p: 1 }}>
+    <CompactStatGrid className="gap-1 p-2">
       {summary.map((item) => (
         <CompactStat
           key={item.label}
@@ -32,7 +32,7 @@ export function ScreenerSummary({ summary }: ScreenerSummaryProps) {
           value={item.value}
           tone={getTone(item)}
           testId={`summary-card-${item.label}`}
-          sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+          className="flex items-center justify-between"
         />
       ))}
     </CompactStatGrid>

@@ -1,5 +1,4 @@
 import { memo } from "react";
-import Box from "@mui/material/Box";
 import * as palette from "@/ui/palette";
 import type { SetupRead, SetupState } from "./niftySetup";
 import type { PreMoveScore } from "./niftyPreMove";
@@ -24,91 +23,63 @@ const STATE_LABEL: Record<SetupState, string> = {
  */
 function SetupRadarStripInner({ read, preMove }: { read: SetupRead; preMove?: PreMoveScore }) {
   return (
-    <Box
+    <div
       data-testid="nifty-setup-radar"
       data-state={read.state}
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        gap: "5px",
-        height: 24,
-        minHeight: 24,
-        px: 1,
-        border: `1px solid ${palette.TERM_BORDER}`,
-        borderRadius: "4px",
-        bgcolor: palette.TERM_HEADER,
-        width: "100%",
-        minWidth: 0,
-        flexShrink: 0,
-        fontFamily: palette.MONO,
-        whiteSpace: "nowrap",
-        overflow: "hidden",
-      }}
+      className="flex items-center gap-1.5 min-w-0 shrink-0 overflow-hidden whitespace-nowrap border border-fin-border rounded-sm bg-fin-surface font-mono text-[9px] text-fin-text-muted h-[24px] min-h-[24px] w-full px-2"
     >
-      <Box component="span" sx={{ color: palette.TEXT_MUTED, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", flexShrink: 0 }}>
+      <span className="font-extrabold shrink-0 tracking-[0.08em] text-[9px]" style={{ color: palette.TEXT_MUTED }}>
         SETUP
-      </Box>
-      {read.gates.map((g) => (
-        <Box
-          key={g.key}
-          component="span"
-          data-testid={`nifty-setup-${g.key.toLowerCase()}`}
-          data-pass={g.pass ? "true" : "false"}
-          title={`${g.key}: ${g.detail}`}
-          sx={{
-            px: "4px",
-            py: "1px",
-            border: `1px solid ${g.pass ? palette.POSITIVE : palette.TERM_BORDER}`,
-            borderRadius: "3px",
-            bgcolor: g.pass ? "rgba(63,185,80,0.10)" : "transparent",
-            color: g.pass ? palette.POSITIVE : palette.TEXT_MUTED,
-            fontSize: 9,
-            fontWeight: 700,
-            letterSpacing: "0.04em",
-            flexShrink: 0,
-          }}
-        >
-          {g.key} {g.pass ? "✓" : "–"}
-        </Box>
-      ))}
+      </span>
+      {read.gates.map((g) => {
+        const pass = g.pass === true;
+        const tone = pass ? palette.POSITIVE : palette.TEXT_MUTED;
+        const bg = pass ? "rgba(63,185,80,0.10)" : "transparent";
+        return (
+          <span
+            key={g.key}
+            data-testid={`nifty-setup-${g.key.toLowerCase()}`}
+            data-pass={pass ? "true" : "false"}
+            title={`${g.key}: ${g.detail}`}
+            className="font-bold shrink-0 tracking-[0.04em] text-[9px] inline-block rounded-[3px]"
+            style={{
+              padding: "1px 4px",
+              border: `1px solid ${tone}`,
+              backgroundColor: bg,
+              color: tone,
+            }}
+          >
+            {g.key} {pass ? "✓" : "–"}
+          </span>
+        );
+      })}
       {preMove && preMove.state !== "quiet" ? (
-        <Box
-          component="span"
+        <span
           data-testid="nifty-premove"
           data-state={preMove.state}
           title={preMove.components
             .map((c) => `${c.points > 0 ? "+" : ""}${c.points} ${c.label} — ${c.detail}`)
             .join("\n")}
-          sx={{
-            px: "4px",
-            py: "1px",
+          className="font-black shrink-0 tracking-[0.04em] text-[9px] inline-block rounded-[3px]"
+          style={{
+            padding: "1px 4px",
             border: `1px solid ${preMove.state === "armed" ? palette.POSITIVE : palette.WARNING}`,
-            borderRadius: "3px",
-            bgcolor: preMove.state === "armed" ? "rgba(63,185,80,0.10)" : "transparent",
+            backgroundColor: preMove.state === "armed" ? "rgba(63,185,80,0.10)" : "transparent",
             color: preMove.state === "armed" ? palette.POSITIVE : palette.WARNING,
-            fontSize: 9,
-            fontWeight: 800,
-            letterSpacing: "0.04em",
-            flexShrink: 0,
+            marginLeft: "6px",
           }}
         >
           PRE {preMove.score}/{preMove.max} {preMove.state === "armed" ? "ARMED" : "WATCH"}
-        </Box>
+        </span>
       ) : null}
-      <Box
-        component="span"
+      <span
         data-testid="nifty-setup-score"
-        sx={{
-          marginLeft: preMove && preMove.state !== "quiet" ? "6px" : "auto",
-          fontSize: 10,
-          fontWeight: 800,
-          color: STATE_COLOR[read.state],
-          flexShrink: 0,
-        }}
+        className="font-black shrink-0 text-[10px]"
+        style={{ marginLeft: preMove && preMove.state !== "quiet" ? "6px" : "auto", color: STATE_COLOR[read.state] }}
       >
         {read.score}/{read.gates.length} · {STATE_LABEL[read.state]}
-      </Box>
-    </Box>
+      </span>
+    </div>
   );
 }
 

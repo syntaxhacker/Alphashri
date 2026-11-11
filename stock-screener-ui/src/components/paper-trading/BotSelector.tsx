@@ -1,10 +1,11 @@
 import { useState, useMemo } from "react";
-import { ToolbarRow, Select, Box, Button, Tooltip, Text } from "@/ui";
+import { ToolbarRow, Select, Button, Tooltip, Text } from "@/ui";
 import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
 import type { BotSummary } from "../../types/paperTrading";
 import { isMarketClosedToday } from "../../state/holidays";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { subscribeToHolidays } from "../../state/holidays";
+import * as palette from "@/ui/palette";
 
 interface BotSelectorProps {
   bots: BotSummary[];
@@ -43,6 +44,12 @@ export function BotSelector({
   const running = selectedBot?.running ?? false;
   const marketClosed = isMarketClosedToday();
 
+  const dotBackground = !selectedBotId
+    ? palette.BORDER
+    : running
+      ? palette.POSITIVE
+      : palette.TEXT_MUTED;
+
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
@@ -67,17 +74,10 @@ export function BotSelector({
         data-testid="bot-select"
       />
       <Tooltip label={running ? "Running" : "Stopped"}>
-        <Box
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: "50%",
-            background: !selectedBotId
-              ? "var(--mui-palette-divider)"
-              : running
-                ? "var(--mui-palette-success-main)"
-                : "var(--mui-palette-grey-500)",
-          }}
+        <div
+          className="size-2 rounded-full shrink-0"
+          data-testid="bot-status-dot"
+          style={{ background: dotBackground }}
         />
       </Tooltip>
       <Text size="xs" c="dimmed" data-testid="bot-status">
@@ -85,7 +85,7 @@ export function BotSelector({
       </Text>
       <Tooltip label="Refresh">
         <Button
-          size="compact-xs"
+          size="xs"
           variant="subtle"
           leftSection={<IconRefresh size={14} />}
           onClick={handleRefresh}
@@ -98,7 +98,7 @@ export function BotSelector({
       </Tooltip>
       {running ? (
         <Button
-          size="compact-xs"
+          size="xs"
           variant="subtle"
           color="error"
           leftSection={<IconPlayerStop size={14} />}
@@ -108,13 +108,10 @@ export function BotSelector({
           Stop
         </Button>
       ) : (
-        <Tooltip
-          label="Market closed — cannot start bot"
-          disabled={!marketClosed}
-        >
+        <Tooltip label="Market closed — cannot start bot" disabled={!marketClosed}>
           <span>
             <Button
-              size="compact-xs"
+              size="xs"
               variant="subtle"
               color="primary"
               leftSection={<IconPlayerPlay size={14} />}

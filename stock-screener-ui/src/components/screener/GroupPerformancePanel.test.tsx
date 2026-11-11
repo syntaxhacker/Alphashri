@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
@@ -96,9 +96,9 @@ describe("GroupPerformancePanel", () => {
     );
     expect(
       screen.getByTestId("group-performance-bar-Wires & Cables").style.backgroundColor,
-    ).toBe("var(--mui-palette-success-main)");
+    ).toBe("var(--color-fin-positive)");
     expect(screen.getByTestId("group-performance-bar-Banks").style.backgroundColor).toBe(
-      "var(--mui-palette-error-main)",
+      "var(--color-fin-negative)",
     );
   });
 
@@ -122,11 +122,7 @@ describe("GroupPerformancePanel", () => {
     await waitFor(() => {
       expect(screen.getByTestId("group-performance-row-IT")).toBeInTheDocument();
     });
-    const outer = screen.getByTestId("group-performance-classify");
-    const combo = outer.querySelector('[role="combobox"]') ?? outer;
-    await user.click(combo as Element);
-    const option = await screen.findByRole("option", { name: /industry/i });
-    await user.click(option);
+    await user.selectOptions(within(screen.getByTestId("group-performance-classify")).getByRole("combobox"), "industry");
     await waitFor(() => {
       expect(mockFetchSectorGroups).toHaveBeenCalledWith(
         expect.objectContaining({ classify: "industry" }),
@@ -140,11 +136,7 @@ describe("GroupPerformancePanel", () => {
     await waitFor(() => {
       expect(screen.getByTestId("group-performance-row-IT")).toBeInTheDocument();
     });
-    const outer = screen.getByTestId("group-performance-classify");
-    const combo = outer.querySelector('[role="combobox"]') ?? outer;
-    await user.click(combo as Element);
-    const option = await screen.findByRole("option", { name: /^theme$/i });
-    await user.click(option);
+    await user.selectOptions(within(screen.getByTestId("group-performance-classify")).getByRole("combobox"), "theme");
     await waitFor(() => {
       expect(mockFetchSectorGroups).toHaveBeenCalledWith(
         expect.objectContaining({ classify: "theme" }),
@@ -204,11 +196,7 @@ describe("GroupPerformancePanel", () => {
     // Default "3+" hides the single-stock group.
     expect(screen.queryByTestId("group-performance-row-Solo")).not.toBeInTheDocument();
 
-    const outer = screen.getByTestId("group-performance-min-stocks");
-    const combo = outer.querySelector('[role="combobox"]') ?? outer;
-    await user.click(combo as Element);
-    const option = await screen.findByRole("option", { name: /^all$/i });
-    await user.click(option);
+    await user.selectOptions(within(screen.getByTestId("group-performance-min-stocks")).getByRole("combobox"), "1");
     await waitFor(() => {
       expect(screen.getByTestId("group-performance-row-Solo")).toBeInTheDocument();
     });

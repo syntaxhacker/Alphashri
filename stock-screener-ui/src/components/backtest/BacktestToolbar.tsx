@@ -28,20 +28,21 @@ export function BacktestToolbar({
 }: BacktestToolbarProps) {
   return (
     <Box
-      sx={{
+      className="flex-shrink-0 h-10 flex items-center gap-2 px-2 border-b border-fin-border"
+      style={{
         flex: "0 0 auto",
         height: 40,
         display: "flex",
         alignItems: "center",
-        gap: 1,
-        px: 1,
-        bgcolor: "background.paper",
-        borderBottom: "1px solid",
-        borderColor: "divider",
+        gap: 8,
+        paddingLeft: 8,
+        paddingRight: 8,
+        backgroundColor: "#0A0A0A",
+        borderBottom: "1px solid #30363D",
       }}
       data-testid="backtest-toolbar"
     >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+      <Box className="flex items-center gap-1">
         <Button
           size="sm"
           variant={chartMode === "all" ? "filled" : "subtle"}
@@ -64,8 +65,8 @@ export function BacktestToolbar({
         </Button>
       </Box>
 
-      <Box sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 1.5, px: 1 }}>
-        <Text size="xs" c="text.secondary" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+      <Box className="flex-1 min-w-0 flex items-center gap-1.5 px-2">
+        <Text size="xs" c="text-muted" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {strategyLabel || "No strategy"}
         </Text>
         <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>

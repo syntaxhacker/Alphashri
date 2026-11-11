@@ -40,7 +40,7 @@ function formatUnits(value: number): string {
 function cell(align: "left" | "right" | "center", children: React.ReactNode) {
   const justify = align === "right" ? "flex-end" : align === "center" ? "center" : "flex-start";
   return (
-    <Box sx={{ display: "flex", alignItems: "center", justifyContent: justify, gap: 0.5 }}>
+    <Box className={`flex items-center gap-1 justify-${justify === "flex-end" ? "end" : justify === "center" ? "center" : "start"}`}>
       {children}
     </Box>
   );
@@ -198,7 +198,7 @@ export function AdminPatternTimeframesPanel() {
         header: () => cell("right", "#"),
         meta: { align: "right" },
         cell: (info) => (
-          <Box sx={{ display: "flex", justifyContent: "flex-end", fontVariantNumeric: "tabular-nums" }}>
+          <Box className="flex justify-end tabular-nums">
             <Text size="xs" c="dimmed">{info.row.index + 1}</Text>
           </Box>
         ),
@@ -211,7 +211,7 @@ export function AdminPatternTimeframesPanel() {
         cell: (info) => {
           const tf = info.row.original;
           return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
+            <Box className="flex items-center justify-start">
               <Text size="xs" fw={700} data-testid={`admin-tf-label-${tf.id}`}>{tf.label}</Text>
             </Box>
           );
@@ -223,7 +223,7 @@ export function AdminPatternTimeframesPanel() {
         accessorKey: "minutes",
         meta: { align: "right" },
         cell: (info) => (
-          <Box sx={{ display: "flex", justifyContent: "flex-end", fontVariantNumeric: "tabular-nums" }}>
+          <Box className="flex justify-end tabular-nums">
             <Text size="xs">{formatDuration(info.row.original.minutes)}</Text>
           </Box>
         ),
@@ -236,7 +236,7 @@ export function AdminPatternTimeframesPanel() {
         cell: (info) => {
           const tf = info.row.original;
           return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
+            <Box className="flex items-center justify-start">
               <Text size="xs" c={tf.native ? "text.primary" : "dimmed"}>
                 {tf.native ? "Yes" : `Resampled from ${tf.source_tf ?? "—"}`}
               </Text>
@@ -250,7 +250,7 @@ export function AdminPatternTimeframesPanel() {
         accessorKey: "max_lookback_days",
         meta: { align: "right" },
         cell: (info) => (
-          <Box sx={{ display: "flex", justifyContent: "flex-end", fontVariantNumeric: "tabular-nums" }}>
+          <Box className="flex justify-end tabular-nums">
             <Text size="xs">{info.row.original.max_lookback_days.toLocaleString()}</Text>
           </Box>
         ),
@@ -261,7 +261,7 @@ export function AdminPatternTimeframesPanel() {
         accessorKey: "min_bars",
         meta: { align: "right" },
         cell: (info) => (
-          <Box sx={{ display: "flex", justifyContent: "flex-end", fontVariantNumeric: "tabular-nums" }}>
+          <Box className="flex justify-end tabular-nums">
             <Text size="xs">{info.row.original.min_bars.toLocaleString()}</Text>
           </Box>
         ),
@@ -274,7 +274,7 @@ export function AdminPatternTimeframesPanel() {
         cell: (info) => {
           const tf = info.row.original;
           return (
-            <Box sx={{ display: "flex", justifyContent: "center" }}>
+            <Box className="flex justify-center">
               <Switch
                 size="xs"
                 checked={tf.enabled}
@@ -294,7 +294,7 @@ export function AdminPatternTimeframesPanel() {
           const tf = info.row.original;
           const index = info.row.index;
           return (
-            <Box sx={{ display: "flex", justifyContent: "center", gap: 0.25 }}>
+            <Box className="flex justify-center gap-1">
               <ActionIcon
                 size="xs"
                 variant="subtle"
@@ -327,7 +327,7 @@ export function AdminPatternTimeframesPanel() {
           const tf = info.row.original;
           if (!tf.custom) return null;
           return (
-            <Box sx={{ display: "flex", justifyContent: "center" }}>
+            <Box className="flex justify-center">
               <ActionIcon
                 size="xs"
                 variant="subtle"
@@ -353,7 +353,7 @@ export function AdminPatternTimeframesPanel() {
 
   if (loading && timeframes.length === 0) {
     return (
-      <Box data-testid="admin-pattern-timeframes-panel" sx={{ display: "flex", alignItems: "center", gap: 0.5, p: 0.5 }}>
+      <Box data-testid="admin-pattern-timeframes-panel" className="flex items-center gap-1 p-1">
         <Loader size="sm" />
         <Text size="xs" c="dimmed">Loading pattern timeframes…</Text>
       </Box>
@@ -363,19 +363,9 @@ export function AdminPatternTimeframesPanel() {
   return (
     <Box
       data-testid="admin-pattern-timeframes-panel"
-      sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, p: 0.25 }}
+      className="flex h-full min-h-0 flex-col p-[2px]"
     >
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 1,
-          px: 0.5,
-          py: 0.25,
-          flexShrink: 0,
-        }}
-      >
+      <Box className="flex shrink-0 items-center justify-between gap-2 px-1 py-[2px]">
         <Text size="xs" c="dimmed" data-testid="admin-tf-summary" style={{ fontSize: 10 }}>
           {`${enabledCount} enabled / ${totalCount} total · ${Math.max(0, totalCount - enabledCount)} disabled · ${resampledCount} resampled`}
         </Text>
@@ -390,19 +380,7 @@ export function AdminPatternTimeframesPanel() {
 
       <Box
         data-testid="admin-tf-add-row"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: "4px",
-          px: 0.5,
-          py: 0,
-          minHeight: 26,
-          flexShrink: 0,
-          "& .MuiInputBase-root": { height: 24, fontSize: 11 },
-          "& .MuiInputBase-input": { py: 0, px: "6px", fontSize: 11, height: "auto" },
-          "& .MuiSelect-select": { py: "3px", px: "6px", pr: "20px", fontSize: 11 },
-        }}
+        className="flex min-h-[26px] shrink-0 flex-wrap items-center gap-1 px-1 py-0"
       >
         <NumberInput
           size="xs"
@@ -456,7 +434,7 @@ export function AdminPatternTimeframesPanel() {
         <Alert color="error" variant="light" data-testid="admin-tf-error">{actionError}</Alert>
       )}
 
-      <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+      <Box className="flex flex-1 min-h-0 flex-col">
         <TanStackTable<AdminPatternTimeframe>
           data={timeframes}
           columns={columns}

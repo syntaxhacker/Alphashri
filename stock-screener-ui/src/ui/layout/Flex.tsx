@@ -1,4 +1,5 @@
-import MuiBox from "@mui/material/Box";
+import type * as React from "react";
+import { cn } from "../cn";
 import type { UIFlexProps } from "../types";
 
 const sp = (v: unknown) => {
@@ -11,36 +12,66 @@ const toSz = (v: unknown) => (typeof v === "number" ? `${v}px` : (v as string | 
 
 export function Flex({
   children, className, style, id, "data-testid": testId, onClick, onMouseEnter, onMouseLeave,
-  p, px, py, pt, pb, pl, pr, m, mx, my, mt, mb, ml, mr, bg, c, opacity, pos, top, right, bottom, left, w, h, miw, maw, mih, mah, flex,
-  direction, wrap, justify, align, gap,
-  sx: sxProp,
+  p, px, py, pt, pb, pl, pr, m, mx, my, mt, mb, ml, mr, bg, c, opacity, pos, top, right, bottom, left, inset, w, h, miw, maw, mih, mah, flex,
+  direction, wrap, justify, align, gap, alignItems, justifyContent, flexDirection, spacing,
+  component, elevation: _elevation, variant: _variant,
   ...rest
 }: UIFlexProps & Record<string, unknown>) {
+  const styleObj: React.CSSProperties = {
+    display: "flex",
+    ...(flexDirection ?? direction ? { flexDirection: flexDirection ?? direction } : {}),
+    ...(wrap && { flexWrap: wrap }),
+    ...(justifyContent ?? justify ? { justifyContent: justifyContent ?? justify } : {}),
+    ...(alignItems ?? align ? { alignItems: alignItems ?? align } : {}),
+    ...(spacing != null && { gap: typeof spacing === "number" ? `${spacing * 8}px` : sp(spacing) }),
+    ...(gap != null && { gap: sp(gap) }),
+    ...(p != null && { padding: sp(p) }),
+    ...(px != null && { paddingLeft: sp(px), paddingRight: sp(px) }),
+    ...(py != null && { paddingTop: sp(py), paddingBottom: sp(py) }),
+    ...(pt != null && { paddingTop: sp(pt) }),
+    ...(pb != null && { paddingBottom: sp(pb) }),
+    ...(pl != null && { paddingLeft: sp(pl) }),
+    ...(pr != null && { paddingRight: sp(pr) }),
+    ...(m != null && { margin: sp(m) }),
+    ...(mx != null && { marginLeft: sp(mx), marginRight: sp(mx) }),
+    ...(my != null && { marginTop: sp(my), marginBottom: sp(my) }),
+    ...(mt != null && { marginTop: sp(mt) }),
+    ...(mb != null && { marginBottom: sp(mb) }),
+    ...(ml != null && { marginLeft: sp(ml) }),
+    ...(mr != null && { marginRight: sp(mr) }),
+    ...(bg != null && { backgroundColor: bg as string }),
+    ...(c != null && { color: c as string }),
+    ...(opacity != null && { opacity }),
+    ...(pos && { position: pos }),
+    ...(top != null && { top: toSz(top) }),
+    ...(right != null && { right: toSz(right) }),
+    ...(bottom != null && { bottom: toSz(bottom) }),
+    ...(left != null && { left: toSz(left) }),
+    ...(inset != null && { inset: toSz(inset) }),
+    ...(w != null && { width: toSz(w) }),
+    ...(h != null && { height: toSz(h) }),
+    ...(miw != null && { minWidth: toSz(miw) }),
+    ...(maw != null && { maxWidth: toSz(maw) }),
+    ...(mih != null && { minHeight: toSz(mih) }),
+    ...(mah != null && { maxHeight: toSz(mah) }),
+    ...(flex != null && { flex: flex as string }),
+  };
+
+  void _elevation; void _variant;
+  const Tag = (component ?? "div") as React.ElementType;
+
   return (
-    <MuiBox
-      id={id as string} className={className} style={style} data-testid={testId}
-      onClick={onClick as never} onMouseEnter={onMouseEnter as never} onMouseLeave={onMouseLeave as never}
-      sx={[{
-        display: "flex",
-        ...(direction && { flexDirection: direction }),
-        ...(wrap && { flexWrap: wrap }),
-        ...(justify && { justifyContent: justify }),
-        ...(align && { alignItems: align }),
-        ...(gap != null && { gap: sp(gap) }),
-        ...(p != null && { p: sp(p) }), ...(px != null && { px: sp(px) }), ...(py != null && { py: sp(py) }),
-        ...(pt != null && { pt: sp(pt) }), ...(pb != null && { pb: sp(pb) }), ...(pl != null && { pl: sp(pl) }), ...(pr != null && { pr: sp(pr) }),
-        ...(m != null && { m: sp(m) }), ...(mx != null && { mx: sp(mx) }), ...(my != null && { my: sp(my) }),
-        ...(mt != null && { mt: sp(mt) }), ...(mb != null && { mb: sp(mb) }), ...(ml != null && { ml: sp(ml) }), ...(mr != null && { mr: sp(mr) }),
-        ...(bg != null && { bgcolor: bg as string }), ...(c != null && { color: c as string }),
-        ...(opacity != null && { opacity }), ...(pos && { position: pos }),
-        ...(top != null && { top: toSz(top) }), ...(right != null && { right: toSz(right) }),
-        ...(bottom != null && { bottom: toSz(bottom) }), ...(left != null && { left: toSz(left) }),
-        ...(w != null && { width: toSz(w) }), ...(h != null && { height: toSz(h) }),
-        ...(miw != null && { minWidth: toSz(miw) }), ...(maw != null && { maxWidth: toSz(maw) }),
-        ...(mih != null && { minHeight: toSz(mih) }), ...(mah != null && { maxHeight: toSz(mah) }),
-        ...(flex != null && { flex: flex as string }),
-      }, ...(sxProp ? (Array.isArray(sxProp) ? sxProp : [sxProp]) : [])] as never}
+    <Tag
+      id={id as string}
+      className={cn(className)}
+      style={{ ...styleObj, ...style }}
+      data-testid={testId}
+      onClick={onClick as never}
+      onMouseEnter={onMouseEnter as never}
+      onMouseLeave={onMouseLeave as never}
       {...rest}
-    >{children}</MuiBox>
+    >
+      {children}
+    </Tag>
   );
 }

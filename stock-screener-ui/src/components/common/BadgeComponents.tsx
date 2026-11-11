@@ -6,7 +6,7 @@ interface SideBadgeProps {
   "data-testid"?: string;
 }
 
-export function SideBadge({ side, size = "sm", "data-testid": testId }: SideBadgeProps) {
+export function SideBadge({ side, "data-testid": testId }: SideBadgeProps) {
   const isBuy = side.toUpperCase() === "BUY" || side.toUpperCase() === "LONG";
   const arrow = side.toUpperCase() === "BUY" ? "▲" : side.toUpperCase() === "SELL" ? "▼" : "";
   return (

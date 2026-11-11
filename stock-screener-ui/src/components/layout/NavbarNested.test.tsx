@@ -4,8 +4,6 @@ import { render, screen, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { MemoryRouter } from "react-router-dom";
-import { ThemeProvider } from "@mui/material/styles";
-import { muiTheme } from "@/ui/muiTheme";
 import { NavbarNested } from "./NavbarNested";
 import { AuthContext } from "../auth/AuthProvider2";
 import * as hooks from "@/ui/hooks";
@@ -31,17 +29,15 @@ function renderNavbar(opts: {
 } = {}) {
   const { activePath = "/", collapsed = false, auth = mockAdminAuth, onMobileNavigate } = opts;
   return render(
-    <ThemeProvider theme={muiTheme}>
-      <MemoryRouter>
-        <AuthContext.Provider value={auth}>
-          <NavbarNested
-            activePath={activePath}
-            collapsed={collapsed}
-            onMobileNavigate={onMobileNavigate}
-          />
-        </AuthContext.Provider>
-      </MemoryRouter>
-    </ThemeProvider>,
+    <MemoryRouter>
+      <AuthContext.Provider value={auth}>
+        <NavbarNested
+          activePath={activePath}
+          collapsed={collapsed}
+          onMobileNavigate={onMobileNavigate}
+        />
+      </AuthContext.Provider>
+    </MemoryRouter>,
   );
 }
 
@@ -159,23 +155,19 @@ describe("NavbarNested active path highlighting", () => {
 
   it("highlights correct item each time activePath changes (rerender)", () => {
     const { rerender } = render(
-      <ThemeProvider theme={muiTheme}>
-        <MemoryRouter>
-          <AuthContext.Provider value={mockAdminAuth}>
-            <NavbarNested activePath="/news" />
-          </AuthContext.Provider>
-        </MemoryRouter>
-      </ThemeProvider>,
+      <MemoryRouter>
+        <AuthContext.Provider value={mockAdminAuth}>
+          <NavbarNested activePath="/news" />
+        </AuthContext.Provider>
+      </MemoryRouter>,
     );
     expect(screen.getByTestId("nav-news")).toHaveAttribute("data-active", "true");
     rerender(
-      <ThemeProvider theme={muiTheme}>
-        <MemoryRouter>
-          <AuthContext.Provider value={mockAdminAuth}>
-            <NavbarNested activePath="/sector" />
-          </AuthContext.Provider>
-        </MemoryRouter>
-      </ThemeProvider>,
+      <MemoryRouter>
+        <AuthContext.Provider value={mockAdminAuth}>
+          <NavbarNested activePath="/sector" />
+        </AuthContext.Provider>
+      </MemoryRouter>,
     );
     // happy-dom rerender may duplicate; query again
     cleanup();
@@ -295,8 +287,6 @@ describe("NavbarNested theme toggle", () => {
     const user = userEvent.setup();
     renderNavbar();
     const btn = screen.getByTestId("theme-toggle-btn");
-    // initial is dark (hook default)
-    const before = localStorage.getItem("mui-color-scheme");
     await user.click(btn);
     const after = localStorage.getItem("mui-color-scheme");
     // should have flipped to light or dark

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import Box from "@mui/material/Box";
+import { Box } from "@/ui";
 import { Badge, Button, ScrollArea, Select, Text, ToolbarRow } from "@/ui";
 import { FIELD_W, ROW_BUTTON_SX } from "./widths";
 import { SetupCard } from "./SetupCard";
@@ -64,7 +64,7 @@ export function StrategyRow({
   };
 
   return (
-    <Box data-testid={`strategy-row-${side}`} sx={{ width: "100%" }}>
+    <Box data-testid={`strategy-row-${side}`} w="100%">
       <ToolbarRow gap={8} justify="space-between" data-testid={`strategy-row-header-${side}`}>
         <ToolbarRow gap={8}>
           <Text size="sm" fw={700}>
@@ -100,7 +100,7 @@ export function StrategyRow({
         </ToolbarRow>
       </ToolbarRow>
       <ScrollArea data-testid={`strategy-row-scroll-${side}`}>
-        <Box sx={{ display: "flex", gap: 8, py: 1, width: "max-content", minWidth: "100%" }}>
+        <Box className="flex gap-4 py-2 w-max-content min-w-full">
           {rowSetups.length === 0 && (
             <ToolbarRow gap={8} data-testid={`strategy-row-empty-${side}`}>
               <Text size="sm">No setups. Pick a template and press + Setup.</Text>

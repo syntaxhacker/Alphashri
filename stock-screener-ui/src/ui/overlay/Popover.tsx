@@ -1,7 +1,13 @@
 import * as React from "react";
-import MuiPopover from "@mui/material/Popover";
-import Box from "@mui/material/Box";
-import type { UIPopoverProps, UIPopoverTargetProps, UIPopoverDropdownProps } from "../types";
+import { createPortal } from "react-dom";
+import { cn } from "../cn";
+import type {
+  UIPopoverProps,
+  UIPopoverTargetProps,
+  UIPopoverDropdownProps,
+} from "../types";
+
+type PopoverProps = UIPopoverProps;
 
 type PopoverContextValue = {
   anchorEl: HTMLElement | null;
@@ -15,6 +21,7 @@ type PopoverContextValue = {
   width?: number | string;
   shadow?: string;
   controlledOpen?: boolean;
+  closeOnClickOutside?: boolean;
 };
 
 const PopoverContext = React.createContext<PopoverContextValue | null>(null);
@@ -25,27 +32,17 @@ function usePopoverContext() {
   return ctx;
 }
 
-function positionToAnchorOrigin(pos?: string): { anchorOrigin: any; transformOrigin: any } {
-  switch (pos) {
-    case "top":
-      return { anchorOrigin: { vertical: "top", horizontal: "center" }, transformOrigin: { vertical: "bottom", horizontal: "center" } };
-    case "top-start":
-      return { anchorOrigin: { vertical: "top", horizontal: "left" }, transformOrigin: { vertical: "bottom", horizontal: "left" } };
-    case "top-end":
-      return { anchorOrigin: { vertical: "top", horizontal: "right" }, transformOrigin: { vertical: "bottom", horizontal: "right" } };
-    case "bottom":
-      return { anchorOrigin: { vertical: "bottom", horizontal: "center" }, transformOrigin: { vertical: "top", horizontal: "center" } };
-    case "bottom-start":
-      return { anchorOrigin: { vertical: "bottom", horizontal: "left" }, transformOrigin: { vertical: "top", horizontal: "left" } };
-    case "bottom-end":
-      return { anchorOrigin: { vertical: "bottom", horizontal: "right" }, transformOrigin: { vertical: "top", horizontal: "right" } };
-    case "left":
-      return { anchorOrigin: { vertical: "center", horizontal: "left" }, transformOrigin: { vertical: "center", horizontal: "right" } };
-    case "right":
-      return { anchorOrigin: { vertical: "center", horizontal: "right" }, transformOrigin: { vertical: "center", horizontal: "left" } };
-    default:
-      return { anchorOrigin: { vertical: "bottom", horizontal: "center" }, transformOrigin: { vertical: "top", horizontal: "center" } };
-  }
+const SHADOW_MAP: Record<string, string> = {
+  sm: "shadow-sm",
+  md: "shadow-md",
+  lg: "shadow-lg",
+  xl: "shadow-xl",
+};
+
+function paddingSize(v: number | string): string {
+  if (typeof v === "number") return `${v * 8}px`;
+  const m: Record<string, string> = { xs: "4px", sm: "8px", md: "16px", lg: "24px", xl: "32px" };
+  return m[v] ?? String(v);
 }
 
 export function Popover({
@@ -58,23 +55,23 @@ export function Popover({
   width,
   shadow,
   offset,
-  trapFocus,
+  _trapFocus,
   closeOnClickOutside,
-  middlewares,
-  keepMounted,
+  _middlewares,
+  _keepMounted,
   className,
   style,
+  id,
   "data-testid": testId,
   ...rest
-}: UIPopoverProps) {
+}: PopoverProps) {
   const [internalAnchorEl, setInternalAnchorEl] = React.useState<HTMLElement | null>(null);
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false);
 
   const isControlled = opened !== undefined;
   const open = isControlled ? !!opened : uncontrolledOpen;
 
-  // For uncontrolled mode, children will set anchorEl via PopoverTarget click;
-  // we sync open state based on anchorEl presence if not controlled
+  // For uncontrolled mode, sync open state based on anchorEl presence.
   React.useEffect(() => {
     if (!isControlled) {
       setUncontrolledOpen(!!internalAnchorEl);
@@ -100,18 +97,16 @@ export function Popover({
         setUncontrolledOpen(!!el);
       }
     },
-    [isControlled]
+    [isControlled],
   );
 
-  // If controlled and opened is false, clear anchorEl so popover can close
+  // If controlled and opened is false, clear anchorEl so the dropdown can remount cleanly.
   React.useEffect(() => {
     if (isControlled && !opened) {
-      // keep anchorEl for positioning reference but MUI requires anchorEl to close; we keep it but open=false
+      setInternalAnchorEl(null);
     }
   }, [isControlled, opened]);
 
-  // Collect children: expect PopoverTarget and PopoverDropdown
-  // We render them via context; actual PopoverDropdown will render MuiPopover using anchorEl
   const ctxValue: PopoverContextValue = {
     anchorEl: internalAnchorEl,
     setAnchorEl,
@@ -124,19 +119,20 @@ export function Popover({
     width,
     shadow,
     controlledOpen: opened,
+    closeOnClickOutside: closeOnClickOutside ?? true,
   };
 
   return (
     <PopoverContext.Provider value={ctxValue}>
-      <Box
-        className={className}
-        style={style}
+      <span
+        id={id}
         data-testid={testId}
-        sx={{ display: "inline-block" }}
-        {...(rest as any)}
+        className={cn("inline-block", className)}
+        style={{ display: "inline-block", ...style }}
+        {...(rest as Record<string, unknown>)}
       >
-        {children as any}
-      </Box>
+        {children}
+      </span>
     </PopoverContext.Provider>
   );
 }
@@ -160,36 +156,103 @@ export function PopoverTarget({ children, className, style }: UIPopoverTargetPro
   return React.cloneElement(child, {
     ref: (child as any).ref,
     onClick: handleClick,
-    className: [className, (child.props as any).className].filter(Boolean).join(" ") || undefined,
+    className: cn(className, (child.props as any).className),
     style: { ...style, ...(child.props as any).style },
   } as any);
 }
 
-export function PopoverDropdown({ children, className, style }: UIPopoverDropdownProps) {
-  const { anchorEl, open, onClose, position, offset, width, shadow } = usePopoverContext();
-  const { anchorOrigin, transformOrigin } = positionToAnchorOrigin(position);
-  return (
-    <MuiPopover
-      open={open}
-      anchorEl={anchorEl}
-      onClose={onClose}
-      anchorOrigin={anchorOrigin}
-      transformOrigin={transformOrigin}
-      slotProps={{
-        paper: {
-          className,
-          style: style as any,
-          sx: {
-            ...(width != null ? { width: typeof width === "number" ? `${width}px` : width } : {}),
-            ...(shadow ? { boxShadow: shadow } : {}),
-            ...(offset != null ? { mt: `${offset}px` } : {}),
-            p: 1.5,
-          },
-        },
-      }}
+export function PopoverDropdown({
+  children,
+  className,
+  style,
+  p,
+}: UIPopoverDropdownProps & { p?: number | string }) {
+  const { anchorEl, open, onClose, position, offset, width, shadow, closeOnClickOutside } =
+    usePopoverContext();
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [place, setPlace] = React.useState<React.CSSProperties>({});
+
+  React.useEffect(() => {
+    if (!open || !anchorEl || !ref.current) return;
+    const rect = anchorEl.getBoundingClientRect();
+    const off = offset ?? 0;
+    const vpW = window.innerWidth;
+    const vpH = window.innerHeight;
+    let s: React.CSSProperties = { position: "fixed" };
+    switch (position) {
+      case "top":
+        s = { position: "fixed", bottom: vpH - rect.top + off, left: `${rect.left + rect.width / 2}px`, transform: "translateX(-50%)" };
+        break;
+      case "bottom":
+        s = { position: "fixed", top: rect.bottom + off, left: `${rect.left + rect.width / 2}px`, transform: "translateX(-50%)" };
+        break;
+      case "top-start":
+        s = { position: "fixed", bottom: vpH - rect.top + off, left: `${rect.left}px` };
+        break;
+      case "top-end":
+        s = { position: "fixed", bottom: vpH - rect.top + off, right: `${vpW - rect.right}px` };
+        break;
+      case "bottom-start":
+        s = { position: "fixed", top: rect.bottom + off, left: `${rect.left}px` };
+        break;
+      case "bottom-end":
+        s = { position: "fixed", top: rect.bottom + off, right: `${vpW - rect.right}px` };
+        break;
+      case "left":
+        s = { position: "fixed", right: vpW - rect.left + off, top: `${rect.top + rect.height / 2}px`, transform: "translateY(-50%)" };
+        break;
+      case "right":
+        s = { position: "fixed", left: rect.right + off, top: `${rect.top + rect.height / 2}px`, transform: "translateY(-50%)" };
+        break;
+      default:
+        s = { position: "fixed", top: rect.bottom + off, left: `${rect.left + rect.width / 2}px`, transform: "translateX(-50%)" };
+    }
+    if (width != null) {
+      s.width = typeof width === "number" ? `${width}px` : width;
+    }
+    setPlace(s);
+  }, [open, anchorEl, position, offset, width]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose?.();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  // Click outside closes the popover (honors closeOnClickOutside, default on).
+  React.useEffect(() => {
+    if (!open || closeOnClickOutside === false) return;
+    const onDoc = (e: MouseEvent) => {
+      const el = ref.current;
+      if (anchorEl && !anchorEl.contains(e.target as Node) && el && !el.contains(e.target as Node)) {
+        onClose?.();
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open, anchorEl, closeOnClickOutside, onClose]);
+
+  const padStyle = p != null ? { padding: paddingSize(p) } : undefined;
+  const shadowClass = SHADOW_MAP[shadow ?? ""] ?? "";
+  const boxShadow = shadow && !(shadow in SHADOW_MAP) ? shadow : undefined;
+
+  if (!open) return null;
+  return createPortal(
+    <div
+      ref={ref}
+      className={cn(
+        "z-50 bg-fin-surface border border-fin-border rounded-sm overflow-auto",
+        shadowClass,
+        className,
+      )}
+      style={{ ...place, ...padStyle, ...style, ...(boxShadow ? { boxShadow } : {}) }}
     >
-      <Box>{children}</Box>
-    </MuiPopover>
+      {children}
+    </div>,
+    document.body,
   );
 }
 

@@ -223,8 +223,7 @@ afterEach(() => {
 
 async function pickSymbol(user: ReturnType<typeof userEvent.setup>, name: string) {
   const select = screen.getByTestId("report-symbol-select");
-  await user.click(within(select).getByRole("combobox"));
-  await user.click(await screen.findByRole("option", { name }));
+  await user.selectOptions(within(select).getByRole("combobox"), name);
 }
 
 /** Every verdict/VIX/strength cell must show a value, never the missing-data dash. */

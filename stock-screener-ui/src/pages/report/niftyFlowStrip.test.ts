@@ -466,7 +466,8 @@ describe("NiftyFlowStrip render", () => {
       [bear, FLOW_BEAR],
       [struct, FLOW_STRUCT],
     ] as const) {
-      expect(el).toHaveStyle({ backgroundColor: color, width: "8px", height: "8px" });
+      expect(el).toHaveStyle({ backgroundColor: color });
+      expect(el).toHaveClass("w-2", "h-2");
       expect(el.textContent).toBe("");
     }
   });

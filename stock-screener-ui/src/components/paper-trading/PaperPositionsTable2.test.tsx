@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { screen, within, waitFor, cleanup } from "@testing-library/react";
+import { screen, waitFor, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PaperPositionsTable } from "./PaperPositionsTable2";
 import { mockPosition } from "./testFixtures";
@@ -88,27 +88,6 @@ const mockBotSnapshot: PaperBotSnapshot = {
       status: "skipped",
       price: 4500,
       reason: "Low volume",
-      strategy_name: "ORB Strategy",
-      strategy_id: 1,
-    },
-  ],
-  signals: [{ symbol: "RELIANCE", side: "LONG", price: 2520, notes: "ORB breakout" }],
-};
-
-const mockBotSnapshotSignalsOnly: PaperBotSnapshot = {
-  timestamp: "2026-03-20T09:30:00Z",
-  watchlist: ["RELIANCE"],
-  open_positions: [],
-  scan_items: [
-    {
-      symbol: "RELIANCE",
-      status: "signal",
-      side: "LONG",
-      price: 2520,
-      or_high: 2525,
-      or_low: 2500,
-      or_range_pct: 1.0,
-      reason: "ORB breakout above 2525",
       strategy_name: "ORB Strategy",
       strategy_id: 1,
     },
@@ -503,8 +482,11 @@ describe("PaperPositionsTable", () => {
       const row = document.querySelector('[data-testid^="position-row-"]') as HTMLElement;
       expect(row).toBeInTheDocument();
       expect(row.textContent).toContain("<script>");
-      // Ensure innerHTML does not contain raw executable script tag (React escapes)
-      expect(row.innerHTML).not.toContain("<script>alert(1)</script>");
+      // No script element materializes in the row (symbol also rides inert,
+      // escaped attribute values like data-testid/aria-label)
+      expect(row.querySelector("script")).toBeNull();
+      // The text node is entity-escaped in the serialized HTML
+      expect(row.innerHTML).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
       // No script element created in DOM outside
       const scripts = document.querySelectorAll("script");
       // only original template scripts, not injected XSS

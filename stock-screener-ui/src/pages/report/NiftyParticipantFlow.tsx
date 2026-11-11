@@ -1,6 +1,5 @@
 import { memo, useMemo } from "react";
-import Box from "@mui/material/Box";
-import { Text } from "@/ui";
+import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { CompactPanel, CompactStat } from "@/components/common/compact";
 import { EmptyState } from "@/components/common/states";
@@ -70,7 +69,7 @@ function LegBar({
   const shares = legShares(writers, buyers, cover);
   const empty = shares.writers + shares.buyers + shares.cover <= 0;
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+    <Box className="flex items-center gap-[8px] min-w-0">
       <Text
         size="xs"
         span
@@ -83,39 +82,31 @@ function LegBar({
       <Box
         data-testid={`nifty-participant-flow-bar-${leg}`}
         title={`${leg.toUpperCase()} writers ${formatFlowRupees(writers)} · buyers ${formatFlowRupees(buyers)} · cover ${formatFlowRupees(cover)}`}
-        sx={{
-          flex: 1,
-          minWidth: 0,
-          height: 10,
-          borderRadius: 1,
-          overflow: "hidden",
-          display: "flex",
-          alignItems: "stretch",
-          bgcolor: "rgba(139, 148, 158, 0.15)",
-        }}
+        className="flex-1 min-w-0 h-[10px] rounded-[8px] overflow-hidden flex items-stretch"
+        style={{ backgroundColor: "rgba(139, 148, 158, 0.15)" }}
       >
         {!empty && shares.writers > 0 ? (
-          <Box
-            component="span"
+          <span
             data-testid={`nifty-participant-flow-${leg}-writers`}
             data-pct={Math.round(shares.writers)}
-            sx={{ width: `${shares.writers}%`, bgcolor: palette.NEGATIVE }}
+            className="block"
+            style={{ width: `${shares.writers}%`, backgroundColor: palette.NEGATIVE }}
           />
         ) : null}
         {!empty && shares.buyers > 0 ? (
-          <Box
-            component="span"
+          <span
             data-testid={`nifty-participant-flow-${leg}-buyers`}
             data-pct={Math.round(shares.buyers)}
-            sx={{ width: `${shares.buyers}%`, bgcolor: palette.POSITIVE }}
+            className="block"
+            style={{ width: `${shares.buyers}%`, backgroundColor: palette.POSITIVE }}
           />
         ) : null}
         {!empty && shares.cover > 0 ? (
-          <Box
-            component="span"
+          <span
             data-testid={`nifty-participant-flow-${leg}-cover`}
             data-pct={Math.round(shares.cover)}
-            sx={{ width: `${shares.cover}%`, bgcolor: palette.TERM_GAMMA }}
+            className="block"
+            style={{ width: `${shares.cover}%`, backgroundColor: palette.TERM_GAMMA }}
           />
         ) : null}
       </Box>
@@ -155,15 +146,9 @@ function NiftyParticipantFlowInner({ rows, bucketMin = 30 }: NiftyParticipantFlo
 
   return (
     <CompactPanel title="Participant flow — writers vs buyers" testId="nifty-participant-flow">
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
+      <Box className="flex flex-col gap-[8px] min-w-0">
         <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-            gap: 0.5,
-            width: "100%",
-            minWidth: 0,
-          }}
+          className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-[4px] w-full min-w-0"
         >
           <CompactStat
             data-testid="nifty-participant-flow-total-buyers"
@@ -189,29 +174,34 @@ function NiftyParticipantFlowInner({ rows, bucketMin = 30 }: NiftyParticipantFlo
         </Box>
         <Box
           data-testid="nifty-participant-flow-legend"
-          sx={{ display: "flex", alignItems: "center", gap: 1.25, flexWrap: "wrap", minWidth: 0 }}
+          className="flex items-center gap-[10px] flex-wrap min-w-0"
         >
           {[
             { name: "Writers", color: palette.NEGATIVE },
             { name: "Buyers", color: palette.POSITIVE },
             { name: "Cover", color: palette.TERM_GAMMA },
           ].map((e) => (
-            <Box key={e.name} sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
-              <Box component="span" aria-hidden sx={{ width: 8, height: 8, borderRadius: 1, bgcolor: e.color }} />
+            <Box key={e.name} className="inline-flex items-center gap-[4px]">
+              <span
+                component="span"
+                aria-hidden
+                className="block w-[8px] h-[8px] rounded-[8px]"
+                style={{ backgroundColor: e.color }}
+              />
               <Text size="xs" span c="dimmed">
                 {e.name}
               </Text>
             </Box>
           ))}
         </Box>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, minWidth: 0 }}>
+        <Box className="flex flex-col gap-[6px] min-w-0">
           {buckets.map((b) => (
             <Box
               key={b.label}
               data-testid="nifty-participant-flow-row"
-              sx={{ display: "flex", flexDirection: "column", gap: 0.25, minWidth: 0 }}
+              className="flex flex-col gap-[2px] min-w-0"
             >
-              <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, minWidth: 0 }}>
+              <Box className="flex items-baseline gap-[8px] min-w-0">
                 <Text size="xs" span fw={700} style={{ fontVariantNumeric: "tabular-nums" }}>
                   {b.label}
                 </Text>

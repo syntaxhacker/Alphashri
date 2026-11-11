@@ -69,7 +69,7 @@ describe("ScreenerHeader", () => {
     const refreshBtn = screen.getByTestId("refresh-btn");
     // MUI ActionIcon shows loading as disabled + progress indicator
     expect(refreshBtn).toBeDisabled();
-    expect(within(refreshBtn).getByRole("progressbar")).toBeInTheDocument();
+    expect(refreshBtn).toHaveAttribute("aria-busy", "true");
   });
 
   it("disables auto-refresh input when loading", () => {
@@ -118,15 +118,9 @@ describe("ScreenerHeader", () => {
       </UIProvider>,
     );
     const input = getNumberInput();
-    // fire change directly to avoid controlled component typing quirks
-    input.focus();
-    // @ts-ignore
-    input.value = "120";
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-    // also trigger via fireEvent for MUI TextField
-    const { fireEvent } = await import("@testing-library/react");
-    fireEvent.change(input, { target: { value: "120" } });
-    // onAutoRefreshChange should be called with numeric value; allow any call
+    const user = userEvent.setup();
+    await user.clear(input);
+    await user.type(input, "120");
     expect(defaultProps.onAutoRefreshChange).toHaveBeenCalled();
   });
 
@@ -148,11 +142,7 @@ describe("ScreenerHeader", () => {
         <ScreenerHeader {...defaultProps} />
       </UIProvider>,
     );
-    const combo = getCombobox("provider-select");
-    await user.click(combo);
-    // MUI renders options in portal; wait for option
-    const option = await screen.findByRole("option", { name: "IND" });
-    await user.click(option);
+    await user.selectOptions(getCombobox("provider-select"), "indmoney");
     expect(defaultProps.onProviderChange).toHaveBeenCalledWith("indmoney");
   });
 
@@ -172,10 +162,7 @@ describe("ScreenerHeader", () => {
         <ScreenerHeader {...defaultProps} />
       </UIProvider>,
     );
-    const combo = getCombobox("mode-select");
-    await user.click(combo);
-    const option = await screen.findByRole("option", { name: "5D" });
-    await user.click(option);
+    await user.selectOptions(getCombobox("mode-select"), "historical");
     expect(defaultProps.onModeChange).toHaveBeenCalledWith("historical");
   });
 
@@ -269,10 +256,7 @@ describe("ScreenerHeader", () => {
         <ScreenerHeader {...defaultProps} />
       </UIProvider>,
     );
-    const combo = getCombobox("provider-select");
-    await user.click(combo);
-    const option = await screen.findByRole("option", { name: "IND" });
-    await user.click(option);
+    await user.selectOptions(getCombobox("provider-select"), "indmoney");
     expect(defaultProps.onProviderChange).toHaveBeenCalledWith("indmoney");
   });
 
@@ -283,10 +267,7 @@ describe("ScreenerHeader", () => {
         <ScreenerHeader {...defaultProps} />
       </UIProvider>,
     );
-    const combo = getCombobox("mode-select");
-    await user.click(combo);
-    const option = await screen.findByRole("option", { name: "5D" });
-    await user.click(option);
+    await user.selectOptions(getCombobox("mode-select"), "historical");
     expect(defaultProps.onModeChange).toHaveBeenCalledWith("historical");
   });
 

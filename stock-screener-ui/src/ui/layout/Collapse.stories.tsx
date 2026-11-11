@@ -13,7 +13,7 @@ function CollapseDemo() {
       <Collapse in={open}>
         <div
           style={{
-            background: "var(--mui-palette-primary-light)",
+            background: "#80b5ff",
             padding: 16,
             borderRadius: 8,
           }}
@@ -43,7 +43,7 @@ export const OpenByDefault: Story = {
   args: {
     in: true,
     children: (
-      <div style={{ background: "var(--mui-palette-info-light)", padding: 16, borderRadius: 8 }}>
+      <div style={{ background: "#80b5ff", padding: 16, borderRadius: 8 }}>
         Always-open collapse content.
       </div>
     ),

@@ -50,21 +50,21 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
       id="bot-status-panel"
       className="bot-status-panel"
     >
-      <Stack spacing={1} gap="sm" sx={{ gap: 1, p: 1 }}>
+      <Stack spacing={1} gap="sm" className="gap-2 p-2">
         <Card
           elevation={1}
           padding="sm"
           radius="sm"
           id="bot-header-card"
           data-testid="bot-header-card"
-          sx={{ p: 1 }}
+          className="p-2"
         >
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
-            <Stack gap={1} sx={{ gap: 1 }}>
+          <Box className="flex items-center justify-between gap-2 p-2">
+            <Stack gap={1} className="gap-2">
               <Text fw={700} size="lg" c="primary.main" data-testid="bot-name">
                 {bot.name}
               </Text>
-              <Group gap={1} align="center" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Group gap={1} align="center" className="flex items-center gap-2">
                 <StatusBadge
                   running={status?.running ?? false}
                   pid={status?.pid ?? undefined}
@@ -82,7 +82,7 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
                 )}
               </Group>
             </Stack>
-            <Group gap={1} align="center" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Group gap={1} align="center" className="flex items-center gap-2">
               {status?.running ? (
                 <Button
                   leftSection={<IconPlayerStop size={16} />}
@@ -134,9 +134,9 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
             radius="md"
             id="portfolio-placeholder"
             data-testid="portfolio-placeholder"
-            sx={{ p: 1 }}
+            className="p-2"
           >
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+            <Box className="flex items-center justify-center p-2">
               <Text c="dimmed" ta="center">
                 Start the bot to see live portfolio data
               </Text>
@@ -145,9 +145,9 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
         )}
 
         {status?.strategies && (
-          <Stack spacing={1} gap={0} data-testid="strategies-status" sx={{ gap: 1, p: 1 }}>
-            <Group gap={1} align="center" mb="sm" sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-              <Box w={4} h={20} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.secondary.main })} />
+          <Stack spacing={1} gap={0} data-testid="strategies-status" className="gap-2 p-2">
+            <Group gap={1} align="center" mb="sm" className="flex items-center gap-2 p-2">
+              <Box w={4} h={20} className="rounded-sm bg-fin-text-muted" />
               <Text fw={600} size="sm">
                 Strategy Status
               </Text>

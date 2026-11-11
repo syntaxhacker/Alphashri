@@ -1,6 +1,5 @@
 import { memo } from "react";
 import { Text } from "@/ui";
-import Box from "@mui/material/Box";
 import { formatNumber, formatSignedPnl, getPnLTextColor } from "../../utils/ui-helpers";
 
 export interface Portfolio {
@@ -28,11 +27,19 @@ export const PaperPortfolioCard = memo(function PaperPortfolioCard({ portfolio }
   const pnlColor = getPnLTextColor(portfolio.day_pnl);
 
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, py: 0.5, flexWrap: "wrap" }} data-testid="portfolio-card" id="portfolio-card">
-      <Text size="xs" c="dimmed">Val ₹{formatNumber(portfolio.total_value)}</Text>
-      <Text size="xs" c="dimmed">Cash ₹{formatNumber(portfolio.cash)}</Text>
-      <Text size="xs" c="dimmed">Mrgn ₹{formatNumber(portfolio.margin_used)}</Text>
-      <Text size="xs" c={pnlColor} fw={500}>{formatSignedPnl(portfolio.day_pnl)}</Text>
-    </Box>
+    <div className="flex items-center gap-2 px-2 py-1 flex-wrap" data-testid="portfolio-card" id="portfolio-card">
+      <Text size="xs" c="dimmed">
+        Val ₹{formatNumber(portfolio.total_value)}
+      </Text>
+      <Text size="xs" c="dimmed">
+        Cash ₹{formatNumber(portfolio.cash)}
+      </Text>
+      <Text size="xs" c="dimmed">
+        Mrgn ₹{formatNumber(portfolio.margin_used)}
+      </Text>
+      <Text size="xs" c={pnlColor} fw={500}>
+        {formatSignedPnl(portfolio.day_pnl)}
+      </Text>
+    </div>
   );
 });

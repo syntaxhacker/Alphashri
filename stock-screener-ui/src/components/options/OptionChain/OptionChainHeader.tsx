@@ -1,5 +1,4 @@
-import { Select } from "@/ui";
-import Box from "@mui/material/Box";
+import { Select, Box } from "@/ui";
 
 export function OptionChainHeader({
   selectedUnderlying,
@@ -20,13 +19,15 @@ export function OptionChainHeader({
     <Box
       id="chain-header-controls"
       data-testid="options-chain-header-controls"
-      sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1, rowGap: 1 }}
+      className="flex items-center flex-wrap"
+      alignItems="center"
+      gap={1}
     >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: "1 1 160px", maxWidth: 280 }}>
-        <Box component="span" sx={{ minWidth: 64, fontSize: "0.75rem", color: "text.secondary", flexShrink: 0 }}>
+      <Box className="flex items-center" flex="1 1 160px" maw={280} gap={1}>
+        <span className="min-w-[64px] text-[0.75rem] text-fin-text-muted shrink-0">
           Underlying
-        </Box>
-        <Box sx={{ flex: 1, minWidth: 120, display: "flex", alignItems: "center" }}>
+        </span>
+        <Box className="flex items-center" flex="1" miw={120}>
           <Select
             value={selectedUnderlying}
             onChange={(val) => val && setUnderlying(val)}
@@ -35,11 +36,11 @@ export function OptionChainHeader({
           />
         </Box>
       </Box>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: "1 1 160px", maxWidth: 280 }}>
-        <Box component="span" sx={{ minWidth: 64, fontSize: "0.75rem", color: "text.secondary", flexShrink: 0 }}>
+      <Box className="flex items-center" flex="1 1 160px" maw={280} gap={1}>
+        <span className="min-w-[64px] text-[0.75rem] text-fin-text-muted shrink-0">
           Expiry
-        </Box>
-        <Box sx={{ flex: 1, minWidth: 120, display: "flex", alignItems: "center" }}>
+        </span>
+        <Box className="flex items-center" flex="1" miw={120}>
           <Select
             value={selectedExpiry}
             onChange={(val) => val && setExpiry(val)}

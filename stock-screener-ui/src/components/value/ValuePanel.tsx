@@ -82,7 +82,7 @@ export function ValuePanel({ initialFilters = {}, onRowClick, sectorOptions = []
 
   return (
     <CompactPanel testId="value-panel">
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+      <Box className="flex flex-col gap-1">
         <ToolbarRow justify="space-between" data-testid="value-header">
           <ToolbarRow gap={8}>
             <Text size="sm" fw={700} data-testid="value-title">
@@ -139,7 +139,7 @@ export function ValuePanel({ initialFilters = {}, onRowClick, sectorOptions = []
         {showLoading && (
           <Box
             data-testid="value-loading"
-            sx={{ display: "flex", alignItems: "center", gap: 1, py: 4, justifyContent: "center" }}
+            className="flex items-center justify-center gap-2 py-8"
           >
             <Loader size="sm" />
             <Text size="sm" c="dimmed">
@@ -153,7 +153,7 @@ export function ValuePanel({ initialFilters = {}, onRowClick, sectorOptions = []
           </Alert>
         )}
         {showEmpty && (
-          <Box data-testid="value-empty" sx={{ py: 4, textAlign: "center" }}>
+          <Box data-testid="value-empty" className="py-8 text-center">
             <Text size="sm" c="dimmed">
               No deep-value matches for these filters — loosen a gate or two.
             </Text>

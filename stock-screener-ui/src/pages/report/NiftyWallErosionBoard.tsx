@@ -1,5 +1,4 @@
-import Box from "@mui/material/Box";
-import { Text } from "@/ui";
+import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { WallsPayload, WallsRow } from "@/api/reportNifty";
 import { CompactPanel } from "@/components/common/compact";
@@ -125,15 +124,10 @@ function Stat({
   return (
     <Box
       component="span"
-      sx={{
-        display: hideBelowMd ? { xs: "none", md: "inline-flex" } : "inline-flex",
-        alignItems: "baseline",
-        gap: "2px",
-        minWidth: 0,
-        flexShrink: 0,
-      }}
+      className="inline-flex items-baseline gap-[2px] min-w-0 shrink-0"
+      style={{ display: hideBelowMd ? "none" : "inline-flex" }}
     >
-      <Text size="xs" c="dimmed" lh={1.1} sx={{ fontSize: REPORT_FONT.micro }}>
+      <Text size="xs" c="dimmed" lh={1.1} style={{ fontSize: REPORT_FONT.micro }}>
         {label}
       </Text>
       <Text
@@ -141,7 +135,7 @@ function Stat({
         fw={700}
         lh={1.1}
         c={tone}
-        sx={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}
+        className="tabular-nums whitespace-nowrap"
       >
         {value}
       </Text>
@@ -174,31 +168,25 @@ function ErosionRow({
       data-testid="wall-erosion-row"
       data-side={side}
       title={fuelPartsTooltip(row)}
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        flexWrap: "nowrap",
-        columnGap: 0.75,
-        minWidth: 0,
-        height: ROW_H,
-        flexShrink: 0,
-        overflow: "hidden",
+      className="flex items-center flex-nowrap min-w-0 shrink-0 overflow-hidden h-[24px]"
+      style={{
         borderTop: `1px solid ${palette.BORDER}`,
+        height: ROW_H,
       }}
     >
       {/* `display: contents` keeps the side wrapper out of the flex layout, so
           the row children stay direct flex items while the side testid still
           scopes the row's content. */}
-      <Box component="span" data-testid={testId} sx={{ display: "contents" }}>
+      <Box component="span" data-testid={testId} className="contents">
         <Text
           size="xs"
           fw={800}
           lh={1.1}
-          sx={{
+          className="tabular-nums whitespace-nowrap shrink-0"
+          style={{
             width: 108,
             flexShrink: 0,
             color: sideColor,
-            fontVariantNumeric: "tabular-nums",
             whiteSpace: "nowrap",
           }}
         >
@@ -206,9 +194,9 @@ function ErosionRow({
         </Text>
         <Box
           component="span"
-          sx={{
-            px: 0.4,
-            py: "1px",
+          className="inline-flex items-center justify-center shrink-0 whitespace-nowrap"
+          style={{
+            padding: "4px 2px",
             border: `1px solid ${statusColor}`,
             color: statusColor,
             borderRadius: `${REPORT_RADIUS.sm}px`,
@@ -216,8 +204,6 @@ function ErosionRow({
             fontWeight: 800,
             lineHeight: 1.2,
             letterSpacing: "0.06em",
-            whiteSpace: "nowrap",
-            flexShrink: 0,
           }}
         >
           {view.statusText}
@@ -226,11 +212,7 @@ function ErosionRow({
           size="xs"
           fw={700}
           lh={1.1}
-          sx={{
-            fontVariantNumeric: "tabular-nums",
-            whiteSpace: "nowrap",
-            flexShrink: 0,
-          }}
+          className="tabular-nums whitespace-nowrap shrink-0"
         >
           {distanceOf(row)}
         </Text>
@@ -247,15 +229,14 @@ function ErosionRow({
           size="xs"
           fw={800}
           lh={1.1}
-          sx={{
+          className="tabular-nums whitespace-nowrap shrink-0"
+          style={{
             color: flowColor,
             letterSpacing: "0.04em",
             whiteSpace: "nowrap",
             maxWidth: FLOW_MAX_W,
             overflow: "hidden",
             textOverflow: "ellipsis",
-            // Flexible field: it absorbs a tight row (ellipsis) instead of
-            // pushing the time-to-break cluster out of view.
             minWidth: 0,
             flexShrink: 1,
           }}
@@ -266,7 +247,8 @@ function ErosionRow({
           size="xs"
           fw={800}
           lh={1.1}
-          sx={{
+          className="tabular-nums whitespace-nowrap shrink-0"
+          style={{
             color: fuelColor,
             letterSpacing: "0.04em",
             whiteSpace: "nowrap",
@@ -277,16 +259,15 @@ function ErosionRow({
           {preBlast ? `PRE-BLAST ${view.fuelScore}` : `FUEL ${view.fuelScore}`}
         </Text>
         <Box
-          sx={{
-            ml: "auto",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "flex-end",
-            gap: 0.5,
+          className="ml-auto flex items-center justify-end"
+          style={{
             width: RIGHT_GROUP_W,
             minWidth: 0,
             flexShrink: 0,
             overflow: "hidden",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
           }}
         >
           {view.breached ? (
@@ -295,12 +276,8 @@ function ErosionRow({
                 size="xs"
                 fw={900}
                 lh={1.1}
-                sx={{
-                  color: palette.NEGATIVE,
-                  letterSpacing: "0.06em",
-                  whiteSpace: "nowrap",
-                  flexShrink: 0,
-                }}
+                className="whitespace-nowrap shrink-0"
+                style={{ color: palette.NEGATIVE, letterSpacing: "0.06em" }}
               >
                 BREACHED
               </Text>
@@ -308,14 +285,8 @@ function ErosionRow({
                 size="xs"
                 c="dimmed"
                 lh={1.1}
-                sx={{
-                  fontSize: REPORT_FONT.micro,
-                  minWidth: 0,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  flexShrink: 1,
-                }}
+                className="min-w-0 overflow-hidden truncate whitespace-nowrap shrink-0"
+                style={{ fontSize: REPORT_FONT.micro, minWidth: 0, flexShrink: 1 }}
               >
                 spot crossed
               </Text>
@@ -325,20 +296,15 @@ function ErosionRow({
               size="xs"
               c="dimmed"
               lh={1.1}
-              sx={{
-                fontVariantNumeric: "tabular-nums",
-                whiteSpace: "nowrap",
-                minWidth: 0,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                flexShrink: 1,
-              }}
+              className="tabular-nums whitespace-nowrap shrink-0 min-w-0 overflow-hidden truncate"
+              style={{ minWidth: 0, flexShrink: 1 }}
             >
               {hasTtb ? `${fmtTimeToBreak(ttb)} to break` : "—"}
             </Text>
           )}
           <Box
-            sx={{
+            className="flex items-center justify-end overflow-hidden shrink-0"
+            style={{
               width: SPARK_W,
               height: SPARK_H,
               flexShrink: 0,
@@ -346,7 +312,6 @@ function ErosionRow({
               alignItems: "center",
               justifyContent: "flex-end",
               overflow: "hidden",
-              "& svg": { width: SPARK_W, height: SPARK_H },
             }}
           >
             <Sparkline
@@ -382,23 +347,13 @@ export function NiftyWallErosionBoard({
       title="WALL EROSION"
       testId="wall-erosion-board"
       action={
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 0.6,
-            minWidth: 0,
-            flexWrap: "nowrap",
-            justifyContent: "flex-end",
-            overflow: "hidden",
-          }}
-        >
+        <Box className="flex items-center gap-[4px] min-w-0 flex-nowrap justify-end overflow-hidden">
           <Text
             size="xs"
             fw={800}
             lh={1.2}
             c="dimmed"
-            sx={{ whiteSpace: "nowrap", textTransform: "uppercase", flexShrink: 0 }}
+            className="whitespace-nowrap uppercase shrink-0"
           >
             {symbolLabel}
           </Text>
@@ -406,7 +361,7 @@ export function NiftyWallErosionBoard({
             size="xs"
             c="dimmed"
             lh={1.2}
-            sx={{ whiteSpace: "nowrap", flexShrink: 0 }}
+            className="whitespace-nowrap shrink-0"
           >
             as of {asOfText}
           </Text>
@@ -414,17 +369,15 @@ export function NiftyWallErosionBoard({
             component="span"
             data-testid={regime ? "wall-erosion-regime" : undefined}
             aria-hidden={regime ? undefined : true}
-            sx={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
+            className="inline-flex items-center justify-center shrink-0"
+            style={{
               width: REGIME_SLOT_W,
               height: REGIME_SLOT_H,
               flexShrink: 0,
               visibility: regime ? "visible" : "hidden",
               ...(regime
                 ? {
-                    px: 0.4,
+                    padding: "4px 2px",
                     border: `1px solid ${regimeColor}`,
                     color: regimeColor,
                     borderRadius: `${REPORT_RADIUS.sm}px`,
@@ -442,9 +395,8 @@ export function NiftyWallErosionBoard({
             size="xs"
             c="dimmed"
             lh={1.2}
-            sx={{
-              fontVariantNumeric: "tabular-nums",
-              whiteSpace: "nowrap",
+            className="tabular-nums whitespace-nowrap shrink-0"
+            style={{
               width: FLIP_SLOT_W,
               height: FLIP_SLOT_H,
               display: "flex",
@@ -464,15 +416,11 @@ export function NiftyWallErosionBoard({
         data-layout="fixed"
         data-rows="2"
         aria-busy={walls ? undefined : "true"}
-        title="OI erosion + volume + premium flow. PRE-BLAST = short gamma and the wall is being covered."
-        sx={{
-          position: "relative",
-          display: "flex",
-          flexDirection: "column",
+        title="OI erosion + volume + premium flow. PRE-BLAST = short gamma and the wall is being consumed."
+        className="relative flex flex-col min-w-0 overflow-hidden"
+        style={{
           height: ROW_H * 2 + 2,
           minHeight: ROW_H * 2 + 2,
-          overflow: "hidden",
-          minWidth: 0,
         }}
       >
         {/* Zero-size marker: the strip keeps its shape while the payload loads. */}
@@ -480,11 +428,10 @@ export function NiftyWallErosionBoard({
           <Box
             component="span"
             data-testid="wall-erosion-skeleton"
-            sx={{
-              position: "absolute",
+            className="absolute overflow-hidden"
+            style={{
               width: 0,
               height: 0,
-              overflow: "hidden",
               pointerEvents: "none",
             }}
           />

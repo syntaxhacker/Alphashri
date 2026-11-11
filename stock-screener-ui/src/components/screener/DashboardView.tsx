@@ -14,6 +14,7 @@ import {
   Text,
   TextInput,
   ToolbarRow,
+  cn,
 } from "@/ui";
 import { fetchScreenerDashboard } from "../../api/screenerDashboard";
 import type {
@@ -227,17 +228,10 @@ function RowDetail({ row, panelId }: { row: ScreenerDashboardRow; panelId: strin
   return (
     <Box
       data-testid={`dashboard-row-detail-${panelId}-${row.symbol}`}
-      sx={{
-        display: "grid",
-        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-        gap: 0.5,
-        px: 0.5,
-        py: 0.5,
-        fontVariantNumeric: "tabular-nums",
-      }}
+      className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-1 px-1 py-1 tabular-nums"
     >
       {items.map((item) => (
-        <Box key={item.testid} sx={{ minWidth: 0 }}>
+        <Box key={item.testid} className="min-w-0">
           <Text size="xs" c="dimmed" span data-testid={`dashboard-row-detail-${panelId}-${row.symbol}-${item.testid}-label`}>
             {item.label}
           </Text>
@@ -245,7 +239,7 @@ function RowDetail({ row, panelId }: { row: ScreenerDashboardRow; panelId: strin
             size="xs"
             span
             data-testid={`dashboard-row-detail-${panelId}-${row.symbol}-${item.testid}`}
-            sx={{ display: "block", fontVariantNumeric: "tabular-nums" }}
+            className="block tabular-nums"
           >
             {item.value}
           </Text>
@@ -300,7 +294,7 @@ function DashboardCard({
       flush
       style={{ minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}
       title={
-        <Box sx={{ width: "100%", display: "flex", flexDirection: "column", gap: 0.25, py: 0.25 }}>
+        <Box className="flex w-full flex-col gap-0.5 py-0.5">
           <ToolbarRow gap={4} wrap={false}>
             <Text
               size="xs"
@@ -309,7 +303,7 @@ function DashboardCard({
               span
               title={group.title}
               data-testid={`dashboard-card-title-${cardKey}`}
-              sx={{ flex: 1, minWidth: 0 }}
+              className="min-w-0 flex-1"
             >
               {group.title}
             </Text>
@@ -375,13 +369,13 @@ function DashboardCard({
       }
     >
       {shown.length === 0 ? (
-        <Box sx={{ px: 1, py: 1 }} data-testid={`dashboard-card-empty-${cardKey}`}>
+        <Box className="p-2" data-testid={`dashboard-card-empty-${cardKey}`}>
           <Text size="xs" c="dimmed">
             No stocks qualify
           </Text>
         </Box>
       ) : (
-        <Box sx={{ px: 1 }} data-testid={`dashboard-card-rows-${cardKey}`}>
+        <Box className="px-2" data-testid={`dashboard-card-rows-${cardKey}`}>
           {shown.map((row, idx) => {
             const isOpen = detailSymbol === row.symbol;
             return (
@@ -390,21 +384,15 @@ function DashboardCard({
                   data-testid={`dashboard-row-${activePanel.id}-${row.symbol}`}
                   data-symbol={row.symbol}
                   {...symbolRowProps(onOpenSymbol, row.symbol)}
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1,
-                    minWidth: 0,
-                    py: 0.25,
-                    borderBottom: isOpen || idx < shown.length - 1 ? 1 : 0,
-                    borderColor: "divider",
-                    cursor: symbolRowCursor(onOpenSymbol),
-                    fontVariantNumeric: "tabular-nums",
-                    "&:hover": onOpenSymbol ? { bgcolor: "action.hover" } : {},
-                  }}
+                  className={cn(
+                    "flex min-w-0 items-center gap-2 py-0.5 tabular-nums",
+                    isOpen || idx < shown.length - 1 ? "border-b border-fin-border" : undefined,
+                    onOpenSymbol ? "hover:bg-fin-surface-alt" : undefined,
+                  )}
+                  style={{ cursor: symbolRowCursor(onOpenSymbol) }}
                 >
                   <SymbolAvatar symbol={row.symbol} name={row.name} logo={row.logo} size={20} />
-                  <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 0 }}>
+                  <Box className="flex min-w-0 flex-1 flex-col gap-0">
                     <Text size="xs" fw={700} truncate span title={row.symbol} lh={1.1}>
                       {row.symbol}
                     </Text>
@@ -415,14 +403,9 @@ function DashboardCard({
                     ) : null}
                   </Box>
                   <Box
-                    sx={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "flex-end",
-                      flexShrink: 0,
-                    }}
+                    className="flex flex-shrink-0 flex-col items-end"
                   >
-                    <Text size="xs" ta="right" span lh={1.1} sx={{ fontVariantNumeric: "tabular-nums" }}>
+                    <Text size="xs" ta="right" span lh={1.1} className="tabular-nums">
                       {formatCurrency(row.close, 2)}
                     </Text>
                     <Text
@@ -431,7 +414,7 @@ function DashboardCard({
                       ta="right"
                       span
                       lh={1.1}
-                      sx={{ fontVariantNumeric: "tabular-nums" }}
+                      className="tabular-nums"
                     >
                       {formatPercentage(row.change)}
                     </Text>
@@ -460,9 +443,9 @@ function DashboardCard({
           })}
         </Box>
       )}
-      <Box sx={{ mt: "auto", borderTop: 1, borderColor: "divider" }}>
+      <Box className="mt-auto border-t border-fin-border">
         <ToolbarRow gap={4} wrap={false} clip>
-          <Box sx={{ flex: 1, minWidth: 0, px: 1, py: 0.75 }}>
+          <Box className="min-w-0 flex-1 px-2 py-1.5">
             <Text size="xs" c="dimmed" truncate span>
               {shown.length} of {activePanel.qualify} stocks qualify
             </Text>
@@ -605,10 +588,10 @@ export function DashboardView({ universe = "nifty500", onOpenSymbol, onOpenScan 
     <Box
       data-testid="screener-dashboard"
       data-universe={data?.universe ?? universe}
-      sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0, width: "100%", flex: 1 }}
+      className="flex w-full min-w-0 flex-1 flex-col gap-2"
     >
       <ToolbarRow gap={8} wrap={false}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box className="min-w-0 flex-1">
           {data ? (
             <Text size="xs" c="dimmed" truncate span>
               {data.universe} · {data.total} stocks · as of {formatTimeOnly(data.as_of)}
@@ -692,7 +675,7 @@ export function DashboardView({ universe = "nifty500", onOpenSymbol, onOpenScan 
       </ToolbarRow>
       {loading ? (
         <Box
-          sx={{ display: "flex", flexDirection: "column", gap: 1 }}
+          className="flex flex-col gap-2"
           data-testid="dashboard-loading"
         >
           <Skeleton h={16} />
@@ -701,13 +684,13 @@ export function DashboardView({ universe = "nifty500", onOpenSymbol, onOpenScan 
           <Skeleton h={16} />
         </Box>
       ) : error ? (
-        <Box sx={{ p: 1 }} data-testid="dashboard-error">
+        <Box className="p-2" data-testid="dashboard-error">
           <Text size="xs" c="error">
             {error}
           </Text>
         </Box>
       ) : sections.length === 0 ? (
-        <Box sx={{ p: 1 }} data-testid="dashboard-empty">
+        <Box className="p-2" data-testid="dashboard-empty">
           <Text size="xs" c="dimmed">
             No dashboard data
           </Text>
@@ -729,7 +712,7 @@ export function DashboardView({ universe = "nifty500", onOpenSymbol, onOpenScan 
             <Box
               key={section.id}
               data-testid={`dashboard-section-${section.id}`}
-              sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0, width: "100%" }}
+              className="flex w-full min-w-0 flex-col gap-2"
             >
               <ToolbarRow gap={8} wrap={false}>
                 <Text size="sm" fw={700} span>
@@ -740,17 +723,7 @@ export function DashboardView({ universe = "nifty500", onOpenSymbol, onOpenScan 
                 </Text>
               </ToolbarRow>
               <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: {
-                    xs: "1fr",
-                    sm: "repeat(2, minmax(0, 1fr))",
-                    lg: "repeat(4, minmax(0, 1fr))",
-                  },
-                  gap: 1,
-                  minWidth: 0,
-                  width: "100%",
-                }}
+                className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4"
               >
                 {groups.map((group) => (
                   <DashboardCard

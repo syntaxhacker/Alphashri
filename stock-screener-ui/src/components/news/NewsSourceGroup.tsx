@@ -24,10 +24,7 @@ export function NewsSourceGroup({
         gap="xs"
         align="center"
         p="xs"
-        sx={{
-          borderRadius: 1,
-          bgcolor: "action.hover",
-        }}
+        className="rounded-sm bg-fin-surface-alt"
         onClick={onToggle}
         data-testid={`news-source-group-${source}`}
       >

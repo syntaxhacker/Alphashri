@@ -291,12 +291,8 @@ export function SimPayoff({
     return (
       <Box
         data-testid="sim-payoff-empty"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: height,
-        }}
+        className="flex items-center justify-center"
+        style={{ minHeight: height }}
       >
         <Text size="sm" c="dimmed">
           Run the desk to see the expiry payoff
@@ -314,37 +310,19 @@ export function SimPayoff({
   return (
     <Box
       data-testid="sim-payoff"
-      sx={{
-        position: "relative",
-        display: "flex",
-        flexDirection: "column",
-        flex: 1,
-        minHeight: 0,
-        minWidth: 0,
-        gap: 1,
-      }}
+      className="relative flex flex-col flex-1 min-h-0 min-w-0 gap-2"
     >
       <Box
         ref={chartRef}
         data-testid="sim-payoff-chart"
-        sx={{ width: "100%", height, flex: "0 0 auto", minWidth: 0 }}
+        className="w-full flex-[0_0_auto] min-w-0"
+        style={{ height }}
       />
       {!entered ? (
         <Box
           data-testid="sim-payoff-not-entered"
-          sx={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 2,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 0.75,
-            px: 2,
-            textAlign: "center",
-            bgcolor: palette.TERM_BG,
-          }}
+          className="absolute inset-0 z-[2] flex flex-col items-center justify-center gap-1.5 px-4 text-center"
+          style={{ backgroundColor: palette.TERM_BG }}
         >
           <Badge color="warning" variant="outline" size="xs">
             NOT ENTERED

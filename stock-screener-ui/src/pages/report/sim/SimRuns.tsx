@@ -1,6 +1,6 @@
-import { useEffect, useMemo } from "react";
-import Box from "@mui/material/Box";
+import { useEffect, useMemo, type CSSProperties } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { Box } from "@/ui";
 import { Text } from "@/ui";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { CompactStat, CompactStatGrid } from "@/components/common/compact";
@@ -32,7 +32,7 @@ function structureText(trade: SimTrade): string {
 
 function Num({ value, color }: { value: string; color?: string }) {
   return (
-    <Text span size="xs" sx={{ fontFamily: palette.MONO, color }}>
+    <Text span size="xs" style={{ fontFamily: palette.MONO, color }}>
       {value}
     </Text>
   );
@@ -109,7 +109,7 @@ export function SimRuns({ strategy, view, asOf }: SimRunsProps) {
               span
               size="xs"
               fw={open ? 700 : 400}
-              sx={{ fontFamily: palette.MONO, color: open ? palette.TERM_FLIP : palette.TEXT }}
+              style={{ fontFamily: palette.MONO, color: open ? palette.TERM_FLIP : palette.TEXT }}
             >
               {open ? "OPEN" : fmtTime(trade.exitTime)}
             </Text>
@@ -122,7 +122,7 @@ export function SimRuns({ strategy, view, asOf }: SimRunsProps) {
         size: 168,
         meta: { align: "left" },
         cell: (info) => (
-          <Text span size="xs" sx={{ minWidth: 0 }} title={structureText(info.row.original)}>
+          <Text span size="xs" style={{ minWidth: 0 }} title={structureText(info.row.original)}>
             {structureText(info.row.original)}
           </Text>
         ),
@@ -190,7 +190,7 @@ export function SimRuns({ strategy, view, asOf }: SimRunsProps) {
         cell: (info) => {
           const reason = String(info.getValue() ?? "");
           return (
-            <Text span size="xs" c="dimmed" sx={{ whiteSpace: "normal" }}>
+            <Text span size="xs" c="dimmed" style={{ whiteSpace: "normal" }}>
               {reason || "—"}
             </Text>
           );
@@ -214,10 +214,7 @@ export function SimRuns({ strategy, view, asOf }: SimRunsProps) {
   const stats = view?.stats ?? strategy?.stats;
 
   return (
-    <Box
-      data-testid="sim-runs"
-      sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}
-    >
+    <div data-testid="sim-runs" className="flex flex-col gap-1 min-w-0">
       <CompactStatGrid cols={5} spacing={4}>
         <CompactStat dense label="Trades" value={Number.isFinite(stats?.trades) ? String(stats?.trades) : "—"} />
         <CompactStat
@@ -248,42 +245,25 @@ export function SimRuns({ strategy, view, asOf }: SimRunsProps) {
         <CompactStat dense label="Max DD" value={fmtInr(stats?.maxDrawdown)} tone="negative" />
       </CompactStatGrid>
 
-      <Box
-        sx={{
-          border: `1px solid ${palette.BORDER}`,
-          borderRadius: 1,
-          minWidth: 0,
-          overflow: "hidden",
-        }}
+      <div
+        className="border border-fin-border rounded-fin min-w-0 overflow-hidden"
       >
         {equity.length === 0 ? (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: 120 }}>
+          <div className="flex items-center justify-center h-[120px]">
             <Text size="xs" c="dimmed">
               No equity curve yet — run the desk
             </Text>
-          </Box>
+          </div>
         ) : (
-          <Box ref={chartRef} data-testid="sim-equity-chart" sx={{ height: 180, width: "100%" }} />
+          <div ref={chartRef} data-testid="sim-equity-chart" className="h-[180px] w-full" />
         )}
-      </Box>
+      </div>
 
+      {/* The TanStackTable shared component renders its own bordered paper
+        container; theme it to the desk surface via descendant selectors. */}
       <Box
-        sx={{
-          minWidth: 0,
-          "& .paper-tanstack-container": {
-            bgcolor: `${palette.TERM_BG} !important`,
-            border: "none !important",
-          },
-          "& .paper-tanstack-scroll, & .paper-tanstack-table": {
-            bgcolor: `${palette.TERM_BG} !important`,
-          },
-          "& .sim-row-win .paper-tanstack-cell": {
-            bgcolor: `${palette.TINT_POSITIVE} !important`,
-          },
-          "& .sim-row-loss .paper-tanstack-cell": {
-            bgcolor: `${palette.TINT_NEGATIVE} !important`,
-          },
-        }}
+        className="min-w-0 [&_.paper-tanstack-container]:[background:var(--desk-bg)]! [&_.paper-tanstack-container]:[border:none]! [&_.paper-tanstack-scroll]:[background:var(--desk-bg)]! [&_.paper-tanstack-table]:[background:var(--desk-bg)]! [&_.sim-row-win_.paper-tanstack-cell]:[background:var(--tint-pos)]! [&_.sim-row-loss_.paper-tanstack-cell]:[background:var(--tint-neg)]!"
+        style={{ "--desk-bg": palette.TERM_BG, "--tint-pos": palette.TINT_POSITIVE, "--tint-neg": palette.TINT_NEGATIVE } as CSSProperties}
       >
         <TanStackTable<SimTrade>
           data={trades}
@@ -297,7 +277,7 @@ export function SimRuns({ strategy, view, asOf }: SimRunsProps) {
           getRowClassName={(trade) => (trade.netPnl >= 0 ? "sim-row-win" : "sim-row-loss")}
         />
       </Box>
-    </Box>
+    </div>
   );
 }
 

@@ -1,14 +1,11 @@
+import "./tailwind.css";
+import "@/ui/tailwindSafelist";
 import "./style.css";
 import * as Sentry from "@sentry/react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { Provider } from "react-redux";
-import { CacheProvider } from "@emotion/react";
-import { ThemeProvider } from "@mui/material/styles";
-import CssBaseline from "@mui/material/CssBaseline";
 import { SnackbarProvider } from "notistack";
-import { emotionCache } from "@/ui/emotionCache";
-import { muiTheme } from "@/ui/muiTheme";
 import App from "./App";
 import { store } from "./state/store";
 import "@/ui/styles.css";
@@ -41,15 +38,10 @@ if (!root) {
 
   createRoot(root).render(
   <Provider store={store}>
-    <CacheProvider value={emotionCache}>
-    <ThemeProvider theme={muiTheme} defaultMode="dark" modeStorageKey="mui-color-scheme" colorSchemeStorageKey="mui-color-scheme">
-      <CssBaseline />
-      <SnackbarProvider maxSnack={3} anchorOrigin={{ vertical: "bottom", horizontal: "right" }} autoHideDuration={4000}>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </SnackbarProvider>
-    </ThemeProvider>
-    </CacheProvider>
+    <SnackbarProvider maxSnack={3} anchorOrigin={{ vertical: "bottom", horizontal: "right" }} autoHideDuration={4000}>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </SnackbarProvider>
   </Provider>,
 );

@@ -1,6 +1,7 @@
-import { Group, Stack, Box, Text } from "@/ui";
+import { Group, Stack, Text } from "@/ui";
 import type { BotSummary } from "../../types/paperTrading";
 import { BOT_SELECTED_BG } from "../../config/colors";
+import * as palette from "@/ui/palette";
 
 interface BotCardStripProps {
   bots: BotSummary[];
@@ -17,30 +18,23 @@ export function BotCardStrip({ bots, selectedBotId, onSelect }: BotCardStripProp
         const isSelected = bot.id === selectedBotId;
         const isRunning = bot.running;
         return (
-          <Box
+          <div
             key={bot.id}
-            p={4}
+            className="p-8"
             data-testid={`bot-card-${bot.id}`}
-            sx={() => ({
+            style={{
               cursor: bot.is_active ? "pointer" : "default",
               borderRadius: 6,
               background: isSelected ? BOT_SELECTED_BG : "transparent",
               opacity: bot.is_active ? 1 : 0.5,
-            })}
+            }}
             onClick={() => {
               if (bot.is_active && !isSelected) onSelect(bot.id);
             }}
           >
-            <Stack gap={1}>
-              <Group gap={4}>
-                <Box
-                  sx={(theme) => ({
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: isRunning ? theme.palette.success.main : theme.palette.grey[500],
-                  })}
-                />
+            <Stack className="gap-2">
+              <Group className="gap-8">
+                <div className="size-2 rounded-full shrink-0" style={{ background: isRunning ? palette.POSITIVE : palette.BORDER }} />
                 <Text size="sm" fw={500}>
                   {bot.name}
                 </Text>
@@ -49,7 +43,7 @@ export function BotCardStrip({ bots, selectedBotId, onSelect }: BotCardStripProp
                 {bot.position_count} position{bot.position_count !== 1 ? "s" : ""}
               </Text>
             </Stack>
-          </Box>
+          </div>
         );
       })}
     </Group>

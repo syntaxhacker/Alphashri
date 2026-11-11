@@ -29,7 +29,7 @@ describe("NiftyDeskGuide", () => {
     // Content-hugging compact dialog (not the full 88vh research shell).
     expect(screen.getByTestId("panel-modal")).toHaveAttribute("data-compact", "true");
     const modal = screen.getByTestId("nifty-help-modal");
-    expect(modal).toHaveStyle({ display: "grid", gap: "8px" });
+    expect(modal).toHaveClass("grid", "gap-2");
     for (const entry of DESK_GUIDE_ENTRIES) {
       expect(within(modal).getByText(entry.term)).toBeInTheDocument();
     }

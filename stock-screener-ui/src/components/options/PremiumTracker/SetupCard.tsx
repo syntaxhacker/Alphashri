@@ -1,7 +1,8 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { useMemo, useState } from "react";
-import Box from "@mui/material/Box";
+import { Box } from "@/ui";
 import { Badge, Button, Divider, NumberInput, Select, Text, TextInput, ToolbarRow } from "@/ui";
+import * as palette from "@/ui/palette";
 import { PayoffChart } from "./PayoffChart";
 import {
   breakevens,
@@ -58,16 +59,15 @@ export function SetupCard({ setup, spot, ltpOf, onUpdateLeg, onDeleteSetup, onPa
   return (
     <Box
       data-testid={`setup-card-${setup.id}`}
-      sx={{
-        width: 460,
+      w={460}
+      style={{
         flexShrink: 0,
-        border: "1px solid",
-        borderColor: glow ? "warning.main" : "divider",
+        border: `1px solid ${glow ? palette.WARNING : palette.BORDER}`,
         borderRadius: 1,
-        p: 1,
+        padding: 8,
         display: "flex",
         flexDirection: "column",
-        gap: 1,
+        gap: 8,
       }}
     >
       <ToolbarRow justify="space-between" data-testid={`setup-header-${setup.id}`}>
@@ -76,7 +76,7 @@ export function SetupCard({ setup, spot, ltpOf, onUpdateLeg, onDeleteSetup, onPa
         </Text>
         <ToolbarRow gap={4}>
           <Badge color="default" size="xs">{setup.underlying}</Badge>
-          <Button size="sm" sx={ROW_BUTTON_SX} onClick={() => onDeleteSetup(setup.id)} data-testid={`setup-delete-${setup.id}`}>
+          <Button size="sm" style={{ ...ROW_BUTTON_SX }} onClick={() => onDeleteSetup(setup.id)} data-testid={`setup-delete-${setup.id}`}>
             Del
           </Button>
         </ToolbarRow>
@@ -85,7 +85,7 @@ export function SetupCard({ setup, spot, ltpOf, onUpdateLeg, onDeleteSetup, onPa
       {legs.map((leg) => {
         const ltp = ltpOf(leg.strike, leg.optionType);
         return (
-          <Box key={leg.legId} data-testid={`setup-leg-${leg.legId}`} sx={{ width: "100%" }}>
+          <Box key={leg.legId} data-testid={`setup-leg-${leg.legId}`} w="100%">
             <ToolbarRow gap={4}>
               <Select
                 w={FIELD_W.action}
@@ -168,7 +168,7 @@ export function SetupCard({ setup, spot, ltpOf, onUpdateLeg, onDeleteSetup, onPa
           onChange={(v) => setPlan(String(v))}
           data-testid={`setup-plan-${setup.id}`}
         />
-        <Button size="sm" sx={ROW_BUTTON_SX} onClick={() => onPaperFill(setup, { conviction, plan })} data-testid={`setup-fill-${setup.id}`}>
+        <Button size="sm" style={{ ...ROW_BUTTON_SX }} onClick={() => onPaperFill(setup, { conviction, plan })} data-testid={`setup-fill-${setup.id}`}>
           Paper fill
         </Button>
       </ToolbarRow>

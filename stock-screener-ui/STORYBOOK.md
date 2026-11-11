@@ -8,7 +8,7 @@ Five layers. Dependencies point downward only — a Pattern may use Primitives; 
 
 ```
 src/
-├── ui/                    # L1+L2: primitives (MUI wrappers) — barrel @/ui
+├── ui/                    # L1+L2: primitives (Tailwind components) — barrel @/ui
 │   ├── palette.ts         #   design tokens (colors) — SINGLE SOURCE OF TRUTH
 │   ├── theme.tsx          #   theme assembly (scales, semantic virtualColors)
 │   ├── types.ts           #   UI*Props contracts
@@ -23,7 +23,7 @@ src/
 | Layer | Location | May import | Story title |
 |---|---|---|---|
 | Tokens | `ui/palette.ts`, `ui/theme.tsx` | nothing | `Foundations/*` |
-| Primitives | `src/ui/**` | tokens, MUI | `Primitives/<Category>/<Name>` |
+| Primitives | `src/ui/**` | tokens, Tailwind | `Primitives/<Category>/<Name>` |
 | Composites | `components/common/**` | primitives | `Composites/<Name>` |
 | Patterns | `components/patterns/**` (future) | composites | `Patterns/<Name>` |
 | Feature examples | feature stories | anything | `Examples/<Feature>/<Name>` |
@@ -61,19 +61,19 @@ Storybook is the SSOT for UI usage. Each component documents inline (JSDoc above
 
 ## 5. Design Token Strategy
 
-- Colors: `src/ui/palette.ts` — raw anchors + MUI theme tokens + semantic aliases (`POSITIVE`, `NEGATIVE`, `PRIMARY`). Hardcoded hex in components = review-blocking.
+- Colors: `src/ui/palette.ts` — raw anchors + Tailwind theme tokens + semantic aliases (`POSITIVE`, `NEGATIVE`, `PRIMARY`). Hardcoded hex in components = review-blocking.
 - Spacing/radius/shadows: scale names only (`xs…xl`); arbitrary px only inside chart internals.
 - White-label future: scales are plain arrays — swap tuples per theme; `virtualColor`s handle light/dark automatically. Zero component changes needed.
 
 ## 6. Theme Strategy
 
-`.storybook/preview.tsx` wraps every story in MUI's `ThemeProvider` with a Light/Dark toolbar toggle (default Light). Components must render correctly in both. Literal colors must come from `palette.ts`, never inline.
+`.storybook/preview.tsx` wraps every story with a Light/Dark toolbar toggle (default Light). Components must render correctly in both. Literal colors must come from `palette.ts`, never inline.
 
 ## 7. Accessibility
 
 - `@storybook/addon-a11y` runs axe on every story (panel + CI via test runner).
 - Interactive primitives carry a keyboard map in their docs description.
-- Form controls require visible labels or `aria-label`; error states use the wrapper's `error` prop (MUI wires `aria-invalid`).
+- Form controls require visible labels or `aria-label`; error states use the wrapper's `error` prop (the local input wires `aria-invalid`).
 - Policy: serious/critical axe violations fail CI; minor need a waiver comment.
 
 ## 8. Interaction Testing
@@ -127,7 +127,7 @@ Before merge:
 - [ ] All important states covered (disabled / loading / error / empty / long content)
 - [ ] At least one play() interaction where behavior matters
 - [ ] `vitest` specs co-located (`*.test.tsx`) still pass
-- [ ] No hardcoded Hex outside `palette.ts`; no `@mui/material` import outside `src/ui`
+- [ ] No hardcoded Hex outside `palette.ts`; no MUI/Emotion imports anywhere
 - [ ] Renders correctly in Light + Dark; viewport 375/768/1280 checked
 
 ## 17. Developer Experience

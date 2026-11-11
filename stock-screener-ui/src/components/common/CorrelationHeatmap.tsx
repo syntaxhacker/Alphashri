@@ -169,7 +169,7 @@ export function CorrelationHeatmap({
     <Box pos="relative" style={{ minHeight }}>
       <Box data-testid={testId} ref={chartRef} style={{ minHeight, opacity: hasData ? 1 : 0 }} />
       {isLoading && (
-        <Flex pos="absolute" inset={0} justify="center" align="center" style={{ zIndex: 1 }}>
+        <Flex pos="absolute" top={0} right={0} bottom={0} left={0} justify="center" align="center" style={{ zIndex: 1 }}>
           <Stack align="center" gap="xs">
             <Loader size="sm" />
             <Text size="sm" c="dimmed">
@@ -179,7 +179,7 @@ export function CorrelationHeatmap({
         </Flex>
       )}
       {!isLoading && !hasData && (
-        <Flex pos="absolute" inset={0} justify="center" align="center">
+        <Flex pos="absolute" top={0} right={0} bottom={0} left={0} justify="center" align="center">
           <Text size="sm" c="dimmed">
             No correlation data available
           </Text>

@@ -1,41 +1,30 @@
-import MuiBadge from "@mui/material/Badge";
-import Box from "@mui/material/Box";
+import { cn } from "../cn";
+import * as palette from "../palette";
 import type { UIIndicatorProps } from "../types";
 
-function mapColor(color: UIIndicatorProps["color"]): "primary" | "secondary" | "success" | "error" | "warning" | "info" | "default" {
-  if (!color) return "primary";
-  switch (color) {
-    case "success":
-      return "success";
-    case "error":
-    case "danger":
-      return "error";
-    case "warning":
-      return "warning";
-    case "info":
-      return "info";
-    case "secondary":
-      return "secondary";
-    case "primary":
-      return "primary";
-    default:
-      return "primary";
-  }
+const COLOR_MAIN: Record<string, string> = {
+  primary: palette.PRIMARY,
+  success: palette.POSITIVE_COLOR,
+  error: palette.NEGATIVE_COLOR,
+  danger: palette.NEGATIVE_COLOR,
+  warning: palette.WARNING,
+  info: palette.INFO,
+  secondary: palette.TEXT_MUTED,
+  default: palette.TEXT_MUTED,
+};
+
+function resolveColor(color: UIIndicatorProps["color"]): string {
+  if (!color) return palette.PRIMARY;
+  if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl")) return color;
+  return COLOR_MAIN[color] ?? palette.PRIMARY;
 }
 
-function mapAnchor(position: UIIndicatorProps["position"]): { vertical: "top" | "bottom"; horizontal: "left" | "right" } {
-  switch (position) {
-    case "top-start":
-      return { vertical: "top", horizontal: "left" };
-    case "bottom-start":
-      return { vertical: "bottom", horizontal: "left" };
-    case "bottom-end":
-      return { vertical: "bottom", horizontal: "right" };
-    case "top-end":
-    default:
-      return { vertical: "top", horizontal: "right" };
-  }
-}
+const ANCHOR: Record<string, { top?: number; right?: number; bottom?: number; left?: number }> = {
+  "top-start": { top: 0, left: 0 },
+  "bottom-start": { bottom: 0, left: 0 },
+  "bottom-end": { bottom: 0, right: 0 },
+  "top-end": { top: 0, right: 0 },
+};
 
 export function Indicator({
   label,
@@ -44,7 +33,7 @@ export function Indicator({
   offset,
   disabled,
   processing,
-  position,
+  position = "top-end",
   children,
   className,
   style,
@@ -54,47 +43,39 @@ export function Indicator({
 }: UIIndicatorProps) {
   if (disabled) return <>{children}</>;
 
-  const muiColor = mapColor(color);
-  const anchor = mapAnchor(position);
+  const col = resolveColor(color);
+  const dotSize = size ?? 8;
+  const anchor = ANCHOR[position] ?? ANCHOR["top-end"];
+  const transform = offset != null ? `translate(${offset}px, ${-offset}px)` : undefined;
 
   return (
-    <MuiBadge
-      badgeContent={label}
-      color={muiColor as never}
-      invisible={disabled}
-      overlap="circular"
-      anchorOrigin={anchor}
-      className={className}
-      style={style}
-      id={id}
+    <span
       data-testid={testId}
-      sx={{
-        "& .MuiBadge-badge": {
-          ...(size != null ? { minWidth: size, height: size, fontSize: size * 0.5 } : {}),
-          ...(offset != null ? { transform: `translate(${offset}px, -${offset}px)` } : {}),
-          ...(processing
-            ? {
-                "&::after": {
-                  content: '""',
-                  position: "absolute",
-                  inset: 0,
-                  borderRadius: "50%",
-                  border: 1,
-                  borderColor: "inherit",
-                  animation: "mui-indicator-ping 1.2s cubic-bezier(0,0,0.2,1) infinite",
-                },
-                "@keyframes mui-indicator-ping": {
-                  "75%, 100%": { transform: "scale(1.8)", opacity: 0 },
-                },
-              }
-            : {}),
-        },
-      }}
-      {...(rest as Record<string, unknown>)}
+      id={id}
+      className={cn("relative inline-block shrink-0", className)}
+      style={style}
+      {...rest}
     >
-      <Box component="span" sx={{ display: "inline-flex" }}>
-        {children}
-      </Box>
-    </MuiBadge>
+      {children}
+      <span
+        className="absolute rounded-full flex items-center justify-center shrink-0"
+        style={{
+          ...anchor,
+          width: dotSize,
+          height: dotSize,
+          backgroundColor: col,
+          transform,
+          ...(label != null ? { color: palette.BG, fontSize: Math.max(6, dotSize * 0.5), fontWeight: 600 } : {}),
+        }}
+      >
+        {label != null ? <span style={{ position: "relative", zIndex: 1 }}>{label}</span> : null}
+        {processing && (
+          <span
+            className="animate-ping border shrink-0 absolute inset-0 rounded-full"
+            style={{ borderColor: col, opacity: 0.5, animationDuration: "1.2s" }}
+          />
+        )}
+      </span>
+    </span>
   );
 }

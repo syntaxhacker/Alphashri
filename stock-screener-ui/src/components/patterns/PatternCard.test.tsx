@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
+import { PATTERN_CONFIRMED, PATTERN_FAILED } from "@/ui/palette";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { PatternCard } from "./PatternCard";
 
@@ -349,7 +350,8 @@ describe("PatternCard missing coverage", () => {
     const loss = r(<PatternCard hit={{ ...HIT, last_close: 118, day_change_pct: -1.25 }} />);
     const lossEl = loss.getByText("-1.25%");
     expect(lossEl).toBeInTheDocument();
-    expect(gainEl.className).not.toBe(lossEl.className);
+    expect(gainEl.style.color).toBe(PATTERN_CONFIRMED);
+    expect(lossEl.style.color).toBe(PATTERN_FAILED);
   });
 
   test("uses the singular candle label when bars_ago is 1", () => {

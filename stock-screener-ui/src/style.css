@@ -10,8 +10,8 @@
 
 body {
   font: var(--font-size-sm) var(--font-family);
-  background: var(--mui-palette-background-default);
-  color: var(--mui-palette-text-primary);
+  background: var(--color-fin-bg);
+  color: var(--color-fin-text);
   -webkit-font-smoothing: antialiased;
 }
 body[data-color-scheme="light"] { color-scheme: light; }
@@ -28,7 +28,7 @@ body[data-color-scheme="dark"] { color-scheme: dark; }
 .price-flash-up { animation: flash-up 0.6s ease-out; border-radius: 4px; }
 .price-flash-down { animation: flash-down 0.6s ease-out; border-radius: 4px; }
 @keyframes flash-chg {
-  0% { background-color: color-mix(in srgb, var(--mui-palette-info-main) 16%, transparent); }
+  0% { background-color: color-mix(in srgb, var(--color-fin-info) 16%, transparent); }
   100% { background-color: transparent; }
 }
 .price-flash-chg { animation: flash-chg 0.6s ease-out; border-radius: 4px; }
@@ -39,13 +39,13 @@ body[data-color-scheme="dark"] { color-scheme: dark; }
 /* Active/selected row highlight (paper trade history, backtest, replay).
    Targets the td because each cell sets its own background via sx. */
 .trade-row-highlighted td {
-  background-color: color-mix(in srgb, var(--mui-palette-primary-main) 18%, var(--mui-palette-background-paper)) !important;
+  background-color: color-mix(in srgb, var(--color-fin-primary) 18%, var(--color-fin-surface)) !important;
 }
 .trade-row-highlighted td:first-child {
-  box-shadow: inset 3px 0 0 0 var(--mui-palette-primary-main);
+  box-shadow: inset 3px 0 0 0 var(--color-fin-primary);
 }
 .trade-row-highlighted:hover td {
-  background-color: color-mix(in srgb, var(--mui-palette-primary-main) 26%, var(--mui-palette-background-paper)) !important;
+  background-color: color-mix(in srgb, var(--color-fin-primary) 26%, var(--color-fin-surface)) !important;
 }
 
 
@@ -69,3 +69,11 @@ body[data-color-scheme="dark"] { color-scheme: dark; }
     transition: none !important;
   }
 }
+
+/* Critical OI-burst badge pulse (NiftyReportPanel). */
+@keyframes nifty-critical-pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.4; }
+  100% { opacity: 1; }
+}
+.nifty-critical-pulse { animation: nifty-critical-pulse 1.2s ease-in-out infinite; }

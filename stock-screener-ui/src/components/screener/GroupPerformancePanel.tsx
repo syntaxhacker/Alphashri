@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import Paper from "@mui/material/Paper";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
-import { ActionIcon, Box, Button, Select, Skeleton, Text, ToolbarRow } from "@/ui";
-import { BORDER, SURFACE } from "@/ui/palette";
+import { ActionIcon, Box, Button, Paper, Select, Skeleton, Text, ToolbarRow } from "@/ui";
+import { cn } from "@/ui/cn";
 import { fetchSectorGroups } from "../../api/sector";
 import type { SectorClassify, SectorGroup, SectorPeriod } from "../../types/sector";
 import { formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
@@ -70,22 +69,11 @@ export function GroupPerformancePanel({
   if (collapsed) {
     return (
       <Paper
-        elevation={0}
+        radius={2}
         data-testid="group-performance-panel"
         data-collapsed="true"
-        sx={{
-          width: 32,
-          flexShrink: 0,
-          minHeight: 0,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          py: 1,
-          border: 1,
-          borderColor: BORDER,
-          borderRadius: 2,
-          bgcolor: SURFACE,
-        }}
+        w={32}
+        className="flex-shrink-0 min-h-0 flex flex-col items-center py-2 border border-fin-border"
       >
         <ActionIcon
           size="xs"
@@ -101,28 +89,18 @@ export function GroupPerformancePanel({
 
   return (
     <Paper
-      elevation={0}
+      radius={2}
       data-testid="group-performance-panel"
       data-collapsed="false"
-      sx={{
-        width,
-        flexShrink: 0,
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        border: 1,
-        borderColor: BORDER,
-        borderRadius: 2,
-        bgcolor: SURFACE,
-      }}
+      w={width}
+      className="flex-shrink-0 min-h-0 flex flex-col overflow-hidden border border-fin-border"
     >
       <ToolbarRow gap={4} clip data-testid="group-performance-header" wrap={false}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0, px: 1, pt: 1, width: "100%" }}>
-          <Text size="xs" fw={600} c="dimmed" tt="uppercase" span sx={{ flexShrink: 0 }}>
+        <Box className="flex items-center gap-0 px-2 pt-2 w-full">
+          <Text size="xs" fw={600} c="dimmed" tt="uppercase" span className="flex-shrink-0">
             Groups
           </Text>
-          <Box sx={{ flex: 1, minWidth: 0 }} />
+          <Box className="flex-1 min-w-0" />
           <ActionIcon
             size="xs"
             onClick={() => setCollapsed(true)}
@@ -133,7 +111,7 @@ export function GroupPerformancePanel({
           </ActionIcon>
         </Box>
       </ToolbarRow>
-      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 4, px: 1, pb: 1 }}>
+      <Box className="flex flex-wrap gap-8 px-2 pb-2">
         {GROUP_PERFORMANCE_PERIODS.map((p) => (
           <Button
             key={p}
@@ -146,8 +124,8 @@ export function GroupPerformancePanel({
           </Button>
         ))}
       </Box>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, pb: 1 }}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+      <Box className="flex items-center gap-2 px-2 pb-2">
+        <Box className="flex-1 min-w-0">
           <Select
             value={classify}
             onChange={(v) => {
@@ -179,29 +157,26 @@ export function GroupPerformancePanel({
         />
       </Box>
       {loading ? (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1, p: 1 }} data-testid="group-performance-loading">
+        <Box className="flex flex-col gap-2 p-2" data-testid="group-performance-loading">
           <Skeleton h={16} />
           <Skeleton h={16} />
           <Skeleton h={16} />
           <Skeleton h={16} />
         </Box>
       ) : error ? (
-        <Box sx={{ p: 1 }} data-testid="group-performance-error">
+        <Box className="p-2" data-testid="group-performance-error">
           <Text size="xs" c="error">
             {error}
           </Text>
         </Box>
       ) : visible.length === 0 ? (
-        <Box sx={{ p: 1 }} data-testid="group-performance-empty">
+        <Box className="p-2" data-testid="group-performance-empty">
           <Text size="xs" c="dimmed">
             No groups found
           </Text>
         </Box>
       ) : (
-        <Box
-          sx={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", px: 0.5, pb: 0.5 }}
-          data-testid="group-performance-list"
-        >
+        <Box className="flex-1 min-h-0 overflow-y-auto flex flex-col px-1 pb-1" data-testid="group-performance-list">
           {visible.map((g) => {
             const pct = maxAbs > 0 ? (Math.abs(g.change) / maxAbs) * 100 : 0;
             const positive = g.change >= 0;
@@ -211,36 +186,26 @@ export function GroupPerformancePanel({
                 data-testid={`group-performance-row-${sanitizeTestId(g.name)}`}
                 data-group={g.name}
                 onClick={onSelectGroup ? () => onSelectGroup(g.name) : undefined}
-                sx={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 2,
-                  py: 0.25,
-                  borderBottom: 1,
-                  borderColor: "divider",
-                  cursor: onSelectGroup ? "pointer" : "default",
-                }}
+                className={cn("flex flex-col gap-4 py-[2px] border-b border-fin-border", onSelectGroup ? "cursor-pointer" : "cursor-default")}
               >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
-                  <Text size="xs" truncate span sx={{ flex: 1, minWidth: 0 }} title={g.name}>
+                <Box className="flex items-center gap-2 min-w-0">
+                  <Text size="xs" truncate span className="flex-1 min-w-0" title={g.name}>
                     {g.name}
                   </Text>
-                  <Text size="xs" c="dimmed" span sx={{ flexShrink: 0 }}>
+                  <Text size="xs" c="dimmed" span className="flex-shrink-0">
                     {g.stock_count}
                   </Text>
                 </Box>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <Box sx={{ flex: 1, minWidth: 0, height: 6, borderRadius: 1, bgcolor: "action.hover", overflow: "hidden" }}>
+                <Box className="flex items-center gap-2">
+                  <Box className="flex-1 min-w-0 h-[6px] rounded-sm overflow-hidden bg-fin-surface-alt">
                     <Box
                       data-testid={`group-performance-bar-${sanitizeTestId(g.name)}`}
                       data-value={g.change}
                       data-positive={positive ? "true" : "false"}
-                      sx={{ height: "100%", borderRadius: 1 }}
+                      className="h-full rounded-sm"
                       style={{
                         width: `${pct}%`,
-                        backgroundColor: positive
-                          ? "var(--mui-palette-success-main)"
-                          : "var(--mui-palette-error-main)",
+                        backgroundColor: positive ? "var(--color-fin-positive)" : "var(--color-fin-negative)",
                       }}
                     />
                   </Box>
@@ -249,7 +214,7 @@ export function GroupPerformancePanel({
                     c={getPnLTextColor(g.change)}
                     span
                     ta="right"
-                    sx={{ width: 56, flexShrink: 0 }}
+                    className="w-[56px] flex-shrink-0"
                     data-testid={`group-performance-value-${sanitizeTestId(g.name)}`}
                   >
                     {formatPercentage(g.change)}

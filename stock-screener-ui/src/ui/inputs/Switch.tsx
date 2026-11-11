@@ -1,22 +1,24 @@
-import MuiSwitch from "@mui/material/Switch";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import FormGroup from "@mui/material/FormGroup";
-import Typography from "@mui/material/Typography";
-import Box from "@mui/material/Box";
-import { alpha } from "@mui/material/styles";
+import type { CSSProperties } from "react";
+import { cn } from "../cn";
 import type { UISwitchProps } from "../types";
-import * as palette from "../palette";
 
-function mapSize(size: UISwitchProps["size"]): "small" | "medium" {
-  switch (size) {
-    case "xs":
-    case "sm":
-      return "small";
-    case "md":
-    case "lg":
-    case "xl":
+function trackSizeClasses(size?: UISwitchProps["size"]): string {
+  return size === "xs" || size === "sm" ? "h-5 w-9" : "h-6 w-11";
+}
+
+function thumbSizeClasses(size?: UISwitchProps["size"]): string {
+  return size === "xs" || size === "sm" ? "h-4 w-4" : "h-5 w-5";
+}
+
+function toneClass(color?: UISwitchProps["color"]): string {
+  switch (color) {
+    case "error":
+    case "danger":
+      return "bg-fin-negative";
+    case "info":
+      return "bg-fin-primary";
     default:
-      return "medium";
+      return "bg-fin-positive";
   }
 }
 
@@ -33,82 +35,64 @@ export function Switch({
   description,
   className,
   style,
-  "data-testid": testId,
   id,
+  "data-testid": testId,
   children: _children,
   onClick: _onClick,
   onMouseEnter: _onMouseEnter,
   onMouseLeave: _onMouseLeave,
-  ...rest
 }: UISwitchProps) {
-  const muiSize = mapSize(size);
-  const onTone =
-    color === "error" || color === "danger"
-      ? palette.NEGATIVE
-      : color === "info"
-        ? palette.PRIMARY
-        : palette.POSITIVE;
-  const switchSx = {
-    "& .MuiSwitch-switchBase": { color: palette.TEXT_MUTED },
-    "& .MuiSwitch-switchBase.Mui-checked": { color: onTone },
-    // The track must stay legible on the dark surface: a 1px border plus a
-    // muted fill. A bare `palette.BORDER` track reads as a floating dot.
-    "& .MuiSwitch-track": {
-      backgroundColor: alpha(palette.TEXT_MUTED, 0.22),
-      opacity: 1,
-      border: `1px solid ${palette.BORDER}`,
-      boxSizing: "border-box",
-    },
-    "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
-      backgroundColor: alpha(onTone, 0.45),
-      opacity: 1,
-    },
-    "& .MuiSwitch-switchBase.Mui-disabled + .MuiSwitch-track": { opacity: 0.35 },
-  };
+  const rootClass = cn("inline-flex items-center gap-3 text-sm leading-none", disabled && "opacity-50", className);
 
   const control = (
-    <MuiSwitch
-      checked={checked}
-      defaultChecked={defaultChecked}
-      onChange={onChange}
-      disabled={disabled}
-      size={muiSize}
-      color={(color === "error" || color === "danger" ? "error" : color === "info" || color === "success" || color === "success" ? "success" : "primary") as never}
-      id={id}
-      slotProps={{ input: { "data-testid": testId } as never } as never}
-      sx={[switchSx, ...(style ? [style as Record<string, unknown>] : [])]}
-      {...(rest as any)}
-    />
+    <span className="relative inline-block shrink-0">
+      <input
+        type="checkbox"
+        role="switch"
+        checked={checked}
+        defaultChecked={defaultChecked}
+        onChange={onChange}
+        disabled={disabled}
+        id={id}
+        data-testid={testId}
+        className="peer sr-only"
+      />
+      <span
+        className={cn(
+          "flex items-center h-full rounded-full border border-fin-border bg-fin-surface transition-colors duration-200",
+          trackSizeClasses(size),
+          "peer-checked:" + toneClass(color),
+          "peer-focus-visible:ring-1 peer-focus-visible:ring-fin-primary",
+          disabled && "opacity-50 cursor-not-allowed",
+        )}
+      >
+        <span
+          className={cn(
+            "my-auto block rounded-full bg-fin-bg shadow-sm transition-transform duration-200",
+            thumbSizeClasses(size),
+            "mx-1 peer-checked:ml-auto peer-checked:mr-1",
+          )}
+          aria-hidden="true"
+        />
+      </span>
+    </span>
   );
 
   if (!label && !description) {
     return (
-      <Box className={className} data-testid={testId ? `${testId}-wrapper` : undefined} sx={style ? { display: "inline-flex" } : undefined}>
+      <span className={cn("inline-flex items-center", className)} data-testid={testId ? `${testId}-wrapper` : undefined} style={style as CSSProperties}>
         {control}
-      </Box>
+      </span>
     );
   }
 
-  const labelNode = (
-    <Box sx={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
-      {label ? <Typography variant="body2" component="span">{label}</Typography> : null}
-      {description ? (
-        <Typography variant="caption" color="text.secondary" component="span">
-          {description}
-        </Typography>
-      ) : null}
-    </Box>
-  );
-
   return (
-    <FormGroup className={className} style={style} data-testid={testId ? `${testId}-group` : undefined}>
-      <FormControlLabel
-        control={control}
-        label={labelNode}
-        disabled={disabled}
-        data-testid={testId ? `${testId}-label` : undefined}
-        sx={{ m: 0, alignItems: description ? "flex-start" : "center" }}
-      />
-    </FormGroup>
+    <label className={rootClass} style={style as CSSProperties} data-testid={testId ? `${testId}-group` : undefined}>
+      {control}
+      <div className="leading-none">
+        {label ? <span className="text-fin-text">{label}</span> : null}
+        {description ? <span className="text-xs text-fin-text-muted">{description}</span> : null}
+      </div>
+    </label>
   );
 }

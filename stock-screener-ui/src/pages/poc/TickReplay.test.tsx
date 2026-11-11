@@ -196,9 +196,7 @@ describe("TickReplay", () => {
     render(<TickReplay />);
 
     await screen.findByText(/Trades —/);
-    await user.click(screen.getByLabelText("OR TF"));
-    const opt30 = await screen.findByRole("option", { name: "30m" });
-    await user.click(opt30);
+    await user.selectOptions(screen.getByLabelText("OR TF"), "30");
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(

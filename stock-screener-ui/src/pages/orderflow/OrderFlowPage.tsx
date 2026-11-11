@@ -445,10 +445,10 @@ export function OrderFlowPage() {
   ]);
 
   return (
-    <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }} data-testid="orderflow-page">
+    <Box className="flex flex-1 min-h-0 flex-col" data-testid="orderflow-page">
       <ToolbarRow
         gap={8}
-        style={{ padding: "8px 16px", borderBottom: "1px solid var(--mui-palette-divider)" }}
+        style={{ padding: "8px 16px", borderBottom: "1px solid var(--color-fin-border)" }}
         data-testid="orderflow-toolbar"
       >
         <Text size="sm" fw={600}>
@@ -528,7 +528,7 @@ export function OrderFlowPage() {
       {mode === "replay" && (
         <ToolbarRow
           gap={8}
-          style={{ padding: "8px 16px", borderBottom: "1px solid var(--mui-palette-divider)" }}
+          style={{ padding: "8px 16px", borderBottom: "1px solid var(--color-fin-border)" }}
           data-testid="orderflow-replay-row"
         >
           <Select
@@ -597,7 +597,7 @@ export function OrderFlowPage() {
       {mode === "options" && (
         <ToolbarRow
           gap={8}
-          style={{ padding: "8px 16px", borderBottom: "1px solid var(--mui-palette-divider)" }}
+          style={{ padding: "8px 16px", borderBottom: "1px solid var(--color-fin-border)" }}
           data-testid="orderflow-options-row"
         >
           <Select
@@ -651,7 +651,7 @@ export function OrderFlowPage() {
       )}
 
       {mode === "options" && optionsError && (
-        <Box sx={{ px: 2, pt: 1 }}>
+        <Box className="px-4 pt-2">
           <Alert color="error" variant="light" data-testid="orderflow-options-error">
             {optionsError}
           </Alert>
@@ -659,7 +659,7 @@ export function OrderFlowPage() {
       )}
 
       {needsUpstox && brokerConnected === false && (
-        <Box sx={{ px: 2, pt: 1 }} data-testid="orderflow-broker-warning">
+        <Box className="px-4 pt-2" data-testid="orderflow-broker-warning">
           <Alert color="warning" variant="light">
             <Group gap={8} align="center" wrap="wrap">
               <Text size="sm">Upstox is not connected. Connect the broker to stream live order flow.</Text>
@@ -674,7 +674,7 @@ export function OrderFlowPage() {
         </Box>
       )}
 
-      <Box sx={{ flex: 1, minHeight: 0, position: "relative" }}>
+      <Box className="relative flex-1 min-h-0">
         {needsUpstox && brokerConnected === null ? (
           <Center>
             <Loader size="sm" />

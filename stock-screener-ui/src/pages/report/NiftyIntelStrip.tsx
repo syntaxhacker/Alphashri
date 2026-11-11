@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
-import Box from "@mui/material/Box";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { PanelModal } from "@/components/common/PanelModal";
@@ -41,8 +40,6 @@ interface NiftyIntelStripProps {
 
 type Status = "loading" | "ready" | "error";
 
-const STRIP_HEIGHT = 24;
-
 /** `FII` when the flows are today's, `FII·23` when they are a prior session's. */
 function sessionTag(label: string, flowDate: string | null, session: string): string {
   if (!flowDate || !session || flowDate === session) return label;
@@ -50,11 +47,7 @@ function sessionTag(label: string, flowDate: string | null, session: string): st
 }
 
 function Sep() {
-  return (
-    <Box component="span" aria-hidden sx={{ color: palette.TEXT_MUTED, opacity: 0.6, flexShrink: 0 }}>
-      ·
-    </Box>
-  );
+  return <span aria-hidden className="shrink-0" style={{ color: palette.TEXT_MUTED, opacity: 0.6 }}>&middot;</span>;
 }
 
 function Field({
@@ -71,74 +64,48 @@ function Field({
   title?: string;
 }) {
   return (
-    <Box
+    <div
       data-testid={testId}
       title={title}
-      sx={{ display: "inline-flex", alignItems: "baseline", gap: "4px", flexShrink: 0, minWidth: 0 }}
+      className="inline-flex items-baseline gap-1 shrink-0 min-w-0"
+      style={{ color: palette.TEXT_MUTED }}
     >
-      <Box component="span" sx={{ color: palette.TEXT_MUTED, fontSize: 9, letterSpacing: "0.04em" }}>
-        {label}
-      </Box>
-      <Box
-        component="span"
-        sx={{
-          color: tone,
-          fontSize: 10.5,
-          fontWeight: 700,
-          fontVariantNumeric: "tabular-nums",
-          whiteSpace: "nowrap",
-        }}
-      >
+      <span className="text-[9px] tracking-[0.04em]">{label}</span>
+      <span className="font-bold text-[10.5px] font-mono tabular-nums whitespace-nowrap" style={{ color: tone }}>
         {value}
-      </Box>
-    </Box>
+      </span>
+    </div>
   );
 }
 
 function StrikeRows({ rows, side }: { rows: NiftyIntelStrike[]; side: "call" | "put" }) {
   if (rows.length === 0) {
-    return (
-      <Text size="xs" c="dimmed" data-testid={`nifty-intel-modal-${side}-empty`}>
-        no ΔOI strikes
-      </Text>
-    );
+    return <Text size="xs" c="dimmed" data-testid={`nifty-intel-modal-${side}-empty`}>
+      no ΔOI strikes
+    </Text>;
   }
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+    <div className="flex flex-col gap-[2px]">
       {rows.map((row) => (
-        <Box
+        <div
           key={`${side}-${row.strike}`}
           data-testid={`nifty-intel-modal-${side}-${Math.round(row.strike)}`}
-          sx={{
-            display: "flex",
-            alignItems: "baseline",
-            justifyContent: "space-between",
-            gap: 1,
-            borderBottom: `1px solid ${palette.TERM_BORDER}`,
-            py: "2px",
-            fontFamily: palette.MONO,
-            fontVariantNumeric: "tabular-nums",
-          }}
+          className="flex items-baseline justify-between gap-1 border-b border-fin-border py-[2px] font-mono tabular-nums"
         >
-          <Box component="span" sx={{ fontSize: 11, color: palette.TEXT }}>
-            {fmtIntelInt(row.strike)}
-          </Box>
-          <Box
-            component="span"
-            sx={{ fontSize: 11, fontWeight: 700, color: oiTone(row.doi, side, palette) }}
-          >
+          <span className="text-[11px]">{fmtIntelInt(row.strike)}</span>
+          <span className="font-bold text-[11px]" style={{ color: oiTone(row.doi, side, palette) }}>
             {fmtIntelOi(row.doi)}
-          </Box>
-        </Box>
+          </span>
+        </div>
       ))}
-    </Box>
+    </div>
   );
 }
 
 function IntelBody({ intel, eod = false }: { intel: NiftyIntel; eod?: boolean }) {
   return (
-    <Box data-testid="nifty-intel-modal" sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
-      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, alignItems: "baseline" }}>
+    <div data-testid="nifty-intel-modal" className="flex flex-col gap-1 min-w-0">
+      <div className="flex flex-wrap gap-1.5 items-baseline">
         <Field
           testId="nifty-intel-modal-date"
           label="Session"
@@ -158,8 +125,8 @@ function IntelBody({ intel, eod = false }: { intel: NiftyIntel; eod?: boolean })
             latest session — not this replay frame
           </Text>
         )}
-      </Box>
-      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, alignItems: "baseline" }}>
+      </div>
+      <div className="flex flex-wrap gap-1.5 items-baseline">
         <Field
           testId="nifty-intel-modal-fii"
           label="FII net"
@@ -188,7 +155,7 @@ function IntelBody({ intel, eod = false }: { intel: NiftyIntel; eod?: boolean })
           tone={palette.TEXT}
           title="Official Upstox max-pain strike"
         />
-      </Box>
+      </div>
 
       {intel.unavailable.length > 0 && (
         <Text size="xs" data-testid="nifty-intel-modal-unavailable" style={{ color: palette.WARNING }}>
@@ -196,15 +163,10 @@ function IntelBody({ intel, eod = false }: { intel: NiftyIntel; eod?: boolean })
         </Text>
       )}
 
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { xs: "minmax(0, 1fr)", sm: "repeat(2, minmax(0, 1fr))" },
-          gap: 1.5,
-          minWidth: 0,
-        }}
+      <div
+        className="grid grid-cols-[minmax(0,1fr)] sm:grid-cols-[repeat(2,minmax(0,1fr))] gap-1.5 min-w-0"
       >
-        <Box data-testid="nifty-intel-modal-top-calls" sx={{ minWidth: 0 }}>
+        <div data-testid="nifty-intel-modal-top-calls" className="min-w-0">
           <Text
             size="xs"
             fw={700}
@@ -214,8 +176,8 @@ function IntelBody({ intel, eod = false }: { intel: NiftyIntel; eod?: boolean })
             TOP CALL ΔOI {fmtIntelOi(intel.dce_oi)}
           </Text>
           <StrikeRows rows={intel.top_dce} side="call" />
-        </Box>
-        <Box data-testid="nifty-intel-modal-top-puts" sx={{ minWidth: 0 }}>
+        </div>
+        <div data-testid="nifty-intel-modal-top-puts" className="min-w-0">
           <Text
             size="xs"
             fw={700}
@@ -225,10 +187,10 @@ function IntelBody({ intel, eod = false }: { intel: NiftyIntel; eod?: boolean })
             TOP PUT ΔOI {fmtIntelOi(intel.dpe_oi)}
           </Text>
           <StrikeRows rows={intel.top_dpe} side="put" />
-        </Box>
-      </Box>
+        </div>
+      </div>
 
-      <Box data-testid="nifty-intel-modal-news" sx={{ minWidth: 0 }}>
+      <div data-testid="nifty-intel-modal-news" className="min-w-0">
         <Text size="xs" fw={700} style={{ color: palette.TEXT_MUTED, letterSpacing: "0.06em" }}>
           NEWS ({intel.news.length})
         </Text>
@@ -237,71 +199,44 @@ function IntelBody({ intel, eod = false }: { intel: NiftyIntel; eod?: boolean })
             no headlines
           </Text>
         ) : (
-          <Box component="ol" sx={{ listStyle: "none", m: 0, p: 0, display: "flex", flexDirection: "column" }}>
+          <ol className="list-none m-0 p-0 flex flex-col">
             {intel.news.map((item, i) => (
-              <Box
-                component="li"
+              <li
                 key={`${item.link || item.heading}-${i}`}
                 data-testid={`nifty-intel-news-item-${i}`}
-                sx={{
-                  display: "flex",
-                  alignItems: "baseline",
-                  gap: 1,
-                  py: "3px",
-                  borderBottom: `1px solid ${palette.TERM_BORDER}`,
-                  minWidth: 0,
-                }}
+                className="flex items-baseline gap-1 py-[3px] border-b border-fin-border min-w-0"
               >
-                <Box
-                  component="span"
-                  sx={{
-                    flexShrink: 0,
-                    width: 92,
-                    color: palette.TEXT_MUTED,
-                    fontFamily: palette.MONO,
-                    fontSize: 9,
-                    fontVariantNumeric: "tabular-nums",
-                  }}
+                <span
+                  className="shrink-0 w-[92px] text-[9px] font-mono tabular-nums"
+                  style={{ color: palette.TEXT_MUTED }}
                 >
                   {item.published}
-                </Box>
+                </span>
                 {item.link ? (
-                  <Box
-                    component="a"
+                  <a
                     data-testid={`nifty-intel-news-link-${i}`}
                     href={item.link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    sx={{
-                      color: palette.TEXT,
-                      fontSize: 11,
-                      textDecoration: "none",
-                      minWidth: 0,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      "&:hover": { color: palette.POSITIVE, textDecoration: "underline" },
-                    }}
+                    className="text-[11px] text-fin-text decoration-none min-w-0 overflow-hidden overflow-ellipsis whitespace-nowrap hover:text-fin-positive hover:underline"
                   >
                     {item.heading}
-                  </Box>
+                  </a>
                 ) : (
-                  <Box component="span" sx={{ color: palette.TEXT, fontSize: 11, minWidth: 0 }}>
-                    {item.heading}
-                  </Box>
+                  <span className="text-[11px] text-fin-text min-w-0">{item.heading}</span>
                 )}
-              </Box>
+              </li>
             ))}
-          </Box>
+          </ol>
         )}
-      </Box>
+      </div>
 
       {intel.as_of && (
         <Text size="xs" c="dimmed" data-testid="nifty-intel-modal-asof">
           as of {formatIntelAsOf(intel.as_of)}
         </Text>
       )}
-    </Box>
+    </div>
   );
 }
 
@@ -379,51 +314,31 @@ export function NiftyIntelStrip({
 
   if (showEmpty) {
     return (
-      <Box
+      <div
         data-testid="nifty-intel-strip"
         data-state="unavailable"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          height: STRIP_HEIGHT,
-          minHeight: STRIP_HEIGHT,
-          flexShrink: 0,
-          px: 1,
-          border: `1px solid ${palette.TERM_BORDER}`,
-          borderRadius: "4px",
-          bgcolor: palette.TERM_HEADER,
-          overflow: "hidden",
-        }}
+        style={{ height: 24, minHeight: 24 }}
+        className="flex items-center h-[24px] min-h-[24px] shrink-0 px-2 border border-fin-border rounded-[4px] bg-fin-surface overflow-hidden"
       >
         <Text data-testid="nifty-intel-unavailable" size="xs" c="dimmed" style={{ letterSpacing: "0.04em" }}>
           INTEL unavailable
         </Text>
-      </Box>
+      </div>
     );
   }
 
   if (showLoading || !intel) {
     return (
-      <Box
+      <div
         data-testid="nifty-intel-strip"
         data-state="loading"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          height: STRIP_HEIGHT,
-          minHeight: STRIP_HEIGHT,
-          flexShrink: 0,
-          px: 1,
-          border: `1px solid ${palette.TERM_BORDER}`,
-          borderRadius: "4px",
-          bgcolor: palette.TERM_HEADER,
-          overflow: "hidden",
-        }}
+        style={{ height: 24, minHeight: 24 }}
+        className="flex items-center h-[24px] min-h-[24px] shrink-0 px-2 border border-fin-border rounded-[4px] bg-fin-surface overflow-hidden"
       >
         <Text data-testid="nifty-intel-loading" size="xs" c="dimmed">
           INTEL loading…
         </Text>
-      </Box>
+      </div>
     );
   }
 
@@ -431,42 +346,23 @@ export function NiftyIntelStrip({
 
   return (
     <>
-      <Box
+      <div
         data-testid="nifty-intel-strip"
         role="button"
         tabIndex={0}
         aria-label="Open Nifty intel — FII/DII, ΔOI, max pain, PCR and news"
         data-state={status}
+        style={{ height: 24, minHeight: 24 }}
         title={`Session ${data.date || INTEL_DASH} · expiry ${data.expiry || INTEL_DASH}${
           eod ? " · latest session, not this frame" : ""
         }`}
         onClick={openModal}
         onKeyDown={onKeyDown}
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: "6px",
-          height: STRIP_HEIGHT,
-          minHeight: STRIP_HEIGHT,
-          flexShrink: 0,
-          px: 1,
-          border: `1px solid ${palette.TERM_BORDER}`,
-          borderRadius: "4px",
-          bgcolor: palette.TERM_HEADER,
-          cursor: "pointer",
-          overflow: "hidden",
-          whiteSpace: "nowrap",
-          fontFamily: palette.MONO,
-          "&:hover": { borderColor: palette.TEXT_MUTED },
-          "&:focus-visible": { outline: `1px solid ${palette.POSITIVE}`, outlineOffset: 0 },
-        }}
+        className="flex items-center gap-1.5 h-[24px] min-h-[24px] shrink-0 px-2 border border-fin-border rounded-[4px] bg-fin-surface cursor-pointer overflow-hidden whitespace-nowrap font-mono hover:border-fin-text-muted focus-visible:outline-1 focus-visible:outline-fin-positive focus-visible:outline-offset-0"
       >
-        <Box
-          component="span"
-          sx={{ color: palette.TEXT_MUTED, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", flexShrink: 0 }}
-        >
+        <span className="font-bold shrink-0 text-[9px] tracking-[0.08em]" style={{ color: palette.TEXT_MUTED }}>
           INTEL
-        </Box>
+        </span>
         <Field
           testId="nifty-intel-fii"
           label={sessionTag("FII", data.fii_date, data.date)}
@@ -483,58 +379,41 @@ export function NiftyIntelStrip({
           title={`DII cash-market net flow (₹ crore) — session ${data.dii_date ?? "unknown"}${data.dii_date && data.date && data.dii_date !== data.date ? " (previous session; published after its close)" : ""}`}
         />
         <Sep />
-        <Box
+        <div
           data-testid="nifty-intel-doi"
           title="Official change in OI — call / put units (contracts × lot size)"
-          sx={{ display: "inline-flex", alignItems: "baseline", gap: "4px", flexShrink: 0 }}
+          className="flex items-baseline gap-1 shrink-0"
         >
-          <Box component="span" sx={{ color: palette.TEXT_MUTED, fontSize: 9, letterSpacing: "0.04em" }}>
+          <span className="text-[9px] tracking-[0.04em]" style={{ color: palette.TEXT_MUTED }}>
             ΔOI (official) C
-          </Box>
-          <Box
-            component="span"
-            sx={{ color: oiTone(data.dce_oi, "call", palette), fontSize: 10.5, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}
-          >
+          </span>
+          <span className="font-bold text-[10.5px] font-mono tabular-nums" style={{ color: oiTone(data.dce_oi, "call", palette) }}>
             {fmtIntelOi(data.dce_oi)}
-          </Box>
-          <Box component="span" sx={{ color: palette.TEXT_MUTED, fontSize: 9, opacity: 0.8 }}>
+          </span>
+          <span className="text-[9px]" style={{ color: palette.TEXT_MUTED, opacity: 0.8 }}>
             / P
-          </Box>
-          <Box
-            component="span"
-            sx={{ color: oiTone(data.dpe_oi, "put", palette), fontSize: 10.5, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}
-          >
+          </span>
+          <span className="font-bold text-[10.5px] font-mono tabular-nums" style={{ color: oiTone(data.dpe_oi, "put", palette) }}>
             {fmtIntelOi(data.dpe_oi)}
-          </Box>
-        </Box>
+          </span>
+        </div>
         <Sep />
-        <Field
-          testId="nifty-intel-mp"
-          label="MP"
-          value={fmtIntelInt(data.max_pain)}
-          tone={palette.TEXT}
-          title="Max pain strike"
-        />
+        <Field testId="nifty-intel-mp" label="MP" value={fmtIntelInt(data.max_pain)} tone={palette.TEXT} title="Max pain strike" />
         <Sep />
-        <Field
-          testId="nifty-intel-pcr"
-          label="PCR"
-          value={fmtIntelPcr(data.pcr)}
-          tone={palette.TEXT}
-          title="Official put/call ratio"
-        />
+        <Field testId="nifty-intel-pcr" label="PCR" value={fmtIntelPcr(data.pcr)} tone={palette.TEXT} title="Official put/call ratio" />
         <Sep />
-        <Box
+        <div
           data-testid="nifty-intel-news"
           title={data.news.length ? data.news.map((n) => n.heading).join("\n") : "No headlines"}
-          sx={{ color: palette.TEXT_MUTED, fontSize: 10, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}
+          className="text-[10px] font-mono tabular-nums shrink-0"
+          style={{ color: palette.TEXT_MUTED }}
         >
           {data.news.length ? `${data.news.length} news` : "no news"}
-        </Box>
-        <Box component="span" aria-hidden sx={{ marginLeft: "auto", color: palette.TEXT_MUTED, fontSize: 10, flexShrink: 0 }}>
+        </div>
+        <span aria-hidden className="ml-auto shrink-0 text-[10px]" style={{ color: palette.TEXT_MUTED }}>
           ▸
-        </Box>
-      </Box>
+        </span>
+      </div>
 
       <PanelModal open={open} title="Nifty intel — FII/DII · ΔOI · news" onClose={() => setOpen(false)}>
         <IntelBody intel={data} eod={eod} />

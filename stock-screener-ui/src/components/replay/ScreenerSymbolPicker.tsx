@@ -16,6 +16,7 @@ import { fetchWithAuth } from "../../state/auth";
 import type { Stock } from "../../types";
 
 import { API_BASE } from "@/api/config";
+import * as palette from "@/ui/palette";
 
 const SCREENER_OPTIONS = [
   { value: "52w_high", label: "52W High" },
@@ -34,7 +35,7 @@ function getScoreColor(_score: number): string {
 }
 
 function pctColor(pct: number): string {
-  return pct >= 0 ? "info.main" : "error.main";
+  return pct >= 0 ? palette.POSITIVE : palette.NEGATIVE;
 }
 
 function formatPrice(p: number): string {
@@ -181,13 +182,13 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
           )}
 
           {isLoading && (
-            <Text size="sm" c="dimmed" ta="center" py="md">
+            <Text size="sm" c="dimmed" ta="center" className="py-md">
               Loading stocks...
             </Text>
           )}
 
           {!isLoading && hasLoaded && stocks.length === 0 && (
-            <Text size="sm" c="dimmed" ta="center" py="md" data-testid="screener-empty">
+            <Text size="sm" c="dimmed" ta="center" className="py-md" data-testid="screener-empty">
               No stocks found for this screener.
             </Text>
           )}
@@ -229,13 +230,8 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
                         align="center"
                         px="xs"
                         py={3}
-                        sx={{
-                          borderRadius: 1,
-                          cursor: "pointer",
-                          bgcolor: idx % 2 === 1 ? "background.default" : undefined,
-                          "&:hover": { bgcolor: "action.hover" },
-                        }}
-
+                        className="cursor-pointer hover:bg-fin-surface-alt"
+                        style={{ borderRadius: "1px", backgroundColor: idx % 2 === 1 ? palette.BG : undefined }}
                       >
                         <Checkbox
                           size="xs"
@@ -243,25 +239,25 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
                           onChange={() => toggleStock(stock.symbol)}
                           data-testid={`stock-check-${stock.symbol}`}
                         />
-                        <Text size="xs" w={88} fw={500} style={{ fontFamily: "monospace" }}>
+                        <Text size="xs" fw={500} style={{ fontFamily: "monospace", width: "88px" }}>
                           {stock.symbol}
                         </Text>
-                        <Text size="xs" w={82} ta="right" style={{ fontFamily: "monospace" }}>
+                        <Text size="xs" ta="right" style={{ fontFamily: "monospace", width: "82px" }}>
                           {formatPrice(price)}
                         </Text>
-                        <Text size="xs" w={65} ta="right" c={pctColor(pct)} style={{ fontFamily: "monospace" }}>
+                        <Text size="xs" ta="right" c={pctColor(pct)} style={{ fontFamily: "monospace", width: "65px" }}>
                           {pct >= 0 ? "+" : ""}{pct.toFixed(1)}%
                         </Text>
                         {stock.touched_52w ? (
-                          <Text size="xs" w={72} ta="center" c="primary" style={{ fontFamily: "monospace" }}>
+                          <Text size="xs" ta="center" c="primary" style={{ fontFamily: "monospace", width: "72px" }}>
                             {formatTouchDate(stock)}
                           </Text>
                         ) : (
-                          <Text size="xs" w={72} ta="center" c="dimmed">
+                          <Text size="xs" ta="center" c="dimmed" style={{ width: "72px" }}>
                             -
                           </Text>
                         )}
-                        <Badge size="sm" color={getScoreColor(stock.score)} variant="filled" w={36}>
+                        <Badge size="sm" color={getScoreColor(stock.score)} variant="filled" style={{ width: "36px" }}>
                           {stock.score}
                         </Badge>
                       </Group>

@@ -19,7 +19,7 @@ export const DefaultTargetBody: Story = {
           position: "fixed",
           bottom: 16,
           left: 16,
-          background: "var(--mui-palette-primary-main)",
+          background: "var(--color-fin-primary)",
           color: "white",
           padding: "8px 16px",
           borderRadius: 8,

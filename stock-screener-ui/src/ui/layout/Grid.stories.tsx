@@ -14,7 +14,7 @@ type Story = StoryObj<typeof Grid>;
 const cell = (label: string) => (
   <div
     style={{
-      background: "var(--mui-palette-primary-light)",
+      background: "#80b5ff",
       padding: 16,
       borderRadius: 6,
       textAlign: "center",

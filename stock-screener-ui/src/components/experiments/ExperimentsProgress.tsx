@@ -31,7 +31,7 @@ export function ExperimentsProgress() {
 
   if (!exp) {
     return (
-      <Paper elevation={0} sx={{ p: 1, display: "flex", alignItems: "stretch", justifyContent: "flex-start" }} data-testid="experiments-progress">
+      <Paper elevation={0} p="sm" className="flex items-stretch justify-start" data-testid="experiments-progress">
         <Text size="sm" c="dimmed" data-testid="experiments-progress-empty">
           No active experiment
         </Text>
@@ -45,10 +45,10 @@ export function ExperimentsProgress() {
   const lastResult = lastResultDescription(exp.last_result, exp.best_desc);
 
   return (
-    <Paper elevation={0} sx={{ p: 1, display: "flex", flexDirection: "column", gap: 1, alignItems: "stretch" }} data-testid="experiments-progress">
-      <Stack gap={1} sx={{ width: "100%", alignItems: "stretch" }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+    <Paper elevation={0} p="sm" className="flex flex-col items-stretch gap-2" data-testid="experiments-progress">
+      <Stack gap={1} className="w-full items-stretch">
+        <Box className="flex items-center justify-between gap-2">
+          <Box className="flex items-center gap-2">
             <Badge color={STATUS_COLOR[status] ?? "secondary"} size="sm" data-testid="experiments-progress-status">
               {status}
             </Badge>
@@ -70,7 +70,7 @@ export function ExperimentsProgress() {
           data-testid="experiments-progress-bar"
         />
 
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
+        <Box className="flex items-center justify-between gap-2 flex-wrap">
           <Text size="sm" data-testid="experiments-progress-best-pf">
             best PF {exp.best_pf != null ? exp.best_pf.toFixed(2) : "—"}
           </Text>
@@ -84,7 +84,7 @@ export function ExperimentsProgress() {
         {canControl && (
           <>
             <Divider />
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+            <Box className="flex items-center justify-center gap-2">
               {status === "running" && (
                 <Button
                   size="sm"

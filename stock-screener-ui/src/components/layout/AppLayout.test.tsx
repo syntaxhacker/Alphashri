@@ -255,9 +255,7 @@ describe("AppLayout", () => {
     );
 
     expect(await screen.findByText("5")).toBeInTheDocument();
-    expect(
-      screen.getByTestId("notif-badge").querySelector(".MuiBadge-badge"),
-    ).not.toHaveClass("MuiBadge-invisible");
+    expect(screen.getByTestId("notif-badge")).toHaveTextContent("5");
   });
 
   it("hides the surge badge when there are no alerts", async () => {
@@ -272,9 +270,7 @@ describe("AppLayout", () => {
     await waitFor(() => {
       expect(fetchSurges).toHaveBeenCalled();
     });
-    expect(
-      screen.getByTestId("notif-badge").querySelector(".MuiBadge-badge"),
-    ).toHaveClass("MuiBadge-invisible");
+    expect(screen.queryByTestId("notif-badge")).not.toBeInTheDocument();
   });
 
   it("passes collapsed prop correctly to NavbarNested after toggle", async () => {

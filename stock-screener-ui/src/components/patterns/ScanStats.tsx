@@ -83,31 +83,16 @@ export function ScanStats({ summary, job = null, onSelect }: ScanStatsProps) {
   const cells = buildCells(summary, job);
   const clickable = (key: StatCell["key"]): boolean =>
     !!onSelect && (key === "confirmed" || key === "bull_bear");
-  const clickableSx = (key: StatCell["key"]) =>
-    clickable(key)
-      ? {
-          cursor: "pointer",
-          borderRadius: 0.5,
-          px: 0.25,
-          "&:hover": { bgcolor: "action.hover" },
-        }
-      : {};
   return (
     <Box
       data-testid="patterns-stats"
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        minHeight: 18,
-        overflowX: "auto",
-        fontVariantNumeric: "tabular-nums",
-      }}
+      className="flex min-h-[18px] items-center overflow-x-auto tabular-nums"
     >
       <ToolbarRow gap={0} wrap={false} style={{ overflowX: "auto" }}>
         {cells.map((cell, index) => (
-          <Box key={cell.key} sx={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+          <Box key={cell.key} className="flex shrink-0 items-center">
             {index > 0 ? (
-              <Divider orientation="vertical" sx={{ height: 16, mx: 1.5 }} />
+              <Divider orientation="vertical" style={{ height: 16 }} className="mx-3" />
             ) : null}
             <Box
               data-testid={`patterns-stat-${cell.key}`}
@@ -123,29 +108,27 @@ export function ScanStats({ summary, job = null, onSelect }: ScanStatsProps) {
                   ? () => onSelect("confirmed")
                   : undefined
               }
-              sx={[{
-                display: "flex",
-                alignItems: "baseline",
-                gap: 0.75,
-                whiteSpace: "nowrap",
-                minWidth: 0,
-              }, clickableSx(cell.key)]}
+              className={`flex min-w-0 items-baseline gap-1.5 whitespace-nowrap ${
+                clickable(cell.key)
+                  ? "cursor-pointer rounded-[4px] px-[2px] transition-colors hover:bg-fin-surface-alt"
+                  : ""
+              }`}
             >
               <Text size="xs" c="dimmed" style={{ textTransform: "uppercase", fontSize: 10 }} fw={700} truncate>
                 {cell.label}
               </Text>
-              <Text size="xs" fw={700} c={cell.tone ?? "text.primary"} style={{ fontSize: 10 }} truncate>
+              <Text size="xs" fw={700} c={cell.tone ?? "default"} style={{ fontSize: 10 }} truncate>
                 {cell.key === "bull_bear" && onSelect ? (
                   <>
                     <Box
                       component="span"
                       role="button"
                       data-testid="patterns-stat-bullish"
+                      className="hover:underline"
                       onClick={(event) => {
                         event.stopPropagation();
                         onSelect("bullish");
                       }}
-                      sx={{ "&:hover": { textDecoration: "underline" } }}
                     >
                       {num(summary?.bullish)}
                     </Box>
@@ -154,11 +137,11 @@ export function ScanStats({ summary, job = null, onSelect }: ScanStatsProps) {
                       component="span"
                       role="button"
                       data-testid="patterns-stat-bearish"
+                      className="hover:underline"
                       onClick={(event) => {
                         event.stopPropagation();
                         onSelect("bearish");
                       }}
-                      sx={{ "&:hover": { textDecoration: "underline" } }}
                     >
                       {num(summary?.bearish)}
                     </Box>

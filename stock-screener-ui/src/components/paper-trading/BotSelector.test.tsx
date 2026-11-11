@@ -148,9 +148,7 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    await user.click(within(screen.getByTestId("bot-select")).getByRole("combobox"));
-    const option = await screen.findByRole("option", { name: "ORB Bot (2 pos)" });
-    await user.click(option);
+    await user.selectOptions(within(screen.getByTestId("bot-select")).getByRole("combobox"), "1");
     expect(onSelectBot).toHaveBeenCalledWith("1");
   });
 
@@ -271,11 +269,9 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    const dot = screen.getByTestId("bot-selector").querySelector(
-      '[style*="border-radius: 50%"]',
-    );
+    const dot = screen.getByTestId("bot-status-dot");
     expect(dot).toBeInTheDocument();
-    expect(dot?.getAttribute("style")).toContain("--mui-palette-divider");
+    expect(dot?.getAttribute("style")?.toLowerCase()).toContain("#30363d");
   });
 
   test("indicator dot uses green-6 when bot running", () => {
@@ -288,10 +284,8 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    const dot = screen.getByTestId("bot-selector").querySelector(
-      '[style*="border-radius: 50%"]',
-    );
-    expect(dot?.getAttribute("style")).toContain("--mui-palette-success-main");
+    const dot = screen.getByTestId("bot-status-dot");
+    expect(dot?.getAttribute("style")?.toLowerCase()).toContain("#3fb950");
   });
 
   test("getBotLabel formats bot label with name and position count", async () => {

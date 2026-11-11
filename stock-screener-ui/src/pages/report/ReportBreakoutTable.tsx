@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge, Box, Chip, Text, ToolbarRow } from "@/ui";
-import { BORDER, SURFACE } from "@/ui/palette";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { SymbolAvatar } from "../../components/screener/SymbolAvatar";
 import { Sparkline } from "../../components/screener/Sparkline";
@@ -91,9 +90,9 @@ export function ReportBreakoutTable({
         cell: ({ row }) => {
           const r = row.original;
           return (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+            <Box className="flex items-center gap-2 min-w-0">
               <SymbolAvatar symbol={r.symbol} name={r.name} size={20} />
-              <Box sx={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
+              <Box className="min-w-0 flex flex-col">
                 <Text size="xs" fw={700} truncate span>
                   {r.symbol}
                 </Text>
@@ -124,7 +123,7 @@ export function ReportBreakoutTable({
         accessorKey: "level",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <Text size="xs" span sx={{ fontVariantNumeric: "tabular-nums" }}>
+          <Text size="xs" span className="tabular-nums">
             {formatCurrency(row.original.level, 2)}
           </Text>
         ),
@@ -135,7 +134,7 @@ export function ReportBreakoutTable({
         accessorKey: "close",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <Text size="xs" span sx={{ fontVariantNumeric: "tabular-nums" }}>
+          <Text size="xs" span className="tabular-nums">
             {formatCurrency(row.original.close, 2)}
           </Text>
         ),
@@ -146,7 +145,7 @@ export function ReportBreakoutTable({
         accessorKey: "pct_above",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <Text size="xs" c={direction === "up" ? "success" : "error"} span sx={{ fontVariantNumeric: "tabular-nums" }}>
+          <Text size="xs" c={direction === "up" ? "success" : "error"} span className="tabular-nums">
             {formatPercentage(row.original.pct_above)}
           </Text>
         ),
@@ -159,7 +158,7 @@ export function ReportBreakoutTable({
         cell: ({ row }) => {
           const v = row.original.volume_ratio;
           return (
-            <Text size="xs" span sx={{ fontVariantNumeric: "tabular-nums" }}>
+            <Text size="xs" span className="tabular-nums">
               {typeof v === "number" && Number.isFinite(v) ? `${v.toFixed(1)}x` : "—"}
             </Text>
           );
@@ -171,7 +170,7 @@ export function ReportBreakoutTable({
         accessorKey: "change",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <Text size="xs" c={getPnLTextColor(row.original.change)} span sx={{ fontVariantNumeric: "tabular-nums" }}>
+          <Text size="xs" c={getPnLTextColor(row.original.change)} span className="tabular-nums">
             {formatPercentage(row.original.change)}
           </Text>
         ),
@@ -184,7 +183,7 @@ export function ReportBreakoutTable({
         cell: ({ row }) => {
           const v = row.original.to_52w_high;
           return (
-            <Text size="xs" c={getPnLTextColor(-(v ?? 0))} span sx={{ fontVariantNumeric: "tabular-nums" }}>
+            <Text size="xs" c={getPnLTextColor(-(v ?? 0))} span className="tabular-nums">
               {typeof v === "number" && Number.isFinite(v) ? formatPercentage(v) : "—"}
             </Text>
           );
@@ -223,7 +222,7 @@ export function ReportBreakoutTable({
   const filterKeys = ["all", ...Object.keys(byType)];
 
   return (
-    <Box data-testid={`${testId}-section`} sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
+    <Box data-testid={`${testId}-section`} className="flex flex-col gap-2 min-w-0">
       <ToolbarRow gap={8} wrap={false}>
         <Text size="sm" fw={700} span data-testid={`${testId}-title`}>
           {title}
@@ -231,7 +230,7 @@ export function ReportBreakoutTable({
         <Badge size="xs" data-testid={`${testId}-count`}>
           {side?.count ?? 0}
         </Badge>
-        <Box sx={{ flex: 1, minWidth: 0 }} />
+        <Box className="flex-1 min-w-0" />
       </ToolbarRow>
       <ToolbarRow gap={4} wrap data-testid={`${testId}-filters`}>
         {filterKeys.map((key) => (
@@ -249,15 +248,7 @@ export function ReportBreakoutTable({
       {/* Bare table in a single bordered wrapper: the shared container's
           minHeight floor leaves ~100px of dead space under small result sets. */}
       <Box
-        sx={{
-          minWidth: 0,
-          width: "100%",
-          overflow: "hidden",
-          border: 1,
-          borderColor: BORDER,
-          borderRadius: 1,
-          bgcolor: SURFACE,
-        }}
+        className="min-w-0 w-full overflow-hidden border border-fin-border rounded-[1px] bg-fin-surface"
       >
         <TanStackTable
           data={rows}

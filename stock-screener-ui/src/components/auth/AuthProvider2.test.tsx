@@ -114,13 +114,12 @@ describe("AuthProvider2", () => {
       json: async () => ({ id: 1, email: "test@test.com" }),
     });
 
-    let result: Response | null = null;
     function Consumer() {
       const auth = useAuth();
       return (
         <button
           onClick={async () => {
-            result = await auth.fetchWithAuth("http://example.com/api/data");
+            await auth.fetchWithAuth("http://example.com/api/data");
           }}
         >
           Fetch

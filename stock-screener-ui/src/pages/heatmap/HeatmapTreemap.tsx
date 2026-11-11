@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useRef } from "react";
 import { Box, Stack, Text } from "@/ui";
-import Select from "@mui/material/Select";
-import MenuItem from "@mui/material/MenuItem";
+import { Select } from "@/ui";
 import ReactECharts from "echarts-for-react";
 import type { HeatmapStock } from "../../api/heatmap";
 import {
@@ -39,8 +38,8 @@ const HEATMAP_TREEMAP_STYLE: StockTreemapStyle = {
     textBorderWidth: 0.5,
   },
   colorSaturation: [0.35, 0.5],
-  changePositive: "var(--mui-palette-success-main)",
-  changeNegative: "var(--mui-palette-error-main)",
+  changePositive: "#3fb950",
+  changeNegative: "#f85149",
 };
 
 export interface HeatmapTreemapProps {
@@ -89,18 +88,23 @@ export function HeatmapTreemap({
   );
 
   return (
-    <Box data-testid={testId} sx={{ display: "flex", flexDirection: "column", gap: 0, flex: 1, minHeight: 0, width: "100%", overflow: "hidden" }}>
-      <Stack spacing={0} sx={{ width: "100%", flex: 1, minHeight: 0 }}>
+    <Box data-testid={testId} className="flex flex-col gap-0 flex-1 min-h-0 w-full overflow-hidden">
+      <Stack spacing={0} className="w-full flex-1 min-h-0">
         {showMetricSelect && onMetricChange && (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, height: 40, flexShrink: 0, borderBottom: "1px solid var(--mui-palette-divider)" }}>
+          <Box className="flex items-center gap-2 px-2 h-10 flex-shrink-0 border-b border-fin-border">
             <Text size="xs" c="dimmed">Color by</Text>
-            <Select size="small" value={metricKey} onChange={(e) => onMetricChange(String(e.target.value) || metrics[0].value)} sx={{ minWidth: 140 }} data-testid={`${testId}-metric`}>
-              {metrics.map((m) => (<MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>))}
-            </Select>
+            <Select
+              size="small"
+              value={metricKey}
+              onChange={(v) => onMetricChange(v ?? metrics[0].value)}
+              data={metrics.map((m) => ({ value: m.value, label: m.label }))}
+              className="min-w-[140px]"
+              data-testid={`${testId}-metric`}
+            />
             <Text size="xs" c="dimmed">{stocks.length} stocks</Text>
           </Box>
         )}
-        <Box sx={{ flex: 1, minHeight: typeof chartHeight === "number" ? chartHeight : 320, width: "100%", display: "flex", p: 1 }}>
+        <Box className={`flex-1 min-h-[${typeof chartHeight === "number" ? chartHeight : 320}px] w-full flex p-2`}>
           <ReactECharts
             ref={chartRef}
             option={chartOption}
@@ -110,12 +114,12 @@ export function HeatmapTreemap({
           />
         </Box>
         {showLegend && stocks.length > 0 && (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, height: 32, flexShrink: 0, borderTop: "1px solid var(--mui-palette-divider)" }}>
+          <Box className="flex items-center gap-2 px-2 h-8 flex-shrink-0 border-t border-fin-border">
             <Text size="xs" fw={600}>{activeMetric.label}</Text>
-            <Box sx={{ width: 12, height: 12, backgroundColor: getHeatmapMetricColor(metricKey, metricMin, metricMin, metricMax), borderRadius: "2px" }} />
+            <Box className="size-3 rounded" style={{ width: 12, height: 12, backgroundColor: getHeatmapMetricColor(metricKey, metricMin, metricMin, metricMax), borderRadius: "2px" }} />
             <Text size="xs">{activeMetric.fmt(metricMin)}</Text>
-            <Box sx={{ flex: 1, maxWidth: 120, height: 8, borderRadius: "4px", background: isSignedHeatmapMetric(metricKey) ? `linear-gradient(to right, ${SECTOR_STRONG_RED}, ${SECTOR_NEUTRAL}, ${SECTOR_GREEN})` : `linear-gradient(to right, ${SECTOR_STRONG_GREEN}, ${SECTOR_GREEN}, ${SECTOR_NEUTRAL}, ${SECTOR_RED}, ${SECTOR_STRONG_RED})` }} />
-            <Box sx={{ width: 12, height: 12, backgroundColor: getHeatmapMetricColor(metricKey, metricMax, metricMin, metricMax), borderRadius: "2px" }} />
+            <Box className="flex-1 max-w-[120px] h-[8px] rounded-[4px]" style={{ background: isSignedHeatmapMetric(metricKey) ? `linear-gradient(to right, ${SECTOR_STRONG_RED}, ${SECTOR_NEUTRAL}, ${SECTOR_GREEN})` : `linear-gradient(to right, ${SECTOR_STRONG_GREEN}, ${SECTOR_GREEN}, ${SECTOR_NEUTRAL}, ${SECTOR_RED}, ${SECTOR_STRONG_RED})` }} />
+            <Box className="size-3 rounded" style={{ width: 12, height: 12, backgroundColor: getHeatmapMetricColor(metricKey, metricMax, metricMin, metricMax), borderRadius: "2px" }} />
             <Text size="xs">{activeMetric.fmt(metricMax)}</Text>
           </Box>
         )}

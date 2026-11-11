@@ -4,12 +4,10 @@ import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { UserButton } from "./UserButton";
-import { ThemeProvider } from "@mui/material/styles";
-import { muiTheme } from "@/ui/muiTheme";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
 function renderWithTheme(ui: React.ReactNode) {
-  return render(<ThemeProvider theme={muiTheme}>{ui}</ThemeProvider>);
+  return render(ui);
 }
 
 // Mock global window properties

@@ -6,7 +6,7 @@ import { NEGATIVE, POSITIVE } from "@/ui/palette";
 export function SectorAlertsList({ alerts }: { alerts: SectorAlert[] }) {
   if (alerts.length === 0) {
     return (
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+      <Box className="flex items-center justify-center p-2">
         <Text size="xs" c="dimmed" ta="center" py={1}>
           Waiting for major movements...
         </Text>
@@ -15,33 +15,24 @@ export function SectorAlertsList({ alerts }: { alerts: SectorAlert[] }) {
   }
 
   return (
-    <Box data-testid="sector-alerts-table" sx={{ display: "flex", flexDirection: "column" }}>
+    <Box data-testid="sector-alerts-table" className="flex flex-col">
       {alerts.map((alert) => {
         const positive = alert.direction === "SURGING";
         const color = positive ? POSITIVE : NEGATIVE;
         return (
           <Box
             key={`${alert.timestamp}-${alert.sector}`}
-            sx={{
-              display: "grid",
-              gridTemplateColumns: "62px minmax(0, 1fr) auto",
-              alignItems: "center",
-              gap: 0.5,
-              minHeight: 20,
-              px: 0.5,
-              borderBottom: "1px solid",
-              borderColor: "divider",
-            }}
+            className="grid grid-cols-[62px_minmax(0,1fr)_auto] items-center gap-1 min-h-[20px] px-1 border-b border-fin-border"
           >
-            <Text c="dimmed" sx={{ fontSize: 9, fontVariantNumeric: "tabular-nums" }}>
+            <Text c="dimmed" className="text-[9px] tabular-nums">
               {alert.timestamp}
             </Text>
-            <Text truncate sx={{ fontSize: 10.5 }}>
+            <Text truncate className="text-[10.5px]">
               {alert.sector}
             </Text>
-            <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
-              <Box sx={{ width: 5, height: 5, borderRadius: "50%", bgcolor: color, flexShrink: 0 }} />
-              <Text sx={{ fontSize: 9.5, fontWeight: 700, color, whiteSpace: "nowrap" }}>
+            <Box className="inline-flex items-center gap-1">
+              <Box className="size-[5px] rounded-full shrink-0" style={{ backgroundColor: color }} />
+              <Text className="text-[9.5px] font-bold whitespace-nowrap" style={{ color }}>
                 {alert.direction} ({formatPercentage(alert.delta, 2, false)})
               </Text>
             </Box>

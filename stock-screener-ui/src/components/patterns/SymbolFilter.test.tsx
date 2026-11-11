@@ -52,16 +52,14 @@ describe("SymbolFilter", () => {
     r(<SymbolFilter filters={makeFilters()} setFilter={setFilter} />);
 
     const combo = within(screen.getByTestId("patterns-symbol-filter")).getByRole("combobox");
-    // NOTE: userEvent.type per-keystroke simulation is swallowed by MUI
-    // Autocomplete in happy-dom when the parent re-renders (stateful data);
-    // fireEvent exercises the same onSearchChange path. Real-browser E2E
-    // covers actual typing.
+    // The local MultiSelect opens its listbox on focus (MUI opened on change).
+    fireEvent.focus(combo);
     fireEvent.change(combo, { target: { value: "reli" } });
 
     await waitFor(() => expect(searchSymbols).toHaveBeenCalledWith("reli", 20));
 
     const option = await screen.findByRole("option", { name: /RELIANCE/ });
-    await user.click(option);
+    await user.click(within(option).getByRole("checkbox"));
 
     await waitFor(() =>
       expect(setFilter).toHaveBeenCalledWith("symbols", ["RELIANCE"]),
@@ -78,11 +76,12 @@ describe("SymbolFilter", () => {
     r(<SymbolFilter filters={makeFilters()} setFilter={setFilter} />);
 
     const combo = within(screen.getByTestId("patterns-symbol-filter")).getByRole("combobox");
+    fireEvent.focus(combo);
     fireEvent.change(combo, { target: { value: "reli" } });
 
     // Wait for the debounced search + options state update to land.
     await screen.findByRole("option", { name: /RELIANCE/ });
-    // Regression: MUI used to reset the uncontrolled input here, wiping "reli".
+    // Regression: the input must keep the typed text after options resolve.
     expect(combo).toHaveValue("reli");
   });
 
@@ -116,6 +115,7 @@ describe("SymbolFilter", () => {
     const setFilter = vi.fn();
     r(<SymbolFilter filters={makeFilters()} setFilter={setFilter} />);
     const combo = within(screen.getByTestId("patterns-symbol-filter")).getByRole("combobox");
+    fireEvent.focus(combo);
     fireEvent.change(combo, { target: { value: "rel" } });
     fireEvent.change(combo, { target: { value: "reli" } });
 
@@ -139,9 +139,10 @@ describe("SymbolFilter", () => {
     r(<SymbolFilter filters={makeFilters({ symbols: ["TCS"] })} setFilter={setFilter} />);
 
     const combo = within(screen.getByTestId("patterns-symbol-filter")).getByRole("combobox");
+    fireEvent.focus(combo);
     fireEvent.change(combo, { target: { value: "h" } });
     const option = await screen.findByRole("option", { name: /HDFCBANK/ });
-    await user.click(option);
+    await user.click(within(option).getByRole("checkbox"));
 
     await waitFor(() => expect(setFilter).toHaveBeenCalledWith("symbols", ["TCS", "HDFCBANK"]));
   });
@@ -153,8 +154,9 @@ describe("SymbolFilter", () => {
     r(<SymbolFilter filters={makeFilters()} setFilter={setFilter} onChange={onChange} />);
 
     const combo = within(screen.getByTestId("patterns-symbol-filter")).getByRole("combobox");
+    fireEvent.focus(combo);
     fireEvent.change(combo, { target: { value: "reli" } });
-    await user.click(await screen.findByRole("option", { name: /RELIANCE/ }));
+    await user.click(within(await screen.findByRole("option", { name: /RELIANCE/ })).getByRole("checkbox"));
 
     await waitFor(() => expect(onChange).toHaveBeenCalledWith(["RELIANCE"]));
     expect(setFilter).not.toHaveBeenCalled();

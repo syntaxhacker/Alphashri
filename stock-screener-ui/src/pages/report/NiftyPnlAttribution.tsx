@@ -1,6 +1,5 @@
 import { memo, useMemo } from "react";
-import Box from "@mui/material/Box";
-import { Text } from "@/ui";
+import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { CompactPanel } from "@/components/common/compact";
 import {
@@ -57,7 +56,7 @@ function NiftyPnlAttributionInner({
       <CompactPanel title="P&L attribution" testId={`${testId}-panel`}>
         <Box
           data-testid={`${testId}-empty`}
-          sx={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 120 }}
+          className="flex items-center justify-center min-h-[120px]"
         >
           <Text size="xs" c="dimmed" span>
             No open positions
@@ -79,50 +78,95 @@ function NiftyPnlAttributionInner({
 
   return (
     <CompactPanel title="P&L attribution" testId={`${testId}-panel`}>
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, minWidth: 0 }}>
+      <Box className="flex flex-col gap-[6px] min-w-0">
         {legs.map((leg) => {
           const tone = leg.total > 0 ? palette.POSITIVE : leg.total < 0 ? palette.NEGATIVE : palette.TEXT_MUTED;
           const gains = SEG_ORDER.filter((k) => leg[k] > 0);
           const losses = SEG_ORDER.filter((k) => leg[k] < 0);
           return (
-            <Box key={leg.key} data-testid={`${testId}-row-${leg.key}`} sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
-              <Box sx={{ width: 132, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                <Text size="xs" span fw={600} title={leg.missingGreeks ? `${leg.label} · no greeks` : leg.label}>
+            <Box
+              key={leg.key}
+              data-testid={`${testId}-row-${leg.key}`}
+              className="flex items-center gap-[8px] min-w-0"
+            >
+              <Box
+                className="w-[132px] shrink-0 overflow-hidden truncate whitespace-nowrap"
+              >
+                <Text
+                  size="xs"
+                  span
+                  fw={600}
+                  title={leg.missingGreeks ? `${leg.label} · no greeks` : leg.label}
+                >
                   {leg.label}
                 </Text>
               </Box>
               <Box
                 data-testid={`${testId}-bar-${leg.key}`}
                 title={`${leg.label}: Δ ${formatPnlSigned(leg.delta)} · ν ${formatPnlSigned(leg.vega)} · θ ${formatPnlSigned(leg.theta)} · res ${formatPnlSigned(leg.residual)}`}
-                sx={{ position: "relative", flex: 1, height: 10, minWidth: 0, bgcolor: palette.TERM_BG, border: `1px solid ${palette.TERM_BORDER}`, borderRadius: 0.5, overflow: "hidden" }}
+                className="relative flex-1 h-[10px] min-w-0"
+                style={{
+                  backgroundColor: palette.TERM_BG,
+                  border: `1px solid ${palette.TERM_BORDER}`,
+                  borderRadius: 4,
+                  overflow: "hidden",
+                }}
               >
                 {/* center zero line */}
-                <Box aria-hidden sx={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 1, bgcolor: palette.CHART_BORDER }} />
+                <Box
+                  aria-hidden
+                  className="absolute left-[50%] top-0 bottom-0 w-[1px]"
+                  style={{ backgroundColor: palette.CHART_BORDER }}
+                />
                 {/* losses grow left from center */}
-                <Box aria-hidden sx={{ position: "absolute", right: "50%", top: 0, bottom: 0, display: "flex", flexDirection: "row-reverse" }}>
+                <Box
+                  aria-hidden
+                  className="absolute right-[50%] top-0 bottom-0 flex flex-row-reverse"
+                >
                   {losses.map((k) => (
                     <Box
                       key={k}
                       data-testid={`${testId}-seg-${leg.key}-${k}`}
                       data-sign="loss"
-                      sx={{ width: `${(Math.abs(leg[k]) / maxAbs) * 50}%`, height: "100%", minWidth: Math.abs(leg[k]) > 0 ? 1 : 0, bgcolor: palette.NEGATIVE, opacity: SEG_OPACITY[k] }}
+                      className="h-full min-w-[1px]"
+                      style={{
+                        width: `${(Math.abs(leg[k] as number) / maxAbs) * 50}%`,
+                        backgroundColor: palette.NEGATIVE,
+                        opacity: SEG_OPACITY[k],
+                      }}
                     />
                   ))}
                 </Box>
                 {/* gains grow right from center */}
-                <Box aria-hidden sx={{ position: "absolute", left: "50%", top: 0, bottom: 0, display: "flex" }}>
+                <Box
+                  aria-hidden
+                  className="absolute left-[50%] top-0 bottom-0 flex"
+                >
                   {gains.map((k) => (
                     <Box
                       key={k}
                       data-testid={`${testId}-seg-${leg.key}-${k}`}
                       data-sign="gain"
-                      sx={{ width: `${(leg[k] / maxAbs) * 50}%`, height: "100%", minWidth: leg[k] > 0 ? 1 : 0, bgcolor: palette.POSITIVE, opacity: SEG_OPACITY[k] }}
+                      className="h-full min-w-[1px]"
+                      style={{
+                        width: `${(leg[k] as number / maxAbs) * 50}%`,
+                        backgroundColor: palette.POSITIVE,
+                        opacity: SEG_OPACITY[k],
+                      }}
                     />
                   ))}
                 </Box>
               </Box>
-              <Box sx={{ width: 76, flexShrink: 0, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                <Text data-testid={`${testId}-total-${leg.key}`} size="xs" span fw={700} c={tone}>
+              <Box
+                className="w-[76px] shrink-0 text-right tabular-nums"
+              >
+                <Text
+                  data-testid={`${testId}-total-${leg.key}`}
+                  size="xs"
+                  span
+                  fw={700}
+                  c={tone}
+                >
                   {leg.missingGreeks ? "—" : formatPnlSigned(leg.total)}
                 </Text>
               </Box>
@@ -130,18 +174,42 @@ function NiftyPnlAttributionInner({
           );
         })}
 
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, borderTop: `1px solid ${palette.TERM_BORDER}`, pt: 0.5 }}>
-          <Box data-testid={`${testId}-legend`} sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", minWidth: 0 }}>
+        <Box
+          className="flex items-center justify-between gap-[8px] min-w-0"
+          style={{ borderTop: `1px solid ${palette.TERM_BORDER}`, paddingTop: 4 }}
+        >
+          <Box
+            data-testid={`${testId}-legend`}
+            className="flex items-center gap-[8px] flex-wrap min-w-0"
+          >
             {SEG_ORDER.map((k) => (
-              <Box key={k} data-testid={`${testId}-legend-${k}`} sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
-                <Box aria-hidden sx={{ width: 10, height: 6, borderRadius: 0.5, bgcolor: palette.TEXT_MUTED, opacity: SEG_OPACITY[k] }} />
-                <Text size="xs" c="dimmed" span>{k === "residual" ? "res" : k}</Text>
+              <Box
+                key={k}
+                data-testid={`${testId}-legend-${k}`}
+                className="flex items-center gap-[4px] shrink-0"
+              >
+                <Box
+                  aria-hidden
+                  className="w-[10px] h-[4px] rounded-[4px] shrink-0"
+                  style={{ backgroundColor: palette.TEXT_MUTED, opacity: SEG_OPACITY[k] }}
+                />
+                <Text size="xs" c="dimmed" span>
+                  {k === "residual" ? "res" : k}
+                </Text>
               </Box>
             ))}
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
-              <Box aria-hidden sx={{ width: 10, height: 6, borderRadius: 0.5, bgcolor: palette.POSITIVE }} />
+            <Box className="flex items-center gap-[4px] shrink-0">
+              <Box
+                aria-hidden
+                className="w-[10px] h-[4px] rounded-[4px] shrink-0"
+                style={{ backgroundColor: palette.POSITIVE }}
+              />
               <Text size="xs" c="dimmed" span>profit</Text>
-              <Box aria-hidden sx={{ width: 10, height: 6, borderRadius: 0.5, bgcolor: palette.NEGATIVE }} />
+              <Box
+                aria-hidden
+                className="w-[10px] h-[4px] rounded-[4px] shrink-0"
+                style={{ backgroundColor: palette.NEGATIVE }}
+              />
               <Text size="xs" c="dimmed" span>loss</Text>
             </Box>
           </Box>
@@ -151,7 +219,7 @@ function NiftyPnlAttributionInner({
             span
             fw={700}
             c={total > 0 ? palette.POSITIVE : total < 0 ? palette.NEGATIVE : palette.TEXT_MUTED}
-            sx={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}
+            style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}
           >
             {formatPnlSigned(total)}
           </Text>

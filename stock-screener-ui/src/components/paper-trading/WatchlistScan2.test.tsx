@@ -5,9 +5,8 @@ import { screen, within, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WatchlistScan2 } from "./WatchlistScan2";
 import { renderWithProviders } from "../../test-utils/renderWithProviders";
-import { CREAM } from "../../config/colors";
 
-// Resolved value of var(--mui-palette-info-light) under the palette theme.
+// Resolved value of #80b5ff under the palette theme.
 function withAlpha(hex: string, alpha: number): string {
   const h = hex.replace("#", "");
   const r = parseInt(h.slice(0, 2), 16);
@@ -352,8 +351,8 @@ describe("WatchlistScan2", () => {
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const strategyInput = screen.getByPlaceholderText("Filter strategy");
       await user.click(strategyInput);
-      const srOption = await screen.findByRole("option", { name: "SR Breakout", hidden: true });
-      await user.click(srOption);
+      const srOption = await screen.findByRole("option", { name: "SR Breakout" });
+      await user.click(within(srOption).getByRole("checkbox"));
       expect(row("TCS")).toBeInTheDocument();
       expect(row("WIPRO")).toBeInTheDocument();
       expect(queryRow("RELIANCE")).not.toBeInTheDocument();
@@ -366,11 +365,8 @@ describe("WatchlistScan2", () => {
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const strategyInput = screen.getByPlaceholderText("Filter strategy");
       await user.click(strategyInput);
-      const orbOption = await screen.findByRole("option", {
-        name: "ORB Strategy",
-        hidden: true,
-      });
-      await user.click(orbOption);
+      const orbOption = await screen.findByRole("option", { name: "ORB Strategy" });
+      await user.click(within(orbOption).getByRole("checkbox"));
       expect(row("RELIANCE")).toBeInTheDocument();
       expect(row("INFY")).toBeInTheDocument();
       expect(queryRow("TCS")).not.toBeInTheDocument();
@@ -383,26 +379,26 @@ describe("WatchlistScan2", () => {
   // ──────────────────────────────────────────────
 
   describe("color-coded left border", () => {
-    function styleContains(symbol: string, colorVar: string) {
-      expect(row(symbol).getAttribute("style")).toContain(colorVar);
+    function expectLeftBorder(symbol: string, color: string) {
+      expect(row(symbol)).toHaveStyle({ borderLeftColor: color, borderLeftWidth: "3px", borderLeftStyle: "solid" });
     }
 
     test("signal row has green left border", () => {
       const snap = createMockSnapshot();
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      styleContains("RELIANCE", "var(--mui-palette-success-main)");
+      expectLeftBorder("RELIANCE", "#3FB950");
     });
 
-    test("watching row has yellow left border", () => {
+    test("watching row has yellow/orange left border", () => {
       const snap = createMockSnapshot();
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      styleContains("TCS", "var(--mui-palette-warning-main)");
+      expectLeftBorder("TCS", "#F0883E");
     });
 
     test("rejected row has red left border", () => {
       const snap = createMockSnapshot();
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      styleContains("INFY", "var(--mui-palette-error-main)");
+      expectLeftBorder("INFY", "#F85149");
     });
 
     test("skipped row has gray left border", async () => {
@@ -410,7 +406,7 @@ describe("WatchlistScan2", () => {
       const snap = createMockSnapshot();
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       await user.click(screen.getByLabelText(/Skipped/));
-      styleContains("HDFC", "var(--mui-palette-divider)");
+      expectLeftBorder("HDFC", "#30363D");
     });
   });
 
@@ -482,10 +478,9 @@ describe("WatchlistScan2", () => {
       r(
         <WatchlistScan2 snapshot={snap} selectedSymbol="RELIANCE" />,
       );
-      // selected rows use an info-tint background
-      // (theme.palette.info.main #0288d2 at 8% via MUI alpha())
+      // selected rows use a primary-tint background (PRIMARY at 8% via local alpha())
       expect(row("RELIANCE")).toHaveStyle({
-        backgroundColor: "rgba(2, 136, 209, 0.08)",
+        backgroundColor: withAlpha("#58A6FF", 0.08),
       });
     });
   });

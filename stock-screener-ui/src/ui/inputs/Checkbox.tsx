@@ -1,20 +1,25 @@
-import MuiCheckbox from "@mui/material/Checkbox";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import FormGroup from "@mui/material/FormGroup";
-import Typography from "@mui/material/Typography";
-import Box from "@mui/material/Box";
+import { useEffect, useRef, type CSSProperties } from "react";
+import { cn } from "../cn";
 import type { UICheckboxProps } from "../types";
 
-function mapSize(size: UICheckboxProps["size"]): "small" | "medium" {
-  switch (size) {
-    case "xs":
-    case "sm":
-      return "small";
-    case "md":
-    case "lg":
-    case "xl":
+function boxSizeClasses(size?: UICheckboxProps["size"]): string {
+  return size === "xs" || size === "sm" ? "h-4 w-4" : "h-5 w-5";
+}
+
+function toneClass(color?: UICheckboxProps["color"]): string {
+  switch (color) {
+    case "error":
+    case "danger":
+      return "border-fin-negative peer-checked:bg-fin-negative";
+    case "warning":
+      return "border-fin-warning peer-checked:bg-fin-warning";
+    case "info":
+    case "primary":
+      return "border-fin-primary peer-checked:bg-fin-primary";
+    case "secondary":
+      return "border-fin-text-muted peer-checked:bg-fin-text-muted";
     default:
-      return "medium";
+      return "border-fin-border peer-checked:bg-fin-positive";
   }
 }
 
@@ -30,60 +35,64 @@ export function Checkbox({
   description,
   className,
   style,
-  "data-testid": testId,
   id,
+  "data-testid": testId,
   children: _children,
   onClick: _onClick,
   onMouseEnter: _onMouseEnter,
   onMouseLeave: _onMouseLeave,
-  ...rest
 }: UICheckboxProps) {
-  const muiSize = mapSize(size);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // `indeterminate` is a property, not an HTML attribute: sync it imperatively.
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.indeterminate = !!indeterminate;
+  }, [indeterminate]);
+
+  const rootClass = cn("inline-flex items-center gap-2 text-sm leading-none", disabled && "opacity-50", className);
+  const boxClass = cn(
+    "flex items-center justify-center shrink-0 rounded-fin border border-fin-border bg-fin-surface text-fin-bg transition-colors",
+    boxSizeClasses(size),
+    toneClass(color),
+    indeterminate && "border-fin-primary",
+    disabled && "opacity-50 cursor-not-allowed",
+  );
 
   const control = (
-    <MuiCheckbox
-      checked={checked}
-      defaultChecked={defaultChecked}
-      onChange={onChange}
-      disabled={disabled}
-      size={muiSize}
-      indeterminate={indeterminate}
-      color={(color === "error" || color === "danger" ? "error" : color === "info" || color === "success" || color === "success" ? "success" : "primary") as never}
-      id={id}
-      slotProps={{ input: { "data-testid": testId } as never } as never}
-      sx={style && !label && !description ? { ...style } : undefined}
-      {...(rest as any)}
-    />
+    <span className="relative inline-block shrink-0">
+      <input
+        ref={inputRef}
+        type="checkbox"
+        role="checkbox"
+        checked={checked}
+        defaultChecked={defaultChecked}
+        onChange={onChange}
+        disabled={disabled}
+        id={id}
+        data-testid={testId}
+        className="peer sr-only"
+      />
+      <span className={boxClass}>
+        {indeterminate ? "—" : checked ? "✔" : ""}
+      </span>
+    </span>
   );
 
   if (!label && !description) {
     return (
-      <Box className={className} data-testid={testId ? `${testId}-wrapper` : undefined} sx={style ? { display: "inline-flex" } : undefined}>
+      <span className={cn("inline-flex items-center", className)} data-testid={testId ? `${testId}-wrapper` : undefined} style={style as CSSProperties}>
         {control}
-      </Box>
+      </span>
     );
   }
 
-  const labelNode = (
-    <Box sx={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
-      {label ? <Typography variant="body2" component="span">{label}</Typography> : null}
-      {description ? (
-        <Typography variant="caption" color="text.secondary" component="span">
-          {description}
-        </Typography>
-      ) : null}
-    </Box>
-  );
-
   return (
-    <FormGroup className={className} style={style} data-testid={testId ? `${testId}-group` : undefined}>
-      <FormControlLabel
-        control={control}
-        label={labelNode}
-        disabled={disabled}
-        data-testid={testId ? `${testId}-label` : undefined}
-        sx={{ m: 0, alignItems: description ? "flex-start" : "center" }}
-      />
-    </FormGroup>
+    <label className={rootClass} style={style as CSSProperties} data-testid={testId ? `${testId}-group` : undefined}>
+      {control}
+      <span className="leading-none">
+        {label ? <span className="text-fin-text">{label}</span> : null}
+        {description ? <span className="text-xs text-fin-text-muted">{description}</span> : null}
+      </span>
+    </label>
   );
 }

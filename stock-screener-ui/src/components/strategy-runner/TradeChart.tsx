@@ -49,7 +49,6 @@ export function TradeChart({ symbol, date, entryPrice, exitPrice, entryTime, exi
 
         const times = candles.map((c: any) => c.time?.slice(11, 16) || "");
         const ohlc = candles.map((c: any) => [c.open, c.close, c.low, c.high]);
-        const closes = candles.map((c: any) => c.close);
 
         const entryIdx = candles.findIndex((c: any) => c.time >= entryTime);
         const exitIdx = candles.findIndex((c: any) => c.time >= exitTime);

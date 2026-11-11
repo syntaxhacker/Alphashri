@@ -60,7 +60,7 @@ describe("ScreenerLoading", () => {
     expect(screen.getByTestId("screener-loading")).toBeInTheDocument();
   });
 
-  it("has data-testid for test hooks (MUI sx, no global CSS)", () => {
+  it("has data-testid for test hooks", () => {
     render(
       <UIProvider>
         <ScreenerLoading />

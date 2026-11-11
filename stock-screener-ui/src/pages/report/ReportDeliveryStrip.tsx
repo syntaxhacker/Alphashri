@@ -1,5 +1,4 @@
 import { Alert, Badge, Box, Paper, Skeleton, Text } from "@/ui";
-import { BORDER, SURFACE } from "@/ui/palette";
 import type { DeliveryResponse } from "../../types/report";
 import { formatCurrency, formatNumber } from "../../utils/ui-helpers";
 import { symbolRowCursor, symbolRowProps } from "../../components/common/symbolRowProps";
@@ -19,7 +18,7 @@ function formatPct(v: number | null | undefined): string {
 export function ReportDeliveryStrip({ data, loading, error, onOpenSymbol }: ReportDeliveryStripProps) {
   if (loading) {
     return (
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }} data-testid="report-delivery-loading">
+      <Box className="flex flex-col gap-2" data-testid="report-delivery-loading">
         <Skeleton h={16} />
         <Skeleton h={16} />
       </Box>
@@ -39,10 +38,10 @@ export function ReportDeliveryStrip({ data, loading, error, onOpenSymbol }: Repo
   return (
     <Paper
       data-testid="report-delivery-strip"
-      sx={{ minWidth: 0, border: 1, borderColor: BORDER, borderRadius: 2, bgcolor: SURFACE }}
+      className="min-w-0 border border-fin-border rounded-[2px] bg-fin-surface"
     >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, pt: 1 }}>
-        <Text size="xs" fw={600} truncate span sx={{ flex: 1, minWidth: 0 }} data-testid="report-delivery-title">
+      <Box className="flex items-center gap-2 px-2 pt-2">
+        <Text size="xs" fw={600} truncate span className="flex-1 min-w-0" data-testid="report-delivery-title">
           High delivery %
         </Text>
         <Badge size="xs" data-testid="report-delivery-date">
@@ -54,7 +53,7 @@ export function ReportDeliveryStrip({ data, loading, error, onOpenSymbol }: Repo
       </Box>
       <Box
         data-testid="report-delivery-rows"
-        sx={{ display: "flex", gap: 1, overflowX: "auto", px: 1, py: 1, fontVariantNumeric: "tabular-nums" }}
+        className="flex gap-2 overflow-x-auto px-2 py-2 tabular-nums"
       >
         {rows.map((row) => (
           <Box
@@ -62,26 +61,19 @@ export function ReportDeliveryStrip({ data, loading, error, onOpenSymbol }: Repo
             data-testid={`report-delivery-row-${row.symbol}`}
             data-symbol={row.symbol}
             {...symbolRowProps(onOpenSymbol, row.symbol)}
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 0,
-              minWidth: 120,
-              flexShrink: 0,
-              cursor: symbolRowCursor(onOpenSymbol),
-              fontVariantNumeric: "tabular-nums",
-            }}
+            className="flex flex-col gap-0 min-w-[120px] shrink-0 tabular-nums"
+            style={{ cursor: symbolRowCursor(onOpenSymbol) }}
           >
             <Text size="xs" fw={700} truncate span title={row.symbol}>
               {row.symbol}
             </Text>
-            <Text size="xs" fw={700} span sx={{ fontVariantNumeric: "tabular-nums" }}>
+            <Text size="xs" fw={700} span className="tabular-nums">
               {formatPct(row.delivery_pct)}
             </Text>
-            <Text size="xs" c="dimmed" span sx={{ fontVariantNumeric: "tabular-nums" }}>
+            <Text size="xs" c="dimmed" span className="tabular-nums">
               {formatNumber(row.delivery_qty)} / {formatNumber(row.traded_qty)}
             </Text>
-            <Text size="xs" c="dimmed" span sx={{ fontVariantNumeric: "tabular-nums" }}>
+            <Text size="xs" c="dimmed" span className="tabular-nums">
               {formatCurrency(row.close, 2)}
             </Text>
           </Box>

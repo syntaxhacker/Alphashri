@@ -57,7 +57,8 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
         id="chart-container"
         data-testid="chart-container"
         h={400}
-        sx={(theme) => ({ bgcolor: theme.palette.background.paper, borderRadius: 2 })}
+        className="rounded-fin"
+        style={{ backgroundColor: "#0A0A0A", borderRadius: 2 }}
       >
         <Text c="dimmed">Select a symbol to view chart</Text>
       </Center>
@@ -73,15 +74,15 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
       h="100%"
       style={{ display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0, overflow: "hidden" }}
     >
-      <Box mb="xs" flex="0 0 auto" data-testid="chart-tabs-header" sx={{ p: 1 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <Box mb={1} flex="0 0 auto" data-testid="chart-tabs-header" p={1}>
+        <Box className="flex items-center justify-between gap-2 p-2">
+          <Box className="flex items-center justify-center">
             <Tabs
               value={selectedSymbol}
               onChange={(value) => value && onSymbolSelect(value)}
               data-testid="chart-tabs"
             >
-              <Tabs.List sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+              <Tabs.List className="flex items-center justify-center gap-2">
                 {symbols.map((symbol) => (
                   <Tabs.Tab key={symbol} value={symbol} data-testid={`chart-tab-${symbol}`}>
                     {symbol}
@@ -91,7 +92,7 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
             </Tabs>
           </Box>
 
-          <Group gap={1} align="center" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Group gap={1} align="center" className="flex items-center gap-2">
             <Select
               data-testid="chart-tf-select"
               value={selectedTf}
@@ -132,7 +133,8 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
           <Center
             data-testid="chart-placeholder"
             h="100%"
-            sx={(theme) => ({ bgcolor: theme.palette.background.paper, borderRadius: 2 })}
+            className="rounded-fin"
+            style={{ backgroundColor: "#0A0A0A", borderRadius: 2 }}
           >
             <Text c="dimmed">Select a symbol</Text>
           </Center>

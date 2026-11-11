@@ -98,16 +98,6 @@ export function EditableNumberCell({
       loading={saving}
       w={72}
       variant="default"
-      sx={{
-        "& .MuiInputBase-root": { bgcolor: "background.paper" },
-        "& input": {
-          textAlign: "right",
-          height: 24,
-          minHeight: 24,
-          fontSize: "11px",
-          padding: "0 6px",
-        },
-      }}
       data-testid={`editable-${field}-${strategyId}`}
     />
   );

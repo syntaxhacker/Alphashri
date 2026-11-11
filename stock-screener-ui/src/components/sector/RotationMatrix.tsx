@@ -1,7 +1,7 @@
+import { NEGATIVE, POSITIVE } from "@/ui/palette";
 import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Box, Text } from "@/ui";
-import { MONO, NEGATIVE, POSITIVE } from "@/ui/palette";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { withAlpha } from "@/utils/color";
 import { formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
@@ -30,7 +30,7 @@ export function RotationMatrix({ rows, selectedId, onSelect }: RotationMatrixPro
         size: 180,
         meta: { align: "left" },
         cell: (info) => (
-          <Text truncate sx={{ fontSize: 10.5, fontWeight: 600, lineHeight: 1.15 }}>
+          <Text truncate className="text-[10.5px] font-semibold leading-[1.15]">
             {info.getValue<string>()}
           </Text>
         ),
@@ -45,25 +45,12 @@ export function RotationMatrix({ rows, selectedId, onSelect }: RotationMatrixPro
           const value = info.getValue<number>();
           return (
             <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "flex-end",
-                minHeight: 14,
-                px: 0.25,
-                borderRadius: 0.5,
-                bgcolor: heatBackground(value),
-              }}
+              className="flex items-center justify-end min-h-[14px] px-[2px] rounded-[0.5px]"
+              style={{ backgroundColor: heatBackground(value) }}
             >
               <Text
                 c={getPnLTextColor(value)}
-                sx={{
-                  fontFamily: MONO,
-                  fontSize: 10,
-                  fontWeight: 600,
-                  fontVariantNumeric: "tabular-nums",
-                  lineHeight: 1,
-                }}
+                className="font-mono text-[10px] font-semibold tabular-nums leading-none"
               >
                 {formatPercentage(value, 1, true)}
               </Text>
@@ -78,7 +65,7 @@ export function RotationMatrix({ rows, selectedId, onSelect }: RotationMatrixPro
   return (
     <Box
       data-testid="rotation-matrix"
-      sx={{ display: "flex", flexDirection: "column", flex: 1, height: "100%", minHeight: 0 }}
+      className="flex h-full min-h-0 flex-1 flex-col"
     >
       <TanStackTable<RotationRow>
         data={rows}
@@ -94,8 +81,8 @@ export function RotationMatrix({ rows, selectedId, onSelect }: RotationMatrixPro
         getRowStyle={(row) =>
           row.id === selectedId
             ? {
-                background: "var(--mui-palette-action-selected)",
-                boxShadow: "inset 2px 0 0 var(--mui-palette-primary-main)",
+                background: "rgba(88, 166, 255, 0.12)",
+                boxShadow: "inset 2px 0 0 var(--color-fin-primary)",
               }
             : undefined
         }

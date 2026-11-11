@@ -48,7 +48,7 @@ export function JobStatus({ job, queuePosition, scanning }: JobStatusProps) {
   const pct = isRunning && job && job.total > 0 ? Math.min(100, Math.round((job.done / job.total) * 100)) : 0;
 
   return (
-    <Box data-testid="patterns-job-status" sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 200, maxWidth: 320 }}>
+    <Box data-testid="patterns-job-status" className="flex min-w-[200px] max-w-[320px] flex-col gap-1">
       <Text size="xs" c="dimmed" truncate>
         {message}
       </Text>

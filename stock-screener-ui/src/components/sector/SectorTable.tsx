@@ -26,7 +26,7 @@ function getMovementBar(pctChange: number) {
   const { capped, color } = getMovementBarValue(pctChange);
 
   return (
-    <Box sx={{ width: 70, display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <Box className="flex w-[70px] items-center justify-center">
       <Progress value={capped} color={color} size="sm" radius="xl" />
     </Box>
   );
@@ -42,16 +42,16 @@ function TopMoversCell({ text }: { text: string }) {
     );
   }
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0, overflow: "hidden", whiteSpace: "nowrap" }}>
+    <Box className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap">
       {parts.map((part) => {
         const symbol = part[1];
         const raw = part[2];
         return (
-          <Text key={`${symbol}-${raw}`} span sx={{ fontSize: 10 }}>
-            <Box component="span" sx={{ color: "text.secondary" }}>
+          <Text key={`${symbol}-${raw}`} span className="text-[10px]">
+            <Box component="span" className="text-fin-text-muted">
               {symbol}
             </Box>
-            <Box component="span" sx={{ color: getPnLTextColor(parseFloat(raw)), fontWeight: 600 }}>
+            <Box component="span" style={{ color: getPnLTextColor(parseFloat(raw)), fontWeight: 600 }}>
               ({raw})
             </Box>
           </Text>
@@ -66,22 +66,22 @@ export function SectorTable({ sectors }: SectorTableProps) {
     () => [
       {
         id: "sector",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>Sector</Box>,
+        header: () => <Box className="flex items-center justify-start">Sector</Box>,
         accessorKey: "sector",
         meta: { align: "left" },
         size: 170,
-        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", fontWeight: 600, fontSize: 11 }}>{info.getValue<string>()}</Box>,
+        cell: (info) => <Box className="flex items-center justify-start text-[11px] font-semibold">{info.getValue<string>()}</Box>,
       },
       {
         id: "avg_change",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>Change</Box>,
+        header: () => <Box className="flex items-center justify-end">Change</Box>,
         accessorKey: "avg_change",
         meta: { align: "right" },
         size: 72,
         cell: (info) => {
           const val = info.getValue<number>();
           return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", color: getPnLTextColor(val), fontWeight: 600, fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}>
+            <Box className="flex items-center justify-end font-semibold tabular-nums text-[10.5px]" style={{ color: getPnLTextColor(val) }}>
               {val >= 0 ? "+" : ""}
               {val.toFixed(2)}%
             </Box>
@@ -90,15 +90,15 @@ export function SectorTable({ sectors }: SectorTableProps) {
       },
       {
         id: "movement",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Move</Box>,
+        header: () => <Box className="flex items-center justify-center">Move</Box>,
         accessorKey: "avg_change",
         meta: { align: "center" },
         size: 88,
-        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{getMovementBar(info.getValue<number>())}</Box>,
+        cell: (info) => <Box className="flex items-center justify-center">{getMovementBar(info.getValue<number>())}</Box>,
       },
       {
         id: "ad_ratio",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>A/D</Box>,
+        header: () => <Box className="flex items-center justify-end">A/D</Box>,
         accessorFn: (row) => `${row.advances} : ${row.declines}`,
         meta: { align: "right" },
         size: 76,
@@ -106,7 +106,7 @@ export function SectorTable({ sectors }: SectorTableProps) {
           const row = info.row.original;
           const adColor = row.advances > row.declines ? "success" : row.advances < row.declines ? "error" : "dimmed";
           return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", color: adColor, fontSize: 10.5, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+            <Box className="flex items-center justify-end font-semibold tabular-nums text-[10.5px]" style={{ color: adColor }}>
               {row.advances} : {row.declines}
             </Box>
           );
@@ -114,14 +114,14 @@ export function SectorTable({ sectors }: SectorTableProps) {
       },
       {
         id: "strength",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>ADX</Box>,
+        header: () => <Box className="flex items-center justify-center">ADX</Box>,
         accessorKey: "avg_adx",
         meta: { align: "center" },
         size: 72,
         cell: (info) => {
           const { label, color } = getStrengthInfo(info.getValue<number>());
           return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Box className="flex items-center justify-center">
               <Badge color={color} variant="filled" size="xs">
                 {label}
               </Badge>
@@ -131,7 +131,7 @@ export function SectorTable({ sectors }: SectorTableProps) {
       },
       {
         id: "top_movers",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>Top Movers</Box>,
+        header: () => <Box className="flex items-center justify-start">Top Movers</Box>,
         accessorKey: "top_movers",
         meta: { align: "left" },
         cell: (info) => <TopMoversCell text={info.getValue<string>()} />,

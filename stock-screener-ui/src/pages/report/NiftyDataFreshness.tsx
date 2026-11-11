@@ -1,5 +1,4 @@
 import { memo, useEffect, useMemo, useState } from "react";
-import Box from "@mui/material/Box";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { parseIstTimestampMs } from "./niftyDataFreshness";
@@ -80,30 +79,19 @@ export const NiftyDataFreshness = memo(function NiftyDataFreshness({
   } satisfies NiftyFreshnessInput);
 
   return (
-    <Box
-      component="span"
+    <span
       data-testid="nifty-data-freshness"
       data-state={freshness.isStale ? "stale" : "fresh"}
       title={freshness.detail}
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        border: "1px solid",
+      className="inline-flex items-center shrink-0 whitespace-nowrap border rounded-full px-2 py-[2px] text-[11px]"
+      style={{
         borderColor: freshness.isStale ? palette.WARNING : palette.TERM_BORDER,
-        borderRadius: 999,
-        px: 1,
-        py: 0.25,
-        whiteSpace: "nowrap",
+        color: freshness.isStale ? palette.WARNING : palette.TEXT_MUTED,
       }}
     >
-      <Text
-        size="xs"
-        fw={freshness.isStale ? 700 : 600}
-        c={freshness.isStale ? "warning" : "dimmed"}
-        span
-      >
+      <Text size="xs" fw={freshness.isStale ? 700 : 600} c={freshness.isStale ? "warning" : "dimmed"} span>
         {freshness.label}
       </Text>
-    </Box>
+    </span>
   );
 });

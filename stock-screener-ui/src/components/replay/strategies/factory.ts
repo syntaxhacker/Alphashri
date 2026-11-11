@@ -2,8 +2,8 @@
 // entry is a plain spec; the factory fills in the shape every review plugin shares
 // (normalize/envelope, chip panel, summary, trade explainer, chart fit padding) so a
 // new strategy is one config object, not another near-identical module.
-import Stack from "@mui/material/Stack";
 import { type ReactNode } from "react";
+import { Stack } from "@/ui";
 import { TZ_IST_LABEL } from "@/config/constants";
 import { tradeStatChips } from "./shared";
 import type { ReplayBundle, ReplayTrade } from "../tick";
@@ -90,7 +90,7 @@ export function makeReplayPlugin(spec: ReplayPluginSpec): ReplayStrategyPlugin {
     spec.panel ??
     ((bundle: ReplayBundle) => createElement(
       Stack,
-      { direction: "row", spacing: 1, sx: { mb: 1, flexWrap: "wrap" } },
+      { direction: "row", gap: "sm", mb: "sm", wrap: "wrap" },
       ...tradeStatChips(bundle),
     ));
   return plugin;

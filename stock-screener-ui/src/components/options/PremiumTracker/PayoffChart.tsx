@@ -16,6 +16,8 @@ interface PayoffChartProps {
   legs: PayoffLeg[];
   spot: number | null;
   height?: number;
+  /** Spot range shown on either side of spot (default 8%). */
+  rangePct?: number;
   "data-testid"?: string;
 }
 
@@ -28,6 +30,7 @@ export function PayoffChart({
   legs,
   spot,
   height = 140,
+  rangePct = 8,
   "data-testid": testId = "payoff-chart",
 }: PayoffChartProps) {
   const { chartRef, setChartOption } = useECharts({ isDark: true });
@@ -36,7 +39,7 @@ export function PayoffChart({
     if (legs.length === 0) return;
     const atmFallback = legs[0]?.strike ?? 100;
     const base = spot ?? atmFallback;
-    const spots = curveSpots(base);
+    const spots = curveSpots(base, rangePct);
     const curve = payoffCurve(legs, spots);
     const bes = breakevens(legs, spots[0] ?? 0, spots[spots.length - 1] ?? 0);
     const markLineData: Record<string, unknown>[] = [
@@ -59,6 +62,7 @@ export function PayoffChart({
           ];
     void setChartOption({
       animation: false,
+      backgroundColor: "transparent",
       tooltip: {
         trigger: "axis",
         formatter: (params: unknown) => {
@@ -69,8 +73,8 @@ export function PayoffChart({
         },
       },
       grid: { left: 8, right: 40, top: 8, bottom: 20, containLabel: true },
-      xAxis: { type: "value", scale: true, name: "Spot", axisLabel: { hideOverlap: true } },
-      yAxis: { type: "value", scale: true, name: "P&L ₹" },
+      xAxis: { type: "value", scale: true, name: "Spot", axisLabel: { hideOverlap: true }, splitLine: { show: false } },
+      yAxis: { type: "value", scale: true, name: "P&L ₹", splitLine: { show: false } },
       series: [
         {
           type: "line",
@@ -83,13 +87,13 @@ export function PayoffChart({
         },
       ],
     });
-  }, [legs, spot]);
+  }, [legs, spot, rangePct]);
 
   if (legs.length === 0) {
     return (
       <Box
         data-testid={testId}
-        sx={{
+        style={{
           height,
           width: "100%",
           display: "flex",
@@ -97,7 +101,7 @@ export function PayoffChart({
           justifyContent: "center",
         }}
       >
-        <Text size="sm" c="dimmed">
+        <Text size="sm" className="text-fin-text-muted">
           Add a leg to see payoff
         </Text>
       </Box>
@@ -105,10 +109,6 @@ export function PayoffChart({
   }
 
   return (
-    <Box
-      ref={chartRef}
-      data-testid={testId}
-      sx={{ height, width: "100%" }}
-    />
+    <div ref={chartRef} data-testid={testId} style={{ height, width: "100%" }} />
   );
 }

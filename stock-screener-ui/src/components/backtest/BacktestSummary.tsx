@@ -1,7 +1,5 @@
 import { memo } from "react";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
-import Divider from "@mui/material/Divider";
+import { Stack, Text } from "@/ui";
 import type { BacktestTotals } from "../../types/backtest";
 import { formatPnl as formatPnlShared, getPnLTextColor } from "../../utils/ui-helpers";
 
@@ -43,20 +41,13 @@ const Metric = ({
   tone?: string;
   testid: string;
 }) => (
-  <Stack sx={{ flex: "1 1 0", minWidth: 92, px: 1.5, py: 0.75, gap: 0.25, justifyContent: "center" }}>
-    <Typography
-      variant="overline"
-      sx={{ fontSize: 10, lineHeight: 1.1, letterSpacing: 0.6, fontWeight: 600, color: "text.secondary" }}
-    >
+  <Stack className="flex-1 min-w-[92px] px-1.5 py-0.75 gap-0.5 justify-center" style={{ flex: "1 1 0", minWidth: 92, gap: 4 }}>
+    <Text size="xs" fw={600} c="muted" style={{ fontSize: 10, lineHeight: 1.1, letterSpacing: 0.6, textAlign: "center" }}>
       {label}
-    </Typography>
-    <Typography
-      variant="subtitle1"
-      data-testid={testid}
-      sx={{ fontSize: 18, fontWeight: 700, lineHeight: 1.15, color: tone ?? "text.primary", fontVariantNumeric: "tabular-nums" }}
-    >
+    </Text>
+    <Text size="sm" fw={700} c={tone ?? "text-primary"} data-testid={testid} style={{ fontSize: 18, lineHeight: 1.15, fontVariantNumeric: "tabular-nums" }}>
       {value}
-    </Typography>
+    </Text>
   </Stack>
 );
 
@@ -72,18 +63,16 @@ export const BacktestSummary = memo(function BacktestSummary({ totals }: Backtes
     <Stack
       direction="row"
       id="backtest-summary"
-      className="backtest-summary"
+      className="backtest-summary flex-wrap border-b border-fin-border"
       data-testid="results-summary"
-      divider={<Divider orientation="vertical" flexItem />}
-      sx={{ flexWrap: "wrap", borderBottom: 1, borderColor: "divider" }}
     >
       <Metric
         label="Net PnL"
         value={formatPnlShared(netPnl)}
-        tone={pnlColor === "success" ? "success.main" : "error.main"}
+        tone={pnlColor === "success" ? "positive" : "negative"}
         testid="summary-net-pnl"
       />
-      <Metric label="Costs" value={`₹${(totalCosts / 1000).toFixed(1)}K`} tone="error.main" testid="summary-costs" />
+      <Metric label="Costs" value={`₹${(totalCosts / 1000).toFixed(1)}K`} tone="negative" testid="summary-costs" />
       <Metric label="WR" value={`${winRate.toFixed(0)}%`} testid="summary-wr" />
       <Metric label="Trades" value={String(totals.trades ?? 0)} testid="summary-trades" />
     </Stack>

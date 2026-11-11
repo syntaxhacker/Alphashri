@@ -28,7 +28,8 @@ export function EventsTable({ events, isLoading, onOpen }: EventsTableProps) {
     return (
       <Box
         data-testid="events-loading"
-        sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 1, p: 1 }}
+        className="flex flex-col gap-1 p-1"
+        style={{ flex: 1, minHeight: 0 }}
       >
         {Array.from({ length: SKELETON_ROWS }).map((_, index) => (
           <Skeleton key={`events-skeleton-${index}`} h={24} data-testid="events-skeleton-row" />
@@ -41,7 +42,7 @@ export function EventsTable({ events, isLoading, onOpen }: EventsTableProps) {
     return (
       <Box
         data-testid="events-empty"
-        sx={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center" }}
+        className="flex min-h-0 flex-1 items-center justify-center"
       >
         <EmptyState
           title="No events in this window."
@@ -53,7 +54,7 @@ export function EventsTable({ events, isLoading, onOpen }: EventsTableProps) {
   }
 
   return (
-    <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+    <Box className="flex min-h-0 flex-1 flex-col">
       <TanStackTable<EventDTO>
         data={events}
         columns={columns}

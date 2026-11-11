@@ -1,7 +1,6 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { memo, useMemo } from "react";
-import Box from "@mui/material/Box";
-import { Text } from "@/ui";
+import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { CompactPanel } from "@/components/common/compact";
 import {
@@ -53,7 +52,7 @@ function NiftyVolumeProfileInner({
       <CompactPanel title="Volume profile" testId={`${testId}-panel`}>
         <Box
           data-testid={testId}
-          sx={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 220 }}
+          className="flex items-center justify-center min-h-[220px]"
         >
           <Text size="xs" c="dimmed" span>
             No tape data
@@ -72,10 +71,10 @@ function NiftyVolumeProfileInner({
 
   return (
     <CompactPanel title="Volume profile" testId={`${testId}-panel`}>
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }}>
+      <Box className="flex flex-col gap-[4px] min-w-0">
         <Box
           data-testid={`${testId}-head`}
-          sx={{ display: "flex", alignItems: "baseline", gap: 1.25, flexWrap: "wrap", fontVariantNumeric: "tabular-nums" }}
+          className="flex items-baseline gap-[10px] flex-wrap tabular-nums"
         >
           <Text size="xs" span c="dimmed">CE vol</Text>
           <Text data-testid={`${testId}-ce-vol`} size="xs" span fw={700} c={CE_FILL}>
@@ -97,7 +96,7 @@ function NiftyVolumeProfileInner({
           )}
         </Box>
 
-        <Box sx={{ width: "100%", minWidth: 0, height: 220, overflowY: "auto" }}>
+        <Box className="w-full min-w-0" style={{ height: 220, overflowY: "auto" }}>
           <svg
             data-testid={testId}
             viewBox={`0 0 ${SVG_W} ${svgH}`}
@@ -221,7 +220,7 @@ function NiftyVolumeProfileInner({
           </svg>
         </Box>
 
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, flexWrap: "wrap" }}>
+        <Box className="flex items-center gap-[10px] flex-wrap">
           <Legend color={CE_FILL} label="CE vol" />
           <Legend color={PE_FILL} label="PE vol" />
           <Legend color={OI_STROKE} label="OI outline" outline />
@@ -234,14 +233,12 @@ function NiftyVolumeProfileInner({
 
 function Legend({ color, label, outline = false }: { color: string; label: string; outline?: boolean }) {
   return (
-    <Box data-testid={`nifty-volume-profile-legend-${label}`} sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
+    <Box data-testid={`nifty-volume-profile-legend-${label}`} className="flex items-center gap-[4px] shrink-0">
       <Box
         aria-hidden
-        sx={{
-          width: 10,
-          height: 6,
-          borderRadius: 0.5,
-          bgcolor: outline ? "transparent" : color,
+        className="w-[10px] h-[4px] rounded-[4px]"
+        style={{
+          backgroundColor: outline ? "transparent" : color,
           border: outline ? `1px solid ${color}` : undefined,
         }}
       />

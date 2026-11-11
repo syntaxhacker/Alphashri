@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Typography from "@mui/material/Typography";
 import { IconNews } from "@tabler/icons-react";
-import { Box, Modal, Paper, Stack, useMediaQuery } from "@/ui";
+import { Box, Modal, Paper, Stack, Text, useMediaQuery } from "@/ui";
+import * as palette from "@/ui/palette";
 import type { ArticleResponse, NewsItem, NewsSymbol } from "../components/news/news-types";
 import { fetchArticle } from "../api/news";
 import { getSourceOptions, useNewsSourceGroups } from "../components/news/useNewsSourceGroups";
@@ -68,80 +68,58 @@ function NewsWorkspaceHeader({ storyCount, sourceCount }: { storyCount: number; 
     <Box
       component="header"
       data-testid="news-workspace-header"
-      sx={{
-        minHeight: 56,
-        px: 2,
-        py: 1,
-        display: "flex",
-        alignItems: "center",
-        gap: 1,
-        borderBottom: 1,
-        borderColor: "divider",
-        bgcolor: "background.paper",
-      }}
+      className="flex items-center gap-2 border-b border-fin-border bg-fin-surface"
+      style={{ minHeight: 56, paddingLeft: 16, paddingRight: 16, paddingTop: 8, paddingBottom: 8 }}
     >
       <Box
-        sx={{
+        className="size-8 grid place-items-center rounded-fin flex-shrink-0"
+        style={{
           width: 32,
           height: 32,
-          display: "grid",
-          placeItems: "center",
-          borderRadius: 1,
-          color: "primary.main",
-          bgcolor: "action.selected",
-          flex: "0 0 auto",
+          borderRadius: 8,
+          color: palette.PRIMARY,
+          backgroundColor: "rgba(88, 166, 255, 0.12)",
         }}
       >
         <IconNews size={18} stroke={1.8} aria-hidden="true" />
       </Box>
-      <Box sx={{ minWidth: 0 }}>
-        <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.2 }}>
+      <Box className="min-w-0">
+        <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
           Market intelligence
-        </Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ display: { xs: "none", sm: "block" } }}>
+        </Text>
+        <Text size="xs" c="dimmed" className="hidden sm:block">
           Headlines, catalysts and AI-assisted briefs in one workspace
-        </Typography>
+        </Text>
       </Box>
-      <Box sx={{ flex: 1 }} />
+      <Box className="min-w-0 flex-1" />
       <Stack
         direction="row"
-        gap={3}
-        sx={{
-          display: { xs: "none", sm: "flex" },
-          "& > :not(:first-of-type)": { borderLeft: 1, borderColor: "divider", pl: 2 },
-        }}
+        gap={6}
+        className="hidden sm:flex divide-x divide-fin-border"
       >
-        <Box sx={{ textAlign: "right" }}>
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1 }}>
+        <Box className="text-right">
+          <Text size="xs" c="dimmed" style={{ lineHeight: 1 }}>
             Stories
-          </Typography>
-          <Typography variant="subtitle2" fontWeight={700} sx={{ fontVariantNumeric: "tabular-nums" }}>
+          </Text>
+          <Text size="xs" fw={700} style={{ fontVariantNumeric: "tabular-nums" }}>
             {storyCount}
-          </Typography>
+          </Text>
         </Box>
-        <Box sx={{ textAlign: "right" }}>
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1 }}>
+        <Box className="text-right pl-4">
+          <Text size="xs" c="dimmed" style={{ lineHeight: 1 }}>
             Sources
-          </Typography>
-          <Typography variant="subtitle2" fontWeight={700} sx={{ fontVariantNumeric: "tabular-nums" }}>
+          </Text>
+          <Text size="xs" fw={700} style={{ fontVariantNumeric: "tabular-nums" }}>
             {sourceCount}
-          </Typography>
+          </Text>
         </Box>
       </Stack>
     </Box>
   );
 }
 
-const paneSx = {
-  minHeight: 0,
-  overflow: "hidden",
-  display: "flex",
-  flexDirection: "column",
-  border: 1,
-  borderColor: "divider",
-  borderRadius: 1,
-  bgcolor: "background.paper",
-} as const;
+const paneClassName =
+  "flex flex-col overflow-hidden min-h-0 border border-fin-border rounded-fin bg-fin-surface";
 
 function NewsPageMobile({
   modalOpen,
@@ -160,7 +138,7 @@ function NewsPageMobile({
         component="section"
         aria-label="News feed"
         data-testid="news-list-region"
-        sx={{ ...paneSx, flex: 1, mt: 1 }}
+        className={`${paneClassName} flex-1 mt-2`}
       >
         <NewsList {...newsListProps} />
       </Paper>
@@ -184,11 +162,7 @@ function NewsPageDesktop({
   articleDetailProps: React.ComponentProps<typeof ArticleDetail>;
 }) {
   return (
-    <Box
-      role="region"
-      aria-label="Article reader"
-      sx={paneSx}
-    >
+    <Box role="region" aria-label="Article reader" className={paneClassName}>
       <ArticleDetail {...articleDetailProps} />
     </Box>
   );
@@ -243,14 +217,7 @@ export default function NewsPage() {
 
   return (
     <Box
-      sx={{
-        height: "100%",
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        bgcolor: "background.default",
-      }}
+      className="h-full min-h-0 flex flex-col overflow-hidden bg-fin-bg"
       data-testid="news-page"
     >
       <NewsWorkspaceHeader storyCount={newsItems.length} sourceCount={sourceNames.length} />
@@ -263,20 +230,14 @@ export default function NewsPage() {
         />
       ) : (
         <Box
-          sx={{
-            flex: 1,
-            minHeight: 0,
-            display: "grid",
-            gridTemplateColumns: "minmax(300px, 0.78fr) minmax(0, 1.22fr)",
-            gap: 1,
-            p: 1,
-          }}
+          className="flex-1 min-h-0 grid gap-2 p-2"
+          style={{ gridTemplateColumns: "minmax(300px, 0.78fr) minmax(0, 1.22fr)" }}
         >
           <Paper
             component="section"
             aria-label="News feed"
             data-testid="news-list-region"
-            sx={paneSx}
+            className={paneClassName}
           >
             <NewsList {...newsListProps} />
           </Paper>

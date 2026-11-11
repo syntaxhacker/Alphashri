@@ -5,13 +5,13 @@ import {
   Tooltip,
   Group,
   Badge,
-  ScrollArea,
   Progress,
   Stack,
   SegmentedControl,
   useColorScheme,
   useTheme,
 } from "@/ui";
+import * as palette from "@/ui/palette";
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { getMoneyness } from "../../../utils/options";
 import { clamp, formatNumber, getPnLTextColor } from "../../../utils/ui-helpers";
@@ -117,11 +117,11 @@ function OptionColumn({
   };
   if (!contract) {
     return (
-      <Box sx={{ display: "contents" }}>
+      <Box style={{ display: "contents" }}>
         {Array(5)
           .fill(0)
           .map((_, i) => (
-            <Box key={i} sx={styles.cell}>
+            <Box key={i} style={styles.cell as CSSProperties}>
               -
             </Box>
           ))}
@@ -167,7 +167,7 @@ function OptionColumn({
             value: ltp.toFixed(2),
             kind: "ltp",
             fw: 700,
-            c: isITM ? (type === "CE" ? "green.8" : "red.8") : undefined,
+            c: isITM ? (type === "CE" ? "success" : "error") : undefined,
             isLTP: true,
             title: `LTP ₹${ltp.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
           },
@@ -177,7 +177,7 @@ function OptionColumn({
             value: ltp.toFixed(2),
             kind: "ltp",
             fw: 700,
-            c: isITM ? (type === "CE" ? "green.8" : "red.8") : undefined,
+            c: isITM ? (type === "CE" ? "success" : "error") : undefined,
             isLTP: true,
             title: `LTP ₹${ltp.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
           },
@@ -218,8 +218,8 @@ function OptionColumn({
 
   const tooltipContent = (
     <Box p="xs">
-      <Group justify="space-between" mb={5}>
-        <Text size="sm" fw={700} c={type === "CE" ? "green" : "red"}>
+      <Group justify="space-between" style={{ marginBottom: 40 }}>
+        <Text size="sm" fw={700}>
           {contract.trading_symbol}
         </Text>
         <Badge size="sm" color={sentiment.color} variant="filled">
@@ -233,14 +233,14 @@ function OptionColumn({
       <Text size="sm" c={getPnLTextColor(oiChange)}>
         OI Change %: {oiChangePct.toFixed(2)}%
       </Text>
-        <Box mt={5} pt={5}>
+        <Box style={{ marginTop: 40, paddingTop: 40 }}>
         <Text size="sm">Delta: {delta.toFixed(3)}</Text>
         <Text size="sm">Theta: {(g?.theta ?? 0).toFixed(2)}</Text>
         <Text size="sm">Gamma: {(g?.gamma ?? 0).toFixed(5)}</Text>
         <Text size="sm">Vega: {(g?.vega ?? 0).toFixed(2)}</Text>
         <Text size="sm">IV: {iv.toFixed(2)}%</Text>
       </Box>
-      <Box mt={5} pt={5}>
+      <Box style={{ marginTop: 40, paddingTop: 40 }}>
         <Text size="sm">
           Bid: {m?.bid_price} | Ask: {m?.ask_price}
         </Text>
@@ -261,7 +261,7 @@ function OptionColumn({
                 : cell.kind === "iv"
                   ? clamp((iv / 100) * 0.9 + 0.14, 0.1, 1)
                   : clamp(Math.abs(delta) * 0.9 + 0.16, 0.1, 1);
-        const palette = getCellPalette(
+        const cellPalette = getCellPalette(
           theme,
           cell.kind,
           type,
@@ -273,12 +273,12 @@ function OptionColumn({
         );
 
         const cellStyle: CSSProperties = {
-          ...styles.cell,
+          ...(styles.cell as CSSProperties),
           position: "relative",
           fontWeight: cell.fw,
-          background: palette.background,
-          boxShadow: palette.shadow,
-          color: cell.c ? undefined : palette.text,
+          background: cellPalette.background as string,
+          boxShadow: cellPalette.shadow,
+          color: cell.c ? undefined : cellPalette.text,
         };
 
         return (
@@ -291,18 +291,18 @@ function OptionColumn({
             multiline
             w={220}
           >
-            <Box sx={cellStyle} title={cell.title} onClick={() => onRowClick(contract)}>
+            <Box style={cellStyle} title={cell.title} onClick={() => onRowClick(contract)}>
               {cell.isOI && (
                 <Box
                   data-testid={`options-oi-bar-${type}-${rowStrike}`}
                   title={`OI ${oiBarPct.toFixed(0)}% of column max`}
-                  sx={{
+                  style={{
                     position: "absolute",
                     top: 4,
                     bottom: 4,
                     [type === "CE" ? "right" : "left"]: 0,
                     width: `${oiBarPct}%`,
-                    background: `linear-gradient(180deg, ${hexToRgba(palette.accent, 0.22)} 0%, ${hexToRgba(palette.accent, 0.08)} 100%)`,
+                    background: `linear-gradient(180deg, ${hexToRgba(cellPalette.accent, 0.22)} 0%, ${hexToRgba(cellPalette.accent, 0.08)} 100%)`,
                     borderRadius: type === "CE" ? "999px 0 0 999px" : "0 999px 999px 0",
                     zIndex: 0,
                     transition: "width 0.35s ease",
@@ -314,13 +314,13 @@ function OptionColumn({
                 <Box
                   data-testid={`options-vol-bar-${type}-${rowStrike}`}
                   title={`Volume ${volBarPct.toFixed(0)}% of column max`}
-                  sx={{
+                  style={{
                     position: "absolute",
                     top: 4,
                     bottom: 4,
                     [type === "CE" ? "right" : "left"]: 0,
                     width: `${volBarPct}%`,
-                    background: `linear-gradient(180deg, ${hexToRgba(palette.accent, 0.22)} 0%, ${hexToRgba(palette.accent, 0.08)} 100%)`,
+                    background: `linear-gradient(180deg, ${hexToRgba(cellPalette.accent, 0.22)} 0%, ${hexToRgba(cellPalette.accent, 0.08)} 100%)`,
                     borderRadius: type === "CE" ? "999px 0 0 999px" : "0 999px 999px 0",
                     zIndex: 0,
                     transition: "width 0.35s ease",
@@ -328,9 +328,17 @@ function OptionColumn({
                 />
               )}
 
-              <Stack gap={0} align="center" w="100%" pos="relative" sx={{ zIndex: 1 }}>
+              <Stack gap={0} align="center" w="100%" style={{ zIndex: 1 }}>
                 <Group gap={4} wrap="nowrap" align="center" justify="center">
-                  <Text size="sm" fw={cell.fw} c={cell.c as any} ta="center" lh={1.05} className={flashClassFor(cell.kind)}>
+                  <Text
+                    size="sm"
+                    fw={cell.fw}
+                    c={cell.c}
+                    className={flashClassFor(cell.kind)}
+                    style={cell.c ? undefined : { color: cellPalette.text }}
+                    ta="center"
+                    lh={1.05}
+                  >
                     {cell.value}
                   </Text>
                   {cell.badge && (
@@ -339,10 +347,7 @@ function OptionColumn({
                       variant="light"
                       color={cell.badge.color}
                       px={4}
-                      sx={{
-                        fontSize: "10px",
-                        height: 14,
-                      }}
+                      style={{ fontSize: "10px", height: 14 }}
                     >
                       {cell.badge.label}
                     </Badge>
@@ -350,23 +355,11 @@ function OptionColumn({
                 </Group>
 
                 {cell.isLTP && (
-                  <Box
-                    w="72%"
-                    mt={3}
-                    sx={{
-                      "& .MuiLinearProgress-root": {
-                        backgroundColor: hexToRgba(palette.accent, 0.08),
-                        height: 3,
-                      },
-                      "& .MuiLinearProgress-bar": {
-                        backgroundImage: `linear-gradient(90deg, ${hexToRgba(palette.accent, 0.85)} 0%, ${hexToRgba(palette.accent, 0.45)} 100%)`,
-                      },
-                    }}
-                  >
+                  <Box style={{ width: "72%", marginTop: 12 }}>
                     <Progress
                       value={clamp(Math.abs(delta) * 100, 0, 100)}
-                      size="sm"
-                      color={type === "CE" ? "teal" : "orange"}
+                      size={3}
+                      color={cellPalette.accent}
                       radius="xl"
                     />
                   </Box>
@@ -385,7 +378,7 @@ function OptionChainTableInner({
   filters: _filters,
   spotPrice,
   onRowClick,
-  selectedExpiry,
+  selectedExpiry: _selectedExpiry,
 }: OptionChainTableProps) {
   const theme = useTheme();
   const { colorScheme } = useColorScheme();
@@ -406,8 +399,6 @@ function OptionChainTableInner({
   );
   // Strike-set identity: changes on expiry switch but not on OI/LTP ticks, so
   // auto-scroll fires on load/expiry change without yanking the user on every tick.
-  const strikeKey = useMemo(() => strikeMatrix.map((s) => s.strike).join(","), [strikeMatrix]);
-
   const visibleRows = useMemo(() => {
     if (atmWindow === "all" || atmIndex < 0) {
       return strikeMatrix.map((row, index) => ({ ...row, index }));
@@ -469,13 +460,13 @@ function OptionChainTableInner({
   return (
     <Box
       id="option-chain-table"
-      sx={{ ...styles.container, position: "relative" }}
+      style={{ ...(styles.container as CSSProperties), position: "relative" }}
       data-testid="options-chain-table"
     >
       <ChainScrollActions scrollToATM={scrollToATM} scrollToEdge={scrollToEdge} />
 
-      <Box sx={styles.windowBar}>
-        <Text size="sm" c="dimmed" fw={600}>
+      <Box style={styles.windowBar as CSSProperties}>
+        <Text size="sm" className="text-fin-text-muted" fw={600}>
           ATM window
         </Text>
         <SegmentedControl
@@ -485,7 +476,7 @@ function OptionChainTableInner({
           data={ATM_WINDOW_OPTIONS}
           data-testid="options-chain-atm-window"
         />
-        <Text size="sm" c="dimmed" data-testid="options-chain-window-count">
+        <Text size="sm" className="text-fin-text-muted" data-testid="options-chain-window-count">
           Showing {visibleRows.length} of {strikeMatrix.length} strikes
         </Text>
       </Box>
@@ -493,15 +484,12 @@ function OptionChainTableInner({
       <ChainTableHeader theme={theme} styles={styles} />
       <ChainSubHeader styles={styles} />
 
-      <ScrollArea
-       
-        flex={1}
-        type="hover"
-        scrollbars="y"
-        viewportRef={viewportRef}
+      <div
+        ref={viewportRef}
+        style={{ flex: 1, minHeight: 0, overflow: "auto" }}
         data-testid="options-chain-table-scrollarea"
       >
-        <Box sx={{ minWidth: 800, pb: 19 }}>
+        <Box style={{ minWidth: 800, paddingBottom: 152 } as CSSProperties}>
           {visibleRows.map(({ strike, ce, pe, index }) => {
             const isATM = index === atmIndex && atmIndex >= 0;
             const isHovered = hoveredStrike === strike;
@@ -514,19 +502,23 @@ function OptionChainTableInner({
             const proximity = spotPrice
               ? clamp(1 - Math.min(Math.abs(strike - spotPrice) / 220, 1), 0, 1)
               : 0;
-            const rowCallBg = hexToRgba(
-              theme.palette.success.main,
-              0.04 + proximity * 0.09 + (isHovered ? 0.05 : 0) + (ceITM ? 0.08 : 0),
-            );
-            const rowPutBg = hexToRgba(
-              theme.palette.error.main,
-              0.04 + proximity * 0.09 + (isHovered ? 0.05 : 0) + (peITM ? 0.08 : 0),
-            );
+            const rowCallBg = `rgba(63, 185, 80, ${0.04 + proximity * 0.09 + (isHovered ? 0.05 : 0) + (ceITM ? 0.08 : 0)})`;
+            const rowPutBg = `rgba(248, 81, 73, ${0.04 + proximity * 0.09 + (isHovered ? 0.05 : 0) + (peITM ? 0.08 : 0)})`;
             // Per-row CE-vs-PE buildup skew: share of total strike OI held by calls.
             const ceRowOI = ce?.market_data?.oi ?? 0;
             const peRowOI = pe?.market_data?.oi ?? 0;
             const rowOITotal = ceRowOI + peRowOI;
             const ceSharePct = rowOITotal > 0 ? (ceRowOI / rowOITotal) * 100 : 50;
+
+            const rowStyle: CSSProperties = {
+              ...(styles.row as CSSProperties),
+              ...(isZebra ? (styles.zebraRow as CSSProperties) : {}),
+              ...(isATM ? (styles.atmRow as CSSProperties) : {}),
+              background: `linear-gradient(90deg, ${rowCallBg} 0%, transparent 37%, ${isATM ? `rgba(240, 136, 62, ${0.12 + proximity * 0.12})` : "transparent"} 50%, transparent 63%, ${rowPutBg} 100%)`,
+            };
+            if (isHovered) {
+              rowStyle.boxShadow = `inset 0 0 0 1px rgba(240, 136, 62, 0.5), 0 6px 16px rgba(0, 0, 0, 0.08)`;
+            }
 
             return (
               <Box
@@ -536,15 +528,7 @@ function OptionChainTableInner({
                 data-atm={isATM ? "true" : undefined}
                 data-ce-itm={ceITM ? "true" : undefined}
                 data-pe-itm={peITM ? "true" : undefined}
-                sx={{
-                  ...styles.row,
-                  ...(isZebra ? styles.zebraRow : {}),
-                  ...(isATM ? styles.atmRow : {}),
-                  background: `linear-gradient(90deg, ${rowCallBg} 0%, transparent 37%, ${isATM ? hexToRgba(theme.palette.warning.light, 0.12 + proximity * 0.12) : "transparent"} 50%, transparent 63%, ${rowPutBg} 100%)`,
-                  boxShadow: isHovered
-                    ? `inset 0 0 0 1px ${hexToRgba(theme.palette.warning.light, 0.5)}, 0 6px 16px ${hexToRgba(theme.palette.common.black, 0.08)}`
-                    : undefined,
-                }}
+                style={rowStyle}
                 data-testid={`options-chain-row-${strike}`}
                 onMouseEnter={() => setHoveredStrike(strike)}
                 onMouseLeave={() =>
@@ -564,13 +548,15 @@ function OptionChainTableInner({
                 />
 
                 <Box
-                  sx={{
-                    ...styles.strikeCell,
-                    ...(isATM ? styles.atmHighlight : {}),
-                    boxShadow: isHovered
-                      ? `inset 0 0 0 1px ${hexToRgba(theme.palette.warning.main, 0.45)}, 0 8px 22px ${hexToRgba(theme.palette.common.black, 0.08)}`
-                      : undefined,
-                  }}
+                  style={{
+                    ...(styles.strikeCell as CSSProperties),
+                    ...(isATM ? (styles.atmHighlight as CSSProperties) : {}),
+                    ...(isHovered
+                      ? {
+                          boxShadow: `inset 0 0 0 1px rgba(240, 136, 62, 0.45), 0 8px 22px rgba(0, 0, 0, 0.08)`,
+                        }
+                      : undefined),
+                  } as CSSProperties}
                   data-testid="strike-cell"
                 >
                   <Text size="sm" fw={800}>
@@ -590,18 +576,18 @@ function OptionChainTableInner({
                   <Box
                     data-testid={`options-dominance-${strike}`}
                     title={`CE ${ceSharePct.toFixed(0)}% / PE ${(100 - ceSharePct).toFixed(0)}% of strike OI`}
-                    sx={{
+                    style={{
                       display: "flex",
                       width: "100%",
                       height: 4,
                       borderRadius: 4,
                       overflow: "hidden",
-                      mt: 4,
-                      bgcolor: "divider",
+                      marginTop: 8,
+                      backgroundColor: palette.BORDER,
                     }}
                   >
-                    <Box sx={{ width: `${ceSharePct}%`, bgcolor: "success.main" }} />
-                    <Box sx={{ width: `${100 - ceSharePct}%`, bgcolor: "error.main" }} />
+                    <Box style={{ width: `${ceSharePct}%`, backgroundColor: palette.POSITIVE }} />
+                    <Box style={{ width: `${100 - ceSharePct}%`, backgroundColor: palette.NEGATIVE }} />
                   </Box>
                 </Box>
 
@@ -620,7 +606,7 @@ function OptionChainTableInner({
             );
           })}
         </Box>
-      </ScrollArea>
+      </div>
 
       <ChainFooter theme={theme} colorScheme={colorScheme} spotPrice={spotPrice} />
     </Box>

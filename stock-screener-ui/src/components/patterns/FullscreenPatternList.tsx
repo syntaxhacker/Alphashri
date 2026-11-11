@@ -47,7 +47,7 @@ export interface FullscreenPatternListProps {
 export function FullscreenPatternList({ hits, activeKey, onSelect }: FullscreenPatternListProps) {
   const sorted = sortHitsNewest(hits).slice(0, 1);
   return (
-    <Box data-testid="patterns-fullscreen-list" sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+    <Box data-testid="patterns-fullscreen-list" className="flex flex-col gap-1">
       <Text size="xs" c="dimmed" fw={700} style={{ textTransform: "uppercase" }}>
         {`Patterns (${sorted.length})`}
       </Text>
@@ -66,14 +66,9 @@ export function FullscreenPatternList({ hits, activeKey, onSelect }: FullscreenP
               data-testid={`patterns-fullscreen-list-item-${i}`}
               data-selected={active ? "true" : undefined}
               aria-pressed={active}
-              sx={{
-                width: "100%",
-                display: "block",
-                borderRadius: 1,
-                p: 0.5,
-                bgcolor: active ? "action.selected" : "transparent",
-                "&:hover": { bgcolor: active ? "action.selected" : "action.hover" },
-              }}
+              className={`block w-full cursor-pointer rounded-fin p-1 transition-colors hover:bg-fin-surface-alt ${
+                active ? "bg-fin-surface-alt" : "bg-transparent"
+              }`}
             >
               <ToolbarRow justify="space-between" gap={4} align="center">
                 <Text size="xs" fw={600} truncate style={{ flex: 1, minWidth: 0 }} lh={1.15}>

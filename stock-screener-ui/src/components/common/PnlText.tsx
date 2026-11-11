@@ -31,7 +31,7 @@ export function PnlText({
       c={color}
       fw={fw ?? 600}
       size={size}
-      component={span ? "span" : undefined}
+      span={span}
       ml={ml}
       fs={fs}
       data-testid={testId}

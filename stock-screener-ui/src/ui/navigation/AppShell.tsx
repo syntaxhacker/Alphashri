@@ -1,7 +1,4 @@
-import Box from "@mui/material/Box";
-import AppBar from "@mui/material/AppBar";
-import Toolbar from "@mui/material/Toolbar";
-import Drawer from "@mui/material/Drawer";
+import { cn } from "../cn";
 import type { UIAppShellProps, UIAppShellHeaderProps, UIAppShellNavbarProps, UIAppShellMainProps, UIAppShellSectionProps } from "../types";
 
 function resolveDimension(v: number | string | undefined, fallback: number): number {
@@ -43,90 +40,102 @@ export function AppShell({ header, navbar, padding, children, className, style, 
   const navbarWidth = resolveNavbarWidth(navbar?.width as any);
   const navbarCollapsed = isCollapsed(navbar?.collapsed as any);
 
-  // Support compound usage: children contains AppShell.Header / Navbar / Main
-  // We also support flat children fallback.
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh" }} className={className} style={style} data-testid={testId} {...(rest as any)}>
+    <div
+      className={cn("flex min-h-screen", className)}
+      style={style}
+      data-testid={testId}
+      {...(rest as Record<string, unknown>)}
+    >
       {!headerCollapsed && header && (
-        <AppBar position="fixed" sx={{ height: headerHeight, zIndex: (t) => t.zIndex.drawer + 1 }} data-testid={testId ? `${testId}-header` : undefined}>
-          <Toolbar sx={{ minHeight: headerHeight, height: headerHeight }}>{/* header content injected via AppShellHeader if used as compound */}</Toolbar>
-        </AppBar>
+        <header
+          className="fixed inset-x-0 top-0 z-40"
+          style={{ height: `${headerHeight}px` }}
+          data-testid={testId ? `${testId}-header` : undefined}
+        />
       )}
       {!navbarCollapsed && navbar && (
-        <Drawer
-          variant="permanent"
-          sx={{
-            width: navbarWidth,
-            flexShrink: 0,
-            [`& .MuiDrawer-paper`]: { width: navbarWidth, boxSizing: "border-box", top: headerCollapsed ? 0 : headerHeight, height: headerCollapsed ? "100%" : `calc(100% - ${headerHeight}px)` },
+        <nav
+          className="fixed inset-y-0 left-0 z-40 flex-shrink-0"
+          style={{
+            width: `${navbarWidth}px`,
+            top: headerCollapsed ? 0 : headerHeight,
+            height: headerCollapsed ? "100%" : `calc(100% - ${headerHeight}px)`,
           }}
-          open
-        >
-          {/* Drawer content will be provided via AppShellNavbar children; this shell drawer is for layout reference.
-              Actual content is rendered below via children pass-through with offsets. */}
-        </Drawer>
+          data-testid={testId ? `${testId}-navbar` : undefined}
+        />
       )}
-      {/* Render children with correct offsets — if compound components are used, they will render themselves positioned correctly.
-          For the shell-level layout, we also ensure main offset via Box. */}
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          ml: navbarCollapsed || !navbar ? 0 : `${navbarWidth}px`,
-          mt: headerCollapsed || !header ? 0 : `${headerHeight}px`,
-          p: padding != null ? (typeof padding === "number" ? `${padding}px` : String(padding)) : 0,
+      <main
+        className="flex-1 min-w-0 min-h-0"
+        style={{
+          marginLeft: navbarCollapsed || !navbar ? 0 : navbarWidth,
+          marginTop: headerCollapsed || !header ? 0 : headerHeight,
+          padding: padding != null ? (typeof padding === "number" ? `${padding}px` : String(padding)) : 0,
           minWidth: 0,
           minHeight: 0,
         }}
+        data-testid={testId ? `${testId}-main` : undefined}
       >
         {children}
-      </Box>
-    </Box>
+      </main>
+    </div>
   );
 }
 
-export function AppShellHeader({ children, className, style, "data-testid": testId, ...rest }: UIAppShellHeaderProps) {
-  // When used inside AppShell compound, render as fixed AppBar content
-  // For standalone usage, render AppBar
+export function AppShellHeader({ children, className, style, "data-testid": testId, id, ...rest }: UIAppShellHeaderProps) {
   return (
-    <AppBar position="fixed" className={className} style={style} data-testid={testId} {...(rest as any)} sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}>
-      <Toolbar>{children}</Toolbar>
-    </AppBar>
-  );
-}
-
-export function AppShellNavbar({ p, children, className, style, "data-testid": testId, ...rest }: UIAppShellNavbarProps) {
-  // Resolve p to padding
-  const pad = p != null ? (typeof p === "number" ? `${p}px` : String(p)) : undefined;
-  return (
-    <Drawer
-      variant="permanent"
-      className={className}
+    <header
+      className={cn("fixed inset-x-0 top-0 z-40", className)}
       style={style}
+      id={id}
       data-testid={testId}
-      {...(rest as any)}
-      sx={{ width: 280, flexShrink: 0, [`& .MuiDrawer-paper`]: { width: 280, boxSizing: "border-box", p: pad } }}
-      open
+      {...(rest as Record<string, unknown>)}
     >
-      <Box sx={pad ? { p: pad } : undefined}>{children}</Box>
-    </Drawer>
+      {children}
+    </header>
   );
 }
 
-export function AppShellMain({ children, className, style, "data-testid": testId, ...rest }: UIAppShellMainProps) {
+export function AppShellNavbar({ p, children, className, style, "data-testid": testId, id, ...rest }: UIAppShellNavbarProps) {
+  const pad = p != null ? (typeof p === "number" ? `${p * 8}px` : String(p)) : undefined;
   return (
-    <Box component="main" sx={{ flex: 1, minWidth: 0, minHeight: 0, p: 2 }} className={className} style={style} data-testid={testId} {...(rest as any)}>
+    <nav
+      className={cn("fixed inset-y-0 left-0 z-40 flex-shrink-0 w-[280px]", className)}
+      style={{ width: "280px", padding: pad, ...style }}
+      id={id}
+      data-testid={testId}
+      {...(rest as Record<string, unknown>)}
+    >
       {children}
-    </Box>
+    </nav>
   );
 }
 
-export function AppShellSection({ children, className, style, "data-testid": testId, ...rest }: UIAppShellSectionProps) {
-  const { grow, ...other } = rest as any;
+export function AppShellMain({ children, className, style, "data-testid": testId, id, ...rest }: UIAppShellMainProps) {
   return (
-    <Box sx={grow ? { flexGrow: 1 } : undefined} className={className} style={style} data-testid={testId} {...other}>
+    <main
+      className={cn("flex-1 min-w-0 min-h-0 p-4", className)}
+      style={style}
+      id={id}
+      data-testid={testId}
+      {...(rest as Record<string, unknown>)}
+    >
       {children}
-    </Box>
+    </main>
+  );
+}
+
+export function AppShellSection({ children, className, style, "data-testid": testId, id, grow, component: _component, ...rest }: UIAppShellSectionProps) {
+  return (
+    <section
+      className={cn(grow ? "flex-1" : "", className)}
+      style={style}
+      id={id}
+      data-testid={testId}
+      {...(rest as Record<string, unknown>)}
+    >
+      {children}
+    </section>
   );
 }
 AppShell.Header = AppShellHeader;

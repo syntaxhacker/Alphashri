@@ -1,6 +1,6 @@
-import type { ReactNode, MouseEvent } from "react";
-import { Box, Text, Tooltip } from "@/ui";
-import { IconChartCandle, IconExternalLink } from "@tabler/icons-react";
+import type { ReactNode, MouseEvent , CSSProperties} from "react";
+import { ActionIcon, Box, CopyButton, Text, Tooltip, cn } from "@/ui";
+import { IconChartCandle, IconCheck, IconCopy, IconExternalLink } from "@tabler/icons-react";
 import { tradingViewSymbol } from "@/config/tvSymbols";
 import { useSymbolDock } from "./symbolDockContext";
 
@@ -28,6 +28,8 @@ export interface SymbolLinkProps {
   tvIcon?: boolean;
   /** Show the trailing chart icon (default true). Set false for TV-only links. */
   showChart?: boolean;
+  /** Copy the symbol to the clipboard (default false). Rendered after the symbol text. */
+  showCopy?: boolean;
   /** Click handler for the symbol text when NOT a TV link (ClickableSymbol use case). */
   onTextClick?: (symbol: string, event: MouseEvent) => void;
   /** Test id for the TradingView link / text button (kept for existing contracts). */
@@ -44,12 +46,12 @@ export interface SymbolLinkProps {
   children?: ReactNode;
   /** Explicit aria-label for the text link/button. */
   ariaLabel?: string;
-  /** Extra wrapper layout only (flex/width); the link skin stays shared. */
-  sx?: Record<string, unknown>;
   /** Stop row-click handlers (default true, matches the previous links). */
   stopPropagation?: boolean;
   /** Additional class on the wrapper. */
   className?: string;
+  /** Inline style merge. */
+  style?: CSSProperties;
   /** Additional class on the text element (link or button). */
   textClassName?: string;
 }
@@ -79,6 +81,7 @@ export function SymbolLink({
   tvLink = true,
   tvIcon = false,
   showChart = true,
+  showCopy = false,
   onTextClick,
   testId,
   chartTestId,
@@ -87,9 +90,9 @@ export function SymbolLink({
   secondary,
   children,
   ariaLabel,
-  sx,
   stopPropagation = true,
   className,
+  style,
   textClassName,
 }: SymbolLinkProps) {
   const label = String(symbol ?? "");
@@ -119,13 +122,13 @@ export function SymbolLink({
 
   return (
     <Box
-      className={className}
       data-testid={testId ? `${testId}-wrap` : undefined}
       onMouseEnter={handlePreview}
       onMouseLeave={handlePreviewEnd}
-      sx={{ display: "flex", alignItems: "center", gap: "2px", minWidth: 0, ...sx }}
+      className={cn("flex min-w-0 items-center gap-[2px]", className)}
+      style={style}
     >
-      <Box sx={{ minWidth: 0, flex: 1 }}>
+      <Box className="min-w-0 flex-1">
         {tvLink && tvUrl ? (
           <Box
             component="a"
@@ -134,18 +137,8 @@ export function SymbolLink({
             rel="noopener noreferrer"
             aria-label={ariaLabel ?? `Open ${label} on TradingView`}
             data-testid={testId}
-            className="pattern-tv-link"
             onClick={stop}
-            sx={{
-              display: "block",
-              minWidth: 0,
-              overflow: "hidden",
-              color: "text.primary",
-              textDecoration: "underline",
-              textDecorationColor: "divider",
-              textUnderlineOffset: "2px",
-              "&:hover": { color: "primary.main", textDecorationColor: "primary.main" },
-            }}
+            className="pattern-tv-link block min-w-0 overflow-hidden text-fin-text underline decoration-fin-border underline-offset-2 hover:text-fin-primary hover:decoration-fin-primary"
           >
             {children ?? <Text size={size} fw={weight} truncate className={textClassName}>{label}</Text>}
           </Box>
@@ -156,24 +149,12 @@ export function SymbolLink({
             aria-label={ariaLabel ?? `Open ${label} chart`}
             data-testid={testId}
             onClick={handleTextClick}
-            className={textClassName}
-            sx={{
-              display: "block",
-              minWidth: 0,
-              overflow: "hidden",
-              color: "text.primary",
-              textDecoration: "none",
-              background: "transparent",
-              border: 0,
-              padding: 0,
-              font: "inherit",
-              cursor: "pointer",
-              fontWeight: weight,
-              fontSize: size === "xs" ? "0.75rem" : size === "sm" ? "0.875rem" : "1rem",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              "&:hover": { color: "primary.main" },
-            }}
+            className={cn(
+              "block min-w-0 cursor-pointer overflow-hidden whitespace-nowrap text-ellipsis border-0 bg-transparent p-0 text-fin-text no-underline hover:text-fin-primary",
+              size === "xs" ? "text-xs" : size === "sm" ? "text-sm" : "text-base",
+              textClassName,
+            )}
+            style={{ fontWeight: weight }}
           >
             {children ?? label}
           </Box>
@@ -185,6 +166,27 @@ export function SymbolLink({
         {secondary}
       </Box>
 
+      {showCopy ? (
+        <CopyButton value={label}>
+          {({ copied, copy }) => (
+            <ActionIcon
+              variant="subtle"
+              color={copied ? "info" : "secondary"}
+              size="xs"
+              style={{ width: 16, height: 16, minHeight: 16, padding: 0 }}
+              onClick={(event) => {
+                event.stopPropagation();
+                copy();
+              }}
+              aria-label={`Copy ${label}`}
+              data-testid={`symbol-copy-${label}`}
+            >
+              {copied ? <IconCheck size={10} /> : <IconCopy size={10} />}
+            </ActionIcon>
+          )}
+        </CopyButton>
+      ) : null}
+
       {tvLink && tvIcon && tvUrl ? (
         <Tooltip label={`${label} on TradingView`}>
           <Box
@@ -193,15 +195,8 @@ export function SymbolLink({
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`Open ${label} on TradingView`}
-            className="pattern-tv-link"
             onClick={stop}
-            sx={{
-              display: "inline-flex",
-              alignItems: "center",
-              flexShrink: 0,
-              color: "text.secondary",
-              "&:hover": { color: "primary.main" },
-            }}
+            className="pattern-tv-link inline-flex flex-shrink-0 items-center text-fin-text-muted hover:text-fin-primary"
           >
             <IconExternalLink size={11} />
           </Box>
@@ -219,25 +214,7 @@ export function SymbolLink({
             stop(event);
             openHandler(label);
           }}
-          sx={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-            width: 18,
-            height: 18,
-            p: 0,
-            border: 0,
-            borderRadius: "4px",
-            bgcolor: "transparent",
-            color: "text.secondary",
-            cursor: "pointer",
-            "&:hover": { color: "primary.main", bgcolor: "action.hover" },
-            "&:focus-visible": {
-              outline: "2px solid var(--mui-palette-primary-main)",
-              outlineOffset: 1,
-            },
-          }}
+          className="inline-flex h-[18px] w-[18px] flex-shrink-0 cursor-pointer items-center justify-center rounded-[4px] border-0 bg-transparent p-0 text-fin-text-muted hover:bg-white/[0.08] hover:text-fin-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]"
         >
           <IconChartCandle size={12} />
         </Box>

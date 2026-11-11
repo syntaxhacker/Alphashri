@@ -122,7 +122,7 @@ export function PatternListView({
           const symbol = info.getValue<string>();
           const canShowMembers = Boolean(onShowMembers && hasIndexMembers(symbol));
           return (
-            <Box sx={{ display: "flex", alignItems: "center", gap: "2px", minWidth: 0 }}>
+            <Box className="flex min-w-0 items-center gap-[2px]">
               <SymbolLink
                 symbol={symbol}
                 testId={`patterns-list-tv-${symbol}`}
@@ -130,7 +130,7 @@ export function PatternListView({
                 onOpen={onSymbolOpen}
                 onPreview={onSymbolPreview}
                 onPreviewEnd={onSymbolPreviewEnd}
-                sx={{ flex: 1 }}
+                className="flex-1"
               />
               {/* Results are equities, so only the F&O badge is shown — an ETF
                   tag is tolerated (no crash) but never rendered. */}
@@ -320,8 +320,8 @@ export function PatternListView({
       getRowStyle={(hit) =>
         activeKey && fullscreenDedupeKey(hit) === activeKey
           ? {
-              background: "var(--mui-palette-action-selected)",
-              boxShadow: "inset 3px 0 0 var(--mui-palette-primary-main)",
+              background: "rgba(88, 166, 255, 0.12)",
+              boxShadow: "inset 3px 0 0 var(--color-fin-primary)",
             }
           : undefined
       }

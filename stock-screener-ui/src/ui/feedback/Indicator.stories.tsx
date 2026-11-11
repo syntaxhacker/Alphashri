@@ -19,7 +19,7 @@ function Placeholder() {
       h={48}
       style={{
         borderRadius: "50%",
-        backgroundColor: "var(--mui-palette-grey-700)",
+        backgroundColor: "#21262d",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

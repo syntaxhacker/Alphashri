@@ -63,6 +63,9 @@ const initialState: OptionsStore = {
 
 let state: OptionsStore = { ...initialState };
 let initialized = false;
+let chainRequestId = 0;
+let expiryRequestId = 0;
+let spotRequestId = 0;
 
 const { subscribe, notify } = createSubscriber();
 
@@ -90,6 +93,8 @@ export function setUnderlying(underlying: string): void {
     optionChain: [],
     spotPrice: null,
     expiries: [],
+    error: null,
+    loading: true,
   };
   notify();
   fetchExpiriesForUnderlying(underlying);
@@ -123,11 +128,16 @@ export async function fetchChain(): Promise<void> {
     return;
   }
 
+  const requestId = ++chainRequestId;
+  const underlying = state.selectedUnderlying;
+  const expiry = state.selectedExpiry;
+
   setLoading(true);
   setError(null);
 
   try {
-    const result = await getOptionChain(state.selectedUnderlying, state.selectedExpiry);
+    const result = await getOptionChain(underlying, expiry);
+    if (requestId !== chainRequestId) return;
     const contracts: OptionContract[] = [];
     if (result.chain) {
       for (const row of result.chain) {
@@ -138,13 +148,14 @@ export async function fetchChain(): Promise<void> {
     state = {
       ...state,
       optionChain: contracts,
-      spotPrice: result.spot || state.spotPrice,
+      spotPrice: result.spot && result.spot > 0 ? result.spot : state.spotPrice,
       lastUpdated: result.timestamp,
       summary: result.summary,
       loading: false,
     };
     notify();
   } catch (error) {
+    if (requestId !== chainRequestId) return;
     state = {
       ...state,
       error: error instanceof Error ? error.message : "Failed to fetch option chain",
@@ -178,25 +189,51 @@ export async function fetchPositions(): Promise<void> {
 }
 
 async function fetchExpiriesForUnderlying(underlying: string): Promise<void> {
+  const requestId = ++expiryRequestId;
   try {
     const expiries = await getExpiries(underlying);
-    state = { ...state, expiries };
-    if (expiries.length > 0 && !state.selectedExpiry) {
+    if (requestId !== expiryRequestId || state.selectedUnderlying !== underlying) return;
+    if (expiries.length === 0) {
+      state = {
+        ...state,
+        expiries: [],
+        loading: false,
+        error: `${underlying} has no live F&O expiries — reconnect the broker or pick another symbol.`,
+      };
+      notify();
+      return;
+    }
+    state = { ...state, expiries, error: null };
+    if (!state.selectedExpiry) {
       state = { ...state, selectedExpiry: expiries[0].date };
     }
     notify();
   } catch (error) {
-    console.error("Failed to fetch expiries:", error);
+    if (requestId !== expiryRequestId || state.selectedUnderlying !== underlying) return;
+    state = {
+      ...state,
+      expiries: [],
+      loading: false,
+      error: error instanceof Error ? error.message : `Failed to fetch expiries for ${underlying}`,
+    };
+    notify();
   }
 }
 
 async function fetchSpotPriceForUnderlying(underlying: string): Promise<void> {
+  const requestId = ++spotRequestId;
   try {
     const result = await getSpotPrice(underlying);
-    state = { ...state, spotPrice: result.spot };
+    if (requestId !== spotRequestId || state.selectedUnderlying !== underlying) return;
+    state = { ...state, spotPrice: result.spot > 0 ? result.spot : null };
     notify();
   } catch (error) {
-    console.error("Failed to fetch spot price:", error);
+    if (requestId !== spotRequestId || state.selectedUnderlying !== underlying) return;
+    state = {
+      ...state,
+      error: state.error ?? (error instanceof Error ? error.message : "Failed to fetch spot price"),
+    };
+    notify();
   }
 }
 

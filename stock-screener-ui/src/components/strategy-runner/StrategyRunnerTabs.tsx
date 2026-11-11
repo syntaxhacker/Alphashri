@@ -378,7 +378,7 @@ function TradeLogTab({ trades }: { trades: StrategyRunnerTrade[] }) {
             return expandedTrade === key;
           }}
           renderSubComponent={(trade) => (
-            <Box p="md" sx={{ bgcolor: "background.paper" }}>
+            <Box p="md" className="bg-fin-surface">
               <TradeChart
                 symbol={trade.symbol}
                 date={trade.entry_time?.slice(0, 10) || ""}
@@ -399,7 +399,7 @@ function TradeLogTab({ trades }: { trades: StrategyRunnerTrade[] }) {
 
 /* ───── Correlation Tab ───── */
 
-function CorrelationTab({ summary, trades, bots }: TabsProps) {
+function CorrelationTab({ summary, trades, bots: _bots }: TabsProps) {
   const activeBotNames = useMemo(() => {
     const names = new Set<string>();
     for (const t of trades) names.add(t.bot_name);
@@ -446,7 +446,7 @@ function CorrelationTab({ summary, trades, bots }: TabsProps) {
           const bgColor = netPnl > 0 ? "success.light" : "error.light";
           const textColor = netPnl > 0 ? "success.main" : "error.main";
           return (
-            <Box ta="center" sx={{ bgcolor: bgColor, padding: "2px 4px" }}>
+            <Box ta="center" className="px-1 py-[2px]" style={{ backgroundColor: bgColor }}>
               <Text size="xs" fw={500} c={textColor}>
                 {netPnl >= 0 ? "+" : ""}{netPnl.toFixed(0)}
               </Text>

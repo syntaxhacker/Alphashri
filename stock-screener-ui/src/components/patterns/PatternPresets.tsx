@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { ActionIcon, Box, Button, Chip, Select, Text, TextInput, Tooltip } from "@/ui";
-import { Close as CloseIcon } from "@mui/icons-material";
-import { IconBookmarkPlus } from "@tabler/icons-react";
+import { IconX, IconBookmarkPlus } from "@tabler/icons-react";
 import { BUILTIN_PRESETS, type PatternPreset } from "@/config/patternCatalog";
 import type { PatternFilters } from "@/types/chartPatterns";
 
@@ -82,7 +81,7 @@ export function PatternPresets({ filters, applyFilters }: PatternPresetsProps) {
   return (
     <Box
       data-testid="patterns-presets"
-      sx={{ display: "flex", flexDirection: "column", gap: 0.75, minWidth: 0 }}
+      className="flex min-w-0 flex-col gap-1.5"
     >
       <Box data-testid="patterns-preset-select">
         <Select
@@ -119,11 +118,11 @@ export function PatternPresets({ filters, applyFilters }: PatternPresetsProps) {
             placeholder="Saved presets"
             data-testid="patterns-preset-saved"
           />
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }} data-testid="patterns-preset-saved-list">
+          <Box className="flex flex-wrap gap-1" data-testid="patterns-preset-saved-list">
             {saved.map((preset) => (
               <Box
                 key={preset.id}
-                sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, minWidth: 0 }}
+                className="inline-flex min-w-0 items-center gap-0.5"
               >
                 <Chip
                   size="xs"
@@ -142,7 +141,7 @@ export function PatternPresets({ filters, applyFilters }: PatternPresetsProps) {
                     onClick={() => handleDelete(preset.id)}
                     data-testid={`patterns-preset-delete-${preset.id}`}
                   >
-                    <CloseIcon fontSize="inherit" />
+                    <IconX size={12} />
                   </ActionIcon>
                 </Tooltip>
               </Box>
@@ -152,8 +151,8 @@ export function PatternPresets({ filters, applyFilters }: PatternPresetsProps) {
       )}
 
       {naming ? (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+        <Box className="flex min-w-0 flex-col gap-1">
+          <Box className="flex min-w-0 items-center gap-1">
             <label
               htmlFor="patterns-preset-name-input"
               style={{
@@ -199,7 +198,7 @@ export function PatternPresets({ filters, applyFilters }: PatternPresetsProps) {
             aria-label="Save current filters as a preset"
             onClick={() => setNaming(true)}
             data-testid="patterns-preset-save"
-            sx={{ alignSelf: "flex-start" }}
+            className="self-start"
           >
             <IconBookmarkPlus size={15} />
           </ActionIcon>

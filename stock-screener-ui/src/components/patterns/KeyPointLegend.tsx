@@ -12,16 +12,7 @@ export function KeyPointLegend({ hit }: { hit: PatternHitDTO }) {
   return (
     <Box
       data-testid="patterns-key-point-legend"
-      sx={{
-        display: "flex",
-        flexWrap: "wrap",
-        alignItems: "baseline",
-        columnGap: 0.75,
-        rowGap: 0.25,
-        borderTop: "1px solid",
-        borderColor: "divider",
-        pt: 0.5,
-      }}
+      className="flex flex-wrap items-baseline gap-x-1.5 gap-y-[2px] border-t border-fin-border pt-1"
     >
       <Text
         size="xs"

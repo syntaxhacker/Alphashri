@@ -133,7 +133,7 @@ export function ValueFilters({ filters, onChange, sectorOptions = [] }: ValueFil
         size="lg"
         data-testid="value-more-filters-modal"
       >
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <Box className="flex flex-col gap-4">
           <Box>
             <Text size="sm" fw={600}>
               Valuation

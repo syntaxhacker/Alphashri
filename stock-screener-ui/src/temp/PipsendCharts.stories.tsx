@@ -1,13 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useEffect, useRef, useState, useCallback } from "react";
-import Box from "@mui/material/Box";
-import Paper from "@mui/material/Paper";
-import Stack from "@mui/material/Stack";
-import Button from "@mui/material/Button";
-import Typography from "@mui/material/Typography";
-import Chip from "@mui/material/Chip";
-import Tooltip from "@mui/material/Tooltip";
-import Divider from "@mui/material/Divider";
+import { Box, Paper, Button, Text, Chip, Tooltip, Divider, Stack } from "@/ui";
 import * as palette from "@/ui/palette";
 import oneDayReal from "./oneDayCandles.json";
 
@@ -60,6 +53,14 @@ const volumeData = rawCandles.map((c) => ({
   // color hint optional — pipsend applyVolume colors by close vs open
   color: c.close >= c.open ? "rgba(63,185,80,0.45)" : "rgba(248,81,73,0.45)",
 }));
+
+function toolBtnClass(active: boolean, _accent: string) {
+  return `text-[11px] h-5 min-w-[56px] px-2 border rounded-none transition-colors duration-200 ${
+    active
+      ? `bg-[#21262D] text-[#F0F6FC] border-[#F0F6FC] hover:bg-[#21262D] hover:border-[#F0F6FC]`
+      : `bg-transparent text-[#8B949E] border-[#30363D] hover:bg-[#21262D] hover:border-[#F0F6FC]`
+  }`;
+}
 
 function PipsendChartInner() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -152,8 +153,6 @@ function PipsendChartInner() {
           downColor: NEG,
           borderUpColor: POS,
           borderDownColor: NEG,
-          wickUpColor: POS,
-          wickDownColor: NEG,
           borderVisible: false,
           wickVisible: true,
         });
@@ -435,129 +434,86 @@ function PipsendChartInner() {
   const placeholder = status === "missing" || status === "error";
 
   return (
-    <Box sx={{ height: "100vh", display: "flex", flexDirection: "column", bgcolor: BG, overflow: "hidden" }}>
+    <Box className="h-[100vh] flex flex-col overflow-hidden" style={{ backgroundColor: BG }}>
       {/* Top toolbar — 48px TradingView-like, dense 20px controls, no blue */}
       <Paper
-        elevation={0}
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 0.75,
-          px: 1.25,
-          height: 48,
-          minHeight: 48,
-          borderBottom: 1,
-          borderColor: BORDER,
-          bgcolor: SURFACE,
-          borderRadius: 0,
-          flexShrink: 0,
-        }}
+        className="flex items-center gap-1.5 px-2.5 h-12 min-h-[48px] border-b border-[#30363D] shrink-0 rounded-none"
+        style={{ backgroundColor: SURFACE }}
       >
-        <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, color: TEXT_MUTED }}>
+        <Text className="text-[11px] font-bold tracking-[0.6px]" style={{ color: TEXT_MUTED }}>
           PIPSEND
-        </Typography>
+        </Text>
         <Chip
-          size="small"
+          size="xs"
           label="RELIANCE · 1m · 375"
-          sx={{
-            fontSize: 10,
-            height: 20,
-            bgcolor: SURFACE_ALT,
-            color: TEXT,
-            border: 1,
-            borderColor: BORDER,
-            ml: 0.5,
-          }}
+          className="text-[10px] h-5 ml-1 border border-[#30363D]"
+          style={{ backgroundColor: SURFACE_ALT, color: TEXT }}
         />
-        <Box sx={{ width: 1, height: 18, bgcolor: BORDER, mx: 0.75 }} />
+        <div className="w-[1px] h-[18px] bg-[#30363D] mx-1.5" />
 
         {/* Pipsend tool buttons — dense 20px, no blue accent */}
-        <Tooltip title="Add draggable Long Position (entry/SL/TP)">
-          <span>
-            <Button
-              size="small"
-              variant={activeTool === "long" ? "contained" : "outlined"}
-              color="inherit"
-              onClick={handleLong}
-              sx={{
-                fontSize: 11,
-                height: 20,
-                minWidth: 56,
-                p: "0 8px",
-                borderColor: activeTool === "long" ? TEXT : BORDER,
-                bgcolor: activeTool === "long" ? SURFACE_ALT : "transparent",
-                color: activeTool === "long" ? TEXT : TEXT_MUTED,
-                "&:hover": { bgcolor: SURFACE_ALT, borderColor: TEXT },
-              }}
-            >
-              Long
-            </Button>
-          </span>
+        <Tooltip label="Add draggable Long Position (entry/SL/TP)">
+          <Button
+            size="xs"
+            variant={activeTool === "long" ? "filled" : "outline"}
+            onClick={handleLong}
+            className={toolBtnClass(activeTool === "long", TEXT)}
+            style={{
+              borderColor: activeTool === "long" ? TEXT : BORDER,
+              backgroundColor: activeTool === "long" ? SURFACE_ALT : "transparent",
+              color: activeTool === "long" ? TEXT : TEXT_MUTED,
+            }}
+          >
+            Long
+          </Button>
         </Tooltip>
-        <Tooltip title="Add draggable Short Position">
-          <span>
-            <Button
-              size="small"
-              variant={activeTool === "short" ? "contained" : "outlined"}
-              color="inherit"
-              onClick={handleShort}
-              sx={{
-                fontSize: 11,
-                height: 20,
-                minWidth: 56,
-                p: "0 8px",
-                borderColor: activeTool === "short" ? TEXT : BORDER,
-                bgcolor: activeTool === "short" ? SURFACE_ALT : "transparent",
-                color: activeTool === "short" ? TEXT : TEXT_MUTED,
-                "&:hover": { bgcolor: SURFACE_ALT, borderColor: TEXT },
-              }}
-            >
-              Short
-            </Button>
-          </span>
+        <Tooltip label="Add draggable Short Position">
+          <Button
+            size="xs"
+            variant={activeTool === "short" ? "filled" : "outline"}
+            onClick={handleShort}
+            className={toolBtnClass(activeTool === "short", POS)}
+            style={{
+              borderColor: activeTool === "short" ? TEXT : BORDER,
+              backgroundColor: activeTool === "short" ? SURFACE_ALT : "transparent",
+              color: activeTool === "short" ? TEXT : TEXT_MUTED,
+            }}
+          >
+            Short
+          </Button>
         </Tooltip>
-        <Tooltip title="Add Trend Line (click two points, drag to adjust)">
-          <span>
-            <Button
-              size="small"
-              variant={activeTool === "trend" ? "contained" : "outlined"}
-              color="inherit"
-              onClick={handleTrendLine}
-              sx={{
-                fontSize: 11,
-                height: 20,
-                minWidth: 84,
-                p: "0 8px",
-                borderColor: activeTool === "trend" ? TEXT : BORDER,
-                bgcolor: activeTool === "trend" ? SURFACE_ALT : "transparent",
-                color: activeTool === "trend" ? TEXT : TEXT_MUTED,
-                "&:hover": { bgcolor: SURFACE_ALT, borderColor: TEXT },
-              }}
-            >
-              Trend Line
-            </Button>
-          </span>
+        <Tooltip label="Add Trend Line (click two points, drag to adjust)">
+          <Button
+            size="xs"
+            variant={activeTool === "trend" ? "filled" : "outline"}
+            onClick={handleTrendLine}
+            className={toolBtnClass(activeTool === "trend", TEXT)}
+            style={{
+              borderColor: activeTool === "trend" ? TEXT : BORDER,
+              backgroundColor: activeTool === "trend" ? SURFACE_ALT : "transparent",
+              color: activeTool === "trend" ? TEXT : TEXT_MUTED,
+            }}
+          >
+            Trend Line
+          </Button>
         </Tooltip>
         <Button
-          size="small"
-          variant="outlined"
-          color="inherit"
+          size="xs"
+          variant="outline"
           onClick={handleClear}
-          sx={{ fontSize: 10, height: 20, minWidth: 48, p: "0 8px", borderColor: BORDER, color: TEXT_MUTED }}
+          className="text-[10px] h-5 min-w-[48px] px-2 border border-[#30363D] text-[#8B949E] hover:bg-[#21262D] hover:border-[#F0F6FC] hover:text-[#F0F6FC]"
         >
           Clear
         </Button>
 
-        <Box sx={{ flex: 1 }} />
+        <Box className="flex-1" />
         <Chip
-          size="small"
+          size="xs"
           label={installed ? "Pipsend ready" : status === "loading" ? "Loading…" : "Install required"}
-          sx={{
-            fontSize: 10,
-            height: 20,
-            bgcolor: installed ? "rgba(63,185,80,0.12)" : SURFACE_ALT,
+          className="text-[10px] h-5 border border-[#30363D]"
+          style={{
+            backgroundColor: installed ? "rgba(63,185,80,0.12)" : SURFACE_ALT,
             color: installed ? POS : TEXT_MUTED,
-            border: 1,
             borderColor: installed ? "rgba(63,185,80,0.35)" : BORDER,
           }}
         />
@@ -565,115 +521,72 @@ function PipsendChartInner() {
 
       {/* Info bar — 20px dense */}
       <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 1,
-          px: 1.25,
-          height: 20,
-          minHeight: 20,
-          borderBottom: 1,
-          borderColor: BORDER,
-          bgcolor: SURFACE,
-          flexShrink: 0,
-        }}
+        className="flex items-center gap-2 px-2.5 h-5 min-h-[20px] border-b border-[#30363D] shrink-0"
+        style={{ backgroundColor: SURFACE }}
       >
-        <Typography variant="caption" sx={{ fontSize: 10, color: TEXT_MUTED, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <Text className="text-[10px] text-[#8B949E]" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {lastAction}
-        </Typography>
-        <Box sx={{ flex: 1 }} />
-        <Typography variant="caption" sx={{ fontSize: 10, color: TEXT_MUTED }}>
+        </Text>
+        <Box className="flex-1" />
+        <Text className="text-[10px] text-[#8B949E]">
           Drag handles to adjust — SL/TP update via onDragEnd
-        </Typography>
+        </Text>
       </Box>
 
       {/* Chart — flex 1, TradingView-like */}
-      <Box sx={{ flex: 1, minHeight: 0, p: 1, display: "flex", flexDirection: "column", gap: 0.75, overflow: "hidden" }}>
+      <Box className="flex-1 min-h-0 flex flex-col gap-1.5 p-1 overflow-hidden">
         <Paper
-          elevation={0}
-          sx={{
-            flex: 1,
-            minHeight: 0,
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-            border: 1,
-            borderColor: BORDER,
-            borderRadius: 1,
-            bgcolor: BG,
-            position: "relative",
-          }}
+          className="flex-1 min-h-0 flex flex-col overflow-hidden border border-[#30363D] rounded-sm bg-[#0D1117] relative"
         >
           {/* Canvas mount */}
-          <Box ref={containerRef} sx={{ flex: 1, minHeight: 320, width: "100%" }} />
+          <Box ref={containerRef} className="flex-1 min-h-[320px] w-full" />
 
           {/* Missing-install placeholder overlay — keeps story usable before `bun add` */}
           {placeholder && (
             <Box
-              sx={{
-                position: "absolute",
-                inset: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                bgcolor: "rgba(13,17,23,0.92)",
-                p: 2,
-              }}
+              className="absolute inset-0 flex items-center justify-center p-2"
+              style={{ backgroundColor: "rgba(13,17,23,0.92)" }}
             >
-              <Stack spacing={1.25} sx={{ maxWidth: 560, textAlign: "center", alignItems: "center" }}>
-                <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, color: TEXT }}>
+              <Stack spacing={1} className="max-w-[560px] text-center items-center">
+                <Text className="text-[11px] font-bold tracking-[0.6px]" style={{ color: TEXT }}>
                   @pipsend/charts not installed
-                </Typography>
-                <Typography variant="caption" sx={{ fontSize: 11, color: TEXT_MUTED, lineHeight: 1.5 }}>
+                </Text>
+                <Text className="text-[11px] text-[#8B949E] leading-relaxed">
                   This story is ready — install the package and reload Storybook. No code changes needed.
-                </Typography>
-                <Box
-                  component="pre"
-                  sx={{
-                    fontSize: 11,
-                    fontFamily: "monospace",
-                    bgcolor: SURFACE,
-                    border: 1,
-                    borderColor: BORDER,
-                    borderRadius: 1,
-                    px: 1.5,
-                    py: 0.75,
-                    color: TEXT,
-                    m: 0,
-                    overflow: "auto",
-                    maxWidth: "100%",
-                  }}
+                </Text>
+                <pre
+                  className="text-[11px] font-mono bg-[#161B22] border border-[#30363D] rounded-sm p-[12px] pt-[6px] text-[#F0F6FC] m-0 overflow-auto max-w-full"
                 >
                   bun add @pipsend/charts
-                </Box>
-                <Typography variant="caption" sx={{ fontSize: 10, color: TEXT_MUTED }}>
+                </pre>
+                <Text className="text-[10px] text-[#8B949E]">
                   After install: candlestick (375×1m) + volume + draggable Long/Short + Trend Line via
-                  <Box component="span" sx={{ color: TEXT, fontFamily: "monospace" }}> createPositionTool / createTrendLineTool</Box>.
+                  <span className="text-[#F0F6FC] font-mono"> createPositionTool / createTrendLineTool</span>.
                   Toolbar buttons create fresh tools; drag handles fire onDragEnd.
-                </Typography>
+                </Text>
                 {errMsg && (
-                  <Typography variant="caption" sx={{ fontSize: 10, color: NEG, fontFamily: "monospace" }}>
+                  <Text className="text-[10px] text-[#F85149] font-mono" style={{ color: NEG }}>
                     {errMsg}
-                  </Typography>
+                  </Text>
                 )}
-                <Divider flexItem sx={{ borderColor: BORDER, width: "100%" }} />
-                <Typography variant="caption" sx={{ fontSize: 10, color: TEXT_MUTED }}>
+                <Divider className="w-full border-[#30363D]" />
+                <Text className="text-[10px] text-[#8B949E]">
                   Preview uses real 2026-03-20 RELIANCE 1m data (open/high/low/close/volume). Chart theme: BG {BG} · SURFACE {SURFACE} · BORDER {BORDER}.
-                </Typography>
+                </Text>
               </Stack>
             </Box>
           )}
         </Paper>
 
         {/* Bottom meta — dense 20px rows */}
-        <Paper elevation={0} sx={{ display: "flex", alignItems: "center", gap: 1, px: 1.25, py: 0, height: 20, minHeight: 20, border: 1, borderColor: BORDER, borderRadius: 1, bgcolor: SURFACE, flexShrink: 0 }}>
-          <Typography variant="caption" sx={{ fontSize: 10, color: TEXT_MUTED }}>
+        <Paper className="flex items-center gap-2 px-2.5 h-5 min-h-[20px] border border-[#30363D] rounded-sm shrink-0" style={{ backgroundColor: SURFACE }}>
+          <Text className="text-[10px] text-[#8B949E]">
             {rawCandles.length} candles · {rawCandles[0].time} → {rawCandles[rawCandles.length - 1].time} · 1m · volume histogram
-          </Typography>
-          <Box sx={{ flex: 1 }} />
-          <Typography variant="caption" sx={{ fontSize: 10, color: TEXT_MUTED }}>
+          </Text>
+          <Box className="flex-1" />
+          <Text className="text-[10px] text-[#8B949E]">
             Dense 20px · BG {BG} · no blue
-          </Typography>
+          </Text>
         </Paper>
       </Box>
     </Box>

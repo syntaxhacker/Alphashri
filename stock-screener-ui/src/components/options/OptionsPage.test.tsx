@@ -18,6 +18,10 @@ vi.mock("./PremiumTracker/PremiumTrackerPanel", () => ({
   PremiumTrackerPanel: () => <div data-testid="premium-tracker-panel">Premium Panel</div>,
 }));
 
+vi.mock("./Simulator/SimulatorPanel", () => ({
+  SimulatorPanel: () => <div data-testid="simulator-panel">Simulator Panel</div>,
+}));
+
 beforeEach(() => setupBrowserMocks());
 afterEach(() => {
   cleanup();
@@ -74,5 +78,22 @@ describe("OptionsPage", () => {
   it("hides chain panel when premium tab is active", () => {
     renderWithProviders(<OptionsPage {...defaultProps} activeTab="premium" />);
     expect(screen.queryByTestId("options-chain-panel")).not.toBeInTheDocument();
+  });
+
+  it("renders simulator tab", () => {
+    renderWithProviders(<OptionsPage {...defaultProps} />);
+    expect(screen.getByText("Simulator")).toBeInTheDocument();
+  });
+
+  it("shows simulator panel when activeTab is simulator", () => {
+    renderWithProviders(<OptionsPage {...defaultProps} activeTab="simulator" />);
+    expect(screen.getByTestId("options-simulator-tab")).toBeInTheDocument();
+    expect(screen.getByTestId("simulator-panel")).toBeInTheDocument();
+  });
+
+  it("hides chain panel when simulator tab is active", () => {
+    renderWithProviders(<OptionsPage {...defaultProps} activeTab="simulator" />);
+    expect(screen.queryByTestId("options-chain-panel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("simulator-panel")).toBeInTheDocument();
   });
 });

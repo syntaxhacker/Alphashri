@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Stack } from "@/ui";
 import { PasswordInput } from "./PasswordInput";
 
 const meta: Meta<typeof PasswordInput> = {

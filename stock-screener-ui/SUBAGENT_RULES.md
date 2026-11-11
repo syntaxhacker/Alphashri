@@ -63,7 +63,7 @@ Reuse before building:
 - `CompactPanel`, `CompactStat`, `CompactStatGrid` (`src/components/common/compact.tsx`)
 - `ToolbarRow` for control rows
 - `TanStackTable` for all tables (explicit `meta.align` per column — text left, numbers right, badges center)
-- MUI wrappers from `@/ui`
+- Local Tailwind components from `@/ui`
 
 Layout:
 

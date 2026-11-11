@@ -75,8 +75,9 @@ function amountInput(): HTMLElement {
 }
 
 async function chooseUnit(label: string): Promise<void> {
-  fireEvent.mouseDown(within(screen.getByTestId("admin-tf-unit")).getByRole("combobox"));
-  fireEvent.click(await screen.findByRole("option", { name: label }));
+  const select = within(screen.getByTestId("admin-tf-unit")).getByRole("combobox") as HTMLSelectElement;
+  const option = Array.from(select.options).find((o) => o.textContent === label);
+  fireEvent.change(select, { target: { value: option?.value ?? label } });
 }
 
 beforeEach(() => {
@@ -226,8 +227,7 @@ describe("AdminPatternTimeframesPanel", () => {
 
     await screen.findByTestId("admin-pattern-timeframes");
     await user.type(amountInput(), "45");
-    fireEvent.mouseDown(within(screen.getByTestId("admin-tf-source")).getByRole("combobox"));
-    fireEvent.click(await screen.findByRole("option", { name: "1m" }));
+    fireEvent.change(within(screen.getByTestId("admin-tf-source")).getByRole("combobox"), { target: { value: "1m" } });
     await user.click(screen.getByTestId("admin-tf-add"));
 
     await waitFor(() =>

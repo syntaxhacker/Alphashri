@@ -1,13 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useEffect, useMemo, useRef, useState } from "react";
-import Box from "@mui/material/Box";
-import Paper from "@mui/material/Paper";
-import Button from "@mui/material/Button";
-import IconButton from "@mui/material/IconButton";
-import Typography from "@mui/material/Typography";
-import Chip from "@mui/material/Chip";
-import Slider from "@mui/material/Slider";
-import Tooltip from "@mui/material/Tooltip";
+import { Box, Paper, Button, ActionIcon, Text, Chip, Tooltip } from "@/ui";
 import { IconPlayerPlay, IconPlayerPause } from "@tabler/icons-react";
 import * as palette from "@/ui/palette";
 import { ReplayChart, type ReplayChartHandle } from "@/components/replay/ReplayChart";
@@ -132,201 +125,165 @@ function ChartCompareInner() {
     setActiveTool("none");
   };
 
-  const btnSx = (on: boolean) => ({
-    fontSize: 11,
-    height: 20,
-    minWidth: 0,
-    p: "0 8px",
-    borderColor: on ? TEXT : BORDER,
-    bgcolor: on ? SURFACE_ALT : "transparent",
-    color: on ? TEXT : TEXT_MUTED,
-    "&:hover": { bgcolor: SURFACE_ALT, borderColor: TEXT },
-  });
+  const btnClass = (on: boolean, accent: string) =>
+    `text-[11px] h-5 min-w-0 px-2 border rounded-none transition-colors duration-200 ${
+      on
+        ? `bg-[#21262D] text-[#F0F6FC] border-${accent} hover:bg-[#21262D] hover:border-${accent}`
+        : `bg-transparent text-[#8B949E] border-[#30363D] hover:bg-[#21262D] hover:border-[#F0F6FC]`
+    }`;
 
   return (
-    <Box sx={{ height: "100vh", display: "flex", flexDirection: "column", bgcolor: BG, overflow: "hidden" }}>
+    <Box className="h-[100vh] flex flex-col overflow-hidden" style={{ backgroundColor: BG }}>
       {/* Toolbar — 48px, dense, 8pt */}
       <Paper
-        elevation={0}
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 0.75,
-          px: 1.5,
-          height: 48,
-          minHeight: 48,
-          borderBottom: 1,
-          borderColor: BORDER,
-          bgcolor: SURFACE,
-          borderRadius: 0,
-          flexShrink: 0,
-        }}
+        className="flex items-center gap-2 px-3 h-12 min-h-[48px] border-b border-[#30363D] shrink-0 rounded-none"
+        style={{ backgroundColor: SURFACE }}
       >
-        <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, color: TEXT_MUTED }}>
+        <Text className="text-[11px] font-bold tracking-[0.6px]" style={{ color: TEXT_MUTED }}>
           CHART COMPARE
-        </Typography>
+        </Text>
         <Chip
-          size="small"
+          size="xs"
           label="RELIANCE · 1m · 375"
-          sx={{ fontSize: 10, height: 20, bgcolor: SURFACE_ALT, color: TEXT, border: 1, borderColor: BORDER, ml: 0.5 }}
+          className="text-[10px] h-5 ml-2 border border-[#30363D]"
+          style={{ backgroundColor: SURFACE_ALT, color: TEXT }}
         />
-        <Box sx={{ width: 1, height: 18, bgcolor: BORDER, mx: 0.75 }} />
+        <div className="w-[1px] h-[18px] bg-[#30363D] mx-1.5" />
 
-        <Tooltip title="Add Long marker at current candle">
-          <span>
-            <Button
-              size="small"
-              variant={activeTool === "long" ? "contained" : "outlined"}
-              color="inherit"
-              onClick={() => addTrade("BUY")}
-              sx={{ ...btnSx(activeTool === "long"), minWidth: 52, borderColor: activeTool === "long" ? POS : BORDER, color: activeTool === "long" ? POS : TEXT_MUTED }}
-            >
-              Long
-            </Button>
-          </span>
+        <Tooltip label="Add Long marker at current candle">
+          <Button
+            size="xs"
+            variant={activeTool === "long" ? "filled" : "outline"}
+            color="positive"
+            onClick={() => addTrade("BUY")}
+            className={btnClass(activeTool === "long", "#3FB950")}
+            style={{
+              borderColor: activeTool === "long" ? POS : BORDER,
+              backgroundColor: activeTool === "long" ? SURFACE_ALT : "transparent",
+              color: activeTool === "long" ? POS : TEXT_MUTED,
+              minWidth: 52,
+            }}
+          >
+            Long
+          </Button>
         </Tooltip>
-        <Tooltip title="Add Short marker at current candle">
-          <span>
-            <Button
-              size="small"
-              variant={activeTool === "short" ? "contained" : "outlined"}
-              color="inherit"
-              onClick={() => addTrade("SELL")}
-              sx={{ ...btnSx(activeTool === "short"), minWidth: 56, borderColor: activeTool === "short" ? NEG : BORDER, color: activeTool === "short" ? NEG : TEXT_MUTED }}
-            >
-              Short
-            </Button>
-          </span>
+        <Tooltip label="Add Short marker at current candle">
+          <Button
+            size="xs"
+            variant={activeTool === "short" ? "filled" : "outline"}
+            color="negative"
+            onClick={() => addTrade("SELL")}
+            className={btnClass(activeTool === "short", "#F85149")}
+            style={{
+              borderColor: activeTool === "short" ? NEG : BORDER,
+              backgroundColor: activeTool === "short" ? SURFACE_ALT : "transparent",
+              color: activeTool === "short" ? NEG : TEXT_MUTED,
+              minWidth: 56,
+            }}
+          >
+            Short
+          </Button>
         </Tooltip>
-        <Tooltip title="Toggle Trend line (visual on both panes)">
-          <span>
-            <Button
-              size="small"
-              variant={trendOn ? "contained" : "outlined"}
-              color="inherit"
-              onClick={handleTrend}
-              sx={{ ...btnSx(trendOn), minWidth: 56 }}
-            >
-              Trend
-            </Button>
-          </span>
+        <Tooltip label="Toggle Trend line (visual on both panes)">
+          <Button
+            size="xs"
+            variant={trendOn ? "filled" : "outline"}
+            color="primary"
+            onClick={handleTrend}
+            className={btnClass(trendOn, "#58A6FF")}
+            style={{ minWidth: 56 }}
+          >
+            Trend
+          </Button>
         </Tooltip>
         <Button
-          size="small"
-          variant="outlined"
-          color="inherit"
+          size="xs"
+          variant="outline"
+          color="secondary"
           onClick={handleClear}
-          sx={{ fontSize: 10, height: 20, minWidth: 48, p: "0 8px", borderColor: BORDER, color: TEXT_MUTED }}
+          className="text-[10px] h-5 min-w-[48px] px-2 border border-[#30363D] text-[#8B949E]"
         >
           Clear
         </Button>
 
-        <Box sx={{ width: 1, height: 18, bgcolor: BORDER, mx: 0.75 }} />
+        <div className="w-[1px] h-[18px] bg-[#30363D] mx-1.5" />
 
-        <Tooltip title={isPlaying ? "Pause" : "Play"}>
-          <IconButton
-            size="small"
+        <Tooltip label={isPlaying ? "Pause" : "Play"}>
+          <ActionIcon
+            size="sm"
             onClick={handlePlayPause}
-            sx={{ border: 1, borderColor: BORDER, bgcolor: SURFACE_ALT, color: TEXT, width: 24, height: 24 }}
+            className="border border-[#30363D] bg-[#21262D] text-[#F0F6FC] w-6 h-6"
           >
             {isPlaying ? <IconPlayerPause size={14} /> : <IconPlayerPlay size={14} />}
-          </IconButton>
+          </ActionIcon>
         </Tooltip>
-        <Typography variant="caption" sx={{ fontSize: 10, color: TEXT_MUTED, minWidth: 72 }}>
+        <Text className="text-[10px] text-[#8B949E] min-w-[72px]">
           {visibleCandles.length} / {baseCandles.length}
-        </Typography>
-        <Slider
-          size="small"
+        </Text>
+        <input
+          type="range"
           min={10}
           max={baseCandles.length}
           value={currentIdx}
-          onChange={(_, v) => setCurrentIdx(v as number)}
-          sx={{ width: 160, color: TEXT_MUTED, "& .MuiSlider-thumb": { width: 10, height: 10 } }}
+          onChange={(e) => setCurrentIdx(Number(e.target.value))}
+          className="flex-1 max-w-[420px] accent-[#8B949E] h-1.5 bg-transparent cursor-pointer"
+          style={{ color: TEXT_MUTED }}
         />
-        <Box sx={{ display: "flex", gap: 0.5, ml: 0.5 }}>
+        <div className="flex gap-1 ml-1">
           {[800, 400, 200].map((s) => (
             <Button
               key={s}
-              size="small"
-              variant={speed === s ? "contained" : "outlined"}
-              color="inherit"
+              size="xs"
+              variant={speed === s ? "filled" : "outline"}
+              color="secondary"
               onClick={() => setSpeed(s)}
-              sx={{ fontSize: 10, height: 20, minWidth: 32, p: 0, borderColor: speed === s ? TEXT : BORDER, bgcolor: speed === s ? SURFACE_ALT : "transparent", color: speed === s ? TEXT : TEXT_MUTED }}
+              className={`text-[10px] h-5 min-w-[32px] px-0 border rounded-none ${
+                speed === s
+                  ? "bg-[#21262D] text-[#F0F6FC] border-[#F0F6FC]"
+                  : "bg-transparent text-[#8B949E] border-[#30363D]"
+              }`}
             >
               {s === 800 ? "1x" : s === 400 ? "2x" : "4x"}
             </Button>
           ))}
-        </Box>
+        </div>
 
-        <Box sx={{ flex: 1 }} />
-        <Chip size="small" label={`${trades.length} markers`} sx={{ fontSize: 10, height: 20, bgcolor: SURFACE_ALT, color: TEXT_MUTED, border: 1, borderColor: BORDER }} />
+        <Box className="flex-1" />
+        <Chip size="xs" label={`${trades.length} markers`} className="text-[10px] h-5 text-[#8B949E] border border-[#30363D]" style={{ backgroundColor: SURFACE_ALT }} />
       </Paper>
 
       {/* Info bar — 20px dense */}
       <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 1,
-          px: 1.5,
-          height: 20,
-          minHeight: 20,
-          borderBottom: 1,
-          borderColor: BORDER,
-          bgcolor: SURFACE,
-          flexShrink: 0,
-        }}
+        className="flex items-center gap-2 px-3 h-5 min-h-[20px] border-b border-[#30363D] shrink-0"
+        style={{ backgroundColor: SURFACE }}
       >
-        <Typography variant="caption" sx={{ fontSize: 10, color: TEXT_MUTED, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <Text className="text-[10px] text-[#8B949E]" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {currentCandle ? `O ${currentCandle.open} H ${currentCandle.high} L ${currentCandle.low} C ${currentCandle.close} V ${currentCandle.volume}` : "—"} · {trendOn ? "Trend on" : "Trend off"} · Long/Short adds BUY/SELL markers to both panes
-        </Typography>
-        <Box sx={{ flex: 1 }} />
-        <Typography variant="caption" sx={{ fontSize: 10, color: TEXT_MUTED }}>
+        </Text>
+        <Box className="flex-1" />
+        <Text className="text-[10px] text-[#8B949E]">
           ECharts left · TradingView right · same data
-        </Typography>
+        </Text>
       </Box>
 
       {/* Side-by-side panes — 8pt gap */}
-      <Box sx={{ flex: 1, minHeight: 0, display: "flex", gap: 1, p: 1, overflow: "hidden" }}>
+      <Box className="flex-1 min-h-0 flex gap-2 p-1 overflow-hidden">
         {/* Left: ECharts via ReplayChart */}
         <Paper
-          elevation={0}
-          sx={{
-            flex: 1,
-            minWidth: 0,
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-            border: 1,
-            borderColor: BORDER,
-            borderRadius: 1,
-            bgcolor: SURFACE,
-          }}
+          className="flex-1 min-w-0 flex flex-col overflow-hidden border border-[#30363D] rounded-sm bg-[#161B22]"
         >
           <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 0.75,
-              px: 1,
-              height: 24,
-              minHeight: 24,
-              borderBottom: 1,
-              borderColor: BORDER,
-              bgcolor: SURFACE_ALT,
-              flexShrink: 0,
-            }}
+            className="flex items-center gap-2 px-1 h-6 min-h-[24px] border-b border-[#30363D] shrink-0"
+            style={{ backgroundColor: SURFACE_ALT }}
           >
-            <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.5, color: TEXT_MUTED }}>
+            <Text className="text-[10px] font-medium tracking-[0.5px]" style={{ color: TEXT_MUTED }}>
               ECHARTS
-            </Typography>
-            <Chip size="small" label="ReplayChart" sx={{ fontSize: 10, height: 16, bgcolor: BG, color: TEXT_MUTED, border: 1, borderColor: BORDER }} />
-            <Box sx={{ flex: 1 }} />
-            <Typography variant="caption" sx={{ fontSize: 10, color: TEXT_MUTED }}>
-              {visibleCandles.length} candles
-            </Typography>
+            </Text>
+            <Chip size="xs" label="ReplayChart" className="text-[10px] h-4 border border-[#30363D]" style={{ backgroundColor: BG, color: TEXT_MUTED }} />
+            <Box className="flex-1" />
+            <Text className="text-[10px] text-[#8B949E]">{visibleCandles.length} candles</Text>
           </Box>
-          <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <Box className="flex-1 min-h-0 flex flex-col overflow-hidden">
             <ReplayChart
               ref={chartRef}
               candlesBySymbol={visibleBySymbol as any}
@@ -342,10 +299,10 @@ function ChartCompareInner() {
               highlightedTradeId={null}
             />
             {trendOn && (
-              <Box sx={{ px: 1, py: 0.5, borderTop: 1, borderColor: BORDER, bgcolor: SURFACE_ALT, flexShrink: 0 }}>
-                <Typography variant="caption" sx={{ fontSize: 10, color: TEXT_MUTED }}>
+              <Box className="px-1 py-[12px] border-t border-[#30363D] shrink-0" style={{ backgroundColor: SURFACE_ALT }}>
+                <Text className="text-[10px] text-[#8B949E]">
                   Trend: {visibleCandles[20]?.close?.toFixed(2) ?? "—"} → {currentCandle?.close?.toFixed(2) ?? "—"} (draw on TV pane with Trend button inside chart)
-                </Typography>
+                </Text>
               </Box>
             )}
           </Box>
@@ -353,43 +310,20 @@ function ChartCompareInner() {
 
         {/* Right: TradingView Lightweight Charts */}
         <Paper
-          elevation={0}
-          sx={{
-            flex: 1,
-            minWidth: 0,
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-            border: 1,
-            borderColor: BORDER,
-            borderRadius: 1,
-            bgcolor: SURFACE,
-          }}
+          className="flex-1 min-w-0 flex flex-col overflow-hidden border border-[#30363D] rounded-sm bg-[#161B22]"
         >
           <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 0.75,
-              px: 1,
-              height: 24,
-              minHeight: 24,
-              borderBottom: 1,
-              borderColor: BORDER,
-              bgcolor: SURFACE_ALT,
-              flexShrink: 0,
-            }}
+            className="flex items-center gap-2 px-1 h-6 min-h-[24px] border-b border-[#30363D] shrink-0"
+            style={{ backgroundColor: SURFACE_ALT }}
           >
-            <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.5, color: TEXT_MUTED }}>
+            <Text className="text-[10px] font-medium tracking-[0.5px]" style={{ color: TEXT_MUTED }}>
               TRADINGVIEW
-            </Typography>
-            <Chip size="small" label="Lightweight Charts" sx={{ fontSize: 10, height: 16, bgcolor: BG, color: TEXT_MUTED, border: 1, borderColor: BORDER }} />
-            <Box sx={{ flex: 1 }} />
-            <Typography variant="caption" sx={{ fontSize: 10, color: TEXT_MUTED }}>
-              markers + tools
-            </Typography>
+            </Text>
+            <Chip size="xs" label="Lightweight Charts" className="text-[10px] h-4 border border-[#30363D]" style={{ backgroundColor: BG, color: TEXT_MUTED }} />
+            <Box className="flex-1" />
+            <Text className="text-[10px] text-[#8B949E]">markers + tools</Text>
           </Box>
-          <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <Box className="flex-1 min-h-0 flex flex-col overflow-hidden">
             <TradingViewChart candles={visibleCandles} trades={trades as any} highlightedTradeId={null} height={420} />
           </Box>
         </Paper>
@@ -397,26 +331,16 @@ function ChartCompareInner() {
 
       {/* Bottom meta — 20px dense */}
       <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 1,
-          px: 1.5,
-          height: 20,
-          minHeight: 20,
-          borderTop: 1,
-          borderColor: BORDER,
-          bgcolor: SURFACE,
-          flexShrink: 0,
-        }}
+        className="flex items-center gap-2 px-3 h-5 min-h-[20px] border-t border-[#30363D] shrink-0"
+        style={{ backgroundColor: SURFACE }}
       >
-        <Typography variant="caption" sx={{ fontSize: 10, color: TEXT_MUTED }}>
+        <Text className="text-[10px] text-[#8B949E]">
           {baseCandles.length} candles · {baseCandles[0].time} → {baseCandles[baseCandles.length - 1].time} · 1m · same data both panes
-        </Typography>
-        <Box sx={{ flex: 1 }} />
-        <Typography variant="caption" sx={{ fontSize: 10, color: TEXT_MUTED }}>
+        </Text>
+        <Box className="flex-1" />
+        <Text className="text-[10px] text-[#8B949E]">
           Dense 8pt · BG {BG} · SURFACE {SURFACE} · BORDER {BORDER} · no blue
-        </Typography>
+        </Text>
       </Box>
     </Box>
   );

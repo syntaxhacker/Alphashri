@@ -161,7 +161,7 @@ describe("TradingChart", () => {
 
   it("handles trade click only for scatter series with trade_id", async () => {
     const onTradeClick = vi.fn();
-    const { useECharts } = await import("../../hooks/useECharts");
+    await import("../../hooks/useECharts");
     // The mocked useECharts captures onChartClick in mockChartInstance._onClick
     render(
       <UIProvider>

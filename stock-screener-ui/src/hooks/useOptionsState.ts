@@ -85,15 +85,11 @@ export function useOptionsState() {
     optionsState.setUnderlying(underlying);
   }, []);
 
-  const onSetExpiry = useCallback(
-    (expiry: string) => {
-      optionsState.setExpiry(expiry);
-      if (state.selectedUnderlying) {
-        void optionsState.fetchChain();
-      }
-    },
-    [state.selectedUnderlying],
-  );
+  const onSetExpiry = useCallback((expiry: string) => {
+    // The [selectedUnderlying, selectedExpiry] effect owns the chain fetch;
+    // calling it here too produced two identical requests per expiry click.
+    optionsState.setExpiry(expiry);
+  }, []);
 
   const onSetFilters = useCallback((newFilters: Partial<typeof state.filters>) => {
     optionsState.setFilters(newFilters);

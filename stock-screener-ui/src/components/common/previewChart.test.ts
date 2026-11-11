@@ -22,7 +22,7 @@ afterEach(async () => {
     const mod = await import("./previewChart");
     mod.hidePreviewChart();
     mod.collapseChart();
-  } catch (_e) {}
+  } catch {}
   delete (window as any).echarts;
 });
 

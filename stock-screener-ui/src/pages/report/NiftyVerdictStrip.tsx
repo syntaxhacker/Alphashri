@@ -1,9 +1,8 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { formatReportFixed } from "./reportFormat";
 import { memo, useMemo } from "react";
-import Box from "@mui/material/Box";
-import type { ReactNode } from "react";
-import { Text } from "@/ui";
+import { Box, Text } from "@/ui";
+import type { CSSProperties, ReactNode } from "react";
 import * as palette from "@/ui/palette";
 import { AnimatedValue } from "@/components/common/AnimatedValue";
 import { NiftyCoilGauge } from "./NiftyCoilGauge";
@@ -247,20 +246,13 @@ const VerdictCell = memo(function VerdictCell({ testId, accent, primary, seconda
       <Box
         data-testid={testId}
         title={`${primary} — ${secondary}`}
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 0.75,
-          minWidth: 0,
-          overflow: "hidden",
-          px: 1,
-          py: "2px",
-        }}
+        className="flex items-center gap-[6px] min-w-0 overflow-hidden px-2 py-[2px]"
       >
         <Box
           aria-hidden
           data-testid={`${testId}-dot`}
-          sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: accent, flexShrink: 0 }}
+          className="w-[6px] h-[6px] rounded-full shrink-0"
+          style={{ backgroundColor: accent }}
         />
         <Text
           data-testid={`${testId}-primary`}
@@ -274,9 +266,6 @@ const VerdictCell = memo(function VerdictCell({ testId, accent, primary, seconda
             lineHeight: 1.2,
             letterSpacing: "0.04em",
             minWidth: 0,
-            // The label is the meaning; the numbers beside it are detail.
-            // Let the 9px secondary ellipsize first — a clipped
-            // "CALL WRITERS IN CON…" hides the one word that matters.
             flexShrink: 0,
           }}
         >
@@ -299,23 +288,15 @@ const VerdictCell = memo(function VerdictCell({ testId, accent, primary, seconda
     <Box
       data-testid={testId}
       title={`${primary} — ${secondary}`}
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        gap: "2px",
-        minWidth: 0,
-        overflow: "hidden",
-        px: 1.5,
-        py: 0.75,
-        borderLeft: `1px solid ${palette.TERM_BORDER}`,
-      }}
+      className="flex flex-col justify-center gap-[2px] min-w-0 overflow-hidden px-[12px] py-[6px]"
+      style={{ borderLeft: `1px solid ${palette.TERM_BORDER}` }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+      <Box className="flex items-center gap-[6px] min-w-0">
         <Box
           aria-hidden
           data-testid={`${testId}-dot`}
-          sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: accent, flexShrink: 0 }}
+          className="w-[6px] h-[6px] rounded-full shrink-0"
+          style={{ backgroundColor: accent }}
         />
         <Text
           data-testid={`${testId}-primary`}
@@ -324,7 +305,11 @@ const VerdictCell = memo(function VerdictCell({ testId, accent, primary, seconda
           c={accent}
           span
           truncate
-          style={{ fontSize: 11, lineHeight: 1.3, letterSpacing: "0.04em" }}
+          style={{
+            fontSize: 11,
+            lineHeight: 1.3,
+            letterSpacing: "0.04em",
+          }}
         >
           {primaryNode ?? primary}
         </Text>
@@ -405,26 +390,12 @@ function NiftyVerdictStripInner({ report, mode = "full" }: NiftyVerdictStripProp
   return (
     <Box
       data-testid="nifty-verdict-strip"
-      sx={
+      className={
         mode === "context"
-          ? {
-              display: "flex",
-              flexWrap: "nowrap",
-              alignItems: "center",
-              width: "100%",
-              minWidth: 0,
-              minHeight: 24,
-              overflow: "hidden",
-              borderTop: `1px solid ${palette.TERM_BORDER}`,
-              "& > *": {
-                borderLeft: `1px solid ${palette.TERM_BORDER}`,
-                flex: "1 1 0",
-                minWidth: 0,
-              },
-              "& > *:first-of-type": { borderLeft: "none" },
-            }
-          : { display: "contents" }
+          ? "flex flex-nowrap items-center w-full min-w-0 min-h-6 overflow-hidden border-t border-[var(--desk-border)] [&>*]:border-l [&>*]:border-l-[var(--desk-border)] [&>*]:flex-[1_1_0] [&>*]:min-w-0 [&>*:first-of-type]:border-l-0"
+          : "contents"
       }
+      style={{ "--desk-border": palette.TERM_BORDER } as CSSProperties}
     >
       <VerdictCell
         testId="nifty-verdict-control"

@@ -182,9 +182,9 @@ export function SectorHeatmapView({
   return (
     <Box
       data-testid="sector-heatmap-view"
-      sx={{ display: "flex", flexDirection: "column", minHeight: 0, flex: 1, gap: 0, overflow: "hidden" }}
+      className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden"
     >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, height: 32, flexShrink: 0, flexWrap: "wrap" }}>
+      <Box className="flex items-center gap-2 px-2 h-8 shrink-0 flex-wrap">
         <SegmentedControl
           size="xs"
           value={viewMode}
@@ -219,13 +219,13 @@ export function SectorHeatmapView({
           </>
         )}
         {lastUpdated && (
-          <Text c="dimmed" sx={{ ml: "auto", fontSize: 9.5 }}>
+          <Text c="dimmed" className="ml-auto text-[9.5px]">
             Updated: {new Date(lastUpdated).toLocaleTimeString()}
           </Text>
         )}
         {loading && <Loader size="xs" />}
       </Box>
-      <Box sx={{ flex: 1, minHeight: 0, width: "100%", display: "flex" }} data-testid="sector-heatmap-chart">
+      <Box className="flex min-h-0 w-full flex-1" data-testid="sector-heatmap-chart">
         <ReactECharts
           option={chartOption}
           style={{ height: "100%", width: "100%", flex: 1 }}

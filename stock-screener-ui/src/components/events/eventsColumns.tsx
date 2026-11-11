@@ -89,7 +89,7 @@ export function buildEventColumns(onOpen: (event: EventDTO) => void): ColumnDef<
         const event = row.original;
         return (
           <Tooltip label={event.title}>
-            <Box sx={{ maxWidth: 360, minWidth: 0 }}>
+            <Box className="max-w-[360px] min-w-0">
               <Text size="xs" truncate data-testid={`event-title-${event.id}`}>
                 {event.title}
               </Text>
@@ -162,7 +162,7 @@ export function buildEventColumns(onOpen: (event: EventDTO) => void): ColumnDef<
             size="xs"
             c="dimmed"
             tt="uppercase"
-            sx={{ fontSize: 10, letterSpacing: "0.4px" }}
+            className="text-[10px] tracking-[0.4px]"
             data-testid={`event-source-${event.id}`}
           >
             {event.source}

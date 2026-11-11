@@ -1,10 +1,6 @@
 // BacktestProgress — stock MUI loading UI shown while a backtest run is in flight.
 import { memo } from "react";
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
-import CircularProgress from "@mui/material/CircularProgress";
-import LinearProgress from "@mui/material/LinearProgress";
-import Typography from "@mui/material/Typography";
+import { Loader, Progress, Stack, Text } from "@/ui";
 
 interface BacktestProgressProps {
   progress: {
@@ -24,30 +20,28 @@ export const BacktestProgress = memo(function BacktestProgress({ progress }: Bac
   return (
     <Stack
       id="backtest-progress"
-      className="backtest-progress"
+      className="backtest-progress gap-2 p-1.5"
       spacing={1}
       data-testid="progress-container"
-      sx={{ gap: 1, p: 1.5 }}
     >
-      <Stack direction="row" alignItems="center" spacing={1}>
-        <CircularProgress size={14} data-testid="progress-spinner" />
-        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-          Running...
-        </Typography>
-        <Box sx={{ flex: 1 }} />
-        <Typography variant="body2" color="text.secondary" data-testid="progress-counter" sx={{ fontVariantNumeric: "tabular-nums" }}>
+      <Stack direction="row" align="center" spacing={1}>
+        <Loader size="lg" data-testid="progress-spinner" />
+        <Text size="xs" fw={600}>Running...</Text>
+        <div className="flex-1" />
+        <Text size="xs" c="muted" data-testid="progress-counter" style={{ fontVariantNumeric: "tabular-nums" }}>
           {progress.current}/{progress.total}
-        </Typography>
+        </Text>
       </Stack>
-      <LinearProgress
+      <Progress
         variant="determinate"
         value={Math.max(0, Math.min(100, percent))}
         data-testid="progress-fill"
-        sx={{ height: 6, borderRadius: 3 }}
+        size="md"
+        style={{ height: 6, borderRadius: 3 }}
       />
-      <Typography variant="body2" color="text.secondary" textAlign="center" data-testid="progress-message">
+      <Text size="xs" c="muted" ta="center" data-testid="progress-message">
         {progress.message}
-      </Typography>
+      </Text>
     </Stack>
   );
 });

@@ -185,8 +185,8 @@ describe("AggregatedDashboard", () => {
     ]);
     renderWithProviders(<AggregatedDashboard />);
 
-    await user.click(within(screen.getByTestId("dashboard-bot-filter")).getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: "ORB Bot" }));
+    const botFilter = within(screen.getByTestId("dashboard-bot-filter")).getByRole("combobox");
+    await user.selectOptions(botFilter, "bot-1");
 
     await waitFor(() => {
       expect(fetchDashboardAnalytics).toHaveBeenLastCalledWith({

@@ -1,6 +1,6 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { memo, useMemo } from "react";
-import Box from "@mui/material/Box";
+import { Box } from "@/ui";
 import type { WallsPayload, WallsRow } from "@/api/reportNifty";
 import * as palette from "@/ui/palette";
 import type { NiftyReport, NiftyWall } from "@/types/niftyReport";
@@ -158,7 +158,7 @@ export function NiftySqueezeRadarInner({
   const priorSpot = history.length >= 6 ? history[history.length - 6].spot : null;
   const move60 = lastSpot != null && priorSpot != null ? lastSpot - priorSpot : 0;
   /** A 15-pt move in the last minute is the squeeze itself. The tape move is
-   * preferred (1-min, replay-filtered); the history fallback covers live. */
+   *  preferred (1-min, replay-filtered); the history fallback covers live. */
   const moveForBreak = spotMove1m ?? move60;
   const priceBreak = Math.abs(moveForBreak) >= m.squeezePriceBreakPts;
 
@@ -225,39 +225,32 @@ export function NiftySqueezeRadarInner({
         `+ 0.15 x setup (${Math.round(gateScore * 100)}) ` +
         `+ 0.30 x erosion (${erodeScore})`
       }
-      sx={{
-        width: "100%",
-        minWidth: 0,
-        display: "flex",
-        flexDirection: "column",
-        gap: "6px",
-        px: 1,
-        py: "6px",
+      className="w-full min-w-0 flex flex-col gap-[6px] px-2 py-[6px] shrink-0"
+      style={{
         border: `1px solid ${palette.TERM_BORDER}`,
-        borderRadius: "4px",
-        bgcolor: palette.TERM_HEADER,
+        borderRadius: 4,
+        backgroundColor: palette.TERM_HEADER,
         fontFamily: palette.MONO,
-        flexShrink: 0,
       }}
     >
       {/* Row 1: title, stage, wall, proximity */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0 }}>
-        <Box component="span" sx={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.08em", color: palette.TEXT_MUTED }}>
+      <Box className="flex items-center gap-[6px] min-w-0">
+        <Box component="span" className="text-[9px] font-extrabold tracking-[0.08em]" style={{ color: palette.TEXT_MUTED }}>
           SQUEEZE
         </Box>
         <Box
           component="span"
           data-testid="nifty-squeeze-stage"
-          sx={{
-            px: "4px",
-            py: "1px",
+          className="px-[4px] py-[1px] rounded-[3px] text-[9px] font-extrabold tracking-[0.04em] whitespace-nowrap"
+          style={{
             border: `1px solid ${STAGE_COLOR[stage]}`,
-            borderRadius: "3px",
-            bgcolor: stage === "TRIGGER" ? "rgba(63,185,80,0.14)" : stage === "ARMING" || stage === "PRE-BLAST" ? "rgba(210,153,34,0.12)" : "transparent",
             color: STAGE_COLOR[stage],
-            fontSize: 9,
-            fontWeight: 800,
-            letterSpacing: "0.04em",
+            backgroundColor:
+              stage === "TRIGGER"
+                ? "rgba(63,185,80,0.14)"
+                : stage === "ARMING" || stage === "PRE-BLAST"
+                  ? "rgba(210,153,34,0.12)"
+                  : "transparent",
           }}
         >
           {STAGE_LABEL[stage]}
@@ -265,16 +258,17 @@ export function NiftySqueezeRadarInner({
         <Box
           component="span"
           data-testid="nifty-squeeze-wall"
-          sx={{ fontSize: 10, color: palette.TEXT, fontWeight: 700, whiteSpace: "nowrap" }}
+          className="text-[10px] font-bold whitespace-nowrap"
+          style={{ color: palette.TEXT }}
         >
           {wallLabel}
-          <Box component="span" sx={{ color: palette.TEXT_MUTED, fontWeight: 500 }}>
+          <Box component="span" className="font-medium" style={{ color: palette.TEXT_MUTED }}>
             {" "}
-          · {hasWall ? `${distance.toFixed(0)} pts ${directionLabel}${erosion30m != null ? ` · ${fmtPct(erosion30m)}/30m` : ""}` : "—"}
+            · {hasWall ? `${distance.toFixed(0)} pts ${directionLabel}${erosion30m != null ? ` · ${fmtPct(erosion30m)}/30m` : ""}` : "—"}
           </Box>
         </Box>
         {wall ? (
-          <Box component="span" sx={{ fontSize: 9, color: palette.TEXT_MUTED, whiteSpace: "nowrap" }}>
+          <Box component="span" className="text-[9px] whitespace-nowrap" style={{ color: palette.TEXT_MUTED }}>
             OI {fmtOi(wall.oi)}
           </Box>
         ) : null}
@@ -283,15 +277,13 @@ export function NiftySqueezeRadarInner({
             component="span"
             data-testid="nifty-squeeze-wall-delta"
             title="largest call/put wall OI change — negative = the wall is being consumed (squeeze fuel)"
-            sx={{
-              fontSize: 9,
-              fontWeight: 700,
-              whiteSpace: "nowrap",
+            className="text-[9px] font-bold whitespace-nowrap"
+            style={{
               color: wallDelta <= 0 ? palette.POSITIVE : palette.WARNING,
             }}
           >
             {wallDelta <= 0 ? "▼" : "▲"} {fmtOi(Math.abs(wallDelta))}
-            <Box component="span" sx={{ color: palette.TEXT_MUTED, fontWeight: 500 }}>
+            <Box component="span" className="font-medium" style={{ color: palette.TEXT_MUTED }}>
               /{wallDeltaSec}s
             </Box>
           </Box>
@@ -300,28 +292,30 @@ export function NiftySqueezeRadarInner({
           <Box
             component="span"
             data-testid="nifty-squeeze-opposite"
-            sx={{ fontSize: 8, color: palette.TEXT_MUTED, whiteSpace: "nowrap" }}
+            className="text-[8px] whitespace-nowrap"
+            style={{ color: palette.TEXT_MUTED }}
           >
             ↔ {formatNumberIN(opposite.strike)} {side === "ce" ? "PE" : "CE"}{" "}
             {oppositeDist.toFixed(0)}p
           </Box>
         ) : null}
-        <Box sx={{ ml: "auto", display: "flex", alignItems: "baseline", gap: "3px" }}>
+        <Box className="ml-auto flex items-baseline gap-[3px]">
           <Box
             component="span"
             data-testid="nifty-squeeze-proximity"
-            sx={{ fontSize: 16, fontWeight: 800, color: STAGE_COLOR[stage], lineHeight: 1 }}
+            className="text-[16px] font-extrabold leading-1"
+            style={{ color: STAGE_COLOR[stage] }}
           >
             {proximity}%
           </Box>
-          <Box component="span" sx={{ fontSize: 8, color: palette.TEXT_MUTED, letterSpacing: "0.04em" }}>
+          <Box component="span" className="text-[8px] tracking-[0.04em]" style={{ color: palette.TEXT_MUTED }}>
             AT LEVEL
           </Box>
         </Box>
       </Box>
 
       {/* Row 1.5: score decomposition — distance / flow / erosion / gamma regime */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: "4px", fontSize: 8, color: palette.TEXT_MUTED, minWidth: 0 }}>
+      <Box className="flex items-center gap-[4px] text-[8px] min-w-0" style={{ color: palette.TEXT_MUTED }}>
         <Box component="span" data-testid="squeeze-erosion">
           DIST {distScorePct} · FLOW {flowScorePct} · ERODE {erodeScore} · Γ {gammaLabel}
         </Box>
@@ -329,48 +323,39 @@ export function NiftySqueezeRadarInner({
 
       {/* Row 2: proximity meter with stage zones */}
       <Box
-        sx={{
-          position: "relative",
-          height: 8,
-          borderRadius: "4px",
-          overflow: "hidden",
+        className="relative h-[8px] rounded-[4px] overflow-hidden"
+        style={{
           background: `linear-gradient(90deg, ${palette.TERM_BORDER} 0%, ${palette.TERM_BORDER} 38%, ${palette.WARNING} 62%, ${palette.POSITIVE} 100%)`,
           opacity: 0.9,
         }}
       >
         <Box
-          sx={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            bottom: 0,
+          className="absolute left-0 top-0 bottom-0"
+          style={{
             width: `${proximity}%`,
             background: `linear-gradient(90deg, ${palette.WARNING}, ${STAGE_COLOR[stage]})`,
             opacity: 0.55,
           }}
         />
         <Box
-          sx={{
-            position: "absolute",
+          className="absolute top-[-2px] bottom-[-2px] w-[2px]"
+          style={{
             left: `calc(${proximity}% - 1px)`,
-            top: -2,
-            bottom: -2,
-            width: 2,
-            bgcolor: STAGE_COLOR[stage],
+            backgroundColor: STAGE_COLOR[stage],
             boxShadow: `0 0 4px ${STAGE_COLOR[stage]}`,
           }}
         />
       </Box>
-      <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 7, color: palette.TEXT_MUTED, mt: "-4px" }}>
+      <Box className="flex justify-between text-[7px] mt-[-4px]" style={{ color: palette.TEXT_MUTED }}>
         <span>far</span>
         <span>building</span>
         <span>at the wall</span>
       </Box>
 
       {/* Row 3: component chips with values (no glyphs) */}
-      <Box sx={{ display: "flex", flexWrap: "wrap", gap: "4px", alignItems: "center" }}>
+      <Box className="flex flex-wrap gap-[4px] items-center">
         {components.length === 0 ? (
-          <Box component="span" sx={{ fontSize: 9, color: palette.TEXT_MUTED }}>
+          <Box component="span" className="text-[9px]" style={{ color: palette.TEXT_MUTED }}>
             no flow edge yet — waiting for covering / writing
           </Box>
         ) : (
@@ -380,20 +365,15 @@ export function NiftySqueezeRadarInner({
               component="span"
               data-testid={`nifty-squeeze-chip-${c.key}`}
               title={`${c.label}: ${c.detail} (${c.points > 0 ? "+" : ""}${c.points})`}
-              sx={{
-                px: "4px",
-                py: "1px",
-                borderRadius: "3px",
+              className="px-[4px] py-[1px] rounded-[3px] text-[9px] font-bold whitespace-nowrap shrink-0"
+              style={{
                 border: `1px solid ${c.points > 0 ? palette.POSITIVE : palette.NEGATIVE}`,
-                bgcolor: c.points > 0 ? "rgba(63,185,80,0.10)" : "rgba(248,81,73,0.08)",
+                backgroundColor: c.points > 0 ? "rgba(63,185,80,0.10)" : "rgba(248,81,73,0.08)",
                 color: c.points > 0 ? palette.POSITIVE : palette.NEGATIVE,
-                fontSize: 9,
-                fontWeight: 700,
-                whiteSpace: "nowrap",
               }}
             >
               {c.label}
-              <Box component="span" sx={{ opacity: 0.7, fontWeight: 500 }}>
+              <Box component="span" className="font-medium" style={{ opacity: 0.7 }}>
                 {" "}{c.points > 0 ? "+" : ""}{c.points}
               </Box>
             </Box>
@@ -401,15 +381,8 @@ export function NiftySqueezeRadarInner({
         )}
         <Box
           component="span"
-          sx={{
-            px: "4px",
-            py: "1px",
-            borderRadius: "3px",
-            border: `1px solid ${palette.TERM_BORDER}`,
-            color: palette.TEXT_MUTED,
-            fontSize: 9,
-            ml: "auto",
-          }}
+          className="px-[4px] py-[1px] rounded-[3px] border border-solid text-[9px] shrink-0 ml-auto"
+          style={{ borderColor: palette.TERM_BORDER, color: palette.TEXT_MUTED }}
         >
           setup {setup.score}/{setup.gates.length} · flow {preMove.score}/{preMove.max}
         </Box>
@@ -417,8 +390,8 @@ export function NiftySqueezeRadarInner({
 
       {/* Row 4: labelled score sparkline + how long armed */}
       {n >= 3 ? (
-        <Box sx={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0 }}>
-          <Box component="span" sx={{ fontSize: 8, color: palette.TEXT_MUTED, flexShrink: 0 }}>
+        <Box className="flex items-center gap-[6px] min-w-0">
+          <Box component="span" className="text-[8px] shrink-0" style={{ color: palette.TEXT_MUTED }}>
             {t0 ? fmtTime(t0) : "—"}
           </Box>
           <svg
@@ -432,20 +405,47 @@ export function NiftySqueezeRadarInner({
             {spans.map((s, i) => {
               const x0 = n <= 1 ? 0 : ((s.from - t0!) / (t1! - t0! || 1)) * 1000;
               const x1 = n <= 1 ? 0 : ((s.to - t0!) / (t1! - t0! || 1)) * 1000;
-              return <rect key={i} x={x0} y={0} width={Math.max(1, x1 - x0)} height={22} fill={palette.POSITIVE} opacity={0.12} />;
+              return (
+                <rect
+                  key={i}
+                  x={x0}
+                  y={0}
+                  width={Math.max(1, x1 - x0)}
+                  height={22}
+                  fill={palette.POSITIVE}
+                  opacity={0.12}
+                />
+              );
             })}
-            <line x1={0} x2={1000} y1={scoreY(5)} y2={scoreY(5)} stroke={palette.WARNING} strokeWidth={0.6} strokeDasharray="3 3" opacity={0.5} />
+            <line
+              x1={0}
+              x2={1000}
+              y1={scoreY(5)}
+              y2={scoreY(5)}
+              stroke={palette.WARNING}
+              strokeWidth={0.6}
+              strokeDasharray="3 3"
+              opacity={0.5}
+            />
             <polyline points={scoreLine} fill="none" stroke={STAGE_COLOR[stage]} strokeWidth={1.4} />
-            {n > 0 ? <circle cx={1000} cy={scoreY(history[n - 1].score)} r={2} fill={STAGE_COLOR[stage]} /> : null}
+            {n > 0 ? (
+              <circle
+                cx={1000}
+                cy={scoreY(history[n - 1].score)}
+                r={2}
+                fill={STAGE_COLOR[stage]}
+              />
+            ) : null}
           </svg>
-          <Box component="span" sx={{ fontSize: 8, color: palette.TEXT_MUTED, flexShrink: 0 }}>
+          <Box component="span" className="text-[8px] shrink-0" style={{ color: palette.TEXT_MUTED }}>
             {t1 ? fmtTime(t1) : "—"}
           </Box>
           {armedSince ? (
             <Box
               component="span"
               data-testid="nifty-squeeze-armed"
-              sx={{ fontSize: 8, color: palette.POSITIVE, fontWeight: 700, flexShrink: 0 }}
+              className="text-[8px] font-bold shrink-0"
+              style={{ color: palette.POSITIVE }}
             >
               armed {armedMin}m
             </Box>
@@ -453,15 +453,19 @@ export function NiftySqueezeRadarInner({
         </Box>
       ) : null}
 
-      <Box sx={{ display: "flex", alignItems: "baseline", gap: "6px", fontSize: 8, color: palette.TEXT_MUTED, minWidth: 0 }}>
-        <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <Box className="flex items-baseline gap-[6px] text-[8px] min-w-0" style={{ color: palette.TEXT_MUTED }}>
+        <Box
+          component="span"
+          className="overflow-hidden truncate whitespace-nowrap"
+        >
           ARM = prepare · TRIGGER = 1-min close through the wall · the score is an early warning, not an entry
         </Box>
         <Box
           component="span"
           data-testid="nifty-squeeze-calibration"
           title="Causal study: 10s chain arms (Oct 26-28) and 1-min 100-level breaks (10 sessions). Historical, not live."
-          sx={{ ml: "auto", flexShrink: 0, color: palette.TEXT_MUTED, whiteSpace: "nowrap" }}
+          className="ml-auto shrink-0 whitespace-nowrap"
+          style={{ color: palette.TEXT_MUTED }}
         >
           hist: ARM {SQUEEZE_CALIBRATION.armLift.toFixed(1)}× (n={SQUEEZE_CALIBRATION.armN}) ·
           {" "}TRIG {Math.round(SQUEEZE_CALIBRATION.triggerHold * 100)}% (n={SQUEEZE_CALIBRATION.triggerN})

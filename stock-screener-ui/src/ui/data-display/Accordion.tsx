@@ -1,9 +1,5 @@
 import * as React from "react";
-import MuiAccordion from "@mui/material/Accordion";
-import MuiAccordionSummary from "@mui/material/AccordionSummary";
-import MuiAccordionDetails from "@mui/material/AccordionDetails";
-import Box from "@mui/material/Box";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import { cn } from "../cn";
 import type { UIAccordionProps, UIAccordionItemProps, UIAccordionControlProps, UIAccordionPanelProps } from "../types";
 
 type AccordionContextValue = {
@@ -30,10 +26,26 @@ function useAccordionItemContext() {
   return ctx;
 }
 
-function isExpanded(accordionValue: string | string[] | null | undefined, itemValue: string, multiple?: boolean): boolean {
+function isExpanded(accordionValue: string | string[] | null | undefined, itemValue: string): boolean {
   if (accordionValue == null) return false;
   if (Array.isArray(accordionValue)) return accordionValue.includes(itemValue);
   return accordionValue === itemValue;
+}
+
+function Chevron({ expanded, disableRotation }: { expanded: boolean; disableRotation?: boolean }) {
+  const rotate = expanded && !disableRotation ? 180 : 0;
+  return (
+    <svg
+      className="w-[20px] h-[20px] shrink-0 text-fin-text-muted transition-transform duration-200"
+      style={{ transform: rotate ? `rotate(${rotate}deg)` : undefined }}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 10l5 5 5-5" />
+    </svg>
+  );
 }
 
 export function Accordion({
@@ -47,6 +59,7 @@ export function Accordion({
   children,
   className,
   style,
+  id,
   "data-testid": testId,
   ...rest
 }: UIAccordionProps) {
@@ -66,26 +79,24 @@ export function Accordion({
 
   const ctx: AccordionContextValue = { multiple, value: current as any, onChange: handleChange, variant, chevronPosition, disableChevronRotation };
 
+  const cls = cn(
+    "ui-accordion",
+    variant === "separated" ? "flex flex-col gap-2" : "",
+    variant === "contained" ? "rounded-fin border border-fin-border" : "",
+    className,
+  );
+
   return (
     <AccordionContext.Provider value={ctx}>
-      <Box
-        className={className}
-        style={style}
-        data-testid={testId}
-        sx={{
-          ...(variant === "separated" ? { display: "flex", flexDirection: "column", gap: 1 } : {}),
-          ...(variant === "contained" ? { borderRadius: 1, overflow: "hidden" } : {}),
-        }}
-        {...(rest as any)}
-      >
+      <div id={id} className={cls} style={style} data-testid={testId} {...(rest as any)}>
         {children}
-      </Box>
+      </div>
     </AccordionContext.Provider>
   );
 }
 
-export function AccordionItem({ value: itemValue, children, className, style, "data-testid": testId, ...rest }: UIAccordionItemProps) {
-  const { value, multiple, onChange, variant } = useAccordionContext();
+export function AccordionItem({ value: itemValue, children, className, style, id, "data-testid": testId, ...rest }: UIAccordionItemProps) {
+  const { value, multiple, onChange } = useAccordionContext();
   const expanded = isExpanded(value as any, itemValue, multiple);
 
   const toggle = React.useCallback(() => {
@@ -99,54 +110,48 @@ export function AccordionItem({ value: itemValue, children, className, style, "d
     }
   }, [value, multiple, expanded, itemValue, onChange]);
 
+  const itemCls = cn(
+    "ui-accordion-item",
+    variant === "filled" ? "bg-fin-surface-alt" : "",
+    className
+  );
+
   return (
     <AccordionItemContext.Provider value={{ value: itemValue, expanded, toggle }}>
-      <MuiAccordion
-        expanded={expanded}
-        onChange={toggle}
-        className={className}
-        style={style}
-        data-testid={testId}
-        disableGutters
-        square={variant === "separated" ? false : undefined}
-        sx={{
-          ...(variant === "separated" ? { borderRadius: 1, "&:before": { display: "none" } } : {}),
-          ...(variant === "filled" ? { bgcolor: "action.hover" } : {}),
-        }}
-        {...(rest as any)}
-      >
+      // The item wrapper stays visible so the control remains clickable; only the panel
+      // content is hidden when collapsed (handled in AccordionPanel).
+      <div id={id} className={itemCls} style={style} data-testid={testId} {...(rest as any)}>
         {children}
-      </MuiAccordion>
+      </div>
     </AccordionItemContext.Provider>
   );
 }
 
-export function AccordionControl({ children, className, style, "data-testid": testId, ...rest }: UIAccordionControlProps) {
+export function AccordionControl({ children, className, style, id, "data-testid": testId, ...rest }: UIAccordionControlProps) {
   const { expanded, toggle } = useAccordionItemContext();
   const { chevronPosition, disableChevronRotation } = useAccordionContext();
   const isLeft = chevronPosition === "left";
+
+  const cls = cn(
+    "ui-accordion-control",
+    "flex w-full items-center gap-2 px-3 py-[6px] text-left text-[14px] font-medium text-fin-text bg-transparent border-none outline-none focus-visible:ring-1 focus-visible:ring-fin-primary cursor-pointer hover:bg-fin-surface-alt",
+    className,
+  );
+
   return (
-    <MuiAccordionSummary
-      expandIcon={<ExpandMoreIcon sx={{ transition: "transform 0.2s", transform: expanded && !disableChevronRotation ? "rotate(180deg)" : "none" }} />}
-      onClick={toggle}
-      className={className}
-      style={style}
-      data-testid={testId}
-      sx={{ flexDirection: isLeft ? "row" : "row", minHeight: 48, ...(isLeft ? { "& .MuiAccordionSummary-expandIconWrapper": { order: -1, mr: 1 } } : {}) }}
-      {...(rest as any)}
-    >
-      <Box sx={{ flex: 1 }}>{children}</Box>
-    </MuiAccordionSummary>
+    <button type="button" id={id} aria-expanded={expanded} className={cls} style={style} data-testid={testId} onClick={toggle} {...(rest as any)}>
+      {isLeft && <Chevron expanded={expanded} disableRotation={disableChevronRotation} />}
+      <span className="flex-1 min-w-0">{children}</span>
+      {!isLeft && <Chevron expanded={expanded} disableRotation={disableChevronRotation} />}
+    </button>
   );
 }
 
-export function AccordionPanel({ children, className, style, "data-testid": testId, ...rest }: UIAccordionPanelProps) {
-  // No need for item context except for styling
-  return (
-    <MuiAccordionDetails className={className} style={style} data-testid={testId} {...(rest as any)}>
-      {children}
-    </MuiAccordionDetails>
-  );
+export function AccordionPanel({ children, className, style, id, "data-testid": testId, ...rest }: UIAccordionPanelProps) {
+  const { expanded } = useAccordionItemContext();
+  // Only the panel content is hidden when collapsed; the control stays visible in the item wrapper.
+  const cls = cn("ui-accordion-panel", "pt-1 pb-2", className);
+  return <div id={id} hidden={!expanded} className={cls} style={style} data-testid={testId} {...(rest as any)}>{children}</div>;
 }
 
 Accordion.Item = AccordionItem;

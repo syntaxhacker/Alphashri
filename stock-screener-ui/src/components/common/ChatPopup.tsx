@@ -16,10 +16,7 @@ import {
   Collapse,
   NavLink,
   Divider,
-  Tooltip,
-  ThemeIcon,
   Code,
-  Timeline,
   Title,
   Anchor,
 } from "@/ui";
@@ -32,13 +29,7 @@ import {
   IconHistory,
   IconTrash,
   IconPlus,
-  IconChartBar,
-  IconNews,
-  IconCoin,
-  IconTrendingUp,
   IconSearch,
-  IconDatabase,
-  IconChartLine,
   IconArrowsMaximize,
   IconArrowsMinimize,
 } from "@tabler/icons-react";
@@ -52,9 +43,7 @@ import {
   getMessages,
   addMessage,
   deleteConversation,
-  type AnalysisRequest,
   type Conversation,
-  type ChatMessage,
 } from "../../api/trading_agents";
 
 interface Message {
@@ -139,18 +128,12 @@ const mdComponents = {
     </Box>
   ),
   th: ({ children }: any) => (
-    <Box
-      component="th"
-      sx={{
-        padding: 2,
-        fontWeight: 600,
-      }}
-    >
+    <Box component="th" className="p-4 font-semibold">
       {children}
     </Box>
   ),
   td: ({ children }: any) => (
-    <Box component="td" sx={{ padding: 2 }}>
+    <Box component="td" className="p-4">
       {children}
     </Box>
   ),
@@ -411,7 +394,7 @@ export function ChatPopup() {
           }}
           data-testid="chat-popup-window"
         >
-          <Box p="sm" sx={{ bgcolor: "primary.light" }}>
+          <Box p="sm" className="bg-fin-primary/12">
             <Group justify="space-between">
               <Group gap="xs">
                 <IconRobot size={20} />
@@ -452,7 +435,7 @@ export function ChatPopup() {
           </Box>
 
           <Collapse in={showHistory}>
-            <Box sx={{ maxHeight: 180, overflowY: "auto" }}>
+            <Box className="max-h-[180px] overflow-y-auto">
               <Group p="xs" justify="space-between">
                 <Text size="xs" fw={600}>
                   Conversations
@@ -510,17 +493,13 @@ export function ChatPopup() {
                 {agentProgress.map((agent) => (
                   <Group key={agent.agent} gap={4}>
                     <Box
-                      sx={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: "50%",
-                        bgcolor:
-                          agent.status === "completed"
-                            ? "success.main"
-                            : agent.status === "running"
-                              ? "primary.main"
-                              : "grey.400",
-                      }}
+                      className={`h-2 w-2 rounded-full ${
+                        agent.status === "completed"
+                          ? "bg-fin-positive"
+                          : agent.status === "running"
+                            ? "bg-fin-primary"
+                            : "bg-fin-text-muted"
+                      }`}
                     />
                     <Text size="xs" c="dimmed">
                       {agent.agent}
@@ -541,7 +520,7 @@ export function ChatPopup() {
                           <Text size="xs" c="dimmed" lineClamp={1}>
                             {tc.tool}
                           </Text>
-                          <Text size="xs" c="secondary" sx={{ opacity: 0.5 }}>
+                          <Text size="xs" c="secondary" className="opacity-50">
                             {tc.agent}
                           </Text>
                         </Group>
@@ -576,13 +555,7 @@ export function ChatPopup() {
                     <Paper
                       p="xs"
                       radius="md"
-                      sx={{
-                        bgcolor:
-                          msg.role === "user"
-                            ? "primary.light"
-                            : "background.paper",
-                        maxWidth: "85%",
-                      }}
+                      className={msg.role === "user" ? "max-w-[85%] bg-fin-primary/12" : "max-w-[85%]"}
                     >
                       <Group gap={4} mb={4}>
                         {msg.role === "user" ? <IconUser size={14} /> : <IconRobot size={14} />}
@@ -616,12 +589,10 @@ export function ChatPopup() {
                             <Stack gap={2}>
                               {Object.entries(msg.analysis.reports).map(([section, content]) => (
                                   <Paper
-                                  key={section}
-                                  p={4}
-                                  sx={{
-                                    bgcolor: "background.paper",
-                                  }}
-                                >
+                                    key={section}
+                                    p={4}
+                                    className="bg-fin-surface"
+                                  >
                                   <Text size="xs" fw={600} tt="capitalize">
                                     {section.replace(/_/g, " ")}
                                   </Text>

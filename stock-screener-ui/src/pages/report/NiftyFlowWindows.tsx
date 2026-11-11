@@ -1,7 +1,6 @@
 import { memo } from "react";
 import type { ReactNode } from "react";
-import Box from "@mui/material/Box";
-import Tooltip from "@mui/material/Tooltip";
+import { Box, Tooltip } from "@/ui";
 import type { NiftyReport } from "@/types/niftyReport";
 import * as palette from "@/ui/palette";
 import { controlLabel } from "./NiftyVerdictStrip";
@@ -39,25 +38,23 @@ function Cell({
   return (
     <Box
       data-testid={testId}
-      sx={{
-        display: "flex",
-        alignItems: "center",
+      className="flex items-center min-w-0"
+      style={{
         gap: `${REPORT_PAD.sm}px`,
-        minWidth: 0,
-        pl: `${REPORT_PAD.md}px`,
-        pr: emphasis ? `${REPORT_PAD.sm}px` : 0,
-        bgcolor: emphasis ? palette.SURFACE_ALT : "transparent",
+        paddingLeft: `${REPORT_PAD.md}px`,
+        paddingRight: emphasis ? `${REPORT_PAD.sm}px` : 0,
+        backgroundColor: emphasis ? palette.SURFACE_ALT : "transparent",
         borderLeft: emphasis
           ? `2px solid ${TONE_COLOR[tone]}`
           : `1px solid ${palette.TERM_BORDER}`,
       }}
     >
-      <Box component="span" sx={{ color: palette.TEXT_MUTED, fontWeight: 700, letterSpacing: "0.06em", flexShrink: 0 }}>
+      <span style={{ color: palette.TEXT_MUTED, fontWeight: 700, letterSpacing: "0.06em", flexShrink: 0 }}>
         {label}
-      </Box>
-      <Box component="span" sx={{ color: TONE_COLOR[tone], fontWeight: emphasis ? 800 : 700, whiteSpace: "nowrap" }}>
+      </span>
+      <span style={{ color: TONE_COLOR[tone], fontWeight: emphasis ? 800 : 700, whiteSpace: "nowrap" }}>
         {value}
-      </Box>
+      </span>
     </Box>
   );
 }
@@ -97,57 +94,54 @@ export const NiftyFlowWindows = memo(function NiftyFlowWindows({
     <Box
       data-testid="nifty-flow-windows"
       title="SESSION = premium flow (cumulative) · 15m/5m = CE/PE OI change. FLOW FLIP means the 5m leg disagrees with the 15m or the session."
-      sx={{
-        display: "flex",
-        alignItems: "center",
+      className="flex items-center min-w-0"
+      style={{
         gap: `${REPORT_PAD.md}px`,
-        height: REPORT_ROW.normal,
-        minHeight: REPORT_ROW.normal,
-        px: `${REPORT_PAD.md}px`,
+        height: `${REPORT_ROW.normal}px`,
+        minHeight: `${REPORT_ROW.normal}px`,
+        paddingLeft: `${REPORT_PAD.md}px`,
+        paddingRight: `${REPORT_PAD.md}px`,
         borderTop: `1px solid ${palette.TERM_BORDER}`,
         borderBottom: `1px solid ${palette.TERM_BORDER}`,
-        bgcolor: palette.TERM_HEADER,
+        backgroundColor: palette.TERM_HEADER,
         fontFamily: palette.MONO,
-        fontSize: REPORT_FONT.xs,
+        fontSize: `${REPORT_FONT.xs}px`,
         whiteSpace: "nowrap",
         overflow: "hidden",
         flexShrink: 0,
       }}
     >
-      <Box component="span" sx={{ color: palette.TEXT_MUTED, fontWeight: 800, fontSize: REPORT_FONT.micro, letterSpacing: "0.1em" }}>
+      <span style={{ color: palette.TEXT_MUTED, fontWeight: 800, fontSize: `${REPORT_FONT.micro}px`, letterSpacing: "0.1em" }}>
         WINDOWS
-      </Box>
+      </span>
 
       <Tooltip
-        title="CALL BID = CE build + PE unwind · PUT BID = CE unwind + PE build · BOTH BUILD/UNWIND = two-sided, no direction"
-        placement="bottom-start"
-        enterTouchDelay={0}
+        label="CALL BID = CE build + PE unwind · PUT BID = CE unwind + PE build · BOTH BUILD/UNWIND = two-sided, no direction"
+        position="bottom-start"
       >
-        <Box
-          component="span"
+        <span
           role="button"
           tabIndex={0}
           data-testid="flow-legend"
           aria-label="Flow window legend: CALL BID means call OI build plus put unwind; PUT BID means call unwind plus put build; BOTH BUILD or BOTH UNWIND is two-sided with no direction"
-          sx={{
+          style={{
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            width: 14,
-            height: 14,
+            width: "14px",
+            height: "14px",
             flexShrink: 0,
             borderRadius: `${REPORT_RADIUS.sm}px`,
             border: `1px solid ${palette.TERM_BORDER}`,
             color: palette.TEXT_MUTED,
-            fontSize: REPORT_FONT.micro,
+            fontSize: `${REPORT_FONT.micro}px`,
             fontWeight: 800,
             lineHeight: 1,
             cursor: "help",
-            "&:hover, &:focus-visible": { color: palette.TEXT, borderColor: palette.TEXT_MUTED, outline: "none" },
           }}
         >
           ?
-        </Box>
+        </span>
       </Tooltip>
 
       <Cell
@@ -158,9 +152,9 @@ export const NiftyFlowWindows = memo(function NiftyFlowWindows({
           <>
             {sessionLabel}
             {showSessionValue ? (
-              <Box component="span" sx={{ color: palette.TEXT_MUTED, fontWeight: 500 }}>
+              <span style={{ color: palette.TEXT_MUTED, fontWeight: 500 }}>
                 {" "}{fmtFlowCr(report.control?.flow_bias)}
-              </Box>
+              </span>
             ) : null}
           </>
         }
@@ -173,7 +167,7 @@ export const NiftyFlowWindows = memo(function NiftyFlowWindows({
         value={
           <>
             CE {fmtFlowOi(leg15?.ce)} · PE {fmtFlowOi(leg15?.pe)}{" "}
-            <Box component="span" sx={{ color: TONE_COLOR[leg15c.tone], fontWeight: 800 }}>{leg15c.label}</Box>
+            <span style={{ color: TONE_COLOR[leg15c.tone], fontWeight: 800 }}>{leg15c.label}</span>
           </>
         }
       />
@@ -186,7 +180,7 @@ export const NiftyFlowWindows = memo(function NiftyFlowWindows({
         value={
           <>
             CE {fmtFlowOi(leg5?.ce)} · PE {fmtFlowOi(leg5?.pe)}{" "}
-            <Box component="span" sx={{ color: TONE_COLOR[leg5c.tone], fontWeight: 800 }}>{leg5c.label}</Box>
+            <span style={{ color: TONE_COLOR[leg5c.tone], fontWeight: 800 }}>{leg5c.label}</span>
           </>
         }
       />
@@ -194,19 +188,19 @@ export const NiftyFlowWindows = memo(function NiftyFlowWindows({
       {flip.flipped ? (
         <Box
           data-testid="flow-flip"
-          sx={{
-            ml: "auto",
-            display: "flex",
-            alignItems: "center",
+          className="flex items-center shrink-0"
+          style={{
+            marginLeft: "auto",
             gap: `${REPORT_PAD.sm}px`,
-            px: `${REPORT_PAD.sm}px`,
-            py: "1px",
+            paddingLeft: `${REPORT_PAD.sm}px`,
+            paddingRight: `${REPORT_PAD.sm}px`,
+            paddingTop: "1px",
+            paddingBottom: "1px",
             color: palette.WARNING,
             border: `1px solid ${palette.WARNING}`,
             borderRadius: `${REPORT_RADIUS.sm}px`,
             fontWeight: 800,
             letterSpacing: "0.05em",
-            flexShrink: 0,
           }}
         >
           FLOW FLIP{flipAt ? ` since ${flipAt}` : ""} · {flip.reason}
@@ -214,30 +208,36 @@ export const NiftyFlowWindows = memo(function NiftyFlowWindows({
       ) : (
         <Box
           data-testid="flow-aligned"
-          sx={{ ml: "auto", color: palette.TEXT_MUTED, fontWeight: 700, letterSpacing: "0.05em", flexShrink: 0 }}
+          className="shrink-0"
+          style={{
+            marginLeft: "auto",
+            color: palette.TEXT_MUTED,
+            fontWeight: 700,
+            letterSpacing: "0.05em",
+          }}
         >
           ALIGNED
         </Box>
       )}
 
       {!flip.flipped && lastFlipAt ? (
-        <Box
-          component="span"
+        <span
           data-testid="flow-last-flip"
           title={`Last 5m sign flip ${lastFlipAt}${lastFlip?.reason ? ` · ${lastFlip.reason}` : ""}`}
-          sx={{
+          style={{
             color: palette.TEXT_MUTED,
             fontWeight: 700,
             letterSpacing: "0.05em",
             flexShrink: 0,
-            px: `${REPORT_PAD.sm}px`,
+            paddingLeft: `${REPORT_PAD.sm}px`,
+            paddingRight: `${REPORT_PAD.sm}px`,
             border: `1px solid ${palette.TERM_BORDER}`,
             borderRadius: `${REPORT_RADIUS.sm}px`,
             opacity: 0.85,
           }}
         >
           LAST FLOW FLIP {lastFlipAt}
-        </Box>
+        </span>
       ) : null}
     </Box>
   );

@@ -6,29 +6,19 @@ import { NewsQueuePanel } from "./admin/NewsQueuePanel";
 import { OrderFlowJournalPanel } from "./admin/OrderFlowJournalPanel";
 import { AdminPatternTimeframesPanel } from "./admin/AdminPatternTimeframesPanel";
 
-const PANEL_SX = { flex: 1, minHeight: 0, overflow: "auto", py: 0, px: 0 };
+const PANEL_CLASS = "flex-1 min-h-0 overflow-auto py-0 px-0";
 
 export default function AdminPage() {
   return (
     <Box
       data-testid="admin-page"
-      sx={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}
+      className="flex h-full flex-col overflow-hidden"
     >
       <Tabs
         defaultValue="llm"
-        sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
+        className="flex min-h-0 flex-1 flex-col"
       >
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1,
-            px: 0.5,
-            flexShrink: 0,
-            borderBottom: 1,
-            borderColor: "divider",
-          }}
-        >
+        <Box className="flex shrink-0 items-center gap-2 border-b border-fin-border px-1">
           <Text size="xs" fw={700} c="dimmed" tt="uppercase" style={{ fontSize: 10, letterSpacing: 0.6 }}>
             Admin
           </Text>
@@ -41,22 +31,22 @@ export default function AdminPage() {
             <Tabs.Tab value="pattern-images" data-testid="admin-tab-pattern-images">Pattern images</Tabs.Tab>
           </Tabs.List>
         </Box>
-        <Tabs.Panel value="llm" sx={PANEL_SX}>
+        <Tabs.Panel value="llm" className={PANEL_CLASS}>
           <LLMStatsPanel />
         </Tabs.Panel>
-        <Tabs.Panel value="52w" sx={PANEL_SX}>
+        <Tabs.Panel value="52w" className={PANEL_CLASS}>
           <Admin52wRangePanel />
         </Tabs.Panel>
-        <Tabs.Panel value="orderflow" data-testid="admin-tab-panel-orderflow" sx={PANEL_SX}>
+        <Tabs.Panel value="orderflow" data-testid="admin-tab-panel-orderflow" className={PANEL_CLASS}>
           <OrderFlowJournalPanel />
         </Tabs.Panel>
-        <Tabs.Panel value="news-queue" sx={PANEL_SX}>
+        <Tabs.Panel value="news-queue" className={PANEL_CLASS}>
           <NewsQueuePanel />
         </Tabs.Panel>
-        <Tabs.Panel value="pattern-timeframes" sx={PANEL_SX}>
+        <Tabs.Panel value="pattern-timeframes" className={PANEL_CLASS}>
           <AdminPatternTimeframesPanel />
         </Tabs.Panel>
-        <Tabs.Panel value="pattern-images" sx={PANEL_SX}>
+        <Tabs.Panel value="pattern-images" className={PANEL_CLASS}>
           <PatternImageManager />
         </Tabs.Panel>
       </Tabs>

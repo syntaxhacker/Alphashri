@@ -412,7 +412,7 @@ describe("useLivePrices", () => {
     (global.fetch as any).mockRejectedValue(new Error("Network error"));
 
     function TestComponent() {
-      const { subscribe, getPrices } = useLivePrices();
+      const { subscribe } = useLivePrices();
       useEffect(() => {
         const unsub = subscribe(() => {});
         return () => unsub();
@@ -435,9 +435,6 @@ describe("useLivePrices", () => {
       body: null,
     } as unknown as Response);
 
-    function TestComponent() {
-      return <div data-testid="oktest" />;
-    }
     // need to trigger hook
     function HookComp() {
       useLivePrices();

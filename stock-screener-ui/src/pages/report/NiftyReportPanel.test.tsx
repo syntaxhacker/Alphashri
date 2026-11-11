@@ -466,8 +466,9 @@ describe("NiftyReportPanel toolbar", () => {
 describe("NiftyReportPanel symbol selector", () => {
   async function pickSymbol(user: ReturnType<typeof userEvent.setup>, name: string) {
     const select = screen.getByTestId("report-symbol-select");
-    await user.click(within(select).getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name }));
+    // Tailwind Select renders a native <select> — drive it with selectOptions,
+    // not the combobox/option click dance Mantine needed.
+    await user.selectOptions(within(select).getByRole("combobox"), name);
   }
 
   test("setup banner prioritises a live flow flip over arming", async () => {
@@ -672,7 +673,7 @@ describe("NiftyReportPanel symbol selector", () => {
     });
 
     test("setup radar — NIFTY 7M wall passes its 2.75M gate (50-pt strike step)", async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
       // NIFTY: 50-pt strike step, spot 25750
       // maxWallOi ~11M → wallMinOi = max(500k, 11M * 0.25) = 2.75M
       // wallMaxDist = 50 * 2 = 100
@@ -1004,8 +1005,7 @@ describe("NiftyReportPanel symbol selector", () => {
     await waitFor(() =>
       expect(within(select).getByRole("combobox")).toHaveTextContent("Nearest expiry"),
     );
-    await user.click(within(select).getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: "2026-11-26" }));
+    await user.selectOptions(within(select).getByRole("combobox"), "2026-11-26");
 
     await waitFor(() =>
       expect(vi.mocked(fetchOptionsLive)).toHaveBeenCalledWith(
@@ -2645,8 +2645,7 @@ describe("NiftyReportPanel generic underlying polling (SENSEX/RELIANCE)", () => 
     // Switch to generic symbol
     const user = userEvent.setup();
     const select = screen.getByTestId("report-symbol-select");
-    await user.click(within(select).getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: "SENSEX" }));
+    await user.selectOptions(within(select).getByRole("combobox"), "SENSEX");
     await waitFor(() => expect(vi.mocked(fetchOptionsLive)).toHaveBeenCalled());
 
     // The initial load should have called fetchOptionsLive
@@ -2704,13 +2703,13 @@ describe("NiftyReportPanel OI tape", () => {
     const toggle = await screen.findByTestId("nifty-detail-toggle");
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     const body = screen.getByTestId("nifty-detail-body");
-    expect(body).not.toBeVisible();
+    expect(body).toHaveClass("hidden");
     // Panels stay mounted behind display:none, so opening is instant and the
     // chart/table state is preserved.
     expect(within(body).getByTestId("nifty-iv-straddle-panel")).toBeInTheDocument();
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    await waitFor(() => expect(body).toBeVisible());
+    await waitFor(() => expect(body).toHaveClass("flex"));
   });
 
   test("empty tape shows the pre-market empty state", async () => {
@@ -4130,7 +4129,7 @@ describe("NiftyReportPanel flow/research visuals", () => {
     const heat = screen.getByTestId("nifty-chart-side-heatmap");
     expect(heat).toContainElement(screen.getByTestId("nifty-heatmap-wrap"));
     expect(screen.getByTestId("nifty-side-col")).toContainElement(heat);
-    expect(heat).toHaveStyle({ flexGrow: "1" });
+    expect(heat).toHaveClass("flex-auto");
     expect(screen.getByTestId("desk-dock")).toBeInTheDocument();
   });
 

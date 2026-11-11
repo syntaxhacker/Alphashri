@@ -8,6 +8,8 @@ import {
 } from "../../utils/ui-helpers";
 import { TanStackTable } from "../common/TanStackTable";
 import { SideBadge } from "../common/BadgeComponents";
+import { alpha } from "@/ui/alpha";
+import * as palette from "@/ui/palette";
 import type { ReplayTrade } from "../../types/replay";
 
 const EXIT_REASON_COLORS: Record<string, string> = {
@@ -262,7 +264,7 @@ export function ReplayTradeLog({
             cursor: onTradeClick ? "pointer" : undefined,
             backgroundColor:
               highlightedTradeId === row.id
-                ? "primary.light"
+                ? alpha(palette.PRIMARY, 0.10)
                 : undefined,
           })}
           getRowClassName={(row) =>

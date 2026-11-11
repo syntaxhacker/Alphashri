@@ -1,7 +1,6 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { memo, useMemo } from "react";
-import Box from "@mui/material/Box";
-import { Text } from "@/ui";
+import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { CompactPanel } from "@/components/common/compact";
 import { EmptyState } from "@/components/common/states";
@@ -182,20 +181,20 @@ function NiftyWallMigrationInner({ rows, bucketMin = 15 }: NiftyWallMigrationPro
       title="Wall migration — pin over time"
       testId="nifty-wall-migration"
     >
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }}>
+      <Box className="flex flex-col gap-[4px] min-w-0">
         <Box
           data-testid="nifty-wall-migration-legend"
-          sx={{ display: "flex", alignItems: "center", gap: 1.25, flexWrap: "wrap", minWidth: 0 }}
+          className="flex items-center gap-[10px] flex-wrap min-w-0"
         >
           {series.map((s) => (
             <Box
               key={s.key}
-              sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}
+              className="inline-flex items-center gap-[4px]"
             >
-              <Box
-                component="span"
+              <span
                 aria-hidden
-                sx={{ width: 14, height: 0, borderTop: `2px ${s.dash ? "dashed" : "solid"} ${s.color}` }}
+                className="block w-[14px] h-0 shrink-0"
+                style={{ borderTop: `2px ${s.dash ? "dashed" : "solid"} ${s.color}` }}
               />
               <Text size="xs" span c="dimmed">
                 {s.name}
@@ -203,13 +202,12 @@ function NiftyWallMigrationInner({ rows, bucketMin = 15 }: NiftyWallMigrationPro
             </Box>
           ))}
         </Box>
-        <Box
-          component="svg"
+        <svg
           data-testid="nifty-wall-migration-chart"
           viewBox={`0 0 ${SVG_W} ${SVG_H}`}
           role="img"
           aria-label="Call wall, put wall, max pain, ATM and spot over time"
-          sx={{ width: "100%", height: 180, display: "block", minWidth: 0 }}
+          className="w-full h-[180px] block min-w-0"
         >
           <text x={4} y={PAD_T + 8} fontSize={9} fill={palette.TEXT_MUTED}>
             {formatWallStrike(hi)}
@@ -261,7 +259,7 @@ function NiftyWallMigrationInner({ rows, bucketMin = 15 }: NiftyWallMigrationPro
               </text>
             );
           })}
-        </Box>
+        </svg>
         <Text size="xs" span c="dimmed" data-testid="nifty-wall-migration-caption">
           {buckets.length} buckets · Y = strike, X = time · steps join bucket closes
         </Text>

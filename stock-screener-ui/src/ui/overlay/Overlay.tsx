@@ -1,59 +1,67 @@
 import * as React from "react";
-import Backdrop from "@mui/material/Backdrop";
-import Box from "@mui/material/Box";
-import { BLACK } from "@/ui/palette";
-import { withAlpha } from "@/utils/color";
+import { cn } from "../cn";
 import type { UIOverlayProps } from "../types";
 
-function colorWithOpacity(color: string | undefined, opacity: number | undefined): string | undefined {
-  if (!color) return undefined;
-  if (opacity == null) return color;
-  // If color is hex, convert to rgba via inline style trick: let CSS handle via opacity prop.
-  // Instead we set bgcolor to color and also opacity style; MUI Backdrop supports both.
-  // Return color as-is; opacity handled separately.
-  return color;
-}
+type OverlayProps = UIOverlayProps;
+
+// Palette-derived translucent black backdrop.
+import * as palette from "../palette";
+import { alpha } from "../alpha";
+
+const DEFAULT_BG = alpha(palette.SCALE_DARK[9], 0.5);
 
 export function Overlay({
   color,
   opacity,
   blur,
   zIndex,
-  fixed,
+  fixed = true,
   center,
   children,
   className,
   style,
+  id,
   "data-testid": testId,
+  onClick,
+  onMouseEnter,
+  onMouseLeave,
   ...rest
-}: UIOverlayProps) {
-  const bgcolor = colorWithOpacity(color as string, opacity);
+}: OverlayProps) {
+  const backdropFilter =
+    blur != null ? `blur(${typeof blur === "number" ? `${blur}px` : blur})` : undefined;
+
   return (
-    <Backdrop
-      open
-      className={className}
-      style={style}
+    <div
+      id={id}
       data-testid={testId}
-      sx={[
-        {
-          position: fixed ? "fixed" : "absolute",
-          inset: 0,
-          bgcolor: bgcolor ?? withAlpha(BLACK, 0.5),
-          opacity: opacity != null && !color ? opacity : undefined,
-          // When color is provided with opacity, MUI's bgcolor alpha is color itself; we also set opacity for overlay blending
-          ...(bgcolor && opacity != null ? { opacity } : {}),
-          backdropFilter: blur != null ? `blur(${typeof blur === "number" ? `${blur}px` : blur})` : undefined,
-          zIndex: zIndex as any,
-          display: center ? "flex" : undefined,
-          alignItems: center ? "center" : undefined,
-          justifyContent: center ? "center" : undefined,
-          borderRadius: "inherit",
-        },
-        ...(Array.isArray(style) ? [] : []),
-      ]}
-      {...(rest as any)}
+      className={cn("inset-0", className)}
+      style={{
+        position: fixed ? "fixed" : "absolute",
+        inset: 0,
+        zIndex: zIndex ?? undefined,
+        backgroundColor: color ?? DEFAULT_BG,
+        opacity: opacity != null ? opacity : undefined,
+        backdropFilter,
+        display: center ? "flex" : undefined,
+        alignItems: center ? "center" : undefined,
+        justifyContent: center ? "center" : undefined,
+        ...style,
+      }}
+      onClick={onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      {...(rest as Record<string, unknown>)}
     >
-      {children ? <Box sx={{ display: center ? "flex" : "block", alignItems: center ? "center" : undefined, justifyContent: center ? "center" : undefined }}>{children}</Box> : null}
-    </Backdrop>
+      {children ? (
+        <div
+          style={{
+            display: center ? "flex" : "block",
+            ...(center ? { alignItems: "center", justifyContent: "center" } : {}),
+          }}
+        >
+          {children}
+        </div>
+      ) : null}
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 import { memo, useCallback, useMemo, useRef, type ReactNode } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { alpha } from "@mui/material/styles";
+import { alpha } from "@/ui/alpha";
 import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { TanStackTable } from "@/components/common/TanStackTable";
@@ -113,7 +113,7 @@ function useStableCallback<T extends Fn | undefined>(callback: T): T | undefined
 const NumText = memo(function NumText({ children, color }: { children: ReactNode; color?: string }) {
   matrixStats.numTextRenders += 1;
   return (
-    <Text c={color} fw={600} sx={{ fontSize: 11, lineHeight: 1.1 }}>
+    <Text c={color} fw={600} className="text-[11px] leading-[1.1]">
       {children}
     </Text>
   );
@@ -135,8 +135,8 @@ const SymbolCell = memo(function SymbolCell({
   matrixStats.symbolCellRenders += 1;
   const canShowMembers = Boolean(onShowMembers && hasIndexMembers(row.symbol));
   return (
-    <Box sx={{ minWidth: 0 }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: "2px", minWidth: 0 }}>
+    <Box className="min-w-0">
+      <Box className="flex min-w-0 items-center gap-[2px]">
         <SymbolLink
           symbol={row.symbol}
           testId={`patterns-matrix-tv-${row.symbol}`}
@@ -146,7 +146,7 @@ const SymbolCell = memo(function SymbolCell({
           onPreviewEnd={onSymbolPreviewEnd}
           size="xs"
           weight={700}
-          sx={{ flex: 1 }}
+          className="flex-1"
         />
         {canShowMembers ? (
           <MembersButton
@@ -159,7 +159,7 @@ const SymbolCell = memo(function SymbolCell({
         ) : null}
       </Box>
       {row.name ? (
-        <Text c="dimmed" truncate sx={{ fontSize: 10, lineHeight: 1.1 }}>
+        <Text c="dimmed" truncate className="text-[10px] leading-[1.1]">
           {row.name}
         </Text>
       ) : null}
@@ -171,7 +171,7 @@ const TfGlyph = memo(function TfGlyph({ cell }: { cell: MatrixCell | undefined }
   matrixStats.tfGlyphRenders += 1;
   if (!cell) {
     return (
-      <Text c="dimmed" sx={{ fontSize: 11, lineHeight: 1.1 }}>
+      <Text c="dimmed" className="text-[11px] leading-[1.1]">
         —
       </Text>
     );
@@ -185,13 +185,13 @@ const TfGlyph = memo(function TfGlyph({ cell }: { cell: MatrixCell | undefined }
           ? `${cell.count} patterns · latest: ${cell.patterns.join(", ")}`
           : `1 pattern: ${cell.patterns.join(", ")}`
       }
-      sx={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "1px" }}
+      className="inline-flex items-center justify-center gap-[1px]"
     >
-      <Box component="span" sx={{ color: textToneChartColor(tone), fontSize: 11, lineHeight: 1, fontWeight: 700 }}>
+      <Box component="span" className="text-[11px] font-bold leading-none" style={{ color: textToneChartColor(tone) }}>
         {directionGlyph(cell.direction)}
       </Box>
       {cell.count > 1 ? (
-        <Box component="span" sx={{ color: palette.TEXT_MUTED, fontSize: 9, lineHeight: 1 }}>
+        <Box component="span" className="text-[9px] leading-none" style={{ color: palette.TEXT_MUTED }}>
           {cell.count}
         </Box>
       ) : null}
@@ -220,21 +220,11 @@ const PatternChip = memo(function PatternChip({ hit, onSelect }: { hit: PatternH
         onSelect(hit);
       }}
       title={`${label} — ${String(hit.status ?? "")}`}
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        flexShrink: 0,
-        height: 16,
-        px: "4px",
-        borderRadius: "3px",
-        border: `1px solid ${alpha(color, 0.45)}`,
-        bgcolor: alpha(color, 0.14),
+      className="inline-flex h-4 shrink-0 cursor-pointer select-none items-center whitespace-nowrap rounded-[3px] border px-1 text-[10px] leading-none"
+      style={{
+        borderColor: alpha(color, 0.45),
+        background: alpha(color, 0.14),
         color,
-        fontSize: 10,
-        lineHeight: 1,
-        whiteSpace: "nowrap",
-        cursor: "pointer",
-        userSelect: "none",
       }}
     >
       {label}
@@ -361,7 +351,7 @@ export function PatternSymbolMatrix({
           const shown = ordered.slice(0, MAX_CHIPS);
           const extra = ordered.length - shown.length;
           return (
-            <Box sx={{ display: "flex", alignItems: "center", gap: "4px", overflow: "hidden" }}>
+            <Box className="flex items-center gap-1 overflow-hidden">
               {shown.map((hit, index) => (
                 <PatternChip
                   key={`${hit.id ?? `${hit.pattern_id}-${hit.timeframe}`}-${index}`}
@@ -370,7 +360,7 @@ export function PatternSymbolMatrix({
                 />
               ))}
               {extra > 0 ? (
-                <Text c="dimmed" sx={{ fontSize: 10, lineHeight: 1, flexShrink: 0 }}>
+                <Text c="dimmed" className="shrink-0 text-[10px] leading-none">
                   {`+${extra}`}
                 </Text>
               ) : null}
@@ -395,8 +385,8 @@ export function PatternSymbolMatrix({
       getRowStyle={(row) =>
         activeSymbol && row.symbol === activeSymbol
           ? {
-              background: "var(--mui-palette-action-selected)",
-              boxShadow: "inset 3px 0 0 var(--mui-palette-primary-main)",
+              background: "rgba(88, 166, 255, 0.12)",
+              boxShadow: "inset 3px 0 0 var(--color-fin-primary)",
             }
           : undefined
       }

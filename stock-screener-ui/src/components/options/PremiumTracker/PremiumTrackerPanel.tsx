@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
-import { Alert, Badge, Button, Divider, Grid, Loader, Text, ToolbarRow } from "@/ui";
+import { Box, Stack } from "@/ui";
+import { Alert, Badge, Button, Divider, Loader, Text, ToolbarRow } from "@/ui";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../../common/compact";
 import { StrategyRow } from "./StrategyRow";
 import { DiaryStrip } from "./DiaryStrip";
@@ -50,7 +49,7 @@ function fmt(value: number | null, suffix = "", digits = 2): string {
 
 function LegBlock({ leg }: { leg: PremiumLeg }) {
   return (
-    <Box data-testid={`premium-leg-${leg.underlying}`} sx={{ width: "100%" }}>
+    <Box data-testid={`premium-leg-${leg.underlying}`} w="100%">
       <ToolbarRow gap={8} data-testid={`premium-leg-header-${leg.underlying}`}>
         <Text size="md" fw={700}>
           {leg.underlying}
@@ -59,11 +58,11 @@ function LegBlock({ leg }: { leg: PremiumLeg }) {
           {leg.verdict}
         </Badge>
         {leg.error ? (
-          <Text size="xs" c="dimmed">
+          <Text size="xs" className="text-fin-text-muted">
             {leg.error}
           </Text>
         ) : (
-          <Text size="xs" c="dimmed">
+          <Text size="xs" className="text-fin-text-muted">
             Spot {fmt(leg.spot, "", 0)} · ATM {fmt(leg.atm_strike, "", 0)} · DTE {leg.dte_days ?? "—"}
           </Text>
         )}
@@ -208,7 +207,7 @@ export function PremiumTrackerPanel({ strikeMatrix = [], selectedUnderlying = "N
   }, []);
 
   return (
-    <Stack spacing={1} sx={{ width: "100%" }} data-testid="premium-tracker-panel">
+    <Stack spacing={1} w="100%" data-testid="premium-tracker-panel">
       <CompactPanel
         title="Premium Tracker"
         description={asOf ? `Snapshot ${formatSnapshotTime(asOf)}` : "Cheap vs expensive + paper setups"}
@@ -222,32 +221,32 @@ export function PremiumTrackerPanel({ strikeMatrix = [], selectedUnderlying = "N
         {loading && (
           <ToolbarRow data-testid="premium-loading">
             <Loader size="sm" />
-            <Text size="sm" c="dimmed">Loading premium snapshot...</Text>
+            <Text size="sm" className="text-fin-text-muted">Loading premium snapshot...</Text>
           </ToolbarRow>
         )}
         {error && (
           <Alert color="error" data-testid="premium-error">{error}</Alert>
         )}
         {!loading && !error && legs.length === 0 && (
-          <Text size="sm" c="dimmed" data-testid="premium-empty">No snapshot data.</Text>
+          <Text size="sm" className="text-fin-text-muted" data-testid="premium-empty">No snapshot data.</Text>
         )}
         {!loading && !error && legs.length > 0 && (
-          <Grid gutter="sm">
+          <Box className="flex flex-wrap gap-[8px]">
             {legs.map((leg) => (
-              <Grid.Col key={leg.underlying} size={{ xs: 12, md: 6 }}>
+              <Box key={leg.underlying} className="w-full sm:w-1/2">
                 <LegBlock leg={leg} />
-              </Grid.Col>
+              </Box>
             ))}
-          </Grid>
+          </Box>
         )}
         <Divider data-testid="premium-checks-divider" />
-        <Box component="ul" sx={{ m: 0, pl: 2, width: "100%" }} data-testid="premium-checks">
+        <ul style={{ margin: 0, paddingLeft: 16, width: "100%" }} data-testid="premium-checks">
           {CHECKS.map((check) => (
             <li key={check}>
-              <Text size="xs" c="dimmed">{check}</Text>
+              <Text size="xs" className="text-fin-text-muted">{check}</Text>
             </li>
           ))}
-        </Box>
+        </ul>
       </CompactPanel>
 
       <CompactPanel

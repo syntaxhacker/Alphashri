@@ -129,7 +129,7 @@ describe("BacktestConfig", () => {
 
   it("renders include costs checkbox and reflects prop", () => {
     render(<BacktestConfig {...defaultProps({ includeCosts: true })} />, { wrapper: Wrapper });
-    expect(screen.getByRole("checkbox", { name: "Include Costs" })).toBeChecked();
+    expect(screen.getByTestId("include-costs-checkbox")).toBeChecked();
   });
 
   it("run button disabled when isRunning true", () => {

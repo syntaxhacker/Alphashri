@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render as rtlRender, screen, cleanup, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, cleanup, waitFor, within } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { MemoryRouter } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
@@ -511,11 +511,7 @@ describe("ScreenerPage", () => {
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
     );
-    const outer = screen.getByTestId("screener-select");
-    const combo = outer.querySelector('[role="combobox"]') || outer;
-    await user.click(combo as Element);
-    const option = await screen.findByRole("option", { name: /New Highs/i });
-    await user.click(option);
+    await user.selectOptions(within(screen.getByTestId("screener-select")).getByRole("combobox"), "new-highs");
     expect(defaultProps.onScreenerChange).toHaveBeenCalledWith("new-highs");
   });
 
@@ -900,11 +896,7 @@ describe("ScreenerPage", () => {
       </UIProvider>,
       { initialRoute: "/" },
     );
-    const outer = screen.getByTestId("dashboard-universe-select");
-    const combo = outer.querySelector('[role="combobox"]') || outer;
-    await user.click(combo as Element);
-    const option = await screen.findByRole("option", { name: /Nifty 500/i });
-    await user.click(option);
+    await user.selectOptions(within(screen.getByTestId("dashboard-universe-select")).getByRole("combobox"), "nifty500");
     expect(onUniverseChange).toHaveBeenCalledWith("nifty500");
   });
 

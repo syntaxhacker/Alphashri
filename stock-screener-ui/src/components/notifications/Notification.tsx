@@ -1,7 +1,7 @@
 import { useEffect } from "react";
-import { Box, Paper, IconButton, Typography } from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
-import { BLACK } from "@/ui/palette";
+import { ActionIcon, Box, Paper, Text } from "@/ui";
+import { IconX } from "@tabler/icons-react";
+import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import type { Notification } from "../../state/store/notificationsSlice";
 
@@ -13,23 +13,23 @@ type NotificationItemProps = {
 export const typeConfig = {
   success: {
     icon: "✓",
-    color: "success.main" as const,
-    borderColor: "success.main" as const,
+    color: palette.POSITIVE,
+    borderColor: palette.POSITIVE,
   },
   error: {
     icon: "✕",
-    color: "error.main" as const,
-    borderColor: "error.main" as const,
+    color: palette.NEGATIVE,
+    borderColor: palette.NEGATIVE,
   },
   warning: {
     icon: "⚠",
-    color: "warning.main" as const,
-    borderColor: "warning.main" as const,
+    color: palette.WARNING,
+    borderColor: palette.WARNING,
   },
   info: {
     icon: "ℹ",
-    color: "info.main" as const,
-    borderColor: "info.main" as const,
+    color: palette.INFO,
+    borderColor: palette.INFO,
   },
 };
 
@@ -53,26 +53,23 @@ export function NotificationItem({ notification, onDismiss }: NotificationItemPr
       aria-atomic="true"
       data-testid={`notification-${notification.type}`}
       data-notification-id={notification.id}
-      sx={{
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 1,
-        p: "12px 16px",
-        borderLeft: "3px solid",
-        borderLeftColor: config.borderColor,
-        borderRadius: 1,
-        boxShadow: `0 4px 12px ${withAlpha(BLACK, 0.08)}`,
+      className="flex items-start gap-3 rounded-fin"
+      style={{
+        padding: "12px 16px",
+        borderLeft: `3px solid ${config.borderColor}`,
+        borderRadius: 8,
+        boxShadow: `0 4px 12px ${withAlpha(palette.BG, 0.08)}`,
       }}
     >
-      <Box aria-hidden="true" sx={{ color: config.color, lineHeight: 1.5 }}>
+      <Box aria-hidden="true" style={{ lineHeight: 1.5, color: config.color }}>
         {config.icon}
       </Box>
-      <Typography variant="body2" data-testid="notification-message" sx={{ flex: 1, minWidth: 0 }}>
+      <Text size="sm" data-testid="notification-message" style={{ flex: 1, minWidth: 0 }}>
         {notification.message}
-      </Typography>
-      <IconButton size="small" onClick={() => onDismiss(notification.id)} aria-label="Dismiss notification" data-testid="notification-dismiss-btn">
-        <CloseIcon fontSize="small" />
-      </IconButton>
+      </Text>
+      <ActionIcon size="sm" onClick={() => onDismiss(notification.id)} aria-label="Dismiss notification" data-testid="notification-dismiss-btn" variant="transparent">
+        <IconX size={12} />
+      </ActionIcon>
     </Paper>
   );
 }

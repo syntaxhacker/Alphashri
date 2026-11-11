@@ -5,7 +5,6 @@ import { UIProvider } from "@/ui";
 import { ParamInput } from "./ParamInput";
 import type { StrategyParam } from "../../types/backtest";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 
 afterEach(() => {
   cleanup();
@@ -61,8 +60,7 @@ describe("ParamInput", () => {
     });
 
     it("allows typing a new value", async () => {
-      const user = userEvent.setup();
-      const param = mockParam({ type: "number" });
+          const param = mockParam({ type: "number" });
       render(<ParamInput param={param} value={10} onChange={mockOnChange} />, { wrapper: Wrapper });
       const input = within(screen.getByTestId("param-test_param")).getByRole("spinbutton");
       fireEvent.change(input, { target: { value: "30" } });

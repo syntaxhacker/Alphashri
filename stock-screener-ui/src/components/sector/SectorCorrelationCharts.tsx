@@ -1,9 +1,5 @@
 import { useEffect } from "react";
-import { Box, Stack } from "@/ui";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import Typography from "@mui/material/Typography";
-import Grid from "@mui/material/Grid";
+import { Box, Stack, Text } from "@/ui";
 import { useECharts } from "../../hooks/useECharts";
 import type { SectorCorrelationResponse } from "../../types/sector";
 import {
@@ -95,12 +91,12 @@ export function SectorBetaChart({
   }, [sectors, setChartOption]);
 
   return (
-    <Stack spacing={1} sx={{ width: "100%", height: "100%", p: 1, alignItems: "center", justifyContent: "center" }}>
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-        <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Benchmark: {benchmark} | Beta = 1.0 line</Typography>
+    <Stack spacing={1} className="w-full h-full p-2 flex items-center justify-center">
+      <Box className="flex items-center justify-center gap-2 p-2 w-full">
+        <Text size="xs" className="flex items-center justify-center">Benchmark: {benchmark} | Beta = 1.0 line</Text>
       </Box>
-      <Box sx={{ position: "relative", width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
-        <Box ref={chartRef} sx={{ width: "100%", height: "100%", opacity: sectors.length ? 1 : 0, display: "flex", alignItems: "center", justifyContent: "center" }} />
+      <Box className="relative w-full h-full flex items-center justify-center p-2">
+        <Box ref={chartRef} className="w-full h-full flex items-center justify-center" style={{ opacity: sectors.length ? 1 : 0 }} />
       </Box>
     </Stack>
   );
@@ -161,12 +157,12 @@ export function RotationTimeline({
   }, [sectors, setChartOption]);
 
   return (
-    <Stack spacing={1} sx={{ width: "100%", height: "100%", p: 1, alignItems: "center", justifyContent: "center" }}>
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-        <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Positive = rank improved (sector gaining strength)</Typography>
+    <Stack spacing={1} className="w-full h-full p-2 flex items-center justify-center">
+      <Box className="flex items-center justify-center gap-2 p-2 w-full">
+        <Text size="xs" className="flex items-center justify-center">Positive = rank improved (sector gaining strength)</Text>
       </Box>
-      <Box sx={{ position: "relative", width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
-        <Box ref={chartRef} sx={{ width: "100%", height: "100%", opacity: sectors.length ? 1 : 0, display: "flex", alignItems: "center", justifyContent: "center" }} />
+      <Box className="relative w-full h-full flex items-center justify-center p-2">
+        <Box ref={chartRef} className="w-full h-full flex items-center justify-center" style={{ opacity: sectors.length ? 1 : 0 }} />
       </Box>
     </Stack>
   );

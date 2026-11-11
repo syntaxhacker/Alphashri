@@ -81,9 +81,9 @@ import userEvent from "@testing-library/user-event";
 ## Setup Patterns
 
 ```typescript
-// Wrapper for MUI-dependent components
+// Wrapper for components that need the app shell
 function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <ThemeProvider theme={muiTheme}>{children}</ThemeProvider>;
+  return <>{children}</>;
 }
 
 // Render helper — keeps calls concise
@@ -444,7 +444,7 @@ expect(
 
 ## Accordion Interaction Patterns
 
-MUI Accordion panels are hidden via CSS `display: none` when collapsed (content stays mounted by default). happy-dom does not enforce CSS visibility, so clicks on collapsed elements succeed in tests but would fail in a real browser.
+Local Accordion panels are hidden when collapsed; happy-dom does not enforce CSS visibility, so test collapsed content explicitly instead of relying on visibility alone.
 
 ### ALWAYS expand collapsed accordions before clicking inside
 ```typescript

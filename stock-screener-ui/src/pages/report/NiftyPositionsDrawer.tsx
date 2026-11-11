@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
-import Box from "@mui/material/Box";
+import type { ReactNode, CSSProperties } from "react";
+import { Box } from "@/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button, Text } from "@/ui";
 import * as palette from "@/ui/palette";
@@ -45,7 +45,7 @@ function toneFor(value: number | null): string {
 }
 
 const NUM = (v: number): ReactNode => (
-  <Text span size="xs" fw={500} sx={{ fontFamily: palette.MONO }}>
+  <Text span size="xs" fw={500} style={{ fontFamily: palette.MONO }}>
     {formatNumberIN(v)}
   </Text>
 );
@@ -57,7 +57,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     size: 120,
     meta: { align: "left" },
     cell: (info) => (
-      <Text span size="xs" fw={700} title={String(info.getValue() ?? "")} sx={{ minWidth: 0 }}>
+      <Text span size="xs" fw={700} title={String(info.getValue() ?? "")} style={{ minWidth: 0 }}>
         {String(info.getValue() ?? "—")}
       </Text>
     ),
@@ -74,7 +74,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
           span
           size="xs"
           fw={700}
-          sx={{ color: opt === "CE" ? palette.TERM_CE : opt === "PE" ? palette.TERM_PE : palette.TEXT_MUTED }}
+          style={{ color: opt === "CE" ? palette.TERM_CE : opt === "PE" ? palette.TERM_PE : palette.TEXT_MUTED }}
         >
           {opt ?? "—"}
         </Text>
@@ -89,7 +89,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     cell: (info) => {
       const strike = info.getValue() as number | null;
       return (
-        <Text span size="xs" sx={{ fontFamily: palette.MONO }}>
+        <Text span size="xs" style={{ fontFamily: palette.MONO }}>
           {strike === null ? "—" : formatNumberIN(strike)}
         </Text>
       );
@@ -107,7 +107,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
           span
           size="xs"
           fw={700}
-          sx={{ color: side === "BUY" ? palette.POSITIVE : palette.NEGATIVE }}
+          style={{ color: side === "BUY" ? palette.POSITIVE : palette.NEGATIVE }}
         >
           {side || "—"}
         </Text>
@@ -127,7 +127,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     size: 72,
     meta: { align: "right" },
     cell: (info) => (
-      <Text span size="xs" sx={{ fontFamily: palette.MONO }}>
+      <Text span size="xs" style={{ fontFamily: palette.MONO }}>
         {formatRupees(Number(info.getValue()) || 0)}
       </Text>
     ),
@@ -138,7 +138,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     size: 72,
     meta: { align: "right" },
     cell: (info) => (
-      <Text span size="xs" sx={{ fontFamily: palette.MONO }}>
+      <Text span size="xs" style={{ fontFamily: palette.MONO }}>
         {formatRupees(Number(info.getValue()) || 0)}
       </Text>
     ),
@@ -151,7 +151,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     cell: (info) => {
       const pnl = Number(info.getValue()) || 0;
       return (
-        <Text span size="xs" fw={700} sx={{ color: toneFor(pnl), fontFamily: palette.MONO }}>
+        <Text span size="xs" fw={700} style={{ color: toneFor(pnl), fontFamily: palette.MONO }}>
           {signedRupees(pnl)}
         </Text>
       );
@@ -163,7 +163,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     size: 72,
     meta: { align: "right" },
     cell: (info) => (
-      <Text span size="xs" sx={{ color: palette.NEGATIVE, fontFamily: palette.MONO }}>
+      <Text span size="xs" style={{ color: palette.NEGATIVE, fontFamily: palette.MONO }}>
         {formatRupees(Number(info.getValue()) || 0)}
       </Text>
     ),
@@ -174,7 +174,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     size: 72,
     meta: { align: "right" },
     cell: (info) => (
-      <Text span size="xs" sx={{ color: palette.POSITIVE, fontFamily: palette.MONO }}>
+      <Text span size="xs" style={{ color: palette.POSITIVE, fontFamily: palette.MONO }}>
         {formatRupees(Number(info.getValue()) || 0)}
       </Text>
     ),
@@ -183,39 +183,23 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
 
 function GreekStat({ testId, label, value }: { testId: string; label: string; value: number | null }) {
   return (
-    <Box
+    <div
       data-testid={testId}
       title={`${label} — Σ chain greek × signed qty (missing legs skipped)`}
-      sx={{
-        display: "flex",
-        alignItems: "baseline",
-        justifyContent: "space-between",
-        gap: 0.5,
-        px: 0.75,
-        py: 0.25,
-        border: `1px solid ${palette.TERM_BORDER}`,
-        borderRadius: "4px",
-        bgcolor: palette.TERM_BG,
-        minWidth: 0,
-        fontVariantNumeric: "tabular-nums",
+      className="flex items-baseline justify-between gap-1 px-2 py-[2px] border border-fin-border rounded-[4px] bg-fin-bg min-w-0 font-mono tabular-nums"
+      style={{
+        borderColor: palette.TERM_BORDER,
+        backgroundColor: palette.TERM_BG,
       }}
     >
-      <Box component="span" sx={{ fontSize: 9, color: palette.TEXT_MUTED, letterSpacing: "0.06em" }}>
-        {label}
-      </Box>
-      <Box
-        component="span"
-        sx={{
-          fontSize: 11,
-          fontWeight: 700,
-          color: toneFor(value),
-          fontFamily: palette.MONO,
-          whiteSpace: "nowrap",
-        }}
+      <span className="text-[9px] text-fin-text-muted tracking-[0.06em]">{label}</span>
+      <span
+        className="text-[11px] font-bold font-mono whitespace-nowrap"
+        style={{ color: toneFor(value) }}
       >
         {formatGreek(value, label.includes("Δ") ? 1 : 2)}
-      </Box>
-    </Box>
+      </span>
+    </div>
   );
 }
 
@@ -263,27 +247,26 @@ export function NiftyPositionsDrawerInner({
         onClick={openDrawer}
       >
         {count > 0 && (
-          <Box
-            component="span"
+          <span
             data-testid="nifty-positions-dot"
             aria-hidden
-            sx={{
+            className="shrink-0"
+            style={{
               width: 5,
               height: 5,
               borderRadius: "50%",
-              bgcolor: pnlTone,
-              mr: 0.5,
-              flexShrink: 0,
+              backgroundColor: pnlTone,
+              marginRight: 4,
             }}
           />
         )}
-        <Box component="span" sx={{ whiteSpace: "nowrap" }}>
+        <span className="whitespace-nowrap">
           POS {count}
           {" · "}
-          <Box component="span" sx={{ color: pnlTone, fontVariantNumeric: "tabular-nums" }}>
+          <span className="font-mono tabular-nums" style={{ color: pnlTone }}>
             {formatSignedPnl(netPnl)}
-          </Box>
-        </Box>
+          </span>
+        </span>
       </Button>
 
       <PanelModal
@@ -292,11 +275,8 @@ export function NiftyPositionsDrawerInner({
         title="Paper positions — book & greeks"
         onClose={() => setOpen(false)}
       >
-        <Box
-          data-testid="nifty-positions-drawer"
-          sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}
-        >
-          <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, minWidth: 0 }}>
+        <div data-testid="nifty-positions-drawer" className="flex flex-col gap-1 min-w-0">
+          <div className="flex items-baseline gap-1 min-w-0">
             <Text
               data-testid="nifty-positions-drawer-label"
               span
@@ -308,26 +288,21 @@ export function NiftyPositionsDrawerInner({
             </Text>
             <Text span size="xs" c="dimmed" style={{ fontVariantNumeric: "tabular-nums" }}>
               {count} open · net{" "}
-              <Box component="span" sx={{ color: pnlTone, fontWeight: 700 }}>
+              <span className="font-bold" style={{ color: pnlTone }}>
                 {formatSignedPnl(netPnl)}
-              </Box>
+              </span>
             </Text>
-          </Box>
+          </div>
 
-          <Box
+          <div
             data-testid="nifty-book-greeks"
-            sx={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-              gap: 0.5,
-              minWidth: 0,
-            }}
+            className="grid grid-cols-[repeat(4,minmax(0,1fr))] gap-1 min-w-0"
           >
             <GreekStat testId="nifty-book-delta" label="Net Δ" value={greeks.delta} />
             <GreekStat testId="nifty-book-gamma" label="Net Γ" value={greeks.gamma} />
             <GreekStat testId="nifty-book-theta" label="Net Θ" value={greeks.theta} />
             <GreekStat testId="nifty-book-vega" label="Net V" value={greeks.vega} />
-          </Box>
+          </div>
           <Text size="xs" c="dimmed" style={{ fontSize: 9 }}>
             Book greeks = Σ chain greek × signed qty · {greeks.legs} leg
             {greeks.legs === 1 ? "" : "s"} matched · missing legs skipped
@@ -338,33 +313,18 @@ export function NiftyPositionsDrawerInner({
               No open paper positions
             </Text>
           ) : (
+            // The TanStackTable shared component renders its own bordered paper
+            // container; theme it to the desk surface via descendant selectors.
             <Box
               data-testid="nifty-positions-table-wrap"
-              sx={{
-                minWidth: 0,
-                "& .paper-tanstack-container": {
-                  bgcolor: `${palette.TERM_BG} !important`,
-                  border: "none !important",
-                },
-                "& .paper-tanstack-scroll": { bgcolor: `${palette.TERM_BG} !important` },
-                "& .paper-tanstack-table": { bgcolor: `${palette.TERM_BG} !important` },
-                "& .paper-tanstack-header-cell": {
-                  bgcolor: `${palette.TERM_HEADER} !important`,
-                  borderColor: `${palette.TERM_BORDER} !important`,
-                  color: `${palette.TEXT_MUTED} !important`,
-                  fontSize: "9px !important",
-                  letterSpacing: "0.05em",
-                },
-                "& .paper-tanstack-cell": {
-                  bgcolor: "transparent !important",
-                  borderColor: `${palette.TERM_BORDER} !important`,
-                  fontSize: "10px !important",
-                  fontFamily: `${palette.MONO} !important`,
-                  padding: "2px 8px !important",
-                  height: "22px !important",
-                  lineHeight: 1.1,
-                },
-              }}
+              className="min-w-0 [&_.paper-tanstack-container]:[background:var(--desk-bg)]! [&_.paper-tanstack-container]:[border:none]! [&_.paper-tanstack-scroll]:[background:var(--desk-bg)]! [&_.paper-tanstack-table]:[background:var(--desk-bg)]! [&_.paper-tanstack-header-cell]:[background:var(--desk-header)]! [&_.paper-tanstack-header-cell]:[border-color:var(--desk-border)]! [&_.paper-tanstack-header-cell]:[color:var(--desk-muted)]! [&_.paper-tanstack-header-cell]:text-[9px]! [&_.paper-tanstack-header-cell]:tracking-[0.05em]! [&_.paper-tanstack-cell]:bg-transparent! [&_.paper-tanstack-cell]:[border-color:var(--desk-border)]! [&_.paper-tanstack-cell]:text-[10px]! [&_.paper-tanstack-cell]:[font-family:var(--desk-mono)]! [&_.paper-tanstack-cell]:[padding:2px_8px]! [&_.paper-tanstack-cell]:h-[22px]! [&_.paper-tanstack-cell]:leading-[1.1]!"
+              style={{
+                "--desk-bg": palette.TERM_BG,
+                "--desk-header": palette.TERM_HEADER,
+                "--desk-border": palette.TERM_BORDER,
+                "--desk-muted": palette.TEXT_MUTED,
+                "--desk-mono": palette.MONO,
+              } as CSSProperties}
             >
               <TanStackTable<PositionRow>
                 data={rows}
@@ -378,7 +338,7 @@ export function NiftyPositionsDrawerInner({
               />
             </Box>
           )}
-        </Box>
+        </div>
       </PanelModal>
     </>
   );

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor, act, fireEvent, within } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, fireEvent, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
@@ -248,7 +248,7 @@ describe("CorrelationTab", () => {
     it("updates URL search params on calculate", async () => {
       const user = userEvent.setup();
       mockSymbols = ["RELIANCE", "TCS", "INFY"];
-      const { MemoryRouter, useSearchParams } = await import("react-router-dom");
+      const { MemoryRouter } = await import("react-router-dom");
       render(
         <MemoryRouter initialEntries={["/"]}>
           <UIProvider>

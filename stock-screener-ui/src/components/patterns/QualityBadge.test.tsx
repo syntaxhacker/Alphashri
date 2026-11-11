@@ -2,6 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import { QUALITY_INFO } from "@/config/patternCatalog";
 import { QualityBadge } from "./QualityBadge";
@@ -18,10 +19,12 @@ describe("QualityBadge", () => {
     expect(screen.getByTestId("patterns-quality-textbook")).toHaveTextContent("Textbook");
   });
 
-  test("exposes the quality description as tooltip label", () => {
+  test("exposes the quality description as tooltip label", async () => {
+    const user = userEvent.setup();
     r(<QualityBadge quality="strong" />);
-    // MUI Tooltip surfaces the title as the wrapper's aria-label.
-    expect(screen.getByLabelText(QUALITY_INFO.strong.description)).toBeInTheDocument();
+    // The local Tooltip renders the label inside the bubble on hover.
+    await user.hover(screen.getByTestId("patterns-quality-strong"));
+    expect(await screen.findByText(QUALITY_INFO.strong.description)).toBeInTheDocument();
   });
 
   test("falls back to a capitalized label for unknown tiers", () => {

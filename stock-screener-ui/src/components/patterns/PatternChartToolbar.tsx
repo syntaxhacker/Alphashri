@@ -50,7 +50,7 @@ export function PatternChartToolbar({
 }: PatternChartToolbarProps) {
   const asOfControls = onAsOfChange ? (
     <ToolbarRow gap={8} data-testid="patterns-fullscreen-asof-controls">
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+      <Box className="flex flex-col gap-1">
         <Text size="xs" c="dimmed">
           From
         </Text>
@@ -63,7 +63,7 @@ export function PatternChartToolbar({
           data-testid="patterns-fullscreen-asof-from"
         />
       </Box>
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+      <Box className="flex flex-col gap-1">
         <Text size="xs" c="dimmed">
           As of
         </Text>
@@ -84,7 +84,7 @@ export function PatternChartToolbar({
       gap={8}
       wrap
       data-testid="patterns-chart-toolbar"
-      sx={{ minWidth: 0 }}
+      className="min-w-0"
     >
       {leading}
       <Text size={titleSize} fw={titleSize === "md" ? 700 : 600} truncate data-testid={titleTestId}>

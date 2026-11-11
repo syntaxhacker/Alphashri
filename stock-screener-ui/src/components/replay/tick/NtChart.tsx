@@ -6,7 +6,6 @@ import {
   createChart, ColorType, CandlestickSeries, HistogramSeries,
   type IChartApi, type ISeriesApi, type Time,
 } from "lightweight-charts";
-import Box from "@mui/material/Box";
 import * as palette from "@/ui/palette";
 import type { Bar } from "./types";
 
@@ -93,7 +92,7 @@ const NtChart = forwardRef<NtChartApi, NtChartProps>(function NtChart(
     chart.timeScale().fitContent();
   }, [bars]);
 
-  return <Box ref={containerRef} sx={{ width: "100%", height }} data-testid={testid} />;
+  return <div ref={containerRef} className="w-full" style={{ height }} data-testid={testid} />;
 });
 
 export default NtChart;

@@ -1,10 +1,7 @@
-import TextField from "@mui/material/TextField";
-import InputAdornment from "@mui/material/InputAdornment";
-import type { UINumberInputProps } from "../types";
+import { useId } from "react";
+import { cn } from "../cn";
 import { stripLegacyInputProps } from "./legacyProps";
-function mapSize(size?: UINumberInputProps["size"]): "small" | "medium" {
-  return size === "xs" || size === "sm" ? "small" : "medium";
-}
+import type { UINumberInputProps } from "../types";
 
 /**
  * Coerce raw input text to the `onChange` payload. In-progress keystrokes
@@ -17,6 +14,10 @@ export function coerceNumberInput(raw: string): number | string {
   if (/[.]$|[eE][+-]?$/.test(raw)) return raw;
   const num = Number(raw);
   return Number.isNaN(num) ? raw : num;
+}
+
+function sizeClass(size?: UINumberInputProps["size"]): string {
+  return size === "xs" || size === "sm" ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-sm";
 }
 
 export function NumberInput({
@@ -38,7 +39,7 @@ export function NumberInput({
   label,
   description,
   error,
-  errorProps,
+  errorProps: _errorProps,
   required,
   disabled,
   size,
@@ -51,9 +52,12 @@ export function NumberInput({
   variant: _variant,
   styles: _styles,
   loading: _loading,
+  id: inputId,
+  name,
   ...rest
 }: any) {
-  const muiSize = mapSize(size);
+  const autoId = useId();
+  const resolvedId = inputId ?? autoId;
   const explicitWidth = w != null ? (typeof w === "number" ? `${w}px` : w) : undefined;
   const explicitHeight = h != null ? (typeof h === "number" ? `${h}px` : h) : undefined;
   const isError = Boolean(error);
@@ -67,54 +71,60 @@ export function NumberInput({
     onChange?.(coerceNumberInput(e.target.value));
   };
 
-  const startAdornment = prefix || leftSection ? (
-    <InputAdornment position="start">
-      {prefix ? <span>{prefix}</span> : null}
-      {leftSection}
-    </InputAdornment>
-  ) : undefined;
+  // Legacy Mantine props are accepted for backward compatibility but never
+  // forwarded to the DOM (native elements reject unknown attributes).
+  const forwarded = stripLegacyInputProps(rest);
 
-  const endAdornment = suffix || rightSection ? (
-    <InputAdornment position="end">
-      {rightSection}
-      {suffix ? <span>{suffix}</span> : null}
-    </InputAdornment>
-  ) : undefined;
+  const wrapperStyle: React.CSSProperties = explicitWidth
+    ? { width: explicitWidth, ...style }
+    : style ?? {};
+  const inputStyle: React.CSSProperties = explicitHeight ? { height: explicitHeight } : {};
 
   return (
-    <TextField
-      // NOTE: value must stay undefined (uncontrolled) when the caller only
-      // passes defaultValue — `?? ""` forces a controlled-empty input that
-      // hides defaults, breaks FormData reads, and trips native validation.
-      value={value}
-      defaultValue={defaultValue}
-      onChange={handleChange}
-      label={label as string | undefined}
-      placeholder={placeholder}
-      helperText={helperText}
-      error={isError}
-      required={required}
-      disabled={disabled}
-      size={muiSize}
-      type="number"
-      fullWidth={explicitWidth == null}
-      className={className}
-      style={style as React.CSSProperties}
+    <div
       data-testid={testId}
-      slotProps={{
-        input: {
-          startAdornment,
-          endAdornment,
-        },
-        htmlInput: {
-          min,
-          max,
-          step,
-        },
-        formHelperText: isError && errorProps ? (errorProps as any) : undefined,
-      }}
-      sx={{ "& .MuiInputBase-root": { bgcolor: "background.paper" }, width: explicitWidth, ...(explicitHeight && { height: explicitHeight }) }}
-      {...(stripLegacyInputProps(rest as Record<string, unknown>) as object)}
-    />
+      className={cn("flex flex-col min-w-0 gap-1.5", explicitWidth == null ? "w-full" : undefined, className)}
+      style={wrapperStyle}
+    >
+      {label && (
+        <label htmlFor={resolvedId} className={cn("text-xs font-medium", isError ? "text-fin-negative" : "text-fin-text")}>
+          {label}
+          {required && <span className="ml-1 text-fin-negative">*</span>}
+        </label>
+      )}
+      <div className="flex items-center gap-2 w-full min-w-0">
+        {leftSection && <div className="shrink-0">{leftSection}</div>}
+        {prefix && <span className="shrink-0 text-fin-text-muted">{prefix}</span>}
+        <input
+          id={resolvedId}
+          type="number"
+          value={value}
+          defaultValue={defaultValue}
+          onChange={handleChange}
+          placeholder={placeholder}
+          name={name}
+          min={min}
+          max={max}
+          step={step}
+          required={required}
+          disabled={disabled}
+          className={cn(
+            "flex-1 min-w-0 block",
+            sizeClass(size),
+            "bg-fin-surface border border-fin-border rounded-fin text-fin-text placeholder:text-fin-text-muted",
+            "focus:outline-none focus:border-fin-primary focus:ring-2 focus:ring-fin-primary",
+            disabled ? "disabled:bg-fin-surface-alt disabled:text-fin-text-muted disabled:border-fin-border disabled:cursor-not-allowed" : undefined,
+            isError ? "border-fin-negative focus:border-fin-negative" : undefined,
+          )}
+          style={inputStyle}
+          {...(forwarded as Record<string, unknown>)}
+        />
+        {rightSection && <div className="shrink-0">{rightSection}</div>}
+        {suffix && <span className="shrink-0 text-fin-text-muted">{suffix}</span>}
+      </div>
+      {helperText && (
+        <span className={cn("text-xs", isError ? "text-fin-negative" : "text-fin-text-muted")}>{helperText}</span>
+      )}
+    </div>
   );
 }

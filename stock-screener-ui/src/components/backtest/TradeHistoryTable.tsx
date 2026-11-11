@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { Text, Badge, ActionIcon, Stack, Button, Select, SegmentedControl } from "@/ui";
-import Box from "@mui/material/Box";
 import { IconX, IconArrowUp, IconArrowDown, IconDownload, IconFilterOff } from "@tabler/icons-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { Trade } from "../../types/backtest";
@@ -224,60 +223,60 @@ export function TradeHistoryTable({
         header: "#",
         enableSorting: false,
         meta: { align: "center" } as any,
-        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" ta="center">{numberOf(row.original)}</Text></Box>,
+        cell: ({ row }) => <div className="flex items-center justify-center"><Text size="xs" ta="center">{numberOf(row.original)}</Text></div>,
       },
       {
         id: "entry_time",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("entry_time")} style={{ cursor: "pointer" }}>Entry Time</span></Box>,
+        header: () => <div className="flex items-center justify-center"><span onClick={() => handleHeaderClick("entry_time")} style={{ cursor: "pointer" }}>Entry Time</span></div>,
         accessorKey: "entry_time",
         enableSorting: false,
         meta: { align: "center" } as any,
-        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" ta="center">{formatDateTimeHuman(row.original.entry_time)}</Text></Box>,
+        cell: ({ row }) => <div className="flex items-center justify-center"><Text size="xs" ta="center">{formatDateTimeHuman(row.original.entry_time)}</Text></div>,
       },
       {
         id: "exit_time",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("exit_time")} style={{ cursor: "pointer" }}>Exit Time</span></Box>,
+        header: () => <div className="flex items-center justify-center"><span onClick={() => handleHeaderClick("exit_time")} style={{ cursor: "pointer" }}>Exit Time</span></div>,
         accessorKey: "exit_time",
         enableSorting: false,
         meta: { align: "center" } as any,
-        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" ta="center">{formatDateTimeHuman(row.original.exit_time)}</Text></Box>,
+        cell: ({ row }) => <div className="flex items-center justify-center"><Text size="xs" ta="center">{formatDateTimeHuman(row.original.exit_time)}</Text></div>,
       },
       {
         id: "side",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("side")} style={{ cursor: "pointer" }}>Side</span></Box>,
+        header: () => <div className="flex items-center justify-center"><span onClick={() => handleHeaderClick("side")} style={{ cursor: "pointer" }}>Side</span></div>,
         enableSorting: false,
         meta: { align: "center" } as any,
         cell: ({ row }) => {
           const side = (row.original as any).side || "LONG";
-          return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{side === "LONG" ? (
+          return <div className="flex items-center justify-center">{side === "LONG" ? (
             <Text size="xs" c="success" ta="center"><IconArrowUp size={12} style={{ marginRight: 2 }} />LONG</Text>
           ) : (
             <Text size="xs" c="error" ta="center"><IconArrowDown size={12} style={{ marginRight: 2 }} />SHORT</Text>
-          )}</Box>;
+          )}</div>;
         },
       },
       {
         id: "quantity",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("quantity")} style={{ cursor: "pointer" }}>Qty</span></Box>,
+        header: () => <div className="flex items-center justify-center"><span onClick={() => handleHeaderClick("quantity")} style={{ cursor: "pointer" }}>Qty</span></div>,
         enableSorting: false,
         meta: { align: "center" } as any,
-        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" ta="center">{row.original.quantity ?? 0}</Text></Box>,
+        cell: ({ row }) => <div className="flex items-center justify-center"><Text size="xs" ta="center">{row.original.quantity ?? 0}</Text></div>,
       },
       {
         id: "entry_price",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("entry_price")} style={{ cursor: "pointer" }}>Entry Price</span></Box>,
+        header: () => <div className="flex items-center justify-center"><span onClick={() => handleHeaderClick("entry_price")} style={{ cursor: "pointer" }}>Entry Price</span></div>,
         enableSorting: false,
         meta: { align: "center" } as any,
-        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" ta="center">₹{(row.original.entry_price ?? 0).toFixed(0)}</Text></Box>,
+        cell: ({ row }) => <div className="flex items-center justify-center"><Text size="xs" ta="center">₹{(row.original.entry_price ?? 0).toFixed(0)}</Text></div>,
       },
       {
         id: "level_high",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("level_high")} style={{ cursor: "pointer" }}>{has52w ? "52W High" : "Level Hi"}</span></Box>,
+        header: () => <div className="flex items-center justify-center"><span onClick={() => handleHeaderClick("level_high")} style={{ cursor: "pointer" }}>{has52w ? "52W High" : "Level Hi"}</span></div>,
         enableSorting: false,
         meta: { align: "center" } as any,
         cell: ({ row }) => {
           const val = row.original.or_high ?? row.original.r1 ?? row.original["52w_high"] ?? 0;
-          return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" ta="center">₹{val.toFixed(2)}</Text></Box>;
+          return <div className="flex items-center justify-center"><Text size="xs" ta="center">₹{val.toFixed(2)}</Text></div>;
         },
       },
     ];
@@ -285,12 +284,12 @@ export function TradeHistoryTable({
     if (!has52w) {
       cols.push({
         id: "level_low",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("level_low")} style={{ cursor: "pointer" }}>Level Lo</span></Box>,
+        header: () => <div className="flex items-center justify-center"><span onClick={() => handleHeaderClick("level_low")} style={{ cursor: "pointer" }}>Level Lo</span></div>,
         enableSorting: false,
         meta: { align: "center" } as any,
         cell: ({ row }) => {
           const val = row.original.or_low ?? row.original.s1 ?? 0;
-          return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" ta="center">₹{val.toFixed(2)}</Text></Box>;
+          return <div className="flex items-center justify-center"><Text size="xs" ta="center">₹{val.toFixed(2)}</Text></div>;
         },
       });
     }
@@ -298,51 +297,51 @@ export function TradeHistoryTable({
     cols.push(
       {
         id: "exit_price",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("exit_price")} style={{ cursor: "pointer" }}>Exit Price</span></Box>,
+        header: () => <div className="flex items-center justify-center"><span onClick={() => handleHeaderClick("exit_price")} style={{ cursor: "pointer" }}>Exit Price</span></div>,
         enableSorting: false,
         meta: { align: "center" } as any,
-        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" ta="center">₹{(row.original.exit_price ?? 0).toFixed(0)}</Text></Box>,
+        cell: ({ row }) => <div className="flex items-center justify-center"><Text size="xs" ta="center">₹{(row.original.exit_price ?? 0).toFixed(0)}</Text></div>,
       },
       {
         id: "net_pnl",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("net_pnl")} style={{ cursor: "pointer" }}>P&L</span></Box>,
+        header: () => <div className="flex items-center justify-center"><span onClick={() => handleHeaderClick("net_pnl")} style={{ cursor: "pointer" }}>P&L</span></div>,
         enableSorting: false,
         meta: { align: "center" } as any,
         cell: ({ row }) => {
           const val = row.original.net_pnl ?? 0;
-          return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" fw={600} c={getPnLTextColor(val)} ta="center" data-pnl-sign={val >= 0 ? "pos" : "neg"}>₹{val.toFixed(0)}</Text></Box>;
+          return <div className="flex items-center justify-center"><Text size="xs" fw={600} c={getPnLTextColor(val)} ta="center" data-pnl-sign={val >= 0 ? "pos" : "neg"}>₹{val.toFixed(0)}</Text></div>;
         },
       },
       {
         id: "net_pnl_pct",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("net_pnl_pct")} style={{ cursor: "pointer" }}>%</span></Box>,
+        header: () => <div className="flex items-center justify-center"><span onClick={() => handleHeaderClick("net_pnl_pct")} style={{ cursor: "pointer" }}>%</span></div>,
         enableSorting: false,
         meta: { align: "center" } as any,
         cell: ({ row }) => {
           const pnlPct = tradePnlPct(row.original);
-          return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" c={getPnLTextColor(pnlPct)} ta="center">{pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%</Text></Box>;
+          return <div className="flex items-center justify-center"><Text size="xs" c={getPnLTextColor(pnlPct)} ta="center">{pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%</Text></div>;
         },
       },
       {
         id: "hold_duration_minutes",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("hold_duration_minutes")} style={{ cursor: "pointer" }}>Hold</span></Box>,
+        header: () => <div className="flex items-center justify-center"><span onClick={() => handleHeaderClick("hold_duration_minutes")} style={{ cursor: "pointer" }}>Hold</span></div>,
         enableSorting: false,
         meta: { align: "center" } as any,
-        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" ta="center">{formatDuration(row.original.hold_duration_minutes ?? 0)}</Text></Box>,
+        cell: ({ row }) => <div className="flex items-center justify-center"><Text size="xs" ta="center">{formatDuration(row.original.hold_duration_minutes ?? 0)}</Text></div>,
       },
       {
         id: "exit_reason",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("exit_reason")} style={{ cursor: "pointer" }}>Type</span></Box>,
+        header: () => <div className="flex items-center justify-center"><span onClick={() => handleHeaderClick("exit_reason")} style={{ cursor: "pointer" }}>Type</span></div>,
         enableSorting: false,
         meta: { align: "center" } as any,
         cell: ({ row }) => {
           const reason = row.original.exit_reason ?? "EOD";
           return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div className="flex items-center justify-center">
               <Badge size="xs" variant="filled" color={reason === "TP" ? "success" : reason === "SL" ? "error" : reason === "TRAILING_STOP" ? "warning" : "secondary"}>
                 {reason}
               </Badge>
-            </Box>
+            </div>
           );
         },
       },
@@ -355,22 +354,24 @@ export function TradeHistoryTable({
   return (
     <Stack
       id="trade-history-table"
-      className="trade-history-panel"
+      className="trade-history-panel min-h-0 overflow-hidden p-0"
       data-testid="trade-history-panel"
       h="100%"
-      sx={{ minHeight: 0, overflow: "hidden", gap: 0, p: 0 }}
+      style={{ minHeight: 0, gap: 0 }}
     >
       <Stack
         direction="row"
         align="center"
         spacing={1}
+        px={1}
+        py="3px"
         data-testid="trade-history-header"
-        sx={{ flex: "0 0 auto", px: 1, py: "3px", borderBottom: "1px solid var(--mui-palette-divider)" }}
+        style={{ flex: "0 0 auto", borderBottom: "1px solid #30363D" }}
       >
-        <Text size="xs" c="dimmed" sx={{ whiteSpace: "nowrap", fontWeight: 600 }}>
+        <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap", fontWeight: 600 }}>
           {symbol} Trades ({trades.length})
         </Text>
-        <Box sx={{ flex: 1 }} />
+        <div className="flex-1" />
         <Button size="xs" variant="subtle" color="secondary" onClick={exportCsv} leftSection={<IconDownload size={11} />} data-testid="export-trades-csv">
           CSV
         </Button>
@@ -383,18 +384,20 @@ export function TradeHistoryTable({
         direction="row"
         align="center"
         spacing={2}
+        px={1}
+        py="5px"
         data-testid="trade-history-summary"
-        sx={{ flex: "0 0 auto", px: 1, py: "5px", borderBottom: "1px solid var(--mui-palette-divider)" }}
+        style={{ flex: "0 0 auto", borderBottom: "1px solid #30363D" }}
       >
         <Stack direction="row" spacing={0.5} align="baseline">
           <Text size="xs" c="dimmed">P&L</Text>
-          <Text size="sm" fw={700} c={getPnLTextColor(totalPnl)} data-testid="trade-summary-pnl" sx={{ fontVariantNumeric: "tabular-nums" }}>
+          <Text size="sm" fw={700} c={getPnLTextColor(totalPnl)} data-testid="trade-summary-pnl" style={{ fontVariantNumeric: "tabular-nums" }}>
             {`₹${totalPnl.toFixed(0)}`}
           </Text>
         </Stack>
         <Stack direction="row" spacing={0.5} align="baseline">
           <Text size="xs" c="dimmed">WR</Text>
-          <Text size="sm" fw={700} data-testid="trade-summary-wr" sx={{ fontVariantNumeric: "tabular-nums" }}>{winRate}%</Text>
+          <Text size="sm" fw={700} data-testid="trade-summary-wr" style={{ fontVariantNumeric: "tabular-nums" }}>{winRate}%</Text>
         </Stack>
         <Text size="xs" c="dimmed" data-testid="trade-summary-wins">Wins: {wins}/{filteredTrades.length}</Text>
       </Stack>
@@ -403,8 +406,11 @@ export function TradeHistoryTable({
         direction="row"
         align="center"
         spacing={1}
+        px={1}
+        py="4px"
         data-testid="trade-history-filters"
-        sx={{ flex: "0 0 auto", px: 1, py: "4px", borderBottom: "1px solid var(--mui-palette-divider)", flexWrap: "wrap", rowGap: "4px" }}
+        className="flex-wrap"
+        style={{ flex: "0 0 auto", borderBottom: "1px solid #30363D", rowGap: "4px" }}
       >
         <SegmentedControl
           size="xs"
@@ -428,7 +434,7 @@ export function TradeHistoryTable({
           ]}
           data-testid="filter-result"
         />
-        <Box sx={{ display: "flex", alignItems: "center", gap: "4px" }}>
+        <div className="flex items-center gap-[4px]">
           <Select
             size="xs"
             value={reasonFilter}
@@ -437,8 +443,8 @@ export function TradeHistoryTable({
             w={110}
             data-testid="filter-reason"
           />
-        </Box>
-        <Text size="xs" c="dimmed" data-testid="filter-count" sx={{ fontVariantNumeric: "tabular-nums" }}>
+        </div>
+        <Text size="xs" c="dimmed" data-testid="filter-count" style={{ fontVariantNumeric: "tabular-nums" }}>
           {filteredTrades.length}/{trades.length}
         </Text>
         {filtersActive && (
@@ -455,11 +461,11 @@ export function TradeHistoryTable({
         )}
       </Stack>
 
-      <Box sx={{ flex: 1, minHeight: 0, minWidth: 0, overflow: "auto", display: "flex", flexDirection: "column" }} className="trade-history-scroll">
+      <div className="flex-1 min-h-0 min-w-0 overflow-auto flex flex-col trade-history-scroll">
         {sortedTrades.length === 0 ? (
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", py: 3 }}>
+          <div className="flex-1 flex items-center justify-center py-3">
             <Text size="xs" c="dimmed">No trades match the current filters.</Text>
-          </Box>
+          </div>
         ) : (
           <TanStackTable<Trade>
             data={sortedTrades}
@@ -474,7 +480,7 @@ export function TradeHistoryTable({
             onRowClick={(row) => onRowClick(numberOf(row))}
           />
         )}
-      </Box>
+      </div>
     </Stack>
   );
 }

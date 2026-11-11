@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from "react";
-import { alpha, useTheme } from "@mui/material/styles";
+import { alpha } from "@/ui/alpha";
 import {
   ActionIcon,
   Badge,
@@ -23,6 +23,7 @@ import { fetchPaperChart } from "../../api/paperTrading";
 import { formatTimeAgo } from "../../utils/ui-helpers";
 import type { PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
 import { nearBreakoutPct } from "./PositionsHelpers";
+import * as palette from "@/ui/palette";
 
 interface WatchlistScan2Props {
   snapshot: PaperBotSnapshot | null;
@@ -38,11 +39,11 @@ const STATUS_ORDER: Record<string, number> = {
   skipped: 3,
 };
 
-const STATUS_BORDER_VAR: Record<string, string> = {
-  signal: "var(--mui-palette-success-main)",
-  watching: "var(--mui-palette-warning-main)",
-  rejected: "var(--mui-palette-error-main)",
-  skipped: "var(--mui-palette-divider)",
+const STATUS_BORDER_COLOR: Record<string, string> = {
+  signal: palette.POSITIVE,
+  watching: palette.WARNING,
+  rejected: palette.NEGATIVE,
+  skipped: palette.BORDER,
 };
 
 function isNewSignal(item: PaperScanItem, snapshotTs: string | null) {
@@ -58,7 +59,6 @@ interface ScanRow extends PaperScanItem {
 }
 
 export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing }: WatchlistScan2Props) {
-  const theme = useTheme();
   const [statusFilter, setStatusFilter] = useState<"all" | "signal" | "watching" | "rejected">("all");
   const [strategyFilter, setStrategyFilter] = useState<string[]>([]);
   const [symbolQuery, setSymbolQuery] = useState("");
@@ -153,14 +153,14 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
         cell: (info) => {
           const row = info.row.original;
           return (
-            <Group gap={6} wrap="nowrap">
+            <Group gap="xs" wrap="nowrap" className="gap-1">
               <ClickableSymbol symbol={row.symbol} showPreview />
               {row.source === "custom" && (
                 <Badge size="xs" variant="light" color="secondary">Custom</Badge>
               )}
               {isNewSignal(row, snapshot?.timestamp ?? null) && (
                 <Tooltip label="New (< 1 min)">
-                  <IconSparkles size={12} color="var(--mui-palette-success-main)" />
+                  <IconSparkles size={12} color={palette.POSITIVE} />
                 </Tooltip>
               )}
             </Group>
@@ -249,17 +249,17 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
 
   if (!snapshot || allItems.length === 0) {
     return (
-      <Stack gap={0.5} data-testid="watchlist-scan-card" className="paper-watchlist-scan" id="watchlist-scan">
-        <Group justify="space-between" px={1} py={0.5}>
-          <Group gap="xs">
-            <Text fw={600} size="xs" c="dimmed" tt="uppercase">
+      <Stack className="gap-1" data-testid="watchlist-scan-card" className2="paper-watchlist-scan" id="watchlist-scan">
+        <Group justify="space-between" className="px-2 py-1">
+          <Group gap="xs" className="gap-1">
+            <Text fw={600} size="xs" c="dimmed" className="uppercase">
               Watchlist Scan
             </Text>
             <Badge size="xs" variant="outline" color="warning">
               No data
             </Badge>
           </Group>
-          <Group gap={0.5}>
+          <Group gap="xs" className="gap-1">
             {onRefresh && (
               <ActionIcon size="sm" variant="subtle" onClick={onRefresh} loading={refreshing} data-testid="watchlist-refresh">
                 <IconRefresh size={12} />
@@ -270,7 +270,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
             </Text>
           </Group>
         </Group>
-        <Text size="xs" c="warning" fs="italic" ta="center" py="xs">
+        <Text size="xs" c="warning" className="italic text-center">
           No recent scan results — bot may be idle, stopped, or rate-limited
         </Text>
       </Stack>
@@ -278,17 +278,17 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
   }
 
   return (
-    <Stack gap={0.5} data-testid="watchlist-scan-card" className="paper-watchlist-scan" id="watchlist-scan">
-      <Group justify="space-between" px={0.75} py={0.25} wrap="nowrap">
-        <Group gap="xs">
-          <Text fw={600} size="xs" c="dimmed" tt="uppercase">
+    <Stack className="gap-1" data-testid="watchlist-scan-card" className2="paper-watchlist-scan" id="watchlist-scan">
+      <Group justify="space-between" className="px-2 py-1" wrap="nowrap">
+        <Group gap="xs" className="gap-1">
+          <Text fw={600} size="xs" c="dimmed" className="uppercase">
             Watchlist Scan
           </Text>
           <Badge size="xs" variant="filled" color="info" data-testid="watchlist-count">
             {allItems.length}
           </Badge>
         </Group>
-        <Group gap={0.5}>
+        <Group gap="xs" className="gap-1">
           {onRefresh && (
             <ActionIcon size="sm" variant="subtle" onClick={onRefresh} loading={refreshing} data-testid="watchlist-refresh">
               <IconRefresh size={12} />
@@ -300,7 +300,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
         </Group>
       </Group>
 
-      <ToolbarRow gap={4} style={{ paddingLeft: 4, paddingRight: 4 }}>
+      <ToolbarRow gap={32} style={{ paddingLeft: 4, paddingRight: 4 }}>
         <SegmentedControl
           size="xs"
           value={statusFilter}
@@ -336,7 +336,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
         />
       </ToolbarRow>
 
-      <ScrollArea style={{ flex: 1 }}>
+      <ScrollArea className="flex-1" style={{ flex: 1 }}>
         <TanStackTable<ScanRow>
           data={visibleItems}
           columns={columns}
@@ -350,13 +350,13 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
             return {
               cursor: "pointer",
               backgroundColor: isSelected
-                ? alpha(theme.palette.info.main, 0.08)
+                ? alpha(palette.PRIMARY, 0.08)
                 : isNew
-                  ? alpha(theme.palette.success.main, 0.08)
+                  ? alpha(palette.POSITIVE, 0.08)
                   : undefined,
               borderLeftWidth: 3,
               borderLeftStyle: "solid",
-              borderLeftColor: STATUS_BORDER_VAR[row.status] ?? STATUS_BORDER_VAR.skipped,
+              borderLeftColor: STATUS_BORDER_COLOR[row.status] ?? STATUS_BORDER_COLOR.skipped,
             };
           }}
           getRowTestId={(row) => `scan-row-${row.symbol}`}
@@ -364,8 +364,8 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
         />
       </ScrollArea>
 
-      <Group justify="space-between" px={0.75} py={0.25}>
-        <Group gap="xs">
+      <Group justify="space-between" className="px-2 py-1">
+        <Group gap="xs" className="gap-1">
           <Text size="xs" c="dimmed">
             Showing {visibleItems.length} of {allItems.length}
           </Text>

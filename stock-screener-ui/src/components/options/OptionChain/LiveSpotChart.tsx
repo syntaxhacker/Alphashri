@@ -1,8 +1,8 @@
-import { Text, useTheme, Skeleton } from "@/ui";
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
+import { Text, Skeleton, Stack } from "@/ui";
+import { Box } from "@/ui";
 import { useEffect, useState, useMemo } from "react";
 import { API_BASE } from "@/api/config";
+import * as palette from "@/ui/palette";
 
 interface HistoryPoint {
   time: string;
@@ -12,7 +12,6 @@ interface HistoryPoint {
 export function LiveSpotChart({ underlying }: { underlying: string }) {
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [loading, setLoading] = useState(true);
-  const theme = useTheme();
 
   useEffect(() => {
     async function fetchHistory() {
@@ -60,16 +59,11 @@ export function LiveSpotChart({ underlying }: { underlying: string }) {
   if (!svgParams) return null;
 
   const isPositive = history[history.length - 1].price >= history[0].price;
-  const t = theme as any;
-  const palette = t?.palette;
-  const colors = t?.colors;
-  const successColor = palette?.success?.main ?? colors?.success?.[6] ?? "var(--mui-palette-success-main)";
-  const errorColor = palette?.error?.main ?? colors?.error?.[6] ?? "var(--mui-palette-error-main)";
-  const color = isPositive ? successColor : errorColor;
+  const color = isPositive ? palette.POSITIVE : palette.NEGATIVE;
 
   return (
-    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }} className="live-spot-chart" data-testid="options-live-spot-chart">
-      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", position: "relative" }} className="spot-chart-svg-container">
+    <Box className="flex live-spot-chart" data-testid="options-live-spot-chart" alignItems="center" justifyContent="center" gap={1} p={1}>
+      <Box className="flex flex-col items-center relative spot-chart-svg-container">
         <svg width="200" height="40" style={{ display: "block" }} className="spot-chart-svg">
           <defs>
             <linearGradient id="gradient" x1="0" y1="0" x2="0" y2="1">
@@ -92,7 +86,7 @@ export function LiveSpotChart({ underlying }: { underlying: string }) {
           />
           <path d={`M 0,40 L ${svgParams.points} L 200,40 Z`} fill="url(#gradient)" style={{ opacity: 0, animation: "fadeIn 1s ease-out 1s forwards" }} />
         </svg>
-        <Text size="xs" c="dimmed" className="spot-chart-range" data-testid="options-spot-chart-range">
+        <Text size="xs" className="text-fin-text-muted spot-chart-range" data-testid="options-spot-chart-range">
           {svgParams.min.toFixed(2)} – {svgParams.max.toFixed(2)}
         </Text>
         <style>
@@ -102,11 +96,11 @@ export function LiveSpotChart({ underlying }: { underlying: string }) {
           `}
         </style>
       </Box>
-      <Stack spacing={0} className="spot-chart-info" data-testid="options-spot-chart-info" sx={{ alignItems: "center" }}>
-        <Text size="sm" fw={700} c={color} className="spot-price-value">
+      <Stack spacing={0} className="spot-chart-info" data-testid="options-spot-chart-info" align="center">
+        <Text size="sm" fw={700} className={`spot-price-value ${color}`}>
           {svgParams.lastPrice.toFixed(2)}
         </Text>
-        <Text size="sm" c="dimmed" className="spot-trend-label">
+        <Text size="sm" className="text-fin-text-muted spot-trend-label">
           Trend (5m)
         </Text>
       </Stack>

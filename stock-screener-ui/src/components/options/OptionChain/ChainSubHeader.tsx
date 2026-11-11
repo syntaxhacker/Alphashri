@@ -1,42 +1,47 @@
-import Box from "@mui/material/Box";
+import { Box } from "@/ui";
+import { getStyles } from "./chainStyles";
 
 interface ChainSubHeaderProps {
-  styles: ReturnType<typeof import("./chainStyles").getStyles>;
+  styles: ReturnType<typeof getStyles>;
 }
 
 export function ChainSubHeader({ styles }: ChainSubHeaderProps) {
   // TABLE_CHECKLIST rule: numeric columns right, strike/badge center.
-  const numericHeader = {
+  const numericHeader: React.CSSProperties = {
     ...styles.subHeaderCell,
     display: "flex",
     alignItems: "center",
     justifyContent: "flex-end",
-    textAlign: "right" as const,
-    gap: 1,
-    p: 1,
+    textAlign: "right",
+    gap: 8,
+    padding: 8,
   };
-  const strikeHeader = {
+  const strikeHeader: React.CSSProperties = {
     ...styles.subHeaderCell,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    textAlign: "center" as const,
-    gap: 1,
-    p: 1,
+    textAlign: "center",
+    gap: 8,
+    padding: 8,
   };
   return (
-    <Box className="chain-table-subheader" sx={{ ...styles.subHeader, display: "grid", gap: 1, p: 1 }} data-testid="options-chain-table-subheader">
-      <Box sx={numericHeader}>OI</Box>
-      <Box sx={numericHeader}>OI CHG</Box>
-      <Box sx={numericHeader}>VOL</Box>
-      <Box sx={numericHeader}>IV</Box>
-      <Box sx={numericHeader}>LTP</Box>
-      <Box sx={strikeHeader}></Box>
-      <Box sx={numericHeader}>LTP</Box>
-      <Box sx={numericHeader}>IV</Box>
-      <Box sx={numericHeader}>VOL</Box>
-      <Box sx={numericHeader}>OI CHG</Box>
-      <Box sx={numericHeader}>OI</Box>
+    <Box
+      className="chain-table-subheader"
+      style={{ ...styles.subHeader, display: "grid", gap: 8, padding: 8 } as React.CSSProperties}
+      data-testid="options-chain-table-subheader"
+    >
+      <Box style={numericHeader}>OI</Box>
+      <Box style={numericHeader}>OI CHG</Box>
+      <Box style={numericHeader}>VOL</Box>
+      <Box style={numericHeader}>IV</Box>
+      <Box style={numericHeader}>LTP</Box>
+      <Box style={strikeHeader}></Box>
+      <Box style={numericHeader}>LTP</Box>
+      <Box style={numericHeader}>IV</Box>
+      <Box style={numericHeader}>VOL</Box>
+      <Box style={numericHeader}>OI CHG</Box>
+      <Box style={numericHeader}>OI</Box>
     </Box>
   );
 }

@@ -31,7 +31,7 @@ export async function navigateToPaperTrading(page: Page): Promise<void> {
  */
 export async function navigateToPaperTradingWithBot(
   page: Page,
-  botId: string = "2",
+  _botId: string = "2",
 ): Promise<void> {
   await navigateToPaperTrading(page);
 

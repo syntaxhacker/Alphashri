@@ -18,7 +18,7 @@ export function ImpactScore({ score, compact = false }: ImpactScoreProps) {
           color={color}
           variant="light"
           data-testid="impact-score"
-          sx={{ flex: "0 0 auto", fontVariantNumeric: "tabular-nums" }}
+          className="flex-[0_0_auto] tabular-nums"
         >
           {score}/10
         </Badge>

@@ -6,7 +6,6 @@ import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import { StrategyForm } from "./StrategyForm";
 import type { StrategyConfig } from "../../types/strategies";
-import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
 // mui migrated
 
@@ -114,7 +113,7 @@ describe("StrategyForm", () => {
     );
     // disabled state lives on the combobox inside the FormControl wrapper
     const typeInput = within(screen.getByTestId("strategy-type-input")).getByRole("combobox");
-    expect(typeInput).toHaveAttribute("aria-disabled", "true");
+    expect(typeInput).toBeDisabled();
   });
 
   it("renders Description input", () => {
@@ -427,9 +426,7 @@ describe("StrategyForm", () => {
     );
     expect(screen.getByTestId("strategy-tab-orb")).toBeInTheDocument();
     expect(screen.queryByTestId("strategy-tab-sr")).not.toBeInTheDocument();
-    // MUI Select: options render in a Menu portal once opened
-    await user.click(within(screen.getByTestId("strategy-type-input")).getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: "S/R Breakout" }));
+    await user.selectOptions(within(screen.getByTestId("strategy-type-input")).getByRole("combobox"), "SR_BREAKOUT");
     expect(screen.getByTestId("strategy-tab-sr")).toBeInTheDocument();
     expect(screen.queryByTestId("strategy-tab-orb")).not.toBeInTheDocument();
   });

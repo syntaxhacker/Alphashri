@@ -3,6 +3,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { TanStackTable } from "../common/TanStackTable";
 import { CompactPanel } from "../common/compact";
 import { getPnLTextColor } from "../../utils/ui-helpers";
+import * as palette from "@/ui/palette";
 import type { ReplaySummary } from "../../types/replay";
 
 interface ReplaySummaryProps {
@@ -104,10 +105,7 @@ export function ReplaySummaryPanel({ summary }: ReplaySummaryProps) {
                 fontSize: 11,
                 textAlign: "right",
                 display: "block",
-                color:
-                  getPnLTextColor(val) === "success"
-                    ? "var(--mui-palette-success-main)"
-                    : "var(--mui-palette-error-main)",
+                color: getPnLTextColor(val) === "success" ? palette.POSITIVE : palette.NEGATIVE,
               }}
             >
               {val >= 0 ? "+" : ""}
@@ -125,10 +123,10 @@ export function ReplaySummaryPanel({ summary }: ReplaySummaryProps) {
           const val = info.getValue<number | null>();
           const color =
             val != null && val > 1
-              ? "var(--mui-palette-success-main)"
+              ? palette.POSITIVE
               : val != null && val < 1
-                ? "var(--mui-palette-error-main)"
-                : "var(--mui-palette-secondary-main)";
+                ? palette.NEGATIVE
+                : palette.TEXT_MUTED;
           return (
             <span
               style={{

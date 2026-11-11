@@ -1,8 +1,5 @@
 import { useState } from "react";
-import ListItemButton from "@mui/material/ListItemButton";
-import ListItemIcon from "@mui/material/ListItemIcon";
-import ListItemText from "@mui/material/ListItemText";
-import Collapse from "@mui/material/Collapse";
+import { cn } from "../cn";
 import type { UINavLinkProps } from "../types";
 
 export function NavLink({
@@ -23,54 +20,59 @@ export function NavLink({
   className,
   style,
   "data-testid": testId,
+  id,
   ...rest
-}: UINavLinkProps & { sx?: unknown }) {
+}: UINavLinkProps) {
   const resolvedLeftSection = leftSection ?? icon;
   const hasChildren = Boolean(children);
   const [internalOpen, setInternalOpen] = useState(Boolean(defaultOpened));
   const isControlled = opened !== undefined;
   const open = isControlled ? Boolean(opened) : internalOpen;
 
-  const handleClick = () => {
+  const handleClick = (_e: React.MouseEvent) => {
     if (hasChildren && !isControlled) setInternalOpen((v) => !v);
     onClick?.();
   };
 
-  const { sx: sxProp, ...restWithoutSx } = rest as { sx?: unknown } & Record<string, unknown>;
+  const isLink = Boolean(href);
+  const activeState = Boolean(active);
+  const disabledState = Boolean(disabled);
+
+  const Component = isLink ? "a" : "div";
+
   return (
     <>
-      <ListItemButton
-        selected={Boolean(active)}
-        disabled={Boolean(disabled)}
-        component={href ? "a" : "div"}
-        href={href as any}
+      <Component
+        role="link"
+        aria-current={activeState ? "page" : undefined}
+        aria-disabled={disabledState || undefined}
         onClick={handleClick}
-        className={className}
+        href={isLink ? (href as string) : undefined}
+        className={cn(
+          "inline-flex items-center gap-2 rounded-sm cursor-pointer select-none text-fin-text",
+          "px-3 py-2 text-sm",
+          activeState ? "bg-fin-primary text-fin-bg hover:bg-fin-primary/90" : "hover:bg-fin-surface-alt",
+          disabledState ? "opacity-50 pointer-events-none" : "",
+          className,
+        )}
         style={style}
+        id={id}
         data-testid={testId}
-        {...(restWithoutSx as any)}
-        sx={[
-          {
-            borderRadius: 1,
-            "&.Mui-selected": {
-              bgcolor: "primary.main",
-              color: "primary.contrastText",
-              "&:hover": { bgcolor: "primary.dark" },
-            },
-            "&.Mui-selected .MuiListItemText-primary": { color: "primary.contrastText" },
-            "&.Mui-selected .MuiListItemText-secondary": { color: "primary.contrastText" },
-          },
-          sxProp as never,
-        ]}
+        {...(rest as Record<string, unknown>)}
       >
-        {resolvedLeftSection ? <ListItemIcon sx={{ minWidth: 36 }}>{resolvedLeftSection}</ListItemIcon> : null}
-        <ListItemText primary={label} secondary={description} />
+        {resolvedLeftSection ? <span className="shrink-0">{resolvedLeftSection}</span> : null}
+        {label ? (
+          <>
+            <span className="font-medium">{label}</span>
+            {description ? <span className="text-xs text-fin-text-muted">{description}</span> : null}
+          </>
+        ) : null}
         {rightSection ?? null}
-      </ListItemButton>
+      </Component>
       {hasChildren ? (
-        <Collapse in={open} timeout="auto" unmountOnExit>
+        <div className={cn("mt-1", open ? "" : "hidden")} data-testid={testId ? `${testId}-collapse` : undefined}>
           {children}
-        </Collapse>
+        </div>
       ) : null}
     </>
   );

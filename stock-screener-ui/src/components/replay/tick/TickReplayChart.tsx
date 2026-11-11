@@ -3,7 +3,7 @@
 // chart half of SmcPoc. Any future strategy reuses this with its own zones/trade.
 import { useEffect, useMemo, useRef } from "react";
 import { createSeriesMarkers, type Time } from "lightweight-charts";
-import Box from "@mui/material/Box";
+import { Box } from "@/ui";
 import * as palette from "@/ui/palette";
 import NtChart, { type NtChartApi } from "./NtChart";
 import OverlayCanvas, { type OverlayCoord } from "./OverlayCanvas";
@@ -91,7 +91,7 @@ export default function TickReplayChart({
   }, [zones, trends, trade]);
 
   return (
-    <Box sx={{ width: "100%", height, position: "relative" }} data-testid="tick-replay-chart" id={id}>
+    <Box w="100%" h={height} pos="relative" data-testid="tick-replay-chart" id={id}>
       <NtChart ref={apiRef} bars={bars} height={height} />
       <OverlayCanvas chartApi={apiRef} height={height} draw={draw} />
     </Box>

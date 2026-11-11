@@ -249,9 +249,8 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
       selectedStrategyId: 1,
     });
     r(<PaperChart />);
-    // MUI Select: options render in a Menu portal once opened ("1h" -> "1hour")
-    await user.click(within(screen.getByTestId("chart-timeframe-select")).getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: "1h" }));
+    // Native select: "1h" label maps to "1hour" api value
+    await user.selectOptions(within(screen.getByTestId("chart-timeframe-select")).getByRole("combobox"), "1hour");
     expect(mockSetChartTimeframe).toHaveBeenCalledWith("1hour");
     await waitFor(() => expect(mockFetchPaperChart).toHaveBeenCalled());
     // fetchPaperChart called with symbol, date, new timeframe, strategy, fromDate, true, tradeId

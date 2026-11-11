@@ -2,8 +2,7 @@
 // and navigates to its /poc/replay/{id} shell. Keeps the replay pages switchable
 // without leaving the feature (the legacy /poc/tick-replay route is one strategy).
 import { useInRouterContext, useNavigate } from "react-router-dom";
-import TextField from "@mui/material/TextField";
-import MenuItem from "@mui/material/MenuItem";
+import { Select } from "@/ui";
 import { listStrategies } from "./index";
 
 /** Only mounted when a Router is present so `useNavigate` is always in context. */
@@ -12,22 +11,18 @@ function SwitcherSelect({ currentId }: { currentId: string }) {
   const strategies = listStrategies();
 
   return (
-    <TextField
-      size="small"
-      select
+    <Select
+      size="sm"
+      w={220}
       label="Strategy"
       value={currentId}
-      onChange={(e) => {
-        const id = e.target.value;
+      onChange={(v) => {
+        const id = v ?? "";
         if (id !== currentId) navigate(`/poc/replay/${id}`);
       }}
-      sx={{ width: 220 }}
-      inputProps={{ "aria-label": "replay strategy" }}
-    >
-      {strategies.map((s) => (
-        <MenuItem key={s.id} value={s.id}>{s.label}</MenuItem>
-      ))}
-    </TextField>
+      data={strategies.map((s) => ({ value: s.id, label: s.label }))}
+      data-testid="replay-strategy-switcher"
+    />
   );
 }
 

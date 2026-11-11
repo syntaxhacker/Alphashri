@@ -37,7 +37,7 @@ export async function navigateToLiveTab(page: Page): Promise<void> {
   await page.waitForSelector('[data-testid="paper-left-panel"]', { timeout: 20000 });
 }
 
-export async function selectBot(page: Page, botId: string): Promise<void> {
+export async function selectBot(page: Page, _botId: string): Promise<void> {
   // BotSelector uses an MUI Select – wait for it to be visible
   const botSelect = page.locator('[data-testid="bot-select"]');
   await expect(botSelect).toBeVisible({ timeout: 10000 });
@@ -255,7 +255,7 @@ export async function isPaginationVisible(page: Page): Promise<void> {
   await expect(pagination).toBeVisible();
 }
 
-export async function setupTradeHistoryTest(page: Page, botId: string = "2"): Promise<void> {
+export async function setupTradeHistoryTest(page: Page, _botId: string = "2"): Promise<void> {
   await setupTradeHistoryMocks(page);
   await navigateToTradeHistoryWithBot(page, botId);
 }

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import { Box, Text } from "@/ui";
-import { MONO, NEGATIVE, POSITIVE, WARNING } from "@/ui/palette";
+import { NEGATIVE, POSITIVE, SCALE_DARK, WARNING } from "@/ui/palette";
 import type { UsRow } from "../../../types/usReport";
 import { buildLadder, fmtInt } from "./usReportMath";
 
@@ -14,59 +14,33 @@ export function UsLadder({ row }: { row: UsRow }) {
   return (
     <Box
       data-testid="us-ladder"
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        minHeight: 0,
-        flex: 1,
-        border: "1px solid var(--mui-palette-divider)",
-        fontFamily: MONO,
-        fontVariantNumeric: "tabular-nums",
-        fontSize: 10.5,
-        lineHeight: `${ROW_H}px`,
-        overflow: "hidden",
-      }}
+      className="flex flex-col min-h-0 flex-1 border border-fin-border font-mono tabular-nums text-[10.5px] overflow-hidden"
+      style={{ lineHeight: `${ROW_H}px` }}
     >
       <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          px: 0.5,
-          color: "var(--mui-palette-text-secondary)",
-          borderBottom: "1px solid var(--mui-palette-divider)",
-          fontSize: 9.5,
-          letterSpacing: 0.4,
-          flex: "0 0 auto",
-        }}
+        className="flex items-center px-1 text-fin-text-muted border-b border-fin-border text-[9.5px] tracking-[0.4px] shrink-0"
       >
-        <Box sx={{ width: 52, textAlign: "right", color: NEGATIVE }}>PUT OI</Box>
-        <Box sx={{ flex: 1 }} />
-        <Box sx={{ width: 62, textAlign: "center" }}>STRIKE</Box>
-        <Box sx={{ flex: 1 }} />
-        <Box sx={{ width: 52, textAlign: "left", color: POSITIVE }}>CALL OI</Box>
+        <Box className="w-[52px] text-right" style={{ color: NEGATIVE }}>PUT OI</Box>
+        <Box className="flex-1" />
+        <Box className="w-[62px] text-center">STRIKE</Box>
+        <Box className="flex-1" />
+        <Box className="w-[52px] text-left" style={{ color: POSITIVE }}>CALL OI</Box>
       </Box>
 
-      <Box sx={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+      <Box className="flex-1 min-h-0 overflow-auto">
         {rows.map((r) => {
           if (r.isMarker) {
             return (
               <Box
                 key="spot"
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  px: 0.5,
-                  height: ROW_H,
-                  bgcolor: "rgba(88,166,255,0.16)",
-                  color: "var(--mui-palette-info-main)",
-                  fontWeight: 700,
-                }}
+                className="flex items-center px-1 font-bold bg-[rgba(88,166,255,0.16)] text-fin-info"
+                style={{ height: ROW_H }}
               >
-                <Box sx={{ width: 52 }} />
-                <Box sx={{ flex: 1, borderTop: "1px dashed var(--mui-palette-info-main)", opacity: 0.7 }} />
-                <Box sx={{ width: 62, textAlign: "center" }}>{fmtInt(row.spot)}</Box>
-                <Box sx={{ flex: 1, borderTop: "1px dashed var(--mui-palette-info-main)", opacity: 0.7 }} />
-                <Box sx={{ width: 52 }} />
+                <Box className="w-[52px]" />
+                <Box className="flex-1 opacity-70 border-t border-dashed border-fin-info" />
+                <Box className="w-[62px] text-center">{fmtInt(row.spot)}</Box>
+                <Box className="flex-1 opacity-70 border-t border-dashed border-fin-info" />
+                <Box className="w-[52px]" />
               </Box>
             );
           }
@@ -76,41 +50,34 @@ export function UsLadder({ row }: { row: UsRow }) {
             <Box
               key={r.k}
               data-testid={`us-ladder-row-${r.k}`}
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                px: 0.5,
+              className="flex items-center px-1 hover:bg-white/[0.04]"
+              style={{
                 height: ROW_H,
                 borderLeft: r.isPutWall ? `2px solid ${NEGATIVE}` : "2px solid transparent",
                 borderRight: r.isCallWall ? `2px solid ${POSITIVE}` : "2px solid transparent",
-                bgcolor: r.isSpot
+                backgroundColor: r.isSpot
                   ? "rgba(88,166,255,0.16)"
                   : isPain
                     ? "rgba(240,136,62,0.10)"
                     : "transparent",
-                "&:hover": { bgcolor: "rgba(255,255,255,0.04)" },
               }}
             >
-              <Box sx={{ width: 50, textAlign: "right", color: r.p_oi ? NEGATIVE : "var(--mui-palette-text-disabled)" }}>
+              <Box className="w-[50px] text-right" style={{ color: r.p_oi ? NEGATIVE : SCALE_DARK[3] }}>
                 {fmtInt(r.p_oi)}
               </Box>
-              <Box sx={{ flex: 1, display: "flex", justifyContent: "flex-end", pr: 0.5 }}>
-                <Box sx={{ width: `${(r.p_oi / maxOi) * 100}%`, maxWidth: "100%", height: 7, bgcolor: NEGATIVE, opacity: 0.75 }} />
+              <Box className="flex-1 flex justify-end pr-1">
+                <Box className="h-[7px] opacity-75 bg-fin-negative" style={{ width: `${(r.p_oi / maxOi) * 100}%`, maxWidth: "100%" }} />
               </Box>
               <Box
-                sx={{
-                  width: 66,
-                  textAlign: "center",
-                  fontWeight: r.isPutWall || r.isCallWall ? 800 : 500,
-                  color: isPain ? WARNING : "var(--mui-palette-text-primary)",
-                }}
+                className={`w-[66px] text-center ${r.isPutWall || r.isCallWall ? "font-extrabold" : "font-medium"}`}
+                style={{ color: isPain ? WARNING : undefined }}
               >
                 {fmtInt(r.k)}
               </Box>
-              <Box sx={{ flex: 1, display: "flex", pl: 0.5 }}>
-                <Box sx={{ width: `${(r.c_oi / maxOi) * 100}%`, maxWidth: "100%", height: 7, bgcolor: POSITIVE, opacity: 0.75 }} />
+              <Box className="flex-1 flex pl-1">
+                <Box className="h-[7px] opacity-75 bg-fin-positive" style={{ width: `${(r.c_oi / maxOi) * 100}%`, maxWidth: "100%" }} />
               </Box>
-              <Box sx={{ width: 50, textAlign: "left", color: r.c_oi ? POSITIVE : "var(--mui-palette-text-disabled)" }}>
+              <Box className="w-[50px] text-left" style={{ color: r.c_oi ? POSITIVE : SCALE_DARK[3] }}>
                 {fmtInt(r.c_oi)}
               </Box>
             </Box>
@@ -119,17 +86,7 @@ export function UsLadder({ row }: { row: UsRow }) {
       </Box>
 
       <Box
-        sx={{
-          flex: "0 0 auto",
-          px: 0.5,
-          py: 0.25,
-          borderTop: "1px solid var(--mui-palette-divider)",
-          color: "var(--mui-palette-text-secondary)",
-          fontSize: 9,
-          display: "flex",
-          gap: 1.25,
-          flexWrap: "wrap",
-        }}
+        className="shrink-0 px-1 py-0.5 border-t border-fin-border text-fin-text-muted text-[9px] flex gap-[10px] flex-wrap"
       >
         <Text size="xs" c="dimmed" span>
           wall {fmtInt(row.put_wall)}P / {fmtInt(row.call_wall)}C

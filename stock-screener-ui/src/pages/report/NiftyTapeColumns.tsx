@@ -7,8 +7,7 @@
  * table memoise them on a cheap content signature.
  */
 
-import Box from "@mui/material/Box";
-import { Text } from "@/ui";
+import { Box, Text } from "@/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NiftyTapeRow } from "@/types/niftyReport";
 import {
@@ -54,25 +53,28 @@ function tapeCell(
   flash?: boolean,
 ) {
   return (
-    <Box
-      component="span"
+    <span
       data-testid={testId}
       data-alpha={tint ? String(tint) : undefined}
       className={flash ? "tape-cell-flash" : undefined}
-      style={tint ? { background: tint } : undefined}
-      sx={{
+      style={{
         display: "block",
-        margin: tint ? `-${REPORT_PAD.xs}px -${REPORT_PAD.sm}px` : undefined,
-        padding: tint ? `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` : undefined,
+        ...(tint
+          ? {
+              margin: `-${REPORT_PAD.xs}px -${REPORT_PAD.sm}px`,
+              padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px`,
+            }
+          : {}),
         overflow: "hidden",
         textOverflow: "ellipsis",
         fontVariantNumeric: "tabular-nums",
+        ...(tint ? { background: tint } : {}),
       }}
     >
-      <Text span c={color ?? tone ?? "default"} fw={bold || tone ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.normal} style={{ fontSize: REPORT_FONT.xs }}>
+      <Text span c={color ?? tone ?? "default"} fw={bold || tone ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.normal} style={{ fontSize: `${REPORT_FONT.xs}px` }}>
         {value}
       </Text>
-    </Box>
+    </span>
   );
 }
 
@@ -99,13 +101,14 @@ function tapeHeader(title: string, sub?: string, tip?: string) {
   return (
     <Box
       title={tip ? `${title} — ${tip}` : undefined}
-      sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: REPORT_LINE_HEIGHT.tight }}
+      className="flex flex-col items-end"
+      style={{ lineHeight: REPORT_LINE_HEIGHT.tight }}
     >
-      <Box component="span" sx={{ fontSize: REPORT_FONT.xs, fontWeight: REPORT_FONT_WEIGHT.semibold }}>{title}</Box>
+      <span style={{ fontSize: `${REPORT_FONT.xs}px`, fontWeight: REPORT_FONT_WEIGHT.semibold }}>{title}</span>
       {sub ? (
-        <Box component="span" sx={{ fontSize: REPORT_FONT.micro, fontWeight: REPORT_FONT_WEIGHT.normal, opacity: 0.65, whiteSpace: "nowrap" }}>
+        <span style={{ fontSize: `${REPORT_FONT.micro}px`, fontWeight: REPORT_FONT_WEIGHT.normal, opacity: 0.65, whiteSpace: "nowrap" }}>
           {sub}
-        </Box>
+        </span>
       ) : null}
     </Box>
   );
@@ -157,14 +160,13 @@ export function getNiftyTapeColumns(
         const arrow = d === undefined || d === 0 ? "" : d > 0 ? "▲" : "▼";
         const arrowColor = d === undefined || d === 0 ? undefined : d > 0 ? TAPE_TICK_POS : TAPE_TICK_NEG;
         return (
-          <Box
-            component="span"
+          <span
             className={fl(row.t, "spot") ? "tape-cell-flash" : undefined}
-            sx={{
+            style={{
               display: "flex",
               alignItems: "baseline",
               justifyContent: "flex-end",
-              gap: 0.5,
+              gap: "4px",
               overflow: "hidden",
               fontVariantNumeric: "tabular-nums",
             }}
@@ -177,7 +179,7 @@ export function getNiftyTapeColumns(
                 {arrow}
               </Text>
             ) : null}
-          </Box>
+          </span>
         );
       },
     },

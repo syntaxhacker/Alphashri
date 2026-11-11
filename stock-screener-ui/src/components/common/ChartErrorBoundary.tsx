@@ -1,7 +1,6 @@
 import { Component } from "react";
 import type { ErrorInfo, ReactNode } from "react";
-import Box from "@mui/material/Box";
-import { Text } from "@/ui";
+import { Box, Text } from "@/ui";
 
 interface ChartErrorBoundaryProps {
   children: ReactNode;
@@ -42,13 +41,8 @@ export class ChartErrorBoundary extends Component<
       return (
         <Box
           data-testid="chart-error"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            minHeight: 120,
-            p: 1,
-          }}
+          className="flex items-center justify-center"
+          style={{ minHeight: 120, padding: 8 }}
         >
           <Text size="xs" c="dimmed" span>
             {this.props.label ?? "Chart"} unavailable

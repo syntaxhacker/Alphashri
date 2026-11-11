@@ -143,8 +143,7 @@ describe("OrderFlowPage", () => {
     renderPage();
     await screen.findByTestId("orderflow-iframe");
 
-    await user.click(within(screen.getByTestId("orderflow-broker")).getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: "Upstox · 5 lv" }));
+    await user.selectOptions(within(screen.getByTestId("orderflow-broker")).getByRole("combobox"), "upstox");
 
     expect(await screen.findByTestId("orderflow-broker-warning")).toBeInTheDocument();
     expect(screen.getByTestId("orderflow-connect-broker")).toBeInTheDocument();
@@ -175,8 +174,7 @@ describe("OrderFlowPage", () => {
     );
 
     // The Upstox feed streams the Upstox instrument key verbatim.
-    await user.click(within(screen.getByTestId("orderflow-broker")).getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: "Upstox · 5 lv" }));
+    await user.selectOptions(within(screen.getByTestId("orderflow-broker")).getByRole("combobox"), "upstox");
 
     await user.click(within(screen.getByTestId("orderflow-option-type")).getByRole("button", { name: "PE" }));
     await user.click(screen.getByTestId("orderflow-use-contract"));
@@ -206,9 +204,7 @@ describe("OrderFlowPage auth failures", () => {
     postAuthError("fyers_tbt", "Fyers TBT session expired or rejected (Handshake status 403 Forbidden).");
 
     const modal = await screen.findByTestId("orderflow-auth-error-modal");
-    expect(
-      within(modal).getByRole("heading", { name: /session expired/i }),
-    ).toBeInTheDocument();
+    expect(within(modal).getByText(/^Fyers TBT session expired$/)).toBeInTheDocument();
     expect(within(modal).getByText(/Broker sessions expire\s+daily/i)).toBeInTheDocument();
     expect(screen.getByTestId("orderflow-auth-error-detail")).toHaveTextContent("403 Forbidden");
     expect(screen.getByTestId("orderflow-auth-error-settings")).toBeInTheDocument();

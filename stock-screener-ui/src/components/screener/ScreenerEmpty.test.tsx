@@ -61,7 +61,7 @@ describe("ScreenerEmpty", () => {
     expect(screen.getByTestId("screener-empty")).toBeInTheDocument();
   });
 
-  it("has data-testid for test hooks (MUI sx, no global CSS)", () => {
+  it("has data-testid for test hooks", () => {
     render(
       <UIProvider>
         <ScreenerEmpty />

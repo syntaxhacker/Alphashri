@@ -10,15 +10,15 @@ interface SrBreakoutParamsPanelProps {
 export function SrBreakoutParamsPanel({ initialValues, isSwing }: SrBreakoutParamsPanelProps) {
   return (
     <Tabs.Panel value="sr" keepMounted className="strategy-form-tab-panel" data-testid="strategy-panel-sr">
-      <Stack spacing={1} gap="sm" mt="sm" sx={{ gap: 1, p: 1 }}>
+      <Stack spacing={1} gap="sm" mt="sm" className="p-2">
         <SlTpRow
           slDefault={initialValues.sl_pct}
           tpDefault={initialValues.tp_pct}
           isSwing={isSwing}
         />
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Pivot Type</Text>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+        <Box className="flex items-center gap-2 p-2">
+          <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Pivot Type</Text>
+          <Box className="flex-1 flex items-center">
             <Select
               size="sm"
               name="pivot_type"
@@ -33,9 +33,9 @@ export function SrBreakoutParamsPanel({ initialValues, isSwing }: SrBreakoutPara
             />
           </Box>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Breakout Buffer %</Text>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+        <Box className="flex items-center gap-2 p-2">
+          <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Breakout Buffer %</Text>
+          <Box className="flex-1 flex items-center">
             <NumberInput
               size="sm"
               name="breakout_buffer_pct"

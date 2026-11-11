@@ -37,13 +37,13 @@ export interface PatternCardProps {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <Box sx={{ px: 0.75, py: 0.5, minWidth: 0 }}>
+    <Box className="min-w-0 px-1.5 py-1">
       <Text
         size="xs"
         c="dimmed"
         fw={700}
         truncate
-        sx={{ fontSize: 9, lineHeight: 1, letterSpacing: 0.6, textTransform: "uppercase" }}
+        style={{ fontSize: 9, lineHeight: 1, letterSpacing: 0.6, textTransform: "uppercase" }}
       >
         {label}
       </Text>
@@ -51,7 +51,7 @@ function Metric({ label, value }: { label: string; value: string }) {
         size="xs"
         fw={600}
         truncate
-        sx={{ fontSize: 11, lineHeight: 1.25, fontVariantNumeric: "tabular-nums" }}
+        style={{ fontSize: 11, lineHeight: 1.25, fontVariantNumeric: "tabular-nums" }}
       >
         {value}
       </Text>
@@ -61,17 +61,17 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function Level({ label, value, testId }: { label: string; value: string; testId?: string }) {
   return (
-    <Box data-testid={testId} sx={{ display: "flex", flexDirection: "column", gap: 0.25, minWidth: 0 }}>
+    <Box data-testid={testId} className="flex min-w-0 flex-col gap-[2px]">
       <Text
         size="xs"
         c="dimmed"
         fw={700}
         truncate
-        sx={{ fontSize: 9, lineHeight: 1, letterSpacing: 0.5, textTransform: "uppercase" }}
+        style={{ fontSize: 9, lineHeight: 1, letterSpacing: 0.5, textTransform: "uppercase" }}
       >
         {label}
       </Text>
-      <Text size="xs" fw={600} truncate sx={{ fontSize: 11, lineHeight: 1.2, fontVariantNumeric: "tabular-nums" }}>
+      <Text size="xs" fw={600} truncate style={{ fontSize: 11, lineHeight: 1.2, fontVariantNumeric: "tabular-nums" }}>
         {value}
       </Text>
     </Box>
@@ -172,16 +172,12 @@ export const PatternCard = memo(function PatternCard({
             }
           : undefined
       }
-      sx={{
-        border: "1px solid",
-        borderColor: selected ? "primary.main" : missingCandles ? "error.main" : "divider",
-        boxShadow: selected ? "inset 0 0 0 1px var(--mui-palette-primary-main)" : "none",
-        borderRadius: 1,
-        bgcolor: "background.paper",
-        overflow: "hidden",
+      className={`overflow-hidden rounded-fin border bg-fin-surface transition-[border-color] duration-[120ms] ${
+        selected ? "border-fin-primary" : missingCandles ? "border-fin-negative" : "border-fin-border"
+      } ${onClick ? "hover:border-fin-primary" : ""}`}
+      style={{
+        boxShadow: selected ? "inset 0 0 0 1px var(--color-fin-primary)" : "none",
         cursor: onClick ? "pointer" : "default",
-        transition: "border-color 120ms ease",
-        "&:hover": onClick ? { borderColor: "primary.main" } : undefined,
         // Offscreen containment: the browser skips layout/paint for cards
         // outside the visible area while the user scrolls a long results grid.
         contentVisibility: "auto",
@@ -191,10 +187,10 @@ export const PatternCard = memo(function PatternCard({
       <Box
         data-testid="patterns-card"
         data-selected={selected ? "true" : undefined}
-        sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}
+        className="flex min-w-0 flex-col"
       >
-        <Box sx={{ px: 0.75, pt: 0.75, pb: 0.5, display: "flex", gap: 0.75, minWidth: 0 }}>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box className="flex min-w-0 gap-1.5 px-1.5 pb-1 pt-1.5">
+          <Box className="min-w-0 flex-1">
             <SymbolLink
               symbol={hit.symbol}
               testId={`patterns-card-tv-${hit.symbol}-${hit.pattern_id}`}
@@ -204,41 +200,30 @@ export const PatternCard = memo(function PatternCard({
               onPreviewEnd={onSymbolPreviewEnd}
               size="sm"
               weight={700}
-              sx={{ maxWidth: "100%" }}
+              className="max-w-full"
             />
-            <Text size="xs" c="dimmed" truncate sx={{ fontSize: 10, lineHeight: 1.25 }}>
+            <Text size="xs" c="dimmed" truncate style={{ fontSize: 10, lineHeight: 1.25 }}>
               {hit.pattern_name}
             </Text>
           </Box>
-          <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.25, flexShrink: 0 }}>
+          <Box className="flex shrink-0 items-start gap-[2px]">
             <Box
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "flex-end",
-                gap: 0.25,
-                minWidth: 0,
-              }}
+              className="flex min-w-0 flex-col items-end gap-[2px]"
             >
-              <Text size="xs" c="dimmed" sx={{ fontSize: 9, lineHeight: 1, whiteSpace: "nowrap" }}>
+              <Text size="xs" c="dimmed" style={{ fontSize: 9, lineHeight: 1, whiteSpace: "nowrap" }}>
                 {barsLabel}
               </Text>
               <Tooltip label={display.tooltip} withArrow position="top">
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                <Box className="flex items-center gap-1">
                   <Box
-                    sx={{
-                      width: 5,
-                      height: 5,
-                      borderRadius: "50%",
-                      bgcolor: displayToneColor(display.tone),
-                      flexShrink: 0,
-                    }}
+                    className="h-[5px] w-[5px] shrink-0 rounded-full"
+                    style={{ backgroundColor: displayToneColor(display.tone) }}
                   />
                   <Text
                     data-testid={`patterns-status-${String(hit.status ?? "").toLowerCase()}`}
                     size="xs"
                     fw={700}
-                    sx={{
+                    style={{
                       fontSize: 9,
                       lineHeight: 1,
                       letterSpacing: 0.5,
@@ -255,13 +240,13 @@ export const PatternCard = memo(function PatternCard({
                   data-testid={`patterns-quality-${qualityKey || "unknown"}`}
                   size="xs"
                   fw={600}
-                  sx={{
+                  c="dimmed"
+                  className="cursor-help"
+                  style={{
                     fontSize: 9,
                     lineHeight: 1,
                     letterSpacing: 0.5,
                     textTransform: "uppercase",
-                    color: "text.secondary",
-                    cursor: "help",
                   }}
                 >
                   {quality}
@@ -271,17 +256,17 @@ export const PatternCard = memo(function PatternCard({
           </Box>
         </Box>
 
-        <Box sx={{ px: 0.75, pb: 0.5, display: "flex", alignItems: "baseline", gap: 1, minWidth: 0 }}>
+        <Box className="flex min-w-0 items-baseline gap-2 px-1.5 pb-1">
           <Text
             size="sm"
             fw={700}
-            sx={{ fontSize: 16, lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}
+            style={{ fontSize: 16, lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}
           >
             {formatPrice(lastPrice)}
           </Text>
           <Text
             size="xs"
-            sx={{
+            style={{
               fontSize: 11,
               lineHeight: 1.1,
               fontVariantNumeric: "tabular-nums",
@@ -295,7 +280,7 @@ export const PatternCard = memo(function PatternCard({
               data-testid={`patterns-card-to-trigger-${hit.symbol}`}
               size="xs"
               c={triggerDistance >= 0 ? "success" : "dimmed"}
-              sx={{
+              style={{
                 fontSize: 10,
                 lineHeight: 1.1,
                 fontVariantNumeric: "tabular-nums",
@@ -319,25 +304,11 @@ export const PatternCard = memo(function PatternCard({
         </Box>
 
         <Box
-          sx={{
-            position: "relative",
-            borderTop: "1px solid",
-            borderColor: "divider",
-            bgcolor: "background.default",
-            minWidth: 0,
-          }}
+          className="relative min-w-0 border-t border-fin-border bg-fin-bg"
         >
           <PatternMiniChart hit={hit} trendlinesView={trendlinesView} />
           <Box
-            sx={{
-              position: "absolute",
-              top: 2,
-              right: 2,
-              display: "flex",
-              alignItems: "center",
-              gap: 0.25,
-              zIndex: 1,
-            }}
+            className="absolute right-[2px] top-[2px] z-[1] flex items-center gap-[2px]"
           >
             {onExpand ? (
               <Tooltip label="Open fullscreen chart" withArrow position="left">
@@ -350,12 +321,8 @@ export const PatternCard = memo(function PatternCard({
                     e.stopPropagation();
                     onExpand(hit);
                   }}
-                  sx={{
-                    color: "text.secondary",
-                    bgcolor: "background.paper",
-                    opacity: 0.85,
-                    "&:hover": { color: "text.primary", opacity: 1 },
-                  }}
+                  style={{ backgroundColor: "var(--color-fin-surface)" }}
+                  className="opacity-[0.85] hover:text-fin-text hover:opacity-100"
                 >
                   <IconArrowsMaximize size={12} />
                 </ActionIcon>
@@ -369,7 +336,7 @@ export const PatternCard = memo(function PatternCard({
             gap={1.5}
             justify="space-between"
             wrap={false}
-            sx={{ px: 0.75, py: 0.5, borderTop: "1px solid", borderColor: "divider" }}
+            className="border-t border-fin-border px-1.5 py-1"
           >
             <Level
               testId={`patterns-card-range-${hit.symbol}`}
@@ -382,22 +349,22 @@ export const PatternCard = memo(function PatternCard({
             />
             <Box
               data-testid={`patterns-card-breakout-both-${hit.symbol}`}
-              sx={{ display: "flex", flexDirection: "column", gap: 0.25, minWidth: 0 }}
+              className="flex min-w-0 flex-col gap-[2px]"
             >
               <Text
                 size="xs"
                 c="dimmed"
                 fw={700}
                 truncate
-                sx={{ fontSize: 9, lineHeight: 1, letterSpacing: 0.5, textTransform: "uppercase" }}
+                style={{ fontSize: 9, lineHeight: 1, letterSpacing: 0.5, textTransform: "uppercase" }}
               >
                 Range
               </Text>
               <ToolbarRow gap={6} wrap={false}>
-                <Text size="xs" fw={600} truncate sx={{ fontSize: 11, color: PATTERN_CONFIRMED }}>
+                <Text size="xs" fw={600} truncate style={{ fontSize: 11, color: PATTERN_CONFIRMED }}>
                   ↑ {formatPrice(bounds.hi)}
                 </Text>
-                <Text size="xs" fw={600} truncate sx={{ fontSize: 11, color: PATTERN_FAILED }}>
+                <Text size="xs" fw={600} truncate style={{ fontSize: 11, color: PATTERN_FAILED }}>
                   ↓ {formatPrice(bounds.lo)}
                 </Text>
               </ToolbarRow>
@@ -409,7 +376,7 @@ export const PatternCard = memo(function PatternCard({
           <ToolbarRow
             justify="space-between"
             gap={1}
-            sx={{ px: 0.75, py: 0.25, borderTop: "1px solid", borderColor: "divider" }}
+            className="border-t border-fin-border px-1.5 py-[2px]"
           >
             {baseDays > 0 ? (
               <Text
@@ -417,14 +384,14 @@ export const PatternCard = memo(function PatternCard({
                 c="dimmed"
                 truncate
                 data-testid={`patterns-card-base-${hit.symbol}-${hit.pattern_id}`}
-                sx={{ fontSize: 9, lineHeight: 1.2 }}
+                style={{ fontSize: 9, lineHeight: 1.2 }}
               >
                 {hit.range_pct != null
                   ? `Base ${baseDays}d · ${formatOneDecimal(hit.range_pct)}%`
                   : `Base ${baseDays}d`}
               </Text>
             ) : (
-              <Box sx={{ flex: 1 }} />
+              <Box className="flex-1" />
             )}
             {hit.to_52w_high != null ? (
               <Text
@@ -432,7 +399,7 @@ export const PatternCard = memo(function PatternCard({
                 c="dimmed"
                 truncate
                 data-testid="patterns-card-52w-gap"
-                sx={{ fontSize: 9, lineHeight: 1.2, textAlign: "right" }}
+                style={{ fontSize: 9, lineHeight: 1.2, textAlign: "right" }}
               >
                 52W: {formatOneDecimal(hit.to_52w_high)}%
               </Text>
@@ -441,35 +408,20 @@ export const PatternCard = memo(function PatternCard({
         ) : null}
 
         <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: `repeat(${canShowMembers ? 5 : 4}, minmax(0, 1fr))`,
-            borderTop: "1px solid",
-            borderColor: "divider",
-          }}
+          className="grid border-t border-fin-border"
+          style={{ gridTemplateColumns: `repeat(${canShowMembers ? 5 : 4}, minmax(0, 1fr))` }}
         >
           {metrics.map((metric, index) => (
             <Box
               key={metric.label}
-              sx={{
-                borderLeft: index === 0 ? "none" : "1px solid",
-                borderColor: "divider",
-                minWidth: 0,
-              }}
+              className={`min-w-0 ${index === 0 ? "" : "border-l border-fin-border"}`}
             >
               <Metric label={metric.label} value={metric.value} />
             </Box>
           ))}
           {canShowMembers ? (
             <Box
-              sx={{
-                borderLeft: "1px solid",
-                borderColor: "divider",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                minWidth: 0,
-              }}
+              className="flex min-w-0 items-center justify-center border-l border-fin-border"
             >
               <Box
                 component="button"
@@ -479,18 +431,7 @@ export const PatternCard = memo(function PatternCard({
                   event.stopPropagation();
                   onShowMembers?.(hit.symbol);
                 }}
-                sx={{
-                  border: 0,
-                  bgcolor: "transparent",
-                  color: "primary.main",
-                  cursor: "pointer",
-                  fontSize: 9,
-                  fontWeight: 700,
-                  letterSpacing: 0.5,
-                  textTransform: "uppercase",
-                  p: 0.5,
-                  "&:hover": { textDecoration: "underline" },
-                }}
+                className="cursor-pointer border-0 bg-transparent p-1 text-[9px] font-bold uppercase tracking-[0.5px] text-fin-primary hover:underline"
               >
                 Members
               </Box>

@@ -21,7 +21,7 @@ vi.mock("./OIAnalysis", () => ({
 }));
 
 vi.mock("./OptionChainGuide", () => ({
-  OptionChainGuide: ({ opened, onClose }: any) =>
+  OptionChainGuide: ({ opened, _onClose }: any) =>
     opened ? <div data-testid="options-chain-guide-modal">Guide</div> : null,
 }));
 

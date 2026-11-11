@@ -339,24 +339,11 @@ function NewsPanelBody({
 function NewsPanelContainer({ isOpen, children }: { isOpen: boolean; children: React.ReactNode }) {
   return (
     <Box
-      sx={{
-        position: "fixed",
-        top: 0,
-        right: isOpen ? 0 : -400,
-        width: 400,
-        maxWidth: "100vw",
-        height: "100vh",
-        bgcolor: "background.paper",
-        borderLeft: 1,
-        borderColor: "divider",
-      }}
-      className={`news-panel ${isOpen ? "open" : ""}`}
+      className={`news-panel fixed top-0 z-[200] flex h-screen w-[400px] max-w-[100vw] flex-col border-l border-fin-border bg-fin-surface ${isOpen ? "open" : ""}`}
       id="news-panel"
       style={{
-        zIndex: 200,
+        right: isOpen ? 0 : -400,
         transition: "right 0.3s ease",
-        display: "flex",
-        flexDirection: "column",
       }}
       data-testid="news-panel"
     >

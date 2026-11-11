@@ -49,7 +49,7 @@ export function describeGap(row: OrderFlowJournalRow): string {
 function cell(align: "left" | "right" | "center", children: React.ReactNode) {
   const justify = align === "right" ? "flex-end" : align === "center" ? "center" : "flex-start";
   return (
-    <Box sx={{ display: "flex", alignItems: "center", justifyContent: justify, gap: 1, p: 1 }}>
+    <Box className={`flex items-center gap-2 p-2 justify-${justify === "flex-end" ? "end" : justify === "center" ? "center" : "start"}`}>
       {children}
     </Box>
   );
@@ -104,7 +104,7 @@ export function OrderFlowJournalPanel() {
         accessorKey: "symbol",
         meta: { align: "left" },
         cell: (info) => (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1, p: 1 }}>
+          <Box className="flex items-center justify-start gap-2 p-2">
             <Text size="sm" fw={700}>{info.getValue<string>()}</Text>
           </Box>
         ),
@@ -119,7 +119,7 @@ export function OrderFlowJournalPanel() {
           const badge = BROKER_BADGE[key] ?? BROKER_BADGE.unknown;
           const row = info.row.original;
           return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1, p: 1 }}>
+            <Box className="flex items-center justify-start gap-2 p-2">
               <Badge color={badge.color} variant={key === "mixed" ? "filled" : "light"} size="sm"
                 data-testid={`ofj-broker-${key}`}>
                 {badge.label}
@@ -139,7 +139,7 @@ export function OrderFlowJournalPanel() {
         accessorKey: "bytes",
         meta: { align: "right" },
         cell: (info) => (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}>
+          <Box className="flex items-center justify-end gap-2 p-2">
             <Text size="sm">{formatBytes(info.getValue<number>())}</Text>
           </Box>
         ),
@@ -150,7 +150,7 @@ export function OrderFlowJournalPanel() {
         accessorKey: "records",
         meta: { align: "right" },
         cell: (info) => (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}>
+          <Box className="flex items-center justify-end gap-2 p-2">
             <Text size="sm">{info.getValue<number>().toLocaleString()}</Text>
           </Box>
         ),
@@ -163,7 +163,7 @@ export function OrderFlowJournalPanel() {
         cell: (info) => {
           const pct = info.getValue<number>();
           return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}>
+            <Box className="flex items-center justify-end gap-2 p-2">
               <Text size="sm" fw={700} c={coverageTone(pct)} data-testid="ofj-coverage">
                 {formatCoverage(pct)}
               </Text>
@@ -177,7 +177,7 @@ export function OrderFlowJournalPanel() {
         accessorFn: (row) => describeGap(row),
         meta: { align: "left" },
         cell: (info) => (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1, p: 1 }}>
+          <Box className="flex items-center justify-start gap-2 p-2">
             <Text size="sm" c="dimmed">{info.getValue<string>()}</Text>
           </Box>
         ),
@@ -219,7 +219,7 @@ export function OrderFlowJournalPanel() {
           </CompactStatGrid>
 
           <Group gap={8} align="center" wrap="wrap">
-            <Box sx={{ width: 200 }}>
+            <Box className="w-[200px]">
               <Select
                 size="sm"
                 label="Day"

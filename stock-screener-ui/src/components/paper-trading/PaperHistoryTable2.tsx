@@ -14,7 +14,6 @@ import {
   Button,
   LoadingOverlay,
 } from "@/ui";
-import Box from "@mui/material/Box";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { PaperTrade, TradeSourceFilter } from "../../types/paperTrading";
 import {
@@ -105,15 +104,13 @@ function HistoryFilters({
   state: ReturnType<typeof getPaperTradingState>;
 }) {
   const { handleQuickFilter, getCurrentPeriod } = useQuickFilter();
-  // Source filter is data-driven: the books offered follow the distinct trade
-  // sources in the loaded trades (All / Equity / Options are always there).
   const bookFilters = useMemo(() => listBookFilters(state.trades), [state.trades]);
 
   return (
     <>
-      <Box className="paper-history-filters" sx={{ flex: "none", py: 0.5, px: 0.5 }} id="history-filters">
-        <Stack className="paper-history-filters-stack" id="paper-history-filters-stack" direction={{ xs: "column", sm: "row" } as any} justify="space-between" align={{ xs: "stretch", sm: "center" }} gap={1} sx={{ width: "100%" }}>
-          <Box className="paper-history-filters-left" sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", flex: 1, minWidth: 0 }}>
+      <div className="paper-history-filters flex-none py-1 px-1" id="history-filters">
+        <Stack className="paper-history-filters-stack flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2 w-full" id="paper-history-filters-stack">
+          <div className="paper-history-filters-left flex items-center gap-2 flex-wrap flex-1 min-w-0">
             {bots.length > 1 && (
               <Select
                 placeholder="All Bots"
@@ -123,7 +120,7 @@ function HistoryFilters({
                 ]}
                 value={state.filterBot || ""}
                 onChange={(v) => setFilterBot(v)}
-                sx={{ width: 160, borderRadius: 1 }}
+                style={{ width: 160, borderRadius: 1 }}
                 size="xs"
                 data-testid="bot-filter-select"
               />
@@ -137,7 +134,7 @@ function HistoryFilters({
                 ]}
                 value={state.filterStrategy != null ? String(state.filterStrategy) : ""}
                 onChange={(v) => setFilterStrategy(v ? Number(v) : null)}
-                sx={{ width: 160, borderRadius: 1 }}
+                style={{ width: 160, borderRadius: 1 }}
                 size="xs"
                 data-testid="strategy-filter-select"
               />
@@ -151,8 +148,8 @@ function HistoryFilters({
               size="xs"
               data-testid="source-filter-select"
             />
-          </Box>
-          <Box className="paper-history-filters-right" sx={{ display: "flex", alignItems: "center", justifyContent: { xs: "flex-start", sm: "flex-end" }, flexWrap: "wrap", gap: 0.5, flexShrink: 0 }}>
+          </div>
+          <div className="paper-history-filters-right flex items-center justify-start sm:justify-end flex-wrap gap-1 shrink-0">
             <SegmentedControl
               className="paper-quick-filter"
               value={getCurrentPeriod()}
@@ -167,15 +164,15 @@ function HistoryFilters({
               size="xs"
               data-testid="quick-filter"
             />
-          </Box>
+          </div>
         </Stack>
-      </Box>
+      </div>
 
-      <Box className="paper-trades-header" sx={{ flex: "none", display: "flex", alignItems: "center", justifyContent: "space-between", px: 0.75, py: 0.5 }} data-testid="trades-header" id="trades-header">
-        <Text className="paper-trades-header-title" size="xs" fw={600} c="dimmed" tt="uppercase">
+      <div className="paper-trades-header flex-none flex items-center justify-between px-1.5 py-1" data-testid="trades-header" id="trades-header">
+        <Text className="paper-trades-header-title uppercase" size="xs" fw={600} c="dimmed" >
           Trade History
         </Text>
-      </Box>
+      </div>
     </>
   );
 }
@@ -195,17 +192,17 @@ const DaySummary = memo(function DaySummary({
   const pnlColor = getPnLTextColor(dayPnl);
 
   return (
-    <Box className="paper-day-summary" id={`paper-day-summary-${date}`} sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 0.75, py: 0.25, gap: 0.5, flexWrap: "nowrap" }} data-testid={`day-header-${date}`}>
-      <Box className="paper-day-summary-left" sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "nowrap" }}>
-        <Text className="paper-day-summary-toggle" size="xs" c="dimmed" sx={{ lineHeight: 1 }}>
+    <div className="paper-day-summary flex items-center justify-between px-1.5 py-0.5 gap-1 flex-nowrap" id={`paper-day-summary-${date}`} data-testid={`day-header-${date}`}>
+      <div className="paper-day-summary-left flex items-center gap-2 flex-nowrap">
+        <Text className="paper-day-summary-toggle" size="xs" c="dimmed" style={{ lineHeight: 1 }}>
           {expanded ? "▾" : "▸"}
         </Text>
-        <Text className="paper-day-summary-date" size="xs" fw={700} tt="uppercase">
+        <Text className="paper-day-summary-date uppercase" size="xs" fw={700} >
           {formatDateHeader(date)}
         </Text>
-      </Box>
-      <Box className="paper-day-summary-right" sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "nowrap" }}>
-        <Text className="paper-day-summary-pnl" size="xs" c={pnlColor} fw={700} sx={{ textAlign: "right" }}>
+      </div>
+      <div className="paper-day-summary-right flex items-center gap-2 flex-nowrap">
+        <Text className="paper-day-summary-pnl" size="xs" c={pnlColor} fw={700} style={{ textAlign: "right" }}>
           {formatSignedPnl(dayPnl)}
         </Text>
         <Badge className="paper-day-summary-wins" color={wins > 0 ? "success" : "secondary"} variant="filled" size="xs">
@@ -214,8 +211,8 @@ const DaySummary = memo(function DaySummary({
         <Badge className="paper-day-summary-losses" color={losses > 0 ? "error" : "secondary"} variant="filled" size="xs">
           ▼{losses}
         </Badge>
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 });
 
@@ -242,30 +239,34 @@ const TradeStats = memo(function TradeStats({ trade }: { trade: PaperTrade }) {
   ];
 
   return (
-    <Box className="paper-trade-stats" id={`paper-trade-stats-${trade.trade_id}`} sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 0.5, width: "100%" }}>
-      <Box className="paper-trade-stats-entry" id={`paper-trade-stats-entry-${trade.trade_id}`} sx={{ p: 0.5, border: 0, borderRadius: 0, bgcolor: "transparent", minWidth: 0, width: "100%" }}>
-        <Text className="paper-trade-stats-entry-title" id={`paper-trade-stats-entry-title-${trade.trade_id}`} size="xs" fw={700} c="dimmed" tt="uppercase" sx={{ letterSpacing: 0.6, pb: 0.5, mb: 0.25, borderBottom: "1px solid var(--mui-palette-divider)" }}>Entry</Text>
+    <div className="paper-trade-stats grid grid-cols-1 md:grid-cols-2 gap-1 w-full" id={`paper-trade-stats-${trade.trade_id}`}>
+      <div className="paper-trade-stats-entry p-1 border-0 rounded-none bg-transparent min-w-0 w-full" id={`paper-trade-stats-entry-${trade.trade_id}`}>
+        <Text className="paper-trade-stats-entry-title uppercase pb-1 mb-0.5 border-b border-fin-border" id={`paper-trade-stats-entry-title-${trade.trade_id}`} size="xs" fw={700} c="dimmed" style={{ letterSpacing: 0.6 }}>
+          Entry
+        </Text>
         {entryContext.map((item) => (
-          <Box key={item.label} className="paper-trade-stats-row" id={`paper-trade-stats-row-${trade.trade_id}-${item.label.replace(/\s+/g, "-").toLowerCase()}`} sx={{ display: "flex", alignItems: "center", py: 0.35, gap: 0.35, borderBottom: "1px solid var(--mui-palette-divider)", "&:last-child": { borderBottom: 0, pb: 0 } }}>
-            <Text className="paper-trade-stats-label" size="xs" c="dimmed" sx={{ lineHeight: 1.1, minWidth: 62, flexShrink: 0 }}>{item.label}</Text>
-            <Text className="paper-trade-stats-value" size="xs" fw={600} c={item.color} sx={{ lineHeight: 1.2, fontSize: "0.78rem" }}>{item.value}</Text>
-          </Box>
+          <div key={item.label} className="paper-trade-stats-row flex items-center border-b border-fin-border py-[2.8px] gap-[2.8px]" id={`paper-trade-stats-row-${trade.trade_id}-${item.label.replace(/\s+/g, "-").toLowerCase()}`}>
+            <Text className="paper-trade-stats-label min-w-[62px] shrink-0 leading-[1.1]" size="xs" c="dimmed">{item.label}</Text>
+            <Text className="paper-trade-stats-value leading-[1.2] text-[0.78rem]" size="xs" fw={600} c={item.color} >{item.value}</Text>
+          </div>
         ))}
-      </Box>
-      <Box className="paper-trade-stats-exit" id={`paper-trade-stats-exit-${trade.trade_id}`} sx={{ p: 0.5, border: 0, borderRadius: 0, bgcolor: "transparent", minWidth: 0, width: "100%" }}>
-        <Text className="paper-trade-stats-exit-title" id={`paper-trade-stats-exit-title-${trade.trade_id}`} size="xs" fw={700} c="dimmed" tt="uppercase" sx={{ letterSpacing: 0.6, pb: 0.5, mb: 0.25, borderBottom: "1px solid var(--mui-palette-divider)" }}>Exit</Text>
+      </div>
+      <div className="paper-trade-stats-exit p-1 border-0 rounded-none bg-transparent min-w-0 w-full" id={`paper-trade-stats-exit-${trade.trade_id}`}>
+        <Text className="paper-trade-stats-exit-title uppercase pb-1 mb-0.5 border-b border-fin-border" id={`paper-trade-stats-exit-title-${trade.trade_id}`} size="xs" fw={700} c="dimmed" style={{ letterSpacing: 0.6 }}>
+          Exit
+        </Text>
         {exitContext.map((item) => (
-          <Box key={item.label} className="paper-trade-stats-row" id={`paper-trade-stats-row-${trade.trade_id}-${item.label.replace(/\s+/g, "-").toLowerCase()}`} sx={{ display: "flex", alignItems: "center", py: 0.35, gap: 0.35, borderBottom: "1px solid var(--mui-palette-divider)", "&:last-child": { borderBottom: 0, pb: 0 } }}>
-            <Text className="paper-trade-stats-label" size="xs" c="dimmed" sx={{ lineHeight: 1.1, minWidth: 62, flexShrink: 0 }}>{item.label}</Text>
-            <Text className="paper-trade-stats-value" size="xs" fw={600} c={item.color} sx={{ lineHeight: 1.2, fontSize: "0.78rem" }}>{item.value}</Text>
-          </Box>
+          <div key={item.label} className="paper-trade-stats-row flex items-center border-b border-fin-border py-[2.8px] gap-[2.8px]" id={`paper-trade-stats-row-${trade.trade_id}-${item.label.replace(/\s+/g, "-").toLowerCase()}`}>
+            <Text className="paper-trade-stats-label min-w-[62px] shrink-0 leading-[1.1]" size="xs" c="dimmed" >{item.label}</Text>
+            <Text className="paper-trade-stats-value leading-[1.2] text-[0.78rem]" size="xs" fw={600} c={item.color} >{item.value}</Text>
+          </div>
         ))}
-        <Box className="paper-trade-stats-exit-reason" id={`paper-trade-stats-exit-reason-${trade.trade_id}`} sx={{ display: "flex", alignItems: "center", py: 0.35, gap: 0.35 }}>
-          <Text className="paper-trade-stats-label" size="xs" c="dimmed" sx={{ lineHeight: 1.1, minWidth: 62, flexShrink: 0 }}>Exit Reason</Text>
+        <div className="paper-trade-stats-exit-reason flex items-center py-[2.8px] gap-[2.8px]" id={`paper-trade-stats-exit-reason-${trade.trade_id}`}>
+          <Text className="paper-trade-stats-label min-w-[62px] shrink-0 leading-[1.1]" size="xs" c="dimmed" >Exit Reason</Text>
           <ExitReasonBadge reason={trade.exit_reason} />
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 });
 
@@ -281,18 +282,22 @@ const TradeNotesEditor = memo(function TradeNotesEditor({ trade }: { trade: Pape
   };
 
   return (
-    <Box className="paper-trade-notes-editor" id={`paper-trade-notes-${trade.trade_id}`} sx={{ p: 0.75, border: "1px solid var(--mui-palette-divider)", borderRadius: 1, bgcolor: "var(--mui-palette-background-paper)" }}>
-      <Stack className="paper-trade-notes-stack" spacing={1}>
-        <Box className="paper-trade-notes-reason-row" id={`paper-trade-notes-reason-row-${trade.trade_id}`} sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, py: 0.5, borderBottom: "1px solid var(--mui-palette-divider)" }}>
-          <Text className="paper-trade-notes-label" size="xs" c="dimmed" fw={600} tt="uppercase" sx={{ flexShrink: 0, letterSpacing: 0.5 }}>Reason</Text>
-          <Text className="paper-trade-notes-reason" id={`paper-trade-notes-reason-${trade.trade_id}`} size="xs" sx={{ whiteSpace: "pre-wrap", lineHeight: 1.5, textAlign: "right", flex: 1 }} data-testid={`trade-reason-${trade.trade_id}`}>
+    <div className="paper-trade-notes-editor p-1.5 border border-fin-border rounded-[1px] bg-fin-surface" id={`paper-trade-notes-${trade.trade_id}`}>
+      <Stack className="paper-trade-notes-stack gap-2">
+        <div className="paper-trade-notes-reason-row flex items-center justify-between gap-2 py-1 border-b border-fin-border" id={`paper-trade-notes-reason-row-${trade.trade_id}`}>
+          <Text className="paper-trade-notes-label uppercase shrink-0" size="xs" c="dimmed" fw={600}  style={{ letterSpacing: 0.5 }}>
+            Reason
+          </Text>
+          <Text className="paper-trade-notes-reason whitespace-pre-wrap leading-[1.5] text-right flex-1" id={`paper-trade-notes-reason-${trade.trade_id}`} size="xs"  data-testid={`trade-reason-${trade.trade_id}`}>
             {trade.reason || "-"}
           </Text>
-        </Box>
-        <Box className="paper-trade-notes-input-group" id={`paper-trade-notes-input-group-${trade.trade_id}`} sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-          <Text className="paper-trade-notes-notes-label" size="xs" c="dimmed" fw={600} tt="uppercase" sx={{ letterSpacing: 0.5 }}>Notes</Text>
-          <Box className="paper-trade-notes-input-row" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Box className="paper-trade-notes-textarea-wrap" sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+        </div>
+        <div className="paper-trade-notes-input-group flex flex-col gap-2" id={`paper-trade-notes-input-group-${trade.trade_id}`}>
+          <Text className="paper-trade-notes-notes-label uppercase shrink-0" size="xs" c="dimmed" fw={600}  style={{ letterSpacing: 0.5 }}>
+            Notes
+          </Text>
+          <div className="paper-trade-notes-input-row flex items-center gap-2">
+            <div className="paper-trade-notes-textarea-wrap flex-1 flex items-center">
               <Textarea
                 className="paper-trade-notes-textarea"
                 size="xs"
@@ -303,25 +308,25 @@ const TradeNotesEditor = memo(function TradeNotesEditor({ trade }: { trade: Pape
                 placeholder="Any additional notes..."
                 data-testid={`trade-notes-${trade.trade_id}`}
               />
-            </Box>
-            <Button className="paper-trade-notes-save" id={`paper-trade-notes-save-${trade.trade_id}`} size="xs" variant="light" loading={saving} onClick={handleSave} data-testid={`trade-notes-save-${trade.trade_id}`} sx={{ alignSelf: "center" }}>
+            </div>
+            <Button className="paper-trade-notes-save self-center" id={`paper-trade-notes-save-${trade.trade_id}`} size="xs" variant="light" loading={saving} onClick={handleSave} data-testid={`trade-notes-save-${trade.trade_id}`}>
               Save
             </Button>
-          </Box>
-        </Box>
+          </div>
+        </div>
       </Stack>
-    </Box>
+    </div>
   );
 });
 
 const TradeDetail = memo(function TradeDetail({ trade }: { trade: PaperTrade }) {
   return (
-    <Box className="paper-trade-detail" id={`paper-trade-detail-${trade.trade_id}`} sx={{ px: 1, py: 0.5, bgcolor: "var(--mui-palette-background-default)", borderTop: "1px solid var(--mui-palette-divider)" }}>
-      <Stack className="paper-trade-detail-stack" id={`paper-trade-detail-stack-${trade.trade_id}`} spacing={1} sx={{ width: "100%" }}>
+    <div className="paper-trade-detail px-2 py-1 bg-fin-bg border-t border-fin-border" id={`paper-trade-detail-${trade.trade_id}`}>
+      <Stack className="paper-trade-detail-stack gap-2 w-full" id={`paper-trade-detail-stack-${trade.trade_id}`}>
         <TradeStats trade={trade} />
         <TradeNotesEditor trade={trade} />
       </Stack>
-    </Box>
+    </div>
   );
 });
 
@@ -371,9 +376,6 @@ function TradeHistoryTable({
 
   const handleSelect = useCallback(
     (trade: PaperTrade) => {
-      // Option contracts (e.g. "NIFTY 2026-10-19 22900CE" / "NIFTY26OCT23000PE")
-      // have no equity chart endpoint — chart the underlying instead. The
-      // resolved symbol is also trimmed/space-free for the chart URL.
       const chartSymbol = resolveUnderlyingSymbol(trade.symbol);
       onSelectSymbol(
         chartSymbol,
@@ -584,24 +586,24 @@ function HistoryList({
   handleSelectSymbol: (symbol: string, exitTime?: string, tradeId?: string) => Promise<void>;
 }) {
   return (
-    <Box className="paper-history-list" sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }} id="history-list">
+    <div className="paper-history-list flex-1 min-h-0 flex flex-col overflow-hidden relative" id="history-list">
       <LoadingOverlay visible={state.isLoading} zIndex={5} overlayProps={{ radius: "sm", blur: 1 }} className="paper-history-loading-overlay" />
       {filteredTrades.length === 0 && !state.isLoading ? (
-        <Box className="paper-history-empty" id="paper-history-empty" sx={{ display: "flex", justifyContent: "center", alignItems: "center", flexDirection: "column", gap: 1, py: 4, flex: 1, minHeight: 200, textAlign: "center" }}>
+        <div className="paper-history-empty flex flex-col items-center justify-center gap-2 py-16 flex-1 min-h-[200px] text-center" id="paper-history-empty">
           <Text className="paper-history-empty-text" size="xs" fw={500} c="dimmed">
             No trades found
           </Text>
-        </Box>
+        </div>
       ) : (
-        <Box sx={{ opacity: state.isLoading ? 0.6 : 1, transition: "opacity 0.15s", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        <div className="flex-1 min-h-0 flex flex-col" style={{ opacity: state.isLoading ? 0.6 : 1, transition: "opacity 0.15s" }}>
           <TradeHistoryTable
             trades={filteredTrades}
             selectedTradeId={state.selectedTradeId}
             onSelectSymbol={handleSelectSymbol}
           />
-        </Box>
+        </div>
       )}
-    </Box>
+    </div>
   );
 }
 
@@ -614,8 +616,6 @@ function useFilteredTrades() {
       trades = filterByRange(trades, state.filterFromDate, state.filterToDate);
     if (state.filterStrategy) trades = trades.filter((t) => t.strategy_id === state.filterStrategy);
     if (state.filterBot) trades = trades.filter((t) => t.bot_id === state.filterBot);
-    // Book filter (equity / options / futures / commodities). Books are derived
-    // from the trade `source` prefix, so new asset classes work automatically.
     const book = state.filterSource;
     if (book && book !== "all") {
       trades = trades.filter((t) => tradeMatchesBook(t, book));
@@ -662,25 +662,25 @@ export function PaperHistoryTable() {
 
   if (state.isLoading && state.trades.length === 0) {
     return (
-      <Box className="paper-history-loading" sx={{ display: "flex", justifyContent: "center", py: 1 }} data-testid="history-panel" id="history-panel">
+      <div className="paper-history-loading flex justify-center py-2" data-testid="history-panel" id="history-panel">
         <Group className="paper-history-loading-group" gap="xs">
           <Loader size="sm" />
           <Text className="paper-history-loading-text" size="xs" c="dimmed">
             Loading trade history...
           </Text>
         </Group>
-      </Box>
+      </div>
     );
   }
 
   return (
-    <Box className="paper-history-panel" sx={{ display: "flex", flexDirection: "column", height: "100%", flex: 1, minHeight: 0 }} data-testid="history-panel" id="history-container">
+    <div className="paper-history-panel flex flex-col h-full flex-1 min-h-0" data-testid="history-panel" id="history-container">
       <HistoryFilters bots={bots} strategies={strategies} state={state} />
       <HistoryList
         filteredTrades={filteredTrades}
         state={state}
         handleSelectSymbol={handleSelectSymbol}
       />
-    </Box>
+    </div>
   );
 }

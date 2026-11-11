@@ -2,23 +2,19 @@
 // These would have failed before the fixes and now pass — proving the HOC/mocks are correct.
 // Run: bun x vitest run src/test/storybook-regression.test.tsx
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { renderHook } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { ThemeProvider } from "@mui/material/styles";
-import { muiTheme } from "@/ui/muiTheme";
-import { theme } from "@/ui/theme";
 
 function withTheme(ui: React.ReactNode) {
-  return <ThemeProvider theme={muiTheme}>{ui}</ThemeProvider>;
+  return <div>{ui}</div>;
 }
 
 // ── 1. AuthProvider missing — AdminPage / NavbarNested would throw ──
 describe("AuthProvider HOC", () => {
   it("throws without provider (the bug we fixed)", async () => {
     const { NavbarNested } = await import("@/components/layout/NavbarNested");
-    // Wrap with theme so the Auth error surfaces, not theme missing
     expect(() =>
       render(withTheme(<NavbarNested activePath="/" />))
     ).toThrow(/useAuth must be used within an AuthProvider/);

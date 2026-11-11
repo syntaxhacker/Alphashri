@@ -1,7 +1,5 @@
 import * as React from "react";
-import MuiTabs from "@mui/material/Tabs";
-import MuiTab from "@mui/material/Tab";
-import Box from "@mui/material/Box";
+import { cn } from "../cn";
 import type { UITabsProps, UITabProps, UITabsPanelProps } from "../types";
 
 type TabsContextValue = {
@@ -21,14 +19,12 @@ export function Tabs({
   value,
   defaultValue,
   onChange,
-  variant,
-  color,
-  orientation,
-  activateOnFocus,
-  loop,
+  variant: _variant,
+  orientation = "horizontal",
   children,
   className,
   style,
+  id,
   "data-testid": testId,
   ...rest
 }: UITabsProps) {
@@ -44,106 +40,138 @@ export function Tabs({
     [isControlled, onChange]
   );
 
-  // map variant to styling - pills -> pill style via sx, others default
-  const sxVariant: any = {};
-  if (variant === "pills") {
-    sxVariant["& .MuiTabs-indicator"] = { display: "none" };
-  }
-
   const ctxValue: TabsContextValue = { value: activeValue as any, onChange: handleChange };
+
+  const cls = cn(
+    "ui-tabs-wrapper",
+    orientation === "vertical" ? "flex flex-col" : "flex flex-row",
+    className,
+  );
 
   return (
     <TabsContext.Provider value={ctxValue}>
-      <Box
-        className={className}
-        style={style}
-        data-testid={testId}
-        sx={{
-          display: orientation === "vertical" ? "flex" : "block",
-          flexDirection: orientation === "vertical" ? "row" : undefined,
-          ...sxVariant,
-        }}
-        {...(rest as any)}
-      >
+      <div id={id} className={cls} style={style} data-testid={testId} {...(rest as any)}>
         {children}
-      </Box>
+      </div>
     </TabsContext.Provider>
   );
 }
 
 export function TabsList({
+  orientation = "horizontal",
   children,
   className,
   style,
+  id,
   "data-testid": testId,
   ...rest
 }: UITabsProps) {
-  const { value, onChange } = useTabsContext();
-  const handleMuiChange = (_: any, newVal: string) => {
-    onChange(newVal);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+    e.preventDefault();
+    const list = e.currentTarget as HTMLElement;
+    const tabs = Array.from(list.querySelectorAll<HTMLElement>('[role="tab"]:not([disabled])'));
+    const target = e.target as HTMLElement;
+    const idx = tabs.indexOf(target);
+    if (idx === -1 || tabs.length === 0) return;
+    let next: HTMLElement;
+    if (e.key === "ArrowLeft") next = tabs[(idx - 1 + tabs.length) % tabs.length];
+    else if (e.key === "ArrowRight") next = tabs[(idx + 1) % tabs.length];
+    else if (e.key === "Home") next = tabs[0];
+    else next = tabs[tabs.length - 1];
+    next.focus();
   };
 
+  const cls = cn(
+    "ui-tabs-list",
+    orientation === "vertical" ? "flex-col" : "flex flex-row items-center",
+    "gap-1 rounded-fin border border-fin-border bg-fin-surface p-[2px] min-h-[36px]",
+    className,
+  );
+
   return (
-    <Box className={className} style={style} data-testid={testId} {...(rest as any)}>
-      <MuiTabs value={value ?? false} onChange={handleMuiChange} sx={{ minHeight: 36 }}>
-        {children}
-      </MuiTabs>
-    </Box>
+    <div
+      id={id}
+      role="tablist"
+      aria-orientation={orientation}
+      className={cls}
+      style={style}
+      data-testid={testId}
+      onKeyDown={handleKeyDown}
+      {...(rest as any)}
+    >
+      {children}
+    </div>
   );
 }
 
 export function Tab({
   value: tabValue,
   icon,
+  leftSection,
   rightSection,
   disabled,
   children,
   className,
   style,
+  id,
   "data-testid": testId,
   ...rest
 }: UITabProps) {
+  const { value, onChange } = useTabsContext();
+  const active = value === tabValue;
+
+  const handleClick = (_e: React.MouseEvent) => {
+    if (disabled) return;
+    onChange?.(tabValue);
+  };
+
+  const cls = cn(
+    "ui-tab",
+    "inline-flex items-center justify-center gap-1.5 rounded-[4px] px-2 py-[4px] min-h-[36px] text-[13px] font-medium transition-colors outline-none focus-visible:ring-1 focus-visible:ring-fin-primary focus-visible:ring-offset-1",
+    active ? "bg-fin-surface-alt text-fin-primary" : "text-fin-text-muted hover:bg-fin-surface-alt hover:text-fin-text",
+    disabled ? "opacity-50 cursor-default" : "cursor-pointer",
+    className,
+  );
+
   return (
-    <MuiTab
-      value={tabValue}
-      label={
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-          {icon}
-          <span>{children}</span>
-          {rightSection}
-        </Box>
-      }
-      iconPosition="start"
-      disabled={!!disabled}
-      className={className}
-      style={style}
+    <button
+      id={id}
+      role="tab"
+      aria-selected={active}
       data-testid={testId}
-      sx={{ textTransform: "none", minHeight: 36, fontSize: 13 }}
+      disabled={disabled}
+      tabIndex={active ? 0 : -1}
+      className={cls}
+      style={style}
+      onClick={handleClick}
       {...(rest as any)}
-    />
+    >
+      <span className="flex items-center gap-1.5">{leftSection ?? icon}{children}{rightSection}</span>
+    </button>
   );
 }
 
-export function TabsPanel({ value: panelValue, keepMounted, children, className, style, "data-testid": testId, ...rest }: UITabsPanelProps & { sx?: Record<string, unknown> }) {
+export function TabsPanel({
+  value: panelValue,
+  keepMounted,
+  children,
+  className,
+  style,
+  id,
+  "data-testid": testId,
+  ...rest
+}: UITabsPanelProps) {
   const { value } = useTabsContext();
   const isActive = value === panelValue;
+  const cls = cn("ui-tabs-panel", "py-3 min-w-0 min-h-0", className);
   if (!isActive && !keepMounted) return null;
-  // `rest` may carry an `sx` prop (e.g. `<Tabs.Panel sx={...}>`); spread it
-  // would replace the visibility `display` below, so merge it instead.
-  const { sx: sxProp, ...restProps } = rest as Record<string, unknown>;
-  const display = isActive ? "block" : "none";
+
   return (
-    <Box
-      role="tabpanel"
-      hidden={!isActive}
-      className={className}
-      style={style}
-      data-testid={testId}
-      sx={{ py: 1.5, minHeight: 0, minWidth: 0, display, ...(sxProp as object) }}
-      {...(restProps as any)}
-    >
-      <Box sx={{ display, minWidth: 0 }}>{children}</Box>
-    </Box>
+    <div id={id} role="tabpanel" hidden={!isActive} className={cls} style={style} data-testid={testId} {...(rest as any)}>
+      {children}
+    </div>
   );
 }
 

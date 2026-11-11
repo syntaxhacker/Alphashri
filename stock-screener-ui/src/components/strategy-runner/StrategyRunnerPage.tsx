@@ -105,12 +105,12 @@ export function StrategyRunnerPage() {
   }, []);
 
   return (
-    <Box sx={{ width: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", bgcolor: "background.default" }}>
+    <Box className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-fin-bg">
       <ToolbarRow
         gap={8}
         wrap={false}
         data-testid="sr-header"
-        style={{ flex: "0 0 auto", height: palette.FIN_HEADER_H, padding: `0 ${palette.FIN_OUTER_PAD}px`, borderBottom: "1px solid var(--mui-palette-divider)" }}
+        style={{ flex: "0 0 auto", height: palette.FIN_HEADER_H, padding: `0 ${palette.FIN_OUTER_PAD}px`, borderBottom: "1px solid var(--color-fin-border)" }}
       >
         <Title order={2} size="h4">Strategy Runner</Title>
         <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -121,7 +121,7 @@ export function StrategyRunnerPage() {
         </Text>
       </ToolbarRow>
 
-      <Box flex="0 0 auto" data-testid="sr-config" sx={{ borderBottom: "1px solid var(--mui-palette-divider)", px: 2, py: 1 }}>
+      <Box flex="0 0 auto" data-testid="sr-config" className="border-b border-fin-border px-4 py-2">
         <StrategyRunnerConfigComp
           config={config}
           bots={bots}
@@ -136,19 +136,19 @@ export function StrategyRunnerPage() {
       </Box>
 
       {isRunning && (
-        <Box flex="0 0 auto" data-testid="sr-progress" sx={{ px: 2, pt: 1 }}>
+        <Box flex="0 0 auto" data-testid="sr-progress" className="px-4 pt-2">
           <Progress value={progress.totalBots > 0 ? ((progress.currentBot + (progress.currentBotName.includes("done") ? 1 : 0)) / progress.totalBots) * 100 : 0} size="sm" animated />
           <Text size="xs" c="dimmed" mt={2}>{progress.currentBotName}</Text>
         </Box>
       )}
 
       {error && (
-        <Box flex="0 0 auto" data-testid="sr-error" sx={{ px: 2, pt: 1 }}>
+        <Box flex="0 0 auto" data-testid="sr-error" className="px-4 pt-2">
           <Text size="sm" c="error">{error}</Text>
         </Box>
       )}
 
-      <Box flex="0 0 auto" data-testid="sr-stats" sx={{ px: 2, py: 1, borderBottom: "1px solid var(--mui-palette-divider)" }}>
+      <Box flex="0 0 auto" data-testid="sr-stats" className="border-b border-fin-border px-4 py-2">
         <StrategyRunnerStats trades={trades} summary={summary} isRunning={isRunning} progress={progress} />
       </Box>
 

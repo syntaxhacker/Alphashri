@@ -20,7 +20,7 @@ export function BacktestResultsTable({
   sortColumn,
   sortDirection,
   onRowClick,
-  onSort,
+  _onSort,
 }: BacktestResultsTableProps) {
   const columns = useMemo<ColumnDef<BacktestResult>[]>(
     () => [
@@ -30,11 +30,11 @@ export function BacktestResultsTable({
         accessorKey: "symbol",
         meta: { align: "center" } as any,
         cell: (info) => (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div className="flex items-center justify-center">
             <Text fw={500} data-testid={`symbol-${info.getValue<string>()}`} ta="center">
               {info.getValue<string>()}
             </Text>
-          </Box>
+          </div>
         ),
       },
       {
@@ -45,11 +45,11 @@ export function BacktestResultsTable({
         cell: (info) => {
           const val = info.getValue<number>();
           return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div className="flex items-center justify-center">
               <Text c={getPnLTextColor(val)} fw={500} data-testid={`net-pnl-${info.row.original.symbol}`} ta="center">
                 {formatPnl(val)}
               </Text>
-            </Box>
+            </div>
           );
         },
       },
@@ -59,11 +59,11 @@ export function BacktestResultsTable({
         accessorKey: "trades",
         meta: { align: "center" } as any,
         cell: (info) => (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div className="flex items-center justify-center">
             <Text data-testid={`trades-${info.row.original.symbol}`} ta="center">
               {info.getValue<number>()}
             </Text>
-          </Box>
+          </div>
         ),
       },
       {
@@ -74,11 +74,11 @@ export function BacktestResultsTable({
         cell: (info) => {
           const val = info.getValue<number>();
           return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div className="flex items-center justify-center">
               <Text c={getWinRateColor(val)} data-testid={`wr-${info.row.original.symbol}`} ta="center">
                 {(val ?? 0).toFixed(0)}%
               </Text>
-            </Box>
+            </div>
           );
         },
       },
@@ -88,11 +88,11 @@ export function BacktestResultsTable({
         accessorKey: "pf",
         meta: { align: "center" } as any,
         cell: (info) => (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div className="flex items-center justify-center">
             <Text data-testid={`pf-${info.row.original.symbol}`} ta="center">
               {(info.getValue<number>() ?? 0).toFixed(1)}
             </Text>
-          </Box>
+          </div>
         ),
       },
       {
@@ -104,8 +104,8 @@ export function BacktestResultsTable({
         cell: (info) => {
           const row = info.row.original;
           return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Group gap={2} data-testid={`tpsl-${row.symbol}`} sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+            <div className="flex items-center justify-center">
+              <Group gap={2} data-testid={`tpsl-${row.symbol}`} className="flex items-center justify-center gap-2">
                 <Text c="success" size="sm">
                   {row.tp_exits}
                 </Text>
@@ -114,7 +114,7 @@ export function BacktestResultsTable({
                   {row.sl_exits}
                 </Text>
               </Group>
-            </Box>
+            </div>
           );
         },
       },
@@ -143,8 +143,7 @@ export function BacktestResultsTable({
         getRowTestId={(row) => `result-row-${row.symbol}`}
         getRowClassName={(row) => (selectedSymbol === row.symbol ? "result-row-selected" : undefined)}
         getRowStyle={(row) => ({
-          backgroundColor:
-            selectedSymbol === row.symbol ? "rgba(var(--mui-palette-primary-mainChannel) / 0.08)" : undefined,
+          backgroundColor: row.symbol === selectedSymbol ? "rgba(88, 166, 255, 0.08)" : undefined,
         })}
         onRowClick={(row) => onRowClick(row.symbol)}
       />

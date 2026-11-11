@@ -1,6 +1,5 @@
 import { memo } from "react";
 import { Text, Stack, NumberInput } from "@/ui";
-import Box from "@mui/material/Box";
 import type { StrategyConfig } from "../../types/paperTrading";
 
 type ConfigValueHandler = (
@@ -19,13 +18,7 @@ export const RunnerSettingsSection = memo(function RunnerSettingsSection({ confi
       <Text fw={600} size="xs" tt="uppercase" c="dimmed" mb={1}>
         Runner Configuration
       </Text>
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", xl: "repeat(3, minmax(0, 1fr))" },
-          gap: 2,
-        }}
-      >
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         <NumberInput
           label="Cooldown (min)"
           description="Cooldown between trades"
@@ -50,7 +43,7 @@ export const RunnerSettingsSection = memo(function RunnerSettingsSection({ confi
           size="xs"
           style={{ width: "100%" }}
         />
-      </Box>
+      </div>
     </Stack>
   );
 });

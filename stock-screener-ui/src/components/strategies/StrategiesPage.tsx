@@ -39,7 +39,7 @@ export function StrategiesPage({
   const renderContent = () => {
     if (error) {
       return (
-        <Stack spacing={1} alignItems="stretch" sx={{ mt: 1 }}>
+        <Stack spacing={1} alignItems="stretch" mt="sm">
           <CompactPanel
             testId="strategies-error"
             title={
@@ -107,8 +107,8 @@ export function StrategiesPage({
   };
 
   return (
-    <Box className="strategies-page" sx={{ width: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", p: 0, overflow: "hidden", px: 2, py: 1 }} data-testid="strategies-view" id="strategies-main">
-      <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }} data-testid="strategies-content" id="strategies-content">
+    <Box className="strategies-page w-full h-full min-h-0 flex flex-col p-0 overflow-hidden px-4 py-2" data-testid="strategies-view" id="strategies-main">
+      <Box className="flex-1 min-h-0 flex flex-col" data-testid="strategies-content" id="strategies-content">
           <StrategiesNav activeView={activeView} onChange={onViewChange}>
             {renderContent()}
           </StrategiesNav>

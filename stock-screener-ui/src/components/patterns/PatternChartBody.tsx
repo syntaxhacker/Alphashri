@@ -89,22 +89,15 @@ function FullscreenPanel({
   return (
     <Box
       data-testid="patterns-fullscreen-panel"
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 1.5,
-        minWidth: 0,
-        height: "100%",
-        overflowY: "auto",
-      }}
+      className="flex h-full min-w-0 flex-col gap-3 overflow-y-auto"
     >
       {hits && onSelectHit ? (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+        <Box className="flex flex-col gap-2">
           <FullscreenPatternList hits={hits} activeKey={activeKey} onSelect={onSelectHit} />
-          <Box sx={{ borderTop: "1px solid", borderColor: "divider" }} />
+          <Box className="border-t border-fin-border" />
         </Box>
       ) : null}
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+      <Box className="flex flex-col gap-2">
         <ToolbarRow gap={4} wrap>
           <StatusBadge status={hit.status} display={displayStatusForHit(hit)} />
           <QualityBadge quality={hit.quality} />
@@ -131,7 +124,7 @@ function FullscreenPanel({
       </Box>
 
       {hit.notes ? (
-        <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 1 }}>
+        <Box className="border-t border-fin-border pt-2">
           <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
             {hit.notes}
           </Text>
@@ -201,20 +194,7 @@ function FullscreenTV({
 
   return (
     <Box
-      sx={{
-        position: "relative",
-        width: "100%",
-        flex: 1,
-        height: { xs: "60vh", lg: "100%" },
-        minHeight: 360,
-        border: "1px solid",
-        borderColor: "divider",
-        borderRadius: 1,
-        bgcolor: "background.default",
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-      }}
+      className="relative flex h-[60vh] min-h-[360px] w-full flex-1 flex-col overflow-hidden rounded-fin border border-fin-border bg-fin-bg lg:h-full"
     >
       <PatternChartLegend
         lines={data.lines}
@@ -223,7 +203,7 @@ function FullscreenTV({
         hidden={hidden}
         onToggle={toggle}
       />
-      <Box sx={{ flex: 1, minHeight: 0, display: "flex" }}>
+      <Box className="flex min-h-0 flex-1">
         <PatternTradingViewChart
           hit={hit}
           candles={candles}
@@ -235,7 +215,7 @@ function FullscreenTV({
         />
       </Box>
       {candles.length === 0 ? (
-        <Box sx={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Box className="absolute inset-0 flex items-center justify-center">
           <Text size="sm" c="dimmed">
             No chart data
           </Text>
@@ -274,43 +254,28 @@ export function PatternChartBody({
   return (
     <Box
       data-testid="patterns-chart-body"
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        minHeight: 0,
-        minWidth: 0,
-        ...(fill ? { flex: 1 } : {}),
-      }}
+      className={`flex min-h-0 min-w-0 flex-col ${fill ? "flex-1" : ""}`}
     >
       {asOfLabel ? (
-        <Box sx={{ px: 2, pt: 2 }}>
+        <Box className="px-4 pt-4">
           <Alert color="info" data-testid="patterns-fullscreen-asof-banner">
             {`Viewing as of ${asOfLabel}`}
           </Alert>
         </Box>
       ) : null}
       <Box
-        sx={{
-          display: "flex",
-          flexDirection: docked ? "column" : { xs: "column", lg: "row" },
-          gap: docked ? 1 : 2,
-          p: docked ? 1 : 2,
-          minHeight: 0,
-          ...(fill
-            ? { flex: 1 }
-            : docked
-              ? {}
-              : { height: { xs: "auto", lg: "calc(100vh - 72px)" } }),
-        }}
+        className={
+          docked
+            ? "flex min-h-0 flex-col gap-2 p-2"
+            : fill
+              ? "flex min-h-0 flex-1 flex-col gap-4 p-4 lg:flex-row"
+              : "flex min-h-0 flex-col gap-4 p-4 h-auto lg:h-[calc(100vh-72px)] lg:flex-row"
+        }
       >
         <Box
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            flex: docked ? "1 1 auto" : { xs: "1 1 auto", lg: "0 0 80%" },
-            minWidth: 0,
-            minHeight: 0,
-          }}
+          className={`flex min-h-0 min-w-0 flex-col ${
+            docked ? "flex-[1_1_auto]" : "flex-[1_1_auto] lg:flex-[0_0_80%]"
+          }`}
         >
           <ToolbarRow justify="flex-start" gap={6} style={{ paddingBottom: 4 }}>
             <Text size="xs" c="dimmed">History</Text>
@@ -338,11 +303,9 @@ export function PatternChartBody({
 
         {hit || emptyState ? (
           <Box
-            sx={{
-              flex: docked ? "0 1 34%" : { xs: "1 1 auto", lg: "1 1 0" },
-              minWidth: 0,
-              minHeight: 0,
-            }}
+            className={`min-h-0 min-w-0 ${
+              docked ? "flex-[0_1_34%]" : "flex-[1_1_auto] lg:flex-[1_1_0]"
+            }`}
           >
             {hit ? (
               <FullscreenPanel hit={hit} hits={hits} onSelectHit={onSelectHit} candles={candles} />

@@ -1,15 +1,15 @@
-# UI Rules — MUI wrappers, alignment, and layout
+# UI Rules — Tailwind wrappers, alignment, and layout
 
-Applies to every page/tab revamp. Components in `@/ui` are **MUI wrappers**, not Mantine.
+Applies to every page/tab revamp. Components in `@/ui` are **local semantic HTML + Tailwind**, not Mantine or MUI.
 Mantine-only props are silently dropped — that is the root cause of "stretched select",
 "ignored width", and "misaligned row" bugs.
 
 ## 1. `@/ui` prop rules (hard)
-- **Never pass `styles={{...}}`** (Mantine). Use `sx`/`style`. The `ui-guard` test fails the build if found.
+- **Never pass `styles={{...}}` or `sx={{...}}`.** Use Tailwind `className` + `style` for dynamic values. The `ui-guard` test fails the build if `styles` is found.
 - **Sizing**: inputs accept `w` / `h` (number → px). When `w` is set the input is **not** full-width.
   - Fixed width: `<Select w={280} />`
-  - Fill a flex cell: `<Box sx={{ flex: 1, minWidth: 0 }}><Select style={{ width: "100%" }} /></Box>`
-- **Size**: use `size="xs" | "sm" | "md" | "lg"` (mapped to MUI small/medium). Do not pass Mantine-only values.
+  - Fill a flex cell: `<Box className="flex-1 min-w-0"><Select style={{ width: "100%" }} /></Box>`
+- **Size**: use `size="xs" | "sm" | "md" | "lg"`. Do not pass Mantine-only values.
 - Props that DO work on inputs: `label`, `description`, `placeholder`, `error`, `required`, `disabled`,
   `leftSection`, `rightSection`, `clearable`, `searchable`, `data`, `value`, `onChange`, `data-testid`.
 
@@ -64,7 +64,7 @@ Mantine-only props are silently dropped — that is the root cause of "stretched
 
 ### Sector / theme rotation
 - Historical Cycles is removed entirely: tab, iframe, and static mount. Do not reintroduce unless explicitly asked.
-- Rotation is MUI-only: no ECharts, no TanStackTable. CSS/MUI RRG, MUI table board/matrix, MUI drawer members.
+- Rotation is CSS/DOM-only: no ECharts, no TanStackTable. Vanilla RRG, CSS table board/matrix, local drawer members.
 - Use real index/theme membership; no invented sector-level money flow. Call it rotation/participation; FII/DII is market-level.
 - Rotation URL state: `tab`, `dash`, `kind`, `period`, `min`, `group`; preserve other params.
 

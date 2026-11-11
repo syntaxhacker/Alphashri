@@ -42,7 +42,8 @@ export function Sparkline({ data, change = 0, width = 64, height = 20 }: Sparkli
       data-testid="sparkline"
       data-positive={positive ? "true" : "false"}
       data-points={values.length}
-      sx={{ width, height, flexShrink: 0, display: "inline-flex", alignItems: "center" }}
+      className="inline-flex flex-shrink-0 items-center"
+      style={{ width, height }}
     >
       <svg
         width={width}
@@ -54,7 +55,7 @@ export function Sparkline({ data, change = 0, width = 64, height = 20 }: Sparkli
         <polyline
           points={points}
           fill="none"
-          stroke={positive ? "var(--mui-palette-success-main)" : "var(--mui-palette-error-main)"}
+          stroke={positive ? "var(--color-fin-positive)" : "var(--color-fin-negative)"}
           strokeWidth={1.5}
           strokeLinecap="round"
           strokeLinejoin="round"

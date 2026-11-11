@@ -98,14 +98,14 @@ function BotsPageTabs({
     performance: { color: palette.NT_TREND },
   };
   return (
-    <ToolbarRow gap={8} wrap={false} id="bots-tabs" data-testid="bots-tabs" style={{ flex: "0 0 auto", height: 40, padding: "0 16px", borderBottom: "1px solid var(--mui-palette-divider)" }}>
+    <ToolbarRow gap={8} wrap={false} id="bots-tabs" data-testid="bots-tabs" style={{ flex: "0 0 auto", height: 40, padding: "0 16px", borderBottom: "1px solid var(--color-fin-border)" }}>
       <Tabs
         value={currentView}
         onChange={(v) => v && onViewChange(v)}
         id="bots-tabs"
         data-testid="bots-tabs"
       >
-        <Tabs.List sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <Tabs.List className="flex items-center gap-2">
           <Tabs.Tab value="list" icon={<IconRobot size={16} color={TAB_META.list.color} />} data-testid="bots-tab-list" id="bots-tab-list">
             Bots
           </Tabs.Tab>
@@ -166,12 +166,13 @@ function BotsTable({
       accessorKey: "name",
       meta: { align: "left" } as any,
       cell: ({ row }) => (
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
-          <Group gap={4} sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1 }}>
+        <Box className="flex items-center justify-start">
+          <Group gap={4} className="flex items-center justify-start gap-2">
             <Box
               w={8}
               h={8}
-              sx={{ borderRadius: "50%", backgroundColor: getBotIndicatorColor(row.original.running) }}
+              className="rounded-full"
+              style={{ backgroundColor: getBotIndicatorColor(row.original.running) }}
             />
             <Text fw={500} ta="left">{row.original.name}</Text>
             {row.original.live_trading && (
@@ -191,7 +192,7 @@ function BotsTable({
       header: "Status",
       meta: { align: "center" } as any,
       cell: ({ row }) => (
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Box className="flex items-center justify-center">
           <StatusBadge
             running={row.original.running}
             pid={row.original.pid ?? undefined}
@@ -206,7 +207,7 @@ function BotsTable({
       id: "strategies",
       header: "Strategies",
       meta: { align: "left" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><BotSummaryCell bot={row.original} /></Box>,
+      cell: ({ row }) => <Box className="flex items-center justify-start"><BotSummaryCell bot={row.original} /></Box>,
       enableSorting: false,
     },
     {
@@ -214,21 +215,21 @@ function BotsTable({
       header: "Max Positions",
       accessorKey: "max_total_positions",
       meta: { align: "right" } as any,
-      cell: ({ getValue }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text ta="right">{String(getValue() as number)}</Text></Box>,
+      cell: ({ getValue }) => <Box className="flex items-center justify-end"><Text ta="right">{String(getValue() as number)}</Text></Box>,
     },
     {
       id: "max_total_capital_pct",
       header: "Max Capital",
       accessorKey: "max_total_capital_pct",
       meta: { align: "right" } as any,
-      cell: ({ getValue }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text ta="right">{`${((getValue() as number) * 100).toFixed(0)}%`}</Text></Box>,
+      cell: ({ getValue }) => <Box className="flex items-center justify-end"><Text ta="right">{`${((getValue() as number) * 100).toFixed(0)}%`}</Text></Box>,
     },
     {
       id: "actions",
       header: "Actions",
       meta: { align: "center" } as any,
       cell: ({ row }) => (
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Box className="flex items-center justify-center">
           <BotActionButtons
             bot={row.original}
             onView={onViewStatus}
@@ -244,9 +245,9 @@ function BotsTable({
   ], [onViewStatus, onStart, onStop, onEdit, onDelete]);
 
   return (
-    <Box id="bots-list-card" data-testid="bots-list-card" sx={{ border: "1px solid var(--mui-palette-divider)", borderRadius: 1, overflow: "hidden", bgcolor: "background.paper" }}>
-      <ToolbarRow gap={8} wrap={false} style={{ padding: "8px 12px", borderBottom: "1px solid var(--mui-palette-divider)" }}>
-        <Box w={4} h={20} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.success.main })} />
+    <Box id="bots-list-card" data-testid="bots-list-card" className="overflow-hidden rounded border border-fin-border bg-fin-surface">
+      <ToolbarRow gap={8} wrap={false} style={{ padding: "8px 12px", borderBottom: "1px solid var(--color-fin-border)" }}>
+        <Box w={4} h={20} className="rounded-sm bg-fin-positive" />
         <Text size="sm" fw={600}>Configured Bots</Text>
         <Badge size="sm" variant="light" color="info">{state.bots.length}</Badge>
         <Badge size="sm" variant="dot" color="success">{state.bots.filter(b => b.running).length} running</Badge>
@@ -258,7 +259,7 @@ function BotsTable({
         getRowTestId={(row) => `bot-row-${row.id}`}
         getRowClassName={() => "bot-row"}
         getRowStyle={(row) => ({
-          backgroundColor: state.selectedBot?.id === row.id ? "rgba(var(--mui-palette-primary-mainChannel) / 0.15)" : undefined,
+          backgroundColor: state.selectedBot?.id === row.id ? "rgba(88 166 255 / 0.15)" : undefined,
         })}
       />
     </Box>
@@ -292,11 +293,11 @@ function renderPageContent({
   }
 
   return (
-    <Stack sx={{ flex: 1, minHeight: 0, minWidth: 0, display: "flex", flexDirection: "column", px: 2, py: 1, gap: 8 }} id="bots-page">
+    <Stack className="flex flex-1 min-h-0 min-w-0 flex-col gap-2 px-4 py-2" id="bots-page">
       <BotsPageTabs currentView={currentView} onViewChange={handleViewChange} />
-      <Box sx={{ flex: 1, minHeight: 0, minWidth: 0, overflow: "auto" }}>
+      <Box className="flex-1 min-h-0 min-w-0 overflow-auto">
         {isLoading ? (
-          <Stack align="center" justify="center" sx={{ height: "100%" }} data-testid="bots-loading">
+          <Stack align="center" justify="center" className="h-full" data-testid="bots-loading">
             <InlineLoader size="lg" />
           </Stack>
         ) : currentView === "performance" ? (
@@ -389,13 +390,13 @@ export function BotsPage() {
   const handleDeleteBot = useDeleteBotHandler();
 
   return (
-    <Box sx={{ width: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", bgcolor: "background.default" }} data-testid="bots-view">
-      <ToolbarRow gap={8} wrap={false} style={{ flex: "0 0 auto", height: palette.FIN_HEADER_H, padding: `0 ${palette.FIN_OUTER_PAD}px`, borderBottom: "1px solid var(--mui-palette-divider)" }}>
+    <Box className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-fin-bg" data-testid="bots-view">
+      <ToolbarRow gap={8} wrap={false} style={{ flex: "0 0 auto", height: palette.FIN_HEADER_H, padding: `0 ${palette.FIN_OUTER_PAD}px`, borderBottom: "1px solid var(--color-fin-border)" }}>
         <Text size="lg" fw={600}>Bots</Text>
         <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           Manage bot configurations, live status, and execution controls.
         </Text>
-        <Box sx={{ flex: 1 }} />
+        <Box className="flex-1" />
             <Button
               variant="filled"
               color="success"

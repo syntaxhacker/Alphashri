@@ -1,9 +1,6 @@
 import { Box, Stack } from "@/ui";
-import Grid from "@mui/material/Grid";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import Typography from "@mui/material/Typography";
-import Badge from "@mui/material/Badge";
+import { Card } from "@/ui";
+import { Text } from "@/ui";
 import { IconBellRinging, IconTrendingUp, IconClock } from "@tabler/icons-react";
 import { SectorTable } from "./SectorTable";
 import type { SectorResponse } from "../../types/sector";
@@ -21,29 +18,29 @@ function AlertsAndMovers({
   intervalMovers: InternalStockMover[];
 }) {
   return (
-    <Stack spacing={1} sx={{ overflow: "hidden", alignItems: "center", justifyContent: "center" }}>
-      <Card elevation={1} sx={{ flex: "1 1 50%", display: "flex", flexDirection: "column", p: 1, width: "100%" }} data-testid="sector-alerts-card" id="sector-alerts-card">
-        <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", "&:last-child": { pb: 1 } }}>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-            <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Real-time Alerts</Typography>
-            <IconBellRinging size={18} color="var(--mui-palette-warning-main)" />
-          </Box>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1, width: "100%", flex: 1, minHeight: 0, overflow: "auto" }}>
+    <Stack spacing={1} className="overflow-hidden items-center justify-center">
+      <Card className="flex-[1_1_50%] flex flex-col p-2 w-full" data-testid="sector-alerts-card" id="sector-alerts-card">
+        <div className="flex flex-col items-center justify-center p-2 w-full">
+          <div className="flex items-center justify-center gap-2 p-2 w-full">
+            <Text className="flex items-center justify-center">Real-time Alerts</Text>
+            <IconBellRinging size={18} className="text-fin-warning" />
+          </div>
+          <div className="flex items-center justify-center p-2 w-full flex-1 min-h-0 overflow-auto">
             <SectorAlertsList alerts={alerts} />
-          </Box>
-        </CardContent>
+          </div>
+        </div>
       </Card>
 
-      <Card elevation={1} sx={{ flex: "1 1 50%", display: "flex", flexDirection: "column", p: 1, width: "100%" }} data-testid="sector-interval-movers-card" id="sector-interval-movers-card">
-        <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", "&:last-child": { pb: 1 } }}>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-            <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Interval Movers</Typography>
-            <IconTrendingUp size={18} color="var(--mui-palette-primary-main)" />
-          </Box>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1, width: "100%", flex: 1, minHeight: 0, overflow: "auto" }}>
+      <Card className="flex-[1_1_50%] flex flex-col p-2 w-full" data-testid="sector-interval-movers-card" id="sector-interval-movers-card">
+        <div className="flex flex-col items-center justify-center p-2 w-full">
+          <div className="flex items-center justify-center gap-2 p-2 w-full">
+            <Text className="flex items-center justify-center">Interval Movers</Text>
+            <IconTrendingUp size={18} className="text-fin-primary" />
+          </div>
+          <div className="flex items-center justify-center p-2 w-full flex-1 min-h-0 overflow-auto">
             <IntervalMoversTable movers={intervalMovers} />
-          </Box>
-        </CardContent>
+          </div>
+        </div>
       </Card>
     </Stack>
   );
@@ -63,78 +60,76 @@ export function DashboardContent({
   const totalDeclines = data.sectors.reduce((acc, s) => acc + s.declines, 0);
 
   return (
-    <Stack spacing={1} sx={{ p: 1, alignItems: "center", justifyContent: "center" }}>
-      <Grid container spacing={1} sx={{ justifyContent: "center", alignItems: "center" }}>
-        <Grid size={{ xs: 12, md: 4 }} sx={{ display: "flex", justifyContent: "center" }}>
-          <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-            <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, gap: 1, "&:last-child": { pb: 1 } }}>
-              <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Top Sector</Typography>
-              <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{data.sectors[0].sector}</Typography>
-              <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{`Avg Change: ${formatPercentage(data.sectors[0].avg_change)}`}</Typography>
-            </CardContent>
+    <Stack spacing={1} className="p-2 items-center justify-center">
+      <div className="grid gap-2 items-center justify-center">
+        <div className="flex justify-center">
+          <Card className="w-full p-2">
+            <div className="flex flex-col items-center justify-center p-2 gap-2">
+              <Text size="xs" className="flex items-center justify-center">Top Sector</Text>
+              <Text className="flex items-center justify-center">{data.sectors[0].sector}</Text>
+              <Text size="xs" className="flex items-center justify-center">{`Avg Change: ${formatPercentage(data.sectors[0].avg_change)}`}</Text>
+            </div>
           </Card>
-        </Grid>
-        <Grid size={{ xs: 12, md: 4 }} sx={{ display: "flex", justifyContent: "center" }}>
-          <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-            <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, gap: 1, "&:last-child": { pb: 1 } }}>
-              <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Market Breadth</Typography>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, bgcolor: "success.light", borderRadius: 1 }}> {totalAdvances} UP</Box>
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, bgcolor: "error.light", borderRadius: 1 }}>{totalDeclines} DOWN</Box>
-              </Box>
-            </CardContent>
+        </div>
+        <div className="flex justify-center">
+          <Card className="w-full p-2">
+            <div className="flex flex-col items-center justify-center p-2 gap-2">
+              <Text size="xs" className="flex items-center justify-center">Market Breadth</Text>
+              <div className="flex items-center justify-center gap-2 p-2">
+                <div className="flex items-center justify-center gap-2 p-2" style={{ backgroundColor: "rgba(63, 185, 80, 0.12)", borderRadius: "4px" }}>{totalAdvances} UP</div>
+                <div className="flex items-center justify-center gap-2 p-2" style={{ backgroundColor: "rgba(248, 81, 73, 0.12)", borderRadius: "4px" }}>{totalDeclines} DOWN</div>
+              </div>
+            </div>
           </Card>
-        </Grid>
-        <Grid size={{ xs: 12, md: 4 }} sx={{ display: "flex", justifyContent: "center" }}>
-          <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-            <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, gap: 1, "&:last-child": { pb: 1 } }}>
-              <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Weakest Sector</Typography>
-              <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{bottomSector.sector}</Typography>
-              <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{`Avg Change: ${formatPercentage(bottomSector.avg_change)}`}</Typography>
-            </CardContent>
+        </div>
+        <div className="flex justify-center">
+          <Card className="w-full p-2">
+            <div className="flex flex-col items-center justify-center p-2 gap-2">
+              <Text size="xs" className="flex items-center justify-center">Weakest Sector</Text>
+              <Text className="flex items-center justify-center">{bottomSector.sector}</Text>
+              <Text size="xs" className="flex items-center justify-center">{`Avg Change: ${formatPercentage(bottomSector.avg_change)}`}</Text>
+            </div>
           </Card>
-        </Grid>
-      </Grid>
+        </div>
+      </div>
 
-      <Grid container spacing={1} sx={{ justifyContent: "center", alignItems: "stretch", width: "100%" }}>
-        <Grid size={{ xs: 12, md: 6 }} sx={{ display: "flex", justifyContent: "center" }}>
-          <Card elevation={1} sx={{ width: "100%", p: 1, display: "flex", flexDirection: "column", alignItems: "center" }} data-testid="sector-treemap-container" id="sector-treemap-container">
-            <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", "&:last-child": { pb: 1 } }}>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-                <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Live Sector Map</Typography>
+      <div className="grid gap-2 items-stretch w-full">
+        <div className="flex justify-center">
+          <Card className="w-full p-2 flex flex-col items-center" data-testid="sector-treemap-container" id="sector-treemap-container">
+            <div className="flex flex-col items-center justify-center p-2 w-full">
+              <div className="flex items-center justify-center gap-2 p-2 w-full">
+                <Text className="flex items-center justify-center">Live Sector Map</Text>
                 {data.last_updated && (
-                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
-                    <IconClock size={12} color="var(--mui-palette-text-secondary)" />
-                    <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{new Date(data.last_updated).toLocaleTimeString()}</Typography>
-                  </Box>
+                  <div className="flex items-center justify-center gap-2 p-2">
+                    <IconClock size={12} className="text-fin-text-muted" />
+                    <Text size="xs" className="flex items-center justify-center">{new Date(data.last_updated).toLocaleTimeString()}</Text>
+                  </div>
                 )}
-              </Box>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1, width: "100%" }}>
+              </div>
+              <div className="flex items-center justify-center p-2 w-full">
                 <SectorTreemap sectors={data.sectors} />
-              </Box>
-            </CardContent>
+              </div>
+            </div>
           </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12, md: 6 }} sx={{ display: "flex", justifyContent: "center" }}>
-          <Card elevation={1} sx={{ width: "100%", p: 1, display: "flex", flexDirection: "column", alignItems: "center" }} data-testid="sector-table-container" id="sector-table-container">
-            <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", "&:last-child": { pb: 1 } }}>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-                <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Sector Performance</Typography>
-              </Box>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1, width: "100%" }}>
+        </div>
+        <div className="flex justify-center">
+          <Card className="w-full p-2 flex flex-col items-center" data-testid="sector-table-container" id="sector-table-container">
+            <div className="flex flex-col items-center justify-center p-2 w-full">
+              <div className="flex items-center justify-center gap-2 p-2 w-full">
+                <Text className="flex items-center justify-center">Sector Performance</Text>
+              </div>
+              <div className="flex items-center justify-center p-2 w-full">
                 <SectorTable sectors={data.sectors} />
-              </Box>
-            </CardContent>
+              </div>
+            </div>
           </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12 }} sx={{ display: "flex", justifyContent: "center" }}>
-          <Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+        </div>
+        <div className="flex justify-center">
+          <Box className="w-full flex items-center justify-center p-2">
             <AlertsAndMovers alerts={alerts} intervalMovers={intervalMovers} />
           </Box>
-        </Grid>
-      </Grid>
+        </div>
+      </div>
     </Stack>
   );
 }

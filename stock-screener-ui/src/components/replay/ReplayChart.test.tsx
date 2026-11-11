@@ -11,7 +11,7 @@ import { createRef } from "react";
 import type { ReplayChartHandle } from "./ReplayChart";
 
 vi.mock("../chart/TradingChart", () => ({
-  TradingChart: (props: any) => <div data-testid="trading-chart">TradingChart</div>,
+  TradingChart: (_props: any) => <div data-testid="trading-chart">TradingChart</div>,
 }));
 
 const mockSetChartOption = vi.fn();

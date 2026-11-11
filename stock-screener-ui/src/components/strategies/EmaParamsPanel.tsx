@@ -10,10 +10,10 @@ interface EmaParamsPanelProps {
 export function EmaParamsPanel({ initialValues, isSwing }: EmaParamsPanelProps) {
   return (
     <Tabs.Panel value="ema" keepMounted className="strategy-form-tab-panel" data-testid="strategy-panel-ema">
-      <Stack spacing={1} gap="sm" mt="sm" sx={{ gap: 1, p: 1 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Fast EMA Period</Text>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+      <Stack spacing={1} gap="sm" mt="sm" className="p-2">
+        <Box className="flex items-center gap-2 p-2">
+          <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Fast EMA Period</Text>
+          <Box className="flex-1 flex items-center">
             <NumberInput
               size="sm"
               name="ema_fast_period"
@@ -25,9 +25,9 @@ export function EmaParamsPanel({ initialValues, isSwing }: EmaParamsPanelProps) 
             />
           </Box>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Slow EMA Period</Text>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+        <Box className="flex items-center gap-2 p-2">
+          <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Slow EMA Period</Text>
+          <Box className="flex-1 flex items-center">
             <NumberInput
               size="sm"
               name="ema_slow_period"

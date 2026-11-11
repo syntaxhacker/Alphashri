@@ -26,10 +26,10 @@ export const ROTATION_STATUS_TONE: Record<RotationStatus, "positive" | "warning"
 };
 
 export const ROTATION_STATUS_COLORS_BOARD: Record<RotationStatus, string> = {
-  booming: "var(--mui-palette-success-main)",
+  booming: "var(--color-fin-positive)",
   heating: "#F0883E",
   cooling: "#5B8DEF",
-  dumping: "var(--mui-palette-error-main)",
+  dumping: "var(--color-fin-negative)",
   neutral: TEXT_MUTED,
 };
 

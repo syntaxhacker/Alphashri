@@ -168,7 +168,7 @@ describe("ScreenerTable", () => {
     expect(screen.queryByTestId("stock-row-TCS")).not.toBeInTheDocument();
   });
 
-  it("renders table with MUI sx (no global CSS class)", () => {
+  it("renders table with hooks for test selectors", () => {
     render(
       <UIProvider>
         <ScreenerTable {...defaultProps} />

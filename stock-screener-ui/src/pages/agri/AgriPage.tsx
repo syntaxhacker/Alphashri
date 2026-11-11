@@ -159,15 +159,15 @@ export function AgriPage() {
   return (
     <Box
       data-testid="agri-page"
-      sx={{ width: "100%", minHeight: 0, display: "flex", flexDirection: "column", p: 1.5, gap: 1 }}
+      className="flex w-full min-h-0 flex-col gap-2 p-3"
     >
       <ToolbarRow
         justify="space-between"
         gap={8}
         data-testid="agri-toolbar"
-        sx={{ minHeight: 0 }}
+        className="min-h-0"
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
+        <Box className="flex shrink-0 items-center gap-2">
           <Text size="xs" c="dimmed" style={{ textTransform: "uppercase", fontSize: 10 }} fw={700}>
             Commodity
           </Text>
@@ -180,8 +180,8 @@ export function AgriPage() {
             data-testid="agri-commodity-select"
           />
         </Box>
-        <Box sx={{ flex: 1, minWidth: 0 }} />
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
+        <Box className="flex-1 min-w-0" />
+        <Box className="flex shrink-0 items-center gap-1">
           <Button
             size="sm"
             variant="outline"
@@ -201,24 +201,14 @@ export function AgriPage() {
 
       {/* Stat strip: selected commodity latest price + changes */}
       <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 1.5,
-          border: 1,
-          borderColor: "divider",
-          borderRadius: 1,
-          bgcolor: "background.paper",
-          p: 1.5,
-          minHeight: 0,
-        }}
+        className="flex min-h-0 items-center gap-3 rounded border border-fin-border bg-fin-surface p-3"
         data-testid="agri-stat-strip"
       >
-        <Box sx={{ minWidth: 0 }}>
+        <Box className="min-w-0">
           <Text size="xs" c="dimmed" data-testid="agri-stat-date">
             {snapshot ? snapshot.date : "—"}
           </Text>
-          <Text size="lg" fw={700} sx={{ fontFamily: "mono" }} data-testid="agri-stat-price">
+          <Text size="lg" fw={700} className="font-mono" data-testid="agri-stat-price">
             {formatInr(latest)}
           </Text>
           <Text
@@ -229,36 +219,36 @@ export function AgriPage() {
             {chg7d == null ? "—" : `${pct(chg7d)} 1w`}
           </Text>
         </Box>
-        <Divider orientation="vertical" sx={{ height: 32, mx: 1 }} />
-        <Box sx={{ minWidth: 0 }}>
+        <Divider orientation="vertical" style={{ height: 32, marginLeft: 8, marginRight: 8 }} />
+        <Box className="min-w-0">
           <Text size="xs" c="dimmed">1 month</Text>
           <Text size="sm" fw={600} c={statColor(chg30d)} data-testid="agri-stat-chg30d">
             {pct(chg30d)}
           </Text>
         </Box>
-        <Divider orientation="vertical" sx={{ height: 32, mx: 1 }} />
-        <Box sx={{ minWidth: 0 }}>
+        <Divider orientation="vertical" style={{ height: 32, marginLeft: 8, marginRight: 8 }} />
+        <Box className="min-w-0">
           <Text size="xs" c="dimmed">6 months</Text>
           <Text size="sm" fw={600} c={statColor(chg180d)} data-testid="agri-stat-chg180d">
             {pct(chg180d)}
           </Text>
         </Box>
-        <Box sx={{ flex: 1, minWidth: 0 }} />
+        <Box className="flex-1 min-w-0" />
         <Badge color="info" size="xs" data-testid="agri-stat-markets">
           {snapshot ? `${snapshot.markets} markets` : "—"}
         </Badge>
       </Box>
 
       <Box
-        sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1, minHeight: 0 }}
+        className="flex min-h-0 flex-1 min-w-0 flex-col gap-2"
         data-testid="agri-body"
       >
         {/* Left: all-commodities latest prices table */}
         <Box
-          sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 0.5 }}
+          className="flex min-h-0 flex-1 flex-col gap-1"
           data-testid="agri-table-region"
         >
-          <ToolbarRow justify="space-between" gap={8} sx={{ minHeight: 0 }}>
+          <ToolbarRow justify="space-between" gap={8} className="min-h-0">
             <Text size="sm" fw={600} data-testid="agri-table-title">
               Latest mandi prices — all commodities
             </Text>
@@ -267,57 +257,49 @@ export function AgriPage() {
             </Text>
           </ToolbarRow>
           <Box
-            sx={{
-              flex: 1,
-              minHeight: 0,
-              overflow: "auto",
-              border: 1,
-              borderColor: "divider",
-              borderRadius: 1,
-              bgcolor: "background.paper",
-            }}
+            className="min-h-0 flex-1 overflow-auto rounded border border-fin-border bg-fin-surface"
             data-testid="agri-table"
           >
             <Box
               component="table"
-              sx={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}
+              className="w-full border-collapse text-[11px]"
               data-testid="agri-table-element"
             >
               <thead>
-                <Box component="tr" sx={{ bgcolor: "action.hover" }}>
+                <Box component="tr" className="bg-fin-surface-alt">
                   <Box
                     component="th"
-                    sx={{ color: "text.secondary", fontSize: 10, py: 0.75, px: 1, textAlign: "left" }}
+                    className="px-2 py-1.5 text-left text-[10px] text-fin-text-muted"
                   >
                     Commodity
                   </Box>
                   <Box
                     component="th"
-                    sx={{ color: "text.secondary", fontSize: 10, py: 0.75, px: 1, textAlign: "left" }}
+                    className="px-2 py-1.5 text-left text-[10px] text-fin-text-muted"
                   >
                     Date
                   </Box>
                   <Box
                     component="th"
-                    sx={{ color: "text.secondary", fontSize: 10, py: 0.75, px: 1, textAlign: "right" }}
+                    className="px-2 py-1.5 text-right text-[10px] text-fin-text-muted"
                   >
                     Modal
                   </Box>
                   <Box
                     component="th"
-                    sx={{ color: "text.secondary", fontSize: 10, py: 0.75, px: 1, textAlign: "right" }}
+                    className="px-2 py-1.5 text-right text-[10px] text-fin-text-muted"
                   >
                     Min
                   </Box>
                   <Box
                     component="th"
-                    sx={{ color: "text.secondary", fontSize: 10, py: 0.75, px: 1, textAlign: "right" }}
+                    className="px-2 py-1.5 text-right text-[10px] text-fin-text-muted"
                   >
                     Max
                   </Box>
                   <Box
                     component="th"
-                    sx={{ color: "text.secondary", fontSize: 10, py: 0.75, px: 1, textAlign: "center" }}
+                    className="px-2 py-1.5 text-center text-[10px] text-fin-text-muted"
                   >
                     Markets
                   </Box>
@@ -326,7 +308,7 @@ export function AgriPage() {
               <tbody>
                 {(prices?.snapshot.length ?? 0) === 0 ? (
                   <Box component="tr">
-                    <Box component="td" colSpan={6} sx={{ py: 2, textAlign: "center", color: "text.disabled" }}>
+                    <Box component="td" colSpan={6} className="py-4 text-center text-fin-text-muted">
                       No prices available.
                     </Box>
                   </Box>
@@ -335,15 +317,15 @@ export function AgriPage() {
                     <Box
                       component="tr"
                       key={r.key}
-                      sx={{ "& td": { py: 0.6, px: 1, borderBottom: "1px solid", borderColor: "divider" } }}
+                      className="[&_td]:border-b [&_td]:border-fin-border [&_td]:px-2 [&_td]:py-1"
                       data-testid={`agri-row-${r.key}`}
                     >
                       <Box component="td">{r.label}</Box>
                       <Box component="td">{r.date}</Box>
-                      <Box component="td" sx={{ textAlign: "right" }}>{formatInr(r.modal)}</Box>
-                      <Box component="td" sx={{ textAlign: "right" }}>{formatInr(r.min)}</Box>
-                      <Box component="td" sx={{ textAlign: "right" }}>{formatInr(r.max)}</Box>
-                      <Box component="td" sx={{ textAlign: "center" }}>{r.markets}</Box>
+                      <Box component="td" className="text-right">{formatInr(r.modal)}</Box>
+                      <Box component="td" className="text-right">{formatInr(r.min)}</Box>
+                      <Box component="td" className="text-right">{formatInr(r.max)}</Box>
+                      <Box component="td" className="text-center">{r.markets}</Box>
                     </Box>
                   ))
                 )}
@@ -354,21 +336,10 @@ export function AgriPage() {
 
         {/* Right: chart */}
         <Box
-          sx={{
-            flex: 1,
-            minHeight: 0,
-            display: "flex",
-            flexDirection: "column",
-            gap: 0.5,
-            border: 1,
-            borderColor: "divider",
-            borderRadius: 1,
-            bgcolor: "background.paper",
-            p: 1,
-          }}
+          className="flex min-h-0 flex-1 flex-col gap-1 rounded border border-fin-border bg-fin-surface p-2"
           data-testid="agri-chart-region"
         >
-          <ToolbarRow justify="space-between" gap={8} sx={{ minHeight: 0 }}>
+          <ToolbarRow justify="space-between" gap={8} className="min-h-0">
             <Text size="sm" fw={600} data-testid="agri-chart-title">
               Modal price trend — {commodity.label}
             </Text>
@@ -378,11 +349,11 @@ export function AgriPage() {
           </ToolbarRow>
           <Box
             ref={chartRef}
-            sx={{ flex: 1, minHeight: 300, minWidth: 0 }}
+            className="min-h-[300px] min-w-0 flex-1"
             data-testid="agri-chart"
           />
           {series.length === 0 && (
-            <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "text.disabled" }}>
+            <Box className="flex flex-1 items-center justify-center text-fin-text-muted">
               No price history yet. Run the collector to build it:
               <br />python scripts/market/agri_collect.py
             </Box>

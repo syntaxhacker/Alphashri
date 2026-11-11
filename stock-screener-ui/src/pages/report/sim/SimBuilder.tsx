@@ -44,7 +44,7 @@ export interface SimContextStripProps {
 
 function Ctx({ label, value, hint }: { label: string; value: ReactNode; hint?: ReactNode }) {
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+    <Box className="flex flex-col min-w-0">
       <Text
         span
         size="xs"
@@ -57,8 +57,8 @@ function Ctx({ label, value, hint }: { label: string; value: ReactNode; hint?: R
       >
         {label}
       </Text>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
-        <Text span size="xs" fw={700} sx={{ fontFamily: palette.MONO }}>
+      <Box className="flex items-center gap-1 min-w-0">
+        <Text span size="xs" fw={700} className="font-mono">
           {value}
         </Text>
         {hint}
@@ -84,12 +84,7 @@ export function SimContextStrip({
     <ToolbarRow
       data-testid="sim-context"
       gap={16}
-      sx={{
-        border: `1px solid ${palette.BORDER}`,
-        borderRadius: 1,
-        p: 1,
-        bgcolor: palette.SURFACE_ALT,
-      }}
+      className="border border-fin-border rounded-[1px] p-2 bg-fin-surface-alt"
     >
       <Ctx label="Mode / date" value={`${mode.toUpperCase()} · ${date || "—"}`} />
       <Ctx label="Expiry / DTE" value={`${expiry} · ${dte}`} />
@@ -164,7 +159,7 @@ export function SimBuilder({
   return (
     <Box
       data-testid="sim-builder"
-      sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}
+      className="flex flex-col gap-2 min-w-0"
     >
       <TextInput
         data-testid="sim-name"
@@ -177,15 +172,10 @@ export function SimBuilder({
 
       <Box
         data-testid="sim-legs"
-        sx={{
-          border: `1px solid ${palette.BORDER}`,
-          borderRadius: 1,
-          p: 1,
-          minWidth: 0,
-        }}
+        className="border border-fin-border rounded-[1px] p-2 min-w-0"
       >
         <ToolbarRow justify="space-between">
-          <Text span size="xs" fw={700} sx={{ textTransform: "uppercase" }}>
+          <Text span size="xs" fw={700} className="uppercase">
             Legs · {legs.length}
           </Text>
           <Button
@@ -201,7 +191,7 @@ export function SimBuilder({
         </ToolbarRow>
 
         {legs.length === 0 ? (
-          <Text size="xs" c="dimmed" sx={{ py: 1 }}>
+          <Text size="xs" c="dimmed" className="py-2">
             No legs yet — add one.
           </Text>
         ) : null}
@@ -211,7 +201,7 @@ export function SimBuilder({
           return (
             <Box key={`leg-${index}`} data-testid={`sim-leg-${index}`}>
               <Divider />
-              <ToolbarRow gap={8} sx={{ py: 0.75 }}>
+              <ToolbarRow gap={8} className="py-[6px]">
                 <Select
                   data-testid={`sim-leg-${index}-action`}
                   size="xs"
@@ -232,7 +222,7 @@ export function SimBuilder({
                     if (value) patchLeg(index, { opt: value as SimLegSpec["opt"] });
                   }}
                 />
-                <Box sx={{ display: "flex", flexDirection: "column", width: 100 }}>
+                <Box className="flex flex-col w-[100px]">
                   <TextInput
                     data-testid={`sim-leg-${index}-strike`}
                     size="xs"
@@ -283,12 +273,12 @@ export function SimBuilder({
 
       <Box
         data-testid="sim-exec"
-        sx={{ border: `1px solid ${palette.BORDER}`, borderRadius: 1, p: 1 }}
+        className="border border-fin-border rounded-[1px] p-2"
       >
-        <Text span size="xs" fw={700} sx={{ textTransform: "uppercase" }}>
+        <Text span size="xs" fw={700} className="uppercase">
           Execution
         </Text>
-        <ToolbarRow gap={8} sx={{ mt: 0.75 }}>
+        <ToolbarRow gap={8} className="mt-[6px]">
           <TextInput
             data-testid="sim-entry-time"
             size="xs"
@@ -372,7 +362,7 @@ export function SimBuilder({
         <Text span size="xs" c="dimmed">
           {legs.length} leg{legs.length === 1 ? "" : "s"}
         </Text>
-        <Text span size="xs" c="dimmed" sx={{ minWidth: 0 }}>
+        <Text span size="xs" c="dimmed" className="min-w-0">
           {resolved.length > 0 ? `strikes ${resolved.join(" / ")}` : "no resolved strikes"}
         </Text>
       </ToolbarRow>

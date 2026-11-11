@@ -398,8 +398,8 @@ function NiftyIvStraddleInner({
     <CompactPanel
       title="IV · ATM IV, straddle & RV"
       testId="nifty-iv-straddle-panel"
-      sx={{
-        background: palette.TERM_BG,
+      style={{
+        backgroundColor: palette.TERM_BG,
         border: `1px solid ${palette.TERM_BORDER}`,
         borderColor: palette.TERM_BORDER,
         borderRadius: 1,

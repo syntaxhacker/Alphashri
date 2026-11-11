@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { act } from "react";
 import userEvent from "@testing-library/user-event";
 import { useContext } from "react";
@@ -60,6 +60,22 @@ function DockHarness() {
       </button>
       <button type="button" data-testid="close-dock" onClick={() => dock.close()}>
         close
+      </button>
+      <button
+        type="button"
+        data-testid="preview-ircon"
+        onMouseEnter={() => dock.preview("IRCON")}
+        onMouseLeave={dock.endPreview}
+      >
+        preview IRCON
+      </button>
+      <button
+        type="button"
+        data-testid="preview-reliance"
+        onMouseEnter={() => dock.preview("RELIANCE")}
+        onMouseLeave={dock.endPreview}
+      >
+        preview RELIANCE
       </button>
     </>
   );
@@ -165,5 +181,74 @@ describe("SymbolDockProvider stale badge", () => {
 
     expect(screen.queryByTestId("symbol-dock")).not.toBeInTheDocument();
     expect(screen.queryByTestId("dock-stale")).not.toBeInTheDocument();
+  });
+});
+
+describe("preview → endPreview race (A then B)", () => {
+  beforeEach(() => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("1200px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  test("moving quickly from A to B keeps B's preview open", async () => {
+    mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
+    renderDock();
+
+    const previewA = screen.getByTestId("preview-ircon");
+    const previewB = screen.getByTestId("preview-reliance");
+
+    const enter = (el: HTMLElement) =>
+      act(() => {
+        fireEvent.mouseOver(el, { relatedTarget: null });
+      });
+    const leave = (el: HTMLElement) =>
+      act(() => {
+        fireEvent.mouseOut(el, { relatedTarget: null });
+      });
+
+    // Enter A → 300 ms debounce → A preview opens
+    enter(previewA);
+    expect(screen.queryByTestId("symbol-dock")).not.toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    await act(async () => {});
+    expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("IRCON");
+
+    // Leave A → close timer scheduled (800 ms); enter B → it must be cancelled
+    leave(previewA);
+    enter(previewB);
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    await act(async () => {});
+    expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("RELIANCE");
+
+    // Advance past the old close timer → dock still shows B, not closed, not A
+    act(() => {
+      vi.advanceTimersByTime(800);
+    });
+    await act(async () => {});
+    expect(screen.getByTestId("symbol-dock")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("RELIANCE");
+    expect(screen.getByTestId("patterns-chart-dock")).not.toHaveTextContent("IRCON");
   });
 });

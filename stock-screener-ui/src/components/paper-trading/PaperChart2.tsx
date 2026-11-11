@@ -18,10 +18,8 @@ import {
   Divider,
   Stack,
   DatePicker,
+  Card,
 } from "@/ui";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import Toolbar from "@mui/material/Toolbar";
 import { IconDots } from "@tabler/icons-react";
 import dayjs from "dayjs";
 import {
@@ -43,8 +41,8 @@ import { TradingViewChart } from "../chart/TradingViewChart";
 import { normalizePaper } from "../../utils/chart/normalizePaper";
 import type { PaperPosition } from "../../types/paperTrading";
 import { TIMEFRAMES } from "../../config/constants";
-import { PRIMARY, POSITIVE, NEGATIVE, PIVOT_OR_HIGH, PIVOT_52W_HIGH, PIVOT_PP, INDICATOR_BLUE_A } from "@/ui/palette";
-import { withAlpha } from "@/utils/color";
+import { PRIMARY, POSITIVE, NEGATIVE, PIVOT_OR_HIGH, PIVOT_52W_HIGH, PIVOT_PP, INDICATOR_BLUE_A, TEXT_MUTED, BORDER } from "@/ui/palette";
+import { alpha } from "@/ui/alpha";
 
 const toApiFormat = (val: number): string => {
   if (val === 1) return "1min";
@@ -66,15 +64,10 @@ const TIMEFRAME_OPTIONS = TIMEFRAMES.map((tf) => ({
 
 
 function PositionInfo({ position }: { position: PaperPosition }) {
-  const pnlClass = position.pnl >= 0 ? "positive" : "negative";
   const sideIcon = position.side === "BUY" ? "▲" : "▼";
 
   return (
-    <Group
-      gap="xs"
-      data-testid="position-info"
-      id={`position-info-${position.symbol}`}
-    >
+    <Group gap="xs" data-testid="position-info" id={`position-info-${position.symbol}`}>
       <Badge size="sm" variant="filled" color={position.side === "BUY" ? "success" : "error"}>
         {sideIcon} {position.side}
       </Badge>
@@ -103,10 +96,10 @@ function ChartLegend({ orbLabel, hasWeek52, hasTrades, position }: { orbLabel?: 
   if (items.length === 0 && !position) return null;
 
   return (
-    <Flex className="paper-chart-legend" gap="xs" justify="center" align="center" wrap="wrap" py={1} px={1} data-testid="chart-legend" id="chart-legend">
+    <Flex className="paper-chart-legend py-2 px-2" gap="xs" justify="center" align="center" wrap="wrap" data-testid="chart-legend" id="chart-legend">
       {items.map((item, i) => (
-        <Flex key={i} className="paper-chart-legend-item" id={`paper-chart-legend-${item.label.toLowerCase().replace(/\s+/g, "-")}`} align="center" gap={1}>
-          <Box className="paper-chart-legend-swatch" w={8} h={8} bg={item.color} sx={{ borderRadius: item.shape === "circle" ? "50%" : 2 }} />
+        <Flex key={i} className="paper-chart-legend-item gap-2" id={`paper-chart-legend-${item.label.toLowerCase().replace(/\s+/g, "-")}`} align="center">
+          <div className="paper-chart-legend-swatch w-2 h-2 shrink-0" style={{ borderRadius: item.shape === "circle" ? "50%" : "2px", backgroundColor: item.color }} />
           <Text className="paper-chart-legend-label" size="xs" c="dimmed">{item.label}</Text>
         </Flex>
       ))}
@@ -125,15 +118,15 @@ function ChartEmptyState({
   children: React.ReactNode;
 }) {
   return (
-    <Card className={`paper-chart-empty ${className}`} elevation={0} data-testid="paper-chart-empty" id="paper-chart" sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <CardContent className="paper-chart-empty-content" sx={{ textAlign: "center" }}>
+    <Card className={`paper-chart-empty ${className}`} data-testid="paper-chart-empty" id="paper-chart" className2="h-full flex items-center justify-center">
+      <div className="paper-chart-empty-content text-center">
         {icon && (
-          <Text className="paper-chart-empty-icon" size="lg" c="dimmed" mb="xs">
+          <Text className="paper-chart-empty-icon mb-1" size="lg" c="dimmed" >
             {icon}
           </Text>
         )}
-        {icon ? children : <Box data-testid="chart-placeholder-content">{children}</Box>}
-      </CardContent>
+        {icon ? children : <div data-testid="chart-placeholder-content">{children}</div>}
+      </div>
     </Card>
   );
 }
@@ -166,7 +159,6 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
     }
   }, [state.chartFromDate, state.chartData?.date]);
 
-  const chartDate = range[1] ? dayjs(range[1]).format("YYYY-MM-DD") : state.chartData?.date;
   const fromDate = range[0] ? dayjs(range[0]).format("YYYY-MM-DD") : undefined;
 
   const handleQuickRange = useCallback((days: number) => {
@@ -203,7 +195,6 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
       if (!value) return;
       setChartTimeframe(value);
       const s = getPaperTradingState();
-      // Persist the user's choice per view so it survives tab switches.
       if (s.currentView === "history") setChartTimeframeHistory(value);
       else if (s.currentView === "live") setChartTimeframeLive(value);
       const cd = s.chartData?.date;
@@ -228,33 +219,19 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
   const hasActiveOverlays = OVERLAY_ITEMS.some(({ key }) => state[key]);
 
   return (
-    <Toolbar
-      disableGutters
-      sx={{
-        minHeight: 48,
-        px: 1,
-        py: 0.5,
-        gap: 1,
-        rowGap: 1,
-        alignItems: "center",
-        flex: "0 0 auto",
-        flexWrap: "wrap",
-      }}
-      data-testid="paper-chart-header"
-      id="chart-header"
-    >
-      <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.75, minWidth: 0, flexShrink: 1, mr: 1 }}>
+    <div role="toolbar" className="paper-chart-header flex items-center flex-none flex-wrap gap-2 row-gap-2 px-2 py-1 min-h-12" data-testid="paper-chart-header" id="chart-header">
+      <div className="flex items-baseline gap-2 min-w-0 shrink-1 mr-2">
         {state.chartData?.symbol && (
-          <Text fw={600} size="xs" truncate sx={{ minWidth: 0 }}>
+          <Text fw={600} size="xs" className="min-w-0">
             {state.chartData.symbol}
           </Text>
         )}
         {shortDate && (
-          <Text size="xs" c="dimmed" fw={400} sx={{ whiteSpace: "nowrap" }}>
+          <Text size="xs" c="dimmed" fw={400} className="whitespace-nowrap">
             · {shortDate}
           </Text>
         )}
-      </Box>
+      </div>
 
       <Select
         data-testid="chart-timeframe-select"
@@ -289,7 +266,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
         style={{ width: 150, flex: "0 0 auto" }}
       />
 
-      <Box sx={{ flex: 1 }} />
+      <div className="flex-1" />
 
       <Popover
         width={260}
@@ -311,16 +288,16 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
           </ActionIcon>
         </PopoverTarget>
         <PopoverDropdown p="xs">
-          <Stack spacing={1}>
+          <Stack className="gap-2">
             <Group gap="xs">
-              <Box w={3} h={14} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.primary.main })} />
+              <div className="w-[3px] h-[14px] shrink-0" style={{ borderRadius: 2, backgroundColor: PRIMARY }} />
               <Text size="xs" fw={600}>Range</Text>
             </Group>
-            <Group gap={1}>
+            <Group className="gap-2">
               {QUICK_RANGES.map((r) => (
                 <Button
                   key={r.label}
-                  size="compact-xs"
+                  size="xs"
                   variant="light"
                   color="primary"
                   onClick={() => handleQuickRange(r.days)}
@@ -330,13 +307,13 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
               ))}
             </Group>
 
-            <Divider my={1} />
+            <Divider className="my-2" />
 
             <Group gap="xs">
-              <Box w={3} h={14} sx={{ borderRadius: 2, backgroundColor: PRIMARY }} />
+              <div className="w-[3px] h-[14px] shrink-0" style={{ borderRadius: 2, backgroundColor: PRIMARY }} />
               <Text size="xs" fw={600}>Overlays</Text>
             </Group>
-            <Group gap={1}>
+            <Group className="gap-2">
               {OVERLAY_ITEMS.map(({ label, key, setter, color }) => (
                 <Box key={key} data-testid={`overlay-${label.toLowerCase()}`}>
                   <Chip
@@ -348,8 +325,8 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
                     onChange={(checked) => setter(checked)}
                     style={
                       state[key]
-                        ? { backgroundColor: withAlpha(color, 0.18), color, border: `1px solid ${color}` }
-                        : { color: "var(--mui-palette-text-secondary)", border: "1px solid var(--mui-palette-divider)" }
+                        ? { backgroundColor: alpha(color, 0.18), color, border: `1px solid ${color}` }
+                        : { color: TEXT_MUTED, border: `1px solid ${BORDER}` }
                     }
                   >
                     {label}
@@ -360,7 +337,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
           </Stack>
         </PopoverDropdown>
       </Popover>
-    </Toolbar>
+    </div>
   );
 }
 
@@ -401,8 +378,6 @@ export function PaperChart({ engine = "echarts" }: { engine?: "echarts" | "tradi
       state.chartData,
       isDark,
       state.selectedTradeId,
-      // When a trade is explicitly selected, do not filter to its (possibly
-      // non-numeric) id — the chart would drop every trade and show no markers.
       state.showAllTrades || !!state.selectedTradeId,
       state.showOrbLines,
       state.showPivotLines,
@@ -421,10 +396,10 @@ export function PaperChart({ engine = "echarts" }: { engine?: "echarts" | "tradi
       <ChartEmptyState className={emptyState.className} icon={emptyState.icon}>
         <Text c="dimmed">{emptyState.text}</Text>
         {emptyState.subtext && (
-          <Text size="sm" c="dimmed" mt={2}>{emptyState.subtext}</Text>
+          <Text size="sm" c="dimmed" className="mt-2">{emptyState.subtext}</Text>
         )}
         {emptyState.className === "paper-chart-error" && state.selectedSymbol && (
-          <Button size="xs" variant="light" mt="xs" onClick={() =>
+          <Button size="xs" variant="light" className="mt-2" onClick={() =>
             fetchPaperChart(state.selectedSymbol, state.chartData?.date || dayjs().format("YYYY-MM-DD"), state.chartTimeframe, state.selectedStrategyId, undefined, true, state.selectedTradeId || undefined)
           }>
             Retry
@@ -435,12 +410,12 @@ export function PaperChart({ engine = "echarts" }: { engine?: "echarts" | "tradi
   }
 
   return (
-    <Card className="paper-chart-container" elevation={0} data-testid="paper-chart-container" id="paper-chart" sx={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+    <Card className="paper-chart-container flex flex-col min-h-0 overflow-hidden h-full" data-testid="paper-chart-container" id="paper-chart">
       <ChartHeader state={state} />
-      <Box className="paper-chart-body" id="paper-chart-body" sx={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}>
+      <div className="paper-chart-body flex-1 min-h-0 relative flex flex-col" id="paper-chart-body">
         <LoadingOverlay visible={state.chartLoading} zIndex={10} overlayProps={{ radius: "sm", blur: 1 }} />
         {chartInput ? (
-          <Box className="paper-chart-canvas-wrap" id="paper-chart-canvas-wrap" sx={{ flex: 1, minHeight: 0, display: "flex" }}>
+          <div className="paper-chart-canvas-wrap flex-1 min-h-0 flex" id="paper-chart-canvas-wrap">
             {engine === "tradingview" ? (
               <TradingViewChart
                 candles={chartInput.candles as any}
@@ -454,7 +429,7 @@ export function PaperChart({ engine = "echarts" }: { engine?: "echarts" | "tradi
             ) : (
               <TradingChart input={chartInput} style={{ flex: 1, minHeight: 0 }} />
             )}
-          </Box>
+          </div>
         ) : (
           <ChartEmptyState className="paper-chart-loading" icon="⏳">
             <Text className="paper-chart-loading-text" c="dimmed">
@@ -462,7 +437,7 @@ export function PaperChart({ engine = "echarts" }: { engine?: "echarts" | "tradi
             </Text>
           </ChartEmptyState>
         )}
-      </Box>
+      </div>
       {state.chartData && (
         <ChartLegend
           orbLabel={state.chartData?.orb_levels ? `ORB (${state.chartData.orb_levels.or_minutes}m)` : undefined}

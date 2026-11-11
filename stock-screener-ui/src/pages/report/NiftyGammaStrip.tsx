@@ -1,7 +1,7 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { useCallback, useMemo, useState } from "react";
-import type { KeyboardEvent } from "react";
-import Box from "@mui/material/Box";
+import type { KeyboardEvent, CSSProperties } from "react";
+import { Box } from "@/ui";
 import * as palette from "@/ui/palette";
 import { PanelModal } from "@/components/common/PanelModal";
 import {
@@ -34,13 +34,13 @@ function finite(value: unknown): number | null {
 
 function Sep() {
   return (
-    <Box
-      component="span"
+    <span
       aria-hidden
-      sx={{ color: palette.TEXT_MUTED, opacity: 0.6, flexShrink: 0 }}
+      className="text-[10px] opacity-60 shrink-0"
+      style={{ color: palette.TEXT_MUTED }}
     >
       ·
-    </Box>
+    </span>
   );
 }
 
@@ -59,23 +59,19 @@ function Field({
     <Box
       data-testid={testId}
       title={title}
-      sx={{
-        display: "inline-flex",
-        alignItems: "baseline",
-        gap: "4px",
-        flexShrink: 1,
-        minWidth: 0,
-      }}
+      className="inline-flex items-baseline gap-[4px] flex-shrink-1 min-w-0"
     >
       <Box
         component="span"
-        sx={{ color: palette.TEXT_MUTED, fontSize: 9, letterSpacing: "0.04em" }}
+        className="text-[9px] tracking-[0.04em]"
+        style={{ color: palette.TEXT_MUTED, fontSize: 9, letterSpacing: "0.04em" }}
       >
         {label}
       </Box>
       <Box
         component="span"
-        sx={{
+        className="text-[10.5px] font-bold tabular-nums whitespace-nowrap"
+        style={{
           color: palette.TEXT,
           fontSize: 10.5,
           fontWeight: 700,
@@ -185,30 +181,27 @@ export function NiftyGammaStrip({
         title={title}
         onClick={openDrawer}
         onKeyDown={onKeyDown}
-        sx={{
+        className="flex items-center gap-[6px] h-[24px] min-h-[24px] shrink-0 px-2 cursor-pointer overflow-hidden whitespace-nowrap font-mono tabular-nums"
+        style={{
           display: "flex",
           alignItems: "center",
-          gap: "6px",
+          gap: 6,
           height: STRIP_HEIGHT,
           minHeight: STRIP_HEIGHT,
           flexShrink: 0,
-          px: 1,
+          px: 8,
           border: `1px solid ${palette.TERM_BORDER}`,
-          borderRadius: "4px",
-          bgcolor: palette.TERM_HEADER,
-          cursor: "pointer",
-          overflow: "hidden",
-          whiteSpace: "nowrap",
+          borderRadius: 4,
+          backgroundColor: palette.TERM_HEADER,
           fontFamily: palette.MONO,
           fontVariantNumeric: "tabular-nums",
-          "&:hover": { borderColor: palette.TEXT_MUTED },
-          "&:focus-visible": { outline: `1px solid ${palette.POSITIVE}`, outlineOffset: 0 },
         }}
       >
         <Box
           component="span"
           title="Net dealer gamma across the book (₹ Cr per point)"
-          sx={{ color: tone, fontSize: 10.5, fontWeight: 700, flexShrink: 0 }}
+          className="text-[10.5px] font-bold shrink-0"
+          style={{ color: tone, fontSize: 10.5, fontWeight: 700, flexShrink: 0 }}
         >
           Γ {netText}
         </Box>
@@ -222,7 +215,8 @@ export function NiftyGammaStrip({
                 ? "Dealers short gamma — moves amplify"
                 : "Gamma regime flat"
           }
-          sx={{ color: tone, fontSize: 10.5, fontWeight: 700, flexShrink: 0 }}
+          className="text-[10.5px] font-bold shrink-0"
+          style={{ color: tone, fontSize: 10.5, fontWeight: 700, flexShrink: 0 }}
         >
           {regimeLabel}
         </Box>
@@ -258,7 +252,8 @@ export function NiftyGammaStrip({
         <Box
           component="span"
           aria-hidden
-          sx={{ marginLeft: "auto", color: palette.TEXT_MUTED, fontSize: 10, flexShrink: 0 }}
+          className="ml-auto text-[10px] shrink-0"
+          style={{ color: palette.TEXT_MUTED, fontSize: 10, flexShrink: 0 }}
         >
           ▸
         </Box>
@@ -272,47 +267,15 @@ export function NiftyGammaStrip({
       >
         <Box
           data-testid="nifty-gamma-modal"
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 1,
-            minWidth: 0,
-            // The drawer is portalled outside the report panel, so the desk's
-            // compact-panel skin must be re-scoped here — otherwise both
-            // panels render their default full-size headers inside the rail.
-            "& [data-compact]": {
-              bgcolor: "transparent",
-              border: `1px solid ${palette.TERM_BORDER} !important`,
-              borderRadius: "4px !important",
-              boxShadow: "none",
-            },
-            "& [data-compact-header]": {
-              minHeight: "22px",
-              bgcolor: palette.TERM_HEADER,
-              borderBottom: `1px solid ${palette.TERM_BORDER} !important`,
-            },
-            "& [data-compact-header] .MuiTypography-root": {
-              fontSize: "10px !important",
-              textTransform: "uppercase",
-              letterSpacing: "0.07em",
-              color: `${palette.TEXT_MUTED} !important`,
-              fontWeight: 700,
-              lineHeight: 1.2,
-            },
-            "& [data-compact-stat]": {
-              bgcolor: "transparent !important",
-              border: "none !important",
-              borderRadius: "0 !important",
-              boxShadow: "none !important",
-            },
-            "& [data-compact-stat] .MuiCardContent-root": {
-              p: "0 !important",
-              gap: "1px !important",
-              alignItems: "flex-start !important",
-              textAlign: "left !important",
-            },
-            "& [data-compact-stat] .MuiTypography-root": { textAlign: "left !important" },
-          }}
+          // The drawer is portalled outside the report panel, so the desk's
+          // compact-panel skin must be re-scoped here — otherwise both panels
+          // render their default full-size headers inside the rail.
+          className="flex flex-col gap-2 min-w-0 [&_[data-compact]]:bg-transparent! [&_[data-compact]]:[border:1px_solid_var(--desk-border)]! [&_[data-compact]]:[border-radius:4px]! [&_[data-compact]]:shadow-none! [&_[data-compact-header]]:min-h-[22px]! [&_[data-compact-header]]:[background-color:var(--desk-header)]! [&_[data-compact-header]]:[border-bottom:1px_solid_var(--desk-border)]! [&_[data-compact-header]_:where(h4,p,span,div)]:text-[10px]! [&_[data-compact-header]_:where(h4,p,span,div)]:uppercase! [&_[data-compact-header]_:where(h4,p,span,div)]:tracking-[0.07em]! [&_[data-compact-header]_:where(h4,p,span,div)]:[color:var(--desk-muted)]! [&_[data-compact-header]_:where(h4,p,span,div)]:font-bold! [&_[data-compact-header]_:where(h4,p,span,div)]:leading-[1.2]! [&_[data-compact-stat]]:bg-transparent! [&_[data-compact-stat]]:border-none! [&_[data-compact-stat]]:rounded-none! [&_[data-compact-stat]]:shadow-none! [&_[data-compact-stat]>*]:[padding:0]! [&_[data-compact-stat]>*]:gap-px! [&_[data-compact-stat]>*]:items-start! [&_[data-compact-stat]_:where(div,p,span,h4)]:text-left!"
+          style={{
+            "--desk-border": palette.TERM_BORDER,
+            "--desk-header": palette.TERM_HEADER,
+            "--desk-muted": palette.TEXT_MUTED,
+          } as CSSProperties}
         >
           <NiftyGexProfile gex={gex} spot={spot} />
           <NiftyDeltaPositioning positioning={positioning} spot={spot} />

@@ -312,9 +312,7 @@ export async function refreshHistoryData(
   try {
     const limit = getLimitFromDateRange(fromDate, toDate);
     // If fromDate is provided, daysBack is ignored by fetchTrades (due to API logic)
-    await Promise.all([
-      fetchTrades(limit, botId, fromDate, toDate, fromDate ? 0 : daysBack),
-    ]);
+    await fetchTrades(limit, botId, fromDate, toDate, fromDate ? 0 : daysBack);
   } catch (error) {
     setError(error instanceof Error ? error.message : "Unknown error");
   } finally {

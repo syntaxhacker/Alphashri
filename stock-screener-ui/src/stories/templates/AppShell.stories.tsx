@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { MemoryRouter } from "react-router-dom";
-import { Box, Text, Paper, Group } from "@/ui";
+import { Text, Paper } from "@/ui";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AuthProvider } from "@/components/auth/AuthProvider2";
 

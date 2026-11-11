@@ -23,10 +23,10 @@ export const Default: Story = {
 export const LinkStyle: Story = {
   render: () => (
     <Group gap="md">
-      <UnstyledButton style={{ color: "var(--mui-palette-primary-main)", fontSize: 14 }}>
+      <UnstyledButton style={{ color: "var(--color-fin-primary)", fontSize: 14 }}>
         View details
       </UnstyledButton>
-      <UnstyledButton style={{ color: "var(--mui-palette-error-main)", fontSize: 14 }}>
+      <UnstyledButton style={{ color: "var(--color-fin-negative)", fontSize: 14 }}>
         Delete
       </UnstyledButton>
     </Group>

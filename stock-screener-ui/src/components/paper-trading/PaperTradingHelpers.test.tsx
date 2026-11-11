@@ -190,7 +190,7 @@ import {
   FiltersBar,
   PaperTradingTabs,
 } from "./PaperTradingHelpers";
-import type { BotSummary, PaperTrade } from "../../types/paperTrading";
+import type { BotSummary } from "../../types/paperTrading";
 import { mockTrade } from "./testFixtures";
 
 // --- Helper ---
@@ -745,8 +745,10 @@ describe("HistoryFilters", () => {
 
     r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
-    await user.click(within(screen.getByTestId("filter-symbol")).getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: "RELIANCE" }));
+    await user.selectOptions(
+      within(screen.getByTestId("filter-symbol")).getByRole("combobox"),
+      "RELIANCE",
+    );
 
     expect(mockFilters.handleFilterSymbol).toHaveBeenCalledWith("RELIANCE");
   });
@@ -758,8 +760,10 @@ describe("HistoryFilters", () => {
 
     r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
-    await user.click(within(screen.getByTestId("filter-symbol")).getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: "All" }));
+    await user.selectOptions(
+      within(screen.getByTestId("filter-symbol")).getByRole("combobox"),
+      "",
+    );
 
     expect(mockFilters.handleFilterSymbol).toHaveBeenCalledWith(null);
   });
@@ -938,8 +942,10 @@ describe("PaperTradingHelpers integration", () => {
 
     r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
-    await user.click(within(screen.getByTestId("filter-symbol")).getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: "RELIANCE" }));
+    await user.selectOptions(
+      within(screen.getByTestId("filter-symbol")).getByRole("combobox"),
+      "RELIANCE",
+    );
 
     expect(mockFilters.handleFilterSymbol).toHaveBeenCalledWith("RELIANCE");
   });

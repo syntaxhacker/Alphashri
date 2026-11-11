@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useTheme as useMuiTheme, useColorScheme as useMuiColorScheme } from "@mui/material/styles";
-import useMuiMediaQuery from "@mui/material/useMediaQuery";
+import { sxTheme } from "./sxTheme";
 import type { UIUseColorSchemeResult } from "./types";
 
 // rem: px -> rem (MUI compat)
@@ -13,18 +12,9 @@ export function rem(value: number | string): string {
   return `${value / 16}rem`;
 }
 
-// useMediaQuery: MUI hook with fallback to window.matchMedia
-export function useMediaQuery(query: string, defaultValue?: boolean, options?: any): boolean {
-  const muiResult = (() => {
-    try {
-      // useMuiMediaQuery requires a query string; it handles SSR via options
-      return useMuiMediaQuery(query, options);
-    } catch {
-      return undefined as unknown as boolean;
-    }
-  })();
-
-  const [fallback, setFallback] = useState<boolean>(() => {
+// useMediaQuery: window.matchMedia only (no MUI)
+export function useMediaQuery(query: string, defaultValue?: boolean, _options?: any): boolean {
+  const [matches, setMatches] = useState<boolean>(() => {
     if (typeof window === "undefined" || !window.matchMedia) return Boolean(defaultValue);
     return window.matchMedia(query).matches;
   });
@@ -32,19 +22,18 @@ export function useMediaQuery(query: string, defaultValue?: boolean, options?: a
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
     const mql = window.matchMedia(query);
-    const handler = (e: MediaQueryListEvent | MediaQueryList) => setFallback((e as MediaQueryListEvent).matches ?? (e as MediaQueryList).matches);
+    const handler = (e: MediaQueryListEvent) => setMatches(e.matches);
     // Modern: addEventListener, fallback: addListener
     if ((mql as any).addEventListener) mql.addEventListener("change", handler as any);
     else (mql as any).addListener(handler);
-    setFallback(mql.matches);
+    setMatches(mql.matches);
     return () => {
       if ((mql as any).removeEventListener) mql.removeEventListener("change", handler as any);
       else (mql as any).removeListener(handler);
     };
   }, [query]);
 
-  if (typeof muiResult === "boolean") return muiResult;
-  return fallback;
+  return matches;
 }
 
 // useDebouncedValue: [debouncedValue]
@@ -88,35 +77,19 @@ export function useDisclosure(
   return [opened, { open, close, toggle }];
 }
 
-// useColorScheme: MUI default theme + localStorage fallback (works in app and tests)
+// useColorScheme: localStorage keys `mui-color-scheme` / `color-scheme` + data attributes
 export function useColorScheme(): UIUseColorSchemeResult {
-  let mui: any = null;
-  try {
-    mui = useMuiColorScheme();
-  } catch {
-    mui = null;
-  }
-
   const getInitial = (): "light" | "dark" => {
     if (typeof window !== "undefined") {
       const stored = window.localStorage.getItem("mui-color-scheme") ?? window.localStorage.getItem("color-scheme");
-      if (stored === "light" || stored === "dark") return stored as any;
-      if (mui?.mode === "light" || mui?.mode === "dark") return mui.mode;
+      if (stored === "light" || stored === "dark") return stored;
       if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) return "dark";
     }
     return "light";
   };
 
   const [fallback, setFallback] = useState<"light" | "dark">(getInitial);
-
-  const colorScheme: "light" | "dark" = mui?.mode === "light" || mui?.mode === "dark" ? mui.mode : fallback;
-
-  useEffect(() => {
-    if (!mui?.mode) {
-      const stored = typeof window !== "undefined" ? (window.localStorage.getItem("mui-color-scheme") ?? window.localStorage.getItem("color-scheme")) : null;
-      if (stored === "light" || stored === "dark") setFallback(stored as any);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const colorScheme: "light" | "dark" = fallback;
 
   useEffect(() => {
     if (typeof document !== "undefined") {
@@ -128,11 +101,7 @@ export function useColorScheme(): UIUseColorSchemeResult {
 
   const setColorScheme = useCallback(
     (scheme: "light" | "dark") => {
-      if (mui?.setMode) {
-        mui.setMode(scheme);
-      } else {
-        setFallback(scheme);
-      }
+      setFallback(scheme);
       if (typeof window !== "undefined") {
         try {
           window.localStorage.setItem("mui-color-scheme", scheme);
@@ -143,7 +112,7 @@ export function useColorScheme(): UIUseColorSchemeResult {
         document.documentElement.style.colorScheme = scheme;
       }
     },
-    [mui],
+    [], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const toggleColorScheme = useCallback(() => {
@@ -159,12 +128,14 @@ export function useColorScheme(): UIUseColorSchemeResult {
   };
 }
 
+// useTheme: plain sxTheme (no MUI)
 export function useTheme() {
-  return useMuiTheme();
+  return sxTheme;
 }
 
+// useUICore: plain sxTheme (no MUI)
 export function useUICore() {
-  return { useColorScheme, useMuiTheme };
+  return sxTheme;
 }
 
 // Tree state: tracks expanded node values.

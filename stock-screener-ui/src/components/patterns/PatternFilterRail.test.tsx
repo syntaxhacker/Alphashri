@@ -116,18 +116,16 @@ function r(jsx: React.ReactElement) {
 
 /** Open a MultiSelect and click one of its options, scoped to its own listbox
  * (the presets Select also exposes a "Bearish" option, and closing popups can
- * briefly leave two listboxes mounted). */
+ * briefly leave two listboxes mounted). The local MultiSelect opens its
+ * listbox on focus/click of the combobox input. */
 async function pickMultiOption(selectTestId: string, name: string | RegExp) {
-  const combo = within(screen.getByTestId(selectTestId)).getByRole("combobox");
+  const root = screen.getByTestId(selectTestId);
+  const combo = within(root).getByRole("combobox");
   await userEvent.click(combo);
-  let listbox: HTMLElement | null = null;
-  for (let i = 0; i < 40 && !listbox; i += 1) {
-    const id = combo.getAttribute("aria-controls");
-    listbox = id ? document.getElementById(id) : null;
-    if (!listbox) await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-  if (!listbox) throw new Error(`listbox for ${selectTestId} never opened`);
-  await userEvent.click(within(listbox).getByRole("option", { name }));
+  const listbox = await within(root).findByRole("listbox");
+  const option = within(listbox).getByRole("option", { name });
+  // The local option toggles via its checkbox (clicking the bare li is inert).
+  await userEvent.click(within(option).getByRole("checkbox"));
 }
 
 describe("PatternFilterRail", () => {

@@ -42,32 +42,14 @@ function dash(symbol: string, key: string) {
   );
 }
 
-const NAME_TEXT_SX = { display: "block", maxWidth: 110 } as const;
-const SECTOR_TEXT_SX = { display: "block", maxWidth: 80 } as const;
-const SYMBOL_CELL_SX = {
-  display: "flex",
-  alignItems: "center",
-  gap: "4px",
-  minWidth: 0,
-} as const;
-const SYMBOL_LINK_SX = { flex: "1 1 auto", minWidth: 0 } as const;
-const BADGE_WRAP_SX = { flexShrink: 0, display: "inline-flex" } as const;
-const WEEK52_TRACK_SX = {
-  position: "relative",
-  width: 48,
-  height: 6,
-  borderRadius: "3px",
-  bgcolor: "divider",
-  overflow: "hidden",
-  mx: "auto",
-} as const;
-const WEEK52_FILL_SX = {
-  position: "absolute",
-  left: 0,
-  top: 0,
-  bottom: 0,
-  borderRadius: "3px",
-} as const;
+const NAME_TEXT_CLASS = "block max-w-[110px]";
+const SECTOR_TEXT_CLASS = "block max-w-[80px]";
+const SYMBOL_CELL_CLASS = "flex min-w-0 items-center gap-1";
+const SYMBOL_LINK_CLASS = "min-w-0 flex-[1_1_auto]";
+const BADGE_WRAP_CLASS = "inline-flex flex-shrink-0";
+const WEEK52_TRACK_CLASS =
+  "relative mx-auto h-[6px] w-[48px] overflow-hidden rounded-[3px] bg-fin-border";
+const WEEK52_FILL_CLASS = "absolute left-0 top-0 bottom-0 rounded-[3px] bg-fin-primary";
 
 const CAP_TIER_COLOR: Record<string, "primary" | "info" | "warning" | "default"> = {
   large: "primary",
@@ -91,14 +73,11 @@ function Week52Bar({ row }: { row: MarketRow }) {
         role="img"
         aria-label={title}
         data-testid={`market-52w-${row.symbol}`}
-        sx={WEEK52_TRACK_SX}
+        className={WEEK52_TRACK_CLASS}
       >
         <Box
-          sx={{
-            ...WEEK52_FILL_SX,
-            width: `${clamped}%`,
-            bgcolor: "primary.main",
-          }}
+          className={WEEK52_FILL_CLASS}
+          style={{ width: `${clamped}%` }}
         />
       </Box>
     </Tooltip>
@@ -116,7 +95,7 @@ export function buildMarketColumns(): ColumnDef<MarketRow>[] {
       cell: ({ row }) => {
         const r = row.original;
         return (
-          <Box sx={SYMBOL_CELL_SX}>
+          <Box className={SYMBOL_CELL_CLASS}>
             <SymbolLink
               symbol={r.symbol}
               market={r.exchange ?? "NSE"}
@@ -124,17 +103,17 @@ export function buildMarketColumns(): ColumnDef<MarketRow>[] {
               chartTestId={`market-chart-${r.symbol}`}
               size="xs"
               weight={600}
-              sx={SYMBOL_LINK_SX}
+              className={SYMBOL_LINK_CLASS}
             />
             {r.fno ? (
-              <Box sx={BADGE_WRAP_SX}>
+              <Box className={BADGE_WRAP_CLASS}>
                 <Badge size="xs" variant="light" color="info" data-testid={`market-fno-${r.symbol}`}>
                   F&O
                 </Badge>
               </Box>
             ) : null}
             {r.etf ? (
-              <Box sx={BADGE_WRAP_SX}>
+              <Box className={BADGE_WRAP_CLASS}>
                 <Badge
                   size="xs"
                   variant="light"
@@ -164,7 +143,7 @@ export function buildMarketColumns(): ColumnDef<MarketRow>[] {
             c="dimmed"
             title={r.name}
             data-testid={`market-name-${r.symbol}`}
-            sx={NAME_TEXT_SX}
+            className={NAME_TEXT_CLASS}
           >
             {r.name || DASH}
           </Text>
@@ -180,7 +159,7 @@ export function buildMarketColumns(): ColumnDef<MarketRow>[] {
       cell: ({ row }) => {
         const r = row.original;
         return r.sector ? (
-          <Text size="xs" truncate data-testid={`market-sector-${r.symbol}`} sx={SECTOR_TEXT_SX}>
+          <Text size="xs" truncate data-testid={`market-sector-${r.symbol}`} className={SECTOR_TEXT_CLASS}>
             {r.sector}
           </Text>
         ) : (

@@ -3,14 +3,10 @@ import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { PanelModal } from "@/components/common/PanelModal";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import * as palette from "@/ui/palette";
-import { Text, SegmentedControl, Button } from "@/ui";
-import Tooltip from "@mui/material/Tooltip";
-import Box from "@mui/material/Box";
+import { Loader, Text, SegmentedControl, Button, Tooltip } from "@/ui";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import {
   REPORT_FONT,
-  REPORT_PAD,
-  REPORT_RADIUS,
 } from "./reportTokens";
 import { fetchIndexMovers, IndexMoversResponse, IndexMoverRow } from "@/api/indexMovers";
 
@@ -297,75 +293,44 @@ export const IndexMoversModal = memo(function IndexMoversModal({
       autoHeight
       maxHeight="75vh"
       actions={
-        <Box sx={{ display: "flex", gap: 1 }}>
+        <div className="flex items-center gap-1">
           <SegmentedControl
             value={tab}
             onChange={setTab}
             data={TABS}
             size="xs"
-            sx={{ minWidth: 0 }}
+            className="min-w-0"
           />
           {isStale && (
-            <Tooltip title="Data is stale — quotes may be delayed">
-              <Box
-                component="span"
-                sx={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  px: REPORT_PAD.xs,
-                  py: "1px",
+            <Tooltip label="Data is stale — quotes may be delayed">
+              <span
+                className="inline-flex items-center gap-1 px-[2px] py-[1px] rounded-sm text-[10px] font-bold tracking-[0.05em] whitespace-nowrap"
+                style={{
                   border: `1px solid ${palette.WARNING}`,
-                  borderRadius: REPORT_RADIUS.sm,
                   color: palette.WARNING,
-                  fontSize: REPORT_FONT.micro,
-                  fontWeight: 700,
-                  letterSpacing: "0.05em",
                 }}
               >
                 STALE
-              </Box>
+              </span>
             </Tooltip>
           )}
-        </Box>
+        </div>
       }
     >
       {loading && !data && (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            minHeight: 120,
-            color: palette.TEXT_MUTED,
-          }}
+        <div
+          className="flex items-center justify-center min-h-[120px] text-fin-text-muted"
         >
-          <Box
-            sx={{
-              width: 20,
-              height: 20,
-              borderRadius: "50%",
-              border: `2px solid ${palette.TEXT_MUTED}`,
-              borderTopColor: palette.PRIMARY,
-              animation: "spin 0.8s linear infinite",
-              "@keyframes spin": { to: { transform: "rotate(360deg)" } },
-            }}
-          />
-          <Text span size="xs" c="dimmed" sx={{ ml: 2 }}>
+          <Loader size="xs" color={palette.PRIMARY} />
+          <Text span size="xs" c="dimmed" style={{ marginLeft: 8 }}>
             loading movers…
           </Text>
-        </Box>
+        </div>
       )}
 
       {error && !data && (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            minHeight: 120,
-            gap: REPORT_PAD.md,
-            flexWrap: "wrap",
-          }}
+        <div
+          className="flex items-center justify-center min-h-[120px] gap-2 flex-wrap"
         >
           <Text span size="xs" c="error" fw={700}>
             unavailable
@@ -373,45 +338,27 @@ export const IndexMoversModal = memo(function IndexMoversModal({
           <Button size="sm" variant="subtle" onClick={() => window.location.reload()}>
             Retry
           </Button>
-        </Box>
+        </div>
       )}
 
       {data && rows.length === 0 && (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            minHeight: 120,
-            color: palette.TEXT_MUTED,
-          }}
-        >
+        <div className="flex items-center justify-center min-h-[120px] text-fin-text-muted">
           <Text span size="xs" c="dimmed">
             No movers data
           </Text>
-        </Box>
+        </div>
       )}
 
       {data && rows.length > 0 && (
-        <Box sx={{ minWidth: 0 }}>
+        <div className="min-w-0">
           <MoversTable rows={rows} index={index} />
-        </Box>
+        </div>
       )}
 
       {/* Footer meta */}
       {data && (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            mt: REPORT_PAD.md,
-            pt: REPORT_PAD.sm,
-            borderTop: `1px solid ${palette.TERM_BORDER}`,
-            fontSize: REPORT_FONT.micro,
-            color: palette.TEXT_MUTED,
-            fontFamily: palette.MONO,
-          }}
+        <div
+          className="flex items-center justify-between mt-2 pt-1 border-t border-fin-border font-mono text-[10px] text-fin-text-muted"
         >
           <Text span size="xs" c="dimmed">
             Source: {data.source}
@@ -425,7 +372,7 @@ export const IndexMoversModal = memo(function IndexMoversModal({
               timeZone: "Asia/Kolkata",
             })}
           </Text>
-        </Box>
+        </div>
       )}
     </PanelModal>
   );

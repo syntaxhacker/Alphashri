@@ -5,7 +5,6 @@ import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { TemplateTreeView } from "./TemplateTreeView";
 import type { StrategyConfig } from "../../types/strategies";
-import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
 afterEach(() => {
   cleanup();

@@ -71,13 +71,13 @@ describe("AppliedFilters date chips", () => {
     );
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-from_date").querySelector(
-        ".MuiChip-deleteIcon",
+        "[data-testid$='-remove']",
       ) as Element,
     );
     expect(setFilter).toHaveBeenCalledWith("from_date", null);
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-to_date").querySelector(
-        ".MuiChip-deleteIcon",
+        "[data-testid$='-remove']",
       ) as Element,
     );
     expect(setFilter).toHaveBeenCalledWith("to_date", null);

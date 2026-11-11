@@ -1,7 +1,5 @@
 import { useMemo, useState, useCallback } from "react";
-import { Badge, Text, Tooltip, Button } from "@/ui";
-import Stack from "@mui/material/Stack";
-import Box from "@mui/material/Box";
+import { Badge, Text, Tooltip, Button, Stack } from "@/ui";
 import { getPaperTradingState, subscribe, setSelectedSymbol, setSelectedTradeId } from "../../state/paperTrading";
 import type { PaperPosition } from "../../types/paperTrading";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
@@ -24,29 +22,29 @@ function usePositionsData(): PaperPosition[] {
 
 function EmptyPositions() {
   return (
-    <Box className="paper-positions-empty" id="paper-positions-empty" sx={{ display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 1, py: 4, flex: 1, minHeight: 160, textAlign: "center" }} data-testid="positions-empty">
+    <div className="paper-positions-empty flex flex-col items-center justify-center gap-2 py-8 flex-1 min-h-40 text-center" id="paper-positions-empty" data-testid="positions-empty">
       <Text className="paper-positions-empty-text" size="sm" fw={500} c="dimmed">
         No open positions
       </Text>
-    </Box>
+    </div>
   );
 }
 
 function LoadingState() {
   return (
-    <Box className="paper-positions-loading" id="paper-positions-loading" sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 4, flex: 1, minHeight: 160 }} data-testid="positions-panel">
+    <div className="paper-positions-loading flex items-center justify-center py-8 flex-1 min-h-40" id="paper-positions-loading" data-testid="positions-panel">
       <Text className="paper-positions-loading-text" size="xs" c="dimmed">
         Loading positions...
       </Text>
-    </Box>
+    </div>
   );
 }
 
 function EmptyOrLoadingState() {
   return (
-    <Box className="paper-positions-empty-loading" id="paper-positions-empty-loading" sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 4, flex: 1, minHeight: 160 }} data-testid="positions-panel">
+    <div className="paper-positions-empty-loading flex items-center justify-center py-8 flex-1 min-h-40" id="paper-positions-empty-loading" data-testid="positions-panel">
       <EmptyPositions />
-    </Box>
+    </div>
   );
 }
 
@@ -161,19 +159,19 @@ export function PaperPositionsTable({ activeBotId }: { activeBotId?: string | nu
 
   return (
     <Stack className="paper-positions-table-container" id="paper-positions-table-container" spacing={0.25} data-testid="positions-table-container">
-      <Box className="paper-positions-header" id="paper-positions-header" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 0.5, py: 0.25, gap: 0.5 }}>
-        <Box className="paper-positions-header-left" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+      <div className="paper-positions-header flex items-center justify-between gap-1 px-1 py-0.5" id="paper-positions-header">
+        <div className="paper-positions-header-left flex items-center gap-1">
           <Text className="paper-positions-title" size="xs" c="dimmed" tt="uppercase" fw={600}>
             Positions ({sortedPositions.length})
           </Text>
           <Badge className="paper-positions-mode-badge" color={isLive ? "error" : "success"} variant="filled" size="xs">
             {isLive ? "LIVE" : "PAPER"}
           </Badge>
-        </Box>
-        <Box className="paper-positions-header-right" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+        </div>
+        <div className="paper-positions-header-right flex items-center gap-1">
           <CloseAllButton positions={sortedPositions} />
-        </Box>
-      </Box>
+        </div>
+      </div>
 
       {sortedPositions.length > 0 && (
         <Stack className="paper-positions-groups" id="paper-positions-groups" spacing={0}>

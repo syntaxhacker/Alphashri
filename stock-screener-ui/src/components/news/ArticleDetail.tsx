@@ -1,19 +1,6 @@
-import Alert from "@mui/material/Alert";
-import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import Collapse from "@mui/material/Collapse";
-import Divider from "@mui/material/Divider";
-import IconButton from "@mui/material/IconButton";
-import Skeleton from "@mui/material/Skeleton";
-import Tooltip from "@mui/material/Tooltip";
-import Typography from "@mui/material/Typography";
-import CloseIcon from "@mui/icons-material/Close";
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import OpenInNewIcon from "@mui/icons-material/OpenInNew";
-import ShowChartIcon from "@mui/icons-material/ShowChart";
-import { IconArrowUpRight, IconBulb, IconNews } from "@tabler/icons-react";
-import { Box, Stack } from "@/ui";
+import { Alert, Badge, Button, Box, Collapse, Divider, Skeleton, Stack, Text, Title, Tooltip, ActionIcon } from "@/ui";
+import { IconArrowUpRight, IconBulb, IconChartLine, IconChevronDown, IconChevronUp, IconExternalLink, IconNews, IconX } from "@tabler/icons-react";
+import * as palette from "@/ui/palette";
 import type { ArticleResponse, NewsItem, NewsSymbol } from "./news-types";
 import { formatTimeAgo } from "../../utils/ui-helpers";
 import { SentimentBadge } from "./SentimentBadge";
@@ -36,14 +23,15 @@ interface ArticleDetailProps {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <Typography
-      variant="overline"
-      color="text.secondary"
-      fontWeight={700}
-      sx={{ display: "block", letterSpacing: "0.08em", lineHeight: 1.4 }}
+    <Text
+      size="xs"
+      fw={700}
+      c="dimmed"
+      tt="uppercase"
+      style={{ display: "block", letterSpacing: "0.08em", lineHeight: 1.4 }}
     >
       {children}
-    </Typography>
+    </Text>
   );
 }
 
@@ -66,31 +54,25 @@ export function ArticleDetail({
   if (!selectedArticle) {
     return (
       <Box
-        sx={{ width: "100%", minHeight: 0, flex: 1, display: "flex", flexDirection: "column" }}
+        className="flex flex-col flex-1 min-h-0 w-full"
         data-testid="article-detail-region"
       >
         <Box
-          sx={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            p: 3,
-            bgcolor: "background.default",
-          }}
+          className="flex-1 flex items-center justify-center bg-fin-bg"
+          style={{ padding: 24 }}
           data-testid="article-detail"
         >
           <EmptyState
             icon={
               <Box
-                sx={{
+                style={{
                   width: 48,
                   height: 48,
                   display: "grid",
                   placeItems: "center",
-                  borderRadius: 1,
-                  color: "text.secondary",
-                  bgcolor: "action.hover",
+                  borderRadius: 8,
+                  color: palette.TEXT_MUTED,
+                  backgroundColor: "#121212",
                 }}
               >
                 <IconNews size={26} stroke={1.4} />
@@ -107,127 +89,105 @@ export function ArticleDetail({
 
   return (
     <Box
-      sx={{ width: "100%", minHeight: 0, flex: 1, display: "flex", flexDirection: "column" }}
+      className="flex flex-col flex-1 min-h-0 w-full"
       data-testid="article-detail-region"
     >
-      <Box data-testid="article-detail" sx={{ display: "contents" }}>
+      <Box data-testid="article-detail" style={{ display: "contents" }}>
         <Box
           component="header"
-          sx={{
+          className="sticky top-0 z-20 bg-fin-surface border-b border-fin-border"
+          style={{
             position: "sticky",
             top: 0,
             zIndex: 2,
-            px: { xs: 1.5, sm: 2 },
-            py: 1.5,
-            bgcolor: "background.paper",
-            borderBottom: 1,
-            borderColor: "divider",
+            paddingLeft: 16,
+            paddingRight: 16,
+            paddingTop: 12,
+            paddingBottom: 12,
+            backgroundColor: palette.SURFACE,
+            borderBottom: `1px solid ${palette.BORDER}`,
           }}
         >
-          <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5 }}>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Box
-                sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75, minWidth: 0 }}
-              >
-                <Typography
-                  variant="caption"
-                  color="primary.main"
-                  fontWeight={800}
-                  sx={{ textTransform: "uppercase", letterSpacing: "0.08em" }}
-                >
+          <Box className="flex items-start gap-6" style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+            <Box className="flex-1 min-w-0">
+              <Box className="flex items-center gap-4 mb-3 min-w-0" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, minWidth: 0 }}>
+                <Text size="xs" fw={800} c="primary" style={{ textTransform: "uppercase", letterSpacing: "0.08em" }}>
                   {selectedArticle.source}
-                </Typography>
-                <Box sx={{ width: 3, height: 3, borderRadius: "50%", bgcolor: "text.disabled" }} />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontVariantNumeric: "tabular-nums" }}
-                >
+                </Text>
+                <Box style={{ width: 3, height: 3, borderRadius: "50%", backgroundColor: palette.TEXT_MUTED }} />
+                <Text size="xs" c="dimmed" className="[font-variant-numeric:tabular-nums]">
                   {formatTimeAgo(articleContent?.publishedAt || selectedArticle.publishedAt)}
-                </Typography>
+                </Text>
               </Box>
-              <Typography
-                variant="h4"
+              <Title
+                order={4}
                 data-testid="article-title"
-                sx={{
-                  fontSize: { xs: "1.25rem", sm: "1.5rem" },
-                  lineHeight: 1.2,
-                  fontWeight: 750,
-                  textWrap: "balance",
-                }}
+                style={{ fontSize: "1.25rem", lineHeight: 1.2, fontWeight: 750, textWrap: "balance" }}
               >
                 {selectedArticle.headline}
-              </Typography>
+              </Title>
             </Box>
             {isMobile ? (
-              <IconButton
-                size="small"
+              <ActionIcon
+                size="sm"
                 aria-label="Close article"
                 onClick={onClose}
                 data-testid="close-article-btn"
-                sx={{ mt: 0.25, flex: "0 0 auto" }}
+                variant="subtle"
+                style={{ marginTop: 2, flex: "0 0 auto" }}
               >
-                <CloseIcon fontSize="small" />
-              </IconButton>
+                <IconX size={12} />
+              </ActionIcon>
             ) : null}
           </Box>
         </Box>
 
         {articleLoading ? (
-          <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 2 }} data-testid="article-loading">
-            <Stack spacing={1.5}>
-              <Skeleton variant="rounded" height={72} />
-              <Skeleton variant="text" width="38%" />
-              <Skeleton variant="rounded" height={104} />
-              <Skeleton variant="rounded" height={80} />
-              <Typography variant="body2" color="text.secondary">
+          <Box className="flex-1 min-h-0 overflow-auto" style={{ padding: 16 }} data-testid="article-loading">
+            <Stack className="gap-3">
+              <Skeleton h={72} className="rounded" />
+              <Skeleton w="38%" />
+              <Skeleton h={104} className="rounded" />
+              <Skeleton h={80} className="rounded" />
+              <Text size="sm" c="dimmed">
                 Analyzing article...
-              </Typography>
+              </Text>
             </Stack>
           </Box>
         ) : (
           <>
-            <Box sx={{ flex: 1, minHeight: 0, overflow: "auto" }}>
-              <Stack spacing={2} sx={{ p: { xs: 1.5, sm: 2 }, maxWidth: 920 }}>
+            <Box className="flex-1 min-h-0 overflow-auto">
+              <Stack className="gap-8" style={{ maxWidth: 920, padding: "24px 16px" }}>
                 {articleError ? (
-                  <Alert severity="error" data-testid="article-error">
+                  <Alert color="error" variant="filled" data-testid="article-error">
                     {articleError}
                   </Alert>
                 ) : null}
 
                 {articleContent?.analysis_status === "failed" ? (
-                  <Alert severity="warning" icon={false}>
+                  <Alert color="warning" variant="filled">
                     This article is queued for analysis and will be updated shortly.
                   </Alert>
                 ) : null}
 
                 {articleContent?.analysis_status === "none" ? (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Skeleton variant="circular" width={18} height={18} />
-                    <Typography variant="body2" color="text.secondary">
+                  <Box className="flex items-center gap-4">
+                    <Skeleton w={18} h={18} circle />
+                    <Text size="sm" c="dimmed">
                       Analysis will be available once processed.
-                    </Typography>
+                    </Text>
                   </Box>
                 ) : null}
 
                 {articleContent?.sentiment || articleContent?.impact_score !== undefined ? (
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
-                      flexWrap: "wrap",
-                      py: 0.5,
-                      px: 0.5,
-                    }}
-                  >
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, color: "text.secondary" }}>
+                  <Box className="flex items-center flex-wrap" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", paddingTop: 4, paddingBottom: 4, paddingLeft: 4, paddingRight: 4 }}>
+                    <Box className="flex items-center gap-2" style={{ color: palette.TEXT_MUTED, display: "flex", alignItems: "center", gap: 4 }}>
                       <IconBulb size={15} aria-hidden="true" />
-                      <Typography variant="caption" fontWeight={700}>
+                      <Text size="xs" fw={700}>
                         Signal snapshot
-                      </Typography>
+                      </Text>
                     </Box>
-                    <Box sx={{ flex: 1 }} />
+                    <Box style={{ flex: 1 }} />
                     {articleContent.sentiment ? <SentimentBadge sentiment={articleContent.sentiment} /> : null}
                     <ImpactScore score={articleContent.impact_score} />
                   </Box>
@@ -236,55 +196,55 @@ export function ArticleDetail({
                 {articleContent?.summary && articleContent.analysis_status !== "failed" ? (
                   <Box
                     data-testid="article-summary"
-                    sx={{
-                      p: 1.5,
-                      borderRadius: 1,
-                      borderLeft: 3,
-                      borderColor: "primary.main",
-                      bgcolor: "action.hover",
+                    style={{
+                      padding: 12,
+                      borderRadius: 8,
+                      borderLeft: `3px solid ${palette.PRIMARY}`,
+                      backgroundColor: "#121212",
                     }}
                   >
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 0.75 }}>
+                    <Box className="flex items-center gap-3 mb-3" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
                       <IconBulb size={16} color="primary" aria-hidden="true" />
                       <SectionLabel>Summary</SectionLabel>
                     </Box>
-                    <Typography variant="body2" sx={{ lineHeight: 1.65, textWrap: "pretty" }}>
+                    <Text size="sm" style={{ lineHeight: 1.65, textWrap: "pretty" }}>
                       {articleContent.summary}
-                    </Typography>
+                    </Text>
                   </Box>
                 ) : null}
 
                 {articleContent?.key_points && articleContent.key_points.length > 0 ? (
                   <Box component="section">
                     <SectionLabel>Key Takeaways</SectionLabel>
-                    <Stack component="ul" spacing={0.75} sx={{ listStyle: "none", p: 0, mt: 0.75 }}>
+                    <Stack component="ul" className="list-none" style={{ padding: 0, marginTop: 6, listStyle: "none" }}>
                       {articleContent.key_points.map((point, index) => (
                         <Box
                           component="li"
                           key={`${index}-${point.slice(0, 40)}`}
-                          sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}
+                          className="flex items-start gap-4"
+                          style={{ display: "flex", alignItems: "flex-start", gap: 4 }}
                         >
                           <Box
                             component="span"
-                            sx={{
+                            style={{
                               width: 20,
                               height: 20,
                               display: "grid",
                               placeItems: "center",
                               borderRadius: "50%",
-                              bgcolor: "action.selected",
-                              color: "primary.main",
+                              backgroundColor: palette.PRIMARY,
+                              color: palette.BG,
                               fontSize: 11,
                               fontWeight: 800,
                               flex: "0 0 auto",
-                              mt: 0.15,
+                              marginTop: 1,
                             }}
                           >
                             {index + 1}
                           </Box>
-                          <Typography variant="body2" sx={{ lineHeight: 1.55, textWrap: "pretty" }}>
+                          <Text size="sm" style={{ lineHeight: 1.55, textWrap: "pretty" }}>
                             {point}
-                          </Typography>
+                          </Text>
                         </Box>
                       ))}
                     </Stack>
@@ -294,22 +254,23 @@ export function ArticleDetail({
                 {articleContent?.symbols && articleContent.symbols.length > 0 ? (
                   <Box component="section">
                     <SectionLabel>Stocks mentioned</SectionLabel>
-                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 0.75 }}>
+                    <Box className="flex flex-wrap gap-2 mt-2" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
                       {articleContent.symbols.map((symbol) => (
                         <Tooltip
                           key={symbol.code}
-                          title={symbol.instrument_key ? `View ${symbol.trading_symbol} chart` : "View details"}
+                          label={symbol.instrument_key ? `View ${symbol.trading_symbol} chart` : "View details"}
                         >
-                          <Chip
-                            variant="outlined"
-                            color={symbol.instrument_key ? "primary" : "default"}
-                            size="small"
-                            clickable
-                            label={symbol.trading_symbol || symbol.name || symbol.code}
-                            icon={symbol.instrument_key ? <ShowChartIcon fontSize="small" /> : undefined}
+                          <Badge
+                            variant="outline"
+                            color={symbol.instrument_key ? "primary" : "secondary"}
+                            size="sm"
                             onClick={() => onSymbolClick(symbol)}
                             data-testid="symbol-badge"
-                          />
+                            style={{ cursor: "pointer" }}
+                          >
+                            {symbol.name || symbol.code}
+                            {symbol.instrument_key && <IconChartLine size={12} style={{ marginLeft: 4 }} />}
+                          </Badge>
                         </Tooltip>
                       ))}
                     </Box>
@@ -319,7 +280,7 @@ export function ArticleDetail({
                 {articleContent?.trade_ideas && articleContent.trade_ideas.length > 0 ? (
                   <Box component="section">
                     <SectionLabel>Trade Ideas</SectionLabel>
-                    <Stack spacing={0.75} sx={{ mt: 0.75 }}>
+                    <Stack className="gap-2" style={{ marginTop: 12 }}>
                       {articleContent.trade_ideas.map((idea, index) => (
                         <TradeIdeaCard
                           key={`${idea.symbol}-${idea.direction}-${index}`}
@@ -331,44 +292,45 @@ export function ArticleDetail({
                 ) : null}
 
                 {articleContent?.description ? (
-                  <Box component="section" sx={{ pt: 0.5 }}>
+                  <Box component="section" style={{ paddingTop: 4 }}>
                     <SectionLabel>Full article</SectionLabel>
                     {hasLlmSummary ? (
                       <>
                         <Button
-                          size="small"
+                          size="sm"
                           onClick={onToggleFullContent}
                           aria-expanded={showFullContent}
                           data-testid="article-toggle-full-content-btn"
-                          startIcon={showFullContent ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                          sx={{ mt: 0.5, alignSelf: "flex-start" }}
+                          startIcon={showFullContent ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+                          variant="subtle"
+                          style={{ marginTop: 4, alignSelf: "flex-start" }}
                         >
                           {showFullContent ? "Hide full article" : "View full article"}
                         </Button>
-                        <Collapse in={showFullContent} unmountOnExit>
-                          <Stack spacing={1.25} sx={{ mt: 1 }}>
+                        <Collapse in={showFullContent}>
+                          <Stack className="gap-4" style={{ marginTop: 16 }}>
                             {articleContent.description.split("\n\n").map((paragraph, index) => (
-                              <Typography
+                              <Text
                                 key={`full-${index}-${paragraph.slice(0, 40)}`}
-                                variant="body2"
-                                sx={{ lineHeight: 1.7, mb: 0, textWrap: "pretty" }}
+                                size="sm"
+                                style={{ lineHeight: 1.7, marginBottom: 0, textWrap: "pretty" }}
                               >
                                 {paragraph}
-                              </Typography>
+                              </Text>
                             ))}
                           </Stack>
                         </Collapse>
                       </>
                     ) : (
-                      <Stack spacing={1.25} sx={{ mt: 1 }}>
+                      <Stack className="gap-4" style={{ marginTop: 16 }}>
                         {articleContent.description.split("\n\n").map((paragraph, index) => (
-                          <Typography
+                          <Text
                             key={`partial-${index}-${paragraph.slice(0, 40)}`}
-                            variant="body2"
-                            sx={{ lineHeight: 1.7, mb: 0, textWrap: "pretty" }}
+                            size="sm"
+                            style={{ lineHeight: 1.7, marginBottom: 0, textWrap: "pretty" }}
                           >
                             {paragraph}
-                          </Typography>
+                          </Text>
                         ))}
                       </Stack>
                     )}
@@ -377,39 +339,28 @@ export function ArticleDetail({
               </Stack>
             </Box>
             <Divider />
-            <Box
-              sx={{
-                minHeight: 48,
-                px: 1.5,
-                py: 0.75,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 1,
-                bgcolor: "background.paper",
-              }}
-            >
+            <Box className="flex items-center justify-between gap-4 bg-fin-surface" style={{ minHeight: 48, paddingLeft: 12, paddingRight: 12, paddingTop: 6, paddingBottom: 6, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, backgroundColor: palette.SURFACE }}>
               {articleError && onRetryArticle ? (
-                <Button size="small" onClick={onRetryArticle} data-testid="article-retry">
+                <Button size="sm" onClick={onRetryArticle} data-testid="article-retry">
                   Retry
                 </Button>
               ) : (
-                <Typography variant="caption" color="text.secondary">
+                <Text size="xs" c="dimmed">
                   {hasLlmSummary ? "AI-assisted summary" : "Source article"}
-                </Typography>
+                </Text>
               )}
               {selectedArticle.sourceUrl ? (
                 <Button
-                  size="small"
+                  size="sm"
                   href={selectedArticle.sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  endIcon={<OpenInNewIcon fontSize="small" />}
+                  endIcon={<IconExternalLink size={12} />}
                 >
                   Open Original
                 </Button>
               ) : (
-                <Button size="small" endIcon={<IconArrowUpRight size={14} />} disabled>
+                <Button size="sm" endIcon={<IconArrowUpRight size={14} />} disabled>
                   No source link
                 </Button>
               )}

@@ -38,7 +38,7 @@ const WEEKS_OPTIONS = [
 
 function Money({ value, testId }: { value: number; testId?: string }) {
   return (
-    <Text size="xs" fw={700} c={getPnLTextColor(value)} span data-testid={testId} sx={{ fontVariantNumeric: "tabular-nums" }}>
+    <Text size="xs" fw={700} c={getPnLTextColor(value)} span data-testid={testId} className="tabular-nums">
       {formatCurrencyCompact(value)}
     </Text>
   );
@@ -62,7 +62,7 @@ const STRATEGY_COLUMNS: ColumnDef<StrategyProfitRow>[] = [
     accessorKey: "trades",
     meta: { align: "right" },
     cell: (ctx) => (
-      <Text size="xs" span sx={{ fontVariantNumeric: "tabular-nums" }}>
+      <Text size="xs" span className="tabular-nums">
         {ctx.row.original.trades}
       </Text>
     ),
@@ -73,7 +73,7 @@ const STRATEGY_COLUMNS: ColumnDef<StrategyProfitRow>[] = [
     accessorKey: "win_rate",
     meta: { align: "right" },
     cell: (ctx) => (
-      <Text size="xs" span sx={{ fontVariantNumeric: "tabular-nums" }}>
+      <Text size="xs" span className="tabular-nums">
         {formatPercentage((ctx.row.original.win_rate ?? 0) * 100, 1, false)}
       </Text>
     ),
@@ -98,7 +98,7 @@ const STRATEGY_COLUMNS: ColumnDef<StrategyProfitRow>[] = [
     accessorKey: "profit_factor",
     meta: { align: "right" },
     cell: (ctx) => (
-      <Text size="xs" span sx={{ fontVariantNumeric: "tabular-nums" }}>
+      <Text size="xs" span className="tabular-nums">
         {(ctx.row.original.profit_factor ?? 0).toFixed(2)}
       </Text>
     ),
@@ -116,7 +116,7 @@ const STRATEGY_COLUMNS: ColumnDef<StrategyProfitRow>[] = [
     accessorKey: "avg_hold_days",
     meta: { align: "right" },
     cell: (ctx) => (
-      <Text size="xs" span sx={{ fontVariantNumeric: "tabular-nums" }}>
+      <Text size="xs" span className="tabular-nums">
         {(ctx.row.original.avg_hold_days ?? 0).toFixed(1)}
       </Text>
     ),
@@ -152,7 +152,7 @@ const SIGNAL_COLUMNS: ColumnDef<ProfitTopSignal>[] = [
     accessorKey: "entry_date",
     meta: { align: "left" },
     cell: (ctx) => (
-      <Text size="xs" span sx={{ fontVariantNumeric: "tabular-nums" }}>
+      <Text size="xs" span className="tabular-nums">
         {ctx.row.original.entry_date || "—"}
       </Text>
     ),
@@ -163,7 +163,7 @@ const SIGNAL_COLUMNS: ColumnDef<ProfitTopSignal>[] = [
     accessorKey: "entry",
     meta: { align: "right" },
     cell: (ctx) => (
-      <Text size="xs" span sx={{ fontVariantNumeric: "tabular-nums" }}>
+      <Text size="xs" span className="tabular-nums">
         {formatCurrencyCompact(ctx.row.original.entry)}
       </Text>
     ),
@@ -174,7 +174,7 @@ const SIGNAL_COLUMNS: ColumnDef<ProfitTopSignal>[] = [
     accessorKey: "exit",
     meta: { align: "right" },
     cell: (ctx) => (
-      <Text size="xs" span sx={{ fontVariantNumeric: "tabular-nums" }}>
+      <Text size="xs" span className="tabular-nums">
         {formatCurrencyCompact(ctx.row.original.exit)}
       </Text>
     ),
@@ -235,9 +235,9 @@ export function ProfitabilityPage({ universe: universeProp = "nifty500", onOpenS
     (data?.top_signals ?? []).length === 0;
 
   return (
-    <Box data-testid="profitability-report" sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0, width: "100%", flex: 1 }}>
+    <Box data-testid="profitability-report" className="flex flex-col gap-2 min-w-0 w-full flex-1">
       <ToolbarRow gap={8} wrap={false} data-testid="profitability-toolbar" style={{ height: 48 }}>
-        <Text size="sm" fw={700} span data-testid="profitability-title" sx={{ whiteSpace: "nowrap" }}>
+        <Text size="sm" fw={700} span data-testid="profitability-title" className="whitespace-nowrap">
           Pattern Profitability
         </Text>
         <Select
@@ -266,7 +266,7 @@ export function ProfitabilityPage({ universe: universeProp = "nifty500", onOpenS
         <Button size="xs" variant="subtle" onClick={handleRefresh} data-testid="profitability-refresh" aria-label="Refresh profitability">
           Refresh
         </Button>
-        <Box sx={{ flex: 1, minWidth: 0 }} />
+        <Box className="flex-1 min-w-0" />
         {data?.as_of ? (
           <Text size="xs" c="dimmed" truncate span data-testid="profitability-asof">
             as of {formatTimeOnly(data.as_of)}
@@ -276,7 +276,7 @@ export function ProfitabilityPage({ universe: universeProp = "nifty500", onOpenS
       </ToolbarRow>
 
       {loading ? (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1, width: "100%", minWidth: 0 }} data-testid="profitability-loading">
+        <Box className="flex flex-col gap-2 w-full min-w-0" data-testid="profitability-loading">
           <Skeleton h={16} />
           <Skeleton h={16} />
           <Skeleton h={16} />
@@ -288,7 +288,7 @@ export function ProfitabilityPage({ universe: universeProp = "nifty500", onOpenS
           </Alert>
         </Box>
       ) : isEmpty ? (
-        <Box sx={{ p: 2, textAlign: "center", width: "100%" }} data-testid="profitability-empty">
+        <Box className="p-4 text-center w-full" data-testid="profitability-empty">
           <Text size="xs" c="dimmed">
             No pattern trades in the last {weeks} week{weeks === 1 ? "" : "s"}
           </Text>

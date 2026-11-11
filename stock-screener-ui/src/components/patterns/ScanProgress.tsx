@@ -157,7 +157,7 @@ export function ScanCacheChip({ job, onForceRefresh }: ScanCacheChipProps) {
   return (
     <Box
       data-testid="patterns-scan-status"
-      sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}
+      className="flex min-w-0 items-center gap-2"
     >
       <Tooltip position="bottom" withArrow multiline label={summary}>
         <Badge
@@ -192,7 +192,7 @@ export function ReusedScanNotice({ job, onForceRefresh }: ReusedScanNoticeProps)
   const when = age ? ` from ${age}` : "";
   return (
     <Alert color="info" data-testid="patterns-scan-reused">
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+      <Box className="flex flex-wrap items-center gap-2">
         <Text size="xs">{`Reused scan${when} — data unchanged. Force to re-run.`}</Text>
         {onForceRefresh ? (
           <Button size="xs" variant="outline" onClick={onForceRefresh} data-testid="patterns-scan-reused-force">
@@ -235,7 +235,7 @@ export function ScanProgress({
     return (
       <Box
         data-testid="patterns-scan-progress"
-        sx={{ display: "flex", flexDirection: "column", gap: 1, alignItems: "center", maxWidth: 460, mx: "auto" }}
+        className="mx-auto flex max-w-[460px] flex-col items-center gap-2"
       >
         <Text size="sm" fw={600}>
           Queued{combo ? ` — ${combo}` : ""}
@@ -255,22 +255,12 @@ export function ScanProgress({
     return (
       <Box
         data-testid="patterns-scan-progress"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 2,
-          p: 1,
-          border: "1px solid",
-          borderColor: "divider",
-          borderRadius: 1,
-          bgcolor: "background.paper",
-          minWidth: 0,
-        }}
+        className="flex min-w-0 items-center gap-4 rounded-fin border border-fin-border bg-fin-surface p-2"
       >
         <Text size="xs" fw={700} style={{ whiteSpace: "nowrap" }}>
           Scanning{combo ? ` ${combo}` : ""}…
         </Text>
-        <Box sx={{ flex: 1, minWidth: 120 }}>
+        <Box className="min-w-[120px] flex-1">
           <Progress value={pct} size="sm" color="primary" aria-label="pattern scan progress" />
         </Box>
         <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }} data-testid="patterns-scan-progress-count">
@@ -283,7 +273,7 @@ export function ScanProgress({
 
   if (variant === "inline") {
     return (
-      <Box data-testid="patterns-scan-progress" sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 180 }}>
+      <Box data-testid="patterns-scan-progress" className="flex min-w-[180px] flex-col gap-1">
         <Text size="xs" c="dimmed" truncate>
           Scanning{combo ? ` ${combo}` : ""} · {countText}
           {eta ? ` · ${eta}` : ""}
@@ -296,26 +286,12 @@ export function ScanProgress({
   return (
     <Box
       data-testid="patterns-scan-progress"
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 1.5,
-        alignItems: "center",
-        width: "100%",
-        maxWidth: 520,
-        mx: "auto",
-        py: 2,
-        px: 3,
-        border: "1px solid",
-        borderColor: "divider",
-        borderRadius: 1,
-        bgcolor: "background.paper",
-      }}
+      className="mx-auto flex w-full max-w-[520px] flex-col items-center gap-3 rounded-fin border border-fin-border bg-fin-surface px-6 py-4"
     >
       <Text size="sm" fw={700}>
         Scanning{combo ? ` ${combo}` : ""}…
       </Text>
-      <Box sx={{ width: "100%" }}>
+      <Box className="w-full">
         <Progress
           value={pct}
           size="lg"
@@ -324,7 +300,7 @@ export function ScanProgress({
           data-testid="patterns-scan-progress-bar"
         />
       </Box>
-      <Box sx={{ display: "flex", justifyContent: "space-between", width: "100%", gap: 2 }}>
+      <Box className="flex w-full justify-between gap-4">
         <Text size="sm" fw={600} data-testid="patterns-scan-progress-count">
           {total > 0 ? `${done} / ${total} stocks` : "Starting…"}
         </Text>

@@ -155,13 +155,7 @@ export function PatternImageManager() {
                 p="sm"
                 radius="sm"
                 data-testid={`pattern-image-card-${pattern.id}`}
-                sx={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 1,
-                  border: "1px solid",
-                  borderColor: "divider",
-                }}
+                className="flex flex-col gap-2 border border-fin-border"
               >
                 <PatternImage patternId={pattern.id} images={images} height={120} />
                 <Text size="sm" fw={600} truncate>

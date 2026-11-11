@@ -1,10 +1,4 @@
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
-import Paper from "@mui/material/Paper";
-import List from "@mui/material/List";
-import ListItemButton from "@mui/material/ListItemButton";
-import CardContent from "@mui/material/CardContent";
-import { Text, Select, NumberInput, Divider, Button } from "@/ui";
+import { Text, Select, NumberInput, Divider, Button, Box, Stack, Paper } from "@/ui";
 import type { ScreenerOption, ProfileFilter } from "../../types";
 import * as state from "../../state";
 import { fetchData } from "../../api";
@@ -14,7 +8,7 @@ interface Props {
   screenerOptions: ScreenerOption[];
 }
 
-/** MUI Select expects { value, label }[]; API may send string[] or number[]. */
+/** @/ui Select expects { value, label }[]; API may send string[] or number[]. */
 export function normalizeSelectFilterOptions(
   options: ProfileFilter["options"],
 ): { value: string; label: string }[] {
@@ -57,13 +51,8 @@ function renderFilter(filter: ProfileFilter) {
           ? String(filter.default)
           : null;
     return (
-      <ListItemButton
-        key={filter.key}
-        selected={false}
-        disableRipple
-        sx={{ p: 0, borderRadius: 1, display: "flex", alignItems: "center", width: "100%" }}
-      >
-        <Stack spacing={0.5} sx={{ width: "100%", p: 0.5 }}>
+      <div key={filter.key} className="p-0 rounded-sm flex items-center w-full" data-filter={filter.key}>
+        <Stack spacing={0.5} className="w-full p-2">
           <Text size="xs" c="dimmed">
             {filter.label}
           </Text>
@@ -76,18 +65,13 @@ function renderFilter(filter: ProfileFilter) {
             aria-label={filter.label}
           />
         </Stack>
-      </ListItemButton>
+      </div>
     );
   }
 
   return (
-    <ListItemButton
-      key={filter.key}
-      selected={false}
-      disableRipple
-      sx={{ p: 0, borderRadius: 1, display: "flex", alignItems: "center", width: "100%" }}
-    >
-      <Stack spacing={0.5} sx={{ width: "100%", p: 0.5 }}>
+    <div key={filter.key} className="p-0 rounded-sm flex items-center w-full" data-filter={filter.key}>
+      <Stack spacing={0.5} className="w-full p-2">
         <Text size="xs" c="dimmed">
           {filter.label}
         </Text>
@@ -101,7 +85,7 @@ function renderFilter(filter: ProfileFilter) {
           aria-label={filter.label}
         />
       </Stack>
-    </ListItemButton>
+    </div>
   );
 }
 
@@ -119,28 +103,26 @@ export function ScreenerSidePanel({ activeScreener }: Props) {
 
   return (
     <Paper
-      elevation={1}
-      sx={{ width: 148, flexShrink: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}
       data-testid="screener-side-panel"
+      w={148}
+      className="flex-shrink-0 flex flex-col overflow-hidden border border-fin-border"
     >
-      <CardContent sx={{ p: 1, "&:last-child": { pb: 1 }, display: "flex", flexDirection: "column", gap: 1 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, px: 0.5 }}>
+      <Box p={1} className="flex flex-col gap-2">
+        <Box className="flex items-center justify-between gap-2 px-1">
           <Text size="11px" fw={600} c="dimmed" tt="uppercase">
             Filters
           </Text>
         </Box>
-        <List sx={{ display: "flex", flexDirection: "column", gap: 1, p: 0, width: "100%" }}>
-          <Stack spacing={1} sx={{ width: "100%", gap: 1 }}>
-            {filters.map(renderFilter)}
-          </Stack>
-        </List>
-        <Divider sx={{ my: 0.5 }} />
-        <Box sx={{ display: "flex", justifyContent: "center", width: "100%", pt: 0.5 }}>
+        <Stack gap={1} className="p-0 w-full">
+          {filters.map(renderFilter)}
+        </Stack>
+        <Divider className="my-1" />
+        <Box className="flex justify-center w-full pt-1">
           <Button size="xs" variant="light" onClick={handleApplyFilters} fullWidth>
             Apply filters
           </Button>
         </Box>
-      </CardContent>
+      </Box>
     </Paper>
   );
 }

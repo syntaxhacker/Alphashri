@@ -56,14 +56,14 @@ const MIN_OPTIONS = [1, 3, 5, 10].map((value) => ({
 const STATUS_ORDER: RotationStatus[] = ["booming", "heating", "cooling", "dumping", "neutral"];
 
 function Divider() {
-  return <Box sx={{ width: "1px", height: 12, bgcolor: "divider", flexShrink: 0 }} />;
+  return <Box className="h-3 w-px shrink-0 bg-fin-border" />;
 }
 
 function StripLabel({ children }: { children: ReactNode }) {
   return (
     <Text
       c="dimmed"
-      sx={{ fontSize: 9.5, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" }}
+      className="text-[9.5px] font-bold tracking-[0.5px] uppercase"
     >
       {children}
     </Text>
@@ -112,30 +112,22 @@ export function RotationTab({ market }: { market: "india" | "america" }) {
   return (
     <Box
       data-testid="rotation-tab"
-      sx={{
-        flex: 1,
-        minHeight: 0,
-        minWidth: 0,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        bgcolor: "background.default",
-      }}
+      className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden bg-fin-bg"
     >
       <ToolbarRow
         gap={8}
         wrap={false}
         data-testid="rotation-toolbar"
-        sx={{ overflowX: "auto", overflowY: "hidden" }}
+        className="overflow-x-auto overflow-y-hidden"
         style={{
           padding: "0 10px",
           minHeight: 34,
           height: 34,
-          borderBottom: "1px solid var(--mui-palette-divider)",
+          borderBottom: "1px solid var(--color-fin-border)",
           flexShrink: 0,
         }}
       >
-        <Text fw={700} sx={{ fontSize: 12, whiteSpace: "nowrap" }}>
+        <Text fw={700} className="text-[12px] whitespace-nowrap">
           Rotation
         </Text>
         <SegmentedControl
@@ -162,17 +154,17 @@ export function RotationTab({ market }: { market: "india" | "america" }) {
           aria-label="Minimum members"
           data-testid="rotation-min-members"
         />
-        <Box sx={{ flex: 1, minWidth: 8 }} />
+        <Box className="flex-1 min-w-[8px]" />
         {loading && data ? (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Box className="flex items-center gap-1">
             <Loader size="xs" />
-            <Text c="dimmed" sx={{ fontSize: 10 }}>
+            <Text c="dimmed" className="text-[10px]">
               Updating
             </Text>
           </Box>
         ) : null}
         {updatedAt ? (
-          <Text c="dimmed" sx={{ fontSize: 10, whiteSpace: "nowrap" }}>
+          <Text c="dimmed" className="text-[10px] whitespace-nowrap">
             {updatedAt}
           </Text>
         ) : null}
@@ -190,25 +182,14 @@ export function RotationTab({ market }: { market: "india" | "america" }) {
       {regime ? (
         <Box
           data-testid="rotation-regime"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1,
-            px: 1,
-            height: 26,
-            flexShrink: 0,
-            borderBottom: "1px solid",
-            borderColor: "divider",
-            overflow: "hidden",
-            whiteSpace: "nowrap",
-          }}
+          className="flex items-center gap-2 px-2 h-[26px] shrink-0 border-b border-fin-border overflow-hidden whitespace-nowrap"
         >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+          <Box className="flex items-center gap-1 min-w-0">
             <StripLabel>{regime.benchmark}</StripLabel>
             <Text
               c={regime.benchmark_change >= 0 ? "success" : "error"}
               fw={600}
-              sx={{ fontSize: 11, fontVariantNumeric: "tabular-nums" }}
+              className="text-[11px] tabular-nums"
             >
               {formatPercentage(regime.benchmark_change)}
             </Text>
@@ -216,16 +197,16 @@ export function RotationTab({ market }: { market: "india" | "america" }) {
           {regime.vix != null ? (
             <>
               <Divider />
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <Box className="flex items-center gap-1">
                 <StripLabel>VIX</StripLabel>
-                <Text sx={{ fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
+                <Text className="text-[11px] tabular-nums">
                   {regime.vix.toFixed(2)}
                 </Text>
                 {regime.vix_change != null ? (
                   <Text
                     c={regime.vix_change <= 0 ? "success" : "error"}
                     fw={600}
-                    sx={{ fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}
+                    className="text-[10.5px] tabular-nums"
                   >
                     {formatPercentage(regime.vix_change)}
                   </Text>
@@ -234,57 +215,41 @@ export function RotationTab({ market }: { market: "india" | "america" }) {
             </>
           ) : null}
           <Divider />
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Box className="flex items-center gap-1">
             <StripLabel>Breadth</StripLabel>
-            <Text sx={{ fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
+            <Text className="text-[11px] tabular-nums">
               {regime.breadth.toFixed(0)}%
             </Text>
           </Box>
           <Divider />
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Box className="flex items-center gap-1">
             <Box
-              sx={{
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                bgcolor: regimeTone(regime.label),
-                flexShrink: 0,
-              }}
+              className="size-[6px] rounded-full shrink-0"
+              style={{ backgroundColor: regimeTone(regime.label) }}
             />
             <Text
               fw={700}
-              sx={{
-                fontSize: 10,
-                letterSpacing: 0.6,
-                textTransform: "uppercase",
-                color: regimeTone(regime.label),
-              }}
+              className="text-[10px] tracking-[0.6px] uppercase"
+              style={{ color: regimeTone(regime.label) }}
             >
               {regime.label}
             </Text>
           </Box>
-          <Box sx={{ flex: 1 }} />
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+          <Box className="flex-1" />
+          <Box className="flex items-center gap-[10px]">
             {STATUS_ORDER.map((status) => {
               const label = ROTATION_STATUS_LABELS[status].short;
               const color = ROTATION_STATUS_COLORS_PANEL[status];
               return (
-                <Box key={status} sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                <Box key={status} className="flex items-center gap-1">
                   <Box
-                    sx={{
-                      width: 5,
-                      height: 5,
-                      borderRadius: "50%",
-                      bgcolor: color,
-                      flexShrink: 0,
-                    }}
+                    className="size-[5px] rounded-full shrink-0"
+                    style={{ backgroundColor: color }}
                   />
-                  <Text c="dimmed" sx={{ fontSize: 9.5, fontWeight: 700, letterSpacing: 0.3 }}>
+                  <Text c="dimmed" className="text-[9.5px] font-bold tracking-[0.3px]">
                     {label}
                   </Text>
-                  <Text
-                    sx={{ fontSize: 10.5, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}
-                  >
+                  <Text className="text-[10.5px] font-semibold tabular-nums">
                     {counts[status]}
                   </Text>
                 </Box>
@@ -297,17 +262,10 @@ export function RotationTab({ market }: { market: "india" | "america" }) {
       {error ? (
         <Box
           data-testid="rotation-error"
-          sx={{
-            flex: 1,
-            minHeight: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            p: 1,
-          }}
+          className="flex-1 min-h-0 flex items-center justify-center p-2"
         >
           <Box
-            sx={{ width: "100%", maxWidth: 520, display: "flex", flexDirection: "column", gap: 1 }}
+            className="w-full max-w-[520px] flex flex-col gap-2"
           >
             <Alert color="error" title="Rotation data unavailable">
               {error}
@@ -322,14 +280,7 @@ export function RotationTab({ market }: { market: "india" | "america" }) {
       ) : loading || !data ? (
         <Box
           data-testid="rotation-loading"
-          sx={{
-            flex: 1,
-            minHeight: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 1,
-          }}
+          className="flex-1 min-h-0 flex items-center justify-center gap-2"
         >
           <Loader size="sm" />
           <Text size="xs" c="dimmed">
@@ -339,14 +290,7 @@ export function RotationTab({ market }: { market: "india" | "america" }) {
       ) : visible.length === 0 ? (
         <Box
           data-testid="rotation-empty"
-          sx={{
-            flex: 1,
-            minHeight: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            p: 1,
-          }}
+          className="flex-1 min-h-0 flex items-center justify-center p-2"
         >
           <Text size="xs" c="dimmed">
             No {kind} groups with at least {minMembers} members.
@@ -354,34 +298,21 @@ export function RotationTab({ market }: { market: "india" | "america" }) {
         </Box>
       ) : (
         <Box
-          sx={{
-            flex: 1,
-            minHeight: 0,
-            display: "grid",
-            gap: 0.25,
-            p: 0.25,
-            overflow: "hidden",
-            gridTemplateAreas: {
-              xs: '"rrg" "matrix" "board" "detail"',
-              lg: '"rrg board" "matrix detail"',
-            },
-            gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(0, 1.15fr) minmax(0, 1fr)" },
-            gridTemplateRows: { xs: "auto auto auto auto", lg: "minmax(0, 1.18fr) minmax(0, 0.82fr)" },
-          }}
+          className="flex-1 min-h-0 grid gap-[2px] p-[2px] overflow-hidden grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] grid-rows-[auto_auto_auto_auto] lg:grid-rows-[minmax(0,1.18fr)_minmax(0,0.82fr)]"
         >
           <CompactPanel
             testId="rotation-rrg-panel"
             scrollable
             flush
             padded={false}
-            sx={{ gridArea: "rrg", minHeight: { xs: 300, lg: 0 } }}
+            className="min-h-[300px] lg:min-h-0"
             title={
-              <Text sx={{ fontSize: 9.5, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: "text.secondary" }}>
+              <Text className="text-[9.5px] font-bold uppercase tracking-[0.5px] text-fin-text-muted">
                 Relative rotation
               </Text>
             }
             description={
-              <Text sx={{ fontSize: 9.5, color: "text.disabled" }}>
+              <Text className="text-[9.5px] text-fin-text-muted">
                 RS 1M vs momentum · 50 = benchmark
               </Text>
             }
@@ -397,13 +328,13 @@ export function RotationTab({ market }: { market: "india" | "america" }) {
             scrollable
             flush
             padded={false}
-            sx={{ gridArea: "matrix", minHeight: { xs: 260, lg: 0 } }}
+            className="min-h-[260px] lg:min-h-0"
             title={
-              <Text sx={{ fontSize: 9.5, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: "text.secondary" }}>
+              <Text className="text-[9.5px] font-bold uppercase tracking-[0.5px] text-fin-text-muted">
                 Multi-period
               </Text>
             }
-            description={<Text sx={{ fontSize: 9.5, color: "text.disabled" }}>group returns</Text>}
+            description={<Text className="text-[9.5px] text-fin-text-muted">group returns</Text>}
           >
             <RotationMatrix
               rows={visible}
@@ -416,13 +347,13 @@ export function RotationTab({ market }: { market: "india" | "america" }) {
             scrollable
             flush
             padded={false}
-            sx={{ gridArea: "board", minHeight: { xs: 320, lg: 0 } }}
+            className="min-h-[320px] lg:min-h-0"
             title={
-              <Text sx={{ fontSize: 9.5, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: "text.secondary" }}>
+              <Text className="text-[9.5px] font-bold uppercase tracking-[0.5px] text-fin-text-muted">
                 Rotation board
               </Text>
             }
-            description={<Text sx={{ fontSize: 9.5, color: "text.disabled" }}>sorted by {period}</Text>}
+            description={<Text className="text-[9.5px] text-fin-text-muted">sorted by {period}</Text>}
           >
             <RotationBoard
               rows={visible}
@@ -436,7 +367,7 @@ export function RotationTab({ market }: { market: "india" | "america" }) {
             scrollable
             flush
             padded={false}
-            sx={{ gridArea: "detail", minHeight: { xs: 200, lg: 0 } }}
+            className="min-h-[200px] lg:min-h-0"
           >
             <RotationDetail row={selectedRow} onOpenMembers={setMembersRow} />
           </CompactPanel>

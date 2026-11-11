@@ -1,21 +1,44 @@
-import Box from "@mui/material/Box";
+import { Box } from "@/ui";
+import * as palette from "@/ui/palette";
 import type { ThemeType } from "./chainStyles";
+import { getStyles } from "./chainStyles";
 
 interface ChainTableHeaderProps {
-  theme: ThemeType;
-  styles: ReturnType<typeof import("./chainStyles").getStyles>;
+  _theme: ThemeType;
+  styles: ReturnType<typeof getStyles>;
 }
 
-export function ChainTableHeader({ theme, styles }: ChainTableHeaderProps) {
+export function ChainTableHeader({ _theme, styles }: ChainTableHeaderProps) {
+  const headerCell = {
+    ...styles.headerCell,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    padding: 8,
+  } as React.CSSProperties;
   return (
-    <Box className="chain-table-header" sx={{ ...styles.header, display: "grid", gap: 1, p: 1 }} data-testid="options-chain-table-header">
-      <Box className="chain-header-cell chain-calls-header" sx={{ ...styles.headerCell, color: "success.main", bgcolor: "background.paper", display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+    <Box
+      className="chain-table-header"
+      style={{ ...styles.header, display: "grid", gap: 8, padding: 8 } as React.CSSProperties}
+      data-testid="options-chain-table-header"
+    >
+      <Box
+        className="chain-header-cell chain-calls-header"
+        style={{ ...headerCell, color: palette.POSITIVE, backgroundColor: palette.SURFACE } as React.CSSProperties}
+      >
         CALLS (CE)
       </Box>
-      <Box className="chain-header-cell chain-strike-header" sx={{ ...styles.headerCell, color: "warning.main", bgcolor: "background.paper", display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+      <Box
+        className="chain-header-cell chain-strike-header"
+        style={{ ...headerCell, color: palette.WARNING, backgroundColor: palette.SURFACE } as React.CSSProperties}
+      >
         STRIKE
       </Box>
-      <Box className="chain-header-cell chain-puts-header" sx={{ ...styles.headerCell, color: "error.main", bgcolor: "background.paper", display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+      <Box
+        className="chain-header-cell chain-puts-header"
+        style={{ ...headerCell, color: palette.NEGATIVE, backgroundColor: palette.SURFACE } as React.CSSProperties}
+      >
         PUTS (PE)
       </Box>
     </Box>

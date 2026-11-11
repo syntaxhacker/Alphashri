@@ -6,7 +6,6 @@ import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import { StrategiesPage } from "./StrategiesPage";
 import type { StrategiesPageProps } from "./types";
-import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
 afterEach(() => {
   cleanup();

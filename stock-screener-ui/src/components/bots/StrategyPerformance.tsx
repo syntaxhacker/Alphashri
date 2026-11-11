@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { alpha } from "@mui/material/styles";
-import { Text, Title, Group, Paper, Badge, Box } from "@/ui";
+import { alpha, Text, Title, Group, Paper, Badge, Box } from "@/ui";
+import * as palette from "@/ui/palette";
 import { type ColumnDef } from "@tanstack/react-table";
 import { TanStackTable } from "../common/TanStackTable";
 import { apiGet } from "../../api/utils";
@@ -29,7 +29,7 @@ const columns: ColumnDef<StrategyPerf>[] = [
     enableSorting: true,
     meta: { align: "left" } as any,
       cell: ({ row }) => (
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
+        <Box className="flex items-center justify-start">
           <Text fw={600} size="sm" ta="left">{row.original.strategy_name}</Text>
         </Box>
       ),
@@ -107,10 +107,10 @@ export function StrategyPerformance() {
   const totalWinRate = data.total_trades > 0 ? ((totalWins / data.total_trades) * 100).toFixed(1) : "0.0";
 
   return (
-    <Paper elevation={1} p="sm" radius="sm" sx={{ p: 1 }}>
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }} mb="sm">
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
-          <Box w={4} h={24} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.info.main })} />
+    <Paper elevation={1} p="sm" radius="sm">
+      <Box className="flex items-center justify-between gap-2 p-2" mb="sm">
+        <Box className="flex items-center gap-2">
+          <Box w={4} h={24} style={{ borderRadius: 2, backgroundColor: palette.INFO }} />
           <Title order={4} ta="center">Strategy Performance</Title>
           <Badge size="sm" variant="light" color="info">last {data.days} days</Badge>
         </Box>
@@ -124,28 +124,27 @@ export function StrategyPerformance() {
         p="sm"
         mt="sm"
         radius="sm"
-        sx={(theme) => ({
-          p: 1,
-          background: alpha(data.total_net_pnl >= 0 ? theme.palette.success.main : theme.palette.error.main, 0.16),
-          borderLeft: `4px solid ${data.total_net_pnl >= 0 ? theme.palette.success.main : theme.palette.error.main}`,
-        })}
+        style={{
+          backgroundColor: alpha(data.total_net_pnl >= 0 ? palette.POSITIVE : palette.NEGATIVE, 0.16),
+          borderLeft: `4px solid ${data.total_net_pnl >= 0 ? palette.POSITIVE : palette.NEGATIVE}`,
+        }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
-          <Group gap={8} align="flex-start" sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
-            <Box sx={{ display: "flex", gap: 1, flexDirection: "column", alignItems: "flex-start" }}>
+        <Box className="flex items-center justify-between gap-2 p-2">
+          <Group gap="md" align="flex-start" className="items-start">
+            <Box className="flex flex-col gap-2 items-start">
               <Text size="xs" c="dimmed">Total Trades</Text>
               <Text fw={700} size="lg">{data.total_trades}</Text>
             </Box>
-            <Box sx={{ display: "flex", gap: 1, flexDirection: "column", alignItems: "flex-start" }}>
+            <Box className="flex flex-col gap-2 items-start">
               <Text size="xs" c="dimmed">Win / Loss</Text>
-              <Group gap={8} sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <Group gap="md" className="items-center">
                 <Badge color="success" variant="filled" size="sm">{totalWins} W</Badge>
                 <Badge color="error" variant="filled" size="sm">{totalLosses} L</Badge>
                 <Text size="sm" fw={700}>({totalWinRate}%)</Text>
               </Group>
             </Box>
           </Group>
-          <Box sx={{ display: "flex", gap: 1, flexDirection: "column", alignItems: "flex-start" }}>
+          <Box className="flex flex-col gap-2 items-start">
             <Text size="xs" c="dimmed">Total Net P&L</Text>
             <Text fw={700} size="lg" c={data.total_net_pnl >= 0 ? "success" : "error"}>
               {data.total_net_pnl >= 0 ? "+" : ""}₹{data.total_net_pnl.toLocaleString()}

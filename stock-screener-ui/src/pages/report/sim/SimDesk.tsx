@@ -44,7 +44,7 @@ function SectionLabel({ children }: { children: string }) {
       size="xs"
       fw={700}
       c="dimmed"
-      sx={{ textTransform: "uppercase", letterSpacing: "0.06em" }}
+      className="uppercase tracking-[0.06em]"
     >
       {children}
     </Text>
@@ -265,13 +265,7 @@ export function SimDesk({
               size="xs"
               c="dimmed"
               title={fillModel}
-              sx={{
-                flex: 1,
-                minWidth: 0,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
+              className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
             >
               {fillModel}
             </Text>
@@ -301,7 +295,7 @@ export function SimDesk({
           </>
         }
       >
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
+        <Box className="flex flex-col gap-2 min-w-0">
           <SimContextStrip
             mode={effectiveMode}
             date={runDate ?? date}
@@ -320,34 +314,21 @@ export function SimDesk({
               size="xs"
               fw={600}
               c="warning.main"
-              sx={{ lineHeight: 1.45 }}
+              className="leading-[1.45]"
             >
               ⚠ {result.expiryNote}
             </Text>
           ) : null}
 
           <Box
-            sx={{
-              display: "flex",
-              flexDirection: { xs: "column", md: "row" },
-              gap: 1,
-              minWidth: 0,
-              minHeight: 0,
-            }}
+            className="flex flex-col min-[900px]:flex-row gap-2 min-w-0 min-h-0"
           >
             <Box
               data-testid="sim-rail"
-              sx={{
-                width: { xs: "100%", md: 220 },
-                flexShrink: 0,
-                display: "flex",
-                flexDirection: "column",
-                gap: 0.75,
-                minWidth: 0,
-              }}
+              className="w-full min-[900px]:w-[220px] shrink-0 flex flex-col gap-1.5 min-w-0"
             >
               <ToolbarRow justify="space-between">
-                <Text span size="xs" fw={700} sx={{ textTransform: "uppercase" }}>
+                <Text span size="xs" fw={700} className="uppercase">
                   Strategies
                 </Text>
                 <Button
@@ -380,7 +361,7 @@ export function SimDesk({
                     data-testid={`sim-strategy-${item.id}`}
                     size="xs"
                     variant={item.id === selectedId ? "light" : "subtle"}
-                    sx={{ flex: 1, minWidth: 0, justifyContent: "flex-start" }}
+                    style={{ flex: 1, minWidth: 0, justifyContent: "flex-start" }}
                     onClick={() => setSelectedId(item.id)}
                   >
                     {item.name}
@@ -401,14 +382,7 @@ export function SimDesk({
 
             <Box
               data-testid="sim-pane"
-              sx={{
-                flex: 1,
-                minWidth: 0,
-                minHeight: 0,
-                display: "flex",
-                flexDirection: "column",
-                gap: 1,
-              }}
+              className="flex-1 min-w-0 min-h-0 flex flex-col gap-2"
             >
               <ToolbarRow justify="flex-end">
                 {asOf ? (
@@ -426,18 +400,9 @@ export function SimDesk({
 
               <Box
                 data-testid="sim-view"
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: {
-                    xs: "minmax(0, 1fr)",
-                    lg: "minmax(320px, 0.92fr) minmax(380px, 1.08fr)",
-                  },
-                  gap: 1,
-                  alignItems: "start",
-                  minWidth: 0,
-                }}
+                className="grid grid-cols-1 min-[1200px]:grid-cols-[minmax(320px,0.92fr)_minmax(380px,1.08fr)] gap-2 items-start min-w-0"
               >
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
+                <Box className="flex flex-col gap-2 min-w-0">
                   <SectionLabel>Build</SectionLabel>
                   {selectedSpec ? (
                     <SimBuilder
@@ -449,7 +414,7 @@ export function SimDesk({
                     />
                   ) : null}
                 </Box>
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
+                <Box className="flex flex-col gap-2 min-w-0">
                   <SectionLabel>Payoff</SectionLabel>
                   <SimPayoff
                     strategy={selectedResult}
@@ -461,7 +426,7 @@ export function SimDesk({
                 </Box>
               </Box>
 
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
+              <Box className="flex flex-col gap-2 min-w-0">
                 <SectionLabel>Runs</SectionLabel>
                 <SimRuns strategy={selectedResult} view={view} asOf={asOf} />
               </Box>

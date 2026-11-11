@@ -22,7 +22,7 @@ export async function setupMultiStrategyMocks(page: Page): Promise<void> {
 /**
  * Navigate to Paper Trading and select multi-strategy bot
  */
-export async function navigateToMultiStrategyBot(page: Page, botId: string = "2"): Promise<void> {
+export async function navigateToMultiStrategyBot(page: Page, _botId: string = "2"): Promise<void> {
   // Navigate directly to paper trading URL
   await page.goto("/paper");
   await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });

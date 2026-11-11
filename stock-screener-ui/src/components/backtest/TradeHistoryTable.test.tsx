@@ -432,10 +432,11 @@ describe("TradeHistoryTable rendering", () => {
     render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
-    expect(screen.getByText("TP")).toBeInTheDocument();
-    expect(screen.getByText("SL")).toBeInTheDocument();
-    expect(screen.getByText("TRAILING_STOP")).toBeInTheDocument();
-    expect(screen.getByText("EOD")).toBeInTheDocument();
+    const table = within(screen.getByTestId("trade-history-table"));
+    expect(table.getByText("TP")).toBeInTheDocument();
+    expect(table.getByText("SL")).toBeInTheDocument();
+    expect(table.getByText("TRAILING_STOP")).toBeInTheDocument();
+    expect(table.getByText("EOD")).toBeInTheDocument();
   });
 
   test("row click calls onRowClick", async () => {

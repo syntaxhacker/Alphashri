@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
-import Chip from "@mui/material/Chip";
+import { Box } from "@/ui";
 import { PanelModal } from "@/components/common/PanelModal";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import * as palette from "@/ui/palette";
@@ -84,30 +81,35 @@ interface WallListProps {
   onSelect: (key: string) => void;
 }
 
-const PANEL_TITLE = {
-  fontSize: REPORT_FONT.micro,
-  lineHeight: REPORT_LINE_HEIGHT.tight,
-  fontWeight: REPORT_FONT_WEIGHT.extrabold,
-  letterSpacing: REPORT_LETTER_SPACING.wider,
-  color: MUTED,
-  textTransform: "uppercase" as const,
-};
+function panelTitleStyles() {
+  return {
+    fontSize: `${REPORT_FONT.micro}px`,
+    fontWeight: String(REPORT_FONT_WEIGHT.extrabold),
+    letterSpacing: REPORT_LETTER_SPACING.wider,
+    textTransform: "uppercase",
+    color: MUTED,
+    lineHeight: REPORT_LINE_HEIGHT.tight,
+  };
+}
 
 function PanelTitle({ children }: { children: string }) {
-  return <Typography sx={{ ...PANEL_TITLE, mb: 0.75 }}>{children}</Typography>;
+  return (
+    <div className="mb-1.5" style={{ ...panelTitleStyles() }}>
+      {children}
+    </div>
+  );
 }
 
 function SideMark({ side, size = 7 }: { side: PressureSide; size?: number }) {
   return (
-    <Box
-      component="span"
-      sx={{
-        display: "inline-block",
+    <span
+      className="inline-block shrink-0"
+      style={{
         width: size,
         height: size,
         flexShrink: 0,
         borderRadius: side === "CALL" ? "50%" : "1px",
-        bgcolor: sideColor(side),
+        backgroundColor: sideColor(side),
       }}
     />
   );
@@ -116,62 +118,39 @@ function SideMark({ side, size = 7 }: { side: PressureSide; size?: number }) {
 function FuelBar({ score, width = 54 }: { score: number | undefined; width?: number }) {
   const value = Math.max(0, Math.min(100, score ?? 0));
   return (
-    <Box sx={{ position: "relative", width, height: 4, flexShrink: 0 }}>
-      <Box
-        sx={{
-          position: "absolute",
-          inset: 0,
-          borderRadius: 1,
-          bgcolor: BORDER,
-        }}
+    <div
+      className="relative shrink-0"
+      style={{ width, height: 4 }}
+    >
+      <div
+        className="absolute inset-0 rounded-[1px]"
+        style={{ borderRadius: 1, backgroundColor: BORDER }}
       />
-      <Box
-        sx={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          bottom: 0,
-          width: `${value}%`,
-          borderRadius: 1,
-          bgcolor: palette.TEXT,
-        }}
+      <div
+        className="absolute left-0 top-0 bottom-0 rounded-[1px]"
+        style={{ width: `${value}%`, borderRadius: 1, backgroundColor: palette.TEXT }}
       />
-      <Box
-        sx={{
-          position: "absolute",
-          left: "60%",
-          top: -2,
-          bottom: -2,
-          width: 1,
-          bgcolor: palette.WARNING,
-        }}
+      <div
+        className="absolute left-[60%] top-[-2px] bottom-[-2px] w-[1px]"
+        style={{ borderRadius: 1, backgroundColor: palette.WARNING }}
       />
-    </Box>
+    </div>
   );
 }
 
 function StatusPill({ status }: { status: string | null | undefined }) {
+  const tone = statusColor(status);
   return (
-    <Box
-      component="span"
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        border: `1px solid ${statusColor(status)}`,
+    <span
+      className="inline-flex items-center gap-1 rounded-sm px-1 py-[2px] font-mono text-[10px] font-black tracking-[0.08em] leading-tight whitespace-nowrap"
+      style={{
+        border: `1px solid ${tone}`,
         borderRadius: `${REPORT_RADIUS.sm}px`,
-        px: 0.5,
-        py: "1px",
-        color: statusColor(status),
-        fontFamily: MONO,
-        fontSize: REPORT_FONT.micro,
-        fontWeight: REPORT_FONT_WEIGHT.extrabold,
-        letterSpacing: REPORT_LETTER_SPACING.wide,
-        lineHeight: REPORT_LINE_HEIGHT.tight,
-        whiteSpace: "nowrap",
+        color: tone,
       }}
     >
       {status ?? "—"}
-    </Box>
+    </span>
   );
 }
 
@@ -185,7 +164,7 @@ function FlowPlane({ payload, selectedKey, onSelect }: FlowPlaneProps) {
   const y0 = m.t;
   const y1 = H - m.b;
   const domain = 16;
-  const sx = (value: number) => x0 + ((value + domain) / (domain * 2)) * (x1 - x0);
+  const scaleX = (value: number) => x0 + ((value + domain) / (domain * 2)) * (x1 - x0);
   const sy = (value: number) => y1 - ((value + domain) / (domain * 2)) * (y1 - y0);
   const clamp = (value: number) => Math.max(-domain, Math.min(domain, value));
 
@@ -194,7 +173,7 @@ function FlowPlane({ payload, selectedKey, onSelect }: FlowPlaneProps) {
     return walls
       .map((wall) => ({
         wall,
-        x: sx(clamp(wall.oiPct ?? 0)),
+        x: scaleX(clamp(wall.oiPct ?? 0)),
         y: sy(clamp(wall.premPct ?? 0)),
       }))
       .sort((a, b) => a.y - b.y)
@@ -206,31 +185,22 @@ function FlowPlane({ payload, selectedKey, onSelect }: FlowPlaneProps) {
   }, [walls, x0, x1, y0, y1]);
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+    <div className="flex flex-col min-w-0">
       <PanelTitle>Flow phase plane</PanelTitle>
-      <Box
-        sx={{
-          flex: 1,
-          minHeight: 270,
-          maxHeight: 460,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Box
-          component="svg"
+      <div className="flex-1 min-h-[270px] max-h-[460px] flex items-center justify-center">
+        <svg
           viewBox={`0 0 ${W} ${H}`}
           role="img"
           aria-label="Wall OI change versus premium change over thirty minutes"
-          sx={{ width: "100%", height: "100%", overflow: "visible" }}
+          className="w-full h-full"
+          style={{ overflow: "visible" }}
         >
           {[-12, -8, -4, 0, 4, 8, 12].map((value) => (
             <g key={value}>
               <line
-                x1={sx(value)}
+                x1={scaleX(value)}
                 y1={y0}
-                x2={sx(value)}
+                x2={scaleX(value)}
                 y2={y1}
                 stroke={value === 0 ? palette.AXIS_LINE : BORDER}
                 strokeOpacity={value === 0 ? 0.9 : 0.55}
@@ -356,22 +326,22 @@ function FlowPlane({ payload, selectedKey, onSelect }: FlowPlaneProps) {
               </g>
             );
           })}
-        </Box>
-      </Box>
-      <Typography sx={{ mt: 0.5, fontFamily: MONO, fontSize: REPORT_FONT.micro, color: MUTED }}>
+        </svg>
+      </div>
+      <div className="mt-1 font-mono text-[10px] text-fin-text-muted">
         x = OI Δ / 30m · y = premium Δ / 30m · ±16% · click a dot or a row
-      </Typography>
-      <Stack direction="row" spacing={1} sx={{ mt: 0.5, alignItems: "center" }}>
-        <Stack direction="row" spacing={0.4} sx={{ alignItems: "center" }}>
+      </div>
+      <div className="flex items-center gap-2 mt-1">
+        <div className="flex items-center gap-[3px]">
           <SideMark side="CALL" />
-          <Typography sx={{ fontSize: REPORT_FONT.micro, color: MUTED }}>call</Typography>
-        </Stack>
-        <Stack direction="row" spacing={0.4} sx={{ alignItems: "center" }}>
+          <div className="text-[10px] text-fin-text-muted">call</div>
+        </div>
+        <div className="flex items-center gap-[3px]">
           <SideMark side="PUT" />
-          <Typography sx={{ fontSize: REPORT_FONT.micro, color: MUTED }}>put</Typography>
-        </Stack>
-      </Stack>
-    </Box>
+          <div className="text-[10px] text-fin-text-muted">put</div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -445,14 +415,13 @@ function WallHistory({ wall }: HistoryProps) {
   const prem = useMemo(() => normalizeHistory(wall.row.ltp_history ?? []), [wall.row.ltp_history]);
   const color = sideColor(wall.side);
   return (
-    <Box sx={{ mt: 0.75, borderTop: `1px solid ${BORDER}`, pt: 0.5 }}>
-      <Typography sx={{ ...PANEL_TITLE, mb: 0.25 }}>30m path</Typography>
-      <Box
-        component="svg"
+    <div className="mt-1.5 border-t border-fin-border pt-1">
+      <div className="mb-[2px]" style={{ ...panelTitleStyles() }}>30m path</div>
+      <svg
         viewBox="0 0 280 230"
         role="img"
         aria-label={`${wallLabel(wall.side, wall.strike)} OI and premium history`}
-        sx={{ display: "block", width: "100%", height: 188 }}
+        className="block w-full h-[188px]"
       >
         <HistoryPanel values={oi} color={color} label="OI" top={12} height={78} />
         <HistoryPanel values={prem} color={palette.TEXT_MUTED} label="PREM" top={118} height={78} />
@@ -462,22 +431,26 @@ function WallHistory({ wall }: HistoryProps) {
         <text x={272} y={226} fill={MUTED} fontSize={6.5} textAnchor="end" fontFamily={MONO}>
           indexed at start
         </text>
-      </Box>
-      <Typography sx={{ fontFamily: MONO, fontSize: REPORT_FONT.micro, color: MUTED, mt: 0.25 }}>
-        30m path · <Box component="span" sx={{ color: palette.TEXT }}>{pathRead(wall.row)}</Box>
-      </Typography>
-    </Box>
+      </svg>
+      <div className="mt-[2px] font-mono text-[10px] text-fin-text-muted">
+        30m path · <span style={{ color: palette.TEXT }}>{pathRead(wall.row)}</span>
+      </div>
+    </div>
   );
 }
 
 function Detail({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <Box sx={{ minWidth: 0 }}>
-      <Typography sx={{ fontSize: REPORT_FONT.micro, color: MUTED, letterSpacing: REPORT_LETTER_SPACING.wide }}>
+    <div className="min-w-0">
+      <div
+        className="text-[10px] text-fin-text-muted tracking-[0.08em]"
+        style={{ fontSize: REPORT_FONT.micro, color: MUTED, letterSpacing: REPORT_LETTER_SPACING.wide }}
+      >
         {label}
-      </Typography>
-      <Typography
-        sx={{
+      </div>
+      <div
+        className="font-mono text-[12px] font-semibold tabular-nums whitespace-nowrap"
+        style={{
           fontFamily: MONO,
           fontSize: REPORT_FONT.sm,
           fontWeight: REPORT_FONT_WEIGHT.semibold,
@@ -487,8 +460,8 @@ function Detail({ label, value, color }: { label: string; value: string; color?:
         }}
       >
         {value}
-      </Typography>
-    </Box>
+      </div>
+    </div>
   );
 }
 
@@ -503,71 +476,60 @@ function WallRead({ wall, payload }: WallReadProps) {
   const short = isShortGamma(payload.spot, payload.flip);
 
   return (
-    <Box sx={{ minWidth: 0, display: "flex", flexDirection: "column", height: "100%" }}>
-      <PanelTitle>Selected wall</PanelTitle>
-      <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+    <div className="min-w-0 flex flex-col h-full">
+      <div className="mb-1.5" style={{ ...panelTitleStyles() }}>Selected wall</div>
+      <div className="flex items-center flex-wrap gap-1.5">
         <SideMark side={wall.side} size={9} />
-        <Typography
+        <div
           data-testid="pressure-read-name"
-          sx={{ fontSize: REPORT_FONT.lg, fontWeight: REPORT_FONT_WEIGHT.bold, letterSpacing: "-0.01em" }}
+          className="text-[14px] font-bold tracking-[-0.01em]"
+          style={{ fontSize: REPORT_FONT.lg, fontWeight: REPORT_FONT_WEIGHT.bold, letterSpacing: "-0.01em" }}
         >
           {wallLabel(wall.side, wall.strike)}
-        </Typography>
-        <Typography
-          sx={{
-            fontFamily: MONO,
-            fontSize: REPORT_FONT.micro,
-            fontWeight: REPORT_FONT_WEIGHT.extrabold,
-            letterSpacing: REPORT_LETTER_SPACING.wide,
-            color: palette.TEXT_MUTED,
-            textTransform: "uppercase",
-          }}
-        >
+        </div>
+        <div className="font-mono text-[10px] font-black tracking-[0.08em] text-fin-text-muted uppercase">
           {quadrantFlowText(wall.quadrant)}
-        </Typography>
-      </Stack>
-      <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", mt: 0.5 }}>
-        <Typography sx={{ fontFamily: MONO, fontSize: REPORT_FONT.micro, color: MUTED, letterSpacing: REPORT_LETTER_SPACING.wide }}>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 mt-1">
+        <div className="font-mono text-[10px] text-fin-text-muted tracking-[0.08em]">
           FUEL
-        </Typography>
-        <Typography sx={{ fontFamily: MONO, fontSize: REPORT_FONT.xl, fontWeight: REPORT_FONT_WEIGHT.semibold }}>
-          {row.fuel_score ?? "—"}
-        </Typography>
+        </div>
+        <div className="font-mono text-[15px] font-semibold">{row.fuel_score ?? "—"}</div>
         <FuelBar score={row.fuel_score} width={76} />
-        <Typography sx={{ fontFamily: MONO, fontSize: REPORT_FONT.micro, color: MUTED, ml: "auto" }}>
+        <div className="ml-auto font-mono text-[10px] text-fin-text-muted">
           {short ? "SHORT Γ" : "LONG Γ"}
-        </Typography>
-      </Stack>
-      <Typography sx={{ mt: 0.75, fontSize: REPORT_FONT.xsPlus, lineHeight: REPORT_LINE_HEIGHT.loose, color: palette.TEXT }}>
+        </div>
+      </div>
+      <div className="mt-1.5 text-[11.5px] leading-loose text-fin-text" style={{ fontSize: REPORT_FONT.xsPlus, lineHeight: REPORT_LINE_HEIGHT.loose, color: palette.TEXT }}>
         {sentence}
-      </Typography>
-      <Typography sx={{ mt: 0.3, fontSize: REPORT_FONT.xs, lineHeight: REPORT_LINE_HEIGHT.loose, color: MUTED }}>
+      </div>
+      <div className="mt-[2px] text-[11px] leading-loose text-fin-text-muted" style={{ fontSize: REPORT_FONT.xs, lineHeight: REPORT_LINE_HEIGHT.loose, color: MUTED }}>
         {why}
-      </Typography>
-      <Box
-        sx={{
-          mt: 0.75,
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          columnGap: 1.5,
-          rowGap: 0.4,
-        }}
+      </div>
+      <div
+        className="mt-1.5 grid grid-cols-[1fr_1fr] gap-1.5 row-gap-[3px]"
+        style={{ mt: 0.75, display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: 1.5, rowGap: 0.4 }}
       >
         <Detail label="OI" value={fmtOI(row.oi)} />
         <Detail label="Open" value={fmtOI(row.oi_open)} />
-        <Detail label="30m OI" value={fmtPct(row.erosion_30m)} color={row.erosion_30m != null && row.erosion_30m < 0 ? palette.WARNING : undefined} />
+        <Detail
+          label="30m OI"
+          value={fmtPct(row.erosion_30m)}
+          color={row.erosion_30m != null && row.erosion_30m < 0 ? palette.WARNING : undefined}
+        />
         <Detail label="30m prem" value={fmtPct(row.prem_chg_30m)} />
         <Detail label="5m OI" value={fmtPct(row.erosion_5m)} />
         <Detail label="Wall" value={distanceText} />
-      </Box>
-      <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", mt: 0.75, flexWrap: "wrap" }}>
+      </div>
+      <div className="flex items-center flex-wrap gap-2 mt-1.5">
         <StatusPill status={status} />
-        <Typography sx={{ fontFamily: MONO, fontSize: REPORT_FONT.micro, color: MUTED }}>
+        <div className="font-mono text-[10px] text-fin-text-muted">
           {confidence.level} confidence · {confidence.text}
-        </Typography>
-      </Stack>
+        </div>
+      </div>
       <WallHistory wall={wall} />
-    </Box>
+    </div>
   );
 }
 
@@ -582,18 +544,18 @@ function WallList({ walls, selectedKey, spot, onSelect }: WallListProps) {
   const nearest = nearestWall(walls, spot);
 
   return (
-    <Box sx={{ minWidth: 0, display: "flex", flexDirection: "column", height: "100%" }}>
-      <PanelTitle>Walls</PanelTitle>
-      <Box
-        sx={{
+    <div className="min-w-0 flex flex-col h-full">
+      <div className="mb-1.5" style={{ ...panelTitleStyles() }}>Walls</div>
+      <div
+        className="grid grid-cols-[minmax(0,1fr)_50px_46px_58px] gap-1.5 pb-[2px] border-b border-fin-border font-mono text-[10px] font-black tracking-[0.08em] text-fin-text-muted uppercase"
+        style={{
           display: "grid",
           gridTemplateColumns: "minmax(0,1fr) 50px 46px 58px",
           columnGap: 0.75,
-          pb: 0.25,
           borderBottom: `1px solid ${BORDER}`,
           fontFamily: MONO,
-          fontSize: REPORT_FONT.micro,
-          fontWeight: REPORT_FONT_WEIGHT.extrabold,
+          fontSize: `${REPORT_FONT.micro}px`,
+          fontWeight: String(REPORT_FONT_WEIGHT.extrabold),
           letterSpacing: REPORT_LETTER_SPACING.wide,
           color: MUTED,
           textTransform: "uppercase",
@@ -603,15 +565,17 @@ function WallList({ walls, selectedKey, spot, onSelect }: WallListProps) {
         <span style={{ textAlign: "right" }}>OI</span>
         <span style={{ textAlign: "right" }}>30m</span>
         <span style={{ textAlign: "right" }}>Fuel</span>
-      </Box>
-      <Box sx={{ overflow: "auto", minHeight: 0, maxHeight: 430 }}>
+      </div>
+      <div className="overflow-auto min-h-0 max-h-[430px]">
         {view.map((group) => (
-          <Box key={group.label}>
-            <Typography sx={{ ...PANEL_TITLE, mt: 0.75, mb: 0.25 }}>{group.label}</Typography>
+          <div key={group.label}>
+            <div className="mb-1.5" style={{ ...panelTitleStyles(), mt: 0.75, mb: 0.25 }}>{group.label}</div>
             {group.rows.map((wall) => {
               const selected = wall.key === selectedKey;
+              const borderLeft = selected ? `2px solid ${SELECTED}` : "2px solid transparent";
+              const backgroundColor = selected ? palette.SURFACE_ALT : "transparent";
               return (
-                <Box
+                <div
                   key={wall.key}
                   role="button"
                   tabIndex={0}
@@ -624,23 +588,23 @@ function WallList({ walls, selectedKey, spot, onSelect }: WallListProps) {
                       onSelect(wall.key);
                     }
                   }}
-                  sx={{
+                  className="grid grid-cols-[minmax(0,1fr)_50px_46px_58px] gap-1.5 items-center min-h-[28px] px-1 cursor-pointer hover:bg-fin-surface-alt"
+                  style={{
                     display: "grid",
                     gridTemplateColumns: "minmax(0,1fr) 50px 46px 58px",
                     columnGap: 0.75,
                     alignItems: "center",
                     minHeight: 28,
                     px: 0.5,
-                    borderLeft: `2px solid ${selected ? SELECTED : "transparent"}`,
-                    bgcolor: selected ? palette.SURFACE_ALT : "transparent",
-                    cursor: "pointer",
-                    "&:hover": { bgcolor: palette.SURFACE_ALT },
+                    borderLeft: borderLeft as any,
+                    backgroundColor,
                   }}
                 >
-                  <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", minWidth: 0 }}>
+                  <div className="flex items-center gap-1 min-w-0">
                     <SideMark side={wall.side} />
-                    <Typography
-                      sx={{
+                    <div
+                      className={`font-mono text-[11px] text-fin-text whitespace-nowrap overflow-hidden overflow-ellipsis ${selected ? "font-bold" : "font-medium"}`}
+                      style={{
                         fontFamily: MONO,
                         fontSize: REPORT_FONT.xs,
                         fontWeight: selected ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.medium,
@@ -651,13 +615,12 @@ function WallList({ walls, selectedKey, spot, onSelect }: WallListProps) {
                       }}
                     >
                       {wall.strike.toLocaleString("en-IN")}
-                    </Typography>
-                  </Stack>
-                  <Typography sx={{ fontFamily: MONO, fontSize: REPORT_FONT.xs, color: palette.TEXT, textAlign: "right" }}>
-                    {fmtOI(wall.row.oi)}
-                  </Typography>
-                  <Typography
-                    sx={{
+                    </div>
+                  </div>
+                  <div className="font-mono text-[11px] text-fin-text text-right">{fmtOI(wall.row.oi)}</div>
+                  <div
+                    className="font-mono text-[11px] text-right"
+                    style={{
                       fontFamily: MONO,
                       fontSize: REPORT_FONT.xs,
                       textAlign: "right",
@@ -665,27 +628,25 @@ function WallList({ walls, selectedKey, spot, onSelect }: WallListProps) {
                     }}
                   >
                     {fmtPct(wall.row.erosion_30m)}
-                  </Typography>
-                  <Stack direction="row" spacing={0.4} sx={{ alignItems: "center", justifyContent: "flex-end" }}>
+                  </div>
+                  <div className="flex items-center justify-end gap-[3px]">
                     <FuelBar score={wall.row.fuel_score} width={34} />
-                    <Typography sx={{ fontFamily: MONO, fontSize: REPORT_FONT.micro, color: MUTED }}>
-                      {wall.row.fuel_score ?? "—"}
-                    </Typography>
-                  </Stack>
-                </Box>
+                    <div className="font-mono text-[10px] text-fin-text-muted">{wall.row.fuel_score ?? "—"}</div>
+                  </div>
+                </div>
               );
             })}
-          </Box>
+          </div>
         ))}
-      </Box>
-      <Box sx={{ mt: "auto", pt: 0.5, borderTop: `1px solid ${BORDER}`, fontFamily: MONO, fontSize: REPORT_FONT.micro, color: MUTED }}>
+      </div>
+      <div className="mt-auto pt-1 border-t border-fin-border font-mono text-[10px] text-fin-text-muted">
         nearest{" "}
-        <Box component="span" sx={{ color: palette.TEXT }}>
+        <span style={{ color: palette.TEXT }}>
           {nearest ? wallLabel(nearest.side, nearest.strike) : "—"}
-        </Box>{" "}
+        </span>{" "}
         · click a row to inspect
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }
 
@@ -696,10 +657,10 @@ function pressureColumns(): ColumnDef<PressureWall>[] {
       header: "WALL",
       accessorFn: (wall) => wallLabel(wall.side, wall.strike),
       cell: ({ row }) => (
-        <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
+        <div className="flex items-center gap-1">
           <SideMark side={row.original.side} />
           <span>{wallLabel(row.original.side, row.original.strike)}</span>
-        </Stack>
+        </div>
       ),
       meta: { align: "left" },
       size: 118,
@@ -773,10 +734,10 @@ function pressureColumns(): ColumnDef<PressureWall>[] {
       header: "FUEL",
       accessorFn: (wall) => wall.row.fuel_score ?? 0,
       cell: ({ row }) => (
-        <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", justifyContent: "flex-end" }}>
+        <div className="flex items-center justify-end gap-1">
           <FuelBar score={row.original.row.fuel_score} width={38} />
           <span>{row.original.row.fuel_score ?? "—"}</span>
-        </Stack>
+        </div>
       ),
       meta: { align: "right" },
       size: 72,
@@ -819,7 +780,7 @@ function PressureTable({
 }) {
   const columns = useMemo(() => pressureColumns(), []);
   return (
-    <Box sx={{ height: 218, minWidth: 0 }}>
+    <div className="h-[218px] min-w-0">
       <TanStackTable<PressureWall>
         data={walls}
         columns={columns}
@@ -837,23 +798,26 @@ function PressureTable({
         }
         getRowTestId={(wall) => `pressure-table-${wall.key}`}
       />
-    </Box>
+    </div>
   );
 }
 
 function SummaryChip({ label, value }: { label: string; value: string }) {
   return (
-    <Chip
-      size="small"
-      variant="outlined"
-      label={
-        <Box component="span" sx={{ fontFamily: MONO, fontSize: REPORT_FONT.micro }}>
-          <Box component="span" sx={{ color: MUTED, mr: 0.4 }}>{label}</Box>
-          {value}
-        </Box>
-      }
-      sx={{ height: 20, borderColor: BORDER, color: palette.TEXT, "& .MuiChip-label": { px: 0.75 } }}
-    />
+    <span
+      className="inline-flex items-center gap-1 rounded-sm border px-1.5 py-[2px] text-[10px] font-mono whitespace-nowrap"
+      style={{
+        height: 20,
+        borderColor: BORDER,
+        color: palette.TEXT,
+        border: `1px solid ${BORDER}`,
+      }}
+    >
+      <span className="text-fin-text-muted" style={{ marginRight: 4 }}>
+        {label}
+      </span>
+      {value}
+    </span>
   );
 }
 
@@ -872,71 +836,62 @@ export function NiftyPressureDesk({ open, onClose, walls }: NiftyPressureDeskPro
   }, [open, walls, allWalls]);
 
   const title = (
-    <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", minWidth: 0 }}>
-      <Typography
-        sx={{
-          fontFamily: MONO,
-          fontSize: REPORT_FONT.xs,
-          fontWeight: REPORT_FONT_WEIGHT.extrabold,
-          letterSpacing: REPORT_LETTER_SPACING.wider,
-          color: palette.TEXT,
-          whiteSpace: "nowrap",
-        }}
-      >
+    <div className="flex items-center gap-1.5 min-w-0">
+      <div className="font-mono text-[11px] font-black tracking-[0.1em] text-fin-text whitespace-nowrap">
         PRESSURE DESK
-      </Typography>
+      </div>
       {walls ? (
         <>
           <SummaryChip label="" value={walls.symbol} />
           <SummaryChip label="" value={`${walls.date} · ${walls.dte == null ? "—" : `${walls.dte}-DTE`}`} />
-          <SummaryChip label="spot" value={walls.spot.toLocaleString("en-IN", { maximumFractionDigits: 2 })} />
+          <SummaryChip
+            label="spot"
+            value={walls.spot.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+          />
           {walls.expiry ? <SummaryChip label="exp" value={walls.expiry} /> : null}
         </>
       ) : null}
-    </Stack>
+    </div>
   );
 
   return (
     <PanelModal open={open} onClose={onClose} maxWidth={1480} title={title}>
-      <Box data-testid="pressure-desk" sx={{ p: 0.5, minHeight: 0 }}>
+      <div data-testid="pressure-desk" className="p-1 min-h-0">
         {!walls || allWalls.length === 0 || !selected ? (
-          <Box data-testid="pressure-desk-empty" sx={{ py: 5, textAlign: "center", color: MUTED, fontFamily: MONO, fontSize: REPORT_FONT.sm }}>
+          <div data-testid="pressure-desk-empty" className="py-10 text-center text-fin-text-muted font-mono text-[12px]">
             No walls tape at this replay time.
-          </Box>
+          </div>
         ) : (
           <>
+            {/* Responsive grid with breakpoint-based column widths (md = 900px). */}
             <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: { xs: "1fr", md: "minmax(330px,1.05fr) minmax(290px,.9fr) minmax(320px,1fr)" },
-                columnGap: { md: 1.5 },
-                rowGap: 1.5,
-                alignItems: "stretch",
-                minHeight: 0,
-              }}
+              className="grid grid-cols-1 min-[900px]:grid-cols-[minmax(330px,1.05fr)_minmax(290px,0.9fr)_minmax(320px,1fr)] min-[900px]:gap-x-3 gap-y-3 items-stretch min-h-0"
             >
-              <Box sx={{ minWidth: 0, display: "flex" }}>
+              <div className="min-w-0 flex">
                 <FlowPlane payload={walls} selectedKey={selected.key} onSelect={setSelectedKey} />
-              </Box>
-              <Box sx={{ minWidth: 0, pl: { md: 1.5 }, borderLeft: { md: `1px solid ${BORDER}` } }}>
+              </div>
+              {/* Left padding + left border only apply at the md breakpoint */}
+              <Box
+                className="min-w-0 min-[900px]:pl-3 min-[900px]:border-l min-[900px]:border-fin-border"
+              >
                 <WallRead wall={selected} payload={walls} />
               </Box>
-              <Box sx={{ minWidth: 0, pl: { md: 1.5 }, borderLeft: { md: `1px solid ${BORDER}` } }}>
+              <Box
+                className="min-w-0 min-[900px]:pl-3 min-[900px]:border-l min-[900px]:border-fin-border"
+              >
                 <WallList walls={allWalls} selectedKey={selected.key} spot={walls.spot} onSelect={setSelectedKey} />
               </Box>
             </Box>
-            <Box sx={{ mt: 1, pt: 0.75, borderTop: `1px solid ${BORDER}`, minWidth: 0 }}>
-              <Stack direction="row" spacing={1} sx={{ alignItems: "baseline", justifyContent: "space-between", mb: 0.5 }}>
-                <PanelTitle>Current minute · full values</PanelTitle>
-                <Typography sx={{ fontFamily: MONO, fontSize: REPORT_FONT.micro, color: MUTED }}>
-                  % vs 5 / 15 / 30m
-                </Typography>
-              </Stack>
+            <div className="mt-2 pt-[6px] border-t border-fin-border min-w-0" style={{ borderTop: `1px solid ${BORDER}`, minWidth: 0 }}>
+              <div className="flex items-baseline justify-between gap-2 mb-1">
+                <div className="mb-1.5" style={{ ...panelTitleStyles() }}>Current minute · full values</div>
+                <div className="font-mono text-[10px] text-fin-text-muted">% vs 5 / 15 / 30m</div>
+              </div>
               <PressureTable walls={allWalls} selectedKey={selected.key} onSelect={setSelectedKey} />
-            </Box>
+            </div>
           </>
         )}
-      </Box>
+      </div>
     </PanelModal>
   );
 }

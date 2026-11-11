@@ -1,20 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState, useMemo, useRef, useEffect } from "react";
-import Box from "@mui/material/Box";
-import Paper from "@mui/material/Paper";
-import Stack from "@mui/material/Stack";
-import Button from "@mui/material/Button";
-import IconButton from "@mui/material/IconButton";
-import Typography from "@mui/material/Typography";
-import Chip from "@mui/material/Chip";
-import Slider from "@mui/material/Slider";
-import TextField from "@mui/material/TextField";
-import Select from "@mui/material/Select";
-import MenuItem from "@mui/material/MenuItem";
-import FormControl from "@mui/material/FormControl";
-import InputLabel from "@mui/material/InputLabel";
-import Tooltip from "@mui/material/Tooltip";
-import { IconPlayerPlay, IconPlayerPause, IconShoppingCart, IconTrendingUp, IconVolume } from "@tabler/icons-react";
+import { Box, Paper, Button, ActionIcon, Text, Chip, TextInput, Select, Tooltip } from "@/ui";
+import { IconPlayerPlay, IconPlayerPause, IconVolume } from "@tabler/icons-react";
 import * as palette from "@/ui/palette";
 import { ReplayChart, type ReplayChartHandle } from "@/components/replay/ReplayChart";
 import { TradingViewChart } from "@/components/chart/TradingViewChart";
@@ -127,73 +114,176 @@ function FullScreenReplay() {
     { id: "entry_time", header: "Entry Time", accessorKey: "entry_time" as const },
   ];
 
+  const tfBtnClass = (active: boolean) =>
+    `text-[10px] min-w-[32px] px-0 border-none rounded-none transition-colors ${
+      active ? "bg-[#21262D] text-[#F0F6FC]" : "bg-transparent text-[#8B949E] hover:bg-[#21262D] hover:text-[#F0F6FC]"
+    }`;
+
+  const symbolBtnClass = (active: boolean) =>
+    `text-[11px] h-6 min-w-[64px] border border-[#30363D] transition-colors ${
+      active
+        ? `bg-[#21262D] text-[#F0F6FC] border-[#30363D]`
+        : "bg-transparent text-[#8B949E] border-[#30363D] hover:bg-[#21262D] hover:text-[#F0F6FC]"
+    }`;
+
   return (
-    <Box sx={{ height: "100vh", display: "flex", flexDirection: "column", bgcolor: palette.BG, overflow: "hidden" }}>
+    <Box className="h-[100vh] flex flex-col overflow-hidden" style={{ backgroundColor: palette.BG }}>
       {/* Toolbar — 48px like TradingView top */}
-      <Paper elevation={0} sx={{ display: "flex", alignItems: "center", gap: 1, px: 1.5, height: 48, minHeight: 48, borderBottom: 1, borderColor: palette.BORDER, bgcolor: palette.SURFACE, borderRadius: 0, flexShrink: 0 }}>
-        <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>REPLAY</Typography>
-        <Box sx={{ display: "flex", gap: 0.5, ml: 1 }}>
+      <Paper
+        className="flex items-center gap-2 px-3 h-12 min-h-[48px] border-b border-[#30363D] shrink-0 rounded-none"
+        style={{ backgroundColor: palette.SURFACE }}
+      >
+        <Text className="text-[11px] font-bold tracking-[0.5px]" style={{ color: palette.TEXT_MUTED }}>
+          REPLAY
+        </Text>
+        <Box className="flex gap-1 ml-2">
           {mockSymbols.map((s) => (
             <Button
               key={s}
-              size="small"
-              variant={selectedSymbol === s ? "contained" : "outlined"}
-              color="inherit"
+              size="xs"
+              variant={selectedSymbol === s ? "filled" : "outline"}
+              color="secondary"
               onClick={() => { setSelectedSymbol(s); setCurrentIdx(candlesBySymbol[s].length); }}
-              sx={{ fontSize: 11, height: 24, minWidth: 64, borderColor: palette.BORDER, bgcolor: selectedSymbol === s ? palette.SURFACE_ALT : "transparent", color: selectedSymbol === s ? palette.TEXT : palette.TEXT_MUTED }}
+              className={symbolBtnClass(selectedSymbol === s)}
             >
               {s}
             </Button>
           ))}
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, ml: 1, borderLeft: 1, borderColor: palette.BORDER, pl: 1 }}>
-          <Chip size="small" label={currentCandle ? `O ${currentCandle.open} H ${currentCandle.high} L ${currentCandle.low} C ${currentCandle.close} V ${currentCandle.volume}` : "—"} sx={{ fontSize: 10, height: 20, bgcolor: palette.SURFACE_ALT, color: palette.TEXT, border: 1, borderColor: palette.BORDER }} />
-        </Box>
-        <Box sx={{ flex: 1 }} />
-        <Chip size="small" label={`${filteredTrades.length} trades`} sx={{ fontSize: 11, height: 20, bgcolor: palette.SURFACE_ALT, color: palette.TEXT_MUTED, border: 1, borderColor: palette.BORDER }} />
-        <Button size="small" variant={highlighted ? "contained" : "outlined"} color="inherit" onClick={() => setHighlighted(null)} sx={{ fontSize: 11, height: 24, borderColor: palette.BORDER }}>Clear highlight</Button>
+        <div className="flex items-center gap-1 ml-2 border-l border-[#30363D] pl-2">
+          <Chip
+            size="xs"
+            label={currentCandle ? `O ${currentCandle.open} H ${currentCandle.high} L ${currentCandle.low} C ${currentCandle.close} V ${currentCandle.volume}` : "—"}
+            className="text-[10px] h-5 text-[#F0F6FC] border border-[#30363D]"
+            style={{ backgroundColor: palette.SURFACE_ALT }}
+          />
+        </div>
+        <Box className="flex-1" />
+        <Chip size="xs" label={`${filteredTrades.length} trades`} className="text-[11px] h-5 text-[#8B949E] border border-[#30363D]" style={{ backgroundColor: palette.SURFACE_ALT }} />
+        <Button size="xs" variant={highlighted ? "filled" : "outline"} color="secondary" onClick={() => setHighlighted(null)} className="text-[11px] h-6 border border-[#30363D]">
+          Clear highlight
+        </Button>
       </Paper>
 
       {/* Playback bar — candles scrub + play/pause + speed + volume + buy/sell */}
-      <Paper elevation={0} sx={{ display: "flex", alignItems: "center", gap: 1, px: 1.5, py: 0.75, borderBottom: 1, borderColor: palette.BORDER, bgcolor: palette.SURFACE, flexShrink: 0 }}>
-        <Tooltip title={isPlaying ? "Pause" : "Play"}>
-          <IconButton size="small" onClick={handlePlayPause} sx={{ border: 1, borderColor: palette.BORDER, bgcolor: palette.SURFACE_ALT, color: palette.TEXT }}>
+      <Paper
+        className="flex items-center gap-2 px-3 py-1 border-b border-[#30363D] shrink-0"
+        style={{ backgroundColor: palette.SURFACE }}
+      >
+        <Tooltip label={isPlaying ? "Pause" : "Play"}>
+          <ActionIcon size="sm" onClick={handlePlayPause} className="border border-[#30363D] bg-[#21262D] text-[#F0F6FC] w-8 h-8">
             {isPlaying ? <IconPlayerPause size={14} /> : <IconPlayerPlay size={14} />}
-          </IconButton>
+          </ActionIcon>
         </Tooltip>
-        <Typography variant="caption" sx={{ fontSize: 10, color: palette.TEXT_MUTED, minWidth: 56 }}>{visibleCandles.length} / {candlesBySymbol[selectedSymbol].length} candles</Typography>
-        <Slider size="small" min={10} max={candlesBySymbol[selectedSymbol].length} value={currentIdx} onChange={(_, v) => setCurrentIdx(v as number)} sx={{ flex: 1, maxWidth: 420, color: palette.TEXT_MUTED, "& .MuiSlider-thumb": { width: 10, height: 10 } }} />
-        <Box sx={{ display: "flex", gap: 0.5, border: 1, borderColor: palette.BORDER, borderRadius: 1, overflow: "hidden", height: 28 }}>
+        <Text className="text-[10px] text-[#8B949E] min-w-[56px]">{visibleCandles.length} / {candlesBySymbol[selectedSymbol].length} candles</Text>
+        <input
+          type="range"
+          min={10}
+          max={candlesBySymbol[selectedSymbol].length}
+          value={currentIdx}
+          onChange={(e) => setCurrentIdx(Number(e.target.value))}
+          className="flex-1 max-w-[420px] accent-[#8B949E] h-1.5 bg-transparent cursor-pointer"
+        />
+        <div className="flex gap-1 border border-[#30363D] rounded-sm overflow-hidden h-7">
           {[1, 5, 15, 60, 1440].map((m) => (
             <Button
               key={m}
-              size="small"
+              size="xs"
               onClick={() => handleTf(m)}
-              variant={tf === m ? "contained" : "text"}
-              color="inherit"
-              sx={{ fontSize: 10, minWidth: 32, p: 0, borderRadius: 0, bgcolor: tf === m ? palette.SURFACE_ALT : "transparent", color: tf === m ? palette.TEXT : palette.TEXT_MUTED }}
+              variant={tf === m ? "filled" : "text"}
+              color="secondary"
+              className={tfBtnClass(tf === m)}
             >
               {m === 60 ? "1h" : m === 1440 ? "1D" : `${m}m`}
             </Button>
           ))}
-        </Box>
-        <FormControl size="small" sx={{ minWidth: 80 }}><InputLabel sx={{ fontSize: 10 }}>Speed</InputLabel><Select size="small" value={String(speed)} label="Speed" onChange={(e) => setSpeed(Number(e.target.value))} sx={{ fontSize: 11, height: 28, color: palette.TEXT }}><MenuItem value={1500} sx={{ fontSize: 11 }}>0.5x</MenuItem><MenuItem value={800} sx={{ fontSize: 11 }}>1x</MenuItem><MenuItem value={400} sx={{ fontSize: 11 }}>2x</MenuItem><MenuItem value={200} sx={{ fontSize: 11 }}>5x</MenuItem></Select></FormControl>
-        <Tooltip title="Toggle volume pane"><IconButton size="small" onClick={() => setShowVolume((v) => !v)} sx={{ border: 1, borderColor: showVolume ? palette.TEXT : palette.BORDER, color: showVolume ? palette.TEXT : palette.TEXT_MUTED }}><IconVolume size={14} /></IconButton></Tooltip>
-        <Button size="small" variant={useTV ? "contained" : "outlined"} color="inherit" onClick={() => setUseTV((v) => !v)} sx={{ fontSize: 10, height: 24, borderColor: palette.BORDER, bgcolor: useTV ? palette.SURFACE_ALT : "transparent" }}>{useTV ? "TV" : "ECharts"}</Button>
-        <Box sx={{ width: 1, height: 20, bgcolor: palette.BORDER, mx: 0.5 }} />
-        <FormControl size="small" sx={{ minWidth: 70 }}><Select size="small" value={orderSide} onChange={(e) => setOrderSide(e.target.value as any)} sx={{ fontSize: 11, height: 28, color: orderSide === "BUY" ? palette.POSITIVE : palette.NEGATIVE, fontWeight: 700 }}><MenuItem value="BUY" sx={{ fontSize: 11, color: palette.POSITIVE }}>BUY</MenuItem><MenuItem value="SELL" sx={{ fontSize: 11, color: palette.NEGATIVE }}>SELL</MenuItem></Select></FormControl>
-        <TextField size="small" type="number" value={orderQty} onChange={(e) => setOrderQty(Math.max(1, Number(e.target.value) || 1))} sx={{ width: 64, "& input": { fontSize: 11, p: "6px 8px", color: palette.TEXT } }} />
-        <TextField size="small" value={currentCandle ? currentCandle.close : ""} placeholder="Price" sx={{ width: 80, "& input": { fontSize: 11, p: "6px 8px", color: palette.TEXT } }} />
-        <Button size="small" variant="contained" startIcon={orderSide === "BUY" ? <IconTrendingUp size={12} /> : <IconShoppingCart size={12} />} sx={{ fontSize: 11, height: 28, minWidth: 72, bgcolor: orderSide === "BUY" ? palette.POSITIVE : palette.NEGATIVE, color: "#fff", "&:hover": { bgcolor: orderSide === "BUY" ? palette.POSITIVE : palette.NEGATIVE, opacity: 0.9 } }} onClick={() => {
-          const price = currentCandle?.close ?? 0;
-          const tr: any = { id: Date.now(), symbol: selectedSymbol, entry_time: currentCandle?.time ?? "", exit_time: "", entry_price: price, exit_price: null, quantity: orderQty, side: orderSide, pnl: 0, pnl_pct: 0, exit_reason: "OPEN", strategy: "Manual" };
-          mockTrades.push(tr);
-        }}>{orderSide}</Button>
+        </div>
+        <div className="flex items-center gap-2 min-w-[80px]">
+          <Text className="text-[10px] text-[#8B949E]">Speed</Text>
+          <Select
+            size="xs"
+            value={String(speed)}
+            onChange={(v) => setSpeed(Number(v ?? 800))}
+            data={[
+              { value: "1500", label: "0.5x" },
+              { value: "800", label: "1x" },
+              { value: "400", label: "2x" },
+              { value: "200", label: "5x" },
+            ]}
+            className="text-[11px] h-7 w-full"
+            style={{ color: palette.TEXT }}
+          />
+        </div>
+        <Tooltip label="Toggle volume pane">
+          <ActionIcon size="sm" onClick={() => setShowVolume((v) => !v)} className={`border border-[#30363D] ${showVolume ? "text-[#F0F6FC]" : "text-[#8B949E]"} w-8 h-8`}>
+            <IconVolume size={14} />
+          </ActionIcon>
+        </Tooltip>
+        <Button
+          size="xs"
+          variant={useTV ? "filled" : "outline"}
+          color="secondary"
+          onClick={() => setUseTV((v) => !v)}
+          className="text-[10px] h-6 border border-[#30363D]"
+          style={{ backgroundColor: useTV ? palette.SURFACE_ALT : "transparent" }}
+        >
+          {useTV ? "TV" : "ECharts"}
+        </Button>
+        <div className="w-[1px] h-5 bg-[#30363D] mx-1" />
+        <div className="flex items-center gap-2 min-w-[70px]">
+          <Select
+            size="xs"
+            value={orderSide}
+            onChange={(v) => setOrderSide(v as any)}
+            data={[
+              { value: "BUY", label: "BUY" },
+              { value: "SELL", label: "SELL" },
+            ]}
+            className="text-[11px] h-7 w-full font-bold"
+            style={{ color: orderSide === "BUY" ? palette.POSITIVE : palette.NEGATIVE }}
+          />
+        </div>
+        <TextInput
+          size="xs"
+          type="number"
+          value={String(orderQty)}
+          onChange={(v) => setOrderQty(Math.max(1, Number(v) || 1))}
+          className="w-[64px] text-[11px] px-2 py-1.5 text-[#F0F6FC] border border-[#30363D] rounded-sm"
+          style={{ backgroundColor: palette.SURFACE_ALT }}
+        />
+        <TextInput
+          size="xs"
+          value={currentCandle ? String(currentCandle.close) : ""}
+          placeholder="Price"
+          className="w-[80px] text-[11px] px-2 py-1.5 text-[#F0F6FC] border border-[#30363D] rounded-sm"
+          style={{ backgroundColor: palette.SURFACE_ALT }}
+        />
+        <Button
+          size="xs"
+          variant="filled"
+          color={orderSide === "BUY" ? "positive" : "negative"}
+          onClick={() => {
+            const price = currentCandle?.close ?? 0;
+            const tr: any = { id: Date.now(), symbol: selectedSymbol, entry_time: currentCandle?.time ?? "", exit_time: "", entry_price: price, exit_price: null, quantity: orderQty, side: orderSide, pnl: 0, pnl_pct: 0, exit_reason: "OPEN", strategy: "Manual" };
+            mockTrades.push(tr);
+          }}
+          className="text-[11px] h-7 min-w-[72px] rounded-none"
+          style={{
+            backgroundColor: orderSide === "BUY" ? palette.POSITIVE : palette.NEGATIVE,
+            color: "#fff",
+            opacity: 1,
+          }}
+        >
+          {orderSide}
+        </Button>
       </Paper>
 
       {/* Chart — flex 1, TradingView-like */}
-      <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", p: 1, gap: 0.5, overflow: "hidden" }}>
-        <Paper elevation={0} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", border: 1, borderColor: palette.BORDER, borderRadius: 1, bgcolor: palette.SURFACE }}>
+      <Box className="flex-1 min-h-0 flex flex-col p-1 gap-1 overflow-hidden">
+        <Paper
+          className="flex-1 min-h-0 flex flex-col overflow-hidden border border-[#30363D] rounded-sm"
+          style={{ backgroundColor: palette.SURFACE }}
+        >
           {useTV ? (
             <TradingViewChart candles={visibleCandles} trades={visibleTrades as any} highlightedTradeId={highlighted} height={420} />
           ) : (
@@ -217,14 +307,27 @@ function FullScreenReplay() {
       </Box>
 
       {/* Trade table — 200px dense */}
-      <Box sx={{ height: 220, flexShrink: 0, p: 1, pt: 0, display: "flex", flexDirection: "column", gap: 0.5 }}>
-        <Paper elevation={0} sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", border: 1, borderColor: palette.BORDER, borderRadius: 1, bgcolor: palette.SURFACE }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1.5, py: 0.75, borderBottom: 1, borderColor: palette.BORDER, bgcolor: palette.SURFACE_ALT, height: 28, flexShrink: 0 }}>
-            <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>TRADES — click row to zoom chart</Typography>
-            <Box sx={{ flex: 1 }} />
-            <Button size="small" variant={showAll ? "contained" : "outlined"} color="inherit" onClick={() => setShowAll((v) => !v)} sx={{ fontSize: 10, height: 20, borderColor: palette.BORDER }}>{showAll ? "All" : "Symbol only"}</Button>
+      <Box className="h-[220px] shrink-0 p-1 pt-0 flex flex-col gap-1">
+        <Paper
+          className="flex-1 flex flex-col overflow-hidden border border-[#30363D] rounded-sm"
+          style={{ backgroundColor: palette.SURFACE }}
+        >
+          <Box className="flex items-center gap-2 px-3 py-[12px] border-b border-[#30363D] shrink-0" style={{ backgroundColor: SURFACE_ALT, height: 28 }}>
+            <Text className="text-[11px] font-bold tracking-[0.5px]" style={{ color: palette.TEXT_MUTED }}>
+              TRADES — click row to zoom chart
+            </Text>
+            <Box className="flex-1" />
+            <Button
+              size="xs"
+              variant={showAll ? "filled" : "outline"}
+              color="secondary"
+              onClick={() => setShowAll((v) => !v)}
+              className="text-[10px] h-5 border border-[#30363D]"
+            >
+              {showAll ? "All" : "Symbol only"}
+            </Button>
           </Box>
-          <Box sx={{ flex: 1, overflow: "auto" }}>
+          <Box className="flex-1 overflow-auto">
             <TanStackTable
               data={filteredTrades as any}
               columns={columns as any}

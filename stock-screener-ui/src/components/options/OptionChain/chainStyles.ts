@@ -1,27 +1,27 @@
-import type { UITheme } from "@/ui";
 import { fontWeights } from "../../../config/theme";
+import * as palette from "@/ui/palette";
 
-export type ThemeType = UITheme;
+export type ThemeType = any;
 
-function resolveFontSize(theme: any, key: "sm" | "md"): string {
-  return theme?.fontSizes?.[key] ?? (key === "sm" ? "12px" : "14px");
+function resolveFontSize(_theme: any, key: "sm" | "md"): string {
+  return key === "sm" ? "12px" : "14px";
 }
 
-export const getStyles = (theme: ThemeType, _isDark: boolean) => ({
+export const getStyles = (_theme: ThemeType, _isDark: boolean) => ({
   container: {
     display: "flex",
     flexDirection: "column" as const,
     height: "calc(100vh - 300px)",
     minHeight: 400,
     width: "100%",
-    overflow: "hidden",
+    overflow: "hidden" as const,
     borderRadius: 1,
-    bgcolor: "background.paper",
+    backgroundColor: palette.SURFACE,
   },
   header: {
     display: "grid",
     gridTemplateColumns: "1fr 80px 1fr",
-    bgcolor: "background.paper",
+    backgroundColor: palette.SURFACE,
     position: "sticky" as const,
     top: 0,
     zIndex: 10,
@@ -30,15 +30,15 @@ export const getStyles = (theme: ThemeType, _isDark: boolean) => ({
     padding: "10px 8px",
     textAlign: "center" as const,
     fontWeight: fontWeights.bold,
-    fontSize: resolveFontSize(theme as any, "md"),
+    fontSize: resolveFontSize(null as any, "md"),
     letterSpacing: "0.08em",
     textTransform: "uppercase" as const,
-    color: "text.primary",
+    color: palette.TEXT,
   },
   subHeader: {
     display: "grid",
     gridTemplateColumns: "repeat(5, 1fr) 80px repeat(5, 1fr)",
-    bgcolor: "background.paper",
+    backgroundColor: palette.SURFACE,
     position: "sticky" as const,
     top: 40,
     zIndex: 9,
@@ -47,7 +47,7 @@ export const getStyles = (theme: ThemeType, _isDark: boolean) => ({
     padding: "5px 2px",
     textAlign: "center" as const,
     fontSize: "12px",
-    color: "text.secondary",
+    color: palette.TEXT_MUTED,
     fontWeight: fontWeights.semibold,
     textTransform: "uppercase" as const,
     letterSpacing: "0.04em",
@@ -58,19 +58,19 @@ export const getStyles = (theme: ThemeType, _isDark: boolean) => ({
     gridTemplateColumns: "repeat(5, 1fr) 80px repeat(5, 1fr)",
     transition: "background 0.18s ease",
     position: "relative" as const,
-    bgcolor: "background.default",
+    backgroundColor: palette.BG,
   },
   cell: {
     padding: "6px 4px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: resolveFontSize(theme as any, "sm"),
+    fontSize: resolveFontSize(null as any, "sm"),
     cursor: "pointer",
     minHeight: 42,
     width: "100%",
     position: "relative" as const,
-    overflow: "hidden",
+    overflow: "hidden" as const,
     fontVariantNumeric: "tabular-nums" as const,
   },
   strikeCell: {
@@ -80,25 +80,25 @@ export const getStyles = (theme: ThemeType, _isDark: boolean) => ({
     alignItems: "center",
     justifyContent: "center",
     textAlign: "center" as const,
-    bgcolor: "background.paper",
+    backgroundColor: palette.SURFACE,
     position: "sticky" as const,
     left: "calc(50% - 40px)",
     zIndex: 2,
     fontVariantNumeric: "tabular-nums" as const,
   },
   atmHighlight: {
-    bgcolor: "action.selected",
-    color: "warning.main",
+    backgroundColor: "rgba(88, 166, 255, 0.14)",
+    color: palette.WARNING,
   },
   // Distinct ATM row wash applied on top of the side gradient so the
   // at-the-money strike stays visually anchored after auto-scroll.
   atmRow: {
     outline: "1px solid",
-    outlineColor: "warning.main",
+    outlineColor: palette.WARNING,
   },
   // Subtle zebra tint for non-ATM rows (kept faint so heatmaps stay legible).
   zebraRow: {
-    bgcolor: "action.hover",
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
   },
   // Compact ATM window toggle bar pinned above the sticky table header.
   windowBar: {
