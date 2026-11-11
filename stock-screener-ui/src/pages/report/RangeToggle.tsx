@@ -1,5 +1,4 @@
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
+import { Box, Button } from "@/ui";
 import * as palette from "@/ui/palette";
 import { TAPE_RANGES, rangeLabel } from "./tapeRange";
 import type { TapeRange } from "./tapeRange";
@@ -21,7 +20,7 @@ export function RangeToggle({
   return (
     <Box
       data-testid={`${testIdPrefix}-toggle`}
-      sx={{ display: "flex", alignItems: "center", gap: "2px", flexShrink: 0 }}
+      className="flex items-center gap-[2px] shrink-0"
     >
       {TAPE_RANGES.map((range) => (
         <Button
@@ -31,12 +30,14 @@ export function RangeToggle({
           variant={value === range ? "filled" : "subtle"}
           aria-pressed={value === range}
           onClick={() => onChange(range)}
-          sx={{
-            minWidth: 30,
-            px: "5px",
-            py: 0,
-            fontSize: 9.5,
-            lineHeight: 1.7,
+          style={{
+            minWidth: "30px",
+            paddingLeft: "5px",
+            paddingRight: "5px",
+            paddingTop: 0,
+            paddingBottom: 0,
+            fontSize: "9.5px",
+            lineHeight: "1.7",
             color: value === range ? palette.TEXT : palette.TEXT_MUTED,
           }}
         >

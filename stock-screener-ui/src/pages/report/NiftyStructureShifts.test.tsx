@@ -267,11 +267,7 @@ describe("NiftyStructureShifts render", () => {
     // full text still reachable on hover; the visible cell truncates
     const detail = within(rows[0]).getByTestId("nifty-structure-detail");
     expect(detail).toHaveAttribute("title", "22,700 support became resistance");
-    expect(detail).toHaveStyle({
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-      whiteSpace: "nowrap",
-    });
+    expect(detail).toHaveClass("overflow-hidden", "truncate", "whitespace-nowrap");
   });
 
   test("long list is bounded by an inner vertical scroller", () => {

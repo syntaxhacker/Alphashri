@@ -1,5 +1,5 @@
 import { Box, Stack, Text } from "@/ui";
-import { alpha } from "@mui/material/styles";
+import { alpha } from "@/ui";
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import { TOOLTIP_DARK_BG, TOOLTIP_LIGHT_BG, TOOLTIP_DARK_BORDER, TOOLTIP_LIGHT_BORDER, TOOLTIP_DARK_TEXT, TOOLTIP_LIGHT_TEXT, AXIS_DARK_LINE, AXIS_LIGHT_LINE, AXIS_DARK_SPLIT, AXIS_LIGHT_SPLIT, BLACK } from "../../config/colors";
@@ -106,12 +106,12 @@ export function SectorBarView({ stocks, metric, getMetricValue, getMetricColor, 
   }, [stocks, metric, getMetricValue, getMetricColor, fmt, label, isDark, tooltipBg, tooltipText, axisLineColor, splitLineColor]);
 
   return (
-    <Stack spacing={0} sx={{ height: "100%", flex: 1, minHeight: 0, width: "100%", overflow: "hidden" }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, height: 40, flexShrink: 0, borderBottom: "1px solid var(--mui-palette-divider)" }}>
+    <Stack spacing={0} className="h-full flex-1 min-h-0 w-full overflow-hidden">
+      <Box className="flex items-center gap-2 px-2 h-10 flex-shrink-0 border-b border-fin-border">
         <Text size="sm" fw={600}>Avg {label} by Sector</Text>
         <Text size="xs" c="dimmed">({stocks.length} stocks)</Text>
       </Box>
-      <Box sx={{ flex: 1, minHeight: 320, width: "100%", display: "flex", p: 1 }}>
+      <Box className="flex-1 min-h-[320px] w-full flex p-2">
         <ReactECharts option={option} style={{ height: "100%", width: "100%" }} opts={{ renderer: "canvas" }} />
       </Box>
     </Stack>

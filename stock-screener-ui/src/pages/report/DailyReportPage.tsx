@@ -311,9 +311,9 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
     Object.values(daily?.moves ?? {}).every((rows) => (rows ?? []).length === 0);
 
   return (
-    <Box data-testid="daily-report" sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0, width: "100%", flex: 1, fontVariantNumeric: "tabular-nums" }}>
-      <ToolbarRow gap={8} data-testid="daily-report-toolbar" style={{ minHeight: 36, position: "sticky", top: 0, zIndex: 10, backgroundColor: "var(--mui-palette-background-paper)" }}>
-        <Text size="sm" fw={700} span data-testid="report-title" sx={{ whiteSpace: "nowrap" }}>
+    <Box data-testid="daily-report" className="flex flex-col gap-1 min-w-0 w-full flex-1 tabular-nums">
+      <ToolbarRow gap={8} data-testid="daily-report-toolbar" style={{ minHeight: 36, position: "sticky", top: 0, zIndex: 10, backgroundColor: "var(--color-fin-surface)" }}>
+        <Text size="sm" fw={700} span data-testid="report-title" className="whitespace-nowrap">
           Daily Report
         </Text>
         <TextInput
@@ -359,7 +359,7 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
             </Badge>
           </Tooltip>
         ) : null}
-        <Box sx={{ flex: 1, minWidth: 0 }} />
+        <Box className="flex-1 min-w-0" />
         {asOf ? (
           <Text size="xs" c="dimmed" truncate span data-testid="report-asof" title={isCached ? "Cached snapshot" : "Live snapshot"}>
             as of {formatTimeOnly(asOf)}
@@ -392,7 +392,7 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
       </ToolbarRow>
 
       {loading ? (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, width: "100%", minWidth: 0 }} data-testid="report-loading">
+        <Box className="flex flex-col gap-1 w-full min-w-0" data-testid="report-loading">
           <Skeleton h={16} />
           <Skeleton h={16} />
           <Skeleton h={16} />
@@ -405,14 +405,14 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
           </Alert>
         </Box>
       ) : isEmpty ? (
-        <Box sx={{ p: 1, textAlign: "center", width: "100%" }} data-testid="report-empty">
+        <Box className="p-2 text-center w-full" data-testid="report-empty">
           <Text size="xs" c="dimmed">
             No unusual moves or breakouts for {date}
           </Text>
         </Box>
       ) : (
         <Tabs value={tab} onChange={(v) => { if (v) setTab(v); }} data-testid="report-tabs">
-          <Box sx={{ overflowX: "auto", minWidth: 0 }}>
+          <Box className="overflow-x-auto min-w-0">
             <TabsList data-testid="report-tabs-list">
               <Tab value="scan" data-testid="report-tab-scan">
                 Scan
@@ -431,10 +431,10 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
               </Tab>
             </TabsList>
           </Box>
-          <TabsPanel value="scan" keepMounted data-testid="report-tab-panel-scan" sx={{ py: 0.5 }}>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }}>
+          <TabsPanel value="scan" keepMounted data-testid="report-tab-panel-scan" style={{ paddingTop: 4, paddingBottom: 4 }}>
+            <Box className="flex flex-col gap-1 min-w-0">
           {dailyLoading ? (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, width: "100%", minWidth: 0 }} data-testid="report-daily-loading">
+            <Box className="flex flex-col gap-1 w-full min-w-0" data-testid="report-daily-loading">
               <Skeleton h={16} />
               <Skeleton h={16} />
             </Box>
@@ -447,7 +447,7 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
           ) : (
             <>
               {breadth ? (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }} data-testid="report-breadth-block">
+                <Box className="flex flex-col gap-1 min-w-0" data-testid="report-breadth-block">
                   <ToolbarRow gap={8} wrap data-testid="report-breadth">
                     {indexSnapshot ? (
                       <BreadthStat
@@ -472,23 +472,17 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
                       data-testid="report-breadth-bar"
                       role="img"
                       aria-label={`${breadth.advances} advances, ${breadth.declines} declines, ${breadth.unchanged} unchanged`}
-                      sx={{ display: "flex", width: "100%", height: 6, borderRadius: 0.5, overflow: "hidden", bgcolor: "divider" }}
+                      className="flex w-full h-[6px] rounded-[2px] overflow-hidden bg-fin-border"
                     >
-                      <Box sx={{ width: breadthShare(breadth.advances), bgcolor: "success.main" }} />
-                      <Box sx={{ width: breadthShare(breadth.unchanged), bgcolor: "text.disabled" }} />
-                      <Box sx={{ width: breadthShare(breadth.declines), bgcolor: "error.main" }} />
+                      <Box className="bg-fin-positive" style={{ width: breadthShare(breadth.advances) }} />
+                      <Box className="bg-fin-text-muted" style={{ width: breadthShare(breadth.unchanged) }} />
+                      <Box className="bg-fin-negative" style={{ width: breadthShare(breadth.declines) }} />
                     </Box>
                   ) : null}
                 </Box>
               ) : null}
               <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" },
-                  gap: 0.5,
-                  minWidth: 0,
-                  alignItems: "start",
-                }}
+                className="grid grid-cols-1 min-[1200px]:grid-cols-2 gap-1 min-w-0 items-start"
               >
                 <LeaderStrip leaders={daily?.sector_leaders} testId="report-sector-leaders" label="Sectors" />
                 <LeaderStrip leaders={daily?.theme_leaders} testId="report-theme-leaders" label="Themes" />
@@ -497,10 +491,10 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
           )}
             </Box>
           </TabsPanel>
-          <TabsPanel value="moves" keepMounted data-testid="report-tab-panel-moves" sx={{ py: 0.5 }}>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }}>
+          <TabsPanel value="moves" keepMounted data-testid="report-tab-panel-moves" style={{ paddingTop: 4, paddingBottom: 4 }}>
+            <Box className="flex flex-col gap-1 min-w-0">
               {dailyLoading ? (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, width: "100%", minWidth: 0 }} data-testid="report-moves-loading">
+                <Box className="flex flex-col gap-1 w-full min-w-0" data-testid="report-moves-loading">
                   <Skeleton h={16} />
                   <Skeleton h={16} />
                 </Box>
@@ -522,10 +516,10 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
               )}
             </Box>
           </TabsPanel>
-          <TabsPanel value="breakouts" keepMounted data-testid="report-tab-panel-breakouts" sx={{ py: 0.5 }}>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }}>
+          <TabsPanel value="breakouts" keepMounted data-testid="report-tab-panel-breakouts" style={{ paddingTop: 4, paddingBottom: 4 }}>
+            <Box className="flex flex-col gap-1 min-w-0">
           {breakoutLoading ? (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, width: "100%", minWidth: 0 }} data-testid="report-breakouts-loading">
+            <Box className="flex flex-col gap-1 w-full min-w-0" data-testid="report-breakouts-loading">
               <Skeleton h={16} />
               <Skeleton h={16} />
             </Box>
@@ -537,7 +531,7 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
             </Box>
           ) : (
             <>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }} data-testid="report-breakouts-meta">
+          <Box className="flex items-center gap-2" data-testid="report-breakouts-meta">
             <Badge size="xs" data-testid="report-breakouts-scanned">
               {breakouts?.scanned ?? 0} scanned
             </Badge>
@@ -557,19 +551,12 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
               />
             ) : null}
           </Box>
+          {/* Full-width stacked tables: nine columns per side do not fit in
+              a half-width cell, and each table grew its own horizontal
+              scrollbar. Stacking keeps one reading column and no inner
+              horizontal scroll. */}
           <Box
-            sx={{
-              display: "grid",
-              // Full-width stacked tables: nine columns per side do not fit in
-              // a half-width cell, and each table grew its own horizontal
-              // scrollbar. Stacking keeps one reading column and no inner
-              // horizontal scroll.
-              gridTemplateColumns: "minmax(0, 1fr)",
-              gap: 0.5,
-              alignItems: "start",
-              minWidth: 0,
-              width: "100%",
-            }}
+            className="grid grid-cols-1 gap-1 items-start min-w-0 w-full"
           >
           <ReportBreakoutTable
             title="Breakouts TODAY"
@@ -594,11 +581,11 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
           )}
             </Box>
           </TabsPanel>
-          <TabsPanel value="followthrough" keepMounted data-testid="report-tab-panel-followthrough" sx={{ py: 0.5 }}>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }}>
+          <TabsPanel value="followthrough" keepMounted data-testid="report-tab-panel-followthrough" style={{ paddingTop: 4, paddingBottom: 4 }}>
+            <Box className="flex flex-col gap-1 min-w-0">
           <ReportDeliveryStrip data={delivery} loading={deliveryLoading} error={deliveryError} onOpenSymbol={onOpenSymbol} />
           {followLoading ? (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, width: "100%", minWidth: 0 }} data-testid="report-followthrough-loading">
+            <Box className="flex flex-col gap-1 w-full min-w-0" data-testid="report-followthrough-loading">
               <Skeleton h={16} />
               <Skeleton h={16} />
             </Box>
@@ -609,7 +596,7 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
               </Alert>
             </Box>
           ) : (
-            <Box data-testid="report-followthrough" sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" }, gap: 0.5, alignItems: "start", minWidth: 0 }}>
+            <Box data-testid="report-followthrough" className="grid grid-cols-1 min-[1200px]:grid-cols-2 gap-1 items-start min-w-0">
               <ReportFollowThroughTable
                 title="Breakout follow-through"
                 side={followThrough?.breakouts ?? null}
@@ -638,8 +625,8 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
           )}
             </Box>
           </TabsPanel>
-          <TabsPanel value="events" keepMounted data-testid="report-tab-panel-events" sx={{ py: 0.5 }}>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }}>
+          <TabsPanel value="events" keepMounted data-testid="report-tab-panel-events" style={{ paddingTop: 4, paddingBottom: 4 }}>
+            <Box className="flex flex-col gap-1 min-w-0">
               <EventWatch universe={universe} daily={daily} onOpenSymbol={onOpenSymbol} />
               <ReportEventsStrip data={events} loading={eventsLoading} error={eventsError} onOpenSymbol={onOpenSymbol} />
             </Box>

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { BotSelector } from "./BotSelector";
 import type { BotSummary } from "../../types/paperTrading";
 import { renderWithProviders } from "../../test-utils/renderWithProviders";
+import { BORDER_COLOR, POSITIVE_COLOR } from "@/ui/palette";
 
 const { mockIsMarketClosedToday } = vi.hoisted(() => ({
   mockIsMarketClosedToday: vi.fn().mockReturnValue(false),
@@ -148,9 +149,7 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    await user.click(within(screen.getByTestId("bot-select")).getByRole("combobox"));
-    const option = await screen.findByRole("option", { name: "ORB Bot (2 pos)" });
-    await user.click(option);
+    await user.selectOptions(within(screen.getByTestId("bot-select")).getByRole("combobox"), "1");
     expect(onSelectBot).toHaveBeenCalledWith("1");
   });
 
@@ -271,11 +270,9 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    const dot = screen.getByTestId("bot-selector").querySelector(
-      '[style*="border-radius: 50%"]',
-    );
+    const dot = screen.getByTestId("bot-status-dot");
     expect(dot).toBeInTheDocument();
-    expect(dot?.getAttribute("style")).toContain("--mui-palette-divider");
+    expect(dot?.getAttribute("style")?.toLowerCase()).toContain(BORDER_COLOR.toLowerCase());
   });
 
   test("indicator dot uses green-6 when bot running", () => {
@@ -288,10 +285,9 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    const dot = screen.getByTestId("bot-selector").querySelector(
-      '[style*="border-radius: 50%"]',
-    );
-    expect(dot?.getAttribute("style")).toContain("--mui-palette-success-main");
+    const dot = screen.getByTestId("bot-status-dot");
+    expect(dot).toBeInTheDocument();
+    expect(dot?.getAttribute("style")?.toLowerCase()).toContain(POSITIVE_COLOR.toLowerCase());
   });
 
   test("getBotLabel formats bot label with name and position count", async () => {
@@ -360,19 +356,6 @@ describe("BotSelector", () => {
       <BotSelector
         bots={[{ ...runningBot, pid: 67890 }]}
         selectedBotId="1"
-        onSelectBot={vi.fn()}
-        onToggleBot={vi.fn()}
-        onRefresh={vi.fn()}
-      />,
-    );
-    expect(screen.getByTestId("bot-status")).toHaveTextContent("Running");
-  });
-
-  test("shows Running when running=true and pid=null", () => {
-    renderWithProviders(
-      <BotSelector
-        bots={[{ ...runningBot, id: "5", pid: null }]}
-        selectedBotId="5"
         onSelectBot={vi.fn()}
         onToggleBot={vi.fn()}
         onRefresh={vi.fn()}

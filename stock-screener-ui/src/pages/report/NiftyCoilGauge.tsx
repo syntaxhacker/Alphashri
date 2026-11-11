@@ -1,5 +1,4 @@
-import Box from "@mui/material/Box";
-import { Text } from "@/ui";
+import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { NiftyRegimeBlock } from "@/types/niftyReport";
 
@@ -120,25 +119,12 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
       <Box
         data-testid="nifty-coil-gauge"
         title={`${state ?? "—"} — ${hint} · ${rvIv}`}
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 0.75,
-          minWidth: 0,
-          overflow: "hidden",
-          px: 1,
-          py: "2px",
-        }}
+        className="flex items-center gap-[6px] min-w-0 overflow-hidden px-2 py-[2px]"
       >
         <Box
           aria-hidden
-          sx={{
-            width: 6,
-            height: 6,
-            borderRadius: "50%",
-            bgcolor: accent,
-            flexShrink: 0,
-          }}
+          className="w-[6px] h-[6px] rounded-full shrink-0"
+          style={{ backgroundColor: accent }}
         />
         <Text
           data-testid="nifty-coil-state"
@@ -147,7 +133,12 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           c={accent}
           span
           truncate
-          style={{ fontSize: 11, lineHeight: 1.2, letterSpacing: "0.04em", minWidth: 0 }}
+          style={{
+            fontSize: 11,
+            lineHeight: 1.2,
+            letterSpacing: "0.04em",
+            minWidth: 0,
+          }}
         >
           {state ?? "—"}
         </Text>
@@ -189,28 +180,14 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
     <Box
       data-testid="nifty-coil-gauge"
       title={`${state ?? "—"} — ${hint} · ${rvIv}`}
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        gap: "2px",
-        minWidth: 0,
-        overflow: "hidden",
-        px: 1.5,
-        py: 0.75,
-        borderLeft: `1px solid ${palette.TERM_BORDER}`,
-      }}
+      className="flex flex-col justify-center min-w-0 overflow-hidden px-[12px] py-[6px]"
+      style={{ borderLeft: `1px solid ${palette.TERM_BORDER}` }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+      <Box className="flex items-center gap-[6px] min-w-0">
         <Box
           aria-hidden
-          sx={{
-            width: 6,
-            height: 6,
-            borderRadius: "50%",
-            bgcolor: accent,
-            flexShrink: 0,
-          }}
+          className="w-[6px] h-[6px] rounded-full shrink-0"
+          style={{ backgroundColor: accent }}
         />
         <Text
           data-testid="nifty-coil-state"
@@ -219,7 +196,11 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           c={accent}
           span
           truncate
-          style={{ fontSize: 11, lineHeight: 1.3, letterSpacing: "0.04em" }}
+          style={{
+            fontSize: 11,
+            lineHeight: 1.3,
+            letterSpacing: "0.04em",
+          }}
         >
           {state ?? "—"}
         </Text>

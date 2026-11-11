@@ -64,6 +64,13 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
       if (!isDesktop) return;
       if (fullscreenRef.current?.pinned) return;
       if (previewTimerRef.current) window.clearTimeout(previewTimerRef.current);
+      // A close timer may be pending from leaving the previous symbol —
+      // cancelling it keeps the new symbol's preview from being closed
+      // when the old timer fires (A → B fast mouse move).
+      if (closeTimerRef.current) {
+        window.clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
       previewTimerRef.current = window.setTimeout(() => {
         previewFromSymbol(symbol, undefined, false);
       }, PREVIEW_DEBOUNCE_MS);
@@ -122,31 +129,11 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
           onMouseEnter={cancelClose}
           onMouseLeave={endPreview}
           onMouseDown={pinFullscreen}
-          sx={{
-            position: "fixed",
-            top: DOCK_TOP,
-            right: 0,
-            bottom: 0,
-            width: "clamp(420px, 36vw, 620px)",
-            zIndex: 1100,
-            bgcolor: "background.paper",
-            borderLeft: 1,
-            borderColor: "divider",
-            boxShadow: 4,
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-          }}
+          className="fixed right-0 bottom-0 z-[1100] flex flex-col overflow-hidden border-l border-fin-border bg-fin-surface shadow-lg"
+          style={{ top: DOCK_TOP, width: "clamp(420px, 36vw, 620px)" }}
         >
           {fullscreen?.stale ? (
-            <Box
-              sx={{
-                position: "absolute",
-                bottom: 8,
-                right: 8,
-                zIndex: 1200,
-              }}
-            >
+            <Box className="absolute bottom-2 right-2 z-[1200]">
               <Tooltip label="Showing cached candles; refreshing in background">
                 <Badge size="xs" variant="outline" color="warning" data-testid="dock-stale">
                   {fullscreen?.dataAsOf ? `Cached ${fullscreen.dataAsOf}` : "Cached"}
@@ -157,22 +144,7 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
           {fullscreen?.patternsLoading && (
             <Box
               data-testid="dock-patterns-loading"
-              sx={{
-                position: "absolute",
-                top: 8,
-                right: 8,
-                zIndex: 1200,
-                pointerEvents: "none",
-                display: "flex",
-                alignItems: "center",
-                gap: 0.5,
-                border: 1,
-                borderColor: "divider",
-                borderRadius: 1,
-                bgcolor: "background.paper",
-                px: 0.75,
-                py: 0.25,
-              }}
+              className="pointer-events-none absolute top-2 right-2 z-[1200] flex items-center gap-1 rounded-fin border border-fin-border bg-fin-surface px-1.5 py-0.5"
             >
               <Loader size="xs" />
               <Text size="xs" fw="medium">
@@ -183,7 +155,7 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
           <ErrorBoundary label="Chart" resetKey={fullscreen?.symbol}>
           <Suspense
             fallback={
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1 }}>
+              <Box className="flex flex-1 items-center justify-center">
                 <Loader size="sm" />
               </Box>
             }

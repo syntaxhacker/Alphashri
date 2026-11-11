@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface UICopyButtonProps {
   value: string;
@@ -21,7 +21,7 @@ export function CopyButton({ value, timeout = 1000, children }: UICopyButtonProp
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(value);
       } else {
-        // Fallback for non-secure contexts
+        // Fallback for non-secure contexts.
         const ta = document.createElement("textarea");
         ta.value = value;
         ta.style.position = "fixed";
@@ -35,7 +35,8 @@ export function CopyButton({ value, timeout = 1000, children }: UICopyButtonProp
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => setCopied(false), timeout);
     } catch {
-      // Silently ignore clipboard errors; still toggle feedback
+      // Clipboard failures still surface the copied state; callers decide how
+      // to present the confirmation.
       setCopied(true);
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => setCopied(false), timeout);

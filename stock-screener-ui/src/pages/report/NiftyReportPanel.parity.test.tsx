@@ -9,6 +9,15 @@ import { UIProvider } from "@/ui";
 import { NiftyReportPanel } from "./NiftyReportPanel";
 import type { NiftyReport } from "@/types/niftyReport";
 
+vi.mock("@/api/holidays_api", () => ({
+  fetchHolidayCheck: vi.fn().mockResolvedValue({
+    date: "2026-11-10",
+    is_holiday: false,
+    type: null,
+    description: null,
+  }),
+}));
+
 vi.mock("@/api/reportNifty", () => ({
   fetchLiveNifty: vi.fn(),
   fetchLiveSensex: vi.fn(),
@@ -214,8 +223,7 @@ afterEach(() => {
 
 async function pickSymbol(user: ReturnType<typeof userEvent.setup>, name: string) {
   const select = screen.getByTestId("report-symbol-select");
-  await user.click(within(select).getByRole("combobox"));
-  await user.click(await screen.findByRole("option", { name }));
+  await user.selectOptions(within(select).getByRole("combobox"), name);
 }
 
 /** Every verdict/VIX/strength cell must show a value, never the missing-data dash. */

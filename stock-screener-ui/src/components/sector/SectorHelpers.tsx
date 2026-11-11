@@ -65,7 +65,7 @@ function TreemapTile({
         gridRow: span.row,
         minHeight: span.minHeight,
         background: sector.itemStyle.color,
-        color: "var(--mui-palette-common-white)",
+        color: "#ffffff",
         padding: index === 0 ? "16px" : "12px",
         display: "flex",
         flexDirection: "column",
@@ -99,7 +99,7 @@ function TreemapTile({
             color="secondary"
             style={{
               backgroundColor: withAlpha(BLACK, 0.28),
-              color: "var(--mui-palette-common-white)",
+              color: "#ffffff",
             }}
           >
             #{index + 1}

@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import Paper from "@mui/material/Paper";
 import {
   Stack,
   Text,
@@ -9,17 +8,16 @@ import {
   Box,
   Button,
   ScrollArea,
-  Divider,
   TextInput,
   Checkbox,
   Select,
   NumberInput,
-  ActionIcon,
   Skeleton,
+  Paper,
 } from "@/ui";
 import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
-import type { ScreenerOption, Stock, ProfileFilter, ColumnDef} from "../../types";
+import type { ScreenerOption, ProfileFilter, ColumnDef} from "../../types";
 import { ScreenerTable } from "./ScreenerTable";
 import { SelectionBar } from "./SelectionBar";
 import { createScreener, updateScreener, deleteScreener } from "../../api/screeners";
@@ -280,7 +278,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
   const renderFilterInput = (filter: ProfileFilter) => {
     if (filter.type === "number") {
       return (
-        <Box key={filter.key} sx={{ display: "flex", alignItems: "center", width: 120 }}>
+        <Box key={filter.key} className="flex items-center w-[120px]">
           <NumberInput
             label={filter.label}
             value={filter.default as number}
@@ -288,20 +286,20 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
             min={filter.min}
             max={filter.max}
             step={filter.step}
-            sx={{ width: 120 }}
+            className="w-[120px]"
           />
         </Box>
       );
     }
     if (filter.type === "select" && filter.options) {
       return (
-        <Box key={filter.key} sx={{ display: "flex", alignItems: "center", width: 120 }}>
+        <Box key={filter.key} className="flex items-center w-[120px]">
           <Select
             label={filter.label}
             data={filter.options}
             value={filter.default as string}
             onChange={(val) => updateFilterValue(filter.key, val || "")}
-            sx={{ width: 120 }}
+            className="w-[120px]"
           />
         </Box>
       );
@@ -310,20 +308,20 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
   };
 
   return (
-    <Box sx={{ display: "flex", height: "100%", minHeight: 0, minWidth: 0, gap: 1, p: 1, bgcolor: palette.BG }}>
+    <Box flex={1} p={1} gap={1} bg={palette.BG} className="h-full min-h-0 min-w-0 flex">
       <Paper
-        elevation={0}
+        w={260}
+        radius={2}
         data-testid="screener-list-panel"
-        sx={{ width: 260, flexShrink: 0, display: "flex", flexDirection: "column", overflow: "hidden", border: 1, borderColor: palette.BORDER, borderRadius: 2, bgcolor: palette.SURFACE }}
+        className="flex-shrink-0 flex flex-col overflow-hidden border border-fin-border"
       >
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, px: 1.5, py: 1, borderBottom: 1, borderColor: palette.BORDER, bgcolor: palette.SURFACE_ALT, height: 36, flexShrink: 0 }}>
+        <Box className="flex items-center justify-between gap-2 px-3 py-2 h-[36px] flex-shrink-0 border-b border-fin-border bg-fin-surface-alt">
           <Text fw={600} size="xs" data-testid="screener-configs-title" style={{ fontSize: 11, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>
             CONFIGS
           </Text>
           <Button
             size="xs"
             variant="outline"
-            color="inherit"
             onClick={() => {
               setForm({
                 ...EMPTY_FORM,
@@ -337,7 +335,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
               setCreateModalOpen(true);
             }}
             data-testid="create-screener-btn"
-            style={{ fontSize: 11, height: 24 }}
+            style={{ fontSize: 11, height: 24, color: palette.TEXT }}
           >
             + Create
           </Button>
@@ -349,17 +347,13 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                 key={option.id}
                 p={1}
                 data-testid={`screener-row-${option.id}`}
-                sx={{
-                  borderRadius: 1,
-                  cursor: "pointer",
-                  bgcolor: option.id === activeScreener ? palette.SURFACE_ALT : "transparent",
-                  border: option.id === activeScreener ? 1 : 0,
-                  borderColor: palette.BORDER,
-                  mb: 0.5,
-                }}
+                className={[
+                  "rounded-sm cursor-pointer mb-1 border-fin-border",
+                  option.id === activeScreener ? "bg-fin-surface-alt border" : "bg-transparent border-0",
+                ].join(" ")}
                 onClick={() => onScreenerChange(option.id)}
               >
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 0.5 }}>
+                <Box className="flex items-center justify-between gap-2 mb-1">
                   <Group gap={1} align="center">
                     <Text size="xs" fw={500} style={{ fontSize: 12, color: palette.TEXT }}>
                       {option.label}
@@ -370,11 +364,10 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                       </Badge>
                     )}
                   </Group>
-                  <Group gap={0.5} align="center">
+                  <Group className="gap-1" align="center">
                     <Button
                       size="xs"
                       variant="outline"
-                      color="inherit"
                       onClick={(e: any) => {
                         e.stopPropagation();
                         openEditModal(option);
@@ -409,11 +402,11 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
       </Paper>
 
       <Paper
-        elevation={0}
         data-testid="screener-preview-panel"
-        sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden", border: 1, borderColor: palette.BORDER, borderRadius: 2, bgcolor: palette.SURFACE }}
+        radius={2}
+        className="flex-1 min-w-0 flex flex-col overflow-hidden border border-fin-border"
       >
-        <Box data-testid="preview-header" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, px: 1.5, py: 1, borderBottom: 1, borderColor: palette.BORDER, bgcolor: palette.SURFACE_ALT, height: 36, flexShrink: 0 }}>
+        <Box data-testid="preview-header" className="flex items-center justify-between gap-2 px-3 py-2 h-[36px] flex-shrink-0 border-b border-fin-border bg-fin-surface-alt">
           <Group gap={1} wrap="wrap" data-testid="screener-filters" align="center">
             {activeOption ? (
               <>
@@ -442,14 +435,13 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
               </Text>
             )}
           </Group>
-          <Group gap={1} align="center" sx={{ flexShrink: 0 }}>
+          <Group gap={1} align="center" className="flex-shrink-0">
             <Text fw={600} size="xs" data-testid="preview-count" style={{ fontSize: 11, color: palette.TEXT_MUTED }}>
               PREVIEW ({stocks.length})
             </Text>
             <Button
               size="xs"
               variant="outline"
-              color="inherit"
               onClick={() => loadPreview()}
               loading={previewLoading}
               data-testid="preview-refresh-btn"
@@ -460,17 +452,17 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
           </Group>
         </Box>
         {(createModalOpen || editModalOpen) && (
-          <Box sx={{ p: 1.5, borderBottom: 1, borderColor: palette.BORDER, bgcolor: palette.BG, maxHeight: 380, overflow: "auto" }} data-testid="inline-form">
+          <Box gap={2} bg={palette.BG} className="flex p-3 border-b border-fin-border max-h-[380px] overflow-auto" data-testid="inline-form">
             <Stack gap={1}>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 0.5 }}>
+              <Box className="flex items-center justify-between gap-2 mb-1">
                 <Text fw={600} size="xs" style={{ fontSize: 11, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>{editModalOpen ? "EDIT SCREENER" : "NEW SCREENER"}</Text>
-                <Button size="xs" variant="subtle" color="inherit" onClick={() => { setCreateModalOpen(false); setEditModalOpen(false); setEditingScreener(null); setForm(EMPTY_FORM); }} style={{ height: 22 }}>✕</Button>
+                <Button size="xs" variant="subtle" onClick={() => { setCreateModalOpen(false); setEditModalOpen(false); setEditingScreener(null); setForm(EMPTY_FORM); }} style={{ height: 22 }}>✕</Button>
               </Box>
               <ToolbarRow gap={8} wrap={false}>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Box className="flex-1 min-w-0">
                   <TextInput label="Name" data-testid="screener-name-input" placeholder="e.g., My Screener" value={form.label} onChange={(val) => setForm({ ...form, label: val })} size="xs" style={{ width: "100%" }} />
                 </Box>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Box className="flex-1 min-w-0">
                   <TextInput label="Description" placeholder="Brief description" value={form.description} onChange={(val) => setForm({ ...form, description: val })} size="xs" style={{ width: "100%" }} />
                 </Box>
               </ToolbarRow>
@@ -487,30 +479,30 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                 </>
               )}
               <ToolbarRow gap={8} wrap={false}>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Box className="flex-1 min-w-0">
                   <Select label="Sort Column" data={ALL_COLUMNS.map((c) => ({ value: c.key, label: c.label }))} value={form.defaultSortColumn} onChange={(val) => setForm({ ...form, defaultSortColumn: val || "score" })} size="xs" style={{ width: "100%" }} />
                 </Box>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Box className="flex-1 min-w-0">
                   <Select label="Direction" data={[{ value: "desc", label: "Desc ↓" }, { value: "asc", label: "Asc ↑" }]} value={form.defaultSortDirection} onChange={(val) => setForm({ ...form, defaultSortDirection: (val as "asc" | "desc") || "desc" })} size="xs" style={{ width: "100%" }} />
                 </Box>
               </ToolbarRow>
-              <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 1, pt: 1, borderTop: 1, borderColor: palette.BORDER, mt: 1 }}>
-                <Button size="xs" variant="outline" color="inherit" onClick={() => { setCreateModalOpen(false); setEditModalOpen(false); setEditingScreener(null); setForm(EMPTY_FORM); }} data-testid="cancel-create-btn">Cancel</Button>
+              <Box className="flex justify-end gap-2 pt-2 border-t border-fin-border mt-2">
+                <Button size="xs" variant="outline" onClick={() => { setCreateModalOpen(false); setEditModalOpen(false); setEditingScreener(null); setForm(EMPTY_FORM); }} data-testid="cancel-create-btn">Cancel</Button>
                 <Button size="xs" data-testid="confirm-create-btn" onClick={() => (editModalOpen ? handleUpdate() : handleCreate())} disabled={!form.label || form.columns.length === 0} loading={saving}>{editModalOpen ? "Update" : "Create"}</Button>
               </Box>
             </Stack>
           </Box>
         )}
         {deleteConfirmOpen && (
-          <Box sx={{ p: 1.5, borderBottom: 1, borderColor: palette.BORDER, bgcolor: withAlpha(palette.NEGATIVE, 0.08), display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+          <Box className="p-3 border-b border-fin-border flex items-center justify-between gap-2" style={{ backgroundColor: withAlpha(palette.NEGATIVE, 0.08) }}>
             <Text size="xs" style={{ color: palette.NEGATIVE }}>Are you sure you want to delete {deletingId}?</Text>
             <ToolbarRow gap={8}>
-              <Button size="xs" variant="outline" color="inherit" onClick={() => { setDeleteConfirmOpen(false); setDeletingId(null); }}>Cancel</Button>
+              <Button size="xs" variant="outline" onClick={() => { setDeleteConfirmOpen(false); setDeletingId(null); }}>Cancel</Button>
               <Button size="xs" color="error" onClick={handleDelete} loading={saving}>Delete</Button>
             </ToolbarRow>
           </Box>
         )}
-        <Box sx={{ flex: 1, overflow: "auto", p: 1, minHeight: 0 }}>
+        <Box className="flex-1 overflow-auto p-2 min-h-0">
           {previewLoading ? (
             <Stack gap={1} data-testid="preview-loading">
               <Text size="xs" c="dimmed" ta="center">Loading...</Text>
@@ -543,148 +535,4 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
       </Paper>
     </Box>
   );
-
-  function renderFormModal(isEdit: boolean, onSubmit: () => void, isSaving: boolean) {
-    return (
-      <Box sx={{ display: "flex", gap: 2, bgcolor: palette.BG }}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Stack gap={1} data-testid="create-screener-form">
-            <TextInput
-              label="Name"
-              data-testid="screener-name-input"
-              placeholder="e.g., My Custom Screener"
-              value={form.label}
-              onChange={(val) => setForm({ ...form, label: val })}
-              size="xs"
-            />
-            <TextInput
-              label="Description"
-              placeholder="Brief description of this screener"
-              value={form.description}
-              onChange={(val) => setForm({ ...form, description: val })}
-              size="xs"
-            />
-
-            <Text size="xs" fw={600} style={{ fontSize: 11, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>
-              Indicators
-            </Text>
-            <Group gap={1} align="center" style={{ flexWrap: "wrap" }}>
-              {["RSI", "ADX", "Volume", "52W Gap %", "Stochastic", "ATR", "MACD", "Momentum"].map(
-                (ind) => (
-                  <Checkbox
-                    key={ind}
-                    label={ind}
-                    checked={form.indicators.includes(ind)}
-                    onChange={(checked) => handleIndicatorToggle(ind, checked)}
-                    size="xs"
-                  />
-                ),
-              )}
-            </Group>
-
-            {form.filters.length > 0 && (
-              <>
-                <Text size="xs" fw={600} style={{ fontSize: 11, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>
-                  Filter Values
-                </Text>
-                <Group gap={1} align="center" style={{ flexWrap: "wrap" }}>{form.filters.map(renderFilterInput)}</Group>
-              </>
-            )}
-
-            <Select
-              label="Default Sort Column"
-              data={ALL_COLUMNS.map((c) => ({ value: c.key, label: c.label }))}
-              value={form.defaultSortColumn}
-              onChange={(val) => setForm({ ...form, defaultSortColumn: val || "score" })}
-              size="xs"
-            />
-
-            <Select
-              label="Default Sort Direction"
-              data={[
-                { value: "desc", label: "Descending ↓" },
-                { value: "asc", label: "Ascending ↑" },
-              ]}
-              value={form.defaultSortDirection}
-              onChange={(val) =>
-                setForm({ ...form, defaultSortDirection: (val as "asc" | "desc") || "desc" })
-              }
-              size="xs"
-            />
-
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, mt: 1.5 }}>
-              <Button
-                variant="outline"
-                color="inherit"
-                onClick={() => {
-                  setCreateModalOpen(false);
-                  setEditModalOpen(false);
-                  setForm(EMPTY_FORM);
-                }}
-                data-testid="cancel-create-btn"
-                size="xs"
-              >
-                Cancel
-              </Button>
-              <Button
-                data-testid="confirm-create-btn"
-                onClick={onSubmit}
-                disabled={!form.label || form.columns.length === 0}
-                loading={isSaving}
-                size="xs"
-              >
-                {isEdit ? "Update" : "Create"}
-              </Button>
-            </Box>
-          </Stack>
-        </Box>
-
-        <Box
-          sx={{
-            flex: 1,
-            minWidth: 0,
-            borderLeft: 1,
-            borderColor: palette.BORDER,
-            pl: 2,
-          }}
-        >
-            <Stack gap={1} data-testid="create-modal-preview">
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", pb: 1, borderBottom: 1, borderColor: palette.BORDER }}>
-              <Text fw={600} size="xs" data-testid="modal-live-preview-title" style={{ fontSize: 11, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>
-                LIVE PREVIEW
-              </Text>
-              <Badge size="xs" color="default" variant="light">
-                {stocks.length} stocks
-              </Badge>
-            </Box>
-            {form.columns.length === 0 ? (
-              <Text size="xs" c="dimmed" ta="center" py="xl" style={{ color: palette.TEXT_MUTED }}>
-                Select columns to preview
-              </Text>
-            ) : stocks.length > 0 ? (
-              <Paper elevation={0} sx={{ height: 300, overflow: "hidden", border: 1, borderColor: palette.BORDER, borderRadius: 1, bgcolor: palette.SURFACE }}>
-                <Box sx={{ height: 300, overflow: "auto", p: 0.5 }}>
-                <ScreenerTable
-                  stocks={stocks.slice(0, 10)}
-                  columns={form.columns.slice(0, 5).map((key) => ({
-                    key,
-                    label: ALL_COLUMNS.find((c) => c.key === key)?.label || key,
-                    sortable: true,
-                  }))}
-                  touchedSymbols={touchedSymbols}
-                  onSymbolClick={() => {}}
-                  onSymbolHover={() => {}}
-                />
-                </Box>
-              </Paper>
-            ) : (
-              <Text size="xs" c="dimmed" ta="center" py="xl" style={{ color: palette.TEXT_MUTED }}>
-                No stocks available
-              </Text>
-            )}
-          </Stack>
-        </Box>
-      </Box>
-    );
-  }
 }

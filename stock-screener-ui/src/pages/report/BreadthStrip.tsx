@@ -1,6 +1,5 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { memo } from "react";
-import Box from "@mui/material/Box";
 import * as palette from "@/ui/palette";
 import type { BreadthPayload } from "@/api/reportNifty";
 
@@ -12,59 +11,40 @@ import type { BreadthPayload } from "@/api/reportNifty";
 function BreadthStripInner({ data }: { data: BreadthPayload | null }) {
   if (!data?.available || data.rows.length === 0) return null;
   const priced = data.rows.filter((r) => r.change_pct != null);
+  const countTone = data.up >= 3 ? palette.POSITIVE : data.up === 0 ? palette.NEGATIVE : palette.WARNING;
+
   return (
-    <Box
+    <div
       data-testid="nifty-breadth-strip"
       data-up={data.up}
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        gap: "10px",
-        height: 20,
-        minHeight: 20,
-        px: 1,
-        border: `1px solid ${palette.TERM_BORDER}`,
-        borderRadius: "4px",
-        bgcolor: palette.TERM_HEADER,
-        width: "100%",
-        minWidth: 0,
-        flexShrink: 0,
-        fontFamily: palette.MONO,
-        fontSize: 9,
-        whiteSpace: "nowrap",
-        overflow: "hidden",
-      }}
+      className="flex items-center gap-2.5 min-w-0 shrink-0 overflow-hidden whitespace-nowrap border border-fin-border rounded-sm bg-fin-surface font-mono text-[9px] text-fin-text-muted h-[20px] min-h-[20px] w-full px-2"
     >
-      <Box component="span" sx={{ color: palette.TEXT_MUTED, fontWeight: 700, letterSpacing: "0.08em", flexShrink: 0 }}>
+      <span className="font-extrabold shrink-0 tracking-[0.08em] text-[9px]" style={{ color: palette.TEXT_MUTED }}>
         BREADTH
-      </Box>
-      <Box
-        component="span"
-        data-testid="nifty-breadth-count"
-        sx={{ fontWeight: 800, flexShrink: 0, color: data.up >= 3 ? palette.POSITIVE : data.up === 0 ? palette.NEGATIVE : palette.WARNING }}
-      >
+      </span>
+      <span data-testid="nifty-breadth-count" className="font-extrabold shrink-0" style={{ color: countTone }}>
         {data.up}/{priced.length} up
-      </Box>
+      </span>
       {priced.map((r) => {
         const pct = r.change_pct ?? 0;
         const tone = pct > 0 ? palette.POSITIVE : pct < 0 ? palette.NEGATIVE : palette.TEXT_MUTED;
         return (
-          <Box
+          <span
             key={r.label}
-            component="span"
             data-testid={`nifty-breadth-${r.label.toLowerCase()}`}
             title={`${r.label}: ${r.last ? formatNumberIN(r.last) ?? "—" : "—"} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`}
-            sx={{ display: "inline-flex", alignItems: "center", gap: "3px", flexShrink: 0, color: palette.TEXT_MUTED }}
+            className="inline-flex items-center gap-1 shrink-0 text-[9px]"
+            style={{ color: palette.TEXT_MUTED }}
           >
             {r.label}
-            <Box component="b" sx={{ color: tone, fontWeight: 800 }}>
+            <b style={{ color: tone, fontWeight: 800 }}>
               {pct >= 0 ? "+" : ""}
               {pct.toFixed(2)}%
-            </Box>
-          </Box>
+            </b>
+          </span>
         );
       })}
-    </Box>
+    </div>
   );
 }
 

@@ -1,6 +1,5 @@
 import { Box, Stack, Text } from "@/ui";
-import Select from "@mui/material/Select";
-import MenuItem from "@mui/material/MenuItem";
+import { Select } from "@/ui";
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import type { HeatmapStock } from "../../api/heatmap";
@@ -144,18 +143,26 @@ export function ScatterView({ stocks, metricX, metricY, onMetricXChange, onMetri
   const metricOptions = METRICS.map(m => ({ value: m.value, label: m.label }));
 
   return (
-    <Stack spacing={0} sx={{ height: "100%", flex: 1, minHeight: 0, width: "100%", overflow: "hidden" }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, height: 40, flexShrink: 0, borderBottom: "1px solid var(--mui-palette-divider)", flexWrap: "wrap" }}>
+    <Stack spacing={0} className="h-full flex-1 min-h-0 w-full overflow-hidden">
+      <Box className="flex items-center gap-2 px-2 h-10 flex-shrink-0 border-b border-fin-border flex-wrap">
         <Text size="xs" c="dimmed">X Axis</Text>
-        <Select size="small" value={metricX} onChange={(e) => onMetricXChange(String(e.target.value) || metricX)} sx={{ minWidth: 140 }}>
-          {metricOptions.map((o) => (<MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>))}
-        </Select>
+        <Select
+          size="small"
+          value={metricX}
+          onChange={(v) => onMetricXChange(v ?? metricX)}
+          data={metricOptions}
+          className="min-w-[140px]"
+        />
         <Text size="xs" c="dimmed">Y Axis</Text>
-        <Select size="small" value={metricY} onChange={(e) => onMetricYChange(String(e.target.value) || metricY)} sx={{ minWidth: 140 }}>
-          {metricOptions.map((o) => (<MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>))}
-        </Select>
+        <Select
+          size="small"
+          value={metricY}
+          onChange={(v) => onMetricYChange(v ?? metricY)}
+          data={metricOptions}
+          className="min-w-[140px]"
+        />
       </Box>
-      <Box sx={{ flex: 1, minHeight: 320, width: "100%", display: "flex", p: 1 }}>
+      <Box className="flex-1 min-h-[320px] w-full flex p-2">
         <ReactECharts option={option} style={{ height: "100%", width: "100%" }} opts={{ renderer: "canvas" }} />
       </Box>
     </Stack>

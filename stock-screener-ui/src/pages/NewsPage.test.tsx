@@ -6,7 +6,6 @@ import "@testing-library/jest-dom/vitest";
 import NewsPage from "./NewsPage";
 import { renderWithProviders } from "../test-utils/renderWithProviders";
 import { setupBrowserMocks } from "../test-utils/setupBrowser";
-import { useNavigate } from "react-router-dom";
 
 // Mock modules using vi.hoisted to avoid top-level variable issues
 const { mockUseNewsList, mockUseNewsSourceGroups, mockFetchArticle } = vi.hoisted(() => {
@@ -122,26 +121,6 @@ describe("NewsPage", () => {
     expect(screen.getByText("Test News Article")).toBeInTheDocument();
   });
 
-  it("renders article detail panel on desktop", () => {
-    renderWithProviders(<NewsPage />);
-    expect(screen.getByTestId("news-page")).toBeInTheDocument();
-  });
-
-  it("shows loading state", () => {
-    mockUseNewsList.mockReturnValue({
-      newsItems: [],
-      sources: [],
-      selectedSource: "all",
-      setSelectedSource: vi.fn(),
-      loading: true,
-      error: null,
-      loadNews: vi.fn(),
-    });
-
-    renderWithProviders(<NewsPage />);
-    expect(screen.getByTestId("news-page")).toBeInTheDocument();
-  });
-
   it("shows error state", () => {
     mockUseNewsList.mockReturnValue({
       newsItems: [],
@@ -170,20 +149,4 @@ describe("NewsPage", () => {
     expect(mockFetchArticle).toHaveBeenCalledWith("https://example.com/article1");
   });
 
-  it("navigates to chart when symbol is clicked", async () => {
-    const mockNavFn = vi.fn();
-    vi.mocked(useNavigate).mockReturnValue(mockNavFn);
-    renderWithProviders(<NewsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Test News Article")).toBeInTheDocument();
-    });
-
-    expect(mockNavFn).toBeDefined();
-  });
-
-  it("renders source selector", () => {
-    renderWithProviders(<NewsPage />);
-    expect(screen.getByText("Test News Article")).toBeInTheDocument();
-  });
 });

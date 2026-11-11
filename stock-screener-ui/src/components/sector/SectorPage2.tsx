@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import { Box, Group, Text, Button, Stack, Tabs, Loader, SegmentedControl, ScrollArea, ToolbarRow } from "@/ui";
+import { Box, cn, Group, Text, Button, Stack, Tabs, Loader, SegmentedControl, ScrollArea, ToolbarRow } from "@/ui";
 import {
   IconChartBar,
   IconArrowsExchange,
@@ -77,16 +77,16 @@ function AlertsAndMovers({
   return (
     <Stack
       spacing={0.25}
-      sx={{ flex: 1, minHeight: 0, height: "100%", overflow: "hidden", display: "flex", alignItems: "stretch" }}
+      className="flex h-full min-h-0 flex-1 items-stretch overflow-hidden"
     >
       <CompactPanel
         id="sector-alerts-card"
         data-testid="sector-alerts-card"
-        sx={{ flex: "0 0 auto", minHeight: 0, display: "flex", flexDirection: "column" }}
+        className="flex min-h-0 flex-none flex-col"
         title={
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
-            <Text fw={600} sx={{ fontSize: 11 }}>Real-time Alerts</Text>
-            <IconBellRinging size={14} color="var(--mui-palette-warning-main)" />
+          <Box className="flex items-center justify-between gap-2">
+            <Text fw={600} className="text-[11px]">Real-time Alerts</Text>
+            <IconBellRinging size={14} color="var(--color-fin-warning)" />
           </Box>
         }
       >
@@ -98,11 +98,11 @@ function AlertsAndMovers({
       <CompactPanel
         id="sector-interval-movers-card"
         data-testid="sector-interval-movers-card"
-        sx={{ flex: "0 0 auto", minHeight: 0, display: "flex", flexDirection: "column" }}
+        className="flex min-h-0 flex-none flex-col"
         title={
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
-            <Text fw={600} sx={{ fontSize: 11 }}>Interval Movers</Text>
-            <IconTrendingUp size={14} color="var(--mui-palette-primary-main)" />
+          <Box className="flex items-center justify-between gap-2">
+            <Text fw={600} className="text-[11px]">Interval Movers</Text>
+            <IconTrendingUp size={14} color="var(--color-fin-primary)" />
           </Box>
         }
       >
@@ -114,17 +114,17 @@ function AlertsAndMovers({
       <CompactPanel
         id="sector-top-stocks-card"
         data-testid="sector-top-stocks-card"
-        sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
+        className="flex min-h-0 flex-1 flex-col"
         title={
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
-            <Text fw={600} sx={{ fontSize: 11 }}>Top Gainers</Text>
-            <IconTrendingUp size={14} color="var(--mui-palette-success-main)" />
+          <Box className="flex items-center justify-between gap-2">
+            <Text fw={600} className="text-[11px]">Top Gainers</Text>
+            <IconTrendingUp size={14} color="var(--color-fin-positive)" />
           </Box>
         }
       >
         <ScrollArea flex={1}>
           {topStocks.length === 0 ? (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 0.5 }}>
+            <Box className="flex items-center justify-center p-1">
               <Text size="xs" c="dimmed">No movers</Text>
             </Box>
           ) : (
@@ -132,19 +132,19 @@ function AlertsAndMovers({
               {topStocks.slice(0, 10).map((stock) => (
                 <Box
                   key={stock.symbol}
-                  sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0, px: 0.5, py: 0.25 }}
+                  className="flex min-w-0 items-center gap-1.5 px-1 py-[2px]"
                 >
                   <Box
                     component="a"
                     href={`/chart/${encodeURIComponent(stock.symbol)}`}
-                    sx={{ minWidth: 0, color: "text.primary", textDecoration: "none", "&:hover": { color: "primary.main" } }}
+                    className="min-w-0 text-fin-text no-underline hover:text-fin-primary"
                   >
-                    <Text truncate sx={{ fontSize: 10.5, fontWeight: 600 }}>
+                    <Text truncate className="text-[10.5px] font-semibold">
                       {stock.symbol}
                     </Text>
                   </Box>
-                  <Box sx={{ flex: 1 }} />
-                  <Text c={stock.change >= 0 ? "success.main" : "error.main"} sx={{ fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}>
+                  <Box className="flex-1" />
+                  <Text c={stock.change >= 0 ? "success.main" : "error.main"} className="text-[10.5px] tabular-nums">
                     {formatPercentage(stock.change)}
                   </Text>
                 </Box>
@@ -169,9 +169,9 @@ function LoadingPanel() {
         </Group>
       }
       description="Loading live sector breadth and movers."
-      sx={{ minHeight: 400 }}
+      className="min-h-[400px]"
     >
-      <Box flex={1} sx={{ minHeight: 0 }} />
+      <Box flex={1} className="min-h-0" />
     </CompactPanel>
   );
 }
@@ -200,27 +200,18 @@ function EmptyPanel() {
   );
 }
 
-function SectorPerformancePanel({ sectors, gridArea }: { sectors: SectorItem[]; gridArea: string }) {
+function SectorPerformancePanel({ sectors, gridArea: _gridArea }: { sectors: SectorItem[]; gridArea: string }) {
   return (
     <Box
-      sx={{
-        gridArea,
-        minHeight: 0,
-        minWidth: 0,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        border: "1px solid var(--mui-palette-divider)",
-        borderRadius: 2,
-      }}
+      className="flex flex-col overflow-hidden border border-fin-border rounded-[2px] min-w-0 min-h-0"
     >
-      <Box sx={{ display: "flex", alignItems: "center", px: 1, height: 24, flexShrink: 0, borderBottom: "1px solid var(--mui-palette-divider)" }}>
-        <Text fw={600} sx={{ fontSize: 11 }}>Sector Performance</Text>
+      <Box className="flex h-6 shrink-0 items-center border-b border-fin-border px-2">
+        <Text fw={600} className="text-[11px]">Sector Performance</Text>
       </Box>
       <Box
         id="sector-table-container"
         data-testid="sector-table-container"
-        sx={{ minHeight: 0, flex: 1, overflow: "auto" }}
+        className="min-h-0 flex-1 overflow-auto"
       >
         <SectorTable sectors={sectors} />
       </Box>
@@ -265,72 +256,51 @@ function DashboardContent({
 
   return (
     <Box
-      sx={{
-        flex: 1,
-        minHeight: 0,
-        overflowY: { xs: "auto", lg: "hidden" },
-        display: "flex",
-        flexDirection: "column",
-        gap: 0.25,
-        p: 0.25,
-      }}
+      className="flex-1 min-h-0 overflow-y-auto lg:overflow-y-hidden flex flex-col gap-[2px] p-[2px]"
     >
       <Box
         data-testid="sector-summary-strip"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: 1,
-          minHeight: 28,
-          px: 0.75,
-          py: 0.25,
-          border: "1px solid",
-          borderColor: "divider",
-          borderRadius: 1,
-          bgcolor: "background.paper",
-          flexShrink: 0,
-        }}
+        className="flex items-center flex-wrap gap-2 min-h-[28px] px-[6px] py-[2px] border border-fin-border rounded-[1px] bg-fin-surface shrink-0"
       >
-        <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5, minWidth: 0 }}>
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase" sx={{ fontSize: 9, letterSpacing: 0.3 }}>
+        <Box className="flex min-w-0 items-baseline gap-1">
+          <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-[9px] tracking-[0.3px]">
             Top Sector
           </Text>
-          <Text fw={700} c="success.main" truncate sx={{ fontSize: 11 }}>
+          <Text fw={700} c="success.main" truncate className="text-[11px]">
             {data.sectors[0].sector}
           </Text>
-          <Text c="dimmed" sx={{ fontSize: 9.5, fontVariantNumeric: "tabular-nums" }}>
+          <Text c="dimmed" className="text-[9.5px] tabular-nums">
             Avg Change: {formatPercentage(data.sectors[0].avg_change)}
           </Text>
         </Box>
-        <Box sx={{ width: "1px", height: 12, bgcolor: "divider", flexShrink: 0 }} />
-        <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.75 }}>
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase" sx={{ fontSize: 9, letterSpacing: 0.3 }}>
+        <Box className="h-3 w-px shrink-0 bg-fin-border" />
+        <Box className="flex items-baseline gap-[6px]">
+          <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-[9px] tracking-[0.3px]">
             Market Breadth
           </Text>
-          <Text fw={700} c="success.main" sx={{ fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
+          <Text fw={700} c="success.main" className="text-[11px] tabular-nums">
             {totalAdvances} UP
           </Text>
-          <Text fw={700} c="error.main" sx={{ fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
+          <Text fw={700} c="error.main" className="text-[11px] tabular-nums">
             {totalDeclines} DOWN
           </Text>
         </Box>
-        <Box sx={{ width: "1px", height: 12, bgcolor: "divider", flexShrink: 0 }} />
-        <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5, minWidth: 0 }}>
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase" sx={{ fontSize: 9, letterSpacing: 0.3 }}>
+        <Box className="h-3 w-px shrink-0 bg-fin-border" />
+        <Box className="flex min-w-0 items-baseline gap-1">
+          <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-[9px] tracking-[0.3px]">
             Weakest Sector
           </Text>
-          <Text fw={700} c="error.main" truncate sx={{ fontSize: 11 }}>
+          <Text fw={700} c="error.main" truncate className="text-[11px]">
             {bottomSector.sector}
           </Text>
-          <Text c="dimmed" sx={{ fontSize: 9.5, fontVariantNumeric: "tabular-nums" }}>
+          <Text c="dimmed" className="text-[9.5px] tabular-nums">
             Avg Change: {formatPercentage(bottomSector.avg_change)}
           </Text>
         </Box>
-        <Box sx={{ flex: 1 }} />
+        <Box className="flex-1" />
         <Box
           data-testid="sector-dashboard-view-toggle"
-          sx={{ display: "flex", height: 22, border: 1, borderColor: "divider", borderRadius: 1, overflow: "hidden" }}
+          className="flex h-[22px] border border-fin-border rounded-[1px] overflow-hidden"
         >
           {(["table", "visual"] as const).map((view) => (
             <Box
@@ -339,17 +309,11 @@ function DashboardContent({
               type="button"
               aria-pressed={dashboardView === view}
               onClick={() => onDashboardViewChange(view)}
-              sx={{
-                px: 0.75,
-                border: 0,
-                bgcolor: dashboardView === view ? "action.selected" : "transparent",
-                color: dashboardView === view ? "text.primary" : "text.secondary",
-                cursor: "pointer",
-                fontSize: 9.5,
-                fontWeight: 600,
-                lineHeight: 1,
-                "&:hover": { bgcolor: "action.hover" },
-              }}
+              className={cn(
+                "px-[6px] border-0 cursor-pointer text-[9.5px] font-semibold leading-none",
+                dashboardView === view ? "bg-fin-primary/10 text-fin-primary" : "bg-transparent text-fin-text-muted",
+                "hover:bg-fin-primary/10",
+              )}
             >
               {view === "table" ? "Table" : "Visual"}
             </Box>
@@ -359,49 +323,20 @@ function DashboardContent({
 
       {dashboardView === "visual" ? (
         <Box
-          sx={{
-            flex: 1,
-            minHeight: 0,
-            display: "grid",
-            gap: 0.25,
-            gridTemplateAreas: {
-              xs: '"heat" "table" "alerts"',
-              lg: '"heat alerts" "table alerts"',
-            },
-            gridTemplateColumns: {
-              xs: "minmax(0, 1fr)",
-              lg: "minmax(0, 2.4fr) minmax(320px, 1fr)",
-            },
-            gridTemplateRows: {
-              xs: "auto auto auto",
-              lg: "minmax(0, 1.2fr) minmax(0, 0.8fr)",
-            },
-          }}
+          className="flex-1 min-h-0 grid gap-[2px] grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,2.4fr)_minmax(320px,1fr)] grid-rows-[auto_auto_auto] lg:grid-rows-[minmax(0,1.2fr)_minmax(0,0.8fr)]"
         >
           <CompactPanel
             id="sector-heatmap-panel"
             data-testid="sector-heatmap-panel"
             padded={false}
-            sx={{
-              gridArea: "heat",
-              minHeight: { xs: 300, lg: 0 },
-              display: "flex",
-              flexDirection: "column",
-              "& > .MuiCardContent-root": {
-                flex: 1,
-                minHeight: 0,
-                display: "flex",
-                flexDirection: "column",
-                p: 0,
-              },
-            }}
+            className="min-h-[300px] lg:min-h-0 flex flex-col"
             title={
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
-                <Text fw={600} sx={{ fontSize: 11 }}>Market Heatmap</Text>
+              <Box className="flex items-center justify-between gap-2">
+                <Text fw={600} className="text-[11px]">Market Heatmap</Text>
                 {data.last_updated && (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                    <IconClock size={10} color="var(--mui-palette-text-secondary)" />
-                    <Text c="dimmed" sx={{ fontSize: 9.5, fontVariantNumeric: "tabular-nums" }}>
+                  <Box className="flex items-center gap-1">
+                    <IconClock size={10} color="var(--color-fin-text-muted)" />
+                    <Text c="dimmed" className="text-[9.5px] tabular-nums">
                       {new Date(data.last_updated).toLocaleTimeString()}
                     </Text>
                   </Box>
@@ -427,47 +362,18 @@ function DashboardContent({
           <SectorPerformancePanel sectors={data.sectors} gridArea="table" />
 
           <Box
-            sx={{
-              gridArea: "alerts",
-              minHeight: { xs: 360, lg: 0 },
-              minWidth: 0,
-              display: "flex",
-              flexDirection: "column",
-            }}
+            className="min-h-[360px] lg:min-h-0 min-w-0 flex flex-col"
           >
             <AlertsAndMovers alerts={alerts} intervalMovers={intervalMovers} topStocks={data.top_stock_movers} />
           </Box>
         </Box>
       ) : (
         <Box
-          sx={{
-            flex: 1,
-            minHeight: 0,
-            display: "grid",
-            gap: 0.25,
-            gridTemplateAreas: {
-              xs: '"table" "alerts"',
-              lg: '"table alerts"',
-            },
-            gridTemplateColumns: {
-              xs: "minmax(0, 1fr)",
-              lg: "minmax(0, 2.4fr) minmax(320px, 1fr)",
-            },
-            gridTemplateRows: {
-              xs: "auto auto",
-              lg: "minmax(0, 1fr)",
-            },
-          }}
+          className="flex-1 min-h-0 grid gap-[2px] grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,2.4fr)_minmax(320px,1fr)] grid-rows-[auto_auto] lg:grid-rows-[minmax(0,1fr)]"
         >
           <SectorPerformancePanel sectors={data.sectors} gridArea="table" />
           <Box
-            sx={{
-              gridArea: "alerts",
-              minHeight: { xs: 360, lg: 0 },
-              minWidth: 0,
-              display: "flex",
-              flexDirection: "column",
-            }}
+            className="min-h-[360px] lg:min-h-0 min-w-0 flex flex-col"
           >
             <AlertsAndMovers alerts={alerts} intervalMovers={intervalMovers} topStocks={data.top_stock_movers} />
           </Box>
@@ -693,12 +599,12 @@ function SectorPageHeader({
     <ToolbarRow
       gap={8}
       data-testid="sector-header"
-      style={{ padding: "0 12px", minHeight: 36, height: 36, borderBottom: "1px solid var(--mui-palette-divider)", flexShrink: 0 }}
+      style={{ padding: "0 12px", minHeight: 36, height: 36, borderBottom: "1px solid var(--color-fin-border)", flexShrink: 0 }}
     >
-      <Text fw={700} sx={{ fontSize: 12, whiteSpace: "nowrap" }}>
+      <Text fw={700} className="text-[12px] whitespace-nowrap">
         Sector Dashboard
       </Text>
-      <Text c="dimmed" sx={{ fontSize: 10, whiteSpace: "nowrap" }}>
+      <Text c="dimmed" className="text-[10px] whitespace-nowrap">
         Real-time sector performance and technical strength.
       </Text>
       {!marketOpen ? (
@@ -706,12 +612,12 @@ function SectorPageHeader({
           c="warning"
           fw={700}
           title="Showing the last available session snapshot"
-          sx={{ fontSize: 9.5, whiteSpace: "nowrap", letterSpacing: 0.4 }}
+          className="text-[9.5px] whitespace-nowrap tracking-[0.4px]"
         >
           MARKET CLOSED
         </Text>
       ) : null}
-      <Box sx={{ flex: 1 }} />
+      <Box className="flex-1" />
       <SegmentedControl
         value={market}
         onChange={(v) => setMarket(v as "india" | "america")}
@@ -850,7 +756,7 @@ export function SectorPage() {
   return (
     <Box
       data-testid="sector-analysis-view"
-      sx={{ width: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", p: 0, gap: 0, overflow: "hidden" }}
+      className="w-full h-full min-h-0 flex flex-col p-0 gap-0 overflow-hidden"
     >
       <SectorPageHeader
         market={state.market}
@@ -859,31 +765,31 @@ export function SectorPage() {
         onRefresh={() => state.loadData(state.market, false, true)}
         showRefresh={state.activeTab === "dashboard"}
       />
-      <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <Box className="flex-1 min-h-0 flex flex-col overflow-hidden">
         <Box
           id="sector-page"
-          sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", width: "100%" }}
+          className="flex-1 min-h-0 flex flex-col overflow-hidden w-full"
         >
-          <Box sx={{ display: "flex", alignItems: "center", px: 1, height: 24, flexShrink: 0, borderBottom: "1px solid var(--mui-palette-divider)" }}>
+          <Box className="flex h-6 shrink-0 items-center border-b border-fin-border px-2">
             <Tabs
               value={state.activeTab}
               onChange={state.setActiveTab}
-              sx={{ minHeight: 24, "& .MuiTab-root": { minHeight: 24, py: 0, fontSize: 11 } }}
+              className="min-h-[24px]"
             >
-              <Tabs.List sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <Tabs.Tab value="dashboard" icon={<IconChartBar size={12} />}>
+              <Tabs.List className="flex items-center gap-1">
+                <Tabs.Tab value="dashboard" className="min-h-[24px] py-0 text-[11px]" icon={<IconChartBar size={12} />}>
                   Live Dashboard
                 </Tabs.Tab>
-                <Tabs.Tab value="correlation" icon={<IconNetwork size={12} />}>
+                <Tabs.Tab value="correlation" className="min-h-[24px] py-0 text-[11px]" icon={<IconNetwork size={12} />}>
                   Sector Correlation
                 </Tabs.Tab>
-                <Tabs.Tab value="rotation" icon={<IconArrowsExchange size={12} />}>
+                <Tabs.Tab value="rotation" className="min-h-[24px] py-0 text-[11px]" icon={<IconArrowsExchange size={12} />}>
                   Rotation
                 </Tabs.Tab>
               </Tabs.List>
             </Tabs>
           </Box>
-          <Box flex={1} sx={{ minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column", alignItems: "stretch" }}>
+          <Box flex={1} className="min-h-0 overflow-auto flex flex-col items-stretch">
             <SectorTabContent
               activeTab={state.activeTab}
               data={state.data}

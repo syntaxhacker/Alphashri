@@ -34,31 +34,12 @@ describe("PnlText", () => {
     expect(screen.getByText("Custom Text")).toBeInTheDocument();
   });
 
-  it("renders with data-testid", () => {
-    render(<PnlText value={100} data-testid="pnl-text" />, { wrapper: Wrapper });
-    expect(screen.getByTestId("pnl-text")).toBeInTheDocument();
-  });
-
   it("renders as span when span=true", () => {
     render(<PnlText value={100} span />, { wrapper: Wrapper });
     const el = screen.getByText("+100");
     expect(el.tagName).toBe("SPAN");
   });
 
-  it("renders with custom font weight", () => {
-    render(<PnlText value={100} fw={700} />, { wrapper: Wrapper });
-    expect(screen.getByText("+100")).toBeInTheDocument();
-  });
-
-  it("renders with custom size", () => {
-    render(<PnlText value={100} size="xl" />, { wrapper: Wrapper });
-    expect(screen.getByText("+100")).toBeInTheDocument();
-  });
-
-  it("renders with margin left", () => {
-    render(<PnlText value={100} ml={8} />, { wrapper: Wrapper });
-    expect(screen.getByText("+100")).toBeInTheDocument();
-  });
 });
 
 describe("PnlBadge", () => {
@@ -82,13 +63,4 @@ describe("PnlBadge", () => {
     expect(screen.getByText("+100.5K")).toBeInTheDocument();
   });
 
-  it("renders with data-testid", () => {
-    render(<PnlBadge value={100} data-testid="pnl-badge" />, { wrapper: Wrapper });
-    expect(screen.getByTestId("pnl-badge")).toBeInTheDocument();
-  });
-
-  it("renders with custom size", () => {
-    render(<PnlBadge value={100} size="lg" />, { wrapper: Wrapper });
-    expect(screen.getByText("+100")).toBeInTheDocument();
-  });
 });

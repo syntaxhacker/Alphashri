@@ -1,6 +1,5 @@
 import { memo, useMemo } from "react";
-import Box from "@mui/material/Box";
-import { Text } from "@/ui";
+import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { CompactPanel } from "@/components/common/compact";
 import type { NiftyStructureShift } from "@/types/niftyReport";
@@ -95,9 +94,9 @@ function NiftyStructureShiftsInner({ structure }: NiftyStructureShiftsProps) {
     // the implicit `min-height: auto` and could collapse it. `flex`/`minWidth`
     // size it horizontally; `minWidth: 0` contains horizontal overflow while
     // the internal list (below) owns the vertical scroll.
-    <Box data-testid="nifty-structure" sx={{ flex: "1 1 420px", minWidth: 0 }}>
+    <Box data-testid="nifty-structure" className="flex-[1_1_420px] min-w-0">
       <CompactPanel title="Structure shifts">
-        <Box data-testid="nifty-structure-summary" sx={{ mb: 0.25 }}>
+        <Box data-testid="nifty-structure-summary" className="mb-[2px]">
           <Text size="xs" fw={600} c="dimmed" span>
             {summary}
           </Text>
@@ -114,14 +113,8 @@ function NiftyStructureShiftsInner({ structure }: NiftyStructureShiftsProps) {
           // INNER scroller, never a direct page-column child.
           <Box
             data-testid="nifty-structure-list"
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 0.25,
-              minWidth: 0,
-              maxHeight: 120,
-              overflowY: "auto",
-            }}
+            className="flex flex-col gap-[2px] min-w-0"
+            style={{ maxHeight: 120, overflowY: "auto" }}
           >
             {ordered.map((shift, i) => {
               const accent = structureSeverityAccent(shift.severity);
@@ -130,26 +123,19 @@ function NiftyStructureShiftsInner({ structure }: NiftyStructureShiftsProps) {
                 <Box
                   key={`${shift.t}-${shift.kind}-${i}`}
                   data-testid="nifty-structure-row"
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1,
-                    minWidth: 0,
-                    pl: 1,
-                    pr: 1,
-                    py: 0,
+                  className="flex items-center gap-[8px] min-w-0 pl-1 pr-1 py-0 line-height-[1.2]"
+                  style={{
                     borderLeft: `3px solid ${accent}`,
-                    bgcolor: palette.SURFACE_ALT,
-                    borderRadius: 0.5,
-                    lineHeight: 1.2,
+                    backgroundColor: palette.SURFACE_ALT,
+                    borderRadius: 4,
                   }}
                 >
-                  <Box component="span" sx={{ flexShrink: 0, whiteSpace: "nowrap" }}>
+                  <Box component="span" className="shrink-0 whitespace-nowrap">
                     <Text size="xs" fw={700} c={accent} span>
                       {structureKindLabel(shift.kind)}
                     </Text>
                   </Box>
-                  <Box component="span" sx={{ flexShrink: 0, whiteSpace: "nowrap" }}>
+                  <Box component="span" className="shrink-0 whitespace-nowrap">
                     <Text size="xs" c="dimmed" span>
                       {structureTimeLabel(shift.t)}
                     </Text>
@@ -158,13 +144,7 @@ function NiftyStructureShiftsInner({ structure }: NiftyStructureShiftsProps) {
                     component="span"
                     data-testid="nifty-structure-detail"
                     title={full}
-                    sx={{
-                      flex: 1,
-                      minWidth: 0,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
+                    className="flex-1 min-w-0 overflow-hidden truncate whitespace-nowrap"
                   >
                     <Text size="xs" c="dimmed" span>
                       {full}

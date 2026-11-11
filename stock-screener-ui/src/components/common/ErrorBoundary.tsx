@@ -55,26 +55,16 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       <Box
         role="alert"
         data-testid="ui-error-boundary"
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "flex-start",
-          gap: 0.75,
-          m: 1,
-          p: 1.5,
-          minHeight: 120,
-          border: 1,
-          borderColor: BORDER,
-          bgcolor: SURFACE,
-        }}
+        className="flex flex-col items-start gap-2 p-4 m-2 min-h-[120px] border border-fin-border bg-fin-surface"
+        style={{ borderColor: BORDER, backgroundColor: SURFACE }}
       >
         <Text size="sm" fw={700} c="dimmed">
           {label} hit an error
         </Text>
-        <Text size="xs" c="dimmed" sx={{ color: TEXT_MUTED, wordBreak: "break-word" }}>
+        <Text size="xs" c="dimmed" style={{ color: TEXT_MUTED, wordBreak: "break-word" }}>
           {this.state.error.message || String(this.state.error)}
         </Text>
-        <Box sx={{ display: "flex", gap: 0.75, mt: 0.5 }}>
+        <Box style={{ display: "flex", gap: 12, marginTop: 8 }}>
           <Button size="xs" variant="outline" onClick={this.reset} data-testid="ui-error-retry">
             Try again
           </Button>

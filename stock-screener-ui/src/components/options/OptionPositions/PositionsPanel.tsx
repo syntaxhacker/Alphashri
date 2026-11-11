@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Text, Badge, Alert, ToolbarRow } from "@/ui";
-import Box from "@mui/material/Box";
+import { Box } from "@/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { TanStackTable } from "../../common/TanStackTable";
@@ -26,14 +26,14 @@ interface PositionsPanelProps {
 export function PositionsPanel({ positions = [], loading, error }: PositionsPanelProps) {
   if (loading) {
     return (
-      <Box id="positions-panel" className="positions-panel" sx={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }} data-testid="options-positions-panel">
+      <Box id="positions-panel" className="positions-panel flex flex-col gap-[8px] w-full" data-testid="options-positions-panel">
         <ToolbarRow gap={8}>
           <Text size="md" fw={600} className="positions-title">
             Positions
           </Text>
         </ToolbarRow>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", py: 4, width: "100%" }}>
-          <Text size="sm" c="dimmed" className="positions-loading" data-testid="options-positions-loading">
+        <Box className="flex items-center justify-center w-full py-8">
+          <Text size="sm" className="text-fin-text-muted positions-loading" data-testid="options-positions-loading">
             Loading positions...
           </Text>
         </Box>
@@ -43,7 +43,7 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
 
   if (error) {
     return (
-      <Box id="positions-panel" className="positions-panel" sx={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }} data-testid="options-positions-panel">
+      <Box id="positions-panel" className="positions-panel flex flex-col gap-[8px] w-full" data-testid="options-positions-panel">
         <ToolbarRow gap={8}>
           <Text size="md" fw={600} className="positions-title">
             Positions
@@ -136,7 +136,7 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
   );
 
   return (
-    <Box id="positions-panel" className="positions-panel" sx={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }} data-testid="options-positions-panel">
+    <Box id="positions-panel" className="positions-panel flex flex-col gap-[8px] w-full" data-testid="options-positions-panel">
       <ToolbarRow gap={8}>
         <Text size="md" fw={600} className="positions-title">
           Option Positions
@@ -145,7 +145,7 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
           {positions.length}
         </Badge>
       </ToolbarRow>
-      <Box className="positions-table-container" data-testid="options-positions-table-container" sx={{ width: "100%", overflowX: "auto" }}>
+      <Box className="positions-table-container overflow-x-auto w-full" data-testid="options-positions-table-container">
         <TanStackTable<Position>
           data={positions}
           columns={columns}

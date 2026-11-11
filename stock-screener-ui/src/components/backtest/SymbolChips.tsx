@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Box, Group, MultiSelect, Tooltip, Badge, ActionIcon, useDebouncedValue } from "@/ui";
 import { IconChevronDown, IconChevronUp, IconX } from "@tabler/icons-react";
+import * as palette from "@/ui/palette";
 import { searchSymbols } from "../../api/symbols";
 
 const MAX_VISIBLE_CHIPS = 5;
@@ -49,7 +50,7 @@ export function SymbolChips({
   return (
     <>
       <Group gap={4} align="center" flex={1} miw={0}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box flex={1} className="min-w-0">
           <MultiSelect
             id="symbol-multiselect"
             className="config-symbol-multiselect"
@@ -93,7 +94,7 @@ export function SymbolChips({
               variant="outline"
               size="sm"
               className="symbol-chip"
-              sx={{ color: "var(--mui-palette-text-primary)", borderColor: "var(--mui-palette-divider)" }}
+              style={{ color: palette.TEXT, borderColor: palette.BORDER }}
               rightSection={<IconX size={10} onClick={() => handleRemoveSymbol(symbol)} />}
               data-testid={`chip-${symbol}`}
             >
@@ -109,7 +110,7 @@ export function SymbolChips({
               onClick={() => setSymbolsExpanded(true)}
               rightSection={<IconChevronDown size={10} />}
               data-testid="symbol-expand-more-btn"
-              sx={{ color: "var(--mui-palette-text-secondary)" }}
+              style={{ color: palette.TEXT_MUTED }}
             >
               +{hiddenCount} more
             </Badge>
@@ -123,7 +124,7 @@ export function SymbolChips({
               onClick={() => setSymbolsExpanded(false)}
               rightSection={<IconChevronUp size={10} />}
               data-testid="symbol-expand-less-btn"
-              sx={{ color: "var(--mui-palette-text-secondary)" }}
+              style={{ color: palette.TEXT_MUTED }}
             >
               Less
             </Badge>

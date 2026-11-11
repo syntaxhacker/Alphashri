@@ -63,10 +63,10 @@ export function BrokerConnectionCard({
     broker === "upstox" ? "broker-expires-text" : `${broker}-expires-text`;
 
   return (
-    <Box id={cardTestId} data-testid={cardTestId} sx={{ width: "100%" }}>
+    <Box id={cardTestId} data-testid={cardTestId} className="w-full">
       <Stack gap={4}>
         <ToolbarRow justify="space-between" gap={8} style={{ flexWrap: "wrap", rowGap: 8 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0, flexWrap: "wrap" }}>
+          <Box className="flex min-w-0 flex-wrap items-center gap-2">
             <Text fw={600} size="sm">
               {title}
             </Text>
@@ -77,7 +77,7 @@ export function BrokerConnectionCard({
               </Text>
             )}
           </Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Box className="flex items-center gap-2">
             {isConnected ? (
               <Button size="sm" leftSection={<IconPlugX size={16} />} variant="filled" color="error" onClick={onDisconnect} loading={loading} data-testid={`disconnect-${suffix}-btn`}>
                 Disconnect

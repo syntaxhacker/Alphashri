@@ -1,9 +1,8 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, act } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
-import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
 const { mockUseReplayState } = vi.hoisted(() => ({
   mockUseReplayState: vi.fn(() => ({
@@ -42,19 +41,19 @@ vi.mock("../../hooks/useReplayState", () => ({
 }));
 
 vi.mock("./ReplayConfig", () => ({
-  ReplayConfigBar: (props: any) => <div data-testid="replay-config">ReplayConfig</div>,
+  ReplayConfigBar: (_props: any) => <div data-testid="replay-config">ReplayConfig</div>,
 }));
 
 vi.mock("./ReplayStats", () => ({
-  ReplayStats: (props: any) => <div data-testid="replay-stats">ReplayStats</div>,
+  ReplayStats: (_props: any) => <div data-testid="replay-stats">ReplayStats</div>,
 }));
 
 vi.mock("./ReplayPositions", () => ({
-  ReplayPositions: (props: any) => props.positions.length > 0 ? <div data-testid="replay-positions">ReplayPositions</div> : null,
+  ReplayPositions: (_props: any) => _props.positions.length > 0 ? <div data-testid="replay-positions">ReplayPositions</div> : null,
 }));
 
 vi.mock("./ReplayMainView", () => ({
-  ReplayMainView: (props: any) => <div data-testid="replay-main-view">ReplayMainView</div>,
+  ReplayMainView: (_props: any) => <div data-testid="replay-main-view">ReplayMainView</div>,
 }));
 
 vi.mock("./ReplaySummary", () => ({
@@ -67,16 +66,6 @@ afterEach(() => {
 });
 
 describe("ReplayPage", () => {
-  it("renders page with data-testid", async () => {
-    const { ReplayPage } = await import("./ReplayPage");
-    render(
-      <UIProvider>
-        <ReplayPage />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("replay-page")).toBeInTheDocument();
-  });
-
   it("renders title and description text", async () => {
     const { ReplayPage } = await import("./ReplayPage");
     render(

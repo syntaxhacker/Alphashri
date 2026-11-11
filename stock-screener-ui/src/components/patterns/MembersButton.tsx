@@ -29,20 +29,8 @@ export function MembersButton({
         event.stopPropagation();
         onShowMembers?.(symbol);
       }}
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        width: size,
-        height: size,
-        p: 0,
-        border: 0,
-        bgcolor: "transparent",
-        color: "text.secondary",
-        cursor: "pointer",
-        flexShrink: 0,
-        "&:hover": { color: "primary.main" },
-      }}
+      className="inline-flex shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-fin-text-muted transition-colors hover:text-fin-primary"
+      style={{ width: size, height: size }}
     >
       <IconUsers size={iconSize} />
     </Box>

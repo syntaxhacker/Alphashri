@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
-import Box from "@mui/material/Box";
-import { Text } from "@/ui";
+import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 
 /** One plotted series. `points` are y-values aligned to `labels`. */
@@ -187,7 +186,8 @@ export function MiniLineChart({
     return (
       <Box
         data-testid={testId}
-        sx={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: height }}
+        className="flex items-center justify-center"
+        style={{ minHeight: height }}
       >
         <Text size="xs" c="dimmed" span>
           {emptyMessage}
@@ -210,7 +210,10 @@ export function MiniLineChart({
   const hoverX = hover != null ? PAD_L + hover * stepX : 0;
 
   return (
-    <Box sx={{ width: "100%", minWidth: 0, position: "relative" }} data-testid={testId}>
+    <Box
+      className="w-full min-w-0 relative"
+      data-testid={testId}
+    >
       <svg
         viewBox={`0 0 ${W} ${height}`}
         preserveAspectRatio="none"
@@ -271,7 +274,7 @@ export function MiniLineChart({
           />
         )}
       </svg>
-      <Box sx={{ display: "flex", justifyContent: "space-between", px: 0.5 }}>
+      <Box className="flex justify-between px-1">
         <Text size="xs" c="dimmed" span>
           {labels[0]}
         </Text>

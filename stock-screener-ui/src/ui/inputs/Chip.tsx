@@ -1,38 +1,27 @@
-import { useState, useCallback } from "react";
-import MuiChip from "@mui/material/Chip";
-import type { UIChipProps } from "../types";
+import { useCallback, useState, type CSSProperties } from "react";
+import { cn } from "../cn";
+import type { UIChipProps, UIColor } from "../types";
 
-function mapSize(size: UIChipProps["size"]): "small" | "medium" {
-  switch (size) {
-    case "xs":
-    case "sm":
-      return "small";
-    case "md":
-    case "lg":
-    case "xl":
-    default:
-      return "medium";
-  }
+function chipSizeClasses(size?: UIChipProps["size"]): string {
+  return size === "xs" || size === "sm" ? "text-xs px-2 py-1" : "text-sm px-3 py-1.5";
 }
 
-function mapColor(color: UIChipProps["color"]): "primary" | "secondary" | "success" | "error" | "warning" | "info" | "default" {
-  if (!color) return "default";
+function toneClasses(color?: UIColor): { checked: string; border: string } {
   switch (color) {
     case "success":
-      return "success";
+      return { checked: "bg-fin-positive text-fin-bg", border: "border-fin-positive text-fin-positive" };
     case "error":
     case "danger":
-      return "error";
+      return { checked: "bg-fin-negative text-fin-bg", border: "border-fin-negative text-fin-negative" };
     case "warning":
-      return "warning";
+      return { checked: "bg-fin-warning text-fin-bg", border: "border-fin-warning text-fin-warning" };
     case "info":
-      return "info";
-    case "secondary":
-      return "secondary";
     case "primary":
-      return "primary";
+      return { checked: "bg-fin-primary text-fin-bg", border: "border-fin-primary text-fin-primary" };
+    case "secondary":
+      return { checked: "bg-fin-text-muted text-fin-bg", border: "border-fin-text-muted text-fin-text-muted" };
     default:
-      return "default";
+      return { checked: "bg-fin-surface-alt text-fin-text", border: "border-fin-border text-fin-text-muted" };
   }
 }
 
@@ -44,21 +33,23 @@ export function Chip({
   size,
   color,
   variant,
+  label,
   value: _value,
   children,
   className,
   style,
-  "data-testid": testId,
   id,
+  "data-testid": testId,
   onClick,
-  ...rest
 }: UIChipProps) {
   const isControlled = checked !== undefined;
   const [internalChecked, setInternalChecked] = useState<boolean>(defaultChecked ?? false);
-  const isChecked = isControlled ? (checked as boolean) : internalChecked;
+  const isChecked = isControlled ? checked : internalChecked;
+  const { checked: toneChecked, border: toneBorder } = toneClasses(color);
+  const isOutline = variant === "outline";
 
   const handleClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
+    (e: React.MouseEvent) => {
       if (disabled) return;
       onClick?.(e as never);
       const next = !isChecked;
@@ -68,38 +59,34 @@ export function Chip({
     [disabled, isChecked, isControlled, onChange, onClick],
   );
 
-  const muiSize = mapSize(size);
-  const muiColor = mapColor(color);
+  const base = cn(
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-transparent transition-colors",
+    chipSizeClasses(size),
+    disabled ? "opacity-50 cursor-default" : "cursor-pointer",
+    className,
+  );
 
-  // variant mapping: filled -> filled when checked, light -> filled subtle, outline -> outlined
-  // Use MUI Chip variant accordingly: checked -> filled, unchecked -> outlined
-  const muiVariant: "filled" | "outlined" = (() => {
-    if (variant === "outline") return "outlined";
-    if (variant === "light") return isChecked ? "filled" : "outlined";
-    // filled (default)
-    return isChecked ? "filled" : "outlined";
-  })();
-
-  const sx: Record<string, unknown> = {
-    cursor: disabled ? "default" : "pointer",
-    ...(style ? { ...style } : {}),
-  };
+  const variantClass = isOutline
+    ? isChecked
+      ? toneBorder
+      : cn("border-fin-border bg-transparent text-fin-text-muted hover:bg-fin-surface-alt")
+    : isChecked
+      ? toneChecked
+      : cn("border-fin-border bg-transparent text-fin-text-muted hover:bg-fin-surface-alt");
 
   return (
-    <MuiChip
-      label={children}
-      clickable={!disabled}
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={isChecked}
       disabled={disabled}
-      size={muiSize}
-      color={isChecked ? muiColor : "default"}
-      variant={muiVariant}
-      onClick={handleClick}
-      className={className}
-      style={undefined}
       id={id}
       data-testid={testId}
-      sx={sx}
-      {...rest}
-    />
+      className={cn(base, variantClass)}
+      style={style as CSSProperties}
+      onClick={handleClick}
+    >
+      {children ?? label}
+    </button>
   );
 }

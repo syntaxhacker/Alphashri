@@ -15,10 +15,7 @@ export function NewsItemCard({
     <Card
       padding="xs"
       className={`news-item-card ${isUnread ? "unread" : ""}`}
-      sx={{
-        borderLeft: isUnread ? 3 : undefined,
-        borderColor: isUnread ? "primary.main" : undefined,
-      }}
+      style={{ borderLeft: isUnread ? "3px solid var(--color-fin-primary)" : undefined }}
       onClick={(e) => {
         e.stopPropagation();
         onClick(item);
@@ -26,7 +23,7 @@ export function NewsItemCard({
       data-testid="news-item"
     >
       <Group gap="xs" wrap="nowrap" align="center">
-        {isUnread && <Box w={5} h={5} bg="primary" sx={{ borderRadius: "50%", flexShrink: 0 }} />}
+        {isUnread && <Box className="h-[5px] w-[5px] flex-shrink-0 rounded-full bg-fin-primary" />}
         <Text
           size="xs"
           fw={isUnread ? 500 : 400}

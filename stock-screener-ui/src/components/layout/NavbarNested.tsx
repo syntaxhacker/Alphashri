@@ -88,8 +88,8 @@ export const NavbarNested = memo(function NavbarNested({
   ));
 
   return (
-    <Box data-testid="sidemenu" id="navbar-nested" sx={{ display: "flex", flexDirection: "column", flexGrow: 1, minHeight: 0 }}>
-      <Box sx={{ flexGrow: 1, minHeight: 0, overflow: "hidden" }} id="navbar-links" data-testid="navbar-links">
+    <Box data-testid="sidemenu" id="navbar-nested" className="flex flex-col flex-1 min-h-0">
+      <Box className="flex-1 min-h-0 overflow-hidden" id="navbar-links" data-testid="navbar-links">
         <ScrollArea h="100%" type="scroll">
           <Stack gap={1} p={1}>
             {links}

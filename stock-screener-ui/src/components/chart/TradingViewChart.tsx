@@ -16,7 +16,6 @@ import {
   type Time,
   type LineWidth,
 } from "lightweight-charts";
-import Box from "@mui/material/Box";
 import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import type { ReplayCandle, ReplayTrade } from "@/types/replay";
@@ -1130,9 +1129,12 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
   }, [candles.length === 0 ? 0 : candles[0]?.time]);
 
   return (
-    <Box sx={{ width: "100%", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", position: "relative" }}>
-      <Box ref={containerRef} sx={{ width: "100%", flex: 1, minHeight: 0, position: "relative", ...(height != null ? { height } : {}) }} data-testid="tradingview-chart" />
+    <div
+      className="flex flex-col h-full min-w-0 relative"
+      style={{ width: "100%", flex: 1, minHeight: 0, position: "relative" }}
+    >
+      <div ref={containerRef} className="w-full flex-1 min-h-0 relative" data-testid="tradingview-chart" style={{ width: "100%", flex: 1, minHeight: 0, position: "relative", ...(height != null ? { height } : {}) }} />
       <canvas ref={overlayRef} aria-hidden="true" data-testid="tradingview-overlay" style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 3 }} />
-    </Box>
+    </div>
   );
 });

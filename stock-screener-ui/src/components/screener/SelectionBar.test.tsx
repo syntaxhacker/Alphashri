@@ -33,16 +33,6 @@ describe("SelectionBar", () => {
     cleanup();
   });
 
-  it("renders when selectedSymbols length > 0", () => {
-    mockSelectedSymbols = ["RELIANCE"];
-    render(
-      <UIProvider>
-        <SelectionBar onCompare={onCompare} />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("selection-bar")).toBeInTheDocument();
-  });
-
   it("returns null when selectedSymbols is empty", () => {
     mockSelectedSymbols = [];
     render(

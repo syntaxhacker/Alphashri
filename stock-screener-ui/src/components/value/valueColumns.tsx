@@ -82,7 +82,7 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
           // Single-line identity: symbol + company·exchange. A stacked second
           // line doubled the row height (40px) for information the drawer
           // already carries; the full name stays in the tooltip.
-          <Box sx={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0, textAlign: "left" }}>
+          <Box className="flex min-w-0 items-center gap-[6px] text-left">
             <SymbolLink
               symbol={r.symbol}
               market={r.exchange}
@@ -90,7 +90,7 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
               chartTestId={`value-chart-${r.symbol}`}
               size="xs"
               weight={600}
-              sx={{ flexShrink: 0 }}
+              className="flex-shrink-0"
             />
             <Text
               size="xs"
@@ -99,7 +99,7 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
               lh={1.15}
               title={`${r.name} · ${r.exchange}`}
               data-testid={`value-subname-${r.symbol}`}
-              sx={{ minWidth: 0, fontSize: 10 }}
+              className="min-w-0 text-[10px]"
             >
               {r.name} · {r.exchange}
             </Text>
@@ -251,7 +251,7 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
         if (r.flags.length === 0) return dash(r.symbol, "flags");
         return (
           <Box
-            sx={{ display: "flex", justifyContent: "center", gap: "4px", flexWrap: "nowrap", overflow: "hidden" }}
+            className="flex flex-nowrap justify-center gap-1 overflow-hidden"
             data-testid={`value-flags-${r.symbol}`}
           >
             {r.flags.slice(0, 3).map((f) => (

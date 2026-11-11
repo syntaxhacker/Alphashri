@@ -117,10 +117,10 @@ describe("ValuePanel", () => {
     const user = userEvent.setup();
     r(<ValuePanel />);
     await screen.findByTestId("value-row-RELIANCE");
-    await user.click(
+    await user.selectOptions(
       within(screen.getByTestId("value-preset-select")).getByRole("combobox"),
+      "DEEP",
     );
-    await user.click(await screen.findByRole("option", { name: "Deep" }));
     await waitFor(
       () => {
         expect(mockValueScan).toHaveBeenLastCalledWith(

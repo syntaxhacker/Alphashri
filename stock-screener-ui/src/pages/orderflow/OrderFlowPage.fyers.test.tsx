@@ -147,8 +147,7 @@ describe("OrderFlowPage Options mode per-broker symbol", () => {
     const user = await switchToOptions();
     await waitForChain();
 
-    await user.click(within(screen.getByTestId("orderflow-broker")).getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: "Upstox · 5 lv" }));
+    await user.selectOptions(within(screen.getByTestId("orderflow-broker")).getByRole("combobox"), "upstox");
     await user.click(screen.getByTestId("orderflow-use-contract"));
 
     const params = await iframeParams();

@@ -39,17 +39,7 @@ function ChartMessage({
   return (
     <Box
       data-testid={testId}
-      sx={{
-        flex: 1,
-        minHeight: 0,
-        width: "100%",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 1.5,
-        p: 2,
-      }}
+      className="flex w-full flex-1 min-h-0 flex-col items-center justify-center gap-3 p-4"
     >
       <Text size="sm" fw={600}>
         {title}
@@ -105,14 +95,7 @@ function NoPatternsPanel({
   return (
     <Box
       data-testid="chart-no-patterns"
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 1.5,
-        height: "100%",
-        minWidth: 0,
-        p: 1,
-      }}
+      className="flex h-full min-w-0 flex-col gap-3 p-2"
     >
       <Text size="sm" fw={600}>
         No patterns detected
@@ -251,13 +234,7 @@ const ChartView: React.FC = () => {
     content = (
       <Center
         data-testid="chart-loading"
-        sx={{
-          flex: 1,
-          minHeight: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
+        className="flex flex-1 min-h-0 items-center justify-center"
       >
         <Loader size="sm" />
       </Center>
@@ -299,25 +276,11 @@ const ChartView: React.FC = () => {
     <Box
       data-testid="chart-view"
       id="chart-view"
-      sx={{
-        width: "100%",
-        height: "100%",
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        bgcolor: "background.default",
-      }}
+      className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-fin-bg"
     >
       <Box
         data-testid="chart-header"
-        sx={{
-          flexShrink: 0,
-          px: 2,
-          py: 1,
-          borderBottom: "1px solid",
-          borderColor: "divider",
-        }}
+        className="shrink-0 border-b border-fin-border px-4 py-2"
       >
         <PatternChartToolbar
           leading={

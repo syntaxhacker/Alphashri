@@ -2,14 +2,7 @@
 // clock/trade summary + loading/error chips). Strategy-specific parameter controls are
 // injected via `children` so this core component stays strategy-agnostic.
 import type { ReactNode } from "react";
-import Stack from "@mui/material/Stack";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import MenuItem from "@mui/material/MenuItem";
-import Slider from "@mui/material/Slider";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
+import { Stack, Box, Button, Select, Text, Chip } from "@/ui";
 import { fmtClock } from "../format";
 import * as palette from "@/ui/palette";
 
@@ -40,23 +33,43 @@ export default function ReplayControls({
   onPlayToggle, onSpeedChange, onJump, children,
 }: ReplayControlsProps) {
   return (
-    <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: "center", flexWrap: "wrap" }}>
-      <Button size="small" variant="contained" onClick={onPlayToggle} disabled={disabled}>
+    <Stack direction="row" gap="sm" mb="sm" align="center" wrap>
+      <Button size="sm" variant="filled" onClick={onPlayToggle} disabled={disabled}>
         {playing ? "⏸ Pause" : "▶ Play"}
       </Button>
-      <TextField size="small" select value={speed} onChange={e => onSpeedChange(Number(e.target.value))} sx={{ width: 110 }} label="Speed">
-        {SPEEDS.map(s => <MenuItem key={s} value={s}>{s}x</MenuItem>)}
-      </TextField>
+      <Select
+        size="sm"
+        w={110}
+        value={String(speed)}
+        onChange={(v) => onSpeedChange(Number(v ?? ""))}
+        label="Speed"
+        data-testid="replay-speed-select"
+      >
+        {SPEEDS.map((s) => (
+          <option key={s} value={s}>
+            {s}x
+          </option>
+        ))}
+      </Select>
       {children}
-      <Box sx={{ flex: 1, minWidth: 200, px: 1 }}>
-        <Slider size="small" min={t0} max={tEnd} step={1} value={Math.round(clock)}
-          onChange={(_, v) => onJump(v as number)} aria-label="replay position" />
+      <Box flex="1" miw={200} px="sm">
+        <input
+          type="range"
+          min={t0}
+          max={tEnd}
+          step={1}
+          value={Math.round(clock)}
+          onChange={(e) => onJump(Number((e.target as HTMLInputElement).value))}
+          aria-label="replay position"
+          className="w-full"
+          style={{ accentColor: palette.PRIMARY }}
+        />
       </Box>
-      <Typography variant="caption" sx={{ color: "#E5E7EB", fontFamily: "monospace" }}>
+      <Text size="xs" className="font-mono" style={{ color: "#E5E7EB" }}>
         {clock > 0 ? fmtClock(clock) : "--:--:--"} · {closedCount}/{revealedCount} closed · net {net > 0 ? "+" : ""}{net.toFixed(1)}
-      </Typography>
-      {loading && <Chip size="small" label="loading ticks…" sx={{ bgcolor: "#1F2937", color: palette.PRIMARY }} />}
-      {error && <Chip size="small" label={error} sx={{ bgcolor: "#3B1D1D", color: "#F87171" }} />}
+      </Text>
+      {loading && <Chip size="small" children="loading ticks…" style={{ backgroundColor: "#1F2937", color: palette.PRIMARY }} />}
+      {error && <Chip size="small" children={error} style={{ backgroundColor: "#3B1D1D", color: "#F87171" }} />}
     </Stack>
   );
 }

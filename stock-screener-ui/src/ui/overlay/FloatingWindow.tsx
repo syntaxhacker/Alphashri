@@ -6,8 +6,7 @@
 //  • `will-change` is only set while a gesture is active
 //  • content is memoized by the caller; window chrome re-renders at most per commit
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
-import Box from "@mui/material/Box";
-import * as palette from "@/ui/palette";
+import { cn } from "../cn";
 
 export interface FloatingWindowGeometry {
   x: number;
@@ -80,9 +79,13 @@ const FloatingWindow = forwardRef<FloatingWindowHandle, FloatingWindowProps>(fun
     if (!gesture.current) geom.current = { ...geometry };
   }, [geometry.x, geometry.y, geometry.width, geometry.height]);
 
-  useImperativeHandle(ref, () => ({
-    focus: () => onFocus?.(),
-  }), [onFocus]);
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus: () => onFocus?.(),
+    }),
+    [onFocus],
+  );
 
   const beginGesture = (mode: "move" | "resize", e: React.PointerEvent, dir?: ResizeDir) => {
     if (e.button !== 0) return;
@@ -159,7 +162,7 @@ const FloatingWindow = forwardRef<FloatingWindowHandle, FloatingWindowProps>(fun
   };
 
   return (
-    <Box
+    <div
       ref={rootRef}
       data-testid={testid}
       data-minimized={minimized || undefined}
@@ -167,7 +170,8 @@ const FloatingWindow = forwardRef<FloatingWindowHandle, FloatingWindowProps>(fun
       role="dialog"
       aria-label={title}
       onPointerDownCapture={() => onFocus?.()}
-      sx={{
+      className={cn("flex flex-col shadow-2xl")}
+      style={{
         position: "absolute",
         top: 0,
         left: 0,
@@ -177,70 +181,52 @@ const FloatingWindow = forwardRef<FloatingWindowHandle, FloatingWindowProps>(fun
         zIndex,
         display: minimized ? "none" : "flex",
         flexDirection: "column",
-        bgcolor: palette.SURFACE,
-        border: `1px solid ${palette.BORDER}`,
-        borderRadius: 1,
-        boxShadow: 8,
-        overflow: "hidden",
-        contain: "layout paint style",
       }}
     >
       {/* Title bar (drag handle) */}
-      <Box
+      <div
         onPointerDown={(e) => beginGesture("move", e)}
         onDoubleClick={() => onMinimize?.()}
-        sx={{
-          flex: "0 0 auto",
-          height: 28,
-          px: 1,
-          display: "flex",
-          alignItems: "center",
-          gap: 0.75,
-          cursor: "move",
-          userSelect: "none",
-          bgcolor: palette.SURFACE_ALT,
-          borderBottom: `1px solid ${palette.BORDER}`,
-          touchAction: "none",
-        }}
+        className="flex-none h-7 px-2 flex items-center gap-1.5 cursor-move select-none bg-fin-surface-alt border-b border-fin-border touch-none"
       >
         {icon}
-        <Box component="span" sx={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.4, color: palette.TEXT, textTransform: "uppercase", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <span className="text-[11px] font-bold tracking-[0.4px] text-fin-text uppercase truncate flex-1">
           {title}
-        </Box>
-        <Box
+        </span>
+        <div
           role="button"
           aria-label={`Minimize ${title}`}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={() => onMinimize?.()}
-          sx={{ width: 18, height: 18, display: "grid", placeItems: "center", borderRadius: 0.5, color: palette.TEXT_MUTED, cursor: "pointer", fontSize: 14, lineHeight: 1, "&:hover": { bgcolor: palette.BORDER } }}
+          className="grid place-items-center rounded text-fin-text-muted cursor-pointer leading-none hover:bg-fin-border"
+          style={{ width: 18, height: 18 }}
         >
           –
-        </Box>
-        <Box
+        </div>
+        <div
           role="button"
           aria-label={`Close ${title}`}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={() => onClose?.()}
-          sx={{ width: 18, height: 18, display: "grid", placeItems: "center", borderRadius: 0.5, color: palette.TEXT_MUTED, cursor: "pointer", fontSize: 13, lineHeight: 1, "&:hover": { bgcolor: palette.NEGATIVE, color: palette.MARKER_BORDER } }}
+          className="grid place-items-center rounded text-fin-text-muted cursor-pointer leading-none hover:bg-fin-negative hover:text-fin-text"
+          style={{ width: 18, height: 18 }}
         >
           ✕
-        </Box>
-      </Box>
+        </div>
+      </div>
 
       {/* Body */}
-      <Box sx={{ flex: 1, minHeight: 0, minWidth: 0, overflow: "auto", display: "flex", flexDirection: "column" }}>
-        {children}
-      </Box>
+      <div className="flex-1 min-h-0 min-w-0 overflow-auto flex flex-col">{children}</div>
 
       {/* Resize handles */}
       {RESIZE_DIRS.map((dir) => (
-        <Box
+        <div
           key={dir}
           onPointerDown={(e) => beginGesture("resize", e, dir)}
-          sx={{ position: "absolute", touchAction: "none", ...HANDLE_STYLE[dir] }}
+          style={{ position: "absolute", touchAction: "none", ...HANDLE_STYLE[dir] }}
         />
       ))}
-    </Box>
+    </div>
   );
 });
 

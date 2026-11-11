@@ -1,12 +1,12 @@
-import { alpha as muiAlpha } from "@mui/material/styles";
+import { alpha } from "@/ui/alpha";
 
-export { alpha } from "@mui/material/styles";
+export { alpha } from "@/ui/alpha";
 
 /**
  * Convert hex color to rgba string with alpha.
  * Supports 3-char (#RGB) and 6-char (#RRGGBB) hex.
  */
-export function withAlpha(hex: string, alpha: number): string {
+export function withAlpha(hex: string, opacity: number): string {
   let h = hex.replace("#", "");
   if (h.length === 3) {
     h = h
@@ -17,12 +17,12 @@ export function withAlpha(hex: string, alpha: number): string {
   const r = parseInt(h.slice(0, 2), 16) || 0;
   const g = parseInt(h.slice(2, 4), 16) || 0;
   const b = parseInt(h.slice(4, 6), 16) || 0;
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 }
 
 /**
- * Hex to rgba via MUI alpha (handles 3-char hex, named colors via MUI).
+ * Hex to rgba via local alpha (handles 3-char hex).
  */
-export function hexToRgba(hex: string, alpha: number): string {
-  return muiAlpha(hex, alpha);
+export function hexToRgba(hex: string, opacity: number): string {
+  return alpha(hex, opacity);
 }

@@ -3,8 +3,9 @@
 // copies; tradeStatChips is the single markup/string source for the three shared
 // chips (trade count, win rate, net P&L). Strategy-specific extras are appended
 // via the `extra` argument (e.g. the SMC iFVG momentum/reversion stack chips).
-import Chip from "@mui/material/Chip";
 import { createElement, type ReactNode } from "react";
+import { Chip } from "@/ui";
+import * as palette from "@/ui/palette";
 import type { ReplayBundle } from "../tick";
 
 /** The three shared stat chips: count, win rate, net "±x.x pts". */
@@ -16,19 +17,19 @@ export function tradeStatChips(bundle: ReplayBundle, extra?: ReactNode[]): React
     createElement(Chip, {
       size: "small",
       key: "trades",
-      label: `${trades.length} trades`,
-      sx: { bgcolor: "#1F2937", color: "#00FF00" },
+      children: `${trades.length} trades`,
+      style: { backgroundColor: "#1F2937", color: palette.POSITIVE },
     }),
     createElement(Chip, {
       size: "small",
       key: "wins",
-      label: `win ${wins}/${trades.length}`,
-      sx: { bgcolor: "#1F2937", color: "#9CA3AF" },
+      children: `win ${wins}/${trades.length}`,
+      style: { backgroundColor: "#1F2937", color: palette.TEXT_MUTED },
     }),
     createElement(Chip, {
       size: "small",
       key: "net",
-      label: `net ${net > 0 ? "+" : ""}${net.toFixed(1)} pts`,
+      children: `net ${net > 0 ? "+" : ""}${net.toFixed(1)} pts`,
       color: net > 0 ? "success" : "error",
     }),
     ...(extra ?? []),

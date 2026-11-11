@@ -134,19 +134,6 @@ describe("PerformanceAnalytics", () => {
     expect(screen.getByText("Monthly P&L")).toBeInTheDocument();
   });
 
-  test("renders SummaryCards with all stat labels", () => {
-    paperTradingState.setAnalyticsData(mockAnalyticsData as any);
-    renderWithProviders(<PerformanceAnalytics />);
-    expect(screen.getAllByText(/^Total$/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Win Rate/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/^PF$/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/^Trades$/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Max DD/i).length).toBeGreaterThan(0);
-    expect(screen.getByText("Avg Win")).toBeInTheDocument();
-    expect(screen.getByText("Avg Loss")).toBeInTheDocument();
-    expect(screen.getByText("Costs")).toBeInTheDocument();
-  });
-
   test("renders correct values in summary cards", () => {
     paperTradingState.setAnalyticsData(mockAnalyticsData as any);
     renderWithProviders(<PerformanceAnalytics />);

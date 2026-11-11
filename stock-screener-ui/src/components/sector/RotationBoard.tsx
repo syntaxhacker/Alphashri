@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Box, Text } from "@/ui";
-import { MONO } from "@/ui/palette";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
 import type { RotationPeriod, RotationRow, RotationStatus } from "@/types/rotation";
@@ -13,13 +12,8 @@ function Return({ value, strong = false }: { value: number; strong?: boolean }) 
   return (
     <Text
       c={getPnLTextColor(value)}
-      sx={{
-        fontFamily: MONO,
-        fontSize: 10.5,
-        fontWeight: strong ? 700 : 600,
-        fontVariantNumeric: "tabular-nums",
-        lineHeight: 1,
-      }}
+      className="font-mono text-[10.5px] tabular-nums leading-none"
+      style={{ fontWeight: strong ? 700 : 600 }}
     >
       {formatPercentage(value, 2, true)}
     </Text>
@@ -30,13 +24,7 @@ function Num({ value, suffix = "", color }: { value: number; suffix?: string; co
   return (
     <Text
       c={color}
-      sx={{
-        fontFamily: MONO,
-        fontSize: 10.5,
-        fontWeight: 600,
-        fontVariantNumeric: "tabular-nums",
-        lineHeight: 1,
-      }}
+      className="font-mono text-[10.5px] font-semibold tabular-nums leading-none"
     >
       {value.toFixed(2)}
       {suffix}
@@ -48,9 +36,9 @@ function Status({ status }: { status: RotationStatus }) {
   const info = ROTATION_STATUS_COLORS_BOARD[status];
   const label = ROTATION_STATUS_LABELS[status].short;
   return (
-    <Box sx={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 0.5 }}>
-      <Box sx={{ width: 5, height: 5, borderRadius: "50%", bgcolor: info, flexShrink: 0 }} />
-      <Text sx={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.4, color: info }}>{label}</Text>
+    <Box className="inline-flex items-center justify-center gap-1">
+      <Box className="size-[5px] rounded-full shrink-0" style={{ backgroundColor: info }} />
+      <Text className="text-[9px] font-bold tracking-[0.4px]" style={{ color: info }}>{label}</Text>
     </Box>
   );
 }
@@ -75,7 +63,7 @@ export function RotationBoard({ rows, selectedId, onSelect, period }: RotationBo
           <Text
             truncate
             title={`${info.row.original.category || info.row.original.kind} · ${info.row.original.quadrant} · ${info.row.original.members} members`}
-            sx={{ fontSize: 10.5, fontWeight: 600, lineHeight: 1.15 }}
+            className="text-[10.5px] font-semibold leading-[1.15]"
           >
             {info.getValue<string>()}
           </Text>
@@ -108,7 +96,7 @@ export function RotationBoard({ rows, selectedId, onSelect, period }: RotationBo
           return (
             <Text
               c={delta > 0 ? "success" : delta < 0 ? "error" : "dimmed"}
-              sx={{ fontFamily: MONO, fontSize: 10.5, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}
+              className="font-mono text-[10.5px] font-semibold tabular-nums"
             >
               {delta > 0 ? `+${delta}` : delta}
             </Text>
@@ -126,7 +114,7 @@ export function RotationBoard({ rows, selectedId, onSelect, period }: RotationBo
           return (
             <Text
               c={breadth >= 55 ? "success" : breadth <= 45 ? "error" : "dimmed"}
-              sx={{ fontFamily: MONO, fontSize: 10.5, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}
+              className="font-mono text-[10.5px] font-semibold tabular-nums"
             >
               {breadth.toFixed(0)}%
             </Text>
@@ -144,7 +132,7 @@ export function RotationBoard({ rows, selectedId, onSelect, period }: RotationBo
           return (
             <Text
               c={volume >= 1.2 ? "success" : "dimmed"}
-              sx={{ fontFamily: MONO, fontSize: 10.5, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}
+              className="font-mono text-[10.5px] font-semibold tabular-nums"
             >
               {volume.toFixed(1)}x
             </Text>
@@ -168,7 +156,7 @@ export function RotationBoard({ rows, selectedId, onSelect, period }: RotationBo
   return (
     <Box
       data-testid="rotation-board"
-      sx={{ display: "flex", flexDirection: "column", flex: 1, height: "100%", minHeight: 0 }}
+      className="flex h-full min-h-0 flex-1 flex-col"
     >
       <TanStackTable<RotationRow>
         key={period}
@@ -185,8 +173,8 @@ export function RotationBoard({ rows, selectedId, onSelect, period }: RotationBo
         getRowStyle={(row) =>
           row.id === selectedId
             ? {
-                background: "var(--mui-palette-action-selected)",
-                boxShadow: "inset 2px 0 0 var(--mui-palette-primary-main)",
+                background: "rgba(88, 166, 255, 0.12)",
+                boxShadow: "inset 2px 0 0 var(--color-fin-primary)",
               }
             : undefined
         }

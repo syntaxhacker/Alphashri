@@ -75,7 +75,8 @@ export const PatternMiniChart = memo(function PatternMiniChart({ hit, trendlines
     <Box
       ref={chartRef}
       data-testid={`patterns-mini-chart-${hit.symbol}-${hit.pattern_id}`}
-      sx={{ width: "100%", height: MINI_CHART_HEIGHT }}
+      className="w-full"
+      style={{ height: MINI_CHART_HEIGHT }}
     />
   );
 });

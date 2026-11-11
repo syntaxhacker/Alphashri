@@ -1,5 +1,6 @@
 import { useMemo, useState, forwardRef, useImperativeHandle, useRef } from "react";
 import { Box, Group, Text, Badge, Button, Switch, useColorScheme } from "@/ui";
+import * as palette from "@/ui/palette";
 import type {
   ReplayCandle,
   ReplayTrade,
@@ -12,13 +13,6 @@ import type {
 import { TradingChart } from "../chart/TradingChart";
 import type { TradingChartHandle } from "../chart/TradingChart";
 import { normalizeReplay } from "../../utils/chart/normalizeReplay";
-import {
-  MARKER_ENTRY,
-  PIVOT_OR_HIGH,
-  PIVOT_PP,
-  PIVOT_52W_HIGH,
-  INDICATOR_BLUE_A,
-} from "../../config/colors";
 
 const TF_PRESETS = [
   { label: "1m", minutes: 1 },
@@ -168,14 +162,11 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
     return (
       <Box
         data-testid="replay-chart-empty"
-        sx={{
-          height: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          bgcolor: "background.paper",
-          borderRadius: 2,
-        }}
+        h="100%"
+        alignItems="center"
+        justifyContent="center"
+        bg={palette.SURFACE}
+        style={{ display: "flex", borderRadius: "2px" }}
       >
         <Text c="dimmed">Run a replay to see chart</Text>
       </Box>
@@ -203,7 +194,7 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
             {TF_PRESETS.map((preset) => (
               <Button
                 key={preset.label}
-                size="compact-xs"
+                size="xs"
                 variant={activeTF === preset.minutes ? "filled" : "subtle"}
                 color={activeTF === preset.minutes ? "info" : "secondary"}
                 onClick={() => setActiveTF(preset.minutes)}

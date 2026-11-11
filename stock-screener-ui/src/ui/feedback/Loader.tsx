@@ -1,27 +1,93 @@
-import CircularProgress from "@mui/material/CircularProgress";
+import { cn } from "../cn";
+import * as palette from "../palette";
 import type { UILoaderProps } from "../types";
 
-function resolveSize(size: UILoaderProps["size"]): number | undefined {
+const SIZE_PX: Record<string, string> = { xs: "16px", sm: "20px", md: "28px", lg: "36px", xl: "44px" };
+const COLOR_MAIN: Record<string, string> = {
+  primary: palette.PRIMARY,
+  success: palette.POSITIVE_COLOR,
+  error: palette.NEGATIVE_COLOR,
+  danger: palette.NEGATIVE_COLOR,
+  warning: palette.WARNING,
+  info: palette.INFO,
+  secondary: palette.TEXT_MUTED,
+  default: palette.TEXT_MUTED,
+};
+
+function resolveSize(size: UILoaderProps["size"]): string | undefined {
   if (size == null) return undefined;
-  if (typeof size === "number") return size;
-  if (typeof size === "string" && !isNaN(Number(size))) return Number(size);
-  const map: Record<string, number> = { xs: 16, sm: 20, md: 28, lg: 36, xl: 44 };
-  return map[size as string] ?? undefined;
+  if (typeof size === "number") return `${size}px`;
+  if (typeof size === "string" && !isNaN(Number(size))) return `${Number(size)}px`;
+  return SIZE_PX[size] ?? undefined;
 }
 
-export function Loader({ className, style, "data-testid": testId, id, size, color, ...rest }: UILoaderProps) {
-  const px = resolveSize(size);
-  // color is decorative; CircularProgress uses palette via color prop, but custom hex via sx
-  const isHex = color != null && String(color).startsWith("#");
+function resolveColor(color: UILoaderProps["color"]): string {
+  if (!color) return palette.PRIMARY;
+  if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl")) return color;
+  return COLOR_MAIN[color] ?? palette.PRIMARY;
+}
+
+export function Loader({
+  className,
+  style,
+  "data-testid": testId,
+  id,
+  size,
+  color,
+  type = "oval",
+  ...rest
+}: UILoaderProps) {
+  const dim = resolveSize(size) ?? "28px";
+  const col = resolveColor(color);
+
   return (
-    <CircularProgress
-      size={px ?? 28}
-      className={className}
-      style={style}
-      id={id}
+    <div
+      role="progressbar"
       data-testid={testId}
-      sx={isHex ? { color: color as string } : undefined}
-      {...(rest as Record<string, unknown>)}
-    />
+      id={id}
+      className={cn("inline-block shrink-0", className)}
+      style={{
+        width: dim,
+        height: dim,
+        color: col,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        ...style,
+      }}
+      {...rest}
+    >
+      {type === "bars" ? (
+        <div className="flex w-full h-full items-end gap-1">
+          {[0.6, 1.0, 0.75].map((fill, i) => (
+            <div
+              key={i}
+              className="w-1.5 bg-current rounded-sm shrink-0 animate-pulse"
+              style={{ height: `${Math.round(fill * 100)}%`, animationDelay: `${i * 0.15}s` }}
+            />
+          ))}
+        </div>
+      ) : type === "dots" ? (
+        <div className="flex w-full h-full items-center justify-center gap-1">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="w-2 h-2 bg-current rounded-full shrink-0 animate-pulse"
+              style={{ animationDelay: `${i * 0.15}s` }}
+            />
+          ))}
+        </div>
+      ) : (
+        <svg
+          className="animate-spin shrink-0"
+          style={{ width: "100%", height: "100%" }}
+          viewBox="0 0 24 24"
+          fill="none"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+        </svg>
+      )}
+    </div>
   );
 }

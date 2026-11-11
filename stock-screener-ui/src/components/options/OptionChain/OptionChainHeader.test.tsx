@@ -21,21 +21,6 @@ describe("OptionChainHeader", () => {
     availableExpiries: ["25MAY", "01JUN", "08JUN"],
   };
 
-  it("renders underlying select", () => {
-    renderWithProviders(<OptionChainHeader {...defaultProps} />);
-    expect(screen.getByTestId("underlying-select")).toBeInTheDocument();
-  });
-
-  it("renders expiry select", () => {
-    renderWithProviders(<OptionChainHeader {...defaultProps} />);
-    expect(screen.getByTestId("expiry-select")).toBeInTheDocument();
-  });
-
-  it("renders header controls container", () => {
-    renderWithProviders(<OptionChainHeader {...defaultProps} />);
-    expect(screen.getByTestId("options-chain-header-controls")).toBeInTheDocument();
-  });
-
   it("has select labels", () => {
     renderWithProviders(<OptionChainHeader {...defaultProps} />);
     expect(screen.getAllByText("Underlying").length).toBeGreaterThan(0);

@@ -1,7 +1,5 @@
 import { memo, useMemo } from "react";
-import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
-import Typography from "@mui/material/Typography";
+import { Box, Text, Chip } from "@/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import { TanStackTable, SideBadge, ExitReasonBadge } from "@/components/common";
 import { formatDuration, getPnLTextColor } from "@/utils/ui-helpers";
@@ -19,9 +17,21 @@ const fmtPts = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(1)}`;
 
 function StatRow({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", py: 0.35, gap: 0.35, borderBottom: "1px solid var(--mui-palette-divider)", "&:last-child": { borderBottom: 0, pb: 0 } }}>
-      <Typography variant="caption" sx={{ color: palette.TEXT_MUTED, lineHeight: 1.1, minWidth: 72, flexShrink: 0, fontSize: 11 }}>{label}</Typography>
-      <Typography variant="caption" sx={{ color: color ?? palette.TEXT, fontWeight: 600, lineHeight: 1.2, fontSize: 11, fontFamily: "monospace" }}>{value}</Typography>
+    <Box
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "3px",
+        padding: "1px 0",
+        borderBottom: `1px solid ${palette.BORDER}`,
+      }}
+    >
+      <Text size="xs" style={{ lineHeight: 1.1, minWidth: "72px", flexShrink: 0, fontSize: "11px", color: palette.TEXT_MUTED }}>
+        {label}
+      </Text>
+      <Text size="xs" fw={600} style={{ lineHeight: 1.2, fontSize: "11px", fontFamily: "monospace", color: color ?? palette.TEXT }}>
+        {value}
+      </Text>
     </Box>
   );
 }
@@ -31,25 +41,59 @@ const ReplayTradeStats = memo(function ReplayTradeStats({ trade, clock }: { trad
   const closed = trade.exit_time <= clock;
   const risk = Math.abs(trade.entry - trade.sl);
   return (
-    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(220px, 260px))" }, gap: 0.75, width: "100%", justifyContent: "center", maxWidth: 540, mx: "auto", px: 1, py: 0.75 }}>
-      <Box sx={{ p: 0.5, border: "1px solid var(--mui-palette-divider)", borderRadius: 1, bgcolor: "var(--mui-palette-background-paper)", minWidth: 0 }}>
-        <Typography variant="caption" sx={{ color: palette.TEXT_MUTED, fontWeight: 700, fontSize: 10, letterSpacing: 0.6, display: "block", pb: 0.5, mb: 0.25, borderBottom: "1px solid var(--mui-palette-divider)" }}>ENTRY</Typography>
+    <Box
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr",
+        gap: "6px",
+        width: "100%",
+        justifyContent: "center",
+        maxWidth: 540,
+        marginLeft: "auto",
+        marginRight: "auto",
+        padding: "4px 0",
+      }}
+    >
+      <Box
+        style={{
+          padding: "2px",
+          border: `1px solid ${palette.BORDER}`,
+          borderRadius: "4px",
+          backgroundColor: palette.SURFACE,
+          minWidth: 0,
+        }}
+      >
+        <Text size="xs" fw={700} style={{ color: palette.TEXT_MUTED, fontSize: "10px", letterSpacing: 0.6, display: "block", marginBottom: "2px", borderBottom: `1px solid ${palette.BORDER}` }}>
+          ENTRY
+        </Text>
         <StatRow label="Time" value={fmtT(trade.time)} />
         <StatRow label="Price" value={trade.entry.toFixed(1)} />
         <StatRow label="Stop" value={trade.sl.toFixed(1)} color={palette.NEGATIVE} />
         <StatRow label="Target" value={trade.tp != null ? trade.tp.toFixed(1) : "trail"} color={palette.POSITIVE} />
         <StatRow label="Risk" value={`${risk.toFixed(1)} pts`} color={palette.TEXT_MUTED} />
       </Box>
-      <Box sx={{ p: 0.5, border: "1px solid var(--mui-palette-divider)", borderRadius: 1, bgcolor: "var(--mui-palette-background-paper)", minWidth: 0 }}>
-        <Typography variant="caption" sx={{ color: palette.TEXT_MUTED, fontWeight: 700, fontSize: 10, letterSpacing: 0.6, display: "block", pb: 0.5, mb: 0.25, borderBottom: "1px solid var(--mui-palette-divider)" }}>EXIT</Typography>
+      <Box
+        style={{
+          padding: "2px",
+          border: `1px solid ${palette.BORDER}`,
+          borderRadius: "4px",
+          backgroundColor: palette.SURFACE,
+          minWidth: 0,
+        }}
+      >
+        <Text size="xs" fw={700} style={{ color: palette.TEXT_MUTED, fontSize: "10px", letterSpacing: 0.6, display: "block", marginBottom: "2px", borderBottom: `1px solid ${palette.BORDER}` }}>
+          EXIT
+        </Text>
         <StatRow label="Time" value={closed ? fmtT(trade.exit_time) : "…"} />
         <StatRow label="Price" value={closed ? trade.exit.toFixed(1) : "…"} />
         <StatRow label="Hold" value={closed ? formatDuration((trade.exit_time - trade.time) / 60) : "…"} color={palette.TEXT_MUTED} />
         <StatRow label="P&L" value={closed ? `${fmtPts(trade.pnl)} pts` : "…"} color={closed ? (trade.pnl >= 0 ? palette.POSITIVE : palette.NEGATIVE) : undefined} />
         <StatRow label="R" value={closed ? `${trade.rr >= 0 ? "+" : ""}${trade.rr.toFixed(1)}R` : "…"} color={closed ? (trade.rr >= 0 ? palette.POSITIVE : palette.NEGATIVE) : undefined} />
-        <Box sx={{ display: "flex", alignItems: "center", py: 0.35, gap: 0.35 }}>
-          <Typography variant="caption" sx={{ color: palette.TEXT_MUTED, lineHeight: 1.1, minWidth: 72, flexShrink: 0, fontSize: 11 }}>Reason</Typography>
-          {closed ? <ExitReasonBadge reason={trade.result} /> : <Chip size="small" label="OPEN" color="warning" sx={{ height: 18, fontSize: 9 }} />}
+        <Box style={{ display: "flex", alignItems: "center", gap: "3px", padding: "1px 0" }}>
+          <Text size="xs" style={{ lineHeight: 1.1, minWidth: "72px", flexShrink: 0, fontSize: "11px", color: palette.TEXT_MUTED }}>
+            Reason
+          </Text>
+          {closed ? <ExitReasonBadge reason={trade.result} /> : <Chip size="small" label="OPEN" color="warning" style={{ height: "18px", fontSize: "9px" }} />}
         </Box>
       </Box>
     </Box>
@@ -74,7 +118,8 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
             role="button" aria-label={row.getIsExpanded() ? "Collapse" : "Expand"}
             onClick={(e) => { e.stopPropagation(); row.toggleExpanded(); }}
             data-testid={`replay-trade-toggle-${row.original.time}-${row.original.side}`}
-            sx={{ display: "inline-flex", cursor: "pointer", color: palette.TEXT_MUTED }}
+            className="inline-flex cursor-pointer"
+            style={{ color: palette.TEXT_MUTED }}
           >
             {row.getIsExpanded() ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
           </Box>
@@ -86,9 +131,9 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
         accessorKey: "time",
         meta: { align: "left" },
         cell: ({ row }) => (
-          <Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: 11 }}>
+          <Text size="xs" className="font-mono" style={{ fontSize: "11px" }}>
             {fmtT(row.original.time)}
-          </Typography>
+          </Text>
         ),
       },
       {
@@ -104,7 +149,7 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
         accessorKey: "entry",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: 11 }}>{row.original.entry.toFixed(1)}</Typography>
+          <Text size="xs" className="font-mono" style={{ fontSize: "11px" }}>{row.original.entry.toFixed(1)}</Text>
         ),
       },
       {
@@ -113,7 +158,7 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
         accessorKey: "sl",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: 11 }}>{row.original.sl.toFixed(1)}</Typography>
+          <Text size="xs" className="font-mono" style={{ fontSize: "11px" }}>{row.original.sl.toFixed(1)}</Text>
         ),
       },
       {
@@ -122,7 +167,7 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
         accessorKey: "tp",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: 11 }}>{row.original.tp != null ? row.original.tp.toFixed(1) : "trail"}</Typography>
+          <Text size="xs" className="font-mono" style={{ fontSize: "11px" }}>{row.original.tp != null ? row.original.tp.toFixed(1) : "trail"}</Text>
         ),
       },
       {
@@ -133,9 +178,9 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
         cell: ({ row }) => {
           const t = row.original;
           return t.exit_time <= clock ? (
-            <Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: 11 }}>{t.exit.toFixed(1)}</Typography>
+            <Text size="xs" className="font-mono" style={{ fontSize: "11px" }}>{t.exit.toFixed(1)}</Text>
           ) : (
-            <Typography variant="caption" sx={{ color: palette.TEXT_MUTED, fontSize: 11 }}>…</Typography>
+            <Text size="xs" className="font-mono" style={{ color: palette.TEXT_MUTED, fontSize: "11px" }}>…</Text>
           );
         },
       },
@@ -147,9 +192,9 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
         cell: ({ row }) => {
           const t = row.original;
           return (
-            <Typography variant="caption" sx={{ color: palette.TEXT_MUTED, fontSize: 11 }}>
+            <Text size="xs" style={{ color: palette.TEXT_MUTED, fontSize: "11px" }}>
               {t.exit_time <= clock ? formatDuration((t.exit_time - t.time) / 60) : "…"}
-            </Typography>
+            </Text>
           );
         },
       },
@@ -160,11 +205,17 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
         meta: { align: "right" },
         cell: ({ row }) => {
           const t = row.original;
-          if (t.exit_time > clock) return <Typography variant="caption" sx={{ color: palette.TEXT_MUTED, fontSize: 11 }}>…</Typography>;
+          if (t.exit_time > clock) return <Text size="xs" style={{ color: palette.TEXT_MUTED, fontSize: "11px" }}>…</Text>;
           return (
-            <Typography variant="caption" data-testid={`replay-pnl-${t.time}`} sx={{ fontWeight: 600, fontSize: 11, fontFamily: "monospace" }} color={getPnLTextColor(t.pnl) === "success" ? palette.POSITIVE : palette.NEGATIVE}>
+            <Text
+              size="xs"
+              data-testid={`replay-pnl-${t.time}`}
+              fw={600}
+              className="font-mono"
+              style={{ fontSize: "11px", color: getPnLTextColor(t.pnl) === "success" ? palette.POSITIVE : palette.NEGATIVE }}
+            >
               {fmtPts(t.pnl)}
-            </Typography>
+            </Text>
           );
         },
       },
@@ -175,11 +226,16 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
         meta: { align: "right" },
         cell: ({ row }) => {
           const t = row.original;
-          if (t.exit_time > clock) return <Typography variant="caption" sx={{ color: palette.TEXT_MUTED, fontSize: 11 }}>…</Typography>;
+          if (t.exit_time > clock) return <Text size="xs" style={{ color: palette.TEXT_MUTED, fontSize: "11px" }}>…</Text>;
           return (
-            <Typography variant="caption" sx={{ fontWeight: 600, fontSize: 11, fontFamily: "monospace" }} color={t.rr >= 0 ? palette.POSITIVE : palette.NEGATIVE}>
+            <Text
+              size="xs"
+              fw={600}
+              className="font-mono"
+              style={{ fontSize: "11px", color: t.rr >= 0 ? palette.POSITIVE : palette.NEGATIVE }}
+            >
               {t.rr >= 0 ? "+" : ""}{t.rr.toFixed(1)}R
-            </Typography>
+            </Text>
           );
         },
       },
@@ -193,7 +249,7 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
           const t = row.original;
           return t.exit_time <= clock
             ? <ExitReasonBadge reason={t.result} />
-            : <Chip size="small" label="OPEN" color="warning" sx={{ height: 18, fontSize: 9 }} />;
+            : <Chip size="small" label="OPEN" color="warning" style={{ height: "18px", fontSize: "9px" }} />;
         },
       },
     ],

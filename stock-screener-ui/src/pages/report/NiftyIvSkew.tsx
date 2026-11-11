@@ -1,8 +1,7 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { memo, useMemo } from "react";
-import Box from "@mui/material/Box";
+import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
-import { Text } from "@/ui";
 import { CompactPanel, CompactStat } from "@/components/common/compact";
 import { MiniLineChart } from "@/components/common/charts/MiniLineChart";
 import type {
@@ -318,22 +317,16 @@ function NiftyIvSkewInner({ strikes, spot = null }: NiftyIvSkewProps) {
     <CompactPanel
       title="IV skew (price × σ)"
       testId="nifty-iv-skew-panel"
-      sx={{
-        background: palette.TERM_BG,
+      style={{
+        backgroundColor: palette.TERM_BG,
         border: `1px solid ${palette.TERM_BORDER}`,
         borderColor: palette.TERM_BORDER,
-        borderRadius: 1,
+        borderRadius: 8,
       }}
     >
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, width: "100%", minWidth: 0 }}>
+      <Box className="flex flex-col gap-[4px] w-full min-w-0">
         <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-            gap: 0.5,
-            width: "100%",
-            minWidth: 0,
-          }}
+          className="grid grid-cols-[repeat(4,minmax(0,1fr))] gap-[4px] w-full min-w-0"
         >
           <CompactStat
             data-testid="nifty-iv-skew-atm"
@@ -370,24 +363,17 @@ function NiftyIvSkewInner({ strikes, spot = null }: NiftyIvSkewProps) {
 
         {/* Legend + the takeaway sentence. Colour stays tied to the leg (CE
             blue / PE orange / ATM gold), never to direction. */}
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1,
-            flexWrap: "wrap",
-            minWidth: 0,
-          }}
-        >
+        <Box className="flex items-center gap-[8px] flex-wrap min-w-0">
           {[
             { label: "CALL IV", color: palette.TERM_CE },
             { label: "PUT IV", color: palette.TERM_PE },
             { label: "ATM", color: palette.TERM_FLIP },
           ].map((k) => (
-            <Box key={k.label} sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <Box key={k.label} className="flex items-center gap-[4px]">
               <Box
                 aria-hidden
-                sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: k.color, flexShrink: 0 }}
+                className="w-[6px] h-[6px] rounded-full shrink-0"
+                style={{ backgroundColor: k.color }}
               />
               <Text size="xs" span c="dimmed">
                 {k.label}
@@ -400,21 +386,15 @@ function NiftyIvSkewInner({ strikes, spot = null }: NiftyIvSkewProps) {
               size="xs"
               span
               title={read}
-              sx={{
-                color: "text.secondary",
-                minWidth: 0,
-                flex: 1,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
+              className="min-w-0 flex-1 overflow-hidden truncate whitespace-nowrap"
+              style={{ color: palette.TEXT_MUTED }}
             >
               {read}
             </Text>
           )}
         </Box>
 
-        <Box sx={{ width: "100%", minWidth: 0 }}>
+        <Box className="w-full min-w-0">
           <MiniLineChart
             series={chart.series}
             labels={chart.labels}
@@ -433,7 +413,7 @@ function NiftyIvSkewInner({ strikes, spot = null }: NiftyIvSkewProps) {
             span
             c="dimmed"
             title="x: strike · y: implied volatility %. Calls are plotted at/above ATM and puts at/below it, so the curve is the out-of-the-money smile. The line breaks where Upstox did not quote greeks for a leg; those strikes are missing data, not zero vol. Legs above the sanity cut are clipped and counted."
-            sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+            className="whitespace-nowrap overflow-hidden truncate"
           >
             {coverage}
           </Text>

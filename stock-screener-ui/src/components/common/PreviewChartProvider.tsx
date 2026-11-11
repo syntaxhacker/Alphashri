@@ -470,7 +470,7 @@ function ExpandedPanel({
       }}
       data-testid="preview-chart-expanded"
     >
-      <Group gap="md" px="md" py="xs" sx={{ flexShrink: 0 }}>
+      <Group gap="md" px="md" py="xs" className="flex-shrink-0">
         <Text size="lg" fw={600} c="primary">
           {symbol}
           {data?.candles.length ? ` (${data.candles.length} candles)` : ""}
@@ -532,7 +532,7 @@ function ExpandedPanel({
         )}
       </Box>
 
-      <Group justify="flex-end" px="md" py="xs" sx={{ flexShrink: 0 }}>
+      <Group justify="flex-end" px="md" py="xs" className="flex-shrink-0">
         <ActionIcon
           variant="subtle"
           color="primary"

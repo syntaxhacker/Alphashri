@@ -3,7 +3,6 @@ import React from "react";
 import {
   symbolCol,
   scoreCol,
-  sectorCol,
   dayChangeCol,
   volumeMCol,
   rsiCol,

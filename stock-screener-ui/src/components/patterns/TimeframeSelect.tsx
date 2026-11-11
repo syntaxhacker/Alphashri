@@ -56,7 +56,7 @@ export function TimeframeSelect({ timeframes, value, onChange }: TimeframeSelect
           data-testid="patterns-timeframe-select"
           aria-label="Timeframes"
           title="Timeframes used for pattern detection (select one or more)"
-          sx={{
+          style={{
             minWidth: 136,
             maxWidth: 210,
             justifyContent: "space-between",
@@ -69,7 +69,7 @@ export function TimeframeSelect({ timeframes, value, onChange }: TimeframeSelect
         </Button>
       </MenuTarget>
       <MenuDropdown data-testid="patterns-timeframe-dropdown">
-        <Box sx={{ minWidth: 170, maxHeight: 320, overflowY: "auto", py: 0.25 }}>
+        <Box className="max-h-[320px] min-w-[170px] overflow-y-auto py-[2px]">
           {source.map((tf) => {
             const checked = selected.includes(tf.id);
             return (
@@ -77,15 +77,7 @@ export function TimeframeSelect({ timeframes, value, onChange }: TimeframeSelect
                 key={tf.id}
                 data-testid={`patterns-timeframe-option-${tf.id}`}
                 onClick={() => toggle(tf.id)}
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 0.5,
-                  px: 0.5,
-                  py: 0.25,
-                  cursor: "pointer",
-                  "&:hover": { bgcolor: "action.hover" },
-                }}
+                className="flex cursor-pointer items-center gap-1 px-1 py-[2px] transition-colors hover:bg-fin-surface-alt"
               >
                 <Checkbox
                   size="xs"

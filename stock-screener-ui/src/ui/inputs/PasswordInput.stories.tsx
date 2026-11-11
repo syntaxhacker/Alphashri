@@ -1,12 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Stack } from "@/ui";
 import { PasswordInput } from "./PasswordInput";
 
 const meta: Meta<typeof PasswordInput> = {
   title: "Primitives/Inputs/PasswordInput",
   component: PasswordInput,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Password field with visibility toggle. Use for authentication forms. When not to use: for plain text use TextInput. Uses MUI PasswordInput with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Password field with visibility toggle. Use for authentication forms. When not to use: for plain text use TextInput. Uses the local @/ui PasswordInput with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

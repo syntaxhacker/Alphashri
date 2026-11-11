@@ -1,14 +1,25 @@
-import MuiBox from "@mui/material/Box";
+import { cn } from "../cn";
+import type { CSSProperties } from "react";
 import type { UIScrollAreaProps } from "../types";
 
-const toSz = (v: unknown) => (typeof v === "number" ? `${v}px` : (v as string | undefined));
+const toSz = (v: unknown): string | undefined => (typeof v === "number" ? `${v}px` : (v as string | undefined));
 
 export const ScrollArea = Object.assign(
-  ({ children, className, style, id, "data-testid": testId, h, w, type, offsetScrollbars, scrollbarSize, scrollHideDelay, onScrollPositionChange, sx, ...rest }: UIScrollAreaProps & { onScrollPositionChange?: (pos: { x: number; y: number }) => void } & Record<string, unknown>) => {
+  ({
+    children, className, style, id, "data-testid": testId, h, w, type, offsetScrollbars, scrollbarSize, scrollHideDelay, onScrollPositionChange, ...rest
+  }: UIScrollAreaProps & { onScrollPositionChange?: (pos: { x: number; y: number }) => void } & Record<string, unknown>) => {
     void type; void offsetScrollbars; void scrollbarSize; void scrollHideDelay;
+    const styleObj: CSSProperties = {
+      ...style,
+      ...(h != null && { height: toSz(h) }),
+      ...(w != null && { width: toSz(w) }),
+    };
     return (
-      <MuiBox
-        id={id as string} className={className} style={style} data-testid={testId}
+      <div
+        id={id}
+        className={cn("overflow-auto", className)}
+        style={styleObj}
+        data-testid={testId}
         onScroll={(e) => {
           if (onScrollPositionChange) {
             const t = e.currentTarget as HTMLElement;
@@ -16,10 +27,11 @@ export const ScrollArea = Object.assign(
           }
           (rest.onScroll as ((e: unknown) => void) | undefined)?.(e);
         }}
-        sx={{ overflow: "auto", ...(h != null && { height: toSz(h) }), ...(w != null && { width: toSz(w) }), ...(sx as object) }}
         {...rest}
-      >{children}</MuiBox>
+      >
+        {children}
+      </div>
     );
   },
-  { Autosize: ({ children, ...rest }: UIScrollAreaProps & Record<string, unknown>) => <MuiBox sx={{ overflow: "auto" }} {...rest}>{children}</MuiBox> },
+  { Autosize: ({ children, ...rest }: UIScrollAreaProps & Record<string, unknown>) => <div style={{ overflow: "auto" }} {...rest}>{children}</div> },
 );

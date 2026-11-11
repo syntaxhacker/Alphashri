@@ -367,7 +367,7 @@ describe("PaperSettings", () => {
       // disabled state lives on the combobox inside the FormControl wrapper
       // (jest-dom toBeDisabled ignores aria-disabled on divs -> assert directly)
       const select = within(screen.getByTestId("strategy-selector")).getByRole("combobox");
-      expect(select).toHaveAttribute("aria-disabled", "true");
+      expect(select).toBeDisabled();
     });
 
     it("strategy select is disabled while configLoading", () => {
@@ -376,7 +376,7 @@ describe("PaperSettings", () => {
       );
       render(<PaperSettings />, { wrapper: TestWrapper });
       const select = within(screen.getByTestId("strategy-selector")).getByRole("combobox");
-      expect(select).toHaveAttribute("aria-disabled", "true");
+      expect(select).toBeDisabled();
     });
 
     it("changing strategy calls handleStrategyChange which calls fetchStrategyConfig", async () => {
@@ -386,17 +386,13 @@ describe("PaperSettings", () => {
       );
       render(<PaperSettings />, { wrapper: TestWrapper });
       // Wait for strategies to load so select is enabled
-      const combo = await waitFor(() => {
-        const c = within(screen.getByTestId("strategy-selector")).getByRole("combobox");
-        expect(c.getAttribute("aria-disabled")).not.toBe("true");
-        return c;
+      const combo = within(screen.getByTestId("strategy-selector")).getByRole("combobox");
+      await waitFor(() => {
+        expect(combo).not.toBeDisabled();
+        expect(combo.querySelectorAll("option").length).toBeGreaterThan(1);
       });
       const user = userEvent.setup();
-      // Open the dropdown by clicking the combobox
-      await user.click(combo);
-      // Wait for the dropdown options to appear and click the one for strategy2
-      const option = await screen.findByRole("option", { name: "EMA Crossover" });
-      await user.click(option);
+      await user.selectOptions(combo, "2");
       expect(fetchStrategyConfig).toHaveBeenCalledWith(2);
     });
   });

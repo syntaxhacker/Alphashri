@@ -39,8 +39,8 @@ describe("IndexMoversStrip", () => {
   });
 
   it("renders loading state initially", async () => {
-    let resolve: (v: IndexMoversResponse) => void;
-    const promise = new Promise<IndexMoversResponse>((r) => { resolve = r; });
+    let _resolve: (v: IndexMoversResponse) => void;
+    const promise = new Promise<IndexMoversResponse>((r) => { _resolve = r; });
     mockFetchIndexMovers.mockReturnValue(promise);
 
     render(<IndexMoversStrip index="NIFTY" onExpand={onExpand} />);

@@ -149,13 +149,7 @@ export function PatternFullscreenView({
   const stepper =
     onPrev || onNext ? (
       <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 0.25,
-          flexShrink: 0,
-          mt: 0.25,
-        }}
+        className="mt-[2px] flex shrink-0 items-center gap-[2px]"
       >
         <Tooltip label="Previous pattern (↑)">
           <ActionIcon
@@ -173,11 +167,7 @@ export function PatternFullscreenView({
             size="xs"
             c="dimmed"
             data-testid="patterns-chart-position"
-            sx={{
-              minWidth: 38,
-              textAlign: "center",
-              fontVariantNumeric: "tabular-nums",
-            }}
+            className="min-w-[38px] text-center tabular-nums"
           >
             {positionLabel}
           </Text>
@@ -200,33 +190,12 @@ export function PatternFullscreenView({
     return (
       <Box
         data-testid="patterns-chart-dock"
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          height: "100%",
-          minWidth: 0,
-          minHeight: 0,
-          border: 1,
-          borderColor: "divider",
-          borderRadius: 1,
-          bgcolor: "background.paper",
-          overflow: "hidden",
-        }}
+        className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-fin border border-fin-border bg-fin-surface"
       >
         <Box
-          sx={{
-            display: "flex",
-            alignItems: "flex-start",
-            gap: 0.5,
-            px: 1,
-            py: 0.5,
-            borderBottom: 1,
-            borderColor: "divider",
-            minWidth: 0,
-            flexShrink: 0,
-          }}
+          className="flex min-w-0 shrink-0 items-start gap-1 border-b border-fin-border px-2 py-1"
         >
-          <Box sx={{ flex: 1, minWidth: 0 }}>{toolbar}</Box>
+          <Box className="min-w-0 flex-1">{toolbar}</Box>
           {stepper}
           {asOf && onLive ? (
             <Tooltip label="Return to live data">
@@ -235,7 +204,7 @@ export function PatternFullscreenView({
                 variant="outline"
                 onClick={onLive}
                 data-testid="patterns-chart-live"
-                sx={{ mt: 0.25, flexShrink: 0 }}
+                className="mt-[2px] shrink-0"
               >
                 Live
               </Button>
@@ -249,7 +218,7 @@ export function PatternFullscreenView({
                 aria-label="Expand chart"
                 onClick={onMaximize}
                 data-testid="patterns-chart-expand"
-                sx={{ mt: 0.25 }}
+                className="mt-[2px]"
               >
                 <IconArrowsMaximize size={14} />
               </ActionIcon>
@@ -262,13 +231,13 @@ export function PatternFullscreenView({
               aria-label="Close chart preview"
               onClick={onClose}
               data-testid="patterns-chart-close"
-              sx={{ mt: 0.25 }}
+              className="mt-[2px]"
             >
               <IconX size={14} />
             </ActionIcon>
           </Tooltip>
         </Box>
-        <Box sx={{ flex: 1, minHeight: 0 }}>{body}</Box>
+        <Box className="min-h-0 flex-1">{body}</Box>
       </Box>
     );
   }
@@ -279,15 +248,9 @@ export function PatternFullscreenView({
       onClose={onClose}
       title={
         <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 0.5,
-            minWidth: 0,
-            width: "100%",
-          }}
+          className="flex w-full min-w-0 items-center gap-1"
         >
-          <Box sx={{ flex: 1, minWidth: 0 }}>{toolbar}</Box>
+          <Box className="min-w-0 flex-1">{toolbar}</Box>
           {stepper}
         </Box>
       }

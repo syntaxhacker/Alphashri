@@ -1,6 +1,7 @@
 import { memo } from "react";
-import { alpha } from "@mui/material/styles";
+import { alpha } from "@/ui/alpha";
 import { Box, Group, Button, Badge } from "@/ui";
+import { BLACK } from "@/ui/palette";
 import { IconChartDots, IconX } from "@tabler/icons-react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { selectedSymbols, clearSelectedSymbols, subscribeToSelection } from "../../state";
@@ -14,13 +15,13 @@ export const SelectionBar = memo(function SelectionBar({ onCompare }: SelectionB
   if (selectedSymbols.length === 0) return null;
 
   return (
-    <Box sx={(theme) => ({ background: alpha(theme.palette.grey[900], 0.9), flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", p: 1 })}>
+    <Box p={1} className="flex items-center justify-center flex-shrink-0" style={{ background: alpha(BLACK, 0.9) }}>
       <Group
         p="sm"
         gap="sm"
         justify="center"
         align="center"
-        sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+        className="flex items-center justify-center"
         data-testid="selection-bar"
       >
       <Badge size="lg" variant="filled" color="primary">

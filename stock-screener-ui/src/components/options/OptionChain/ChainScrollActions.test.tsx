@@ -19,11 +19,4 @@ describe("ChainScrollActions", () => {
     expect(screen.getByTestId("options-scroll-atm-btn")).toBeInTheDocument();
     expect(screen.getByTestId("options-scroll-bottom-btn")).toBeInTheDocument();
   });
-
-  it("renders container", () => {
-    renderWithProviders(
-      <ChainScrollActions scrollToATM={vi.fn()} scrollToEdge={vi.fn()} />,
-    );
-    expect(screen.getByTestId("options-chain-scroll-actions")).toBeInTheDocument();
-  });
 });

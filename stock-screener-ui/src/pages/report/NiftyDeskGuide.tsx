@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
-import Box from "@mui/material/Box";
+import { useCallback, useState, type CSSProperties } from "react";
+import { Box } from "@/ui";
 import { IconHelpCircle } from "@tabler/icons-react";
 import { Button } from "@/ui";
 import * as palette from "@/ui/palette";
@@ -88,7 +88,7 @@ export function NiftyDeskGuide({ open: openProp, onOpenChange }: NiftyDeskGuideP
         aria-label="Desk guide"
         title="Desk guide"
         onClick={() => setOpen(true)}
-        sx={{ minWidth: 0, px: 0.5 }}
+        style={{ minWidth: 0, paddingLeft: "4px", paddingRight: "4px" }}
       >
         <IconHelpCircle size={14} />
       </Button>
@@ -102,53 +102,37 @@ export function NiftyDeskGuide({ open: openProp, onOpenChange }: NiftyDeskGuideP
       >
         <Box
           data-testid="nifty-help-modal"
-          sx={{
-            display: "grid",
-            gridTemplateColumns: "minmax(0, 1fr)",
-            gap: "8px",
-            minWidth: 0,
-            fontVariantNumeric: "tabular-nums",
-            // Column rules sit inside the 3-col grid; the xs layout keeps only
-            // row rules so a single column never shows a stray left border.
-            "@media (min-width:900px)": {
-              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-              "& > *:not(:nth-of-type(3n+1))": {
-                borderLeft: `1px solid ${palette.TERM_BORDER}`,
-                pl: "8px",
-              },
-            },
-          }}
+          className="min-w-0 grid gap-2 tabular-nums grid-cols-[minmax(0,1fr)] min-[900px]:grid-cols-[repeat(3,minmax(0,1fr))]"
+          // Column rules sit inside the 3-col grid; the xs layout keeps only
+          // row rules so a single column never shows a stray left border.
+          style={{ "--term-border": palette.TERM_BORDER } as CSSProperties}
         >
-          {DESK_GUIDE_ENTRIES.map((entry) => (
+          {DESK_GUIDE_ENTRIES.map((entry, i) => (
             <Box
               key={entry.term}
               data-testid={`nifty-help-entry-${entry.term.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`}
-              sx={{
-                minWidth: 0,
-                pt: "8px",
+              className={`min-w-0 ${i % 3 !== 0 ? "min-[900px]:border-l min-[900px]:border-l-[var(--term-border)] min-[900px]:pl-2" : ""}`}
+              style={{
+                paddingTop: "8px",
                 borderTop: `1px solid ${palette.TERM_BORDER}`,
               }}
             >
-              <Box
-                component="div"
-                sx={{
-                  fontSize: 10,
+              <div
+                style={{
+                  fontSize: "10px",
                   fontWeight: 700,
                   lineHeight: 1.2,
                   letterSpacing: "0.08em",
                   textTransform: "uppercase",
                   color: palette.TEXT_MUTED,
-                  mb: "3px",
+                  marginBottom: "3px",
                 }}
               >
                 {entry.term}
-              </Box>
-              <Box
-                component="div"
-                sx={{ fontSize: 11, lineHeight: 1.35, color: palette.TEXT }}
-              >
+              </div>
+              <div style={{ fontSize: "11px", lineHeight: 1.35, color: palette.TEXT }}>
                 {entry.text}
-              </Box>
+              </div>
             </Box>
           ))}
         </Box>

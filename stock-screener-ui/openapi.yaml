@@ -577,6 +577,34 @@ components:
       - timeframe
       title: DetectRequest
       type: object
+    ExecIn:
+      properties:
+        entryTime:
+          default: 09:35
+          title: Entrytime
+          type: string
+        eodExit:
+          default: '15:10'
+          title: Eodexit
+          type: string
+        maxHoldMin:
+          default: 60
+          title: Maxholdmin
+          type: integer
+        slPct:
+          default: 30.0
+          title: Slpct
+          type: number
+        tpPct:
+          default: 60.0
+          title: Tppct
+          type: number
+        trailPct:
+          default: 0.0
+          title: Trailpct
+          type: number
+      title: ExecIn
+      type: object
     GroupPerformanceItem:
       properties:
         advances:
@@ -643,6 +671,32 @@ components:
           title: Detail
           type: array
       title: HTTPValidationError
+      type: object
+    LegIn:
+      properties:
+        action:
+          title: Action
+          type: string
+        lots:
+          default: 1
+          maximum: 50.0
+          minimum: 1.0
+          title: Lots
+          type: integer
+        opt:
+          title: Opt
+          type: string
+        strike:
+          anyOf:
+          - type: string
+          - type: integer
+          - type: number
+          title: Strike
+      required:
+      - action
+      - opt
+      - strike
+      title: LegIn
       type: object
     NewsQueueEnqueueRequest:
       properties:
@@ -1183,6 +1237,43 @@ components:
           title: Skip Existing
           type: boolean
       title: Run52wRangeRequest
+      type: object
+    RunIn:
+      properties:
+        asOf:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Asof
+        costs:
+          default: true
+          title: Costs
+          type: boolean
+        date:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Date
+        slippageTicks:
+          default: 0
+          maximum: 5.0
+          minimum: 0.0
+          title: Slippageticks
+          type: integer
+        strategies:
+          items:
+            $ref: '#/components/schemas/StrategyIn'
+          maxItems: 8
+          minItems: 1
+          title: Strategies
+          type: array
+        symbol:
+          default: NIFTY
+          title: Symbol
+          type: string
+      required:
+      - strategies
+      title: RunIn
       type: object
     ScanRequest:
       properties:
@@ -1849,6 +1940,34 @@ components:
       - name
       - strategy_type
       title: StrategyCreate
+      type: object
+    StrategyIn:
+      properties:
+        exec:
+          $ref: '#/components/schemas/ExecIn'
+        id:
+          maxLength: 80
+          minLength: 1
+          title: Id
+          type: string
+        legs:
+          items:
+            $ref: '#/components/schemas/LegIn'
+          maxItems: 12
+          minItems: 1
+          title: Legs
+          type: array
+        name:
+          maxLength: 80
+          minLength: 1
+          title: Name
+          type: string
+      required:
+      - id
+      - name
+      - legs
+      - exec
+      title: StrategyIn
       type: object
     StrategyRunnerRequest:
       properties:
@@ -5948,6 +6067,206 @@ paths:
       summary: Get Session State
       tags:
       - experiments
+  /api/fyers-bridge/chain:
+    get:
+      description: Option chain for an underlying/expiry, grouped by strike.
+      operationId: chain_api_fyers_bridge_chain_get
+      parameters:
+      - in: query
+        name: symbol
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Symbol
+      - in: query
+        name: expiry
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expiry
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Chain
+      tags:
+      - fyers-bridge
+  /api/fyers-bridge/chain/{symbol}:
+    get:
+      description: Option chain for an underlying/expiry, grouped by strike.
+      operationId: chain_api_fyers_bridge_chain__symbol__get
+      parameters:
+      - in: path
+        name: symbol
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Symbol
+      - in: query
+        name: expiry
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expiry
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Chain
+      tags:
+      - fyers-bridge
+  /api/fyers-bridge/expiries:
+    get:
+      description: List option expiries for an underlying, YYYY-MM-DD ascending.
+      operationId: expiries_api_fyers_bridge_expiries_get
+      parameters:
+      - in: query
+        name: symbol
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Symbol
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Expiries
+      tags:
+      - fyers-bridge
+  /api/fyers-bridge/expiries/{symbol}:
+    get:
+      description: List option expiries for an underlying, YYYY-MM-DD ascending.
+      operationId: expiries_api_fyers_bridge_expiries__symbol__get
+      parameters:
+      - in: path
+        name: symbol
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Symbol
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Expiries
+      tags:
+      - fyers-bridge
+  /api/fyers-bridge/futures:
+    get:
+      description: Futures contract candles for a session (nearest contract used directly).
+      operationId: futures_api_fyers_bridge_futures_get
+      parameters:
+      - in: query
+        name: symbol
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Symbol
+      - in: query
+        name: session
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Session
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Futures
+      tags:
+      - fyers-bridge
+  /api/fyers-bridge/futures/{symbol}:
+    get:
+      description: Futures contract candles for a session (nearest contract used directly).
+      operationId: futures_api_fyers_bridge_futures__symbol__get
+      parameters:
+      - in: path
+        name: symbol
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Symbol
+      - in: query
+        name: session
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Session
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Futures
+      tags:
+      - fyers-bridge
   /api/health:
     get:
       operationId: health_api_health_get
@@ -6234,7 +6553,12 @@ paths:
       - market-ticker
   /api/market/snapshot:
     get:
-      description: Return the whole NSE market (one TV scan) shaped for the screener.
+      description: 'Return the whole NSE market (one TV scan) shaped for the screener.
+
+
+        The (potentially 58s cold) TV scan runs off the event loop via
+
+        ``asyncio.to_thread`` so it can never block other requests.'
       operationId: market_snapshot_api_market_snapshot_get
       parameters:
       - description: 'Universe: all_equity (default), nifty50, nifty500 or nse_fo.'
@@ -6257,13 +6581,13 @@ paths:
           minimum: 1
           title: Limit
           type: integer
-      - description: Bypass the 15s in-process cache and re-fetch from TradingView.
+      - description: Bypass the in-process/disk cache and re-fetch from TradingView.
         in: query
         name: force
         required: false
         schema:
           default: false
-          description: Bypass the 15s in-process cache and re-fetch from TradingView.
+          description: Bypass the in-process/disk cache and re-fetch from TradingView.
           title: Force
           type: boolean
       responses:
@@ -7108,6 +7432,115 @@ paths:
       summary: Premium Tracker
       tags:
       - options
+  /api/options/screener:
+    get:
+      description: Rank OTM calls on the NSE stock F&O universe by momentum and torque.
+      operationId: get_options_screener_api_options_screener_get
+      parameters:
+      - description: Expiry YYYY-MM-DD (nearest by default)
+        in: query
+        name: expiry
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Expiry YYYY-MM-DD (nearest by default)
+          title: Expiry
+      - description: cheap_momentum|max_torque|balanced|high_pop|breakout
+        in: query
+        name: preset
+        required: false
+        schema:
+          default: cheap_momentum
+          description: cheap_momentum|max_torque|balanced|high_pop|breakout
+          title: Preset
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 100
+          maximum: 500
+          minimum: 1
+          title: Limit
+          type: integer
+      - description: Max cost per lot (₹)
+        in: query
+        name: max_cost
+        required: false
+        schema:
+          anyOf:
+          - minimum: 0
+            type: number
+          - type: 'null'
+          description: Max cost per lot (₹)
+          title: Max Cost
+      - description: Min probability of profit (%)
+        in: query
+        name: min_pop
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          description: Min probability of profit (%)
+          title: Min Pop
+      - description: Min option volume
+        in: query
+        name: min_volume
+        required: false
+        schema:
+          anyOf:
+          - minimum: 0
+            type: number
+          - type: 'null'
+          description: Min option volume
+          title: Min Volume
+      - description: Min OTM %
+        in: query
+        name: otm_min
+        required: false
+        schema:
+          default: 2.0
+          description: Min OTM %
+          minimum: 0
+          title: Otm Min
+          type: number
+      - description: Max OTM %
+        in: query
+        name: otm_max
+        required: false
+        schema:
+          default: 10.0
+          description: Max OTM %
+          minimum: 0
+          title: Otm Max
+          type: number
+      - description: Bypass snapshot/chain/momentum caches
+        in: query
+        name: refresh
+        required: false
+        schema:
+          default: false
+          description: Bypass snapshot/chain/momentum caches
+          title: Refresh
+          type: boolean
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Get Options Screener
+      tags:
+      - options-screener
   /api/options/spot-history/{underlying}:
     get:
       description: Get intraday historical spot price for charting.
@@ -10373,6 +10806,55 @@ paths:
       summary: Get Profitability
       tags:
       - reports
+  /api/reports/sim/run:
+    post:
+      description: 'Replay one session''s recorded tape through every requested structure.
+
+
+        ``asOf`` truncates the tape at a minute (live mode); omitting it runs the
+
+        whole recorded day. The payload is exactly what the report UI renders.'
+      operationId: run_simulation_api_reports_sim_run_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunIn'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                title: Response Run Simulation Api Reports Sim Run Post
+                type: object
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Run Simulation
+      tags:
+      - report-sim
+  /api/reports/sim/strategies:
+    get:
+      description: The built-in structures the report UI offers as starting points.
+      operationId: get_strategies_api_reports_sim_strategies_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                title: Response Get Strategies Api Reports Sim Strategies Get
+                type: object
+          description: Successful Response
+      summary: Get Strategies
+      tags:
+      - report-sim
   /api/reports/us/bars:
     get:
       description: One-minute OHLC candles (o/h/l/c from the 10 s sampler).
@@ -11607,6 +12089,15 @@ paths:
           description: 'Search source: ''local'' (DB instruments, default), ''tv'' (tradingview_screener lib via Query+col.like), ''auto'' (prefer local, fallback to tv)'
           title: Source
           type: string
+      - description: Only return underlyings that have NSE_FO equity contracts
+        in: query
+        name: fno
+        required: false
+        schema:
+          default: false
+          description: Only return underlyings that have NSE_FO equity contracts
+          title: Fno
+          type: boolean
       responses:
         '200':
           content:
@@ -12187,6 +12678,12 @@ tags:
   name: options-recorder
 - description: Historical options data.
   name: options-history
+- description: F&O momentum OTM options screener.
+  name: options-screener
+- description: Fyers option chain, expiries and futures bridge.
+  name: fyers-bridge
+- description: Strategy simulator over recorded option tape (replay + live as-of).
+  name: report-sim
 - description: Live index and commodity ticker data.
   name: market-ticker
 - description: Symbol search and instrument lookup.

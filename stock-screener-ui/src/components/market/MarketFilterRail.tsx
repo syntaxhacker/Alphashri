@@ -42,7 +42,7 @@ function SectionTitle({ children }: { children: string }) {
       size="xs"
       fw={700}
       c="dimmed"
-      sx={{ letterSpacing: 0.5, textTransform: "uppercase", fontSize: 10 }}
+      className="text-[10px] uppercase tracking-[0.5px]"
     >
       {children}
     </Text>
@@ -69,10 +69,10 @@ export function MarketFilterRail({
   return (
     <Box
       data-testid="market-filter-rail"
-      sx={{ display: "flex", flexDirection: "column", gap: 1, p: 1 }}
+      className="flex flex-col gap-2 p-2"
     >
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+      <Box className="flex items-center justify-between">
+        <Box className="flex items-center gap-1">
           <IconFilter size={12} />
           <Text size="xs" fw={700}>
             Filters
@@ -95,7 +95,7 @@ export function MarketFilterRail({
       </Box>
 
       <SectionTitle>Cap tier</SectionTitle>
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
+      <Box className="flex flex-col gap-0.5">
         {CAP_TIERS.map((tier) => {
           const count = tierCounts?.[tier];
           const label = count !== undefined ? `${CAP_TIER_LABELS[tier]} (${count})` : CAP_TIER_LABELS[tier];
@@ -114,8 +114,8 @@ export function MarketFilterRail({
 
       <Divider />
       <SectionTitle>Price ₹</SectionTitle>
-      <Box sx={{ display: "flex", gap: 0.5 }}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+      <Box className="flex gap-1">
+        <Box className="min-w-0 flex-1">
           <NumberInput
             placeholder="Min"
             aria-label="Minimum price"
@@ -127,7 +127,7 @@ export function MarketFilterRail({
             data-testid="market-filter-price-min"
           />
         </Box>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box className="min-w-0 flex-1">
           <NumberInput
             placeholder="Max"
             aria-label="Maximum price"
@@ -142,8 +142,8 @@ export function MarketFilterRail({
       </Box>
 
       <SectionTitle>Day change %</SectionTitle>
-      <Box sx={{ display: "flex", gap: 0.5 }}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+      <Box className="flex gap-1">
+        <Box className="min-w-0 flex-1">
           <NumberInput
             placeholder="Min %"
             aria-label="Minimum day change percent"
@@ -154,7 +154,7 @@ export function MarketFilterRail({
             data-testid="market-filter-day-min"
           />
         </Box>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box className="min-w-0 flex-1">
           <NumberInput
             placeholder="Max %"
             aria-label="Maximum day change percent"
@@ -180,8 +180,8 @@ export function MarketFilterRail({
 
       <Divider />
       <SectionTitle>RSI</SectionTitle>
-      <Box sx={{ display: "flex", gap: 0.5 }}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+      <Box className="flex gap-1">
+        <Box className="min-w-0 flex-1">
           <NumberInput
             placeholder="Min"
             aria-label="Minimum RSI"
@@ -194,7 +194,7 @@ export function MarketFilterRail({
             data-testid="market-filter-rsi-min"
           />
         </Box>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box className="min-w-0 flex-1">
           <NumberInput
             placeholder="Max"
             aria-label="Maximum RSI"
@@ -223,7 +223,7 @@ export function MarketFilterRail({
 
       <Divider />
       <SectionTitle>Trend</SectionTitle>
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
+      <Box className="flex flex-col gap-0.5">
         <Switch
           size="xs"
           label="Above SMA 20"
@@ -249,7 +249,7 @@ export function MarketFilterRail({
 
       <Divider />
       <SectionTitle>Instrument</SectionTitle>
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
+      <Box className="flex flex-col gap-0.5">
         <Switch
           size="xs"
           label="F&O only"

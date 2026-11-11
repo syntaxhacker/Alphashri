@@ -2,12 +2,8 @@
 // only that trade's markers + its strategy reference lines, auto-zoomed to the
 // trade window. Reuses the NT TradingViewChart (lightweight-charts).
 import { useEffect, useMemo, useRef, useState } from "react";
-import Box from "@mui/material/Box";
-import Card from "@mui/material/Card";
-import Stack from "@mui/material/Stack";
-import Chip from "@mui/material/Chip";
-import Typography from "@mui/material/Typography";
 import * as palette from "@/ui/palette";
+import { Badge, Card, Stack, Text } from "@/ui";
 import { TradingViewChart } from "../chart/TradingViewChart";
 import type { MarkLineData } from "../../utils/chart/types";
 import type { SymbolChartData, ChartTrade } from "../../types/backtest";
@@ -215,37 +211,51 @@ function TradeChartRow({
 
   return (
     <Card
-      elevation={0}
       data-trade-number={number}
-      sx={{
-        flex: "0 0 auto",
+      className="flex-shrink-0 rounded-fin overflow-hidden"
+      style={{
         border: `1px solid ${palette.BORDER}`,
-        bgcolor: palette.NT_BG,
-        overflow: "hidden",
-        // Let the browser skip layout/paint for off-screen rows (big lists).
+        backgroundColor: palette.NT_BG,
         contentVisibility: "auto",
         containIntrinsicSize: "auto 371px",
       }}
     >
-      <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 1, py: "4px", borderBottom: `1px solid ${palette.BORDER}` }}>
-        <Chip size="small" label={`#${number}`} sx={{ height: 16, fontSize: 10, bgcolor: palette.SURFACE_ALT, color: palette.TEXT }} />
-        <Chip
-          size="small"
-          label={symbol}
+      <Stack
+        direction="row"
+        align="center"
+        spacing={1}
+        px={1}
+        py="4px"
+        style={{ borderBottom: `1px solid ${palette.BORDER}` }}
+      >
+        <Badge size="xs" style={{ height: 16, fontSize: 10, backgroundColor: palette.SURFACE_ALT, color: palette.TEXT }}>
+          {`#${number}`}
+        </Badge>
+        <Badge
+          size="xs"
           data-testid={`trade-symbol-${index}`}
-          sx={{ height: 16, fontSize: 10, fontWeight: 700, bgcolor: palette.PRIMARY, color: palette.NT_BG }}
-        />
-        <Chip size="small" label={canonicalSide(trade.side)} color={canonicalSide(trade.side) === "SHORT" ? "error" : "success"} sx={{ height: 16, fontSize: 10, fontWeight: 700 }} />
-        <Typography variant="caption" sx={{ color: palette.TEXT_MUTED, whiteSpace: "nowrap" }}>
+          style={{ height: 16, fontSize: 10, fontWeight: 700, backgroundColor: palette.PRIMARY, color: palette.NT_BG }}
+        >
+          {symbol}
+        </Badge>
+        <Badge
+          size="xs"
+          style={{ height: 16, fontSize: 10, fontWeight: 700 }}
+          color={canonicalSide(trade.side) === "SHORT" ? "negative" : "positive"}
+          variant="filled"
+        >
+          {canonicalSide(trade.side)}
+        </Badge>
+        <Text size="xs" c="muted" style={{ whiteSpace: "nowrap" }}>
           {fmt(trade.entry_time)} → {fmt(trade.exit_time)}
-        </Typography>
-        <Box sx={{ flex: 1 }} />
-        <Typography variant="caption" sx={{ color: palette.TEXT_MUTED }}>{trade.exit_reason}</Typography>
-        <Typography variant="caption" sx={{ color: pnlColor, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+        </Text>
+        <div className="flex-1" />
+        <Text size="xs" c="muted">{trade.exit_reason}</Text>
+        <Text size="xs" fw={700} c={pnlColor} style={{ fontVariantNumeric: "tabular-nums" }}>
           {(trade.pnl ?? 0) >= 0 ? "+" : ""}{(trade.pnl ?? 0).toFixed(0)}
-        </Typography>
+        </Text>
       </Stack>
-      <Box ref={containerRef} sx={{ height: 340, minHeight: 340, flex: "0 0 auto", display: "flex" }}>
+      <div ref={containerRef} className="h-[340px] min-h-[340px] flex-shrink-0 flex" style={{ height: 340, minHeight: 340 }}>
         {inView ? (
           <TradingViewChart
             theme="nt"
@@ -257,9 +267,9 @@ function TradeChartRow({
             markLines={levels}
           />
         ) : (
-          <Box sx={{ flex: 1, bgcolor: palette.NT_BG }} />
+          <div className="flex-1" style={{ backgroundColor: palette.NT_BG }} />
         )}
-      </Box>
+      </div>
     </Card>
   );
 }
@@ -314,54 +324,60 @@ export function BacktestTradeCharts({
   const netPnl = useMemo(() => trades.reduce((s, t) => s + (t.pnl ?? 0), 0), [trades]);
 
   return (
-    <Box sx={{ height: "100%", overflow: "auto", display: "flex", flexDirection: "column", bgcolor: "background.default" }}>
+    <div className="h-full overflow-auto flex flex-col" style={{ backgroundColor: palette.BG }}>
       <Stack
         direction="row"
-        alignItems="center"
+        align="center"
         spacing={0.5}
+        px={1}
+        py="4px"
         data-testid="trade-charts-header"
-        sx={{
+        style={{
           position: "sticky",
           top: 0,
           zIndex: 2,
           flex: "0 0 auto",
-          px: 1,
-          py: "4px",
           borderBottom: `1px solid ${palette.BORDER}`,
-          bgcolor: "background.paper",
+          backgroundColor: palette.SURFACE,
         }}
       >
         {symbolList.map((s) => (
-          <Chip
+          <Badge
             key={s}
-            size="small"
-            label={s}
+            size="xs"
             onClick={() => onSymbolSelect?.(s)}
-            variant={s === (selectedSymbol ?? symbol) ? "filled" : "outlined"}
-            color={s === (selectedSymbol ?? symbol) ? "primary" : "default"}
             data-testid={`trade-symbol-tab-${s}`}
-            sx={{ height: 18, fontSize: 10, fontWeight: 700, cursor: onSymbolSelect ? "pointer" : "default" }}
-          />
+            variant={s === (selectedSymbol ?? symbol) ? "filled" : "light"}
+            color={s === (selectedSymbol ?? symbol) ? "primary" : "secondary"}
+            style={{
+              height: 18,
+              fontSize: 10,
+              fontWeight: 700,
+              cursor: onSymbolSelect ? "pointer" : "default",
+            }}
+          >
+            {s}
+          </Badge>
         ))}
-        <Box sx={{ flex: 1 }} />
-        <Typography variant="caption" sx={{ color: palette.TEXT_MUTED, whiteSpace: "nowrap" }}>
+        <div className="flex-1" />
+        <Text size="xs" c="muted" style={{ whiteSpace: "nowrap" }}>
           {trades.length}/{allTrades.length} trades · net{" "}
-          <Box component="span" sx={{ color: netPnl >= 0 ? palette.POSITIVE : palette.NEGATIVE, fontWeight: 700 }}>
+          <span style={{ color: netPnl >= 0 ? palette.POSITIVE : palette.NEGATIVE, fontWeight: 700 }}>
             {netPnl >= 0 ? "+" : ""}₹{netPnl.toFixed(0)}
-          </Box>
-        </Typography>
+          </span>
+        </Text>
       </Stack>
 
       {!chartData || allTrades.length === 0 ? (
-        <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Typography variant="body2" color="text.secondary">No trades to show.</Typography>
-        </Box>
+        <div className="flex-1 flex items-center justify-center">
+          <Text size="xs" c="muted">No trades to show.</Text>
+        </div>
       ) : trades.length === 0 ? (
-        <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Typography variant="body2" color="text.secondary">No trades match the current filters.</Typography>
-        </Box>
+        <div className="flex-1 flex items-center justify-center">
+          <Text size="xs" c="muted">No trades match the current filters.</Text>
+        </div>
       ) : (
-        <Box data-testid="trade-charts" sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 1, display: "flex", flexDirection: "column", gap: 1 }}>
+        <div data-testid="trade-charts" className="flex-1 min-h-0 overflow-auto p-2 flex flex-col gap-2">
           {trades.map((t, i) => (
             <TradeChartRow
               key={t.id}
@@ -378,8 +394,8 @@ export function BacktestTradeCharts({
               rsi={rsi}
             />
           ))}
-        </Box>
+        </div>
       )}
-    </Box>
+    </div>
   );
 }

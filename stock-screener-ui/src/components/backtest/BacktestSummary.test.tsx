@@ -110,11 +110,6 @@ describe("BacktestSummary", () => {
     expect(screen.queryByTestId("results-summary")).not.toBeInTheDocument();
   });
 
-  it("renders with correct testid", () => {
-    render(<BacktestSummary totals={mockTotals} />, { wrapper: Wrapper });
-    expect(screen.getByTestId("results-summary")).toBeInTheDocument();
-  });
-
   it("displays net P&L with correct formatting", () => {
     render(<BacktestSummary totals={mockTotals} />, { wrapper: Wrapper });
     expect(screen.getByTestId("summary-net-pnl")).toHaveTextContent("+₹15.0K");
@@ -162,11 +157,4 @@ describe("BacktestSummary", () => {
     expect(screen.getByText("Trades")).toBeInTheDocument();
   });
 
-  it("renders with individual data-testids on stat items", () => {
-    render(<BacktestSummary totals={mockTotals} />, { wrapper: Wrapper });
-    expect(screen.getByTestId("summary-net-pnl")).toBeInTheDocument();
-    expect(screen.getByTestId("summary-costs")).toBeInTheDocument();
-    expect(screen.getByTestId("summary-wr")).toBeInTheDocument();
-    expect(screen.getByTestId("summary-trades")).toBeInTheDocument();
-  });
 });

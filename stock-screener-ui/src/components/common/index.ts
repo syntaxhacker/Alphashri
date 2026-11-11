@@ -18,4 +18,5 @@ export {
 export { InlineLoader, EmptyState, ErrorAlert, EmptyCompact } from "./states";
 export { TradingDatePicker } from "./TradingDatePicker";
 export { SectionHeader } from "./SectionHeader";
+export { default as SymbolAutocomplete } from "./SymbolAutocomplete";
 export { PreviewChartProvider, usePreviewChart } from "./PreviewChartProvider";

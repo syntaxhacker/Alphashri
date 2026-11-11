@@ -1,48 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { API_BASE, WS_BASE, API_ENDPOINTS } from "./config";
+import { API_BASE, API_ENDPOINTS } from "./config";
 
 describe("config", () => {
-  it("API_BASE is defined and is a non-empty string", () => {
-    expect(API_BASE).toBeDefined();
-    expect(typeof API_BASE).toBe("string");
-    expect(API_BASE.length).toBeGreaterThan(0);
-  });
-
-  it("WS_BASE is defined and is a non-empty string", () => {
-    expect(WS_BASE).toBeDefined();
-    expect(typeof WS_BASE).toBe("string");
-    expect(WS_BASE.length).toBeGreaterThan(0);
-  });
-
-  it("API_ENDPOINTS contains all required keys", () => {
-    const requiredKeys = [
-      "SCREENER",
-      "BACKTEST",
-      "PAPER",
-      "AUTH",
-      "SECTOR",
-      "NEWS",
-      "SYMBOLS",
-      "MARKET_TICKER",
-      "CHART_PREVIEW",
-    ];
-    requiredKeys.forEach((key) => {
-      expect(API_ENDPOINTS).toHaveProperty(key);
-    });
-  });
-
-  it("all API_ENDPOINTS values are non-empty strings", () => {
-    Object.values(API_ENDPOINTS).forEach((endpoint) => {
-      expect(typeof endpoint).toBe("string");
-      expect(endpoint.length).toBeGreaterThan(0);
-    });
-  });
-
-  it("all API_ENDPOINTS start with API_BASE", () => {
-    Object.values(API_ENDPOINTS).forEach((endpoint) => {
-      expect(endpoint.startsWith(API_BASE)).toBe(true);
-    });
-  });
+  // NOTE: API_BASE/WS_BASE are env-derived constants; "is defined / non-empty
+  // string" checks are tautological (they only prove the module loaded). The
+  // exact path-suffix assertion below is the real contract.
 
   it("each endpoint has the correct path suffix", () => {
     expect(API_ENDPOINTS.SCREENER).toBe(`${API_BASE}/api/screener`);

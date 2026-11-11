@@ -1,6 +1,4 @@
-import { Text, Badge, Loader, Alert, Tabs, TabsList, Tab, TabsPanel, Button, Tooltip } from "@/ui";
-import Stack from "@mui/material/Stack";
-import Box from "@mui/material/Box";
+import { Text, Badge, Loader, Alert, Tabs, TabsList, Tab, TabsPanel, Button, Tooltip, Box, Stack } from "@/ui";
 import {
   IconRefresh,
   IconAlertCircle,
@@ -49,19 +47,14 @@ export function OptionChainPanel({
   const { liveState, manualRefresh } = useChainLivePolling(refreshChain, timestamp);
 
   return (
-    <Stack
-      id="chain-panel"
-      spacing={1}
-      sx={{ width: "100%" }}
-      data-testid="options-chain-panel"
-    >
+    <Stack id="chain-panel" spacing={1} className="w-full" data-testid="options-chain-panel">
       <OptionChainGuide opened={guideOpened} onClose={close} />
 
       {/* Spot info row — left-aligned, wraps on narrow screens */}
       <Box
         id="chain-header"
         data-testid="options-chain-header"
-        sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1, rowGap: 1, width: "100%", p: 1 }}
+        className="flex w-full flex-wrap items-center gap-2 p-2"
       >
         <LiveSpotChart underlying={selectedUnderlying} />
         {timestamp && !loading && (
@@ -91,25 +84,16 @@ export function OptionChainPanel({
             toBeDisabled()/toBeEnabled(), which only exist on a form control.
             nifty-report had this as an icon Box with an opacity tweak, so
             `disabled` was unreachable. */}
-        <Box
-          component="button"
+        <button
           type="button"
           disabled={loading}
           aria-label="Refresh option chain"
           onClick={() => !loading && manualRefresh()}
-          sx={{
-            border: 0,
-            background: "transparent",
-            p: 0,
-            display: "inline-flex",
-            alignItems: "center",
-            cursor: loading ? "default" : "pointer",
-            opacity: loading ? 0.5 : 1,
-          }}
+          className="inline-flex items-center border-0 bg-transparent p-0 disabled:cursor-default disabled:opacity-50 enabled:cursor-pointer"
           data-testid="refresh-chain-btn"
         >
           <IconRefresh size={18} />
-        </Box>
+        </button>
       </Box>
 
       {/* Error State */}
@@ -127,7 +111,7 @@ export function OptionChainPanel({
 
       {/* Content */}
       {loading && strikeMatrix.length === 0 ? (
-        <Box id="chain-loading" data-testid="chain-loading" sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, py: 4, width: "100%" }}>
+        <Box id="chain-loading" data-testid="chain-loading" className="flex w-full items-center justify-center gap-2 py-8">
           <Loader size="md" />
           <Text c="dimmed">Loading option chain...</Text>
         </Box>
@@ -136,7 +120,7 @@ export function OptionChainPanel({
           No options data available. Select an underlying and expiry to view the chain.
         </Alert>
       ) : (
-        <Box sx={{ width: "100%" }}>
+        <Box className="w-full">
           <Tabs id="chain-view-tabs" defaultValue="table" data-testid="chain-view-tabs" style={{ width: "100%" }}>
             <TabsList data-testid="options-chain-view-tabs-list">
               <Tab value="table" leftSection={<IconTable size={14} />} data-testid="chain-tab-table">
@@ -148,14 +132,14 @@ export function OptionChainPanel({
             </TabsList>
 
             <TabsPanel value="table" data-testid="options-chain-table-panel">
-              <Stack spacing={1} sx={{ width: "100%" }}>
+              <Stack spacing={1} className="w-full">
                 <ChainSummary strikeMatrix={strikeMatrix} spotPrice={spotPrice} selectedExpiry={selectedExpiry} summary={summary} />
                 <OptionChainTable strikeMatrix={strikeMatrix} filters={filters} spotPrice={spotPrice} onRowClick={(contract) => console.log("clicked", contract)} />
               </Stack>
             </TabsPanel>
 
             <TabsPanel value="analysis" data-testid="options-chain-analysis-panel">
-              <Box sx={{ width: "100%" }}>
+              <Box className="w-full">
                 <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={spotPrice} />
               </Box>
             </TabsPanel>

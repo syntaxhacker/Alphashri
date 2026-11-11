@@ -1,6 +1,5 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { useEffect } from "react";
-import Box from "@mui/material/Box";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
 import { useECharts } from "../../../hooks/useECharts";
 import type { PositioningStrikeRow } from "@/utils/positioning";
@@ -52,5 +51,5 @@ export function PositioningChart({
     });
   }, [rows, setChartOption]);
 
-  return <Box ref={chartRef} data-testid={testId} sx={{ height, width: "100%" }} />;
+  return <div ref={chartRef} data-testid={testId} style={{ height, width: "100%" }} />;
 }

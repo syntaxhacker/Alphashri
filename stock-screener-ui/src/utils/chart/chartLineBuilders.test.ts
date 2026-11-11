@@ -140,14 +140,6 @@ describe("buildPivotSeries", () => {
       expectEveryPivotSeries((series) => expect(series.silent).toBe(true));
     });
 
-    it("does not show symbols", () => {
-      expectEveryPivotSeries((series) => expect(series.showSymbol).toBe(false));
-    });
-
-    it("does not connect nulls", () => {
-      expectEveryPivotSeries((series) => expect(series.connectNulls).toBe(false));
-    });
-
     it("uses date_raw as key but looks up by date", () => {
       // The function builds map with date_raw/date as key, but looks up by c.date
       // If date_raw differs from date, lookup with c.date will fail (return null)

@@ -37,14 +37,7 @@ export function UserButton({ collapsed }: { collapsed?: boolean }) {
         <UnstyledButton
           data-testid="user-menu-trigger"
           id="user-button"
-          sx={{
-            display: "block",
-            width: "100%",
-            p: "8px",
-            color: "text.primary",
-            borderRadius: "8px",
-            "&:hover": { bgcolor: "action.hover" },
-          }}
+          className="block w-full p-2 text-fin-text rounded-fin hover:bg-fin-surface-alt"
           style={{ padding: collapsed ? "8px" : undefined }}
         >
           <Group justify={collapsed ? "center" : "flex-start"} wrap="nowrap" gap="sm">

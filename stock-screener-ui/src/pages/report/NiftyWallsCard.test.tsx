@@ -71,12 +71,32 @@ const walls: WallsPayload = {
   near: true,
   cross: true,
   calls: [
-    { strike: 74200, oi: 5923820, oi_open: 6123820, new_oi: -200000, new_oi_pct: -0.032, erosion_5m: -0.01, erosion_30m: -0.05, distance_pct: 0.14, tracked: false },
+    {
+      strike: 74200,
+      oi: 5923820,
+      oi_open: 6123820,
+      new_oi: -200000,
+      new_oi_pct: -0.032,
+      erosion_5m: -0.01,
+      erosion_30m: -0.034,
+      erosion_rate_30m: -0.0011,
+      vol_mult: 1.3,
+      prem_chg_5m: 0.012,
+      flow: "WRITERS_COVERING",
+      status: "ERODING",
+      fuel_score: 78,
+      fuel_parts: { erosion: 55, volume: 80, proximity: 75, gamma: 60, flow: 70 },
+      time_to_break_min: 4,
+      oi_history: [5_900_000, 5_923_820],
+      distance_pct: 0.14,
+      tracked: false,
+      nearest: true,
+    },
     { strike: 74000, oi: 8169120, oi_open: 6969120, new_oi: 1200000, new_oi_pct: 0.172, erosion_5m: -0.02, erosion_30m: -0.1388, distance_pct: -0.13, tracked: true },
   ],
   puts: [
     { strike: 73500, oi: 7940520, oi_open: 6740520, new_oi: 1200000, new_oi_pct: 0.178, erosion_5m: 0.04, erosion_30m: 0.18, distance_pct: -0.8, tracked: true },
-    { strike: 73700, oi: 5543550, oi_open: 5543550, new_oi: 0, new_oi_pct: 0, erosion_5m: 0.01, erosion_30m: 0.02, distance_pct: -0.53, tracked: false },
+    { strike: 73700, oi: 5543550, oi_open: 5543550, new_oi: 0, new_oi_pct: 0, erosion_5m: 0.01, erosion_30m: 0.02, distance_pct: -0.53, tracked: false, flow: "WRITERS_ADDING", status: "ERODING" },
   ],
   events: [
     {
@@ -246,6 +266,14 @@ describe("NiftyWallsCard", () => {
     expect(onExpand).toHaveBeenCalledTimes(1);
   });
 
+  it("opens the pressure desk from the card action", () => {
+    const onOpenDesk = vi.fn();
+    render(<NiftyWallsCard walls={walls} onExpand={onExpand} onOpenDesk={onOpenDesk} />);
+
+    fireEvent.click(screen.getByTestId("nifty-walls-desk"));
+    expect(onOpenDesk).toHaveBeenCalledTimes(1);
+  });
+
   it("dismisses the alert and persists the dismissal", () => {
     render(<NiftyWallsCard walls={walls} onExpand={onExpand} />);
 
@@ -313,6 +341,91 @@ describe("NiftyWallsCard", () => {
     expect(within(card).getByTestId("levels-pe-NIFTY")).toHaveTextContent("24,600");
     // One card only: no second levels-in-play panel inside the walls card.
     expect(within(card).queryByTestId("levels-in-play")).toBeNull();
+  });
+
+
+
+  it("renders a reserved skeleton instead of a one-line empty row when there is no payload", () => {
+    render(<NiftyWallsCard walls={null} onExpand={onExpand} />);
+
+    expect(screen.getByTestId("nifty-walls-card")).toBeInTheDocument();
+    const skeleton = screen.getByTestId("nifty-walls-skeleton");
+    expect(skeleton).toBeInTheDocument();
+
+    const callTable = within(skeleton).getByTestId("nifty-walls-call");
+    const putTable = within(skeleton).getByTestId("nifty-walls-put");
+    expect(within(callTable).getAllByTestId("nifty-walls-call-placeholder")).toHaveLength(3);
+    expect(within(putTable).getAllByTestId("nifty-walls-put-placeholder")).toHaveLength(3);
+    expect(callTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
+    expect(putTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
+
+    // The READ/SEQ and tracked-history bands stay reserved, so the card keeps
+    // its height; the old empty state was a single 44px line.
+    expect(screen.getByTestId("nifty-walls-skeleton-read")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-walls-skeleton-history")).toBeInTheDocument();
+    expect(screen.getByText("No walls data.")).toBeInTheDocument();
+  });
+
+  it("keeps the caller empty text visible in the skeleton", () => {
+    render(<NiftyWallsCard walls={null} onExpand={onExpand} emptyText="Waiting for walls data." />);
+
+    expect(screen.getByText("Waiting for walls data.")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-walls-skeleton")).toBeInTheDocument();
+  });
+
+  it("reserves three rows per side when the payload carries a single wall", () => {
+    render(
+      <NiftyWallsCard
+        walls={{ ...walls, calls: [walls.calls[0]], puts: [walls.puts[0]] }}
+        onExpand={onExpand}
+      />,
+    );
+
+    const callTable = screen.getByTestId("nifty-walls-call");
+    expect(callTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
+    expect(within(callTable).getAllByTestId("nifty-walls-call-placeholder")).toHaveLength(2);
+
+    const putTable = screen.getByTestId("nifty-walls-put");
+    expect(putTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
+    expect(within(putTable).getAllByTestId("nifty-walls-put-placeholder")).toHaveLength(2);
+
+    // Every reserved cell is an em dash.
+    const placeholder = within(callTable).getAllByTestId("nifty-walls-call-placeholder")[0];
+    expect(within(placeholder).getAllByText("—").length).toBeGreaterThanOrEqual(6);
+    expect(placeholder).toHaveAttribute("data-placeholder", "true");
+  });
+
+  it("renders three rows with no reserved slots when the payload carries three walls", () => {
+    render(
+      <NiftyWallsCard
+        walls={{
+          ...walls,
+          calls: [walls.calls[0], walls.calls[1], { ...walls.calls[0], strike: 73800 }],
+          puts: [walls.puts[0], walls.puts[1], { ...walls.puts[0], strike: 73300 }],
+        }}
+        onExpand={onExpand}
+      />,
+    );
+
+    const callTable = screen.getByTestId("nifty-walls-call");
+    expect(callTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
+    expect(within(callTable).queryAllByTestId("nifty-walls-call-placeholder")).toHaveLength(0);
+
+    const putTable = screen.getByTestId("nifty-walls-put");
+    expect(putTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
+    expect(within(putTable).queryAllByTestId("nifty-walls-put-placeholder")).toHaveLength(0);
+  });
+
+  it("marks the nearest row and shows the side-aware erosion arrow and flow suffix on each row", () => {
+    render(<NiftyWallsCard walls={walls} onExpand={onExpand} />);
+
+    const callTable = screen.getByTestId("nifty-walls-call");
+    expect(within(callTable).getByText("▲")).toBeInTheDocument();
+    expect(within(callTable).getByTestId("nifty-walls-call-74200-flow")).toHaveTextContent("WRITERS COVERING · vol 1.3×");
+
+    const putTable = screen.getByTestId("nifty-walls-put");
+    expect(within(putTable).getByText("▼")).toBeInTheDocument();
+    expect(within(putTable).getByTestId("nifty-walls-put-73700-flow")).toHaveTextContent("WRITERS ADDING · vol —");
   });
 });
 

@@ -19,6 +19,13 @@ export const BUY_STRATEGIES: StrategyTemplate[] = [
     build: (atm: number) => [{ strike: atm, optionType: "CE", action: "BUY", qty: 1, entry: 0 }],
   },
   {
+    id: "long-put",
+    name: "Long Put",
+    side: "BUY",
+    blurb: "BUY 1 ATM PE. Profits from a down move, risk limited to premium paid.",
+    build: (atm: number) => [{ strike: atm, optionType: "PE", action: "BUY", qty: 1, entry: 0 }],
+  },
+  {
     id: "long-straddle",
     name: "Long Straddle",
     side: "BUY",
@@ -29,6 +36,16 @@ export const BUY_STRATEGIES: StrategyTemplate[] = [
     ],
   },
   {
+    id: "long-strangle",
+    name: "Long Strangle",
+    side: "BUY",
+    blurb: "BUY 1 OTM PE + BUY 1 OTM CE. Profits from a big move either way.",
+    build: (atm: number, step: number) => [
+      { strike: atm - step, optionType: "PE", action: "BUY", qty: 1, entry: 0 },
+      { strike: atm + step, optionType: "CE", action: "BUY", qty: 1, entry: 0 },
+    ],
+  },
+  {
     id: "bull-call-spread",
     name: "Bull Call Spread",
     side: "BUY",
@@ -36,6 +53,16 @@ export const BUY_STRATEGIES: StrategyTemplate[] = [
     build: (atm: number, step: number) => [
       { strike: atm, optionType: "CE", action: "BUY", qty: 1, entry: 0 },
       { strike: atm + 2 * step, optionType: "CE", action: "SELL", qty: 1, entry: 0 },
+    ],
+  },
+  {
+    id: "bear-put-spread",
+    name: "Bear Put Spread",
+    side: "BUY",
+    blurb: "BUY 1 ATM PE + SELL 1 lower PE. Capped bearish debit spread.",
+    build: (atm: number, step: number) => [
+      { strike: atm, optionType: "PE", action: "BUY", qty: 1, entry: 0 },
+      { strike: atm - 2 * step, optionType: "PE", action: "SELL", qty: 1, entry: 0 },
     ],
   },
 ];

@@ -52,16 +52,16 @@ describe("ValueFilters", () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     r(<ValueFilters filters={{ sort: "score", limit: 100 }} onChange={onChange} />);
-    await user.click(
-      screen.getByTestId("value-filter-sort").querySelector('[role="combobox"]') as HTMLElement,
+    await user.selectOptions(
+      screen.getByTestId("value-filter-sort").querySelector("select") as HTMLSelectElement,
+      "pe",
     );
-    await user.click(await screen.findByRole("option", { name: "P/E ↑" }));
     expect(onChange).toHaveBeenCalledWith({ sort: "pe" });
 
-    await user.click(
-      screen.getByTestId("value-filter-limit").querySelector('[role="combobox"]') as HTMLElement,
+    await user.selectOptions(
+      screen.getByTestId("value-filter-limit").querySelector("select") as HTMLSelectElement,
+      "200",
     );
-    await user.click(await screen.findByRole("option", { name: "200" }));
     expect(onChange).toHaveBeenCalledWith({ limit: 200 });
   });
 

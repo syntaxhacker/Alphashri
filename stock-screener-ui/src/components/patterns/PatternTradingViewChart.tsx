@@ -12,7 +12,6 @@ import {
   type ISeriesApi,
   type LineWidth,
 } from "lightweight-charts";
-import Box from "@mui/material/Box";
 import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import type {
@@ -364,17 +363,18 @@ export function PatternTradingViewChart({
   }, [hiddenNames, data, drawEndLabels]);
 
   return (
-    <Box
+    <div
       data-testid="patterns-tv-chart"
-      sx={{ width: "100%", height, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}
+      className="relative flex min-h-0 w-full flex-col"
+      style={{ height }}
     >
-      <Box ref={containerRef} sx={{ width: "100%", flex: 1, minHeight: 0, position: "relative" }} />
+      <div ref={containerRef} className="relative min-h-0 w-full flex-1" />
       <canvas
         ref={overlayRef}
         aria-hidden="true"
         data-testid="patterns-tv-overlay"
         style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 3 }}
       />
-    </Box>
+    </div>
   );
 }

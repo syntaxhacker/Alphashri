@@ -24,9 +24,9 @@ export function TradingList({ symbols, title = "Trading Symbols" }: TradingListP
         align="center"
         mb={opened ? "xs" : 0}
         data-testid="trading-list-header"
-        sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, width: "100%" }}
+        className="flex w-full items-center justify-between gap-2"
       >
-        <Group gap="sm" align="center" data-testid="trading-list-title-group" sx={{ display: "flex", alignItems: "center" }}>
+        <Group gap="sm" align="center" data-testid="trading-list-title-group" className="flex items-center">
           <ActionIcon
             variant="subtle"
             onClick={() => setOpened((o) => !o)}
@@ -61,7 +61,7 @@ export function TradingList({ symbols, title = "Trading Symbols" }: TradingListP
           autosize
           minRows={2}
           maxRows={6}
-          sx={{ "& .MuiInputBase-input": { fontSize: "12px" } }}
+          className="[&_textarea]:text-xs"
           data-testid="trading-list-textarea"
         />
       </Collapse>

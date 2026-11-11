@@ -1,12 +1,6 @@
 import { useCallback, useEffect } from "react";
 import type { ReactNode } from "react";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Drawer from "@mui/material/Drawer";
-import IconButton from "@mui/material/IconButton";
-import Typography from "@mui/material/Typography";
-import { useTheme } from "@mui/material/styles";
-import useMediaQuery from "@mui/material/useMediaQuery";
+import { ActionIcon, useMediaQuery, useTheme } from "@/ui";
 import { IconX } from "@tabler/icons-react";
 import * as palette from "@/ui/palette";
 
@@ -28,14 +22,14 @@ export interface DeskDockTab {
 /**
  * Desk bottom dock — the low-frequency panels live here so the chart, chain
  * and walls own the first screen. The tab bar stays visible; one drawer opens
- * at a time; Alt+1..4 toggles, Esc closes (the Drawer handles it).
+ * at a time; Alt+1..4 toggles, Esc closes (handled on window).
  */
 export function DeskDock({
   tabs,
   active,
   onActiveChange,
 }: {
-  tabs: DeskDockTab[];
+  tabs: DeskDockKey[];
   active: DeskDockKey | null;
   onActiveChange: (key: DeskDockKey | null) => void;
 }) {
@@ -60,151 +54,114 @@ export function DeskDock({
     return () => window.removeEventListener("keydown", onKey);
   }, [tabs, toggle]);
 
+  const tabButton = (tab: DeskDockTab, selected: boolean) => (
+    <button
+      key={tab.key}
+      data-testid={`desk-dock-${tab.key}`}
+      type="button"
+      aria-pressed={selected}
+      onClick={() => toggle(tab.key)}
+      className={`flex items-center gap-1 min-w-0 shrink-0 h-[20px] px-1.5 py-0 rounded-sm whitespace-nowrap ${selected ? "bg-fin-primary text-fin-bg" : "bg-fin-surface-alt text-fin-text"}`}
+      style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: 0.5 }}
+    >
+      <span className="font-black text-[8.5px] tracking-[0.5em]">{tab.label}</span>
+      {tab.summary != null ? (
+        <span className="text-[8px] text-fin-text-muted">{tab.summary}</span>
+      ) : null}
+      {tab.badge && tab.badge > 0 ? (
+        <span
+          className="inline-flex items-center justify-center shrink-0 whitespace-nowrap min-w-[15px] h-[14px] rounded-[7px]"
+          style={{
+            padding: "1px 3px",
+            backgroundColor: palette.NEGATIVE,
+            color: "#fff",
+            fontSize: 7.5,
+            fontWeight: 800,
+            lineHeight: 1,
+          }}
+        >
+          {tab.badge}
+        </span>
+      ) : null}
+    </button>
+  );
+
   return (
     <>
-      <Box
+      <div
         data-testid="desk-dock"
-        sx={{
-          position: "sticky",
-          bottom: 0,
-          zIndex: 20,
-          display: "flex",
-          alignItems: "center",
-          gap: 0.25,
-          height: 26,
-          minHeight: 26,
-          px: 0.5,
-          bgcolor: palette.TERM_HEADER,
+        className="sticky bottom-0 z-20 flex items-center gap-[2px] h-[26px] min-h-[26px] px-1 overflow-x-auto overflow-y-hidden"
+        style={{
+          backgroundColor: palette.TERM_HEADER,
           borderTop: `1px solid ${palette.TERM_BORDER}`,
-          overflowX: "auto",
-          overflowY: "hidden",
         }}
       >
-        {tabs.map((tab) => {
-          const selected = active === tab.key;
-          return (
-            <Button
-              key={tab.key}
-              data-testid={`desk-dock-${tab.key}`}
-              size="sm"
-              variant={selected ? "filled" : "subtle"}
-              aria-pressed={selected}
-              onClick={() => toggle(tab.key)}
-              sx={{
-                height: 20,
-                minWidth: 0,
-                px: 0.75,
-                py: 0,
-                gap: 0.5,
-                borderRadius: 0.5,
-                whiteSpace: "nowrap",
-              }}
-            >
-              <Typography component="span" sx={{ fontSize: 8.5, fontWeight: 800, letterSpacing: 0.5 }}>
-                {tab.label}
-              </Typography>
-              <Typography component="span" sx={{ fontSize: 8, color: palette.TEXT_MUTED }}>
-                {tab.summary}
-              </Typography>
-              {tab.badge && tab.badge > 0 ? (
-                <Box
-                  component="span"
-                  sx={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    minWidth: 15,
-                    height: 14,
-                    px: 0.4,
-                    borderRadius: 7,
-                    bgcolor: palette.NEGATIVE,
-                    color: "#fff",
-                    fontSize: 7.5,
-                    fontWeight: 800,
-                    lineHeight: 1,
-                  }}
-                >
-                  {tab.badge}
-                </Box>
-              ) : null}
-            </Button>
-          );
-        })}
-        <Typography
-          sx={{ ml: "auto", pr: 0.5, fontSize: 7.5, color: palette.TEXT_MUTED, whiteSpace: "nowrap" }}
-        >
+        {tabs.map((tab) => tabButton(tab, active === tab.key))}
+        <span className="ml-auto pr-1 whitespace-nowrap text-[7.5px]" style={{ color: palette.TEXT_MUTED }}>
           ALT+1..{tabs.length} · ESC
-        </Typography>
-      </Box>
+        </span>
+      </div>
 
-      <Drawer
-        anchor="bottom"
-        open={activeTab !== null}
-        onClose={() => onActiveChange(null)}
-        slotProps={{
-          paper: {
-            id: "desk-dock-drawer",
-            sx: {
-              left: { xs: 0, md: "var(--app-nav-width, 0px)" },
+      {activeTab && (
+        <>
+          <div
+            data-testid="desk-dock-backdrop"
+            className="fixed inset-0 z-40"
+            style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+            onClick={() => onActiveChange(null)}
+          />
+          <div
+            id="desk-dock-drawer"
+            data-testid="desk-dock-drawer"
+            className="fixed z-50 bottom-0 left-0 right-0 border-t border-fin-border"
+            style={{
+              left: mobile ? 0 : "var(--app-nav-width, 0px)",
               right: 0,
               width: "auto",
               height: mobile ? "100%" : activeTab?.height ?? "auto",
               maxHeight: mobile ? "100%" : "55vh",
-              bgcolor: palette.TERM_BG,
+              backgroundColor: palette.TERM_BG,
               backgroundImage: "none",
               borderTop: `1px solid ${palette.TERM_BORDER}`,
               boxShadow: "0 -8px 24px rgba(0,0,0,0.45)",
-            },
-          },
-        }}
-      >
-        <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 0.25,
-              height: 24,
-              minHeight: 24,
-              px: 0.5,
-              borderBottom: `1px solid ${palette.TERM_BORDER}`,
-              bgcolor: palette.TERM_HEADER,
             }}
+            onClick={(e) => e.stopPropagation()}
           >
-            {tabs.map((tab) => (
-              <Button
-                key={tab.key}
-                size="sm"
-                variant={active === tab.key ? "filled" : "subtle"}
-                onClick={() => onActiveChange(tab.key)}
-                sx={{ height: 20, minWidth: 0, px: 0.75, py: 0, fontSize: 8.5, fontWeight: 800, letterSpacing: 0.4 }}
+            <div className="flex flex-col h-full min-h-0">
+              <div
+                className="flex items-center gap-[2px] h-[24px] min-h-[24px] px-1 border-b border-fin-border"
+                style={{ backgroundColor: palette.TERM_HEADER }}
               >
-                {tab.label}
-              </Button>
-            ))}
-            <IconButton
-              size="small"
-              aria-label="Close desk dock"
-              onClick={() => onActiveChange(null)}
-              sx={{ ml: "auto", p: 0.25, borderRadius: 0.5 }}
-            >
-              <IconX size={12} />
-            </IconButton>
-          </Box>
-          <Box
-            data-testid={active ? `desk-dock-body-${active}` : undefined}
-            sx={{
-              flex: 1,
-              minHeight: 0,
-              overflow: "auto",
-              p: 0.5,
-              "& [data-compact]": { border: "none !important" },
-            }}
-          >
-            {activeTab?.content}
-          </Box>
-        </Box>
-      </Drawer>
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    className={`flex items-center gap-1 min-w-0 shrink-0 h-[20px] px-1.5 py-0 rounded-sm whitespace-nowrap ${active === tab.key ? "bg-fin-primary text-fin-bg" : "bg-fin-surface-alt text-fin-text"}`}
+                    onClick={() => onActiveChange(tab.key)}
+                    style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: 0.4 }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+                <ActionIcon
+                  size="small"
+                  aria-label="Close desk dock"
+                  onClick={() => onActiveChange(null)}
+                  className="ml-auto p-[2px] rounded-sm"
+                >
+                  <IconX size={12} />
+                </ActionIcon>
+              </div>
+              <div
+                data-testid={active ? `desk-dock-body-${active}` : undefined}
+                className="flex-1 min-h-0 overflow-auto p-1"
+              >
+                {activeTab?.content}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }

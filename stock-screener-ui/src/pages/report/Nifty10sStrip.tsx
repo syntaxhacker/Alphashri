@@ -1,4 +1,4 @@
-import Box from "@mui/material/Box";
+import { Box } from "@/ui";
 import { memo } from "react";
 import * as palette from "@/ui/palette";
 import { FLOW_NOISE, indexAgo, readFlow, rollingRead } from "./niftyFlowRead";
@@ -81,78 +81,67 @@ const Nifty10sStripInner = function Nifty10sStrip({ points, noise = FLOW_NOISE }
     <Box
       data-testid="nifty-10s-strip"
       data-state={read ? read.bias : "balanced"}
-      sx={{
-        display: "flex",
-        alignItems: "center",
+      className="flex items-center w-full min-w-0 shrink-0 overflow-hidden whitespace-nowrap"
+      style={{
         gap: "8px",
-        height: 20,
-        minHeight: 20,
-        px: 1,
+        height: "20px",
+        minHeight: "20px",
+        paddingLeft: "8px",
+        paddingRight: "8px",
         border: `1px solid ${palette.TERM_BORDER}`,
         borderRadius: "4px",
-        bgcolor: palette.TERM_HEADER,
-        width: "100%",
-        minWidth: 0,
-        flexShrink: 0,
+        backgroundColor: palette.TERM_HEADER,
         fontFamily: palette.MONO,
-        fontSize: 9,
-        whiteSpace: "nowrap",
-        overflow: "hidden",
+        fontSize: "9px",
       }}
     >
-      <Box component="span" sx={{ color: palette.TEXT_MUTED, fontWeight: 700, letterSpacing: "0.08em", flexShrink: 0 }}>
+      <span style={{ color: palette.TEXT_MUTED, fontWeight: 700, letterSpacing: "0.08em", flexShrink: 0 }}>
         OI 1m
-      </Box>
-      <Box
-        component="span"
+      </span>
+      <span
         data-testid="nifty-10s-ce"
-        sx={{ color: d60.ce < 0 ? palette.POSITIVE : palette.NEGATIVE, fontWeight: 800, flexShrink: 0 }}
+        style={{ color: d60.ce < 0 ? palette.POSITIVE : palette.NEGATIVE, fontWeight: 800, flexShrink: 0 }}
       >
         CE {fmtDelta(d60.ce)}
-      </Box>
-      <Box
-        component="span"
+      </span>
+      <span
         data-testid="nifty-10s-pe"
-        sx={{ color: d60.pe > 0 ? palette.POSITIVE : palette.NEGATIVE, fontWeight: 800, flexShrink: 0 }}
+        style={{ color: d60.pe > 0 ? palette.POSITIVE : palette.NEGATIVE, fontWeight: 800, flexShrink: 0 }}
       >
         PE {fmtDelta(d60.pe)}
-      </Box>
-      <Box
-        component="span"
+      </span>
+      <span
         data-testid="nifty-10s-state"
-        sx={{ color: tone, fontWeight: 800, letterSpacing: "0.04em", flexShrink: 0 }}
+        style={{ color: tone, fontWeight: 800, letterSpacing: "0.04em", flexShrink: 0 }}
         title="Premium vs the delta-implied move (ATM delta 0.5). IV expansion can read as buying."
       >
         {read ? (read.bias === "bull" ? "↑ BULLISH" : "↓ BEARISH") : "FLAT"}
-      </Box>
+      </span>
       {read ? (
-        <Box
-          component="span"
+        <span
           data-testid="nifty-10s-reason"
-          sx={{ color: palette.TEXT_MUTED, fontWeight: 600, flexShrink: 0 }}
+          style={{ color: palette.TEXT_MUTED, fontWeight: 600, flexShrink: 0 }}
         >
           {read.reason}
-        </Box>
+        </span>
       ) : null}
       {burst ? (
-        <Box
-          component="span"
+        <span
           data-testid="nifty-10s-burst"
-          sx={{ color: palette.WARNING, fontWeight: 800, letterSpacing: "0.06em", flexShrink: 0 }}
+          style={{ color: palette.WARNING, fontWeight: 800, letterSpacing: "0.06em", flexShrink: 0 }}
           title={`last 10 s: CE ${fmtDelta(d10.ce)} · PE ${fmtDelta(d10.pe)}`}
         >
           ⚡ BURST
-        </Box>
+        </span>
       ) : null}
-      <Box
-        component="span"
+      <span
         data-testid="nifty-10s-counts"
-        sx={{ color: palette.TEXT_MUTED, fontWeight: 700, flexShrink: 0, display: "inline-flex", gap: "4px" }}
+        style={{ color: palette.TEXT_MUTED, fontWeight: 700, flexShrink: 0, display: "inline-flex", gap: "4px" }}
         title={`${ribbon.length} snapshots · ${bullCount} bullish · ${bearCount} bearish · ${flatCount} flat · last 10 s CE ${fmtDelta(d10.ce)} / PE ${fmtDelta(d10.pe)}`}
       >
-        <Box component="span" sx={{ color: palette.POSITIVE }}>{bullCount}↑</Box>
-        <Box component="span" sx={{ color: palette.NEGATIVE }}>{bearCount}↓</Box>
-      </Box>
+        <span style={{ color: palette.POSITIVE }}>{bullCount}↑</span>
+        <span style={{ color: palette.NEGATIVE }}>{bearCount}↓</span>
+      </span>
       <svg
         data-testid="nifty-10s-ribbon"
         width={ribbon.length * (BLOCK_W + BLOCK_GAP)}
@@ -174,13 +163,12 @@ const Nifty10sStripInner = function Nifty10sStrip({ points, noise = FLOW_NOISE }
           />
         ))}
       </svg>
-      <Box
-        component="span"
-        sx={{ color: palette.TEXT_MUTED, flexShrink: 0 }}
+      <span
+        style={{ color: palette.TEXT_MUTED, flexShrink: 0 }}
         title={`${points.length} snapshots · ${points[0].t.slice(11, 19)} → ${last.t.slice(11, 19)}`}
       >
         {last.t.slice(11, 19)}
-      </Box>
+      </span>
     </Box>
   );
 };

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Alert, Badge, Box, Button, Chip, Skeleton, Text, ToolbarRow } from "@/ui";
-import { BORDER, SURFACE } from "@/ui/palette";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { fetchRecentEvents, fetchUpcomingEvents } from "../../api/eventWatch";
 import type {
@@ -105,13 +104,13 @@ function withTech(events: EventWatchEvent[], lookup: Map<string, EventWatchTech>
 function numCell(value: number | undefined, format: (v: number) => string, color?: "success" | "error") {
   if (value === undefined || !Number.isFinite(value)) {
     return (
-      <Text size="xs" c="dimmed" span sx={{ fontVariantNumeric: "tabular-nums" }}>
+      <Text size="xs" c="dimmed" span  className="tabular-nums">
         —
       </Text>
     );
   }
   return (
-    <Text size="xs" c={color} span sx={{ fontVariantNumeric: "tabular-nums" }}>
+    <Text size="xs" c={color} span  className="tabular-nums">
       {format(value)}
     </Text>
   );
@@ -120,15 +119,7 @@ function numCell(value: number | undefined, format: (v: number) => string, color
 function TableWrap({ children }: { children: React.ReactNode }) {
   return (
     <Box
-      sx={{
-        minWidth: 0,
-        width: "100%",
-        overflow: "hidden",
-        border: 1,
-        borderColor: BORDER,
-        borderRadius: 1,
-        bgcolor: SURFACE,
-      }}
+      className="min-w-0 w-full overflow-hidden border border-fin-border rounded-[1px] bg-fin-surface"
     >
       {children}
     </Box>
@@ -238,7 +229,7 @@ export function EventWatch({ universe = "nifty500", days = 7, daily, onOpenSymbo
         cell: ({ row }) => {
           const r = row.original;
           return (
-            <Box sx={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
+            <Box className="min-w-0 flex flex-col">
               <Text size="xs" fw={700} truncate span>
                 {r.symbol}
               </Text>
@@ -268,7 +259,7 @@ export function EventWatch({ universe = "nifty500", days = 7, daily, onOpenSymbo
         accessorKey: "title",
         meta: { align: "left" },
         cell: ({ row }) => (
-          <Text size="xs" c="dimmed" truncate span title={row.original.title} sx={{ display: "block", maxWidth: 320 }}>
+          <Text size="xs" c="dimmed" truncate span title={row.original.title} className="block max-w-[320px]">
             {row.original.title}
           </Text>
         ),
@@ -366,7 +357,7 @@ export function EventWatch({ universe = "nifty500", days = 7, daily, onOpenSymbo
         accessorKey: "date",
         meta: { align: "left" },
         cell: ({ row }) => (
-          <Text size="xs" c="dimmed" span sx={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+          <Text size="xs" c="dimmed" span className="tabular-nums whitespace-nowrap">
             {row.original.date}
           </Text>
         ),
@@ -384,7 +375,7 @@ export function EventWatch({ universe = "nifty500", days = 7, daily, onOpenSymbo
   const totalRecent = recentRows.length;
 
   return (
-    <Box data-testid="event-watch" sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
+    <Box data-testid="event-watch" className="flex flex-col gap-2 min-w-0">
       <ToolbarRow gap={8} wrap={false}>
         <Text size="sm" fw={700} span data-testid="event-watch-title">
           Next-week watchlist
@@ -395,11 +386,11 @@ export function EventWatch({ universe = "nifty500", days = 7, daily, onOpenSymbo
         <Badge size="xs" data-testid="event-watch-recent-count">
           {totalRecent} fresh
         </Badge>
-        <Box sx={{ flex: 1, minWidth: 0 }} />
+        <Box className="flex-1 min-w-0" />
       </ToolbarRow>
 
       {loading ? (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }} data-testid="event-watch-loading">
+        <Box className="flex flex-col gap-2" data-testid="event-watch-loading">
           <Skeleton h={16} />
           <Skeleton h={16} />
         </Box>
@@ -428,7 +419,7 @@ export function EventWatch({ universe = "nifty500", days = 7, daily, onOpenSymbo
               </Alert>
             </Box>
           ) : upcoming !== null ? (
-            <Box data-testid="event-watch-upcoming" sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
+            <Box data-testid="event-watch-upcoming" className="flex flex-col gap-2 min-w-0">
               <Text size="xs" fw={600} c="dimmed" span data-testid="event-watch-upcoming-title">
                 Scheduled — results & event calendar
               </Text>
@@ -440,9 +431,9 @@ export function EventWatch({ universe = "nifty500", days = 7, daily, onOpenSymbo
                 </Box>
               ) : (
                 groupedUpcoming.map(([date, rows]) => (
-                  <Box key={date} sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }}>
+                  <Box key={date} className="flex flex-col gap-1 min-w-0">
                     <ToolbarRow gap={8} wrap={false} data-testid={`event-watch-upcoming-group-${date}`}>
-                      <Text size="xs" fw={700} span sx={{ fontVariantNumeric: "tabular-nums" }}>
+                      <Text size="xs" fw={700} span  className="tabular-nums">
                         {date}
                       </Text>
                       <Badge size="xs">{rows.length}</Badge>
@@ -473,7 +464,7 @@ export function EventWatch({ universe = "nifty500", days = 7, daily, onOpenSymbo
               </Alert>
             </Box>
           ) : recent !== null ? (
-            <Box data-testid="event-watch-recent" sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
+            <Box data-testid="event-watch-recent" className="flex flex-col gap-2 min-w-0">
               <Text size="xs" fw={600} c="dimmed" span data-testid="event-watch-recent-title">
                 Fresh fuel — trailing-7d updates, QIPs, upgrades & orders
               </Text>

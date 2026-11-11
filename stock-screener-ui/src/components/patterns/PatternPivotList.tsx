@@ -15,13 +15,13 @@ export function PivotList({ pivots }: { pivots?: PatternHitDTO["pivots"] }) {
   return (
     <Box
       data-testid="patterns-detail-pivots"
-      sx={{ borderTop: "1px solid", borderColor: "divider", pt: 1 }}
+      className="border-t border-fin-border pt-2"
     >
       <UnstyledButton
         onClick={toggle}
         aria-expanded={opened}
         data-testid="patterns-detail-pivots-toggle"
-        sx={{ display: "flex", alignItems: "center", gap: 0.5, width: "100%", color: "text.secondary" }}
+        className="flex w-full items-center gap-1 text-fin-text-muted"
       >
         <IconChevronDown
           size={14}
@@ -35,7 +35,7 @@ export function PivotList({ pivots }: { pivots?: PatternHitDTO["pivots"] }) {
         </Text>
       </UnstyledButton>
       <Collapse in={opened}>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, pt: 0.75 }}>
+        <Box className="flex flex-col gap-[2px] pt-1.5">
           {pivots.map((pivot, i) => (
             <Text
               key={`${pivot.t}-${i}`}

@@ -1,9 +1,6 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { useEffect, useMemo, useState } from "react";
-import { ActionIcon, Badge, Collapse, Text } from "@/ui";
-import Box from "@mui/material/Box";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
+import { ActionIcon, Badge, Card, Collapse, Text } from "@/ui";
 import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
 import { useECharts } from "../../hooks/useECharts";
 import {
@@ -127,39 +124,31 @@ export function OptionPayoffChart({
 
   if (series.length === 0) return null;
   return (
-    <Box
+    <div
       ref={chartRef}
-      className="option-payoff-chart"
+      className="option-payoff-chart w-full border border-fin-surface-alt rounded-sm overflow-hidden"
       data-testid="option-payoff-chart"
-      sx={{
-        height: CHART_HEIGHT,
-        width: "100%",
-        border: `1px solid ${SURFACE_ALT}`,
-        borderRadius: "4px",
-        overflow: "hidden",
-      }}
+      style={{ height: CHART_HEIGHT }}
     />
   );
 }
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: "pos" | "neg" }) {
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-      <Text size="xs" c="dimmed" style={{ fontSize: 9, letterSpacing: 0.5, textTransform: "uppercase" }}>
+    <div className="flex flex-col min-w-0">
+      <Text size="xs" c="dimmed" className="uppercase" style={{ fontSize: 9, letterSpacing: 0.5 }}>
         {label}
       </Text>
       <Text
         size="xs"
+        className="font-mono tabular-nums font-semibold"
         style={{
-          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-          fontVariantNumeric: "tabular-nums",
-          fontWeight: 600,
           color: tone === "pos" ? POSITIVE : tone === "neg" ? NEGATIVE : undefined,
         }}
       >
         {value}
       </Text>
-    </Box>
+    </div>
   );
 }
 
@@ -181,22 +170,9 @@ export function OptionPayoffCard({ trade }: { trade: PaperTrade }) {
   const net = Number.isFinite(trade.net_pnl) ? trade.net_pnl : null;
 
   return (
-    <Card
-      className="option-payoff-card"
-      elevation={0}
-      data-testid="option-payoff-card"
-      sx={{ flex: "0 0 auto", minHeight: 0, bgcolor: SURFACE }}
-    >
-      <CardContent
-        sx={{
-          p: 0.75,
-          "&:last-child": { pb: 0.75 },
-          display: "flex",
-          flexDirection: "column",
-          gap: 0.5,
-        }}
-      >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+    <Card className="option-payoff-card flex-shrink-0 min-h-0" data-testid="option-payoff-card">
+      <div className="p-1.5 flex flex-col gap-1">
+        <div className="flex items-center gap-2 flex-wrap">
           <ActionIcon
             variant="subtle"
             color="secondary"
@@ -207,25 +183,25 @@ export function OptionPayoffCard({ trade }: { trade: PaperTrade }) {
           >
             {open ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
           </ActionIcon>
-          <Text size="xs" fw={700} style={{ letterSpacing: 0.7, textTransform: "uppercase" }} c="dimmed">
+          <Text size="xs" fw={700} className="uppercase" style={{ letterSpacing: 0.7 }} c="dimmed">
             Payoff @ expiry
           </Text>
           <Badge size="xs" variant="filled" color={isShort ? "error" : "success"}>
             {isShort ? "SHORT" : "LONG"} {contract.optionType}
           </Badge>
-          <Box sx={{ display: "flex", gap: 2, ml: 1, flexWrap: "wrap", alignItems: "center" }}>
+          <div className="flex gap-4 ml-2 flex-wrap items-center">
             <Stat label="Underlying" value={contract.underlying} />
             <Stat label="Strike" value={formatNumberIN(contract.strike)} />
             <Stat label="Qty" value={String(trade.quantity)} />
             <Stat label="Entry" value={fmtInr(trade.entry_price)} />
             {breakeven != null && <Stat label="Breakeven" value={fmtInr(breakeven)} />}
             {net != null && <Stat label="Net" value={fmtInr(net)} tone={net >= 0 ? "pos" : "neg"} />}
-          </Box>
-          <Box sx={{ ml: "auto", display: "flex", gap: 2 }}>
+          </div>
+          <div className="ml-auto flex gap-4">
             <Stat label="Max win" value={fmtK(maxProfit)} tone="pos" />
             <Stat label="Max loss" value={fmtK(maxLoss)} tone="neg" />
-          </Box>
-        </Box>
+          </div>
+        </div>
         <Collapse in={open}>
           <OptionPayoffChart
             series={series}
@@ -234,7 +210,7 @@ export function OptionPayoffCard({ trade }: { trade: PaperTrade }) {
             underlying={contract.underlying}
           />
         </Collapse>
-      </CardContent>
+      </div>
     </Card>
   );
 }

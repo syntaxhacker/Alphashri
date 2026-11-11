@@ -113,8 +113,7 @@ describe("OrderFlowJournalPanel", () => {
     renderWithProviders(<OrderFlowJournalPanel />);
     await screen.findByTestId("orderflow-journal-table");
 
-    await user.click(within(screen.getByTestId("ofj-day-select")).getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: "2026-09-16" }));
+    await user.selectOptions(within(screen.getByTestId("ofj-day-select")).getByRole("combobox"), "2026-09-16");
 
     await waitFor(() =>
       expect(mockFetchWithAuth).toHaveBeenCalledWith(

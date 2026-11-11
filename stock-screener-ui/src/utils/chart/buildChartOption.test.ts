@@ -212,12 +212,6 @@ describe("buildChartOption", () => {
     });
   });
 
-  describe("holiday gap integration", () => {
-    it("uses extendedTimeData when holidays present", () => {
-      const _mockExtend = vi.fn().mockReturnValue(["-"]);
-    });
-  });
-
   describe("live position integration", () => {
     it("adds live position markers when livePosition provided", () => {
       const input = createMockInput({
@@ -255,19 +249,6 @@ describe("buildChartOption", () => {
       expect(candleSeries.markLine.data).toContainEqual({ yAxis: 110, label: expect.any(Object) });
     });
 
-    it("does not add live position when times is empty", () => {
-      const _input = createMockInput({
-        livePosition: {
-          entry_price: 100,
-          entry_time: "",
-          side: "BUY",
-          stop_loss: 95,
-          take_profit: 110,
-        },
-      });
-      // This would require modifying the mock to return empty times
-      // Skipping as it's edge case covered by composition
-    });
   });
 
   describe("series aggregation", () => {

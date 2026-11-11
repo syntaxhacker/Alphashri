@@ -338,7 +338,7 @@ export function formatDateHeader(date: string): string {
 }
 
 // ============================================
-// MUI Color Helpers (for table cells)
+// PnL color helpers (for table cells)
 // ============================================
 
 export function getPnLTextColor(value: number): "success" | "error" {

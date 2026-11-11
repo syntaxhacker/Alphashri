@@ -1,9 +1,10 @@
-import Drawer from "@mui/material/Drawer";
 import { ActionIcon, Anchor, Badge, Box, Divider, Text, ToolbarRow } from "@/ui";
+import { Portal } from "@/ui/layout/Portal";
 import { IconExternalLink, IconX } from "@tabler/icons-react";
 import type { EventDTO, EventType } from "../../types/events";
 import { formatEventDate } from "./eventsColumns";
 import { EventTypeBadge } from "./EventTypeBadge";
+import * as palette from "@/ui/palette";
 
 /** Why an event type can move a stock — one sentence per type. */
 export const EVENT_TYPE_HINT: Record<EventType, string> = {
@@ -56,10 +57,10 @@ export function leadTimeDays(event: EventDTO): number | null {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <ToolbarRow gap={8} justify="space-between" wrap={false}>
-      <Text size="xs" c="dimmed" tt="uppercase" sx={{ fontSize: 10, letterSpacing: "0.4px" }}>
+      <Text size="xs" c="dimmed" tt="uppercase" style={{ fontSize: 10, letterSpacing: "0.4px" }}>
         {label}
       </Text>
-      <Box sx={{ minWidth: 0, textAlign: "right" }}>{children}</Box>
+      <Box style={{ minWidth: 0, textAlign: "right" }}>{children}</Box>
     </ToolbarRow>
   );
 }
@@ -70,137 +71,137 @@ export function EventDetailDrawer({ event, onClose }: EventDetailDrawerProps) {
     ? `${Math.round((event.confidence <= 1 ? event.confidence * 100 : event.confidence))}%`
     : "";
 
+  if (!event) return null;
+
+  const drawerStyle: React.CSSProperties = {
+    position: "fixed",
+    top: 0,
+    right: 0,
+    width: 420,
+    maxWidth: "100%",
+    height: "100%",
+    backgroundColor: palette.SURFACE,
+    borderLeft: `1px solid ${palette.BORDER}`,
+    display: "flex",
+    flexDirection: "column",
+    minWidth: 0,
+    zIndex: 1300,
+  };
+
   return (
-    <Drawer
-      anchor="right"
-      open={event !== null}
-      onClose={onClose}
-      sx={{ zIndex: 1300 }}
-      slotProps={{
-        paper: {
-          sx: {
-            width: { xs: "100%", sm: 420 },
-            maxWidth: "100%",
-            bgcolor: "background.paper",
-            backgroundImage: "none",
-            borderLeft: "1px solid",
-            borderColor: "divider",
-          },
-        },
-      }}
-    >
-      {event && (
-        <Box
-          data-testid="event-detail-drawer"
-          data-event-id={event.id}
-          sx={{ display: "flex", flexDirection: "column", height: "100%", minWidth: 0 }}
+    <Portal>
+      <div
+        data-testid="event-detail-drawer"
+        data-event-id={event.id}
+        className="flex flex-col h-full min-w-0"
+        style={drawerStyle}
+      >
+        <ToolbarRow
+          gap={8}
+          wrap={false}
+          justify="space-between"
+          className="border-b border-fin-border"
+          style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 8, paddingBottom: 8, borderBottom: `1px solid ${palette.BORDER}` }}
         >
-          <ToolbarRow
-            gap={8}
-            wrap={false}
-            justify="space-between"
-            sx={{ px: 2, py: 1, borderBottom: "1px solid", borderColor: "divider" }}
+          <Box style={{ minWidth: 0 }}>
+            <Text fw={700} truncate data-testid="event-detail-title">
+              {event.title}
+            </Text>
+            <Text size="xs" c="dimmed" truncate>
+              {[event.symbol, event.exchange, event.name].filter(Boolean).join(" · ")}
+            </Text>
+          </Box>
+          <ActionIcon
+            variant="subtle"
+            size="sm"
+            aria-label="Close event details"
+            onClick={onClose}
+            data-testid="event-detail-close"
           >
-            <Box sx={{ minWidth: 0 }}>
-              <Text fw={700} truncate data-testid="event-detail-title">
-                {event.title}
-              </Text>
-              <Text size="xs" c="dimmed" truncate>
-                {[event.symbol, event.exchange, event.name].filter(Boolean).join(" · ")}
-              </Text>
-            </Box>
-            <ActionIcon
-              variant="subtle"
-              size="sm"
-              aria-label="Close event details"
-              onClick={onClose}
-              data-testid="event-detail-close"
-            >
-              <IconX size={15} />
-            </ActionIcon>
+            <IconX size={15} />
+          </ActionIcon>
+        </ToolbarRow>
+
+        <Box style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+          <ToolbarRow gap={8} wrap={false}>
+            <EventTypeBadge type={event.event_type} isAlpha={event.is_alpha} />
+            <Badge size="xs" color="secondary" data-testid="event-detail-source">
+              {event.source.toUpperCase()}
+            </Badge>
+            {event.recurring ? (
+              <Badge size="xs" color="success" data-testid="event-detail-recurring">
+                Recurring
+              </Badge>
+            ) : (
+              <Badge size="xs" color="default" data-testid="event-detail-recurring">
+                One-off
+              </Badge>
+            )}
           </ToolbarRow>
 
-          <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", p: 2, display: "flex", flexDirection: "column", gap: 1 }}>
-            <ToolbarRow gap={8} wrap={false}>
-              <EventTypeBadge type={event.event_type} isAlpha={event.is_alpha} />
-              <Badge size="xs" color="secondary" data-testid="event-detail-source">
-                {event.source.toUpperCase()}
-              </Badge>
-              {event.recurring ? (
-                <Badge size="xs" color="success" data-testid="event-detail-recurring">
-                  Recurring
-                </Badge>
-              ) : (
-                <Badge size="xs" color="default" data-testid="event-detail-recurring">
-                  One-off
-                </Badge>
-              )}
-            </ToolbarRow>
+          <Text size="xs" c="dimmed" data-testid="event-detail-hint">
+            {EVENT_TYPE_HINT[event.event_type] ?? EVENT_TYPE_HINT.other}
+          </Text>
 
-            <Text size="xs" c="dimmed" data-testid="event-detail-hint">
-              {EVENT_TYPE_HINT[event.event_type] ?? EVENT_TYPE_HINT.other}
+          <Divider />
+
+          <Field label="Event date">
+            <Text size="xs" fw={600} data-testid="event-detail-date">
+              {formatEventDate(event.event_date)}
             </Text>
+          </Field>
+          <Field label="Announced">
+            <Text size="xs" data-testid="event-detail-announced">
+              {formatEventDate(event.announced_at)}
+            </Text>
+          </Field>
+          <Field label="Lead time">
+            <Text size="xs" data-testid="event-detail-lead">
+              {lead === null
+                ? "announcement date unknown"
+                : `announced ${lead} day${lead === 1 ? "" : "s"} before`}
+            </Text>
+          </Field>
+          <Field label="Confidence">
+            <Text size="xs" data-testid="event-detail-confidence">
+              {confidence}
+            </Text>
+          </Field>
 
-            <Divider />
+          {event.notes && (
+            <>
+              <Divider />
+              <Box>
+                <Text size="xs" c="dimmed" tt="uppercase" style={{ fontSize: 10, letterSpacing: "0.4px" }}>
+                  Notes
+                </Text>
+                <Text size="xs" data-testid="event-detail-notes">
+                  {event.notes}
+                </Text>
+              </Box>
+            </>
+          )}
 
-            <Field label="Event date">
-              <Text size="xs" fw={600} data-testid="event-detail-date">
-                {formatEventDate(event.event_date)}
-              </Text>
-            </Field>
-            <Field label="Announced">
-              <Text size="xs" data-testid="event-detail-announced">
-                {formatEventDate(event.announced_at)}
-              </Text>
-            </Field>
-            <Field label="Lead time">
-              <Text size="xs" data-testid="event-detail-lead">
-                {lead === null
-                  ? "announcement date unknown"
-                  : `announced ${lead} day${lead === 1 ? "" : "s"} before`}
-              </Text>
-            </Field>
-            <Field label="Confidence">
-              <Text size="xs" data-testid="event-detail-confidence">
-                {confidence}
-              </Text>
-            </Field>
-
-            {event.notes && (
-              <>
-                <Divider />
-                <Box>
-                  <Text size="xs" c="dimmed" tt="uppercase" sx={{ fontSize: 10, letterSpacing: "0.4px" }}>
-                    Notes
-                  </Text>
-                  <Text size="xs" data-testid="event-detail-notes">
-                    {event.notes}
-                  </Text>
-                </Box>
-              </>
-            )}
-
-            {event.source_url && (
-              <>
-                <Divider />
-                <ToolbarRow gap={4} wrap={false}>
-                  <IconExternalLink size={14} />
-                  <Anchor
-                    href={event.source_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    size="xs"
-                    data-testid="event-detail-source-link"
-                    style={{ wordBreak: "break-all" }}
-                  >
-                    {event.source_url}
-                  </Anchor>
-                </ToolbarRow>
-              </>
-            )}
-          </Box>
+          {event.source_url && (
+            <>
+              <Divider />
+              <ToolbarRow gap={4} wrap={false}>
+                <IconExternalLink size={14} />
+                <Anchor
+                  href={event.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  size="xs"
+                  data-testid="event-detail-source-link"
+                  style={{ wordBreak: "break-all" }}
+                >
+                  {event.source_url}
+                </Anchor>
+              </ToolbarRow>
+            </>
+          )}
         </Box>
-      )}
-    </Drawer>
+      </div>
+    </Portal>
   );
 }

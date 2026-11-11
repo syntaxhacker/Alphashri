@@ -1,5 +1,4 @@
-import { Select, NumberInput } from "@/ui";
-import Box from "@mui/material/Box";
+import { Select, NumberInput, Box } from "@/ui";
 
 export function OptionChainFilters({
   filters,
@@ -12,13 +11,15 @@ export function OptionChainFilters({
     <Box
       id="chain-filters"
       data-testid="options-chain-filters"
-      sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1, rowGap: 1 }}
+      className="flex items-center flex-wrap"
+      alignItems="center"
+      gap={1}
     >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: "1 1 140px", maxWidth: 220 }}>
-        <Box component="span" sx={{ minWidth: 64, fontSize: "0.75rem", color: "text.secondary", flexShrink: 0 }}>
+      <Box className="flex items-center" flex="1 1 140px" maw={220} gap={1}>
+        <span className="min-w-[64px] text-[0.75rem] text-fin-text-muted shrink-0">
           Type
-        </Box>
-        <Box sx={{ flex: 1, minWidth: 110, display: "flex", alignItems: "center" }}>
+        </span>
+        <Box className="flex items-center min-w-[110px] flex-1">
           <Select
             value={filters.optionType}
             onChange={(val) => val && setFilters({ optionType: val as "CE" | "PE" | "BOTH" })}
@@ -31,11 +32,11 @@ export function OptionChainFilters({
           />
         </Box>
       </Box>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: "1 1 120px", maxWidth: 200 }}>
-        <Box component="span" sx={{ minWidth: 64, fontSize: "0.75rem", color: "text.secondary", flexShrink: 0 }}>
+      <Box className="flex items-center" flex="1 1 120px" maw={200} gap={1}>
+        <span className="min-w-[64px] text-[0.75rem] text-fin-text-muted shrink-0">
           Moneyness
-        </Box>
-        <Box sx={{ flex: 1, minWidth: 90, display: "flex", alignItems: "center" }}>
+        </span>
+        <Box className="flex items-center min-w-[90px] flex-1">
           <Select
             value={filters.moneyness}
             onChange={(val) => val && setFilters({ moneyness: val as "ITM" | "OTM" | "ALL" })}
@@ -50,32 +51,34 @@ export function OptionChainFilters({
       </Box>
       <Box
         data-testid="options-strike-range-group"
-        sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1, rowGap: 1, flex: "1 1 200px", maxWidth: 340 }}
+        className="flex items-center flex-wrap"
+        flex="1 1 200px"
+        maw={340}
+        alignItems="center"
+        gap={1}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: "1 1 100px", maxWidth: 170 }}>
-          <Box component="span" sx={{ minWidth: 64, fontSize: "0.75rem", color: "text.secondary", flexShrink: 0 }}>
+        <Box className="flex items-center" flex="1 1 100px" maw={170} gap={1}>
+          <span className="min-w-[64px] text-[0.75rem] text-fin-text-muted shrink-0">
             Strike Min
-          </Box>
-          <Box sx={{ flex: 1, minWidth: 80, display: "flex", alignItems: "center" }}>
+          </span>
+          <Box className="flex items-center min-w-[80px] flex-1">
             <NumberInput
               value={filters.strikeRange?.[0] ?? 0}
               onChange={(val) =>
-                setFilters({ strikeRange: [val as number, filters.strikeRange?.[1] ?? 100000] })
-              }
+                setFilters({ strikeRange: [val as number, filters.strikeRange?.[1] ?? 100000] })}
               data-testid="strike-min-input"
             />
           </Box>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: "1 1 100px", maxWidth: 170 }}>
-          <Box component="span" sx={{ minWidth: 40, fontSize: "0.75rem", color: "text.secondary", flexShrink: 0 }}>
+        <Box className="flex items-center" flex="1 1 100px" maw={170} gap={1}>
+          <span className="min-w-[40px] text-[0.75rem] text-fin-text-muted shrink-0">
             Max
-          </Box>
-          <Box sx={{ flex: 1, minWidth: 80, display: "flex", alignItems: "center" }}>
+          </span>
+          <Box className="flex items-center min-w-[80px] flex-1">
             <NumberInput
               value={filters.strikeRange?.[1] ?? 100000}
               onChange={(val) =>
-                setFilters({ strikeRange: [filters.strikeRange?.[0] ?? 0, val as number] })
-              }
+                setFilters({ strikeRange: [filters.strikeRange?.[0] ?? 0, val as number] })}
               data-testid="strike-max-input"
             />
           </Box>

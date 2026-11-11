@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Modal,
   Stack,
@@ -242,9 +242,9 @@ export function StrategyForm({
             </Alert>
           )}
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-            <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Strategy Name</Text>
-            <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+          <Box className="flex items-center gap-2 p-2">
+            <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Strategy Name</Text>
+            <Box className="flex-1 flex items-center">
               <TextInput
                 size="sm"
                 name="name"
@@ -256,9 +256,9 @@ export function StrategyForm({
             </Box>
           </Box>
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-            <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Strategy Type</Text>
-            <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+          <Box className="flex items-center gap-2 p-2">
+            <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Strategy Type</Text>
+            <Box className="flex-1 flex items-center">
               <Select
                 size="sm"
                 name="strategy_type"
@@ -285,9 +285,9 @@ export function StrategyForm({
             </Box>
           </Box>
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-            <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Description</Text>
-            <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+          <Box className="flex items-center gap-2 p-2">
+            <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Description</Text>
+            <Box className="flex-1 flex items-center">
               <TextInput
                 size="sm"
                 name="description"
@@ -298,9 +298,9 @@ export function StrategyForm({
             </Box>
           </Box>
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-            <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Screener Profiles</Text>
-            <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+          <Box className="flex items-center gap-2 p-2">
+            <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Screener Profiles</Text>
+            <Box className="flex-1 flex items-center">
               <MultiSelect
                 size="sm"
                 placeholder="Select screener profiles"
@@ -314,9 +314,9 @@ export function StrategyForm({
             </Box>
           </Box>
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-            <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Custom Stocks</Text>
-            <Box sx={{ flex: 1, display: "flex", alignItems: "center", flexDirection: "column", alignContent: "flex-start" }}>
+          <Box className="flex items-center gap-2 p-2">
+            <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Custom Stocks</Text>
+            <Box className="flex-1 flex flex-col items-center content-start">
               <MultiSelect
                 size="sm"
                 placeholder="Search and add specific stocks"
@@ -338,9 +338,9 @@ export function StrategyForm({
             onChange={setActiveTab}
             className="strategy-form-tabs"
             data-testid="strategy-form-tabs"
-            sx={{ display: "flex", flexDirection: "column", alignItems: "center" }}
+            className="flex flex-col items-center"
           >
-            <Tabs.List className="strategy-form-tabs-list" data-testid="strategy-form-tabs-list" sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+            <Tabs.List className="strategy-form-tabs-list flex items-center justify-center gap-2 p-2" data-testid="strategy-form-tabs-list">
               {isOrb && (
                 <Tabs.Tab value="orb" data-testid="strategy-tab-orb">
                   ORB Params

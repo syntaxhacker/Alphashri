@@ -275,12 +275,12 @@ describe("WatchView", () => {
   });
 
   test("state filter narrows to a single state", async () => {
-    const user = userEvent.setup();
     r(<WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-TCS")).toBeInTheDocument());
 
-    await user.click(within(screen.getByTestId("watch-state-filter")).getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: "Triggered" }));
+    fireEvent.change(within(screen.getByTestId("watch-state-filter")).getByRole("combobox"), {
+      target: { value: "triggered" },
+    });
 
     await waitFor(() => expect(screen.queryByTestId("watch-row-RELIANCE")).not.toBeInTheDocument());
     expect(screen.getByTestId("watch-row-TCS")).toBeInTheDocument();
@@ -564,14 +564,14 @@ describe("WatchView near_52w", () => {
     mockFetchWatch.mockImplementation((query: { setup: string }) =>
       Promise.resolve(query.setup === "near_52w" ? near : makePayload()),
     );
-    const user = userEvent.setup();
     r(<WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
 
-    await user.click(within(screen.getByTestId("watch-setup-select")).getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: "Near 52W high + accumulation" }));
+    fireEvent.change(within(screen.getByTestId("watch-setup-select")).getByRole("combobox"), {
+      target: { value: "near_52w" },
+    });
     await waitFor(() => expect(screen.getByTestId("watch-row-AAA")).toBeInTheDocument());
-    return { user, near };
+    return { near };
   }
 
   test("renders the accumulation columns with formatted values", async () => {
@@ -1117,12 +1117,12 @@ describe("WatchView near_52w trigger date", () => {
   });
 
   test("surfaces trigger_date next to the numeric 52W high value", async () => {
-    const user = userEvent.setup();
     r(<WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
 
-    await user.click(within(screen.getByTestId("watch-setup-select")).getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: "Near 52W high + accumulation" }));
+    fireEvent.change(within(screen.getByTestId("watch-setup-select")).getByRole("combobox"), {
+      target: { value: "near_52w" },
+    });
     await waitFor(() => expect(screen.getByTestId("watch-row-APLLTD")).toBeInTheDocument());
 
     // Numeric value kept (exact) with the date next to it + the full caption in the tooltip.
@@ -1133,12 +1133,12 @@ describe("WatchView near_52w trigger date", () => {
   });
 
   test("renders nothing extra when trigger_date is null or missing", async () => {
-    const user = userEvent.setup();
     r(<WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
 
-    await user.click(within(screen.getByTestId("watch-setup-select")).getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: "Near 52W high + accumulation" }));
+    fireEvent.change(within(screen.getByTestId("watch-setup-select")).getByRole("combobox"), {
+      target: { value: "near_52w" },
+    });
     await waitFor(() => expect(screen.getByTestId("watch-row-NODATE")).toBeInTheDocument());
 
     expect(within(screen.getByTestId("watch-row-NODATE")).getByText("₹1000.00")).toBeInTheDocument();

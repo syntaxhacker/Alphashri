@@ -21,11 +21,4 @@ describe("TanStackTable width — TDD RED for dense layout", () => {
     expect(parseInt(table.style.minWidth || "0", 10)).toBeGreaterThanOrEqual(640);
   });
 
-  it("ScrollArea allows horizontal scroll for wide tables", () => {
-    const { container } = render(<TanStackTable data={data as never} columns={cols as never} />);
-    const table = container.querySelector("table") as HTMLTableElement;
-    // dense tables should allow horizontal scroll via minWidth > container
-    expect(table.style.minWidth).toBeTruthy();
-    expect(parseInt(table.style.minWidth, 10)).toBeGreaterThan(600);
-  });
 });

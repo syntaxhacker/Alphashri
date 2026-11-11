@@ -7,10 +7,13 @@ function pct(value: number): string {
   return `${value.toFixed(2)}%`;
 }
 
+const GRID_COLS = "grid grid-cols-[minmax(0,1fr)_44px_44px_52px] items-center gap-0.5 min-h-[18px] px-0.5 border-b border-fin-border";
+const NUM_CELL = { fontFamily: MONO, fontVariantNumeric: "tabular-nums" } as const;
+
 export function IntervalMoversTable({ movers }: { movers: InternalStockMover[] }) {
   if (movers.length === 0) {
     return (
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+      <Box className="flex items-center justify-center p-1">
         <Text size="xs" c="dimmed" ta="center" py={1}>
           Collecting baseline for interval moves...
         </Text>
@@ -19,24 +22,14 @@ export function IntervalMoversTable({ movers }: { movers: InternalStockMover[] }
   }
 
   return (
-    <Box data-testid="interval-movers-table" sx={{ display: "flex", flexDirection: "column" }}>
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) 44px 44px 52px",
-          alignItems: "center",
-          gap: 0.5,
-          minHeight: 18,
-          px: 0.5,
-          borderBottom: "1px solid",
-          borderColor: "divider",
-        }}
-      >
+    <Box data-testid="interval-movers-table" className="flex flex-col">
+      <Box className={GRID_COLS}>
         {["Stock", "Prev", "Now", "Δ"].map((label, index) => (
           <Text
             key={label}
             c="dimmed"
-            sx={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.3, textAlign: index === 0 ? "left" : "right" }}
+            className="text-[9px] font-bold tracking-[0.3px]"
+            style={{ textAlign: index === 0 ? "left" : "right" }}
           >
             {label}
           </Text>
@@ -45,31 +38,23 @@ export function IntervalMoversTable({ movers }: { movers: InternalStockMover[] }
       {movers.map((mover) => (
         <Box
           key={mover.symbol}
-          sx={{
-            display: "grid",
-            gridTemplateColumns: "minmax(0, 1fr) 44px 44px 52px",
-            alignItems: "center",
-            gap: 0.5,
-            minHeight: 20,
-            px: 0.5,
-            borderBottom: "1px solid",
-            borderColor: "divider",
-          }}
+          className="grid grid-cols-[minmax(0,1fr)_44px_44px_52px] items-center gap-0.5 min-h-5 px-0.5 border-b border-fin-border"
         >
-          <Text truncate sx={{ fontSize: 10.5, fontWeight: 600 }}>
+          <Text truncate className="text-[10.5px] font-semibold">
             {mover.symbol}
           </Text>
-          <Text c="dimmed" ta="right" sx={{ fontFamily: MONO, fontSize: 10, fontVariantNumeric: "tabular-nums" }}>
+          <Text c="dimmed" ta="right" className="text-[10px]" style={NUM_CELL}>
             {pct(mover.prev_change)}
           </Text>
-          <Text ta="right" sx={{ fontFamily: MONO, fontSize: 10, fontVariantNumeric: "tabular-nums" }}>
+          <Text ta="right" className="text-[10px]" style={NUM_CELL}>
             {pct(mover.change)}
           </Text>
           <Text
             c={getPnLTextColor(mover.delta)}
             fw={700}
             ta="right"
-            sx={{ fontFamily: MONO, fontSize: 10, fontVariantNumeric: "tabular-nums" }}
+            className="text-[10px]"
+            style={NUM_CELL}
           >
             {mover.delta > 0 ? "+" : ""}
             {pct(mover.delta)}

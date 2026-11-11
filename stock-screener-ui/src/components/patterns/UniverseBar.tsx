@@ -1,7 +1,7 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { useState, type ReactNode } from "react";
-import Divider from "@mui/material/Divider";
-import { ActionIcon, Box, Button, Modal, Text, Textarea, Tooltip } from "@/ui";
+import { ActionIcon, Box, Button, Divider, Modal, Text, Textarea, Tooltip } from "@/ui";
+import { cn } from "@/ui/cn";
 import {
   IconAlertTriangle,
   IconClipboardText,
@@ -83,40 +83,15 @@ export function UniverseBar({
   return (
     <Box
       data-testid="patterns-universe-bar"
-      sx={{
-        minWidth: 0,
-        position: "sticky",
-        top: 0,
-        zIndex: 5,
-        bgcolor: "background.paper",
-        borderBottom: 1,
-        borderColor: "divider",
-        pb: 0.5,
-      }}
+      className="sticky top-0 z-[5] min-w-0 border-b border-fin-border bg-fin-surface pb-1"
     >
       <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 1,
-          rowGap: 0.75,
-          minWidth: 0,
-          // Wrap the scan cluster to a second line instead of clipping the
-          // scope group when the cache chip + force re-run are on screen.
-          flexWrap: "wrap",
-        }}
+        className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5"
       >
         <Text
           size="xs"
           c="dimmed"
-          sx={{
-            flexShrink: 0,
-            fontSize: 10,
-            fontWeight: 600,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            whiteSpace: "nowrap",
-          }}
+          className="shrink-0 text-[10px] font-semibold uppercase leading-none tracking-[0.08em] whitespace-nowrap"
         >
           Scope
         </Text>
@@ -124,130 +99,69 @@ export function UniverseBar({
         <Box
           role="group"
           aria-label="Scan scope"
-          sx={{
-            display: "inline-flex",
-            alignItems: "stretch",
-            gap: 0.25,
-            p: 0.25,
-            minWidth: 0,
-            border: 1,
-            borderColor: "divider",
-            borderRadius: 1.5,
-            bgcolor: "action.hover",
-            flexWrap: "wrap",
-            rowGap: 0.25,
-          }}
+          className="inline-flex min-w-0 flex-wrap items-stretch gap-0.5 gap-y-[2px] rounded-xl border border-fin-border bg-fin-surface-alt p-0.5"
         >
           {universes.map((u) => {
             const active = universe === u.id;
             return (
-              <Box
+              <button
                 key={u.id}
-                component="button"
                 type="button"
                 onClick={() => setUniverse(u.id)}
                 aria-pressed={active}
                 title={u.count > 0 ? `${u.label} · ${formatNumberIN(u.count)} symbols` : u.label}
                 data-testid={`patterns-universe-${u.id}`}
-                sx={{
-                  appearance: "none",
-                  border: 0,
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "baseline",
-                  gap: 0.5,
-                  px: 0.75,
-                  py: 0.375,
-                  borderRadius: 1,
-                  whiteSpace: "nowrap",
-                  fontFamily: "inherit",
-                  fontSize: 11,
-                  lineHeight: 1.25,
-                  fontWeight: active ? 600 : 500,
-                  color: active ? "primary.main" : "text.secondary",
-                  bgcolor: active ? "action.selected" : "transparent",
-                  boxShadow: active ? "inset 0 0 0 1px var(--mui-palette-primary-main)" : "none",
-                  "&:hover": {
-                    color: active ? "primary.main" : "text.primary",
-                    bgcolor: active ? "action.selected" : "action.hover",
-                  },
-                  "&:focus-visible": {
-                    outline: "2px solid var(--mui-palette-primary-main)",
-                    outlineOffset: 1,
-                  },
-                }}
+                className={cn(
+                  "inline-flex cursor-pointer appearance-none items-baseline gap-1 whitespace-nowrap rounded-fin border-0 px-1.5 py-[3px] font-[inherit] text-[11px] leading-[1.25] transition-colors",
+                  "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary",
+                  active
+                    ? "bg-fin-primary/12 font-semibold text-fin-primary shadow-[inset_0_0_0_1px_var(--color-fin-primary)]"
+                    : "font-medium text-fin-text-muted hover:bg-fin-surface hover:text-fin-text",
+                )}
               >
                 {u.label}
                 {u.count > 0 ? (
-                  <Box
-                    component="span"
-                    sx={{
-                      fontSize: 9.5,
-                      fontWeight: 500,
-                      fontVariantNumeric: "tabular-nums",
-                      color: active ? "primary.main" : "text.disabled",
-                      opacity: active ? 0.9 : 1,
-                    }}
+                  <span
+                    className={cn(
+                      "text-[9.5px] font-medium tabular-nums",
+                      active ? "text-fin-primary opacity-90" : "text-fin-text-muted",
+                    )}
                   >
                     {formatNumberIN(u.count)}
-                  </Box>
+                  </span>
                 ) : null}
-              </Box>
+              </button>
             );
           })}
 
-          <Divider orientation="vertical" flexItem sx={{ my: 0.5 }} />
+          <Divider orientation="vertical" className="my-0.5" />
 
-          <Box
-            component="button"
+          <button
             type="button"
             onClick={() => setUniverse(customUniverse)}
             aria-pressed={customActive}
             data-testid="patterns-universe-custom"
-            sx={{
-              appearance: "none",
-              border: 0,
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 0.5,
-              px: 0.75,
-              py: 0.375,
-              borderRadius: 1,
-              whiteSpace: "nowrap",
-              fontFamily: "inherit",
-              fontSize: 11,
-              lineHeight: 1.25,
-              fontWeight: customActive ? 600 : 500,
-              color: customActive ? "primary.main" : "text.secondary",
-              bgcolor: customActive ? "action.selected" : "transparent",
-              boxShadow: customActive ? "inset 0 0 0 1px var(--mui-palette-primary-main)" : "none",
-              "&:hover": {
-                color: customActive ? "primary.main" : "text.primary",
-                bgcolor: customActive ? "action.selected" : "action.hover",
-              },
-              "&:focus-visible": {
-                outline: "2px solid var(--mui-palette-primary-main)",
-                outlineOffset: 1,
-              },
-            }}
+            className={cn(
+              "inline-flex cursor-pointer appearance-none items-center gap-1 whitespace-nowrap rounded-fin border-0 px-1.5 py-[3px] font-[inherit] text-[11px] leading-[1.25] transition-colors",
+              "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary",
+              customActive
+                ? "bg-fin-primary/12 font-semibold text-fin-primary shadow-[inset_0_0_0_1px_var(--color-fin-primary)]"
+                : "font-medium text-fin-text-muted hover:bg-fin-surface hover:text-fin-text",
+            )}
           >
             <IconPencil size={11} />
             Custom
             {customCount > 0 ? (
-              <Box
-                component="span"
-                sx={{
-                  fontSize: 9.5,
-                  fontWeight: 500,
-                  fontVariantNumeric: "tabular-nums",
-                  color: customActive ? "primary.main" : "text.disabled",
-                }}
+              <span
+                className={cn(
+                  "text-[9.5px] font-medium tabular-nums",
+                  customActive ? "text-fin-primary" : "text-fin-text-muted",
+                )}
               >
                 {formatNumberIN(customCount)}
-              </Box>
+              </span>
             ) : null}
-          </Box>
+          </button>
         </Box>
 
         {onPasteSymbols ? (
@@ -258,7 +172,7 @@ export function UniverseBar({
               aria-label="Paste symbols"
               onClick={() => setPasteOpen(true)}
               data-testid="patterns-paste-symbols"
-              sx={{ flexShrink: 0 }}
+              className="shrink-0"
             >
               <IconClipboardText size={14} />
             </ActionIcon>
@@ -266,21 +180,12 @@ export function UniverseBar({
         ) : null}
 
         <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 0.75,
-            flexShrink: 0,
-            flexWrap: "wrap",
-            justifyContent: "flex-end",
-            ml: "auto",
-            minWidth: 0,
-          }}
+          className="ml-auto flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-1.5"
         >
           <Box
             data-testid="patterns-job-status-wrap"
             data-visible={showStatus ? "true" : "false"}
-            sx={{ display: showStatus ? "flex" : "none", minWidth: 0 }}
+            className={cn("min-w-0", showStatus ? "flex" : "hidden")}
           >
             <JobStatus job={job} queuePosition={queuePosition} scanning={scanning} />
           </Box>
@@ -293,7 +198,7 @@ export function UniverseBar({
             disabled={scanDisabled}
             leftSection={scanning ? undefined : <IconPlayerPlay size={13} />}
             data-testid="patterns-scan-again"
-            sx={{ minWidth: 96, whiteSpace: "nowrap" }}
+            className="min-w-[96px] whitespace-nowrap"
           >
             {scanLabel}
           </Button>
@@ -302,16 +207,7 @@ export function UniverseBar({
 
       {actions ? (
         <Box
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 0.25,
-            mt: 0.5,
-            pt: 0.5,
-            borderTop: 1,
-            borderColor: "divider",
-            minWidth: 0,
-          }}
+          className="mt-1 flex min-w-0 flex-col gap-0.5 border-t border-fin-border pt-1"
         >
           {actions}
         </Box>
@@ -320,19 +216,7 @@ export function UniverseBar({
       {error ? (
         <Box
           role="alert"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 0.5,
-            mt: 0.75,
-            px: 0.75,
-            py: 0.375,
-            borderRadius: 1,
-            bgcolor: "action.hover",
-            borderLeft: 3,
-            borderColor: "error.main",
-            color: "error.main",
-          }}
+          className="mt-1.5 flex items-center gap-1 rounded-fin border-l-[3px] border-fin-negative bg-fin-surface-alt px-1.5 py-[3px] text-fin-negative"
         >
           <IconAlertTriangle size={13} />
           <Text size="xs" c="error" data-testid="patterns-status-line">
@@ -347,8 +231,8 @@ export function UniverseBar({
         title="Paste symbols"
         size="sm"
       >
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-          <Text size="xs" sx={{ color: "text.secondary" }}>
+        <Box className="flex flex-col gap-2">
+          <Text size="xs" c="dimmed">
             Comma, space or newline separated. Duplicates are removed.
           </Text>
           <Textarea
@@ -360,7 +244,7 @@ export function UniverseBar({
             autoFocus
             data-testid="patterns-paste-symbols-input"
           />
-          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
+          <Box className="flex justify-end gap-2">
             <Button size="xs" variant="light" onClick={() => setPasteOpen(false)}>
               Cancel
             </Button>

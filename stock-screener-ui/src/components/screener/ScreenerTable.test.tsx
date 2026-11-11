@@ -69,15 +69,6 @@ describe("ScreenerTable", () => {
     cleanup();
   });
 
-  it("renders table with data-testid", () => {
-    render(
-      <UIProvider>
-        <ScreenerTable {...defaultProps} />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("screener-table")).toBeInTheDocument();
-  });
-
   it("renders all stocks as rows", () => {
     render(
       <UIProvider>
@@ -109,15 +100,6 @@ describe("ScreenerTable", () => {
     );
     await user.click(screen.getByTestId("stock-row-TCS"));
     expect(defaultProps.onSymbolClick).toHaveBeenCalledWith("TCS");
-  });
-
-  it("renders copy-all-symbols button when stocks exist", () => {
-    render(
-      <UIProvider>
-        <ScreenerTable {...defaultProps} />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("copy-all-symbols-btn")).toBeInTheDocument();
   });
 
   it("does not render copy-all-symbols button when stocks array is empty", () => {
@@ -168,14 +150,6 @@ describe("ScreenerTable", () => {
     expect(screen.queryByTestId("stock-row-TCS")).not.toBeInTheDocument();
   });
 
-  it("renders table with MUI sx (no global CSS class)", () => {
-    render(
-      <UIProvider>
-        <ScreenerTable {...defaultProps} />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("screener-table")).toBeInTheDocument();
-  });
 });
 
 describe("ScreenerTable approach badges", () => {

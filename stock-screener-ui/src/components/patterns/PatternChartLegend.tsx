@@ -53,30 +53,16 @@ export function PatternChartLegend({ lines, levels, markers, hidden, onToggle }:
             aria-pressed={interactive ? !isHidden : undefined}
             title={interactive ? (isHidden ? `Show ${entry.name}` : `Hide ${entry.name}`) : undefined}
             data-testid={`patterns-chart-legend-item-${entry.name}`}
-            sx={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 0.5,
-              m: 0,
-              p: 0.25,
-              border: 0,
-              borderRadius: 1,
-              bgcolor: "transparent",
-              font: "inherit",
-              cursor: interactive ? "pointer" : "default",
-              opacity: isHidden ? 0.4 : 1,
-              transition: "opacity 120ms ease",
-              "&:hover": interactive ? { bgcolor: "action.hover" } : undefined,
-              "&:focus-visible": interactive
-                ? { outline: "1px solid", outlineColor: "primary.main" }
-                : undefined,
-            }}
+            className={`m-0 inline-flex items-center gap-1 rounded-fin border-0 bg-transparent p-[2px] font-[inherit] transition-opacity duration-[120ms] ${
+              interactive ? "cursor-pointer hover:bg-fin-surface-alt focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-primary" : "cursor-default"
+            }`}
+            style={{ opacity: isHidden ? 0.4 : 1 }}
           >
             <Box
               w={8}
               h={8}
-              bg={entry.color}
-              sx={{ borderRadius: 2, ...(isHidden ? { filter: "grayscale(1)" } : {}) }}
+              className="rounded-full"
+              style={{ backgroundColor: entry.color, filter: isHidden ? "grayscale(1)" : undefined }}
             />
             <Text
               size="xs"

@@ -11,7 +11,7 @@ beforeEach(() => {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: vi.fn().mockImplementation((query) => ({
-      // Desktop drawdown: MUI's md breakpoint is (min-width:900px). Every
+      // Desktop drawdown: the desktop breakpoint is (min-width:900px). Every
       // other query (colour scheme, print, …) stays false like a fresh browser.
       matches: /min-width:\s*900px/.test(String(query)),
       media: query,
@@ -72,7 +72,7 @@ describe("AppLayout", () => {
     expect(screen.getByText("Child Content")).toBeInTheDocument();
   });
 
-  it("uses theme for shell backgrounds (MUI background.paper, live theme aware)", () => {
+  it("uses theme for shell backgrounds (live theme aware)", () => {
     render(
       <TestWrapper>
         <AppLayout>
@@ -80,7 +80,7 @@ describe("AppLayout", () => {
         </AppLayout>
       </TestWrapper>,
     );
-    // The shell is MUI-based (Box with bgcolor background.paper), not MUI.
+    // The shell is built from @/ui primitives with theme-aware classes instead of legacy theme vars.
     // Verify shell elements exist and have theme-aware attributes/classes instead of legacy vars.
     const main = screen.getByTestId("app-main");
     const header = screen.getByTestId("app-sidebar-header");
@@ -256,9 +256,7 @@ describe("AppLayout", () => {
     );
 
     expect(await screen.findByText("5")).toBeInTheDocument();
-    expect(
-      screen.getByTestId("notif-badge").querySelector(".MuiBadge-badge"),
-    ).not.toHaveClass("MuiBadge-invisible");
+    expect(screen.getByTestId("notif-badge")).toHaveTextContent("5");
   });
 
   it("hides the surge badge when there are no alerts", async () => {
@@ -273,9 +271,7 @@ describe("AppLayout", () => {
     await waitFor(() => {
       expect(fetchSurges).toHaveBeenCalled();
     });
-    expect(
-      screen.getByTestId("notif-badge").querySelector(".MuiBadge-badge"),
-    ).toHaveClass("MuiBadge-invisible");
+    expect(screen.queryByTestId("notif-badge")).not.toBeInTheDocument();
   });
 
   it("passes collapsed prop correctly to NavbarNested after toggle", async () => {

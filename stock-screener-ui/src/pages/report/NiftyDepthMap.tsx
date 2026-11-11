@@ -1,8 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Box from "@mui/material/Box";
+import { Box, Text } from "@/ui";
 import ReactECharts from "echarts-for-react";
 import { ChartErrorBoundary } from "@/components/common/ChartErrorBoundary";
-import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { CompactStat, CompactStatGrid } from "@/components/common/compact";
 import { EmptyCompact } from "@/components/common/states";
@@ -529,13 +528,16 @@ const LegendChip = memo(function LegendChip({
   return (
     <Box
       data-testid={testId}
-      sx={{ display: "flex", alignItems: "center", gap: 1, fontVariantNumeric: "tabular-nums" }}
+      className="flex items-center gap-[8px] tabular-nums"
     >
-      <Box sx={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: color, flexShrink: 0 }} />
+      <Box
+        className="w-[8px] h-[8px] rounded-full shrink-0"
+        style={{ backgroundColor: color }}
+      />
       <Text size="xs" c="dimmed" span>
         {label}
       </Text>
-      <Text size="xs" fw={700} span c={valueColor ?? "default"}>
+      <Text size="xs" fw={700} span className="tabular-nums" style={{ color: valueColor ?? palette.TEXT }}>
         {value}
       </Text>
     </Box>
@@ -656,9 +658,9 @@ function NiftyDepthMapInner({ report, active = true }: NiftyDepthMapProps) {
   return (
     <Box
       data-testid="nifty-depthmap"
-      sx={{ display: "flex", flexDirection: "column", gap: 2, width: "100%", minWidth: 0 }}
+      className="flex flex-col gap-[16px] w-full min-w-0"
     >
-      <Box data-testid="nifty-depth-stats" sx={{ display: "flex", width: "100%", minWidth: 0 }}>
+      <Box data-testid="nifty-depth-stats" className="flex w-full min-w-0">
         <CompactStatGrid>
           <CompactStat
             data-testid="nifty-depth-stat-last"
@@ -692,7 +694,7 @@ function NiftyDepthMapInner({ report, active = true }: NiftyDepthMapProps) {
 
       <Box
         data-testid="nifty-depth-legend"
-        sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 2, px: 1 }}
+        className="flex items-center flex-wrap gap-[16px] px-2"
       >
         <LegendChip testId="nifty-depth-legend-ce-dom" color={palette.NEGATIVE} label="CE over PE" value={String(legend.ceDom)} />
         <LegendChip testId="nifty-depth-legend-pe-dom" color={palette.POSITIVE} label="PE over CE" value={String(legend.peDom)} />
@@ -703,13 +705,8 @@ function NiftyDepthMapInner({ report, active = true }: NiftyDepthMapProps) {
 
       <Box
         data-testid="nifty-depth-chart"
-        sx={{
-          position: "relative",
-          width: "100%",
-          minWidth: 0,
-          minHeight: 380,
-          height: "min(62vh, 600px)",
-        }}
+        className="relative w-full min-w-0 min-h-[380px]"
+        style={{ height: "min(62vh, 600px)" }}
       >
         {rows.length === 0 ? (
           <EmptyCompact
@@ -720,13 +717,8 @@ function NiftyDepthMapInner({ report, active = true }: NiftyDepthMapProps) {
         ) : null}
         {rows.length > 0 || hasEverHadRows ? (
           <Box
-            sx={{
-              position: "absolute",
-              inset: 0,
-              // Hidden, not unmounted: a transient empty poll must not tear the
-              // engine down (see `hasEverHadRows`).
-              display: rows.length > 0 ? "block" : "none",
-            }}
+            className="absolute inset-0"
+            style={{ display: rows.length > 0 ? "block" : "none" }}
           >
             <ChartErrorBoundary label="Depth map">
               <ReactECharts

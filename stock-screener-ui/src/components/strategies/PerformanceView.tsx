@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Text, Group, Stack, Badge, Loader, Box } from "@/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import { IconAlertCircle } from "@tabler/icons-react";
+import * as palette from "@/ui/palette";
 import type { PerformanceViewProps } from "./types";
 import type { StrategyPerformance } from "../../types/strategies";
 import { CompactStat, CompactStatGrid } from "../common/compact";
@@ -14,7 +15,7 @@ export function PerformanceView({
 }: PerformanceViewProps) {
   if (isLoading) {
     return (
-      <Box className="performance-view-loading" data-testid="performance-loading-state" sx={{ p: 1 }}>
+      <Box className="performance-view-loading p-2" data-testid="performance-loading-state">
         <Group gap="xs" align="center">
           <Loader size="sm" data-testid="strategies-loading" />
           <Text fw={600} size="sm">
@@ -30,7 +31,7 @@ export function PerformanceView({
 
   if (performance.length === 0) {
     return (
-      <Box className="performance-view-empty" data-testid="performance-empty-state" sx={{ p: 1 }}>
+      <Box className="performance-view-empty p-2" data-testid="performance-empty-state">
         <Group gap="xs" align="center">
           <IconAlertCircle size={18} />
           <Text fw={600} size="sm">
@@ -58,7 +59,7 @@ export function PerformanceView({
         accessorKey: "strategy_name",
         meta: { align: "left" } as any,
         cell: (info) => (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Text fw={500} size="sm" ta="left">
+          <Box className="flex items-center justify-start"><Text fw={500} size="sm" ta="left">
             {info.getValue<string>()}
           </Text></Box>
         ),
@@ -76,7 +77,7 @@ export function PerformanceView({
         accessorFn: (row) => `${row.winners}/${row.losers}`,
         meta: { align: "right" } as any,
         cell: (info) => (
-          <Group gap={4} sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1 }}>
+          <Group gap={4} className="flex items-center justify-end gap-2">
             <Text size="sm" c="info">
               {info.row.original.winners}
             </Text>
@@ -111,7 +112,7 @@ export function PerformanceView({
         cell: (info) => {
           const val = info.getValue<number>();
           return (
-            <span style={{ color: val >= 0 ? "var(--mui-palette-info-main)" : "var(--mui-palette-error-main)", fontWeight: 500, fontSize: 13 }}>
+            <span style={{ color: val >= 0 ? palette.INFO : palette.NEGATIVE, fontWeight: 500, fontSize: 13 }}>
               {val >= 0 ? "+" : ""}
               {val.toFixed(2)}
             </span>
@@ -126,12 +127,11 @@ export function PerformanceView({
     <Stack
       spacing={1}
       gap="sm"
-      className="performance-view"
+      className="performance-view p-2"
       id="performance-view"
       data-testid="performance-view"
-      sx={{ gap: 1, p: 1 }}
     >
-      <CompactStatGrid sx={{ gap: 1, p: 1 }}>
+      <CompactStatGrid className="gap-2 p-2">
         <CompactStat
           label="Total Trades"
           value={totalTrades}
@@ -163,8 +163,8 @@ export function PerformanceView({
         />
       </CompactStatGrid>
 
-      <Box className="performance-table-card" data-testid="performance-table-card" sx={{ minHeight: 0 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+      <Box className="performance-table-card min-h-0" data-testid="performance-table-card">
+        <Box className="flex items-center justify-center p-2">
           <TanStackTable<StrategyPerformance>
             data={performance}
             columns={columns}

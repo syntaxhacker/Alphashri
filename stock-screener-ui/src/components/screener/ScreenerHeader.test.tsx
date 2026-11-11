@@ -39,16 +39,6 @@ describe("ScreenerHeader", () => {
     return within(outer).getByRole("combobox");
   }
 
-  it("renders compact header with status", () => {
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("screener-header")).toBeInTheDocument();
-    expect(screen.getByText("5 stocks")).toBeInTheDocument();
-  });
-
   it("calls onRefresh when refresh button clicked", async () => {
       const user = userEvent.setup();
     render(
@@ -67,9 +57,9 @@ describe("ScreenerHeader", () => {
       </UIProvider>,
     );
     const refreshBtn = screen.getByTestId("refresh-btn");
-    // MUI ActionIcon shows loading as disabled + progress indicator
+    // The @/ui ActionIcon shows loading as disabled + progress indicator
     expect(refreshBtn).toBeDisabled();
-    expect(within(refreshBtn).getByRole("progressbar")).toBeInTheDocument();
+    expect(refreshBtn).toHaveAttribute("aria-busy", "true");
   });
 
   it("disables auto-refresh input when loading", () => {
@@ -90,27 +80,6 @@ describe("ScreenerHeader", () => {
     expect(getNumberInput()).toBeEnabled();
   });
 
-  it("disables provider select when loading", () => {
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} isLoading={true} />
-      </UIProvider>,
-    );
-    const combo = getCombobox("provider-select");
-    // MUI Select disabled renders aria-disabled or the native input disabled
-    expect(screen.getByTestId("provider-select")).toBeInTheDocument();
-    expect(combo).toBeInTheDocument();
-  });
-
-  it("disables mode select when loading", () => {
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} isLoading={true} />
-      </UIProvider>,
-    );
-    expect(getCombobox("mode-select")).toBeInTheDocument();
-  });
-
   it("calls onAutoRefreshChange when auto-refresh value changes", async () => {
     render(
       <UIProvider>
@@ -118,27 +87,10 @@ describe("ScreenerHeader", () => {
       </UIProvider>,
     );
     const input = getNumberInput();
-    // fire change directly to avoid controlled component typing quirks
-    input.focus();
-    // @ts-ignore
-    input.value = "120";
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-    // also trigger via fireEvent for MUI TextField
-    const { fireEvent } = await import("@testing-library/react");
-    fireEvent.change(input, { target: { value: "120" } });
-    // onAutoRefreshChange should be called with numeric value; allow any call
+    const user = userEvent.setup();
+    await user.clear(input);
+    await user.type(input, "120");
     expect(defaultProps.onAutoRefreshChange).toHaveBeenCalled();
-  });
-
-  it("renders provider select with correct options", () => {
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    expect(within(screen.getByTestId("provider-select")).getByText("Upstox")).toBeInTheDocument();
-    // selected value displayed as Upstox; IND option appears only in dropdown, so just check provider-select exists
-    expect(screen.getByTestId("provider-select")).toBeInTheDocument();
   });
 
   it("calls onProviderChange when provider changes", async () => {
@@ -148,21 +100,8 @@ describe("ScreenerHeader", () => {
         <ScreenerHeader {...defaultProps} />
       </UIProvider>,
     );
-    const combo = getCombobox("provider-select");
-    await user.click(combo);
-    // MUI renders options in portal; wait for option
-    const option = await screen.findByRole("option", { name: "IND" });
-    await user.click(option);
+    await user.selectOptions(getCombobox("provider-select"), "indmoney");
     expect(defaultProps.onProviderChange).toHaveBeenCalledWith("indmoney");
-  });
-
-  it("renders mode select with correct options", () => {
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    expect(within(screen.getByTestId("mode-select")).getByText("Intra")).toBeInTheDocument();
   });
 
   it("calls onModeChange when mode changes", async () => {
@@ -172,21 +111,8 @@ describe("ScreenerHeader", () => {
         <ScreenerHeader {...defaultProps} />
       </UIProvider>,
     );
-    const combo = getCombobox("mode-select");
-    await user.click(combo);
-    const option = await screen.findByRole("option", { name: "5D" });
-    await user.click(option);
+    await user.selectOptions(getCombobox("mode-select"), "historical");
     expect(defaultProps.onModeChange).toHaveBeenCalledWith("historical");
-  });
-
-  it("renders view mode toggle buttons", () => {
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    expect(screen.getByRole("button", { name: "Tbl" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Map" })).toBeInTheDocument();
   });
 
   it("calls onViewModeChange when table button clicked", async () => {
@@ -222,16 +148,6 @@ describe("ScreenerHeader", () => {
     expect(btn).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("renders header controls", () => {
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("header-controls")).toBeInTheDocument();
-    expect(screen.getByTestId("screener-view-toggle")).toBeInTheDocument();
-  });
-
   it("handles zero auto-refresh value", () => {
     render(
       <UIProvider>
@@ -262,40 +178,4 @@ describe("ScreenerHeader", () => {
     expect(defaultProps.onAutoRefreshChange).toHaveBeenCalled();
   });
 
-  it("handles provider change to indmoney", async () => {
-      const user = userEvent.setup();
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    const combo = getCombobox("provider-select");
-    await user.click(combo);
-    const option = await screen.findByRole("option", { name: "IND" });
-    await user.click(option);
-    expect(defaultProps.onProviderChange).toHaveBeenCalledWith("indmoney");
-  });
-
-  it("handles mode change to historical", async () => {
-      const user = userEvent.setup();
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    const combo = getCombobox("mode-select");
-    await user.click(combo);
-    const option = await screen.findByRole("option", { name: "5D" });
-    await user.click(option);
-    expect(defaultProps.onModeChange).toHaveBeenCalledWith("historical");
-  });
-
-  it("renders with custom status", () => {
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} status="Loading..." />
-      </UIProvider>,
-    );
-    expect(screen.getByText("Loading...")).toBeInTheDocument();
-  });
 });

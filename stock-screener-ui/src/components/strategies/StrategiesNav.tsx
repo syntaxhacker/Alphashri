@@ -21,7 +21,7 @@ export function StrategiesNav({
       title="Strategies"
       description="Manage templates, variations, and performance in one place"
       scrollable
-      sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
+      className="flex-1 min-h-0 flex flex-col"
     >
       <ToolbarRow gap={8} wrap={false}>
         <SegmentedControl

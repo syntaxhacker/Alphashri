@@ -1,7 +1,5 @@
 import { useState, Fragment, useEffect, useMemo, useRef, type ReactNode, type CSSProperties } from "react";
-import TableContainer from "@mui/material/TableContainer";
-import Paper from "@mui/material/Paper";
-import { Box, ScrollArea, useDensity } from "@/ui";
+import { Box, Paper, ScrollArea, useDensity } from "@/ui";
 import * as palette from "@/ui/palette";
 import {
   flexRender,
@@ -280,96 +278,65 @@ export function TanStackTable<T>({
   const topSpacerHeight = useRowWindow ? rowOffsets[rowWindowStart] : 0;
   const bottomSpacerHeight = useRowWindow ? Math.max(0, totalHeight - rowOffsets[rowWindowEnd]) : 0;
 
+  const tableStyle: CSSProperties = {
+    width: "100%",
+    tableLayout: hasSizedColumns ? "fixed" : "auto",
+    minWidth: minTableWidth ?? Math.max(640, visibleColumnCount * 96),
+    borderCollapse: "collapse",
+    backgroundColor: palette.SURFACE,
+    ...style,
+  };
+
+  const tableClassName = `paper-tanstack-table ${className || ""}`;
+
   const tableScroll = (
-      <ScrollArea className="paper-tanstack-scroll" sx={{ flex: 1, minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column", bgcolor: palette.SURFACE }}
-        onScrollPositionChange={useRowWindow ? (pos) => setScrollTop(pos.y) : undefined}
+    <ScrollArea
+      className="paper-tanstack-scroll"
+      style={{ flex: 1, minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column", backgroundColor: palette.SURFACE }}
+      onScrollPositionChange={useRowWindow ? (pos) => setScrollTop(pos.y) : undefined}
+    >
+      <Box
+        component="table"
+        data-testid={dataTestId}
+        aria-label={ariaLabel}
+        id={dataTestId ? `paper-tanstack-table-${dataTestId}` : undefined}
+        style={tableStyle as React.CSSProperties}
+        className={tableClassName}
       >
-        <Box
-          component="table"
-          data-testid={dataTestId}
-          aria-label={ariaLabel}
-          id={dataTestId ? `paper-tanstack-table-${dataTestId}` : undefined}
-          style={{ width: "100%", tableLayout: hasSizedColumns ? "fixed" : "auto", minWidth: minTableWidth ?? Math.max(640, visibleColumnCount * 96), ...style } as React.CSSProperties}
-          sx={{
-            width: "100%",
-            minWidth: minTableWidth ?? Math.max(640, visibleColumnCount * 96),
-            borderCollapse: "collapse",
-            bgcolor: palette.SURFACE,
-            // Badges/chips must not set the row height in a dense table: cap
-            // them so a status chip fits inside the 22-24px row budget.
-            "& .MuiChip-root": {
-              height: dense ? 14 : isComfortable ? 22 : 16,
-              fontSize: dense ? 9 : isComfortable ? 11 : 9.5,
-              borderRadius: 0.5,
-            },
-            "& .MuiChip-label": {
-              paddingInline: isComfortable ? 8 : 4,
-            },
-            // A default MUI checkbox is 38px tall (9px padding + 20px icon) and
-            // alone pushes a dense row to 43px. Cap it to the row budget; the
-            // hit area shrinks but the row stays scannable (18px target).
-            ...(isComfortable
-              ? {}
-              : {
-                  "& .MuiCheckbox-root": {
-                    padding: "1px",
-                    "& .MuiSvgIcon-root": { fontSize: 16 },
-                  },
-                }),
-            // Typography inside a cell must not set the row height: MUI's
-            // default body line-height (1.66) turns a 11-12px label into a
-            // 20px line box, which pushes a 23px row to 25px+. Cap it here so
-            // the row budget is honoured by every consumer (the cell height
-            // is a min-height in CSS table layout, so content wins without
-            // this). Not applied in comfortable mode.
-            ...(isComfortable
-              ? {}
-              : {
-                  "& .paper-tanstack-cell .MuiTypography-root, & .paper-tanstack-header-cell .MuiTypography-root":
-                    { lineHeight: 1.15 },
-                }),
-            // Keyboard-activated rows (onRowClick) need a visible focus ring —
-            // the row itself is the tab stop, not anything inside it.
-            "& tbody tr:focus-visible": {
-              outline: `2px solid ${palette.PRIMARY}`,
-              outlineOffset: -2,
-            },
-          }}
-          className={`paper-tanstack-table ${className || ""}`}
-        >
         <thead>
           {table.getHeaderGroups().map((hg) => (
             <tr key={hg.id}>
               {hg.headers.map((h) => {
                 const width = getColumnWidth(h.column);
                 const { align } = getColumnMeta(h.column);
+                const headerStyle: CSSProperties = {
+                  padding: width === 0 ? "0" : cellPad,
+                  height: headerHeight,
+                  fontSize: cellFontSize,
+                  lineHeight: 1.2,
+                  fontWeight: 600,
+                  fontVariantNumeric: "tabular-nums",
+                  whiteSpace: "nowrap",
+                  userSelect: "none",
+                  color: palette.TEXT_MUTED,
+                  borderBottom: `1px solid ${palette.BORDER}`,
+                  width: width !== undefined ? width : undefined,
+                  display: width === 0 ? "none" : undefined,
+                  textAlign: align ?? (numericColumnIds.has(h.column.id) ? "right" : "left"),
+                  cursor: h.column.getCanSort() ? "pointer" : "default",
+                };
+                if (stickyHeader) {
+                  headerStyle.position = "sticky";
+                  headerStyle.top = 0;
+                  headerStyle.zIndex = 1;
+                }
                 return (
-                    <Box
+                  <Box
                     component="th"
                     key={h.id}
                     className="paper-tanstack-header-cell"
                     id={`paper-tanstack-header-${String(h.column.id)}`}
-                    sx={{
-                      padding: width === 0 ? "0" : cellPad,
-                      height: headerHeight,
-                      fontSize: cellFontSize,
-                      lineHeight: 1.2,
-                      fontWeight: 600,
-                      fontVariantNumeric: "tabular-nums",
-                      whiteSpace: "nowrap",
-                      userSelect: "none",
-                      bgcolor: palette.SURFACE_ALT,
-                      color: palette.TEXT_MUTED,
-                      borderBottom: 1,
-                      borderColor: palette.BORDER,
-                      width: width !== undefined ? width : undefined,
-                      display: width === 0 ? "none" : undefined,
-                      textAlign: align ?? (numericColumnIds.has(h.column.id) ? "right" : "left"),
-                      cursor: h.column.getCanSort() ? "pointer" : "default",
-                      position: stickyHeader ? "sticky" : undefined,
-                      top: stickyHeader ? 0 : undefined,
-                      zIndex: stickyHeader ? 1 : undefined,
-                    }}
+                    style={headerStyle}
                     onClick={h.column.getToggleSortingHandler()}
                     colSpan={h.colSpan}
                   >
@@ -407,88 +374,93 @@ export function TanStackTable<T>({
                 </tr>
               )}
               {renderedRows.map((row, index) => (
-              <Fragment key={`row-group-${row.id}`}>
-                {row.getIsGrouped() ? (
-                  <Box
-                    component="tr"
-                    key={row.id}
-                    data-testid={getGroupRowTestId?.(row.groupingValue)}
-                    onClick={row.getToggleExpandedHandler()}
-                    sx={{ cursor: "pointer", bgcolor: palette.SURFACE_ALT }}
-                  >
-                    <Box component="td" colSpan={colCount} sx={{ padding: 0, border: "none", bgcolor: palette.SURFACE_ALT }}>
-                      {renderGroupHeader?.({
-                        value: row.groupingValue,
-                        rows: row.subRows.map((r) => r.original),
-                        isExpanded: row.getIsExpanded(),
-                        toggle: row.toggleExpanded,
-                      })}
-                    </Box>
-                  </Box>
-                ) : (
-                  <>
-                    <tr
+                <Fragment key={`row-group-${row.id}`}>
+                  {row.getIsGrouped() ? (
+                    <Box
+                      component="tr"
                       key={row.id}
-                      style={{ cursor: onRowClick ? "pointer" : undefined, ...getRowStyle?.(row.original) }}
-                      onClick={() => onRowClick?.(row.original)}
-                      onKeyDown={
-                        onRowClick
-                          ? (event) => {
-                              if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault();
-                                onRowClick(row.original);
-                              }
-                            }
-                          : undefined
-                      }
-                      tabIndex={onRowClick ? 0 : undefined}
-                      className={getRowClassName?.(row.original)}
-                      data-testid={getRowTestId?.(row.original, index)}
-                      {...getRowAttributes?.(row.original, index)}
-                      data-row="stock"
+                      data-testid={getGroupRowTestId?.(row.groupingValue)}
+                      onClick={row.getToggleExpandedHandler()}
+                      className="paper-tanstack-group-row"
+                      style={{
+                        cursor: "pointer",
+                        backgroundColor: palette.SURFACE_ALT,
+                      }}
                     >
-                      {row.getVisibleCells().map((cell) => {
-                        const width = getColumnWidth(cell.column);
-                        const { align } = getColumnMeta(cell.column);
-                        return (
-                          <Box
-                            component="td"
-                            key={cell.id}
-                            className="paper-tanstack-cell"
-                            id={`paper-tanstack-cell-${String(cell.column.id)}-${row.id}`}
-                            sx={{
-                              padding: width === 0 ? "0" : cell.column.id === "toggle" ? "2px 4px" : cellPad,
-                              fontSize: cellFontSize,
-                              lineHeight: 1.2,
-                              fontVariantNumeric: "tabular-nums",
-                              whiteSpace: "nowrap",
-                              height: rowEstimated,
-                              borderBottom: 1,
-                              borderColor: palette.BORDER,
-                              bgcolor: palette.SURFACE,
-                              width: width !== undefined ? width : undefined,
-                              display: width === 0 ? "none" : undefined,
-                              textAlign: align ?? (numericColumnIds.has(cell.column.id) ? "right" : "left"),
-                              ...(width !== undefined
-                                ? { overflow: "hidden", textOverflow: "ellipsis" }
-                                : {}),
-                            }}
-                          >
-                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                          </Box>
-                        );
-                      })}
-                    </tr>
-                    {row.getIsExpanded() && renderSubComponent && (
-                      <tr key={`${row.id}-expanded`} className="paper-tanstack-expanded-row" id={`paper-expanded-row-${row.id}`} style={{ background: palette.BG }}>
-                        <td className="paper-tanstack-expanded-cell" colSpan={row.getVisibleCells().length} style={{ padding: 0, borderTop: `1px solid ${palette.BORDER}`, borderBottom: `1px solid ${palette.BORDER}`, background: palette.BG }}>
-                          {renderSubComponent(row.original)}
-                        </td>
+                      <Box component="td" colSpan={colCount} style={{ padding: 0, border: "none", backgroundColor: palette.SURFACE_ALT }}>
+                        {renderGroupHeader?.({
+                          value: row.groupingValue,
+                          rows: row.subRows.map((r) => r.original),
+                          isExpanded: row.getIsExpanded(),
+                          toggle: row.toggleExpanded,
+                        })}
+                      </Box>
+                    </Box>
+                  ) : (
+                    <>
+                      <tr
+                        key={row.id}
+                        style={{ cursor: onRowClick ? "pointer" : undefined, ...getRowStyle?.(row.original) }}
+                        onClick={() => onRowClick?.(row.original)}
+                        onKeyDown={
+                          onRowClick
+                            ? (event) => {
+                                if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault();
+                                  onRowClick(row.original);
+                                }
+                              }
+                            : undefined
+                        }
+                        tabIndex={onRowClick ? 0 : undefined}
+                        className={getRowClassName?.(row.original)}
+                        data-testid={getRowTestId?.(row.original, index)}
+                        {...getRowAttributes?.(row.original, index)}
+                        data-row="stock"
+                      >
+                        {row.getVisibleCells().map((cell) => {
+                          const width = getColumnWidth(cell.column);
+                          const { align } = getColumnMeta(cell.column);
+                          const cellStyle: CSSProperties = {
+                            padding: width === 0 ? "0" : cell.column.id === "toggle" ? "2px 4px" : cellPad,
+                            fontSize: cellFontSize,
+                            lineHeight: 1.2,
+                            fontVariantNumeric: "tabular-nums",
+                            whiteSpace: "nowrap",
+                            height: rowEstimated,
+                            borderBottom: `1px solid ${palette.BORDER}`,
+                            backgroundColor: palette.SURFACE,
+                            width: width !== undefined ? width : undefined,
+                            display: width === 0 ? "none" : undefined,
+                            textAlign: align ?? (numericColumnIds.has(cell.column.id) ? "right" : "left"),
+                          };
+                          if (width !== undefined) {
+                            cellStyle.overflow = "hidden";
+                            cellStyle.textOverflow = "ellipsis";
+                          }
+                          return (
+                            <Box
+                              component="td"
+                              key={cell.id}
+                              className="paper-tanstack-cell"
+                              id={`paper-tanstack-cell-${String(cell.column.id)}-${row.id}`}
+                              style={cellStyle}
+                            >
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </Box>
+                          );
+                        })}
                       </tr>
-                    )}
-                  </>
-                )}
-              </Fragment>
+                      {row.getIsExpanded() && renderSubComponent && (
+                        <tr key={`${row.id}-expanded`} className="paper-tanstack-expanded-row" id={`paper-expanded-row-${row.id}`} style={{ background: palette.BG }}>
+                          <td className="paper-tanstack-expanded-cell" colSpan={row.getVisibleCells().length} style={{ padding: 0, borderTop: `1px solid ${palette.BORDER}`, borderBottom: `1px solid ${palette.BORDER}`, background: palette.BG }}>
+                            {renderSubComponent(row.original)}
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  )}
+                </Fragment>
               ))}
               {useRowWindow && bottomSpacerHeight > 0 && (
                 <tr aria-hidden style={{ height: bottomSpacerHeight }}>
@@ -504,9 +476,26 @@ export function TanStackTable<T>({
 
   if (bare) return tableScroll;
 
+  const containerStyle: CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+    borderRadius: 8,
+    border: `1px solid ${palette.BORDER}`,
+    backgroundColor: palette.SURFACE,
+    maxHeight: fillContainer ? undefined : "65vh",
+    minHeight: fillContainer ? 0 : 200,
+    flex: fillContainer ? 1 : undefined,
+    height: fillContainer ? "100%" : undefined,
+  };
+
   return (
-    <TableContainer component={Paper} elevation={0} className={`paper-tanstack-container ${className || ""}`} id={dataTestId ? `paper-tanstack-${dataTestId}` : undefined} sx={{ borderRadius: 1, display: "flex", flexDirection: "column", overflow: "hidden", maxHeight: fillContainer ? "none" : "65vh", minHeight: fillContainer ? 0 : 200, flex: fillContainer ? 1 : undefined, height: fillContainer ? "100%" : undefined, border: 0, bgcolor: palette.SURFACE }}>
+    <Paper
+      className={`paper-tanstack-container ${className || ""}`}
+      id={dataTestId ? `paper-tanstack-${dataTestId}` : undefined}
+      style={containerStyle}
+    >
       {tableScroll}
-    </TableContainer>
+    </Paper>
   );
 }

@@ -13,13 +13,6 @@ afterEach(() => {
 });
 
 describe("ChainSummary component rendering", () => {
-  it("renders chain summary container", () => {
-    renderWithProviders(
-      <ChainSummary strikeMatrix={[]} spotPrice={24500} selectedExpiry="25MAY" />,
-    );
-    expect(screen.getByTestId("chain-summary")).toBeInTheDocument();
-  });
-
   it("renders PCR value", () => {
     renderWithProviders(
       <ChainSummary

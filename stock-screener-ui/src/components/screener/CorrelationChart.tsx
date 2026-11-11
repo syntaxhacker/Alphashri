@@ -113,14 +113,15 @@ export function CorrelationChart({ normalized, symbols, isLoading }: Correlation
   }, [hasData, normalized, symbols, setChartOption]);
 
   return (
-    <Box pos="relative" sx={{ minHeight: 300 }}>
+    <Box pos="relative" className="min-h-[300px]">
       <Box
         data-testid="correlation-chart"
         ref={chartRef}
-        sx={{ minHeight: 300, opacity: hasData ? 1 : 0 }}
+        className="min-h-[300px]"
+        style={{ opacity: hasData ? 1 : 0 }}
       />
       {isLoading && (
-        <Flex pos="absolute" inset={0} justify="center" align="center" sx={{ zIndex: 1 }}>
+        <Flex pos="absolute" inset={0} justify="center" align="center" className="z-[1]">
           <Stack align="center" gap="sm">
             <Loader size="sm" />
             <Text size="sm" c="dimmed">

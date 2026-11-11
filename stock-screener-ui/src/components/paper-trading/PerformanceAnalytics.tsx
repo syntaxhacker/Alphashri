@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { Box, Flex, Text, Paper, SimpleGrid, Loader, Center, SegmentedControl, Group, Badge } from "@/ui";
+import { Box, Flex, Text, Paper, SimpleGrid, Loader, Center, SegmentedControl, Group } from "@/ui";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { getPaperTradingState, subscribe } from "../../state/paperTrading";
 import { fetchAnalytics } from "../../api/paperTrading";
 import { CompactStat, CompactStatGrid } from "../common/compact";
 import type { AnalyticsData, DailyPnLPoint, EquityCurvePoint } from "../../types/paperTrading";
-import { PERF_POSITIVE, PERF_NEGATIVE, POSITIVE, NEGATIVE, TEXT_MUTED } from "../../config/colors";
+import { PERF_POSITIVE, PERF_NEGATIVE, POSITIVE, NEGATIVE, TEXT_MUTED, PRIMARY, INFO } from "../../config/colors";
 import { withAlpha } from "../../utils/color";
 import ReactECharts from "echarts-for-react";
 
@@ -222,7 +222,7 @@ export function PerformanceAnalytics() {
     <Flex direction="column" gap="xs">
       <Flex justify="space-between" align="center">
         <Group gap="xs">
-            <Box w={4} h={20} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.info.main })} />
+            <Box w={4} h={20} style={{ borderRadius: 2, backgroundColor: INFO }} />
             <Text fw={700} size="lg">Performance Analytics</Text>
         </Group>
         <SegmentedControl
@@ -245,14 +245,14 @@ export function PerformanceAnalytics() {
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
         <Paper p="xs" radius="md">
           <Group gap="xs" mb={2}>
-            <Box w={4} h={14} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.primary.main })} />
+            <Box w={4} h={14} style={{ borderRadius: 2, backgroundColor: PRIMARY }} />
             <Text fw={600} size="xs">Equity Curve</Text>
           </Group>
           <EquityCurveChart data={equity_curve} />
         </Paper>
         <Paper p="xs" radius="md">
           <Group gap="xs" mb={2}>
-            <Box w={4} h={14} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.secondary.main })} />
+            <Box w={4} h={14} style={{ borderRadius: 2, backgroundColor: TEXT_MUTED }} />
             <Text fw={600} size="xs">Daily P&L</Text>
           </Group>
           <DailyPnLChart data={daily_pnl} />
@@ -262,14 +262,14 @@ export function PerformanceAnalytics() {
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
         <Paper p="xs" radius="md">
           <Group gap="xs" mb={2}>
-            <Box w={4} h={14} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.error.main })} />
+            <Box w={4} h={14} style={{ borderRadius: 2, backgroundColor: NEGATIVE }} />
             <Text fw={600} size="xs">Drawdown</Text>
           </Group>
           <DrawdownChart data={drawdown} />
         </Paper>
         <Paper p="xs" radius="md">
           <Group gap="xs" mb={2}>
-            <Box w={4} h={14} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.info.main })} />
+            <Box w={4} h={14} style={{ borderRadius: 2, backgroundColor: INFO }} />
             <Text fw={600} size="xs">Monthly P&L</Text>
           </Group>
           <MonthlyChart data={monthly_pnl} />

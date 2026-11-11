@@ -117,7 +117,7 @@ export function EventsFilters({ query, onChange, onRefresh, isRefreshing }: Even
         size="sm"
         data-testid="events-alpha-only"
       />
-      <Box onBlur={commitSymbols} sx={{ display: "inline-flex" }}>
+      <Box onBlur={commitSymbols} className="inline-flex">
         <TextInput
           value={symbolDraft}
           onChange={setSymbolDraft}
@@ -134,7 +134,7 @@ export function EventsFilters({ query, onChange, onRefresh, isRefreshing }: Even
           data-testid="events-symbols-input"
         />
       </Box>
-      <Box sx={{ flex: 1, minWidth: 0 }} />
+      <Box className="flex-1 min-w-0" />
       <Button
         size="sm"
         variant="outline"

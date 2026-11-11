@@ -43,7 +43,8 @@ export function BacktestRightRail({ width, onWidthChange, children }: BacktestRi
     <Box
       ref={railRef}
       data-testid="backtest-rail"
-      sx={{
+      className="flex-shrink-0 h-full min-h-0 flex flex-col overflow-hidden"
+      style={{
         flex: "0 0 auto",
         width,
         minWidth: RAIL_MIN_WIDTH,
@@ -53,7 +54,7 @@ export function BacktestRightRail({ width, onWidthChange, children }: BacktestRi
         position: "relative",
         display: "flex",
         flexDirection: "column",
-        bgcolor: palette.NT_BG,
+        backgroundColor: palette.NT_BG,
         borderLeft: `1px solid ${palette.BORDER}`,
         overflow: "hidden",
       }}
@@ -62,9 +63,16 @@ export function BacktestRightRail({ width, onWidthChange, children }: BacktestRi
         role="separator"
         aria-label="Resize right panel"
         onPointerDown={beginResize}
-        sx={{
-          position: "absolute", left: 0, top: 0, bottom: 0, width: 6, cursor: "ew-resize",
-          touchAction: "none", zIndex: 3, "&:hover": { bgcolor: palette.PRIMARY, opacity: 0.35 },
+        className="absolute left-0 top-0 bottom-0 w-[6px] cursor-ew-resize touch-none z-3"
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 6,
+          cursor: "ew-resize",
+          touchAction: "none",
+          zIndex: 3,
         }}
       />
       {children}

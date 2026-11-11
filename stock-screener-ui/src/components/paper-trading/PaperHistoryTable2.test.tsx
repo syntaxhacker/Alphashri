@@ -90,7 +90,7 @@ vi.mock("../../hooks/useStoreSubscription", () => ({
   useStoreSubscription: vi.fn(),
 }));
 
-// mui migrated
+// Migration to @/ui primitives is complete.
 
 import { PaperHistoryTable } from "./PaperHistoryTable2";
 import { mockTrade } from "./testFixtures";
@@ -183,9 +183,7 @@ describe("PaperHistoryTable", () => {
       mockStateStore.trades = [mockTrade()];
       r();
       const select = screen.getByTestId("source-filter-select");
-      fireEvent.mouseDown(within(select).getByRole("combobox"));
-      const option = await screen.findByRole("option", { name: "Options" });
-      fireEvent.click(option);
+      fireEvent.change(within(select).getByRole("combobox"), { target: { value: "options" } });
       const { setFilterSource } = await import("../../state/paperTrading");
       expect(setFilterSource).toHaveBeenCalledWith("options");
     });
@@ -194,9 +192,7 @@ describe("PaperHistoryTable", () => {
       mockStateStore.trades = [mockTrade()];
       r();
       const select = screen.getByTestId("source-filter-select");
-      fireEvent.mouseDown(within(select).getByRole("combobox"));
-      const option = await screen.findByRole("option", { name: "Equity" });
-      fireEvent.click(option);
+      fireEvent.change(within(select).getByRole("combobox"), { target: { value: "equity" } });
       const { setFilterSource } = await import("../../state/paperTrading");
       expect(setFilterSource).toHaveBeenCalledWith("equity");
     });
@@ -256,9 +252,7 @@ describe("PaperHistoryTable", () => {
       ];
       r();
       const select = screen.getByTestId("source-filter-select");
-      fireEvent.mouseDown(within(select).getByRole("combobox"));
-      const option = await screen.findByRole("option", { name: "Futures" });
-      fireEvent.click(option);
+      fireEvent.change(within(select).getByRole("combobox"), { target: { value: "futures" } });
       const { setFilterSource } = await import("../../state/paperTrading");
       expect(setFilterSource).toHaveBeenCalledWith("futures");
     });

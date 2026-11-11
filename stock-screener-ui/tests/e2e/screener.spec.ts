@@ -211,10 +211,14 @@ test.describe("Screener - Config Tab", () => {
       timeout: 10000,
     });
     await openConfigTab(page);
-    const trendingOption = page.locator("text=Trending").first();
-    await expect(trendingOption).toBeVisible({
-      timeout: 10000,
-    });
+    // The toolbar renders a native <select> (screener-select) whose hidden
+    // <option> also matches "text=Trending" — scope to the visible screener
+    // list panel so the assertion reads the rendered row label, not an option.
+    const trendingOption = page
+      .locator('[data-testid="screener-list-panel"]')
+      .getByText("Trending")
+      .first();
+    await expect(trendingOption).toBeVisible({ timeout: 10000 });
   });
   test("should display filter badges for screener with filters", async ({ page }) => {
     await page.goto("/?tab=screener");
@@ -222,8 +226,9 @@ test.describe("Screener - Config Tab", () => {
       timeout: 10000,
     });
     await openConfigTab(page);
-    const buyerInterest = page.locator("text=Buyer Interest+").first();
-    await buyerInterest.click();
+    // Switch via the native <select> — its hidden <option>s are not directly
+    // clickable, so "text=Buyer Interest+" would resolve to a hidden option.
+    await page.locator('[data-testid="screener-select"] select').selectOption("buyer_interest_enhanced");
     const filterBadges = page.locator('[data-testid="screener-active-badge"]');
     await expect(filterBadges.first()).toBeVisible({
       timeout: 10000,

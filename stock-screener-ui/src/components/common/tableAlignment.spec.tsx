@@ -73,7 +73,10 @@ function grabGrid(testId: string) {
     `grid panel: [data-testid="${testId}"] container rendered`,
   ).toBeTruthy();
   const rows = [...(container!.children as HTMLCollectionOf<HTMLElement>)].filter(
-    (row) => row.style.display === "grid" || getComputedStyle(row).display === "grid",
+    (row) =>
+      row.style.display === "grid" ||
+      getComputedStyle(row).display === "grid" ||
+      row.className.includes("grid"),
   );
   expect(
     rows.length,

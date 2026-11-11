@@ -139,7 +139,7 @@ function stateCell(ctx: { getValue: () => unknown; row: { original: WatchRow } }
   const row = ctx.row.original as WatchRow;
   const lastTouch = lastTouchDateOf(row);
   return (
-    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
+    <Box className="inline-flex items-center gap-1">
       <Badge color={stateColor(state)} size="xs" data-testid={`watch-state-${state}`}>
         {state}
       </Badge>
@@ -172,7 +172,7 @@ type WatchCellContext = { getValue: () => unknown; row: { original: WatchRow } }
 const symbolCell = (ctx: WatchCellContext) => {
   const row = ctx.row.original as WatchRow;
   return (
-    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+    <Box className="inline-flex min-w-0 items-center gap-1">
       <Text size="sm" fw={600}>
         {String(ctx.getValue())}
       </Text>
@@ -197,7 +197,7 @@ const high52wCell = (ctx: WatchCellContext) => {
   const triggerDate = triggerDateOf(row);
   if (!triggerDate) return <span>{price}</span>;
   return (
-    <Box sx={{ display: "inline-flex", alignItems: "baseline", gap: 0.5 }}>
+    <Box className="inline-flex items-baseline gap-1">
       <span title={`52W high ${price} · ${triggerDate}`}>{price}</span>
       <Text size="xs" c="dimmed" data-testid={`watch-trigger-date-${row.symbol}`}>
         {triggerDate}
@@ -722,7 +722,7 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
             cell: (ctx: { getValue: () => unknown; row: { original: WatchRow } }) => {
               const symbol = String(ctx.getValue() ?? "");
               return (
-                <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+                <Box className="inline-flex min-w-0 items-center gap-1">
                   <SymbolLink
                     symbol={symbol}
                     testId={`watch-tv-${symbol}`}
@@ -763,7 +763,7 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
   }, [copySymbols, filtered]);
 
   return (
-    <Box data-testid="watch-view" sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }}>
+    <Box data-testid="watch-view" className="flex min-w-0 flex-col gap-1">
       <ToolbarRow justify="space-between" data-testid="watch-toolbar" gap={8}>
         <ToolbarRow gap={8}>
           <Select
@@ -777,7 +777,7 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
             data-testid="watch-setup-select"
           />
           <Tooltip label="Gate on time-adjusted intraday volume (vol_adj). Triggered = price + vol_adj ≥ gate.">
-            <Box data-testid="watch-vol-adj-input" sx={{ display: "inline-flex" }}>
+            <Box data-testid="watch-vol-adj-input" className="inline-flex">
               <NumberInput
                 label="Vol (adj) ≥"
                 value={relVol}
@@ -935,7 +935,7 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
       {loading && items.length === 0 ? (
         <Box
           data-testid="watch-loading"
-          sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1, py: 6 }}
+          className="flex flex-col items-center gap-2 py-12"
         >
           <Loader size="lg" />
           <Text size="sm" c="dimmed">
@@ -950,19 +950,7 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
       ) : items.length === 0 && !error ? (
         <Box
           data-testid="watch-empty"
-          sx={{
-            border: "1px dashed",
-            borderColor: "divider",
-            borderRadius: 1,
-            bgcolor: "background.paper",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 1,
-            py: 6,
-            px: 2,
-            textAlign: "center",
-          }}
+          className="flex flex-col items-center gap-2 rounded-fin border border-dashed border-fin-border bg-fin-surface px-4 py-12 text-center"
         >
           <Text size="sm" c="dimmed">
             No breakout candidates right now.

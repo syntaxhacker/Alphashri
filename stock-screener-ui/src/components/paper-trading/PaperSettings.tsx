@@ -1,10 +1,6 @@
 import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { Card, Text, Select, Button, Group, Badge, Loader, Alert } from "@/ui";
-import Box from "@mui/material/Box";
-import Grid from "@mui/material/Grid";
-import Paper from "@mui/material/Paper";
-import Typography from "@mui/material/Typography";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { getPaperTradingState, subscribe, updateConfigValue } from "../../state/paperTrading";
 import {
@@ -80,14 +76,7 @@ function usePaperSettingsData() {
 }
 function SettingsLoadingState() {
   return (
-    <Card
-      padding="sm"
-      radius="xs"
-      data-testid="settings-panel"
-      className="paper-settings"
-      id="paper-settings"
-      style={{ width: "100%" }}
-    >
+    <Card padding="sm" radius="xs" data-testid="settings-panel" className="paper-settings" id="paper-settings" style={{ width: "100%" }}>
       <Group justify="center" align="center" gap="sm">
         <Loader size="sm" />
         <Text c="dimmed">Loading configuration...</Text>
@@ -97,30 +86,11 @@ function SettingsLoadingState() {
 }
 function SettingsErrorState({ error }: { error: string }) {
   return (
-    <Card
-      padding="sm"
-      radius="md"
-      data-testid="settings-panel"
-      className="paper-settings paper-settings-error"
-      id="paper-settings"
-      style={{ width: "100%" }}
-    >
-      <Alert
-        icon={<IconAlertCircle size={16} />}
-        title="Error"
-        color="error"
-        variant="light"
-        data-testid="settings-error"
-      >
+    <Card padding="sm" radius="md" data-testid="settings-panel" className="paper-settings paper-settings-error" id="paper-settings" style={{ width: "100%" }}>
+      <Alert icon={<IconAlertCircle size={16} />} title="Error" color="error" variant="light" data-testid="settings-error">
         {error}
       </Alert>
-      <Button
-        variant="light"
-        size="sm"
-        mt="sm"
-        onClick={() => fetchStrategyConfig()}
-        data-testid="retry-button"
-      >
+      <Button variant="light" size="sm" className="mt-2" onClick={() => fetchStrategyConfig()} data-testid="retry-button">
         Retry
       </Button>
     </Card>
@@ -136,26 +106,12 @@ function SettingsSection({
   children: ReactNode;
 }) {
   return (
-    <Paper
-      component="section"
-      variant="outlined"
-      sx={{ p: 1, height: "100%", borderRadius: 2, display: "flex", flexDirection: "column" }}
-    >
-      <Typography
-        variant="subtitle2"
-        data-testid={testId}
-        sx={{
-          mb: 1.5,
-          fontWeight: 700,
-          textTransform: "uppercase",
-          letterSpacing: "0.06em",
-          color: "text.secondary",
-        }}
-      >
+    <section className="p-2 rounded-[2px] bg-fin-surface border border-fin-border h-full flex flex-col">
+      <Text size="sm" fw={700} c="secondary" className="mb-3 uppercase" style={{ letterSpacing: "0.06em" }} data-testid={testId}>
         {title}
-      </Typography>
-      <Box sx={{ flex: 1, minHeight: 0 }}>{children}</Box>
-    </Paper>
+      </Text>
+      <div className="flex-1 min-h-0">{children}</div>
+    </section>
   );
 }
 
@@ -181,74 +137,34 @@ function SettingsContent({
   handleReset: () => void;
 }) {
   return (
-    <Card
-      padding="sm"
-      radius="md"
-      data-testid="settings-panel"
-      className="paper-settings"
-      id="paper-settings"
-      style={{ width: "100%" }}
-    >
-      <Box
-        id="settings-header"
-        className="paper-settings-header"
-        sx={{
-          position: "sticky",
-          top: 0,
-          zIndex: 2,
-          bgcolor: "background.paper",
-          pb: 1.5,
-          mb: 2,
-          borderBottom: 1,
-          borderColor: "divider",
-        }}
-      >
+    <Card padding="sm" radius="md" data-testid="settings-panel" className="paper-settings" id="paper-settings" style={{ width: "100%" }}>
+      <div id="settings-header" className="paper-settings-header sticky top-0 z-20 bg-fin-surface pb-3 mb-4 border-b border-fin-border">
         {configError && (
-          <Alert
-            icon={<IconAlertCircle size={16} />}
-            color="error"
-            variant="light"
-            mb="sm"
-            onClose={() => {}}
-            withCloseButton
-          >
+          <Alert icon={<IconAlertCircle size={16} />} color="error" variant="light" className="mb-2" onClose={() => {}} withCloseButton>
             {configError}
           </Alert>
         )}
 
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: 2,
-            flexWrap: "wrap",
-          }}
-        >
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+        <div className="flex justify-between items-start gap-4 flex-wrap">
+          <div className="min-w-0">
+            <Text fw={700} size="sm" style={{ lineHeight: 1.2 }}>
               Strategy Configuration
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
+            </Text>
+            <Text size="xs" c="secondary">
               {strategyConfig.name} ({strategyConfig.strategy_type})
-            </Typography>
-          </Box>
+            </Text>
+          </div>
           <Group gap="xs" align="center" className="paper-settings-actions" id="settings-actions">
             {configDirty && (
               <Badge color="warning" variant="filled">
                 Unsaved Changes
               </Badge>
             )}
-            <SettingsActions
-              loading={configLoading}
-              dirty={configDirty}
-              onSave={handleSave}
-              onReset={handleReset}
-            />
+            <SettingsActions loading={configLoading} dirty={configDirty} onSave={handleSave} onReset={handleReset} />
           </Group>
-        </Box>
+        </div>
 
-        <Box sx={{ mt: 2, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+        <div className="mt-4 flex items-center gap-2 flex-wrap">
           <Text fw={600} size="xs" tt="uppercase" c="dimmed">
             Active Strategy
           </Text>
@@ -271,12 +187,7 @@ function SettingsContent({
             style={{ width: 260, flex: "0 0 auto" }}
             size="xs"
           />
-          <Button
-            variant="light"
-            size="xs"
-            disabled={strategiesLoading || configLoading}
-            data-testid="manage-strategies-button"
-          >
+          <Button variant="light" size="xs" disabled={strategiesLoading || configLoading} data-testid="manage-strategies-button">
             Manage
           </Button>
           {strategyConfig.description && (
@@ -284,38 +195,32 @@ function SettingsContent({
               {strategyConfig.description}
             </Text>
           )}
-        </Box>
-      </Box>
+        </div>
+      </div>
 
-      <Grid
-        container
-        spacing={1}
-        className="paper-settings-content"
-        id="settings-content"
-        sx={{ alignItems: "stretch" }}
-      >
-        <Grid size={{ xs: 12, lg: 6 }}>
-          <SettingsSection title="ORB Settings" testId="orb-section-header">
-            <OrbSettingsSection config={strategyConfig} onChange={handleConfigValue} />
-          </SettingsSection>
-        </Grid>
-        <Grid size={{ xs: 12, lg: 6 }}>
-          <SettingsSection title="Runner Settings" testId="runner-section-header">
-            <RunnerSettingsSection config={strategyConfig} onChange={handleConfigValue} />
-          </SettingsSection>
-        </Grid>
-        <Grid size={{ xs: 12, lg: 6 }}>
-          <SettingsSection title="Risk Management" testId="risk-section-header">
-            <RiskManagementSection config={strategyConfig} onChange={handleConfigValue} />
-          </SettingsSection>
-        </Grid>
-        <Grid size={{ xs: 12, lg: 6 }}>
-          <SettingsSection title="Trading Costs" testId="costs-section-header">
-            <TradingCostsSection config={strategyConfig} onChange={handleConfigValue} />
-          </SettingsSection>
-        </Grid>
-      </Grid>
-    </Card>
+        <div className="paper-settings-content grid grid-cols-1 lg:grid-cols-2 gap-2 items-stretch" id="settings-content">
+          <div className="lg:col-span-1">
+            <SettingsSection title="ORB Settings" testId="orb-section-header">
+              <OrbSettingsSection config={strategyConfig} onChange={handleConfigValue} />
+            </SettingsSection>
+          </div>
+          <div className="lg:col-span-1">
+            <SettingsSection title="Runner Settings" testId="runner-section-header">
+              <RunnerSettingsSection config={strategyConfig} onChange={handleConfigValue} />
+            </SettingsSection>
+          </div>
+          <div className="lg:col-span-1">
+            <SettingsSection title="Risk Management" testId="risk-section-header">
+              <RiskManagementSection config={strategyConfig} onChange={handleConfigValue} />
+            </SettingsSection>
+          </div>
+          <div className="lg:col-span-1">
+            <SettingsSection title="Trading Costs" testId="costs-section-header">
+              <TradingCostsSection config={strategyConfig} onChange={handleConfigValue} />
+            </SettingsSection>
+          </div>
+        </div>
+      </Card>
   );
 }
 export function PaperSettings() {

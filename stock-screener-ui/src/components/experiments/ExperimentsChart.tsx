@@ -124,7 +124,7 @@ export function ExperimentsChart() {
     return (
       <Box
         data-testid="experiments-chart"
-        sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", bgcolor: "background.paper", borderRadius: 1, p: 1 }}
+        className="flex items-center justify-center h-full bg-fin-surface rounded-sm p-2"
       >
         <Text c="dimmed" size="sm">
           Select a run to view its chart
@@ -139,10 +139,10 @@ export function ExperimentsChart() {
   return (
     <Box
       data-testid="experiments-chart"
-      sx={{ display: "flex", flexDirection: "column", minHeight: 0, height: "100%", bgcolor: "background.paper", borderRadius: 1, p: 1, gap: 1, alignItems: "stretch" }}
+      className="flex flex-col min-h-0 h-full bg-fin-surface rounded-sm p-2 gap-2 items-stretch"
     >
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, width: "100%" }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+      <Box className="flex items-center justify-between gap-2 w-full">
+        <Box className="flex items-center gap-2 min-w-0">
           <Text fw={600} size="sm">
             Run {selectedRun.run}
           </Text>
@@ -153,7 +153,7 @@ export function ExperimentsChart() {
             {selectedRun.strategy}
           </Text>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <Box className="flex items-center gap-2">
           <Text size="sm" c="dimmed">
             {selectedRun.tf}m
           </Text>
@@ -169,7 +169,7 @@ export function ExperimentsChart() {
         </Box>
       </Box>
 
-      <Box sx={{ flex: 1, minHeight: 0, position: "relative", width: "100%" }}>
+      <Box className="flex-1 min-h-0 relative w-full">
         {showChartLoading ? (
           <Flex
             align="center"

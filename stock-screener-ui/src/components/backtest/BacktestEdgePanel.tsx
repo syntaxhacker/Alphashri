@@ -2,9 +2,8 @@
 // Pure rule-based edge breakdown: long/short, time-of-day, weekday, hold
 // duration, and exit reason, rendered as compact diverging bars.
 import { useMemo } from "react";
-import Box from "@mui/material/Box";
+import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
-import { Text } from "@/ui";
 import type { Trade } from "../../types/backtest";
 import { filterTrades, type TradeFilters } from "./tradeFilters";
 import {
@@ -25,32 +24,29 @@ function Row({ b, maxAbs }: { b: EdgeBucket; maxAbs: number }) {
   const color = positive ? palette.POSITIVE : palette.NEGATIVE;
   return (
     <Box
-      sx={{ display: "flex", alignItems: "center", gap: 0.75, py: "2px" }}
+      className="flex items-center gap-2 py-0.25"
       title={`${b.label}: ${b.count} trades · ${winRate(b).toFixed(0)}% WR · ₹${b.netPnl.toFixed(0)}`}
       data-testid={`edge-row-${b.key}`}
     >
-      <Text size="xs" c="dimmed" sx={{ width: 60, flex: "0 0 auto", whiteSpace: "nowrap" }}>{b.label}</Text>
-      <Box sx={{ position: "relative", flex: 1, height: 14, bgcolor: "action.hover", borderRadius: "2px", overflow: "hidden" }}>
-        <Box sx={{ position: "absolute", top: 0, bottom: 0, left: "50%", width: "1px", bgcolor: "var(--mui-palette-divider)" }} />
-        <Box
-          sx={{
-            position: "absolute",
-            top: 1,
-            bottom: 1,
-            bgcolor: color,
-            borderRadius: "1px",
+      <Text size="xs" c="muted" style={{ width: 60, flex: "0 0 auto", whiteSpace: "nowrap" }}>{b.label}</Text>
+      <div className="relative flex-1 h-[14px] rounded-sm overflow-hidden" style={{ backgroundColor: "#121212" }}>
+        <div className="absolute top-0 bottom-0 left-1/2 w-[1px]" style={{ backgroundColor: "#30363D" }} />
+        <div
+          className="absolute top-1 bottom-1 rounded-xs"
+          style={{
+            backgroundColor: color,
             ...(positive ? { left: "50%", width: `${width}%` } : { right: "50%", width: `${width}%` }),
           }}
         />
-      </Box>
+      </div>
       <Text
         size="xs"
-        c={positive ? "success.main" : "error.main"}
-        sx={{ width: 62, flex: "0 0 auto", textAlign: "right", fontVariantNumeric: "tabular-nums" }}
+        c={positive ? "positive" : "negative"}
+        style={{ width: 62, flex: "0 0 auto", textAlign: "right", fontVariantNumeric: "tabular-nums" }}
       >
         {positive ? "+" : ""}{b.netPnl.toFixed(0)}
       </Text>
-      <Text size="xs" c="dimmed" sx={{ width: 30, flex: "0 0 auto", textAlign: "right" }}>{b.count}t</Text>
+      <Text size="xs" c="muted" style={{ width: 30, flex: "0 0 auto", textAlign: "right" }}>{b.count}t</Text>
     </Box>
   );
 }
@@ -59,8 +55,8 @@ function Section({ title, buckets }: { title: string; buckets: EdgeBucket[] }) {
   if (buckets.length === 0) return null;
   const maxAbs = Math.max(1, ...buckets.map((b) => Math.abs(b.netPnl)));
   return (
-    <Box sx={{ mb: 1.25 }} data-testid={`edge-section-${title.toLowerCase().replace(/\s+/g, "-")}`}>
-      <Text size="xs" fw={600} c="dimmed" sx={{ display: "block", mb: 0.5, textTransform: "uppercase", letterSpacing: 0.4 }}>
+    <Box className="mb-2" data-testid={`edge-section-${title.toLowerCase().replace(/\s+/g, "-")}`}>
+      <Text size="xs" fw={600} c="muted" style={{ display: "block", mb: 0.5 * 8, textTransform: "uppercase", letterSpacing: 0.4 }}>
         {title}
       </Text>
       {buckets.map((b) => <Row key={b.key} b={b} maxAbs={maxAbs} />)}
@@ -81,16 +77,16 @@ export function BacktestEdgePanel({ symbol, trades, filters }: { symbol?: string
 
   if (!trades || trades.length === 0) {
     return (
-      <Box sx={{ p: 1.5 }}>
-        <Text size="xs" c="dimmed">Select a symbol with trades to see its edge profile.</Text>
+      <Box className="p-1.5">
+        <Text size="xs" c="muted">Select a symbol with trades to see its edge profile.</Text>
       </Box>
     );
   }
 
   if (active.length === 0) {
     return (
-      <Box sx={{ p: 1.5 }}>
-        <Text size="xs" c="dimmed">No trades match the current filters.</Text>
+      <Box className="p-1.5">
+        <Text size="xs" c="muted">No trades match the current filters.</Text>
       </Box>
     );
   }
@@ -102,18 +98,18 @@ export function BacktestEdgePanel({ symbol, trades, filters }: { symbol?: string
     b ? `${b.label} (${b.netPnl >= 0 ? "+" : ""}₹${b.netPnl.toFixed(0)}, ${winRate(b).toFixed(0)}% WR)` : "—";
 
   return (
-    <Box sx={{ p: 1, overflow: "auto" }} data-testid="edge-panel">
-      <Box sx={{ mb: 1 }}>
-        <Text size="xs" c="text.secondary">
+    <Box className="p-1 overflow-auto" data-testid="edge-panel">
+      <Box className="mb-1">
+        <Text size="xs" c="text-muted">
           {symbol ?? "—"} · {active.length} trades · net{" "}
-          <Text span size="xs" c={total >= 0 ? "success.main" : "error.main"} fw={700}>
+          <Text span size="xs" c={total >= 0 ? "positive" : "negative"} fw={700}>
             {total >= 0 ? "+" : ""}₹{total.toFixed(0)}
           </Text>
         </Text>
-        <Text size="xs" c="dimmed" sx={{ display: "block", mt: 0.25 }} data-testid="edge-insight-best">
+        <Text size="xs" c="muted" style={{ display: "block", marginTop: 2 }} data-testid="edge-insight-best">
           Best window: {fmtBucket(best)}
         </Text>
-        <Text size="xs" c="dimmed" sx={{ display: "block" }} data-testid="edge-insight-worst">
+        <Text size="xs" c="muted" style={{ display: "block" }} data-testid="edge-insight-worst">
           Worst window: {fmtBucket(worst)}
         </Text>
       </Box>

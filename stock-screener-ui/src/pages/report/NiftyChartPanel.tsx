@@ -1,8 +1,6 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { memo, useMemo, useState } from "react";
-import Box from "@mui/material/Box";
-import IconButton from "@mui/material/IconButton";
-import { Button, SegmentedControl, Text } from "@/ui";
+import { Box, ActionIcon, Button, SegmentedControl, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { TradingViewChart } from "@/components/chart/TradingViewChart";
 import { CompactPanel } from "@/components/common/compact";
@@ -163,15 +161,17 @@ export function LevelLegend({ live, gex, spot }: LevelLegendProps) {
     // costs one ~16px row instead of two. Fonts/symbols untouched.
     <Box
       data-testid="nifty-level-legend"
-      sx={{ display: "flex", flexWrap: "wrap", columnGap: 1, rowGap: 0.5, pt: 0.5 }}
+      className="flex flex-wrap"
+      style={{ columnGap: "8px", rowGap: "4px", paddingTop: "4px" }}
     >
       {items.map((it) => (
         <Box
           key={it.code}
-          sx={{ display: "flex", alignItems: "center", gap: 1, whiteSpace: "nowrap" }}
+          className="flex items-center"
+          style={{ gap: "8px", whiteSpace: "nowrap" }}
         >
           <Box
-            sx={{
+            style={{
               width: it.zone ? 12 : 8,
               height: it.zone ? 8 : 8,
               borderRadius: it.zone ? 1 : "50%",
@@ -263,10 +263,6 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
   /** `null` = fill the panel (autoSize); a number = fixed preset. */
   const chartHeight =
     chartSize === "fill" ? null : CHART_HEIGHTS[chartSize];
-  /** DESK fill cap: the chart body never takes more than 300px of the row,
-   *  so the FLOW band below (heatmap + strip) gets the remaining height.
-   *  Explicit presets (S/M/L/XL) keep their requested height. */
-  const fillCap = chartHeight == null && !fillContainer ? { maxHeight: FILL_MAX_HEIGHT, minHeight: FILL_MIN_HEIGHT } : {};
   const handleSizeChange = (v: string) => {
     const next = v as ChartSize;
     setChartSize(next);
@@ -455,62 +451,30 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
   return (
     <CompactPanel
       title={
-        <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.75 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
           {view === "depth" ? `${symbol} depth map` : `${symbol} chart`}
           {wallOverlay.markers.length > 0 ? (
             <Text
-              component="span"
               data-testid="nifty-chart-event-badge"
-              sx={{
-                fontSize: 9,
+              style={{
+                fontSize: "9px",
                 fontWeight: 700,
-                letterSpacing: 0.4,
+                letterSpacing: "0.4em",
                 textTransform: "uppercase",
-                color: "warning.main",
+                color: palette.WARNING,
               }}
             >
               {wallOverlay.markers.length} event{wallOverlay.markers.length === 1 ? "" : "s"}
             </Text>
           ) : null}
-        </Box>
+        </span>
       }
       testId="nifty-chart-panel"
-      sx={{
-        minWidth: 0,
-        minHeight: 0,
-        height: "100%",
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        // Let the chart body (not the card padding) own the remaining height.
-        "& .MuiCardContent-root": {
-          flex: 1,
-          minHeight: 0,
-          display: "flex",
-          flexDirection: "column",
-        },
-      }}
+      className="[&_[data-compact-card-content]]:flex-1 [&_[data-compact-card-content]]:min-h-0"
+      style={{ minWidth: 0, minHeight: 0, height: "100%", overflow: "hidden", display: "flex", flexDirection: "column" }}
       action={
         view === "chart" ? (
-          <Box
-            sx={{
-              display: "flex",
-              gap: 0.5,
-              alignItems: "center",
-              "& .MuiToggleButton-root": {
-                px: 0.75,
-                py: 0,
-                minWidth: 0,
-                minHeight: 20,
-                height: 20,
-                boxSizing: "border-box",
-                fontSize: 10,
-                lineHeight: 1.1,
-                fontWeight: 700,
-                letterSpacing: "0.04em",
-              },
-            }}
-          >
+          <Box className="flex items-center" style={{ gap: "4px" }}>
             <SegmentedControl
               data-testid="nifty-tf-toggle"
               value={chartTf}
@@ -525,7 +489,7 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
               onClick={() => scanPatterns(chartTf)}
               disabled={patternScan.status === "loading"}
               title={`Run the chart-pattern detector on ${symbol} ${chartTf}`}
-              sx={{ minWidth: 0, px: "6px", py: 0, height: 20, fontSize: 9, fontWeight: 800, letterSpacing: "0.06em" }}
+              style={{ minWidth: 0, paddingLeft: 6, paddingRight: 6, paddingTop: 0, paddingBottom: 0, height: 20, fontSize: 9, fontWeight: 800, letterSpacing: "0.06em" }}
             >
               {patternScan.status === "loading" ? "…" : "PATTERNS"}
             </Button>
@@ -537,18 +501,18 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
               size="xs"
             />
             {onExpand ? (
-              <IconButton
+              <ActionIcon
                 data-testid="nifty-chart-expand"
                 aria-label="Expand chart fullscreen"
                 title="Fullscreen (F)"
-                size="small"
+                size={20}
                 onClick={onExpand}
-                sx={{ p: "1px", height: 20, color: palette.TEXT_MUTED, "&:hover": { color: palette.TEXT } }}
+                style={{ padding: "1px", color: palette.TEXT_MUTED }}
               >
-                <Text span size="xs" fw={700} style={{ fontSize: 13, lineHeight: 1 }}>
+                <Text span size="xs" fw={700} style={{ fontSize: "13px", lineHeight: 1 }}>
                   ⤢
                 </Text>
-              </IconButton>
+              </ActionIcon>
             ) : null}
           </Box>
         ) : undefined
@@ -562,9 +526,9 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
         */}
       <Box
         data-testid="nifty-chart-view"
-        style={{ display: view === "chart" ? "flex" : "none" }}
-        sx={{
-          flexDirection: "column",
+        className="flex flex-col"
+        style={{
+          display: view === "chart" ? "flex" : "none",
           flex: view === "chart" ? 1 : undefined,
           minHeight: 0,
         }}
@@ -582,19 +546,15 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
             data-fill={chartHeight == null ? "1" : undefined}
             data-mp-touches={mpTouches.length}
             data-flip-marker={flipMarker.length > 0 ? "1" : "0"}
-            style={chartHeight == null ? undefined : { height: chartHeight }}
-            sx={{
-              // Hidden (not unmounted) when a poll returns no candles — see
-              // `candlesEverShown`.
+            className="w-full max-w-full min-w-0 shrink-0 overflow-hidden"
+            style={{
+              ...(chartHeight == null ? undefined : { height: chartHeight }),
               display: chartCandles.length > 0 ? "flex" : "none",
               flex: chartHeight == null ? 1 : undefined,
-              width: "100%",
-              maxWidth: "100%",
               minWidth: 0,
               minHeight: 0,
               flexShrink: 0,
-              overflow: "hidden",
-              ...fillCap,
+              ...(chartHeight == null && !fillContainer ? { maxHeight: FILL_MAX_HEIGHT, minHeight: FILL_MIN_HEIGHT } : {}),
             }}
           >
             <TradingViewChart
@@ -632,37 +592,36 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
                 ? patternScan.message
                 : `Scanning ${symbol} ${patternScan.tf}…`
           }
-          sx={{
-            display: "flex",
-            alignItems: "center",
+          className="flex items-center"
+          style={{
             gap: "6px",
-            height: 18,
-            minHeight: 18,
-            mt: "2px",
-            px: "4px",
+            height: "18px",
+            minHeight: "18px",
+            marginTop: "2px",
+            paddingLeft: "4px",
+            paddingRight: "4px",
             fontFamily: palette.MONO,
-            fontSize: 9,
+            fontSize: "9px",
             whiteSpace: "nowrap",
             overflow: "hidden",
             color: palette.TEXT_MUTED,
             borderTop: `1px solid ${palette.TERM_BORDER}`,
           }}
         >
-          <Box component="span" sx={{ fontWeight: 800, letterSpacing: "0.08em" }}>
+          <span style={{ fontWeight: 800, letterSpacing: "0.08em" }}>
             PATTERNS {patternScan.tf}
-          </Box>
+          </span>
           {patternScan.status === "loading" ? (
-            <Box component="span">scanning…</Box>
+            <span>scanning…</span>
           ) : patternScan.status === "error" ? (
-            <Box component="span" sx={{ color: palette.NEGATIVE }}>{patternScan.message}</Box>
+            <span style={{ color: palette.NEGATIVE }}>{patternScan.message}</span>
           ) : patternScan.hits.length === 0 ? (
-            <Box component="span">no pattern</Box>
+            <span>no pattern</span>
           ) : (
             <>
-              <Box
-                component="span"
+              <span
                 data-testid={`nifty-pattern-${patternScan.hits[0].pattern_id}`}
-                sx={{
+                style={{
                   color:
                     patternScan.hits[0].direction === "bullish"
                       ? palette.POSITIVE
@@ -679,14 +638,13 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
                     ? " ↓"
                     : " ·"}{" "}
                 {Math.round(patternScan.hits[0].confidence)}%
-              </Box>
-              <Box component="span" sx={{ opacity: 0.8 }}>
+              </span>
+              <span style={{ opacity: 0.8 }}>
                 {patternScan.hits[0].status}
-              </Box>
+              </span>
             </>
           )}
-          <Box
-            component="span"
+          <span
             data-testid="nifty-patterns-draw"
             data-on={drawPattern ? "1" : "0"}
             role="button"
@@ -697,18 +655,17 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
                 ? `${drawPattern ? "Hide" : "Show"} the pattern on the chart`
                 : `Pattern was scanned on ${patternScan.tf}; rescan on ${chartTf} to draw it here`
             }
-            sx={{
-              ml: "auto",
+            style={{
+              marginLeft: "auto",
               cursor: "pointer",
               fontWeight: 800,
               letterSpacing: "0.06em",
               color: drawPattern ? palette.PRIMARY : palette.TEXT_MUTED,
               opacity: patternScan.tf === chartTf ? 1 : 0.5,
-              "&:hover": { color: palette.TEXT },
             }}
           >
             {drawPattern ? "DRAW ON" : "DRAW OFF"}
-          </Box>
+          </span>
         </Box>
       ) : null}
       {depthEverShown ? (

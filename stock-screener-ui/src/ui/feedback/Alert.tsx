@@ -1,38 +1,34 @@
-import MuiAlert from "@mui/material/Alert";
-import AlertTitle from "@mui/material/AlertTitle";
+import { cn } from "../cn";
+import * as palette from "../palette";
 import type { UIAlertProps } from "../types";
 
-function mapSeverity(color: UIAlertProps["color"]): "success" | "error" | "warning" | "info" {
-  if (!color) return "info";
-  switch (color) {
-    case "success":
-      return "success";
-    case "error":
-    case "danger":
-      return "error";
-    case "warning":
-      return "warning";
-    case "primary":
-    case "secondary":
-    case "info":
-      return "info";
-    default:
-      return "info";
-  }
+const SEVERITY_MAIN: Record<string, string> = {
+  success: palette.POSITIVE_COLOR,
+  error: palette.NEGATIVE_COLOR,
+  danger: palette.NEGATIVE_COLOR,
+  warning: palette.WARNING,
+  info: palette.INFO,
+  primary: palette.INFO,
+  secondary: palette.TEXT_MUTED,
+};
+
+function resolveColor(color: UIAlertProps["color"]): string {
+  if (!color) return palette.INFO;
+  if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl")) return color;
+  return SEVERITY_MAIN[color] ?? palette.INFO;
 }
 
-function mapVariant(variant: UIAlertProps["variant"]): "filled" | "outlined" | "standard" {
-  switch (variant) {
-    case "filled":
-      return "filled";
-    case "outline":
-      return "outlined";
-    case "light":
-    case "default":
-    case "transparent":
-    default:
-      return "standard";
-  }
+function hexRgb(hex: string): string {
+  let h = hex.replace("#", "");
+  if (h.length === 3) h = h.split("").map((ch) => ch + ch).join("");
+  return `${parseInt(h.slice(0, 2), 16)}, ${parseInt(h.slice(2, 4), 16)}, ${parseInt(h.slice(4, 6), 16)}`;
+}
+
+function radiusValue(radius: UIAlertProps["radius"] | undefined): string | undefined {
+  if (radius == null) return undefined;
+  if (typeof radius === "number") return `${radius}px`;
+  const m: Record<string, string> = { xs: "4px", sm: "6px", md: "8px", lg: "12px", xl: "16px" };
+  return m[radius] ?? undefined;
 }
 
 export function Alert({
@@ -40,6 +36,9 @@ export function Alert({
   title,
   withCloseButton,
   onClose,
+  onClick,
+  onMouseEnter,
+  onMouseLeave,
   children,
   className,
   style,
@@ -50,37 +49,64 @@ export function Alert({
   radius,
   ...rest
 }: UIAlertProps) {
-  const severity = mapSeverity(color);
-  const muiVariant = mapVariant(variant);
+  const main = resolveColor(color);
+  const isFilled = variant === "filled";
+  const isOutline = variant === "outline";
+  const br = radiusValue(radius);
+  const rgb = hexRgb(main);
+
+  let bg: string | undefined;
+  let borderColor: string | undefined;
+  let textColor: string | undefined;
+  if (isFilled) {
+    bg = main;
+    borderColor = main;
+    textColor = palette.BG;
+  } else if (isOutline) {
+    bg = "transparent";
+    borderColor = main;
+    textColor = main;
+  } else {
+    // light / default / transparent / standard: tinted surface
+    bg = `rgba(${rgb}, 0.10)`;
+    borderColor = `rgba(${rgb}, 0.35)`;
+    textColor = main;
+  }
 
   return (
-    <MuiAlert
-      severity={severity}
-      variant={muiVariant}
-      icon={icon as never}
-      onClose={withCloseButton ? onClose : undefined}
-      className={className}
-      style={style}
-      id={id}
+    <div
+      role="alert"
       data-testid={testId}
-      sx={{
-        ...(radius != null
-          ? {
-              borderRadius:
-                typeof radius === "number"
-                  ? `${radius}px`
-                  : radius === "xs"
-                    ? "4px"
-                    : radius === "xl"
-                      ? "16px"
-                      : undefined,
-            }
-          : {}),
+      id={id}
+      className={cn("flex items-start gap-3 p-3 text-sm leading-snug", br ? undefined : "rounded-fin", className)}
+      style={{
+        borderRadius: br,
+        backgroundColor: bg,
+        border: borderColor ? `1px solid ${borderColor}` : undefined,
+        color: textColor,
+        ...style,
       }}
-      {...(rest as Record<string, unknown>)}
+      onClick={onClick as never}
+      onMouseEnter={onMouseEnter as never}
+      onMouseLeave={onMouseLeave as never}
+      {...rest}
     >
-      {title ? <AlertTitle>{title}</AlertTitle> : null}
-      {children}
-    </MuiAlert>
+      {icon != null && <span className="shrink-0" aria-hidden="true">{icon}</span>}
+      <div className="flex flex-col gap-1" style={{ flex: 1, minWidth: 0 }}>
+        {title != null && <div className="font-semibold">{title}</div>}
+        <div>{children}</div>
+      </div>
+      {withCloseButton && (
+        <button
+          type="button"
+          aria-label="Close"
+          onClick={onClose as never}
+          className="ml-auto shrink-0 rounded p-1 text-fin-text-muted hover:bg-fin-surface-alt focus:outline-none"
+          style={{ color: textColor }}
+        >
+          ×
+        </button>
+      )}
+    </div>
   );
 }

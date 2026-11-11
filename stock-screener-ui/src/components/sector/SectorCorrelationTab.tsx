@@ -1,12 +1,9 @@
 import { useEffect, useMemo } from "react";
 import { Box, Stack, Text } from "@/ui";
-import Grid from "@mui/material/Grid";
-import Typography from "@mui/material/Typography";
-import Chip from "@mui/material/Chip";
-import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
-import Select from "@mui/material/Select";
-import MenuItem from "@mui/material/MenuItem";
+import { Button } from "@/ui";
+import { Loader } from "@/ui";
+import { Select } from "@/ui";
+import { Chip } from "@/ui";
 import { IconRefresh, IconClock } from "@tabler/icons-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
@@ -35,17 +32,6 @@ const LOOKBACK_OPTIONS = [
   { label: "1Y", value: 252 },
 ];
 
-/** Dense control row shared by the header strip (8pt grid → 4px gaps). */
-const HEADER_ROW_SX = {
-  display: "flex",
-  alignItems: "center",
-  gap: 0.5,
-  flexWrap: "wrap",
-  px: 0.5,
-  py: 0.25,
-  minHeight: 28,
-} as const;
-
 function CorrelationHeader({
   currentMarket,
   currentLookback,
@@ -55,11 +41,13 @@ function CorrelationHeader({
   currentLookback: number;
   lastUpdated?: string;
 }) {
-  const handleMarketChange = (v: string) => {
+  const handleMarketChange = (v: string | null) => {
+    if (v == null) return;
     setMarket(v as "india" | "america");
     void fetchCorrelationData();
   };
-  const handleLookbackChange = (v: string) => {
+  const handleLookbackChange = (v: string | null) => {
+    if (v == null) return;
     setLookbackDays(Number(v));
     void fetchCorrelationData();
   };
@@ -68,45 +56,38 @@ function CorrelationHeader({
   };
 
   return (
-    <Box data-testid="sector-correlation-header" sx={{ ...HEADER_ROW_SX, borderBottom: "1px solid", borderColor: "divider" }}>
-      <Text fw={700} sx={{ fontSize: 12, whiteSpace: "nowrap" }}>
+    <Box data-testid="sector-correlation-header" className="flex items-center gap-1 flex-wrap px-1 py-0.5 min-h-[28px] border-b border-fin-border">
+      <Text fw={700} className="text-[12px] whitespace-nowrap">
         Sector Correlation
       </Text>
       <Select
-        size="small"
+        size="xs"
         value={currentMarket}
-        onChange={(e) => handleMarketChange(String(e.target.value))}
+        onChange={handleMarketChange}
+        data={[{ value: "india", label: "India" }, { value: "america", label: "US" }]}
         data-testid="market-segment"
-        sx={{ height: 24, fontSize: 11, minWidth: 84 }}
-      >
-        <MenuItem value="india">India</MenuItem>
-        <MenuItem value="america">US</MenuItem>
-      </Select>
+        className="h-[24px] text-[11px] min-w-[84px]"
+      />
       <Select
-        size="small"
+        size="xs"
         value={String(currentLookback)}
-        onChange={(e) => handleLookbackChange(String(e.target.value))}
+        onChange={handleLookbackChange}
+        data={LOOKBACK_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
         data-testid="lookback-segment"
-        sx={{ height: 24, fontSize: 11, minWidth: 64 }}
-      >
-        {LOOKBACK_OPTIONS.map((o) => (
-          <MenuItem key={o.value} value={String(o.value)}>
-            {o.label}
-          </MenuItem>
-        ))}
-      </Select>
-      <Box sx={{ flex: 1 }} />
+        className="h-[24px] text-[11px] min-w-[64px]"
+      />
+      <Box className="flex-1" />
       {lastUpdated && (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <IconClock size={12} color="var(--mui-palette-text-secondary)" />
-          <Typography variant="caption" sx={{ fontSize: 10, fontVariantNumeric: "tabular-nums" }}>
+        <Box className="flex items-center gap-1">
+          <IconClock size={12} className="text-fin-text-muted" />
+          <Text size="xs" className="font-numeric tabular-nums">
             {new Date(lastUpdated).toLocaleTimeString()}
-          </Typography>
+          </Text>
         </Box>
       )}
       <Box
         data-testid="sector-correlation-refresh"
-        sx={{ p: 0.5, cursor: "pointer", display: "flex", alignItems: "center" }}
+        className="p-1 cursor-pointer flex items-center"
         onClick={handleRefresh}
       >
         <IconRefresh size={14} />
@@ -127,13 +108,9 @@ function RelativeStrengthTable({ sectors }: { sectors: SectorCorrelationResponse
         cell: (info) => {
           const rank = info.getValue<number>();
           return (
-            <Chip
-              size="small"
-              label={`#${rank}`}
-              color={rank <= 3 ? "success" : "default"}
-              variant="outlined"
-              sx={{ height: 16, fontSize: 9.5, "& .MuiChip-label": { px: 0.5 } }}
-            />
+            <Chip size="xs" variant="outline" color={rank <= 3 ? "success" : "default"} className="h-[16px] text-[9.5px] px-1">
+              #{rank}
+            </Chip>
           );
         },
       },
@@ -143,7 +120,7 @@ function RelativeStrengthTable({ sectors }: { sectors: SectorCorrelationResponse
         accessorKey: "name",
         meta: { align: "left" },
         cell: (info) => (
-          <Text sx={{ fontWeight: 600, fontSize: 10.5, whiteSpace: "nowrap" }}>{info.getValue<string>()}</Text>
+          <Text className="font-semibold text-[10.5px] whitespace-nowrap">{info.getValue<string>()}</Text>
         ),
       },
       {
@@ -155,7 +132,7 @@ function RelativeStrengthTable({ sectors }: { sectors: SectorCorrelationResponse
         cell: (info) => {
           const val = info.getValue<number>();
           return (
-            <Text c={val >= 0 ? "success.main" : "error.main"} sx={{ fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}>
+            <Text c={val >= 0 ? "success" : "error"} className="text-[10.5px] font-numeric tabular-nums">
               {formatPercentage(val / 100, 2, false)}
             </Text>
           );
@@ -170,7 +147,7 @@ function RelativeStrengthTable({ sectors }: { sectors: SectorCorrelationResponse
         cell: (info) => {
           const val = info.getValue<number>();
           return (
-            <Text c={val >= 0 ? "success.main" : "error.main"} sx={{ fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}>
+            <Text c={val >= 0 ? "success" : "error"} className="text-[10.5px] font-numeric tabular-nums">
               {formatPercentage(val / 100, 2, false)}
             </Text>
           );
@@ -185,7 +162,7 @@ function RelativeStrengthTable({ sectors }: { sectors: SectorCorrelationResponse
         cell: (info) => {
           const val = info.getValue<number>();
           return (
-            <Text c={val >= 0 ? "success.main" : "error.main"} sx={{ fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}>
+            <Text c={val >= 0 ? "success" : "error"} className="text-[10.5px] font-numeric tabular-nums">
               {formatPercentage(val / 100, 2, false)}
             </Text>
           );
@@ -198,7 +175,7 @@ function RelativeStrengthTable({ sectors }: { sectors: SectorCorrelationResponse
         size: 64,
         meta: { align: "right" },
         cell: (info) => (
-          <Text sx={{ fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}>{info.getValue<number>().toFixed(2)}</Text>
+          <Text className="text-[10.5px] font-numeric tabular-nums">{info.getValue<number>().toFixed(2)}</Text>
         ),
       },
       {
@@ -210,13 +187,9 @@ function RelativeStrengthTable({ sectors }: { sectors: SectorCorrelationResponse
         cell: (info) => {
           const change = info.getValue<number>();
           return (
-            <Chip
-              size="small"
-              label={change > 0 ? `+${change}` : String(change)}
-              color={change > 0 ? "success" : change < 0 ? "error" : "default"}
-              variant="outlined"
-              sx={{ height: 16, fontSize: 9.5, "& .MuiChip-label": { px: 0.5 } }}
-            />
+            <Chip size="xs" variant="outline" color={change > 0 ? "success" : change < 0 ? "error" : "default"} className="h-[16px] text-[9.5px] px-1">
+              {change > 0 ? `+${change}` : String(change)}
+            </Chip>
           );
         },
       },
@@ -240,12 +213,9 @@ function RelativeStrengthTable({ sectors }: { sectors: SectorCorrelationResponse
 
 function LoadingState() {
   return (
-    <Box
-      data-testid="sector-correlation-loading"
-      sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0.5, flex: 1, minHeight: 200 }}
-    >
-      <CircularProgress size={16} />
-      <Typography variant="caption">Loading sector correlation…</Typography>
+    <Box data-testid="sector-correlation-loading" className="flex items-center justify-center gap-2 flex-1 min-h-[200px]">
+      <Loader size="xs" />
+      <Text size="xs">Loading sector correlation…</Text>
     </Box>
   );
 }
@@ -255,11 +225,11 @@ function ErrorState({ error }: { error: string }) {
     void fetchCorrelationData();
   };
   return (
-    <Box data-testid="sector-correlation-error" sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-      <Typography variant="caption" color="error">
+    <Box data-testid="sector-correlation-error" className="flex items-center gap-2 p-2">
+      <Text size="xs" c="error">
         {error}
-      </Typography>
-      <Button variant="outlined" color="error" size="small" onClick={handleRefresh} sx={{ height: 22, fontSize: 10 }}>
+      </Text>
+      <Button variant="outline" color="error" size="xs" onClick={handleRefresh} className="h-[22px] text-[10px]">
         Retry
       </Button>
     </Box>
@@ -283,57 +253,53 @@ export function SectorCorrelationTab() {
   if (stateError) return <ErrorState error={stateError} />;
   if (!data || !data.sector_names || data.sector_names.length === 0) {
     return (
-      <Box data-testid="sector-correlation-empty" sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
-        <Typography variant="caption" color="text.secondary">
+      <Box data-testid="sector-correlation-empty" className="flex items-center justify-center p-2">
+        <Text size="xs" c="dimmed">
           No correlation data available.
-        </Typography>
+        </Text>
       </Box>
     );
   }
   const benchmark = sectorMarket === "india" ? "NIFTY 50" : "SPY";
 
   return (
-    <Stack spacing={0.5} sx={{ p: 0.5, width: "100%", minWidth: 0 }}>
+    <Stack spacing={0.5} className="p-1 w-full min-w-0">
       <CorrelationHeader currentMarket={sectorMarket} currentLookback={lookbackDays} lastUpdated={data.last_updated} />
-      <Grid container spacing={0.5} sx={{ width: "100%" }}>
-        <Grid size={{ xs: 12, lg: 6 }}>
-          <CompactPanel
-            flush
-            padded={false}
-            id="sector-correlation-heatmap"
-            testId="sector-correlation-heatmap"
-            title={<Text sx={{ fontSize: 10, fontWeight: 700 }}>Cross-Sector Correlation</Text>}
-            sx={{ minWidth: 0 }}
-          >
-            <Box sx={{ p: 0.5, minHeight: 280, width: "100%" }}>
-              <CorrelationHeatmap matrix={data.correlation_matrix} symbols={data.sector_names} isDark={isDark} />
-            </Box>
-          </CompactPanel>
-        </Grid>
-        <Grid size={{ xs: 12, lg: 6 }}>
-          <CompactPanel
-            flush
-            padded={false}
-            id="sector-beta-chart"
-            testId="sector-beta-chart"
-            title={<Text sx={{ fontSize: 10, fontWeight: 700 }}>Sector Beta vs Benchmark</Text>}
-            sx={{ minWidth: 0 }}
-          >
-            <Box sx={{ p: 0.5, height: 320, width: "100%", display: "flex" }}>
-              <SectorBetaChart sectors={sortedSectors} benchmark={benchmark} isDark={isDark} />
-            </Box>
-          </CompactPanel>
-        </Grid>
-      </Grid>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-1 w-full">
+        <CompactPanel
+          flush
+          padded={false}
+          id="sector-correlation-heatmap"
+          testId="sector-correlation-heatmap"
+          title={<Text className="text-[10px] font-bold">Cross-Sector Correlation</Text>}
+          className="min-w-0"
+        >
+          <Box className="p-1 min-h-[280px] w-full">
+            <CorrelationHeatmap matrix={data.correlation_matrix} symbols={data.sector_names} isDark={isDark} />
+          </Box>
+        </CompactPanel>
+        <CompactPanel
+          flush
+          padded={false}
+          id="sector-beta-chart"
+          testId="sector-beta-chart"
+          title={<Text className="text-[10px] font-bold">Sector Beta vs Benchmark</Text>}
+          className="min-w-0"
+        >
+          <Box className="p-1 h-[320px] w-full flex">
+            <SectorBetaChart sectors={sortedSectors} benchmark={benchmark} isDark={isDark} />
+          </Box>
+        </CompactPanel>
+      </div>
       <CompactPanel
         flush
         padded={false}
         id="relative-strength-table"
         testId="relative-strength-table"
-        title={<Text sx={{ fontSize: 10, fontWeight: 700 }}>Relative Strength Rankings</Text>}
-        sx={{ minWidth: 0 }}
+        title={<Text className="text-[10px] font-bold">Relative Strength Rankings</Text>}
+        className="min-w-0"
       >
-        <Box sx={{ width: "100%", minWidth: 0 }}>
+        <Box className="w-full min-w-0">
           <RelativeStrengthTable sectors={sortedSectors} />
         </Box>
       </CompactPanel>
@@ -342,10 +308,10 @@ export function SectorCorrelationTab() {
         padded={false}
         id="rotation-timeline"
         testId="rotation-timeline"
-        title={<Text sx={{ fontSize: 10, fontWeight: 700 }}>Sector Rotation (1-Month Rank Change)</Text>}
-        sx={{ minWidth: 0 }}
+        title={<Text className="text-[10px] font-bold">Sector Rotation (1-Month Rank Change)</Text>}
+        className="min-w-0"
       >
-        <Box sx={{ p: 0.5, height: 400, width: "100%", display: "flex" }}>
+        <Box className="p-1 h-[400px] w-full flex">
           <RotationTimeline sectors={sortedSectors} isDark={isDark} />
         </Box>
       </CompactPanel>

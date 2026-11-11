@@ -21,13 +21,6 @@ const mockTheme = {
 };
 
 describe("ChainFooter", () => {
-  it("renders footer container", () => {
-    renderWithProviders(
-      <ChainFooter theme={mockTheme as any} colorScheme="light" spotPrice={24500} />,
-    );
-    expect(screen.getByTestId("options-chain-table-footer")).toBeInTheDocument();
-  });
-
   it("renders ITM legend item", () => {
     renderWithProviders(
       <ChainFooter theme={mockTheme as any} colorScheme="light" spotPrice={24500} />,

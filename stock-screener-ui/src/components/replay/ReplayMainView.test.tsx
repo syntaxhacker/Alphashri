@@ -52,13 +52,4 @@ describe("ReplayMainView", () => {
     );
     expect(screen.getByTestId("replay-trade-log")).toBeInTheDocument();
   });
-
-  it("passes props to ReplayTradeLog", () => {
-    render(
-      <UIProvider>
-        <ReplayMainView {...baseProps} />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("replay-trade-log")).toBeInTheDocument();
-  });
 });

@@ -1,9 +1,7 @@
 import { memo, useMemo, useState } from "react";
-import Box from "@mui/material/Box";
-import IconButton from "@mui/material/IconButton";
-import { alpha } from "@mui/material/styles";
-import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
+import { Box, ActionIcon } from "@/ui";
+import { alpha } from "@/ui/alpha";
+import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { CompactPanel } from "@/components/common/compact";
@@ -79,22 +77,22 @@ function BiasBadge({ bias, side }: { bias: DeskBias; side: "bull" | "bear" }) {
   return (
     <Box
       data-testid={`desk-bias-${side}`}
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        px: 0.75,
-        py: 0.125,
-        borderRadius: 999,
+      className="inline-flex items-center shrink-0"
+      style={{
+        paddingLeft: "6px",
+        paddingRight: "6px",
+        paddingTop: "1px",
+        paddingBottom: "1px",
+        borderRadius: "9999px",
         border: `1px solid ${alpha(accent, 0.5)}`,
-        bgcolor: alpha(accent, 0.12),
-        flexShrink: 0,
+        backgroundColor: alpha(accent, 0.12),
       }}
     >
       <Text
         span
         size="xs"
         fw={800}
-        style={{ color: accent, fontSize: 9, lineHeight: 1.2, letterSpacing: "0.08em" }}
+        style={{ color: accent, fontSize: "9px", lineHeight: 1.2, letterSpacing: "0.08em" }}
       >
         {bias.toUpperCase()}
       </Text>
@@ -128,25 +126,17 @@ function InlineStats({ side, noTrade }: { side: DeskSide; noTrade: boolean }) {
   return (
     <Box
       data-testid={`desk-do-${side.side}-stats`}
-      sx={{
-        display: "flex",
-        alignItems: "baseline",
-        flexWrap: "wrap",
-        columnGap: 1,
-        rowGap: 0.25,
-        minWidth: 0,
-      }}
+      className="flex items-baseline flex-wrap min-w-0"
+      style={{ columnGap: "8px", rowGap: "2px" }}
     >
       {stats.map((stat, index) => (
         <Box
           key={stat.label}
-          sx={{
-            display: "flex",
-            alignItems: "baseline",
-            gap: 0.5,
-            minWidth: 0,
+          className="flex items-baseline min-w-0"
+          style={{
+            gap: "4px",
             ...(index > 0 && {
-              pl: 1,
+              paddingLeft: "8px",
               borderLeft: `1px solid ${palette.TERM_BORDER}`,
             }),
           }}
@@ -192,16 +182,15 @@ function DeskSideColumn({
   return (
     <Box
       data-testid={`desk-side-${side.side}`}
-      sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}
+      className="flex flex-col min-w-0"
+      style={{ gap: "8px" }}
     >
       <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 1,
-          pb: 0.5,
+        className="flex items-center min-w-0"
+        style={{
+          gap: "8px",
+          paddingBottom: "4px",
           borderBottom: `1px solid ${palette.TERM_BORDER}`,
-          minWidth: 0,
         }}
       >
         <Text
@@ -217,7 +206,8 @@ function DeskSideColumn({
 
       <Box
         data-testid={`desk-do-${side.side}`}
-        sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }}
+        className="flex flex-col min-w-0"
+        style={{ gap: "4px" }}
       >
         <SectionLabel color={accent} testId={`desk-do-label-${side.side}`}>
           Do
@@ -245,7 +235,8 @@ function DeskSideColumn({
 
       <Box
         data-testid={`desk-dont-${side.side}`}
-        sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }}
+        className="flex flex-col min-w-0"
+        style={{ gap: "4px" }}
       >
         <SectionLabel color={palette.WARNING} testId={`desk-dont-label-${side.side}`}>
           Don't
@@ -254,7 +245,8 @@ function DeskSideColumn({
           <Box
             key={`${side.side}-dont-${index}`}
             data-testid={`desk-dont-${side.side}-${index}`}
-            sx={{ display: "flex", alignItems: "flex-start", gap: 0.75, minWidth: 0 }}
+            className="flex items-flex-start min-w-0"
+            style={{ gap: "6px" }}
           >
             <Text span size="xs" fw={800} style={{ color: palette.WARNING, fontSize: 10, lineHeight: 1.35 }}>
               ×
@@ -267,21 +259,22 @@ function DeskSideColumn({
       </Box>
 
       {side.reasons.length > 0 && (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }}>
+        <Box className="flex flex-col min-w-0" style={{ gap: "4px" }}>
           <SectionLabel color={palette.TEXT_MUTED} testId={`desk-reasons-label-${side.side}`}>
             Reasons
           </SectionLabel>
-          <Box
-            component="ol"
+          <ol
             data-testid={`desk-reasons-${side.side}`}
-            sx={{ listStyle: "none", m: 0, p: 0, display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }}
+            className="flex flex-col min-w-0"
+            style={{ listStyle: "none", margin: 0, padding: 0, gap: "4px" }}
           >
             {side.reasons.map((reason, index) => (
               <Box
                 component="li"
                 key={`${side.side}-${reason.tag}`}
                 data-testid={`desk-reason-${side.side}-${index}`}
-                sx={{ display: "flex", alignItems: "flex-start", gap: 0.75, minWidth: 0 }}
+                className="flex items-flex-start min-w-0"
+                style={{ gap: "6px" }}
               >
                 <Text
                   span
@@ -294,14 +287,13 @@ function DeskSideColumn({
                 </Text>
                 <Box
                   data-testid={`desk-reason-tag-${side.side}-${index}`}
-                  sx={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    px: 0.5,
-                    borderRadius: 0.5,
-                    bgcolor: alpha(TAG_COLORS[reason.tag], 0.14),
-                    flexShrink: 0,
-                    mt: "1px",
+                  className="inline-flex items-center shrink-0"
+                  style={{
+                    paddingLeft: "4px",
+                    paddingRight: "4px",
+                    borderRadius: "4px",
+                    backgroundColor: alpha(TAG_COLORS[reason.tag], 0.14),
+                    marginTop: "1px",
                   }}
                 >
                   <Text
@@ -324,7 +316,7 @@ function DeskSideColumn({
                 </Text>
               </Box>
             ))}
-          </Box>
+          </ol>
         </Box>
       )}
     </Box>
@@ -349,30 +341,32 @@ function NiftyDeskPlanInner({ report }: NiftyDeskPlanProps) {
       title="Desk plan"
       description="Both sides · ordered by weight"
       action={
-        <IconButton
+        <ActionIcon
           data-testid="desk-plan-toggle"
           aria-expanded={open}
           aria-controls={BODY_ID}
           aria-label={open ? "Collapse desk plan" : "Expand desk plan"}
-          size="small"
+          size="md"
           onClick={() => setOpen((value) => !value)}
-          sx={{ p: 0.25, color: palette.TEXT_MUTED }}
+          style={{ padding: "2px", color: palette.TEXT_MUTED }}
         >
-          {open ? <KeyboardArrowDown fontSize="small" /> : <KeyboardArrowRight fontSize="small" />}
-        </IconButton>
+          {open ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+        </ActionIcon>
       }
-      sx={{ flexShrink: 0, minWidth: 0, ...(noTrade ? { opacity: 0.72 } : {}) }}
+      className="shrink-0 min-w-0"
+      style={noTrade ? { opacity: 0.72 } : {}}
     >
       {open && (
         <Box
           id={BODY_ID}
           data-testid="desk-plan-body"
-          sx={{
-            p: 1,
+          className="min-w-0"
+          style={{
+            padding: "8px",
             minWidth: 0,
             // Keep the chart inside the first 1080p screen; the body scrolls
             // internally when both reason lists run long.
-            maxHeight: 320,
+            maxHeight: "320px",
             overflowY: "auto",
             scrollbarGutter: "stable",
           }}
@@ -380,26 +374,27 @@ function NiftyDeskPlanInner({ report }: NiftyDeskPlanProps) {
           {noTrade && (
             <Box
               data-testid="desk-wait-note"
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 0.75,
-                pb: 0.5,
-                mb: 0.5,
+              className="flex items-center min-w-0"
+              style={{
+                gap: "6px",
+                paddingBottom: "4px",
+                marginBottom: "4px",
                 borderBottom: `1px solid ${palette.TERM_BORDER}`,
-                minWidth: 0,
               }}
             >
-              <Text size="xs" fw={700} c="dimmed" lh={1.3} style={{ fontSize: 10 }}>
+              <Text size="xs" fw={700} c="dimmed" lh={1.3} style={{ fontSize: "10px" }}>
                 {plan.waitNote}
               </Text>
             </Box>
           )}
           <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "repeat(2, minmax(0, 1fr))" },
-              gap: 1,
+            className="grid"
+            style={{
+              gridTemplateColumns: {
+                xs: "minmax(0, 1fr)",
+                md: "repeat(2, minmax(0, 1fr))",
+              },
+              gap: "8px",
               minWidth: 0,
             }}
           >

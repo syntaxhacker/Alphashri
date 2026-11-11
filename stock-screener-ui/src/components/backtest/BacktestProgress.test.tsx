@@ -75,28 +75,11 @@ describe("BacktestProgress", () => {
     expect(screen.getByTestId("progress-message")).toHaveTextContent("Processing...");
   });
 
-  it("renders the progress bar", () => {
+  it("renders the progress bar reflecting current/total percent", () => {
     render(<BacktestProgress progress={defaultProgress} />, { wrapper: Wrapper });
-    expect(screen.getByTestId("progress-fill")).toBeInTheDocument();
-  });
-
-  it("renders progress bar with animated style", () => {
-    render(<BacktestProgress progress={defaultProgress} />, { wrapper: Wrapper });
-    const progressBar = screen.getByTestId("progress-fill");
-    expect(progressBar).toBeInTheDocument();
-  });
-
-  it("shows 100% when complete", () => {
-    render(<BacktestProgress progress={{ current: 10, total: 10, message: "Done" }} />, {
-      wrapper: Wrapper,
-    });
-    const progressBar = screen.getByTestId("progress-fill");
-    expect(progressBar).toBeInTheDocument();
-  });
-
-  it("renders an MUI spinner while running", () => {
-    render(<BacktestProgress progress={defaultProgress} />, { wrapper: Wrapper });
-    expect(screen.getByTestId("progress-spinner")).toBeInTheDocument();
+    const fill = screen.getByTestId("progress-fill");
+    expect(fill).toBeInTheDocument();
+    expect(fill).toHaveAttribute("aria-valuenow", "50");
   });
 
   it("displays 'Running...' title", () => {

@@ -276,9 +276,9 @@ export function BacktestChart({
   if (isLoading) {
     return (
       <Box
-        className="backtest-chart-loading"
+        className="backtest-chart-loading flex items-center justify-center h-full rounded-fin"
         data-testid="backtest-chart-loading"
-        sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", bgcolor: "background.paper", borderRadius: 1 }}
+        style={{ height: "100%", backgroundColor: "#0A0A0A" }}
       >
         <Text c="dimmed">Loading {symbol}...</Text>
       </Box>
@@ -288,9 +288,9 @@ export function BacktestChart({
   if (!chartData || !input) {
     return (
       <Box
-        className="backtest-chart-empty"
+        className="backtest-chart-empty flex items-center justify-center h-full rounded-fin"
         data-testid="backtest-chart-empty"
-        sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", bgcolor: "background.paper", borderRadius: 1 }}
+        style={{ height: "100%", backgroundColor: "#0A0A0A" }}
       >
         <Text c="dimmed">No chart data for {symbol}</Text>
       </Box>
@@ -300,10 +300,10 @@ export function BacktestChart({
   return (
     <Box
       id={`backtest-chart-${symbol}`}
-      className="backtest-chart"
+      className="backtest-chart w-full h-full min-h-0 min-w-0 flex"
       data-testid="echarts-container"
       data-symbol={symbol}
-      sx={{ width: "100%", height: "100%", minHeight: 0, minWidth: 0, display: "flex", bgcolor: palette.NT_BG }}
+      style={{ width: "100%", height: "100%", minHeight: 0, minWidth: 0, display: "flex", backgroundColor: palette.NT_BG }}
     >
       <TradingViewChart
         ref={chartRef}

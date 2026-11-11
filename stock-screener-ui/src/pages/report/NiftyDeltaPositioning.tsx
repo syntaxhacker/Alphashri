@@ -1,8 +1,7 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { memo, useMemo } from "react";
-import Box from "@mui/material/Box";
 import type { ReactNode } from "react";
-import { Text } from "@/ui";
+import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { CompactPanel } from "@/components/common/compact";
 import { buildDeltaProfile, DeltaProfileChart } from "./DeltaProfileChart";
@@ -212,28 +211,16 @@ const PositioningStatRow = memo(function PositioningStatRow({
     <Box
       data-testid={testId}
       title={title}
-      sx={{
-        // Sized to content, NOT stretched: `space-between` on a full-width row
-        // pinned the label far left and the value far right with ~1100px of
-        // nothing between them on a wide screen.
-        display: "flex",
-        alignItems: "baseline",
-        justifyContent: "flex-start",
-        gap: "6px",
-        flex: "0 1 auto",
-        px: "6px",
-        py: "1px",
-        minWidth: 0,
-        bgcolor: palette.TERM_BG,
+      className="flex items-baseline justify-start gap-[6px] flex-[0_1_auto] px-[6px] py-[1px] min-w-0 rounded-[4px] tabular-nums"
+      style={{
+        backgroundColor: palette.TERM_BG,
         border: `1px solid ${palette.TERM_BORDER}`,
-        borderRadius: "4px",
-        fontVariantNumeric: "tabular-nums",
       }}
     >
       <Text size="xs" c="dimmed" span>
         {label}
       </Text>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+      <Box className="flex items-center gap-[8px] min-w-0">
         <Text size="sm" fw={700} c={tone} span>
           {value}
         </Text>
@@ -308,23 +295,17 @@ function NiftyDeltaPositioningInner({
           hidden`; without it a tall body painted past the panel
           and stretched the page's scroll area. `height: 100%` (not flex:1)
           because the body is an overflow container, not a flex parent. */}
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0, height: "100%", minHeight: 0 }}>
+      <Box className="flex flex-col gap-[8px] min-w-0 h-full min-h-0">
         <Box
           data-testid="nifty-positioning-verdict"
           title="Direction of net delta positioning — positive = bullish, negative = bearish"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1,
-            minWidth: 0,
-            px: 0.5,
-            py: 0.25,
-          }}
+          className="flex items-center gap-[8px] min-w-0 px-4 py-[2px]"
         >
           <Box
             aria-hidden
             data-testid="nifty-positioning-verdict-dot"
-            sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: accent, flexShrink: 0 }}
+            className="w-[6px] h-[6px] rounded-full shrink-0"
+            style={{ backgroundColor: accent, flexShrink: 0 }}
           />
           <Text size="sm" fw={700} c={accent} span>
             {positioningVerdictLabel(verdict)}
@@ -334,7 +315,7 @@ function NiftyDeltaPositioningInner({
           </Text>
         </Box>
 
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: "4px", minWidth: 0 }}>
+        <Box className="flex flex-wrap gap-[4px] min-w-0">
           <PositioningStatRow
             testId="nifty-positioning-state"
             label="State"
@@ -374,17 +355,10 @@ function NiftyDeltaPositioningInner({
               <Box
                 data-testid="nifty-positioning-split-bar"
                 title={`Bullish ${bullShare}% · Bearish ${bearShare}%`}
-                sx={{
-                  display: "flex",
-                  width: 64,
-                  height: 4,
-                  borderRadius: 1,
-                  overflow: "hidden",
-                  flexShrink: 0,
-                }}
+                className="flex w-[64px] h-[4px] rounded-[8px] overflow-hidden shrink-0"
               >
-                <Box sx={{ flexGrow: bullShare, flexShrink: 1, flexBasis: 0, background: palette.POSITIVE }} />
-                <Box sx={{ flexGrow: bearShare, flexShrink: 1, flexBasis: 0, background: palette.NEGATIVE }} />
+                <Box className="block" style={{ flexGrow: bullShare, flexShrink: 1, flexBasis: 0, backgroundColor: palette.POSITIVE }} />
+                <Box className="block" style={{ flexGrow: bearShare, flexShrink: 1, flexBasis: 0, backgroundColor: palette.NEGATIVE }} />
               </Box>
             }
           />
@@ -408,14 +382,14 @@ function NiftyDeltaPositioningInner({
           span
           c="dimmed"
           title="The curve is cumulative OI×delta across the chain (what defines the Δ pivot); the columns are today's initiated delta per strike. Both are restricted to the ±750 point band around spot."
-          sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+          className="whitespace-nowrap overflow-hidden truncate"
         >
           {`Profile ±${POSITIONING_WINDOW_PTS} pts${atmStrike !== null ? ` · ATM ${formatNumberIN(atmStrike)}` : ""} · curve > 0 = long δ · bars = initiated δ`}
         </Text>
 
         {/* Fills the row: the panel stretches to the analytics row height
             (align-items: stretch), so the chart takes the remaining space. */}
-        <Box sx={{ minWidth: 0, flex: 1, minHeight: 120, display: "flex" }}>
+        <Box className="min-w-0 flex-1 min-h-[120px] flex">
           <DeltaProfileChart
             points={profile}
             spot={spot}

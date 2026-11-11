@@ -5,14 +5,14 @@ const meta: Meta<typeof Stack> = {
   title: "Primitives/Layout/Stack",
   component: Stack,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Vertical flex stack with gap. Use for form fields, card content, page sections. When not to use: for horizontal layout use Group. Uses MUI Stack with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Vertical flex stack with gap. Use for form fields, card content, page sections. When not to use: for horizontal layout use Group. Uses the local @/ui Stack with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;
 type Story = StoryObj<typeof Stack>;
 
 const items = ["One", "Two", "Three"].map((label) => (
-  <div key={label} style={{ background: "var(--mui-palette-primary-light)", padding: 12, borderRadius: 6 }}>
+  <div key={label} style={{ background: "#80b5ff", padding: 12, borderRadius: 6 }}>
     {label}
   </div>
 ));

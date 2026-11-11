@@ -81,7 +81,7 @@ function testInputChange(
   conversion = 1,
 ) {
   test(description, async () => {
-    const user = userEvent.setup();
+    const _user = userEvent.setup();
     const onChange = vi.fn();
     render(
       <TestWrapper>

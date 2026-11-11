@@ -3,8 +3,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { MemoryRouter } from "react-router-dom";
-import { ThemeProvider } from "@mui/material/styles";
-import { muiTheme } from "@/ui/muiTheme";
 import { StrategiesContainer } from "./StrategiesContainer";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
@@ -64,11 +62,9 @@ function baseProps(overrides: Record<string, unknown> = {}) {
 function renderStrategiesRoute(propsOverrides: Record<string, unknown> = {}) {
   mockStrategiesState.mockReturnValue(baseProps(propsOverrides));
   return render(
-    <ThemeProvider theme={muiTheme}>
-      <MemoryRouter initialEntries={["/strategies"]}>
-        <StrategiesContainer />
-      </MemoryRouter>
-    </ThemeProvider>,
+    <MemoryRouter initialEntries={["/strategies"]}>
+      <StrategiesContainer />
+    </MemoryRouter>,
   );
 }
 
@@ -82,7 +78,7 @@ afterEach(() => {
 });
 
 describe("StrategiesContainer route", () => {
-  it("renders /strategies without crash (ThemeProvider + MemoryRouter)", () => {
+  it("renders /strategies without crash (MemoryRouter)", () => {
     renderStrategiesRoute();
     expect(screen.getByTestId("strategies-view")).toBeInTheDocument();
   });

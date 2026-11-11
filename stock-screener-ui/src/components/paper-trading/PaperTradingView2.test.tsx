@@ -138,34 +138,6 @@ function r() {
 }
 
 describe("PaperTradingView", () => {
-  describe("mounting and basic rendering", () => {
-    test("renders with data-testid paper-trading-view", () => {
-      r();
-      expect(screen.getByTestId("paper-trading-view")).toBeInTheDocument();
-    });
-
-    test("renders LivePriceUpdater", () => {
-      r();
-      expect(screen.getByTestId("live-price-updater")).toBeInTheDocument();
-    });
-
-    test("renders Live view by default", () => {
-      r();
-      expect(screen.getByTestId("paper-left-panel")).toBeInTheDocument();
-      expect(screen.getByTestId("paper-right-panel")).toBeInTheDocument();
-    });
-
-    test("renders left panel with portfolio card", () => {
-      r();
-      expect(screen.getByTestId("paper-portfolio-card")).toBeInTheDocument();
-    });
-
-    test("renders right panel with chart", () => {
-      r();
-      expect(screen.getByTestId("paper-chart")).toBeInTheDocument();
-    });
-  });
-
   describe("error state", () => {
     test("renders error alert when state.error is set", () => {
       mockStateStore.error = "Something went wrong";
@@ -188,20 +160,6 @@ describe("PaperTradingView", () => {
       r();
       expect(screen.getByTestId("paper-settings-panel")).toBeInTheDocument();
       expect(screen.getByTestId("paper-settings")).toBeInTheDocument();
-    });
-
-    test("Live view displays left and right panels", () => {
-      mockStateStore.currentView = "live";
-      r();
-      expect(screen.getByTestId("paper-left-panel")).toBeInTheDocument();
-      expect(screen.getByTestId("paper-right-panel")).toBeInTheDocument();
-    });
-  });
-
-  describe("header and filters", () => {
-    test("renders header with filters", () => {
-      r();
-      expect(screen.getByTestId("paper-filters")).toBeInTheDocument();
     });
   });
 

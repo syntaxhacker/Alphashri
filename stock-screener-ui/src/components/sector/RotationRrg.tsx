@@ -1,6 +1,6 @@
 import { Fragment, useMemo } from "react";
 import { Box, Text, Tooltip } from "@/ui";
-import { CREAM, MONO, TEXT, TEXT_MUTED } from "@/ui/palette";
+import { CREAM, TEXT, TEXT_MUTED } from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import { formatPercentage } from "@/utils/ui-helpers";
 import type { RotationQuadrant, RotationRow } from "@/types/rotation";
@@ -52,15 +52,9 @@ function dotRadius(row: RotationRow): number {
 function Meta({ label, value }: { label: string; value: string }) {
   return (
     <>
-      <Text sx={{ fontSize: 9.5, lineHeight: 1.35, color: "text.secondary" }}>{label}</Text>
+      <Text className="text-[9.5px] leading-[1.35] text-fin-text-muted">{label}</Text>
       <Text
-        sx={{
-          fontSize: 9.5,
-          lineHeight: 1.35,
-          fontFamily: MONO,
-          textAlign: "right",
-          fontVariantNumeric: "tabular-nums",
-        }}
+        className="text-[9.5px] leading-[1.35] font-mono text-right tabular-nums"
       >
         {value}
       </Text>
@@ -117,29 +111,13 @@ export function RotationRrg({ rows, selectedId, onSelect }: RotationRrgProps) {
   return (
     <Box
       data-testid="rotation-rrg"
-      sx={{ display: "flex", flexDirection: "column", flex: 1, height: "100%", minHeight: 0, minWidth: 0 }}
+      className="flex flex-col flex-1 h-full min-h-0 min-w-0"
     >
-      <Box sx={{ flex: 1, minHeight: 0, display: "flex", gap: 0.75, p: 1, pb: 0.5 }}>
-        <Box
-          sx={{
-            width: 12,
-            flexShrink: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
+      <Box className="flex-1 min-h-0 flex gap-[6px] p-2 pb-[4px]">
+        <Box className="w-[12px] shrink-0 flex items-center justify-center">
           <Box
             component="span"
-            sx={{
-              writingMode: "vertical-rl",
-              transform: "rotate(180deg)",
-              fontSize: 9,
-              letterSpacing: 0.6,
-              textTransform: "uppercase",
-              color: TEXT_MUTED,
-              whiteSpace: "nowrap",
-            }}
+            className="writing-mode-vertical-rl rotate-180 text-[9px] tracking-[0.6px] uppercase text-fin-text-muted whitespace-nowrap"
           >
             Momentum
           </Box>
@@ -147,29 +125,11 @@ export function RotationRrg({ rows, selectedId, onSelect }: RotationRrgProps) {
 
         <Box
           data-testid="rotation-rrg-chart"
-          sx={{
-            position: "relative",
-            flex: 1,
-            minWidth: 0,
-            minHeight: 0,
-            border: 1,
-            borderColor: "divider",
-            borderRadius: 1,
-            overflow: "hidden",
-            bgcolor: "background.paper",
-          }}
+          className="relative flex-1 min-w-0 min-h-0 border border-fin-border rounded-[1px] overflow-hidden bg-fin-surface"
         >
           {rows.length === 0 ? (
-            <Box
-              sx={{
-                position: "absolute",
-                inset: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Text sx={{ fontSize: 11, color: TEXT_MUTED }}>No rotation groups</Text>
+            <Box className="absolute inset-0 flex items-center justify-center">
+              <Text className="text-[11px] text-fin-text-muted">No rotation groups</Text>
             </Box>
           ) : (
             <>
@@ -188,29 +148,24 @@ export function RotationRrg({ rows, selectedId, onSelect }: RotationRrgProps) {
                 return (
                   <Box
                     key={key}
-                    sx={{
-                      position: "absolute",
+                    className="absolute pointer-events-none"
+                    style={{
                       left: `${left}%`,
                       top: `${top}%`,
                       width: `${w}%`,
                       height: `${h}%`,
-                      bgcolor: withAlpha(color, 0.055),
-                      pointerEvents: "none",
+                      backgroundColor: withAlpha(color, 0.055),
                     }}
                   >
                     <Box
                       component="span"
-                      sx={{
-                        position: "absolute",
+                      className="absolute font-bold tracking-[0.6px] whitespace-nowrap text-[8.5px]"
+                      style={{
                         top: topSide ? 5 : "auto",
                         bottom: topSide ? "auto" : 5,
                         left: leftSide ? 6 : "auto",
                         right: leftSide ? "auto" : 6,
-                        fontSize: 8.5,
-                        fontWeight: 700,
-                        letterSpacing: 0.6,
                         color: withAlpha(color, 0.95),
-                        whiteSpace: "nowrap",
                       }}
                     >
                       {QUADRANT_LABELS[key]}
@@ -221,23 +176,21 @@ export function RotationRrg({ rows, selectedId, onSelect }: RotationRrgProps) {
 
               {/* Benchmark crosshair. */}
               <Box
-                sx={{
-                  position: "absolute",
+                className="absolute pointer-events-none"
+                style={{
                   top: 0,
                   bottom: 0,
                   left: `${cx}%`,
-                  borderLeft: "1px dashed var(--mui-palette-divider)",
-                  pointerEvents: "none",
+                  borderLeft: "1px dashed var(--color-fin-border)",
                 }}
               />
               <Box
-                sx={{
-                  position: "absolute",
+                className="absolute pointer-events-none"
+                style={{
                   left: 0,
                   right: 0,
                   bottom: `${cy}%`,
-                  borderTop: "1px dashed var(--mui-palette-divider)",
-                  pointerEvents: "none",
+                  borderTop: "1px dashed var(--color-fin-border)",
                 }}
               />
 
@@ -247,16 +200,12 @@ export function RotationRrg({ rows, selectedId, onSelect }: RotationRrgProps) {
                 return (
                   <Box
                     key={`xt-${tick}`}
-                    sx={{
-                      position: "absolute",
+                    className="absolute pointer-events-none text-[8px] text-fin-text-muted tabular-nums"
+                    style={{
                       left: isLo ? 4 : isHi ? "auto" : `${x(tick)}%`,
                       right: isHi ? 4 : "auto",
                       bottom: 3,
                       transform: isLo || isHi ? "none" : "translateX(-50%)",
-                      fontSize: 8,
-                      color: TEXT_MUTED,
-                      fontVariantNumeric: "tabular-nums",
-                      pointerEvents: "none",
                     }}
                   >
                     {Math.round(tick)}
@@ -269,16 +218,12 @@ export function RotationRrg({ rows, selectedId, onSelect }: RotationRrgProps) {
                 return (
                   <Box
                     key={`yt-${tick}`}
-                    sx={{
-                      position: "absolute",
+                    className="absolute pointer-events-none text-[8px] text-fin-text-muted tabular-nums"
+                    style={{
                       right: 4,
                       bottom: isLo ? 2 : isHi ? "auto" : `${y(tick)}%`,
                       top: isHi ? 2 : "auto",
                       transform: isLo || isHi ? "none" : "translateY(50%)",
-                      fontSize: 8,
-                      color: TEXT_MUTED,
-                      fontVariantNumeric: "tabular-nums",
-                      pointerEvents: "none",
                     }}
                   >
                     {Math.round(tick)}
@@ -298,8 +243,8 @@ export function RotationRrg({ rows, selectedId, onSelect }: RotationRrgProps) {
                 return (
                   <Fragment key={row.id}>
                     <Box
-                      sx={{
-                        position: "absolute",
+                      className="absolute"
+                      style={{
                         left: `${px}%`,
                         bottom: `${py}%`,
                         transform: "translate(-50%, 50%)",
@@ -311,21 +256,15 @@ export function RotationRrg({ rows, selectedId, onSelect }: RotationRrgProps) {
                         openDelay={120}
                         withArrow
                         label={
-                          <Box sx={{ minWidth: 148 }}>
-                            <Text sx={{ fontSize: 11, fontWeight: 700, lineHeight: 1.25 }}>
+                          <Box className="min-w-[148px]">
+                            <Text className="text-[11px] font-bold leading-[1.25]">
                               {row.name}
                             </Text>
-                            <Text sx={{ fontSize: 9.5, lineHeight: 1.3, color: "text.secondary" }}>
+                            <Text className="text-[9.5px] leading-[1.3] text-fin-text-muted">
                               {row.category || row.kind} · {row.members} members
                             </Text>
                             <Box
-                              sx={{
-                                display: "grid",
-                                gridTemplateColumns: "auto auto",
-                                columnGap: 1.5,
-                                rowGap: 0.25,
-                                mt: 0.5,
-                              }}
+                              className="grid grid-cols-[auto_auto] column-gap-[12px] row-gap-[2px] mt-1"
                             >
                               <Meta label="1D" value={formatPercentage(row.returns["1D"], 2, true)} />
                               <Meta label="1W" value={formatPercentage(row.returns["1W"], 2, true)} />
@@ -342,56 +281,39 @@ export function RotationRrg({ rows, selectedId, onSelect }: RotationRrgProps) {
                           type="button"
                           aria-label={`${row.name} — ${QUADRANT_LABELS[row.quadrant]}`}
                           onClick={() => onSelect(row.id)}
-                          sx={{
-                            display: "block",
+                          className="block rounded-full p-0 cursor-pointer transition-transform duration-[120ms] hover:scale-135 focus-visible:outline-[1px] focus-visible:outline-solid focus-visible:outline-offset-[2px] focus-visible:outline-fin-text"
+                          style={{
                             width: r * 2,
                             height: r * 2,
-                            p: 0,
-                            borderRadius: "50%",
                             border: selected
                               ? `1.5px solid ${CREAM}`
                               : `1px solid ${withAlpha(color, 0.9)}`,
-                            bgcolor: withAlpha(color, selected ? 1 : 0.9),
+                            backgroundColor: withAlpha(color, selected ? 1 : 0.9),
                             boxShadow: selected
                               ? `0 0 0 3px ${withAlpha(color, 0.25)}`
                               : "none",
-                            cursor: "pointer",
-                            transition: "transform 120ms ease",
-                            "&:hover": { transform: "scale(1.35)" },
-                            "&:focus-visible": { outline: `1px solid ${CREAM}`, outlineOffset: 2 },
                           }}
                         />
                       </Tooltip>
                     </Box>
                     {labelledIds.has(row.id) ? (
                       <Box
-                        sx={{
-                          position: "absolute",
+                        className="absolute pointer-events-none max-w-[132px] px-[2px] rounded-[0.5px]"
+                        style={{
                           left: `${px}%`,
                           ...(below
                             ? { top: `calc(${100 - py}% + ${r + 5}px)` }
                             : { bottom: `calc(${py}% + ${r + 5}px)` }),
                           transform: anchor,
-                          maxWidth: 132,
-                          pointerEvents: "none",
                           zIndex: selected ? 5 : 2,
-                          px: 0.25,
-                          borderRadius: 0.5,
-                          bgcolor: selected
+                          backgroundColor: selected
                             ? "background.paper"
                             : withAlpha("#000000", 0.38),
                         }}
                       >
                         <Text
-                          sx={{
-                            fontSize: 9.5,
-                            lineHeight: 1.2,
-                            fontWeight: selected ? 700 : 500,
-                            color: selected ? TEXT : TEXT_MUTED,
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
+                          className="text-[9.5px] leading-[1.2] whitespace-nowrap overflow-hidden text-ellipsis"
+                          style={{ fontWeight: selected ? 700 : 500, color: selected ? TEXT : TEXT_MUTED }}
                         >
                           {shortName(row.name)}
                         </Text>
@@ -406,42 +328,19 @@ export function RotationRrg({ rows, selectedId, onSelect }: RotationRrgProps) {
       </Box>
 
       <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 1,
-          px: 1,
-          pb: 0.75,
-          minWidth: 0,
-        }}
+        className="flex items-center justify-between gap-2 px-2 pb-[6px] min-w-0"
       >
-        <Text sx={{ fontSize: 9, letterSpacing: 0.6, textTransform: "uppercase", color: TEXT_MUTED }}>
+        <Text className="text-[9px] tracking-[0.6px] uppercase text-fin-text-muted">
           RS 1M percentile
         </Text>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0, overflow: "hidden" }}>
+        <Box className="flex items-center gap-2 min-w-0 overflow-hidden">
           {(["leading", "improving", "weakening", "lagging"] as RotationQuadrant[]).map((key) => (
-            <Box key={key} sx={{ display: "inline-flex", alignItems: "center", gap: 0.4 }}>
-              <Box
-                sx={{
-                  width: 5,
-                  height: 5,
-                  borderRadius: "50%",
-                  bgcolor: QUADRANT_COLORS[key],
-                  flexShrink: 0,
-                }}
-              />
-              <Text sx={{ fontSize: 8.5, fontWeight: 700, letterSpacing: 0.3, color: TEXT_MUTED }}>
+            <Box key={key} className="inline-flex items-center gap-[3.2px]">
+              <Box className="size-[5px] rounded-full shrink-0" style={{ backgroundColor: QUADRANT_COLORS[key] }} />
+              <Text className="text-[8.5px] font-bold tracking-[0.3px] text-fin-text-muted">
                 {QUADRANT_LABELS[key]}
               </Text>
-              <Text
-                sx={{
-                  fontSize: 9,
-                  fontWeight: 600,
-                  color: TEXT_MUTED,
-                  fontVariantNumeric: "tabular-nums",
-                }}
-              >
+              <Text className="text-[9px] font-semibold text-fin-text-muted tabular-nums">
                 {counts[key]}
               </Text>
             </Box>

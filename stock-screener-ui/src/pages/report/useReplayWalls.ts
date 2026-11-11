@@ -106,14 +106,26 @@ export function useReplayWalls(opts: ReplayWallsOptions): ReplayWallsResult {
       inFlightRef.current = Math.max(0, inFlightRef.current - 1);
       if (requestEpoch !== epochRef.current) return; // context changed / disabled
 
-      // Progressive paint: a response may be newer than what is displayed even
-      // if a newer request is already in flight. Compare cutoffs so replies
-      // that arrive out of order cannot walk the card backwards.
       const prev = appliedAtRef.current;
-      const isNewer = !requestAt || !prev || requestAt >= prev;
-      if (data && isNewer) {
-        setWalls(data);
-        if (requestAt) appliedAtRef.current = requestAt;
+      const atNow = atRef.current;
+
+      // Never paint a payload whose requested cutoff is after the current
+      // playhead. A late future response that arrives after the user scrubbed
+      // back must be discarded, not painted — the card must not show a future
+      // frame while the playhead sits on an older minute. In-flight is already
+      // decremented above; catch-up still runs below.
+      if (requestAt && atNow && requestAt > atNow) {
+        // discard intentionally — do not paint, do not move appliedAtRef.
+      } else {
+        // Allow an older cutoff to paint when the playhead moved backwards, so
+        // scrubbing back (11:36 -> 11:33) lands on the older frame instead of
+        // leaving the card on the future minute.
+        const movingBack = Boolean(requestAt && prev && atNow && atNow < prev);
+        const isNewer = !requestAt || !prev || requestAt >= prev || movingBack;
+        if (data && isNewer) {
+          setWalls(data);
+          if (requestAt) appliedAtRef.current = requestAt;
+        }
       }
       if (inFlightRef.current === 0) {
         setSyncing(false);

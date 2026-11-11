@@ -1,9 +1,9 @@
-import TextField from "@mui/material/TextField";
-import InputAdornment from "@mui/material/InputAdornment";
+import { useId } from "react";
+import { cn } from "../cn";
 import type { UITextInputProps } from "../types";
 
-function mapSize(size?: UITextInputProps["size"]): "small" | "medium" {
-  return size === "xs" || size === "sm" ? "small" : "medium";
+function sizeClass(size?: UITextInputProps["size"]): string {
+  return size === "xs" || size === "sm" ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-sm";
 }
 
 export function TextInput({
@@ -29,8 +29,11 @@ export function TextInput({
   id: inputId,
   w,
   h,
+  onFocus,
+  onBlur,
 }: UITextInputProps) {
-  const muiSize = mapSize(size);
+  const autoId = useId();
+  const resolvedId = inputId ?? autoId;
   const explicitWidth = w != null ? (typeof w === "number" ? `${w}px` : w) : undefined;
   const explicitHeight = h != null ? (typeof h === "number" ? `${h}px` : h) : undefined;
   const isError = Boolean(error);
@@ -40,41 +43,58 @@ export function TextInput({
       : String(error ?? "")
     : (description as string | undefined);
 
+  const wrapperStyle: React.CSSProperties = explicitWidth
+    ? { width: explicitWidth, ...style }
+    : style ?? {};
+  const inputStyle: React.CSSProperties = explicitHeight ? { height: explicitHeight } : {};
+
+  const wrapperTestId = testId ? `${testId}-field` : undefined;
+  const inputTestId = testId;
+
   return (
-    <TextField
-      value={value}
-      defaultValue={defaultValue}
-      onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-      onKeyDown={onKeyDown as React.KeyboardEventHandler<HTMLDivElement> | undefined}
-      label={label as string | undefined}
-      placeholder={placeholder}
-      helperText={helperText}
-      error={isError}
-      required={required}
-      disabled={disabled}
-      size={muiSize}
-      type={inputType}
-      name={name as string | undefined}
-      id={inputId as string | undefined}
-      fullWidth={explicitWidth == null}
-      className={className}
-      style={style as React.CSSProperties}
-      data-testid={testId ? `${testId}-field` : undefined}
-      slotProps={{
-        input: {
-          readOnly: readOnly,
-          startAdornment: leftSection ? (
-            <InputAdornment position="start">{leftSection}</InputAdornment>
-          ) : undefined,
-          endAdornment: rightSection ? (
-            <InputAdornment position="end">{rightSection}</InputAdornment>
-          ) : undefined,
-        },
-        // testid belongs on the native input so getByTestId returns an
-        // editable element (typing, fill, clear all work on it)
-        htmlInput: testId ? ({ "data-testid": testId } as any) : undefined,
-      }}
-      sx={{ "& .MuiInputBase-root": { bgcolor: "background.paper" }, width: explicitWidth, ...(explicitHeight && { height: explicitHeight }) }}
-    />
+    <div
+      data-testid={wrapperTestId}
+      className={cn("flex flex-col min-w-0 gap-1.5", explicitWidth == null ? "w-full" : undefined, className)}
+      style={wrapperStyle}
+    >
+      {label && (
+        <label htmlFor={resolvedId} className={cn("text-xs font-medium", isError ? "text-fin-negative" : "text-fin-text")}>
+          {label}
+          {required && <span className="ml-1 text-fin-negative">*</span>}
+        </label>
+      )}
+      <div className="flex items-center gap-2 w-full min-w-0">
+        {leftSection && <div className="shrink-0">{leftSection}</div>}
+        <input
+          id={resolvedId}
+          type={inputType ?? "text"}
+          value={value}
+          defaultValue={defaultValue}
+          onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+          onKeyDown={onKeyDown}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          placeholder={placeholder}
+          name={name}
+          required={required}
+          disabled={disabled}
+          readOnly={readOnly}
+          className={cn(
+            "flex-1 min-w-0 block",
+            sizeClass(size),
+            "bg-fin-surface border border-fin-border rounded-fin text-fin-text placeholder:text-fin-text-muted",
+            "focus:outline-none focus:border-fin-primary focus:ring-2 focus:ring-fin-primary",
+            disabled ? "disabled:bg-fin-surface-alt disabled:text-fin-text-muted disabled:border-fin-border disabled:cursor-not-allowed" : undefined,
+            isError ? "border-fin-negative focus:border-fin-negative" : undefined,
+          )}
+          style={inputStyle}
+          data-testid={inputTestId}
+        />
+        {rightSection && <div className="shrink-0">{rightSection}</div>}
+      </div>
+      {helperText && (
+        <span className={cn("text-xs", isError ? "text-fin-negative" : "text-fin-text-muted")}>{helperText}</span>
+      )}
+    </div>
   );
 }

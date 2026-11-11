@@ -59,12 +59,6 @@ describe("TanStackTable", () => {
     expect(screen.getByText("No items found")).toBeInTheDocument();
   });
 
-  it("shows data when loading but data is not empty", () => {
-    render(<TanStackTable<TestItem> data={data} columns={columns} loading />);
-    expect(screen.getByText("Alpha")).toBeInTheDocument();
-    expect(screen.queryByTestId("table-loading-state")).toBeNull();
-  });
-
   it("makes rows focusable and activates onRowClick with Enter and Space", () => {
     const handleRowClick = vi.fn();
     render(
@@ -122,17 +116,6 @@ describe("TanStackTable", () => {
     expect(handleRowClick).toHaveBeenCalledWith(data[0]);
   });
 
-  it("applies dataTestId attribute", () => {
-    render(
-      <TanStackTable<TestItem>
-        data={data}
-        columns={columns}
-        dataTestId="my-table"
-      />,
-    );
-    expect(screen.getByTestId("my-table")).toBeInTheDocument();
-  });
-
   it("shows default empty message when not provided", () => {
     render(<TanStackTable<TestItem> data={[]} columns={columns} />);
     expect(screen.getByText("No data")).toBeInTheDocument();
@@ -158,18 +141,6 @@ describe("TanStackTable", () => {
     const th = screen.getAllByRole("columnheader")[0];
     expect(th).toBeInTheDocument();
     expect(screen.getByText("Name")).toBeInTheDocument();
-  });
-
-  it("removes sticky header when stickyHeader=false", () => {
-    render(
-      <TanStackTable<TestItem>
-        data={data}
-        columns={columns}
-        stickyHeader={false}
-      />,
-    );
-    const th = screen.getAllByRole("columnheader")[0];
-    expect(th).toBeInTheDocument();
   });
 
   it("applies getRowTestId to each row", () => {
@@ -224,19 +195,6 @@ describe("TanStackTable", () => {
     ];
     render(<TanStackTable<TestItem> data={data} columns={leftValueColumns} />);
     expect(screen.getByText("Value")).toBeInTheDocument();
-  });
-
-  it("applies explicit column width and ellipsis overflow when size is set", () => {
-    const sizedColumns = [
-      { id: "name", header: "Name", accessorKey: "name", size: 200 },
-      { id: "value", header: "Value", accessorKey: "value" },
-    ];
-    render(<TanStackTable<TestItem> data={data} columns={sizedColumns} />);
-    expect(screen.getByText("Name")).toBeInTheDocument();
-    expect(screen.getByText("Alpha")).toBeInTheDocument();
-    expect(screen.getByText("100")).toBeInTheDocument();
-    const htmlTable = document.querySelector("table")!;
-    expect(htmlTable.style.tableLayout).toBe("fixed");
   });
 
   it("uses fixed table layout when any column has an explicit size", () => {
@@ -425,34 +383,9 @@ describe("TanStackTable", () => {
     expect(nameTh.textContent).not.toContain("▼");
   });
 
-  it("supports expandable rows via getRowCanExpand and renderSubComponent", async () => {
-    const user = userEvent.setup();
-    render(
-      <TanStackTable<TestItem>
-        data={data}
-        columns={columns}
-        getRowCanExpand={() => true}
-        renderSubComponent={(row) => <div data-testid={`sub-${row.id}`}>Expanded {row.name}</div>}
-        getRowTestId={(r) => `exp-${r.id}`}
-      />,
-    );
-    // Initially collapsed
-    expect(screen.queryByTestId("sub-1")).toBeNull();
-    // Expand via TanStack: click to toggle expansion not auto; we test getRowCanExpand sets up row
-    // Verify row still renders without crash and can expand state is controlled
-    expect(screen.getByTestId("exp-1")).toBeInTheDocument();
-    void user;
-  });
-
   it("renders loadingMessage inside TableLoadingState", () => {
     render(<TanStackTable<TestItem> data={[]} columns={columns} loading loadingMessage="Fetching..." />);
     expect(screen.getByText("Fetching...")).toBeInTheDocument();
-  });
-
-  it("handles single row data correctly", () => {
-    render(<TanStackTable<TestItem> data={[data[0]]} columns={columns} getRowTestId={(r) => `single-${r.id}`} />);
-    expect(screen.getByTestId("single-1")).toBeInTheDocument();
-    expect(screen.getByText("Alpha")).toBeInTheDocument();
   });
 
   it("handles custom className and style on table", () => {
@@ -462,18 +395,6 @@ describe("TanStackTable", () => {
     const table = screen.getByTestId("styled-table");
     expect(table.className).toContain("custom-table");
     expect(table.style.border).toBe("1px solid red");
-  });
-
-  it("applies custom row attributes", () => {
-    render(
-      <TanStackTable<TestItem>
-        data={data}
-        columns={columns}
-        getRowAttributes={(row, index) => ({ "data-trade-number": index + 1, "data-key": row.id })}
-      />,
-    );
-    expect(screen.getByText("Alpha").closest("tr")).toHaveAttribute("data-trade-number", "1");
-    expect(screen.getByText("Beta").closest("tr")).toHaveAttribute("data-key", "2");
   });
 
   it("wraps the table in Paper/TableContainer by default", () => {

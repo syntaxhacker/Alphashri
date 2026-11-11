@@ -138,7 +138,7 @@ describe("OrbSettingsSection", () => {
 
   describe("onChange behavior", () => {
     it("passes or_minutes value as-is (Number from NumberInput)", async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
       const input = within(screen.getByTestId("config-or-minutes")).getByRole("spinbutton");
       fireEvent.change(input, { target: { value: "30" } });
@@ -146,7 +146,7 @@ describe("OrbSettingsSection", () => {
     });
 
     it("converts sl_pct string to Number", async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
       const input = within(screen.getByTestId("config-sl-pct")).getByRole("spinbutton");
       fireEvent.change(input, { target: { value: "0.5" } });
@@ -154,7 +154,7 @@ describe("OrbSettingsSection", () => {
     });
 
     it("converts tp_pct string to Number", async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
       const input = within(screen.getByTestId("config-tp-pct")).getByRole("spinbutton");
       fireEvent.change(input, { target: { value: "2.5" } });
@@ -162,7 +162,7 @@ describe("OrbSettingsSection", () => {
     });
 
     it("converts min_or_range_pct string to Number", async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
       const input = within(screen.getByTestId("config-min-or-range")).getByRole("spinbutton");
       fireEvent.change(input, { target: { value: "1.0" } });
@@ -170,7 +170,7 @@ describe("OrbSettingsSection", () => {
     });
 
     it("converts max_or_range_pct string to Number", async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
       const input = within(screen.getByTestId("config-max-or-range")).getByRole("spinbutton");
       fireEvent.change(input, { target: { value: "5.5" } });
@@ -291,7 +291,7 @@ describe("OrbSettingsSection", () => {
 
   describe("fractional steps", () => {
     it("accepts fractional step values for sl_pct (0.1 step)", async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
       const input = within(screen.getByTestId("config-sl-pct")).getByRole("spinbutton");
       fireEvent.change(input, { target: { value: "0.25" } });
@@ -299,7 +299,7 @@ describe("OrbSettingsSection", () => {
     });
 
     it("accepts fractional step values for tp_pct (0.1 step)", async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
       const input = within(screen.getByTestId("config-tp-pct")).getByRole("spinbutton");
       fireEvent.change(input, { target: { value: "3.75" } });
@@ -307,7 +307,7 @@ describe("OrbSettingsSection", () => {
     });
 
     it("accepts fractional step values for min_or_range_pct (0.1 step)", async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
       const input = within(screen.getByTestId("config-min-or-range")).getByRole("spinbutton");
       fireEvent.change(input, { target: { value: "2.35" } });
@@ -315,7 +315,7 @@ describe("OrbSettingsSection", () => {
     });
 
     it("accepts fractional step values for max_or_range_pct (0.5 step)", async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
       const input = within(screen.getByTestId("config-max-or-range")).getByRole("spinbutton");
       fireEvent.change(input, { target: { value: "3.5" } });

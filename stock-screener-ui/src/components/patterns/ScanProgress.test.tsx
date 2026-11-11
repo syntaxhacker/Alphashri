@@ -357,7 +357,7 @@ describe("ScanCacheChip", () => {
     expect(onForceRefresh).toHaveBeenCalledTimes(1);
   });
 
-  test("tooltip exposes the cache layers as its accessible label", () => {
+  test("tooltip exposes the cache layers as its accessible label", async () => {
     r(
       <ScanCacheChip
         job={makeJob({
@@ -376,15 +376,22 @@ describe("ScanCacheChip", () => {
         })}
       />,
     );
-    // MUI surfaces a string tooltip title as the wrapper's aria-label.
-    expect(screen.getByLabelText(/Scan reused: yes \(12 min ago\)/)).toHaveAttribute(
-      "aria-label",
-      "Scan reused: yes (12 min ago) — data unchanged · Candle cache: 480 cached / 20 fetched · Prefilter dropped: 12 · Detector v3 · Data as of 2026-09-30",
-    );
+    // The local Tooltip renders the joined layers inside the bubble on hover.
+    const user = userEvent.setup();
+    await user.hover(screen.getByTestId("patterns-scan-reused"));
+    expect(
+      await screen.findByText(
+        "Scan reused: yes (12 min ago) — data unchanged · Candle cache: 480 cached / 20 fetched · Prefilter dropped: 12 · Detector v3 · Data as of 2026-09-30",
+      ),
+    ).toBeInTheDocument();
   });
 
-  test("tooltip degrades gracefully without provenance", () => {
+  test("tooltip degrades gracefully without provenance", async () => {
+    const user = userEvent.setup();
     r(<ScanCacheChip job={makeJob({ status: "completed", data_through: "2026-09-30" })} />);
-    expect(screen.getByLabelText("Scan reused: no — freshly computed · Data as of 2026-09-30")).toBeInTheDocument();
+    await user.hover(screen.getByTestId("patterns-scan-fresh"));
+    expect(
+      await screen.findByText("Scan reused: no — freshly computed · Data as of 2026-09-30"),
+    ).toBeInTheDocument();
   });
 });

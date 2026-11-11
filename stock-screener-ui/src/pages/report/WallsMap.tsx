@@ -1,9 +1,5 @@
 import { useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
-import Button from "@mui/material/Button";
-import { alpha } from "@mui/material/styles";
+import { alpha } from "@/ui/alpha";
 import type { WallsEvent, WallsMap as WallsMapData } from "@/api/reportNifty";
 import * as palette from "@/ui/palette";
 import { fmtNum, fmtOI, fmtPct, fmtSignedOI } from "./niftyWallsFormat";
@@ -78,14 +74,14 @@ function Legend({
   dashed?: boolean;
 }) {
   return (
-    <Stack direction="row" spacing={0.35} sx={{ alignItems: "center" }}>
+    <div className="flex items-center gap-[3px]">
       {line ? (
-        <Box sx={{ width: 11, borderTop: `1px ${dashed ? "dashed" : "solid"} ${color}` }} />
+        <span className="w-[11px]" style={{ borderTop: `1px ${dashed ? "dashed" : "solid"} ${color}` }} />
       ) : (
-        <Box sx={{ width: 7, height: 7, bgcolor: color, borderRadius: "1px" }} />
+        <span className="w-2 h-2 rounded-[1px]" style={{ backgroundColor: color }} />
       )}
-      <Typography sx={{ fontSize: 7.5, lineHeight: 1, color: palette.TEXT_MUTED }}>{label}</Typography>
-    </Stack>
+      <div className="text-[7.5px] leading-1 text-fin-text-muted">{label}</div>
+    </div>
   );
 }
 
@@ -277,57 +273,64 @@ export function WallsMapChart({
     return points.join(" ");
   };
 
+  const toggleButton = (testId: string, pressed: boolean, label: string, onClick: () => void) => (
+    <button
+      type="button"
+      data-testid={testId}
+      aria-pressed={pressed}
+      onClick={onClick}
+      className="inline-flex items-center justify-center min-w-0 rounded-sm text-[7.5px] font-bold leading-[1.4] whitespace-nowrap"
+      style={{
+        padding: "1px 4px",
+        color: pressed ? palette.TEXT_COLOR : palette.TEXT_MUTED,
+        backgroundColor: pressed ? palette.SURFACE_ALT : "transparent",
+        border: `1px solid ${pressed ? palette.BORDER : "transparent"}`,
+      }}
+    >
+      {label}
+    </button>
+  );
+
   return (
-    <Box
+    <div
       data-testid="walls-map"
       tabIndex={0}
       role="group"
       aria-label="Wall map. Use left and right arrows to inspect minutes."
       onKeyDown={handleKeyDown}
-      sx={{
-        minWidth: 0,
-        outline: "none",
-        "&:focus-visible": { outline: `1px solid ${palette.PRIMARY}` },
-      }}
+      className="min-w-0 outline-none focus-visible:outline-1 focus-visible:outline-fin-primary"
     >
-      <Stack
-        direction="row"
-        sx={{ mb: 0.4, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", rowGap: 0.25 }}
+      <div
+        className="flex items-center justify-between flex-wrap mb-[3px] row-gap-[2px]"
       >
-        <Stack direction="row" spacing={0.75} sx={{ alignItems: "baseline", minWidth: 0, flexWrap: "wrap", rowGap: 0.1 }}>
-          <Typography sx={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.5, color: palette.TEXT_COLOR }}>
-            WALL MAP
-          </Typography>
-          <Typography data-testid="walls-map-horizon-label" sx={{ fontSize: 8, color: palette.TEXT_MUTED }}>
+        <div className="flex items-baseline gap-1.5 min-w-0 flex-wrap row-gap-[1px]">
+          <div className="text-[9px] font-bold tracking-[0.5em] text-fin-text">WALL MAP</div>
+          <div data-testid="walls-map-horizon-label" className="text-[8px] text-fin-text-muted">
             Δ vs {horizon === "session" ? "open" : timeLabel(times[0])} · {times.length}m · {strikes.length} strikes
-          </Typography>
-          <Typography
+          </div>
+          <div
             data-testid="walls-map-active-time"
-            sx={{ fontSize: 8, fontWeight: 800, color: isLive ? palette.POSITIVE : palette.WARNING }}
+            className="text-[8px] font-bold"
+            style={{ color: isLive ? palette.POSITIVE : palette.WARNING }}
           >
             {isLive ? "LIVE" : pinnedTime ? "PINNED" : "PREVIEW"} · {timeLabel(activeTime)}
-          </Typography>
-          <Typography sx={{ fontSize: 8, color: palette.TEXT_MUTED }}>
+          </div>
+          <div className="text-[8px] text-fin-text-muted">
             spot {fmtNum(activeSpot)} · MP {fmtNum(activeMaxPain)} · FLIP {activeFlip != null ? fmtNum(activeFlip) : "—"}
-          </Typography>
-        </Stack>
-        <Stack direction="row" spacing={0.8} sx={{ alignItems: "center", flexWrap: "wrap", rowGap: 0.25 }}>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap row-gap-[2px]">
           {regime ? (
-            <Box
+            <span
               data-testid="walls-map-regime"
-              sx={{
-                px: 0.5,
-                py: 0.05,
-                border: `1px solid ${regime === "SHORT" ? palette.NEGATIVE : palette.POSITIVE}`,
+              className="px-1 py-[1px] border rounded-sm text-[8px] font-bold leading-[1.4]"
+              style={{
+                borderColor: regime === "SHORT" ? palette.NEGATIVE : palette.POSITIVE,
                 color: regime === "SHORT" ? palette.NEGATIVE : palette.POSITIVE,
-                fontSize: 8,
-                fontWeight: 800,
-                lineHeight: 1.4,
-                borderRadius: 0.5,
               }}
             >
               {regime} Γ
-            </Box>
+            </span>
           ) : null}
           <Legend color={palette.NEGATIVE} label="erosion" />
           <Legend color={palette.POSITIVE} label="build" />
@@ -337,85 +340,36 @@ export function WallsMapChart({
           <Legend color={palette.NEGATIVE} label="top call" line />
           <Legend color={palette.POSITIVE} label="top put" line />
           {!isLive ? (
-            <Button
+            <button
+              type="button"
               size="small"
               data-testid="walls-map-live"
               onClick={clearInspect}
-              sx={{
-                minWidth: 0,
-                px: 0.6,
-                py: 0.05,
-                fontSize: 8,
-                fontWeight: 800,
-                lineHeight: 1.4,
+              className="inline-flex items-center justify-center min-w-0 rounded-sm text-[8px] font-bold leading-[1.4] whitespace-nowrap"
+              style={{
+                padding: "1px 5px",
                 color: palette.PRIMARY,
                 border: `1px solid ${palette.PRIMARY}`,
-                borderRadius: 0.5,
+                borderRadius: 4,
               }}
             >
               LIVE
-            </Button>
+            </button>
           ) : null}
-        </Stack>
-      </Stack>
+        </div>
+      </div>
 
-      <Stack direction="row" spacing={0.4} sx={{ mb: 0.35, alignItems: "center", flexWrap: "wrap", rowGap: 0.2 }}>
-        <Typography sx={{ fontSize: 7, fontWeight: 700, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>COLOR</Typography>
+      <div className="flex items-center flex-wrap mb-[3px] gap-1 row-gap-[2px]">
+        <div className="text-[7px] font-bold tracking-[0.5em] text-fin-text-muted">COLOR</div>
         {(["window", "session"] as const).map((mode) => (
-          <Button
-            key={mode}
-            size="small"
-            data-testid={`walls-map-horizon-${mode}`}
-            aria-pressed={horizon === mode}
-            onClick={() => setHorizon(mode)}
-            sx={{
-              minWidth: 0,
-              px: 0.55,
-              py: 0.02,
-              fontSize: 7.5,
-              fontWeight: 800,
-              lineHeight: 1.4,
-              color: horizon === mode ? palette.TEXT_COLOR : palette.TEXT_MUTED,
-              bgcolor: horizon === mode ? palette.SURFACE_ALT : "transparent",
-              border: `1px solid ${horizon === mode ? palette.BORDER : "transparent"}`,
-              borderRadius: 0.5,
-              "&:hover": { bgcolor: palette.SURFACE_ALT },
-            }}
-          >
-            {mode === "window" ? "60m" : "SESSION"}
-          </Button>
+          toggleButton(`walls-map-horizon-${mode}`, horizon === mode, mode === "window" ? "60m" : "SESSION", () => setHorizon(mode))
         ))}
-        <Typography sx={{ fontSize: 7, fontWeight: 700, letterSpacing: 0.5, color: palette.TEXT_MUTED, ml: 0.4 }}>
-          MEASURE
-        </Typography>
+        <div className="text-[7px] font-bold tracking-[0.5em] text-fin-text-muted ml-[8px]">MEASURE</div>
         {(["pct", "oi"] as const).map((mode) => (
-          <Button
-            key={mode}
-            size="small"
-            data-testid={`walls-map-measure-${mode}`}
-            aria-pressed={measure === mode}
-            onClick={() => setMeasure(mode)}
-            sx={{
-              minWidth: 0,
-              px: 0.55,
-              py: 0.02,
-              fontSize: 7.5,
-              fontWeight: 800,
-              lineHeight: 1.4,
-              color: measure === mode ? palette.TEXT_COLOR : palette.TEXT_MUTED,
-              bgcolor: measure === mode ? palette.SURFACE_ALT : "transparent",
-              border: `1px solid ${measure === mode ? palette.BORDER : "transparent"}`,
-              borderRadius: 0.5,
-              "&:hover": { bgcolor: palette.SURFACE_ALT },
-            }}
-          >
-            {mode === "pct" ? "%" : "OI"}
-          </Button>
+          toggleButton(`walls-map-measure-${mode}`, measure === mode, mode === "pct" ? "%" : "OI", () => setMeasure(mode))
         ))}
-        <Typography sx={{ fontSize: 7, color: palette.TEXT_MUTED, ml: 0.4 }}>
-          bars: muted = open · bright = new
-        </Typography>
-      </Stack>
+        <div className="text-[7px] text-fin-text-muted ml-[8px]">bars: muted = open · bright = new</div>
+      </div>
 
       <svg
         ref={svgRef}
@@ -652,6 +606,6 @@ export function WallsMapChart({
           <AxisLabels times={times} cellW={cellW} xOffset={PUT_PLOT_X} rowsH={rowsH} />
         </g>
       </svg>
-    </Box>
+    </div>
   );
 }

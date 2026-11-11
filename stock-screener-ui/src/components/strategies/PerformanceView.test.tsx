@@ -89,26 +89,4 @@ describe("PerformanceView", () => {
     expect(onSelectStrategy).toHaveBeenCalledWith(1);
   });
 
-  it("shows win rate badge with teal color >= 50%, red < 50%", () => {
-    const perf: StrategyPerformance[] = [
-      { strategy_id: 1, strategy_name: "ORB", total_trades: 10, winners: 6, losers: 4, win_rate: 60, total_pnl: 5000, net_pnl: 4800 },
-      { strategy_id: 2, strategy_name: "EMA", total_trades: 10, winners: 3, losers: 7, win_rate: 30, total_pnl: -2000, net_pnl: -2050 },
-    ];
-    render(
-      <UIProvider>
-        <PerformanceView performance={perf} strategies={[]} onSelectStrategy={vi.fn()} isLoading={false} />
-      </UIProvider>,
-    );
-  });
-
-  it("shows Net P&L colored teal for positive, red for negative", () => {
-    const perf: StrategyPerformance[] = [
-      { strategy_id: 1, strategy_name: "ORB", total_trades: 5, winners: 3, losers: 2, win_rate: 60, total_pnl: 1000, net_pnl: 950 },
-    ];
-    render(
-      <UIProvider>
-        <PerformanceView performance={perf} strategies={[]} onSelectStrategy={vi.fn()} isLoading={false} />
-      </UIProvider>,
-    );
-  });
 });

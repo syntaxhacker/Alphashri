@@ -1,7 +1,6 @@
-import Skeleton from "@mui/material/Skeleton";
-import Typography from "@mui/material/Typography";
 import { IconBolt, IconRefresh } from "@tabler/icons-react";
-import { ActionIcon, Box, Select, Stack, ToolbarRow, Tooltip } from "@/ui";
+import { ActionIcon, Box, Skeleton, Select, Stack, Text, ToolbarRow, Tooltip } from "@/ui";
+import * as palette from "@/ui/palette";
 import type { NewsItem } from "./news-types";
 import { NewsListContent } from "./NewsHelpers";
 import { SentimentBadge } from "./SentimentBadge";
@@ -51,57 +50,61 @@ export function NewsList({
 
   return (
     <Box
-      sx={{ width: "100%", minHeight: 0, flex: 1, display: "flex", flexDirection: "column" }}
+      className="flex flex-col flex-1 min-h-0 w-full"
       id="news-feed"
       data-testid="news-feed"
     >
       <Box
         data-testid="news-feed-toolbar"
-        sx={{
+        className="sticky top-0 z-20 bg-fin-surface border-b border-fin-border"
+        style={{
           position: "sticky",
           top: 0,
           zIndex: 2,
-          bgcolor: "background.paper",
-          borderBottom: 1,
-          borderColor: "divider",
+          backgroundColor: palette.SURFACE,
+          borderBottom: `1px solid ${palette.BORDER}`,
         }}
       >
-        <Box sx={{ px: 1.5, pt: 1.25, pb: 0.75 }}>
+        <Box style={{ paddingLeft: 12, paddingRight: 12, paddingTop: 10, paddingBottom: 6 }}>
           <ToolbarRow gap={8}>
-            <Box sx={{ minWidth: 0, flex: "0 0 auto", flexBasis: { xs: "100%", sm: "auto" } }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-                <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.2 }}>
+            <Box style={{ minWidth: 0, flex: "0 0 auto", width: "100%" }}>
+              <Box className="flex items-center gap-3" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
                   Market feed
-                </Typography>
+                </Text>
                 <Box
-                  sx={{
+                  className="flex items-center gap-2 rounded-fin"
+                  style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 0.5,
-                    color: "success.main",
-                    px: 0.75,
-                    py: 0.25,
-                    borderRadius: 1,
-                    bgcolor: "action.hover",
+                    gap: 4,
+                    color: palette.POSITIVE,
+                    paddingLeft: 6,
+                    paddingRight: 6,
+                    paddingTop: 2,
+                    paddingBottom: 2,
+                    borderRadius: 8,
+                    backgroundColor: "#121212",
                   }}
                 >
                   <IconBolt size={12} aria-hidden="true" />
-                  <Typography variant="caption" fontWeight={700} sx={{ lineHeight: 1 }}>
+                  <Text size="xs" fw={700} style={{ lineHeight: 1 }}>
                     Live
-                  </Typography>
+                  </Text>
                 </Box>
               </Box>
-              <Typography
-                variant="caption"
-                color="text.secondary"
+              <Text
+                size="xs"
+                c="dimmed"
                 data-testid="news-story-count"
-                sx={{ display: "block", mt: 0.25, fontVariantNumeric: "tabular-nums" }}
+                className="block mt-2 [font-variant-numeric:tabular-nums]"
+                style={{ display: "block", marginTop: 2, fontVariantNumeric: "tabular-nums" }}
               >
                 {storyLabel} across {visibleSourceNames.length} {visibleSourceNames.length === 1 ? "source" : "sources"}
-              </Typography>
+              </Text>
             </Box>
-            <Box sx={{ flex: 1, minWidth: 0, display: { xs: "none", sm: "block" } }} />
-            <Box sx={{ width: { xs: "auto", sm: 180 }, flex: 1, maxWidth: "100%" }}>
+            <Box style={{ flex: 1, minWidth: 0, display: "none" }} />
+            <Box style={{ width: "auto", flex: 1, maxWidth: "100%" }}>
               <Select
                 aria-label="Source"
                 size="sm"
@@ -112,7 +115,7 @@ export function NewsList({
                 data-testid="source-selector"
               />
             </Box>
-            <Tooltip title="Refresh news feed">
+            <Tooltip label="Refresh news feed">
               <ActionIcon
                 variant="light"
                 size="sm"
@@ -121,7 +124,7 @@ export function NewsList({
                 disabled={loading}
                 aria-label="Refresh news feed"
                 data-testid="news-feed-refresh-btn"
-                sx={{ flex: "0 0 auto" }}
+                style={{ flex: "0 0 auto" }}
               >
                 <IconRefresh size={16} />
               </ActionIcon>
@@ -131,16 +134,16 @@ export function NewsList({
       </Box>
 
       {loading && !hasGroups ? (
-        <Stack spacing={1} sx={{ p: 1.5 }} data-testid="news-loader">
+        <Stack className="gap-2" style={{ padding: 12 }} data-testid="news-loader">
           {[0, 1, 2, 3].map((row) => (
-            <Skeleton key={row} variant="rounded" height={64} />
+            <Skeleton key={row} h={64} className="rounded" />
           ))}
-          <Typography variant="body2" color="text.secondary">
+          <Text size="sm" c="dimmed">
             Loading market headlines…
-          </Typography>
+          </Text>
         </Stack>
       ) : (
-        <Box sx={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+        <Box className="flex-1 min-h-0 overflow-auto">
           <NewsListContent
             loading={false}
             error={error}
@@ -159,7 +162,8 @@ export function NewsList({
               item.sentiment || item.impact_score !== undefined ? (
                 <Box
                   component="span"
-                  sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}
+                  className="flex items-center gap-3 min-w-0"
+                  style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}
                 >
                   {item.sentiment && <SentimentBadge sentiment={item.sentiment} />}
                   {item.impact_score !== undefined && <ImpactScore score={item.impact_score} compact />}

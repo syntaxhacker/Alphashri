@@ -24,7 +24,7 @@
 **Violation handling:** If destructive command is about to run, abort, report `blocked: <command>`, wait for explicit approval. On accidental `reset --hard`, run `git reflog --oneline | head` + `git fsck --lost-found` and report, do not auto-recover without user.
 
 ## Stack
-React 19 + Vite 8 + MUI 9.3.1 + Emotion + TypeScript. Backend: FastAPI (Python).
+React 19 + Vite 8 + Tailwind CSS 4 + TypeScript. Backend: FastAPI (Python).
 
 ## Commands
 - `./start.sh` — starts both API (uvicorn) and UI (vite) together, auto-activates `.venv`. Background mode (reload on, uses `watchfiles`). Modes: `dev` (foreground, reload), `prod` (foreground, no reload), `restart [prod]`, `stop`, `status`, `logs`, `bots start|stop|status`. During market hours the 52W range batch now runs a prompt initial job quickly after startup (see the 52W section). Logs to `logs/alphashri.log`.
@@ -66,19 +66,19 @@ React 19 + Vite 8 + MUI 9.3.1 + Emotion + TypeScript. Backend: FastAPI (Python).
 - **Chat history**: Conversations and messages stored in `chat_conversations`/`chat_messages` tables. CRUD endpoints at `/api/trading-agents/conversations`.
 - **Chat Popup** (`src/components/common/ChatPopup.tsx`): Floating action button, expandable to full screen, history sidebar, markdown rendering via `react-markdown`.
 
-## MUI 9 Financial Theme Rules
+## Tailwind 4 Financial Theme Rules
 - Single source `src/ui/palette.ts` `FIN_*` (`FIN_PRIMARY #2563EB`, `FIN_POSITIVE #16A34A`, etc.) + layout tokens `FIN_HEADER_H 48`, `FIN_RADIUS 8`, `FIN_OUTER_PAD 16` — never hardcode hex outside palette
-- Theme `src/ui/muiTheme.ts` `muiTheme` (`contrastThreshold 4.5`, `shape 8`, `MuiPaper/Card` flat `elevation 0` + `1px divider` + `Dialog shadow 0 8px 32px`) — use `var(--mui-palette-*)` vars, never hardcode hex outside the palette
-- Use MUI wrappers from `src/ui/` (`Box/Flex/Stack/Group/Center/Grid/SimpleGrid/Paper/Card/ScrollArea` via `Box overflow:auto`) + `CompactPanel/CompactStat/CompactStatGrid` (`components/common/compact.tsx` `radius sm 8` `p sm 8` `gap sm 8`)
+- Theme tokens live in `src/tailwind.css` + `src/ui/palette.ts`; use `bg-fin-*`/`text-fin-*`/`border-fin-*` utilities and `var(--color-fin-*)`, never hardcode hex outside the palette
+- Use the local `@/ui` components (`Box/Flex/Stack/Group/Center/Grid/SimpleGrid/Paper/Card/ScrollArea`) + `CompactPanel/CompactStat/CompactStatGrid` (`components/common/compact.tsx`). They render semantic HTML + Tailwind.
 - 8pt grid: outer `16`, inner `8`, table `8px 12px 12px`, header `48`, gaps `xs4 sm8 md16` — no raw `6px` slop
 - `TanStackTable` `src/components/common/TanStackTable.tsx` `ROW_ESTIMATED 28` `cell 8/12/12` `sticky shadow` — dense but scannable (12px)
-- Reference MUI docs — never guess APIs; use `sx` prop, not global CSS; `size="sm"` inputs/buttons, `size="xs"` badges/tables only
+- Reference the local `@/ui` types; use `className`/Tailwind utilities, never `sx`; `size="sm"` inputs/buttons, `size="xs"` badges/tables only
 - Tables — fin-app alignment is mandatory (text left, numbers right, badges/actions center; explicit `meta.align` per column, wrapper must match): rules + placement map in [TABLE_CHECKLIST.md](../TABLE_CHECKLIST.md)
 
 ## UI Revamp Rules (MANDATORY — read before touching any tab/page)
 Full rules: [UI_RULES.md](./UI_RULES.md). Checklist to tick for every revamp: [UI_CHECKLIST.md](./UI_CHECKLIST.md).
-1. **`@/ui` is MUI, not Mantine.** Mantine-only props (`styles`, and historically `w`/`h`) are dropped. Never pass `styles={{...}}` (guard test fails). Inputs now honor `w`/`h`; when `w` is set the input stops being full-width.
-2. **Inputs default to `fullWidth`.** In a row, give each an explicit `w={n}` or wrap it in a flex cell (`<Box sx={{ flex: 1, minWidth: 0 }}>` + `style={{ width: "100%" }}`). Accidental full-width selects are a bug.
+1. **`@/ui` is local semantic HTML + Tailwind.** Mantine-only props (`styles`) are dropped. Never pass `styles={{...}}` (guard test fails). Inputs honor `w`/`h`; when `w` is set the input stops being full-width.
+2. **Inputs default to `fullWidth`.** In a row, give each an explicit `w={n}` or wrap it in a flex cell (`<Box className="flex-1 min-w-0">` + `style={{ width: "100%" }}`). Accidental full-width selects are a bug.
 3. **Control rows use `<ToolbarRow>`** (from `@/ui`) — it forces `align-items:center` + explicit gap. `Group` defaults to `align-items: stretch`; if used for controls, pass `align="center"`.
 4. **No nested bordered cards**; one border per section, inner separation via dividers. Panels/charts fill their flex container (`autoSize`, no fixed heights in flex panels).
 5. **Verify visually, not just build.** After any UI change: `bun run build && bun run lint`, then a chrome-devtools screenshot at a real viewport in empty/loading/full states, then the guards:
@@ -133,10 +133,10 @@ src/
 - **Price vs Polling**: WebSocket delivers first tick in ~30ms vs REST ~174ms. Live ticks stream at ~4/sec during market hours.
 
 ## CSS
-- `style.css` purged `1651 → ~80` lines: flash animations + `box-sizing` + `body var(--mui-palette-*)` only; `divider` no longer used as text color (was grey wash — win/loss same)
+- `style.css` holds only flash animations + `box-sizing` + body tokens; `divider` is no longer used as text color (was grey wash — win/loss same)
 - Semantic P&L: `success #16A34A` / `error #DC2626` distinct, `toast` left-border `success/error/warning/info`, `table th` `paper + text.secondary`
 - Remove dead CSS classes when removing old components (verify with grep before deleting)
-- No CSS modules — global CSS with MUI `sx` overrides
+- No CSS modules — global CSS + Tailwind utilities; no `sx` overrides
 
 ## Backend (Python)
 - Single source of truth for IST timezone: `config.IST` (root `config.py`, re-exported in `stock-screener-ui/config.py`)
@@ -504,7 +504,7 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - **Frequency:** After each green checkpoint (`bun run build` + `bun run lint` pass, or `build-storybook` pass for UI). Do not accumulate >30 min or >100 lines without a commit.
 - **Format:** Conventional `type: scope` — `feat`, `fix`, `refactor`, `chore`. No `Co-authored-by` line unless user asks.
 - **Push policy:** `git push -u origin <feature-branch>` is allowed. Pushing `develop`/`main` requires explicit user approval and is normally a PR merge (`gh pr create --base develop`).
-- **Checkpoint type:** Use `wip:` prefix if not yet green: `wip: mui scaffold — Box/Stack`.
+- **Checkpoint type:** Use `wip:` prefix if not yet green: `wip: tailwind scaffold — Box/Stack`.
 - **Safety net:** Before any `reset`/`clean`, `git stash push -m "pre-<task>"` or commit — never lose working tree.
 - Lint + build must pass: `bun run lint && bun run build`
 

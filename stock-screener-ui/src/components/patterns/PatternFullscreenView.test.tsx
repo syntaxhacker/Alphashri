@@ -11,8 +11,7 @@ vi.mock("./PatternTradingViewChart", () => ({
   PatternTradingViewChart: () => <div data-testid="patterns-tv-chart" />,
 }));
 
-// Native-select stub so the fullscreen TF wiring is deterministic (the real MUI
-// Select needs popup interaction). Testids + onChange contracts preserved.
+// Native-select stub so the fullscreen TF wiring is deterministic (the real Select needs popup interaction). Testids + onChange contracts preserved.
 vi.mock("./ChartTimeframeSelect", () => ({
   ChartTimeframeSelect: ({ timeframes, value, onChange }: any) => {
     const source =

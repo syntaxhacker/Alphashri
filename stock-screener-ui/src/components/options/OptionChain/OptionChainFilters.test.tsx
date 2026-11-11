@@ -11,47 +11,6 @@ afterEach(() => {
 });
 
 describe("OptionChainFilters", () => {
-  it("renders option type select", () => {
-    renderWithProviders(
-      <OptionChainFilters
-        filters={{ optionType: "BOTH", moneyness: "ALL", strikeRange: [0, 100000] }}
-        setFilters={vi.fn()}
-      />,
-    );
-    expect(screen.getByTestId("option-type-select")).toBeInTheDocument();
-  });
-
-  it("renders moneyness select", () => {
-    renderWithProviders(
-      <OptionChainFilters
-        filters={{ optionType: "BOTH", moneyness: "ALL", strikeRange: [0, 100000] }}
-        setFilters={vi.fn()}
-      />,
-    );
-    expect(screen.getByTestId("moneyness-select")).toBeInTheDocument();
-  });
-
-  it("renders strike min and max inputs", () => {
-    renderWithProviders(
-      <OptionChainFilters
-        filters={{ optionType: "BOTH", moneyness: "ALL", strikeRange: [0, 100000] }}
-        setFilters={vi.fn()}
-      />,
-    );
-    expect(screen.getByTestId("strike-min-input")).toBeInTheDocument();
-    expect(screen.getByTestId("strike-max-input")).toBeInTheDocument();
-  });
-
-  it("renders filters container", () => {
-    renderWithProviders(
-      <OptionChainFilters
-        filters={{ optionType: "BOTH", moneyness: "ALL", strikeRange: [0, 100000] }}
-        setFilters={vi.fn()}
-      />,
-    );
-    expect(screen.getByTestId("options-chain-filters")).toBeInTheDocument();
-  });
-
   it("displays current option type as available option", () => {
     renderWithProviders(
       <OptionChainFilters

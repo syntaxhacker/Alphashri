@@ -6,20 +6,19 @@ import {
   useMemo,
   useState,
 } from "react";
-import Drawer from "@mui/material/Drawer";
 import {
-  ActionIcon,
-  Badge,
   Box,
   Button,
-  Indicator,
-  Loader,
+  Badge,
   Paper,
   Select,
   Skeleton,
   Text,
   TextInput,
   Tooltip,
+  ActionIcon,
+  Loader,
+  Indicator,
   useMediaQuery,
 } from "@/ui";
 import {
@@ -29,7 +28,6 @@ import {
   IconSearch,
   IconX,
 } from "@tabler/icons-react";
-import { BORDER, SURFACE, FIN_HEADER_H } from "@/ui/palette";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { MARKET_UNIVERSES, DEFAULT_MARKET_UNIVERSE } from "../../api/marketScreener";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -265,7 +263,7 @@ export function MarketScreenerPanel() {
   const getRowStyle = useCallback(
     (row: MarketRow) =>
       row.symbol === selectedSymbol
-        ? { backgroundColor: "var(--mui-palette-action-selected)" }
+        ? { backgroundColor: "rgba(88, 166, 255, 0.12)" }
         : undefined,
     [selectedSymbol],
   );
@@ -286,34 +284,12 @@ export function MarketScreenerPanel() {
   return (
     <Box
       data-testid="market-screener"
-      sx={{
-        flex: 1,
-        height: "100%",
-        minWidth: 0,
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-        gap: 1,
-        overflow: "hidden",
-      }}
+      className="flex-1 h-full min-w-0 min-h-0 flex flex-col gap-1 overflow-hidden"
     >
       <Paper
         elevation={0}
         data-testid="market-toolbar"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 1,
-          px: 1,
-          height: FIN_HEADER_H,
-          minHeight: FIN_HEADER_H,
-          border: 1,
-          borderColor: BORDER,
-          borderRadius: 2,
-          bgcolor: SURFACE,
-          flexShrink: 0,
-          overflow: "hidden",
-        }}
+        className="flex items-center gap-1 px-2 h-[48px] min-h-[48px] max-h-[48px] border border-fin-border rounded-sm bg-fin-surface flex-shrink-0 overflow-hidden"
       >
         <Select
           value={universe}
@@ -321,6 +297,7 @@ export function MarketScreenerPanel() {
           data={UNIVERSE_OPTIONS}
           size="xs"
           w={120}
+          searchable
           aria-label="Market universe"
           data-testid="market-universe-select"
         />
@@ -357,14 +334,14 @@ export function MarketScreenerPanel() {
             </Badge>
           </Tooltip>
         ) : null}
-        <Box sx={{ flex: 1, minWidth: 0 }} />
+        <Box className="flex-1 min-w-0" />
         <Text
           size="xs"
           c="dimmed"
           truncate
           title={`${formatNumberIN(matchCount)} of ${formatNumberIN(rows.length)} loaded rows match (universe total ${formatNumberIN(total)})`}
           data-testid="market-result-count"
-          sx={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}
+          className="font-numeric whitespace-nowrap"
         >
           {formatNumberIN(matchCount)} / {formatNumberIN(rows.length)}
         </Text>
@@ -417,24 +394,13 @@ export function MarketScreenerPanel() {
         <Box
           role="status"
           data-testid="market-warming-hint"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1,
-            px: 1,
-            py: 0.5,
-            flexShrink: 0,
-            border: 1,
-            borderColor: BORDER,
-            borderRadius: 2,
-            bgcolor: SURFACE,
-          }}
+          className="flex items-center gap-1 px-2 py-0.5 flex-shrink-0 border border-fin-border rounded-sm bg-fin-surface"
         >
           <Loader size={12} />
           <Text size="xs" c="dimmed" data-testid="market-warming-hint-text">
             Still warming All NSE — switch to Nifty 500 for instant data
           </Text>
-          <Box sx={{ flex: 1, minWidth: 0 }} />
+          <Box className="flex-1 min-w-0" />
           <Button
             size="xs"
             variant="subtle"
@@ -450,23 +416,10 @@ export function MarketScreenerPanel() {
         <Box
           role="alert"
           data-testid="market-error-banner"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 0.5,
-            px: 1,
-            py: 0.5,
-            flexShrink: 0,
-            border: 1,
-            borderColor: BORDER,
-            borderLeft: 3,
-            borderLeftColor: "error.main",
-            borderRadius: 2,
-            bgcolor: SURFACE,
-          }}
+          className="flex items-center gap-1 px-2 py-0.5 flex-shrink-0 border border-fin-border border-l-[3px] border-l-fin-negative rounded-sm bg-fin-surface"
         >
           <IconAlertCircle size={14} />
-          <Text size="xs" c="error" sx={{ flex: 1, minWidth: 0 }} data-testid="market-error-banner-message">
+          <Text size="xs" c="error" className="flex-1 min-w-0" data-testid="market-error-banner-message">
             Refresh failed: {error?.message}
           </Text>
           <Button
@@ -484,7 +437,7 @@ export function MarketScreenerPanel() {
       {chips.length > 0 ? (
         <Box
           data-testid="market-active-chips"
-          sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", flexShrink: 0 }}
+          className="flex gap-1 flex-wrap flex-shrink-0"
         >
           {chips.map((chip) => (
             <Box
@@ -494,25 +447,9 @@ export function MarketScreenerPanel() {
               onClick={() => removeChip(chip.key)}
               aria-label={`Remove filter ${chip.label}`}
               data-testid={`market-filter-chip-${chip.key}`}
-              sx={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "4px",
-                height: 22,
-                px: 0.75,
-                borderRadius: 11,
-                border: 1,
-                borderColor: BORDER,
-                bgcolor: SURFACE,
-                color: "text.primary",
-                font: "inherit",
-                fontSize: 11,
-                lineHeight: 1,
-                cursor: "pointer",
-                "&:hover": { borderColor: "primary.main", color: "primary.main" },
-              }}
+              className="inline-flex items-center gap-1 h-[22px] px-1.5 rounded-[11px] border border-fin-border bg-fin-surface text-fin-text text-[11px] leading-none cursor-pointer hover:border-fin-primary hover:text-fin-primary"
             >
-              <Text size="xs" sx={{ lineHeight: 1 }}>
+              <Text size="xs" className="leading-none">
                 {chip.label}
               </Text>
               <IconX size={10} />
@@ -521,49 +458,24 @@ export function MarketScreenerPanel() {
         </Box>
       ) : null}
 
-      <Box sx={{ flex: 1, minHeight: 0, display: "flex", gap: 1, overflow: "hidden" }}>
+      <Box className="flex-1 min-h-0 flex gap-2 overflow-hidden">
         {!isNarrow && !railCollapsed ? (
           <Box
             data-testid="market-rail-panel"
-            sx={{
-              width: 240,
-              flexShrink: 0,
-              minHeight: 0,
-              overflowY: "auto",
-              border: 1,
-              borderColor: BORDER,
-              borderRadius: 2,
-              bgcolor: SURFACE,
-            }}
+            className="w-[240px] flex-shrink-0 min-h-0 overflow-y-auto border border-fin-border rounded-sm bg-fin-surface"
           >
             {rail}
           </Box>
         ) : null}
 
         <Box
-          sx={{
-            flex: 1,
-            minWidth: 0,
-            minHeight: 0,
-            display: "flex",
-            flexDirection: "column",
-          }}
+          className="flex-1 min-w-0 min-h-0 flex flex-col"
         >
           {showInitialLoading ? (
             <Paper
               elevation={0}
               data-testid="market-skeleton"
-              sx={{
-                flex: 1,
-                border: 1,
-                borderColor: BORDER,
-                borderRadius: 2,
-                bgcolor: SURFACE,
-                p: 1,
-                display: "flex",
-                flexDirection: "column",
-                gap: 1,
-              }}
+              className="flex-1 border border-fin-border rounded-sm bg-fin-surface p-2 flex flex-col gap-2"
             >
               {Array.from({ length: 12 }, (_, i) => (
                 <Skeleton key={i} h={24} />
@@ -574,20 +486,7 @@ export function MarketScreenerPanel() {
               elevation={0}
               role="alert"
               data-testid="market-error"
-              sx={{
-                flex: 1,
-                border: 1,
-                borderColor: BORDER,
-                borderRadius: 2,
-                bgcolor: SURFACE,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 1,
-                p: 3,
-                textAlign: "center",
-              }}
+              className="flex-1 border border-fin-border rounded-sm bg-fin-surface flex flex-col items-center justify-center gap-2 p-6 text-center"
             >
               <IconAlertCircle size={22} />
               <Text size="sm" fw={600}>
@@ -620,16 +519,21 @@ export function MarketScreenerPanel() {
         </Box>
       </Box>
 
-      <Drawer
-        anchor="left"
-        open={isNarrow && drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        data-testid="market-filter-drawer"
-        sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
-        slotProps={{ paper: { sx: { width: 280, bgcolor: SURFACE } } }}
-      >
-        {rail}
-      </Drawer>
+      {(isNarrow && drawerOpen) && (
+        <Box
+          data-testid="market-filter-drawer"
+          className="fixed inset-0 z-50 flex"
+          style={{ zIndex: 1050 }}
+          onClick={() => setDrawerOpen(false)}
+        >
+          <Box
+            className="absolute inset-y-0 left-0 w-72 max-w-[280px] bg-fin-surface border-r border-fin-border flex flex-col transform transition-transform duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {rail}
+          </Box>
+        </Box>
+      )}
     </Box>
   );
 }

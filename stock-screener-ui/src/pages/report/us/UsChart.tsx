@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import { Box, Text } from "@/ui";
-import { INFO, MONO, NEGATIVE, POSITIVE, WARNING } from "@/ui/palette";
+import { INFO, NEGATIVE, POSITIVE, WARNING } from "@/ui/palette";
 import type { UsRow } from "../../../types/usReport";
 import { buildChart, fmtInt, fmtNum, fmtTime, niceTicks, toBars } from "./usReportMath";
 
@@ -40,7 +40,7 @@ export function UsChart({ frames, cursor, bucket = 1 }: Props) {
 
   if (!g || !frame) {
     return (
-      <Box sx={{ flex: 1, display: "grid", placeItems: "center", border: "1px solid var(--mui-palette-divider)" }}>
+      <Box className="flex-1 grid place-items-center border border-fin-border">
         <Text size="xs" c="dimmed">
           no tape yet
         </Text>
@@ -68,13 +68,7 @@ export function UsChart({ frames, cursor, bucket = 1 }: Props) {
   return (
     <Box
       data-testid="us-chart"
-      sx={{
-        flex: 1,
-        minHeight: 0,
-        position: "relative",
-        border: "1px solid var(--mui-palette-divider)",
-        overflow: "hidden",
-      }}
+      className="flex-1 min-h-0 relative border border-fin-border overflow-hidden"
     >
       <svg
         viewBox={`0 0 ${g.width} ${H}`}
@@ -132,17 +126,8 @@ export function UsChart({ frames, cursor, bucket = 1 }: Props) {
       {ticks.map((t, i) => (
         <Box
           key={i}
-          sx={{
-            position: "absolute",
-            left: 3,
-            top: pctFor(t) > 94 ? "calc(100% - 12px)" : pctFor(t) < 6 ? 2 : `calc(${pctFor(t)}% - 5px)`,
-            fontFamily: MONO,
-            fontSize: 9,
-            color: "var(--mui-palette-text-secondary)",
-            bgcolor: "rgba(0,0,0,0.55)",
-            px: 0.25,
-            pointerEvents: "none",
-          }}
+          className="absolute left-[3px] font-mono text-[9px] text-fin-text-muted bg-black/55 px-0.5 pointer-events-none"
+          style={{ top: pctFor(t) > 94 ? "calc(100% - 12px)" : pctFor(t) < 6 ? 2 : `calc(${pctFor(t)}% - 5px)` }}
         >
           {fmtInt(t)}
         </Box>
@@ -152,20 +137,8 @@ export function UsChart({ frames, cursor, bucket = 1 }: Props) {
       {inRange.map((w, i) => (
         <Box
           key={w.label}
-          sx={{
-            position: "absolute",
-            right: 4,
-            top: `calc(${pctFor(w.v)}% - 6px)`,
-            fontFamily: MONO,
-            fontSize: 9,
-            color: w.color,
-            bgcolor: "rgba(0,0,0,0.65)",
-            px: 0.5,
-            borderLeft: `2px solid ${w.color}`,
-            lineHeight: "11px",
-            pointerEvents: "none",
-            zIndex: 2 + i,
-          }}
+          className="absolute right-1 font-mono text-[9px] bg-black/65 px-1 leading-[11px] pointer-events-none"
+          style={{ top: `calc(${pctFor(w.v)}% - 6px)`, color: w.color, borderLeft: `2px solid ${w.color}`, zIndex: 2 + i }}
         >
           {w.label} {fmtInt(w.v)}
         </Box>
@@ -173,18 +146,18 @@ export function UsChart({ frames, cursor, bucket = 1 }: Props) {
 
       {/* far walls: edge tags instead of stretching the scale */}
       {above.length > 0 && (
-        <Box sx={{ position: "absolute", top: 2, right: 4, display: "flex", gap: 1, fontFamily: MONO, fontSize: 9, pointerEvents: "none" }}>
+        <Box className="absolute top-[2px] right-1 flex gap-1 font-mono text-[9px] pointer-events-none">
           {above.map((w) => (
-            <Text key={w.label} size="xs" span sx={{ color: w.color }}>
+            <Text key={w.label} size="xs" span style={{ color: w.color }}>
               ↑ {w.label} {fmtInt(w.v)} ({fmtNum(((w.v - frame.spot) / frame.spot) * 100, 1)}%)
             </Text>
           ))}
         </Box>
       )}
       {below.length > 0 && (
-        <Box sx={{ position: "absolute", bottom: 14, right: 4, display: "flex", gap: 1, fontFamily: MONO, fontSize: 9, pointerEvents: "none" }}>
+        <Box className="absolute bottom-[14px] right-1 flex gap-1 font-mono text-[9px] pointer-events-none">
           {below.map((w) => (
-            <Text key={w.label} size="xs" span sx={{ color: w.color }}>
+            <Text key={w.label} size="xs" span style={{ color: w.color }}>
               ↓ {w.label} {fmtInt(w.v)} ({fmtNum(((w.v - frame.spot) / frame.spot) * 100, 1)}%)
             </Text>
           ))}
@@ -193,38 +166,15 @@ export function UsChart({ frames, cursor, bucket = 1 }: Props) {
 
       {/* last price chip */}
       <Box
-        sx={{
-          position: "absolute",
-          right: 4,
-          top: `calc(${pctFor(last.c)}% - 7px)`,
-          fontFamily: MONO,
-          fontSize: 9.5,
-          fontWeight: 700,
-          color: INFO,
-          bgcolor: "rgba(0,0,0,0.75)",
-          px: 0.5,
-          borderLeft: `2px solid ${INFO}`,
-          lineHeight: "12px",
-          pointerEvents: "none",
-        }}
+        className="absolute right-1 font-mono text-[9.5px] font-bold bg-black/75 px-1 leading-[12px] pointer-events-none"
+        style={{ top: `calc(${pctFor(last.c)}% - 7px)`, color: INFO, borderLeft: `2px solid ${INFO}` }}
       >
         {fmtInt(last.c)}
       </Box>
 
       {/* x-axis */}
       <Box
-        sx={{
-          position: "absolute",
-          left: 46,
-          right: 60,
-          bottom: 1,
-          display: "flex",
-          justifyContent: "space-between",
-          fontFamily: MONO,
-          fontSize: 9,
-          color: "var(--mui-palette-text-secondary)",
-          pointerEvents: "none",
-        }}
+        className="absolute left-[46px] right-[60px] bottom-[1px] flex justify-between font-mono text-[9px] text-fin-text-muted pointer-events-none"
       >
         <span>{fmtTime(first.t)}</span>
         <span>{fmtTime(frame.t)} ET</span>

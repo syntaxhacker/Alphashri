@@ -17,7 +17,7 @@ import {
 
 const meta: Meta = {
   title: "Foundations/Colors",
-  parameters: { layout: "padded", docs: { description: { component: "Semantic + scale colors from `src/ui/palette.ts` — the single source of truth. Never hardcode hex values in components; import semantic tokens (`POSITIVE`, `NEGATIVE`, `PRIMARY`) or use MUI color names." } } },
+  parameters: { layout: "padded", docs: { description: { component: "Semantic + scale colors from `src/ui/palette.ts` — the single source of truth. Never hardcode hex values in components; import semantic tokens (`POSITIVE`, `NEGATIVE`, `PRIMARY`) or use the palette's named colors." } } },
 };
 
 export default meta;
@@ -96,13 +96,13 @@ export const LightDarkPreview: StoryObj = {
   render: () => (
     <Stack gap="md">
       <MText size="xs" c="dimmed">
-        Semantic tokens are defined once in <code>src/ui/palette.ts</code>. Components should use MUI&apos;s{" "}
+        Semantic tokens are defined once in <code>src/ui/palette.ts</code>. Components should use semantic tokens like{" "}
         <code>light-dark()</code> or semantic tokens (<code>POSITIVE</code>, <code>NEGATIVE</code>) — never raw hex.
         Below the same swatches are shown on both light and dark surfaces to verify contrast.
       </MText>
       <Group gap="xl" align="flex-start">
-        <div style={{ background: "var(--mui-palette-background-paper)", padding: 12, borderRadius: 8, border: "1px solid #D0D7DE" }}>
-          <MText size="xs" fw={600} mb={8}>On light ( var(--mui-palette-background-paper) )</MText>
+        <div style={{ background: "var(--color-fin-surface)", padding: 12, borderRadius: 8, border: "1px solid #D0D7DE" }}>
+          <MText size="xs" fw={600} mb={8}>On light ( var(--color-fin-surface) )</MText>
           <Group gap={8}>
             <Swatch name="PRIMARY" hex={PRIMARY} />
             <Swatch name="POSITIVE" hex={POSITIVE_COLOR} />

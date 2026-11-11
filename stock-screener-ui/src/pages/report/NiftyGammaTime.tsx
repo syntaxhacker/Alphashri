@@ -1,10 +1,9 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { memo, useMemo } from "react";
-import Box from "@mui/material/Box";
+import { Box, Text } from "@/ui";
 import { MiniLineChart, type MiniSeries } from "@/components/common/charts/MiniLineChart";
 import { CompactPanel, CompactStat } from "@/components/common/compact";
 import { EmptyState } from "@/components/common/states";
-import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { gexFlipAtSpot } from "./niftyGex";
 import type { NiftyGex, NiftyTape, NiftyTapeRow, NiftyWall } from "@/types/niftyReport";
@@ -299,11 +298,11 @@ function NiftyGammaTimeInner({
     <CompactPanel
       title="Dealer gamma — net per minute"
       testId="nifty-gamma-time-panel"
-      sx={{
-        background: palette.TERM_BG,
+      style={{
+        backgroundColor: palette.TERM_BG,
         border: `1px solid ${palette.TERM_BORDER}`,
         borderColor: palette.TERM_BORDER,
-        borderRadius: 1,
+        borderRadius: 8,
       }}
     >
       {/* Tight column + tight stat row: plain grids instead of
@@ -311,15 +310,9 @@ function NiftyGammaTimeInner({
           stats, labels and values are unchanged — only the chrome shrinks.
           No overflow/min-height here: this panel stretches inside its flex
           row, and overflow would drop min-height:auto and collapse it. */}
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }}>
+      <Box className="flex flex-col gap-[4px] min-w-0">
         <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-            gap: 0.5,
-            width: "100%",
-            minWidth: 0,
-          }}
+          className="grid grid-cols-[repeat(4,minmax(0,1fr))] gap-[4px] w-full min-w-0"
         >
           <CompactStat
             data-testid="nifty-gamma-now"
@@ -360,32 +353,22 @@ function NiftyGammaTimeInner({
         {/* What the sign actually means for the next move — the panel's whole
             point. Without this the four numbers read as trivia. */}
         {regime && (
-          <Box
-            data-testid="nifty-gamma-regime"
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 0.75,
-              flexWrap: "wrap",
-              minWidth: 0,
-            }}
-          >
+          <Box data-testid="nifty-gamma-regime" className="flex items-center gap-[6px] flex-wrap min-w-0">
             <Text
               size="xs"
               span
               fw={700}
-              sx={{
+              className="whitespace-nowrap"
+              style={{
                 color: regime.tone,
                 border: `1px solid ${regime.tone}`,
-                borderRadius: 0.75,
-                px: 0.5,
-                py: 0.1,
-                whiteSpace: "nowrap",
+                borderRadius: 6,
+                padding: "4px 2px",
               }}
             >
               {regime.label}
             </Text>
-            <Text size="xs" span sx={{ color: "text.secondary", minWidth: 0 }}>
+            <Text size="xs" span className="min-w-0" style={{ color: palette.TEXT_MUTED }}>
               {regime.detail}
             </Text>
             {flipDistance && (
@@ -394,7 +377,7 @@ function NiftyGammaTimeInner({
                 size="xs"
                 span
                 c="dimmed"
-                sx={{ whiteSpace: "nowrap" }}
+                className="whitespace-nowrap"
               >
                 Spot {formatGammaLevel(spot)} · {flipDistance}
               </Text>

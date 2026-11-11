@@ -1,7 +1,5 @@
 import { memo, useCallback, useMemo } from "react";
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
-import { Checkbox, ActionIcon, CopyButton, Tooltip, Badge, Group, Text } from "@/ui";
+import { Checkbox, ActionIcon, CopyButton, Tooltip, Badge, Group, Text, Box, Stack } from "@/ui";
 import { IconCopy, IconCheck } from "@tabler/icons-react";
 import type { ColumnDef as TanStackColumnDef } from "@tanstack/react-table";
 import { TanStackTable } from "../common/TanStackTable";
@@ -65,7 +63,7 @@ export const ScreenerTable = memo(function ScreenerTable({
       {
         id: "selection",
         header: () => (
-          <Box onClick={(e) => e.stopPropagation()} sx={{ display: "flex", justifyContent: "center" }}>
+          <Box onClick={(e) => e.stopPropagation()} className="flex justify-center">
             <Checkbox
               size="xs"
               checked={allVisibleSelected}
@@ -79,7 +77,7 @@ export const ScreenerTable = memo(function ScreenerTable({
         enableSorting: false,
         meta: { align: "center" } as never,
         cell: ({ row }) => (
-          <Box onClick={(e) => e.stopPropagation()} sx={{ display: "flex", justifyContent: "center" }}>
+          <Box onClick={(e) => e.stopPropagation()} className="flex justify-center">
             <Checkbox
               size="xs"
               checked={selectedSymbolSet.has(row.original.symbol)}
@@ -157,7 +155,7 @@ export const ScreenerTable = memo(function ScreenerTable({
           if (col.key === "symbol") {
             return (
               <Box
-                sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}
+                className="flex items-center gap-2 min-w-0"
                 data-testid={`symbol-cell-${stock.symbol}`}
               >
                 <SymbolLink
@@ -173,7 +171,7 @@ export const ScreenerTable = memo(function ScreenerTable({
                     endPreview();
                   }}
                   onOpen={open}
-                  sx={{ flex: 1 }}
+                  className="flex-1"
                 />
                 <CopyButton value={stock.symbol}>
                   {({ copied, copy }) => (
@@ -240,16 +238,16 @@ export const ScreenerTable = memo(function ScreenerTable({
   }, [columns, visibleSymbols, allSymbols, allVisibleSelected, selectedSymbolSet, touchedSymbols, badgeLabel, scoreFormula, onSymbolClick, onSymbolHover, preview, endPreview, open, handleSelectAll]);
 
     return (
-      <Box sx={{ width: "100%", overflow: "hidden", borderRadius: 1 }} data-testid={containerTestId}>
-        <Stack spacing={0} sx={{ width: "100%" }}>
-          <Box sx={{ width: "100%", display: "flex", justifyContent: "center" }}>
+      <Box className="w-full overflow-hidden rounded-sm" data-testid={containerTestId}>
+        <Stack spacing={0} className="w-full">
+          <Box className="w-full flex justify-center">
               <TanStackTable<Stock>
                 data={stocks}
                 columns={tanStackColumns}
                 dataTestId="screener-table"
                 enableSorting
                 stickyHeader
-                sx={{ width: "100%", minWidth: 0 } as any}
+                className="w-full min-w-0"
                 getRowTestId={(row) => `stock-row-${row.symbol}`}
                 onRowClick={handleSymbolRowClick}
                 rowWindowSize={stocks.length > 120 ? 80 : 0}

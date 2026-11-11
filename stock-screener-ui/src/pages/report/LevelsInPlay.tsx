@@ -1,4 +1,4 @@
-import Box from "@mui/material/Box";
+import { Box } from "@/ui";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { CompactPanel } from "@/components/common/compact";
@@ -101,65 +101,60 @@ function LevelInline({
   const testId = `levels-${side.toLowerCase()}-${rowLabel}`;
   if (!level) {
     return (
-      <Box
-        component="span"
+      <span
         data-testid={testId}
-        sx={{ fontSize: REPORT_FONT.xs, lineHeight: 1, color: palette.TEXT_MUTED, whiteSpace: "nowrap" }}
+        className="text-[11px] leading-none whitespace-nowrap"
+        style={{ color: palette.TEXT_MUTED, fontSize: REPORT_FONT.xs }}
       >
         {side} —
-      </Box>
+      </span>
     );
   }
   const dist = `${level.pct > 0 ? "+" : ""}${level.pct.toFixed(2)}% ${level.pts > 0 ? "+" : ""}${Math.round(level.pts)}p`;
   return (
-    <Box
+    <span
       data-testid={testId}
-      sx={{
-        display: "flex",
-        alignItems: "baseline",
-        gap: "4px",
+      className="flex items-baseline gap-1 shrink-0 whitespace-nowrap"
+      style={{
         minWidth: 0,
         flexShrink: 0,
-        whiteSpace: "nowrap",
       }}
     >
-      <Box component="span" sx={{ color: tone, fontSize: REPORT_FONT.xs, fontWeight: 800, lineHeight: 1 }}>{side}</Box>
-      <Box
-        component="span"
-        sx={{
-          fontFamily: palette.MONO,
-          fontSize: REPORT_FONT.sm,
-          fontWeight: 700,
-          color: palette.TEXT,
-          lineHeight: 1,
-        }}
+      <span className="font-black text-[11px] leading-none" style={{ color: tone, fontSize: REPORT_FONT.xs, fontWeight: 800 }}>
+        {side}
+      </span>
+      <span
+        className="font-mono text-[12px] font-bold leading-none"
+        style={{ color: palette.TEXT, fontSize: REPORT_FONT.sm, fontWeight: 700 }}
       >
         {formatNumberIN(Math.round(level.strike))}
-      </Box>
-      <Box
-        component="span"
+      </span>
+      <span
         data-testid={`levels-dist-${rowLabel}-${side}`}
-        sx={{
+        className="inline-flex items-center shrink-0"
+        style={{
           display: "inline-flex",
           alignItems: "center",
           height: 14,
+          minWidth: 0,
+          flexShrink: 0,
+          whiteSpace: "nowrap",
           fontFamily: palette.MONO,
           fontSize: REPORT_FONT.sm,
           fontWeight: 800,
           lineHeight: 1,
           color: level.tag === "AT" ? palette.NEGATIVE : tone,
-          bgcolor: level.tag === "AT" ? palette.TINT_NEGATIVE : palette.SURFACE_ALT,
+          backgroundColor: level.tag === "AT" ? palette.TINT_NEGATIVE : palette.SURFACE_ALT,
           border: `1px solid ${level.tag === "AT" ? palette.NEGATIVE : "transparent"}`,
           borderRadius: "2px",
-          px: "3px",
-          py: 0,
+          padding: "0 3px",
         }}
       >
         {dist}
-      </Box>
-      <Box
-        component="span"
-        sx={{
+      </span>
+      <span
+        className="text-[11px] font-bold leading-none"
+        style={{
           fontSize: REPORT_FONT.xs,
           fontWeight: 800,
           letterSpacing: 0.2,
@@ -168,14 +163,11 @@ function LevelInline({
         }}
       >
         {level.tag}
-      </Box>
-      <Box
-        component="span"
-        sx={{ fontFamily: palette.MONO, fontSize: REPORT_FONT.xs, lineHeight: 1, color: palette.TEXT_MUTED }}
-      >
+      </span>
+      <span className="font-mono text-[11px] leading-none" style={{ color: palette.TEXT_MUTED, fontSize: REPORT_FONT.xs }}>
         {level.oi >= 1e6 ? `${(level.oi / 1e6).toFixed(1)}M` : `${Math.round(level.oi / 1e3)}k`}
-      </Box>
-    </Box>
+      </span>
+    </span>
   );
 }
 
@@ -190,27 +182,17 @@ function IndexRow({
   maxPain: number;
   read: { call: LevelRead | null; put: LevelRead | null };
 }) {
+  // `columnGap` is breakpoint-responsive (xs/sm) and the first row drops its
+  // top border — both are expressible as Tailwind variants.
   return (
     <Box
       data-testid={`levels-row-${label}`}
-      sx={{
-        display: "flex",
-        // Keep one dense line (CE beside PE, no 1fr tracks to spread them), but
-        // let the row wrap instead of clipping MP when the panel is narrow.
-        flexWrap: "wrap",
-        alignItems: "center",
-        justifyContent: "flex-start",
-        columnGap: { xs: "6px", sm: "8px" },
-        rowGap: "1px",
-        py: 0,
-        borderTop: `1px solid ${palette.BORDER}`,
-        minWidth: 0,
-        "&:first-of-type": { borderTop: 0 },
-      }}
+      className="flex flex-wrap items-center justify-start gap-x-[6px] sm:gap-x-2 gap-y-px py-0 min-w-0 border-t border-fin-border first-of-type:border-t-0"
     >
-      <Box
+      <div
         data-testid={`levels-label-${label}`}
-        sx={{ display: "flex", alignItems: "baseline", gap: "3px", minWidth: 84, flexShrink: 0 }}
+        className="flex items-baseline gap-[3px] shrink-0"
+        style={{ minWidth: 84 }}
       >
         <Text size="xs" fw={800} style={{ fontSize: REPORT_FONT.xs, letterSpacing: 0.3, lineHeight: 1 }}>
           {label}
@@ -218,22 +200,15 @@ function IndexRow({
         <Text size="xs" c="dimmed" style={{ fontFamily: palette.MONO, fontSize: REPORT_FONT.xs, lineHeight: 1 }}>
           {formatNumberIN(Math.round(spot))}
         </Text>
-      </Box>
+      </div>
       <LevelInline side="CE" level={read.call} rowLabel={label} />
       <LevelInline side="PE" level={read.put} rowLabel={label} />
-      <Box
-        component="span"
-        sx={{
-          fontFamily: palette.MONO,
-          fontSize: REPORT_FONT.xs,
-          lineHeight: 1,
-          color: palette.TEXT_MUTED,
-          whiteSpace: "nowrap",
-          flexShrink: 0,
-        }}
+      <span
+        className="font-mono text-[11px] leading-none whitespace-nowrap shrink-0"
+        style={{ color: palette.TEXT_MUTED, fontSize: REPORT_FONT.xs }}
       >
         MP {maxPain > 0 ? formatNumberIN(Math.round(maxPain)) : "—"}
-      </Box>
+      </span>
     </Box>
   );
 }
@@ -252,14 +227,14 @@ export function LevelsInPlayContent({ report, sensex }: LevelsInPlayProps) {
   const sensexRead = sensex ? readIndex(sensex.spot, sensex.walls, sensex.wallsNear) : null;
 
   return (
-    <Box sx={{ minWidth: 0 }}>
+    <div className="min-w-0">
       {report ? (
         <IndexRow label="NIFTY" spot={report.spot} maxPain={report.maxPain} read={nifty ?? { call: null, put: null }} />
       ) : null}
       {sensex ? (
         <IndexRow label="SENSEX" spot={sensex.spot} maxPain={sensex.maxPain} read={sensexRead ?? { call: null, put: null }} />
       ) : null}
-    </Box>
+    </div>
   );
 }
 

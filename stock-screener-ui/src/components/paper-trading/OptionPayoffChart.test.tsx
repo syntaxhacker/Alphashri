@@ -78,7 +78,7 @@ describe("OptionPayoffCard", () => {
     renderWithProviders(<OptionPayoffCard trade={optionTrade()} />);
     expect(screen.getByTestId("option-payoff-chart")).toBeInTheDocument();
     await user.click(screen.getByTestId("option-payoff-toggle"));
-    // Collapse keeps children mounted (hidden) but the MUI Collapse node gets aria-hidden
+    // Collapse keeps children mounted (hidden) but the Collapse node gets aria-hidden
     const collapse = screen.getByTestId("option-payoff-chart").closest('[aria-hidden="true"]');
     expect(collapse).not.toBeNull();
   });

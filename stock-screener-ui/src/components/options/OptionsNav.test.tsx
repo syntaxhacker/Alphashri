@@ -12,17 +12,13 @@ afterEach(() => {
 });
 
 describe("OptionsNav", () => {
-  it("renders all three tabs", () => {
+  it("renders all tabs", () => {
     renderWithProviders(<OptionsNav activeTab="chain" onTabChange={vi.fn()} />);
     expect(screen.getByText("Option Chain")).toBeInTheDocument();
     expect(screen.getByText("Positions")).toBeInTheDocument();
     expect(screen.getByText("Premium")).toBeInTheDocument();
+    expect(screen.getByText("Simulator")).toBeInTheDocument();
     expect(screen.queryByText("Greeks")).not.toBeInTheDocument();
-  });
-
-  it("renders nav testid", () => {
-    renderWithProviders(<OptionsNav activeTab="chain" onTabChange={vi.fn()} />);
-    expect(screen.getByTestId("options-nav")).toBeInTheDocument();
   });
 
   it("has clickable tabs", async () => {
@@ -33,6 +29,13 @@ describe("OptionsNav", () => {
 
     await userEvent.click(screen.getByText("Premium"));
     expect(onTabChange).toHaveBeenCalledWith("premium");
+  });
+
+  it("clicking Simulator tab emits simulator value", async () => {
+    const onTabChange = vi.fn();
+    renderWithProviders(<OptionsNav activeTab="premium" onTabChange={onTabChange} />);
+    await userEvent.click(screen.getByText("Simulator"));
+    expect(onTabChange).toHaveBeenCalledWith("simulator");
   });
 
   it("marks active tab with correct value", () => {

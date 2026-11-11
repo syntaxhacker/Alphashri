@@ -1,7 +1,6 @@
 // ChartErrorBoundary — keeps a chart crash from unmounting the whole page.
 import { Component, type ReactNode } from "react";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
+import { Box, Text } from "@/ui";
 
 interface Props {
   children: ReactNode;
@@ -28,10 +27,10 @@ export class ChartErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <Box sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 2 }}>
-          <Typography variant="body2" color="error.main">
+        <Box className="flex items-center justify-center p-2 h-full">
+          <Text size="xs" c="error">
             Chart failed to render: {String(this.state.error?.message ?? this.state.error)}
-          </Typography>
+          </Text>
         </Box>
       );
     }

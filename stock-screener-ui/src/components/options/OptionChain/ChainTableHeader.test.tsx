@@ -32,13 +32,6 @@ const mockStyles = {
 };
 
 describe("ChainTableHeader", () => {
-  it("renders header container", () => {
-    renderWithProviders(
-      <ChainTableHeader theme={mockTheme as any} styles={mockStyles as any} />,
-    );
-    expect(screen.getByTestId("options-chain-table-header")).toBeInTheDocument();
-  });
-
   it("renders CALLS (CE) header", () => {
     renderWithProviders(
       <ChainTableHeader theme={mockTheme as any} styles={mockStyles as any} />,

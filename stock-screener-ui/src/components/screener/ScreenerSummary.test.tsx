@@ -52,33 +52,20 @@ describe("ScreenerSummary", () => {
   });
 
   describe("color tone mapping", () => {
-    test("returns mui palette variable when color is set", () => {
+    test("returns the palette variable when color is set", () => {
       expect(getTone({ label: "A", value: 1, color: "green" })).toBe(
-        "var(--mui-palette-success-main)",
+        "var(--color-fin-positive)",
       );
-      expect(getTone({ label: "B", value: 2, color: "red" })).toBe("var(--mui-palette-error-main)");
-      expect(getTone({ label: "C", value: 3, color: "blue" })).toBe("var(--mui-palette-primary-main)");
+      expect(getTone({ label: "B", value: 2, color: "red" })).toBe("var(--color-fin-negative)");
+      expect(getTone({ label: "C", value: 3, color: "blue" })).toBe("var(--color-fin-primary)");
     });
 
     test("returns default text color when color is undefined", () => {
-      expect(getTone({ label: "A", value: 1 })).toBe("var(--mui-palette-text-primary)");
+      expect(getTone({ label: "A", value: 1 })).toBe("var(--color-fin-text)");
     });
 
     test("returns default text color when color is not set", () => {
-      expect(getTone({ label: "A", value: 1, color: undefined })).toBe("var(--mui-palette-text-primary)");
-    });
-  });
-
-  describe("test IDs", () => {
-    test("generates sequential test IDs based on index", () => {
-      const items = buildSummaryItems([
-        { label: "First", value: 1 },
-        { label: "Second", value: 2 },
-        { label: "Third", value: 3 },
-      ]);
-      items.forEach((_, index) => {
-        expect(`summary-card-${index}`).toBe(`summary-card-${index}`);
-      });
+      expect(getTone({ label: "A", value: 1, color: undefined })).toBe("var(--color-fin-text)");
     });
   });
 
@@ -114,11 +101,11 @@ describe("ScreenerSummary", () => {
       );
       expect(screen.getByTestId("summary-card-Green")).toHaveAttribute(
         "data-tone",
-        "var(--mui-palette-success-main)",
+        "var(--color-fin-positive)",
       );
       expect(screen.getByTestId("summary-card-No Color")).toHaveAttribute(
         "data-tone",
-        "var(--mui-palette-text-primary)",
+        "var(--color-fin-text)",
       );
     });
 

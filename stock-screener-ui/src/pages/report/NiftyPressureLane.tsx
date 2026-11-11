@@ -1,9 +1,7 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
-import Box from "@mui/material/Box";
-import { Text } from "@/ui";
-import * as palette from "@/ui/palette";
 import { memo, useState } from "react";
 import type { MouseEvent } from "react";
+import * as palette from "@/ui/palette";
 import type { PressureSeries } from "./niftyPressure";
 import { PRESSURE_BURST_RATIO, PRESSURE_CLIMAX_RATIO } from "./niftyPressure";
 
@@ -167,12 +165,13 @@ const NiftyPressureLaneInner = function NiftyPressureLane({
   const points = series.points;
   if (points.length === 0 || series.maxRatio === 0) {
     return (
-      <Box
+      <div
         data-testid="nifty-pressure-empty"
-        sx={{ height, display: "flex", alignItems: "center", justifyContent: "center" }}
+        className="flex items-center justify-center"
+        style={{ height }}
       >
-        <Text size="xs" c="dimmed">no volume tape</Text>
-      </Box>
+        <span className="text-[11px] text-fin-text-muted">no volume tape</span>
+      </div>
     );
   }
 
@@ -213,22 +212,14 @@ const NiftyPressureLaneInner = function NiftyPressureLane({
     v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : `${Math.round(v / 1000)}K`;
 
   return (
-    <Box data-testid="nifty-pressure-lane" sx={{ width: "100%", minWidth: 0, position: "relative" }}>
-      <Box
-        component="span"
+    <div data-testid="nifty-pressure-lane" className="w-full min-w-0 relative">
+      <span
         aria-hidden
-        sx={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          fontSize: 8,
-          letterSpacing: "0.06em",
-          color: palette.TEXT_MUTED,
-          pointerEvents: "none",
-        }}
+        className="absolute left-0 top-0 text-[8px] tracking-[0.06em] pointer-events-none"
+        style={{ color: palette.TEXT_MUTED }}
       >
         VOL
-      </Box>
+      </span>
       <svg
         data-testid="nifty-pressure-svg"
         viewBox={`0 0 ${VB_W} ${VB_H}`}
@@ -272,42 +263,24 @@ const NiftyPressureLaneInner = function NiftyPressureLane({
           opacity={0.8}
         />
       </svg>
-      <Box
-        component="span"
+      <span
         data-testid="nifty-pressure-last"
         title={`${last.t}: ${last.ratio.toFixed(1)}× the 20-min median (CE ${formatNumberIN(Math.round(last.ce))} ${last.ceFlow ?? "?"}, PE ${formatNumberIN(Math.round(last.pe))} ${last.peFlow ?? "?"})`}
-        sx={{
-          position: "absolute",
-          right: 0,
-          top: 2,
-          fontSize: 9,
-          fontWeight: 800,
-          fontFamily: palette.MONO,
-          color: lastColor,
-          whiteSpace: "nowrap",
-        }}
+        className="absolute right-0 top-2 text-[9px] font-black font-mono whitespace-nowrap"
+        style={{ color: lastColor }}
       >
         {last.ratio > 0 ? `${last.ratio.toFixed(1)}×` : "—"}
-      </Box>
+      </span>
       {hoverPoint && showAxis ? (
-        <Box
+        <div
           data-testid="nifty-pressure-readout"
-          sx={{
-            position: "absolute",
-            top: 0,
+          className="absolute top-0 px-1 py-[1px] rounded-[3px] text-[9px] font-mono whitespace-nowrap pointer-events-none z-2"
+          style={{
             left: `${hoverPct}%`,
             transform: readoutShift,
-            px: "4px",
-            py: "1px",
-            bgcolor: palette.TERM_HEADER,
+            backgroundColor: palette.TERM_HEADER,
             border: `1px solid ${palette.TERM_BORDER}`,
-            borderRadius: "3px",
-            fontSize: 9,
-            fontFamily: palette.MONO,
             color: palette.TEXT,
-            whiteSpace: "nowrap",
-            pointerEvents: "none",
-            zIndex: 2,
           }}
         >
           {hoverPoint.t} · CE {compactVol(hoverPoint.ce)}
@@ -315,98 +288,82 @@ const NiftyPressureLaneInner = function NiftyPressureLane({
           {compactVol(hoverPoint.pe)}
           {hoverPoint.peFlow ? ` ${hoverPoint.peFlow.toUpperCase()}` : ""} ·{" "}
           {hoverPoint.ratio.toFixed(1)}×
-        </Box>
+        </div>
       ) : null}
       {showAxis ? (
         <>
-        <Box
-          data-testid="nifty-pressure-axis"
-          sx={{ position: "relative", height: 12, mt: "2px", width: "100%", pointerEvents: "none" }}
-        >
-          {axisTicks(points).map(({ i, t }) => {
-            const pct = xOfBar(i);
-            const shift =
-              pct > 92 ? "translateX(-100%)" : pct < 2 ? "none" : "translateX(-50%)";
-            return (
-              <Box
-                component="span"
-                key={`${t}-${i}`}
-                sx={{
-                  position: "absolute",
-                  left: `${pct}%`,
-                  transform: shift,
-                  fontSize: 8,
-                  lineHeight: "12px",
-                  color: palette.TEXT_MUTED,
-                  fontFamily: palette.MONO,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {t}
-              </Box>
-            );
-          })}
-        </Box>
-        <Box
-          data-testid="nifty-pressure-legend"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            flexWrap: "wrap",
-            mt: "3px",
-            fontSize: 8.5,
-            fontFamily: palette.MONO,
-            color: palette.TEXT_MUTED,
-          }}
-        >
-          <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
-            <Box component="span" sx={{ width: 8, height: 8, bgcolor: palette.TERM_CE, display: "inline-block", borderRadius: "1px" }} />
-            CE volume (up)
-          </Box>
-          <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
-            <Box component="span" sx={{ width: 8, height: 8, bgcolor: palette.TERM_PE, display: "inline-block", borderRadius: "1px" }} />
-            PE volume (down)
-          </Box>
-          <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
-            <Box component="span" sx={{ width: 8, height: 8, bgcolor: palette.TEXT_MUTED, opacity: 0.35, display: "inline-block", borderRadius: "1px" }} />
-            solid = buy
-          </Box>
-          <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
-            <Box
-              component="span"
-              sx={{
-                width: 8,
-                height: 8,
-                display: "inline-block",
-                borderRadius: "1px",
-                border: `1px solid ${palette.TEXT_MUTED}`,
-                background: `repeating-linear-gradient(45deg, ${palette.TEXT_MUTED} 0 1px, transparent 1px 3px)`,
-              }}
-            />
-            hatched = sell
-          </Box>
-          <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
-            <Box component="span" sx={{ width: 12, borderTop: `1px dashed ${palette.TEXT_MUTED}`, display: "inline-block" }} />
-            20-min median
-          </Box>
-          <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
-            <Box component="span" sx={{ width: 8, height: 8, bgcolor: palette.WARNING, opacity: 0.25, display: "inline-block", border: `1px solid ${palette.WARNING}`, borderRadius: "1px" }} />
-            ≥2× burst (4× climax)
-          </Box>
-          <Box
-            component="span"
-            data-testid="nifty-pressure-flow"
-            sx={{ display: "inline-flex", alignItems: "center", gap: "3px" }}
-            title="Volume traded by aggressive buyers vs sellers, per leg (premium richer/cheaper than delta-implied)"
+          <div
+            data-testid="nifty-pressure-axis"
+            className="relative h-[12px] mt-[2px] w-full pointer-events-none"
           >
-            CE buy {compactVol(series.flow.ceBuy)} / sell {compactVol(series.flow.ceSell)} · PE buy{" "}
-            {compactVol(series.flow.peBuy)} / sell {compactVol(series.flow.peSell)}
-          </Box>
-        </Box>
+            {axisTicks(points).map(({ i, t }) => {
+              const pct = xOfBar(i);
+              const shift =
+                pct > 92 ? "translateX(-100%)" : pct < 2 ? "none" : "translateX(-50%)";
+              return (
+                <span
+                  component="span"
+                  key={`${t}-${i}`}
+                  className="absolute text-[8px] leading-[12px] font-mono whitespace-nowrap"
+                  style={{
+                    left: `${pct}%`,
+                    transform: shift,
+                    color: palette.TEXT_MUTED,
+                  }}
+                >
+                  {t}
+                </span>
+              );
+            })}
+          </div>
+          <div
+            data-testid="nifty-pressure-legend"
+            className="flex items-center gap-[10px] flex-wrap mt-[3px] text-[8.5px] font-mono text-fin-text-muted"
+          >
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-[1px]" style={{ backgroundColor: palette.TERM_CE }} />
+              CE volume (up)
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-[1px]" style={{ backgroundColor: palette.TERM_PE }} />
+              PE volume (down)
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-[1px]" style={{ backgroundColor: palette.TEXT_MUTED, opacity: 0.35 }} />
+              solid = buy
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span
+                className="w-2 h-2 rounded-[1px] border border-fin-text-muted"
+                style={{
+                  background: `repeating-linear-gradient(45deg, ${palette.TEXT_MUTED} 0 1px, transparent 1px 3px)`,
+                }}
+              />
+              hatched = sell
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-[12px] border-t border-t-fin-text-muted border-dashed" />
+              20-min median
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span
+                className="w-2 h-2 rounded-[1px] border border-fin-warning"
+                style={{ backgroundColor: palette.WARNING, opacity: 0.25 }}
+              />
+              ≥2× burst (4× climax)
+            </span>
+            <span
+              className="inline-flex items-center gap-1"
+              data-testid="nifty-pressure-flow"
+              title="Volume traded by aggressive buyers vs sellers, per leg (premium richer/cheaper than delta-implied)"
+            >
+              CE buy {compactVol(series.flow.ceBuy)} / sell {compactVol(series.flow.ceSell)} · PE buy{" "}
+              {compactVol(series.flow.peBuy)} / sell {compactVol(series.flow.peSell)}
+            </span>
+          </div>
         </>
       ) : null}
-    </Box>
+    </div>
   );
 };
 

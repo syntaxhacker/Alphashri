@@ -4,7 +4,7 @@
  * Call sites written against the old Mantine API still pass props like
  * `allowDeselect`, `maxDropdownHeight`, `comboboxProps` or `withinPortal`.
  * They are part of the public `@/ui` prop types (accepted-but-ignored) and
- * are stripped here so React/MUI don't emit unknown-attribute warnings.
+ * are stripped here so React doesn't emit unknown-attribute warnings.
  */
 const LEGACY_INPUT_PROP_KEYS = new Set([
   "allowDeselect",

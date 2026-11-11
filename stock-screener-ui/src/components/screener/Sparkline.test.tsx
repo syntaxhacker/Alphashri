@@ -22,7 +22,7 @@ describe("Sparkline", () => {
     const poly = spark.querySelector("polyline");
     expect(poly).not.toBeNull();
     expect(poly?.getAttribute("points")?.trim().split(" ")).toHaveLength(4);
-    expect(poly?.getAttribute("stroke")).toBe("var(--mui-palette-success-main)");
+    expect(poly?.getAttribute("stroke")).toBe("var(--color-fin-positive)");
   });
 
   it("colors red for losses", () => {
@@ -30,7 +30,7 @@ describe("Sparkline", () => {
     const spark = screen.getByTestId("sparkline");
     expect(spark).toHaveAttribute("data-positive", "false");
     expect(spark?.querySelector("polyline")?.getAttribute("stroke")).toBe(
-      "var(--mui-palette-error-main)",
+      "var(--color-fin-negative)",
     );
   });
 

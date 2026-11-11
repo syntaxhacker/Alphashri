@@ -3,8 +3,7 @@ import { useECharts } from "../../hooks/useECharts";
 import { useChartZoom } from "../../hooks/useChartZoom";
 import { buildChartOption } from "../../utils/chart/buildChartOption";
 import type { ChartInput } from "../../utils/chart/types";
-import { Loader } from "@/ui";
-import Box from "@mui/material/Box";
+import { Box, Loader } from "@/ui";
 
 export interface TradingChartHandle {
   chartInstance: React.MutableRefObject<any>;
@@ -69,11 +68,21 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
 
   if (isLoading) {
     return (
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, height: 400, width: "100%" }} style={style as any}>
+      <Box
+        ref={chartRef}
+        className="flex items-center justify-center gap-2 p-2 w-full"
+        style={{ height: 400, ...(style as React.CSSProperties) }}
+      >
         <Loader size="lg" />
       </Box>
     );
   }
 
-  return <Box ref={chartRef} sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, flex: 1, minHeight: 0, width: "100%" }} style={style} />;
+  return (
+    <Box
+      ref={chartRef}
+      className="flex items-center justify-center gap-2 p-2 flex-1 min-h-0 w-full"
+      style={style}
+    />
+  );
 });

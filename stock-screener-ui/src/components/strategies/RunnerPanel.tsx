@@ -14,8 +14,8 @@ export function RunnerPanel({ initialValues, isOrb }: RunnerPanelProps) {
       className="strategy-form-tab-panel"
       data-testid="strategy-panel-runner"
     >
-      <Stack spacing={1} gap="sm" mt="sm" sx={{ gap: 1, p: 1 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+      <Stack spacing={1} gap="sm" mt="sm" className="p-2">
+        <Box className="flex items-center justify-center p-2">
           <Text size="xs" c="dimmed" ta="center">
             Execution settings — how and when trades are placed.
           </Text>
@@ -23,9 +23,9 @@ export function RunnerPanel({ initialValues, isOrb }: RunnerPanelProps) {
 
         <Divider label="Entry Filters" labelPosition="left" />
         {isOrb && (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-            <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Max Distance from OR</Text>
-            <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+          <Box className="flex items-center gap-2 p-2">
+            <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Max Distance from OR</Text>
+            <Box className="flex-1 flex items-center">
               <NumberInput
                 size="sm"
                 name="max_distance_from_or_pct"
@@ -42,9 +42,9 @@ export function RunnerPanel({ initialValues, isOrb }: RunnerPanelProps) {
         )}
 
         <Divider label="Execution Rules" labelPosition="left" />
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Enable Shorts</Text>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+        <Box className="flex items-center gap-2 p-2">
+          <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Enable Shorts</Text>
+          <Box className="flex-1 flex items-center">
             <Switch
               label=""
               name="enable_shorts"
@@ -53,9 +53,9 @@ export function RunnerPanel({ initialValues, isOrb }: RunnerPanelProps) {
             />
           </Box>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>EOD Exit Hour</Text>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+        <Box className="flex items-center gap-2 p-2">
+          <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">EOD Exit Hour</Text>
+          <Box className="flex-1 flex items-center">
             <NumberInput
               size="sm"
               name="eod_exit_hour"
@@ -68,9 +68,9 @@ export function RunnerPanel({ initialValues, isOrb }: RunnerPanelProps) {
             />
           </Box>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>EOD Exit Minute</Text>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+        <Box className="flex items-center gap-2 p-2">
+          <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">EOD Exit Minute</Text>
+          <Box className="flex-1 flex items-center">
             <NumberInput
               size="sm"
               name="eod_exit_minute"

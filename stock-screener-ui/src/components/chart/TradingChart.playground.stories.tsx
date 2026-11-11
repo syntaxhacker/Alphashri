@@ -49,7 +49,7 @@ const meta: Meta<PlaygroundArgs> = {
     const base = PRESET_MAP[args.preset] ?? PRESET_MAP.all;
     const input = normalizePaper(base, false, null, false, args.showOrb, args.showPivots, args.show52w, args.showEma);
     return (
-      <Box sx={{ height: 380, width: "100%", minWidth: 600 }}>
+      <Box className="h-[380px] w-full min-w-[600px]">
         <TradingChart input={input} />
       </Box>
     );

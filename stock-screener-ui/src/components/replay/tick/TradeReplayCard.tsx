@@ -1,10 +1,6 @@
 // TradeReplayCard — trade summary + TickReplayChart. The per-trade unit of every
 // future strategy page (iFVG, LRL, ORB…): header chips + stats + explainer + chart.
-import Box from "@mui/material/Box";
-import Card from "@mui/material/Card";
-import Typography from "@mui/material/Typography";
-import Stack from "@mui/material/Stack";
-import Chip from "@mui/material/Chip";
+import { Box, Card, Stack, Text, Chip } from "@/ui";
 import * as palette from "@/ui/palette";
 import TickReplayChart from "./TickReplayChart";
 import type { Bar, ReplayTrade, ReplayTrend, ReplayZone, TradeStack } from "./types";
@@ -38,39 +34,60 @@ export default function TradeReplayCard({
   fitPaddingBeforeMin, fitPaddingAfterMin,
 }: TradeReplayCardProps) {
   return (
-    <Card elevation={0} sx={{ bgcolor: palette.NT_BG, border: `1px solid ${palette.NT_GRID}`, mb: 2, overflow: "hidden" }} data-testid="trade-replay-card" id={`trade-replay-card-${index}`}>
-      <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, alignItems: "stretch" }}>
-        <Stack sx={{ flex: "0 0 280px", p: 1.5, bgcolor: palette.SURFACE, borderRight: { md: `1px solid ${palette.BORDER}` }, borderBottom: { xs: `1px solid ${palette.BORDER}`, md: 0 }, gap: 1 }}>
-          <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", justifyContent: "space-between" }}>
-            <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
-              <Chip size="small" label={trade.side} color={trade.side === "LONG" ? "success" : "error"} sx={{ height: 18, fontSize: 10, fontWeight: 700 }} />
+    <Card
+      bg={palette.NT_BG}
+      style={{ border: `1px solid ${palette.NT_GRID}`, marginBottom: "16px", overflow: "hidden" }}
+      data-testid="trade-replay-card"
+      id={`trade-replay-card-${index}`}
+    >
+      <Box
+        className="flex flex-col md:flex-row items-stretch"
+        style={{ display: "flex", alignItems: "stretch" }}
+      >
+        <Stack
+          flex="0 0 280px"
+          style={{ padding: "12px", backgroundColor: palette.SURFACE, borderRight: `1px solid ${palette.BORDER}`, gap: "8px" }}
+          gap="xs"
+        >
+          <Stack direction="row" align="center" justify="space-between" gap="xs">
+            <Stack direction="row" align="center" gap="xs">
+              <Chip size="small" children={trade.side} color={trade.side === "LONG" ? "success" : "error"} style={{ height: "18px", fontSize: "10px", fontWeight: 700 }} />
               {trade.stack && (
-                <Chip size="small" label={stackLabel(trade.stack)} sx={{ height: 18, fontSize: 9, bgcolor: "#1F2937", color: stackColor(trade.stack), border: `1px solid ${stackColor(trade.stack)}` }} />
+                <Chip size="small" children={stackLabel(trade.stack)} style={{ height: "18px", fontSize: "9px", backgroundColor: "#1F2937", color: stackColor(trade.stack), border: `1px solid ${stackColor(trade.stack)}` }} />
               )}
-              <Typography variant="caption" sx={{ color: palette.TEXT, fontWeight: 600, fontSize: 10 }}>#{index + 1} {kindLabel(trade.kind)}</Typography>
+              <Text size="xs" fw={600} style={{ color: palette.TEXT, fontSize: "10px" }}>
+                #{index + 1} {kindLabel(trade.kind)}
+              </Text>
             </Stack>
-            <Chip size="small" label={trade.result} color={resultColor(trade.result)} sx={{ height: 18, fontSize: 9 }} />
+            <Chip size="small" children={trade.result} color={resultColor(trade.result)} style={{ height: "18px", fontSize: "9px" }} />
           </Stack>
-          <Stack spacing={0.25}>
-            <Typography variant="caption" sx={{ color: palette.TEXT, fontSize: 10, fontWeight: 600 }}>
+          <Stack gap="xs">
+            <Text size="xs" fw={600} style={{ color: palette.TEXT, fontSize: "10px" }}>
               {timeLabel(trade.time)} → {timeLabel(trade.exit_time)}
-            </Typography>
-            <Typography variant="caption" sx={{ color: palette.TEXT_MUTED, fontSize: 9 }}>
+            </Text>
+            <Text size="xs" style={{ color: palette.TEXT_MUTED, fontSize: "9px" }}>
               Entry {trade.entry.toFixed(2)} · SL {trade.sl.toFixed(2)}{trade.tp != null ? ` · TP ${trade.tp.toFixed(2)}` : " · trail"}
-            </Typography>
-            <Typography variant="caption" sx={{ color: trade.pnl > 0 ? palette.POSITIVE : palette.NEGATIVE, fontSize: 9, fontWeight: 600 }}>
+            </Text>
+            <Text size="xs" fw={600} style={{ color: trade.pnl > 0 ? palette.POSITIVE : palette.NEGATIVE, fontSize: "9px" }}>
               RR {trade.rr >= 0 ? "+" : ""}{trade.rr.toFixed(2)}R · {trade.pnl > 0 ? "+" : ""}{trade.pnl.toFixed(2)} pts ({Math.max(1, Math.round((trade.exit_time - trade.time) / 60))}m)
-            </Typography>
+            </Text>
           </Stack>
           {explainer && (
-            <Box sx={{ p: 1, bgcolor: palette.SURFACE_ALT, borderRadius: 1, border: `1px solid ${palette.BORDER}` }}>
-              <Typography variant="caption" sx={{ color: palette.TEXT_MUTED, display: "block", fontSize: 9, lineHeight: 1.6 }}>
+            <Box
+              style={{
+                padding: "8px",
+                backgroundColor: palette.SURFACE_ALT,
+                borderRadius: "4px",
+                border: `1px solid ${palette.BORDER}`,
+              }}
+            >
+              <Text size="xs" style={{ color: palette.TEXT_MUTED, display: "block", fontSize: "9px", lineHeight: 1.6 }}>
                 {explainer(trade)}
-              </Typography>
+              </Text>
             </Box>
           )}
         </Stack>
-        <Box sx={{ flex: 1, minHeight: chartHeight, display: "flex", alignItems: "stretch" }}>
+        <Box style={{ flex: "1", minHeight: chartHeight, display: "flex", alignItems: "stretch" }}>
           <TickReplayChart bars={bars} trade={trade} zones={zones} trends={trends} height={chartHeight} id={`tick-replay-chart-${index}`} fitPaddingBeforeMin={fitPaddingBeforeMin} fitPaddingAfterMin={fitPaddingAfterMin} />
         </Box>
       </Box>

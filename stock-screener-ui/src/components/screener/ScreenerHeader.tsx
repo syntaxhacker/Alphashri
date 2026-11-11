@@ -1,5 +1,4 @@
-import Box from "@mui/material/Box";
-import { Text, ActionIcon, NumberInput, Select, Tooltip, SegmentedControl, ToolbarRow } from "@/ui";
+import { Box, Text, ActionIcon, NumberInput, Select, Tooltip, SegmentedControl, ToolbarRow } from "@/ui";
 import { IconRefresh } from "@tabler/icons-react";
 
 type ScreenerViewMode = "table" | "heatmap";
@@ -39,11 +38,11 @@ export function ScreenerHeader({
     <Box
       id="screener-header"
       data-testid="screener-header"
-      sx={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 2, overflow: "hidden", flexWrap: "nowrap" }}
+      className="flex-shrink-0 flex items-center gap-4 overflow-hidden flex-nowrap"
     >
       {!hideStatus && (
-        <Box sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", overflow: "hidden" }}>
-          <Text size="xs" c="dimmed" truncate sx={{ flex: 1, minWidth: 0 }} title={status} data-testid="status">
+        <Box className="flex-1 min-w-0 flex items-center overflow-hidden">
+          <Text size="xs" c="dimmed" truncate className="flex-1 min-w-0" title={status} data-testid="status">
             {status}
           </Text>
         </Box>

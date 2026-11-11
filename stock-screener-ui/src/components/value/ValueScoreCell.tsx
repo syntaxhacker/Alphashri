@@ -26,33 +26,20 @@ export function ValueScoreCell({ score, subscores, peer, symbol }: ValueScoreCel
     <Tooltip label={tooltip} multiline>
       <Box
         data-testid={`value-score-${symbol}`}
-        sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}
+        className="flex items-center justify-center gap-2"
       >
         <Badge size="xs" color={scoreColor(score)} data-testid={`value-score-chip-${symbol}`}>
           {Math.round(score)}
         </Badge>
-        <Box sx={{ display: "flex", alignItems: "center", gap: "2px" }} aria-hidden>
+        <Box className="flex items-center gap-[2px]" aria-hidden>
           {BAR_KEYS.map((k) => (
             <Box
               key={k}
-              sx={{
-                width: 4,
-                height: 14,
-                borderRadius: 1,
-                bgcolor: "divider",
-                position: "relative",
-                overflow: "hidden",
-              }}
+              className="relative h-[14px] w-1 overflow-hidden rounded-[2px] bg-fin-border"
             >
               <Box
-                sx={{
-                  position: "absolute",
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  height: `${Math.max(0, Math.min(100, subscores[k]))}%`,
-                  bgcolor: "primary.main",
-                }}
+                className="absolute bottom-0 left-0 right-0 bg-fin-primary"
+                style={{ height: `${Math.max(0, Math.min(100, subscores[k]))}%` }}
               />
             </Box>
           ))}

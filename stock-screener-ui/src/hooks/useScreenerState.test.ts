@@ -258,20 +258,6 @@ describe("useScreenerState", () => {
       expect(mockNavigate).toHaveBeenCalledWith("/chart/RELIANCE");
     });
 
-    it("onSymbolHover is a no-op placeholder", () => {
-      const { result } = renderHook(() => useScreenerState());
-
-      // Should not throw
-      act(() => {
-        result.current.onSymbolHover("RELIANCE");
-      });
-
-      act(() => {
-        result.current.onSymbolHover(null);
-      });
-
-      // No assertions needed - just verify it doesn't error
-    });
   });
 
   describe("edge cases", () => {

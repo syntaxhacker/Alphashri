@@ -6,7 +6,7 @@ const meta: Meta<typeof Indicator> = {
   title: "Primitives/Feedback/Indicator",
   component: Indicator,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Dot or badge anchored to a child. Use for unread counts or status dots on avatars. When not to use: for standalone badges use Badge. Uses MUI Indicator with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Dot or badge anchored to a child. Use for unread counts or status dots on avatars. When not to use: for standalone badges use Badge. Uses the local @/ui Indicator with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;
@@ -19,7 +19,7 @@ function Placeholder() {
       h={48}
       style={{
         borderRadius: "50%",
-        backgroundColor: "var(--mui-palette-grey-700)",
+        backgroundColor: "#21262d",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

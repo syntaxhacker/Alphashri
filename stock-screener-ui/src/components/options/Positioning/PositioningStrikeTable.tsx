@@ -56,12 +56,11 @@ function CrCell({ cr, max }: { cr: number | null; max: number }) {
   const bg = heatBg(cr, max);
   return (
     <Box
-      sx={{
+      style={{
         display: "inline-block",
-        bgcolor: bg,
+        backgroundColor: bg,
         borderRadius: 1,
-        px: 1,
-        py: 0.5,
+        padding: "8px 4px",
         fontVariantNumeric: "tabular-nums",
         color: cr < 0 ? NEGATIVE : POSITIVE,
       }}

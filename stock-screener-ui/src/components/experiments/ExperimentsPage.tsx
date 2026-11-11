@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import Typography from "@mui/material/Typography";
 import { Alert, Badge, Box, Stack, Text, ToolbarRow } from "@/ui";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
@@ -36,20 +35,18 @@ const paneSx = {
   overflow: "hidden",
   display: "flex",
   flexDirection: "column",
-  border: 1,
-  borderColor: "divider",
-  borderRadius: 1,
-  bgcolor: "background.paper",
+  border: "1px solid #30363D",
+  borderRadius: 8,
+  backgroundColor: "#000000",
 } as const;
 
 const paneHeaderSx = {
   display: "flex",
   alignItems: "center",
   gap: 0.5,
-  px: 1,
+  paddingLeft: 8,
   minHeight: 28,
-  borderBottom: 1,
-  borderColor: "divider",
+  borderBottom: "1px solid #30363D",
   flex: "0 0 auto",
 } as const;
 
@@ -72,25 +69,18 @@ export function ExperimentsPage() {
   return (
     <Box
       data-testid="experiments-page"
-      sx={{
-        height: "100%",
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-        gap: 0.5,
-        p: 0.5,
-        overflow: "hidden",
-      }}
+      className="h-full min-h-0 flex flex-col gap-1 p-1 overflow-hidden"
+      style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", gap: 4, padding: 4, overflow: "hidden" }}
     >
       <ToolbarRow
         justify="space-between"
         gap={8}
         style={{ minHeight: 28, flex: "0 0 auto" }}
       >
-        <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, minWidth: 0 }}>
-          <Typography variant="h6" fontWeight={700} sx={{ lineHeight: 1.2 }}>
+        <Box className="flex items-baseline gap-2 min-w-0" style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
+          <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
             Experiments
-          </Typography>
+          </Text>
           <Text size="xs" c="dimmed">
             {state.sessions.length} {state.sessions.length === 1 ? "session" : "sessions"}
           </Text>
@@ -110,21 +100,21 @@ export function ExperimentsPage() {
           color="error"
           variant="filled"
           withCloseButton
-          sx={{ flex: "0 0 auto" }}
+          style={{ flex: "0 0 auto" }}
         >
           {state.error}
         </Alert>
       )}
 
       <Box
-        sx={{
+        className="shrink-0 overflow-auto border border-fin-border rounded-fin"
+        style={{
           flex: "0 0 auto",
           maxHeight: "36vh",
           overflow: "auto",
-          border: 1,
-          borderColor: "divider",
-          borderRadius: 1,
-          bgcolor: "background.paper",
+          border: "1px solid #30363D",
+          borderRadius: 8,
+          backgroundColor: "#000000",
         }}
         data-testid="experiments-config-scroll"
       >
@@ -132,34 +122,35 @@ export function ExperimentsPage() {
       </Box>
 
       <Box
-        sx={{
+        className="flex-1 min-h-0 grid gap-1 overflow-auto"
+        style={{
           flex: 1,
           minHeight: 0,
           display: "grid",
-          gap: 0.5,
+          gap: 4,
           overflow: "auto",
-          gridTemplateColumns: { xs: "1fr", lg: "280px minmax(0,1fr) minmax(0,1.25fr)" },
+          gridTemplateColumns: "1fr",
         }}
       >
-        <Box sx={paneSx} data-testid="experiments-session-list">
-          <Box sx={paneHeaderSx}>
+        <Box style={paneSx} data-testid="experiments-session-list">
+          <Box style={paneHeaderSx}>
             <Text fw={600} size="sm">
               Sessions
             </Text>
-            <Box sx={{ flex: 1 }} />
+            <div className="flex-1" />
             <Text size="xs" c="dimmed">
               {state.sessions.length}
             </Text>
           </Box>
-          <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 0.5 }}>
+          <Box flex={1} className="min-h-0 overflow-auto p-1" style={{ flex: 1, minHeight: 0, overflow: "auto", padding: 4 }}>
             {state.sessions.length === 0 ? (
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+              <Box className="flex items-center justify-center p-2" style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 8 }}>
                 <Text size="sm" c="dimmed">
                   No sessions yet
                 </Text>
               </Box>
             ) : (
-              <Stack gap={0.5} sx={{ alignItems: "stretch" }}>
+              <Stack gap={0.5} align="stretch">
                 {state.sessions.map((session) => {
                   const active = session.session === state.activeSession;
                   return (
@@ -167,16 +158,18 @@ export function ExperimentsPage() {
                       key={session.session}
                       data-testid={`experiments-session-${session.session}`}
                       onClick={() => void selectSession(session.session)}
-                      sx={{
+                      className={active ? "bg-fin-primary/15" : "hover:bg-fin-surface-alt"}
+                      style={{
                         cursor: "pointer",
-                        borderRadius: 1,
-                        bgcolor: active ? "primary.light" : undefined,
-                        "&:hover": { bgcolor: active ? "primary.light" : "action.hover" },
-                        px: 1,
-                        py: 0.75,
+                        borderRadius: 8,
+                        ...(active && { backgroundColor: "rgba(88, 166, 255, 0.15)" }),
+                        paddingLeft: 8,
+                        paddingRight: 8,
+                        paddingTop: 6,
+                        paddingBottom: 6,
                         display: "flex",
                         flexDirection: "column",
-                        gap: 0.5,
+                        gap: 4,
                         alignItems: "stretch",
                         textAlign: "left",
                       }}
@@ -184,7 +177,7 @@ export function ExperimentsPage() {
                       <Text size="sm" fw={500} truncate>
                         {session.session}
                       </Text>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                      <Box className="flex items-center gap-2 flex-wrap" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                         <Badge size="xs" variant="light" color="primary">
                           {session.strategy}
                         </Badge>
@@ -210,19 +203,19 @@ export function ExperimentsPage() {
           </Box>
         </Box>
 
-        <Box sx={paneSx}>
-          <Box sx={paneHeaderSx}>
+        <Box style={paneSx}>
+          <Box style={paneHeaderSx}>
             <Text fw={600} size="sm">
               Results
             </Text>
           </Box>
-          <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 0.5, display: "flex", flexDirection: "column", gap: 0.5 }}>
+          <Box flex={1} className="min-h-0 overflow-auto p-1 flex flex-col gap-1" style={{ flex: 1, minHeight: 0, overflow: "auto", padding: 4, display: "flex", flexDirection: "column", gap: 4 }}>
             <ExperimentsProgress />
             <ExperimentsResultsTable />
           </Box>
         </Box>
 
-        <Box sx={paneSx} data-testid="experiments-chart-panel">
+        <Box style={paneSx} data-testid="experiments-chart-panel">
           <ExperimentsChart />
         </Box>
       </Box>

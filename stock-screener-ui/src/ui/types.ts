@@ -1,6 +1,6 @@
-import type { ReactNode, CSSProperties, MouseEvent, KeyboardEvent } from "react";
+import type { ReactNode, CSSProperties, MouseEvent, KeyboardEvent, ElementType } from "react";
 
-export type UITheme = import("./muiTheme").MuiTheme;
+export type UITheme = typeof import("./sxTheme").sxTheme;
 
 export interface UIBaseProps {
   children?: ReactNode;
@@ -144,8 +144,25 @@ export interface UIGridColProps extends UIBaseProps {
 }
 
 export interface UITextProps extends UIBaseProps {
-  /** Merged with the size/weight/tone styles, never replacing them. */
-  sx?: import("@mui/material/styles").SxProps<UITheme>;
+  component?: ElementType;
+  p?: number | string;
+  px?: number | string;
+  py?: number | string;
+  pt?: number | string;
+  pb?: number | string;
+  pl?: number | string;
+  pr?: number | string;
+  m?: number | string;
+  mx?: number | string;
+  my?: number | string;
+  mt?: number | string;
+  mb?: number | string;
+  ml?: number | string;
+  mr?: number | string;
+  w?: number | string;
+  maw?: number | string;
+  opacity?: number;
+  fs?: string;
   /** Native tooltip — the full text when the visible label is truncated. */
   title?: string;
   size?: UISize;
@@ -161,6 +178,11 @@ export interface UITextProps extends UIBaseProps {
 
 export interface UITitleProps extends UIBaseProps {
   order?: 1 | 2 | 3 | 4 | 5 | 6;
+  component?: ElementType;
+  mt?: number | string;
+  mb?: number | string;
+  ml?: number | string;
+  mr?: number | string;
   c?: UIColor;
   ta?: UIAlign;
   fw?: UIFontWeight;
@@ -307,6 +329,8 @@ export interface UITextInputProps extends UIInputWrapperProps {
   defaultValue?: string;
   onChange?: (value: string) => void;
   onKeyDown?: (e: KeyboardEvent) => void;
+  onFocus?: (e: React.FocusEvent) => void;
+  onBlur?: (e: React.FocusEvent) => void;
   leftSection?: ReactNode;
   rightSection?: ReactNode;
   type?: string;
@@ -361,14 +385,12 @@ export interface UIMultiSelectProps extends UIInputWrapperProps {
   searchable?: boolean;
   /**
    * Controlled search text. Provide this together with `onSearchChange` so the
-   * typed query lives in the caller's state and cannot be wiped by MUI's
-   * internal `reset`/`blur` events.
+   * typed query lives in the caller's state and is preserved across internal reset/blur events.
    */
   searchValue?: string;
   /**
    * Fired for genuine search changes only: `reason` is `"input"` (typing,
-   * including backspace-to-empty) or `"clear"` (X button / Escape). MUI's
-   * `reset`/`blur`/`selectOption`/`removeOption` empties are not forwarded.
+   * including backspace-to-empty) or `"clear"` (X button / Escape). Empties from internal reset/blur handling are not forwarded.
    */
   onSearchChange?: (value: string, reason?: string) => void;
   clearable?: boolean;
@@ -434,6 +456,7 @@ export interface UICheckboxProps extends UIBaseProps {
 }
 
 export interface UIChipProps extends UIBaseProps {
+  label?: ReactNode;
   checked?: boolean;
   defaultChecked?: boolean;
   onChange?: (checked: boolean) => void;
@@ -481,8 +504,7 @@ export interface UITooltipProps extends UIBaseProps {
   color?: UIColor;
   /**
    * Legacy Mantine-compat prop. Accepted so existing call sites keep
-   * typechecking, but intentionally swallowed — MUI renders in a portal
-   * handling of its own and must never receive this as a DOM attribute.
+   * typechecking, but intentionally swallowed — the component handles portal rendering internally and must never receive this as a DOM attribute.
    */
   withinPortal?: boolean;
 }

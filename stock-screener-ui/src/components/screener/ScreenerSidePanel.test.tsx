@@ -44,7 +44,7 @@ const trendingFilters = [
 ];
 
 describe("normalizeSelectFilterOptions", () => {
-  it("converts numeric options for MUI Select", () => {
+  it("converts numeric options for @/ui Select", () => {
     expect(normalizeSelectFilterOptions([5, 10, 15, 30])).toEqual([
       { value: "5", label: "5" },
       { value: "10", label: "10" },
@@ -111,23 +111,6 @@ describe("ScreenerSidePanel", () => {
     expect(screen.getByText("Filters")).toBeInTheDocument();
     expect(screen.getByText("Min RSI")).toBeInTheDocument();
     expect(screen.getByText("Trend")).toBeInTheDocument();
-  });
-
-  it("renders number filter with numeric options without crashing", () => {
-    mockProfileMetaById = {
-      intraday_15m: {
-        filters: [
-          { key: "min_move_pct", label: "Move % ≥", type: "number", min: 0, max: 20, step: 0.1, default: 0.3 },
-        ],
-      },
-    };
-    renderWithProvider(
-      <ScreenerSidePanel
-        activeScreener="intraday_15m"
-        screenerOptions={[]}
-      />,
-    );
-    expect(screen.getByText("Move % ≥")).toBeInTheDocument();
   });
 
   it("Apply filters button triggers fetchData", async () => {

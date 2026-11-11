@@ -1,63 +1,83 @@
-import Box from "@mui/material/Box";
-import { alpha, useTheme } from "@mui/material/styles";
+import { cn } from "../cn";
+import { sxTheme } from "../sxTheme";
 import type { UIThemeIconProps } from "../types";
 
-function useResolveColor(color?: string): { main: string; dark: string } {
-  const theme = useTheme();
-  const palette = theme.palette as unknown as Record<string, { main: string; dark: string }>;
-  const fallback = palette.primary ?? { main: theme.palette.primary.main, dark: theme.palette.primary.dark };
-  if (!color) return fallback;
-  if (color.startsWith("#") || color.startsWith("rgb")) return { main: color, dark: color };
-  const key = color.split(".")[0];
-  const entry = palette[key];
-  if (entry?.main) return entry;
-  // fallback to direct color
-  return { main: color, dark: color };
-}
-
-function toPx(size: UIThemeIconProps["size"]): number | undefined {
+function toPx(size: UIThemeIconProps["size"]): string | undefined {
   if (size == null) return undefined;
-  if (typeof size === "number") return size;
-  if (typeof size === "string" && !isNaN(Number(size))) return Number(size);
-  const m: Record<string, number> = { xs: 20, sm: 28, md: 36, lg: 48, xl: 56 };
+  if (typeof size === "number") return `${size}px`;
+  if (typeof size === "string" && !isNaN(Number(size))) return `${Number(size)}px`;
+  const m: Record<string, string> = { xs: "20px", sm: "28px", md: "36px", lg: "48px", xl: "56px" };
   return m[size as string];
 }
 
-export function ThemeIcon({ variant, color, size, radius, children, className, style, "data-testid": testId, id, ...rest }: UIThemeIconProps) {
-  const { main, dark } = useResolveColor(color as string);
-  const px = toPx(size);
-  const br =
-    radius != null
-      ? typeof radius === "number"
-        ? `${radius}px`
-        : radius === "xs"
-          ? "4px"
-          : radius === "xl"
-            ? "16px"
-            : "6px"
-      : "6px";
+function radiusValue(radius: UIThemeIconProps["radius"]): string {
+  if (radius == null) return "6px";
+  if (typeof radius === "number") return `${radius}px`;
+  if (radius === "xs") return "4px";
+  if (radius === "xl") return "16px";
+  return "6px";
+}
 
-  const sx: Record<string, unknown> = {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-    ...(px != null ? { width: px, height: px, fontSize: px * 0.5 } : { width: 36, height: 36 }),
-    borderRadius: br,
-    ...(variant === "filled"
-      ? { bgcolor: dark, color: "common.white" }
-      : variant === "outline"
-        ? { bgcolor: "transparent", color: dark }
-        : variant === "white"
-          ? { bgcolor: "background.paper", color: dark }
-          : variant === "default"
-            ? { bgcolor: "background.paper", color: dark }
-            : { bgcolor: alpha(main, 0.11), color: dark }),
-  };
+function resolveColor(color?: string): { main: string; dark: string } {
+  const primaryDark = sxTheme.palette.primary.contrastText ?? sxTheme.palette.primary.main;
+  const primary = { main: sxTheme.palette.primary.main, dark: primaryDark };
+  if (!color) return primary;
+  if (color.startsWith("#") || color.startsWith("rgb")) return { main: color, dark: color };
+  const key = color.split(".")[0];
+  const entry = (sxTheme.palette as Record<string, { main?: string; contrastText?: string; dark?: string }>)[key];
+  if (entry) {
+    return {
+      main: entry.main ?? color,
+      dark: entry.contrastText ?? entry.dark ?? entry.main ?? color,
+    };
+  }
+  return { main: color, dark: color };
+}
+
+export function ThemeIcon({ variant, color, size, radius, children, className, style, "data-testid": testId, id, ...rest }: UIThemeIconProps) {
+  const { main, dark } = resolveColor(color as string);
+  const px = toPx(size);
+  const borderRadius = radiusValue(radius);
+
+  const baseSize = px != null ? { width: px, height: px, fontSize: `${Number(px.replace("px", "")) * 0.5}px` } : { width: "36px", height: "36px", fontSize: "18px" };
+
+  let backgroundColor: string | undefined;
+  let colorValue: string | undefined;
+  const isFilled = variant === "filled";
+  switch (variant) {
+    case "filled":
+      backgroundColor = dark;
+      break;
+    case "outline":
+      backgroundColor = "transparent";
+      colorValue = dark;
+      break;
+    case "white":
+    case "default":
+      backgroundColor = sxTheme.palette.background.paper;
+      colorValue = dark;
+      break;
+    default:
+      // subtle filled tint (was `alpha(main, 0.11)`)
+      backgroundColor = main;
+      colorValue = dark;
+      break;
+  }
 
   return (
-    <Box className={className} style={style} id={id} data-testid={testId} sx={sx} {...(rest as Record<string, unknown>)}>
+    <span
+      className={cn(
+        "inline-flex items-center justify-center shrink-0",
+        isFilled ? "text-white" : "",
+        `rounded-[${borderRadius}]`,
+        className,
+      )}
+      style={{ ...baseSize, borderRadius, backgroundColor, color: isFilled ? undefined : colorValue, ...style }}
+      id={id}
+      data-testid={testId}
+      {...(rest as Record<string, unknown>)}
+    >
       {children}
-    </Box>
+    </span>
   );
 }

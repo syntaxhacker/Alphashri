@@ -10,10 +10,10 @@ interface OrbParamsPanelProps {
 export function OrbParamsPanel({ initialValues, isSwing }: OrbParamsPanelProps) {
   return (
     <Tabs.Panel value="orb" keepMounted className="strategy-form-tab-panel" data-testid="strategy-panel-orb">
-      <Stack spacing={1} gap="sm" mt="sm" sx={{ gap: 1, p: 1 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>OR Duration (min)</Text>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+      <Stack spacing={1} gap="sm" mt="sm" className="p-2">
+        <Box className="flex items-center gap-2 p-2">
+          <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">OR Duration (min)</Text>
+          <Box className="flex-1 flex items-center">
             <NumberInput
               size="sm"
               name="or_minutes"
@@ -27,9 +27,9 @@ export function OrbParamsPanel({ initialValues, isSwing }: OrbParamsPanelProps) 
             />
           </Box>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Min Range</Text>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+        <Box className="flex items-center gap-2 p-2">
+          <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Min Range</Text>
+          <Box className="flex-1 flex items-center">
             <NumberInput
               size="sm"
               name="min_or_range_pct"
@@ -48,9 +48,9 @@ export function OrbParamsPanel({ initialValues, isSwing }: OrbParamsPanelProps) 
           tpDefault={initialValues.tp_pct}
           isSwing={isSwing}
         />
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Max Range</Text>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+        <Box className="flex items-center gap-2 p-2">
+          <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Max Range</Text>
+          <Box className="flex-1 flex items-center">
             <NumberInput
               size="sm"
               name="max_or_range_pct"

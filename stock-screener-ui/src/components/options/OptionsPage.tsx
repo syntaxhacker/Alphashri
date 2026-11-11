@@ -1,6 +1,4 @@
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
-import { ScrollArea, ToolbarRow } from "@/ui";
+import { Stack, ScrollArea, ToolbarRow } from "@/ui";
 import * as palette from "@/ui/palette";
 import { OptionChainPanel } from "./OptionChain/OptionChainPanel";
 import { OptionChainHeader } from "./OptionChain/OptionChainHeader";
@@ -8,6 +6,7 @@ import { OptionChainFilters } from "./OptionChain/OptionChainFilters";
 import { PositionsPanel } from "./OptionPositions/PositionsPanel";
 import { PremiumTrackerPanel } from "./PremiumTracker/PremiumTrackerPanel";
 import { PositioningPanel } from "./Positioning/PositioningPanel";
+import { SimulatorPanel } from "./Simulator/SimulatorPanel";
 import { OptionsNav } from "./OptionsNav";
 
 interface OptionsPageProps {
@@ -54,10 +53,9 @@ export function OptionsPage({
   return (
     <Stack
       id="options-main"
-      className="options-page"
+      className="options-page flex flex-col h-full overflow-hidden w-full min-h-0"
       data-testid="options-view"
       spacing={1}
-      sx={{ height: "100%", overflow: "hidden", display: "flex", flexDirection: "column", width: "100%" }}
     >
       <ToolbarRow
         id="options-nav-bar"
@@ -65,49 +63,51 @@ export function OptionsPage({
         justify="flex-start"
         wrap={false}
         clip
+        className="w-full shrink-0"
         style={{
           height: palette.FIN_HEADER_H,
           minHeight: palette.FIN_HEADER_H,
           maxHeight: palette.FIN_HEADER_H,
           paddingLeft: 12,
           paddingRight: 12,
-          borderBottom: "1px solid var(--mui-palette-divider)",
-          width: "100%",
+          borderBottom: `1px solid ${palette.BORDER}`,
           flexShrink: 0,
         }}
       >
         <OptionsNav activeTab={activeTab} onTabChange={setActiveTab} />
       </ToolbarRow>
 
-      {/* Chain controls live in the options toolbar (not the chain panel) so
-          they stay mounted across chain/positions/premium tabs. */}
-      <ToolbarRow
-        id="options-chain-controls-bar"
-        gap={8}
-        justify="flex-start"
-        style={{
-          paddingLeft: 12,
-          paddingRight: 12,
-          paddingTop: 4,
-          paddingBottom: 4,
-          borderBottom: "1px solid var(--mui-palette-divider)",
-          width: "100%",
-          flexShrink: 0,
-        }}
-      >
-        <OptionChainHeader
-          selectedUnderlying={selectedUnderlying}
-          selectedExpiry={selectedExpiry}
-          setUnderlying={setUnderlying}
-          setExpiry={setExpiry}
-          availableUnderlyings={availableUnderlyings}
-          availableExpiries={availableExpiries}
-        />
-        <OptionChainFilters filters={filters} setFilters={setFilters} />
-      </ToolbarRow>
+      {/* Chain controls stay mounted across chain/positions/premium tabs;
+          the simulator owns its header, so the chain controls are hidden there. */}
+      {activeTab !== "simulator" && (
+        <ToolbarRow
+          id="options-chain-controls-bar"
+          gap={8}
+          justify="flex-start"
+          className="w-full shrink-0"
+          style={{
+            paddingLeft: 12,
+            paddingRight: 12,
+            paddingTop: 4,
+            paddingBottom: 4,
+            borderBottom: `1px solid ${palette.BORDER}`,
+            flexShrink: 0,
+          }}
+        >
+          <OptionChainHeader
+            selectedUnderlying={selectedUnderlying}
+            selectedExpiry={selectedExpiry}
+            setUnderlying={setUnderlying}
+            setExpiry={setExpiry}
+            availableUnderlyings={availableUnderlyings}
+            availableExpiries={availableExpiries}
+          />
+          <OptionChainFilters filters={filters} setFilters={setFilters} />
+        </ToolbarRow>
+      )}
 
-      <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", width: "100%", display: "flex", flexDirection: "column" }}>
-        <ScrollArea h="100%" offsetScrollbars>
+      <div className="flex flex-col h-full overflow-hidden w-full min-h-0">
+        <ScrollArea className="h-full" offsetScrollbars>
           {activeTab === "chain" && (
             <OptionChainPanel
                 selectedUnderlying={selectedUnderlying}
@@ -124,39 +124,57 @@ export function OptionsPage({
             )}
 
             {activeTab === "positions" && (
-              <Box
+              <div
                 id="positions-container"
-                className="options-tab-content"
+                className="options-tab-content flex flex-col w-full min-h-0"
                 data-testid="options-positions-tab"
-                sx={{ display: "flex", flexDirection: "column", width: "100%" }}
               >
                 <PositionsPanel positions={positions || []} />
-              </Box>
+              </div>
             )}
 
             {activeTab === "premium" && (
-              <Box
+              <div
                 id="premium-container"
-                className="options-tab-content"
+                className="options-tab-content flex flex-col w-full min-h-0"
                 data-testid="options-premium-tab"
-                sx={{ display: "flex", flexDirection: "column", width: "100%" }}
               >
                 <PremiumTrackerPanel strikeMatrix={strikeMatrix} selectedUnderlying={selectedUnderlying} />
-              </Box>
+              </div>
             )}
 
             {activeTab === "positioning" && (
-              <Box
+              <div
                 id="positioning-container"
-                className="options-tab-content"
+                className="options-tab-content flex flex-col w-full min-h-0"
                 data-testid="options-positioning-tab"
-                sx={{ display: "flex", flexDirection: "column", width: "100%" }}
               >
                 <PositioningPanel underlying={selectedUnderlying} expiry={selectedExpiry} />
-              </Box>
+              </div>
+            )}
+
+            {activeTab === "simulator" && (
+              <div
+                id="simulator-container"
+                className="options-tab-content flex flex-col w-full min-h-0"
+                data-testid="options-simulator-tab"
+              >
+                <SimulatorPanel
+                  selectedUnderlying={selectedUnderlying}
+                  selectedExpiry={selectedExpiry}
+                  spotPrice={spotPrice}
+                  strikeMatrix={strikeMatrix}
+                  availableUnderlyings={availableUnderlyings}
+                  availableExpiries={availableExpiries}
+                  loading={loading && strikeMatrix.length === 0}
+                  error={error}
+                  onUnderlyingChange={setUnderlying}
+                  onExpiryChange={setExpiry}
+                />
+              </div>
             )}
           </ScrollArea>
-      </Box>
+      </div>
     </Stack>
   );
 }

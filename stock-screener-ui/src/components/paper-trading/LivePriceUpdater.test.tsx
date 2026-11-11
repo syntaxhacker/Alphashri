@@ -14,7 +14,6 @@ function r(jsx: React.ReactElement) {
 
 let currentState: any = { positions: [] };
 let mockListeners: Set<Function> = new Set();
-let mockSubscribe: any;
 
 vi.mock("../../state/paperTrading", () => ({
   getPaperTradingState: vi.fn(() => currentState),

@@ -100,7 +100,7 @@ vi.mock("../../hooks/useStoreSubscription", () => ({
   useStoreSubscription: vi.fn(),
 }));
 
-// The real ui DatePicker (MUI section-based field) drops inputProps testids
+// The real @/ui DatePicker (section-based field) drops inputProps testids
 // and can't be driven by fireEvent; mock as a native input like
 // PaperTradingHelpers.test.tsx does for TradingDatePicker. Values convert to
 // Date like the real picker (empty -> null).
@@ -120,8 +120,8 @@ vi.mock("../chart/TradingChart", () => ({
   TradingChart: vi.fn(() => <div data-testid="mock-trading-chart">TradingChart</div>),
 }));
 
-// Mock MUI UI components for deterministic DOM interaction
-// mui migrated
+// Mock the local @/ui components for deterministic DOM interaction.
+// Migration to @/ui primitives is complete.
 
 function setState(overrides: Partial<PaperTradingState>) {
   currentState = createMockState(overrides);
@@ -249,9 +249,8 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
       selectedStrategyId: 1,
     });
     r(<PaperChart />);
-    // MUI Select: options render in a Menu portal once opened ("1h" -> "1hour")
-    await user.click(within(screen.getByTestId("chart-timeframe-select")).getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: "1h" }));
+    // Native select: "1h" label maps to "1hour" api value
+    await user.selectOptions(within(screen.getByTestId("chart-timeframe-select")).getByRole("combobox"), "1hour");
     expect(mockSetChartTimeframe).toHaveBeenCalledWith("1hour");
     await waitFor(() => expect(mockFetchPaperChart).toHaveBeenCalled());
     // fetchPaperChart called with symbol, date, new timeframe, strategy, fromDate, true, tradeId

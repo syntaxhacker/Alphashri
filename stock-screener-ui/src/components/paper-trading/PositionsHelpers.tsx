@@ -20,7 +20,7 @@ import {
   formatCurrencyIN,
   getPnLTextColor,
 } from "../../utils/ui-helpers";
-import { POSITIVE, NEGATIVE, WARNING } from "@/ui/palette";
+import { POSITIVE, NEGATIVE, WARNING, BG, BORDER } from "@/ui/palette";
 import { withAlpha } from "../../utils/color";
 
 export function nearBreakoutPct(item: PaperScanItem): number {
@@ -84,7 +84,7 @@ const PriceCell = memo(function PriceCell({ price, quantity, entry }: { price: n
   const safeEntry = Number.isFinite(entry) ? entry : 0;
   const safeQty = Number.isFinite(quantity) ? quantity : 0;
   return (
-    <Text className="paper-price-cell" size="sm" sx={{ whiteSpace: "nowrap" }}>
+    <Text className="paper-price-cell whitespace-nowrap" size="sm">
       {safeQty}×₹{safeEntry.toFixed(2)}
       <Text className="paper-price-arrow" span c="dimmed" size="xs" mx={0.5}>→</Text>
       <PriceDisplay price={safePrice} prevPrice={Number.isFinite(prevPrice) ? prevPrice : 0} />
@@ -244,53 +244,53 @@ const PositionDetail = memo(function PositionDetail({ pos }: { pos: PaperPositio
   return (
     <Stack className="paper-position-detail" id={`paper-position-detail-${pos.order_id || pos.symbol}`} gap={1}>
       <SimpleGrid className="paper-position-detail-reasons" id={`paper-position-reasons-${pos.symbol}`} cols={2} spacing="xs">
-        <Box className="paper-position-entry-reason" id={`paper-position-entry-reason-${pos.symbol}`} sx={{ overflow: "hidden" }}>
+        <Box className="paper-position-entry-reason overflow-hidden" id={`paper-position-entry-reason-${pos.symbol}`}>
           <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Entry Reason</Text>
-          <Text className="paper-position-value" size="sm" sx={{ wordBreak: "break-word" }}>{pos.entry_reason || "—"}</Text>
+          <Text className="paper-position-value break-words" size="sm">{pos.entry_reason || "—"}</Text>
         </Box>
-        <Box className="paper-position-exit-reason" id={`paper-position-exit-reason-${pos.symbol}`} sx={{ overflow: "hidden" }}>
+        <Box className="paper-position-exit-reason overflow-hidden" id={`paper-position-exit-reason-${pos.symbol}`}>
           <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Exit Reason</Text>
-          <Text className="paper-position-value" size="sm" sx={{ wordBreak: "break-word" }}>Open (no exit yet)</Text>
+          <Text className="paper-position-value break-words" size="sm">Open (no exit yet)</Text>
         </Box>
       </SimpleGrid>
       <SimpleGrid className="paper-position-detail-stats" id={`paper-position-stats-${pos.symbol}`} cols={4} spacing="sm">
-        <Box className="paper-position-stat" id={`paper-position-sl-${pos.symbol}`} sx={{ p: 0.5 }}>
+        <Box className="paper-position-stat p-1" id={`paper-position-sl-${pos.symbol}`}>
           <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Stop Loss</Text>
           <Text className="paper-position-value" size="sm" c="error">{pos.stop_loss ? `₹${pos.stop_loss.toFixed(2)}` : "—"}</Text>
         </Box>
-        <Box className="paper-position-stat" id={`paper-position-tp-${pos.symbol}`} sx={{ p: 0.5 }}>
+        <Box className="paper-position-stat p-1" id={`paper-position-tp-${pos.symbol}`}>
           <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Take Profit</Text>
           <Text className="paper-position-value" size="sm" c="success">{pos.take_profit ? `₹${pos.take_profit.toFixed(2)}` : "—"}</Text>
         </Box>
-        <Box className="paper-position-stat" id={`paper-position-peak-${pos.symbol}`} sx={{ p: 0.5 }}>
+        <Box className="paper-position-stat p-1" id={`paper-position-peak-${pos.symbol}`}>
           <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Peak</Text>
           <Text className="paper-position-value" size="sm">{pos.peak_price ? `₹${pos.peak_price.toFixed(2)}` : "—"}</Text>
         </Box>
-        <Box className="paper-position-stat" id={`paper-position-low-${pos.symbol}`} sx={{ p: 0.5 }}>
+        <Box className="paper-position-stat p-1" id={`paper-position-low-${pos.symbol}`}>
           <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Low</Text>
           <Text className="paper-position-value" size="sm">{pos.low_price ? `₹${pos.low_price.toFixed(2)}` : "—"}</Text>
         </Box>
-        <Box className="paper-position-stat" id={`paper-position-52high-${pos.symbol}`} sx={{ p: 0.5 }}>
+        <Box className="paper-position-stat p-1" id={`paper-position-52high-${pos.symbol}`}>
           <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>52W High</Text>
           <Text className="paper-position-value" size="sm" c="warning">
             {loading52 ? <Loader size="xs" /> : week52?.high_52w ? `₹${week52.high_52w.toFixed(2)}` : "—"}
           </Text>
         </Box>
-        <Box className="paper-position-stat" id={`paper-position-52low-${pos.symbol}`} sx={{ p: 0.5 }}>
+        <Box className="paper-position-stat p-1" id={`paper-position-52low-${pos.symbol}`}>
           <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>52W Low</Text>
           <Text className="paper-position-value" size="sm" c="primary">
             {loading52 ? <Loader size="xs" /> : week52?.low_52w ? `₹${week52.low_52w.toFixed(2)}` : "—"}
           </Text>
         </Box>
-        <Box className="paper-position-stat" id={`paper-position-id-${pos.symbol}`} sx={{ p: 0.5 }}>
+        <Box className="paper-position-stat p-1" id={`paper-position-id-${pos.symbol}`}>
           <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Position ID</Text>
-          <Text className="paper-position-value" size="xs" sx={{ wordBreak: "break-all" }}>{pos.order_id || pos.id || "—"}</Text>
+          <Text className="paper-position-value" size="xs break-all">{pos.order_id || pos.id || "—"}</Text>
         </Box>
       </SimpleGrid>
       <Box className="paper-position-notes" id={`paper-position-notes-${pos.symbol}`}>
         <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600} mb="xs">Notes</Text>
-        <Box className="paper-position-notes-row" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <Box className="paper-position-notes-input-wrap" sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+        <Box className="paper-position-notes-row flex items-center gap-2">
+          <Box className="paper-position-notes-input-wrap flex-1 flex items-center">
             <Textarea
               className="paper-position-notes-textarea"
               size="xs"
@@ -303,7 +303,7 @@ const PositionDetail = memo(function PositionDetail({ pos }: { pos: PaperPositio
               maxRows={3}
             />
           </Box>
-          <Button className="paper-position-notes-save" id={`paper-position-notes-save-${pos.symbol}`} size="compact-xs" variant="light" onClick={handleSaveNotes} loading={saving} sx={{ alignSelf: "center" }}>Save</Button>
+          <Button className="paper-position-notes-save self-center" id={`paper-position-notes-save-${pos.symbol}`} size="compact-xs" variant="light" onClick={handleSaveNotes} loading={saving}>Save</Button>
         </Box>
       </Box>
     </Stack>
@@ -452,7 +452,7 @@ export function PositionsTableBody({
       size: 80,
       meta: { align: "right" },
       accessorFn: (row) => row.entry_time,
-      cell: ({ row }) => <Text size="xs" c="dimmed" sx={{ whiteSpace: "nowrap" }}>{formatElapsed(row.original.entry_time)}</Text>,
+      cell: ({ row }) => <Text size="xs" c="dimmed" className="whitespace-nowrap">{formatElapsed(row.original.entry_time)}</Text>,
     },
     {
       id: "close",
@@ -486,7 +486,7 @@ export function PositionsTableBody({
       columns={columns}
       getRowCanExpand={() => true}
       renderSubComponent={(pos) => (
-        <Box className="paper-position-expanded" id={`paper-position-expanded-${pos.order_id || pos.symbol}`} p={0.5} sx={{ bgcolor: "var(--mui-palette-background-default)", borderTop: "1px solid var(--mui-palette-divider)", borderBottom: "1px solid var(--mui-palette-divider)" }}>
+        <Box className="paper-position-expanded p-1" id={`paper-position-expanded-${pos.order_id || pos.symbol}`} style={{ backgroundColor: BG, borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
           <PositionDetail pos={pos} />
         </Box>
       )}

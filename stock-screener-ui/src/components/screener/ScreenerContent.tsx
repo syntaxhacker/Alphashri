@@ -110,7 +110,7 @@ export const ScreenerContent = memo(function ScreenerContent({
   if (!hasResults) return <ScreenerEmpty />;
 
   return (
-    <Stack gap={1} w="100%" p={0} sx={{ minHeight: 0, display: "flex", alignItems: "stretch" }}>
+    <Stack gap={1} w="100%" p={0} className="flex min-h-0 items-stretch">
       {sections.map((section) => (
           <ScreenerSection
             key={section.key}

@@ -115,7 +115,7 @@ describe("TradingCostsSection", () => {
   });
 
   it("calls onChange with key and converted value for brokerage", async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     const input = within(screen.getByTestId("config-brokerage")).getByRole("spinbutton");
     fireEvent.change(input, { target: { value: "0.2" } });
@@ -123,7 +123,7 @@ describe("TradingCostsSection", () => {
   });
 
   it("calls onChange for min_brokerage", async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     const input = within(screen.getByTestId("config-min-brokerage")).getByRole("spinbutton");
     fireEvent.change(input, { target: { value: "50" } });
@@ -131,7 +131,7 @@ describe("TradingCostsSection", () => {
   });
 
   it("calls onChange for stt", async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     const input = within(screen.getByTestId("config-stt")).getByRole("spinbutton");
     fireEvent.change(input, { target: { value: "0.05" } });
@@ -139,7 +139,7 @@ describe("TradingCostsSection", () => {
   });
 
   it("calls onChange for exchange", async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     const input = within(screen.getByTestId("config-exchange")).getByRole("spinbutton");
     fireEvent.change(input, { target: { value: "0.02" } });
@@ -147,7 +147,7 @@ describe("TradingCostsSection", () => {
   });
 
   it("calls onChange for sebi", async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     const input = within(screen.getByTestId("config-sebi")).getByRole("spinbutton");
     fireEvent.change(input, { target: { value: "0.015" } });
@@ -155,7 +155,7 @@ describe("TradingCostsSection", () => {
   });
 
   it("calls onChange for stamp", async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     const input = within(screen.getByTestId("config-stamp")).getByRole("spinbutton");
     fireEvent.change(input, { target: { value: "0.02" } });
@@ -163,7 +163,7 @@ describe("TradingCostsSection", () => {
   });
 
   it("calls onChange for gst", async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     const input = within(screen.getByTestId("config-gst")).getByRole("spinbutton");
     fireEvent.change(input, { target: { value: "20" } });

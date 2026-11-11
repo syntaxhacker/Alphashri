@@ -1,7 +1,5 @@
-import { Text, Badge, useColorScheme, useTheme } from "@/ui";
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
-import Grid from "@mui/material/Grid";
+import { Badge, Box, Stack, Text, useColorScheme } from "@/ui";
+import * as palette from "@/ui/palette";
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import { OptionAlerts } from "./OptionAlerts";
@@ -16,12 +14,10 @@ interface OIAnalysisProps {
 }
 
 export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
-  const theme = useTheme();
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
 
   const analysisData = useMemo(() => {
-    // Top 5 OI Gainers (Spikes)
     const allOptions = strikeMatrix
       .flatMap(({ strike, ce, pe }) => [
         { strike, type: "CE", contract: ce },
@@ -36,17 +32,14 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
         const volume = opt.contract.market_data?.volume ?? 0;
         const change = oi - prevOi;
         const changePct = prevOi > 0 ? (change / prevOi) * 100 : 0;
-
         const volOiRatio = change !== 0 ? volume / Math.abs(change) : volume;
         const activityType = volOiRatio > 10 ? "Speculative" : "Positional";
-
         return { ...opt, change, changePct, oi, activityType };
       })
       .filter((opt) => opt.change > 0)
       .sort((a, b) => b.changePct - a.changePct)
       .slice(0, 6);
 
-    // Distribution for ECharts
     const chartData = strikeMatrix
       .map(({ strike, ce, pe }) => ({
         strike,
@@ -63,32 +56,23 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
     tooltip: {
       trigger: "axis",
       axisPointer: { type: "shadow" },
-      backgroundColor: isDark ? CHART_DROPDOWN : "var(--mui-palette-background-paper)",
+      backgroundColor: isDark ? CHART_DROPDOWN : palette.SURFACE,
       textStyle: {
-        color: isDark ? "var(--mui-palette-common-white)" : "var(--mui-palette-text-primary)",
+        color: isDark ? palette.TEXT : palette.TEXT,
         fontSize: 12,
       },
     },
     legend: {
       data: ["Call OI Chg", "Put OI Chg"],
-      textStyle: { color: "var(--mui-palette-text-secondary)", fontSize: 12 },
+      textStyle: { color: palette.TEXT_MUTED, fontSize: 12 },
       bottom: 0,
     },
-    grid: {
-      top: 10,
-      left: 60,
-      right: 20,
-      bottom: 40,
-    },
-    xAxis: {
-      type: "value",
-      axisLabel: { show: false },
-      splitLine: { show: false },
-    },
+    grid: { top: 10, left: 60, right: 20, bottom: 40 },
+    xAxis: { type: "value", axisLabel: { show: false }, splitLine: { show: false } },
     yAxis: {
       type: "category",
       data: analysisData.chartData.map((d) => d.strike),
-      axisLabel: { color: "var(--mui-palette-text-secondary)", fontSize: 12, fontWeight: fontWeights.semibold },
+      axisLabel: { color: palette.TEXT_MUTED, fontSize: 12, fontWeight: fontWeights.semibold },
       axisLine: { show: false },
       axisTick: { show: false },
     },
@@ -100,7 +84,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
         label: { show: false },
         emphasis: { focus: "series" },
         data: analysisData.chartData.map((d) => -Math.abs(d.ceChange)),
-        itemStyle: { color: (theme as any).palette?.success?.main ?? "var(--mui-palette-success-main)", borderRadius: [2, 0, 0, 2] },
+        itemStyle: { color: palette.POSITIVE, borderRadius: [2, 0, 0, 2] },
       },
       {
         name: "Put OI Chg",
@@ -109,35 +93,34 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
         label: { show: false },
         emphasis: { focus: "series" },
         data: analysisData.chartData.map((d) => Math.abs(d.peChange)),
-        itemStyle: { color: (theme as any).palette?.error?.main ?? "var(--mui-palette-error-main)", borderRadius: [0, 2, 2, 0] },
+        itemStyle: { color: palette.NEGATIVE, borderRadius: [0, 2, 2, 0] },
       },
     ],
   };
 
-  const itemStyle = {
-    background: "background.paper",
-    borderRadius: 4,
-  } as any;
-
   return (
-    <Stack id="oi-analysis" className="oi-analysis" spacing={1} sx={{ alignItems: "center", justifyContent: "center", width: "100%" }} data-testid="oi-analysis">
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
+    <Stack id="oi-analysis" className="oi-analysis w-full" spacing={1} data-testid="oi-analysis">
+      <Box className="flex w-full items-center justify-center gap-2 p-2">
         <OptionAlerts strikeMatrix={strikeMatrix} spotPrice={spotPrice} />
       </Box>
 
-      <Grid container spacing={1} sx={{ justifyContent: "center", alignItems: "center", width: "100%" }} className="oi-analysis-grid">
-        <Grid size={{ xs: 12, md: 6 }} sx={{ display: "flex", justifyContent: "center" }}>
-          <Stack spacing={1} sx={{ width: "100%" }} className="oi-analysis-left">
+      <div className="oi-analysis-grid grid w-full grid-cols-1 items-center justify-center gap-2 md:grid-cols-2">
+        <div className="flex justify-center">
+          <Stack spacing={1} className="oi-analysis-left w-full">
             <IVSkewChart strikeMatrix={strikeMatrix} />
             <CompactPanel className="oi-spikes-panel" data-testid="options-oi-spikes-panel">
-              <Text size="xs" fw={800} mb="sm" c="primary" style={{ letterSpacing: "0.5px" }}>
+              <Text size="xs" fw={800} c="primary" className="mb-2" style={{ letterSpacing: "0.5px" }}>
                 🔥 INTENSITY (OI SPIKES)
               </Text>
               <Stack spacing={1} className="oi-spikes-list" data-testid="options-oi-spikes-list">
                 {analysisData.spikes.map((s, i) => (
-                  <Box key={i} sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", p: 1, bgcolor: "background.paper" }} className="oi-spike-item" data-testid={`options-oi-spike-${i}`}>
+                  <Box
+                    key={i}
+                    className="oi-spike-item flex items-center justify-between bg-fin-surface p-2"
+                    data-testid={`options-oi-spike-${i}`}
+                  >
                     <Stack spacing={0}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <Box className="flex items-center gap-1">
                         <Text size="sm" fw={800} c={s.type === "CE" ? "success" : "error"}>
                           {s.type} {s.strike}
                         </Text>
@@ -149,7 +132,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
                         {s.contract.trading_symbol}
                       </Text>
                     </Stack>
-                    <Stack spacing={0} sx={{ alignItems: "flex-end" }}>
+                    <Stack spacing={0} className="items-end">
                       <Text size="sm" fw={800} c="warning">
                         +{s.changePct.toFixed(1)}%
                       </Text>
@@ -162,32 +145,43 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
               </Stack>
             </CompactPanel>
           </Stack>
-        </Grid>
+        </div>
 
-        <Grid size={{ xs: 12, md: 6 }} sx={{ display: "flex", justifyContent: "center" }}>
-          <Stack spacing={1} sx={{ width: "100%" }} className="oi-analysis-right">
+        <div className="flex justify-center">
+          <Stack spacing={1} className="oi-analysis-right w-full">
             <CompactPanel className="oi-distribution-panel" data-testid="options-oi-distribution-panel">
-              <Text size="xs" fw={800} mb="sm" c="primary" style={{ letterSpacing: "0.5px" }}>
+              <Text size="xs" fw={800} c="primary" className="mb-2" style={{ letterSpacing: "0.5px" }}>
                 📊 OI CHANGE DISTRIBUTION
               </Text>
-              <ReactECharts option={distributionOption} style={{ height: "360px" }} opts={{ renderer: "svg" }} className="oi-distribution-chart" />
+              <ReactECharts
+                option={distributionOption}
+                style={{ height: "360px" }}
+                opts={{ renderer: "svg" }}
+                className="oi-distribution-chart"
+              />
             </CompactPanel>
             <CompactPanel className="oi-sentiment-panel" data-testid="options-oi-sentiment-panel">
-              <Box sx={{ display: "flex", alignItems: "flex-start" }}>
+              <Box className="flex items-start">
                 <Box>
                   <Text fw={800} size="sm">
                     MARKET CONTEXT
                   </Text>
-                  <Text size="sm" mt={4} style={{ lineHeight: 1.5 }}>
+                  <Text size="sm" className="mt-1" style={{ lineHeight: 1.5 }}>
                     Aggressive position building seen at{" "}
-                    <Text component="span" fw={800} c="warning">
+                    <Text span fw={800} c="warning">
                       {analysisData.spikes[0]?.strike}
                     </Text>
-                    .{analysisData.spikes[0]?.activityType === "Positional" ? " This looks like a long-term directional bet by institutional players." : " This is likely high-frequency intraday churn or hedging activity."}
-                    <Text component="span" display="block" mt={5} c="dimmed" size="sm">
+                    .
+                    {analysisData.spikes[0]?.activityType === "Positional"
+                      ? " This looks like a long-term directional bet by institutional players."
+                      : " This is likely high-frequency intraday churn or hedging activity."}
+                    <Text span c="dimmed" size="sm" className="mt-1.5 block">
                       PCR is currently signaling a{" "}
-                      <Text component="span" fw={700}>
-                        {Math.max(...analysisData.chartData.map((d) => d.peChange)) > Math.max(...analysisData.chartData.map((d) => d.ceChange)) ? "Bullish" : "Bearish"}
+                      <Text span fw={700}>
+                        {Math.max(...analysisData.chartData.map((d) => d.peChange)) >
+                        Math.max(...analysisData.chartData.map((d) => d.ceChange))
+                          ? "Bullish"
+                          : "Bearish"}
                       </Text>{" "}
                       trend in new contracts.
                     </Text>
@@ -196,8 +190,8 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
               </Box>
             </CompactPanel>
           </Stack>
-        </Grid>
-      </Grid>
+        </div>
+      </div>
     </Stack>
   );
 }

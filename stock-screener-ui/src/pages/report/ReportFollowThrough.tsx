@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge, Box, Text, ToolbarRow } from "@/ui";
-import { BORDER, SURFACE } from "@/ui/palette";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import type { FollowThroughRow, FollowThroughSide } from "../../types/report";
 import { formatCurrency, formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
@@ -56,7 +55,7 @@ export function ReportFollowThroughTable({
         cell: ({ row }) => {
           const r = row.original;
           return (
-            <Box sx={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
+            <Box className="min-w-0 flex flex-col">
               <Text size="xs" fw={700} truncate span>
                 {r.symbol}
               </Text>
@@ -86,7 +85,7 @@ export function ReportFollowThroughTable({
         accessorKey: "ref_close",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <Text size="xs" span sx={{ fontVariantNumeric: "tabular-nums" }}>
+          <Text size="xs" span className="tabular-nums">
             {formatCurrency(row.original.ref_close, 2)}
           </Text>
         ),
@@ -97,7 +96,7 @@ export function ReportFollowThroughTable({
         accessorKey: "last_close",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <Text size="xs" span sx={{ fontVariantNumeric: "tabular-nums" }}>
+          <Text size="xs" span className="tabular-nums">
             {formatCurrency(row.original.last_close, 2)}
           </Text>
         ),
@@ -108,7 +107,7 @@ export function ReportFollowThroughTable({
         accessorKey: "ret_pct",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <Text size="xs" c={getPnLTextColor(row.original.ret_pct)} span sx={{ fontVariantNumeric: "tabular-nums" }}>
+          <Text size="xs" c={getPnLTextColor(row.original.ret_pct)} span className="tabular-nums">
             {formatPercentage(row.original.ret_pct)}
           </Text>
         ),
@@ -119,7 +118,7 @@ export function ReportFollowThroughTable({
         accessorKey: "max_fav_pct",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <Text size="xs" c={getPnLTextColor(row.original.max_fav_pct)} span sx={{ fontVariantNumeric: "tabular-nums" }}>
+          <Text size="xs" c={getPnLTextColor(row.original.max_fav_pct)} span className="tabular-nums">
             {formatPercentage(row.original.max_fav_pct)}
           </Text>
         ),
@@ -140,7 +139,7 @@ export function ReportFollowThroughTable({
   );
 
   return (
-    <Box data-testid={`${testId}-section`} sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
+    <Box data-testid={`${testId}-section`} className="flex flex-col gap-2 min-w-0">
       <ToolbarRow gap={8} wrap={false}>
         <Text size="sm" fw={700} span data-testid={`${testId}-title`}>
           {title}
@@ -148,21 +147,13 @@ export function ReportFollowThroughTable({
         <Badge size="xs" data-testid={`${testId}-count`}>
           {side?.count ?? 0}
         </Badge>
-        <Text size="xs" c="dimmed" span data-testid={`${testId}-summary`} sx={{ fontVariantNumeric: "tabular-nums" }}>
+        <Text size="xs" c="dimmed" span data-testid={`${testId}-summary`} className="tabular-nums">
           {formatSummary(side, emptyNote)}
         </Text>
-        <Box sx={{ flex: 1, minWidth: 0 }} />
+        <Box className="flex-1 min-w-0" />
       </ToolbarRow>
       <Box
-        sx={{
-          minWidth: 0,
-          width: "100%",
-          overflow: "hidden",
-          border: 1,
-          borderColor: BORDER,
-          borderRadius: 1,
-          bgcolor: SURFACE,
-        }}
+        className="min-w-0 w-full overflow-hidden border border-fin-border rounded-[1px] bg-fin-surface"
       >
         <TanStackTable
           data={rows}

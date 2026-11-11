@@ -3,7 +3,6 @@
 // strategies can reuse the host; the page drives it through the imperative `paint(now)`.
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
 import { createChart, ColorType, CandlestickSeries, LineSeries, createSeriesMarkers, type IChartApi, type Time } from "lightweight-charts";
-import Box from "@mui/material/Box";
 import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import { TZ_IST } from "@/config/constants";
@@ -300,7 +299,7 @@ const ReplayChartHost = forwardRef<ReplayChartHandle, ReplayChartHostProps>(func
   paintRef.current = paint;
 
   return (
-    <Box ref={boxRef} data-testid="replay-chart-host" sx={{ width: "100%", height }} />
+    <div ref={boxRef} className="w-full" style={{ height }} data-testid="replay-chart-host" />
   );
 });
 

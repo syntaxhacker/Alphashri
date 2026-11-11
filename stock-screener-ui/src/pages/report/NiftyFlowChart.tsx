@@ -1,4 +1,4 @@
-import Box from "@mui/material/Box";
+import { Box } from "@/ui";
 import { memo, useMemo, useState } from "react";
 import type { MouseEvent } from "react";
 import * as palette from "@/ui/palette";
@@ -124,8 +124,8 @@ const NiftyFlowChartInner = function NiftyFlowChart({ series, height = 64, showA
   );
   if (points.length === 0) {
     return (
-      <Box data-testid="nifty-flowchart-empty" sx={{ height, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Box component="span" sx={{ fontSize: 9, color: palette.TEXT_MUTED }}>no flow tape</Box>
+      <Box data-testid="nifty-flowchart-empty" className="flex items-center justify-center" style={{ height }}>
+        <span style={{ fontSize: "9px", color: palette.TEXT_MUTED }}>no flow tape</span>
       </Box>
     );
   }
@@ -151,14 +151,13 @@ const NiftyFlowChartInner = function NiftyFlowChart({ series, height = 64, showA
         : v.toFixed(0);
 
   return (
-    <Box data-testid="nifty-flowchart" sx={{ width: "100%", minWidth: 0, position: "relative" }}>
-      <Box
-        component="span"
+    <Box data-testid="nifty-flowchart" className="w-full min-w-0 relative">
+      <span
         aria-hidden
-        sx={{ position: "absolute", left: 0, top: 0, fontSize: 8, letterSpacing: "0.06em", color: palette.TEXT_MUTED, pointerEvents: "none" }}
+        style={{ position: "absolute", left: 0, top: 0, fontSize: "8px", letterSpacing: "0.06em", color: palette.TEXT_MUTED, pointerEvents: "none" }}
       >
         FLOW
-      </Box>
+      </span>
       <svg
         data-testid="nifty-flowchart-svg"
         viewBox={`0 0 ${VB_W} ${VB_H}`}
@@ -176,36 +175,37 @@ const NiftyFlowChartInner = function NiftyFlowChart({ series, height = 64, showA
           <line x1={xOf(hover!)} x2={xOf(hover!)} y1={2} y2={FLOW_H} stroke={palette.TEXT} strokeWidth={0.5} opacity={0.85} />
         ) : null}
       </svg>
-      <Box
-        component="span"
+      <span
         data-testid="nifty-flowchart-last"
         title={`${points[points.length - 1].t} · flow ${series.points[points.length - 1].net.toFixed(2)}`}
-        sx={{ position: "absolute", right: 0, top: 2, fontSize: 9, fontWeight: 800, fontFamily: palette.MONO, color: palette.PRIMARY, whiteSpace: "nowrap" }}
+        style={{ position: "absolute", right: 0, top: "2px", fontSize: "9px", fontWeight: 800, fontFamily: palette.MONO, color: palette.PRIMARY, whiteSpace: "nowrap" }}
       >
         {fmtFlow(points[points.length - 1].net)}
-      </Box>
+      </span>
       {hoverPoint && showAxis ? (
         <Box
           data-testid="nifty-flowchart-readout"
-          sx={{
-            position: "absolute", top: 0, left: `${hoverPct}%`, transform: shift,
-            px: "4px", py: "1px", bgcolor: palette.TERM_HEADER,
+          className="absolute z-2"
+          style={{
+            top: 0, left: `${hoverPct}%`, transform: shift,
+            paddingLeft: "4px", paddingRight: "4px", paddingTop: "1px", paddingBottom: "1px",
+            backgroundColor: palette.TERM_HEADER,
             border: `1px solid ${palette.TERM_BORDER}`, borderRadius: "3px",
-            fontSize: 9, fontFamily: palette.MONO, color: palette.TEXT, whiteSpace: "nowrap", pointerEvents: "none", zIndex: 2,
+            fontSize: "9px", fontFamily: palette.MONO, color: palette.TEXT, whiteSpace: "nowrap", pointerEvents: "none",
           }}
         >
           {hoverPoint.t} · flow {fmtFlow(hoverPoint.net)} · {hoverPoint.regime ?? "—"} book Γ
         </Box>
       ) : null}
       {showAxis ? (
-        <Box data-testid="nifty-flowchart-axis" sx={{ position: "relative", height: 12, mt: "1px", width: "100%", pointerEvents: "none" }}>
+        <Box data-testid="nifty-flowchart-axis" className="relative w-full" style={{ height: "12px", marginTop: "1px", pointerEvents: "none" }}>
           {axisTicks(points).map(({ i, t }) => {
             const pct = (xOf(i) / VB_W) * 100;
             const tr = pct > 92 ? "translateX(-100%)" : pct < 2 ? "none" : "translateX(-50%)";
             return (
-              <Box key={`${t}-${i}`} component="span" sx={{ position: "absolute", left: `${pct}%`, transform: tr, fontSize: 8, lineHeight: "12px", color: palette.TEXT_MUTED, fontFamily: palette.MONO, whiteSpace: "nowrap" }}>
+              <span key={`${t}-${i}`} style={{ position: "absolute", left: `${pct}%`, transform: tr, fontSize: "8px", lineHeight: "12px", color: palette.TEXT_MUTED, fontFamily: palette.MONO, whiteSpace: "nowrap" }}>
                 {t}
-              </Box>
+              </span>
             );
           })}
         </Box>

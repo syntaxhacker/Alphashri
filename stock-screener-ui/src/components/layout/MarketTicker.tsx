@@ -135,20 +135,10 @@ function TickerItem({ symbol, item }: TickerItemProps) {
         component="span"
         data-testid={`ticker-change-${testId}`}
         title={`${change >= 0 ? "+" : ""}${change.toFixed(2)} (${changePercent.toFixed(2)}%)`}
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "flex-end",
-          gap: "2px",
-          minWidth: 0,
-          overflow: "hidden",
-          whiteSpace: "nowrap",
-          color: tone,
-          fontFamily: palette.MONO,
-          fontVariantNumeric: "tabular-nums",
-        }}
+        className="flex items-center justify-end gap-[2px] min-w-0 overflow-hidden whitespace-nowrap font-mono"
+        style={{ color: tone, fontVariantNumeric: "tabular-nums" }}
       >
-        <Box component="span" aria-hidden sx={{ fontSize: 9, lineHeight: 1 }}>
+        <Box component="span" aria-hidden className="text-[9px] leading-none">
           {isPositive ? "▲" : "▼"}
         </Box>
         <Text
@@ -246,11 +236,13 @@ function TickerStatus({ label, detail }: { label: string; detail?: string | null
   return (
     <Box
       data-testid="market-ticker-status"
-      sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0, px: 0.5, overflow: "hidden" }}
+      className="flex items-center gap-0.75 min-w-0 overflow-hidden"
+      style={{ paddingLeft: 4, paddingRight: 4 }}
     >
       <Box
         aria-hidden
-        sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "text.disabled", flexShrink: 0 }}
+        className="size-6 rounded-full flex-shrink-0"
+        style={{ backgroundColor: palette.TEXT_MUTED }}
       />
       <Text size="sm" fw={600} c="dimmed" style={{ fontSize: 9.5, lineHeight: 1.2 }}>{label}</Text>
       {detail ? (
@@ -258,7 +250,7 @@ function TickerStatus({ label, detail }: { label: string; detail?: string | null
           size="sm"
           c="dimmed"
           style={{ fontSize: 9.5, lineHeight: 1.2 }}
-          sx={{ opacity: 0.75, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+          className="opacity-75 min-w-0 overflow-hidden truncate"
         >
           · {detail}
         </Text>
@@ -298,25 +290,23 @@ export const MarketStatus = memo(function MarketStatus({ compact = false }: { co
     <Box
       data-testid="app-market-status"
       title={title}
-      sx={{
-        display: "flex",
-        alignItems: "center",
+      className="flex items-center min-w-0 overflow-hidden"
+      style={{
         justifyContent: compact ? "center" : "flex-start",
-        gap: compact ? 0 : 0.75,
-        minWidth: 0,
-        px: compact ? 0 : 0.25,
-        overflow: "hidden",
+        gap: compact ? 0 : 6,
+        paddingLeft: compact ? 0 : 2,
+        paddingRight: compact ? 0 : 2,
       }}
     >
       <Box
         aria-hidden
         data-testid="app-market-status-dot"
-        sx={{
+        style={{
           width: 6,
           height: 6,
           borderRadius: "50%",
           flexShrink: 0,
-          bgcolor: closed ? "text.disabled" : palette.POSITIVE,
+          backgroundColor: closed ? palette.TEXT_MUTED : palette.POSITIVE,
         }}
       />
       {!compact ? (
@@ -329,7 +319,7 @@ export const MarketStatus = memo(function MarketStatus({ compact = false }: { co
               size="sm"
               c="dimmed"
               style={{ fontSize: 9.5, lineHeight: 1.2 }}
-              sx={{ opacity: 0.75, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+              className="opacity-75 min-w-0 overflow-hidden truncate"
             >
               · {detail}
             </Text>

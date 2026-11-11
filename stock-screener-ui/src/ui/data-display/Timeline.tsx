@@ -1,6 +1,5 @@
 import * as React from "react";
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
+import { cn } from "../cn";
 import type { UITimelineProps, UITimelineItemProps } from "../types";
 
 type TimelineContextValue = {
@@ -15,6 +14,18 @@ type TimelineContextValue = {
 
 const TimelineContext = React.createContext<TimelineContextValue>({ itemCount: 0 });
 
+function toneColor(c?: string): string {
+  switch (c) {
+    case "success": return "fin-positive";
+    case "error":
+    case "danger": return "fin-negative";
+    case "warning": return "fin-warning";
+    case "info": return "fin-info";
+    case "secondary": return "fin-text-muted";
+    default: return "fin-primary";
+  }
+}
+
 export function Timeline({
   active,
   bulletSize,
@@ -25,23 +36,25 @@ export function Timeline({
   children,
   className,
   style,
+  id,
   "data-testid": testId,
   ...rest
 }: UITimelineProps) {
   const count = React.Children.count(children);
-  const ctx: TimelineContextValue = { active, bulletSize: bulletSize as any, color: color as any, lineWidth, reverseActive, align, itemCount: count };
+  const ctx: TimelineContextValue = { active, bulletSize, color, lineWidth, reverseActive, align, itemCount: count };
+
+  const cls = cn(
+    "ui-timeline",
+    "relative flex flex-col",
+    align === "right" ? "items-end" : "items-start",
+    className,
+  );
+
   return (
     <TimelineContext.Provider value={ctx}>
-      <Stack
-        className={className}
-        style={style}
-        data-testid={testId}
-        spacing={0}
-        sx={{ position: "relative", alignItems: align === "right" ? "flex-end" : "flex-start" }}
-        {...(rest as any)}
-      >
+      <ol id={id} className={cls} style={style} data-testid={testId} {...(rest as any)}>
         {children}
-      </Stack>
+      </ol>
     </TimelineContext.Provider>
   );
 }
@@ -51,76 +64,57 @@ export function TimelineItem({
   bullet,
   color: itemColor,
   lineVariant,
-  active: itemActive,
+  active: _itemActive,
   children,
   className,
   style,
+  id,
   "data-testid": testId,
   ...rest
 }: UITimelineItemProps) {
   const ctx = React.useContext(TimelineContext);
-  // Determine active state: if parent active index is defined, compute per-item
-  // We need index: simplest is to rely on caller active but we don't have index here; use itemActive if provided
-  const isActive = itemActive ?? false;
-  const bulletSize = 20;
+  const bs = ctx.bulletSize ?? 20;
   const lineW = ctx.lineWidth ?? 2;
-  const bulletBg = (itemColor as string) ?? (ctx.color as string) ?? "primary.main";
+  const tone = toneColor((itemColor as string) ?? (ctx.color as string));
   const isRight = ctx.align === "right";
-
   const borderStyle = lineVariant === "dashed" ? "dashed" : lineVariant === "dotted" ? "dotted" : "solid";
+  const size = typeof bs === "number" ? `${bs}px` : String(bs ?? 16);
+
+  const bulletCls = cn(
+    "ui-timeline-bullet",
+    "flex shrink-0 items-center justify-center rounded-full font-mono text-[10px]",
+    bullet ? `bg-fin-surface border-2 border-${tone} text-${tone}` : `bg-${tone} text-white`,
+    `w-[${size}] h-[${size}]`
+  );
+
+  const lineCls = cn(
+    "ui-timeline-line",
+    "shrink-0 mt-[4px]",
+    lineVariant === "solid" || !lineVariant
+      ? `w-[${lineW}px] bg-fin-border`
+      : `w-[${lineW}px] border-l-[${lineW}px] border-l-${borderStyle} border-l-fin-border bg-transparent`
+  );
+
+  const itemCls = cn(
+    "ui-timeline-item",
+    "flex gap-3 relative min-h-[56px]",
+    isRight ? "flex-row-reverse text-right" : "flex-row text-left",
+    className,
+  );
 
   return (
-    <Box
-      className={className}
-      style={style}
-      data-testid={testId}
-      sx={{
-        display: "flex",
-        flexDirection: isRight ? "row-reverse" : "row",
-        gap: 1.5,
-        position: "relative",
-        minHeight: 56,
-        textAlign: isRight ? "right" : "left",
-      }}
-      {...(rest as any)}
-    >
-      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", width: bulletSize, flexShrink: 0 }}>
-        <Box
-          sx={{
-            width: typeof bulletSize === "number" ? `${bulletSize}px` : bulletSize ?? 16,
-            height: typeof bulletSize === "number" ? `${bulletSize}px` : bulletSize ?? 16,
-            borderRadius: "50%",
-            bgcolor: bullet ? "background.paper" : bulletBg,
-            border: bullet ? `2px solid ${bulletBg}` : `2px solid ${bulletBg}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 10,
-            color: bullet ? bulletBg : "common.white",
-            flexShrink: 0,
-            zIndex: 1,
-            opacity: isActive ? 1 : 1,
-          }}
-        >
-          {bullet}
-        </Box>
-        <Box
-          sx={{
-            flex: 1,
-            width: `${lineW}px`,
-            bgcolor: "divider",
-            borderLeft: lineVariant && lineVariant !== "solid" ? `${lineW}px ${borderStyle} divider` : undefined,
-            backgroundColor: lineVariant === "solid" || !lineVariant ? "divider" : "transparent",
-            mt: 0.5,
-            minHeight: 16,
-          }}
-        />
-      </Box>
-      <Box sx={{ flex: 1, pb: 2, display: "flex", flexDirection: "column", alignItems: isRight ? "flex-end" : "flex-start" }}>
-        {title ? <Box sx={{ fontWeight: 600, fontSize: 14, mb: 0.25 }}>{title}</Box> : null}
-        <Box sx={{ fontSize: 13, color: "text.secondary" }}>{children}</Box>
-      </Box>
-    </Box>
+    <li id={id} className={itemCls} style={style} data-testid={testId} {...(rest as any)}>
+      <div className="flex flex-col items-center" style={{ width: size }}>
+        <div className={bulletCls}>{bullet}</div>
+        <div className={lineCls} />
+      </div>
+      <div className="flex-1 flex flex-col">
+        {title ? (
+          <h3 className="ui-timeline-title font-semibold text-[14px] mb-[2px]">{title}</h3>
+        ) : null}
+        <div className="ui-timeline-body text-[13px] text-fin-text-muted">{children}</div>
+      </div>
+    </li>
   );
 }
 

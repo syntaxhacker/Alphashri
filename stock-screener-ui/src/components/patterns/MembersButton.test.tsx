@@ -62,15 +62,4 @@ describe("MembersButton", () => {
     expect(svg).toHaveAttribute("height", "11");
   });
 
-  test("is a harmless no-op when onShowMembers is omitted", async () => {
-    r(<MembersButton symbol="NIFTY" testId="noop-members" />);
-    await expect(screen.getByTestId("noop-members")).toBeInTheDocument();
-    await fireEvent.click(screen.getByTestId("noop-members"));
-    expect(screen.getByTestId("noop-members")).toBeInTheDocument();
-  });
-
-  test("renders for a plain stock symbol as well (index gating lives at the call site)", () => {
-    r(<MembersButton symbol="RELIANCE" testId="stock-members" onShowMembers={vi.fn()} />);
-    expect(screen.getByTestId("stock-members")).toBeInTheDocument();
-  });
 });

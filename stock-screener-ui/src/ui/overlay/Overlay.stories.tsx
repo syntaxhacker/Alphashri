@@ -6,7 +6,7 @@ const meta: Meta<typeof Overlay> = {
   title: "Primitives/Overlays/Overlay",
   component: Overlay,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Semi-transparent backdrop over content. Use behind modals or to dim background. When not to use: for modals use Modal. Uses MUI Overlay with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Semi-transparent backdrop over content. Use behind modals or to dim background. When not to use: for modals use Modal. Uses the local @/ui Overlay with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

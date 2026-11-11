@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
-import type { SxProps, Theme } from "@mui/material/styles";
-import Drawer from "@mui/material/Drawer";
 import { ActionIcon, Alert, Box, Loader, Text, TextInput, ToolbarRow } from "@/ui";
+import { Portal } from "@/ui/layout/Portal";
 import { IconChartLine, IconX } from "@tabler/icons-react";
 import { SymbolTvLink } from "@/components/patterns/SymbolTvLink";
+import * as palette from "@/ui/palette";
 
 /**
  * Legacy testids. Each surface keeps its own naming scheme, so the ids are
@@ -22,12 +22,12 @@ export interface MembersDrawerTestIds {
 
 /** Per-surface typography; every other class of style is structural. */
 export interface MembersDrawerTextSx {
-  title?: SxProps<Theme>;
-  subtitle?: SxProps<Theme>;
-  description?: SxProps<Theme>;
-  symbol?: SxProps<Theme>;
-  loading?: SxProps<Theme>;
-  empty?: SxProps<Theme>;
+  title?: unknown;
+  subtitle?: unknown;
+  description?: unknown;
+  symbol?: unknown;
+  loading?: unknown;
+  empty?: unknown;
 }
 
 export interface MembersDrawerProps {
@@ -69,7 +69,6 @@ export interface MembersDrawerProps {
   rowBordered?: boolean;
   rowRadius?: number | string;
   symbolPy?: number;
-  textSx?: MembersDrawerTextSx;
 }
 
 /**
@@ -108,42 +107,94 @@ export function MembersDrawer({
   rowBordered = true,
   rowRadius = 0.5,
   symbolPy = 0.5,
-  textSx,
 }: MembersDrawerProps) {
+  if (!open) return null;
+
+  const pad = (n: number) => `${n * 8}px`;
+  const radius = typeof rowRadius === "number" ? `${rowRadius}px` : String(rowRadius);
+
+  const drawerStyle: React.CSSProperties = {
+    position: "fixed",
+    top: 0,
+    right: 0,
+    width,
+    maxWidth: "100%",
+    height: "100%",
+    backgroundColor: palette.SURFACE,
+    borderLeft: `1px solid ${palette.BORDER}`,
+    display: "flex",
+    flexDirection: "column",
+    minWidth: 0,
+    zIndex: 1300,
+  };
+
+  const headerStyle: React.CSSProperties = {
+    paddingLeft: pad(contentPx),
+    paddingRight: pad(contentPx),
+    paddingTop: pad(headerPy),
+    paddingBottom: pad(headerPy),
+    borderBottom: `1px solid ${palette.BORDER}`,
+  };
+
+  const contentStyle: React.CSSProperties = {
+    paddingLeft: pad(contentPx),
+    paddingTop: 6,
+    paddingBottom: 6,
+    ...(searchStacked && { display: "flex", flexDirection: "column", gap: 6 }),
+  };
+
+  const errorStyle: React.CSSProperties = {
+    paddingLeft: pad(contentPx),
+    paddingBottom: 8,
+  };
+
+  const bodyStyle: React.CSSProperties = {
+    flex: 1,
+    minHeight: 0,
+    overflowY: "auto",
+    paddingLeft: pad(contentPx),
+    paddingRight: pad(contentPx),
+    paddingBottom: 8,
+  };
+
+  const loaderStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    paddingTop: 16,
+    paddingLeft: pad(bodyPx),
+  };
+
+  const gridStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: `repeat(auto-fill, minmax(${gridMin}px, 1fr))`,
+    gap: gridGap,
+  };
+
+  const rowClasses = rowBordered
+    ? "flex items-center min-w-0 rounded-sm border border-fin-border bg-fin-bg hover:border-fin-primary hover:bg-fin-surface-alt"
+    : "flex items-center min-w-0 rounded-sm hover:bg-fin-surface-alt";
+
   return (
-    <Drawer
-      anchor="right"
-      open={open}
-      onClose={onClose}
-      sx={{ zIndex: 1300 }}
-      slotProps={{
-        paper: {
-          sx: {
-            width: { xs: "100%", sm: width },
-            maxWidth: "100%",
-            bgcolor: "background.paper",
-            backgroundImage: "none",
-            borderLeft: "1px solid",
-            borderColor: "divider",
-          },
-        },
-      }}
-    >
-      <Box
+    <Portal>
+      <div
         data-testid={ids.drawer}
-        sx={{ display: "flex", flexDirection: "column", height: "100%", minWidth: 0 }}
+        className="flex flex-col h-full min-w-0"
+        style={drawerStyle}
       >
         <ToolbarRow
           justify="space-between"
           gap={headerGap}
           wrap={false}
-          sx={{ px: 1, py: headerPy, borderBottom: "1px solid", borderColor: "divider" }}
+          className="border-b border-fin-border"
+          style={headerStyle}
+          data-testid={ids.drawer + "-header"}
         >
-          <Box sx={{ minWidth: 0 }}>
-            <Text fw={700} truncate sx={textSx?.title}>
+          <Box className="min-w-0">
+            <Text fw={700} truncate >
               {title}
             </Text>
-            <Text c="dimmed" truncate sx={textSx?.subtitle}>
+            <Text c="dimmed" truncate >
               {subtitle}
             </Text>
           </Box>
@@ -158,13 +209,7 @@ export function MembersDrawer({
           </ActionIcon>
         </ToolbarRow>
 
-        <Box
-          sx={{
-            px: contentPx,
-            py: 0.75,
-            ...(searchStacked && { display: "flex", flexDirection: "column", gap: 0.75 }),
-          }}
-        >
+        <Box style={contentStyle}>
           <TextInput
             value={query}
             onChange={onQueryChange}
@@ -174,27 +219,25 @@ export function MembersDrawer({
             style={{ width: "100%" }}
           />
           {description ? (
-            <Text c="dimmed" lineClamp={2} sx={textSx?.description}>
+            <Text c="dimmed" lineClamp={2} >
               {description}
             </Text>
           ) : null}
         </Box>
 
         {error ? (
-          <Box sx={{ px: contentPx, pb: 1 }}>
+          <Box style={errorStyle}>
             <Alert color="error" data-testid={ids.error}>
               {error}
             </Alert>
           </Box>
         ) : null}
 
-        <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 1, pb: 1 }}>
+        <Box style={bodyStyle}>
           {loading ? (
-            <Box
-              sx={{ display: "flex", alignItems: "center", gap: 0.75, py: 2, px: bodyPx }}
-            >
+            <Box style={loaderStyle}>
               <Loader size="sm" />
-              <Text size="xs" c="dimmed" sx={textSx?.loading}>
+              <Text size="xs" c="dimmed" >
                 Loading members…
               </Text>
             </Box>
@@ -202,65 +245,54 @@ export function MembersDrawer({
             <Text
               size="xs"
               c="dimmed"
-              sx={textSx?.empty ?? { display: "block", py: 2, px: bodyPx }}
+
             >
               {query.trim() ? "No matching symbols" : (emptyNote ?? "No members available")}
             </Text>
           ) : (
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: `repeat(auto-fill, minmax(${gridMin}px, 1fr))`,
-                gap: gridGap,
-              }}
-            >
+            <Box style={gridStyle}>
               {symbols.map((symbol) => (
-                <Box
+                <div
                   key={symbol}
                   data-testid={ids.row(symbol)}
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    borderRadius: rowRadius,
-                    minWidth: 0,
-                    ...(rowBordered
-                      ? {
-                          border: "1px solid",
-                          borderColor: "divider",
-                          bgcolor: "background.default",
-                          "&:hover": { borderColor: "primary.main", bgcolor: "action.hover" },
-                        }
-                      : { "&:hover": { bgcolor: "action.hover" } }),
-                  }}
+                  className={rowClasses}
+                  style={{ borderRadius: radius }}
                 >
-                  <SymbolTvLink
-                    symbol={symbol}
-                    testId={ids.tv(symbol)}
-                    sx={{ flex: 1, px: 0.5, py: symbolPy }}
-                  >
-                    <Text fw={600} truncate sx={textSx?.symbol}>
-                      {symbol}
-                    </Text>
-                  </SymbolTvLink>
                   <Box
-                    component="a"
+                    className="min-w-0 flex-1"
+                    style={{
+                      paddingLeft: 4,
+                      paddingRight: 4,
+                      paddingTop: pad(symbolPy),
+                      paddingBottom: pad(symbolPy),
+                    }}
+                  >
+                    <SymbolTvLink
+                      symbol={symbol}
+                      testId={ids.tv(symbol)}
+                    >
+                      <Text fw={600} truncate >
+                        {symbol}
+                      </Text>
+                    </SymbolTvLink>
+                  </Box>
+                  <a
                     href={`/chart/${encodeURIComponent(symbol)}`}
                     title={`Open ${symbol} chart`}
                     data-testid={ids.chart(symbol)}
-                    sx={{
+                    style={{
                       display: "inline-flex",
                       alignItems: "center",
                       justifyContent: "center",
                       width: 22,
                       height: 22,
                       flexShrink: 0,
-                      color: "text.secondary",
-                      "&:hover": { color: "primary.main" },
+                      color: palette.TEXT_MUTED,
                     }}
                   >
                     <IconChartLine size={13} />
-                  </Box>
-                </Box>
+                  </a>
+                </div>
               ))}
             </Box>
           )}
@@ -270,12 +302,19 @@ export function MembersDrawer({
           justify="space-between"
           gap={footerGap}
           wrap={false}
-          sx={{ px: contentPx, py: footerPy, borderTop: "1px solid", borderColor: "divider" }}
+          className="border-t border-fin-border"
+          style={{
+            paddingLeft: pad(contentPx),
+            paddingRight: pad(contentPx),
+            paddingTop: pad(footerPy),
+            paddingBottom: pad(footerPy),
+            backgroundColor: palette.TERM_HEADER,
+          }}
         >
           {footerLeft}
           {footerRight}
         </ToolbarRow>
-      </Box>
-    </Drawer>
+      </div>
+    </Portal>
   );
 }

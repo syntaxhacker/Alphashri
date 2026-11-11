@@ -62,7 +62,7 @@ export function ValueDetailDrawer({ row, onClose }: ValueDetailDrawerProps) {
       data-testid="value-detail-drawer"
     >
       {row && (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }} data-testid={`value-detail-${row.symbol}`}>
+        <Box className="flex flex-col gap-4" data-testid={`value-detail-${row.symbol}`}>
           <Box>
             <Text size="sm" fw={600}>
               Score breakdown ({Math.round(row.score)}/100)
@@ -70,16 +70,16 @@ export function ValueDetailDrawer({ row, onClose }: ValueDetailDrawerProps) {
             {SUBSCORE_LABELS.map((s) => (
               <Box
                 key={s.key}
-                sx={{ display: "flex", alignItems: "center", gap: 1, mt: 1 }}
+                className="mt-2 flex items-center gap-2"
                 data-testid={`value-detail-sub-${row.symbol}-${s.key}`}
               >
-                <Text size="xs" c="dimmed" sx={{ width: 64 }}>
+                <Text size="xs" c="dimmed" className="w-16">
                   {s.label}
                 </Text>
-                <Box sx={{ flex: 1, height: 6, borderRadius: 1, bgcolor: "divider", overflow: "hidden" }}>
-                  <Box sx={{ width: `${row.subscores[s.key]}%`, height: "100%", bgcolor: "primary.main" }} />
+                <Box className="h-1.5 flex-1 overflow-hidden rounded-[2px] bg-fin-border">
+                  <Box className="h-full bg-fin-primary" style={{ width: `${row.subscores[s.key]}%` }} />
                 </Box>
-                <Text size="xs" fw={600} sx={{ width: 28, textAlign: "right" }}>
+                <Text size="xs" fw={600} className="w-7 text-right">
                   {row.subscores[s.key]}
                 </Text>
               </Box>
@@ -99,14 +99,14 @@ export function ValueDetailDrawer({ row, onClose }: ValueDetailDrawerProps) {
             <Text size="sm" fw={600}>
               Why it screens
             </Text>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mt: 1 }}>
+            <Box className="mt-2 flex flex-col gap-2">
               {row.flags.length === 0 && (
                 <Text size="xs" c="dimmed">
                   No special flags — it passed the gates on score alone.
                 </Text>
               )}
               {row.flags.map((f) => (
-                <Box key={f} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box key={f} className="flex items-center gap-2">
                   <Badge size="xs" color="secondary">
                     {f.replace(/_/g, " ")}
                   </Badge>

@@ -1,6 +1,5 @@
 import { useMemo } from "react";
-import { Box } from "@/ui";
-import Typography from "@mui/material/Typography";
+import { Box, Text } from "@/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import { TanStackTable } from "../../components/common/TanStackTable";
 import type { HeatmapStock } from "../../api/heatmap";
@@ -19,14 +18,14 @@ export function HeatmapListView({ stocks, metric, activeMetric, metricMin, metri
   const columns = useMemo<ColumnDef<HeatmapStock>[]>(() => [
     {
       id: "symbol",
-      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1, p: 1 }}>Symbol</Box>,
+      header: () => <Box className="flex items-center justify-start gap-2 p-2">Symbol</Box>,
       accessorKey: "symbol",
       meta: { align: "left" },
-      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1, p: 1 }}><Typography sx={{ fontWeight: 700, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "flex-start" }}>{info.getValue<string>()}</Typography></Box>,
+      cell: (info) => <Box className="flex items-center justify-start gap-2 p-2"><Text className="font-bold text-[12px] flex items-center justify-start">{info.getValue<string>()}</Text></Box>,
     },
     {
       id: "metric",
-      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}>{activeMetric.label}</Box>,
+      header: () => <Box className="flex items-center justify-end gap-2 p-2">{activeMetric.label}</Box>,
       accessorFn: (row) => getMetricValue(row, metric),
       meta: { align: "right" },
       cell: (info) => {
@@ -34,8 +33,8 @@ export function HeatmapListView({ stocks, metric, activeMetric, metricMin, metri
         const bg = getMetricColor(val, metricMin, metricMax);
         const tc = getMetricTextColor(val, metricMin, metricMax);
         return (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}>
-            <Box sx={{ backgroundColor: bg, color: tc, p: 1, borderRadius: 1, fontWeight: 700, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Box className="flex items-center justify-end gap-2 p-2">
+            <Box className="flex items-center justify-center px-2 rounded font-bold text-[12px]" style={{ backgroundColor: bg, color: tc }}>
               {activeMetric.fmt(val)}
             </Box>
           </Box>
@@ -44,59 +43,59 @@ export function HeatmapListView({ stocks, metric, activeMetric, metricMin, metri
     },
     {
       id: "name",
-      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1, p: 1 }}>Name</Box>,
+      header: () => <Box className="flex items-center justify-start gap-2 p-2">Name</Box>,
       accessorKey: "name",
       meta: { align: "left" },
-      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1, p: 1 }}><Typography sx={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "flex-start" }}>{info.getValue<string>()}</Typography></Box>,
+      cell: (info) => <Box className="flex items-center justify-start gap-2 p-2"><Text className="text-[12px] flex items-center justify-start">{info.getValue<string>()}</Text></Box>,
     },
     {
       id: "pe_ratio",
-      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}>P/E</Box>,
+      header: () => <Box className="flex items-center justify-end gap-2 p-2">P/E</Box>,
       accessorKey: "pe_ratio",
       meta: { align: "right" },
-      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}><Typography sx={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>{info.getValue<number>()?.toFixed(1)}</Typography></Box>,
+      cell: (info) => <Box className="flex items-center justify-end gap-2 p-2"><Text className="text-[12px] flex items-center justify-end">{info.getValue<number>()?.toFixed(1)}</Text></Box>,
     },
     {
       id: "market_cap",
-      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}>MCap</Box>,
+      header: () => <Box className="flex items-center justify-end gap-2 p-2">MCap</Box>,
       accessorKey: "market_cap",
       meta: { align: "right" },
-      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}><Typography sx={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>{formatMarketCap(info.getValue<number>())}</Typography></Box>,
+      cell: (info) => <Box className="flex items-center justify-end gap-2 p-2"><Text className="text-[12px] flex items-center justify-end">{formatMarketCap(info.getValue<number>())}</Text></Box>,
     },
     {
       id: "price",
-      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}>Price</Box>,
+      header: () => <Box className="flex items-center justify-end gap-2 p-2">Price</Box>,
       accessorKey: "price",
       meta: { align: "right" },
-      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}><Typography sx={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>₹{info.getValue<number>()?.toFixed(2)}</Typography></Box>,
+      cell: (info) => <Box className="flex items-center justify-end gap-2 p-2"><Text className="text-[12px] flex items-center justify-end">₹{info.getValue<number>()?.toFixed(2)}</Text></Box>,
     },
     {
       id: "change_pct",
-      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}>Chg</Box>,
+      header: () => <Box className="flex items-center justify-end gap-2 p-2">Chg</Box>,
       accessorKey: "change_pct",
       meta: { align: "right" },
       cell: (info) => {
         const val = info.getValue<number>();
         return (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}>
-            <Typography sx={{ fontSize: 12, color: val >= 0 ? "success.main" : "error.main", display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+          <Box className="flex items-center justify-end gap-2 p-2">
+            <Text className={`text-[12px] flex items-center justify-end ${val >= 0 ? "text-fin-positive" : "text-fin-negative"}`}>
               {val >= 0 ? "+" : ""}{val?.toFixed(2)}%
-            </Typography>
+            </Text>
           </Box>
         );
       },
     },
     {
       id: "sector",
-      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1, p: 1 }}>Sector</Box>,
+      header: () => <Box className="flex items-center justify-start gap-2 p-2">Sector</Box>,
       accessorKey: "sector",
       meta: { align: "left" },
-      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1, p: 1 }}><Typography sx={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "flex-start" }}>{info.getValue<string>()}</Typography></Box>,
+      cell: (info) => <Box className="flex items-center justify-start gap-2 p-2"><Text className="text-[12px] flex items-center justify-start">{info.getValue<string>()}</Text></Box>,
     },
   ], [activeMetric, metric, metricMin, metricMax]);
 
   return (
-    <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", width: "100%" }}>
+    <Box className="flex-1 min-h-0 overflow-auto w-full">
       <TanStackTable<HeatmapStock>
         data={stocks}
         columns={columns}

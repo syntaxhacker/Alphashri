@@ -218,7 +218,7 @@ export function TemplateTreeView({
 
   if (isLoading && templates.length === 0) {
     return (
-      <Box data-testid="template-tree-loading" sx={{ p: 1 }}>
+      <Box data-testid="template-tree-loading" className="p-2">
         <Text size="sm" fw={600}>Loading…</Text>
         <Text size="xs" c="dimmed">Fetching strategy templates</Text>
       </Box>
@@ -226,7 +226,7 @@ export function TemplateTreeView({
   }
   if (templates.length === 0) {
     return (
-      <Box data-testid="template-tree-empty" sx={{ p: 1 }}>
+      <Box data-testid="template-tree-empty" className="p-2">
         <Text size="sm" fw={600}>No templates</Text>
         <Text size="xs" c="dimmed">Run the seed script to create strategy templates</Text>
       </Box>
@@ -234,11 +234,12 @@ export function TemplateTreeView({
   }
 
   return (
-    <Box className="template-tree-view" data-testid="template-tree-panel" sx={{ minHeight: 0 }}>
+    <Box className="template-tree-view min-h-0" data-testid="template-tree-panel">
       <Group
         gap={1}
         align="center"
-        sx={{ display: "flex", alignItems: "center", gap: 1, pt: 1, pb: 0.5, pr: 1, pl: 0 }}
+        className="items-center"
+        style={{ paddingTop: 8, paddingBottom: 0.5, paddingRight: 8, paddingLeft: 0 }}
       >
         <span style={{ width: 18, flexShrink: 0 }} />
         <Text size="xs" c="dimmed" style={{ width: 180, display: "flex", alignItems: "center" }}>

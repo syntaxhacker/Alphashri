@@ -94,12 +94,12 @@ export function ThemeMembersDrawer({ open, slug, name, onClose }: ThemeMembersDr
         empty: { display: "block", py: 2, px: 0.25, fontSize: 10 },
       }}
       footerLeft={
-        <Text c="dimmed" truncate sx={{ fontSize: 9.5 }}>
+        <Text c="dimmed" truncate className="text-[9.5px]">
           {members.length === count ? `${count} listed` : `${members.length} of ${count}`}
         </Text>
       }
       footerRight={
-        <Text c="dimmed" sx={{ fontSize: 9.5 }}>
+        <Text c="dimmed" className="text-[9.5px]">
           TV symbol · chart
         </Text>
       }

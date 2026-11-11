@@ -1,4 +1,5 @@
 import { Box, Paper, Text } from "@/ui";
+import * as palette from "@/ui/palette";
 import { formatCr, verdictMeta, type PositioningData } from "@/utils/positioning";
 
 interface VerdictBannerProps {
@@ -12,9 +13,9 @@ export function VerdictBanner({ data }: VerdictBannerProps) {
       data-testid="positioning-verdict"
       p="sm"
       radius="sm"
-      sx={{ border: 1, borderColor: "divider", bgcolor: meta.tintToken }}
+      style={{ border: `1px solid ${palette.BORDER}`, backgroundColor: meta.tintToken }}
     >
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+      <Box className="flex flex-col" gap={1}>
         <Text size="lg" fw={700} c={meta.colorToken} data-testid="positioning-verdict-word">
           {meta.icon} {meta.label}
         </Text>

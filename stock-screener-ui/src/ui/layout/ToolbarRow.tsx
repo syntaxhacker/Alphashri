@@ -1,5 +1,4 @@
-import MuiBox from "@mui/material/Box";
-import type { SxProps, Theme } from "@mui/material/styles";
+import { cn } from "../cn";
 import type { CSSProperties, ReactNode } from "react";
 
 export interface ToolbarRowProps {
@@ -15,8 +14,6 @@ export interface ToolbarRowProps {
   wrap?: boolean;
   /** Hide overflow (default false). */
   clip?: boolean;
-  /** Merged after the alignment defaults, so callers can adjust spacing/overflow. */
-  sx?: SxProps<Theme>;
 }
 
 /**
@@ -34,28 +31,15 @@ export function ToolbarRow({
   justify = "flex-start",
   wrap = true,
   clip = false,
-  sx,
 }: ToolbarRowProps) {
   return (
-    <MuiBox
+    <div
       id={id}
-      className={className}
-      style={style}
+      className={cn("flex items-center min-w-0", wrap ? "flex-wrap" : "flex-nowrap", clip ? "overflow-hidden" : undefined, className)}
+      style={{ justifyContent: justify, gap: `${gap}px`, ...style }}
       data-testid={testId}
-      sx={[
-        {
-          display: "flex",
-          alignItems: "center",
-          justifyContent: justify,
-          gap: `${gap}px`,
-          flexWrap: wrap ? "wrap" : "nowrap",
-          minWidth: 0,
-          ...(clip && { overflow: "hidden" }),
-        },
-        ...(sx ? (Array.isArray(sx) ? sx : [sx]) : []),
-      ] as never}
     >
       {children}
-    </MuiBox>
+    </div>
   );
 }

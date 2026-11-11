@@ -239,7 +239,7 @@ describe("AppliedFilters", () => {
       />,
     );
     const chip = screen.getByTestId("patterns-applied-filter-direction:bullish");
-    fireEvent.click(chip.querySelector(".MuiChip-deleteIcon") as Element);
+    fireEvent.click(chip.querySelector("[data-testid$='-remove']") as Element);
     expect(setFilter).toHaveBeenCalledWith("direction", ["bearish"]);
   });
 
@@ -254,7 +254,7 @@ describe("AppliedFilters", () => {
       />,
     );
     const chip = screen.getByTestId("patterns-applied-filter-quality:strong");
-    fireEvent.click(chip.querySelector(".MuiChip-deleteIcon") as Element);
+    fireEvent.click(chip.querySelector("[data-testid$='-remove']") as Element);
     expect(setFilter).toHaveBeenCalledWith("quality", null);
   });
 
@@ -284,7 +284,7 @@ describe("AppliedFilters", () => {
     );
     expect(screen.getByText("Trendlines: Hidden")).toBeInTheDocument();
     const chip = screen.getByTestId("patterns-applied-filter-trendlines");
-    fireEvent.click(chip.querySelector(".MuiChip-deleteIcon") as Element);
+    fireEvent.click(chip.querySelector("[data-testid$='-remove']") as Element);
     expect(setFilter).toHaveBeenCalledWith("trendlines", "both");
   });
 
@@ -370,19 +370,19 @@ describe("AppliedFilters", () => {
     );
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-family:reversal").querySelector(
-        ".MuiChip-deleteIcon",
+        "[data-testid$='-remove']",
       ) as Element,
     );
     expect(setFilter).toHaveBeenCalledWith("family", ["continuation"]);
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-pattern_id:double_bottom").querySelector(
-        ".MuiChip-deleteIcon",
+        "[data-testid$='-remove']",
       ) as Element,
     );
     expect(setFilter).toHaveBeenCalledWith("pattern_id", []);
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-status:confirmed").querySelector(
-        ".MuiChip-deleteIcon",
+        "[data-testid$='-remove']",
       ) as Element,
     );
     expect(setFilter).toHaveBeenCalledWith("status", ["forming"]);
@@ -415,7 +415,7 @@ describe("AppliedFilters", () => {
       />,
     );
     fireEvent.click(
-      screen.getByTestId(testId).querySelector(".MuiChip-deleteIcon") as Element,
+      screen.getByTestId(testId).querySelector("[data-testid$='-remove']") as Element,
     );
     expect(setFilter).toHaveBeenCalledWith(key, next);
   });
@@ -432,7 +432,7 @@ describe("AppliedFilters", () => {
     );
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-sort:newest").querySelector(
-        ".MuiChip-deleteIcon",
+        "[data-testid$='-remove']",
       ) as Element,
     );
     expect(setFilter).toHaveBeenCalledWith("sort", "confidence");
@@ -451,7 +451,7 @@ describe("AppliedFilters", () => {
     expect(screen.getByText("Range: pos ≥ 80%")).toBeInTheDocument();
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-min_range_pos").querySelector(
-        ".MuiChip-deleteIcon",
+        "[data-testid$='-remove']",
       ) as Element,
     );
     expect(setFilter).toHaveBeenCalledWith("min_range_pos", null);
@@ -471,13 +471,13 @@ describe("AppliedFilters", () => {
     expect(screen.getByText("Breakout: ≥ 60")).toBeInTheDocument();
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-min_confidence").querySelector(
-        ".MuiChip-deleteIcon",
+        "[data-testid$='-remove']",
       ) as Element,
     );
     expect(setFilter).toHaveBeenCalledWith("min_confidence", null);
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-min_breakout_score").querySelector(
-        ".MuiChip-deleteIcon",
+        "[data-testid$='-remove']",
       ) as Element,
     );
     expect(setFilter).toHaveBeenCalledWith("min_breakout_score", null);
@@ -496,7 +496,7 @@ describe("AppliedFilters", () => {
     expect(screen.getByText("Sort: Near breakout")).toBeInTheDocument();
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-sort:range_pos").querySelector(
-        ".MuiChip-deleteIcon",
+        "[data-testid$='-remove']",
       ) as Element,
     );
     expect(setFilter).toHaveBeenCalledWith("sort", "confidence");
@@ -545,7 +545,7 @@ describe("AppliedFilters", () => {
       />,
     );
     fireEvent.click(
-      screen.getByTestId(testId).querySelector(".MuiChip-deleteIcon") as Element,
+      screen.getByTestId(testId).querySelector("[data-testid$='-remove']") as Element,
     );
     expect(setFilter).toHaveBeenCalledWith(key, next);
   });

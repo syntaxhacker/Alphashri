@@ -828,6 +828,9 @@ OPENAPI_TAGS = [
     {"name": "options-walls", "description": "Options wall / gamma exposure levels."},
     {"name": "options-recorder", "description": "Options tick recorder control."},
     {"name": "options-history", "description": "Historical options data."},
+    {"name": "options-screener", "description": "F&O momentum OTM options screener."},
+    {"name": "fyers-bridge", "description": "Fyers option chain, expiries and futures bridge."},
+    {"name": "report-sim", "description": "Strategy simulator over recorded option tape (replay + live as-of)."},
     {"name": "market-ticker", "description": "Live index and commodity ticker data."},
     {"name": "symbols", "description": "Symbol search and instrument lookup."},
     {"name": "news", "description": "News feed, articles and sources."},
@@ -1277,6 +1280,8 @@ _include_api("api.market_screen.router", "router", "market screen", msg="✅ Mar
 
 _include_api("api.options", "router", "options", msg="✅ Options API loaded at /api/options")
 
+_include_api("api.options_screener", "router", "F&O screener", msg="✅ F&O screener API loaded at /api/options/screener")
+
 _include_api("api.fyers_bridge", "router", "fyers bridge", msg="✅ Fyers bridge API loaded at /api/fyers-bridge")
 
 _include_api("api.premium_tracker", "router", "premium tracker", msg="✅ Premium Tracker API loaded at /api/options/premium-tracker")
@@ -1334,6 +1339,8 @@ _include_api("api.reports_api.options_report", "router", "options report", msg="
 _include_api("api.reports_api.options_recorder", "router", "options recorder status", msg="✅ Options recorder status API loaded at /api/reports/options/recorder/status")
 
 _include_api("api.reports_api.options_history", "router", "options history", msg="✅ Options history API loaded at /api/reports/options/...")
+
+_include_api("api.reports_api.sim", "router", "report sim", msg="✅ Report sim API loaded at /api/reports/sim")
 
 _include_api("api.reports_api.options_walls", "router", "options walls", msg="✅ Options walls API loaded at /api/reports/options/{symbol}/walls")
 

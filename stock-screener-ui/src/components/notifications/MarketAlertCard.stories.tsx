@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import Box from "@mui/material/Box";
-import * as palette from "@/ui/palette";
+import { Box } from "@/ui";
 import {
   MarketAlertCard,
   MarketAlertLog,
@@ -40,7 +39,7 @@ const NOW = Date.parse("2026-10-13T14:03:00+05:30");
 /** Full-screen dark stage — the component assumes a terminal ground. */
 function Stage({ children }: { children: React.ReactNode }) {
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: palette.BLACK, p: 2, boxSizing: "border-box" }}>
+    <Box className="min-h-screen bg-black p-4 box-border">
       {children}
     </Box>
   );
@@ -183,7 +182,7 @@ export const Empty: Story = {
   args: { alerts: [], fill: false, height: 120 },
   render: (args) => (
     <Stage>
-      <Box sx={{ width: 620, maxWidth: "100%" }}>
+      <Box className="w-[620px] max-w-full">
         <MarketAlertLog {...args} />
       </Box>
     </Stage>
@@ -194,7 +193,7 @@ export const Rows: Story = {
   name: "Rows (20px)",
   render: () => (
     <Stage>
-      <Box sx={{ width: 860, maxWidth: "100%" }}>
+      <Box className="w-[860px] max-w-full">
         {ALERTS.slice(0, 4).map((a) => (
           <MarketAlertRow key={a.id} alert={a} onOpen={() => {}} onDismiss={() => {}} />
         ))}
@@ -209,7 +208,7 @@ export const Severity: Story = {
     const sevs: AlertSeverity[] = ["info", "watch", "alert", "critical"];
     return (
       <Stage>
-        <Box sx={{ width: 860, maxWidth: "100%" }}>
+        <Box className="w-[860px] max-w-full">
           {sevs.map((severity, i) => (
             <MarketAlertRow
               key={severity}
@@ -229,7 +228,7 @@ export const Kinds: Story = {
     const kinds: AlertKind[] = ["oi_burst", "price_spike", "volume_spike", "breakout", "system"];
     return (
       <Stage>
-        <Box sx={{ width: 860, maxWidth: "100%" }}>
+        <Box className="w-[860px] max-w-full">
           {kinds.map((kind) => {
             const base = ALERTS.find((a) => a.kind === kind) ?? ALERTS[0];
             return <MarketAlertRow key={kind} alert={{ ...base, id: `kind-${kind}`, kind }} onOpen={() => {}} />;
@@ -244,7 +243,7 @@ export const Toasts: Story = {
   name: "Toast stack (coalesced)",
   render: () => (
     <Stage>
-      <Box sx={{ width: 620, maxWidth: "100%" }}>
+      <Box className="w-[620px] max-w-full">
         <MarketAlertStack
           alerts={Array.from({ length: 9 }, (_, i) => ({
             ...ALERTS[i % ALERTS.length],
@@ -264,7 +263,7 @@ export const Card: Story = {
   name: "Card (centre density)",
   render: () => (
     <Stage>
-      <Box sx={{ width: 820, maxWidth: "100%" }}>
+      <Box className="w-[820px] max-w-full">
         {ALERTS.slice(0, 3).map((a) => (
           <MarketAlertCard key={a.id} alert={a} onOpen={() => {}} onDismiss={() => {}} />
         ))}

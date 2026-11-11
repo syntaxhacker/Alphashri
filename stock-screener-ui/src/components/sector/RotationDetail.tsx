@@ -1,7 +1,7 @@
+import { NEGATIVE, POSITIVE, TEXT_MUTED } from "@/ui/palette";
 import { Box, Button, Text } from "@/ui";
 import type { ReactNode } from "react";
 import { IconUsers } from "@tabler/icons-react";
-import { MONO, NEGATIVE, POSITIVE, TEXT_MUTED } from "@/ui/palette";
 import type { RotationPeriod, RotationRow } from "../../types/rotation";
 import { formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
 import { ROTATION_STATUS_LABELS, ROTATION_STATUS_COLORS_PANEL } from "./rotationStatus";
@@ -14,12 +14,7 @@ function SectionLabel({ children }: { children: ReactNode }) {
   return (
     <Text
       c="dimmed"
-      sx={{
-        fontSize: 9.5,
-        fontWeight: 700,
-        letterSpacing: 0.5,
-        textTransform: "uppercase",
-      }}
+      className="text-[9.5px] font-bold uppercase tracking-[0.5px]"
     >
       {children}
     </Text>
@@ -36,16 +31,10 @@ function Metric({
   tone: "success" | "error" | "muted";
 }) {
   return (
-    <Box sx={{ minWidth: 0 }}>
+    <Box className="min-w-0">
       <Text
         c="dimmed"
-        sx={{
-          display: "block",
-          fontSize: 9,
-          fontWeight: 700,
-          letterSpacing: 0.4,
-          textTransform: "uppercase",
-        }}
+        className="block text-[9px] font-bold uppercase tracking-[0.4px]"
       >
         {label}
       </Text>
@@ -53,12 +42,7 @@ function Metric({
         c={tone === "muted" ? "secondary" : tone}
         fw={600}
         truncate
-        sx={{
-          display: "block",
-          fontFamily: MONO,
-          fontSize: 10.5,
-          fontVariantNumeric: "tabular-nums",
-        }}
+        className="block font-mono text-[10.5px] tabular-nums"
       >
         {value}
       </Text>
@@ -83,48 +67,30 @@ export function RotationDetail({ row, onOpenMembers }: RotationDetailProps) {
   return (
     <Box
       data-testid="rotation-detail"
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        flex: 1,
-        height: "100%",
-        minWidth: 0,
-        minHeight: 0,
-        overflow: "hidden",
-      }}
+      className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
     >
-      <Box sx={{ px: 1, py: 0.5, borderBottom: "1px solid", borderColor: "divider" }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+      <Box className="border-b border-fin-border px-2 py-1">
+        <Box className="flex min-w-0 items-center gap-1.5">
           {status ? (
             <Box
-              sx={{
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                bgcolor: status.color,
-                flexShrink: 0,
-              }}
+              className="h-1.5 w-1.5 shrink-0 rounded-full"
+              style={{ backgroundColor: status.color }}
             />
           ) : null}
-          <Text fw={700} truncate sx={{ fontSize: 11, minWidth: 0 }}>
+          <Text fw={700} truncate className="min-w-0 text-[11px]">
             {row ? row.name : "Select a group"}
           </Text>
-          <Box sx={{ flex: 1 }} />
+          <Box className="flex-1" />
           {status ? (
             <Text
-              sx={{
-                fontSize: 9.5,
-                fontWeight: 700,
-                letterSpacing: 0.4,
-                color: status.color,
-                whiteSpace: "nowrap",
-              }}
+              className="whitespace-nowrap text-[9.5px] font-bold tracking-[0.4px]"
+              style={{ color: status.color }}
             >
               {status.label}
             </Text>
           ) : null}
         </Box>
-        <Text c="dimmed" truncate sx={{ display: "block", fontSize: 9 }}>
+        <Text c="dimmed" truncate className="block text-[9px]">
           {row
             ? `${row.category ? `${row.category} · ` : ""}${row.kind} · ${row.quadrant} · ${row.members} members`
             : "Pick a row in the board, matrix or rotation map."}
@@ -134,13 +100,7 @@ export function RotationDetail({ row, onOpenMembers }: RotationDetailProps) {
       {row ? (
         <>
           <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-              gap: 0.5,
-              px: 1,
-              py: 0.5,
-            }}
+            className="grid grid-cols-4 gap-1 px-2 py-1"
           >
             <Metric label="1M" value={formatPercentage(monthly)} tone={getPnLTextColor(monthly)} />
             <Metric label="RS" value={row.rs_1m.toFixed(2)} tone={getPnLTextColor(row.rs_1m)} />
@@ -156,15 +116,10 @@ export function RotationDetail({ row, onOpenMembers }: RotationDetailProps) {
             />
           </Box>
 
-          <Box sx={{ px: 1, py: 0.5, borderTop: "1px solid", borderColor: "divider" }}>
+          <Box className="border-t border-fin-border px-2 py-1">
             <SectionLabel>Period returns</SectionLabel>
             <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-                gap: 0.5,
-                mt: 0.5,
-              }}
+              className="mt-1 grid grid-cols-7 gap-1"
             >
               {PERIODS.map((p) => {
                 const value = row.returns[p];
@@ -172,42 +127,20 @@ export function RotationDetail({ row, onOpenMembers }: RotationDetailProps) {
                 return (
                   <Box
                     key={p}
-                    sx={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: 0.25,
-                      minWidth: 0,
-                    }}
+                    className="flex min-w-0 flex-col items-center gap-[2px]"
                   >
                     <Box
-                      sx={{
-                        height: 28,
-                        width: "100%",
-                        display: "flex",
-                        alignItems: "flex-end",
-                        justifyContent: "center",
-                      }}
+                      className="flex h-7 w-full items-end justify-center"
                     >
                       <Box
-                        sx={{
-                          width: 12,
-                          height,
-                          bgcolor: value >= 0 ? POSITIVE : NEGATIVE,
-                          borderRadius: "2px 2px 0 0",
-                          opacity: 0.9,
-                        }}
+                        className="w-3 rounded-t-[2px] opacity-90"
+                        style={{ height, backgroundColor: value >= 0 ? POSITIVE : NEGATIVE }}
                       />
                     </Box>
-                    <Text sx={{ fontSize: 8, color: TEXT_MUTED, lineHeight: 1 }}>{p}</Text>
+                    <Text className="text-[8px] leading-none" style={{ color: TEXT_MUTED }}>{p}</Text>
                     <Text
-                      sx={{
-                        fontSize: 8.5,
-                        fontFamily: MONO,
-                        lineHeight: 1,
-                        color: getPnLTextColor(value),
-                        fontVariantNumeric: "tabular-nums",
-                      }}
+                      className="font-mono text-[8.5px] leading-none tabular-nums"
+                      style={{ color: getPnLTextColor(value) }}
                     >
                       {value.toFixed(1)}
                     </Text>
@@ -218,18 +151,10 @@ export function RotationDetail({ row, onOpenMembers }: RotationDetailProps) {
           </Box>
 
           <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 0.75,
-              px: 1,
-              py: 0.25,
-              borderTop: "1px solid",
-              borderColor: "divider",
-            }}
+            className="flex items-center gap-1.5 border-t border-fin-border px-2 py-[2px]"
           >
             <SectionLabel>Top movers</SectionLabel>
-            <Box sx={{ flex: 1 }} />
+            <Box className="flex-1" />
             {canOpenMembers ? (
               <Button
                 data-testid="rotation-detail-members"
@@ -244,36 +169,31 @@ export function RotationDetail({ row, onOpenMembers }: RotationDetailProps) {
             ) : null}
           </Box>
 
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, px: 1, pb: 0.5 }}>
+          <Box className="flex flex-col gap-[2px] px-2 pb-1">
             {movers.length === 0 ? (
-              <Text c="dimmed" sx={{ fontSize: 10 }}>
+              <Text c="dimmed" className="text-[10px]">
                 No movers
               </Text>
             ) : (
               movers.map((mover) => (
                 <Box
                   key={`${row.id}-${mover.symbol}`}
-                  sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}
+                  className="flex min-w-0 items-center gap-1.5"
                 >
                   <Box
                     component="a"
                     href={`/chart/${encodeURIComponent(mover.symbol)}`}
-                    sx={{
-                      minWidth: 0,
-                      color: "text.primary",
-                      textDecoration: "none",
-                      "&:hover": { color: "primary.main", textDecoration: "underline" },
-                    }}
+                    className="min-w-0 text-fin-text no-underline hover:text-fin-primary hover:underline"
                   >
-                    <Text truncate sx={{ fontSize: 10.5, fontWeight: 600 }}>
+                    <Text truncate className="text-[10.5px] font-semibold">
                       {mover.symbol}
                     </Text>
                   </Box>
-                  <Box sx={{ flex: 1 }} />
+                  <Box className="flex-1" />
                   <Text
                     c={getPnLTextColor(mover.change)}
                     fw={600}
-                    sx={{ fontFamily: MONO, fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}
+                    className="font-mono text-[10.5px] tabular-nums"
                   >
                     {formatPercentage(mover.change)}
                   </Text>

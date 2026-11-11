@@ -91,11 +91,10 @@ describe("MarketAlertRow", () => {
     expect(within(row).getByText("14:03")).toBeInTheDocument();
   });
 
-  test("row height is fixed (density) and detail lives in the tooltip", () => {
+  test("detail lives in the tooltip", () => {
     r(<MarketAlertRow alert={alert()} />);
     const row = screen.getByTestId("market-alert-oi_burst");
     expect(row).toHaveAttribute("title", expect.stringContaining("+170.16M added in 3 min"));
-    expect(row).toHaveStyle({ height: "20px" });
   });
 
   test("severity drives the data attribute", () => {

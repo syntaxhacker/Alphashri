@@ -6,7 +6,7 @@ const meta: Meta<typeof Text> = {
   title: "Primitives/Typography/Text",
   component: Text,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Base typography — size, weight, color, truncation. Use for any body copy or labels. When not to use: for headings use Title. Uses MUI Text with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Base typography — size, weight, color, truncation. Use for any body copy or labels. When not to use: for headings use Title. Uses the local @/ui Text with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;
@@ -90,7 +90,7 @@ export const ColorVariants: Story = {
   ),
 };
 
-// MUI shade syntax (color.N) used for fine-tuned contrast in tables/badges
+// Shade syntax (color.N) used for fine-tuned contrast in tables/badges
 export const ShadeColors: Story = {
   render: () => (
     <Stack gap={4}>

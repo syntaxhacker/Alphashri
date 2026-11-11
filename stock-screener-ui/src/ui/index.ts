@@ -76,6 +76,8 @@ export { DatePicker } from "./dates/DatePicker";
 
 // Theme & providers
 export { UIProvider, uiTheme } from "./theme";
+export { cn } from "./cn";
+export { alpha } from "./alpha";
 
 // Density (Comfortable | Compact table density, persisted to localStorage)
 export { DensityProvider, useDensity, setDensity, getStoredDensity, DENSITY_TOKENS, DENSITY_STORAGE_KEY, TABLE_ROW_PY_VAR } from "./density";

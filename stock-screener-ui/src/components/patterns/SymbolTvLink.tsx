@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { SymbolLink } from "@/components/common/SymbolLink";
 
 export interface SymbolTvLinkProps {
@@ -6,7 +6,8 @@ export interface SymbolTvLinkProps {
   testId: string;
   children: ReactNode;
   /** Extra layout only (flex, padding) — the link skin stays shared. */
-  sx?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
   ariaLabel?: string;
 }
 
@@ -14,7 +15,7 @@ export interface SymbolTvLinkProps {
  * Thin wrapper over SymbolLink for TradingView-only links (no chart icon).
  * Preserves the `pattern-tv-link` class and existing testId contract.
  */
-export function SymbolTvLink({ symbol, testId, children, sx }: SymbolTvLinkProps) {
+export function SymbolTvLink({ symbol, testId, children, className, style, ariaLabel }: SymbolTvLinkProps) {
   return (
     <SymbolLink
       symbol={symbol}
@@ -22,9 +23,11 @@ export function SymbolTvLink({ symbol, testId, children, sx }: SymbolTvLinkProps
       tvLink={true}
       showChart={false}
       tvIcon={false}
-      sx={sx}
+      className={className}
+      style={style}
       textClassName="pattern-tv-link"
       stopPropagation={true}
+      ariaLabel={ariaLabel}
     >
       {children}
     </SymbolLink>

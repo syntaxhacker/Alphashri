@@ -7,8 +7,6 @@ const notifiedSymbols = new Map<string, number>();
 
 function isMarketHours(): boolean {
   const now = new Date();
-  const h = now.getHours();
-  const m = now.getMinutes();
   // Indian market hours: 9:15 AM - 3:30 PM IST (convert from local browser time — 
   // for simplicity, check a generous window. The backend is the source of truth.)
   // Monday-Friday only

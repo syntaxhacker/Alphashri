@@ -1,4 +1,5 @@
-import { Box, Button, Chip, Text, ToolbarRow } from "@/ui";
+import { Box, Button, Text, ToolbarRow } from "@/ui";
+import { IconX } from "@tabler/icons-react";
 import { DEFAULT_PATTERN_FILTERS } from "@/state/chartPatterns";
 import type { PatternDef, PatternFilters } from "@/types/chartPatterns";
 import { FAMILY_LABELS } from "./shared";
@@ -283,7 +284,7 @@ export function AppliedFilters({ filters, patterns, setFilter, resetFilters }: A
   }
 
   return (
-    <Box data-testid="patterns-applied-filters" sx={{ minWidth: 0 }}>
+    <Box data-testid="patterns-applied-filters" className="min-w-0">
       <ToolbarRow gap={6} style={{ flexWrap: "wrap", rowGap: 3 }}>
         <Text
           size="xs"
@@ -299,13 +300,7 @@ export function AppliedFilters({ filters, patterns, setFilter, resetFilters }: A
             <Box
               key={group.group}
               data-testid={`patterns-applied-group-${group.group.toLowerCase()}`}
-              sx={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 0.25,
-                minWidth: 0,
-                pl: 0.25,
-              }}
+              className="inline-flex min-w-0 items-center gap-[2px] pl-[2px]"
             >
               {multi ? (
                 <Text size="xs" c="dimmed" fw={600} style={{ whiteSpace: "nowrap" }}>
@@ -313,16 +308,22 @@ export function AppliedFilters({ filters, patterns, setFilter, resetFilters }: A
                 </Text>
               ) : null}
               {group.items.map((chip) => (
-                <Chip
+                <span
                   key={chip.id}
-                  size="xs"
-                  variant="light"
-                  checked
                   data-testid={`patterns-applied-filter-${chip.id}`}
-                  onDelete={() => setFilter(chip.key, chip.nextValue)}
+                  className="inline-flex items-center gap-1 whitespace-nowrap rounded-fin border border-transparent bg-[#484F58] px-2 py-1 text-xs text-fin-text"
                 >
                   {multi ? chip.label : `${chip.group}: ${chip.label}`}
-                </Chip>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${multi ? chip.label : `${chip.group}: ${chip.label}`}`}
+                    data-testid={`patterns-applied-filter-${chip.id}-remove`}
+                    className="inline-flex cursor-pointer items-center justify-center rounded-sm p-0.5 leading-none hover:bg-white/10"
+                    onClick={() => setFilter(chip.key, chip.nextValue)}
+                  >
+                    <IconX size={10} stroke={2.5} />
+                  </button>
+                </span>
               ))}
             </Box>
           );

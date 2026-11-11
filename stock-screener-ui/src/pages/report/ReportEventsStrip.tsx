@@ -1,5 +1,4 @@
 import { Alert, Badge, Box, Paper, Skeleton, Text } from "@/ui";
-import { BORDER, SURFACE } from "@/ui/palette";
 import type { ReportEventKind, ReportEventsResponse } from "../../types/report";
 import { symbolRowCursor, symbolRowProps } from "../../components/common/symbolRowProps";
 
@@ -25,7 +24,7 @@ const KIND_COLOR: Record<ReportEventKind, "info" | "success" | "warning"> = {
 export function ReportEventsStrip({ data, loading, error, onOpenSymbol }: ReportEventsStripProps) {
   if (loading) {
     return (
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }} data-testid="report-events-loading">
+      <Box className="flex flex-col gap-2" data-testid="report-events-loading">
         <Skeleton h={16} />
         <Skeleton h={16} />
       </Box>
@@ -45,10 +44,10 @@ export function ReportEventsStrip({ data, loading, error, onOpenSymbol }: Report
   return (
     <Paper
       data-testid="report-events-strip"
-      sx={{ minWidth: 0, border: 1, borderColor: BORDER, borderRadius: 2, bgcolor: SURFACE }}
+      className="min-w-0 border border-fin-border rounded-[2px] bg-fin-surface"
     >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, pt: 1 }}>
-        <Text size="xs" fw={600} truncate span sx={{ flex: 1, minWidth: 0 }} data-testid="report-events-title">
+      <Box className="flex items-center gap-2 px-2 pt-2">
+        <Text size="xs" fw={600} truncate span className="flex-1 min-w-0" data-testid="report-events-title">
           Upcoming results & events
         </Text>
         <Badge size="xs" data-testid="report-events-window">
@@ -58,7 +57,7 @@ export function ReportEventsStrip({ data, loading, error, onOpenSymbol }: Report
           {events.length}
         </Badge>
       </Box>
-      <Box sx={{ display: "flex", flexDirection: "column", px: 1, py: 0.5 }} data-testid="report-events-rows">
+      <Box className="flex flex-col px-2 py-1" data-testid="report-events-rows">
         {events.map((ev, i) => (
           <Box
             // Same symbol can appear for results + dividend on one date.
@@ -66,28 +65,19 @@ export function ReportEventsStrip({ data, loading, error, onOpenSymbol }: Report
             data-testid={`report-events-row-${ev.symbol}-${ev.kind}`}
             data-symbol={ev.symbol}
             {...symbolRowProps(onOpenSymbol, ev.symbol)}
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
-              minWidth: 0,
-              py: 0.5,
-              borderBottom: 1,
-              borderColor: "divider",
-              cursor: symbolRowCursor(onOpenSymbol),
-              fontVariantNumeric: "tabular-nums",
-            }}
+            className="flex items-center gap-2 min-w-0 py-1 border-b border-fin-border tabular-nums"
+            style={{ cursor: symbolRowCursor(onOpenSymbol) }}
           >
-            <Text size="xs" c="dimmed" span sx={{ flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
+            <Text size="xs" c="dimmed" span className="shrink-0 tabular-nums">
               {ev.date}
             </Text>
-            <Text size="xs" fw={700} truncate span title={ev.symbol} sx={{ flexShrink: 0 }}>
+            <Text size="xs" fw={700} truncate span title={ev.symbol} className="shrink-0">
               {ev.symbol}
             </Text>
             <Badge size="xs" color={KIND_COLOR[ev.kind]}>
               {KIND_LABEL[ev.kind]}
             </Badge>
-            <Text size="xs" c="dimmed" truncate span sx={{ flex: 1, minWidth: 0 }} title={ev.title}>
+            <Text size="xs" c="dimmed" truncate span className="flex-1 min-w-0" title={ev.title}>
               {ev.title}
             </Text>
           </Box>

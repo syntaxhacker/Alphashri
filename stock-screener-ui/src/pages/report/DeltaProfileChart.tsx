@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
-import Box from "@mui/material/Box";
-import { Text } from "@/ui";
+import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { NiftyPositioningStrike } from "@/types/niftyReport";
 import { sortByField, formatNumberIN } from "@/utils/ui-helpers";
@@ -164,7 +163,8 @@ export function DeltaProfileChart({
     return (
       <Box
         data-testid={testId}
-        sx={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, minHeight: 120 }}
+        className="flex items-center justify-center"
+        style={{ flex: 1, minHeight: "120px" }}
       >
         <Text size="xs" c="dimmed" span>
           {emptyMessage}
@@ -217,9 +217,10 @@ export function DeltaProfileChart({
   return (
     <Box
       data-testid={testId}
-      sx={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, minWidth: 0, gap: 0.25 }}
+      className="flex flex-col"
+      style={{ flex: 1, minHeight: 0, minWidth: 0, gap: "2px" }}
     >
-      <Box sx={{ flex: 1, minHeight: 120, minWidth: 0 }}>
+      <Box className="min-h-[120px] min-w-0" style={{ flex: 1 }}>
         <svg
           viewBox={`0 0 ${W} ${H}`}
           preserveAspectRatio="none"
@@ -292,8 +293,8 @@ export function DeltaProfileChart({
         </svg>
       </Box>
 
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, minWidth: 0, px: 0.25 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0, overflow: "hidden" }}>
+      <Box className="flex items-center justify-between" style={{ minWidth: 0, paddingLeft: "2px", gap: "8px" }}>
+        <Box className="flex items-center gap-[10px]" style={{ minWidth: 0, overflow: "hidden" }}>
           <Legend color={palette.TEXT} label="Cumulative δ" line />
           <Legend color={palette.POSITIVE} label="Flow +" block />
           <Legend color={palette.NEGATIVE} label="Flow −" block />
@@ -305,7 +306,7 @@ export function DeltaProfileChart({
           c="dimmed"
           span
           data-testid={`${testId}-readout`}
-          sx={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", flexShrink: 0 }}
+          className="tabular-nums whitespace-nowrap shrink-0"
         >
           {hoverPoint
             ? `${formatNumberIN(hoverPoint.strike)} · cum ${formatValue(hoverPoint.cumulative)} · flow ${formatValue(hoverPoint.netInitiated)}`
@@ -330,14 +331,14 @@ function Legend({
   block?: boolean;
 }) {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
+    <Box className="flex items-center gap-2 shrink-0" style={{ flexShrink: 0 }}>
       <Box
         aria-hidden
-        sx={{
+        style={{
           width: block ? 6 : 12,
           height: block ? 6 : 0,
           borderRadius: block ? 1 : 0,
-          bgcolor: block ? color : "transparent",
+          backgroundColor: block ? color : "transparent",
           borderTop: line || dashed ? `1px ${dashed ? "dashed" : "solid"} ${color}` : undefined,
           opacity: 0.9,
         }}

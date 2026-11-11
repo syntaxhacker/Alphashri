@@ -223,12 +223,12 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
       id="bot-config-modal"
     >
       <form onSubmit={handleSubmit} data-testid="bot-config-form">
-        <Stack spacing={1} gap="sm" sx={{ gap: 1, p: 1 }}>
-          <Stack spacing={1} gap="xs" data-testid="bot-config-basic-info" sx={{ gap: 1, p: 1 }}>
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}><Text fw={600} size="sm" ta="center">Basic Information</Text></Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-              <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Bot Name</Text>
-              <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+        <Stack spacing={1} gap="sm" className="gap-2 p-2">
+          <Stack spacing={1} gap="xs" data-testid="bot-config-basic-info" className="gap-2 p-2">
+            <Box className="flex items-center justify-center p-2"><Text fw={600} size="sm" ta="center">Basic Information</Text></Box>
+            <Box className="flex items-center gap-2 p-2">
+              <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Bot Name</Text>
+              <Box className="flex flex-1 items-center">
                 <TextInput
                   placeholder="e.g., Multi-ORB Test"
                   required
@@ -238,9 +238,9 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                 />
               </Box>
             </Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-              <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Active</Text>
-              <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+            <Box className="flex items-center gap-2 p-2">
+              <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Active</Text>
+              <Box className="flex flex-1 items-center">
                 <Checkbox
                   label=""
                   checked={isActive}
@@ -253,11 +253,11 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
 
           <Divider />
 
-          <Stack spacing={1} gap="xs" data-testid="bot-config-global-limits" sx={{ gap: 1, p: 1 }}>
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}><Text fw={600} size="sm" ta="center">Global Limits</Text></Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-              <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Max Total Positions</Text>
-              <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+          <Stack spacing={1} gap="xs" data-testid="bot-config-global-limits" className="gap-2 p-2">
+            <Box className="flex items-center justify-center p-2"><Text fw={600} size="sm" ta="center">Global Limits</Text></Box>
+            <Box className="flex items-center gap-2 p-2">
+              <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Max Total Positions</Text>
+              <Box className="flex flex-1 items-center">
                 <NumberInput
                   min={1}
                   max={20}
@@ -267,9 +267,9 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                 />
               </Box>
             </Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-              <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Max Total Capital (%)</Text>
-              <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+            <Box className="flex items-center gap-2 p-2">
+              <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Max Total Capital (%)</Text>
+              <Box className="flex flex-1 items-center">
                 <NumberInput
                   min={10}
                   max={100}
@@ -280,9 +280,9 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                 />
               </Box>
             </Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-              <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Max Daily Loss (%)</Text>
-              <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+            <Box className="flex items-center gap-2 p-2">
+              <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Max Daily Loss (%)</Text>
+              <Box className="flex flex-1 items-center">
                 <NumberInput
                   description="Stops ALL strategies when hit. Default: 3%"
                   min={1}
@@ -294,9 +294,9 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                 />
               </Box>
             </Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-              <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Live Trading</Text>
-              <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+            <Box className="flex items-center gap-2 p-2">
+              <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Live Trading</Text>
+              <Box className="flex flex-1 items-center">
                 <Switch
                   label=""
                   description="Places real orders via Upstox API. Use with caution!"
@@ -311,27 +311,27 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
 
           <Divider />
 
-          <Stack spacing={1} gap="xs" data-testid="bot-config-strategies" sx={{ gap: 1, p: 1 }}>
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}><Text fw={600} size="sm" ta="center">Strategy Allocations</Text></Box>
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}><Text size="sm" c="dimmed" ta="center">
+          <Stack spacing={1} gap="xs" data-testid="bot-config-strategies" className="gap-2 p-2">
+            <Box className="flex items-center justify-center p-2"><Text fw={600} size="sm" ta="center">Strategy Allocations</Text></Box>
+            <Box className="flex items-center justify-center p-2"><Text size="sm" c="dimmed" ta="center">
               Configure which strategies to run and their capital allocations. Total allocation
               should not exceed 100%.
             </Text></Box>
 
-            <Stack spacing={1} gap="sm" data-testid="strategy-allocations" sx={{ gap: 1 }}>
+            <Stack spacing={1} gap="sm" data-testid="strategy-allocations" className="gap-2">
               {strategies.map((strategy) => (
                   <Card
                   key={strategy.id}
                   padding="sm"
                   radius="sm"
                   elevation={1}
-                  sx={{ p: 1 }}
+                  className="p-2"
                   data-testid="strategy-allocation-row"
                 >
-                  <Stack spacing={1} sx={{ gap: 1 }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-                      <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Strategy</Text>
-                      <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+                  <Stack spacing={1} className="gap-2">
+                    <Box className="flex items-center gap-2 p-2">
+                      <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Strategy</Text>
+                      <Box className="flex flex-1 items-center">
                         <Select
                           placeholder="Select a strategy..."
                           data={selectableStrategies.map((s) => ({
@@ -346,9 +346,9 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                         />
                       </Box>
                     </Box>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-                      <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Allocation %</Text>
-                      <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+                    <Box className="flex items-center gap-2 p-2">
+                      <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Allocation %</Text>
+                      <Box className="flex flex-1 items-center">
                         <NumberInput
                           min={5}
                           max={100}
@@ -365,9 +365,9 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                         />
                       </Box>
                     </Box>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-                      <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Max Positions</Text>
-                      <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+                    <Box className="flex items-center gap-2 p-2">
+                      <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Max Positions</Text>
+                      <Box className="flex flex-1 items-center">
                         <NumberInput
                           min={1}
                           max={10}
@@ -434,10 +434,10 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
               Add Strategy
             </Button>
 
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }} mt="sm">
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Total Allocation</Text>
-                <Text size="sm" fw={700} c={isOverAllocated ? "error" : undefined} sx={{ flex: 1, textAlign: "right" }}>
+            <Box className="flex items-center justify-between gap-2 p-2" mt="sm">
+              <Box className="flex items-center gap-2">
+                <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Total Allocation</Text>
+                <Text size="sm" fw={700} c={isOverAllocated ? "error" : undefined} className="flex-1 text-right">
                   {totalAllocation.toFixed(0)}%
                 </Text>
               </Box>
@@ -451,7 +451,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
 
           <Divider />
 
-          <Group justify="flex-end" gap={1} sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}>
+          <Group justify="flex-end" gap={1} className="flex items-center justify-end gap-2 p-2">
             <Button variant="subtle" onClick={handleClose} data-testid="cancel-bot-config-btn">
               Cancel
             </Button>

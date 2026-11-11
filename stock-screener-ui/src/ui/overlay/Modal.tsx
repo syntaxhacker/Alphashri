@@ -1,18 +1,23 @@
 import * as React from "react";
-import Dialog from "@mui/material/Dialog";
-import DialogTitle from "@mui/material/DialogTitle";
-import DialogContent from "@mui/material/DialogContent";
-import IconButton from "@mui/material/IconButton";
-import CloseIcon from "@mui/icons-material/Close";
-import type { UIModalProps } from "../types";
+import { createPortal } from "react-dom";
+import { cn } from "../cn";
+import type { UIModalProps, UISize } from "../types";
 
-const sizeMap: Record<string, "xs" | "sm" | "md" | "lg" | "xl"> = {
-  xs: "xs",
-  sm: "sm",
-  md: "md",
-  lg: "lg",
-  xl: "xl",
+type ModalProps = UIModalProps;
+
+const SIZE_MAX_WIDTH: Record<string, string> = {
+  xs: "max-w-xs",
+  sm: "max-w-sm",
+  md: "max-w-md",
+  lg: "max-w-lg",
+  xl: "max-w-xl",
 };
+
+function paddingSize(v: UISize | number | string): string {
+  if (typeof v === "number") return `${v * 8}px`;
+  const m: Record<string, string> = { xs: "4px", sm: "8px", md: "16px", lg: "24px", xl: "32px" };
+  return m[v as string] ?? String(v);
+}
 
 export function Modal({
   children,
@@ -21,107 +26,122 @@ export function Modal({
   title,
   size,
   fullScreen,
-  centered,
+  _centered,
   withCloseButton = true,
   closeOnClickOutside = true,
   closeOnEscape = true,
   overlayProps,
   padding,
-  transitionProps,
+  _transitionProps,
   className,
   style,
+  id,
   "data-testid": testId,
   ...rest
-}: UIModalProps) {
-  const maxWidth =
-    typeof size === "string" && sizeMap[size] ? sizeMap[size] : sizeMap.md;
-  // numeric/string custom sizes are handled via sx maxWidth; for xs-xl use maxWidth prop
-  const isPresetSize = typeof size === "string" && size in sizeMap;
-  const customMaxWidth =
-    !isPresetSize && size != null ? (typeof size === "number" ? `${size}px` : String(size)) : undefined;
+}: ModalProps) {
+  const dialogRef = React.useRef<HTMLDivElement>(null);
 
-  const handleClose = (_e: unknown, reason: string) => {
-    if (reason === "backdropClick" && !closeOnClickOutside) return;
-    if (reason === "escapeKeyDown" && !closeOnEscape) return;
-    onClose();
-  };
+  React.useEffect(() => {
+    if (!opened) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const frame = window.requestAnimationFrame(() => dialogRef.current?.focus());
+    const onDocKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && closeOnEscape) onClose();
+    };
+    document.addEventListener("keydown", onDocKey);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener("keydown", onDocKey);
+      document.body.style.overflow = previousOverflow;
+      previous?.focus?.();
+    };
+  }, [opened, closeOnEscape, onClose]);
 
   if (!opened) return null;
-  return (
-    <Dialog
-      open={true}
-      onClose={handleClose}
-      keepMounted={false}
-      maxWidth={isPresetSize ? maxWidth : false}
-      fullScreen={!!fullScreen}
-      fullWidth
-      className={className}
-      style={style}
+
+  const isPreset = typeof size === "string" && size in SIZE_MAX_WIDTH;
+  const maxWidthClass = isPreset ? SIZE_MAX_WIDTH[size] : undefined;
+  const maxWidthStyle =
+    !isPreset && size != null ? (typeof size === "number" ? `${size}px` : String(size)) : undefined;
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape" && closeOnEscape) onClose();
+  };
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget && closeOnClickOutside) onClose();
+  };
+
+  const overlayStyle: React.CSSProperties = {
+    backgroundColor: overlayProps?.color ?? undefined,
+    opacity: overlayProps?.opacity != null ? overlayProps.opacity : undefined,
+    backdropFilter:
+      overlayProps?.blur != null
+        ? `blur(${typeof overlayProps.blur === "number" ? `${overlayProps.blur}px` : overlayProps.blur})`
+        : undefined,
+  };
+
+  const panelStyle: React.CSSProperties = {
+    ...(maxWidthStyle ? { maxWidth: maxWidthStyle } : {}),
+    ...(fullScreen
+      ? { position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }
+      : {}),
+    ...style,
+  };
+
+  return createPortal(
+    <div
+      ref={dialogRef}
+      id={id}
       data-testid={testId}
-      slotProps={{
-        backdrop: overlayProps
-          ? {
-              sx: {
-                bgcolor: overlayProps.color
-                  ? overlayProps.color
-                  : undefined,
-                opacity: overlayProps.opacity,
-                backdropFilter:
-                  overlayProps.blur != null
-                    ? `blur(${typeof overlayProps.blur === "number" ? `${overlayProps.blur}px` : overlayProps.blur})`
-                    : undefined,
-              },
-            }
-          : undefined,
-        paper: {
-          sx: {
-            ...(customMaxWidth ? { maxWidth: customMaxWidth } : {}),
-            ...(centered
-              ? { m: "auto" }
-              : {}),
-            ...(padding != null
-              ? { p: typeof padding === "number" ? `${padding}px` : padding }
-              : {}),
-          },
-        },
-      }}
-      sx={{
-        ...(centered ? { "& .MuiDialog-container": { alignItems: "center" } } : {}),
-      }}
-      {...(rest as any)}
+      className={cn("fixed inset-0 z-50 flex items-center justify-center", className)}
+      style={overlayStyle}
+      onClick={handleBackdropClick}
+      onKeyDown={handleKeyDown}
+      role="dialog"
+      aria-modal="true"
+      aria-label={typeof title === "string" ? title : "dialog"}
+      tabIndex={-1}
+      {...(rest as Record<string, unknown>)}
     >
-      {(title || withCloseButton) && (
-        <DialogTitle
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            pr: withCloseButton ? 5 : undefined,
-          }}
-        >
-          <span>{title}</span>
-          {withCloseButton && (
-            <IconButton
-              aria-label="close"
-              onClick={onClose}
-              size="small"
-              sx={{ position: "absolute", right: 8, top: 8 }}
-            >
-              <CloseIcon fontSize="small" />
-            </IconButton>
-          )}
-        </DialogTitle>
-      )}
-      <DialogContent
-        dividers={!!title}
-        sx={{
-          ...(padding != null
-            ? { p: typeof padding === "number" ? `${padding}px` : padding }
-            : {}),
-        }}
+      <div
+        className={cn(
+          "relative bg-fin-surface border border-fin-border rounded-sm shadow-2xl flex flex-col w-full",
+          maxWidthClass,
+          fullScreen ? "absolute inset-0 w-full h-full max-w-none rounded-none border-0" : undefined,
+        )}
+        style={panelStyle}
+        onClick={(e) => e.stopPropagation()}
       >
-        {children}
-      </DialogContent>
-    </Dialog>
+        {(title || withCloseButton) && (
+          <div className="relative flex items-center justify-between border-b border-fin-border bg-fin-surface/50 px-3 py-2">
+            {title && (
+              <div
+                className={cn(
+                  "flex-1 text-sm font-medium text-fin-text truncate",
+                  withCloseButton ? "pr-8" : undefined,
+                )}
+              >
+                {title}
+              </div>
+            )}
+            {withCloseButton && (
+              <button
+                type="button"
+                aria-label="close"
+                data-testid={testId ? `${testId}-close` : undefined}
+                onClick={onClose}
+                className="absolute right-3 top-1/2 -translate-y-1/2 flex size-6 items-center justify-center rounded text-fin-text-muted hover:text-fin-text hover:bg-fin-border focus:outline-none"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        )}
+        <div className="flex-1 min-h-0 overflow-auto" style={{ padding: padding != null ? paddingSize(padding) : undefined }}>{children}</div>
+      </div>
+    </div>,
+    document.body,
   );
 }

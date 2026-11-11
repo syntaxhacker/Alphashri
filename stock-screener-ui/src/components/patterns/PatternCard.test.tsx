@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
+import { PATTERN_CONFIRMED, PATTERN_FAILED } from "@/ui/palette";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { PatternCard } from "./PatternCard";
 
@@ -104,12 +105,6 @@ describe("PatternCard", () => {
     expect(screen.getByTestId("patterns-status-confirmed")).toHaveTextContent("CONFIRMED");
     expect(screen.getByTestId("patterns-quality-strong")).toBeInTheDocument();
     expect(screen.getByText("2 1D candles ago")).toBeInTheDocument();
-  });
-
-  test("marks the selected card with the primary border", () => {
-    const { container } = r(<PatternCard hit={HIT} selected />);
-    const card = container.querySelector('[data-testid="patterns-card-IRCON-falling_wedge"]');
-    expect(card).not.toBeNull();
   });
 
   test("clicking the card passes the hit to onClick", async () => {
@@ -349,7 +344,8 @@ describe("PatternCard missing coverage", () => {
     const loss = r(<PatternCard hit={{ ...HIT, last_close: 118, day_change_pct: -1.25 }} />);
     const lossEl = loss.getByText("-1.25%");
     expect(lossEl).toBeInTheDocument();
-    expect(gainEl.className).not.toBe(lossEl.className);
+    expect(gainEl.style.color).toBe(PATTERN_CONFIRMED);
+    expect(lossEl.style.color).toBe(PATTERN_FAILED);
   });
 
   test("uses the singular candle label when bars_ago is 1", () => {

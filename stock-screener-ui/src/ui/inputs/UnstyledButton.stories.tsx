@@ -6,7 +6,7 @@ const meta: Meta<typeof UnstyledButton> = {
   title: "Primitives/Inputs/UnstyledButton",
   component: UnstyledButton,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Button with no default styles — fully custom. Use for clickable cards, rows, or custom interactive surfaces. When not to use: for standard actions use Button. Uses MUI UnstyledButton with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Button with no default styles — fully custom. Use for clickable cards, rows, or custom interactive surfaces. When not to use: for standard actions use Button. Uses the local @/ui UnstyledButton with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;
@@ -23,10 +23,10 @@ export const Default: Story = {
 export const LinkStyle: Story = {
   render: () => (
     <Group gap="md">
-      <UnstyledButton style={{ color: "var(--mui-palette-primary-main)", fontSize: 14 }}>
+      <UnstyledButton style={{ color: "var(--color-fin-primary)", fontSize: 14 }}>
         View details
       </UnstyledButton>
-      <UnstyledButton style={{ color: "var(--mui-palette-error-main)", fontSize: 14 }}>
+      <UnstyledButton style={{ color: "var(--color-fin-negative)", fontSize: 14 }}>
         Delete
       </UnstyledButton>
     </Group>

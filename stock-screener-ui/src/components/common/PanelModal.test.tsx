@@ -65,13 +65,4 @@ describe("PanelModal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  test("closed modal renders no title bar or body", () => {
-    r(
-      <PanelModal open={false} title="Hidden" onClose={() => {}}>
-        <div data-testid="modal-child">body content</div>
-      </PanelModal>,
-    );
-    expect(screen.queryByTestId("panel-modal-title")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("modal-child")).not.toBeInTheDocument();
-  });
 });

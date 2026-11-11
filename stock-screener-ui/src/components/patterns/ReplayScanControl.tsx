@@ -40,7 +40,7 @@ export function ReplayScanControl({
   return (
     <Box
       data-testid={`${testIdPrefix}-control`}
-      sx={{ display: "flex", flexDirection: "column", gap: 1 }}
+      className="flex flex-col gap-2"
     >
       <ToolbarRow justify="space-between" gap={8} align="center">
         <Switch
@@ -64,12 +64,12 @@ export function ReplayScanControl({
         ) : null}
       </ToolbarRow>
       {enabled ? (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+        <Box className="flex flex-col gap-2">
           <Alert color="warning" data-testid={`${testIdPrefix}-warning`}>
             Replay scans are slower — they recompute history up to the as-of date.
           </Alert>
           <ToolbarRow gap={8} align="center" style={{ flexWrap: "wrap" }}>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }}>
+            <Box className="flex min-w-0 flex-col gap-1">
               <Text size="xs" c="dimmed">
                 As of
               </Text>
@@ -82,7 +82,7 @@ export function ReplayScanControl({
                 data-testid={`${testIdPrefix}-asof`}
               />
             </Box>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }}>
+            <Box className="flex min-w-0 flex-col gap-1">
               <Text size="xs" c="dimmed">
                 From
               </Text>

@@ -1,8 +1,6 @@
 import { memo } from "react";
-import Badge from "@mui/material/Badge";
-import IconButton from "@mui/material/IconButton";
 import { IconBell, IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
-import { Box, Stack, Text, Tooltip } from "@/ui";
+import { ActionIcon, Badge, Box, Stack, Text, Tooltip } from "@/ui";
 import NewsPanel2 from "../news/NewsPanel2";
 import { MarketStatus, MarketTicker } from "./MarketTicker";
 
@@ -20,9 +18,6 @@ export interface SidebarHeaderProps {
  * Sidebar chrome that replaced the removed top app bar: brand, market state,
  * news, notifications and the collapse toggle. Memoised because AppLayout
  * re-renders on notification/route changes while these props rarely move.
- *
- * MUI `IconButton` + `Badge` are intentional (`@/ui` wrappers do not forward a
- * ref to `Tooltip`, and the badge needs a dot anchored to its child).
  */
 export const SidebarHeader = memo(function SidebarHeader({
   rail = false,
@@ -40,50 +35,50 @@ export const SidebarHeader = memo(function SidebarHeader({
 
   const bell = (
     <Tooltip label={label}>
-      <IconButton
-        size="small"
+      <ActionIcon
+        size="sm"
         onClick={onOpenNotifications}
         data-testid={testId("notif-bell")}
         aria-label={surgeTotal > 0 ? `Notifications, ${surgeTotal} surge alerts` : "Notifications"}
-        sx={{ "& .MuiBadge-badge": { fontSize: 9, height: 13, minWidth: 13, px: 0.4 } }}
+        variant="subtle"
       >
-        <Badge
-          color="error"
-          badgeContent={surgeTotal > 9 ? "9+" : surgeTotal}
-          invisible={surgeTotal === 0}
-          data-testid={testId("notif-badge")}
-        >
-          <IconBell size={16} stroke={1.6} />
-        </Badge>
-      </IconButton>
+        {surgeTotal > 0 && (
+          <Badge color="error" variant="filled" size="xs" data-testid={testId("notif-badge")}>
+            {surgeTotal > 9 ? "9+" : surgeTotal}
+          </Badge>
+        )}
+        <IconBell size={16} stroke={1.6} />
+      </ActionIcon>
     </Tooltip>
   );
 
   const collapse = mobile ? null : (
     <Tooltip label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
-      <IconButton
-        size="small"
+      <ActionIcon
+        size="sm"
         onClick={onToggleCollapse}
         aria-label="Toggle sidebar"
         data-testid="sidebar-collapse-toggle"
+        variant="subtle"
       >
         {collapsed ? <IconChevronRight size={16} /> : <IconChevronLeft size={16} />}
-      </IconButton>
+      </ActionIcon>
     </Tooltip>
   );
 
   return (
     <Box
       data-testid={testId("app-sidebar-header")}
-      sx={{
-        px: collapsed ? 0 : 1,
-        pt: 0.75,
-        pb: 0.5,
+      className="flex flex-col items-stretch gap-2 flex-shrink-0"
+      style={{
+        paddingLeft: collapsed ? 0 : 8,
+        paddingTop: 6,
+        paddingBottom: 4,
         display: "flex",
         flexDirection: "column",
         alignItems: collapsed ? "center" : "stretch",
-        gap: 0.5,
-        flexShrink: 0,
+        gap: 4,
+        minWidth: 0,
       }}
     >
       {collapsed ? (
@@ -92,20 +87,12 @@ export const SidebarHeader = memo(function SidebarHeader({
           {collapse}
         </Stack>
       ) : (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 0.5,
-            justifyContent: "space-between",
-            minWidth: 0,
-          }}
-        >
+        <Box className="flex items-center justify-between min-w-0" style={{ gap: 4, display: "flex", alignItems: "center", justifyContent: "space-between", minWidth: 0 }}>
           <Text
             id={testId("app-logo")}
             data-testid={testId("app-logo")}
             fw={700}
-            sx={{ fontSize: 14, lineHeight: 1, letterSpacing: "-0.01em" }}
+            style={{ fontSize: 14, lineHeight: 1, letterSpacing: "-0.01em" }}
           >
             Alphashri
           </Text>

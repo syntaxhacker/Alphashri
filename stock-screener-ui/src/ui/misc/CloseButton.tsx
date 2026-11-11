@@ -1,49 +1,67 @@
-import IconButton from "@mui/material/IconButton";
-import CloseIcon from "@mui/icons-material/Close";
+import { cn } from "../cn";
 import type { UICloseButtonProps } from "../types";
 
-function mapSize(size: UICloseButtonProps["size"]): "small" | "medium" | "large" {
-  if (size == null) return "medium";
-  if (typeof size === "number") return size <= 24 ? "small" : size >= 36 ? "large" : "medium";
+function mapSize(size: UICloseButtonProps["size"]): { w: string; h: string; text: string } {
+  if (size == null) return { w: "w-6", h: "h-6", text: "text-sm" };
+  if (typeof size === "number") {
+    if (size <= 24) return { w: "w-5", h: "h-5", text: "text-xs" };
+    if (size >= 36) return { w: "w-8", h: "h-8", text: "text-base" };
+    return { w: "w-6", h: "h-6", text: "text-sm" };
+  }
   switch (size) {
     case "xs":
     case "sm":
-      return "small";
+      return { w: "w-5", h: "h-5", text: "text-xs" };
     case "lg":
     case "xl":
-      return "large";
+      return { w: "w-8", h: "h-8", text: "text-base" };
     case "md":
     default:
-      return "medium";
+      return { w: "w-6", h: "h-6", text: "text-sm" };
+  }
+}
+
+function variantClass(variant: UICloseButtonProps["variant"]): string {
+  switch (variant) {
+    case "filled":
+      return "bg-fin-surface text-fin-text hover:bg-fin-surface-alt";
+    case "light":
+      return "bg-fin-surface-alt text-fin-text hover:bg-fin-surface";
+    case "outline":
+      return "bg-transparent text-fin-text border border-fin-border hover:bg-fin-surface-alt";
+    case "subtle":
+      return "bg-transparent text-fin-text-muted hover:bg-fin-surface-alt hover:text-fin-text";
+    case "transparent":
+    default:
+      return "bg-transparent text-fin-text hover:bg-fin-surface-alt";
   }
 }
 
 export function CloseButton({ size, variant, disabled, onClick, className, style, "data-testid": testId, id, ...rest }: UICloseButtonProps) {
-  const muiSize = mapSize(size);
-  const sx: Record<string, unknown> = {
-    ...(variant === "filled"
-      ? { bgcolor: "action.selected", "&:hover": { bgcolor: "action.hover" } }
-      : variant === "light"
-        ? { bgcolor: "action.hover", "&:hover": { bgcolor: "action.selected" } }
-        : variant === "transparent"
-            ? { bgcolor: "transparent" }
-            : {}),
-  };
-
+  const { w, h, text } = mapSize(size);
   return (
-    <IconButton
-      size={muiSize}
-      disabled={disabled}
-      onClick={onClick as never}
+    <button
+      type="button"
       aria-label="close"
-      className={className}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center justify-center shrink-0 rounded-fin border border-transparent",
+        w,
+        h,
+        text,
+        variantClass(variant),
+        disabled && "opacity-50 pointer-events-none",
+        className,
+      )}
       style={style}
       id={id}
       data-testid={testId}
-      sx={sx}
       {...(rest as Record<string, unknown>)}
     >
-      <CloseIcon fontSize={muiSize === "small" ? "small" : "medium"} />
-    </IconButton>
+      <span aria-hidden="true" className="leading-none">
+        ×
+      </span>
+    </button>
   );
 }

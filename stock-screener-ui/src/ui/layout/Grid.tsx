@@ -1,40 +1,53 @@
-import MuiGrid from "@mui/material/Grid";
+import { cn } from "../cn";
+import type { CSSProperties } from "react";
 import type { UIGridProps, UIGridColProps } from "../types";
 
-const sp = (v: unknown) => {
+const sp = (v: unknown): string | undefined => {
   if (v == null) return undefined;
   if (typeof v === "number") return `${v}px`;
   const m: Record<string, string> = { xs: "4px", sm: "8px", md: "16px", lg: "24px", xl: "32px" };
   return (m[v as string] ?? v) as string;
 };
 
-const spNum = (v: unknown) => {
-  if (v == null) return undefined;
-  if (typeof v === "number") return v / 8;
-  const m: Record<string, number> = { xs: 0.5, sm: 1, md: 2, lg: 3, xl: 4 };
-  return (m[v as string] ?? 1) as number;
-};
-
 export function GridCol({ children, className, style, id, "data-testid": testId, span, offset, order, ...rest }: UIGridColProps & Record<string, unknown>) {
   const size = span != null && span !== "auto" && span !== "content" ? span : undefined;
+  const pct = size != null ? `${(size / 12) * 100}%` : undefined;
+  const styleObj: CSSProperties = {
+    ...style,
+    ...(size != null && { flexBasis: pct, maxWidth: pct }),
+    ...(offset != null && { marginLeft: `${(Number(offset) / 12) * 100}%` }),
+    ...(order != null && { order }),
+  };
   return (
-    <MuiGrid
-      id={id as string} className={className} style={style} data-testid={testId}
-      size={size != null ? { xs: size } : undefined}
-      sx={{ ...(order != null && { order }), ...(offset != null && { ml: `${(Number(offset) / 12) * 100}%` }) }}
+    <div
+      id={id}
+      className={cn(className)}
+      style={styleObj}
+      data-testid={testId}
       {...rest}
-    >{children}</MuiGrid>
+    >
+      {children}
+    </div>
   );
 }
 
 export function Grid({ children, className, style, id, "data-testid": testId, gutter, columns, grow, ...rest }: UIGridProps & Record<string, unknown>) {
   void columns; void grow;
+  const styleObj: CSSProperties = {
+    ...style,
+    display: "grid",
+    ...(gutter != null && { gap: sp(gutter) }),
+  };
   return (
-    <MuiGrid
-      container
-      id={id as string} className={className} style={style} data-testid={testId}
-      spacing={gutter != null ? spNum(gutter) : undefined} {...rest}
-    >{children}</MuiGrid>
+    <div
+      id={id}
+      className={cn(className)}
+      style={styleObj}
+      data-testid={testId}
+      {...rest}
+    >
+      {children}
+    </div>
   );
 }
 Grid.Col = GridCol;

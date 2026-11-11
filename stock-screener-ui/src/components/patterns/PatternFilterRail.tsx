@@ -1,7 +1,6 @@
 import { useCallback, useDeferredValue, useMemo, useState } from "react";
 import { ActionIcon, Box, Button, Chip, Divider, MultiSelect, Select, Switch, Text, TextInput, ToolbarRow, Tooltip } from "@/ui";
-import { Close as CloseIcon } from "@mui/icons-material";
-import { IconRestore } from "@tabler/icons-react";
+import { IconX, IconRestore } from "@tabler/icons-react";
 import type {
   PatternDef,
   PatternFilters,
@@ -21,6 +20,7 @@ import { PatternImage } from "./PatternImage";
 import { ReplayScanControl, type ReplayScanArgs } from "./ReplayScanControl";
 import { daysAgoDatetimeLocal, startOfMonthDatetimeLocal } from "./datetime";
 import { DEFAULT_PATTERN_FILTERS } from "@/state/chartPatterns";
+import { cn } from "@/ui/cn";
 
 const FAMILY_ORDER = ["reversal", "continuation", "curve_cup"];
 const FORMED_PRESETS = [1, 3, 5, 10, 20, 30, 60];
@@ -71,8 +71,8 @@ function Section({
   // control, with no rule. `group` owns the single rule for a group of fields.
   if (level === "field") {
     return (
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, minWidth: 0 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+      <Box className="flex min-w-0 flex-col gap-0.5">
+        <Box className="flex items-center gap-1">
           <Text size="xs" c="dimmed" style={{ fontSize: 10, lineHeight: 1.2 }}>
             {title}
           </Text>
@@ -83,16 +83,9 @@ function Section({
     );
   }
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+    <Box className="flex flex-col gap-1">
       <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 0.5,
-          borderBottom: "1px solid",
-          borderColor: "divider",
-          pb: 0.25,
-        }}
+        className="flex items-center gap-1 border-b border-fin-border pb-0.5"
       >
         <Text size="xs" fw={700} style={{ textTransform: "uppercase", letterSpacing: 0.4 }} c="dimmed">
           {title}
@@ -120,7 +113,7 @@ function InfoTip({
       multiline
       withArrow
       label={
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, maxWidth: 260 }}>
+        <Box className="flex max-w-[260px] flex-col gap-1">
           <Text size="xs" fw={700}>
             {title}
           </Text>
@@ -282,25 +275,17 @@ export function PatternFilterRail({
           }
         }}
         data-testid={`patterns-filter-pattern-${patternId}`}
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 0.4,
-          p: "2px 4px",
-          minWidth: 0,
-          border: "1px solid",
-          borderColor: selected ? "primary.main" : "divider",
-          bgcolor: selected ? "action.selected" : "transparent",
-          borderRadius: 1,
-          cursor: "pointer",
-          transition: "border-color 120ms ease, background-color 120ms ease",
-          "&:hover": { borderColor: "primary.main", bgcolor: "action.hover" },
-          "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: 1 },
-        }}
+        className={cn(
+          "flex min-w-0 cursor-pointer items-center gap-[3px] rounded-fin border px-1 py-[2px] transition-[border-color,background-color] duration-[120ms]",
+          "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary",
+          selected
+            ? "border-fin-primary bg-fin-primary/12"
+            : "border-fin-border bg-transparent hover:border-fin-primary hover:bg-fin-surface-alt",
+        )}
       >
         <Box
           aria-hidden="true"
-          sx={{ width: 24, height: 14, flexShrink: 0, overflow: "hidden", borderRadius: 0.5 }}
+          className="h-[14px] w-6 shrink-0 overflow-hidden rounded-sm"
         >
           <PatternImage
             patternId={patternId}
@@ -309,12 +294,12 @@ export function PatternFilterRail({
             showPlaceholderLabel={false}
           />
         </Box>
-        <Box sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline" }}>
+        <Box className="flex min-w-0 flex-1 items-baseline">
           <Text
             size="xs"
             fw={selected ? 700 : 500}
             truncate
-            sx={{ minWidth: 0, lineHeight: 1.2 }}
+            className="min-w-0 leading-[1.2]"
           >
             {label}
           </Text>
@@ -332,9 +317,9 @@ export function PatternFilterRail({
 
   const patternsSection = (
     <Section title="Patterns">
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+      <Box className="flex flex-col gap-2">
         <ToolbarRow gap={6}>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Box className="min-w-0 flex-1">
             <TextInput
               value={patternQuery}
               onChange={(value) => setPatternQuery(String(value ?? ""))}
@@ -362,7 +347,7 @@ export function PatternFilterRail({
           />
         ) : null}
         {filters.sequence && selectedPatterns.length >= 2 ? (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+          <Box className="flex flex-col gap-1">
             <ToolbarRow gap={6} wrap>
               <Text size="xs" c="dimmed">Max gap</Text>
               <Select
@@ -432,37 +417,26 @@ export function PatternFilterRail({
                 onClick={() => setFilter("pattern_id", [])}
                 data-testid="patterns-filter-pattern-clear"
               >
-                <CloseIcon sx={{ fontSize: 14 }} />
+                <IconX size={14} />
               </ActionIcon>
             </Tooltip>
           </ToolbarRow>
         ) : null}
         <Box
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 0.5,
-            maxHeight: 340,
-            overflowY: "auto",
-            pr: 0.5,
-          }}
+          className="flex max-h-[340px] flex-col gap-1 overflow-y-auto pr-1"
         >
         {gallery.map(({ family, visible }) => {
           return (
             <Box
               key={family.id}
-              sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}
+              className="flex flex-col gap-0.5"
               data-testid={`patterns-filter-family-group-${family.id}`}
             >
               <Text size="xs" c="dimmed" fw={600} style={{ fontSize: 10 }}>
                 {family.label}
               </Text>
               <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(118px, 1fr))",
-                  gap: 0.25,
-                }}
+                className="grid grid-cols-[repeat(auto-fill,minmax(118px,1fr))] gap-0.5"
               >
                 {visible.map((pattern) =>
                   patternTile(
@@ -567,8 +541,8 @@ export function PatternFilterRail({
 
   const dateSection = (
     <Section title="Formed between" level="field">
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+      <Box className="flex flex-col gap-2">
+        <Box className="flex flex-col gap-1">
           <Text size="xs" c="dimmed">
             From
           </Text>
@@ -593,7 +567,7 @@ export function PatternFilterRail({
             ) : null}
           </ToolbarRow>
         </Box>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+        <Box className="flex flex-col gap-1">
           <Text size="xs" c="dimmed">
             To
           </Text>
@@ -618,7 +592,7 @@ export function PatternFilterRail({
             ) : null}
           </ToolbarRow>
         </Box>
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+        <Box className="flex flex-wrap gap-1">
           <Chip
             size="xs"
             variant="light"
@@ -846,7 +820,7 @@ export function PatternFilterRail({
   );
 
   const volumeSection = (
-    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+    <Box className="flex items-center justify-between gap-2">
       <Switch
         label="Volume confirmed"
         size="xs"
@@ -876,17 +850,9 @@ export function PatternFilterRail({
     return (
       <Box
         data-testid="patterns-filter-rail"
-        sx={{
-          display: "grid",
-          gridTemplateColumns: {
-            xs: "minmax(0, 1fr)",
-            lg: "minmax(220px, 0.78fr) minmax(320px, 1.4fr) minmax(320px, 1.2fr)",
-          },
-          gap: 1,
-          alignItems: "start",
-        }}
+        className="grid grid-cols-1 items-start gap-2 lg:grid-cols-[minmax(220px,0.78fr)_minmax(320px,1.4fr)_minmax(320px,1.2fr)]"
       >
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, minWidth: 0 }}>
+        <Box className="flex min-w-0 flex-col gap-1.5">
           {presetsSection}
           {familySection}
           {directionSection}
@@ -895,17 +861,13 @@ export function PatternFilterRail({
           {sortSection}
 {historySection}
         </Box>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, minWidth: 0 }}>
+        <Box className="flex min-w-0 flex-col gap-1.5">
           {patternsSection}
         </Box>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, minWidth: 0 }}>
+        <Box className="flex min-w-0 flex-col gap-1.5">
           <Section title="Freshness">
             <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-                gap: 0.5,
-              }}
+              className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-1"
             >
               {formedSection}
               {dateSection}
@@ -913,11 +875,7 @@ export function PatternFilterRail({
           </Section>
           <Section title="Structure">
             <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                gap: 0.5,
-              }}
+              className="grid grid-cols-2 gap-1"
             >
               {baseSection}
               {rangeSection}
@@ -937,19 +895,11 @@ export function PatternFilterRail({
           </Button>
           <Box
             id="patterns-advanced-section"
-            sx={{
-              display: advancedOpen ? "flex" : "none",
-              flexDirection: "column",
-              gap: 0.75,
-            }}
+            className={advancedOpen ? "flex flex-col gap-1.5" : "hidden"}
           >
           <Section title="Scores">
             <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                gap: 0.5,
-              }}
+              className="grid grid-cols-2 gap-1"
             >
               {scoreSection}
               {breakoutSection}
@@ -958,11 +908,7 @@ export function PatternFilterRail({
           </Section>
           <Section title="Volume scan">
             <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(80px, 1fr))",
-                gap: 0.5,
-              }}
+              className="grid grid-cols-[repeat(auto-fit,minmax(80px,1fr))] gap-1"
             >
               {relVolumeField}
               {volumeMField}
@@ -979,7 +925,7 @@ export function PatternFilterRail({
   return (
     <Box
       data-testid="patterns-filter-rail"
-      sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}
+      className="flex flex-col gap-3"
     >
       {presetsSection}
       <Divider />
@@ -1016,7 +962,7 @@ export function PatternFilterRail({
       <Divider />
       <Section title="Volume scan">
         <Box
-          sx={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 1 }}
+          className="grid grid-cols-3 gap-2"
         >
           {relVolumeField}
           {volumeMField}

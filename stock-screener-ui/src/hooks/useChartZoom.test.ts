@@ -221,9 +221,20 @@ describe("useChartZoom", () => {
         vi.advanceTimersByTime(100);
       });
 
-      // 09:17 -> best match before it is 09:15 (index 0)
-      // 09:22 -> best match before it is 09:20 (index 1)
-      expect(mockChartInstance.dispatchAction).toHaveBeenCalled();
+      // 09:17 -> best match before it is 09:15 (index 0); 09:22 -> best match before it is 09:20 (index 1)
+      // computeZoomRange(0, 1, 3): minWindow=3, pad=5 -> start=0, end=2 -> startPct=0, endPct=100 (both axes)
+      expect(mockChartInstance.dispatchAction).toHaveBeenNthCalledWith(1, {
+        type: "dataZoom",
+        dataZoomIndex: 0,
+        start: 0,
+        end: 100,
+      });
+      expect(mockChartInstance.dispatchAction).toHaveBeenNthCalledWith(2, {
+        type: "dataZoom",
+        dataZoomIndex: 1,
+        start: 0,
+        end: 100,
+      });
       vi.useRealTimers();
     });
 
@@ -264,8 +275,20 @@ describe("useChartZoom", () => {
         vi.advanceTimersByTime(100);
       });
 
-      // 09:10 is before first time, should fall back to index 0
-      expect(mockChartInstance.dispatchAction).toHaveBeenCalled();
+      // 09:10 is before first time, should fall back to index 0; exit 09:17 -> index 1
+      // computeZoomRange(0, 1, 3) -> start=0, end=2 -> startPct=0, endPct=100 (both axes)
+      expect(mockChartInstance.dispatchAction).toHaveBeenNthCalledWith(1, {
+        type: "dataZoom",
+        dataZoomIndex: 0,
+        start: 0,
+        end: 100,
+      });
+      expect(mockChartInstance.dispatchAction).toHaveBeenNthCalledWith(2, {
+        type: "dataZoom",
+        dataZoomIndex: 1,
+        start: 0,
+        end: 100,
+      });
       vi.useRealTimers();
     });
 
@@ -286,8 +309,20 @@ describe("useChartZoom", () => {
         vi.advanceTimersByTime(100);
       });
 
-      // 09:20 is after last time, should fall back to index 2 (last)
-      expect(mockChartInstance.dispatchAction).toHaveBeenCalled();
+      // 09:20 is after last time, should fall back to index 2 (last); entry 09:16 -> index 1
+      // computeZoomRange(1, 2, 3) -> start=0, end=2 -> startPct=0, endPct=100 (both axes)
+      expect(mockChartInstance.dispatchAction).toHaveBeenNthCalledWith(1, {
+        type: "dataZoom",
+        dataZoomIndex: 0,
+        start: 0,
+        end: 100,
+      });
+      expect(mockChartInstance.dispatchAction).toHaveBeenNthCalledWith(2, {
+        type: "dataZoom",
+        dataZoomIndex: 1,
+        start: 0,
+        end: 100,
+      });
       vi.useRealTimers();
     });
   });

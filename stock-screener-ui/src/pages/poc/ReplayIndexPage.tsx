@@ -2,12 +2,7 @@
 // replay plugin (label, id, mode, param count) as a clickable card that opens
 // the generic /poc/replay/{strategyId} shell. No strategy vocabulary lives here.
 import { useNavigate } from "react-router-dom";
-import Box from "@mui/material/Box";
-import Card from "@mui/material/Card";
-import CardActionArea from "@mui/material/CardActionArea";
-import Typography from "@mui/material/Typography";
-import Chip from "@mui/material/Chip";
-import Stack from "@mui/material/Stack";
+import { Box, Text, Stack, Chip, Card } from "@/ui";
 import * as palette from "@/ui/palette";
 import { listStrategies } from "@/components/replay/strategies";
 
@@ -16,46 +11,50 @@ export default function ReplayIndexPage() {
   const strategies = listStrategies();
 
   return (
-    <Box sx={{ p: 2, width: "100%" }} data-testid="replay-index">
-      <Typography variant="h6" sx={{ color: palette.TEXT, mb: 0.5 }}>
+    <Box className="p-4 w-full" data-testid="replay-index">
+      <Text size="lg" fw={700} style={{ color: palette.TEXT, marginBottom: 4 }}>
         Replay strategies
-      </Typography>
-      <Typography variant="caption" sx={{ color: palette.TEXT_MUTED, display: "block", mb: 2 }}>
+      </Text>
+      <Text size="xs" style={{ color: palette.TEXT_MUTED, display: "block", marginBottom: 16 }}>
         {strategies.length} registered · select one to open its replay
-      </Typography>
-      <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "stretch" }}>
+      </Text>
+      <Stack direction="row" spacing={1} className="flex-wrap items-stretch">
         {strategies.map((plugin) => (
           <Card
             key={plugin.id}
-            elevation={0}
-            sx={{ width: 240, bgcolor: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}
+            className="w-[240px]"
+            style={{
+              backgroundColor: palette.SURFACE,
+              border: `1px solid ${palette.BORDER}`,
+            }}
           >
-            <CardActionArea
+            <Box
+              className="p-3 h-full flex items-stretch"
+              style={{ cursor: "pointer" }}
               onClick={() => navigate(`/poc/replay/${plugin.id}`)}
-              sx={{ p: 1.5, height: "100%", alignItems: "stretch" }}
             >
-              <Typography variant="subtitle2" sx={{ color: palette.TEXT }}>
+              <Text size="sm" fw={600} style={{ color: palette.TEXT }}>
                 {plugin.label}
-              </Typography>
-              <Typography variant="caption" sx={{ color: palette.TEXT_MUTED, display: "block", mb: 1 }}>
+              </Text>
+              <Text size="xs" style={{ color: palette.TEXT_MUTED, display: "block", marginBottom: 8 }}>
                 {plugin.id}
-              </Typography>
-              <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap" }}>
+              </Text>
+              <Stack direction="row" spacing={1} className="flex-wrap">
                 <Chip
-                  size="small"
+                  size="sm"
                   label={plugin.mode}
-                  sx={{
-                    bgcolor: palette.SURFACE_ALT,
+                  style={{
+                    backgroundColor: palette.SURFACE_ALT,
                     color: plugin.mode === "timeline" ? palette.PRIMARY : palette.POSITIVE,
                   }}
                 />
                 <Chip
-                  size="small"
+                  size="sm"
                   label={`${plugin.params.length} params`}
-                  sx={{ bgcolor: palette.SURFACE_ALT, color: palette.TEXT_MUTED }}
+                  style={{ backgroundColor: palette.SURFACE_ALT, color: palette.TEXT_MUTED }}
                 />
               </Stack>
-            </CardActionArea>
+            </Box>
           </Card>
         ))}
       </Stack>

@@ -49,15 +49,13 @@ export function SymbolAvatar({ symbol, name, logo, size = 20 }: SymbolAvatarProp
       data-symbol={symbol}
       data-fallback={showImg ? undefined : "initials"}
       title={name || symbol}
-      style={{ width: size, height: size, minWidth: size, minHeight: size }}
-      sx={{
-        borderRadius: "50%",
-        overflow: "hidden",
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexShrink: 0,
-        bgcolor: showImg ? "action.hover" : tintFor(symbol),
+      className="inline-flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full"
+      style={{
+        width: size,
+        height: size,
+        minWidth: size,
+        minHeight: size,
+        backgroundColor: showImg ? "var(--color-fin-surface-alt)" : tintFor(symbol),
       }}
     >
       {showImg ? (
@@ -70,7 +68,7 @@ export function SymbolAvatar({ symbol, name, logo, size = 20 }: SymbolAvatarProp
           style={{ width: size, height: size, objectFit: "contain", display: "block" }}
         />
       ) : (
-        <Text size="xs" span fw={700} sx={{ fontSize: size * 0.45, color: TEXT, lineHeight: 1 }}>
+        <Text size="xs" span fw={700} style={{ fontSize: size * 0.45, color: TEXT, lineHeight: 1 }}>
           {initialsFor(symbol)}
         </Text>
       )}

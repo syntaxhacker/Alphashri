@@ -188,7 +188,7 @@ describe("OptionAlerts", () => {
     });
 
     it("caps alerts at 5 maximum", () => {
-      const contract = (strike: number) => ({
+      const contract = (_strike: number) => ({
         oi: 150000,
         prev_oi: 50000,
         volume: 60000,

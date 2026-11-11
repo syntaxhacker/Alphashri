@@ -1,0 +1,454 @@
+import { Box, Text } from "@/ui";
+import * as palette from "@/ui/palette";
+import type { WallsPayload, WallsRow } from "@/api/reportNifty";
+import { CompactPanel } from "@/components/common/compact";
+import { Sparkline } from "@/components/common/Sparkline";
+import {
+  fuelTone,
+  isPreBlast,
+  pickNearestWalls,
+  wallErosionView,
+  type FuelTone,
+} from "./wallErosion";
+import {
+  dist,
+  erosionColor,
+  fmtNum,
+  fmtTimeToBreak,
+  statusTone,
+} from "./niftyWallsFormat";
+import { formatReportPoints, REPORT_MINUS } from "./reportFormat";
+import { REPORT_FONT, REPORT_RADIUS } from "./reportTokens";
+
+/**
+ * Dense wall-erosion strip for the Index Report: the nearest call/put wall on
+ * one line each. The strip is a FIXED two-row box — the walls payload landing
+ * (or a long flow string) must never resize the one-page report.
+ */
+
+/** Row height (px). The body is exactly two of these plus the 2 row borders. */
+const ROW_H = 24;
+
+/** Header slots keep a fixed box so a missing regime/flip never resizes the bar. */
+const REGIME_SLOT_W = 60;
+const REGIME_SLOT_H = 16;
+const FLIP_SLOT_W = 72;
+const FLIP_SLOT_H = 14;
+
+/** Right cluster (time-to-break + sparkline) — fixed width so rows never reflow. */
+const RIGHT_GROUP_W = 150;
+const SPARK_W = 54;
+const SPARK_H = 12;
+
+/** Flow text is the longest field; cap it and ellipsize instead of wrapping. */
+const FLOW_MAX_W = 132;
+/** Fuel text keeps a reserved column so its box never nudges the row. */
+const FUEL_MIN_W = 86;
+
+interface NiftyWallErosionBoardProps {
+  walls: WallsPayload | null;
+  symbol?: string;
+  asOf?: string | null;
+}
+
+const FLOW_TONE_COLOR: Record<"bull" | "bear" | "muted", string> = {
+  bull: palette.POSITIVE,
+  bear: palette.NEGATIVE,
+  muted: palette.TEXT_MUTED,
+};
+
+const STATUS_TONE_COLOR: Record<
+  "positive" | "warning" | "negative" | "muted",
+  string
+> = {
+  positive: palette.POSITIVE,
+  warning: palette.WARNING,
+  negative: palette.NEGATIVE,
+  muted: palette.TEXT_MUTED,
+};
+
+const FUEL_TONE_COLOR: Record<FuelTone, string> = {
+  positive: palette.POSITIVE,
+  warning: palette.WARNING,
+  negative: palette.NEGATIVE,
+  muted: palette.TEXT_MUTED,
+};
+
+/** `HH:MM` straight out of an ISO-ish string — host-TZ independent. */
+function hhmm(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const match = /(\d{1,2}):(\d{2})/.exec(value);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  if (hour > 23) return null;
+  return `${String(hour).padStart(2, "0")}:${match[2]}`;
+}
+
+/** Signed distance for a row; falls back to the percent when pts is absent. */
+function distanceOf(row: WallsRow | null | undefined): string {
+  const pts = row?.distance_pts;
+  if (pts != null && Number.isFinite(pts)) {
+    return formatReportPoints(pts, { minus: REPORT_MINUS });
+  }
+  return dist(row?.distance_pct);
+}
+
+/** Fuel sub-scores for the row tooltip, `—` for missing buckets. */
+function fuelPartsTooltip(row: WallsRow | null | undefined): string {
+  const parts = row?.fuel_parts;
+  const part = (label: string, value: number | null | undefined): string => {
+    const n =
+      typeof value === "number" && Number.isFinite(value)
+        ? Math.round(value)
+        : "—";
+    return `${label} ${n}`;
+  };
+  if (!parts) {
+    return `Fuel parts — erosion — · volume — · proximity — · gamma — · flow — | flow: ${row?.flow ?? "—"}`;
+  }
+  return `Fuel parts — ${part("erosion", parts.erosion)} · ${part("volume", parts.volume)} · ${part("proximity", parts.proximity)} · ${part("gamma", parts.gamma)} · ${part("flow", parts.flow)} | flow: ${row?.flow ?? "—"}`;
+}
+
+function Stat({
+  label,
+  value,
+  tone = palette.TEXT,
+  hideBelowMd = false,
+}: {
+  label: string;
+  value: string;
+  tone?: string;
+  /** Secondary columns (rate/prem) drop out on narrow viewports. */
+  hideBelowMd?: boolean;
+}) {
+  return (
+    <Box
+      component="span"
+      className="inline-flex items-baseline gap-[2px] min-w-0 shrink-0"
+      style={{ display: hideBelowMd ? "none" : "inline-flex" }}
+    >
+      <Text size="xs" c="dimmed" lh={1.1} style={{ fontSize: REPORT_FONT.micro }}>
+        {label}
+      </Text>
+      <Text
+        size="xs"
+        fw={700}
+        lh={1.1}
+        c={tone}
+        className="tabular-nums whitespace-nowrap"
+      >
+        {value}
+      </Text>
+    </Box>
+  );
+}
+
+function ErosionRow({
+  row,
+  side,
+  regime,
+  testId,
+}: {
+  row: WallsRow | null;
+  side: "CALL" | "PUT";
+  regime: "LONG" | "SHORT" | null;
+  testId: string;
+}) {
+  const view = wallErosionView(row, side);
+  const sideColor = side === "CALL" ? palette.NEGATIVE : palette.POSITIVE;
+  const statusColor = STATUS_TONE_COLOR[statusTone(row?.status)];
+  const flowColor = FLOW_TONE_COLOR[view.flowTone];
+  const fuelColor = FUEL_TONE_COLOR[fuelTone(view.fuelScore)];
+  const preBlast = isPreBlast(row, regime);
+  const ttb = row?.time_to_break_min;
+  const hasTtb = ttb != null && Number.isFinite(ttb);
+
+  return (
+    <Box
+      data-testid="wall-erosion-row"
+      data-side={side}
+      title={fuelPartsTooltip(row)}
+      className="flex items-center flex-nowrap min-w-0 shrink-0 overflow-hidden h-[24px]"
+      style={{
+        borderTop: `1px solid ${palette.BORDER}`,
+        height: ROW_H,
+      }}
+    >
+      {/* `display: contents` keeps the side wrapper out of the flex layout, so
+          the row children stay direct flex items while the side testid still
+          scopes the row's content. */}
+      <Box component="span" data-testid={testId} className="contents">
+        <Text
+          size="xs"
+          fw={800}
+          lh={1.1}
+          className="tabular-nums whitespace-nowrap shrink-0"
+          style={{
+            width: 108,
+            flexShrink: 0,
+            color: sideColor,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {side} {view.strikeText} {view.arrow}
+        </Text>
+        <Box
+          component="span"
+          className="inline-flex items-center justify-center shrink-0 whitespace-nowrap"
+          style={{
+            padding: "4px 2px",
+            border: `1px solid ${statusColor}`,
+            color: statusColor,
+            borderRadius: `${REPORT_RADIUS.sm}px`,
+            fontSize: REPORT_FONT.micro,
+            fontWeight: 800,
+            lineHeight: 1.2,
+            letterSpacing: "0.06em",
+          }}
+        >
+          {view.statusText}
+        </Box>
+        <Text
+          size="xs"
+          fw={700}
+          lh={1.1}
+          className="tabular-nums whitespace-nowrap shrink-0"
+        >
+          {distanceOf(row)}
+        </Text>
+        <Stat label="OI" value={view.oiText} />
+        <Stat
+          label="30m"
+          value={view.erosion30Text}
+          tone={erosionColor(row?.erosion_30m)}
+        />
+        <Stat label="rate" value={view.rateText} hideBelowMd />
+        <Stat label="vol" value={view.volText} />
+        <Stat label="prem" value={view.premText} hideBelowMd />
+        <Text
+          size="xs"
+          fw={800}
+          lh={1.1}
+          className="tabular-nums whitespace-nowrap shrink-0"
+          style={{
+            color: flowColor,
+            letterSpacing: "0.04em",
+            whiteSpace: "nowrap",
+            maxWidth: FLOW_MAX_W,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            minWidth: 0,
+            flexShrink: 1,
+          }}
+        >
+          {view.flowText}
+        </Text>
+        <Text
+          size="xs"
+          fw={800}
+          lh={1.1}
+          className="tabular-nums whitespace-nowrap shrink-0"
+          style={{
+            color: fuelColor,
+            letterSpacing: "0.04em",
+            whiteSpace: "nowrap",
+            minWidth: FUEL_MIN_W,
+            flexShrink: 0,
+          }}
+        >
+          {preBlast ? `PRE-BLAST ${view.fuelScore}` : `FUEL ${view.fuelScore}`}
+        </Text>
+        <Box
+          className="ml-auto flex items-center justify-end"
+          style={{
+            width: RIGHT_GROUP_W,
+            minWidth: 0,
+            flexShrink: 0,
+            overflow: "hidden",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
+          }}
+        >
+          {view.breached ? (
+            <>
+              <Text
+                size="xs"
+                fw={900}
+                lh={1.1}
+                className="whitespace-nowrap shrink-0"
+                style={{ color: palette.NEGATIVE, letterSpacing: "0.06em" }}
+              >
+                BREACHED
+              </Text>
+              <Text
+                size="xs"
+                c="dimmed"
+                lh={1.1}
+                className="min-w-0 overflow-hidden truncate whitespace-nowrap shrink-0"
+                style={{ fontSize: REPORT_FONT.micro, minWidth: 0, flexShrink: 1 }}
+              >
+                spot crossed
+              </Text>
+            </>
+          ) : (
+            <Text
+              size="xs"
+              c="dimmed"
+              lh={1.1}
+              className="tabular-nums whitespace-nowrap shrink-0 min-w-0 overflow-hidden truncate"
+              style={{ minWidth: 0, flexShrink: 1 }}
+            >
+              {hasTtb ? `${fmtTimeToBreak(ttb)} to break` : "—"}
+            </Text>
+          )}
+          <Box
+            className="flex items-center justify-end overflow-hidden shrink-0"
+            style={{
+              width: SPARK_W,
+              height: SPARK_H,
+              flexShrink: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              overflow: "hidden",
+            }}
+          >
+            <Sparkline
+              values={view.spark}
+              width={SPARK_W}
+              height={SPARK_H}
+              color={sideColor}
+              testId={`${testId}-spark`}
+              responsive
+            />
+          </Box>
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+export function NiftyWallErosionBoard({
+  walls,
+  symbol,
+  asOf,
+}: NiftyWallErosionBoardProps) {
+  const { call, put } = pickNearestWalls(walls);
+  const symbolLabel = symbol ?? walls?.symbol ?? "—";
+  const asOfText = hhmm(asOf ?? walls?.freshness?.last_t) ?? "—";
+  const regime = walls?.regime ?? null;
+  const flip = walls?.flip;
+  const hasFlip = typeof flip === "number" && Number.isFinite(flip);
+  const regimeColor = regime === "SHORT" ? palette.NEGATIVE : palette.POSITIVE;
+
+  return (
+    <CompactPanel
+      title="WALL EROSION"
+      testId="wall-erosion-board"
+      action={
+        <Box className="flex items-center gap-[4px] min-w-0 flex-nowrap justify-end overflow-hidden">
+          <Text
+            size="xs"
+            fw={800}
+            lh={1.2}
+            c="dimmed"
+            className="whitespace-nowrap uppercase shrink-0"
+          >
+            {symbolLabel}
+          </Text>
+          <Text
+            size="xs"
+            c="dimmed"
+            lh={1.2}
+            className="whitespace-nowrap shrink-0"
+          >
+            as of {asOfText}
+          </Text>
+          <Box
+            component="span"
+            data-testid={regime ? "wall-erosion-regime" : undefined}
+            aria-hidden={regime ? undefined : true}
+            className="inline-flex items-center justify-center shrink-0"
+            style={{
+              width: REGIME_SLOT_W,
+              height: REGIME_SLOT_H,
+              flexShrink: 0,
+              visibility: regime ? "visible" : "hidden",
+              ...(regime
+                ? {
+                    padding: "4px 2px",
+                    border: `1px solid ${regimeColor}`,
+                    color: regimeColor,
+                    borderRadius: `${REPORT_RADIUS.sm}px`,
+                    fontSize: REPORT_FONT.micro,
+                    fontWeight: 800,
+                    lineHeight: 1.2,
+                    letterSpacing: "0.06em",
+                  }
+                : {}),
+            }}
+          >
+            {regime ? `${regime} Γ` : ""}
+          </Box>
+          <Text
+            size="xs"
+            c="dimmed"
+            lh={1.2}
+            className="tabular-nums whitespace-nowrap shrink-0"
+            style={{
+              width: FLIP_SLOT_W,
+              height: FLIP_SLOT_H,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              flexShrink: 0,
+              visibility: hasFlip ? "visible" : "hidden",
+            }}
+          >
+            {hasFlip ? `flip ${fmtNum(flip)}` : ""}
+          </Text>
+        </Box>
+      }
+    >
+      <Box
+        data-testid="wall-erosion-body"
+        data-layout="fixed"
+        data-rows="2"
+        aria-busy={walls ? undefined : "true"}
+        title="OI erosion + volume + premium flow. PRE-BLAST = short gamma and the wall is being consumed."
+        className="relative flex flex-col min-w-0 overflow-hidden"
+        style={{
+          height: ROW_H * 2 + 2,
+          minHeight: ROW_H * 2 + 2,
+        }}
+      >
+        {/* Zero-size marker: the strip keeps its shape while the payload loads. */}
+        {!walls ? (
+          <Box
+            component="span"
+            data-testid="wall-erosion-skeleton"
+            className="absolute overflow-hidden"
+            style={{
+              width: 0,
+              height: 0,
+              pointerEvents: "none",
+            }}
+          />
+        ) : null}
+        <ErosionRow
+          row={call}
+          side="CALL"
+          regime={regime}
+          testId="wall-erosion-call"
+        />
+        <ErosionRow
+          row={put}
+          side="PUT"
+          regime={regime}
+          testId="wall-erosion-put"
+        />
+      </Box>
+    </CompactPanel>
+  );
+}

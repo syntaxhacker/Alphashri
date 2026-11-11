@@ -1,6 +1,6 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { Box, Text } from "@/ui";
-import { BORDER, MONO, TERM_BORDER, TERM_HEADER, TEXT, TEXT_MUTED, WARNING } from "@/ui/palette";
+import { MONO, TERM_BORDER, TERM_HEADER, TEXT_MUTED, WARNING } from "@/ui/palette";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   HEATMAP_PAD_L,
@@ -104,30 +104,6 @@ const OPACITY_LABELS: Record<"oi" | "volume" | "premium", { label: string; title
   },
 };
 
-/** Fixed-size key mark: 8×8 cell square, 12×2 solid rule, or 12-wide dashed rule. */
-const SWATCH_SX = {
-  display: "inline-block",
-  flexShrink: 0,
-  width: 8,
-  height: 8,
-  borderRadius: "1px",
-} as const;
-
-const RULE_SX = {
-  display: "inline-block",
-  flexShrink: 0,
-  width: 12,
-  height: 2,
-} as const;
-
-const DASHED_RULE_SX = {
-  display: "inline-block",
-  flexShrink: 0,
-  width: 12,
-  height: 0,
-  borderTop: "1px dashed",
-} as const;
-
 function cellFill(sign: string): string {
   if (sign === "ce") return HEATMAP_CE;
   if (sign === "pe") return HEATMAP_PE;
@@ -162,35 +138,39 @@ function LegendItem({ item }: { item: LegendItemDef }) {
       component="span"
       data-testid={`nifty-heatmap-legend-${item.id}`}
       title={item.title}
-      sx={{ display: "inline-flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap" }}
+      className="inline-flex items-center gap-1 whitespace-nowrap"
     >
       {item.shape === "cell" ? (
         <Box
           component="span"
           data-testid={swatchTestId}
           aria-hidden
-          sx={{ ...SWATCH_SX, backgroundColor: item.color }}
+          className="inline-block shrink-0 w-2 h-2 rounded-[1px]"
+          style={{ backgroundColor: item.color }}
         />
       ) : item.shape === "dot" ? (
         <Box
           component="span"
           data-testid={swatchTestId}
           aria-hidden
-          sx={{ ...SWATCH_SX, borderRadius: "50%", backgroundColor: item.color }}
+          className="inline-block shrink-0 w-2 h-2 rounded-full"
+          style={{ backgroundColor: item.color }}
         />
       ) : item.shape === "line" ? (
         <Box
           component="span"
           data-testid={swatchTestId}
           aria-hidden
-          sx={{ ...RULE_SX, backgroundColor: item.color }}
+          className="inline-block shrink-0 w-3 h-0.5"
+          style={{ backgroundColor: item.color }}
         />
       ) : (
         <Box
           component="span"
           data-testid={swatchTestId}
           aria-hidden
-          sx={{ ...DASHED_RULE_SX, borderColor: item.color }}
+          className="inline-block shrink-0 w-3 h-0 border-t border-dashed"
+          style={{ borderColor: item.color }}
         />
       )}
       <Box component="span">{item.label}</Box>
@@ -430,7 +410,7 @@ const NiftyOiHeatmapInner = function NiftyOiHeatmap({
 
   if (model.empty || model.buckets.length === 0 || model.strikes.length === 0) {
     return (
-      <Box data-testid="nifty-heatmap-empty" sx={{ py: 2, textAlign: "center" }}>
+      <Box data-testid="nifty-heatmap-empty" className="py-4 text-center">
         <Text size="xs" c="dimmed" data-testid="nifty-heatmap-empty-text">
           no tape chain
         </Text>
@@ -461,51 +441,27 @@ const NiftyOiHeatmapInner = function NiftyOiHeatmap({
     setHover({ bucket, strike });
   };
 
+  // Fill the FLOW band's flexible cell: the SVG grows into the slack left by the
+  // 300px chart row while the read/legend stay fixed. The 72px floor (reduced
+  // from 92) keeps the plot readable on short viewports while reducing dead
+  // space below the heatmap at DESK/rail. The canvas is absolutely placed over
+  // the SVG box, so the root is the containing block for both the paint layer
+  // and the hover readout.
   return (
     <Box
       data-testid="nifty-heatmap"
-      sx={{
-        width: "100%",
-        minWidth: 0,
-        // Fill the FLOW band's flexible cell: the SVG grows into the slack
-        // left by the 300px chart row while the read/legend stay fixed.
-        // The 72px floor (reduced from 92) keeps the plot readable on short
-        // viewports while reducing dead space below the heatmap at DESK/rail.
-        display: "flex",
-        flexDirection: "column",
-        height: "100%",
-        minHeight: 72,
-        // The canvas is absolutely placed over the SVG box, so the root is the
-        // containing block for both the paint layer and the hover readout.
-        position: "relative",
-      }}
+      className="w-full min-w-0 flex flex-col h-full min-h-[72px] relative"
     >
       {/* Key for the cells and the overlay marks — a header bar above the plot. */}
       <Box
         data-testid="nifty-heatmap-legend"
         aria-label="Heatmap legend"
-        sx={{
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "center",
-          columnGap: "10px",
-          rowGap: "2px",
-          minHeight: 20,
-          flexShrink: 0,
-          px: 0.75,
-          py: 0.25,
-          borderBottom: `1px solid ${BORDER}`,
-          backgroundColor: "rgba(255,255,255,0.03)",
-          fontSize: 10,
-          lineHeight: 1.2,
-          fontFamily: MONO,
-          color: TEXT_MUTED,
-        }}
+        className="flex flex-wrap items-center gap-x-[10px] gap-y-[2px] min-h-5 shrink-0 px-[6px] py-[2px] border-b border-fin-border bg-white/[0.03] text-[10px] leading-[1.2] font-mono text-fin-text-muted"
       >
         <Box
           component="span"
           data-testid="nifty-heatmap-legend-title"
-          sx={{ fontSize: 9, letterSpacing: "0.08em", opacity: 0.6 }}
+          className="text-[9px] tracking-[0.08em] opacity-60"
         >
           HEATMAP
         </Box>
@@ -538,18 +494,7 @@ const NiftyOiHeatmapInner = function NiftyOiHeatmap({
       <Box
         data-testid="nifty-heatmap-read"
         title="Strongest OI builds on this tape, in plain English"
-        sx={{
-          px: 0.75,
-          mt: "2px",
-          flexShrink: 0,
-          fontSize: 10,
-          lineHeight: 1.2,
-          fontFamily: MONO,
-          color: TEXT,
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}
+        className="px-[6px] mt-[2px] shrink-0 text-[10px] leading-[1.2] font-mono text-fin-text whitespace-nowrap overflow-hidden text-ellipsis"
       >
         {readText || (metric === "volume" ? "no traded volume yet" : metric === "premium" ? "no premium move yet" : "no ΔOI build yet")}
       </Box>
@@ -753,22 +698,8 @@ const NiftyOiHeatmapInner = function NiftyOiHeatmap({
       {hoverCell && hover ? (
         <Box
           data-testid="nifty-heatmap-hover"
-          sx={{
-            position: "absolute",
-            right: 4,
-            top: 14,
-            px: "4px",
-            py: "1px",
-            bgcolor: TERM_HEADER,
-            border: `1px solid ${TERM_BORDER}`,
-            borderRadius: "3px",
-            fontSize: 9,
-            fontFamily: MONO,
-            color: TEXT,
-            whiteSpace: "nowrap",
-            pointerEvents: "none",
-            zIndex: 3,
-          }}
+          className="absolute right-1 top-[14px] px-1 py-[1px] border border-fin-border rounded-[3px] text-[9px] font-mono text-fin-text whitespace-nowrap pointer-events-none z-[3]"
+          style={{ backgroundColor: TERM_HEADER, borderColor: TERM_BORDER }}
         >
           {buckets[hover.bucket]?.label ?? ""} · {formatNumberIN(hover.strike)} · CE{" "}
           {formatReportCompact(hoverCell.ceDoi, {

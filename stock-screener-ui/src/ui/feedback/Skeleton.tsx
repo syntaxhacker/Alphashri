@@ -1,5 +1,13 @@
-import MuiSkeleton from "@mui/material/Skeleton";
+import { cn } from "../cn";
+import * as palette from "../palette";
 import type { UISkeletonProps } from "../types";
+
+function radiusValue(radius: UISkeletonProps["radius"] | undefined): string | undefined {
+  if (radius == null) return undefined;
+  if (typeof radius === "number") return `${radius}px`;
+  const m: Record<string, string> = { xs: "4px", sm: "6px", md: "8px", lg: "12px", xl: "16px" };
+  return m[radius] ?? undefined;
+}
 
 export function Skeleton({
   h,
@@ -15,42 +23,21 @@ export function Skeleton({
   id,
   ...rest
 }: UISkeletonProps) {
-  if (!visible) {
-    return <>{children}</>;
-  }
+  if (!visible) return <>{children}</>;
 
-  const sx: Record<string, unknown> = {
-    ...(h != null && { height: typeof h === "number" ? `${h}px` : h }),
-    ...(w != null && { width: typeof w === "number" ? `${w}px` : w }),
-    ...(radius != null
-      ? {
-          borderRadius:
-            typeof radius === "number"
-              ? `${radius}px`
-              : radius === "xs"
-                ? "4px"
-                : radius === "xl"
-                  ? "16px"
-                  : undefined,
-        }
-      : {}),
-  };
-
-  // If children provided and skeleton visible, overlay skeleton over children area
-  const hasChildren = children != null;
+  const hh = h == null ? undefined : typeof h === "number" ? `${h}px` : h;
+  const ww = w == null ? undefined : typeof w === "number" ? `${w}px` : w;
+  const br = radiusValue(radius);
 
   return (
-    <MuiSkeleton
-      variant={circle ? "circular" : "rounded"}
-      animation={animate === false ? false : "pulse"}
-      className={className}
-      style={style}
-      id={id}
+    <div
       data-testid={testId}
-      sx={sx}
-      {...(rest as Record<string, unknown>)}
+      id={id}
+      className={cn("inline-block", animate ? "animate-pulse" : undefined, circle ? "rounded-full" : br ? undefined : "rounded-fin", className)}
+      style={{ height: hh, width: ww, borderRadius: br, backgroundColor: palette.BORDER, ...style }}
+      {...rest}
     >
-      {hasChildren ? children : undefined}
-    </MuiSkeleton>
+      {children}
+    </div>
   );
 }

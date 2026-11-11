@@ -20,27 +20,13 @@ function PatternPlaceholder({ label, showLabel }: { label: string; showLabel: bo
   return (
     <Box
       data-testid="pattern-image-placeholder"
-      sx={{
-        width: "100%",
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 0.5,
-        px: 1,
-        bgcolor: "action.hover",
-        border: "1px dashed",
-        borderColor: "divider",
-        borderRadius: 1,
-        overflow: "hidden",
-      }}
+      className="flex h-full w-full flex-col items-center justify-center gap-1 overflow-hidden rounded-fin border border-dashed border-fin-border bg-fin-surface-alt px-2"
     >
       <Box
         component="svg"
         viewBox="0 0 96 40"
         aria-hidden="true"
-        sx={{ width: "100%", maxWidth: 120, height: "auto", color: "primary.main" }}
+        className="h-auto w-full max-w-[120px] text-fin-primary"
       >
         <polyline
           points="2,34 18,20 30,26 48,10 64,18 78,6 94,12"
@@ -55,7 +41,7 @@ function PatternPlaceholder({ label, showLabel }: { label: string; showLabel: bo
           y1="38"
           x2="94"
           y2="38"
-          stroke="var(--mui-palette-divider)"
+          stroke="var(--color-fin-border)"
           strokeWidth="1"
         />
       </Box>
@@ -65,7 +51,7 @@ function PatternPlaceholder({ label, showLabel }: { label: string; showLabel: bo
         ta="center"
         lineClamp={2}
         data-testid="pattern-image-placeholder-label"
-        sx={{ display: showLabel ? undefined : "none" }}
+        style={{ display: showLabel ? undefined : "none" }}
       >
         {label}
       </Text>
@@ -101,20 +87,14 @@ export function PatternImage({
         alt={label}
         data-testid={`pattern-image-${patternId}`}
         onError={() => setErrored(true)}
-        sx={{
-          width: "100%",
-          height,
-          display: "block",
-          objectFit: "contain",
-          borderRadius: 1,
-          bgcolor: "action.hover",
-        }}
+        className="block w-full rounded-fin bg-fin-surface-alt object-contain"
+        style={{ height }}
       />
     );
   }
 
   return (
-    <Box sx={{ width: "100%", height }}>
+    <Box className="w-full" style={{ height }}>
       <PatternPlaceholder label={label} showLabel={showPlaceholderLabel} />
     </Box>
   );

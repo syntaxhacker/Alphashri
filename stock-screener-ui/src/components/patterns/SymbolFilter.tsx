@@ -84,11 +84,11 @@ export function SymbolFilter({
   return (
     <Box
       data-testid="patterns-symbol-filter"
-      sx={{ display: "flex", flexDirection: "column", gap: 0.5, flex: 1, minWidth: 0 }}
+      className="flex min-w-0 flex-1 flex-col gap-1"
     >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0, maxWidth: 380 }}>
+      <Box className="flex max-w-[380px] min-w-0 items-center gap-1">
         <Box
-          sx={{ flex: 1, minWidth: 0 }}
+          className="min-w-0 flex-1"
           onPaste={(e) => {
             const parsed = parseSymbolList(e.clipboardData.getData("text"));
             if (parsed.length > 1) {
@@ -134,7 +134,7 @@ export function SymbolFilter({
         </Text>
       ) : null}
       {selected.length > 0 && (
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, maxHeight: 60, overflowY: "auto" }}>
+        <Box className="flex max-h-[60px] flex-wrap gap-1 overflow-y-auto">
           {selected.map((symbol) => (
             <Badge
               key={symbol}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActionIcon, Alert, Box, Button, Chip, Divider, Loader, LoadingOverlay, Menu, MenuDropdown, MenuItem, MenuTarget, Modal, SegmentedControl, Select, Switch, Tabs, Text, ToolbarRow, Tooltip } from "@/ui";
+import { ActionIcon, Alert, Box, Button, Chip, Divider, Loader, LoadingOverlay, Menu, MenuDropdown, MenuItem, MenuTarget, Modal, SegmentedControl, Select, Switch, Tabs, Text, ToolbarRow, Tooltip, useMediaQuery } from "@/ui";
 import { IconAdjustmentsHorizontal, IconDotsVertical } from "@tabler/icons-react";
 import type {
   JobDTO,
@@ -39,7 +39,6 @@ import {
   fullscreenHitIdentity,
   usePatternFullscreen,
 } from "@/hooks/usePatternFullscreen";
-import useMediaQuery from "@mui/material/useMediaQuery";
 import { ReplayScanControl, type ReplayScanArgs } from "@/components/patterns/ReplayScanControl";
 import { WatchView } from "@/components/patterns/WatchView";
 import { formatAsOfLabel } from "@/components/patterns/datetime";
@@ -654,7 +653,7 @@ export function PatternsPage({
   useEffect(() => {
     if (!isDesktop || !fullscreen || filtersOpen || activeTab !== "scan") return;
     const onKeyDown = (event: KeyboardEvent): void => {
-      // MUI Select/Menu already handled the key.
+      // The local Select/Menu already handled the key.
       if (event.defaultPrevented) return;
       const target = event.target as HTMLElement | null;
       if (
@@ -721,15 +720,7 @@ export function PatternsPage({
   return (
     <Box
       data-testid="patterns-page"
-      sx={{
-        px: 1,
-        py: 0.25,
-        display: "flex",
-        flexDirection: "column",
-        gap: 0.25,
-        width: "100%",
-        fontVariantNumeric: "tabular-nums",
-      }}
+      className="flex w-full flex-col gap-0.5 px-2 py-[2px] tabular-nums"
     >
       <Tabs value={activeTab} onChange={handleTabChange} data-testid="patterns-tabs">
         <Tabs.List data-testid="patterns-tab-list">
@@ -740,7 +731,7 @@ export function PatternsPage({
             Watch
           </Tabs.Tab>
         </Tabs.List>
-        <Tabs.Panel value="scan" data-testid="patterns-panel-scan" sx={{ py: 0 }}>
+        <Tabs.Panel value="scan" data-testid="patterns-panel-scan" style={{ paddingTop: 0, paddingBottom: 0 }}>
       <ScanStats
         summary={displaySummary}
         job={job}
@@ -762,7 +753,7 @@ export function PatternsPage({
         error={error}
         scanActions={
           job?.status === "completed" && !scanActive ? (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+            <Box className="flex min-w-0 items-center gap-1">
               <ScanCacheChip job={job} onForceRefresh={forceRefresh} />
               {/* The scan-session date is already shown by JobStatus
                   ("Last scan complete · through …"); the stat strip owns the
@@ -772,13 +763,7 @@ export function PatternsPage({
         }
         actions={
           <Box
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 0.25,
-              width: "100%",
-              minWidth: 0,
-            }}
+            className="flex w-full min-w-0 flex-col gap-0.5"
           >
             {/* Row 1 — scan setup: what to scan and how. */}
             <ToolbarRow
@@ -790,9 +775,9 @@ export function PatternsPage({
             >
               <Box
                 data-testid="patterns-scan-scope"
-                sx={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}
+                className="flex shrink-0 items-center gap-2"
               >
-                <Box sx={{ width: 210, flexShrink: 0 }}>
+                <Box className="w-[210px] shrink-0">
                   <SymbolFilter
                     filters={filters}
                     setFilter={setFilter}
@@ -802,7 +787,7 @@ export function PatternsPage({
                   />
                 </Box>
               </Box>
-              <Divider orientation="vertical" sx={{ height: 18, alignSelf: "center" }} />
+              <Divider orientation="vertical" style={{ height: 18, alignSelf: "center" }} />
               <TimeframeSelect
                 timeframes={timeframes}
                 value={tfSelection}
@@ -818,9 +803,9 @@ export function PatternsPage({
                   {`as of ${formatAsOfLabel(replayAsOf)}`}
                 </Text>
               ) : null}
-              <Divider orientation="vertical" sx={{ height: 18, alignSelf: "center" }} />
+              <Divider orientation="vertical" style={{ height: 18, alignSelf: "center" }} />
               <Tooltip label="Draw standalone support / resistance lines (TLS = support, TLR = resistance)">
-                <Box sx={{ display: "inline-flex" }}>
+                <Box className="inline-flex">
                   <Switch
                     label="TLS/TLR"
                     size="sm"
@@ -879,7 +864,7 @@ export function PatternsPage({
                   {`List/Grid: ${timeframe}`}
                 </Text>
               ) : null}
-              <Box sx={{ flex: 1, minWidth: 8 }} />
+              <Box className="min-w-2 flex-1" />
               <ResultsSearch filters={filters} setFilter={setFilter} />
               <Tooltip
                 label={
@@ -888,7 +873,7 @@ export function PatternsPage({
                     : "No filters applied (press F)"
                 }
               >
-                <Box sx={{ display: "inline-flex" }}>
+                <Box className="inline-flex">
                   <Button
                     size="xs"
                     variant="filled"
@@ -950,7 +935,7 @@ export function PatternsPage({
         }
       />
 
-      <Box sx={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 0.25 }}>
+      <Box className="flex min-w-0 flex-col gap-0.5">
 
         <AppliedFilters
           filters={filters}
@@ -984,7 +969,7 @@ export function PatternsPage({
         {(view === "matrix" ? matrix.loading : loading) && !hasRows ? (
           <Box
             data-testid="patterns-loading"
-            sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, py: 6 }}
+            className="flex flex-col items-center justify-center gap-2 py-6"
           >
             {scanActive ? (
               <ScanProgress job={job} scanning={scanning} universe={universe} timeframe={timeframe} variant="block" />
@@ -1001,27 +986,14 @@ export function PatternsPage({
           scanActive ? (
             <Box
               data-testid="patterns-empty"
-              sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, px: 2 }}
+              className="flex flex-col items-center px-2 py-6"
             >
               <ScanProgress job={job} scanning={scanning} universe={universe} timeframe={timeframe} variant="block" />
             </Box>
           ) : (
             <Box
               data-testid="patterns-empty"
-              sx={{
-                border: "1px dashed",
-                borderColor: "divider",
-                borderRadius: 1,
-                bgcolor: "background.paper",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 1,
-                py: 6,
-                px: 2,
-                textAlign: "center",
-              }}
+              className="flex flex-col items-center justify-center gap-2 rounded-fin border border-dashed border-fin-border bg-fin-surface px-2 py-6 text-center"
             >
               <Text size="sm" c="dimmed">
                 No patterns match the current filters.
@@ -1034,13 +1006,7 @@ export function PatternsPage({
               {activeChips.length > 0 ? (
                 <Box
                   data-testid="patterns-empty-relax"
-                  sx={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 0.5,
-                  }}
+                  className="flex flex-wrap items-center justify-center gap-1"
                 >
                   <Text size="xs" c="dimmed">
                     Relax:
@@ -1066,7 +1032,7 @@ export function PatternsPage({
                   </Button>
                 </Box>
               ) : null}
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", justifyContent: "center" }}>
+              <Box className="flex flex-wrap items-center justify-center gap-2">
                 <Button
                   size="xs"
                   variant="filled"
@@ -1084,14 +1050,9 @@ export function PatternsPage({
           )
         ) : (
           <Box
-            sx={{
-              display: "flex",
-              alignItems: "flex-start",
-              gap: 0.25,
-              minWidth: 0,
-            }}
+            className="flex min-w-0 items-start gap-0.5"
           >
-            <Box sx={{ position: "relative", flex: 1, minWidth: 0 }}>
+            <Box className="relative min-w-0 flex-1">
               {view === "matrix" ? (
                 <PatternSymbolMatrix
                   rows={filteredMatrixRows}
@@ -1140,15 +1101,8 @@ export function PatternsPage({
                 onMouseEnter={cancelPreviewClose}
                 onMouseLeave={endSymbolPreview}
                 onMouseDown={pinFullscreen}
-                sx={{
-                  width: { lg: 460, xl: 620 },
-                  flexShrink: 0,
-                  position: "sticky",
-                  top: 8,
-                  height: "clamp(360px, calc(100vh - 200px), 980px)",
-                  minHeight: 360,
-                  minWidth: 0,
-                }}
+                className="sticky top-2 min-h-[360px] min-w-0 shrink-0 lg:w-[460px] xl:w-[620px]"
+                style={{ height: "clamp(360px, calc(100vh - 200px), 980px)" }}
               >
                 <PatternFullscreenView
                   {...chartViewProps}
@@ -1172,7 +1126,7 @@ export function PatternsPage({
         )}
       </Box>
         </Tabs.Panel>
-        <Tabs.Panel value="watch" data-testid="patterns-panel-watch" sx={{ py: 0 }}>
+        <Tabs.Panel value="watch" data-testid="patterns-panel-watch" style={{ paddingTop: 0, paddingBottom: 0 }}>
           <WatchView
             universe={universe}
             timeframe={timeframe}
@@ -1191,7 +1145,7 @@ export function PatternsPage({
         size="xl"
         data-testid="patterns-filter-modal"
       >
-        <Box sx={{ maxHeight: "78vh", overflowY: "auto", pr: 1 }}>
+        <Box className="max-h-[78vh] overflow-y-auto pr-2">
           <PatternFilterRail
             layout="panel"
             patterns={patterns}
@@ -1208,7 +1162,7 @@ export function PatternsPage({
         <ToolbarRow
           justify="space-between"
           gap={8}
-          style={{ paddingTop: 12, borderTop: "1px solid", borderColor: "var(--mui-palette-divider)" }}
+          style={{ paddingTop: 12, borderTop: "1px solid", borderColor: "var(--color-fin-border)" }}
         >
           <Button
             size="sm"

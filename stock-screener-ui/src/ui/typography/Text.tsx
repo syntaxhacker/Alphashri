@@ -1,4 +1,6 @@
-import Typography from "@mui/material/Typography";
+import { cn } from "../cn";
+import * as palette from "../palette";
+import type { ElementType } from "react";
 import type { UITextProps } from "../types";
 
 const sizeMap: Record<string, string> = {
@@ -14,20 +16,32 @@ function resolveSize(size: UITextProps["size"]): string | undefined {
   return sizeMap[size as string] ?? (size as string);
 }
 
-function resolveColor(c: string): string {
-  const map: Record<string, string> = {
-    success: "success.main",
-    error: "error.main",
-    warning: "warning.main",
-    info: "info.main",
-    primary: "primary.main",
-    secondary: "text.secondary",
-    dimmed: "text.secondary",
-    default: "text.primary",
-  };
-  if (!c) return c;
-  if (c.startsWith("#") || c.startsWith("rgb") || c.includes(".")) return c;
-  return map[c] ?? c;
+const TONE_CLASS: Record<string, string> = {
+  primary: "text-fin-primary",
+  secondary: "text-fin-text-muted",
+  success: "text-fin-positive",
+  error: "text-fin-negative",
+  warning: "text-fin-warning",
+  info: "text-fin-primary",
+  danger: "text-fin-negative",
+  dimmed: "text-fin-text-muted",
+  default: "text-fin-text",
+};
+
+const TONE_COLOR: Record<string, string> = {
+  primary: palette.PRIMARY,
+  secondary: palette.TEXT_MUTED,
+  success: palette.POSITIVE,
+  error: palette.NEGATIVE,
+  warning: palette.WARNING,
+  info: palette.INFO,
+  danger: palette.NEGATIVE,
+  dimmed: palette.TEXT_MUTED,
+  default: palette.TEXT,
+};
+
+function isLiteralColor(c: string): boolean {
+  return c.startsWith("#") || c.startsWith("rgb") || c.includes(".");
 }
 
 export function Text({
@@ -49,58 +63,78 @@ export function Text({
   lineClamp,
   span,
   inherit,
-  sx: sxProp,
+  component,
+  p, px, py, pt, pb, pl, pr,
+  m, mx, my, mt, mb, ml, mr,
+  w, maw, opacity, fs,
   ...rest
 }: UITextProps) {
-  // Caller `sx` must *merge* with the size/weight/colour props, not replace
-  // them: spreading `rest` after `sx` used to let a single `sx={{ ms: 1 }}`
-  // silently drop the whole internal style block (size, weight, tone).
-  const sx: Record<string, unknown> = {
-    ...(c != null && { color: resolveColor(c as string) }),
-    ...(fw != null && { fontWeight: fw }),
-    ...(ta != null && { textAlign: ta }),
-    ...(tt != null && { textTransform: tt }),
-    ...(lh != null && { lineHeight: lh }),
-    ...(size != null && { fontSize: resolveSize(size as UITextProps["size"]) }),
-  };
+  const sp = (v: number | string | undefined) =>
+    v == null ? undefined : typeof v === "number" ? `${v * 8}px` : v;
+  // `inherit` is kept for API parity — semantic elements inherit by default.
+  void inherit;
+
+  const tone = c as string | undefined;
+  const cls = tone != null ? TONE_CLASS[tone] : undefined;
+  const styleObj: React.CSSProperties = {};
+  if (tone != null) {
+    styleObj.color = TONE_COLOR[tone] ?? (isLiteralColor(tone) ? tone : undefined);
+  }
+  if (fw != null) styleObj.fontWeight = fw;
+  if (ta != null) styleObj.textAlign = ta;
+  if (tt != null) styleObj.textTransform = tt;
+  if (lh != null) styleObj.lineHeight = lh;
+  if (size != null) styleObj.fontSize = resolveSize(size);
+  if (fs != null) styleObj.fontStyle = fs;
+  if (p != null) styleObj.padding = sp(p);
+  if (px != null) { styleObj.paddingLeft = sp(px); styleObj.paddingRight = sp(px); }
+  if (py != null) { styleObj.paddingTop = sp(py); styleObj.paddingBottom = sp(py); }
+  if (pt != null) styleObj.paddingTop = sp(pt);
+  if (pb != null) styleObj.paddingBottom = sp(pb);
+  if (pl != null) styleObj.paddingLeft = sp(pl);
+  if (pr != null) styleObj.paddingRight = sp(pr);
+  if (m != null) styleObj.margin = sp(m);
+  if (mx != null) { styleObj.marginLeft = sp(mx); styleObj.marginRight = sp(mx); }
+  if (my != null) { styleObj.marginTop = sp(my); styleObj.marginBottom = sp(my); }
+  if (mt != null) styleObj.marginTop = sp(mt);
+  if (mb != null) styleObj.marginBottom = sp(mb);
+  if (ml != null) styleObj.marginLeft = sp(ml);
+  if (mr != null) styleObj.marginRight = sp(mr);
+  if (w != null) styleObj.width = typeof w === "number" ? `${w}px` : w;
+  if (maw != null) styleObj.maxWidth = typeof maw === "number" ? `${maw}px` : maw;
+  if (opacity != null) styleObj.opacity = opacity;
 
   if (truncate) {
-    Object.assign(sx, {
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-      whiteSpace: "nowrap",
-    });
+    styleObj.overflow = "hidden";
+    styleObj.textOverflow = "ellipsis";
+    styleObj.whiteSpace = "nowrap";
     if (truncate === "start") {
-      Object.assign(sx, { direction: "rtl", textAlign: "left" as const });
+      styleObj.direction = "rtl";
+      styleObj.textAlign = "left";
     }
   }
 
   if (lineClamp != null) {
-    Object.assign(sx, {
-      display: "-webkit-box",
-      WebkitLineClamp: lineClamp,
-      WebkitBoxOrient: "vertical" as const,
-      overflow: "hidden",
-    });
+    styleObj.display = "-webkit-box";
+    styleObj.WebkitLineClamp = lineClamp;
+    styleObj.WebkitBoxOrient = "vertical";
+    styleObj.overflow = "hidden";
   }
 
-  Object.assign(sx, (sxProp ?? {}) as Record<string, unknown>);
+  const Component = (component ?? (span ? "span" : "p")) as ElementType;
 
   return (
-    <Typography
-      component={span ? "span" : "p"}
-      variant={inherit ? "inherit" : "body2"}
-      className={className}
-      style={style}
+    <Component
+      className={cn(className, cls)}
+      style={{ ...styleObj, ...style }}
       id={id}
       data-testid={testId}
-      onClick={onClick as never}
-      onMouseEnter={onMouseEnter as never}
-      onMouseLeave={onMouseLeave as never}
-      sx={sx}
+      onClick={onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       {...(rest as Record<string, unknown>)}
     >
       {children}
-    </Typography>
+    </Component>
   );
 }

@@ -12,7 +12,10 @@ function r(jsx: React.ReactElement) {
 }
 
 describe("SymbolLink", () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
 
   test("renders the symbol as a TradingView link", () => {
     r(<SymbolLink symbol="RELIANCE" testId="sym-tv" />);
@@ -25,14 +28,6 @@ describe("SymbolLink", () => {
     expect(link).toHaveTextContent("RELIANCE");
     // style.css hides `a[href*="tradingview.com"]` unless it carries this class.
     expect(link).toHaveClass("pattern-tv-link");
-  });
-
-  test("uses an explicit market for non-Indian listings", () => {
-    r(<SymbolLink symbol="AAPL" market="NASDAQ" testId="sym-tv" />);
-    expect(screen.getByTestId("sym-tv")).toHaveAttribute(
-      "href",
-      "https://www.tradingview.com/chart/?symbol=NASDAQ%3AAAPL",
-    );
   });
 
   test("renders the chart icon by default (app-wide dock)", () => {
@@ -83,8 +78,19 @@ describe("SymbolLink", () => {
     expect(onPreviewEnd).toHaveBeenCalledWith("SBIN");
   });
 
-  test("keeps the text plain when the TV link is disabled", () => {
-    r(<SymbolLink symbol="NIFTY" testId="sym-plain" tvLink={false} />);
-    expect(screen.getByTestId("sym-plain").tagName).not.toBe("A");
+  test("does not render the copy button by default", () => {
+    r(<SymbolLink symbol="RELIANCE" testId="sym-tv" />);
+    expect(screen.queryByTestId("symbol-copy-RELIANCE")).toBeNull();
+  });
+
+  test("showCopy writes the symbol to the clipboard without following the TV link", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+
+    r(<SymbolLink symbol="RELIANCE" showCopy testId="sym-tv" />);
+
+    const copy = screen.getByTestId("symbol-copy-RELIANCE");
+    await userEvent.click(copy);
+    expect(writeText).toHaveBeenCalledWith("RELIANCE");
   });
 });

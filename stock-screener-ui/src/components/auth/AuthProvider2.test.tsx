@@ -114,13 +114,12 @@ describe("AuthProvider2", () => {
       json: async () => ({ id: 1, email: "test@test.com" }),
     });
 
-    let result: Response | null = null;
     function Consumer() {
       const auth = useAuth();
       return (
         <button
           onClick={async () => {
-            result = await auth.fetchWithAuth("http://example.com/api/data");
+            await auth.fetchWithAuth("http://example.com/api/data");
           }}
         >
           Fetch
@@ -178,6 +177,11 @@ describe("AuthProvider2", () => {
       );
       expect(loginCalls.length).toBeGreaterThanOrEqual(1);
     });
+
+    // Tokens and user are stored on successful login.
+    expect(localStorage.getItem(TOKEN_KEY)).toBe("new-token");
+    expect(localStorage.getItem(REFRESH_TOKEN_KEY)).toBe("new-refresh");
+    expect(screen.getByTestId("auth-user")).toHaveTextContent("test@test.com");
   });
 
   it("login returns error on failure", async () => {
@@ -194,7 +198,7 @@ describe("AuthProvider2", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId("auth-error")).not.toHaveTextContent("null");
+      expect(screen.getByTestId("auth-error")).toHaveTextContent("Invalid credentials");
     });
   });
 
@@ -213,6 +217,8 @@ describe("AuthProvider2", () => {
     });
 
     expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
+    expect(localStorage.getItem(REFRESH_TOKEN_KEY)).toBeNull();
+    expect(localStorage.getItem(USER_KEY)).toBeNull();
   });
 
   it("checkAuth validates stored token via /api/auth/me", async () => {
@@ -264,19 +270,4 @@ describe("AuthProvider2", () => {
     });
   });
 
-  it("isAuthenticated is true only when user + token exist", () => {
-    localStorage.setItem(TOKEN_KEY, "test-token");
-    localStorage.setItem(USER_KEY, JSON.stringify({ id: 1, email: "test@test.com" }));
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        id: 1,
-        email: "test@test.com",
-        display_name: "Test",
-        initial_capital: 0,
-        created_at: "2025-01-01T00:00:00Z",
-      }),
-    });
-    renderWithProvider();
-  });
 });

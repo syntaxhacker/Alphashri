@@ -1,8 +1,6 @@
-import { Tooltip } from "@/ui";
+import { Box, Text, Tooltip } from "@/ui";
 import { useNavigate } from "react-router-dom";
-import ListItemButton from "@mui/material/ListItemButton";
-import ListItemIcon from "@mui/material/ListItemIcon";
-import ListItemText from "@mui/material/ListItemText";
+import * as palette from "@/ui/palette";
 
 interface NavbarLinksGroupProps {
   icon: React.FC<any>;
@@ -25,8 +23,8 @@ export function NavbarLinksGroup({
 
   const testId = `nav-${label.toLowerCase().replace(/\s+/g, "-").replace("paper-trading", "paper").replace("sector-analysis", "sector")}`;
   const navLink = (
-    <ListItemButton
-      selected={active}
+    <Box
+      role="button"
       onClick={() => {
         navigate(link);
         onNavigate?.();
@@ -34,28 +32,30 @@ export function NavbarLinksGroup({
       data-testid={testId}
       data-active={active || undefined}
       id={`nav-link-${label.toLowerCase().replace(/\s+/g, "-")}`}
-      // The rail collapses to an icon strip, so the visible text disappears.
-      // Keep the name on the interactive element itself — a Tooltip wrapper is
-      // a sibling span and never contributes to the button's accessible name.
       aria-label={label}
       title={label}
-      sx={{
-        borderRadius: 1,
+      className="flex items-center gap-2 rounded-fin px-3 py-3 min-w-0 cursor-pointer transition-colors"
+      style={{
         justifyContent: collapsed ? "center" : "flex-start",
-        py: 0.75,
-        ...(active ? { bgcolor: "primary.light", color: "primary.dark", "& .MuiListItemIcon-root": { color: "primary.dark" } } : {}),
+        ...(active
+          ? { backgroundColor: "#80B5FF", color: "#1A5CD6" }
+          : {}),
       }}
     >
-      <ListItemIcon sx={{ minWidth: 36, justifyContent: collapsed ? "center" : "flex-start", color: active ? "primary.dark" : "text.secondary" }}>
+      <Box className="flex items-center justify-center min-w-[36px]" style={{ color: active ? "#1A5CD6" : palette.TEXT_MUTED }}>
         <Icon size={16} />
-      </ListItemIcon>
-      {!collapsed && <ListItemText primary={label} slotProps={{ primary: { sx: { fontSize: "0.875rem", fontWeight: active ? 600 : 400 } } }} />}
-    </ListItemButton>
+      </Box>
+      {!collapsed && (
+        <Text size="sm" style={{ fontSize: "0.875rem", fontWeight: active ? 600 : 400 }}>
+          {label}
+        </Text>
+      )}
+    </Box>
   );
 
   if (collapsed) {
     return (
-      <Tooltip label={label} position="right" transitionProps={{ duration: 0 }}>
+      <Tooltip label={label} position="right">
         {navLink}
       </Tooltip>
     );

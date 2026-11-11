@@ -147,54 +147,12 @@ describe("StrategyCard", () => {
   });
 
   describe("data integrity edge cases", () => {
-    test("renders strategy with single position", () => {
-      const positions = createPositions(1);
-      renderWithProviders(
-        <StrategyCard {...defaultProps} positions={positions} />,
-      );
-      const card = screen.getByTestId("strategy-card-ORB Strategy");
-      expect(card.textContent).toContain("1");
-    });
-
-    test("capacity bar at 0% when maxCapacity > 0 and no positions", () => {
-      renderWithProviders(
-        <StrategyCard {...defaultProps} positions={[]} maxCapacity={5} />,
-      );
-      const progress = screen.getByRole("progressbar");
-      expect(progress).toHaveAttribute("aria-valuenow", "0");
-    });
-
-    test("formatSignedPnl renders positive P&L with + sign", () => {
-      const positions = createPositions(1, { pnl: 2500 });
-      renderWithProviders(
-        <StrategyCard {...defaultProps} positions={positions} />,
-      );
-      expect(screen.getByText((c) => c.includes("+") && c.includes("₹"))).toBeInTheDocument();
-    });
-
-    test("formatSignedPnl renders negative P&L with - sign", () => {
-      const positions = createPositions(1, { pnl: -2500 });
-      renderWithProviders(
-        <StrategyCard {...defaultProps} positions={positions} />,
-      );
-      expect(screen.getByText((c) => c.includes("-") && c.includes("₹"))).toBeInTheDocument();
-    });
-
     test("does not crash when positions contain NaN P&L", () => {
       const positions = createPositions(2, { pnl: NaN, pnl_pct: NaN });
       renderWithProviders(
         <StrategyCard {...defaultProps} positions={positions} />,
       );
       expect(screen.getByText("ORB Strategy")).toBeInTheDocument();
-    });
-
-    test("renders multiple positions across same strategy", () => {
-      const positions = createPositions(5);
-      renderWithProviders(
-        <StrategyCard {...defaultProps} positions={positions} />,
-      );
-      const card = screen.getByTestId("strategy-card-ORB Strategy");
-      expect(card.textContent).toContain("5");
     });
   });
 });

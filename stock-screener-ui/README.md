@@ -8,7 +8,7 @@ A modern, multi-user stock trading dashboard with paper trading, backtesting, re
 - **React 19** - UI library
 - **TypeScript** - Type safety
 - **Vite** - Build tool and dev server
-- **MUI (Material UI)** - Component library
+- **Tailwind CSS 4** - Styling system
 - **Redux Toolkit** - State management
 - **React Router** - Navigation
 - **Tabler Icons** - Icon library
@@ -192,7 +192,7 @@ stock-screener-ui/
 │   ├── state/            # State management
 │   ├── types/            # TypeScript types
 │   ├── utils/            # Utility functions
-│   ├── theme/            # MUI theme config
+│   ├── theme/            # Tailwind theme tokens
 │   └── App.tsx           # Main app component
 ├── api/                  # Backend API modules
 ├── db/                   # SQLite database
@@ -324,7 +324,7 @@ User data is stored in user-scoped directories:
 - **User Isolation**: Each user has isolated data directories for journals and trade logs
 - **Authentication**: JWT-based auth with optional requirement (disabled by default for development)
 - **State Management**: Redux Toolkit for global state, React hooks for local state
-- **Component Library**: MUI (Material UI) provides a consistent design system
+- **Component System**: local `@/ui` semantic HTML + Tailwind
 - **Testing Strategy**: Playwright for E2E, Vitest for unit tests, Storybook for component testing
 
 ## Troubleshooting

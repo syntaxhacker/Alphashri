@@ -62,33 +62,4 @@ describe("CorrelationHeatmap", () => {
     expect(screen.getByText("No correlation data available")).toBeInTheDocument();
   });
 
-  it("renders with testId", () => {
-    const matrix = [[1.0]];
-    renderWithProvider(
-      <CorrelationHeatmap matrix={matrix} symbols={["TEST"]} testId="my-heatmap" />,
-    );
-    expect(screen.getByTestId("my-heatmap")).toBeInTheDocument();
-  });
-
-  it("uses custom valueFormatter when provided", () => {
-    const matrix = [[1.0]];
-    const formatter = (v: number) => `${(v * 100).toFixed(1)}%`;
-    renderWithProvider(
-      <CorrelationHeatmap
-        matrix={matrix}
-        symbols={["TEST"]}
-        valueFormatter={formatter}
-        testId="correlation-heatmap"
-      />,
-    );
-    expect(screen.getByTestId("correlation-heatmap")).toBeInTheDocument();
-  });
-
-  it("supports dark mode theme", () => {
-    const matrix = [[1.0]];
-    renderWithProvider(
-      <CorrelationHeatmap matrix={matrix} symbols={["TEST"]} isDark testId="correlation-heatmap" />,
-    );
-    expect(screen.getByTestId("correlation-heatmap")).toBeInTheDocument();
-  });
 });

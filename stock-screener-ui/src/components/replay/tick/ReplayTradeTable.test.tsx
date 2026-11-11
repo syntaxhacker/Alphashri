@@ -41,7 +41,7 @@ const closedTrade: RTrade = {
 const openTrade: RTrade = {
   time: T0 + 7200, exit_time: T0 + 10800, side: "SHORT", kind: "vwap-orb",
   entry: 29100.0, sl: 29130.0, tp: 29070.0, exit: 0,
-  result: "SL", pnl: 0, rr: 0,
+  result: undefined, pnl: 0, rr: 0,
 };
 
 describe("ReplayTradeTable", () => {

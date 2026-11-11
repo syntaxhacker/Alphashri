@@ -51,32 +51,32 @@ export function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummar
       padding="md"
       radius="md"
       data-testid="portfolio-summary"
-      sx={{ p: 1 }}
+      className="p-2"
     >
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={600} size="sm" ta="center">Portfolio Summary</Text></Box>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <Box className="flex items-center justify-between gap-2 p-2">
+        <Box className="flex items-center justify-center"><Text fw={600} size="sm" ta="center">Portfolio Summary</Text></Box>
+        <Box className="flex items-center justify-center">
           <Badge color={isGreen ? "success" : "error"} variant="light" size="sm">
             {isGreen ? "PROFIT" : "LOSS"}
           </Badge>
         </Box>
       </Box>
-      <Stack spacing={1} sx={{ gap: 1, p: 1, alignItems: "center" }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1, width: "100%" }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Capital</Text>
-          <Text fw={600} sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", textAlign: "right" }}>₹{formatNumberShared(portfolio.initial_capital)}</Text>
+      <Stack spacing={1} className="flex items-center gap-2 p-2">
+        <Box className="flex w-full items-center justify-between gap-2 p-2">
+          <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Capital</Text>
+          <Text fw={600} className="flex flex-1 items-center justify-end text-right">₹{formatNumberShared(portfolio.initial_capital)}</Text>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1, width: "100%" }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Cash</Text>
-          <Text fw={600} sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", textAlign: "right" }}>₹{formatNumberShared(portfolio.cash)}</Text>
+        <Box className="flex w-full items-center justify-between gap-2 p-2">
+          <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Cash</Text>
+          <Text fw={600} className="flex flex-1 items-center justify-end text-right">₹{formatNumberShared(portfolio.cash)}</Text>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1, width: "100%" }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Positions</Text>
-          <Text fw={600} sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", textAlign: "right" }}>{portfolio.total_positions}</Text>
+        <Box className="flex w-full items-center justify-between gap-2 p-2">
+          <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Positions</Text>
+          <Text fw={600} className="flex flex-1 items-center justify-end text-right">{portfolio.total_positions}</Text>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1, borderRadius: 1, backgroundColor: pnlBg, width: "100%" }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Total P&L</Text>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+        <Box className="flex w-full items-center justify-between gap-2 rounded p-2" style={{ backgroundColor: pnlBg }}>
+          <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Total P&L</Text>
+          <Box className="flex flex-1 items-center justify-end">
             <Text fw={600} c={pnlColor} ta="center">
               {formatSignedPnl(portfolio.total_pnl)}
               <Text span size="sm" ml={4}>
@@ -108,38 +108,38 @@ export function StrategyStatusCard({
       padding="sm"
       radius="md"
       data-testid="strategy-card"
-      sx={{ p: 1 }}
+      className="p-2"
     >
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }} mb={1}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <Box className="flex items-center justify-between gap-2 p-2" mb={1}>
+        <Box className="flex items-center justify-center">
           <Text fw={600} size="sm" ta="center">{strategy.strategy_name}</Text>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Box className="flex items-center justify-center">
           <Badge color={strategy.status === "running" ? "success" : "secondary"} variant="filled" size="sm">
             {strategy.status}
           </Badge>
         </Box>
       </Box>
 
-      <Stack spacing={1} sx={{ gap: 1, p: 1 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Positions</Text>
-          <Text size="sm" fw={500} sx={{ flex: 1, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+      <Stack spacing={1} className="gap-2 p-2">
+        <Box className="flex items-center justify-between gap-2 p-2">
+          <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Positions</Text>
+          <Text size="sm" fw={500} className="flex flex-1 items-center justify-end text-right">
             {strategy.positions_count}/{strategy.max_positions}
           </Text>
         </Box>
 
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Capital Used</Text>
-          <Text size="sm" fw={500} sx={{ flex: 1, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+        <Box className="flex items-center justify-between gap-2 p-2">
+          <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Capital Used</Text>
+          <Text size="sm" fw={500} className="flex flex-1 items-center justify-end text-right">
             ₹{formatNumberShared(strategy.capital_used)} / ₹{formatNumberShared(strategy.allocated_capital)} ({usedPct.toFixed(0)}%)
           </Text>
         </Box>
         <Progress value={Math.min(usedPct, 100)} size="sm" color="primary" />
 
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>P&L</Text>
-          <Text size="sm" fw={600} c={pnlColor} sx={{ flex: 1, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+        <Box className="flex items-center justify-between gap-2 p-2">
+          <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">P&L</Text>
+          <Text size="sm" fw={600} c={pnlColor} className="flex flex-1 items-center justify-end text-right">
             {formatSignedPnl(strategy.total_pnl)}
             <Text span size="xs" ml={4}>
               ({isGreen ? "+" : ""}
@@ -148,9 +148,9 @@ export function StrategyStatusCard({
           </Text>
         </Box>
 
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Trades</Text>
-          <Text size="sm" fw={500} sx={{ flex: 1, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+        <Box className="flex items-center justify-between gap-2 p-2">
+          <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Trades</Text>
+          <Text size="sm" fw={500} className="flex flex-1 items-center justify-end text-right">
             {strategy.trades_count}
           </Text>
         </Box>
@@ -169,7 +169,7 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
       accessorKey: "strategy_name",
       meta: { align: "left" } as any,
       cell: ({ row }) => (
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
+        <Box className="flex items-center justify-start">
           <Text fw={600} size="sm" ta="left">{row.original.strategy_name}</Text>
         </Box>
       ),
@@ -179,14 +179,14 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
       header: "Symbol",
       accessorKey: "symbol",
       meta: { align: "left" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Text fw={600} ta="left">{row.original.symbol}</Text></Box>,
+      cell: ({ row }) => <Box className="flex items-center justify-start"><Text fw={600} ta="left">{row.original.symbol}</Text></Box>,
     },
     {
       id: "side",
       header: "Side",
       accessorKey: "side",
       meta: { align: "center" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><SideBadge side={row.original.side} /></Box>,
+      cell: ({ row }) => <Box className="flex items-center justify-center"><SideBadge side={row.original.side} /></Box>,
     },
     {
       id: "quantity",
@@ -233,8 +233,8 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
       header: "SL/TP",
       meta: { align: "center" } as any,
       cell: ({ row }) => (
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Group gap="xs" wrap="nowrap" sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+        <Box className="flex items-center justify-center">
+          <Group gap="xs" wrap="nowrap" className="flex items-center justify-center gap-2">
             <Badge color="error" variant="dot" size="sm" />
             <Text size="sm">₹{row.original.stop_loss.toFixed(2)}</Text>
             <Badge color="success" variant="dot" size="sm" />
@@ -247,10 +247,10 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
   ];
 
   return (
-    <Card elevation={1} padding="md" radius="md" data-testid="bot-positions" sx={{ p: 1 }}>
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }} mb="sm">
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={600} ta="center">Open Positions</Text></Box>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <Card elevation={1} padding="md" radius="md" data-testid="bot-positions" className="p-2">
+      <Box className="flex items-center justify-between gap-2 p-2" mb="sm">
+        <Box className="flex items-center justify-center"><Text fw={600} ta="center">Open Positions</Text></Box>
+        <Box className="flex items-center justify-center">
           <Badge color="primary" variant="light" size="sm">
             {positions.length} active
           </Badge>
@@ -269,13 +269,13 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
 export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefresh: () => void }) {
   if (trades.length === 0) {
     return (
-      <Card elevation={1} padding="md" radius="md" data-testid="bot-trades" sx={{ p: 1 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }} mb="sm">
+      <Card elevation={1} padding="md" radius="md" data-testid="bot-trades" className="p-2">
+        <Box className="flex items-center justify-center p-2" mb="sm">
           <Text fw={600} ta="center">
             Trade History
           </Text>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+        <Box className="flex items-center justify-center p-2">
           <Text c="dimmed" ta="center">
             No trades yet
           </Text>
@@ -291,8 +291,8 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
       accessorKey: "strategy_name",
       meta: { align: "left" } as any,
       cell: ({ row }) => (
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
-          <Group gap={4} sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1 }}>
+        <Box className="flex items-center justify-start">
+          <Group gap={4} className="flex items-center justify-start gap-2">
             <Text fw={600} size="sm" ta="left">{row.original.strategy_name}</Text>
             {row.original.is_test && (
               <Badge color="warning" size="sm" variant="light">
@@ -308,14 +308,14 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
       header: "Symbol",
       accessorKey: "symbol",
       meta: { align: "left" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Text fw={600} ta="left">{row.original.symbol}</Text></Box>,
+      cell: ({ row }) => <Box className="flex items-center justify-start"><Text fw={600} ta="left">{row.original.symbol}</Text></Box>,
     },
     {
       id: "side",
       header: "Side",
       accessorKey: "side",
       meta: { align: "center" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><SideBadge side={row.original.side} /></Box>,
+      cell: ({ row }) => <Box className="flex items-center justify-center"><SideBadge side={row.original.side} /></Box>,
     },
     {
       id: "quantity",
@@ -376,16 +376,16 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
       header: "Exit Reason",
       accessorKey: "exit_reason",
       meta: { align: "left" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><ExitReasonBadge reason={row.original.exit_reason} /></Box>,
+      cell: ({ row }) => <Box className="flex items-center justify-start"><ExitReasonBadge reason={row.original.exit_reason} /></Box>,
       enableSorting: false,
     },
   ];
 
   return (
-    <Card elevation={1} padding="md" radius="md" data-testid="bot-trades" sx={{ p: 1 }}>
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }} mb="sm">
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={600} ta="center">Trade History ({trades.length})</Text></Box>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+    <Card elevation={1} padding="md" radius="md" data-testid="bot-trades" className="p-2">
+      <Box className="flex items-center justify-between gap-2 p-2" mb="sm">
+        <Box className="flex items-center justify-center"><Text fw={600} ta="center">Trade History ({trades.length})</Text></Box>
+        <Box className="flex items-center justify-center gap-2">
           <Badge
             color="success"
             variant="filled"

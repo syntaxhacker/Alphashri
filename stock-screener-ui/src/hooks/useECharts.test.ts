@@ -77,31 +77,6 @@ describe("useECharts", () => {
     expect(mockEcharts.init).not.toHaveBeenCalled();
   });
 
-  it("adds window resize listener on mount", async () => {
-    const { result } = renderHook(() => useECharts({ isDark: false }));
-
-    await initChart(result);
-  });
-
-  it("adds ResizeObserver when available", async () => {
-    const observeMock = vi.fn();
-    const roMock = vi.fn(() => ({
-      observe: observeMock,
-      disconnect: vi.fn(),
-    }));
-    global.ResizeObserver = roMock as any;
-
-    const { result } = renderHook(() => useECharts({ isDark: false }));
-
-    attachMockDiv(result.current.chartRef);
-    await applyOption(result, { series: [] });
-
-    // Note: The current implementation doesn't create ResizeObserver after mount
-    // because chartRef.current is null when useEffect runs
-    // Just verify that ResizeObserver was defined/mocked
-    expect(global.ResizeObserver).toBeDefined();
-  });
-
   it("handles multiple setChartOption calls", async () => {
     const { result } = renderHook(() => useECharts({ isDark: false }));
 

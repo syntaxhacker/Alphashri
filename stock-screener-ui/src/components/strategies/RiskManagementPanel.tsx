@@ -10,8 +10,8 @@ interface RiskManagementPanelProps {
 export function RiskManagementPanel({ initialValues, isIntraday }: RiskManagementPanelProps) {
   return (
     <Tabs.Panel value="risk" keepMounted className="strategy-form-tab-panel" data-testid="strategy-panel-risk">
-      <Stack spacing={1} gap="sm" mt="sm" sx={{ gap: 1, p: 1 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+      <Stack spacing={1} gap="sm" mt="sm" className="p-2">
+        <Box className="flex items-center justify-center p-2">
           <Text size="xs" c="dimmed" ta="center" style={{ lineHeight: 1.5 }}>
             These limits apply to the capital allocated to this strategy from the bot. Example: if bot
             allocates ₹5Lac to this strategy, a 1% risk = max loss ₹5,000 per trade.
@@ -20,9 +20,9 @@ export function RiskManagementPanel({ initialValues, isIntraday }: RiskManagemen
 
         <Divider label="Per-Trade Sizing" labelPosition="left" />
 
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Risk Per Trade %</Text>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+        <Box className="flex items-center gap-2 p-2">
+          <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Risk Per Trade %</Text>
+          <Box className="flex-1 flex items-center">
             <NumberInput
               size="sm"
               name="risk_per_trade_pct"
@@ -36,9 +36,9 @@ export function RiskManagementPanel({ initialValues, isIntraday }: RiskManagemen
             />
           </Box>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Max Position Size %</Text>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+        <Box className="flex items-center gap-2 p-2">
+          <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Max Position Size %</Text>
+          <Box className="flex-1 flex items-center">
             <NumberInput
               size="sm"
               name="max_capital_per_trade_pct"
@@ -52,9 +52,9 @@ export function RiskManagementPanel({ initialValues, isIntraday }: RiskManagemen
           </Box>
         </Box>
 
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Min Trade Value</Text>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+        <Box className="flex items-center gap-2 p-2">
+          <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Min Trade Value</Text>
+          <Box className="flex-1 flex items-center">
             <NumberInput
               size="sm"
               name="min_trade_value"
@@ -68,9 +68,9 @@ export function RiskManagementPanel({ initialValues, isIntraday }: RiskManagemen
             />
           </Box>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Max Trade Value</Text>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+        <Box className="flex items-center gap-2 p-2">
+          <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Max Trade Value</Text>
+          <Box className="flex-1 flex items-center">
             <NumberInput
               size="sm"
               name="max_trade_value"
@@ -87,9 +87,9 @@ export function RiskManagementPanel({ initialValues, isIntraday }: RiskManagemen
 
         <Divider label="Cooldown" labelPosition="left" />
 
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>{isIntraday ? "Cooldown Minutes" : "Cooldown Days"}</Text>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+        <Box className="flex items-center gap-2 p-2">
+          <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">{isIntraday ? "Cooldown Minutes" : "Cooldown Days"}</Text>
+          <Box className="flex-1 flex items-center">
             {isIntraday ? (
               <NumberInput
                 size="sm"
@@ -116,7 +116,7 @@ export function RiskManagementPanel({ initialValues, isIntraday }: RiskManagemen
           </Box>
         </Box>
 
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, mt: 1 }}>
+        <Box className="flex items-center justify-center gap-2 p-2" mt="sm">
           <Text size="xs" c="dimmed" fs="italic" ta="center">
             <IconInfoCircle size={12} style={{ verticalAlign: "middle", marginRight: 4 }} />
             Max Daily Loss % and Max Total Exposure % are configured at the bot level (Bot Settings).

@@ -6,40 +6,21 @@ import {
   Box,
   Button,
   CloseButton,
+  Collapse,
   Divider,
   Group,
   Loader,
   ScrollArea,
   Select,
+  Skeleton,
   Stack,
   Text,
   Title,
   ToolbarRow,
   Tooltip,
 } from "@/ui";
-import List from "@mui/material/List";
-import ListItem from "@mui/material/ListItem";
-import MuiListItemButton from "@mui/material/ListItemButton";
-import ListItemIcon from "@mui/material/ListItemIcon";
-import ListItemText from "@mui/material/ListItemText";
-import MuiDivider from "@mui/material/Divider";
-import MuiCollapse from "@mui/material/Collapse";
-import Skeleton from "@mui/material/Skeleton";
-import MuiAlert from "@mui/material/Alert";
-import Typography from "@mui/material/Typography";
-import Toolbar from "@mui/material/Toolbar";
-import IconButton from "@mui/material/IconButton";
-import CloseIcon from "@mui/icons-material/Close";
-import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import {
-  IconArrowLeft,
-  IconChartLine,
-  IconExternalLink,
-  IconNews,
-  IconRefresh,
-} from "@tabler/icons-react";
+import * as palette from "@/ui/palette";
+import { IconArrowLeft, IconChartLine, IconChevronDown, IconChevronUp, IconExternalLink, IconNews, IconRefresh, IconX } from "@tabler/icons-react";
 import { Fragment } from "react";
 import type { ReactNode } from "react";
 import type { NewsItem, NewsSymbol, ArticleResponse } from "./news-types";
@@ -56,7 +37,7 @@ function ArticleSymbols({
   if (!symbols || symbols.length === 0) return null;
   return (
     <Box data-testid="news-article-symbols">
-      <Text size="sm" c="dimmed" mb="xs">
+      <Text size="sm" c="dimmed" style={{ marginBottom: 4 }}>
         Stocks mentioned:
       </Text>
       <Group gap="xs" align="center">
@@ -69,18 +50,16 @@ function ArticleSymbols({
                 : `Open ${symbol.code} on Moneycontrol`
             }
           >
-            <Button
-              type="button"
-              size="xs"
+            <Badge
               variant="light"
               color={symbol.instrument_key ? "primary" : "secondary"}
               onClick={() => onSymbolClick(symbol)}
-              aria-label={`${symbol.instrument_key ? "View" : "Open"} ${symbol.trading_symbol || symbol.code}`}
               data-testid={`news-symbol-${symbol.code}`}
+              style={{ cursor: "pointer" }}
             >
               {symbol.name || symbol.code}
-              {symbol.instrument_key ? <IconChartLine size={12} style={{ marginLeft: 4 }} /> : null}
-            </Button>
+              {symbol.instrument_key && <IconChartLine size={12} style={{ marginLeft: 4 }} />}
+            </Badge>
           </Tooltip>
         ))}
       </Group>
@@ -156,7 +135,7 @@ export function ArticleView({
         justify="space-between"
         align="center"
         className="news-article-header"
-        sx={{ borderBottom: 1, borderColor: "divider" }}
+        style={{ borderBottom: `1px solid ${/* divider */ "" }`, borderBottomColor: "" }}
       >
         <Button
           variant="subtle"
@@ -232,86 +211,70 @@ export function NewsItemCard({
 }) {
   const isDesk = variant === "desk";
   return (
-    <ListItem disablePadding component={isDesk ? "div" : undefined}>
-      <MuiListItemButton
-        selected={selected}
-        onClick={() => onClick(item)}
-        aria-label={item.headline}
-        aria-current={selected ? "true" : undefined}
-        className={`news-item-card ${isUnread ? "unread" : ""}`}
-        data-testid={testId}
-        sx={
-          isDesk
-            ? {
-                alignItems: "flex-start",
-                gap: 1,
-                minHeight: 64,
-                px: 1.5,
-                py: 1,
-                borderRadius: 0,
-                borderLeft: 3,
-                borderLeftColor: selected ? "primary.main" : "transparent",
-                transitionProperty: "background-color, border-color, transform",
-                transitionDuration: "120ms",
-                "&:hover": { bgcolor: "action.hover" },
-                "&:active": { transform: "scale(0.995)" },
-              }
-            : { alignItems: "flex-start", gap: 1, py: 1 }
+    <Box
+      role="button"
+      tabIndex={0}
+      onClick={() => onClick(item)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick(item);
         }
-      >
-        <ListItemIcon sx={{ minWidth: 18, mt: 0.55, justifyContent: "center" }}>
-          {isUnread ? (
-            <FiberManualRecordIcon sx={{ fontSize: 8 }} color="primary" aria-hidden="true" />
-          ) : null}
-        </ListItemIcon>
-        <ListItemText
-          primary={item.headline}
-          secondary={
-            <Box
-              component="div"
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 1,
-                minHeight: 18,
-              }}
-            >
-              <Box component="span" sx={{ minWidth: 0 }}>
-                {meta}
-              </Box>
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                className="news-item-meta"
-                sx={{ flex: "0 0 auto", fontVariantNumeric: "tabular-nums" }}
-              >
-                {formatTimeAgo(item.publishedAt)}
-              </Typography>
-            </Box>
-          }
-          slotProps={{
-            primary: {
-              variant: "body2",
-              fontWeight: isUnread ? 600 : 400,
-              noWrap: !isDesk,
-              className: "news-item-headline",
-              ...(isDesk && {
-                sx: {
-                  display: "-webkit-box",
-                  WebkitBoxOrient: "vertical",
-                  WebkitLineClamp: 2,
-                  overflow: "hidden",
-                  lineHeight: 1.35,
-                  pr: 0.5,
-                },
-              }),
-            },
-            secondary: { component: "div", variant: "caption", sx: { mt: isDesk ? 0.5 : 0 } },
+      }}
+      className={`news-item-card ${isUnread ? "unread" : ""} flex items-start gap-4 cursor-pointer`}
+      style={{
+        alignItems: "flex-start",
+        gap: 8,
+        ...(isDesk
+          ? {
+              minHeight: 64,
+              paddingLeft: 12,
+              paddingRight: 12,
+              paddingTop: 8,
+              paddingBottom: 8,
+              borderRadius: 0,
+              borderLeft: `3px solid ${selected ? palette.PRIMARY : "transparent"}`,
+              transitionProperty: "background-color, border-color, transform",
+              transitionDuration: "120ms",
+            }
+          : { paddingTop: 8, paddingBottom: 8 }),
+      }}
+      aria-label={item.headline}
+      aria-current={selected ? "true" : undefined}
+      data-testid={testId}
+    >
+      <Box className="shrink-0" style={{ marginTop: 4, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {isUnread ? (
+          <Box style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: palette.PRIMARY }} />
+        ) : null}
+      </Box>
+      <Box style={{ minWidth: 0 }}>
+        <Text
+          size="sm"
+          fw={isUnread ? 600 : 400}
+          className="news-item-headline"
+          style={{
+            display: isDesk ? "-webkit-box" : undefined,
+            WebkitBoxOrient: isDesk ? "vertical" : undefined,
+            WebkitLineClamp: isDesk ? 2 : undefined,
+            overflow: isDesk ? "hidden" : undefined,
+            lineHeight: isDesk ? 1.35 : undefined,
+            paddingRight: isDesk ? 4 : undefined,
+            whiteSpace: isDesk ? "nowrap" : undefined,
           }}
-        />
-      </MuiListItemButton>
-    </ListItem>
+        >
+          {item.headline}
+        </Text>
+        <Box className="flex items-center justify-between gap-4 min-h-[18px]" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minHeight: 18 }}>
+          <Box component="span" style={{ minWidth: 0 }}>
+            {meta}
+          </Box>
+          <Text size="xs" c="dimmed" className="news-item-meta" style={{ flex: "0 0 auto", fontVariantNumeric: "tabular-nums", marginTop: isDesk ? 4 : 0 }}>
+            {formatTimeAgo(item.publishedAt)}
+          </Text>
+        </Box>
+      </Box>
+    </Box>
   );
 }
 
@@ -338,48 +301,20 @@ export function NewsSourceGroup({
 }) {
   const isDesk = variant === "desk";
   return (
-    <Box component={isDesk ? "section" : "div"} className="news-source-group" sx={{ listStyle: "none" }}>
-      <ListItem disablePadding component="div">
-        <MuiListItemButton
-          onClick={onToggle}
-          aria-expanded={isExpanded}
-          data-testid={`news-source-group-${source}`}
-          sx={
-            isDesk
-              ? {
-                  position: "sticky",
-                  top: 0,
-                  zIndex: 1,
-                  minHeight: 36,
-                  px: 1.5,
-                  borderRadius: 0,
-                  borderTop: 1,
-                  borderColor: "divider",
-                  bgcolor: "background.default",
-                  transitionProperty: "background-color",
-                  transitionDuration: "120ms",
-                  "&:hover": { bgcolor: "action.hover" },
-                }
-              : { borderRadius: 1 }
-          }
-        >
-          <ListItemText
-            primary={source}
-            secondary={`${items.length} ${items.length === 1 ? "article" : "articles"}`}
-            slotProps={{
-              primary: {
-                variant: "subtitle2",
-                sx: { textTransform: "uppercase", fontWeight: 700 },
-              },
-              secondary: { variant: "caption" },
-            }}
-          />
-          {isExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-        </MuiListItemButton>
-      </ListItem>
+    <Box component={isDesk ? "section" : "div"} className="news-source-group list-none">
+      <Box role="button" tabIndex={0} onClick={onToggle} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } }} aria-expanded={isExpanded} data-testid={`news-source-group-${source}`} className="flex items-center gap-2 cursor-pointer" style={isDesk ? { position: "sticky", top: 0, zIndex: 1, minHeight: 36, paddingLeft: 12, paddingRight: 12, borderRadius: 0, borderTop: `1px solid ${palette.BORDER}`, backgroundColor: palette.BG, transitionProperty: "background-color", transitionDuration: "120ms" } : { borderRadius: 8 }}>
+        <Text size="sm" fw={700} style={{ textTransform: "uppercase" }}>
+          {source}
+        </Text>
+        <Text size="xs" c="dimmed">
+          {items.length} {items.length === 1 ? "article" : "articles"}
+        </Text>
+        <Box style={{ flex: 1 }} />
+        {isExpanded ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />}
+      </Box>
 
-      <MuiCollapse in={isExpanded} timeout="auto" unmountOnExit>
-        <List dense disablePadding component={isDesk ? "div" : undefined} sx={{ py: isDesk ? 0 : 0.5 }}>
+      <Collapse in={isExpanded}>
+        <Box style={isDesk ? { paddingTop: 0, paddingBottom: 0 } : { paddingTop: 4, paddingBottom: 4 }}>
           {items.map((item) => {
             const isUnread = !readIds.has(item.id);
             if (renderItem) return <Fragment key={item.id}>{renderItem(item, isUnread)}</Fragment>;
@@ -394,8 +329,8 @@ export function NewsSourceGroup({
               />
             );
           })}
-        </List>
-      </MuiCollapse>
+        </Box>
+      </Collapse>
     </Box>
   );
 }
@@ -510,36 +445,36 @@ export function NewsListContent({
 }) {
   if (loading && newsItems.length === 0) {
     return (
-      <Box sx={{ p: 2 }} data-testid="news-loading">
-        <Stack spacing={1}>
+      <Box style={{ padding: 16 }} data-testid="news-loading">
+        <Stack className="gap-2">
           {[0, 1, 2].map((row) => (
-            <Skeleton key={row} variant="rounded" height={64} />
+            <Skeleton key={row} variant="rounded" h={64} />
           ))}
-          <Typography variant="body2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Text size="sm" c="dimmed" className="flex items-center gap-4">
             <Loader size="sm" />
             Loading news...
-          </Typography>
+          </Text>
         </Stack>
       </Box>
     );
   }
   if (error) {
     return (
-      <MuiAlert severity="error" sx={{ m: 1 }} data-testid="news-error">
+      <Alert color="error" style={{ margin: 8 }} data-testid="news-error">
         {error}
-      </MuiAlert>
+      </Alert>
     );
   }
   if (newsItems.length === 0) {
     return (
-      <Box sx={{ px: 2, py: 4, textAlign: "center" }} data-testid="news-empty">
+      <Box style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 32, paddingBottom: 32, textAlign: "center" }} data-testid="news-empty">
         <IconNews size={32} aria-hidden="true" />
-        <Typography variant="subtitle1" fontWeight={600} sx={{ mt: 1 }}>
+        <Text size="sm" fw={600} style={{ marginTop: 8 }}>
           No news available
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
+        </Text>
+        <Text size="sm" c="dimmed">
           New articles will appear here when sources publish them.
-        </Typography>
+        </Text>
       </Box>
     );
   }
@@ -549,16 +484,9 @@ export function NewsListContent({
   );
   const isDesk = variant === "desk";
   return (
-    <List
-      dense
-      disablePadding
-      component={isDesk ? "section" : undefined}
-      className="news-source-groups"
-      aria-label="News stories by source"
-      sx={{ width: "100%" }}
-    >
+    <Box component={isDesk ? "section" : undefined} className="news-source-groups" style={{ width: "100%" }} aria-label="News stories by source">
       {visibleSources.map((source, index) => (
-        <Box component={isDesk ? "section" : "li"} key={source} sx={{ listStyle: "none" }}>
+        <Box component={isDesk ? "section" : "li"} key={source} style={{ listStyle: "none" }}>
           <NewsSourceGroup
             source={source}
             items={groupedNewsItems[source]}
@@ -579,10 +507,10 @@ export function NewsListContent({
               />
             )}
           />
-          {!isDesk && index < visibleSources.length - 1 ? <MuiDivider component="div" /> : null}
+          {!isDesk && index < visibleSources.length - 1 ? <Divider orientation="horizontal" /> : null}
         </Box>
       ))}
-    </List>
+    </Box>
   );
 }
 
@@ -597,33 +525,31 @@ export function NewsListHeader({
 }) {
   return (
     <Box id="news-panel-header" data-testid="news-panel-header">
-      <Toolbar variant="dense" disableGutters sx={{ px: 1, gap: 1 }}>
-        <Typography variant="subtitle1" fontWeight={700} sx={{ textTransform: "uppercase" }}>
+      <ToolbarRow style={{ paddingLeft: 8, gap: 8 }}>
+        <Text size="sm" fw={700} style={{ textTransform: "uppercase" }}>
           News
-        </Typography>
+        </Text>
         {wsConnected && (
           <Tooltip label="Live updates connected">
-            <FiberManualRecordIcon
-              color="success"
-              sx={{ fontSize: 8 }}
-              data-testid="news-ws-indicator"
-            />
+            <Box style={{ color: palette.POSITIVE, fontSize: 8 }}>
+              <Box style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: palette.POSITIVE }} />
+            </Box>
           </Tooltip>
         )}
         {isRefreshing && <Loader size="sm" />}
-        <Box sx={{ flexGrow: 1 }} />
-        <IconButton
-          edge="end"
+        <Box style={{ flexGrow: 1 }} />
+        <ActionIcon
           size="small"
           aria-label="Close news panel"
           onClick={onClose}
           className="news-close-btn"
           data-testid="news-close-btn"
+          variant="subtle"
         >
-          <CloseIcon fontSize="small" />
-        </IconButton>
-      </Toolbar>
-      <MuiDivider />
+          <IconX size={12} />
+        </ActionIcon>
+      </ToolbarRow>
+      <Divider />
     </Box>
   );
 }

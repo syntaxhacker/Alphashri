@@ -48,11 +48,6 @@ function makeContract(overrides: any = {}) {
 }
 
 describe("OIAnalysis", () => {
-  it("renders OI analysis container", () => {
-    renderWithProviders(<OIAnalysis strikeMatrix={[]} spotPrice={24500} />);
-    expect(screen.getByTestId("oi-analysis")).toBeInTheDocument();
-  });
-
   it("renders OptionAlerts child component", () => {
     renderWithProviders(<OIAnalysis strikeMatrix={[]} spotPrice={24500} />);
     expect(screen.getByTestId("options-alerts")).toBeInTheDocument();

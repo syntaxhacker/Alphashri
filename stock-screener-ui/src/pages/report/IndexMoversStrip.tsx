@@ -1,15 +1,9 @@
 import { memo, useEffect, useState, useCallback, useRef } from "react";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Tooltip from "@mui/material/Tooltip";
+import { Loader, Text, Tooltip } from "@/ui";
 import { IconChevronRight } from "@tabler/icons-react";
-import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import {
   REPORT_FONT,
-  REPORT_ROW,
-  REPORT_PAD,
-  REPORT_RADIUS,
 } from "./reportTokens";
 import { fetchIndexMovers, IndexMoversResponse, IndexMoverRow } from "@/api/indexMovers";
 
@@ -44,15 +38,8 @@ function MoverItem({
   const color = isGainer ? GAINER_COLOR : LOSER_COLOR;
   const signed = isGainer ? "+" : "";
   return (
-    <Box
-      component="span"
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "4px",
-        flexShrink: 0,
-        whiteSpace: "nowrap",
-      }}
+    <span
+      className="inline-flex items-center gap-1 shrink-0 whitespace-nowrap"
     >
       <Text
         span
@@ -93,7 +80,7 @@ function MoverItem({
       >
         {signed}{row.change_pct.toFixed(2)}%
       </Text>
-    </Box>
+    </span>
   );
 }
 
@@ -107,20 +94,11 @@ function MoverSection({
   isGainer: boolean;
 }) {
   return (
-    <Box
-      component="span"
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        flexShrink: 0,
-        minWidth: 0,
-      }}
-    >
+    <span className="flex items-center gap-2 min-w-0 shrink-0">
       {rows.map((row, i) => (
         <MoverItem key={`${row.symbol}-${i}`} row={row} isGainer={isGainer} />
       ))}
-    </Box>
+    </span>
   );
 }
 
@@ -192,103 +170,65 @@ export const IndexMoversStrip = memo(function IndexMoversStrip({
   // Live-only message
   if (liveOnly) {
     return (
-      <Box
+      <div
         data-testid="movers-strip"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: REPORT_ROW.normal,
-          px: REPORT_PAD.md,
-          borderTop: `1px solid ${palette.TERM_BORDER}`,
-          borderBottom: `1px solid ${palette.TERM_BORDER}`,
-          bgcolor: palette.TERM_HEADER,
-          fontFamily: palette.MONO,
-          fontSize: REPORT_FONT.xs,
-          color: palette.TEXT_MUTED,
-        }}
+        className="flex items-center justify-center h-[24px] min-h-[24px] px-2 border-t border-fin-border border-b border-fin-border bg-fin-surface font-mono text-[11px] text-fin-text-muted"
       >
         <Text span size="xs" fw={700} c="dimmed" style={{ letterSpacing: "0.1em" }}>
           MOVERS
         </Text>
-        <Text span size="xs" c="dimmed" sx={{ ml: 2, fontStyle: "italic" }}>
+        <Text span size="xs" c="dimmed" className="ml-4 italic" style={{ fontSize: REPORT_FONT.xs }}>
           · live only
         </Text>
-      </Box>
+      </div>
     );
   }
 
+  // Strip chrome shared by loading / error / data states
+  const stripChrome = (children: React.ReactNode) => (
+    <div
+      data-testid="movers-strip"
+      className="flex items-center h-[24px] min-h-[24px] px-2 border-t border-fin-border border-b border-fin-border bg-fin-surface font-mono text-[11px]"
+    >
+      {children}
+    </div>
+  );
+
   // Loading state
   if (isLoading && !data) {
-    return (
-      <Box
-        data-testid="movers-strip"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          height: REPORT_ROW.normal,
-          px: REPORT_PAD.md,
-          borderTop: `1px solid ${palette.TERM_BORDER}`,
-          borderBottom: `1px solid ${palette.TERM_BORDER}`,
-          bgcolor: palette.TERM_HEADER,
-        }}
-      >
+    return stripChrome(
+      <>
         <Text span size="xs" fw={700} c="dimmed" style={{ letterSpacing: "0.1em" }}>
           MOVERS
         </Text>
-        <Box
-          component="span"
-          sx={{ ml: 2, display: "inline-flex", alignItems: "center", gap: 4 }}
-        >
-          <Box
-            sx={{
-              width: 12,
-              height: 12,
-              borderRadius: "50%",
-              border: `2px solid ${palette.TEXT_MUTED}`,
-              borderTopColor: palette.PRIMARY,
-              animation: "spin 0.8s linear infinite",
-              "@keyframes spin": { to: { transform: "rotate(360deg)" } },
-            }}
-          />
+        <span className="ml-2 inline-flex items-center gap-1">
+          <Loader size="xs" color={palette.PRIMARY} />
           <Text span size="xs" c="dimmed">
             loading…
           </Text>
-        </Box>
-      </Box>
+        </span>
+      </>
     );
   }
 
   // Error state
   if (isError && !data) {
-    return (
-      <Box
-        data-testid="movers-strip"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          height: REPORT_ROW.normal,
-          px: REPORT_PAD.md,
-          borderTop: `1px solid ${palette.TERM_BORDER}`,
-          borderBottom: `1px solid ${palette.TERM_BORDER}`,
-          bgcolor: palette.TERM_HEADER,
-        }}
-      >
+    return stripChrome(
+      <>
         <Text span size="xs" fw={700} c="dimmed" style={{ letterSpacing: "0.1em" }}>
           MOVERS
         </Text>
-        <Text span size="xs" c="error" sx={{ ml: 2 }}>
+        <Text span size="xs" c="error" className="ml-2">
           unavailable
         </Text>
-        <Button
-          size="sm"
-          variant="subtle"
+        <button
+          type="button"
+          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-border text-fin-border bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 px-2 py-0 text-[10px] font-bold ml-auto min-w-0"
           onClick={poll}
-          sx={{ ml: "auto", minWidth: 0, px: 1, fontSize: REPORT_FONT.micro }}
         >
           Retry
-        </Button>
-      </Box>
+        </button>
+      </>
     );
   }
 
@@ -297,42 +237,18 @@ export const IndexMoversStrip = memo(function IndexMoversStrip({
   const losers = data?.losers ?? [];
 
   return (
-    <Box
+    <div
       data-testid="movers-strip"
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: REPORT_PAD.md,
-        height: REPORT_ROW.normal,
-        minHeight: REPORT_ROW.normal,
-        px: REPORT_PAD.md,
-        borderTop: `1px solid ${palette.TERM_BORDER}`,
-        borderBottom: `1px solid ${palette.TERM_BORDER}`,
-        bgcolor: palette.TERM_HEADER,
-        fontFamily: palette.MONO,
-        fontSize: REPORT_FONT.xs,
-        whiteSpace: "nowrap",
-        overflow: "hidden",
-        flexShrink: 0,
-      }}
+      className="flex items-center justify-between gap-2 h-[24px] min-h-[24px] px-2 border-t border-fin-border border-b border-fin-border bg-fin-surface font-mono text-[11px] whitespace-nowrap overflow-hidden shrink-0"
     >
-      <Box
-        component="span"
-        sx={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: REPORT_PAD.sm,
-          minWidth: 0,
-          flex: "1 1 auto",
-        }}
-      >
+      <span className="inline-flex items-center gap-1 min-w-0 flex-auto">
         <Text
           span
           size="xs"
           fw={700}
           c="dimmed"
-          style={{ letterSpacing: "0.1em", flexShrink: 0 }}
+          className="shrink-0 tracking-[0.1em] text-[11px]"
+          style={{ color: palette.TEXT_MUTED }}
         >
           MOVERS · {index} {index === "NIFTY" ? "50" : "30"}
         </Text>
@@ -342,83 +258,43 @@ export const IndexMoversStrip = memo(function IndexMoversStrip({
 
         {/* Separator — fixed 1px: a stretched flex item would push the
             losers past the strip's `overflow: hidden`. */}
-        <Box
-          component="span"
-          sx={{
-            flex: "0 0 1px",
-            width: "1px",
-            minWidth: "1px",
-            height: 10,
-            alignSelf: "center",
-            bgcolor: palette.TERM_BORDER,
-            mx: REPORT_PAD.xs,
-          }}
+        <span
+          className="shrink-0 self-center mx-[2px] h-[10px] w-[1px] min-w-[1px]"
+          style={{ backgroundColor: palette.TERM_BORDER }}
         />
 
         {/* Losers */}
         <MoverSection rows={losers} isGainer={false} />
-      </Box>
+      </span>
 
       {/* Right side: EXPAND button + stale badge */}
-      <Box
-        component="span"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: REPORT_PAD.sm,
-          flexShrink: 0,
-        }}
-      >
+      <span className="flex items-center gap-1 shrink-0">
         {isStale && (
-          <Tooltip title={`Data is stale (${data?.as_of})`} placement="bottom-start">
-            <Box
-              component="span"
-              sx={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 2,
-                px: REPORT_PAD.xs,
-                py: "1px",
+          <Tooltip label={`Data is stale (${data?.as_of})`} placement="bottom-start">
+            <span
+              className="inline-flex items-center gap-1 px-[2px] py-[1px] rounded-sm text-[10px] font-bold tracking-[0.05em] whitespace-nowrap"
+              style={{
                 border: `1px solid ${palette.WARNING}`,
-                borderRadius: REPORT_RADIUS.sm,
                 color: palette.WARNING,
-                fontSize: REPORT_FONT.micro,
-                fontWeight: 700,
-                letterSpacing: "0.05em",
               }}
             >
               STALE
-            </Box>
+            </span>
           </Tooltip>
         )}
-        <Button
+        <button
+          type="button"
           data-testid="movers-expand"
-          size="sm"
-          variant="subtle"
+          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-border text-fin-border bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 min-w-0 shrink-0 h-[20px] px-1 py-0 text-[10px] font-bold tracking-[0.08em] uppercase"
           onClick={onExpand}
           aria-label="Expand index movers"
           title="Expand index movers"
-          sx={{
-            minWidth: 0,
-            px: REPORT_PAD.sm,
-            py: 0,
-            height: 20,
-            fontSize: REPORT_FONT.micro,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            border: `1px solid ${palette.TERM_BORDER}`,
-            borderRadius: REPORT_RADIUS.sm,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 2,
-          }}
         >
           EXPAND
           <IconChevronRight size={12} />
-        </Button>
-      </Box>
-    </Box>
+        </button>
+      </span>
+    </div>
   );
 });
 

@@ -70,16 +70,6 @@ describe("BacktestConfig", () => {
     vi.clearAllMocks();
   });
 
-  it("renders the config form", () => {
-    render(<BacktestConfig {...defaultProps()} />, { wrapper: Wrapper });
-    expect(screen.getByTestId("strategy-config")).toBeInTheDocument();
-  });
-
-  it("renders variation select", () => {
-    render(<BacktestConfig {...defaultProps()} />, { wrapper: Wrapper });
-    expect(screen.getByTestId("variation-select")).toBeInTheDocument();
-  });
-
   it("shows description when variation has description", () => {
     const variation = mockVariation({ description: "Test description" });
     render(
@@ -129,7 +119,7 @@ describe("BacktestConfig", () => {
 
   it("renders include costs checkbox and reflects prop", () => {
     render(<BacktestConfig {...defaultProps({ includeCosts: true })} />, { wrapper: Wrapper });
-    expect(screen.getByRole("checkbox", { name: "Include Costs" })).toBeChecked();
+    expect(screen.getByTestId("include-costs-checkbox")).toBeChecked();
   });
 
   it("run button disabled when isRunning true", () => {

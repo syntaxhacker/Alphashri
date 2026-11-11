@@ -3,16 +3,7 @@
 // strategy vocabulary (labels, endpoints, envelopes, captions) lives in the plugin.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Card from "@mui/material/Card";
-import Typography from "@mui/material/Typography";
-import Stack from "@mui/material/Stack";
-import Chip from "@mui/material/Chip";
-import TextField from "@mui/material/TextField";
-import MenuItem from "@mui/material/MenuItem";
-import Checkbox from "@mui/material/Checkbox";
-import FormControlLabel from "@mui/material/FormControlLabel";
+import { Box, Button, Card, Text, Stack, Select, TextInput, Checkbox } from "@/ui";
 import * as palette from "@/ui/palette";
 import { TZ_IST, TZ_IST_LABEL } from "@/config/constants";
 import {
@@ -60,21 +51,25 @@ function ParamControl({ spec, value, onChange }: {
     const numeric = spec.type === "int" || spec.type === "float";
     const current = numeric ? String(Number.parseFloat(String(value))) : String(value ?? "");
     return (
-      <TextField size="small" select label={spec.label} value={current} sx={{ width: 140 }}
-        onChange={e => onChange(coerceParam(spec, e.target.value))}>
-        {spec.options.map(o => (
-          <MenuItem key={o} value={numeric ? String(Number.parseFloat(o)) : o}>{o}</MenuItem>
+      <Select size="sm" w={140} label={spec.label} value={current} onChange={(v) => onChange(coerceParam(spec, v ?? ""))}>
+        {spec.options.map((o) => (
+          <option key={o} value={numeric ? String(Number.parseFloat(o)) : o}>
+            {o}
+          </option>
         ))}
-      </TextField>
+      </Select>
     );
   }
   if (spec.type === "bool") {
     return (
-      <FormControlLabel
-        control={<Checkbox size="small" checked={Boolean(value)} onChange={(_, c) => onChange(c)} />}
-        label={spec.label}
-        sx={{ color: palette.TEXT_MUTED, "& .MuiFormControlLabel-label": { fontSize: 12 } }}
-      />
+      <Box style={{ display: "flex", alignItems: "center", gap: "4px", color: palette.TEXT_MUTED, fontSize: "12px" }}>
+        <Checkbox
+          size="sm"
+          label={spec.label}
+          checked={Boolean(value)}
+          onChange={(e) => onChange((e.target as HTMLInputElement).checked)}
+        />
+      </Box>
     );
   }
   if (spec.type === "symbol") {
@@ -89,13 +84,13 @@ function ParamControl({ spec, value, onChange }: {
   }
   if (spec.type === "int" || spec.type === "float") {
     return (
-      <TextField size="small" type="number" label={spec.label} value={value == null ? "" : String(value)} sx={{ width: 140 }}
-        onChange={e => onChange(coerceParam(spec, e.target.value))} />
+      <TextInput size="sm" type="number" label={spec.label} value={value == null ? "" : String(value)} w={140}
+        onChange={(v) => onChange(coerceParam(spec, v))} />
     );
   }
   return (
-    <TextField size="small" label={spec.label} value={String(value ?? "")} sx={{ width: 140 }}
-      onChange={e => onChange(e.target.value)} />
+    <TextInput size="sm" label={spec.label} value={String(value ?? "")} w={140}
+      onChange={(v) => onChange(coerceParam(spec, v))} />
   );
 }
 
@@ -223,33 +218,36 @@ export default function ReplayShell({ plugin, headerExtra }: { plugin: ReplayStr
   ));
 
   const runButton = manual ? (
-    <Button size="small" variant="contained" onClick={() => setRunNonce(n => n + 1)} disabled={loading}>
+    <Button size="sm" variant="filled" onClick={() => setRunNonce(n => n + 1)} disabled={loading}>
       Run
     </Button>
   ) : null;
   const showRunHint = manual && runNonce === 0;
 
   return (
-    <Box sx={{ p: 1, width: "100%" }} data-testid={plugin.mode === "timeline" ? "tick-replay" : "replay-strategy"}>
-      <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", mb: 0.5 }}>
-        <Typography variant="h6" sx={{ color: "#E5E7EB" }}>{plugin.label}</Typography>
+    <Box p="sm" w="100%" data-testid={plugin.mode === "timeline" ? "tick-replay" : "replay-strategy"}>
+      <Stack direction="row" gap="sm" mb="xs" align="center" wrap>
+        <Text fw={600} style={{ fontSize: "1.125rem", color: "#E5E7EB" }}>{plugin.label}</Text>
         {headerExtra}
       </Stack>
       {(plugin.subtitle || plugin.summary) && (
-        <Typography variant="caption" sx={{ color: "#9CA3AF", display: "block", mb: 1 }}>
+        <Text size="xs" style={{ color: "#9CA3AF", display: "block", marginBottom: "8px" }}>
           {plugin.subtitle}{plugin.summary?.(bundle ?? EMPTY_BUNDLE, raw)}
-        </Typography>
+        </Text>
       )}
-      <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap", alignItems: "center" }}>
+      <Stack direction="row" gap="sm" mb="sm" align="center" wrap>
         {plugin.dates.map(d => (
-          <Chip key={d} size="small" label={d} onClick={() => setDate(d)}
-            sx={{ bgcolor: d === date ? "#2563EB" : "#1F2937", color: "#E5E7EB", cursor: "pointer", fontWeight: d === date ? 700 : 400 }} />
+          <Button key={d} size="xs" variant="subtle" onClick={() => setDate(d)}
+            style={{ backgroundColor: d === date ? "#2563EB" : "#1F2937", color: "#E5E7EB", cursor: "pointer", fontWeight: d === date ? 700 : 400, borderRadius: "4px" }}
+          >
+            {d}
+          </Button>
         ))}
       </Stack>
       {showRunHint && (
-        <Typography variant="caption" sx={{ color: palette.TEXT_MUTED, display: "block", mb: 1 }}>
+        <Text size="xs" style={{ color: palette.TEXT_MUTED, display: "block", marginBottom: "8px" }}>
           Choose a symbol / date, then press Run
-        </Typography>
+        </Text>
       )}
 
       {plugin.mode === "timeline" ? (
@@ -273,7 +271,7 @@ export default function ReplayShell({ plugin, headerExtra }: { plugin: ReplayStr
             {runButton}
             {paramControls}
           </ReplayControls>
-          <Card elevation={0} sx={{ bgcolor: palette.NT_BG, border: `1px solid ${palette.NT_GRID}`, overflow: "hidden", mb: 2 }}>
+          <Card bg={palette.NT_BG} style={{ border: `1px solid ${palette.NT_GRID}`, overflow: "hidden", marginBottom: "16px" }}>
             <ReplayChartHost
               ref={hostRef}
               bars={candles}
@@ -287,12 +285,14 @@ export default function ReplayShell({ plugin, headerExtra }: { plugin: ReplayStr
               playing={playing}
             />
           </Card>
-          <Card elevation={0} sx={{ bgcolor: palette.NT_BG, border: `1px solid ${palette.NT_GRID}`, overflow: "hidden" }}>
-            <Box sx={{ p: 1, bgcolor: "#111", borderBottom: `1px solid ${palette.NT_GRID}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <Typography variant="subtitle2" sx={{ color: palette.PRIMARY }}>
+          <Card bg={palette.NT_BG} style={{ border: `1px solid ${palette.NT_GRID}`, overflow: "hidden" }}>
+            <Box p="sm" style={{ backgroundColor: "#111", borderBottom: `1px solid ${palette.NT_GRID}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <Text size="xs" fw={700} style={{ color: palette.PRIMARY }}>
                 Trades — {closed.length} closed · net {net > 0 ? "+" : ""}{net.toFixed(1)} pts
-              </Typography>
-              <Chip size="small" label={`${revealed.length - closed.length} open`} sx={{ bgcolor: "#1F2937", color: "#9CA3AF" }} />
+              </Text>
+              <Button size="xs" variant="subtle" disabled style={{ backgroundColor: "#1F2937", color: "#9CA3AF", borderRadius: "4px" }}>
+                {revealed.length - closed.length} open
+              </Button>
             </Box>
             <ReplayTradeTable trades={revealed} clock={clock} onSelectTime={(t) => jump(t)} />
           </Card>
@@ -300,19 +300,19 @@ export default function ReplayShell({ plugin, headerExtra }: { plugin: ReplayStr
       ) : (
         <>
           {manual && (
-            <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: "center" }}>
+            <Stack direction="row" gap="sm" mb="sm" align="center">
               {runButton}
             </Stack>
           )}
-          <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap", alignItems: "center" }}>
+          <Stack direction="row" gap="sm" mb="sm" align="center" wrap>
             {paramControls}
-            {!plugin.panel && <Chip size="small" label={`${trades.length} trades`} sx={{ bgcolor: "#1F2937", color: palette.POSITIVE }} />}
-            {loading && <Chip size="small" label="loading ticks…" sx={{ bgcolor: "#1F2937", color: palette.PRIMARY }} />}
-            {bundle?.error && <Chip size="small" label={bundle.error} color="error" />}
+            {!plugin.panel && <Button size="xs" variant="subtle" disabled style={{ backgroundColor: "#1F2937", color: palette.POSITIVE, borderRadius: "4px" }}>{trades.length} trades</Button>}
+            {loading && <Button size="xs" variant="subtle" disabled style={{ backgroundColor: "#1F2937", color: palette.PRIMARY, borderRadius: "4px" }}>loading ticks…</Button>}
+            {bundle?.error && <Button size="xs" variant="subtle" disabled style={{ backgroundColor: "#3B1D1D", color: "#F87171", borderRadius: "4px" }}>{bundle.error}</Button>}
           </Stack>
           {plugin.panel?.(bundle ?? EMPTY_BUNDLE, raw)}
           {!loading && trades.length === 0 && (
-            <Box sx={{ p: 1, color: palette.TEXT_MUTED, fontSize: 12 }}>No trades in this view.</Box>
+            <Box p="sm" style={{ color: palette.TEXT_MUTED, fontSize: "12px" }}>No trades in this view.</Box>
           )}
           {trades.map((tr, i) => (
             <TradeReplayCard

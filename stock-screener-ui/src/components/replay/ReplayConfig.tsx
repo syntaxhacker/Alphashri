@@ -153,7 +153,7 @@ export function ReplayConfigBar({
     <Box>
       <Group gap="sm" wrap="wrap" align="flex-start" data-testid="replay-config">
         <Box>
-          <Text size="xs" fw={500} mb={2}>
+          <Text size="xs" fw={500} style={{ marginBottom: "8px" }}>
             Bot
           </Text>
           <Select
@@ -172,7 +172,7 @@ export function ReplayConfigBar({
 
         <Group gap="xs" align="flex-start">
           <Box data-testid="replay-date-from">
-            <Text size="xs" fw={500} mb={2}>
+            <Text size="xs" fw={500} style={{ marginBottom: "8px" }}>
               From
             </Text>
             <TradingDatePicker
@@ -185,7 +185,7 @@ export function ReplayConfigBar({
             {config.date && <span style={{ display: "none" }}>{formatDisplayDate(config.date)}</span>}
           </Box>
           <Box data-testid="replay-date-to">
-            <Text size="xs" fw={500} mb={2}>
+            <Text size="xs" fw={500} style={{ marginBottom: "8px" }}>
               To
             </Text>
             <TradingDatePicker
@@ -200,7 +200,7 @@ export function ReplayConfigBar({
         </Group>
 
         <Box>
-          <Text size="xs" fw={500} mb={2}>
+          <Text size="xs" fw={500} style={{ marginBottom: "8px" }}>
             Symbols
           </Text>
           <Group gap={4} align="center">
@@ -245,8 +245,7 @@ export function ReplayConfigBar({
                   key={symbol}
                   variant="outline"
                   size="sm"
-                  mr={4}
-                  mb={4}
+                  style={{ marginRight: "8px", marginBottom: "8px" }}
                   rightSection={
                     <IconX
                       size={10}
@@ -265,7 +264,7 @@ export function ReplayConfigBar({
         </Box>
 
         <Box>
-          <Text size="xs" fw={500} mb={2}>
+          <Text size="xs" fw={500} style={{ marginBottom: "8px" }}>
             Refresh Cache
           </Text>
           <Switch
@@ -277,7 +276,7 @@ export function ReplayConfigBar({
         </Box>
 
         <Box>
-          <Text size="xs" fw={500} mb={2}>
+          <Text size="xs" fw={500} style={{ marginBottom: "8px" }}>
             &nbsp;
           </Text>
           <Group gap="xs" align="center">
@@ -458,9 +457,11 @@ export function ReplayConfigBar({
       </Modal>
 
       {holidayWarning && (
-        <Alert mt="xs" color="warning" icon={<IconAlertTriangle size={16} />} p="xs">
-          <Text size="xs">{holidayWarning}</Text>
-        </Alert>
+        <Box mt="xs">
+          <Alert color="warning" icon={<IconAlertTriangle size={16} />}>
+            <Text size="xs">{holidayWarning}</Text>
+          </Alert>
+        </Box>
       )}
     </Box>
   );

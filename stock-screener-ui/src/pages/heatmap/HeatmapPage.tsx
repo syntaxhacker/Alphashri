@@ -87,11 +87,11 @@ export function HeatmapPage() {
   return (
     <Box
       data-testid="heatmap-page"
-      sx={{ width: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", p: 0, gap: 0, overflow: "hidden" }}
+      className="flex h-full w-full min-h-0 flex-col overflow-hidden"
     >
       <ToolbarRow
         gap={8}
-        style={{ padding: "0 16px", minHeight: 48, height: 48, borderBottom: "1px solid var(--mui-palette-divider)", flexShrink: 0 }}
+        style={{ padding: "0 16px", minHeight: 48, height: 48, borderBottom: "1px solid var(--color-fin-border)", flexShrink: 0 }}
         data-testid="heatmap-toolbar"
       >
         <Text data-testid="heatmap-title" fw={700} size="sm">NSE 500</Text>
@@ -141,12 +141,12 @@ export function HeatmapPage() {
           data={VIEWS}
           aria-label="View"
         />
-        <Box sx={{ flex: 1 }} />
+        <Box className="flex-1" />
         <Text
           data-testid="heatmap-stock-count"
           size="xs"
           c="dimmed"
-          sx={{ cursor: "pointer", whiteSpace: "nowrap" }}
+          className="cursor-pointer whitespace-nowrap"
           onClick={() => setSortDir((d) => (d === "desc" ? "asc" : "desc"))}
           title="Toggle sort direction"
         >
@@ -154,15 +154,15 @@ export function HeatmapPage() {
         </Text>
       </ToolbarRow>
 
-      <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", position: "relative", display: "flex", flexDirection: "column" }}>
+      <Box className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         <LoadingOverlay visible={heatmapLoading} />
         {heatmapError && (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200, width: "100%" }}>
+          <Box className="flex h-[200px] w-full items-center justify-center">
             <Text data-testid="heatmap-error" c="error">Error: {heatmapError.message || "Failed to load"}</Text>
           </Box>
         )}
         {!heatmapLoading && !heatmapError && filteredStocks.length === 0 && (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200, width: "100%" }}>
+          <Box className="flex h-[200px] w-full items-center justify-center">
             <Text size="sm" c="dimmed">No stocks match the current filters.</Text>
           </Box>
         )}
@@ -227,13 +227,13 @@ export function HeatmapPage() {
 
       <Box
         data-testid="heatmap-legend"
-        sx={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 2, px: 2, height: 32, minHeight: 32, borderTop: "1px solid var(--mui-palette-divider)", overflow: "hidden" }}
+        className="flex h-8 min-h-8 flex-shrink-0 items-center gap-4 overflow-hidden border-t border-fin-border px-4"
       >
         <Text size="xs" fw={600} data-testid="heatmap-legend-label">{activeMetric.label}</Text>
-        <Box sx={{ width: 12, height: 12, backgroundColor: getMetricColor(metricMin, metricMin, metricMax), borderRadius: "2px", flexShrink: 0 }} />
+        <Box className="h-3 w-3 flex-shrink-0 rounded-[2px]" style={{ backgroundColor: getMetricColor(metricMin, metricMin, metricMax) }} />
         <Text size="xs" data-testid="heatmap-legend-min">{activeMetric.fmt(metricMin)}</Text>
-        <Box sx={{ flex: 1, maxWidth: 120, height: 8, borderRadius: "4px", background: `linear-gradient(to right, ${SECTOR_STRONG_GREEN}, ${SECTOR_GREEN}, ${SECTOR_NEUTRAL}, ${SECTOR_RED}, ${SECTOR_STRONG_RED})` }} />
-        <Box sx={{ width: 12, height: 12, backgroundColor: getMetricColor(metricMax, metricMin, metricMax), borderRadius: "2px", flexShrink: 0 }} />
+        <Box className="h-2 max-w-[120px] flex-1 rounded-[4px]" style={{ background: `linear-gradient(to right, ${SECTOR_STRONG_GREEN}, ${SECTOR_GREEN}, ${SECTOR_NEUTRAL}, ${SECTOR_RED}, ${SECTOR_STRONG_RED})` }} />
+        <Box className="h-3 w-3 flex-shrink-0 rounded-[2px]" style={{ backgroundColor: getMetricColor(metricMax, metricMin, metricMax) }} />
         <Text size="xs" data-testid="heatmap-legend-max">{activeMetric.fmt(metricMax)}</Text>
       </Box>
     </Box>

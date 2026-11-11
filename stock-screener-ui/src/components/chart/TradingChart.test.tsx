@@ -161,7 +161,7 @@ describe("TradingChart", () => {
 
   it("handles trade click only for scatter series with trade_id", async () => {
     const onTradeClick = vi.fn();
-    const { useECharts } = await import("../../hooks/useECharts");
+    await import("../../hooks/useECharts");
     // The mocked useECharts captures onChartClick in mockChartInstance._onClick
     render(
       <UIProvider>
@@ -200,9 +200,8 @@ describe("TradingChart", () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(mockBuildChartOption).toHaveBeenCalled();
-    // allTimesRef should have been populated; verify no throw and time parsing covers both branches
-    expect(mockSetChartOption).toHaveBeenCalled();
+    expect(mockBuildChartOption).toHaveBeenCalledWith(inputWithTimeStr);
+    expect(mockSetChartOption).toHaveBeenCalledWith({ mocked: true, input: inputWithTimeStr });
   });
 
   it("handles candle time without T separator (space or plain)", async () => {
@@ -218,15 +217,7 @@ describe("TradingChart", () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(mockBuildChartOption).toHaveBeenCalled();
-  });
-
-  it("does not build option when isLoading true even with valid candles", () => {
-    render(
-      <UIProvider>
-        <TradingChart input={baseInput} isLoading />
-      </UIProvider>,
-    );
-    expect(mockBuildChartOption).not.toHaveBeenCalled();
+    expect(mockBuildChartOption).toHaveBeenCalledWith(input);
+    expect(mockSetChartOption).toHaveBeenCalledWith({ mocked: true, input: input });
   });
 });

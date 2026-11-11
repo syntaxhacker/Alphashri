@@ -29,6 +29,12 @@ import {
  * Scoped to this table only; the global app palette stays untouched.
  */
 export const TAPE_TERM_BG = palette.BG;
+// Tape-scoped hairlines/hover/latest-row shades — the global palette stays untouched.
+export const TAPE_CELL_RULE = "#141414";
+export const TAPE_HEADER_RULE = "#2A2A2A";
+export const TAPE_COL_RULE = "#1F1F1F";
+export const TAPE_ROW_HOVER = "#101418";
+export const TAPE_ROW_LATEST = "#0A0F16";
 export const TAPE_SPOT = "#F2CC60";
 export const TAPE_CALL_DOI = "#80B5FF";
 export const TAPE_PUT_DOI = "#8AA4C2";

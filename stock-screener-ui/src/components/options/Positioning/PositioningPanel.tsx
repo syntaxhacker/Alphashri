@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
+import { Stack } from "@/ui";
+import { Box } from "@/ui";
 import { Anchor, Button, Skeleton, Text } from "@/ui";
 import { getPositioning, PositioningApiError } from "../../../api/upstoxOptions";
 import type {
@@ -74,7 +74,7 @@ export function PositioningPanel({ underlying, expiry }: PositioningPanelProps) 
       id="positioning-panel"
       data-testid="positioning-panel"
       spacing={1}
-      sx={{ display: "flex", flexDirection: "column", width: "100%", p: 2 }}
+      className="flex flex-col w-full min-h-0 p-[16px]"
     >
       <PositioningHeader
         underlying={selUnderlying}
@@ -95,8 +95,8 @@ export function PositioningPanel({ underlying, expiry }: PositioningPanelProps) 
       )}
 
       {!loading && error && (
-        <Box data-testid="positioning-error" sx={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <Text size="sm" c="red">
+        <Box data-testid="positioning-error" className="flex flex-col gap-[64px]">
+          <Text size="sm" className="text-fin-negative">
             {isUnauthorized
               ? "Upstox connection required to load positioning."
               : error.message}
@@ -123,7 +123,7 @@ export function PositioningPanel({ underlying, expiry }: PositioningPanelProps) 
       )}
 
       {!loading && !error && data && data.rows.length > 0 && (
-        <Stack spacing={2} sx={{ display: "flex", flexDirection: "column" }}>
+        <Stack spacing={2} className="flex flex-col">
           <VerdictBanner data={data} />
           <ReadingTable data={data} />
           {view === "table" ? (

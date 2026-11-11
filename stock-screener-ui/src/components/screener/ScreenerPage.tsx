@@ -1,10 +1,7 @@
 import { useState, useCallback, lazy, Suspense, useTransition, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import MuiStack from "@mui/material/Stack";
-import Paper from "@mui/material/Paper";
-import { Box, Tabs, Text, Select, Skeleton, ActionIcon, Switch, Tooltip } from "@/ui";
-import { BORDER, SURFACE } from "@/ui/palette";
-import { IconTable, IconChartDots, IconSettings, IconLayoutDashboard, IconRefresh, IconCoins, IconCalendarEvent, IconWorld } from "@tabler/icons-react";
+import { Box, Stack, Paper, Tabs, Text, Select, Skeleton, ActionIcon, Switch, Tooltip } from "@/ui";
+import { IconTable, IconChartDots, IconSettings, IconLayoutDashboard, IconRefresh, IconCoins, IconCalendarEvent, IconChartCandle, IconWorld } from "@tabler/icons-react";
 import * as state from "../../state";
 import { DashboardView } from "./DashboardView";
 import { ScreenerHeader } from "./ScreenerHeader";
@@ -24,6 +21,9 @@ const CorrelationTab = lazy(() => import("./CorrelationTab").then((m) => ({ defa
 const ScreenerConfigView = lazy(() => import("./ScreenerConfigView").then((m) => ({ default: m.ScreenerConfigView })));
 const DeepValueTab = lazy(() => import("../value/ValuePanel").then((m) => ({ default: m.ValuePanel })));
 const EventsTab = lazy(() => import("../events/EventsPanel").then((m) => ({ default: m.EventsPanel })));
+const FnoScreenerTab = lazy(() =>
+  import("./FnoScreenerTab").then((m) => ({ default: m.FnoScreenerTab })),
+);
 const MarketTab = lazy(() =>
   import("../../pages/market/MarketScreenerPage").then((m) => ({ default: m.MarketScreenerPage })),
 );
@@ -148,7 +148,7 @@ function CompactAlerts({
     <Box
       px={2}
       py={1}
-      sx={{ flexShrink: 0 }}
+      className="flex-shrink-0"
       data-testid="screener-52w-high-banner"
     >
       {lines.map((line) => (
@@ -189,6 +189,7 @@ export function ScreenerPage({
   const isValueTab = activeTab === "deepvalue";
   const isEventsTab = activeTab === "events";
   const isMarketTab = activeTab === "market";
+  const isFnoTab = activeTab === "fno";
   const [isPending, startTransition] = useTransition();
   const [internalUniverse, setInternalUniverse] = useState(DEFAULT_DASHBOARD_UNIVERSE);
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
@@ -286,36 +287,15 @@ export function ScreenerPage({
   const isDashboard = activeTab === "dashboard";
 
   return (
-    <Box sx={{ width: "100%", minHeight: 0, display: "flex", flexDirection: "column", gap: 1 }}>
-      <MuiStack
-        spacing={0}
-        id="screener-main"
-        data-testid="screener-page"
-        sx={{ minHeight: 0, width: "100%", gap: 1 }}
-      >
+    <Box gap={1} className="w-full min-h-0 flex flex-col">
+      <Stack spacing={0} id="screener-main" data-testid="screener-page" gap={1} className="min-h-0 w-full">
         {/* Unified 48px toolbar — POC Option A promoted to live */}
         <Paper
-          elevation={0}
+          radius={2}
           data-testid="screener-controls"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 2,
-            px: 1.5,
-            height: 48,
-            minHeight: 48,
-            maxHeight: 48,
-            border: 1,
-            borderColor: BORDER,
-            borderRadius: 2,
-            bgcolor: SURFACE,
-            flexShrink: 0,
-            overflow: "hidden",
-            flexWrap: "nowrap",
-          }}
+          className="flex items-center justify-between gap-4 px-3 h-[48px] min-h-[48px] max-h-[48px] flex-shrink-0 overflow-hidden flex-nowrap border border-fin-border"
         >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
+          <Box className="flex items-center gap-2 flex-shrink-0">
             {isDashboard ? (
               <Select
                 value={universe}
@@ -336,12 +316,21 @@ export function ScreenerPage({
               // 148px Select on the other tabs. The word "Events" is already
               // the active tab two elements to the right, so this slot names
               // the surface instead of repeating it.
-              <Text size="xs" fw={600} data-testid="events-tab-label" sx={{ width: 148, flexShrink: 0 }}>
+              <Text size="xs" fw={600} data-testid="events-tab-label" className="w-[148px] flex-shrink-0">
                 Event calendar
               </Text>
             ) : isMarketTab ? (
-              <Text size="xs" fw={600} data-testid="market-tab-label" sx={{ width: 148, flexShrink: 0 }}>
+              <Text size="xs" fw={600} data-testid="market-tab-label" className="w-[148px] flex-shrink-0">
                 Market
+              </Text>
+            ) : isFnoTab ? (
+              <Text
+                size="xs"
+                fw={600}
+                data-testid="fno-tab-label"
+                className="w-[148px] flex-shrink-0 hidden md:block"
+              >
+                F&O Momentum
               </Text>
             ) : (
               <Select
@@ -361,8 +350,9 @@ export function ScreenerPage({
                 if (v && v !== "screener") state.setSelectedSymbols([]);
                 if (v) setActiveTab(v);
               }}
+              className="flex-1 min-w-0 overflow-x-auto"
             >
-              <Tabs.List sx={{ minHeight: 32, display: "flex", alignItems: "center", gap: 0.5 }}>
+              <Tabs.List className="min-h-[32px] flex items-center gap-1">
                 <Tabs.Tab value="dashboard" leftSection={<IconLayoutDashboard size={14} />} data-testid="tab-dashboard" style={{ minHeight: 32 }}>
                   Dashboard
                 </Tabs.Tab>
@@ -371,6 +361,9 @@ export function ScreenerPage({
                 </Tabs.Tab>
                 <Tabs.Tab value="deepvalue" leftSection={<IconCoins size={14} />} data-testid="tab-deepvalue" style={{ minHeight: 32 }}>
                   Deep Value
+                </Tabs.Tab>
+                <Tabs.Tab value="fno" leftSection={<IconChartCandle size={14} />} data-testid="tab-fno" style={{ minHeight: 32 }}>
+                  F&O
                 </Tabs.Tab>
                 <Tabs.Tab value="events" leftSection={<IconCalendarEvent size={14} />} data-testid="tab-events" style={{ minHeight: 32 }}>
                   Events
@@ -387,21 +380,21 @@ export function ScreenerPage({
               </Tabs.List>
             </Tabs>
           </Box>
-          <Box sx={{ flex: 1, minWidth: 80, px: 1, display: "flex", justifyContent: "center", overflow: "hidden" }}>
+          <Box className="flex-1 px-2 flex justify-center overflow-hidden min-w-[80px]">
             {isMarketTab ? null : (
-              <Text size="xs" c="dimmed" truncate sx={{ fontSize: 11 }} title={status} data-testid="screener-status">
+              <Text size="xs" c="dimmed" truncate className="text-[11px]" title={status} data-testid="screener-status">
                 {status}
               </Text>
             )}
           </Box>
-          <Box sx={{ flexShrink: 0, display: "flex", alignItems: "center", flexWrap: "nowrap" }}>
+          <Box className="flex-shrink-0 flex items-center flex-nowrap">
             {isDashboard ? (
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
+              <Box className="flex items-center gap-2 flex-shrink-0">
                 <Tooltip label={showLastClose ? "Showing last close (visual)" : "Show last close"}>
                   <Switch
                     size="xs"
                     checked={showLastClose}
-                    onChange={(e) => setShowLastClose(e.currentTarget.checked)}
+                    onChange={(e) => setShowLastClose(e.target.checked)}
                     label="Last close"
                     data-testid="dashboard-last-close-toggle"
                     aria-label="Last close"
@@ -419,7 +412,7 @@ export function ScreenerPage({
                   </ActionIcon>
                 </Tooltip>
               </Box>
-            ) : isValueTab ? null : isEventsTab ? null : isMarketTab ? null : (
+            ) : isValueTab ? null : isEventsTab ? null : isMarketTab ? null : isFnoTab ? null : (
               <ScreenerHeader
               status={status}
               isLoading={isLoading}
@@ -441,11 +434,14 @@ export function ScreenerPage({
         <Box
           id="screener-content"
           data-testid="screener-content"
-          sx={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}
+          flex={1}
+          className="min-h-0 flex overflow-hidden"
+          style={{ display: "flex" }}
         >
           <Box
             data-testid="dashboard-panel"
-            sx={{ display: isDashboard ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}
+            className="min-w-0 min-h-0 overflow-auto"
+            style={{ display: isDashboard ? "flex" : "none", flex: 1 }}
           >
             {visited.has("dashboard") ? (
               <DashboardView
@@ -456,30 +452,25 @@ export function ScreenerPage({
               />
             ) : null}
           </Box>
-          <Box sx={{ display: activeTab === "screener" ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, gap: 1 }}>
+          <Box
+            flex={1}
+            gap={1}
+            className="min-w-0 min-h-0"
+            style={{ display: activeTab === "screener" ? "flex" : "none" }}
+          >
             {visited.has("screener") ? (
               <>
                 <GroupPerformancePanel />
                 <Paper
-                  elevation={0}
-                  sx={{
-                    flex: 1,
-                    minWidth: 0,
-                    minHeight: 0,
-                    display: "flex",
-                    flexDirection: "column",
-                    overflow: "hidden",
-                    border: 1,
-                    borderColor: BORDER,
-                    borderRadius: 2,
-                    bgcolor: SURFACE,
-                    opacity: isPending ? 0.6 : 1,
-                  }}
+                  radius={2}
+                  flex={1}
+                  className="min-w-0 min-h-0 flex flex-col overflow-hidden border border-fin-border"
+                  style={{ opacity: isPending ? 0.6 : 1 }}
                 >
                   <CompactAlerts activeScreener={activeScreener} warning={warning} />
                   {hasSideFilters && <ScreenerInlineFilters activeScreener={activeScreener} embedded />}
-                  <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column", p: 0.5, gap: 0.5 }}>
-                    <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
+                  <Box flex={1} className="min-h-0 overflow-hidden flex flex-col p-1 gap-1">
+                    <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
                       <ScreenerContent
                         approachingStocks={approachingStocks}
                         touchedStocks={touchedStocks}
@@ -500,32 +491,49 @@ export function ScreenerPage({
           </Box>
           <Box
             data-testid="deep-value-panel"
-            sx={{ display: isValueTab ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}
+            className="min-w-0 min-h-0 overflow-auto"
+            style={{ display: isValueTab ? "flex" : "none", flex: 1 }}
           >
-            <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
+            <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
               {isValueTab ? <DeepValueTab /> : null}
             </Suspense>
           </Box>
           <Box
             data-testid="events-tab-panel"
-            sx={{ display: isEventsTab ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}
+            className="min-w-0 min-h-0 overflow-auto"
+            style={{ display: isEventsTab ? "flex" : "none", flex: 1 }}
           >
-            <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
+            <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
               {isEventsTab ? <EventsTab /> : null}
             </Suspense>
           </Box>
           <Box
-            data-testid="market-tab-panel"
-            sx={{ display: isMarketTab ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden" }}
+            data-testid="fno-tab-panel"
+            className="min-w-0 min-h-0"
+            style={{ display: isFnoTab ? "flex" : "none", flex: 1, overflow: "hidden" }}
           >
-            <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
+            <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
+              <ErrorBoundary label="Market screener">
+                {isFnoTab ? <FnoScreenerTab /> : null}
+              </ErrorBoundary>
+            </Suspense>
+          </Box>
+          <Box
+            data-testid="market-tab-panel"
+            className="min-w-0 min-h-0 overflow-hidden"
+            style={{ display: isMarketTab ? "flex" : "none", flex: 1 }}
+          >
+            <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
               <ErrorBoundary label="Market screener">
                 {isMarketTab ? <MarketTab /> : null}
               </ErrorBoundary>
             </Suspense>
           </Box>
-          <Box sx={{ display: activeTab === "correlation" || activeTab === "config" ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}>
-            <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
+          <Box
+            className="min-w-0 min-h-0 overflow-auto"
+            style={{ display: activeTab === "correlation" || activeTab === "config" ? "flex" : "none", flex: 1 }}
+          >
+            <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
               {activeTab === "config" ? (
                 <ScreenerConfigView
                   screenerOptions={screenerOptions}
@@ -538,7 +546,7 @@ export function ScreenerPage({
             </Suspense>
           </Box>
         </Box>
-      </MuiStack>
+      </Stack>
     </Box>
   );
 }

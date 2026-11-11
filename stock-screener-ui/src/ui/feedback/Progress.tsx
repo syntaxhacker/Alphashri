@@ -1,24 +1,47 @@
-import LinearProgress from "@mui/material/LinearProgress";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-import { MARKER_BORDER } from "@/ui/palette";
-import { withAlpha } from "@/utils/color";
+import { cn } from "../cn";
+import * as palette from "../palette";
 import type { UIProgressProps } from "../types";
 
-const STRIPE = `repeating-linear-gradient(45deg, ${withAlpha(MARKER_BORDER, 0.15)} 0 8px, transparent 8px 16px)`;
+const SIZE_PX: Record<string, string> = { xs: "4px", sm: "8px", md: "12px", lg: "16px", xl: "20px" };
+const COLOR_MAIN: Record<string, string> = {
+  primary: palette.PRIMARY,
+  success: palette.POSITIVE_COLOR,
+  error: palette.NEGATIVE_COLOR,
+  danger: palette.NEGATIVE_COLOR,
+  warning: palette.WARNING,
+  info: palette.INFO,
+  secondary: palette.TEXT_MUTED,
+  default: palette.TEXT_MUTED,
+};
 
-function resolveBarColor(color?: string): string | undefined {
-  if (!color) return undefined;
-  // Pass hex directly via sx; named theme colors map to hex via css fallback
-  return color as string;
-}
-
-function toHeight(size: UIProgressProps["size"]): number | string | undefined {
+function resolveSize(size: UIProgressProps["size"]): string | undefined {
   if (size == null) return undefined;
   if (typeof size === "number") return `${size}px`;
-  const map: Record<string, string> = { xs: "4px", sm: "8px", md: "12px", lg: "16px", xl: "20px" };
-  return map[size as string] ?? (size as string);
+  if (typeof size === "string") return SIZE_PX[size] ?? size;
+  return undefined;
 }
+
+function resolveColor(color: UIProgressProps["color"]): string {
+  if (!color) return palette.PRIMARY;
+  if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl")) return color;
+  return COLOR_MAIN[color] ?? palette.PRIMARY;
+}
+
+function radiusValue(radius: UIProgressProps["radius"] | undefined): string | undefined {
+  if (radius == null) return undefined;
+  if (typeof radius === "number") return `${radius}px`;
+  const m: Record<string, string> = { xs: "4px", sm: "6px", md: "8px", lg: "12px", xl: "16px" };
+  return m[radius] ?? undefined;
+}
+
+function hexRgb(hex: string): string {
+  let h = hex.replace("#", "");
+  if (h.length === 3) h = h.split("").map((ch) => ch + ch).join("");
+  return `${parseInt(h.slice(0, 2), 16)}, ${parseInt(h.slice(2, 4), 16)}, ${parseInt(h.slice(4, 6), 16)}`;
+}
+
+const MARKER_RGB = hexRgb(palette.MARKER_BORDER);
+const STRIPE = `repeating-linear-gradient(45deg, rgba(${MARKER_RGB}, 0.15) 0 8px, transparent 8px 16px)`;
 
 export function Progress({
   value,
@@ -36,129 +59,84 @@ export function Progress({
   id,
   ...rest
 }: UIProgressProps) {
-  const h = toHeight(size);
-  const br =
-    radius != null
-      ? typeof radius === "number"
-        ? `${radius}px`
-        : radius === "xs"
-          ? "4px"
-          : radius === "xl"
-            ? "16px"
-            : "4px"
-      : undefined;
+  const h = resolveSize(size) ?? "8px";
+  const br = radiusValue(radius);
+  const col = resolveColor(color);
+  const v = Math.max(0, Math.min(100, value ?? 0));
+  const transition = transitionDuration != null ? `width ${transitionDuration}ms` : undefined;
+
+  const barBase: React.CSSProperties = {
+    height: h,
+    borderRadius: br,
+    backgroundColor: col,
+    ...(striped ? { backgroundImage: STRIPE } : {}),
+    ...(animated && striped ? { backgroundSize: "16px 16px" } : {}),
+    ...(transition ? { transition } : {}),
+  };
 
   if (sections && sections.length > 0) {
     return (
-      <Box
-        className={className}
-        style={style}
-        id={id}
+      <div
         data-testid={testId}
-        sx={{
-          display: "flex",
-          width: "100%",
-          height: h ?? 8,
-          borderRadius: br,
-          overflow: "hidden",
-          bgcolor: "action.hover",
-          gap: 0,
-        }}
-        {...(rest as Record<string, unknown>)}
+        id={id}
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={v}
+        className={cn("flex w-full shrink-0 overflow-hidden", className)}
+        style={{ height: h, borderRadius: br, backgroundColor: palette.BORDER, ...style }}
+        {...rest}
       >
-        {sections.map((section, i) => (
-          <Box
-            key={i}
-            sx={{
-              width: `${section.value}%`,
-              bgcolor: resolveBarColor(section.color) ?? "primary.main",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              ...(striped
-                ? {
-                    backgroundImage: STRIPE,
-                  }
-                : {}),
-              ...(animated && striped
-                ? {
-                    animation: "mui-progress-stripes 1s linear infinite",
-                    "@keyframes mui-progress-stripes": {
-                      "0%": { backgroundPosition: "0 0" },
-                      "100%": { backgroundPosition: "16px 0" },
-                    },
-                  }
-                : {}),
-              transition: transitionDuration != null ? `width ${transitionDuration}ms` : undefined,
-              borderRadius: 0,
-            }}
-          >
-            {(label || section.label) && (
-              <Typography variant="caption" sx={{ color: "common.white", fontWeight: 600, fontSize: "0.7rem", lineHeight: 1 }}>
-                {section.label ?? label}
-              </Typography>
-            )}
-          </Box>
-        ))}
-      </Box>
+        {sections.map((section, i) => {
+          const scol = resolveColor(section.color);
+          const width = Math.max(0, Math.min(100, section.value));
+          return (
+            <div
+              key={i}
+              className="shrink-0 flex items-center justify-center"
+              style={{
+                width: `${width}%`,
+                height: "100%",
+                backgroundColor: scol,
+                borderRadius: 0,
+                ...(transition ? { transition } : {}),
+                ...(striped ? { backgroundImage: STRIPE } : {}),
+              }}
+            >
+              {(label || section.label) && (
+                <span className="text-[10px] font-semibold text-fin-text pointer-events-none select-none">
+                  {section.label ?? label}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
     );
   }
 
   return (
-    <Box
-      className={className}
-      style={style}
-      id={id}
+    <div
       data-testid={testId}
-      sx={{ position: "relative", width: "100%" }}
-      {...(rest as Record<string, unknown>)}
+      id={id}
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={v}
+      className={cn("relative w-full shrink-0", className)}
+      style={style}
+      {...rest}
     >
-      <LinearProgress
-        variant="determinate"
-        value={Math.max(0, Math.min(100, value ?? 0))}
-        sx={{
-          height: h ?? 8,
-          borderRadius: br,
-          bgcolor: "action.hover",
-          "& .MuiLinearProgress-bar": {
-            bgcolor: resolveBarColor(color) ?? "primary.main",
-            borderRadius: br,
-            ...(striped
-              ? {
-                  backgroundImage: STRIPE,
-                }
-              : {}),
-            ...(animated && striped
-              ? {
-                  animation: "mui-progress-stripes 1s linear infinite",
-                  "@keyframes mui-progress-stripes": {
-                    "0%": { backgroundPosition: "0 0" },
-                    "100%": { backgroundPosition: "16px 0" },
-                  },
-                }
-              : {}),
-            transition: transitionDuration != null ? `transform ${transitionDuration}ms` : undefined,
-          },
-        }}
+      <div
+        className="w-full shrink-0"
+        style={{ height: h, borderRadius: br, backgroundColor: palette.BORDER, ...(striped ? { backgroundImage: STRIPE } : {}) }}
       />
+      <div className="shrink-0" style={barBase} />
       {label && (
-        <Typography
-          variant="caption"
-          sx={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontWeight: 600,
-            fontSize: "0.7rem",
-            color: "common.white",
-            pointerEvents: "none",
-          }}
-        >
+        <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-fin-text pointer-events-none select-none">
           {label}
-        </Typography>
+        </span>
       )}
-    </Box>
+    </div>
   );
 }

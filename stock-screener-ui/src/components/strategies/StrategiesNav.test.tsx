@@ -2,7 +2,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import { StrategiesNav } from "./StrategiesNav";
 
@@ -49,18 +48,4 @@ describe("StrategiesNav", () => {
     expect(screen.getByTestId("strategies-nav-tabs")).toBeInTheDocument();
   });
 
-  it("tab change calls onChange", async () => {
-    const onChange = vi.fn();
-    const user = userEvent.setup();
-    render(
-      <UIProvider>
-        <StrategiesNav activeView="tree" onChange={onChange} />
-      </UIProvider>,
-    );
-    const tabs = screen.getByTestId("strategies-nav-tabs");
-    const performanceTab = tabs.querySelector('[data-value="performance"]');
-    if (performanceTab) {
-      await user.click(performanceTab);
-    }
-  });
 });

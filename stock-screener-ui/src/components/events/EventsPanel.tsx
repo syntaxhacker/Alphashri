@@ -73,15 +73,7 @@ export function EventsPanel() {
       }
       scrollable
     >
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 0.5,
-          minHeight: 0,
-          height: "100%",
-        }}
-      >
+      <Box className="flex flex-col gap-0.5" style={{ minHeight: 0, height: "100%" }}>
         <EventsFilters
           query={query}
           onChange={patchQuery}
@@ -92,17 +84,14 @@ export function EventsPanel() {
         {shownAnomalies.length > 0 && (
           <Box
             data-testid="events-anomalies"
-            sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}
+            className="flex flex-col gap-0.5"
           >
-            <Text size="xs" fw={700} c="dimmed" tt="uppercase" sx={{ fontSize: 10, letterSpacing: "0.4px" }}>
+            <Text size="xs" fw={700} c="dimmed" tt="uppercase" className="text-[10px] tracking-[0.4px]">
               Unexplained moves
             </Text>
             <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-                gap: 0.5,
-              }}
+              className="grid gap-0.5"
+              style={{ gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}
             >
               {shownAnomalies.map((anomaly) => (
                 <CompactStat

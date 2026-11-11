@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { usePolling } from "@/hooks/usePolling";
-import { Text, Badge, Loader, Center, ActionIcon } from "@/ui";
-import Box from "@mui/material/Box";
+import { Text, Badge, Loader, ActionIcon } from "@/ui";
 import { IconRefresh } from "@tabler/icons-react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { getPaperTradingState, subscribe } from "../../state/paperTrading";
@@ -28,7 +27,7 @@ export function ActivityFeed() {
         size: 72,
         meta: { align: "left" },
         cell: ({ row }) => (
-          <Text className="paper-activity-time" size="xs" c="dimmed" sx={{ fontFamily: "monospace", fontSize: 11 }}>
+          <Text className="paper-activity-time font-mono" size="xs" c="dimmed" style={{ fontSize: 11 }}>
             {formatTimeOnly(row.original.timestamp)}
           </Text>
         ),
@@ -61,7 +60,7 @@ export function ActivityFeed() {
         size: 88,
         meta: { align: "left" },
         cell: ({ row }) => (
-          <Text className="paper-activity-symbol" fw={600} size="xs" c={palette.PRIMARY} sx={{ fontSize: 11 }}>
+          <Text className="paper-activity-symbol" fw={600} size="xs" c={palette.PRIMARY} style={{ fontSize: 11 }}>
             {row.original.symbol}
           </Text>
         ),
@@ -73,7 +72,7 @@ export function ActivityFeed() {
         meta: { align: "center" },
         accessorFn: (row: ActivityEvent) => row.direction || row.side,
         cell: ({ row }) => (
-          <Text className="paper-activity-side" size="xs" c="dimmed" sx={{ fontSize: 11 }}>
+          <Text className="paper-activity-side" size="xs" c="dimmed" style={{ fontSize: 11 }}>
             {row.original.direction || row.original.side}
           </Text>
         ),
@@ -86,7 +85,7 @@ export function ActivityFeed() {
         cell: ({ row }) => {
           const ev = row.original;
           return (
-            <Text className="paper-activity-entry" size="xs" c={palette.TEXT} fw={500} sx={{ fontSize: 11, fontFamily: "monospace" }}>
+            <Text className="paper-activity-entry font-mono" size="xs" c={palette.TEXT} fw={500} style={{ fontSize: 11 }}>
               {ev.quantity} @ ₹{ev.entry_price?.toFixed(1) ?? "-"}
             </Text>
           );
@@ -101,11 +100,11 @@ export function ActivityFeed() {
           const ev = row.original;
           const isExit = ev.type === "trade_exit" || !!ev.exit_price;
           return isExit ? (
-            <Text className="paper-activity-exit" size="xs" c={palette.TEXT} fw={600} sx={{ fontSize: 11, fontFamily: "monospace" }}>
+            <Text className="paper-activity-exit font-mono" size="xs" c={palette.TEXT} fw={600} style={{ fontSize: 11 }}>
               → ₹{ev.exit_price?.toFixed(1)}
             </Text>
           ) : (
-            <Text size="xs" c="dimmed" sx={{ fontSize: 11 }}>
+            <Text size="xs" c="dimmed" style={{ fontSize: 11 }}>
               —
             </Text>
           );
@@ -120,11 +119,11 @@ export function ActivityFeed() {
         cell: ({ row }) => {
           const ev = row.original;
           const isExit = ev.type === "trade_exit" || !!ev.exit_price;
-          if (!isExit) return <Text size="xs" c="dimmed" sx={{ fontSize: 11 }}>—</Text>;
+          if (!isExit) return <Text size="xs" c="dimmed" style={{ fontSize: 11 }}>—</Text>;
           const pnl = ev.net_pnl ?? ev.pnl ?? 0;
           const isProfit = pnl >= 0;
           return (
-            <Text className="paper-activity-pnl" size="xs" c={isProfit ? palette.POSITIVE : palette.NEGATIVE} fw={700} sx={{ fontSize: 11 }}>
+            <Text className="paper-activity-pnl" size="xs" c={isProfit ? palette.POSITIVE : palette.NEGATIVE} fw={700} style={{ fontSize: 11 }}>
               {isProfit ? "+" : ""}₹{pnl.toFixed(0)} {ev.pnl_pct != null ? `(${ev.pnl_pct.toFixed(2)}%)` : ""}
             </Text>
           );
@@ -142,7 +141,7 @@ export function ActivityFeed() {
               {row.original.strategy_name}
             </Badge>
           ) : (
-            <Text size="xs" c="dimmed" sx={{ fontSize: 11 }}>
+            <Text size="xs" c="dimmed" style={{ fontSize: 11 }}>
               —
             </Text>
           ),
@@ -154,7 +153,7 @@ export function ActivityFeed() {
         meta: { align: "left" },
         enableSorting: false,
         cell: ({ row }) => (
-          <Text className="paper-activity-reason" size="xs" c="dimmed" sx={{ fontSize: 11 }} truncate>
+          <Text className="paper-activity-reason" size="xs" c="dimmed" style={{ fontSize: 11 }} truncate>
             {row.original.exit_reason || "—"}
           </Text>
         ),
@@ -165,23 +164,20 @@ export function ActivityFeed() {
 
   if (state.activityLoading && !state.activityEvents.length) {
     return (
-      <Center className="paper-activity-loading" id="paper-activity-loading" h={200}>
+      <div className="paper-activity-loading flex items-center justify-center" id="paper-activity-loading" style={{ height: 200 }}>
         <Loader size="sm" />
-      </Center>
+      </div>
     );
   }
 
   return (
-    <Box className="paper-activity-feed" id="paper-activity-feed" sx={{ display: "flex", flexDirection: "column", gap: 0.5, p: 0.5, width: "100%" }}>
-      <CompactPanel
-        title="Activity Feed"
-        action={
-          <ActionIcon className="paper-activity-refresh" id="paper-activity-refresh" size="sm" variant="subtle" onClick={() => fetchActivityFeed()} aria-label="Refresh activity feed">
-            <IconRefresh size={14} />
-          </ActionIcon>
-        }
-      >
-        <Box className="paper-activity-table-wrap" id="paper-activity-table-wrap" sx={{ display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden", bgcolor: palette.SURFACE }}>
+    <div className="paper-activity-feed flex flex-col gap-1 p-1 w-full" id="paper-activity-feed">
+      <CompactPanel title="Activity Feed" action={
+        <ActionIcon className="paper-activity-refresh" id="paper-activity-refresh" size="sm" variant="subtle" onClick={() => fetchActivityFeed()} aria-label="Refresh activity feed">
+          <IconRefresh size={14} />
+        </ActionIcon>
+      }>
+        <div className="paper-activity-table-wrap flex flex-col min-h-0 overflow-hidden bg-fin-surface" id="paper-activity-table-wrap">
           <TanStackTable<ActivityEvent>
             className="paper-activity-table"
             data={state.activityEvents}
@@ -192,8 +188,8 @@ export function ActivityFeed() {
             stickyHeader
             dense
           />
-        </Box>
+        </div>
       </CompactPanel>
-    </Box>
+    </div>
   );
 }
