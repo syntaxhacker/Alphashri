@@ -48,16 +48,6 @@ describe("SideBadge", () => {
     expect(screen.getByText("▲ BUY")).toBeInTheDocument();
   });
 
-  it("renders with data-testid", () => {
-    render(<SideBadge side="BUY" data-testid="side-badge" />);
-    expect(screen.getByTestId("side-badge")).toBeInTheDocument();
-  });
-
-  it("renders with custom size", () => {
-    render(<SideBadge side="BUY" size="xs" />);
-    expect(screen.getByText("▲ BUY")).toBeInTheDocument();
-  });
-
   it("renders unknown side without arrow and as red", () => {
     render(<SideBadge side="UNKNOWN" data-testid="unk" />);
     expect(screen.getByText("UNKNOWN")).toBeInTheDocument();
@@ -65,31 +55,11 @@ describe("SideBadge", () => {
     expect(screen.queryByText("▼")).not.toBeInTheDocument();
   });
 
-  it("BUY and SELL have visually distinct palettes (green vs red)", () => {
-    const { container: c1 } = render(<SideBadge side="BUY" data-testid="buy-chip" />);
-    const buyChip = screen.getByTestId("buy-chip");
-    cleanup();
-    render(<SideBadge side="SELL" data-testid="sell-chip" />);
-    const sellChip = screen.getByTestId("sell-chip");
-    expect(buyChip).toBeDefined();
-    expect(sellChip).toBeDefined();
-    expect(buyChip.textContent).toContain("BUY");
-    expect(sellChip.textContent).toContain("SELL");
-    void c1;
-  });
-
   it("handles empty side string without crash", () => {
     render(<SideBadge side="" data-testid="empty" />);
     expect(screen.getByTestId("empty")).toBeInTheDocument();
   });
 
-  it("BUY badge has accessible contrast (dark text not transparent)", () => {
-    render(<SideBadge side="BUY" data-testid="contrast-buy" />);
-    const chip = screen.getByTestId("contrast-buy");
-    const styles = window.getComputedStyle(chip);
-    expect(chip).toBeInTheDocument();
-    expect(styles).toBeDefined();
-  });
 });
 
 describe("ExitReasonBadge", () => {
@@ -128,16 +98,6 @@ describe("ExitReasonBadge", () => {
     expect(screen.getByText("timeout")).toBeInTheDocument();
   });
 
-  it("renders with data-testid", () => {
-    render(<ExitReasonBadge reason="TP" data-testid="exit-badge" />);
-    expect(screen.getByTestId("exit-badge")).toBeInTheDocument();
-  });
-
-  it("renders with custom size", () => {
-    render(<ExitReasonBadge reason="TP" size="lg" />);
-    expect(screen.getByText("TP")).toBeInTheDocument();
-  });
-
   it("handles empty reason gracefully", () => {
     render(<ExitReasonBadge reason="" data-testid="empty-exit" />);
     expect(screen.getByTestId("empty-exit")).toBeInTheDocument();
@@ -155,11 +115,6 @@ describe("StatusBadge", () => {
     expect(screen.getByText("Running")).toBeInTheDocument();
   });
 
-  it("renders Running when running=true and pid provided", () => {
-    render(<StatusBadge running={true} pid={12345} />);
-    expect(screen.getByText("Running")).toBeInTheDocument();
-  });
-
   it("renders Stopped when running=false", () => {
     render(<StatusBadge running={false} />);
     expect(screen.getByText("Stopped")).toBeInTheDocument();
@@ -168,16 +123,6 @@ describe("StatusBadge", () => {
   it("renders Unknown when statusUnknown", () => {
     render(<StatusBadge running={false} statusUnknown data-testid="unknown" />);
     expect(screen.getByText("Unknown (Redis unavailable)")).toBeInTheDocument();
-  });
-
-  it("renders with data-testid", () => {
-    render(<StatusBadge running={true} data-testid="status-badge" />);
-    expect(screen.getByTestId("status-badge")).toBeInTheDocument();
-  });
-
-  it("renders with custom size", () => {
-    render(<StatusBadge running={true} size="xl" />);
-    expect(screen.getByText("Running")).toBeInTheDocument();
   });
 });
 

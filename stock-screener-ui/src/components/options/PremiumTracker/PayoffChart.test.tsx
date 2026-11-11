@@ -31,20 +31,10 @@ describe("PayoffChart", () => {
     vi.clearAllMocks();
   });
 
-  it("renders the container testid", () => {
-    render(<PayoffChart legs={legs} spot={100} />);
-    expect(screen.getByTestId("payoff-chart")).toBeInTheDocument();
-  });
-
   it("shows empty-state text with no legs", () => {
     render(<PayoffChart legs={[]} spot={null} />);
     expect(screen.getByTestId("payoff-chart")).toBeInTheDocument();
     expect(screen.getByText("Add a leg to see payoff")).toBeInTheDocument();
-  });
-
-  it("honors a custom data-testid", () => {
-    render(<PayoffChart legs={[]} spot={null} data-testid="custom-payoff" />);
-    expect(screen.getByTestId("custom-payoff")).toBeInTheDocument();
   });
 
   it("hides ECharts background grid split lines while keeping markLine/markPoint", () => {

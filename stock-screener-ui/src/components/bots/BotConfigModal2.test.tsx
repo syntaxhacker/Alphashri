@@ -289,11 +289,6 @@ describe("BotConfigModal", () => {
     expect(screen.getByText(/OR Window/)).toBeInTheDocument();
   });
 
-  it("StrategyParams displays ORB-specific parameters when strategy selected in edit mode", () => {
-    renderWithProviders(<BotConfigModal {...defaultProps} bot={mockBot} />);
-    expect(screen.getByText(/OR Window/)).toBeInTheDocument();
-  });
-
   it("StrategyParams displays 52W-specific parameters", () => {
     const bot52W: BotConfig = {
       ...mockBot,

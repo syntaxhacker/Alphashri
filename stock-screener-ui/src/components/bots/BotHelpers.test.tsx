@@ -12,6 +12,7 @@ import {
   BotSummaryCell,
   getBotIndicatorColor,
 } from "./BotHelpers";
+import { BOT_RUNNING, BOT_STOPPED } from "../../config/colors";
 import type {
   PortfolioSummary,
   StrategyStatus,
@@ -189,6 +190,7 @@ describe("BotActionButtons", () => {
     const { container } = renderWithProviders(<BotActionButtons {...actionProps} bot={inactiveBot} />);
     const btn = container.querySelector(`[data-testid="start-bot-btn-${inactiveBot.id}"]`);
     expect(btn).toBeInTheDocument();
+    expect(btn).toBeDisabled();
   });
 
   it("delete button is disabled when bot is running", () => {
@@ -196,6 +198,7 @@ describe("BotActionButtons", () => {
     const { container } = renderWithProviders(<BotActionButtons {...actionProps} bot={runningBot} />);
     const btn = container.querySelector(`[data-testid="delete-bot-btn-${runningBot.id}"]`);
     expect(btn).toBeInTheDocument();
+    expect(btn).toBeDisabled();
   });
 
   it("shows stop button when bot is running", () => {
@@ -215,7 +218,7 @@ describe("BotSummaryCell", () => {
 
 describe("getBotIndicatorColor", () => {
   it("returns correct colors", () => {
-    expect(getBotIndicatorColor(true)).toBeTruthy();
-    expect(getBotIndicatorColor(false)).toBeTruthy();
+    expect(getBotIndicatorColor(true)).toBe(BOT_RUNNING);
+    expect(getBotIndicatorColor(false)).toBe(BOT_STOPPED);
   });
 });

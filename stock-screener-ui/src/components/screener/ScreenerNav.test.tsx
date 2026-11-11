@@ -65,17 +65,6 @@ describe("ScreenerNav", () => {
     expect(defaultProps.onChange).toHaveBeenCalledWith("new-highs");
   });
 
-  it("calls onChange with correct id from RSI Reversal", async () => {
-      const user = userEvent.setup();
-    render(
-      <UIProvider>
-        <ScreenerNav {...defaultProps} />
-      </UIProvider>,
-    );
-    await user.click(screen.getByTestId("screener-nav-option-rsi_reversal"));
-    expect(defaultProps.onChange).toHaveBeenCalledWith("rsi_reversal");
-  });
-
   it("renders tooltips for options with descriptions", () => {
     render(
       <UIProvider>
@@ -124,16 +113,6 @@ describe("ScreenerNav", () => {
     expect(screen.getByTestId("screener-nav-option-rsi_reversal")).toHaveAttribute("data-active", "true");
   });
 
-  it("renders correct number of options", () => {
-    render(
-      <UIProvider>
-        <ScreenerNav {...defaultProps} />
-      </UIProvider>,
-    );
-    const nav = screen.getByTestId("screener-nav");
-    expect(nav).toHaveAttribute("data-options-count", "3");
-  });
-
   it("handles single option", () => {
     const singleOption: ScreenerOption[] = [{ id: "only", label: "Only Option" }];
     render(
@@ -154,15 +133,6 @@ describe("ScreenerNav", () => {
     expect(nav).toHaveAttribute("data-options-count", "0");
   });
 
-  it("renders with different active screener", () => {
-    render(
-      <UIProvider>
-        <ScreenerNav {...defaultProps} activeScreener="new-highs" />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("screener-nav-option-new-highs")).toHaveAttribute("data-active", "true");
-  });
-
   it("shows compact badges for legacy and current screeners", () => {
     const optionsWithStatus: ScreenerOption[] = [
       { id: "52w_high", label: "52W High", status: "current" },
@@ -180,28 +150,6 @@ describe("ScreenerNav", () => {
     expect(screen.getByText("N")).toBeInTheDocument();
     expect(screen.getByText("L")).toBeInTheDocument();
     expect(screen.getByText("Legacy")).toBeInTheDocument();
-  });
-
-  it("each option has unique test id", () => {
-    render(
-      <UIProvider>
-        <ScreenerNav {...defaultProps} />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("screener-nav-option-trending")).toBeInTheDocument();
-    expect(screen.getByTestId("screener-nav-option-new-highs")).toBeInTheDocument();
-    expect(screen.getByTestId("screener-nav-option-rsi_reversal")).toBeInTheDocument();
-  });
-
-  it("calls onChange when option test id is clicked", async () => {
-      const user = userEvent.setup();
-    render(
-      <UIProvider>
-        <ScreenerNav {...defaultProps} activeScreener="new-highs" />
-      </UIProvider>,
-    );
-    await user.click(screen.getByTestId("screener-nav-option-trending"));
-    expect(defaultProps.onChange).toHaveBeenCalledWith("trending");
   });
 
   it("sets aria-current=page only on active option", () => {

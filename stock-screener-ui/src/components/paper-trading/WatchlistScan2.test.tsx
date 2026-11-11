@@ -5,6 +5,7 @@ import { screen, within, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WatchlistScan2 } from "./WatchlistScan2";
 import { renderWithProviders } from "../../test-utils/renderWithProviders";
+import { BORDER_COLOR, NEGATIVE_COLOR, POSITIVE_COLOR, WARNING } from "@/ui/palette";
 
 // Resolved value of #80b5ff under the palette theme.
 function withAlpha(hex: string, alpha: number): string {
@@ -386,19 +387,19 @@ describe("WatchlistScan2", () => {
     test("signal row has green left border", () => {
       const snap = createMockSnapshot();
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      expectLeftBorder("RELIANCE", "#3FB950");
+      expectLeftBorder("RELIANCE", POSITIVE_COLOR);
     });
 
     test("watching row has yellow/orange left border", () => {
       const snap = createMockSnapshot();
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      expectLeftBorder("TCS", "#F0883E");
+      expectLeftBorder("TCS", WARNING);
     });
 
     test("rejected row has red left border", () => {
       const snap = createMockSnapshot();
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      expectLeftBorder("INFY", "#F85149");
+      expectLeftBorder("INFY", NEGATIVE_COLOR);
     });
 
     test("skipped row has gray left border", async () => {
@@ -406,7 +407,7 @@ describe("WatchlistScan2", () => {
       const snap = createMockSnapshot();
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       await user.click(screen.getByLabelText(/Skipped/));
-      expectLeftBorder("HDFC", "#30363D");
+      expectLeftBorder("HDFC", BORDER_COLOR);
     });
   });
 

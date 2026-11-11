@@ -21,11 +21,6 @@ describe("OptionsNav", () => {
     expect(screen.queryByText("Greeks")).not.toBeInTheDocument();
   });
 
-  it("renders nav testid", () => {
-    renderWithProviders(<OptionsNav activeTab="chain" onTabChange={vi.fn()} />);
-    expect(screen.getByTestId("options-nav")).toBeInTheDocument();
-  });
-
   it("has clickable tabs", async () => {
     const onTabChange = vi.fn();
     renderWithProviders(<OptionsNav activeTab="chain" onTabChange={onTabChange} />);

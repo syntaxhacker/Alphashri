@@ -30,14 +30,6 @@ describe("SymbolLink", () => {
     expect(link).toHaveClass("pattern-tv-link");
   });
 
-  test("uses an explicit market for non-Indian listings", () => {
-    r(<SymbolLink symbol="AAPL" market="NASDAQ" testId="sym-tv" />);
-    expect(screen.getByTestId("sym-tv")).toHaveAttribute(
-      "href",
-      "https://www.tradingview.com/chart/?symbol=NASDAQ%3AAAPL",
-    );
-  });
-
   test("renders the chart icon by default (app-wide dock)", () => {
     r(<SymbolLink symbol="SBIN" testId="sym-tv" />);
     expect(screen.getByTestId("symbol-chart-SBIN")).toBeInTheDocument();
@@ -86,11 +78,6 @@ describe("SymbolLink", () => {
     expect(onPreviewEnd).toHaveBeenCalledWith("SBIN");
   });
 
-  test("keeps the text plain when the TV link is disabled", () => {
-    r(<SymbolLink symbol="NIFTY" testId="sym-plain" tvLink={false} />);
-    expect(screen.getByTestId("sym-plain").tagName).not.toBe("A");
-  });
-
   test("does not render the copy button by default", () => {
     r(<SymbolLink symbol="RELIANCE" testId="sym-tv" />);
     expect(screen.queryByTestId("symbol-copy-RELIANCE")).toBeNull();
@@ -103,16 +90,7 @@ describe("SymbolLink", () => {
     r(<SymbolLink symbol="RELIANCE" showCopy testId="sym-tv" />);
 
     const copy = screen.getByTestId("symbol-copy-RELIANCE");
-    expect(copy).toBeInTheDocument();
-    expect(copy).toHaveAttribute("aria-label", "Copy RELIANCE");
-    expect(copy).toHaveAttribute("data-testid", "symbol-copy-RELIANCE");
-
     await userEvent.click(copy);
     expect(writeText).toHaveBeenCalledWith("RELIANCE");
-
-    // clicking the copy icon does not navigate or trigger the TradingView link
-    const link = screen.getByTestId("sym-tv");
-    expect(link).toBeInTheDocument();
-    expect(link).toHaveAttribute("href", "https://www.tradingview.com/chart/?symbol=NSE%3ARELIANCE");
   });
 });

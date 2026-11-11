@@ -113,23 +113,6 @@ describe("ScreenerSidePanel", () => {
     expect(screen.getByText("Trend")).toBeInTheDocument();
   });
 
-  it("renders number filter with numeric options without crashing", () => {
-    mockProfileMetaById = {
-      intraday_15m: {
-        filters: [
-          { key: "min_move_pct", label: "Move % ≥", type: "number", min: 0, max: 20, step: 0.1, default: 0.3 },
-        ],
-      },
-    };
-    renderWithProvider(
-      <ScreenerSidePanel
-        activeScreener="intraday_15m"
-        screenerOptions={[]}
-      />,
-    );
-    expect(screen.getByText("Move % ≥")).toBeInTheDocument();
-  });
-
   it("Apply filters button triggers fetchData", async () => {
       const user = userEvent.setup();
     mockProfileMetaById = { trending: { filters: trendingFilters } };

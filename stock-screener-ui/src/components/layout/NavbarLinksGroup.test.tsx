@@ -36,16 +36,6 @@ describe("NavbarLinksGroup", () => {
     onNavigate: vi.fn(),
   };
 
-  it("renders nav item label", () => {
-    render(
-      <UIProvider>
-        <NavbarLinksGroup {...defaultProps} />
-      </UIProvider>,
-    );
-
-    expect(screen.getByText("Screener")).toBeInTheDocument();
-  });
-
   it("renders with active state data attribute", () => {
     render(
       <UIProvider>

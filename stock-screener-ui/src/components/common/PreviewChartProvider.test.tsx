@@ -95,11 +95,6 @@ function getButtons() {
 }
 
 describe("PreviewChartProvider", () => {
-  it("provides context functions without crashing", () => {
-    renderWithProvider();
-    expect(screen.getByTestId("consumer")).toBeInTheDocument();
-  });
-
   it("shows hover preview after debounce", async () => {
       const user = userEvent.setup();
     renderWithProvider();

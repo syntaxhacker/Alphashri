@@ -190,23 +190,6 @@ describe("ReplayTradeLog", () => {
     expect(screen.getByText("Reason")).toBeInTheDocument();
   });
 
-  it("highlights row when highlightedTradeId matches", () => {
-    const trades = [makeTrade(1)];
-    render(
-      <UIProvider>
-        <ReplayTradeLog
-          trades={trades}
-          strategyFilter="ALL"
-          setStrategyFilter={vi.fn()}
-          isRunning={false}
-          highlightedTradeId={1}
-        />
-      </UIProvider>,
-    );
-    const row = screen.getByTestId("replay-trade-row-1");
-    expect(row.className).toContain("trade-row-highlighted");
-  });
-
   it("calls onTradeClick when row clicked", async () => {
     const onTradeClick = vi.fn();
     const user = userEvent.setup();

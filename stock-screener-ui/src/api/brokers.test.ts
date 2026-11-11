@@ -1,46 +1,17 @@
-import { describe, expect, test } from "vitest";
-import type { BrokerStatus } from "./brokers";
+import { describe, it, expect } from "vitest";
 import { getBrokerStatus, connectUpstox, disconnectUpstox } from "./brokers";
 
-describe("Brokers API Types", () => {
-  test("BrokerStatus interface has correct shape", () => {
-    const status: BrokerStatus = {
-      connected: true,
-      broker: "upstox",
-      expires_in_hours: 12.5,
-      expires_at: "2024-01-02T00:00:00",
-    };
-
-    expect(status.connected).toBe(true);
-    expect(status.broker).toBe("upstox");
-    expect(typeof status.expires_in_hours).toBe("number");
-    expect(typeof status.expires_at).toBe("string");
-  });
-
-  test("BrokerStatus with null values", () => {
-    const status: BrokerStatus = {
-      connected: false,
-      broker: "upstox",
-      expires_in_hours: null,
-      expires_at: null,
-    };
-
-    expect(status.connected).toBe(false);
-    expect(status.expires_in_hours).toBeNull();
-    expect(status.expires_at).toBeNull();
-  });
-});
-
-describe("Brokers API exports", () => {
-  test("getBrokerStatus is exported as a function", () => {
+// NOTE: BrokerStatus is a TypeScript interface (erased at runtime), so the
+// type-shape tests that constructed a literal and re-asserted its own props
+// were removed as tautological. The three functions below are thin API
+// wrappers; their request/response behaviour is covered by state-layer tests
+// that call them through mocked apiFetch/apiGet. A single smoke test is kept
+// here solely so this file remains a valid vitest suite (guards the export
+// surface against accidental removal).
+describe("brokers module exports", () => {
+  it("exposes getBrokerStatus, connectUpstox and disconnectUpstox as functions", () => {
     expect(typeof getBrokerStatus).toBe("function");
-  });
-
-  test("connectUpstox is exported as a function", () => {
     expect(typeof connectUpstox).toBe("function");
-  });
-
-  test("disconnectUpstox is exported as a function", () => {
     expect(typeof disconnectUpstox).toBe("function");
   });
 });

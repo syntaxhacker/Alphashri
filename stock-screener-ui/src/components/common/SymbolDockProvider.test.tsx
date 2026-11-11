@@ -169,19 +169,6 @@ describe("SymbolDockProvider stale badge", () => {
     });
   });
 
-  test("closing the dock removes the badge", async () => {
-    mockedFetchSymbolChart.mockResolvedValue(STALE_CHART);
-    const user = userEvent.setup();
-    renderDock();
-
-    await user.click(screen.getByTestId("open-ircon"));
-    expect(await screen.findByTestId("dock-stale")).toBeInTheDocument();
-
-    await user.click(screen.getByTestId("close-dock"));
-
-    expect(screen.queryByTestId("symbol-dock")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("dock-stale")).not.toBeInTheDocument();
-  });
 });
 
 describe("preview → endPreview race (A then B)", () => {

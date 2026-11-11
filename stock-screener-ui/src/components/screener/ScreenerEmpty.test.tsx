@@ -14,16 +14,6 @@ describe("ScreenerEmpty", () => {
     cleanup();
   });
 
-  it("renders with default message", () => {
-    render(
-      <UIProvider>
-        <ScreenerEmpty />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("screener-empty")).toBeInTheDocument();
-    expect(screen.getByTestId("status")).toBeInTheDocument();
-  });
-
   it("renders with custom message", () => {
     render(
       <UIProvider>
@@ -31,42 +21,5 @@ describe("ScreenerEmpty", () => {
       </UIProvider>,
     );
     expect(screen.getByText("No stocks match your criteria")).toBeInTheDocument();
-  });
-
-  it("renders icon", () => {
-    render(
-      <UIProvider>
-        <ScreenerEmpty />
-      </UIProvider>,
-    );
-    // The IconDatabaseOff should be rendered
-    expect(screen.getByTestId("screener-empty")).toBeInTheDocument();
-  });
-
-  it("has correct test id", () => {
-    render(
-      <UIProvider>
-        <ScreenerEmpty />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("screener-empty")).toBeInTheDocument();
-  });
-
-  it("renders with empty string message", () => {
-    render(
-      <UIProvider>
-        <ScreenerEmpty message="" />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("screener-empty")).toBeInTheDocument();
-  });
-
-  it("has data-testid for test hooks", () => {
-    render(
-      <UIProvider>
-        <ScreenerEmpty />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("screener-empty")).toBeInTheDocument();
   });
 });

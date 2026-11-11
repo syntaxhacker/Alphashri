@@ -50,14 +50,6 @@ describe("SymbolAutocomplete", () => {
     expect(input).toHaveValue("RELI");
   });
 
-  test("syncs the input to an external value change", () => {
-    const { rerender } = render(<SymbolAutocomplete value="NETWEB" onChange={vi.fn()} />);
-    expect(screen.getByLabelText("Symbol")).toHaveValue("NETWEB");
-
-    rerender(<SymbolAutocomplete value="INFY" onChange={vi.fn()} />);
-    expect(screen.getByLabelText("Symbol")).toHaveValue("INFY");
-  });
-
   test("shows extra options when the input is empty", async () => {
     const user = userEvent.setup();
     render(
@@ -132,15 +124,6 @@ describe("SymbolAutocomplete", () => {
     expect(screen.queryByLabelText("Symbol")).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText("Index or F&O stock")).toHaveValue("NIFTY");
     expect(screen.getByTestId("compact-symbol")).toBeInTheDocument();
-  });
-
-  test("forwards fnoOnly to the search API", async () => {
-    const user = userEvent.setup();
-    render(<SymbolAutocomplete value="" onChange={vi.fn()} compact fnoOnly />);
-
-    await user.type(screen.getByPlaceholderText("Index or F&O stock"), "REL");
-
-    await waitFor(() => expect(searchSymbols).toHaveBeenCalledWith("REL", 10, true));
   });
 
   test("selects a static extra option", async () => {

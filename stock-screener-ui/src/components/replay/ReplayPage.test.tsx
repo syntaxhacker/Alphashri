@@ -66,16 +66,6 @@ afterEach(() => {
 });
 
 describe("ReplayPage", () => {
-  it("renders page with data-testid", async () => {
-    const { ReplayPage } = await import("./ReplayPage");
-    render(
-      <UIProvider>
-        <ReplayPage />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("replay-page")).toBeInTheDocument();
-  });
-
   it("renders title and description text", async () => {
     const { ReplayPage } = await import("./ReplayPage");
     render(

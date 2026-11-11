@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
-import { render, screen, within, cleanup } from "@testing-library/react";
+import { screen, within, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 import { PositioningHeader } from "./PositioningHeader";
@@ -92,10 +92,5 @@ describe("PositioningHeader", () => {
     const group = screen.getByTestId("positioning-view");
     await user.click(within(group).getByRole("button", { name: "Chart" }));
     expect(onViewChange).toHaveBeenCalledWith("chart");
-  });
-
-  test("renders without provider wrapper", () => {
-    render(<PositioningHeader {...baseProps} />);
-    expect(screen.getByTestId("positioning-header")).toBeInTheDocument();
   });
 });

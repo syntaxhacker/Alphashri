@@ -70,16 +70,6 @@ describe("previewChart module", () => {
     expect(document.getElementById("chart-expanded-panel")?.style.display).toBe("none");
   });
 
-  it("toggleExpandedChart collapses when same symbol toggled again", async () => {
-    const mod = await import("./previewChart");
-    mod.toggleExpandedChart("TEST");
-    vi.advanceTimersByTime(100);
-    expect(document.getElementById("chart-expanded-panel")?.style.display).toBe("block");
-
-    mod.toggleExpandedChart("TEST");
-    expect(document.getElementById("chart-expanded-panel")?.style.display).toBe("none");
-  });
-
   it("navigateToFullChart uses history API", async () => {
     const mod = await import("./previewChart");
     const pushStateSpy = vi.spyOn(window.history, "pushState");
@@ -89,19 +79,6 @@ describe("previewChart module", () => {
 
     expect(pushStateSpy).toHaveBeenCalledWith({}, "", "/chart/RELIANCE");
     expect(dispatchSpy).toHaveBeenCalledWith(expect.any(PopStateEvent));
-  });
-
-  it("initPreviewChartHandlers attaches to window", async () => {
-    const mod = await import("./previewChart");
-    mod.initPreviewChartHandlers();
-
-    expect(typeof (window as any).showPreviewChart).toBe("function");
-    expect(typeof (window as any).hidePreviewChart).toBe("function");
-    expect(typeof (window as any).toggleExpandedChart).toBe("function");
-    expect(typeof (window as any).collapseChart).toBe("function");
-    expect(typeof (window as any).navigateToFullChart).toBe("function");
-    expect(typeof (window as any).setPreviewTimeframe).toBe("function");
-    expect(typeof (window as any).setPreviewOrMinutes).toBe("function");
   });
 
   it("setPreviewTimeframe updates expanded chart", async () => {

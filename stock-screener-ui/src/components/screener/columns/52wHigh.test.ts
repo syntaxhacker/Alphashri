@@ -50,9 +50,6 @@ describe("52wHigh columns", () => {
       expect(fmt()(2600).value).toBe("2600.00");
       expect(fmt()(0).value).toBe("0.00");
     });
-    it("handles price 0", () => {
-      expect(fmt()(0).value).toBe("0.00");
-    });
     it("null/undefined yields dash", () => {
       const highFmt = fmt();
       // low_52w has dash fallback, high_52w uses value?.toFixed || "-" so null -> "-"
@@ -146,42 +143,6 @@ describe("52wHigh columns", () => {
     it("rsi null -> dash", () => expect(rsiFmt()(null)).toBe("-"));
     it("adx NaN handling", () => expect(() => adxFmt()(NaN)).not.toThrow());
     it("handles Infinity", () => expect(() => rsiFmt()(Infinity)).not.toThrow());
-  });
-
-  describe("table-driven 52W high calculations edge", () => {
-    // simulate gap calculations: (price-high)/high*100
-    const pctFromHigh = (high: number, price: number) => ((high - price) / high * 100);
-    it.each([
-      [100, 97, 3.0],
-      [200, 200, 0],
-      [200, 210, -5],
-    ])("high %s price %s gap %s", (high, price, exp) => {
-      expect(pctFromHigh(high, price)).toBeCloseTo(exp, 5);
-    });
-    it("gap handles price 0", () => {
-      expect(pctFromHigh(100, 0)).toBeCloseTo(100, 5);
-    });
-    it("gap handles high 0 -> Infinity not crash", () => {
-      const v = pctFromHigh(0, 100);
-      expect(!isFinite(v) || isNaN(v)).toBe(true);
-    });
-  });
-
-  describe("ADX<25, RSI 50-70 filter boundaries (column-level display)", () => {
-    // Ensure columns display values even at filter boundaries
-    const rsiFmt = () => findFmt("rsi");
-    const adxFmt = () => findFmt("adx");
-    it.each([
-      [24.9, "24.9"],
-      [25, "25.0"],
-      [25.1, "25.1"],
-    ])("adx %s displays correctly", (v, exp) => expect(adxFmt()(v)).toBe(exp));
-    it.each([
-      [49.9, "49.9"],
-      [50, "50.0"],
-      [70, "70.0"],
-      [70.1, "70.1"],
-    ])("rsi %s displays correctly", (v, exp) => expect(rsiFmt()(v)).toBe(exp));
   });
 
   it("all columns sortable", () => {

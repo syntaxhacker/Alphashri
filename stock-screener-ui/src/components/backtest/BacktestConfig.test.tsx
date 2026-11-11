@@ -70,16 +70,6 @@ describe("BacktestConfig", () => {
     vi.clearAllMocks();
   });
 
-  it("renders the config form", () => {
-    render(<BacktestConfig {...defaultProps()} />, { wrapper: Wrapper });
-    expect(screen.getByTestId("strategy-config")).toBeInTheDocument();
-  });
-
-  it("renders variation select", () => {
-    render(<BacktestConfig {...defaultProps()} />, { wrapper: Wrapper });
-    expect(screen.getByTestId("variation-select")).toBeInTheDocument();
-  });
-
   it("shows description when variation has description", () => {
     const variation = mockVariation({ description: "Test description" });
     render(

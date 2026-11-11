@@ -50,11 +50,6 @@ const defaultProps = {
 };
 
 describe("OptionsPage", () => {
-  it("renders options nav", () => {
-    renderWithProviders(<OptionsPage {...defaultProps} />);
-    expect(screen.getByTestId("options-nav")).toBeInTheDocument();
-  });
-
   it("shows chain panel by default", () => {
     renderWithProviders(<OptionsPage {...defaultProps} />);
     expect(screen.getByTestId("options-chain-panel")).toBeInTheDocument();

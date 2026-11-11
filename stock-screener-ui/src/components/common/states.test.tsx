@@ -14,14 +14,9 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe("InlineLoader", () => {
-  it("renders", () => {
+  it("renders a progressbar", () => {
     render(<InlineLoader />, { wrapper: Wrapper });
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
-  });
-
-  it("renders data-testid", () => {
-    render(<InlineLoader data-testid="test-loading" />, { wrapper: Wrapper });
-    expect(screen.getByTestId("test-loading")).toBeInTheDocument();
   });
 });
 
@@ -30,11 +25,6 @@ describe("EmptyState", () => {
     render(<EmptyState title="No data" description="Try again later" />, { wrapper: Wrapper });
     expect(screen.getByText("No data")).toBeInTheDocument();
     expect(screen.getByText("Try again later")).toBeInTheDocument();
-  });
-
-  it("renders emoji", () => {
-    render(<EmptyState emoji="📊" title="No trades" />, { wrapper: Wrapper });
-    expect(screen.getByText("📊")).toBeInTheDocument();
   });
 
   it("renders without description", () => {
@@ -47,10 +37,5 @@ describe("ErrorAlert", () => {
   it("renders error message", () => {
     render(<ErrorAlert message="Something went wrong" />, { wrapper: Wrapper });
     expect(screen.getByText("Something went wrong")).toBeInTheDocument();
-  });
-
-  it("renders custom title", () => {
-    render(<ErrorAlert title="Fetch Error" message="Failed" />, { wrapper: Wrapper });
-    expect(screen.getByText("Fetch Error")).toBeInTheDocument();
   });
 });

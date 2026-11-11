@@ -31,13 +31,6 @@ describe("BotCardStrip", () => {
     expect(screen.queryByTestId(/^bot-card-/)).toBeNull();
   });
 
-  it("renders bot cards when bots provided", () => {
-    render(<BotCardStrip bots={[baseBot]} selectedBotId={null} onSelect={vi.fn()} />, {
-      wrapper: TestWrapper,
-    });
-    expect(screen.getByTestId("bot-card-1")).toBeInTheDocument();
-  });
-
   it("displays bot name", () => {
     render(<BotCardStrip bots={[baseBot]} selectedBotId={null} onSelect={vi.fn()} />, {
       wrapper: TestWrapper,
@@ -97,22 +90,6 @@ describe("BotCardStrip", () => {
     });
     await user.click(screen.getByTestId("bot-card-1"));
     expect(onSelect).not.toHaveBeenCalled();
-  });
-
-  it("renders running indicator for active running bot", () => {
-    const runningBot = { ...baseBot, running: true, is_active: true };
-    render(<BotCardStrip bots={[runningBot]} selectedBotId={null} onSelect={vi.fn()} />, {
-      wrapper: TestWrapper,
-    });
-    expect(screen.getByTestId("bot-card-1")).toBeInTheDocument();
-  });
-
-  it("renders stopped indicator for non-running bot", () => {
-    const stoppedBot = { ...baseBot, running: false };
-    render(<BotCardStrip bots={[stoppedBot]} selectedBotId={null} onSelect={vi.fn()} />, {
-      wrapper: TestWrapper,
-    });
-    expect(screen.getByTestId("bot-card-1")).toBeInTheDocument();
   });
 
   it("handles multiple bots", () => {

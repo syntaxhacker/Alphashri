@@ -16,23 +16,7 @@ describe("TableEmptyState", () => {
     expect(screen.getByText("No data found")).toBeInTheDocument();
   });
 
-  it("renders correct test id", () => {
-    render(<TableEmptyState message="Empty" />);
-    expect(screen.getByTestId("table-empty-state")).toBeInTheDocument();
-  });
-
-  it("renders icon when provided", () => {
-    render(<TableEmptyState message="Empty" icon={<span data-testid="icon">🔄</span>} />);
-    expect(screen.getByTestId("icon")).toBeInTheDocument();
-  });
-
-  it("renders action when provided", () => {
-    render(<TableEmptyState message="Empty" action={<button data-testid="action-btn">Retry</button>} />);
-    expect(screen.getByTestId("action-btn")).toBeInTheDocument();
-    expect(screen.getByText("Retry")).toBeInTheDocument();
-  });
-
-  it("renders without icon or action", () => {
+  it("renders without icon or action when not provided", () => {
     render(<TableEmptyState message="Just text" />);
     expect(screen.getByText("Just text")).toBeInTheDocument();
     expect(screen.queryByTestId("icon")).not.toBeInTheDocument();

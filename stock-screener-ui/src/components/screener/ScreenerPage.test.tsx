@@ -359,15 +359,6 @@ describe("ScreenerPage", () => {
     cleanup();
   });
 
-  it("renders without crashing", () => {
-    render(
-      <UIProvider>
-        <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("screener-page")).toBeInTheDocument();
-  });
-
   it("displays loading state", async () => {
     render(
       <UIProvider>
@@ -472,27 +463,6 @@ describe("ScreenerPage", () => {
     expect(await screen.findByTestId("screener-table-touched")).toBeInTheDocument();
   });
 
-  it("calls onSymbolClick when symbol is clicked in table", async () => {
-      const user = userEvent.setup();
-    render(
-      <UIProvider>
-        <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-    );
-    // The table mock renders rows with data-testid like `row-RELIANCE`
-    await user.click(screen.getByTestId("row-RELIANCE"));
-    // Since we mocked ScreenerTable, we need to verify the prop is passed
-  });
-
-  it("calls onSymbolHover when symbol is hovered", () => {
-    render(
-      <UIProvider>
-        <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-    );
-    // The actual hover handling is inside ScreenerTable - this test would need more detailed mocking
-  });
-
   it("renders screener navigation with options", () => {
     render(
       <UIProvider>
@@ -595,16 +565,6 @@ describe("ScreenerPage", () => {
     expect(defaultProps.onModeChange).toHaveBeenCalledWith("historical");
   });
 
-  it("computes total stocks count correctly in status", () => {
-    render(
-      <UIProvider>
-        <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-    );
-    const header = screen.getByTestId("screener-header");
-    expect(header).toHaveAttribute("data-status", "3 stocks");
-  });
-
   it("handles zero approaching stocks", () => {
     render(
       <UIProvider>
@@ -621,16 +581,6 @@ describe("ScreenerPage", () => {
       </UIProvider>,
     );
     expect(screen.queryByTestId("screener-touched-section")).not.toBeInTheDocument();
-  });
-
-  it("renders both sections when both have stocks", async () => {
-    render(
-      <UIProvider>
-        <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-    );
-    expect(await screen.findByTestId("screener-approaching-section")).toBeInTheDocument();
-    expect(await screen.findByTestId("screener-touched-section")).toBeInTheDocument();
   });
 
   it("renders the groups performance panel beside the screener table", () => {

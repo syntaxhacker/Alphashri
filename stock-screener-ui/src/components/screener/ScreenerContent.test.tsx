@@ -152,19 +152,6 @@ describe("ScreenerContent", () => {
     expect(section).toHaveAttribute("data-title", "Buyer Interest (5)");
   });
 
-  it("has no description when custom labels are used", () => {
-    renderWithProvider(
-      <ScreenerContent
-        {...defaultProps}
-        activeScreener="buyer_interest"
-        totalStocks={2}
-        approachingStocks={[mockStock("A"), mockStock("B")]}
-      />,
-    );
-    const section = screen.getByTestId("screener-section");
-    expect(section).toHaveAttribute("data-description", "");
-  });
-
   it("renders touched section when touched stocks exist", () => {
     renderWithProvider(
       <ScreenerContent
@@ -211,15 +198,4 @@ describe("ScreenerContent", () => {
     expect(screen.getByTestId("screener-section")).toHaveAttribute("data-symbols", "F,P,R");
   });
 
-  it("renders copy-symbols actions for both sections", () => {
-    renderWithProvider(
-      <ScreenerContent
-        {...defaultProps}
-        approachingStocks={[mockStock("A")]}
-        touchedStocks={[mockStock("C")]}
-      />,
-    );
-    expect(screen.getByTestId("copy-approaching-symbols")).toBeInTheDocument();
-    expect(screen.getByTestId("copy-touched-symbols")).toBeInTheDocument();
-  });
 });

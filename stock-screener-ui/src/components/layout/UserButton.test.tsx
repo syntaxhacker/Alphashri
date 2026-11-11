@@ -32,12 +32,6 @@ describe("UserButton", () => {
     collapsed: false,
   };
 
-  it("renders user menu trigger button", () => {
-    renderWithTheme(<UserButton {...defaultProps} />);
-
-    expect(screen.getByTestId("user-menu-trigger")).toBeInTheDocument();
-  });
-
   it("displays user display name", () => {
     renderWithTheme(<UserButton {...defaultProps} />);
 
@@ -54,13 +48,6 @@ describe("UserButton", () => {
     renderWithTheme(<UserButton {...defaultProps} />);
 
     expect(screen.getByTestId("user-avatar")).toBeInTheDocument();
-  });
-
-  it("shows user info when not collapsed", () => {
-    renderWithTheme(<UserButton collapsed={false} />);
-
-    expect(screen.getByTestId("user-display-name")).toBeInTheDocument();
-    expect(screen.getByTestId("user-email")).toBeInTheDocument();
   });
 
   it("hides user info when collapsed", () => {

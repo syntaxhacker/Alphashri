@@ -87,9 +87,4 @@ describe("PositioningStrikeTable", () => {
     expect(screen.getByText("No strikes to display")).toBeInTheDocument();
     expect(screen.queryByTestId("positioning-strike-row-25400")).not.toBeInTheDocument();
   });
-
-  test("respects explicit maxAbsCr", () => {
-    renderWithProviders(<PositioningStrikeTable rows={mockRows} maxAbsCr={100000} />);
-    expect(screen.getByTestId("positioning-strike-row-25400")).toBeInTheDocument();
-  });
 });

@@ -16,11 +16,6 @@ const mockStyles = {
 };
 
 describe("ChainSubHeader", () => {
-  it("renders subheader container", () => {
-    renderWithProviders(<ChainSubHeader styles={mockStyles as any} />);
-    expect(screen.getByTestId("options-chain-table-subheader")).toBeInTheDocument();
-  });
-
   it("renders column labels", () => {
     renderWithProviders(<ChainSubHeader styles={mockStyles as any} />);
     const subheader = screen.getByTestId("options-chain-table-subheader");

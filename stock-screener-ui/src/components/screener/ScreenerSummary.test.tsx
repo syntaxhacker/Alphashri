@@ -69,19 +69,6 @@ describe("ScreenerSummary", () => {
     });
   });
 
-  describe("test IDs", () => {
-    test("generates sequential test IDs based on index", () => {
-      const items = buildSummaryItems([
-        { label: "First", value: 1 },
-        { label: "Second", value: 2 },
-        { label: "Third", value: 3 },
-      ]);
-      items.forEach((_, index) => {
-        expect(`summary-card-${index}`).toBe(`summary-card-${index}`);
-      });
-    });
-  });
-
   describe("rendering", () => {
     beforeEach(() => {
       cleanup();

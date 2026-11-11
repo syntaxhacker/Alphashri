@@ -107,12 +107,6 @@ describe("PatternCard", () => {
     expect(screen.getByText("2 1D candles ago")).toBeInTheDocument();
   });
 
-  test("marks the selected card with the primary border", () => {
-    const { container } = r(<PatternCard hit={HIT} selected />);
-    const card = container.querySelector('[data-testid="patterns-card-IRCON-falling_wedge"]');
-    expect(card).not.toBeNull();
-  });
-
   test("clicking the card passes the hit to onClick", async () => {
     const onClick = vi.fn();
     r(<PatternCard hit={HIT} onClick={onClick} />);

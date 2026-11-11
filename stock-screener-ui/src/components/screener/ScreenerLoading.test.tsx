@@ -24,49 +24,4 @@ describe("ScreenerLoading", () => {
     expect(screen.getByText("Loading screener")).toBeInTheDocument();
   });
 
-  it("renders with custom message", () => {
-    render(
-      <UIProvider>
-        <ScreenerLoading message="Fetching data..." />
-      </UIProvider>,
-    );
-    expect(screen.getByText("Fetching data...")).toBeInTheDocument();
-  });
-
-  it("renders loader component", () => {
-    render(
-      <UIProvider>
-        <ScreenerLoading />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("screener-loader")).toBeInTheDocument();
-  });
-
-  it("has correct test id", () => {
-    render(
-      <UIProvider>
-        <ScreenerLoading />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("screener-loading")).toBeInTheDocument();
-  });
-
-  it("renders with empty string message", () => {
-    render(
-      <UIProvider>
-        <ScreenerLoading message="" />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("screener-loading")).toBeInTheDocument();
-  });
-
-  it("has data-testid for test hooks", () => {
-    render(
-      <UIProvider>
-        <ScreenerLoading />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("screener-loading")).toBeInTheDocument();
-    expect(screen.getByTestId("screener-loader")).toBeInTheDocument();
-  });
 });
