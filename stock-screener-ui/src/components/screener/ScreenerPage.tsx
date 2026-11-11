@@ -387,7 +387,7 @@ export function ScreenerPage({
               </Tabs.List>
             </Tabs>
           </Box>
-          <Box sx={{ flex: 1, minWidth: 0, px: 1, display: "flex", justifyContent: "center", overflow: "hidden" }}>
+          <Box sx={{ flex: 1, minWidth: 80, px: 1, display: "flex", justifyContent: "center", overflow: "hidden" }}>
             {isMarketTab ? null : (
               <Text size="xs" c="dimmed" truncate sx={{ fontSize: 11 }} title={status} data-testid="screener-status">
                 {status}

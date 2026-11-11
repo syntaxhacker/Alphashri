@@ -4,7 +4,7 @@ import IconButton from "@mui/material/IconButton";
 import { IconBell, IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import { Box, Stack, Text, Tooltip } from "@/ui";
 import NewsPanel2 from "../news/NewsPanel2";
-import { MarketStatus } from "./MarketTicker";
+import { MarketStatus, MarketTicker } from "./MarketTicker";
 
 export interface SidebarHeaderProps {
   /** Desktop rail collapsed to 64px. Ignored inside the mobile drawer. */
@@ -117,6 +117,7 @@ export const SidebarHeader = memo(function SidebarHeader({
         </Box>
       )}
       <MarketStatus compact={collapsed} />
+      {!collapsed && <MarketTicker variant="tape" />}
     </Box>
   );
 });
