@@ -64,7 +64,7 @@ export type ThemeType = UITheme;
 function resolveThemeColors(theme: any) {
   if (theme?.colors) return theme.colors;
   if (theme?.palette) {
-    // Map MUI palette to legacy colors shape for fallback
+    // Map the theme palette to the legacy colors shape for fallback
     return {
       green: SCALE_GREEN,
       teal: SCALE_TEAL,

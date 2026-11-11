@@ -90,7 +90,7 @@ vi.mock("../../hooks/useStoreSubscription", () => ({
   useStoreSubscription: vi.fn(),
 }));
 
-// mui migrated
+// Migration to @/ui primitives is complete.
 
 import { PaperHistoryTable } from "./PaperHistoryTable2";
 import { mockTrade } from "./testFixtures";

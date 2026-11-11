@@ -17,7 +17,7 @@ export function Stack({
   component, elevation: _elevation, variant: _variant,
   ...rest
 }: UIStackProps & Record<string, unknown>) {
-  // MUI Stack always renders `display: flex` and defaults to `column` direction;
+  // Stack always renders `display: flex` and defaults to `column` direction;
   // replicate both here since a plain div has neither by default.
   const styleObj: React.CSSProperties = {
     display: "flex",

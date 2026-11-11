@@ -7,7 +7,7 @@ import { UIProvider } from "@/ui";
 import { StrategyForm } from "./StrategyForm";
 import type { StrategyConfig } from "../../types/strategies";
 
-// mui migrated
+// Migration to @/ui primitives is complete.
 
 beforeEach(() => {
   window.alert = vi.fn();

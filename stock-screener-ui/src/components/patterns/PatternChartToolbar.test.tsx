@@ -7,8 +7,8 @@ import { UIProvider } from "@/ui";
 import type { TFSpec } from "@/types/chartPatterns";
 import { PatternChartToolbar } from "./PatternChartToolbar";
 
-// Render the MUI Select as a plain native <select> so option selection is
-// deterministic in happy-dom (the real MUI Select opens a portal menu).
+// Render the local Select as a plain native <select> so option selection is
+// deterministic in happy-dom (the real Select opens a portal menu).
 vi.mock("@/ui", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {

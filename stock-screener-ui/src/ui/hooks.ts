@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { sxTheme } from "./sxTheme";
 import type { UIUseColorSchemeResult } from "./types";
 
-// rem: px -> rem (MUI compat)
+// rem: px -> rem (kept for API parity with the old scale)
 export function rem(value: number | string): string {
   if (typeof value === "string") {
     const n = Number.parseFloat(value);
@@ -12,7 +12,7 @@ export function rem(value: number | string): string {
   return `${value / 16}rem`;
 }
 
-// useMediaQuery: window.matchMedia only (no MUI)
+// useMediaQuery: window.matchMedia only
 export function useMediaQuery(query: string, defaultValue?: boolean, _options?: any): boolean {
   const [matches, setMatches] = useState<boolean>(() => {
     if (typeof window === "undefined" || !window.matchMedia) return Boolean(defaultValue);
@@ -77,7 +77,8 @@ export function useDisclosure(
   return [opened, { open, close, toggle }];
 }
 
-// useColorScheme: localStorage keys `mui-color-scheme` / `color-scheme` + data attributes
+// useColorScheme: `color-scheme` is the stored key. The legacy MUI-era key is still
+// READ as a fallback so existing users keep their saved preference; it is never written.
 export function useColorScheme(): UIUseColorSchemeResult {
   const getInitial = (): "light" | "dark" => {
     if (typeof window !== "undefined") {
@@ -94,7 +95,6 @@ export function useColorScheme(): UIUseColorSchemeResult {
   useEffect(() => {
     if (typeof document !== "undefined") {
       document.documentElement.setAttribute("data-color-scheme", colorScheme);
-      document.documentElement.setAttribute("data-mui-color-scheme", colorScheme);
       document.documentElement.style.colorScheme = colorScheme;
     }
   }, [colorScheme]);
@@ -104,11 +104,9 @@ export function useColorScheme(): UIUseColorSchemeResult {
       setFallback(scheme);
       if (typeof window !== "undefined") {
         try {
-          window.localStorage.setItem("mui-color-scheme", scheme);
           window.localStorage.setItem("color-scheme", scheme);
         } catch {}
         document.documentElement?.setAttribute("data-color-scheme", scheme);
-        document.documentElement?.setAttribute("data-mui-color-scheme", scheme);
         document.documentElement.style.colorScheme = scheme;
       }
     },
@@ -128,12 +126,12 @@ export function useColorScheme(): UIUseColorSchemeResult {
   };
 }
 
-// useTheme: plain sxTheme (no MUI)
+// useTheme: plain sxTheme
 export function useTheme() {
   return sxTheme;
 }
 
-// useUICore: plain sxTheme (no MUI)
+// useUICore: plain sxTheme
 export function useUICore() {
   return sxTheme;
 }

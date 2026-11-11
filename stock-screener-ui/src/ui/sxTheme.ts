@@ -3,7 +3,7 @@ import * as palette from "./palette";
 const BREAKPOINTS = { xs: 0, sm: 600, md: 900, lg: 1200, xl: 1536 } as const;
 
 /**
- * Plain theme object for chart/component code. No MUI/Emotion types: just
+ * Plain theme object for chart/component code: just
  * the palette paths used by hooks and chart helpers.
  */
 export const sxTheme = {

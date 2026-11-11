@@ -8,7 +8,6 @@ import { Provider } from "react-redux";
 import { SnackbarProvider } from "notistack";
 import App from "./App";
 import { store } from "./state/store";
-import "@/ui/styles.css";
 
 if (import.meta.env.VITE_SENTRY_DSN) {
   // Session Replay records every DOM mutation. On the Index Report (1 Hz spot

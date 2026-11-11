@@ -653,7 +653,7 @@ export function PatternsPage({
   useEffect(() => {
     if (!isDesktop || !fullscreen || filtersOpen || activeTab !== "scan") return;
     const onKeyDown = (event: KeyboardEvent): void => {
-      // MUI Select/Menu already handled the key.
+      // The local Select/Menu already handled the key.
       if (event.defaultPrevented) return;
       const target = event.target as HTMLElement | null;
       if (

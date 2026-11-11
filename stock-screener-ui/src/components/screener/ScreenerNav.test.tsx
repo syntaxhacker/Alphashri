@@ -82,7 +82,7 @@ describe("ScreenerNav", () => {
         <ScreenerNav {...defaultProps} />
       </UIProvider>,
     );
-    // Real MUI Tooltip renders description as aria-label on wrapper span, not visible text
+    // The local Tooltip renders description as aria-label on the wrapper span, not visible text
     expect(screen.getByLabelText("Stocks with strong momentum")).toBeInTheDocument();
     expect(screen.getByLabelText("Stocks at 52-week highs")).toBeInTheDocument();
     expect(screen.getByLabelText("Stocks showing RSI reversal signals")).toBeInTheDocument();

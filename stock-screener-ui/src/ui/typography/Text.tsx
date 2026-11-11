@@ -71,8 +71,7 @@ export function Text({
 }: UITextProps) {
   const sp = (v: number | string | undefined) =>
     v == null ? undefined : typeof v === "number" ? `${v * 8}px` : v;
-  // `inherit` is kept for API parity (MUI's `variant="inherit"` had no effect
-  // semantic elements inherit by default.
+  // `inherit` is kept for API parity — semantic elements inherit by default.
   void inherit;
 
   const tone = c as string | undefined;

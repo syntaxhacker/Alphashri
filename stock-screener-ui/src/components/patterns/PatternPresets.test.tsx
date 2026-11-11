@@ -11,7 +11,7 @@ import {
   type PatternPresetsProps,
 } from "./PatternPresets";
 
-// MUI `<Select>` is unreliable in happy-dom — swap it for a native `<select>`.
+// @/ui `<Select>` is unreliable in happy-dom — swap it for a native `<select>`.
 vi.mock("@/ui", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {

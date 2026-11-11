@@ -81,6 +81,16 @@ export function Tooltip({
 
   if (disabled) return <>{children}</>;
 
+  // A string label is the tooltip's accessible description. Surface it on the
+  // wrapper so it stays queryable (and readable) without hovering — the
+  // floating copy only exists while open. A child that already carries its own
+  // accessible name keeps it, so the name is never announced twice.
+  const childHasName =
+    React.isValidElement(children) &&
+    (children.props as { "aria-label"?: string; "aria-labelledby"?: string })["aria-label"] != null;
+  const ariaLabel =
+    typeof label === "string" && !childHasName ? label : undefined;
+
   const arrowStyle: React.CSSProperties = { ...ARROW_POS[placement] };
   const side = ARROW_SIDE[placement];
   if (side && color) {
@@ -99,6 +109,7 @@ export function Tooltip({
     <span
       id={id}
       data-testid={testId ? `${testId}-wrapper` : undefined}
+      aria-label={ariaLabel}
       className={cn("inline-flex relative", className)}
       style={style}
       onMouseEnter={(e) => {

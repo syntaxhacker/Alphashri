@@ -7,7 +7,7 @@ import { UIProvider } from "@/ui";
 import type { PatternHitDTO, PatternSummary } from "@/types/chartPatterns";
 import { PatternsPage, type PatternsPageProps } from "./PatternsPage";
 
-// These page tests mount the real filter modal (MUI Autocomplete + Select).
+// These page tests mount the real filter modal (@/ui Autocomplete + Select).
 // Under a full-suite run with 8 workers the multi-select interaction can exceed
 // the 5s default; the assertions are deterministic, so allow a slower machine.
 vi.setConfig({ testTimeout: 20_000 });
@@ -189,8 +189,7 @@ vi.mock("@/components/patterns/PatternFullscreenView", () => ({  PatternFullscre
   },
 }));
 
-// Native-select stubs so toolbar wiring is deterministic (the real MUI
-// Select needs popup interaction). Testids + onChange contracts preserved.
+// Native-select stubs so toolbar wiring is deterministic (the real Select needs popup interaction). Testids + onChange contracts preserved.
 vi.mock("@/components/patterns/TimeframeSelect", () => ({
   TimeframeSelect: ({ timeframes, value, onChange }: any) => {
     const selected = Array.isArray(value) ? value : value ? [value] : [];
@@ -338,6 +337,18 @@ function makeProps(overrides: Partial<PatternsPageProps> = {}): PatternsPageProp
 
 function r(jsx: React.ReactElement) {
   return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
+}
+
+/**
+ * Pick an option in a local MultiSelect. The listbox opens on combobox focus,
+ * and the option toggles through its checkbox (clicking the bare `li` is inert).
+ */
+async function pickMultiOption(selectTestId: string, name: string | RegExp) {
+  const root = screen.getByTestId(selectTestId);
+  await userEvent.click(within(root).getByRole("combobox"));
+  const listbox = await within(root).findByRole("listbox");
+  const option = within(listbox).getByRole("option", { name });
+  await userEvent.click(within(option).getByRole("checkbox"));
 }
 
 describe("PatternsPage", () => {
@@ -720,10 +731,7 @@ describe("PatternsPage", () => {
     const props = makeProps();
     r(<PatternsPage {...props} />);
     await userEvent.click(screen.getByTestId("patterns-open-filters"));
-    await userEvent.click(
-      within(await screen.findByTestId("patterns-family-select")).getByRole("combobox"),
-    );
-    await userEvent.click(await screen.findByRole("option", { name: /^Reversal/ }));
+    await pickMultiOption("patterns-family-select", /^Reversal/);
     // Staged locally — no instant store update / reload.
     expect(props.setFilter).not.toHaveBeenCalled();
     await userEvent.click(screen.getByTestId("patterns-filters-done"));
@@ -738,18 +746,13 @@ describe("PatternsPage", () => {
     await userEvent.click(screen.getByTestId("patterns-open-filters"));
 
     // Stage a direction first…
-    const directionCombo = within(screen.getByTestId("patterns-direction-select")).getByRole(
-      "combobox",
+    await pickMultiOption("patterns-direction-select", "Bearish");
+    // …then apply a preset that says nothing about direction. The preset
+    // control is a native select, so drive it through its option list.
+    await userEvent.selectOptions(
+      within(screen.getByTestId("patterns-preset-select-input")).getByRole("combobox"),
+      "builtin:fresh_reversals",
     );
-    await userEvent.click(directionCombo);
-    const listboxId = directionCombo.getAttribute("aria-controls");
-    const listbox = listboxId ? document.getElementById(listboxId) : null;
-    await userEvent.click(within(listbox as HTMLElement).getByRole("option", { name: "Bearish" }));
-    // …then apply a preset that says nothing about direction.
-    await userEvent.click(
-      within(screen.getByTestId("patterns-preset-select")).getByRole("combobox"),
-    );
-    await userEvent.click(await screen.findByRole("option", { name: "Fresh reversals" }));
 
     await userEvent.click(screen.getByTestId("patterns-filters-done"));
     expect(props.applyFilters).toHaveBeenCalledWith(
@@ -963,7 +966,7 @@ describe("PatternsPage toolbar", () => {
   test("Force refresh button is disabled while scanning", async () => {
     r(<PatternsPage {...makeProps({ scanning: true })} />);
     await userEvent.click(screen.getByTestId("patterns-overflow"));
-    // Overflow items are menu items: MUI signals disabled via aria-disabled
+    // Overflow items are menu items: the menu signals disabled items via aria-disabled
     // (pointer-events:none blocks real clicks, same as the old button).
     expect(await screen.findByTestId("patterns-force-refresh")).toHaveAttribute(
       "aria-disabled",
@@ -1041,7 +1044,7 @@ describe("PatternsPage toolbar", () => {
         })}
       />,
     );
-    // MUI surfaces a string tooltip title as the wrapper's aria-label.
+    // The wrapper surfaces a string tooltip title as its aria-label.
     expect(screen.getByLabelText(/Scan reused: yes \(12 min ago\)/)).toHaveAttribute(
       "aria-label",
       "Scan reused: yes (12 min ago) — data unchanged · Candle cache: 480 cached / 20 fetched · Prefilter dropped: 12 · Detector v3 · Data as of 2026-09-30",
@@ -1187,7 +1190,9 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
     const props = makeProps({ filters: { ...makeProps().filters, family: ["reversal"] } });
     r(<PatternsPage {...props} />);
     const chip = screen.getByTestId("patterns-applied-filter-family:reversal");
-    await userEvent.click(within(chip).getByTestId("CancelIcon"));
+    await userEvent.click(
+      within(chip).getByTestId("patterns-applied-filter-family:reversal-remove"),
+    );
     expect(props.setFilter).toHaveBeenCalledWith("family", []);
   });
 
@@ -1613,7 +1618,7 @@ describe("PatternsPage copy CSV", () => {
   test("copy buttons are disabled when there are no results", async () => {
     r(<PatternsPage {...makeProps({ results: [], total: 0 })} />);
     await userEvent.click(screen.getByTestId("patterns-overflow"));
-    // Overflow items are menu items: MUI signals disabled via aria-disabled
+    // Overflow items are menu items: the menu signals disabled items via aria-disabled
     // (pointer-events:none blocks real clicks, same as the old buttons).
     expect(await screen.findByTestId("patterns-copy-csv")).toHaveAttribute(
       "aria-disabled",

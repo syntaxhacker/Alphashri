@@ -67,7 +67,7 @@ describe("ScreenerHeader", () => {
       </UIProvider>,
     );
     const refreshBtn = screen.getByTestId("refresh-btn");
-    // MUI ActionIcon shows loading as disabled + progress indicator
+    // The @/ui ActionIcon shows loading as disabled + progress indicator
     expect(refreshBtn).toBeDisabled();
     expect(refreshBtn).toHaveAttribute("aria-busy", "true");
   });
@@ -97,7 +97,7 @@ describe("ScreenerHeader", () => {
       </UIProvider>,
     );
     const combo = getCombobox("provider-select");
-    // MUI Select disabled renders aria-disabled or the native input disabled
+    // The local Select disabled renders aria-disabled or the native input disabled
     expect(screen.getByTestId("provider-select")).toBeInTheDocument();
     expect(combo).toBeInTheDocument();
   });

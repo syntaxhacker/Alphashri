@@ -5,7 +5,7 @@ const meta: Meta<typeof Group> = {
   title: "Primitives/Layout/Group",
   component: Group,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Horizontal flex group with gap and alignment. Use for button rows, header bars, inline controls. When not to use: for vertical stacking use Stack. Uses MUI Group with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Horizontal flex group with gap and alignment. Use for button rows, header bars, inline controls. When not to use: for vertical stacking use Stack. Uses the local @/ui Group with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

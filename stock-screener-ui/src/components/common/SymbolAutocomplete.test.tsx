@@ -46,7 +46,7 @@ describe("SymbolAutocomplete", () => {
     await waitFor(() => expect(searchSymbols).toHaveBeenCalledWith("RELI", 10));
     await screen.findByText("RELIANCE");
 
-    // Regression: MUI's reset on options load used to wipe the uncontrolled input.
+    // Regression: the previous reset on options load used to wipe the uncontrolled input.
     expect(input).toHaveValue("RELI");
   });
 

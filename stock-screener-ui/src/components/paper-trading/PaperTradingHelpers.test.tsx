@@ -178,8 +178,8 @@ vi.mock("../common/TradingDatePicker", () => ({
   ),
 }));
 
-// Mock MUI Select as a native <select> for easier testing
-// mui migrated
+// Mock the local Select as a native <select> for easier testing.
+// Migration to @/ui primitives is complete.
 
 // Import real hooks and components after mocks
 import {

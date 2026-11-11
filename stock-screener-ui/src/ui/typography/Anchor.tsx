@@ -62,8 +62,7 @@ export function Anchor({
   "data-testid": testId,
   ...rest
 }: UIAnchorProps) {
-  // `inherit` is kept for API parity (MUI's `variant="inherit"` had no effect
-  // semantic elements inherit by default.
+  // `inherit` is kept for API parity — semantic elements inherit by default.
   void inherit;
 
   const Element: React.ElementType = component ?? (span ? "span" : "a");

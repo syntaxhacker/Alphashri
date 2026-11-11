@@ -385,14 +385,12 @@ export interface UIMultiSelectProps extends UIInputWrapperProps {
   searchable?: boolean;
   /**
    * Controlled search text. Provide this together with `onSearchChange` so the
-   * typed query lives in the caller's state and cannot be wiped by MUI's
-   * internal `reset`/`blur` events.
+   * typed query lives in the caller's state and is preserved across internal reset/blur events.
    */
   searchValue?: string;
   /**
    * Fired for genuine search changes only: `reason` is `"input"` (typing,
-   * including backspace-to-empty) or `"clear"` (X button / Escape). MUI's
-   * `reset`/`blur`/`selectOption`/`removeOption` empties are not forwarded.
+   * including backspace-to-empty) or `"clear"` (X button / Escape). Empties from internal reset/blur handling are not forwarded.
    */
   onSearchChange?: (value: string, reason?: string) => void;
   clearable?: boolean;
@@ -506,8 +504,7 @@ export interface UITooltipProps extends UIBaseProps {
   color?: UIColor;
   /**
    * Legacy Mantine-compat prop. Accepted so existing call sites keep
-   * typechecking, but intentionally swallowed — MUI renders in a portal
-   * handling of its own and must never receive this as a DOM attribute.
+   * typechecking, but intentionally swallowed — the component handles portal rendering internally and must never receive this as a DOM attribute.
    */
   withinPortal?: boolean;
 }

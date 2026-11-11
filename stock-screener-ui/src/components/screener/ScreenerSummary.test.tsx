@@ -52,7 +52,7 @@ describe("ScreenerSummary", () => {
   });
 
   describe("color tone mapping", () => {
-    test("returns mui palette variable when color is set", () => {
+    test("returns the palette variable when color is set", () => {
       expect(getTone({ label: "A", value: 1, color: "green" })).toBe(
         "var(--color-fin-positive)",
       );

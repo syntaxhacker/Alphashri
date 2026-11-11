@@ -8,7 +8,7 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          "MUI spacing scale (1 = 0.25rem = 4px … xl = 2rem) and shadow levels. Pass spacing props (`p`, `gap`, `m`) as scale names or numbers — never arbitrary pixel strings.",
+          "The spacing scale (1 = 0.25rem = 4px … xl = 2rem) and shadow levels. Pass spacing props (`p`, `gap`, `m`) as scale names or numbers — never arbitrary pixel strings.",
       },
     },
   },
@@ -61,7 +61,7 @@ export const Elevation: StoryObj = {
         ))}
       </Group>
       <MText size="xs" c="dimmed">
-        Cards in the app use sm/md; modals/popovers use lg/xl via MUI defaults.
+        Cards in the app use sm/md; modals/popovers use lg/xl via the local defaults.
       </MText>
     </Stack>
   ),

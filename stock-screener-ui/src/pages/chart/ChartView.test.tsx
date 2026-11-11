@@ -17,8 +17,7 @@ vi.mock("@/components/patterns/PatternTradingViewChart", () => ({
   PatternTradingViewChart: () => <div data-testid="patterns-tv-chart" />,
 }));
 
-// Native-select stub so the timeframe wiring is deterministic (the real MUI
-// Select needs popup interaction). Same test id as the real control.
+// Native-select stub so the timeframe wiring is deterministic (the real Select needs popup interaction). Same test id as the real control.
 vi.mock("@/components/patterns/ChartTimeframeSelect", () => ({
   ChartTimeframeSelect: ({ timeframes, value, onChange }: any) => {
     const source =

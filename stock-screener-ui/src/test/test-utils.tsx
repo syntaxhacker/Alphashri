@@ -6,7 +6,7 @@ import { UIProvider } from "@/ui";
 import { render, RenderResult } from "@testing-library/react";
 
 /**
- * Standard wrapper for tests that need MUI UI context
+ * Standard wrapper for tests that need the local `@/ui` provider context
  */
 export function TestWrapper({ children }: { children: React.ReactNode }) {
   return <UIProvider>{children}</UIProvider>;

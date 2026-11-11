@@ -16,7 +16,7 @@ export interface ChartTimeframeSelectProps {
  *
  * `TimeframeSelect` is the multi-select used by the Patterns scan workspace (a
  * scan can cover several frames). A chart can only render one frame, so this is
- * a plain MUI `Select` over the same server-provided ladder and keeps the
+ * a plain @/ui `Select` over the same server-provided ladder and keeps the
  * contract test ids (`patterns-timeframe-select`).
  */
 export function ChartTimeframeSelect({ timeframes, value, onChange }: ChartTimeframeSelectProps) {

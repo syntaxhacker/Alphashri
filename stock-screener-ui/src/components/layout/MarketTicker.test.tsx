@@ -174,8 +174,8 @@ describe("MarketTicker", () => {
     expect(item.contains(change)).toBe(true);
     expect(item.children).toHaveLength(3);
     expect(item.style.display).toBe("grid");
-    // The old MUI Badge pill is gone — the change is plain text.
-    expect(item.querySelector(".MuiBadge-root")).toBeNull();
+    // The old pill treatment is gone — the change is plain text in the grid row.
+    expect(change).toHaveTextContent(/[-+]\d+\.\d+ \(/);
   });
 
   it("displays loading state with skeletons", () => {

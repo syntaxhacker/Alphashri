@@ -57,7 +57,7 @@ describe("MultiSelect search handling", () => {
   });
 
   test("hideTags renders no inline selected tags", () => {
-    const { container } = r(
+    r(
       <MultiSelect
         data={[{ value: "BSE", label: "BSE" }]}
         value={["BSE"]}
@@ -65,6 +65,8 @@ describe("MultiSelect search handling", () => {
         hideTags
       />,
     );
-    expect(container.querySelectorAll(".MuiAutocomplete-tag")).toHaveLength(0);
+    // The tag renders the selected label; with hideTags it must be absent.
+    // (The "keeps a selected chip" test above is the positive control.)
+    expect(screen.queryByText("BSE")).toBeNull();
   });
 });

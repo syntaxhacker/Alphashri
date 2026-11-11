@@ -77,7 +77,7 @@ describe("OptionChainPanel", () => {
     expect(badge).toHaveTextContent(/^\d{2}:\d{2}:\d{2}$/);
   });
 
-  // MUI Tooltip content renders in a Portal only on hover — needs browser interaction
+  // The local Tooltip content renders in a Portal only on hover — needs browser interaction
   it.skip("renders timestamp badge with tooltip containing full date", () => {
     renderWithProviders(<OptionChainPanel {...defaultProps} />);
     const badge = screen.getByTestId("options-chain-timestamp");

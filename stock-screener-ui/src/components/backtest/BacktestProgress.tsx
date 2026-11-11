@@ -1,4 +1,4 @@
-// BacktestProgress — stock MUI loading UI shown while a backtest run is in flight.
+// BacktestProgress — stock loading UI shown while a backtest run is in flight.
 import { memo } from "react";
 import { Loader, Progress, Stack, Text } from "@/ui";
 

@@ -5,7 +5,7 @@ const meta: Meta<typeof ScrollArea> = {
   title: "Primitives/Layout/ScrollArea",
   component: ScrollArea,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Custom scroll container with styled scrollbars. Use for constrained-height lists, tables, or sidebars. When not to use: for page-level scroll use native overflow. Uses MUI ScrollArea with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Custom scroll container with styled scrollbars. Use for constrained-height lists, tables, or sidebars. When not to use: for page-level scroll use native overflow. Uses the local @/ui ScrollArea with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

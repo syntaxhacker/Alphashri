@@ -5,7 +5,7 @@ const meta: Meta<typeof Title> = {
   title: "Primitives/Typography/Title",
   component: Title,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Heading (h1-h6) with MUI typography scale. Use for page and section headings. When not to use: for body copy use Text. Uses MUI Title with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Heading (h1-h6) with the local typography scale. Use for page and section headings. When not to use: for body copy use Text. Uses the local @/ui Title with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

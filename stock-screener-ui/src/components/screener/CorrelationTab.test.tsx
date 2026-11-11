@@ -120,8 +120,8 @@ describe("CorrelationTab", () => {
     ]);
     renderWithProvider(<CorrelationTab />);
     const input = screen.getByPlaceholderText("Search and select symbols");
-    // NOTE: userEvent.type per-keystroke simulation is swallowed by MUI
-    // Autocomplete in happy-dom when the parent re-renders (stateful data);
+    // NOTE: userEvent.type per-keystroke simulation is swallowed by the local Autocomplete in happy-dom
+    // when the parent re-renders (stateful data);
     // fireEvent exercises the same onSearchChange path. Real-browser E2E
     // covers actual typing.
     fireEvent.change(input, { target: { value: "REL" } });

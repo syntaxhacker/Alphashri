@@ -52,7 +52,7 @@ describe("SymbolFilter", () => {
     r(<SymbolFilter filters={makeFilters()} setFilter={setFilter} />);
 
     const combo = within(screen.getByTestId("patterns-symbol-filter")).getByRole("combobox");
-    // The local MultiSelect opens its listbox on focus (MUI opened on change).
+    // The local MultiSelect opens its listbox on focus (the previous one opened on change).
     fireEvent.focus(combo);
     fireEvent.change(combo, { target: { value: "reli" } });
 

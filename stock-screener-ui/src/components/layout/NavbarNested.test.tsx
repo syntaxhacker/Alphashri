@@ -288,7 +288,7 @@ describe("NavbarNested theme toggle", () => {
     renderNavbar();
     const btn = screen.getByTestId("theme-toggle-btn");
     await user.click(btn);
-    const after = localStorage.getItem("mui-color-scheme");
+    const after = localStorage.getItem("color-scheme");
     // should have flipped to light or dark
     expect(after).toBeTruthy();
     expect(["light", "dark"]).toContain(after);
@@ -296,7 +296,7 @@ describe("NavbarNested theme toggle", () => {
     expect(document.documentElement.getAttribute("data-color-scheme")).toBe(after);
     // clicking again flips back
     await user.click(btn);
-    const flippedAgain = localStorage.getItem("mui-color-scheme");
+    const flippedAgain = localStorage.getItem("color-scheme");
     expect(flippedAgain).not.toEqual(after);
   });
 

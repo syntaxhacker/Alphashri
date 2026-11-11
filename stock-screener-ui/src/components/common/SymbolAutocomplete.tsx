@@ -54,7 +54,7 @@ export default function SymbolAutocomplete({
   }, [value]);
 
   const handleInput = (v: string, reason?: string) => {
-    // MUI fires reason "reset"/"blur" with "" when async options resolve or the
+    // The local Autocomplete fires reason "reset"/"blur" with "" when async options resolve or the
     // field blurs; those are not user edits and must not wipe the typed text.
     if (reason === "reset" || reason === "blur") return;
     setInput(v);

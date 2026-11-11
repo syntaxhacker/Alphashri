@@ -30,7 +30,7 @@ export function getChartThemeColors(isDark: boolean, theme: UITheme | Record<str
   const t: any = theme as any;
   const colors = t?.colors;
   const palette = t?.palette;
-  // Support both legacy (colors) and MUI (palette) themes; FormControl muiName crash guard
+  // Support both legacy (colors) and palette theme shapes; guard on missing theme fields
   if (colors?.dark && colors?.gray) {
     return {
       bgColor: isDark ? colors.dark[7] : t.white ?? CHART_BG,
@@ -42,7 +42,7 @@ export function getChartThemeColors(isDark: boolean, theme: UITheme | Record<str
       negativeColor: NEGATIVE,
     };
   }
-  // MUI palette fallback — defaults use palette single source of truth
+  // Palette fallback — defaults use the palette single source of truth
   const bgDefault = palette?.background?.default;
   const bgPaper = palette?.background?.paper;
   const textPrimary = palette?.text?.primary;

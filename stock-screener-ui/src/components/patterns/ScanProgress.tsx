@@ -151,8 +151,7 @@ export function ScanCacheChip({ job, onForceRefresh }: ScanCacheChipProps) {
         : "Fresh";
   const color = cache.kind === "reused" ? "warning" : cache.kind === "mixed" ? "default" : "success";
   const lines = scanCacheDetails(job, cache);
-  // One accessible string: MUI surfaces a string title as the wrapper's
-  // aria-label, so the layers stay queryable without hovering.
+  // One accessible string: the wrapper surfaces a string title as its aria-label, so the layers stay queryable without hovering.
   const summary = lines.join(" · ");
   return (
     <Box

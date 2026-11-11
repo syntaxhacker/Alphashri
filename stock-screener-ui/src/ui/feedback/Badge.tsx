@@ -72,7 +72,7 @@ export function Badge({
   let borderColor: string | undefined;
   let textColor: string | undefined;
   if (isFilled) {
-    // solid bg + contrast (near-black) text, matches MUI contrastText
+    // solid bg + contrast (near-black palette.BG) text
     bg = main;
     borderColor = main;
     textColor = palette.BG;

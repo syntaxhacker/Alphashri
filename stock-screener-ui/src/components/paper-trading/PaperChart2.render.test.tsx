@@ -100,7 +100,7 @@ vi.mock("../../hooks/useStoreSubscription", () => ({
   useStoreSubscription: vi.fn(),
 }));
 
-// The real ui DatePicker (MUI section-based field) drops inputProps testids
+// The real @/ui DatePicker (section-based field) drops inputProps testids
 // and can't be driven by fireEvent; mock as a native input like
 // PaperTradingHelpers.test.tsx does for TradingDatePicker. Values convert to
 // Date like the real picker (empty -> null).
@@ -120,8 +120,8 @@ vi.mock("../chart/TradingChart", () => ({
   TradingChart: vi.fn(() => <div data-testid="mock-trading-chart">TradingChart</div>),
 }));
 
-// Mock MUI UI components for deterministic DOM interaction
-// mui migrated
+// Mock the local @/ui components for deterministic DOM interaction.
+// Migration to @/ui primitives is complete.
 
 function setState(overrides: Partial<PaperTradingState>) {
   currentState = createMockState(overrides);
