@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Stack, Group, Text, Loader, Button, Alert } from "@/ui";
 import { IconAlertCircle, IconDatabaseOff } from "@tabler/icons-react";
 import { CompactPanel } from "./compact";
@@ -6,12 +7,23 @@ export interface InlineLoaderProps {
   "data-testid"?: string;
   className?: string;
   size?: string;
+  message?: string;
+  showSpinner?: boolean;
+  children?: ReactNode;
 }
 
-export function InlineLoader({ "data-testid": testId, className, size = "sm" }: InlineLoaderProps) {
+export function InlineLoader({
+  "data-testid": testId,
+  className,
+  size = "sm",
+  message,
+  showSpinner = true,
+  children,
+}: InlineLoaderProps) {
   return (
-    <Group justify="center" py="xl" data-testid={testId} className={className}>
-      <Loader size={size} />
+    <Group justify="center" direction="column" gap="xs" py="xl" data-testid={testId} className={className}>
+      {showSpinner && <Loader size={size} />}
+      {children || (message && <Text size="xs" c="dimmed">{message}</Text>)}
     </Group>
   );
 }
@@ -103,6 +115,7 @@ interface EmptyCompactProps {
   "data-testid"?: string;
   className?: string;
   id?: string;
+  children?: React.ReactNode;
 }
 
 export function EmptyCompact({
@@ -113,10 +126,12 @@ export function EmptyCompact({
   "data-testid": testId,
   className,
   id,
+  children,
 }: EmptyCompactProps) {
   return (
-    <CompactPanel data-testid={testId} className={className} id={id}>
-      <EmptyState icon={icon} emoji={emoji} title={title} description={description} />
+    <CompactPanel data-testid={testId} className={className} id={id} description={description}>
+      <EmptyState icon={icon} emoji={emoji} title={title} />
+      {children}
     </CompactPanel>
   );
 }

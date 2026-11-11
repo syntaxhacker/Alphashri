@@ -39,7 +39,6 @@ from __future__ import annotations
 import argparse
 import functools
 import json
-import os
 import sys
 import time
 from datetime import datetime
@@ -49,8 +48,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import config  # noqa: E402
-from chart_patterns import candles  # noqa: E402
-from chart_patterns import features as F  # noqa: E402
+from chart_patterns import candles  # noqa: E402from chart_patterns import features as F  # noqa: E402
 from chart_patterns.detectors.consolidation import (  # noqa: E402
     _is_range_bound,
     _trailing_base_end,
@@ -172,23 +170,9 @@ def cmd_build(args: argparse.Namespace) -> int:
 # phase 2 — watch for the cross
 # --------------------------------------------------------------------------- #
 def _token() -> str | None:
-    try:
-        from db.models import get_shared_broker_token
+    from scripts import upstox_common
 
-        td = get_shared_broker_token("upstox")
-        if td and td.get("access_token"):
-            return td["access_token"]
-    except Exception:
-        pass
-    f = ROOT / ".upstox_token.json"
-    if f.exists():
-        try:
-            tok = json.loads(f.read_text()).get("access_token")
-            if tok:
-                return tok
-        except Exception:
-            pass
-    return os.getenv("UPSTOX_ACCESS_TOKEN")
+    return upstox_common.token() or None
 
 
 def _instrument_keys(symbols: list[str]) -> dict[str, str]:

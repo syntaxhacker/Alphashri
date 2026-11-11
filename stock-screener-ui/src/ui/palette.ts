@@ -1,9 +1,9 @@
 // ============================================================
 // SINGLE SOURCE OF TRUTH FOR ALL COLORS IN THE APP (LEGACY DARK)
 // ------------------------------------------------------------
-// Style: HIGH-CONTRAST DARK theme (GitHub Dark inspired)
-//   - Near-black navy surfaces (#0D1117 / #161B22) — not pitch black
-//   - Near-white text (#F0F6FC) — ~15:1 contrast on body
+// Style: HIGH-CONTRAST DARK theme (pitch-black terminal)
+//   - Pitch-black body (#000000) with near-black panels (#0A0A0A / #121212)
+//   - Near-white text (#F0F6FC) — ~21:1 contrast on body
 //   - Bright blue accent (#58A6FF)
 //   - Vivid green (#3FB950) up / red (#F85149) down for trading
 // Every other color in the app derives from here.
@@ -15,8 +15,8 @@ export const POSITIVE_COLOR = "#3FB950"; // vivid green up
 export const NEGATIVE_COLOR = "#F85149"; // vivid red down
 export const TEXT_COLOR = "#F0F6FC";     // near-white
 export const TEXT_MUTED_COLOR = "#8B949E";
-export const BG_COLOR = "#0D1117";       // body (near-black navy)
-export const SURFACE_COLOR = "#161B22";  // cards
+export const BG_COLOR = "#000000";       // body (pitch black)
+export const SURFACE_COLOR = "#0A0A0A";  // cards / panels (near-black)
 export const BORDER_COLOR = "#30363D";   // visible borders
 
 // ----- MUI scales (high-contrast dark ramps) -----
@@ -43,6 +43,9 @@ export const ERROR = NEGATIVE_COLOR;
 export const WARNING = "#F0883E";
 export const INFO = PRIMARY;
 
+/** Tabular/mono numeral stack for price, P&L, OI and IV columns. */
+export const MONO = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';
+
 /** Dialog / modal drop shadow — flat design: one soft shadow, no elevation tint. */
 export const DIALOG_SHADOW = "0 8px 32px rgba(0, 0, 0, 0.5)";
 
@@ -51,9 +54,26 @@ export const TEXT = TEXT_COLOR;
 export const TEXT_MUTED = TEXT_MUTED_COLOR;
 export const BG = BG_COLOR;
 export const SURFACE = SURFACE_COLOR;
-export const SURFACE_ALT = "#21262D";
+export const SURFACE_ALT = "#121212";
 export const BORDER = BORDER_COLOR;
 export const SURFACE_TEXT = TEXT_COLOR;
+
+// Muted pattern/chart accent palette (professional desk look, not neon).
+export const PATTERN_LINE_COLORS = [
+  "#C9A227", // muted gold — selected pattern
+  "#5B8DEF", // muted blue
+  "#4C9A8F", // muted teal
+  "#8C9BAA", // slate
+  "#B07A3C", // bronze
+  "#6F8FAF", // steel blue
+  "#9A8C6A", // khaki
+  "#7F8B99", // grey
+];
+export const PATTERN_BOUNDARY = ["#5B8DEF", "#C9A227"];
+export const PATTERN_CONFIRMED = "#4C9A8F";
+export const PATTERN_FORMING = "#5B8DEF";
+export const PATTERN_FAILED = "#C05A5A";
+export const PATTERN_MARGINAL = "#C9A227";
 
 // Trading markers (vivid green/red on dark)
 export const MARKER_ENTRY = PRIMARY;
@@ -78,12 +98,12 @@ export const EXIT_COLORS: Record<string, string> = {
 export const EXIT_DEFAULT = "#D29922";
 
 // Chart overlays / tooltips / axis (dark theme)
-export const TOOLTIP_BG = "#161B22";
+export const TOOLTIP_BG = "#111111";
 export const TOOLTIP_BORDER = "#30363D";
 export const TOOLTIP_TEXT = "#F0F6FC";
 export const AXIS_LINE = "#30363D";
 export const AXIS_SPLIT = "#21262D";
-export const CHART_BG = "#0D1117";
+export const CHART_BG = "#000000";
 /** Pure-black plot background for the TradingView (lightweight-charts) panels. */
 export const CHART_TV_BG = "#000000";
 export const CHART_TEXT = "#F0F6FC";
@@ -91,9 +111,9 @@ export const CHART_MUTED = "#8B949E";
 export const CHART_BORDER = "#30363D";
 export const CHART_SPLIT = "#21262D";
 export const CHART_CROSSHAIR = "#8B949E";
-export const CHART_OVERLAY = "rgba(13, 17, 23, 0.95)";
-export const CHART_DROPDOWN = "rgba(13, 17, 23, 0.92)";
-export const CHART_DATAZOOM_BG = "#0D1117";
+export const CHART_OVERLAY = "rgba(0, 0, 0, 0.95)";
+export const CHART_DROPDOWN = "rgba(0, 0, 0, 0.92)";
+export const CHART_DATAZOOM_BG = "#000000";
 export const DATAZOOM_FILLER = "rgba(63, 185, 80, 0.15)";
 
 // --- Desk / terminal surface for the Nifty analytics panels ----------------
@@ -133,13 +153,13 @@ export const CHART_AVG_ENTRY = "#D29922";
 export const CHART_TRADE_EXIT = "#F0883E";
 
 // Sector treemap
-export const SECTOR_STRONG_GREEN = "#1A7F37";
-export const SECTOR_GREEN = "#3FB950";
-export const SECTOR_LIGHT_GREEN = "#8CE0A4";
-export const SECTOR_STRONG_RED = "#B6231C";
-export const SECTOR_RED = "#F85149";
-export const SECTOR_LIGHT_RED = "#FFA8A3";
-export const SECTOR_NEUTRAL = "#484F58";
+export const SECTOR_STRONG_GREEN = "#2E7D5B";
+export const SECTOR_GREEN = "#3E8E6A";
+export const SECTOR_LIGHT_GREEN = "#345B4A";
+export const SECTOR_STRONG_RED = "#B05A53";
+export const SECTOR_RED = "#9E4640";
+export const SECTOR_LIGHT_RED = "#5E3B39";
+export const SECTOR_NEUTRAL = "#3A4048";
 
 // Tinted row backgrounds
 export const TINT_POSITIVE = "rgba(63, 185, 80, 0.12)";
@@ -188,6 +208,10 @@ export const NT_BG = "#0E0E0E";
 export const NT_GRID = "#2A2A2A";
 export const NT_CANDLE_BULL = "#00FF88";
 export const NT_CANDLE_BEAR = "#FF3B30";
+
+// ----- Layout tokens -----
+export const FIN_HEADER_H = 48;   // header height
+export const FIN_OUTER_PAD = 16;  // horizontal padding
 export const NT_FVG_BULL_FILL = "rgba(0,255,136,0.18)";
 export const NT_FVG_BULL_STROKE = "rgba(0,255,136,0.9)";
 export const NT_FVG_BEAR_FILL = "rgba(255,59,48,0.18)";

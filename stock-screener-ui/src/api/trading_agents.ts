@@ -4,8 +4,9 @@
  */
 
 import { fetchWithAuth } from "../state/auth";
+import { iterateSse, readSseStream } from "./sse";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+import { API_BASE } from "@/api/config";
 const TRADING_AGENTS_BASE = `${API_BASE}/api/trading-agents`;
 
 export interface Conversation {
@@ -85,14 +86,20 @@ export interface HealthResponse {
 }
 
 /**
+ * Parse a non-ok response body into an Error, falling back to the HTTP status.
+ * Every TradingAgents endpoint reports errors as `{ detail }` JSON.
+ */
+async function tradingAgentsError(response: Response, fallback: string): Promise<never> {
+  const error = await response.json().catch(() => ({ detail: fallback }));
+  throw new Error(error.detail || `HTTP ${response.status}`);
+}
+
+/**
  * Get available configuration options
  */
 export async function getTradingAgentsConfig(): Promise<ConfigResponse> {
   const response = await fetchWithAuth(`${TRADING_AGENTS_BASE}/config`);
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Failed to get config" }));
-    throw new Error(error.detail || `HTTP ${response.status}`);
-  }
+  if (!response.ok) await tradingAgentsError(response, "Failed to get config");
   return response.json();
 }
 
@@ -101,10 +108,7 @@ export async function getTradingAgentsConfig(): Promise<ConfigResponse> {
  */
 export async function checkTradingAgentsHealth(): Promise<HealthResponse> {
   const response = await fetchWithAuth(`${TRADING_AGENTS_BASE}/health`);
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Health check failed" }));
-    throw new Error(error.detail || `HTTP ${response.status}`);
-  }
+  if (!response.ok) await tradingAgentsError(response, "Health check failed");
   return response.json();
 }
 
@@ -120,10 +124,7 @@ export async function analyzeStock(request: AnalysisRequest): Promise<AnalysisRe
     body: JSON.stringify(request),
   });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Analysis failed" }));
-    throw new Error(error.detail || `HTTP ${response.status}`);
-  }
+  if (!response.ok) await tradingAgentsError(response, "Analysis failed");
   return response.json();
 }
 
@@ -153,52 +154,35 @@ export async function* streamStockAnalysis(
     },
   );
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Stream failed" }));
-    throw new Error(error.detail || `HTTP ${response.status}`);
-  }
+  if (!response.ok) await tradingAgentsError(response, "Stream failed");
 
   if (!response.body) {
     throw new Error("No response body");
   }
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
+  for await (const frame of iterateSse(response)) {
+    if (frame.data === "[DONE]") {
+      return;
+    }
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-
-    for (const line of lines) {
-      if (line.startsWith("data: ")) {
-        const data = line.slice(6);
-        if (data === "[DONE]") return;
-
-        try {
-          const parsed = JSON.parse(data);
-          // Determine event type from data
-          if (parsed.ticker && !parsed.stats) {
-            yield { event: "connected", data: parsed };
-          } else if (parsed.percent !== undefined) {
-            yield { event: "progress", data: parsed };
-          } else if (parsed.section) {
-            yield { event: "report", data: parsed };
-          } else if (parsed.error) {
-            yield { event: "error", data: parsed };
-          } else if (parsed.stats || parsed.decision) {
-            yield { event: "complete", data: parsed };
-          } else {
-            yield { event: "status", data: parsed };
-          }
-        } catch {
-          // Not JSON, skip
-        }
+    try {
+      const parsed = JSON.parse(frame.data);
+      // Determine event type from data
+      if (parsed.ticker && !parsed.stats) {
+        yield { event: "connected", data: parsed };
+      } else if (parsed.percent !== undefined) {
+        yield { event: "progress", data: parsed };
+      } else if (parsed.section) {
+        yield { event: "report", data: parsed };
+      } else if (parsed.error) {
+        yield { event: "error", data: parsed };
+      } else if (parsed.stats || parsed.decision) {
+        yield { event: "complete", data: parsed };
+      } else {
+        yield { event: "status", data: parsed };
       }
+    } catch {
+      // Not JSON, skip
     }
   }
 }
@@ -215,10 +199,7 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
     body: JSON.stringify(request),
   });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Chat failed" }));
-    throw new Error(error.detail || `HTTP ${response.status}`);
-  }
+  if (!response.ok) await tradingAgentsError(response, "Chat failed");
   return response.json();
 }
 
@@ -297,38 +278,13 @@ export async function fetchWithSSE(
     throw new Error("No response body");
   }
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-
-    for (const line of lines) {
-      if (line.startsWith("event: ")) {
-        const event = line.slice(7);
-        const dataLine = lines.shift();
-        if (dataLine?.startsWith("data: ")) {
-          try {
-            const data = JSON.parse(dataLine.slice(6));
-            onEvent(event, data);
-          } catch {
-            onEvent(event, dataLine.slice(6));
-          }
-        }
-      } else if (line.startsWith("data: ")) {
-        try {
-          const data = JSON.parse(line.slice(6));
-          onEvent("message", data);
-        } catch {
-          onEvent("message", line.slice(6));
-        }
-      }
+  await readSseStream(response, (frame) => {
+    let data: unknown = frame.data;
+    try {
+      data = JSON.parse(frame.data);
+    } catch {
+      /* keep raw string when the payload is not JSON */
     }
-  }
+    onEvent(frame.event, data);
+  });
 }

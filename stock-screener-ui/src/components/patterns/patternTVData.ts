@@ -7,15 +7,11 @@ import type {
   Trendline,
 } from "@/types/chartPatterns";
 import { PATTERN_SERIES_COLORS } from "@/config/patterns";
-import {
-  MARKER_SL,
-  MARKER_TP,
-  NEGATIVE,
-  POSITIVE,
-  PRIMARY,
-} from "@/ui/palette";
+import { NEGATIVE, POSITIVE } from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
-import { mapTimeSegment, mapTrendlines, parseEngineTimestamp } from "./trendlineMapping";
+import { toEpochSeconds as toTVTime } from "@/utils/chart/time";
+import { createAxisIndex } from "./axisIndex";
+import { resolveVisibleStandalone } from "./standaloneLines";
 
 /**
  * Colours assigned in order to the patterns drawn on one chart: the selected
@@ -26,12 +22,8 @@ import { mapTimeSegment, mapTrendlines, parseEngineTimestamp } from "./trendline
  */
 export const PATTERN_TV_COLORS: string[] = PATTERN_SERIES_COLORS;
 
-/** Epoch seconds, the time format lightweight-charts expects. Naive engine
- * timestamps are pinned to IST (see `parseEngineTimestamp`) so the axis and the
- * trendline/pivot mapping agree regardless of the browser timezone. */
-export function toTVTime(t: string): number {
-  return parseEngineTimestamp(t) / 1000;
-}
+/** @deprecated Use `@/utils/chart/time.toEpochSeconds` directly for new code. */
+export { toTVTime };
 
 export interface TVCandle {
   time: number;
@@ -74,14 +66,19 @@ export interface TVLine {
    * two boundaries never print the same name twice.
    */
   labelEligible?: boolean;
+  /** Anchor the inline label at the line's first point (history) or last (selected). */
+  labelAt?: "start" | "end";
 }
 
 export interface TVMarker {
   time: number;
-  position: "aboveBar" | "belowBar";
-  shape: "arrowUp" | "arrowDown";
+  position: "aboveBar" | "belowBar" | "inBar" | "atPriceMiddle";
+  shape: "arrowUp" | "arrowDown" | "circle" | "square";
   color: string;
   text: string;
+  price?: number;
+  size?: number;
+  group?: "pivots" | "keypoints";
 }
 
 /** An overlay bundle, optionally carrying instance identity (mirrors `SiblingOverlay`). */
@@ -100,6 +97,8 @@ export interface BuildPatternTVDataInput {
    */
   trendLines?: TrendLine[];
   trendlinesView?: TrendlinesView;
+  /** Last N hits (newest first) to draw as historical patterns. */
+  historyHits?: PatternHitDTO[];
 }
 
 export interface BuildPatternTVDataResult {
@@ -108,10 +107,6 @@ export interface BuildPatternTVDataResult {
   levels: TVLevel[];
   lines: TVLine[];
   markers: TVMarker[];
-}
-
-function isPrice(v: unknown): v is number {
-  return typeof v === "number" && Number.isFinite(v) && v > 0;
 }
 
 function byTimeAsc(a: { time: number }, b: { time: number }): number {
@@ -142,22 +137,27 @@ export function buildPatternTVData({
   overlays,
   trendLines,
   trendlinesView = "both",
+  historyHits = [],
 }: BuildPatternTVDataInput): BuildPatternTVDataResult {
   const empty: BuildPatternTVDataResult = { candles: [], volume: [], levels: [], lines: [], markers: [] };
   const times = candles.map((c) => c.t);
   if (times.length === 0) return empty;
 
+  // Axis parses once per build; every group/standalone lookup below reuses it.
+  const axis = createAxisIndex(times);
+
   /** Epoch per candle index; non-finite when the timestamp is unparseable. */
+  const epochs: number[] = times.map(toTVTime);
   const epochAt = (index: number): number =>
-    index >= 0 && index < times.length ? toTVTime(times[index] as string) : NaN;
+    index >= 0 && index < epochs.length ? epochs[index]! : NaN;
 
   // Candles: dedupe by epoch (last bar wins), sorted ascending.
   const byEpoch = new Map<number, ChartCandle>();
-  for (const c of candles) {
-    const t = toTVTime(c.t);
-    if (!Number.isFinite(t)) continue;
+  candles.forEach((c, i) => {
+    const t = epochs[i]!;
+    if (!Number.isFinite(t)) return;
     byEpoch.set(t, c);
-  }
+  });
   const sortedEpochs = [...byEpoch.keys()].sort((a, b) => a - b);
   const tvCandles: TVCandle[] = sortedEpochs.map((t) => {
     const c = byEpoch.get(t) as ChartCandle;
@@ -172,21 +172,9 @@ export function buildPatternTVData({
     };
   });
 
-  // Horizontal breakout/target/stop levels (zeroed levels suppress the guide,
-  // matching the fullscreen's re-plan suppression).
+  // Breakout/target/stop levels intentionally omitted: risk sizing is the
+  // trader's job, not the pattern engine's.
   const levels: TVLevel[] = [];
-  if (hit) {
-    if (isPrice(hit.breakout_level)) {
-      levels.push({ price: hit.breakout_level, color: PRIMARY, title: "Breakout", lineStyle: "dashed", width: 1 });
-    }
-    if (isPrice(hit.target)) {
-      levels.push({ price: hit.target, color: MARKER_TP, title: "Target", lineStyle: "dashed", width: 1 });
-    }
-    if (isPrice(hit.stop)) {
-      levels.push({ price: hit.stop, color: MARKER_SL, title: "Stop", lineStyle: "dashed", width: 1 });
-    }
-  }
-  levels.sort((a, b) => a.price - b.price);
 
   // Pattern boundary groups: the selected pattern solid, siblings dashed.
   const selectedId = hit?.pattern_id;
@@ -201,7 +189,7 @@ export function buildPatternTVData({
     if (selectedStart != null && overlayStart == null) return false;
     return true;
   };
-  const groups: Array<{ name: string; lines: Trendline[]; selected: boolean }> = [];
+  const groups: Array<{ name: string; lines: Trendline[]; selected: boolean; labelAt?: "start" | "end" }> = [];
   if ((hit?.trendlines?.length ?? 0) > 0) {
     groups.push({
       name: hit?.pattern_name || "Pattern",
@@ -216,6 +204,23 @@ export function buildPatternTVData({
       name: overlay.pattern_name || overlay.pattern_id || "Pattern",
       lines: overlay.trendlines,
       selected: false,
+      labelAt: "start",
+    });
+  });
+
+  // Historical patterns from the chart's History selector. The selected hit is
+  // already group 0, so the others are labelled P2, P3, ... in the legend.
+  const selectedKey = hit ? `${hit.pattern_id}|${hit.start_date}` : null;
+  let historyNo = 1;
+  historyHits.forEach((h) => {
+    if (!h?.trendlines?.length) return;
+    if (selectedKey && `${h.pattern_id}|${h.start_date}` === selectedKey) return;
+    historyNo += 1;
+    groups.push({
+      name: `P${historyNo} · ${h.pattern_name || h.pattern_id}`,
+      lines: h.trendlines as Trendline[],
+      selected: false,
+      labelAt: "start",
     });
   });
 
@@ -224,7 +229,7 @@ export function buildPatternTVData({
   const nameCounts = new Map<string, number>();
   const lines: TVLine[] = [];
   groups.forEach((group, index) => {
-    const mapped = mapTrendlines(group.lines, times);
+    const mapped = axis.mapTrendlines(group.lines);
     if (mapped.length === 0) return;
     const color = PATTERN_TV_COLORS[index % PATTERN_TV_COLORS.length] as string;
     const seen = nameCounts.get(group.name) ?? 0;
@@ -248,24 +253,17 @@ export function buildPatternTVData({
         name,
         label: labelEligible ? name : undefined,
         labelEligible,
+        labelAt: group.labelAt ?? "end",
       });
     });
   });
 
   // Standalone support/resistance 2-point segments, gated by the view filter.
-  const standalone = trendLines ?? hit?.trend_lines ?? [];
-  const visibleStandalone =
-    trendlinesView === "none"
-      ? []
-      : standalone.filter((line) =>
-          trendlinesView === "both" ? true : line?.kind === trendlinesView,
-        );
+  const visibleStandalone = resolveVisibleStandalone(trendLines, hit, trendlinesView);
   visibleStandalone.forEach((line) => {
-    if (!line) return;
-    const name = line.kind === "support" ? "TLS" : "TLR";
-    const color = line.kind === "support" ? POSITIVE : NEGATIVE;
-    const points = mapTimeSegment(line.start_date, line.start_price, line.end_date, line.end_price, times);
-    if (!points || points.length === 0) return;
+    const mapped = axis.mapStandaloneLine(line);
+    if (!mapped) return;
+    const { name, color, points } = mapped;
     const tvPoints = dedupeByTime(
       points
         .map((p) => ({ time: epochAt(p.index), value: p.price }))
@@ -284,27 +282,8 @@ export function buildPatternTVData({
   });
   lines.sort((a, b) => (a.points[0]?.time ?? 0) - (b.points[0]?.time ?? 0));
 
-  // Swing pivots: highs red pointing down above the bar, lows green up below.
+  // Pivot/key-point dot markers removed: the chart draws lines only.
   const markers: TVMarker[] = [];
-  if (hit?.pivots?.length && times.length > 0) {
-    hit.pivots.forEach((pivot) => {
-      if (!pivot || !pivot.t) return;
-      const [point] = mapTrendlines([[{ t: pivot.t, price: pivot.price }]], times);
-      const mappedPoint = point?.[0];
-      if (!mappedPoint || mappedPoint.index < 0) return;
-      const time = epochAt(mappedPoint.index);
-      if (!Number.isFinite(time)) return;
-      const low = pivot.kind === "low";
-      markers.push({
-        time,
-        position: low ? "belowBar" : "aboveBar",
-        shape: low ? "arrowUp" : "arrowDown",
-        color: low ? POSITIVE : NEGATIVE,
-        text: low ? "L" : "H",
-      });
-    });
-  }
-  markers.sort(byTimeAsc);
 
   return { candles: tvCandles, volume, levels, lines, markers };
 }

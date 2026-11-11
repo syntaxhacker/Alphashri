@@ -11,8 +11,8 @@ import pandas as pd
 
 from .. import features as F
 from .common import (
+    _fit_pair,
     envelope_pair,
-    fit_window_pair,
     flat_line_points,
     iso_ts,
     make_hit,
@@ -45,10 +45,6 @@ PENNANT_MAX_RETR = 0.70  # max retracement of the pole
 PENNANT_CONVERGE = 0.85  # end width must be < 85% of start width
 PENNANT_CONVERGE_MID = 0.85  # end width must also be < 85% of the mid-span width
 PENNANT_MAX_DRIFT = 0.04  # net consolidation drift vs its start price
-
-
-def _fit_pair(df, ctx, start, max_pivots=5):
-    return fit_window_pair(df, ctx, start, max_pivots=max_pivots)
 
 
 def _line_val(env: dict, x) -> float:
@@ -290,9 +286,9 @@ def _find_pole_flag(df: pd.DataFrame, bullish: bool):
     """Search pole+consolidation; return the best ``(dict)`` or ``None``."""
     n = len(df)
     end = n - 1
-    close = df["close"].astype(float)
-    high = df["high"].astype(float)
-    low = df["low"].astype(float)
+    close = df["close"].to_numpy(dtype=float)
+    high = df["high"].to_numpy(dtype=float)
+    low = df["low"].to_numpy(dtype=float)
     best = None
     for pole_bars in (6, 8, 10, 12, 15):
         for flag_bars in (5, 7, 9, 12):
@@ -303,25 +299,25 @@ def _find_pole_flag(df: pd.DataFrame, bullish: bool):
             pend = end - flag_bars
             fstart = pend
             fend = end
-            c0 = float(close.iloc[pstart])
-            c1 = float(close.iloc[pend])
+            c0 = float(close[pstart])
+            c1 = float(close[pend])
             if c0 <= 0:
                 continue
             pole_ret = (c1 - c0) / c0
-            pole_high = float(high.iloc[pstart : pend + 1].max())
-            pole_low = float(low.iloc[pstart : pend + 1].min())
+            pole_high = float(high[pstart : pend + 1].max())
+            pole_low = float(low[pstart : pend + 1].min())
             pole_move = pole_high - pole_low
             if pole_move <= 0:
                 continue
-            fhigh = float(high.iloc[fstart : fend + 1].max())
-            flow = float(low.iloc[fstart : fend + 1].min())
+            fhigh = float(high[fstart : fend + 1].max())
+            flow = float(low[fstart : fend + 1].min())
             frange = fhigh - flow
             if frange > 0.55 * pole_move:
                 continue
             if frange <= 0:
                 continue
             # A flag consolidates: its net drift must be small vs the pole move.
-            flag_change = abs(float(close.iloc[fend]) - float(close.iloc[fstart]))
+            flag_change = abs(float(close[fend]) - float(close[fstart]))
             if flag_change > 0.22 * pole_move:
                 continue
             if bullish:
@@ -330,8 +326,8 @@ def _find_pole_flag(df: pd.DataFrame, bullish: bool):
                 retr = (pole_high - flow) / pole_move
                 if retr > 0.6:
                     continue
-                fdrift = (float(close.iloc[fend]) - float(close.iloc[fstart])) / max(
-                    float(close.iloc[fstart]), 1e-9
+                fdrift = (float(close[fend]) - float(close[fstart])) / max(
+                    float(close[fstart]), 1e-9
                 )
                 if fdrift > 0.04:
                     continue
@@ -341,8 +337,8 @@ def _find_pole_flag(df: pd.DataFrame, bullish: bool):
                 retr = (fhigh - pole_low) / pole_move
                 if retr > 0.6:
                     continue
-                fdrift = (float(close.iloc[fend]) - float(close.iloc[fstart])) / max(
-                    float(close.iloc[fstart]), 1e-9
+                fdrift = (float(close[fend]) - float(close[fstart])) / max(
+                    float(close[fstart]), 1e-9
                 )
                 if fdrift < -0.04:
                     continue
@@ -364,9 +360,9 @@ def _find_pole_flag(df: pd.DataFrame, bullish: bool):
     return best
 
 
-def _flag_hit(df, best, pid, bullish):
+def _flag_hit(df, best, pid, bullish, ctx):
     atr_val = F.atr_value(df)
-    highs, lows = get_swings(df)
+    highs, lows = get_swings(df, ctx)
     pstart, pend = int(best["pstart"]), int(best["pend"])
     fstart, fend = int(best["fstart"]), int(best["fend"])
     if bullish:
@@ -443,7 +439,7 @@ def detect_bull_flag(df: pd.DataFrame, ctx: dict | None = None) -> list:
     best = _find_pole_flag(df, bullish=True)
     if best is None:
         return []
-    return _flag_hit(df, best, "bull_flag", True)
+    return _flag_hit(df, best, "bull_flag", True, ctx)
 
 
 def detect_bear_flag(df: pd.DataFrame, ctx: dict | None = None) -> list:
@@ -451,10 +447,10 @@ def detect_bear_flag(df: pd.DataFrame, ctx: dict | None = None) -> list:
     best = _find_pole_flag(df, bullish=False)
     if best is None:
         return []
-    return _flag_hit(df, best, "bear_flag", False)
+    return _flag_hit(df, best, "bear_flag", False, ctx)
 
 
-def _find_pennant(df: pd.DataFrame):
+def _find_pennant(df: pd.DataFrame, ctx: dict | None = None):
     """Return the best ``pole + converging consolidation`` dict or ``None``.
 
     Scans a wider set of pole/consolidation windows than the flag scanner and
@@ -467,13 +463,13 @@ def _find_pennant(df: pd.DataFrame):
     if n < 20:
         return None
     end = n - 1
-    close = df["close"].astype(float)
-    high = df["high"].astype(float)
-    low = df["low"].astype(float)
+    close = df["close"].to_numpy(dtype=float)
+    high = df["high"].to_numpy(dtype=float)
+    low = df["low"].to_numpy(dtype=float)
     atr_val = F.atr_value(df)
     if atr_val <= 0:
         return None
-    highs_all, lows_all = get_swings(df)
+    highs_all, lows_all = get_swings(df, ctx)
     best = None
     for pole_bars in PENNANT_POLES:
         for flag_bars in PENNANT_FLAGS:
@@ -483,30 +479,30 @@ def _find_pennant(df: pd.DataFrame):
             pstart = end - total
             pend = end - flag_bars
             fstart, fend = pend, end
-            c0 = float(close.iloc[pstart])
-            c1 = float(close.iloc[pend])
+            c0 = float(close[pstart])
+            c1 = float(close[pend])
             if c0 <= 0:
                 continue
             pole_ret = (c1 - c0) / c0
             if pole_ret < PENNANT_MIN_POLE_RET:
                 continue
-            pole_high = float(high.iloc[pstart : pend + 1].max())
-            pole_low = float(low.iloc[pstart : pend + 1].min())
+            pole_high = float(high[pstart : pend + 1].max())
+            pole_low = float(low[pstart : pend + 1].min())
             pole_move = pole_high - pole_low
             if pole_move <= 0:
                 continue
-            fhigh = float(high.iloc[fstart : fend + 1].max())
-            flow = float(low.iloc[fstart : fend + 1].min())
+            fhigh = float(high[fstart : fend + 1].max())
+            flow = float(low[fstart : fend + 1].min())
             frange = fhigh - flow
             if frange <= 0 or frange > PENNANT_MAX_FLAG_FRAC * pole_move:
                 continue
             if (pole_high - flow) / pole_move > PENNANT_MAX_RETR:
                 continue
-            flag_change = abs(float(close.iloc[fend]) - float(close.iloc[fstart]))
+            flag_change = abs(float(close[fend]) - float(close[fstart]))
             if flag_change > 0.22 * pole_move:
                 continue
-            fdrift = (float(close.iloc[fend]) - float(close.iloc[fstart])) / max(
-                float(close.iloc[fstart]), 1e-9
+            fdrift = (float(close[fend]) - float(close[fstart])) / max(
+                float(close[fstart]), 1e-9
             )
             if fdrift > PENNANT_MAX_DRIFT:
                 continue
@@ -584,7 +580,7 @@ def detect_pennant(df: pd.DataFrame, ctx: dict | None = None) -> list:
     n = len(df)
     if n < 20:
         return []
-    best = _find_pennant(df)
+    best = _find_pennant(df, ctx)
     if best is None:
         return []
     eu, el = best["eu"], best["el"]
@@ -601,7 +597,7 @@ def detect_pennant(df: pd.DataFrame, ctx: dict | None = None) -> list:
     _, _, r2l = F.linreg_fit(xs, df["low"].iloc[cx0 : cx1 + 1].to_numpy(dtype=float))
     r2 = float(min(r2u, r2l))
     atr_val = F.atr_value(df)
-    highs, lows = get_swings(df)
+    highs, lows = get_swings(df, ctx)
     touches = F.count_touches(highs, eu["slope"], eu["intercept"], atr_val) + F.count_touches(
         lows, el["slope"], el["intercept"], atr_val
     )

@@ -9,9 +9,11 @@ from __future__ import annotations
 import json
 from typing import Any, Iterable, Optional
 
-from sqlalchemy import case, func
+from sqlalchemy import case, func, literal
 
 from db.database import SessionLocal
+
+from .history import select_last_n
 
 try:  # models are registered via db.models on normal import
     from db.models.chart_patterns import PatternComputeJob, PatternHit
@@ -250,6 +252,72 @@ def latest_completed_job(universe: str, timeframe: str) -> Optional[dict]:
         session.close()
 
 
+def latest_hits_by_symbol(
+    universe: str, timeframe: str, exclude_job_id: Optional[str] = None
+) -> dict[str, dict]:
+    """The previous completed job's hits for a universe/timeframe, keyed by symbol.
+
+    Returns the latest completed job (excluding ``exclude_job_id``) and keeps the
+    newest hit per symbol. Each value is the hit dto with ``source_sig`` plus the
+    scan-time ``trend_lines`` / ``trend_lines_sig`` promoted from ``payload_json``
+    to the top level, so :func:`chart_patterns.scan.run_job` can compare
+    signatures without re-parsing payloads. Returns ``{}`` when there is no
+    previous completed job with hits, and never raises on DB failure.
+
+    This is the read side of the source-signature reuse contract: a symbol whose
+    stored ``source_sig`` still matches its current frame is skipped at detect
+    time and its stored hit is re-persisted under the new job id.
+    """
+    session = _new_session()
+    try:
+        q = (
+            session.query(PatternHit)
+            .join(PatternComputeJob, PatternComputeJob.id == PatternHit.job_id)
+            .filter(
+                PatternComputeJob.universe == universe,
+                PatternComputeJob.timeframe == timeframe,
+                PatternComputeJob.status == "completed",
+            )
+        )
+        if exclude_job_id:
+            q = q.filter(PatternComputeJob.id != exclude_job_id)
+        q = q.order_by(
+            PatternComputeJob.finished_at.desc().nullslast(),
+            PatternComputeJob.id.desc(),
+            PatternHit.id.desc(),
+        )
+        rows = q.all()
+        by_symbol: dict[str, dict] = {}
+        for row in rows:
+            sym = row.symbol
+            if sym in by_symbol:
+                continue
+            dto = row.to_dict()
+            payload = {}
+            raw = row.payload_json
+            if isinstance(raw, str):
+                try:
+                    payload = json.loads(raw)
+                except (TypeError, ValueError):
+                    payload = {}
+            elif isinstance(raw, dict):
+                payload = dict(raw)
+            source_sig = payload.get("source_sig")
+            dto["source_sig"] = str(source_sig) if source_sig else None
+            trend_lines = payload.get("trend_lines")
+            if isinstance(trend_lines, list):
+                dto["trend_lines"] = trend_lines
+            trend_lines_sig = payload.get("trend_lines_sig")
+            if trend_lines_sig:
+                dto["trend_lines_sig"] = str(trend_lines_sig)
+            by_symbol[sym] = dto
+        return by_symbol
+    except Exception:
+        return {}
+    finally:
+        session.close()
+
+
 def list_jobs(active_only: bool = False, limit: int = 50) -> list[dict]:
     session = _new_session()
     try:
@@ -268,12 +336,21 @@ def list_jobs(active_only: bool = False, limit: int = 50) -> list[dict]:
 # Hits
 # ---------------------------------------------------------------------------
 
-def delete_hits_for(universe: str, timeframe: str, keep_job_id: Optional[str] = None) -> int:
+def delete_hits_for(
+    universe: str,
+    timeframe: str,
+    keep_job_id: Optional[str] = None,
+    symbols: Optional[Iterable[str]] = None,
+) -> int:
     """Remove hits from *previous* jobs for a universe/timeframe.
 
     A new scan supersedes the old one; without this, results would accumulate
     stale hits from earlier detector versions / prior runs and the UI would show
-    duplicates. ``keep_job_id`` (the current job) is preserved. Returns rows deleted.
+    duplicates. ``keep_job_id`` (the current job) is preserved.
+
+    ``symbols`` scopes the delete to those symbols. Custom scans all share
+    ``universe="custom"``, so without it a scan of one symbol set would delete
+    another set's results. Returns rows deleted.
     """
     session = _new_session()
     try:
@@ -286,11 +363,11 @@ def delete_hits_for(universe: str, timeframe: str, keep_job_id: Optional[str] = 
         job_ids = [row[0] for row in q]
         if not job_ids:
             return 0
-        deleted = (
-            session.query(PatternHit)
-            .filter(PatternHit.job_id.in_(job_ids))
-            .delete(synchronize_session=False)
-        )
+        scope = [str(sym).strip().upper() for sym in (symbols or []) if str(sym).strip()]
+        q = session.query(PatternHit).filter(PatternHit.job_id.in_(job_ids))
+        if scope:
+            q = q.filter(PatternHit.symbol.in_(scope))
+        deleted = q.delete(synchronize_session=False)
         session.commit()
         return int(deleted or 0)
     except Exception:
@@ -300,48 +377,85 @@ def delete_hits_for(universe: str, timeframe: str, keep_job_id: Optional[str] = 
         session.close()
 
 
+def _add_hit_rows(session, job_id: str, hits: Iterable[dict]) -> int:
+    """Add ``PatternHit`` rows for ``hits`` to an open session (no commit).
+
+    Shared by :func:`save_hits` (single symbol) and :func:`save_hits_batch`
+    (many symbols in one transaction). Row construction is identical to the
+    legacy per-symbol path so stored columns are unchanged.
+    """
+    saved = 0
+    for hit in hits:
+        payload = {
+            "trendlines": hit.get("trendlines") or [],
+            "notes": hit.get("notes") or "",
+            "pivots": hit.get("pivots") or [],
+            "trend_lines": hit.get("trend_lines") or [],
+            "trend_lines_sig": hit.get("trend_lines_sig") or "",
+            "source_sig": hit.get("source_sig") or "",
+        }
+        row = PatternHit(
+            job_id=job_id,
+            symbol=(hit.get("symbol") or "").upper(),
+            name=hit.get("name"),
+            timeframe=str(hit.get("timeframe") or ""),
+            pattern_id=hit.get("pattern_id") or "",
+            pattern_name=hit.get("pattern_name") or "",
+            family=hit.get("family") or "",
+            direction=hit.get("direction") or "",
+            status=hit.get("status") or "",
+            quality=hit.get("quality"),
+            confidence=_num(hit.get("confidence")),
+            start_date=_str(hit.get("start_date")),
+            end_date=_str(hit.get("end_date")),
+            start_price=_num(hit.get("start_price")),
+            end_price=_num(hit.get("end_price")),
+            breakout_level=_num(hit.get("breakout_level")),
+            target=_num(hit.get("target")),
+            stop=_num(hit.get("stop")),
+            rr=_num(hit.get("rr")),
+            bars_ago=_int(hit.get("bars_ago")),
+            volume_confirmed=bool(hit.get("volume_confirmed")),
+            base_days=_int(hit.get("base_days")),
+            range_pct=_num(hit.get("range_pct")),
+            range_pos=_num(hit.get("range_pos")),
+            payload_json=json.dumps(payload),
+        )
+        session.add(row)
+        saved += 1
+    return saved
+
+
 def save_hits(job_id: str, hits: Iterable[dict]) -> int:
-    """Persist detected hits (already enriched with symbol/name/timeframe)."""
+    """Persist detected hits (already enriched with symbol/name/timeframe).
+
+    Single-symbol convenience wrapper around :func:`_add_hit_rows` that owns
+    its own session and commit. Kept for direct callers and tests.
+    """
+    session = _new_session()
+    try:
+        saved = _add_hit_rows(session, job_id, hits)
+        session.commit()
+        return saved
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def save_hits_batch(entries: list[tuple[str, list[dict]]]) -> int:
+    """Persist hits for several jobs in a single session/transaction.
+
+    ``entries`` is a list of ``(job_id, hits)`` pairs. All rows are inserted
+    and committed in one transaction, so a batch of symbols costs one session
+    and one commit instead of one per symbol. Returns the total rows saved.
+    """
     session = _new_session()
     saved = 0
     try:
-        for hit in hits:
-            payload = {
-                "trendlines": hit.get("trendlines") or [],
-                "notes": hit.get("notes") or "",
-                "pivots": hit.get("pivots") or [],
-                "trend_lines": hit.get("trend_lines") or [],
-                "trend_lines_sig": hit.get("trend_lines_sig") or "",
-            }
-            row = PatternHit(
-                job_id=job_id,
-                symbol=(hit.get("symbol") or "").upper(),
-                name=hit.get("name"),
-                timeframe=str(hit.get("timeframe") or ""),
-                pattern_id=hit.get("pattern_id") or "",
-                pattern_name=hit.get("pattern_name") or "",
-                family=hit.get("family") or "",
-                direction=hit.get("direction") or "",
-                status=hit.get("status") or "",
-                quality=hit.get("quality"),
-                confidence=_num(hit.get("confidence")),
-                start_date=_str(hit.get("start_date")),
-                end_date=_str(hit.get("end_date")),
-                start_price=_num(hit.get("start_price")),
-                end_price=_num(hit.get("end_price")),
-                breakout_level=_num(hit.get("breakout_level")),
-                target=_num(hit.get("target")),
-                stop=_num(hit.get("stop")),
-                rr=_num(hit.get("rr")),
-                bars_ago=_int(hit.get("bars_ago")),
-                volume_confirmed=bool(hit.get("volume_confirmed")),
-                base_days=_int(hit.get("base_days")),
-                range_pct=_num(hit.get("range_pct")),
-                range_pos=_num(hit.get("range_pos")),
-                payload_json=json.dumps(payload),
-            )
-            session.add(row)
-            saved += 1
+        for job_id, hits in entries:
+            saved += _add_hit_rows(session, job_id, hits)
         session.commit()
         return saved
     except Exception:
@@ -385,6 +499,24 @@ def _payload_trend_lines_sig(raw) -> Optional[str]:
     if not isinstance(payload, dict):
         return None
     sig = payload.get("trend_lines_sig")
+    return str(sig) if sig else None
+
+
+def _payload_source_sig(raw) -> Optional[str]:
+    """``source_sig`` carried in a hit's ``payload_json``.
+
+    Follows the same payload→dict route as ``_payload_trend_lines``. Missing or
+    malformed values yield ``None`` (legacy rows never had a source signature).
+    """
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw) if isinstance(raw, str) else {}
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    sig = payload.get("source_sig")
     return str(sig) if sig else None
 
 
@@ -587,6 +719,7 @@ def query_results(filters: dict, limit: int = 100, offset: int = 0):
             dto["breakout_score"] = breakout_score(dto)
             dto["trend_lines"] = _payload_trend_lines(row.payload_json)
             dto["trend_lines_sig"] = _payload_trend_lines_sig(row.payload_json)
+            dto["source_sig"] = _payload_source_sig(row.payload_json)
             items.append(dto)
         _attach_52w_gaps(session, items)
 
@@ -598,30 +731,84 @@ def query_results(filters: dict, limit: int = 100, offset: int = 0):
         session.close()
 
 
-def _counts_by(base, column) -> dict[str, int]:
-    """Group the *unlimited* filtered base query by ``column`` into counts.
+def _status_direction_summary(base) -> tuple[int, int, int, int, Optional[str]]:
+    """One GROUP BY (status, direction) for the four counters + data-through.
 
-    Powers the filter-rail chips, which must reflect the whole filtered result
-    set rather than just the current (capped) page.
+    Replaces four ``count()`` calls plus one ``max(end_date)``. ``MAX(end_date)``
+    per group combined with a Python max equals the global ``max`` (SQL ``MAX``
+    ignores NULLs), and only the exact ``confirmed``/``forming``/
+    ``bullish``/``bearish`` values contribute, matching the old filters.
+    """
+    rows = (
+        base.with_entities(
+            PatternHit.status,
+            PatternHit.direction,
+            func.count(PatternHit.id),
+            func.max(PatternHit.end_date),
+        )
+        .group_by(PatternHit.status, PatternHit.direction)
+        .all()
+    )
+    confirmed = forming = bullish = bearish = 0
+    data_through = None
+    for status, direction, count, max_end in rows:
+        n = int(count)
+        if status == "confirmed":
+            confirmed += n
+        elif status == "forming":
+            forming += n
+        if direction == "bullish":
+            bullish += n
+        elif direction == "bearish":
+            bearish += n
+        if max_end is not None and (data_through is None or max_end > data_through):
+            data_through = max_end
+    return confirmed, forming, bullish, bearish, data_through
+
+
+def _pattern_family_counts(base) -> tuple[dict[str, int], dict[str, int]]:
+    """One UNION ALL for the pattern/family filter-rail chips.
+
+    Both GROUP BY branches run over the whole filtered result set, not the
+    capped page. Falsy keys (``None``/``""``) are excluded, matching the old
+    ``_counts_by``. The discriminator distinguishes the two branches and
+    ``literal``/``func.count`` keep the statement portable across SQLite and
+    PostgreSQL.
     """
     try:
-        rows = (
-            base.with_entities(column, func.count(PatternHit.id))
-            .group_by(column)
-            .all()
+        pattern_q = (
+            base.with_entities(
+                literal("pattern"),
+                PatternHit.pattern_id,
+                func.count(PatternHit.id),
+            )
+            .group_by(PatternHit.pattern_id)
         )
-        return {str(key): int(count) for key, count in rows if key}
+        family_q = (
+            base.with_entities(
+                literal("family"),
+                PatternHit.family,
+                func.count(PatternHit.id),
+            )
+            .group_by(PatternHit.family)
+        )
+        rows = pattern_q.union_all(family_q).all()
     except Exception:
-        return {}
+        return {}, {}
+    pattern_counts: dict[str, int] = {}
+    family_counts: dict[str, int] = {}
+    for kind, key, count in rows:
+        if not key:
+            continue
+        target = pattern_counts if kind == "pattern" else family_counts
+        target[str(key)] = int(count)
+    return pattern_counts, family_counts
 
 
 def _summary_for(session, filters: dict, base, total: int) -> dict:
-    confirmed = base.filter(PatternHit.status == "confirmed").count()
-    forming = base.filter(PatternHit.status == "forming").count()
-    bullish = base.filter(PatternHit.direction == "bullish").count()
-    bearish = base.filter(PatternHit.direction == "bearish").count()
-    data_through = base.with_entities(func.max(PatternHit.end_date)).scalar()
+    confirmed, forming, bullish, bearish, data_through = _status_direction_summary(base)
     scanned = _scanned_count(session, filters, base)
+    pattern_counts, family_counts = _pattern_family_counts(base)
     return {
         "scanned": scanned,
         "patterns": total,
@@ -632,8 +819,8 @@ def _summary_for(session, filters: dict, base, total: int) -> dict:
         "bearish": bearish,
         "data_through": data_through,
         "last_scan_at": _last_scan_at(session, filters),
-        "pattern_counts": _counts_by(base, PatternHit.pattern_id),
-        "family_counts": _counts_by(base, PatternHit.family),
+        "pattern_counts": pattern_counts,
+        "family_counts": family_counts,
     }
 
 
@@ -748,7 +935,12 @@ def compute_summary(filters: dict) -> dict:
         session.close()
 
 
-def get_symbol_detail(symbol: str, timeframe: Optional[str] = None) -> dict:
+def get_symbol_detail(
+    symbol: str,
+    timeframe: Optional[str] = None,
+    limit: Optional[int] = None,
+    non_overlapping: bool = False,
+) -> dict:
     """Hits + counts for a single symbol (API enriches with candle fields)."""
     session = _new_session()
     symbol_u = str(symbol).upper()
@@ -779,6 +971,9 @@ def get_symbol_detail(symbol: str, timeframe: Optional[str] = None) -> dict:
                 -(p.get("confidence") or 0.0),
             )
         )
+        total_patterns = len(patterns)
+        if limit:
+            patterns = select_last_n(patterns, limit, non_overlapping)
         counts = {
             "confirmed": sum(1 for p in patterns if p.get("status") == "confirmed"),
             "forming": sum(1 for p in patterns if p.get("status") == "forming"),
@@ -796,6 +991,7 @@ def get_symbol_detail(symbol: str, timeframe: Optional[str] = None) -> dict:
             "timeframe": timeframe,
             "counts": counts,
             "timeframes": timeframes,
+            "patterns_total": total_patterns,
             "patterns": patterns,
         }
     except Exception:

@@ -3,7 +3,9 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import FormGroup from "@mui/material/FormGroup";
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
+import { alpha } from "@mui/material/styles";
 import type { UISwitchProps } from "../types";
+import * as palette from "../palette";
 
 function mapSize(size: UISwitchProps["size"]): "small" | "medium" {
   switch (size) {
@@ -40,6 +42,29 @@ export function Switch({
   ...rest
 }: UISwitchProps) {
   const muiSize = mapSize(size);
+  const onTone =
+    color === "error" || color === "danger"
+      ? palette.NEGATIVE
+      : color === "info"
+        ? palette.PRIMARY
+        : palette.POSITIVE;
+  const switchSx = {
+    "& .MuiSwitch-switchBase": { color: palette.TEXT_MUTED },
+    "& .MuiSwitch-switchBase.Mui-checked": { color: onTone },
+    // The track must stay legible on the dark surface: a 1px border plus a
+    // muted fill. A bare `palette.BORDER` track reads as a floating dot.
+    "& .MuiSwitch-track": {
+      backgroundColor: alpha(palette.TEXT_MUTED, 0.22),
+      opacity: 1,
+      border: `1px solid ${palette.BORDER}`,
+      boxSizing: "border-box",
+    },
+    "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
+      backgroundColor: alpha(onTone, 0.45),
+      opacity: 1,
+    },
+    "& .MuiSwitch-switchBase.Mui-disabled + .MuiSwitch-track": { opacity: 0.35 },
+  };
 
   const control = (
     <MuiSwitch
@@ -51,7 +76,7 @@ export function Switch({
       color={(color === "error" || color === "danger" ? "error" : color === "info" || color === "success" || color === "success" ? "success" : "primary") as never}
       id={id}
       slotProps={{ input: { "data-testid": testId } as never } as never}
-      sx={style ? { ...style } : undefined}
+      sx={[switchSx, ...(style ? [style as Record<string, unknown>] : [])]}
       {...(rest as any)}
     />
   );

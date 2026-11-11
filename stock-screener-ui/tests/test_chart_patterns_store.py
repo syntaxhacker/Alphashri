@@ -177,6 +177,55 @@ def test_delete_hits_for_keeps_current_job(cp_store):
     assert total_new == 1
 
 
+def test_delete_hits_for_isolates_universes_same_timeframe(cp_store):
+    """Superseding one universe must never wipe another scope's results."""
+    store.save_job({"job_id": "cpj_n50_old", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
+    store.save_hits("cpj_n50_old", [_hit("AAA")])
+    store.save_job({"job_id": "cpj_n50_keep", "universe": "nifty50", "timeframe": "1D", "status": "running"})
+    store.save_hits("cpj_n50_keep", [_hit("BBB")])
+    store.save_job({"job_id": "cpj_n500", "universe": "nifty500", "timeframe": "1D", "status": "completed"})
+    store.save_hits("cpj_n500", [_hit("CCC")])
+    store.save_job({"job_id": "cpj_custom", "universe": "custom", "timeframe": "1D", "status": "completed"})
+    store.save_hits("cpj_custom", [_hit("DDD")])
+
+    assert store.delete_hits_for("nifty50", "1D", keep_job_id="cpj_n50_keep") == 1
+
+    _, total_old, _ = store.query_results({"job_id": "cpj_n50_old"})
+    _, total_keep, _ = store.query_results({"job_id": "cpj_n50_keep"})
+    _, total_n500, _ = store.query_results({"job_id": "cpj_n500"})
+    _, total_custom, _ = store.query_results({"job_id": "cpj_custom"})
+    assert total_old == 0
+    assert total_keep == 1
+    assert total_n500 == 1
+    assert total_custom == 1
+
+
+def test_delete_hits_for_isolates_timeframes_same_universe(cp_store):
+    """A 1D supersede must leave the same universe's 15m rows intact."""
+    store.save_job({"job_id": "cpj_n50_1d", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
+    store.save_hits("cpj_n50_1d", [_hit("AAA")])
+    store.save_job({"job_id": "cpj_n50_15m", "universe": "nifty50", "timeframe": "15m", "status": "completed"})
+    store.save_hits("cpj_n50_15m", [_hit("BBB", timeframe="15m")])
+
+    assert store.delete_hits_for("nifty50", "1D") == 1
+
+    _, total_1d, _ = store.query_results({"job_id": "cpj_n50_1d"})
+    _, total_15m, _ = store.query_results({"job_id": "cpj_n50_15m"})
+    assert total_1d == 0
+    assert total_15m == 1
+
+
+def test_delete_hits_for_no_matching_jobs_is_noop(cp_store):
+    store.save_job({"job_id": "cpj_keep", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
+    store.save_hits("cpj_keep", [_hit("AAA")])
+
+    assert store.delete_hits_for("nope_universe", "1D") == 0
+    assert store.delete_hits_for("nifty50", "15m") == 0
+
+    _, total, _ = store.query_results({"job_id": "cpj_keep"})
+    assert total == 1
+
+
 def test_latest_completed_job_returns_newest(cp_store):
     store.save_job({
         "job_id": "cpj_old_c", "universe": "nifty50", "timeframe": "1D",
@@ -360,3 +409,220 @@ def test_symbol_detail_attaches_breakout_score(cp_store):
     detail = store.get_symbol_detail("AAA", "1D")
 
     assert detail["patterns"][0]["breakout_score"] == 90.5
+
+
+def test_delete_hits_for_scopes_custom_scans_by_symbol(cp_store):
+    store.save_job({"job_id": "cpj_old", "universe": "custom", "timeframe": "1D",
+                    "status": "completed", "total": 2, "done": 2})
+    store.save_job({"job_id": "cpj_new", "universe": "custom", "timeframe": "1D",
+                    "status": "completed", "total": 1, "done": 1})
+    store.save_hits("cpj_old", [_hit("INFY"), _hit("BSE")])
+    store.save_hits("cpj_new", [_hit("BSE")])
+
+    deleted = store.delete_hits_for("custom", "1D", keep_job_id="cpj_new", symbols=["BSE"])
+
+    assert deleted == 1
+    items, _, _ = store.query_results({"universe": "custom", "timeframe": "1D"})
+    assert sorted(row["symbol"] for row in items) == ["BSE", "INFY"]
+
+
+def test_save_hits_payload_keeps_source_sig_and_query_results_exposes_it(cp_store):
+    store.save_job({"job_id": "cpj_ss1", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed"})
+    assert store.save_hits("cpj_ss1", [_hit(source_sig="sig-abc-123")]) == 1
+
+    # The raw payload_json column carries the field (no schema change).
+    session = cp_store()
+    try:
+        from db.models.chart_patterns import PatternHit
+
+        raw = (
+            session.query(PatternHit.payload_json)
+            .filter(PatternHit.job_id == "cpj_ss1")
+            .scalar()
+        )
+    finally:
+        session.close()
+    assert raw is not None and "source_sig" in raw and "sig-abc-123" in raw
+
+    # query_results exposes it on the read path.
+    items, total, _ = store.query_results({"job_id": "cpj_ss1"})
+    assert total == 1
+    assert items[0]["source_sig"] == "sig-abc-123"
+
+
+def test_save_hits_without_source_sig_exposes_none(cp_store):
+    """Legacy hits (no source_sig) expose None rather than blowing up."""
+    store.save_job({"job_id": "cpj_ss2", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed"})
+    store.save_hits("cpj_ss2", [_hit()])
+
+    items, total, _ = store.query_results({"job_id": "cpj_ss2"})
+    assert total == 1
+    assert items[0]["source_sig"] is None
+
+
+def test_latest_hits_by_symbol_promotes_source_sig(cp_store):
+    store.save_job({"job_id": "cpj_lhs1", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed"})
+    store.save_hits("cpj_lhs1", [_hit("AAA", source_sig="sig-1"), _hit("BBB")])
+
+    by_symbol = store.latest_hits_by_symbol("nifty50", "1D")
+
+    assert set(by_symbol) == {"AAA", "BBB"}
+    assert by_symbol["AAA"]["source_sig"] == "sig-1"
+    assert by_symbol["BBB"]["source_sig"] is None
+    # Scan-time lines are promoted too so a reuse read has everything it needs.
+    assert isinstance(by_symbol["AAA"].get("trend_lines"), list)
+
+
+def test_latest_hits_by_symbol_is_scoped_and_excludes_current(cp_store):
+    store.save_job({"job_id": "cpj_x1", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed"})
+    store.save_job({"job_id": "cpj_x2", "universe": "nifty500", "timeframe": "1D",
+                    "status": "completed"})
+    store.save_hits("cpj_x1", [_hit("AAA", source_sig="s1")])
+    store.save_hits("cpj_x2", [_hit("AAA", source_sig="s2")])
+
+    # nifty500 scope returns only its own row.
+    assert store.latest_hits_by_symbol("nifty500", "1D")["AAA"]["source_sig"] == "s2"
+    # Excluding the current job falls back to the older job's hit.
+    assert store.latest_hits_by_symbol("nifty50", "1D", exclude_job_id="cpj_x1") == {}
+    assert store.latest_hits_by_symbol("nope", "1D") == {}
+
+
+def test_summary_mixed_status_direction_and_counts(cp_store):
+    store.save_job({"job_id": "cpj_mix", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed", "total": 5, "done": 5})
+    store.save_hits("cpj_mix", [
+        _hit("AAA", pattern_id="pw", family="rev", direction="bullish", status="confirmed", end_date="2026-01-02"),
+        _hit("BBB", pattern_id="pw", family="rev", direction="bearish", status="forming", end_date="2026-01-03"),
+        _hit("CCC", pattern_id="db", family="cont", direction="bullish", status="forming", end_date="2026-01-04"),
+        _hit("DDD", pattern_id="db", family="cont", direction="bearish", status="confirmed", end_date="2026-01-01"),
+        _hit("EEE", pattern_id="db", family="cont", direction="neutral", status="failed", end_date="2026-01-05"),
+    ])
+
+    summary = store.compute_summary({"job_id": "cpj_mix"})
+
+    assert summary["patterns"] == 5
+    assert summary["in_view"] == 5
+    assert summary["confirmed"] == 2
+    assert summary["forming"] == 2
+    assert summary["bullish"] == 2
+    assert summary["bearish"] == 2
+    assert summary["data_through"] == "2026-01-05"
+    assert summary["pattern_counts"] == {"pw": 2, "db": 3}
+    assert summary["family_counts"] == {"rev": 2, "cont": 3}
+    _, _, qr_summary = store.query_results({"job_id": "cpj_mix"})
+    assert qr_summary == summary
+
+
+def test_summary_excludes_empty_keys_and_ignores_null_end_date(cp_store):
+    store.save_job({"job_id": "cpj_null", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed", "total": 2, "done": 2})
+    store.save_hits("cpj_null", [
+        _hit("AAA", pattern_id="pw", family="rev", direction="bullish", status="confirmed", end_date="2026-01-02"),
+        _hit("BBB", pattern_id="", family="", direction="", status="", end_date=None),
+    ])
+
+    summary = store.compute_summary({"job_id": "cpj_null"})
+
+    assert summary["patterns"] == 2
+    assert summary["confirmed"] == 1
+    assert summary["forming"] == 0
+    assert summary["bullish"] == 1
+    assert summary["bearish"] == 0
+    assert summary["data_through"] == "2026-01-02"
+    assert summary["pattern_counts"] == {"pw": 1}
+    assert summary["family_counts"] == {"rev": 1}
+
+
+def test_summary_all_null_end_dates_data_through_none(cp_store):
+    store.save_job({"job_id": "cpj_allnull", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed", "total": 2, "done": 2})
+    store.save_hits("cpj_allnull", [
+        _hit("AAA", end_date=None),
+        _hit("BBB", end_date=None, status="forming", direction="bearish"),
+    ])
+
+    summary = store.compute_summary({"job_id": "cpj_allnull"})
+
+    assert summary["patterns"] == 2
+    assert summary["data_through"] is None
+    assert summary["confirmed"] == 1
+    assert summary["forming"] == 1
+
+
+def test_summary_empty_result_set(cp_store):
+    store.save_job({"job_id": "cpj_empty", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed", "total": 7, "done": 7})
+
+    summary = store.compute_summary({"job_id": "cpj_empty"})
+
+    assert summary["patterns"] == 0
+    assert summary["in_view"] == 0
+    assert summary["confirmed"] == 0
+    assert summary["forming"] == 0
+    assert summary["bullish"] == 0
+    assert summary["bearish"] == 0
+    assert summary["data_through"] is None
+    assert summary["pattern_counts"] == {}
+    assert summary["family_counts"] == {}
+    assert store.compute_summary({"job_id": "nope"})["patterns"] == 0
+    assert store.compute_summary({})["patterns"] == 0
+
+
+def test_summary_respects_filters(cp_store):
+    store.save_job({"job_id": "cpj_flt", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed", "total": 3, "done": 3})
+    store.save_hits("cpj_flt", [
+        _hit("AAA", pattern_id="pw", family="rev", direction="bullish", status="confirmed", end_date="2026-01-02"),
+        _hit("BBB", pattern_id="db", family="cont", direction="bearish", status="forming", end_date="2026-01-03"),
+        _hit("CCC", pattern_id="pw", family="rev", direction="bullish", status="forming", end_date="2026-01-04"),
+    ])
+
+    bullish = store.compute_summary({"job_id": "cpj_flt", "direction": ["bullish"]})
+
+    assert bullish["patterns"] == 2
+    assert bullish["confirmed"] == 1
+    assert bullish["forming"] == 1
+    assert bullish["bullish"] == 2
+    assert bullish["bearish"] == 0
+    assert bullish["data_through"] == "2026-01-04"
+    assert bullish["pattern_counts"] == {"pw": 2}
+    assert bullish["family_counts"] == {"rev": 2}
+
+    via_join = store.compute_summary({"universe": "nifty50", "timeframe": "1D"})
+
+    assert via_join["patterns"] == 3
+    assert via_join["confirmed"] == 1
+    assert via_join["forming"] == 2
+    assert via_join["bullish"] == 2
+    assert via_join["bearish"] == 1
+    assert via_join["pattern_counts"] == {"pw": 2, "db": 1}
+    assert via_join["family_counts"] == {"rev": 2, "cont": 1}
+
+
+def test_summary_query_count_guard(cp_store, test_db_engine):
+    from sqlalchemy import event
+
+    store.save_job({"job_id": "cpj_qc", "universe": "nifty50", "timeframe": "1D",
+                    "status": "completed", "total": 1, "done": 1})
+    store.save_hits("cpj_qc", [_hit("AAA")])
+
+    statements: list[str] = []
+
+    @event.listens_for(test_db_engine, "before_cursor_execute")
+    def _count(_conn, _cursor, statement, _params, _ctx, _em):
+        statements.append(statement)
+
+    try:
+        summary = store.compute_summary({"job_id": "cpj_qc"})
+    finally:
+        event.remove(test_db_engine, "before_cursor_execute", _count)
+
+    # total count + one GROUP BY + one UNION ALL + scanned; a regression to
+    # per-status/direction/max/per-column queries would run ~9 here.
+    assert len(statements) <= 4
+    assert summary["patterns"] == 1
+    assert summary["confirmed"] == 1

@@ -39,7 +39,7 @@ const columns: ColumnDef<StrategyPerf>[] = [
     header: "Trades",
     enableSorting: true,
     meta: { align: "right" } as any,
-    cell: ({ getValue }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text fw={500} ta="right">{getValue<number>()}</Text></Box>,
+    cell: ({ getValue }) => <Text fw={500} ta="right">{getValue<number>()}</Text>,
   },
   {
     accessorKey: "wins",
@@ -47,10 +47,10 @@ const columns: ColumnDef<StrategyPerf>[] = [
     enableSorting: true,
     meta: { align: "right" } as any,
     cell: ({ getValue }) => (
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1 }}>
+      <>
         <Badge color="success" variant="dot" size="sm" />
         <Text span ml={4} ta="right">{getValue<number>()}</Text>
-      </Box>
+      </>
     ),
   },
   {
@@ -59,10 +59,10 @@ const columns: ColumnDef<StrategyPerf>[] = [
     enableSorting: true,
     meta: { align: "right" } as any,
     cell: ({ getValue }) => (
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1 }}>
+      <>
         <Badge color="error" variant="dot" size="sm" />
         <Text span ml={4} ta="right">{getValue<number>()}</Text>
-      </Box>
+      </>
     ),
   },
   {
@@ -72,7 +72,7 @@ const columns: ColumnDef<StrategyPerf>[] = [
     meta: { align: "right" } as any,
     cell: ({ getValue }) => {
       const v = getValue<number>();
-      return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text fw={500} ta="right">{v}%</Text></Box>;
+      return <Text fw={500} ta="right">{v}%</Text>;
     },
   },
   {
@@ -83,9 +83,9 @@ const columns: ColumnDef<StrategyPerf>[] = [
     cell: ({ getValue }) => {
       const v = getValue<number>();
       return (
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text fw={600} c={v >= 0 ? "success" : "error"} ta="right">
+        <Text fw={600} c={v >= 0 ? "success" : "error"} ta="right">
           {v >= 0 ? "+" : ""}₹{v.toLocaleString()}
-        </Text></Box>
+        </Text>
       );
     },
   },

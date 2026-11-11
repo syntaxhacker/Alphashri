@@ -1,4 +1,4 @@
-export type MinimalScreenerData = {
+type MinimalScreenerData = {
   provider: string;
   mode: string;
   screener: string;

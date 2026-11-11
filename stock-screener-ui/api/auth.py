@@ -37,7 +37,11 @@ REFRESH_TOKEN_EXPIRE_DAYS = config.REFRESH_TOKEN_EXPIRE_DAYS
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 # Security scheme
-security = HTTPBearer(auto_error=False)
+security = HTTPBearer(
+    auto_error=False,
+    scheme_name="bearerAuth",
+    description="JWT access token from POST /api/auth/login (sent as 'Authorization: Bearer <token>').",
+)
 
 
 # Pydantic models

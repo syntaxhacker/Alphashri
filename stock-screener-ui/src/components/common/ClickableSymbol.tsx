@@ -1,7 +1,7 @@
 import { useRef, useCallback } from "react";
-import { Anchor } from "@/ui";
 import { useNavigate } from "react-router-dom";
 import { usePreviewChart } from "./PreviewChartProvider";
+import { SymbolLink } from "./SymbolLink";
 
 interface ClickableSymbolProps {
   symbol: string;
@@ -11,8 +11,17 @@ interface ClickableSymbolProps {
   previewTimeout?: number;
   onClick?: (symbol: string) => void;
   stopClickPropagation?: boolean;
+  /** Test id for the symbol button (default `symbol-link-<SYMBOL>`). */
+  testId?: string;
 }
 
+/**
+ * Thin wrapper over SymbolLink for clickable symbol buttons in tables.
+ * - Symbol text is a button (not a TradingView link) that navigates or calls onClick.
+ * - Hover preview via PreviewChartProvider (host/dock) when mounted, falls back to no-op.
+ * - Preserves `.symbol-link` class and `data-testid`/`symbol-link-<symbol>` e2e contracts.
+ * - Keeps `stopClickPropagation` and 5s close timer behaviour for backward compat.
+ */
 export function ClickableSymbol({
   symbol,
   fw = 600,
@@ -21,6 +30,7 @@ export function ClickableSymbol({
   previewTimeout = 5000,
   onClick,
   stopClickPropagation = true,
+  testId,
 }: ClickableSymbolProps) {
   const navigate = useNavigate();
   const { showPreviewChart, hidePreviewChart } = usePreviewChart();
@@ -53,30 +63,33 @@ export function ClickableSymbol({
     }, previewTimeout);
   };
 
-  const handleClick = (e: React.MouseEvent) => {
+  const handleTextClick = (sym: string, e: React.MouseEvent) => {
     if (stopClickPropagation) {
       e.stopPropagation();
     }
     handleClosePreview();
     if (onClick) {
-      onClick(symbol);
+      onClick(sym);
     } else {
-      navigate(`/chart/${symbol}`);
+      navigate(`/chart/${sym}`);
     }
   };
 
+  const testIdValue = testId ?? `symbol-link-${symbol}`;
+
   return (
-    <Anchor
-      component="button"
-      type="button"
-      size={size}
-      fw={fw}
-      onClick={handleClick}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      className="symbol-link"
-    >
-      {symbol}
-    </Anchor>
+    <SymbolLink
+      symbol={symbol}
+      tvLink={false}
+      showChart={false}
+      onTextClick={handleTextClick}
+      onPreview={showPreview ? handleMouseEnter : undefined}
+      onPreviewEnd={showPreview ? handleMouseLeave : undefined}
+      testId={testIdValue}
+      textClassName="symbol-link"
+      weight={fw}
+      size={size as "xs" | "sm" | "md"}
+      stopPropagation={stopClickPropagation}
+    />
   );
 }

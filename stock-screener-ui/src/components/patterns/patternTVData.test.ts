@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { MARKER_SL, MARKER_TP, NEGATIVE, POSITIVE, PRIMARY } from "@/ui/palette";
+import { NEGATIVE, POSITIVE } from "@/ui/palette";
 import type { ChartCandle, PatternHitDTO, TrendLine } from "@/types/chartPatterns";
 import { buildPatternTVData, PATTERN_TV_COLORS, toTVTime } from "./patternTVData";
+import { makeIRCONHit, makeTrendLine } from "./patternTestFixtures";
 
 function candle(t: string, o: number, c: number, v = 1000): ChartCandle {
   return { t, o, h: Math.max(o, c) + 1, l: Math.min(o, c) - 1, c, v };
@@ -16,28 +17,7 @@ const CANDLES: ChartCandle[] = [
 ];
 
 function makeHit(overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
-  return {
-    id: 1,
-    symbol: "IRCON",
-    name: "IRCON International Ltd.",
-    timeframe: "1D",
-    pattern_id: "falling_wedge",
-    pattern_name: "Falling Wedge",
-    family: "reversal",
-    direction: "bullish",
-    status: "confirmed",
-    quality: "strong",
-    confidence: 78.4,
-    start_date: "2026-04-01",
-    end_date: "2026-04-05",
-    start_price: 100,
-    end_price: 108,
-    breakout_level: 109,
-    target: 120,
-    stop: 99,
-    rr: 1.7,
-    bars_ago: 2,
-    volume_confirmed: true,
+  return makeIRCONHit({
     trendlines: [
       [
         { t: "2026-04-01", price: 103 },
@@ -49,36 +29,15 @@ function makeHit(overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
       ],
     ],
     trend_lines: [
-      {
-        kind: "support",
-        start_date: "2026-04-01",
-        start_price: 99,
-        end_date: "2026-04-05",
-        end_price: 103,
-        slope: 1,
-        touches: 3,
-        span_bars: 5,
-        violations: 0,
-      },
-      {
-        kind: "resistance",
-        start_date: "2026-04-01",
-        start_price: 103,
-        end_date: "2026-04-05",
-        end_price: 107,
-        slope: 1,
-        touches: 2,
-        span_bars: 5,
-        violations: 0,
-      },
+      makeTrendLine(),
+      makeTrendLine({ kind: "resistance", start_price: 103, end_price: 107, touches: 2 }),
     ],
     pivots: [
       { t: "2026-04-02", price: 103, kind: "high" },
       { t: "2026-04-03", price: 100, kind: "low" },
     ],
-    notes: "",
     ...overrides,
-  };
+  });
 }
 
 describe("buildPatternTVData", () => {
@@ -106,20 +65,8 @@ describe("buildPatternTVData", () => {
     expect(up?.color).not.toBe(down?.color);
   });
 
-  it("emits breakout/target/stop levels with the ECharts colours", () => {
+  it("emits no risk levels (stop/target/breakout are the trader's job)", () => {
     const out = buildPatternTVData({ candles: CANDLES, hit: makeHit() });
-    expect(out.levels).toEqual([
-      { price: 99, color: MARKER_SL, title: "Stop", lineStyle: "dashed", width: 1 },
-      { price: 109, color: PRIMARY, title: "Breakout", lineStyle: "dashed", width: 1 },
-      { price: 120, color: MARKER_TP, title: "Target", lineStyle: "dashed", width: 1 },
-    ]);
-  });
-
-  it("suppresses zeroed levels (fullscreen re-plan suppression)", () => {
-    const out = buildPatternTVData({
-      candles: CANDLES,
-      hit: makeHit({ breakout_level: 0, target: 0, stop: 0 }),
-    });
     expect(out.levels).toEqual([]);
   });
 
@@ -263,24 +210,9 @@ describe("buildPatternTVData", () => {
     expect(new Set(times).size).toBe(times.length);
   });
 
-  it("maps pivots to markers: high red arrowDown above, low green arrowUp below", () => {
+  it("emits no dot markers (the chart draws lines only)", () => {
     const out = buildPatternTVData({ candles: CANDLES, hit: makeHit(), trendLines: [] });
-    expect(out.markers).toEqual([
-      {
-        time: toTVTime("2026-04-02"),
-        position: "aboveBar",
-        shape: "arrowDown",
-        color: NEGATIVE,
-        text: "H",
-      },
-      {
-        time: toTVTime("2026-04-03"),
-        position: "belowBar",
-        shape: "arrowUp",
-        color: POSITIVE,
-        text: "L",
-      },
-    ]);
+    expect(out.markers).toEqual([]);
   });
 
   it("returns empty arrays for empty inputs", () => {

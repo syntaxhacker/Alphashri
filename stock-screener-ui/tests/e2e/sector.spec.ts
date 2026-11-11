@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { setupSectorTest, gotoSector } from "./helpers/sectorHelpers";
+import { navigateToSectorViaSidebar } from "./helpers/flowsB";
 
 test.describe("Sector Dashboard - Navigation and Display", () => {
   test.beforeEach(async ({ page }) => {
@@ -7,12 +8,7 @@ test.describe("Sector Dashboard - Navigation and Display", () => {
   });
 
   test("should navigate to sector dashboard view", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
-    await page.locator('[data-testid="nav-sector"]').click();
-    await expect(page.locator('[data-testid="sector-analysis-view"]')).toBeVisible({
-      timeout: 5000,
-    });
+    await navigateToSectorViaSidebar(page);
     expect(page.url()).toContain("/sector");
   });
 
@@ -20,9 +16,7 @@ test.describe("Sector Dashboard - Navigation and Display", () => {
     await gotoSector(page);
     const sectorView = page.locator('[data-testid="sector-analysis-view"]');
     await expect(sectorView).toBeVisible();
-    await expect(
-      sectorView.getByRole("heading", { name: "Sector Dashboard" }),
-    ).toBeVisible();
+    await expect(sectorView).toContainText("Sector Dashboard");
   });
 
   test("should display subtitle about real-time performance", async ({ page }) => {
@@ -39,12 +33,12 @@ test.describe("Sector Dashboard - Navigation and Display", () => {
     await expect(header.getByRole("button", { name: "US" })).toBeVisible();
   });
 
-  test("should display Live Dashboard and Historical Cycles tabs", async ({ page }) => {
+  test("should display Live Dashboard and Sector Correlation tabs", async ({ page }) => {
     await gotoSector(page);
     const tabs = page.locator('[data-testid="sector-analysis-view"]').locator('[role="tablist"]');
     await expect(tabs).toBeVisible();
     await expect(tabs.locator('[role="tab"]:has-text("Live Dashboard")')).toBeVisible();
-    await expect(tabs.locator('[role="tab"]:has-text("Historical Cycles")')).toBeVisible();
+    await expect(tabs.locator('[role="tab"]:has-text("Sector Correlation")')).toBeVisible();
   });
 
   test("should display Refresh button", async ({ page }) => {
@@ -75,8 +69,8 @@ test.describe("Sector Dashboard - Live Dashboard Tab", () => {
     await expect(table).toBeVisible();
     await expect(table.locator("th", { hasText: "Sector" })).toBeVisible();
     await expect(table.locator("th", { hasText: "Change" })).toBeVisible();
-    await expect(table.locator("th", { hasText: "A/D Ratio" })).toBeVisible();
-    await expect(table.locator("th", { hasText: "Strength" })).toBeVisible();
+    await expect(table.locator("th", { hasText: "A/D" })).toBeVisible();
+    await expect(table.locator("th", { hasText: "ADX" })).toBeVisible();
   });
 
   test("should display top sector summary card with green styling", async ({ page }) => {
@@ -132,41 +126,40 @@ test.describe("Sector Dashboard - Tab Switching", () => {
     await setupSectorTest(page);
   });
 
-  test("should switch to Historical Cycles tab and show iframe", async ({ page }) => {
+  test("should switch to Sector Correlation tab and show correlation header", async ({ page }) => {
     await gotoSector(page);
-    await page.locator('[role="tab"]:has-text("Historical Cycles")').click();
-    await expect(page.locator('[data-testid="sector-iframe"]')).toBeVisible({ timeout: 5000 });
+    await page.locator('[role="tab"]:has-text("Sector Correlation")').click();
+    await expect(page.locator('[data-testid="sector-correlation-header"]')).toBeVisible({
+      timeout: 5000,
+    });
   });
 
   test("should switch back to Live Dashboard tab", async ({ page }) => {
     await gotoSector(page);
     await page.waitForSelector('[data-testid="sector-table-container"] table', { timeout: 10000 });
-    await page.locator('[role="tab"]:has-text("Historical Cycles")').click();
-    await expect(page.locator('[data-testid="sector-iframe"]')).toBeVisible({ timeout: 5000 });
+    await page.locator('[role="tab"]:has-text("Sector Correlation")').click();
+    await expect(page.locator('[data-testid="sector-correlation-header"]')).toBeVisible({
+      timeout: 5000,
+    });
     await page.locator('[role="tab"]:has-text("Live Dashboard")').click();
     await expect(page.locator('[data-testid="sector-table-container"] table').first()).toBeVisible({
       timeout: 10000,
     });
   });
 
-  test("should have correct iframe src on Historical Cycles tab", async ({ page }) => {
-    await gotoSector(page);
-    await page.locator('[role="tab"]:has-text("Historical Cycles")').click();
-    await expect(page.locator('[data-testid="sector-iframe"]')).toBeVisible({ timeout: 5000 });
-    const src = await page.locator('[data-testid="sector-iframe"]').getAttribute("src");
-    expect(src).toContain("dashboard-modular.html");
-    expect(src).toContain("/sector/dashboard-modular.html");
-  });
-
-  test("should hide dashboard content when on Historical Cycles tab", async ({ page }) => {
+  test("should hide dashboard table when on Sector Correlation tab", async ({ page }) => {
     await gotoSector(page);
     await page.waitForSelector('[data-testid="sector-table-container"] table', { timeout: 10000 });
     await expect(
       page.locator('[data-testid="sector-analysis-view"]').locator("table").first(),
     ).toBeVisible();
-    await page.locator('[role="tab"]:has-text("Historical Cycles")').click();
-    await expect(page.locator('[data-testid="sector-iframe"]')).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('[data-testid="sector-analysis-frame"]')).toBeVisible();
+    await page.locator('[role="tab"]:has-text("Sector Correlation")').click();
+    await expect(page.locator('[data-testid="sector-correlation-header"]')).toBeVisible({
+      timeout: 5000,
+    });
+    await expect(
+      page.locator('[data-testid="sector-table-container"] table').first(),
+    ).toBeHidden({ timeout: 5000 });
   });
 });
 
@@ -242,9 +235,7 @@ test.describe("Sector Dashboard - Responsive Layout", () => {
     await gotoSector(page);
     const sectorView = page.locator('[data-testid="sector-analysis-view"]');
     await expect(sectorView).toBeVisible();
-    await expect(
-      sectorView.getByRole("heading", { name: "Sector Dashboard" }),
-    ).toBeVisible();
+    await expect(sectorView).toContainText("Sector Dashboard");
     await expect(page.locator('[data-testid="sector-header"]')).toBeVisible();
   });
 
@@ -253,9 +244,7 @@ test.describe("Sector Dashboard - Responsive Layout", () => {
     await gotoSector(page);
     const sectorView = page.locator('[data-testid="sector-analysis-view"]');
     await expect(sectorView).toBeVisible();
-    await expect(
-      sectorView.getByRole("heading", { name: "Sector Dashboard" }),
-    ).toBeVisible();
+    await expect(sectorView).toContainText("Sector Dashboard");
     await expect(sectorView.locator('[role="tablist"]')).toBeVisible();
   });
 
@@ -264,9 +253,7 @@ test.describe("Sector Dashboard - Responsive Layout", () => {
     await gotoSector(page);
     const sectorView = page.locator('[data-testid="sector-analysis-view"]');
     await expect(sectorView).toBeVisible();
-    await expect(
-      sectorView.getByRole("heading", { name: "Sector Dashboard" }),
-    ).toBeVisible();
+    await expect(sectorView).toContainText("Sector Dashboard");
   });
 });
 
@@ -276,12 +263,7 @@ test.describe("Sector Dashboard - Navigation State", () => {
   });
 
   test("should update navigation active state when navigating to sector view", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
-    await page.locator('[data-testid="nav-sector"]').click();
-    await expect(page.locator('[data-testid="sector-analysis-view"]')).toBeVisible({
-      timeout: 5000,
-    });
+    await navigateToSectorViaSidebar(page);
   });
 
   test("should navigate to sector view from other views", async ({ page }) => {

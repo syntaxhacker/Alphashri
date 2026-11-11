@@ -2,7 +2,7 @@
  * Constants for Alphashri
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+import { API_BASE } from "@/api/config";
 export const API_URL = `${API_BASE}/api/screener`;
 export const SCREENERS_URL = `${API_BASE}/api/screeners`;
 

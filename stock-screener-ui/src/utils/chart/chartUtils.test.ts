@@ -9,6 +9,14 @@ import {
   CANDLESTICK_ITEM_STYLE,
 } from "../chartUtils";
 import {
+  makeCandles,
+  expectZeroOpenChange,
+  makeDarkTheme,
+  makeLightTheme,
+  registerFormatVolumeMillionsTest,
+  registerFormatVolumeThousandsTest,
+} from "./chartTestFixtures";
+import {
   POSITIVE,
   NEGATIVE,
   BULLISH,
@@ -26,36 +34,8 @@ import {
 } from "../../config/colors";
 
 describe("getChartThemeColors", () => {
-  const darkTheme = {
-    white: CHART_DARK_TEXT,
-    colors: {
-      dark: {
-        7: CHART_DARK_BG,
-        5: CHART_DARK_SPLIT,
-        4: CHART_DARK_BORDER,
-        1: CHART_DARK_MUTED,
-      },
-      gray: {
-        8: CHART_DARK_TEXT,
-        6: CHART_DARK_MUTED,
-        3: CHART_DARK_BORDER,
-        2: CHART_DARK_SPLIT,
-      },
-    },
-  };
-
-  const lightTheme = {
-    white: CHART_LIGHT_BG,
-    colors: {
-      dark: { 7: CHART_LIGHT_BG },
-      gray: {
-        8: CHART_LIGHT_TEXT,
-        6: CHART_LIGHT_MUTED,
-        3: CHART_LIGHT_BORDER,
-        2: CHART_LIGHT_SPLIT,
-      },
-    },
-  };
+  const darkTheme = makeDarkTheme();
+  const lightTheme = makeLightTheme();
 
   it("returns correct colors for dark theme", () => {
     const result = getChartThemeColors(true, darkTheme);
@@ -132,16 +112,12 @@ describe("getCandleChange", () => {
   });
 
   it("returns 0 when open is 0 to avoid division by zero", () => {
-    const result = getCandleChange(0, 100);
-    expect(result.change).toBe("0");
+    expectZeroOpenChange();
   });
 });
 
 describe("getCandleFromParams", () => {
-  const candles = [
-    { open: 100, close: 105, high: 110, low: 95, volume: 1000, time: "09:30" },
-    { open: 105, close: 103, high: 108, low: 102, volume: 800, time: "09:31" },
-  ];
+  const candles = makeCandles();
 
   it("returns candle and change for candlestick series", () => {
     const params = [{ seriesType: "candlestick", dataIndex: 0 }];
@@ -189,17 +165,8 @@ describe("getCandleFromParams", () => {
 });
 
 describe("formatVolume", () => {
-  it("formats millions with M suffix", () => {
-    expect(formatVolume(1500000)).toBe("1.5M");
-    expect(formatVolume(2000000)).toBe("2.0M");
-    expect(formatVolume(1234567)).toBe("1.2M");
-  });
-
-  it("formats thousands with K suffix", () => {
-    expect(formatVolume(1500)).toBe("1.5K");
-    expect(formatVolume(1000)).toBe("1.0K");
-    expect(formatVolume(99999)).toBe("100.0K");
-  });
+  registerFormatVolumeMillionsTest();
+  registerFormatVolumeThousandsTest();
 
   it("returns plain number for volumes below 1000", () => {
     expect(formatVolume(999)).toBe("999");

@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from "react";
-import { Box, Group, Text, Badge, Skeleton } from "@/ui";
-import { IconTrendingUp, IconTrendingDown } from "@tabler/icons-react";
+import { memo, useCallback, useMemo, useState } from "react";
+import { usePolling } from "@/hooks/usePolling";
+import { Box, Text, Skeleton } from "@/ui";
+import * as palette from "@/ui/palette";
 import { useMarketTickerEnabled } from "../../hooks/useMarketTickerEnabled";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { subscribeToHolidays, isMarketClosedToday } from "../../state/holidays";
+import { subscribeToHolidays, isMarketClosedToday, getHolidayState } from "../../state/holidays";
 
 export interface MarketTickerItem {
   symbol: string;
@@ -59,6 +60,18 @@ function formatLastUpdated(lastUpdated: string | null): string {
   return lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : "--";
 }
 
+/** Every item is the same three-track grid, so label / price / change share a
+ *  baseline and a column across the whole tape. The change track is a fixed
+ *  82px even though the text is plain (no pill): `+9.30 (0.22%)` and
+ *  `−511.20 (−0.92%)` then line up from item to item. */
+const TICKER_GRID = {
+  display: "grid",
+  gridTemplateColumns: "minmax(56px, auto) minmax(64px, 1fr) 82px",
+  alignItems: "center",
+  columnGap: "6px",
+  flexShrink: 0,
+} as const;
+
 function createErrorState(error: unknown): MarketTickerData {
   return {
     tickers: {},
@@ -79,58 +92,112 @@ function TickerItem({ symbol, item }: TickerItemProps) {
   const change = Number(item.change ?? 0);
   const changePercent = Number(item.change_percent ?? 0);
   const isPositive = change >= 0;
+  const tone = isPositive ? palette.POSITIVE : palette.NEGATIVE;
+  const testId = symbol.replace(/[\^=]/g, "").toLowerCase();
 
   return (
-    <Group
+    <Box
       key={symbol}
-      gap="xs"
-      wrap="nowrap"
+      style={TICKER_GRID}
       className="market-ticker-item"
-      data-testid={`ticker-${symbol.replace(/[\\^\\=]/g, "").toLowerCase()}`}
+      data-testid={`ticker-${testId}`}
     >
-      <Text size="sm" fw={600} c="dimmed">
+      <Text
+        size="sm"
+        fw={600}
+        c="dimmed"
+        style={{ fontSize: 9.5, lineHeight: 1.1, whiteSpace: "nowrap" }}
+      >
         {label}
       </Text>
-      <Text size="sm" fw={700}>
+      <Text
+        size="sm"
+        fw={700}
+        data-testid={`ticker-price-${testId}`}
+        style={{
+          fontSize: 11,
+          lineHeight: 1.1,
+          fontFamily: palette.MONO,
+          fontVariantNumeric: "tabular-nums",
+          textAlign: "right",
+          whiteSpace: "nowrap",
+        }}
+      >
         {price.toLocaleString("en-IN", {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         })}
       </Text>
-      <Badge
-        size="sm"
-        color={isPositive ? "success" : "error"}
-        variant="light"
-        leftSection={isPositive ? <IconTrendingUp size={10} /> : <IconTrendingDown size={10} />}
+      {/* Plain coloured change — no pill, no icon box. The 9px arrow is an
+          inline glyph inside the fixed 82px track so the sign never shifts
+          the numerals. */}
+      <Box
+        component="span"
+        data-testid={`ticker-change-${testId}`}
+        title={`${change >= 0 ? "+" : ""}${change.toFixed(2)} (${changePercent.toFixed(2)}%)`}
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          gap: "2px",
+          minWidth: 0,
+          overflow: "hidden",
+          whiteSpace: "nowrap",
+          color: tone,
+          fontFamily: palette.MONO,
+          fontVariantNumeric: "tabular-nums",
+        }}
       >
-        {isPositive ? "+" : ""}
-        {change.toFixed(2)} ({changePercent.toFixed(2)}%)
-      </Badge>
-    </Group>
+        <Box component="span" aria-hidden sx={{ fontSize: 9, lineHeight: 1 }}>
+          {isPositive ? "▲" : "▼"}
+        </Box>
+        <Text
+          size="sm"
+          span
+          fw={700}
+          style={{
+            fontSize: 9.5,
+            lineHeight: 1.1,
+            color: tone,
+            fontVariantNumeric: "tabular-nums",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {isPositive ? "+" : ""}
+          {change.toFixed(2)} ({changePercent.toFixed(2)}%)
+        </Text>
+      </Box>
+    </Box>
   );
 }
 
 interface TickerContainerProps {
   children: React.ReactNode;
   background: string;
+  title?: string;
 }
 
-function TickerContainer({ children, background }: TickerContainerProps) {
+function TickerContainer({ children, background, title }: TickerContainerProps) {
   return (
     <Box
       bg={background}
       data-testid="market-ticker"
       id="market-ticker"
       className="market-ticker"
+      title={title}
       px="sm"
-      py="xs"
       style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        height: 22,
         overflowX: "auto",
+        overflowY: "hidden",
+        flexWrap: "nowrap",
+        minWidth: 0,
       }}
     >
-      <Group gap="sm" wrap="nowrap" className="market-ticker-items">
-        {children}
-      </Group>
+      {children}
     </Box>
   );
 }
@@ -143,13 +210,17 @@ function TickerLoadingState({ background }: { background: string }) {
       id="market-ticker"
       className="market-ticker market-ticker-loading"
       px="sm"
-      py="xs"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        height: 22,
+        overflow: "hidden",
+      }}
     >
-      <Group gap="sm">
-        {[1, 2, 3, 4, 5, 6].map((i) => (
-          <Skeleton key={i} width={120} height={30} />
-        ))}
-      </Group>
+      {[1, 2, 3, 4, 5, 6].map((i) => (
+        <Skeleton key={i} w={88} h={14} />
+      ))}
     </Box>
   );
 }
@@ -162,24 +233,130 @@ function TickerErrorState({ background }: { background: string }) {
       id="market-ticker"
       className="market-ticker market-ticker-error"
       px="sm"
-      py="xs"
+      style={{ display: "flex", alignItems: "center", height: 22 }}
     >
-      <Text size="sm" c="dimmed">
+      <Text size="sm" c="dimmed" style={{ fontSize: 9.5, lineHeight: 1.2 }}>
         Market data unavailable
       </Text>
     </Box>
   );
 }
 
-export function MarketTicker() {
+function TickerStatus({ label, detail }: { label: string; detail?: string | null }) {
+  return (
+    <Box
+      data-testid="market-ticker-status"
+      sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0, px: 0.5, overflow: "hidden" }}
+    >
+      <Box
+        aria-hidden
+        sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "text.disabled", flexShrink: 0 }}
+      />
+      <Text size="sm" fw={600} c="dimmed" style={{ fontSize: 9.5, lineHeight: 1.2 }}>{label}</Text>
+      {detail ? (
+        <Text
+          size="sm"
+          c="dimmed"
+          style={{ fontSize: 9.5, lineHeight: 1.2 }}
+          sx={{ opacity: 0.75, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+        >
+          · {detail}
+        </Text>
+      ) : null}
+    </Box>
+  );
+}
+
+function findTodayHoliday() {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+  return getHolidayState().holidays.find((h) => h.date === today) ?? null;
+}
+
+/**
+ * Single source of truth for "is the exchange open right now?" — the sidebar
+ * status dot and the tape must never disagree, and both need the holiday that
+ * explains a closure.
+ */
+function useMarketState() {
+  useStoreSubscription(subscribeToHolidays);
+  const closed = isMarketClosedToday();
+  return { closed, holiday: closed ? findTodayHoliday() : null };
+}
+
+/**
+ * Standalone market-state indicator for the sidebar. The old top app bar was
+ * the only place that said whether the exchange was open; removing that bar
+ * must not remove the information, so the dot + label lives next to the brand.
+ */
+export const MarketStatus = memo(function MarketStatus({ compact = false }: { compact?: boolean }) {
+  const { closed, holiday } = useMarketState();
+  const label = closed ? "Market closed" : "Market live";
+  const detail = closed ? holiday?.description : null;
+  const title = detail ? `${label} · ${detail}` : label;
+
+  return (
+    <Box
+      data-testid="app-market-status"
+      title={title}
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: compact ? "center" : "flex-start",
+        gap: compact ? 0 : 0.75,
+        minWidth: 0,
+        px: compact ? 0 : 0.25,
+        overflow: "hidden",
+      }}
+    >
+      <Box
+        aria-hidden
+        data-testid="app-market-status-dot"
+        sx={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          flexShrink: 0,
+          bgcolor: closed ? "text.disabled" : palette.POSITIVE,
+        }}
+      />
+      {!compact ? (
+        <>
+          <Text size="sm" fw={600} c="dimmed" style={{ fontSize: 9.5, lineHeight: 1.2, whiteSpace: "nowrap" }}>
+            {label}
+          </Text>
+          {detail ? (
+            <Text
+              size="sm"
+              c="dimmed"
+              style={{ fontSize: 9.5, lineHeight: 1.2 }}
+              sx={{ opacity: 0.75, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+            >
+              · {detail}
+            </Text>
+          ) : null}
+        </>
+      ) : null}
+    </Box>
+  );
+});
+
+interface MarketTickerProps {
+  /**
+   * `full` (default) keeps the legacy behaviour: tape when live, status text
+   * when closed. `tape` renders the tape only — the sidebar owns the status,
+   * so the page must not reserve a strip for it outside market hours.
+   */
+  variant?: "full" | "tape";
+}
+
+export const MarketTicker = memo(function MarketTicker({ variant = "full" }: MarketTickerProps) {
   const [enabled] = useMarketTickerEnabled();
   const [data, setData] = useState<MarketTickerData | null>(null);
-  useStoreSubscription(subscribeToHolidays);
-
-  // If disabled, render nothing
-  if (!enabled) {
-    return null;
-  }
+  const { closed, holiday } = useMarketState();
+  const tickers = data?.tickers;
+  // Ordering is derived from the fetched payload only: tooltip/hover renders
+  // must not re-sort the tape.
+  const sortedSymbols = useMemo(() => (tickers ? sortTickersByPriority(tickers) : []), [tickers]);
 
   const fetchTicker = useCallback(async () => {
     if (isMarketClosedToday()) return;
@@ -195,12 +372,22 @@ export function MarketTicker() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchTicker();
-    const interval = setInterval(fetchTicker, POLL_INTERVAL_MS);
+  usePolling(fetchTicker, POLL_INTERVAL_MS, {
+    enabled: enabled && !closed,
+    immediate: true,
+    skipIfRunning: false,
+  });
 
-    return () => clearInterval(interval);
-  }, [fetchTicker]);
+  if (!enabled) {
+    return null;
+  }
+
+  // A closed exchange has no tape to poll: state the reason instead of
+  // leaving skeletons (or a blank flex row) sitting in the header.
+  if (closed) {
+    if (variant === "tape") return null;
+    return <TickerStatus label="Market closed" detail={holiday?.description} />;
+  }
 
   if (!data || data.loading) {
     return <TickerLoadingState background="background.paper" />;
@@ -210,18 +397,14 @@ export function MarketTicker() {
     return <TickerErrorState background="background.paper" />;
   }
 
-  const tickers = data.tickers || {};
-  const sortedSymbols = sortTickersByPriority(tickers);
   const lastUpdated = formatLastUpdated(data.last_updated);
+  const rows = tickers ?? {};
 
   return (
-    <TickerContainer background="background.paper">
+    <TickerContainer background="background.paper" title={`Updated: ${lastUpdated}`}>
       {sortedSymbols.map((symbol) => (
-        <TickerItem key={symbol} symbol={symbol} item={tickers[symbol]} />
+        <TickerItem key={symbol} symbol={symbol} item={rows[symbol]} />
       ))}
-      <Text size="sm" c="dimmed" ml="auto" data-testid="market-ticker-updated">
-        Updated: {lastUpdated}
-      </Text>
     </TickerContainer>
   );
-}
+});

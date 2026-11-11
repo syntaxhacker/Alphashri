@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 import config
+from api.tv import get_scanner_data
 from db.database import SessionLocal
 
 from .screener_models import (
@@ -823,7 +824,7 @@ def fetch_all_52w_ranges_from_tv() -> dict:
             .set_markets('india')
             .order_by('market_cap_basic', ascending=False)
             .offset(offset).limit(offset + page_size))
-        _, df = q.get_scanner_data()
+        _, df = get_scanner_data(q)
         if df is None or df.empty:
             break
         for _, row in df.iterrows():

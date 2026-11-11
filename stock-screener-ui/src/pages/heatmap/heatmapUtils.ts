@@ -75,15 +75,10 @@ export function isSignedHeatmapMetric(metric: string): boolean {
 
 /** Green for gains, red for losses; intensity scales within each side. */
 export function getSignedMetricColor(value: number, min: number, max: number): string {
-  if (value > 0) {
-    const t = max > 0 ? Math.min(value / max, 1) : 1;
-    return lerpRgb(25 * t);
-  }
-  if (value < 0) {
-    const t = min < 0 ? Math.min(Math.abs(value) / Math.abs(min), 1) : 1;
-    return lerpRgb(75 + 25 * t);
-  }
-  return lerpRgb(50);
+  if (value === 0) return lerpRgb(50);
+  const extent = Math.max(Math.abs(min), Math.abs(max), 0.01);
+  const t = Math.min(Math.abs(value) / extent, 1);
+  return lerpRgb(value > 0 ? 50 - 50 * t : 50 + 50 * t);
 }
 
 export function getMetricColor(value: number, min: number, max: number): string {
@@ -127,6 +122,8 @@ export function getMetricValue(stock: HeatmapStock, metric: string): number {
   switch (metric) {
     case "market_cap":
       return stock.market_cap;
+    case "change_pct":
+      return stock.change_pct;
     case "pe_ratio":
       return stock.pe_ratio;
     case "pb_ratio":

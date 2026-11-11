@@ -1,41 +1,16 @@
 import type { ColumnDef } from "./index";
 import { symbolCol, scoreCol, sectorCol, recentReturn5dCol, perfWCol, touched52wCol, dayChangeCol } from "./base";
-
-const formatSignedPercent = (v: number) => {
-  const n = v ?? 0;
-  return `${n > 0 ? "+" : ""}${n.toFixed(2)}%`;
-};
+import { numCol, rupeePrice, gapCell } from "./columnHelpers";
 
 export function getTrendingColumns(): ColumnDef[] {
   return [
     symbolCol,
     scoreCol,
     touched52wCol,
-    {
-      key: "tv_price",
-      label: "Price",
-      type: "number",
-      sortable: true,
-      format: (value: number) => `₹${value.toFixed(2)}`,
-    },
-    {
-      key: "upstox_price",
-      label: "LTP",
-      type: "number",
-      sortable: true,
-      format: (value: number) => `₹${value.toFixed(2)}`,
-    },
+    numCol("tv_price", "Price", (value: number) => rupeePrice(value)),
+    numCol("upstox_price", "LTP", (value: number) => rupeePrice(value)),
     dayChangeCol,
-    {
-      key: "to_52w_high",
-      label: "To 52W High",
-      type: "number",
-      sortable: true,
-      format: (value: number) => {
-        const cls = value < 0 ? "success" : value > 0.5 ? "error" : "";
-        return { value: formatSignedPercent(value), className: cls };
-      },
-    },
+    numCol("to_52w_high", "To 52W High", (value: number) => gapCell(value, 0.5)),
     recentReturn5dCol,
     perfWCol,
     sectorCol,

@@ -1,35 +1,26 @@
 import { describe, expect, it } from "vitest";
-import type { ChartCandle, PatternHitDTO, Trendline } from "@/types/chartPatterns";
+import type { PatternHitDTO, Trendline } from "@/types/chartPatterns";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
 import { PATTERN_SERIES_COLORS } from "@/config/patterns";
 import { buildPatternChartOption, type SiblingOverlay } from "./patternChartOption";
-
-const CANDLES: ChartCandle[] = [
-  { t: "2026-05-04T09:15:00+05:30", o: 100, h: 104, l: 99, c: 103, v: 1000 },
-  { t: "2026-05-05T09:15:00+05:30", o: 103, h: 106, l: 102, c: 105, v: 1100 },
-  { t: "2026-05-06T09:15:00+05:30", o: 105, h: 107, l: 101, c: 102, v: 900 },
-  { t: "2026-05-07T09:15:00+05:30", o: 102, h: 108, l: 100, c: 107, v: 1200 },
-];
-
-const HIT = {
-  symbol: "IRCON",
-  pattern_id: "falling_wedge",
-  pattern_name: "Falling Wedge",
-  start_date: "2026-05-04",
-  breakout_level: 107,
-  target: 119,
-  stop: 99,
-  pivots: [
-    { t: "2026-05-04T09:15:00+05:30", price: 104, kind: "high" },
-    { t: "2026-05-06T09:15:00+05:30", price: 101, kind: "low" },
-  ],
-} as unknown as PatternHitDTO;
+import { IST_CANDLES as CANDLES, IST_HIT as HIT, expectCompactPivotMarkersOmitted, seriesOf } from "./patternTestFixtures";
 
 function boundary(price: number, endPrice?: number): Trendline {
   return [
     { t: CANDLES[0].t, price },
     { t: CANDLES[CANDLES.length - 1].t, price: endPrice ?? price + 3 },
   ];
+}
+
+function siblingOption(extra: Record<string, unknown> = {}) {
+  return buildPatternChartOption({
+    candles: CANDLES,
+    hit: HIT,
+    trendlines: [boundary(104)],
+    overlays: [overlay("rising_wedge", "Rising Wedge", { start_date: "2026-05-06" })],
+    selectedPatternId: "falling_wedge",
+    ...extra,
+  });
 }
 
 function overlay(
@@ -62,9 +53,6 @@ interface SeriesLike {
   z?: number;
 }
 
-function seriesOf(option: Record<string, unknown>): SeriesLike[] {
-  return option.series as unknown as SeriesLike[];
-}
 
 function legendOf(option: Record<string, unknown>): string[] {
   return ((option.legend as { data?: string[] } | undefined)?.data ?? []) as string[];
@@ -78,15 +66,15 @@ describe("buildPatternChartOption candles are always present", () => {
       trendlines: [boundary(104)],
       overlays: [overlay("rising_wedge", "Rising Wedge", { start_date: "2026-05-06" })],
     });
-    const candles = seriesOf(option).filter((s) => s.type === "candlestick");
+    const candles = seriesOf<SeriesLike>(option).filter((s) => s.type === "candlestick");
     expect(candles).toHaveLength(1);
     expect(candles[0].data).toHaveLength(CANDLES.length);
   });
 
   it("emits only the candlestick series when trendlines/overlays are undefined", () => {
     const option = buildPatternChartOption({ candles: CANDLES, hit: HIT });
-    expect(seriesOf(option).filter((s) => s.type === "candlestick")).toHaveLength(1);
-    expect(seriesOf(option)).toHaveLength(3); // candles + 2 pivot scatters
+    expect(seriesOf<SeriesLike>(option).filter((s) => s.type === "candlestick")).toHaveLength(1);
+    expect(seriesOf<SeriesLike>(option)).toHaveLength(3); // candles + 2 pivot scatters
   });
 
   it("emits only the candlestick series for empty candles without crashing", () => {
@@ -96,7 +84,7 @@ describe("buildPatternChartOption candles are always present", () => {
       trendlines: [boundary(104)],
       overlays: [overlay("rising_wedge", "Rising Wedge")],
     });
-    const series = seriesOf(option);
+    const series = seriesOf<SeriesLike>(option);
     expect(series.filter((s) => s.type === "candlestick")).toHaveLength(1);
     expect(series[0].data).toEqual([]);
     // No window → groups map to nothing, pivots need a window too.
@@ -106,15 +94,9 @@ describe("buildPatternChartOption candles are always present", () => {
 
 describe("buildPatternChartOption overlay grouping and legend naming", () => {
   it("draws the selected pattern solid and siblings dashed with distinct colours", () => {
-    const option = buildPatternChartOption({
-      candles: CANDLES,
-      hit: HIT,
-      trendlines: [boundary(104)],
-      overlays: [overlay("rising_wedge", "Rising Wedge", { start_date: "2026-05-06" })],
-      selectedPatternId: "falling_wedge",
-    });
-    const selected = seriesOf(option).filter((s) => s.name === "Falling Wedge");
-    const sibling = seriesOf(option).filter((s) => s.name === "Rising Wedge");
+    const option = siblingOption();
+    const selected = seriesOf<SeriesLike>(option).filter((s) => s.name === "Falling Wedge");
+    const sibling = seriesOf<SeriesLike>(option).filter((s) => s.name === "Rising Wedge");
     expect(selected.length).toBeGreaterThan(0);
     expect(sibling.length).toBeGreaterThan(0);
     expect(selected[0].lineStyle?.type).toBe("solid");
@@ -131,7 +113,7 @@ describe("buildPatternChartOption overlay grouping and legend naming", () => {
       trendlines: [boundary(104), boundary(100)],
       overlays: [],
     });
-    const group = seriesOf(option).filter((s) => s.name === "Falling Wedge");
+    const group = seriesOf<SeriesLike>(option).filter((s) => s.name === "Falling Wedge");
     expect(group).toHaveLength(2);
     expect(group[0].endLabel?.formatter).toBe("Falling Wedge");
     expect(group[1].endLabel).toBeUndefined();
@@ -139,13 +121,7 @@ describe("buildPatternChartOption overlay grouping and legend naming", () => {
   });
 
   it("registers every group name in the legend", () => {
-    const option = buildPatternChartOption({
-      candles: CANDLES,
-      hit: HIT,
-      trendlines: [boundary(104)],
-      overlays: [overlay("rising_wedge", "Rising Wedge", { start_date: "2026-05-06" })],
-      selectedPatternId: "falling_wedge",
-    });
+    const option = siblingOption();
     expect(legendOf(option)).toContain("Falling Wedge");
     expect(legendOf(option)).toContain("Rising Wedge");
   });
@@ -161,7 +137,7 @@ describe("buildPatternChartOption overlay grouping and legend naming", () => {
       ],
       selectedPatternId: "other_pattern",
     });
-    const names = seriesOf(option).map((s) => s.name);
+    const names = seriesOf<SeriesLike>(option).map((s) => s.name);
     expect(names).toContain("Rising Wedge");
     expect(names).toContain("Rising Wedge (2)");
     const legend = legendOf(option);
@@ -175,7 +151,7 @@ describe("buildPatternChartOption overlay grouping and legend naming", () => {
       overlays: [{ pattern_id: "mystery_id", trendlines: [boundary(101)] }],
       selectedPatternId: "other_pattern",
     });
-    expect(seriesOf(option).map((s) => s.name)).toContain("mystery_id");
+    expect(seriesOf<SeriesLike>(option).map((s) => s.name)).toContain("mystery_id");
     expect(legendOf(option)).toContain("mystery_id");
   });
 
@@ -187,44 +163,24 @@ describe("buildPatternChartOption overlay grouping and legend naming", () => {
       overlays: [{ pattern_id: "empty", pattern_name: "Empty", trendlines: [] }],
       selectedPatternId: "falling_wedge",
     });
-    expect(seriesOf(option).map((s) => s.name)).not.toContain("Empty");
+    expect(seriesOf<SeriesLike>(option).map((s) => s.name)).not.toContain("Empty");
   });
 
   it("omits sibling overlays on compact sparklines but keeps the selected trendlines", () => {
-    const option = buildPatternChartOption({
-      candles: CANDLES,
-      hit: HIT,
-      trendlines: [boundary(104)],
-      overlays: [overlay("rising_wedge", "Rising Wedge", { start_date: "2026-05-06" })],
-      selectedPatternId: "falling_wedge",
-      compact: true,
-    });
-    const names = seriesOf(option).map((s) => s.name);
+    const option = siblingOption({ compact: true });
+    const names = seriesOf<SeriesLike>(option).map((s) => s.name);
     expect(names).toContain("Falling Wedge");
     expect(names).not.toContain("Rising Wedge");
     expect(option.legend).toBeUndefined();
   });
 
   it("uses thicker solid lines and larger end labels when large is set", () => {
-    const base = buildPatternChartOption({
-      candles: CANDLES,
-      hit: HIT,
-      trendlines: [boundary(104)],
-      overlays: [overlay("rising_wedge", "Rising Wedge", { start_date: "2026-05-06" })],
-      selectedPatternId: "falling_wedge",
-    });
-    const big = buildPatternChartOption({
-      candles: CANDLES,
-      hit: HIT,
-      trendlines: [boundary(104)],
-      overlays: [overlay("rising_wedge", "Rising Wedge", { start_date: "2026-05-06" })],
-      selectedPatternId: "falling_wedge",
-      large: true,
-    });
-    const baseSel = seriesOf(base).find((s) => s.name === "Falling Wedge");
-    const bigSel = seriesOf(big).find((s) => s.name === "Falling Wedge");
-    const baseSib = seriesOf(base).find((s) => s.name === "Rising Wedge");
-    const bigSib = seriesOf(big).find((s) => s.name === "Rising Wedge");
+    const base = siblingOption();
+    const big = siblingOption({ large: true });
+    const baseSel = seriesOf<SeriesLike>(base).find((s) => s.name === "Falling Wedge");
+    const bigSel = seriesOf<SeriesLike>(big).find((s) => s.name === "Falling Wedge");
+    const baseSib = seriesOf<SeriesLike>(base).find((s) => s.name === "Rising Wedge");
+    const bigSib = seriesOf<SeriesLike>(big).find((s) => s.name === "Rising Wedge");
     expect(baseSel?.lineStyle?.width).toBe(2.5);
     expect(bigSel?.lineStyle?.width).toBe(3);
     expect(baseSib?.lineStyle?.width).toBe(1.5);
@@ -249,7 +205,7 @@ describe("buildPatternChartOption isSelectedOverlay", () => {
       selectedPatternId: "rising_wedge",
       selectedStartDate: "2026-05-04",
     });
-    const names = seriesOf(option).map((s) => s.name);
+    const names = seriesOf<SeriesLike>(option).map((s) => s.name);
     // Selected group + one surviving sibling (suffixed as the second instance).
     expect(names).toContain("Rising Wedge");
     expect(names).toContain("Rising Wedge (2)");
@@ -265,7 +221,7 @@ describe("buildPatternChartOption isSelectedOverlay", () => {
       selectedPatternId: "falling_wedge",
       selectedStartDate: "2026-05-04",
     });
-    const names = seriesOf(option).map((s) => s.name);
+    const names = seriesOf<SeriesLike>(option).map((s) => s.name);
     expect(names).toContain("Falling Wedge");
     expect(names).toContain("Falling Wedge (2)");
   });
@@ -280,7 +236,7 @@ describe("buildPatternChartOption isSelectedOverlay", () => {
     });
     // Selected group is named after the hit fallback ("Pattern"); the matching
     // sibling is skipped, so "Rising Wedge" never appears.
-    expect(seriesOf(option).map((s) => s.name)).not.toContain("Rising Wedge");
+    expect(seriesOf<SeriesLike>(option).map((s) => s.name)).not.toContain("Rising Wedge");
   });
 
   it("never skips an overlay with a different pattern id", () => {
@@ -292,7 +248,7 @@ describe("buildPatternChartOption isSelectedOverlay", () => {
       selectedPatternId: "falling_wedge",
       selectedStartDate: "2026-05-04",
     });
-    expect(seriesOf(option).map((s) => s.name)).toContain("Rising Wedge");
+    expect(seriesOf<SeriesLike>(option).map((s) => s.name)).toContain("Rising Wedge");
   });
 
   it("prefers the opaque instance key when the backend supplies one", () => {
@@ -305,7 +261,7 @@ describe("buildPatternChartOption isSelectedOverlay", () => {
       selectedPatternId: "rising_wedge",
       selectedInstanceKey: "k1",
     });
-    expect(seriesOf(matching).map((s) => s.name)).not.toContain("Rising Wedge");
+    expect(seriesOf<SeriesLike>(matching).map((s) => s.name)).not.toContain("Rising Wedge");
 
     const other = buildPatternChartOption({
       candles: CANDLES,
@@ -316,7 +272,7 @@ describe("buildPatternChartOption isSelectedOverlay", () => {
       selectedPatternId: "rising_wedge",
       selectedInstanceKey: "k1",
     });
-    expect(seriesOf(other).map((s) => s.name)).toContain("Rising Wedge");
+    expect(seriesOf<SeriesLike>(other).map((s) => s.name)).toContain("Rising Wedge");
   });
 
   it("defaults the selection identity to the hit pattern id and start date", () => {
@@ -328,15 +284,15 @@ describe("buildPatternChartOption isSelectedOverlay", () => {
       trendlines: selected,
       overlays: [overlay("falling_wedge", "Falling Wedge", { start_date: "2026-05-04" })],
     });
-    expect(seriesOf(option).filter((s) => s.name === "Falling Wedge")).toHaveLength(1);
+    expect(seriesOf<SeriesLike>(option).filter((s) => s.name === "Falling Wedge")).toHaveLength(1);
   });
 });
 
 describe("buildPatternChartOption pivot markers", () => {
   it("draws high markers red/down and low markers green/up at mapped indices", () => {
     const option = buildPatternChartOption({ candles: CANDLES, hit: HIT });
-    const highs = seriesOf(option).find((s) => s.name === "Pivot High");
-    const lows = seriesOf(option).find((s) => s.name === "Pivot Low");
+    const highs = seriesOf<SeriesLike>(option).find((s) => s.name === "Pivot High");
+    const lows = seriesOf<SeriesLike>(option).find((s) => s.name === "Pivot Low");
     expect(highs?.type).toBe("scatter");
     expect(lows?.type).toBe("scatter");
     expect(highs?.symbol).toBe("triangle");
@@ -351,10 +307,7 @@ describe("buildPatternChartOption pivot markers", () => {
   });
 
   it("omits pivot markers on compact sparklines", () => {
-    const option = buildPatternChartOption({ candles: CANDLES, hit: HIT, compact: true });
-    const names = seriesOf(option).map((s) => s.name);
-    expect(names).not.toContain("Pivot High");
-    expect(names).not.toContain("Pivot Low");
+    expectCompactPivotMarkersOmitted(CANDLES, HIT);
   });
 
   it("skips pivots with missing or unparseable timestamps", () => {
@@ -366,15 +319,15 @@ describe("buildPatternChartOption pivot markers", () => {
       ],
     } as unknown as PatternHitDTO;
     const option = buildPatternChartOption({ candles: CANDLES, hit: bad });
-    expect(seriesOf(option).map((s) => s.name)).not.toContain("Pivot High");
-    expect(seriesOf(option).map((s) => s.name)).not.toContain("Pivot Low");
+    expect(seriesOf<SeriesLike>(option).map((s) => s.name)).not.toContain("Pivot High");
+    expect(seriesOf<SeriesLike>(option).map((s) => s.name)).not.toContain("Pivot Low");
   });
 
   it("uses larger pivot markers when large is set", () => {
-    const base = seriesOf(buildPatternChartOption({ candles: CANDLES, hit: HIT })).find(
+    const base = seriesOf<SeriesLike>(buildPatternChartOption({ candles: CANDLES, hit: HIT })).find(
       (s) => s.name === "Pivot High",
     );
-    const big = seriesOf(
+    const big = seriesOf<SeriesLike>(
       buildPatternChartOption({ candles: CANDLES, hit: HIT, large: true }),
     ).find((s) => s.name === "Pivot High");
     expect(base?.symbolSize).toBe(9);
@@ -385,14 +338,14 @@ describe("buildPatternChartOption pivot markers", () => {
 describe("buildPatternChartOption breakout/target/stop guides", () => {
   it("draws all three guides on full charts only", () => {
     const full = buildPatternChartOption({ candles: CANDLES, hit: HIT });
-    const candle = seriesOf(full).find((s) => s.type === "candlestick");
+    const candle = seriesOf<SeriesLike>(full).find((s) => s.type === "candlestick");
     expect(candle?.markLine?.data?.map((d) => d.label?.formatter)).toEqual([
       "Breakout",
       "Target",
       "Stop",
     ]);
     const compact = buildPatternChartOption({ candles: CANDLES, hit: HIT, compact: true });
-    expect(seriesOf(compact).find((s) => s.type === "candlestick")?.markLine).toBeUndefined();
+    expect(seriesOf<SeriesLike>(compact).find((s) => s.type === "candlestick")?.markLine).toBeUndefined();
   });
 });
 
@@ -403,7 +356,7 @@ describe("buildPatternChartOption degenerate single-point overlay line", () => {
       hit: HIT,
       trendlines: [[{ t: CANDLES[0].t, price: 104 }]],
     });
-    const line = seriesOf(option).find((s) => s.type === "line");
+    const line = seriesOf<SeriesLike>(option).find((s) => s.type === "line");
     expect(line?.showSymbol).toBe(true);
     expect(line?.symbol).toBe("circle");
     expect(line?.symbolSize).toBe(6);

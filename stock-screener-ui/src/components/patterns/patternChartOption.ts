@@ -7,15 +7,17 @@ import {
   MARKER_SL,
   MARKER_TP,
   NEGATIVE,
+  PATTERN_BOUNDARY,
   POSITIVE,
   PRIMARY,
-  WARNING,
 } from "@/ui/palette";
-import { mapTimeSegment, mapTrendlines, pointsToSeriesData } from "./trendlineMapping";
+import { pointsToSeriesData } from "./trendlineMapping";
+import { createAxisIndex } from "./axisIndex";
 import { formatChartTick, formatChartTimestamp } from "./datetime";
 import { formatCurrency } from "@/utils/ui-helpers";
+import { resolveVisibleStandalone } from "./standaloneLines";
 
-export const BOUNDARY_COLORS = [PRIMARY, WARNING];
+export const BOUNDARY_COLORS = PATTERN_BOUNDARY;
 
 /**
  * Distinct colours assigned in order to the patterns drawn on one chart: the
@@ -137,6 +139,9 @@ export function buildPatternChartOption({
 }: PatternChartOptionInput): Record<string, unknown> {
   const times = candles.map((c) => c.t);
 
+  // Axis parses once per build; every trendline/pivot/standalone lookup below
+  // reuses it instead of re-parsing the candle times per group/line/pivot.
+  const axis = createAxisIndex(times);
   const markData: Array<Record<string, unknown>> = [];
   if (!compact && hit) {
     if (hit.breakout_level) {
@@ -228,7 +233,7 @@ export function buildPatternChartOption({
   // a suffix while the first instance keeps the clean readable name.
   const nameCounts = new Map<string, number>();
   groups.forEach((group, index) => {
-    const mapped = mapTrendlines(group.lines, times);
+    const mapped = axis.mapTrendlines(group.lines);
     if (mapped.length === 0) return;
     const color = PATTERN_COLORS[index % PATTERN_COLORS.length];
     const seen = nameCounts.get(group.name) ?? 0;
@@ -282,19 +287,11 @@ export function buildPatternChartOption({
   // straight start→end segment per line, drawn above the candles. View-only —
   // `trendlinesView` only controls which kinds are painted, never which
   // symbols/patterns match.
-  const standalone = standaloneTrendLines ?? hit?.trend_lines ?? [];
-  const visibleStandalone =
-    trendlinesView === "none"
-      ? []
-      : standalone.filter((line) =>
-          trendlinesView === "both" ? true : line?.kind === trendlinesView,
-        );
+  const visibleStandalone = resolveVisibleStandalone(standaloneTrendLines, hit, trendlinesView);
   visibleStandalone.forEach((line) => {
-    if (!line) return;
-    const name = line.kind === "support" ? "TLS" : "TLR";
-    const color = line.kind === "support" ? POSITIVE : NEGATIVE;
-    const points = mapTimeSegment(line.start_date, line.start_price, line.end_date, line.end_price, times);
-    if (!points || points.length === 0) return;
+    const mapped = axis.mapStandaloneLine(line);
+    if (!mapped) return;
+    const { name, color, points } = mapped;
     // A degenerate single-point line draws nothing as a line — dot-mark it.
     const singlePoint = points.length <= 1;
     series.push({
@@ -340,7 +337,7 @@ export function buildPatternChartOption({
   if (!compact && hit?.pivots?.length && times.length > 0) {
     hit.pivots.forEach((pivot) => {
       if (!pivot || !pivot.t) return;
-      const [point] = mapTrendlines([[{ t: pivot.t, price: pivot.price }]], times);
+      const [point] = axis.mapTrendlines([[{ t: pivot.t, price: pivot.price }]]);
       const mappedPoint = point?.[0];
       if (!mappedPoint || mappedPoint.index < 0) return;
       pivotMarkers.push({

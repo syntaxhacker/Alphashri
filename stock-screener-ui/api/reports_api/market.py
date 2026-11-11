@@ -29,13 +29,17 @@ import math
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from pathlib import Path
 from statistics import mean, median
 from typing import Any, Optional
 
 from fastapi import APIRouter, Query
 
+from api.reports_api._time import now_iso as _now_iso
+from api.tv import get_scanner_data
+from api.reports_api._time import today_str as _today_str
+from api.reports_api._dates import parse_day as _parse_date
+from api.reports_api._numeric import safe_float
 from api.utils import _sanitize_for_json
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
@@ -108,11 +112,8 @@ def normalize_spark(closes: list[float], limit: int = SPARK_BARS) -> list[float]
 
 
 def _finite(value: Any) -> Optional[float]:
-    try:
-        out = float(value)
-    except (TypeError, ValueError):
-        return None
-    return out if math.isfinite(out) else None
+    """Finite float or ``None`` — canonical ``safe_float`` with a ``None`` default."""
+    return safe_float(value, default=None)
 
 
 def _fmt_times(value: Optional[float], suffix: str) -> str:
@@ -130,34 +131,6 @@ def _cr(value_rupees: Optional[float]) -> str:
     return f"\u20b9{cr:.1f} Cr"
 
 
-def _today_str() -> str:
-    try:
-        import config as _cfg
-
-        return datetime.now(_cfg.IST).strftime("%Y-%m-%d")
-    except Exception:
-        return datetime.now().astimezone().strftime("%Y-%m-%d")
-
-
-def _now_iso() -> str:
-    try:
-        import config as _cfg
-
-        return datetime.now(_cfg.IST).isoformat()
-    except Exception:
-        return datetime.now().astimezone().isoformat()
-
-
-def _parse_date(value: Optional[str]) -> str:
-    text = (value or "").strip()
-    if not text:
-        return _today_str()
-    try:
-        return datetime.strptime(text[:10], "%Y-%m-%d").strftime("%Y-%m-%d")
-    except ValueError:
-        return _today_str()
-
-
 def _row_symbol(row: dict) -> str:
     name = str(row.get("name") or "").strip().upper()
     if name:
@@ -172,7 +145,7 @@ def _fetch_tv_frame() -> Any:
     from tradingview_screener import Query
 
     q = Query().select(*TV_FIELDS).set_markets("india").limit(TV_LIMIT)
-    _, df = q.get_scanner_data()
+    _, df = get_scanner_data(q)
     return df
 
 
@@ -414,9 +387,10 @@ def _fetch_index(records: list[dict] | None = None) -> Optional[dict]:
     Never raises.
     """
     try:
+        index_symbols = {s.replace(" ", "") for s in _INDEX_SYMBOLS}
         for r in records or []:
             sym = str(r.get("symbol") or "").strip().upper().replace(" ", "")
-            if sym in {s.replace(" ", "") for s in _INDEX_SYMBOLS}:
+            if sym in index_symbols:
                 if _finite(r.get("close")) is None:
                     continue
                 return {
@@ -657,7 +631,10 @@ async def daily_report(
         allowed = {str(s).upper() for s in get_universe(uid)}
         df = await asyncio.to_thread(_fetch_tv_frame)
         records = _frame_to_records(df, allowed)
-        payload = _build_payload(day, uid, records)
+        # The build does blocking work (the yfinance index fetch and the
+        # sparkline fetches) - it must not run on the event loop, or a slow
+        # upstream stalls every other request on the desk.
+        payload = await asyncio.to_thread(_build_payload, day, uid, records)
         payload = _sanitize_for_json(payload)
         if is_today:
             _cache[f"{day}|{uid}"] = (time.time(), payload)

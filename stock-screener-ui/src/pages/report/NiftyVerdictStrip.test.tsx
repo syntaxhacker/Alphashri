@@ -1,20 +1,32 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { describe, expect, test, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import * as palette from "@/ui/palette";
 
 vi.mock("@/state/auth", () => ({ fetchWithAuth: vi.fn() }));
 
 import { normalizeReport } from "@/api/reportNifty";
+import { UIProvider } from "@/ui";
 import {
+  NiftyVerdictStrip,
+  REGIME_LABELS,
   VERDICT_DASH,
   controlAccent,
+  controlDetail,
+  controlLabel,
   fmtVerdictChange,
   fmtVerdictNum,
+  fmtVerdictOi,
   regimeAccent,
+  regimeDetail,
+  resolveRegimeLabel,
   strengthAccent,
   vixAccent,
 } from "./NiftyVerdictStrip";
+import type { NiftyRegimeBlock } from "@/types/niftyReport";
+
+afterEach(cleanup);
 
 describe("normalizeReport verdict blocks (snake_case -> typed, null-safe)", () => {
   const raw = {
@@ -66,6 +78,7 @@ describe("normalizeReport verdict blocks (snake_case -> typed, null-safe)", () =
       atm_pe_iv: 13.1,
       skew: -2.4,
       gex_regime: "short",
+      flow_bias: null,
     });
     expect(rep.regime?.verdict).toBe("range_sell_premium");
     expect(rep.regime?.straddle_pct).toBe(-20);
@@ -92,6 +105,27 @@ describe("normalizeReport verdict blocks (snake_case -> typed, null-safe)", () =
     expect(rep.regime?.range_pts).toBe(10);
     expect(rep.vix?.change_pct).toBe(1.1);
     expect(rep.strength?.pos_in_range).toBe(0.5);
+  });
+
+  test("accepts buyer and neutral OI-build verdicts", () => {
+    for (const verdict of [
+      "put_buyers",
+      "call_buyers",
+      "net_put_build",
+      "net_call_build",
+    ]) {
+      const rep = normalizeReport({
+        control: { verdict },
+      } as Record<string, unknown>);
+      expect(rep.control?.verdict).toBe(verdict);
+    }
+  });
+
+  test("accepts the direction-agnostic trend regime", () => {
+    const rep = normalizeReport({
+      regime: { verdict: "trend" },
+    } as Record<string, unknown>);
+    expect(rep.regime?.verdict).toBe("trend");
   });
 
   test("absent or empty blocks stay undefined", () => {
@@ -140,6 +174,32 @@ describe("normalizeReport verdict blocks (snake_case -> typed, null-safe)", () =
 });
 
 describe("verdict formatting helpers", () => {
+  test("regimeDetail carries the vol vote and the straddle's move from open", () => {
+    const detail = regimeDetail({
+      verdict: "range_sell_premium",
+      range_pts: 180,
+      range_baseline_pts: 210,
+      range_pct: 0.7,
+      rv: 12.5,
+      iv: 15,
+      straddle_open: 150,
+      straddle_now: 120,
+      straddle_pct: -20,
+    });
+    expect(detail).toContain("180 vs ~210 pts");
+    expect(detail).toContain("RV 12.50 / IV 15.00");
+    expect(detail).toContain("straddle -20.00%");
+    expect(detail).toContain("Δ -30.00 pts");
+  });
+
+  test("regimeDetail omits the RV/IV and Δ clauses when inputs are absent", () => {
+    const detail = regimeDetail(null);
+    expect(detail).toContain("— vs ~— pts");
+    expect(detail).toContain("straddle —%");
+    expect(detail).not.toContain("RV");
+    expect(detail).not.toContain("Δ");
+  });
+
   test("fmtVerdictNum groups (Indian) and dashes absent values", () => {
     expect(fmtVerdictNum(5_530_000)).toBe("55,30,000");
     expect(fmtVerdictNum(-1_200_000)).toBe("-12,00,000");
@@ -156,6 +216,120 @@ describe("verdict formatting helpers", () => {
     expect(fmtVerdictChange(0)).toBe("0.00");
     expect(fmtVerdictChange(null)).toBe(VERDICT_DASH);
   });
+
+  test("fmtVerdictOi compacts millions/thousands and dashes absent values", () => {
+    expect(fmtVerdictOi(5_530_000)).toBe("+5.5M");
+    expect(fmtVerdictOi(-1_200_000)).toBe("-1.2M");
+    expect(fmtVerdictOi(44_000)).toBe("+44K");
+    expect(fmtVerdictOi(1_000)).toBe("+1,000");
+    expect(fmtVerdictOi(null)).toBe(VERDICT_DASH);
+  });
+
+  test("controlDetail names the chain as the ΔOI source", () => {
+    // The INTEL strip prints Upstox's official ΔOI for the same session; the
+    // verdict strip's number is computed from our chain. One label over two
+    // sources made the two rows look like a contradiction.
+    expect(
+      controlDetail({
+        verdict: "call_writers",
+        ce_doi: 5_530_000,
+        pe_doi: -1_200_000,
+        atm_ce_iv: 12.5,
+        atm_pe_iv: 13.1,
+        skew: -2.4,
+        gex_regime: "short",
+      }),
+    ).toBe("ΔOI (chain) C +5.5M P -1.2M · skew -2.40");
+    expect(controlDetail(null)).toBe("ΔOI (chain) C — P — · skew —");
+  });
+});
+
+describe("resolveRegimeLabel (trend_buy follows the live RV/IV vote)", () => {
+  const block = (rv: number | null, iv: number | null): NiftyRegimeBlock => ({
+    verdict: "trend_buy",
+    range_pts: null,
+    range_baseline_pts: null,
+    range_pct: null,
+    rv,
+    iv,
+    straddle_open: null,
+    straddle_now: null,
+    straddle_pct: null,
+  });
+
+  test("rv > iv keeps the buy-premium read", () => {
+    expect(resolveRegimeLabel("trend_buy", block(15.0, 12.5))).toBe(
+      "BUY PREMIUM · RV > IV",
+    );
+  });
+
+  test("iv > rv reuses the sell-premium vocabulary (premium-rich tape)", () => {
+    // Live tape 2026-10-21: RV 12.5 < IV 15.0 rendered "BUY PREMIUM · RV > IV".
+    expect(resolveRegimeLabel("trend_buy", block(12.5, 15.0))).toBe(
+      "SELL PREMIUM · IV > RV",
+    );
+  });
+
+  test("tied or absent vote falls back to TREND", () => {
+    expect(resolveRegimeLabel("trend_buy", block(12.5, 12.5))).toBe("TREND");
+    expect(resolveRegimeLabel("trend_buy", block(null, 15.0))).toBe("TREND");
+    expect(resolveRegimeLabel("trend_buy", block(12.5, null))).toBe("TREND");
+    expect(resolveRegimeLabel("trend_buy", null)).toBe("TREND");
+  });
+
+  test("other verdicts keep the static mapping", () => {
+    expect(resolveRegimeLabel("range_sell_premium", block(15.0, 12.5))).toBe(
+      "SELL PREMIUM",
+    );
+    expect(resolveRegimeLabel("neutral", block(15.0, 12.5))).toBe("NEUTRAL");
+    expect(resolveRegimeLabel("trend", block(15.0, 12.5))).toBe("TREND");
+    expect(resolveRegimeLabel(null, block(15.0, 12.5))).toBe(VERDICT_DASH);
+  });
+
+  test("the trend verdict has its own label (never blank)", () => {
+    expect(REGIME_LABELS.trend).toBe("TREND");
+  });
+});
+
+describe("control verdict labels", () => {
+  test("buyer verdicts name the action, not control", () => {
+    expect(controlLabel("put_buyers")).toBe("SESSION · PUT BUYING");
+    expect(controlLabel("call_buyers")).toBe("SESSION · CALL BUYING");
+  });
+
+  test("the rendered control cell carries the full SESSION label, never a truncated prefix", () => {
+    const report = normalizeReport({
+      control: {
+        verdict: "call_buyers",
+        ce_doi: 5_530_000,
+        pe_doi: -1_200_000,
+        atm_ce_iv: 12.5,
+        atm_pe_iv: 13.1,
+        skew: -2.4,
+        gex_regime: "short",
+      },
+    } as Record<string, unknown>);
+    render(<NiftyVerdictStrip report={report} />, { wrapper: UIProvider });
+    const primary = screen.getByTestId("nifty-verdict-control-primary");
+    // Exact, full string: the cell's CSS `truncate` may clip it visually on a
+    // narrow strip, but the text node itself must carry every segment — a
+    // shortened "SESSION · CALL…" would misread the session.
+    expect(primary).toHaveTextContent("SESSION · CALL BUYING");
+    expect(primary.textContent).toBe("SESSION · CALL BUYING");
+  });
+
+  test("missing flow degrades to a neutral OI-build label", () => {
+    expect(controlLabel("net_put_build")).toBe("OI BUILD · FLOW UNKNOWN");
+    expect(controlLabel("net_call_build")).toBe("OI BUILD · FLOW UNKNOWN");
+  });
+
+  test("known verdicts keep their existing labels, absent -> dash", () => {
+    expect(controlLabel("call_writers")).toBe("SESSION · CALL WRITING");
+    expect(controlLabel("put_writers")).toBe("SESSION · PUT WRITING");
+    expect(controlLabel("balanced")).toBe("SESSION · BALANCED");
+    expect(controlLabel(null)).toBe(VERDICT_DASH);
+    expect(controlLabel(undefined)).toBe(VERDICT_DASH);
+  });
 });
 
 describe("verdict accent colours (from palette tokens)", () => {
@@ -164,6 +338,16 @@ describe("verdict accent colours (from palette tokens)", () => {
     expect(controlAccent("put_writers")).toBe(palette.POSITIVE);
     expect(controlAccent("balanced")).toBe(palette.TEXT_MUTED);
     expect(controlAccent(null)).toBe(palette.TEXT_MUTED);
+  });
+
+  test("control: call buyers bullish, put buyers bearish", () => {
+    expect(controlAccent("call_buyers")).toBe(palette.POSITIVE);
+    expect(controlAccent("put_buyers")).toBe(palette.NEGATIVE);
+  });
+
+  test("control: neutral OI builds stay muted", () => {
+    expect(controlAccent("net_call_build")).toBe(palette.TEXT_MUTED);
+    expect(controlAccent("net_put_build")).toBe(palette.TEXT_MUTED);
   });
 
   test("regime: trend positive, range warning, else muted", () => {

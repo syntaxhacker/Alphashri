@@ -6,6 +6,7 @@
 export type { StrategyConfig } from "./strategies";
 
 import type { StrategyConfig } from "./strategies";
+import type { CandleData as ChartCandleData } from "./backtest";
 
 export interface PaperPosition {
   symbol: string;
@@ -60,6 +61,7 @@ export interface PaperTrade {
   strategy_type?: string;
   bot_id: string | null;
   bot_name: string | null;
+  source?: string; // 'options_paper…' for option trades, undefined/other for equity
 }
 
 // Portfolio status - matches API response from /api/paper/portfolio
@@ -139,14 +141,14 @@ export interface PaperChartData {
   } | null;
 }
 
-export interface CandleData {
-  time: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-}
+// Candles returned by /api/paper/chart carry only `time` + OHLCV — no date split.
+// Derive from the single chart-candle definition in types/backtest.ts so the
+// OHLCV fields are never defined twice; the date-split fields stay optional.
+export type CandleData = Omit<ChartCandleData, "date" | "date_raw" | "time_str"> & {
+  date?: string;
+  date_raw?: string;
+  time_str?: string;
+};
 
 export interface ORBLevels {
   or_high: number;
@@ -191,6 +193,14 @@ export interface PaperBotSnapshot {
 // View type for paper trading
 export type PaperTradingView = "live" | "history" | "settings" | "analytics" | "activity" | "aggregated";
 
+// Asset-class "book" a trade belongs to. Derived from the trade's `source`
+// prefix (options_paper* / futures_paper* / commodities_paper*); everything
+// else (live, null, undefined) is equity.
+export type TradeBookKey = "equity" | "options" | "futures" | "commodities";
+
+// Instrument source filter for trade history — a book key, or "all".
+export type TradeSourceFilter = "all" | TradeBookKey;
+
 // State interface
 export interface PaperTradingState {
   currentView: PaperTradingView;
@@ -211,6 +221,7 @@ export interface PaperTradingState {
   filterSymbol: string | null;
   filterStrategy: number | null; // Filter by strategy ID
   filterBot: string | null; // Filter by bot ID (UUID)
+  filterSource: TradeSourceFilter; // Filter by book (equity / options / futures / commodities)
 
   // Chart state
   selectedSymbol: string | null;

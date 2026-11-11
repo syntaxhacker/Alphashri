@@ -56,7 +56,34 @@ TIMEFRAMES: list[TFSpec] = [
 
 TIMEFRAME_IDS: list[str] = [tf.id for tf in TIMEFRAMES]
 
+BUILTIN_TIMEFRAME_IDS: list[str] = list(TIMEFRAME_IDS)
+
 _BY_ID = {tf.id: tf for tf in TIMEFRAMES}
+
+
+def register_timeframe(spec: TFSpec) -> None:
+    """Register or replace a timeframe spec process-wide."""
+    tf_id = spec.id
+    _BY_ID[tf_id] = spec
+    if tf_id in TIMEFRAME_IDS:
+        TIMEFRAMES[TIMEFRAME_IDS.index(tf_id)] = spec
+        return
+    TIMEFRAME_IDS.append(tf_id)
+    TIMEFRAMES.append(spec)
+
+
+def unregister_timeframe(tf_id: str) -> None:
+    """Remove a custom timeframe; built-ins are never removed."""
+    if tf_id in BUILTIN_TIMEFRAME_IDS:
+        return
+    _BY_ID.pop(tf_id, None)
+    if tf_id not in TIMEFRAME_IDS:
+        return
+    TIMEFRAME_IDS.remove(tf_id)
+    for position, spec in enumerate(TIMEFRAMES):
+        if spec.id == tf_id:
+            TIMEFRAMES.pop(position)
+            break
 
 
 def get_timeframe(tf_id: str) -> TFSpec:

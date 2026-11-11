@@ -1,7 +1,6 @@
 import { alpha as muiAlpha } from "@mui/material/styles";
 
 export { alpha } from "@mui/material/styles";
-export { muiAlpha };
 
 /**
  * Convert hex color to rgba string with alpha.
@@ -19,17 +18,6 @@ export function withAlpha(hex: string, alpha: number): string {
   const g = parseInt(h.slice(2, 4), 16) || 0;
   const b = parseInt(h.slice(4, 6), 16) || 0;
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-/**
- * Theme-aware alpha helper — reads token from theme.palette[token].main
- * and applies MUI's alpha.
- * @example themeAlpha(theme, "primary", 0.08)
- */
-export function themeAlpha(theme: any, token: string, a: number): string {
-  const palette = theme?.palette?.[token];
-  const main = palette?.main ?? palette ?? token;
-  return muiAlpha(main as string, a);
 }
 
 /**

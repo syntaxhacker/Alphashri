@@ -3,6 +3,7 @@
  */
 
 import { fetchWithAuth } from "../state/auth";
+import { jsonOrThrow } from "./utils/request";
 import type { ScreenerDashboardResponse } from "../types/screenerDashboard";
 
 import { API_BASE } from "./config";
@@ -43,9 +44,5 @@ export async function fetchScreenerDashboard(
   const response = await fetchWithAuth(`${DASHBOARD_API_BASE}?${params.toString()}`, {
     signal,
   });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to fetch screener dashboard");
-  }
-  return response.json();
+  return jsonOrThrow<ScreenerDashboardResponse>(response, "Failed to fetch screener dashboard");
 }

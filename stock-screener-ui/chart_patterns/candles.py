@@ -17,15 +17,20 @@ Historical data never expires.
 from __future__ import annotations
 
 import json
+import logging
 import pickle
+import threading
 import time
+from concurrent.futures import Future
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable, Optional, Union
 
 import pandas as pd
 
-from market_data.market_data import _lookback_days
+from market_data.market_data import _lookback_days, _resample_rule
+
+logger = logging.getLogger(__name__)
 
 CACHE_DIR = Path(__file__).resolve().parent.parent / "experiments" / "data" / "pattern_cache" / "candles"
 
@@ -39,16 +44,15 @@ CACHE_VERSION = 3
 #: 5-minute window keeps repeat screens instant without serving stale data
 #: across sessions (the session pin takes over once the market closes).
 TODAY_TTL_SECONDS = 300
-
-# Target minutes -> pandas resample rule for targets that are NOT native Upstox
-# units (3m is fetched as 1m; 2h/3h/4h are fetched as 1h then resampled).
-_RESAMPLE_RULE = {
-    3: "3min",
-    120: "2h",
-    180: "3h",
-    240: "4h",
-}
-
+#: TTL for the candles-layer negative cache. A fetch that comes back
+#: empty/None (symbol missing, Upstox down, 429 wall) is remembered for this
+#: window so repeated chart clicks do not re-hammer the feed. Deliberately
+#: shorter than the disk TTL: empty results are an unhealthy signal, and a
+#: transient upstream failure should clear quickly. Non-empty frames are
+#: never held here (they go to the disk cache instead) and exceptions are
+#: never cached — each still propagates to its own caller.
+EMPTY_RESULT_TTL_SECONDS = 90.0
+_EMPTY_CACHE_MAX = 512
 
 def _attr(spec: Any, name: str, default=None):
     """Read a field from a TFSpec dataclass, namedtuple or dict."""
@@ -214,7 +218,9 @@ def _cache_path(tf_id: str, symbol: str, as_of_date: Optional[str] = None,
     return CACHE_DIR / str(tf_id) / f"{base}.v{CACHE_VERSION}.pkl"
 
 
-def _read_cached(path: Path, is_today: bool) -> Optional[pd.DataFrame]:
+def _read_cached(
+    path: Path, is_today: bool, is_daily: bool = False
+) -> Optional[pd.DataFrame]:
     if not path.exists():
         return None
     try:
@@ -223,17 +229,42 @@ def _read_cached(path: Path, is_today: bool) -> Optional[pd.DataFrame]:
             if meta_path.exists():
                 with open(meta_path, "r") as f:
                     meta = json.load(f)
-                from trading import utils as trading_utils
+                session = _last_completed_session().isoformat()
+                if is_daily:
+                    # Completed daily sessions are immutable. A frame that
+                    # reaches the last completed session stays valid for the
+                    # whole session, and we additionally tolerate a frame up
+                    # to 3 calendar days behind (weekend / one-session lag) so
+                    # a cache stamped to an earlier session is still served
+                    # instead of refetching. Anything older (or stamped ahead
+                    # of the last completed session) is rejected as stale.
+                    meta_session = meta.get("session")
+                    if meta_session != session:
+                        try:
+                            ref_date = date.fromisoformat(session)
+                            meta_date = (
+                                date.fromisoformat(str(meta_session))
+                                if meta_session is not None else None
+                            )
+                        except (ValueError, TypeError):
+                            return None
+                        if meta_date is None:
+                            return None
+                        lag = (ref_date - meta_date).days
+                        if lag < 0 or lag > 3:
+                            return None
+                else:
+                    from trading import utils as trading_utils
 
-                try:
-                    market_open = trading_utils.is_market_open()
-                except Exception:
-                    market_open = True
-                if market_open:
-                    if time.time() - meta.get("ts", 0) > TODAY_TTL_SECONDS:
+                    try:
+                        market_open = trading_utils.is_market_open()
+                    except Exception:
+                        market_open = True
+                    if market_open:
+                        if time.time() - meta.get("ts", 0) > TODAY_TTL_SECONDS:
+                            return None
+                    elif meta.get("session") != session:
                         return None
-                elif meta.get("session") != _last_completed_session().isoformat():
-                    return None
             else:
                 return None
         with open(path, "rb") as f:
@@ -243,6 +274,24 @@ def _read_cached(path: Path, is_today: bool) -> Optional[pd.DataFrame]:
         return df
     except Exception:
         return None
+
+
+def _read_pickle_any(path: Path) -> Optional[pd.DataFrame]:
+    """Read a cache entry ignoring freshness (for incremental top-ups)."""
+    try:
+        if not path.exists():
+            return None
+        with open(path, "rb") as f:
+            df = pickle.load(f)
+        return df if isinstance(df, pd.DataFrame) and not df.empty else None
+    except Exception:
+        return None
+
+
+def _merge_frames(old: pd.DataFrame, new: pd.DataFrame) -> pd.DataFrame:
+    """Append only the rows that are new/updated, newest wins."""
+    merged = pd.concat([old, new])
+    return merged[~merged.index.duplicated(keep="last")].sort_index()
 
 
 def _write_cached(
@@ -290,6 +339,14 @@ def _fill_provenance(prov: dict, path: Path, hit: bool) -> None:
             pass
     prov["cache_age_sec"] = age
     prov["session_pin"] = session
+    prov["cache_session"] = session
+    try:
+        _lcs = _last_completed_session().isoformat()
+    except Exception:
+        _lcs = None
+    # True when the served frame's meta session lags the last completed
+    # session (within the daily tolerance) — callers can mark it stale.
+    prov["session_stale"] = bool(hit and session and _lcs and session != _lcs)
 
 
 def _normalize_filter(value: Optional[Union[str, Iterable[str]]]) -> Optional[set]:
@@ -352,14 +409,14 @@ def clear_cache(
 
 
 def _resample(df: pd.DataFrame, tf_minutes: int) -> pd.DataFrame:
-    """Resample OHLCV to tf_minutes using a rule map covering non-native targets.
+    """Resample OHLCV to tf_minutes using a rule derived from the target width.
 
     Bins are anchored to the IST session (Asia/Kolkata midnight), not UTC
     midnight: the index is converted to IST before ``resample`` and back to its
     original timezone after, so 2h/3h/3min bins align with the NSE session open.
     """
-    rule = _RESAMPLE_RULE.get(int(tf_minutes))
-    if rule is None or df is None or df.empty:
+    rule = _resample_rule(int(tf_minutes))
+    if df is None or df.empty:
         return df
     agg = {
         "open": "first",
@@ -393,6 +450,170 @@ def _resample(df: pd.DataFrame, tf_minutes: int) -> pd.DataFrame:
     return out
 
 
+def _resample_ohlcv(df: pd.DataFrame, rule: str) -> pd.DataFrame:
+    """Resample an OHLCV frame to a pandas offset rule anchored to IST.
+
+    ``rule`` is a raw pandas offset alias (e.g. ``"W-FRI"`` for weekly
+    candles or ``"ME"`` for month-end). Aggregates open=first, high=max,
+    low=min, close=last, volume=sum. Bins are anchored to the IST session
+    and the frame is returned in its original timezone. Never raises;
+    returns the input unchanged when it cannot be resampled.
+    """
+    if df is None or df.empty:
+        return df
+    agg = {
+        "open": "first",
+        "high": "max",
+        "low": "min",
+        "close": "last",
+        "volume": "sum",
+    }
+    available = {k: v for k, v in agg.items() if k in df.columns}
+    if "close" not in available:
+        return df
+    orig_tz = df.index.tz
+    try:
+        if orig_tz is None:
+            ist_index = df.index.tz_localize("UTC").tz_convert("Asia/Kolkata")
+        else:
+            ist_index = df.index.tz_convert("Asia/Kolkata")
+    except Exception:
+        ist_index = df.index
+    work = df.copy()
+    work.index = ist_index
+    out = work.resample(rule, label="right", closed="right").agg(available)
+    out = out.dropna(subset=["close"])
+    try:
+        if orig_tz is None:
+            out.index = out.index.tz_convert("UTC").tz_localize(None)
+        else:
+            out.index = out.index.tz_convert(orig_tz)
+    except Exception:
+        pass
+    return out
+
+
+# ---------------------------------------------------------------------------
+# In-flight singleflight + negative (empty-result) cache
+#
+# Concurrent chart opens for the same symbol/timeframe must not each fire a
+# broker fetch (10–14 s apiece, and the shared Upstox budget cannot take it).
+# Two cheap guards live at this layer:
+#
+# * ``_INFLIGHT`` — a per-key singleflight. The first caller runs the fetch;
+#   later callers wait on its ``Future`` and share the exact result (or, if
+#   the fetch raised, get ``None`` instead of piling up duplicate requests).
+# * ``_EMPTY_CACHE`` — a short monotonic-TTL negative cache for empty/None
+#   results, scoped per session. Errors are deliberately NOT cached: a raise
+#   means something is broken, not that the symbol has no data, and callers
+#   (API retry, SSE worker) should see the failure each time.
+# ---------------------------------------------------------------------------
+
+_INFLIGHT: dict[tuple, Future] = {}
+_INFLIGHT_LOCK = threading.Lock()
+_EMPTY_CACHE: dict[tuple, float] = {}
+_EMPTY_LOCK = threading.Lock()
+
+
+def _fetch_key(symbol: str, tf_id: str, to_date: str, variant: Optional[str]) -> tuple:
+    """Singleflight/negative-cache key: (symbol, timeframe, session, window).
+
+    ``to_date`` doubles as the session for the live-edge path (today's IST
+    date) and the pinned end date for historical windows; ``variant`` encodes
+    lookback/from/as-of namespaces so different windows never coalesce.
+    """
+    return (str(symbol).upper(), str(tf_id), str(to_date), variant or "")
+
+
+def _empty_cache_get(key: tuple) -> bool:
+    now = time.monotonic()
+    with _EMPTY_LOCK:
+        expires = _EMPTY_CACHE.get(key)
+        if expires is None:
+            return False
+        if now < expires:
+            return True
+        _EMPTY_CACHE.pop(key, None)
+        return False
+
+
+def _empty_cache_put(key: tuple) -> None:
+    now = time.monotonic()
+    with _EMPTY_LOCK:
+        while len(_EMPTY_CACHE) >= _EMPTY_CACHE_MAX:
+            _EMPTY_CACHE.pop(next(iter(_EMPTY_CACHE)), None)
+        _EMPTY_CACHE[key] = now + EMPTY_RESULT_TTL_SECONDS
+
+
+def clear_empty_cache() -> None:
+    """Drop all negative-cache entries (tests + operator resets)."""
+    with _EMPTY_LOCK:
+        _EMPTY_CACHE.clear()
+
+
+def _is_empty_result(df: Optional[pd.DataFrame]) -> bool:
+    return df is None or (isinstance(df, pd.DataFrame) and df.empty)
+
+
+def _coalesced_fetch(key: tuple, fn, *, symbol: str, tf_id: str) -> Optional[pd.DataFrame]:
+    """Run ``fn`` once per ``key``; concurrent callers share the outcome.
+
+    The leader executes ``fn`` and re-raises on error (preserving the
+    pre-existing caller contract). Waiters receive the leader's frame/None,
+    or ``None`` when the leader raised — the same fail-soft shape the API's
+    ``_fetch_candles_retry`` already expects. The in-flight slot is always
+    released, and empty/None results are short-cached here (leader only).
+    """
+    started = time.monotonic()
+    with _INFLIGHT_LOCK:
+        fut = _INFLIGHT.get(key)
+        if fut is None:
+            fut = Future()
+            _INFLIGHT[key] = fut
+            leader = True
+        else:
+            leader = False
+    if leader:
+        try:
+            result = fn()
+        except BaseException as exc:
+            with _INFLIGHT_LOCK:
+                _INFLIGHT.pop(key, None)
+            fut.set_exception(exc)
+            logger.debug(
+                "candles fetch failed symbol=%s tf=%s coalesced=0 elapsed=%.2fs error=%s",
+                symbol, tf_id, time.monotonic() - started, exc,
+            )
+            raise
+        if _is_empty_result(result):
+            _empty_cache_put(key)
+            result = None
+        fut.set_result(result)
+        with _INFLIGHT_LOCK:
+            _INFLIGHT.pop(key, None)
+        rows = 0 if result is None else len(result)
+        logger.debug(
+            "candles fetch done symbol=%s tf=%s coalesced=0 rows=%d elapsed=%.2fs",
+            symbol, tf_id, rows, time.monotonic() - started,
+        )
+        return result
+    logger.debug("candles fetch coalesced symbol=%s tf=%s (joined in-flight fetch)", symbol, tf_id)
+    try:
+        result = fut.result()
+    except BaseException:
+        logger.debug(
+            "candles fetch coalesced symbol=%s tf=%s elapsed=%.2fs -> None (leader raised)",
+            symbol, tf_id, time.monotonic() - started,
+        )
+        return None
+    rows = 0 if result is None else len(result)
+    logger.debug(
+        "candles fetch coalesced symbol=%s tf=%s rows=%d elapsed=%.2fs",
+        symbol, tf_id, rows, time.monotonic() - started,
+    )
+    return result
+
+
 def fetch_for_timeframe(
     symbol: str,
     tf_id: str,
@@ -403,6 +624,7 @@ def fetch_for_timeframe(
     from_date: Optional[str] = None,
     force_refresh: bool = False,
     provenance: Optional[dict] = None,
+    partial_bar: Optional[pd.DataFrame] = None,
 ) -> Optional[pd.DataFrame]:
     """Fetch candles for a symbol at a registered timeframe id.
 
@@ -481,7 +703,9 @@ def fetch_for_timeframe(
 
     is_today = _is_today(to_date)
     cache_path = _cache_path(tf_id, symbol, as_of_part if as_of_part else None, variant=variant)
-    cached = None if force_refresh else _read_cached(cache_path, is_today)
+    cached = None if force_refresh else _read_cached(
+        cache_path, is_today, is_daily=(tf_id == "1D")
+    )
     if provenance is not None:
         try:
             _fill_provenance(provenance, cache_path, cached is not None)
@@ -490,80 +714,162 @@ def fetch_for_timeframe(
     if cached is not None:
         df = cached
     else:
-        if source_tf:
-            src_spec = _resolve_timeframe(source_tf)
-            src_minutes = int(_attr(src_spec, "minutes", minutes) or minutes)
-            fetch_tf_id = source_tf
+        fetch_key = _fetch_key(symbol, tf_id, to_date, variant)
+        if not force_refresh and _empty_cache_get(fetch_key):
+            # Negative hit: the feed produced nothing for this symbol/tf/session
+            # recently. Force refreshes bypass this; disk-cached data never does.
+            logger.debug(
+                "candles empty-cache hit symbol=%s tf=%s coalesced=0 rows=0",
+                symbol, tf_id,
+            )
+            df = None
         else:
-            src_minutes = minutes
-            fetch_tf_id = tf_id
+            def _do_fetch() -> Optional[pd.DataFrame]:
+                out = None
+                # Incremental 1D top-up: when a stale entry lags the last completed
+                # session, fetch only the missing tail instead of the whole window.
+                if is_today and tf_id == "1D" and not source_tf and not force_refresh:
+                    stale = _read_pickle_any(cache_path)
+                    if stale is not None:
+                        last_cached = frame_last_date(stale)
+                        if last_cached and last_cached < _last_completed_session().isoformat():
+                            tail = fetch_candles_for_timeframe(
+                                symbol,
+                                tf_id,
+                                from_date=last_cached,
+                                to_date=to_date,
+                                api_client=api_client,
+                            )
+                            if tail is not None and not tail.empty:
+                                out = _merge_frames(stale, tail)
+                if out is None:
+                    if source_tf:
+                        src_spec = _resolve_timeframe(source_tf)
+                        src_minutes = int(_attr(src_spec, "minutes", minutes) or minutes)
+                        fetch_tf_id = source_tf
+                    else:
+                        src_minutes = minutes
+                        fetch_tf_id = tf_id
 
-        df = fetch_candles_for_timeframe(
-            symbol,
-            fetch_tf_id,
-            from_date=eff_from,
-            to_date=to_date,
-            api_client=api_client,
-        )
+                    out = fetch_candles_for_timeframe(
+                        symbol,
+                        fetch_tf_id,
+                        from_date=eff_from,
+                        to_date=to_date,
+                        api_client=api_client,
+                    )
 
-        if df is not None and not df.empty and source_tf and minutes and minutes != src_minutes:
-            df = _resample(df, minutes)
+                    if out is not None and not out.empty and source_tf and minutes and minutes != src_minutes:
+                        out = _resample(out, minutes)
 
-        if df is None or df.empty:
+                if out is None or out.empty:
+                    return None
+
+                # Never cache a partial provider response. A transient fetch can return
+                # only the current session (e.g. 8 bars of 15m) while the requested
+                # window spans days; the short frame then feeds every caller for the
+                # TTL and a pattern scan silently reports "no pattern" because it can
+                # never reach the 60-bar detector minimum. Skip the write, still return
+                # the frame so the caller can use whatever arrived.
+                cacheable = True
+                if lookback_bars and minutes < 1440:
+                    cacheable = len(out) >= min(int(lookback_bars), 60)
+                if cacheable:
+                    _write_cached(
+                        cache_path,
+                        out,
+                        is_today,
+                        session_pin=(frame_last_date(out) if tf_id == "1D" else None),
+                    )
+                return out
+
+            df = _coalesced_fetch(fetch_key, _do_fetch, symbol=symbol, tf_id=tf_id)
+        if df is None:
             return None
 
-        _write_cached(
-            cache_path,
-            df,
-            is_today,
-            session_pin=(frame_last_date(df) if tf_id == "1D" else None),
-        )
-
     if include_partial_today and tf_id == "1D" and is_today:
-        df = _with_partial_today(df, symbol, api_client)
+        df = _with_partial_today(df, symbol, api_client, partial_bar=partial_bar)
     return df
 
 
-def _with_partial_today(
-    df: pd.DataFrame, symbol: str, api_client=None
-) -> Optional[pd.DataFrame]:
-    """Append today's synthetic daily bar aggregated from the 1-minute tape.
+def _today_is_session() -> bool:
+    """True when today (IST) is an NSE trading day."""
+    try:
+        from datetime import datetime as _dt
+        from trading.timezone import IST
+        return _is_trading_day(_dt.now(IST).date())
+    except Exception:
+        return True
 
-    Returns ``df`` unchanged when the tape is empty (pre-market/holiday) or
-    the official daily bar for the session already exists (official wins).
-    The merged frame is flagged via ``df.attrs["partial_today"]`` and must
-    never be written to the disk cache — callers append after ``_write_cached``.
+
+_PARTIAL_CACHE: dict[tuple[str, str], tuple[float, Optional[pd.DataFrame]]] = {}
+_PARTIAL_TTL_SECONDS = 30.0
+
+
+def _cached_synthetic_today(api, symbol: str) -> Optional[pd.DataFrame]:
+    """Today's synthetic bar, cached for a short window (30 s)."""
+    from market_data.market_data import _synthetic_today_bar
+
+    try:
+        from trading.timezone import IST
+        day = datetime.now(IST).strftime("%Y-%m-%d")
+    except Exception:
+        day = datetime.now().strftime("%Y-%m-%d")
+    key = (str(symbol).upper(), day)
+    hit = _PARTIAL_CACHE.get(key)
+    if hit is not None and time.time() - hit[0] < _PARTIAL_TTL_SECONDS:
+        return hit[1]
+    synth = _synthetic_today_bar(api, str(symbol).upper())
+    if len(_PARTIAL_CACHE) > 5000:
+        _PARTIAL_CACHE.clear()
+    _PARTIAL_CACHE[key] = (time.time(), synth)
+    return synth
+
+
+def _with_partial_today(
+    df: pd.DataFrame, symbol: str, api_client=None,
+    partial_bar: Optional[pd.DataFrame] = None,
+) -> Optional[pd.DataFrame]:
+    """Append today's synthetic daily bar.
+
+    When ``partial_bar`` is supplied (pre-fetched by
+    :func:`market_data.fetch_ohlc_batch` for the whole scan) it is used
+    directly and no per-symbol intraday tape call is made. Otherwise the bar is
+    synthesized from today's 1-minute tape (legacy path). The official daily
+    bar wins; the merged frame is flagged via ``df.attrs["partial_today"]`` and
+    must never be written to the disk cache. Never raises.
     """
     if df is None or df.empty:
         return df
-    try:
-        from market_data.market_data import (
-            _concat_merge,
-            _has_session_bar,
-            _synthetic_today_bar,
-            get_api_client,
-        )
-    except Exception:
+    # No session today (weekend/holiday): skip the intraday call entirely.
+    if not _today_is_session():
         return df
     try:
-        api = api_client if api_client is not None else get_api_client()
-        if api is None:
-            return df
-        synth = _synthetic_today_bar(api, str(symbol).upper())
-        if synth is None or synth.empty:
-            return df
-        if _has_session_bar(df, synth.index[0]):
-            return df
-        merged = _concat_merge(df, synth)
-        if merged is None or merged.empty:
-            return df
+        from market_data.market_data import _concat_merge, _has_session_bar
+    except Exception:
+        return df
+    bar = partial_bar
+    if bar is None or getattr(bar, "empty", True):
         try:
-            merged.attrs["partial_today"] = True
+            from market_data.market_data import get_api_client
+            api = api_client if api_client is not None else get_api_client()
+            if api is None:
+                return df
+            bar = _cached_synthetic_today(api, symbol)
         except Exception:
-            pass
-        return merged
-    except Exception:
+            return df
+    if bar is None or bar.empty:
         return df
+    if _has_session_bar(df, bar.index[0]):
+        return df
+    merged = _concat_merge(df, bar)
+    if merged is None or merged.empty:
+        return df
+    try:
+        merged.attrs["partial_today"] = True
+    except Exception:
+        pass
+    return merged
 
 
 def frame_last_date(df: pd.DataFrame) -> Optional[str]:

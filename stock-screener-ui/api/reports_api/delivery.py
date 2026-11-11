@@ -47,6 +47,9 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Query
 
+from api.reports_api._time import now_iso as _now_iso
+from api.reports_api._time import today_str as _today_str
+from api.reports_api._dates import parse_day as _parse_day
 from api.utils import _sanitize_for_json
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
@@ -88,33 +91,17 @@ _NSE_HEADERS = {
 _delivery_mem: dict[str, tuple[float, dict]] = {}
 _events_mem: dict[str, tuple[float, dict]] = {}
 
-
-def _now_iso() -> str:
-    try:
-        import config as _cfg
-
-        return datetime.now(_cfg.IST).isoformat()
-    except Exception:
-        return datetime.now().astimezone().isoformat()
+#: In-memory cache entries kept per store. The keys embed the requested
+#: window / symbol list / limit, so every distinct request added an entry that
+#: was never evicted - an unbounded dict on a long-lived server.
+_MEM_CACHE_MAX = 64
 
 
-def _today_str() -> str:
-    try:
-        import config as _cfg
-
-        return datetime.now(_cfg.IST).strftime("%Y-%m-%d")
-    except Exception:
-        return datetime.now().astimezone().strftime("%Y-%m-%d")
-
-
-def _parse_day(value: Optional[str]) -> str:
-    text = (value or "").strip()
-    if not text:
-        return _today_str()
-    try:
-        return datetime.strptime(text[:10], "%Y-%m-%d").strftime("%Y-%m-%d")
-    except ValueError:
-        return _today_str()
+def _mem_put(store: dict, key: str, value: tuple[float, dict]) -> None:
+    """Store a cache entry, evicting the oldest ones past the cap."""
+    store[key] = value
+    while len(store) > _MEM_CACHE_MAX:
+        store.pop(next(iter(store)), None)
 
 
 def _parse_window(
@@ -300,7 +287,7 @@ def serve_delivery(day: str, universe: str, limit: int) -> dict:
         }
         clean = _sanitize_for_json(payload)
         try:
-            _delivery_mem[mem_key] = (time.time(), clean)
+            _mem_put(_delivery_mem, mem_key, (time.time(), clean))
         except Exception:
             pass
         return clean
@@ -558,7 +545,7 @@ def serve_events(
         }
         clean = _sanitize_for_json(payload)
         try:
-            _events_mem[mem_key] = (time.time(), clean)
+            _mem_put(_events_mem, mem_key, (time.time(), clean))
         except Exception:
             pass
         return clean

@@ -60,6 +60,27 @@ function checkRequiredRange(
 
 const SL_TP_RANGE: [number, number] = [0.1, 10];
 
+interface ValidationCollector {
+  push: (err: string | null) => void;
+  result: () => ValidationResult;
+}
+
+function createCollector(): ValidationCollector {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  return {
+    push: (err) => {
+      if (err) errors.push(err);
+    },
+    result: () => ({ valid: errors.length === 0, errors, warnings }),
+  };
+}
+
+function checkSlTp(config: Record<string, unknown>, push: (err: string | null) => void): void {
+  push(checkRequiredRange(config, "sl_pct", SL_TP_RANGE[0], SL_TP_RANGE[1], "Stop-loss %"));
+  push(checkRequiredRange(config, "tp_pct", SL_TP_RANGE[0], SL_TP_RANGE[1], "Take-profit %"));
+}
+
 // ---------------------------------------------------------------------------
 // Concrete strategies
 // ---------------------------------------------------------------------------
@@ -69,26 +90,20 @@ export class ORBValidationStrategy extends ParamValidationStrategy {
   readonly name = "ORB";
 
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
-    const warnings: string[] = [];
-
-    const push = (err: string | null) => {
-      if (err) errors.push(err);
-    };
+    const { push, result } = createCollector();
 
     push(checkRequiredRange(config, "or_minutes", 1, 60, "ORB window (min)"));
     push(checkRequiredRange(config, "min_or_range_pct", 0.1, 5, "Min OR range %"));
     push(checkRequiredRange(config, "max_or_range_pct", 0.1, 10, "Max OR range %"));
-    push(checkRequiredRange(config, "sl_pct", SL_TP_RANGE[0], SL_TP_RANGE[1], "Stop-loss %"));
-    push(checkRequiredRange(config, "tp_pct", SL_TP_RANGE[0], SL_TP_RANGE[1], "Take-profit %"));
+    checkSlTp(config, push);
 
     const minPct = numVal(config, "min_or_range_pct");
     const maxPct = numVal(config, "max_or_range_pct");
     if (minPct !== undefined && maxPct !== undefined && minPct >= maxPct) {
-      errors.push("Min OR range % must be less than Max OR range %");
+      push("Min OR range % must be less than Max OR range %");
     }
 
-    return { valid: errors.length === 0, errors, warnings };
+    return result();
   }
 }
 
@@ -97,24 +112,18 @@ export class SRBreakoutValidationStrategy extends ParamValidationStrategy {
   readonly name = "S/R Breakout";
 
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
-    const warnings: string[] = [];
+    const { push, result } = createCollector();
 
     const pivotType = config.pivot_type;
     const VALID_PIVOTS = ["classic", "fibonacci", "camarilla"];
     if (typeof pivotType !== "string" || !VALID_PIVOTS.includes(pivotType)) {
-      errors.push(`Pivot type must be one of: ${VALID_PIVOTS.join(", ")}`);
+      push(`Pivot type must be one of: ${VALID_PIVOTS.join(", ")}`);
     }
 
-    const push = (err: string | null) => {
-      if (err) errors.push(err);
-    };
-
     push(checkRequiredRange(config, "breakout_buffer_pct", 0, 1, "Breakout buffer %"));
-    push(checkRequiredRange(config, "sl_pct", SL_TP_RANGE[0], SL_TP_RANGE[1], "Stop-loss %"));
-    push(checkRequiredRange(config, "tp_pct", SL_TP_RANGE[0], SL_TP_RANGE[1], "Take-profit %"));
+    checkSlTp(config, push);
 
-    return { valid: errors.length === 0, errors, warnings };
+    return result();
   }
 }
 
@@ -123,25 +132,19 @@ export class EMACrossValidationStrategy extends ParamValidationStrategy {
   readonly name = "EMA Cross";
 
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
-    const warnings: string[] = [];
-
-    const push = (err: string | null) => {
-      if (err) errors.push(err);
-    };
+    const { push, result } = createCollector();
 
     push(checkRequiredRange(config, "ema_fast_period", 3, 50, "Fast EMA period"));
     push(checkRequiredRange(config, "ema_slow_period", 10, 200, "Slow EMA period"));
-    push(checkRequiredRange(config, "sl_pct", SL_TP_RANGE[0], SL_TP_RANGE[1], "Stop-loss %"));
-    push(checkRequiredRange(config, "tp_pct", SL_TP_RANGE[0], SL_TP_RANGE[1], "Take-profit %"));
+    checkSlTp(config, push);
 
     const fast = numVal(config, "ema_fast_period");
     const slow = numVal(config, "ema_slow_period");
     if (fast !== undefined && slow !== undefined && fast >= slow) {
-      errors.push("Fast EMA period must be less than Slow EMA period");
+      push("Fast EMA period must be less than Slow EMA period");
     }
 
-    return { valid: errors.length === 0, errors, warnings };
+    return result();
   }
 }
 
@@ -150,19 +153,14 @@ export class SwingValidationStrategy extends ParamValidationStrategy {
   readonly name = "52W Swing";
 
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
-    const warnings: string[] = [];
-
-    const push = (err: string | null) => {
-      if (err) errors.push(err);
-    };
+    const { push, result } = createCollector();
 
     push(checkRequiredRange(config, "entry_threshold_pct", 0.5, 10, "Entry threshold %"));
     push(checkRequiredRange(config, "trailing_stop_pct", 0.1, 10, "Trailing stop %"));
     push(checkRequiredRange(config, "max_holding_days", 1, 90, "Max holding days"));
     push(checkRequiredRange(config, "cooldown_days", 1, 90, "Cooldown days"));
 
-    return { valid: errors.length === 0, errors, warnings };
+    return result();
   }
 }
 

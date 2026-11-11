@@ -5,7 +5,8 @@ import { AuthProvider, useAuth } from "./components/auth/AuthProvider2";
 import { LoginForm, RegisterForm } from "./components/auth/LoginForm2";
 import { NotificationContainer } from "./components/notifications/NotificationContainer";
 import { PreviewChartProvider } from "./components/common/PreviewChartProvider";
-import { ChatPopup } from "./components/common/ChatPopup";
+import { SymbolDockProvider } from "./components/common/SymbolDockProvider";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { AppLayout } from "./components/layout/AppLayout";
 import { NewsWebSocketProvider } from "./state/newsWebSocket";
 import { loadHolidays } from "./state/holidays";
@@ -21,11 +22,13 @@ const StrategyRunnerPage = lazy(() => import("./components/strategy-runner").the
 const BotsPage = lazy(() => import("./components/bots/components").then(m => ({ default: m.BotsPage })));
 const OptionsContainer = lazy(() => import("./pages/options/OptionsContainer").then(m => ({ default: m.OptionsContainer })));
 const NiftyReportPanel = lazy(() => import("./pages/report/NiftyReportPanel").then(m => ({ default: m.NiftyReportPanel })));
+const UsReportPage = lazy(() => import("./pages/report/us/UsReportPage").then(m => ({ default: m.UsReportPage })));
 const SettingsPage = lazy(() => import("./pages/settings/SettingsPage").then(m => ({ default: m.SettingsPage })));
 const ChartView = lazy(() => import("./pages/chart/ChartView"));
 const NewsPage = lazy(() => import("./pages/NewsPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const HeatmapPage = lazy(() => import("./pages/heatmap/HeatmapPage").then(m => ({ default: m.HeatmapPage })));
+const AgriContainer = lazy(() => import("./pages/agri/AgriContainer").then(m => ({ default: m.AgriContainer })));
 const OrderFlowPage = lazy(() => import("./pages/orderflow/OrderFlowPage").then(m => ({ default: m.OrderFlowPage })));
 const PatternsContainer = lazy(() => import("./pages/patterns/PatternsContainer").then(m => ({ default: m.PatternsContainer })));
 const ReportContainer = lazy(() => import("./pages/report/ReportContainer").then(m => ({ default: m.ReportContainer })));
@@ -80,8 +83,10 @@ function AppContent() {
   return (
     <AppLayout>
       <PreviewChartProvider>
-        <Suspense fallback={<Center><Loader /></Center>}>
-          <Routes>
+        <SymbolDockProvider>
+          <Suspense fallback={<Center><Loader /></Center>}>
+            <ErrorBoundary label="Page">
+            <Routes>
             <Route path="/" element={<ScreenerContainer />} />
             <Route path="/backtest" element={<BacktestPage />} />
             <Route path="/experiments" element={<ExperimentsPage />} />
@@ -92,11 +97,14 @@ function AppContent() {
             <Route path="/strategies" element={<StrategiesContainer />} />
             <Route path="/bots" element={<BotsPage />} />
             <Route path="/options" element={<OptionsContainer />} />
-            <Route path="/report/nifty" element={<NiftyReportPanel />} />
+            <Route path="/report/nifty" element={<Navigate to="/report/index" replace />} />
+            <Route path="/report/index" element={<NiftyReportPanel />} />
+            <Route path="/report/us" element={<UsReportPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/news" element={<NewsPage />} />
             <Route path="/admin" element={<AdminPage />} />
             <Route path="/heatmap" element={<HeatmapPage />} />
+            <Route path="/agri" element={<AgriContainer />} />
             <Route path="/orderflow" element={<OrderFlowPage />} />
             <Route path="/patterns" element={<PatternsContainer />} />
             <Route path="/report" element={<ReportContainer />} />
@@ -108,11 +116,12 @@ function AppContent() {
             <Route path="/poc/replay/:strategyId" element={<ReplayStrategyPage />} />
             <Route path="/chart/:symbol?" element={<ChartView />} />
             <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+            </Routes>
+            </ErrorBoundary>
         </Suspense>
+        </SymbolDockProvider>
       </PreviewChartProvider>
       <NotificationContainer />
-      <ChatPopup />
     </AppLayout>
   );
 }

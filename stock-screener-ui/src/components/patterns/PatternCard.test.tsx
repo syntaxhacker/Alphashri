@@ -43,7 +43,10 @@ const HIT: PatternHitDTO = {
   rr: 1.7,
   bars_ago: 2,
   volume_confirmed: true,
-  trendlines: [],
+  trendlines: [
+    [{ t: "2026-04-26", price: 112.6 }],
+    [{ t: "2026-04-26", price: 102.5 }],
+  ],
   notes: "",
 };
 
@@ -82,7 +85,7 @@ describe("PatternCard", () => {
   afterEach(() => cleanup());
 
   test("flags cards with missing candles (red border + No chart badge)", () => {
-    const { container } = r(<PatternCard hit={HIT} />);
+    r(<PatternCard hit={HIT} />);
     expect(screen.getByTestId("patterns-card-no-data-IRCON")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-card-no-data-IRCON")).toHaveTextContent("No chart");
   });
@@ -98,7 +101,7 @@ describe("PatternCard", () => {
     expect(screen.getByTestId("patterns-card-IRCON-falling_wedge")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-card")).toBeInTheDocument();
     expect(screen.getByText("Falling Wedge")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-status-confirmed")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-status-confirmed")).toHaveTextContent("CONFIRMED");
     expect(screen.getByTestId("patterns-quality-strong")).toBeInTheDocument();
     expect(screen.getByText("2 1D candles ago")).toBeInTheDocument();
   });
@@ -198,13 +201,92 @@ describe("PatternCard", () => {
         }}
       />,
     );
-    expect(screen.getByTestId("patterns-card-range-CONS")).toHaveTextContent("₹105.00 – ₹130.00");
+    expect(screen.getByTestId("patterns-card-range-CONS")).toHaveTextContent("₹105.00 – ₹128.00");
+  });
+
+  describe("status pill (derived display status)", () => {
+    // CONSOLIDATION: raw status "forming", box ₹100.00 – ₹130.00 (hi = breakout trigger).
+    test("consolidation below the trigger but inside the box shows ARMED", () => {
+      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: 120 }} />);
+      expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("ARMED");
+      // (120 - 130) / 130 = -7.7% → distance line is shown.
+      expect(screen.getByTestId("patterns-card-to-trigger-CONS")).toHaveTextContent("−7.7% to trigger");
+    });
+
+    test("consolidation at the lower box edge is still ARMED", () => {
+      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: 100 }} />);
+      expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("ARMED");
+    });
+
+    test("consolidation closed above the trigger within 5% shows BREAKOUT", () => {
+      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: 133 }} />);
+      // (133 - 130) / 130 ≈ 2.3%
+      expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("BREAKOUT");
+    });
+
+    test("consolidation exactly 5% above the trigger shows BREAKOUT", () => {
+      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: 136.5 }} />);
+      // (136.5 - 130) / 130 = 5%
+      expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("BREAKOUT");
+    });
+
+    test("consolidation more than 5% above the trigger shows EXTENDED", () => {
+      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: 140 }} />);
+      // (140 - 130) / 130 ≈ 7.7%
+      expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("EXTENDED");
+    });
+
+    test("consolidation below the box shows INVALID", () => {
+      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: 90 }} />);
+      // 90 < lower 100
+      expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("INVALID");
+    });
+
+    test("consolidation without a live price falls back to the raw DB status", () => {
+      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: null }} />);
+      expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("FORMING");
+    });
+
+    test("consolidation with a non-positive price falls back to the raw DB status", () => {
+      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: 0 }} />);
+      expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("FORMING");
+    });
+
+    test("non-base patterns keep the raw DB status even with a live price", () => {
+      // Not a consolidation and no base_days → bounds are null → raw mapping,
+      // never ARMED, even though a price exists.
+      r(<PatternCard hit={{ ...HIT, status: "marginal", last_close: 50 }} />);
+      expect(screen.getByTestId("patterns-status-marginal")).toHaveTextContent("MARGINAL");
+    });
   });
 });
 
 describe("PatternCard missing coverage", () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => cleanup());
+
+  test("shows Members for a broad index and calls onShowMembers", async () => {
+    const onShowMembers = vi.fn();
+    r(<PatternCard hit={{ ...HIT, symbol: "NIFTY" }} onShowMembers={onShowMembers} />);
+    await userEvent.click(screen.getByTestId("patterns-card-members-NIFTY"));
+    expect(onShowMembers).toHaveBeenCalledWith("NIFTY");
+  });
+
+  test("omits Members for a normal stock", () => {
+    r(<PatternCard hit={HIT} onShowMembers={vi.fn()} />);
+    expect(screen.queryByTestId("patterns-card-members-IRCON")).not.toBeInTheDocument();
+  });
+
+  test("renders a TradingView chart link", () => {
+    r(<PatternCard hit={HIT} />);
+    const link = screen.getByTestId("patterns-card-tv-IRCON-falling_wedge");
+    expect(link).toHaveAttribute(
+      "href",
+      "https://www.tradingview.com/chart/?symbol=NSE%3AIRCON",
+    );
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
 
   test("expand button calls onExpand without triggering onClick", async () => {
     const onClick = vi.fn();
@@ -213,6 +295,17 @@ describe("PatternCard missing coverage", () => {
     await userEvent.click(screen.getByTestId("patterns-card-expand-IRCON-falling_wedge"));
     expect(onExpand).toHaveBeenCalledTimes(1);
     expect(onExpand).toHaveBeenCalledWith(HIT);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  test("Enter on the expand button does not also select the card", async () => {
+    const onClick = vi.fn();
+    const onExpand = vi.fn();
+    r(<PatternCard hit={HIT} onClick={onClick} onExpand={onExpand} />);
+    const expand = screen.getByTestId("patterns-card-expand-IRCON-falling_wedge");
+    expand.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(onExpand).toHaveBeenCalledTimes(1);
     expect(onClick).not.toHaveBeenCalled();
   });
 
@@ -300,5 +393,20 @@ describe("PatternCard missing coverage", () => {
   test("renders nothing for the 52W gap when to_52w_high is null", () => {
     r(<PatternCard hit={{ ...HIT, to_52w_high: null }} />);
     expect(screen.queryByTestId("patterns-card-52w-gap")).toBeNull();
+  });
+});
+
+describe("PatternCard offscreen containment", () => {
+  afterEach(() => cleanup());
+
+  test("content-visibility containment adds no wrapper and keeps every testid", () => {
+    const { container } = r(<PatternCard hit={HIT} />);
+    expect(container.children).toHaveLength(1);
+    const card = container.children[0];
+    expect(card).not.toBeNull();
+    expect(card).toHaveAttribute("data-testid", "patterns-card-IRCON-falling_wedge");
+    expect(screen.getByTestId("patterns-card")).toBeInTheDocument();
+    expect(screen.getByTestId("mini-stub")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-status-confirmed")).toBeInTheDocument();
   });
 });

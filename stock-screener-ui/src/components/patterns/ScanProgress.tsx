@@ -1,5 +1,6 @@
 import { Alert, Badge, Box, Button, Progress, Text, Tooltip } from "@/ui";
 import type { JobDTO, ScanProvenance } from "@/types/chartPatterns";
+import { formatAgeLong } from "@/utils/ui-helpers";
 
 export interface ScanProgressProps {
   job: JobDTO | null;
@@ -65,9 +66,7 @@ export function formatReusedAge(job: JobDTO, now: number = Date.now()): string |
   }
   if (totalSec == null) return null;
   if (totalSec < 60) return `${totalSec}s ago`;
-  const minutes = Math.round(totalSec / 60);
-  if (minutes < 60) return `${minutes} min ago`;
-  return `${Math.round(minutes / 60)} h ago`;
+  return formatAgeLong(totalSec * 1000);
 }
 
 export interface ReusedScanNoticeProps {

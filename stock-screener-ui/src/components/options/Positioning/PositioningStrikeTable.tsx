@@ -1,3 +1,4 @@
+import { formatNumberIN } from "@/utils/ui-helpers";
 import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge, Box, Text } from "@/ui";
@@ -101,7 +102,7 @@ export function PositioningStrikeTable({ rows, maxAbsCr }: PositioningStrikeTabl
         meta: { align: "center" },
         cell: ({ getValue }) => (
           <span style={{ fontVariantNumeric: "tabular-nums" }}>
-            {(getValue<number>()).toLocaleString("en-IN")}
+            {formatNumberIN(getValue<number>())}
           </span>
         ),
       },

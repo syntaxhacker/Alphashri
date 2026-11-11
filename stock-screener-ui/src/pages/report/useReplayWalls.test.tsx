@@ -1,0 +1,315 @@
+// @vitest-environment happy-dom
+import { act, cleanup, renderHook } from "@testing-library/react";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import type { WallsPayload } from "@/api/reportNifty";
+import { useReplayWalls } from "./useReplayWalls";
+import type { ReplayWallsOptions } from "./useReplayWalls";
+
+// The hook imports the real fetcher, but every case injects a fake one. Mocking
+// the module keeps the suite network- and auth-store-free.
+vi.mock("@/api/reportNifty", () => ({ fetchOptionsWalls: vi.fn() }));
+
+function wallsAt(tag: string): WallsPayload {
+  return { symbol: "NIFTY", read: tag } as unknown as WallsPayload;
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
+/** Flush the microtask queue (and any 0 ms timers) under fake timers. */
+async function flush() {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0);
+  });
+}
+
+type Props = Partial<ReplayWallsOptions> & { at?: string };
+
+function baseProps(fetcher: typeof vi.fn, over: Props = {}): ReplayWallsOptions {
+  return {
+    enabled: true,
+    symbol: "NIFTY",
+    date: "2026-10-10",
+    at: "2026-10-10T09:15:00+05:30",
+    live: false,
+    throttleMs: 150,
+    fetcher: fetcher as unknown as ReplayWallsOptions["fetcher"],
+    ...over,
+  };
+}
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+  vi.clearAllMocks();
+});
+
+describe("useReplayWalls", () => {
+  test("collapses rapid at changes into one trailing fetch with the latest cutoff", async () => {
+    vi.useFakeTimers();
+    const fetcher = vi.fn().mockResolvedValue(wallsAt("t1"));
+    const { result, rerender } = renderHook(
+      (props: Props) => useReplayWalls(baseProps(fetcher, props)),
+      { initialProps: { at: "2026-10-10T09:15:00+05:30" } },
+    );
+
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(result.current.walls?.read).toBe("t1");
+    expect(result.current.syncing).toBe(false);
+
+    // Four scrub ticks inside the 150 ms window.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20);
+    });
+    rerender({ at: "2026-10-10T09:16:00+05:30" });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20);
+    });
+    rerender({ at: "2026-10-10T09:17:00+05:30" });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20);
+    });
+    rerender({ at: "2026-10-10T09:18:00+05:30" });
+
+    // Still one request: the ticks only moved the pending timer's target.
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(150);
+    });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls[1][2]).toBe("2026-10-10T09:18:00+05:30");
+    expect(result.current.walls?.read).toBe("t1");
+  });
+
+  test("a newer cutoff during an in-flight request triggers an immediate catch-up", async () => {
+    vi.useFakeTimers();
+    const first = deferred<WallsPayload | null>();
+    const fetcher = vi
+      .fn()
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValue(wallsAt("second"));
+    const { result, rerender } = renderHook(
+      (props: Props) => useReplayWalls(baseProps(fetcher, props)),
+      { initialProps: { at: "2026-10-10T09:15:00+05:30" } },
+    );
+
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(result.current.syncing).toBe(true);
+
+    rerender({ at: "2026-10-10T09:20:00+05:30" });
+    await flush();
+    // In flight: no second request yet, no timer either.
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      first.resolve(wallsAt("first"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    // Settle applied its payload, then immediately chased the newest cutoff.
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls[1][2]).toBe("2026-10-10T09:20:00+05:30");
+
+    await flush();
+    expect(result.current.walls?.read).toBe("second");
+    expect(result.current.syncing).toBe(false);
+  });
+
+  test("pipelines the newest cutoff once the throttle window elapses", async () => {
+    vi.useFakeTimers();
+    const older = deferred<WallsPayload | null>();
+    const newer = deferred<WallsPayload | null>();
+    const fetcher = vi
+      .fn()
+      .mockReturnValueOnce(older.promise)
+      .mockReturnValueOnce(newer.promise);
+    const { result, rerender } = renderHook(
+      (props: Props) => useReplayWalls(baseProps(fetcher, props)),
+      { initialProps: { at: "2026-10-10T09:15:00+05:30" } },
+    );
+
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    // Still in flight, but the 150 ms window has elapsed: the new playhead
+    // must start now instead of waiting for the first request to settle.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    rerender({ at: "2026-10-10T09:25:00+05:30" });
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls[1][2]).toBe("2026-10-10T09:25:00+05:30");
+
+    // The superseded response still paints: it is newer than the empty card,
+    // so a fast drag shows intermediate minutes instead of freezing.
+    await act(async () => {
+      older.resolve(wallsAt("older"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.walls?.read).toBe("older");
+
+    await act(async () => {
+      newer.resolve(wallsAt("newer"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.walls?.read).toBe("newer");
+    expect(result.current.syncing).toBe(false);
+  });
+
+  test("an out-of-order older reply does not walk the card backwards", async () => {
+    vi.useFakeTimers();
+    const first = deferred<WallsPayload | null>();
+    const second = deferred<WallsPayload | null>();
+    const fetcher = vi
+      .fn()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    const { result, rerender } = renderHook(
+      (props: Props) => useReplayWalls(baseProps(fetcher, props)),
+      { initialProps: { at: "2026-10-10T09:15:00+05:30" } },
+    );
+
+    await flush();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    rerender({ at: "2026-10-10T09:25:00+05:30" });
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+
+    // Newer reply lands first, then the older one arrives late.
+    await act(async () => {
+      second.resolve(wallsAt("09:25"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.walls?.read).toBe("09:25");
+
+    await act(async () => {
+      first.resolve(wallsAt("09:15"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.walls?.read).toBe("09:25");
+  });
+
+  test("a stale response never overwrites a newer payload", async () => {
+    vi.useFakeTimers();
+    const older = deferred<WallsPayload | null>();
+    const newer = deferred<WallsPayload | null>();
+    const fetcher = vi
+      .fn()
+      .mockReturnValueOnce(older.promise)
+      .mockReturnValueOnce(newer.promise);
+    const { result, rerender } = renderHook(
+      (props: { enabled: boolean }) =>
+        useReplayWalls(baseProps(fetcher, { enabled: props.enabled })),
+      { initialProps: { enabled: true } },
+    );
+
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    // Disabling invalidates the in-flight response (a new sequence id).
+    rerender({ enabled: false });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+
+    // Re-enabling starts a fresh request with the newer id.
+    rerender({ enabled: true });
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      newer.resolve(wallsAt("new"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.walls?.read).toBe("new");
+
+    await act(async () => {
+      older.resolve(wallsAt("old"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.walls?.read).toBe("new");
+  });
+
+  test("includeMap bypasses the throttle", async () => {
+    vi.useFakeTimers();
+    const fetcher = vi.fn().mockResolvedValue(wallsAt("w"));
+    const { rerender } = renderHook(
+      (props: { includeMap: boolean }) =>
+        useReplayWalls(baseProps(fetcher, { includeMap: props.includeMap })),
+      { initialProps: { includeMap: false } },
+    );
+
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    // The 10 ms elapsed < 150 ms throttle, but opening the map must not wait.
+    rerender({ includeMap: true });
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls[1][4]).toBe(true);
+  });
+
+  test("switching symbol/date clears the old walls and ignores its late response", async () => {
+    vi.useFakeTimers();
+    const dayOne = deferred<WallsPayload | null>();
+    const dayTwo = deferred<WallsPayload | null>();
+    const sensex = deferred<WallsPayload | null>();
+    const fetcher = vi
+      .fn()
+      .mockReturnValueOnce(dayOne.promise)
+      .mockReturnValueOnce(dayTwo.promise)
+      .mockReturnValueOnce(sensex.promise);
+    const { result, rerender } = renderHook(
+      (props: { symbol: string; date: string }) =>
+        useReplayWalls(baseProps(fetcher, props)),
+      { initialProps: { symbol: "NIFTY", date: "2026-10-09" } },
+    );
+
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      dayOne.resolve(wallsAt("2026-10-09"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.walls?.read).toBe("2026-10-09");
+
+    // Date change: the previous card must never paint on the new day.
+    rerender({ symbol: "NIFTY", date: "2026-10-10" });
+    await flush();
+    expect(result.current.walls).toBeNull();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls[1][1]).toBe("2026-10-10");
+
+    // Symbol change while that request is in flight: a fresh request starts.
+    rerender({ symbol: "SENSEX", date: "2026-10-10" });
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(fetcher.mock.calls[2][0]).toBe("SENSEX");
+
+    await act(async () => {
+      sensex.resolve(wallsAt("sensex"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.walls?.read).toBe("sensex");
+
+    // The NIFTY request that belonged to the previous context settles late.
+    await act(async () => {
+      dayTwo.resolve(wallsAt("nifty-late"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.walls?.read).toBe("sensex");
+  });
+});

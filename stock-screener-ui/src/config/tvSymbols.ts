@@ -1,0 +1,75 @@
+const INDEX_TV_SYMBOLS: Record<string, string> = {
+  NIFTY: "NSE:NIFTY",
+  BANKNIFTY: "NSE:BANKNIFTY",
+  FINNIFTY: "NSE:CNXFINANCE",
+  MIDCPNIFTY: "NSE:NIFTY_MID_SELECT",
+  NIFTYNXT50: "NSE:NIFTYJR",
+  NIFTY100: "NSE:CNX100",
+  NIFTY200: "NSE:CNX200",
+  NIFTY500: "NSE:CNX500",
+  NIFTYMIDCAP50: "NSE:NIFTYMIDCAP50",
+  NIFTYMIDCAP100: "NSE:CNXMIDCAP",
+  NIFTYMIDCAP150: "NSE:NIFTYMIDCAP150",
+  NIFTYSMLCAP50: "NSE:NIFTYSMLCAP50",
+  NIFTYSMLCAP100: "NSE:CNXSMALLCAP",
+  NIFTYSMLCAP250: "NSE:NIFTYSMLCAP250",
+  NIFTYTOTALMKT: "NSE:NIFTY_TOTAL_MKT",
+  SENSEX: "BSE:SENSEX",
+  BANKEX: "BSE:BANK",
+  NIFTYIT: "NSE:CNXIT",
+  NIFTYAUTO: "NSE:CNXAUTO",
+  NIFTYPHARMA: "NSE:CNXPHARMA",
+  NIFTYFMCG: "NSE:CNXFMCG",
+  NIFTYMETAL: "NSE:CNXMETAL",
+  NIFTYENERGY: "NSE:CNXENERGY",
+  NIFTYPSUBANK: "NSE:CNXPSUBANK",
+  NIFTYPVTBANK: "NSE:NIFTYPVTBANK",
+  NIFTYREALTY: "NSE:CNXREALTY",
+  NIFTYMEDIA: "NSE:CNXMEDIA",
+  NIFTYINFRA: "NSE:CNXINFRA",
+  NIFTYCOMMODITIES: "NSE:CNXCOMMODITIES",
+  NIFTYCPSE: "NSE:CPSE",
+  NIFTYPSE: "NSE:CNXPSE",
+  NIFTYSERV: "NSE:CNXSERVICE",
+  NIFTYCEMENT: "NSE:NIFTY_CEMENT",
+  NIFTYCHEMICALS: "NSE:NIFTY_CHEMICALS",
+  NIFTYCONSUMPTION: "NSE:CNXCONSUMPTION",
+  NIFTYOILGAS: "NSE:NIFTY_OIL_AND_GAS",
+  NIFTYDEFENCE: "NSE:NIFTY_IND_DEFENCE",
+  NIFTYDIGITAL: "NSE:NIFTY_IND_DIGITAL",
+  NIFTYMFG: "NSE:NIFTY_INDIA_MFG",
+  NIFTYHOUSING: "NSE:NIFTY_HOUSING",
+  NIFTYCAPMKT: "NSE:NIFTY_CAPITAL_MKT",
+  NIFTYMOBILITY: "NSE:NIFTY_MOBILITY",
+  NIFTYEV: "NSE:NIFTY_EV",
+  NIFTYINTERNET: "NSE:NIFTY_INTERNET",
+  NIFTYMNC: "NSE:CNXMNC",
+  NIFTYRURAL: "NSE:NIFTY_RURAL",
+  NIFTYRAILWAYS: "NSE:NIFTY_RAILWAYSPSU",
+  NIFTYTRANSLOG: "NSE:NIFTY_TRANS_LOGIS",
+  NIFTYCONSDUR: "NSE:NIFTY_CONSR_DURBL",
+  NIFTYNEWCONS: "NSE:NIFTY_NEW_CONSUMP",
+  NIFTYNONCYC: "NSE:NIFTY_NONCYC_CONS",
+  INDIAVIX: "NSE:INDIAVIX",
+};
+
+export function isIndianIndex(symbol: string): boolean {
+  const key = String(symbol ?? "").trim().toUpperCase();
+  return Object.prototype.hasOwnProperty.call(INDEX_TV_SYMBOLS, key);
+}
+
+export function tradingViewSymbol(symbol: string, market?: string): string {
+  const key = String(symbol ?? "").trim().toUpperCase();
+  const index = INDEX_TV_SYMBOLS[key];
+  if (index) return index;
+  if (!key) return "";
+  // Explicit market (NSE/BSE/NASDAQ/NYSE/AMEX/…) for surfaces that show
+  // non-Indian listings; falls back to NSE for the default equity screens.
+  const exchange = String(market ?? "NSE").trim().toUpperCase() || "NSE";
+  return `${exchange}:${key}`;
+}
+
+export function tradingViewChartUrl(symbol: string, market?: string): string {
+  const tv = tradingViewSymbol(symbol, market);
+  return tv ? `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}` : "";
+}

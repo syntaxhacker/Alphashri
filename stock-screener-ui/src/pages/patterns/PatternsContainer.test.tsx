@@ -77,6 +77,8 @@ function makeVm() {
     ],
     timeframe: "1D",
     setTimeframe: vi.fn(),
+    selectedTimeframes: ["1D"],
+    setSelectedTimeframes: vi.fn(),
     lookbackBars: null,
     setLookbackBars: vi.fn(),
     universe: "nifty500",
@@ -125,14 +127,12 @@ function makeVm() {
 describe("PatternsContainer", () => {
   afterEach(() => cleanup());
 
-  test("bootstraps the catalog exactly once across remounts", () => {
+  test("bootstraps the catalog on each mount", () => {
     mockLoadCatalog.mockClear();
     mockUseChartPatterns.mockReturnValue(makeVm());
     render(<PatternsContainer />).unmount();
     render(<PatternsContainer />).unmount();
-    // Module-level `catalogRequested` guard: StrictMode-style double mount
-    // must not re-issue the catalog load within this session.
-    expect(mockLoadCatalog).toHaveBeenCalledTimes(1);
+    expect(mockLoadCatalog).toHaveBeenCalledTimes(2);
   });
 
   test("wires the hook state into URL sync", () => {
@@ -166,6 +166,7 @@ describe("PatternsContainer", () => {
     const expectedKeys = [
       "timeframes", "universes", "patterns",
       "timeframe", "setTimeframe",
+      "selectedTimeframes", "setSelectedTimeframes",
       "lookbackBars", "setLookbackBars",
       "universe", "setUniverse",
       "filters", "setFilter", "resetFilters", "applyFilters",
@@ -176,6 +177,9 @@ describe("PatternsContainer", () => {
       "scan", "refresh", "forceRefresh",
       "scanReplay", "replayAsOf",
       "tab", "setTab",
+      "view", "setView",
+      "indexGroup", "setIndexGroup",
+      "members", "setMembers",
     ];
     expect(Object.keys(props).sort()).toEqual([...expectedKeys].sort());
     for (const key of expectedKeys) {
@@ -192,6 +196,30 @@ describe("PatternsContainer", () => {
         continue;
       }
       if (key === "setTab") {
+        expect(typeof props[key], `prop ${key}`).toBe("function");
+        continue;
+      }
+      if (key === "view") {
+        expect(props[key], `prop ${key}`).toBe("matrix");
+        continue;
+      }
+      if (key === "setView") {
+        expect(typeof props[key], `prop ${key}`).toBe("function");
+        continue;
+      }
+      if (key === "indexGroup") {
+        expect(props[key], `prop ${key}`).toBe("all");
+        continue;
+      }
+      if (key === "setIndexGroup") {
+        expect(typeof props[key], `prop ${key}`).toBe("function");
+        continue;
+      }
+      if (key === "members") {
+        expect(props[key], `prop ${key}`).toBeNull();
+        continue;
+      }
+      if (key === "setMembers") {
         expect(typeof props[key], `prop ${key}`).toBe("function");
         continue;
       }

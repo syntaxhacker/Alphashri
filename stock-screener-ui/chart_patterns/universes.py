@@ -17,6 +17,7 @@ import json
 from pathlib import Path
 
 from .constituents import CONSTITUENTS
+from .indices import INDIAN_INDICES
 
 # Relative to this file: chart_patterns/ -> stock-screener-ui/ -> Alphashri/
 _CANONICAL = (
@@ -30,6 +31,7 @@ _INDEX_IDS = ["nifty50", "nifty100", "nifty200", "nifty500"]
 _LABELS = {
     "all_equity": "All NSE Equity",
     "nse_fo": "NSE F&O",
+    "indices": "Indian Indices",
     "nifty50": "NIFTY 50",
     "nifty100": "NIFTY 100",
     "nifty200": "NIFTY 200",
@@ -122,6 +124,8 @@ def get_universe(universe_id: str) -> list[str]:
         return list(_load()["all_equity"])
     if uid == "nse_fo":
         return list(_load()["nse_fo"])
+    if uid == "indices":
+        return [row["id"] for row in INDIAN_INDICES]
     if uid in CONSTITUENTS:
         return list(CONSTITUENTS[uid])
     raise ValueError(f"Unknown universe {universe_id!r}")
@@ -133,6 +137,7 @@ def list_universes() -> list[dict]:
     out = [
         {"id": "all_equity", "label": _LABELS["all_equity"], "count": len(data["all_equity"])},
         {"id": "nse_fo", "label": _LABELS["nse_fo"], "count": len(data["nse_fo"])},
+        {"id": "indices", "label": _LABELS["indices"], "count": len(INDIAN_INDICES)},
     ]
     for uid in _INDEX_IDS:
         out.append(

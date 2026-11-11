@@ -1,0 +1,575 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Options paper — live-simulation replay</title>
+<style>
+:root{--bg:#0D1117;--panel:#161B22;--border:#30363D;--text:#E6EDF3;--dim:#8B949E;
+--up:#3FB950;--down:#F85149;--warn:#D29922;--info:#58A6FF;--accent:#1F6FEB;
+--pur:#A371F7;--teal:#39D2C0;--grid:#21262D}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,sans-serif;
+margin:0 auto;padding:24px;max-width:1180px;line-height:1.5;font-size:14px}
+h1{font-size:20px;margin:0 0 4px}
+h2{border-bottom:1px solid var(--border);padding-bottom:6px;font-size:16px;
+border-left:4px solid var(--accent);padding-left:10px;margin:26px 0 10px}
+h3{font-size:13px;color:var(--dim);margin:14px 0 6px;font-weight:600}
+a{color:var(--info)}
+.sub{color:var(--dim);font-size:12.5px;margin:0 0 2px}
+.num{font-variant-numeric:tabular-nums}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:14px 0}
+.kpi{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+.kpi .k{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+.kpi .v{font-size:19px;font-weight:650;margin-top:3px}
+.kpi .s{color:var(--dim);font-size:11.5px;margin-top:2px}
+.up{color:var(--up)}.dn{color:var(--down)}.dim{color:var(--dim)}
+table{border-collapse:collapse;width:100%;margin:8px 0;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{border:1px solid var(--border);padding:5px 8px;text-align:right}
+th:first-child,td:first-child{text-align:left}
+th{background:var(--panel);position:sticky;top:0;cursor:default;user-select:none;white-space:nowrap}
+th.sortable{cursor:pointer}th.sortable:hover{color:var(--info)}
+th .ar{color:var(--accent);font-size:10px}
+tr:nth-child(even) td{background:rgba(255,255,255,.012)}
+.chip{display:inline-block;border:1px solid var(--border);border-radius:999px;padding:1px 7px;
+margin:0 1px;font-size:11px;color:var(--dim);white-space:nowrap}
+.chip b{color:var(--text);font-weight:600}
+.warn{background:var(--panel);border-left:3px solid var(--warn);padding:8px 12px;margin:10px 0;font-size:12.5px}
+.win-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--info);vertical-align:middle}
+.loss-tri{display:inline-block;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;
+border-bottom:9px solid var(--warn);vertical-align:middle}
+.bar{height:9px;border-radius:2px;background:var(--accent);display:inline-block;vertical-align:middle;min-width:1px}
+.bar.neg{background:var(--warn)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+svg{display:block;width:100%;height:auto;overflow:visible}
+svg text{font-family:system-ui,sans-serif}
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 0;font-size:12px;color:var(--dim)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.sw{width:12px;height:3px;border-radius:2px;display:inline-block}
+.tabs{display:flex;gap:6px;margin:6px 0}
+.tabs button{background:var(--panel);color:var(--dim);border:1px solid var(--border);border-radius:6px;
+padding:3px 10px;font-size:12px;cursor:pointer}
+.tabs button.on{color:var(--text);border-color:var(--accent);background:#0D1117}
+.caveat li{margin:3px 0}
+.foot{color:var(--dim);font-size:11.5px;border-top:1px solid var(--border);margin-top:22px;padding-top:10px}
+.scroll{max-height:420px;overflow:auto;border-radius:6px}
+.charts{display:grid;grid-template-columns:1fr;gap:16px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+.card .ch{font-size:12.5px;margin-bottom:2px}
+.card .why{font-size:11.5px;color:var(--dim);margin:2px 0 6px;line-height:1.45}
+.card .why b{color:var(--text);font-weight:600}
+.card .cap{font-size:11px;color:var(--dim);margin:8px 0 2px;letter-spacing:.2px}
+.muted{color:var(--dim);font-style:italic;padding:18px 0;text-align:center;font-size:12.5px}
+</style></head><body>
+
+<h1 id="title">Options paper — live-simulation replay</h1>
+<p class="sub" id="subtitle"></p>
+<p class="sub" id="note"></p>
+
+<div class="kpis" id="kpis"></div>
+
+<h2>Daily</h2>
+<div id="days"></div>
+
+<h2>Per strategy</h2>
+<div id="byStrat"></div>
+
+<h2>Expiry payoff <span class="dim" style="font-size:12px;font-weight:400">(structure; gross of costs)</span></h2>
+<div id="payoffTabs" class="tabs"></div>
+<div class="panel"><div id="payoff"></div><div class="legend" id="payoffLegend"></div></div>
+<p class="sub">P&amp;L at expiry vs NIFTY level. Dashed verticals mark strikes; the dotted line marks the entry spot.
+The engine exits intraday, so this depicts the <b>structure</b>, not the realised result.</p>
+
+<h2>Intraday equity</h2>
+<div class="panel"><div id="equity"></div><div class="legend" id="equityLegend"></div></div>
+
+<h2>Where each trade went <span class="dim" style="font-size:12px;font-weight:400">(worst &rarr; best premium excursion while held)</span></h2>
+<div class="panel"><div id="excursion"></div><div class="legend" id="excursionLegend"></div></div>
+<p class="sub">Blue bar = the premium's worst&rarr;best excursion while the trade was open. Dashed red = the stop level,
+dashed green = the target. The dot is where the trade actually exited (blue dot = net win). Long blue bars with an early
+dot mean the trade <b>gave back</b> its best print; a dot at the red line means the stop fired.</p>
+
+<h2>Each trade &mdash; entry &amp; exit on the candles <span class="dim" style="font-size:12px;font-weight:400">(real 1-min NIFTY candles + the option's own premium)</span></h2>
+<div id="charts" class="charts"></div>
+
+<h2>Greeks <span class="dim" style="font-size:12px;font-weight:400">(at entry, per trade)</span></h2>
+<div id="greekChips" class="legend"></div>
+<div class="grid2">
+  <div class="panel"><h3>Delta</h3><div id="gDelta"></div></div>
+  <div class="panel"><h3>Theta (₹/day)</h3><div id="gTheta"></div></div>
+  <div class="panel"><h3>Vega (₹/vol pt)</h3><div id="gVega"></div></div>
+  <div class="panel"><h3>Gamma</h3><div id="gGamma"></div></div>
+</div>
+
+<h2>P&amp;L attribution <span class="dim" style="font-size:12px;font-weight:400">(per unit premium, summed)</span></h2>
+<div class="panel"><div id="attrib"></div><div class="legend" id="attribLegend"></div></div>
+<p class="sub">Each premium move split into delta, gamma, theta and vega sources by a Black-76 Taylor expansion.
+The residual is what the four greeks do <i>not</i> explain — it is shown, never hidden.</p>
+
+<h2>Trades</h2>
+<div class="scroll"><div id="trades"></div></div>
+
+<h2>Caveats</h2>
+<ul class="caveat" id="caveats"></ul>
+<p class="foot">Paper simulation on recorded history — <b>not a live result, not a backtest of an edge, and not advice.</b>
+Generated <span id="gen" class="dim"></span>.</p>
+
+<!-- data: the filler replaces the token below with a JSON object -->
+<script id="screen-data" type="application/json">/*__SCREEN_DATA__*/</script>
+<script id="demo-data" type="application/json">{"meta":{"title":"Options paper \u2014 live-simulation replay","week":["2026-09-21","2026-09-22","2026-09-23","2026-09-24","2026-09-25"],"generated_at":"2026-10-18T21:58:53","capital":2500000,"lots":1,"lot_size":65,"risk_free":0.065,"expiry":"2026-09-29","dte":8,"source":"FYERS 1-minute option candles (real traded prints) + recorded NIFTY index","cost_model":"Upstox 2026 (spec.CHARGES)","note":"Demo payload (template opened unfilled).","scope":"intraday naked buying (one long leg, no hedge, no overnight)"},"totals":{"net_pnl":-2600.08,"gross_pnl":-633.75,"costs":1966.33,"n_trades":26,"n_win":9,"n_loss":17,"win_rate":0.346,"net_points":-40.0,"cost_drag_pct":3.103,"best":3170.01,"worst":-1968.54},"by_strategy":[{"strategy":"nifty_gap","label":"NIFTY gap conditioning","net_pnl":1305.5,"gross_pnl":1371.5,"costs":66.0,"n_trades":1,"net_points":20.09,"n_win":1,"n_loss":0,"win_rate":1.0},{"strategy":"nifty_iv_delta","label":"NIFTY IV + greeks, delta-selected moneyness","net_pnl":-347.55,"gross_pnl":559.0,"costs":906.55,"n_trades":15,"net_points":-5.35,"n_win":6,"n_loss":9,"win_rate":0.4},{"strategy":"nifty_open_straddle","label":"NIFTY ATM straddle at open (naked long vol)","net_pnl":-776.43,"gross_pnl":-107.25,"costs":669.18,"n_trades":5,"net_points":-11.95,"n_win":1,"n_loss":4,"win_rate":0.2},{"strategy":"nifty_momentum","label":"NIFTY long-premium momentum (ORB)","net_pnl":-2781.6,"gross_pnl":-2457.0,"costs":324.6,"n_trades":5,"net_points":-42.79,"n_win":1,"n_loss":4,"win_rate":0.2}],"equity":[{"t":"2026-09-21T10:32:00+05:30","day":"2026-09-21","net":-893.98,"cum_net":-893.98},{"t":"2026-09-21T12:55:00+05:30","day":"2026-09-21","net":-145.96,"cum_net":-1039.94},{"t":"2026-09-21T13:02:00+05:30","day":"2026-09-21","net":-281.11,"cum_net":-1321.05},{"t":"2026-09-21T15:10:00+05:30","day":"2026-09-21","net":-901.34,"cum_net":-2222.39},{"t":"2026-09-22T11:10:00+05:30","day":"2026-09-22","net":-1968.54,"cum_net":-4190.93},{"t":"2026-09-22T11:27:00+05:30","day":"2026-09-22","net":1574.96,"cum_net":-2615.97}],"payoff":{"expiries":[{"label":"expiry 2026-09-29 (DTE 8 at week start)","spot_grid":[22400,22450,22500,22550,22600,22650,22700,22750,22800,22850,22900,22950,23000,23050,23100,23150,23200,23250,23300,23350,23400,23450,23500,23550,23600,23650,23700,23750,23800,23850,23900,23950,24000,24050,24100,24150,24200,24250,24300,24350],"lines":[{"strategy":"nifty_iv_delta","opt":"CE","direction":"LONG","strike":23500.0,"premium":105.75,"lots":1,"qty":65,"expiry":"2026-09-29","entry_spot":23397.2,"pnl":[-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-3623.75,-373.75,2876.25,6126.25,9376.25,12626.25,15876.25,19126.25,22376.25,25626.25,28876.25,32126.25,35376.25,38626.25,41876.25,45126.25,48376.25]},{"strategy":"nifty_momentum","opt":"CE","direction":"LONG","strike":23400.0,"premium":155.95,"lots":1,"qty":65,"expiry":"2026-09-29","entry_spot":23416.75,"pnl":[-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-6886.75,-3636.75,-386.75,2863.25,6113.25,9363.25,12613.25,15863.25,19113.25,22363.25,25613.25,28863.25,32113.25,35363.25,38613.25,41863.25,45113.25,48363.25,51613.25]},{"strategy":"nifty_open_straddle","opt":"STRADDLE","direction":"LONG","strike":23350.0,"premium":309.35,"lots":1,"qty":65,"expiry":"2026-09-29","entry_spot":23361.75,"pnl":[41642.25,38392.25,35142.25,31892.25,28642.25,25392.25,22142.25,18892.25,15642.25,12392.25,9142.25,5892.25,2642.25,-607.75,-3857.75,-7107.75,-10357.75,-13607.75,-16857.75,-20107.75,-16857.75,-13607.75,-10357.75,-7107.75,-3857.75,-607.75,2642.25,5892.25,9142.25,12392.25,15642.25,18892.25,22142.25,25392.25,28642.25,31892.25,35142.25,38392.25,41642.25,44892.25]},{"strategy":"nifty_gap","opt":"PE","direction":"LONG","strike":23250.0,"premium":104.3,"lots":1,"qty":65,"expiry":"2026-09-29","entry_spot":23235.6,"pnl":[48470.5,45220.5,41970.5,38720.5,35470.5,32220.5,28970.5,25720.5,22470.5,19220.5,15970.5,12720.5,9470.5,6220.5,2970.5,-279.5,-3529.5,-6779.5,-6779.5,-6779.5,-6779.5,-6779.5,-6779.5,-6779.5,-6779.5,-6779.5,-6779.5,-6779.5,-6779.5,-6779.5,-6779.5,-6779.5,-6779.5,-6779.5,-6779.5,-6779.5,-6779.5,-6779.5,-6779.5,-6779.5]}]}]},"greeks_series":[{"t":"2026-09-21T09:16:00+05:30","day":"2026-09-21","spot":23361.75,"delta":0.0746,"gamma":0.002055,"theta":-18.54,"vega":27.9021},{"t":"2026-09-21T09:32:00+05:30","day":"2026-09-21","spot":23397.2,"delta":0.4048,"gamma":0.001053,"theta":-8.6286,"vega":13.6164},{"t":"2026-09-21T11:55:00+05:30","day":"2026-09-21","spot":23416.75,"delta":0.5304,"gamma":0.001107,"theta":-8.7467,"vega":13.9029},{"t":"2026-09-21T12:02:00+05:30","day":"2026-09-21","spot":23424.3,"delta":0.4201,"gamma":0.001109,"theta":-8.4463,"vega":13.6597},{"t":"2026-09-22T09:16:00+05:30","day":"2026-09-22","spot":23437.9,"delta":-0.0067,"gamma":0.002401,"theta":-18.2213,"vega":26.3466},{"t":"2026-09-22T10:10:00+05:30","day":"2026-09-22","spot":23465.0,"delta":0.5265,"gamma":0.001291,"theta":-8.4789,"vega":13.124},{"t":"2026-09-22T10:27:00+05:30","day":"2026-09-22","spot":23437.05,"delta":-0.3722,"gamma":0.001196,"theta":-8.2853,"vega":12.4527},{"t":"2026-09-22T12:56:00+05:30","day":"2026-09-22","spot":23338.25,"delta":-0.376,"gamma":0.001148,"theta":-8.8108,"vega":12.3507}],"attribution":[{"strategy":"nifty_gap","opt":"PE","delta_pnl":9.2424,"gamma_pnl":0.2676,"theta_pnl":-0.439,"vega_pnl":4.9919,"explained":14.0629,"actual":21.1,"residual":7.0371},{"strategy":"nifty_iv_delta","opt":"CE","delta_pnl":-13.4735,"gamma_pnl":6.2625,"theta_pnl":-5.3459,"vega_pnl":6.982,"explained":-5.575,"actual":8.6,"residual":14.175},{"strategy":"nifty_open_straddle","opt":"STRADDLE","delta_pnl":8.3756,"gamma_pnl":48.3268,"theta_pnl":-25.46,"vega_pnl":-29.9241,"explained":1.3182,"actual":-1.65,"residual":-2.9682},{"strategy":"nifty_momentum","opt":"CE","delta_pnl":-47.4037,"gamma_pnl":5.3102,"theta_pnl":-2.144,"vega_pnl":2.1859,"explained":-42.0516,"actual":-37.8,"residual":4.2516}],"trades":[{"strategy":"nifty_iv_delta","underlying":"NIFTY","symbol":"NIFTY26SEP23500CE","opt":"CE","direction":"LONG","lots":1,"lot":65,"qty":65,"expiry":"2026-09-29","entry_time":"2026-09-21T09:32:00+05:30","entry_premium":105.75,"entry_spot":23397.2,"exit_time":"2026-09-21T10:32:00+05:30","exit_premium":92.95,"exit_spot":23366.25,"exit_reason":"TIME","hold_min":60.0,"gross_pnl":-832.0,"costs":61.98,"net_pnl":-893.98,"points":-13.754,"reason":"IV cheap + +0.16%/15m; delta~0.40 @ 23500","strike":23500.0,"sl_pct":0.3,"tp_pct":0.6,"entry_delta":0.4047504228037599,"entry_gamma":0.0010528959042885937,"entry_theta":-8.628572205678115,"entry_vega":13.616350940411124,"entry_iv":0.10474471784175965,"delta_pnl":-12.527025585776663,"gamma_pnl":0.5042858094789261,"theta_pnl":-0.35952384190325476,"vega_pnl":-1.0126663138640493,"residual":0.5949299320650425,"attrib_actual":-12.799999999999997},{"strategy":"nifty_momentum","underlying":"NIFTY","symbol":"NIFTY26SEP23400CE","opt":"CE","direction":"LONG","lots":1,"lot":65,"qty":65,"expiry":"2026-09-29","entry_time":"2026-09-21T11:55:00+05:30","entry_premium":155.95,"entry_spot":23416.75,"exit_time":"2026-09-21T12:55:00+05:30","exit_premium":154.8,"exit_spot":23415.25,"exit_reason":"TIME","hold_min":60.0,"gross_pnl":-74.75,"costs":71.21,"net_pnl":-145.96,"points":-2.246,"reason":"ORB up break 23416>23400","strike":23400.0,"sl_pct":0.3,"tp_pct":0.6,"entry_delta":0.5303543517864138,"entry_gamma":0.0011067189720524006,"entry_theta":-8.746685254067273,"entry_vega":13.90294626214043,"entry_iv":0.10283836772556085,"delta_pnl":-0.7955315276796207,"gamma_pnl":0.0012450588435589506,"theta_pnl":-0.3644452189194697,"vega_pnl":0.987588917705877,"residual":-0.9788572299503229,"attrib_actual":-1.1499999999999773},{"strategy":"nifty_iv_delta","underlying":"NIFTY","symbol":"NIFTY26SEP23500CE","opt":"CE","direction":"LONG","lots":1,"lot":65,"qty":65,"expiry":"2026-09-29","entry_time":"2026-09-21T12:02:00+05:30","entry_premium":107.05,"entry_spot":23424.3,"exit_time":"2026-09-21T13:02:00+05:30","exit_premium":103.7,"exit_spot":23414.1,"exit_reason":"TIME","hold_min":60.0,"gross_pnl":-217.75,"costs":63.36,"net_pnl":-281.11,"points":-4.325,"reason":"IV cheap + +0.13%/15m; delta~0.40 @ 23500","strike":23500.0,"sl_pct":0.3,"tp_pct":0.6,"entry_delta":0.420130844861854,"entry_gamma":0.0011085130128654468,"entry_theta":-8.446326382989776,"entry_vega":13.659678083494809,"entry_iv":0.10092355807938069,"delta_pnl":-4.285334617591216,"gamma_pnl":0.057664846929268765,"theta_pnl":-0.35193026595790733,"vega_pnl":-0.012696469750217486,"residual":1.242296506370078,"attrib_actual":-3.3499999999999943},{"strategy":"nifty_open_straddle","underlying":"NIFTY","symbol":"NIFTY 2026-09-29 STRADDLE","opt":"STRADDLE","direction":"LONG","lots":1,"lot":65,"qty":65,"expiry":"2026-09-29","entry_time":"2026-09-21T09:16:00+05:30","entry_premium":309.35,"entry_spot":23361.75,"exit_time":"2026-09-21T15:10:00+05:30","exit_premium":297.65,"exit_spot":23437.15,"exit_reason":"EOD","hold_min":354.0,"gross_pnl":-760.5,"costs":140.84,"net_pnl":-901.34,"points":-13.867,"reason":"LONG ATM straddle at open 23350","strike":23350.0,"sl_pct":0.3,"tp_pct":0.6,"entry_delta":0.07455042156532204,"entry_gamma":0.002054905212049317,"entry_theta":-18.539966155968344,"entry_vega":27.902063841363116,"entry_iv":0.11006468571059475,"delta_pnl":5.621101786025385,"gamma_pnl":5.841232457667373,"theta_pnl":-4.557741680008884,"vega_pnl":-25.80411147732434,"residual":7.199518913640464,"attrib_actual":-11.700000000000003}],"charts":[{"times":["2026-09-21T09:22:00+05:30","2026-09-21T09:23:00+05:30","2026-09-21T09:24:00+05:30","2026-09-21T09:25:00+05:30","2026-09-21T09:26:00+05:30","2026-09-21T09:27:00+05:30","2026-09-21T09:28:00+05:30","2026-09-21T09:29:00+05:30","2026-09-21T09:30:00+05:30","2026-09-21T09:31:00+05:30","2026-09-21T09:32:00+05:30","2026-09-21T09:33:00+05:30","2026-09-21T09:34:00+05:30","2026-09-21T09:35:00+05:30","2026-09-21T09:36:00+05:30","2026-09-21T09:37:00+05:30","2026-09-21T09:38:00+05:30","2026-09-21T09:39:00+05:30","2026-09-21T09:40:00+05:30","2026-09-21T09:41:00+05:30","2026-09-21T09:42:00+05:30","2026-09-21T09:43:00+05:30","2026-09-21T09:44:00+05:30","2026-09-21T09:45:00+05:30","2026-09-21T09:46:00+05:30","2026-09-21T09:47:00+05:30","2026-09-21T09:48:00+05:30","2026-09-21T09:49:00+05:30","2026-09-21T09:50:00+05:30","2026-09-21T09:51:00+05:30","2026-09-21T09:52:00+05:30","2026-09-21T09:53:00+05:30","2026-09-21T09:54:00+05:30","2026-09-21T09:55:00+05:30","2026-09-21T09:56:00+05:30","2026-09-21T09:57:00+05:30","2026-09-21T09:58:00+05:30","2026-09-21T09:59:00+05:30","2026-09-21T10:00:00+05:30","2026-09-21T10:01:00+05:30","2026-09-21T10:02:00+05:30","2026-09-21T10:03:00+05:30","2026-09-21T10:04:00+05:30","2026-09-21T10:05:00+05:30","2026-09-21T10:06:00+05:30","2026-09-21T10:07:00+05:30","2026-09-21T10:08:00+05:30","2026-09-21T10:09:00+05:30","2026-09-21T10:10:00+05:30","2026-09-21T10:11:00+05:30","2026-09-21T10:12:00+05:30","2026-09-21T10:13:00+05:30","2026-09-21T10:14:00+05:30","2026-09-21T10:15:00+05:30","2026-09-21T10:16:00+05:30","2026-09-21T10:17:00+05:30","2026-09-21T10:18:00+05:30","2026-09-21T10:19:00+05:30","2026-09-21T10:20:00+05:30","2026-09-21T10:21:00+05:30","2026-09-21T10:22:00+05:30","2026-09-21T10:23:00+05:30","2026-09-21T10:24:00+05:30","2026-09-21T10:25:00+05:30","2026-09-21T10:26:00+05:30","2026-09-21T10:27:00+05:30","2026-09-21T10:28:00+05:30","2026-09-21T10:29:00+05:30","2026-09-21T10:30:00+05:30","2026-09-21T10:31:00+05:30","2026-09-21T10:32:00+05:30","2026-09-21T10:33:00+05:30","2026-09-21T10:34:00+05:30","2026-09-21T10:35:00+05:30","2026-09-21T10:36:00+05:30","2026-09-21T10:37:00+05:30","2026-09-21T10:38:00+05:30","2026-09-21T10:39:00+05:30","2026-09-21T10:40:00+05:30","2026-09-21T10:41:00+05:30","2026-09-21T10:42:00+05:30"],"candles":[[23376.65,23382.1,23372.7,23376.15],[23376.3,23387.0,23374.55,23380.15],[23380.55,23383.55,23375.05,23376.8],[23376.65,23387.9,23375.25,23386.1],[23386.25,23391.3,23381.7,23391.15],[23390.4,23399.25,23389.8,23393.5],[23393.7,23398.6,23390.7,23392.85],[23393.25,23402.95,23391.95,23400.25],[23399.8,23406.25,23398.35,23402.9],[23402.45,23406.15,23397.15,23399.1],[23399.5,23403.3,23395.6,23397.2],[23397.35,23400.25,23395.25,23398.7],[23398.4,23398.4,23390.1,23395.85],[23396.0,23406.35,23395.75,23405.25],[23405.2,23407.8,23394.7,23396.7],[23397.6,23397.6,23389.0,23389.95],[23390.25,23396.05,23389.5,23392.35],[23392.55,23397.55,23391.3,23392.45],[23392.6,23393.9,23386.65,23387.3],[23387.7,23393.85,23385.8,23389.8],[23390.05,23393.55,23386.6,23387.05],[23387.2,23393.55,23387.2,23390.65],[23390.35,23396.95,23389.6,23393.2],[23392.6,23398.2,23392.6,23397.35],[23396.85,23401.45,23396.8,23400.8],[23400.5,23401.95,23392.9,23393.55],[23393.4,23404.35,23393.1,23402.95],[23402.45,23410.75,23400.5,23401.5],[23401.35,23405.0,23400.75,23401.3],[23401.65,23406.4,23401.65,23404.3],[23403.8,23404.85,23400.45,23402.3],[23402.35,23404.05,23397.65,23398.8],[23399.15,23400.1,23393.3,23394.55],[23394.7,23397.8,23393.6,23395.85],[23395.45,23398.3,23392.25,23393.15],[23393.05,23405.8,23392.9,23403.4],[23402.3,23403.0,23390.85,23391.95],[23390.95,23395.85,23389.55,23394.85],[23395.2,23398.9,23391.55,23392.0],[23393.2,23395.9,23391.1,23391.35],[23391.2,23392.3,23386.85,23387.45],[23387.8,23388.5,23383.55,23383.9],[23383.8,23385.4,23378.3,23382.9],[23382.5,23389.6,23381.4,23383.9],[23384.05,23385.3,23377.55,23379.9],[23380.35,23381.85,23377.2,23379.25],[23379.65,23384.65,23379.4,23383.45],[23383.75,23387.6,23383.5,23385.75],[23384.7,23388.1,23383.85,23387.1],[23387.35,23392.95,23386.45,23392.3],[23392.35,23393.25,23388.65,23389.35],[23389.55,23390.3,23378.2,23378.9],[23379.75,23379.9,23373.0,23373.65],[23374.05,23374.4,23371.45,23372.55],[23372.5,23379.45,23371.65,23378.9],[23379.4,23380.75,23374.55,23375.4],[23374.9,23381.8,23374.9,23378.0],[23378.3,23380.4,23373.55,23374.65],[23374.9,23378.25,23373.2,23373.35],[23373.3,23373.75,23369.7,23372.5],[23373.2,23376.55,23372.1,23374.4],[23374.3,23380.0,23371.3,23377.4],[23376.85,23379.75,23372.4,23373.0],[23373.05,23373.05,23366.1,23367.2],[23366.75,23370.2,23365.75,23367.9],[23367.6,23368.25,23358.75,23359.8],[23361.1,23368.35,23360.7,23367.55],[23367.5,23373.15,23366.9,23372.75],[23372.85,23373.7,23367.65,23368.1],[23368.05,23372.4,23367.75,23371.15],[23370.5,23371.35,23364.6,23366.25],[23366.75,23368.7,23360.8,23362.45],[23362.3,23363.3,23356.95,23362.2],[23361.4,23365.55,23361.3,23364.7],[23364.9,23368.9,23364.35,23366.65],[23367.65,23367.85,23364.1,23366.45],[23365.55,23370.25,23365.5,23368.15],[23367.35,23369.6,23363.75,23365.05],[23364.75,23368.2,23364.5,23365.1],[23366.25,23373.5,23365.7,23371.05],[23372.0,23377.4,23370.95,23374.05]],"prem":[99.65,101.85,99.65,102.45,103.15,104.15,104.55,106.25,106.85,106.7,105.75,105.8,105.05,107.55,105.0,102.6,102.3,102.3,100.35,100.0,100.4,100.55,101.7,103.3,104.9,102.1,105.0,105.0,105.0,105.0,104.45,102.6,102.3,102.2,102.3,104.65,101.45,102.05,100.95,99.9,99.0,97.3,97.3,97.0,95.9,96.0,96.65,98.0,98.85,100.25,98.75,96.15,94.75,94.55,95.9,94.1,95.5,94.1,94.45,94.0,93.35,94.8,93.45,92.05,92.05,91.0,92.6,93.75,93.5,93.25,92.95,91.5,91.15,90.85,91.0,90.95,91.5,90.1,90.35,92.45,93.5],"payoff":{"grid":[22750,22800,22850,22900,22950,23000,23050,23100,23150,23200,23250,23300,23350,23400,23450,23500,23550,23600,23650,23700,23750,23800,23850,23900,23950,24000,24050,24100,24150,24200,24250],"pnl":[-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-6873.75,-3623.75,-373.75,2876.25,6126.25,9376.25,12626.25,15876.25,19126.25,22376.25,25626.25,28876.25,32126.25,35376.25,38626.25,41876.25],"strike":23500.0,"premium":105.75},"entry_i":10,"exit_i":70,"strike":23500.0,"entry_premium":105.75,"exit_premium":92.95,"sl_prem":74.02,"tp_prem":169.2,"sl_pct":0.3,"tp_pct":0.6,"mae_pts":-14.75,"mfe_pts":1.8,"direction":"LONG","opt":"CE","reason":"IV cheap + +0.16%/15m; delta~0.40 @ 23500","exit_reason":"TIME","entry_spot":23397.2,"exit_spot":23366.25,"net_pnl":-893.98,"points":-13.754,"strategy":"nifty_iv_delta","symbol":"NIFTY26SEP23500CE","hold_min":60.0},{"times":["2026-09-21T11:45:00+05:30","2026-09-21T11:46:00+05:30","2026-09-21T11:47:00+05:30","2026-09-21T11:48:00+05:30","2026-09-21T11:49:00+05:30","2026-09-21T11:50:00+05:30","2026-09-21T11:51:00+05:30","2026-09-21T11:52:00+05:30","2026-09-21T11:53:00+05:30","2026-09-21T11:54:00+05:30","2026-09-21T11:55:00+05:30","2026-09-21T11:56:00+05:30","2026-09-21T11:57:00+05:30","2026-09-21T11:58:00+05:30","2026-09-21T11:59:00+05:30","2026-09-21T12:00:00+05:30","2026-09-21T12:01:00+05:30","2026-09-21T12:02:00+05:30","2026-09-21T12:03:00+05:30","2026-09-21T12:04:00+05:30","2026-09-21T12:05:00+05:30","2026-09-21T12:06:00+05:30","2026-09-21T12:07:00+05:30","2026-09-21T12:08:00+05:30","2026-09-21T12:09:00+05:30","2026-09-21T12:10:00+05:30","2026-09-21T12:11:00+05:30","2026-09-21T12:12:00+05:30","2026-09-21T12:13:00+05:30","2026-09-21T12:14:00+05:30","2026-09-21T12:15:00+05:30","2026-09-21T12:16:00+05:30","2026-09-21T12:17:00+05:30","2026-09-21T12:18:00+05:30","2026-09-21T12:19:00+05:30","2026-09-21T12:20:00+05:30","2026-09-21T12:21:00+05:30","2026-09-21T12:22:00+05:30","2026-09-21T12:23:00+05:30","2026-09-21T12:24:00+05:30","2026-09-21T12:25:00+05:30","2026-09-21T12:26:00+05:30","2026-09-21T12:27:00+05:30","2026-09-21T12:28:00+05:30","2026-09-21T12:29:00+05:30","2026-09-21T12:30:00+05:30","2026-09-21T12:31:00+05:30","2026-09-21T12:32:00+05:30","2026-09-21T12:33:00+05:30","2026-09-21T12:34:00+05:30","2026-09-21T12:35:00+05:30","2026-09-21T12:36:00+05:30","2026-09-21T12:37:00+05:30","2026-09-21T12:38:00+05:30","2026-09-21T12:39:00+05:30","2026-09-21T12:40:00+05:30","2026-09-21T12:41:00+05:30","2026-09-21T12:42:00+05:30","2026-09-21T12:43:00+05:30","2026-09-21T12:44:00+05:30","2026-09-21T12:45:00+05:30","2026-09-21T12:46:00+05:30","2026-09-21T12:47:00+05:30","2026-09-21T12:48:00+05:30","2026-09-21T12:49:00+05:30","2026-09-21T12:50:00+05:30","2026-09-21T12:51:00+05:30","2026-09-21T12:52:00+05:30","2026-09-21T12:53:00+05:30","2026-09-21T12:54:00+05:30","2026-09-21T12:55:00+05:30","2026-09-21T12:56:00+05:30","2026-09-21T12:57:00+05:30","2026-09-21T12:58:00+05:30","2026-09-21T12:59:00+05:30","2026-09-21T13:00:00+05:30","2026-09-21T13:01:00+05:30","2026-09-21T13:02:00+05:30","2026-09-21T13:03:00+05:30","2026-09-21T13:04:00+05:30","2026-09-21T13:05:00+05:30"],"candles":[[23402.5,23404.8,23400.95,23402.3],[23403.05,23403.75,23395.75,23398.55],[23397.55,23399.4,23394.5,23395.6],[23396.35,23402.6,23396.25,23398.95],[23399.25,23401.95,23397.7,23398.5],[23398.0,23400.4,23397.75,23399.75],[23399.8,23402.0,23398.4,23400.4],[23401.0,23406.7,23400.95,23405.1],[23405.5,23410.55,23404.75,23409.3],[23409.3,23416.85,23409.3,23416.25],[23417.2,23419.25,23414.2,23416.75],[23417.2,23421.65,23416.5,23419.9],[23420.35,23422.25,23418.7,23419.7],[23420.85,23430.75,23420.6,23426.9],[23427.8,23431.3,23423.65,23425.45],[23425.95,23434.05,23425.45,23430.25],[23430.8,23431.3,23425.0,23429.25],[23428.9,23430.1,23423.45,23424.3],[23425.25,23427.3,23419.5,23421.1],[23422.2,23426.3,23419.7,23425.05],[23424.8,23426.55,23421.6,23422.1],[23423.3,23427.0,23422.05,23423.0],[23423.75,23426.8,23418.8,23418.85],[23419.35,23424.7,23417.95,23420.7],[23420.55,23421.05,23414.25,23415.55],[23415.75,23417.1,23411.15,23412.9],[23413.9,23419.1,23413.5,23417.8],[23417.85,23419.15,23414.5,23416.55],[23416.05,23419.3,23415.55,23418.35],[23419.15,23419.85,23415.95,23417.55],[23418.4,23419.4,23414.55,23417.6],[23418.65,23419.95,23416.55,23417.95],[23418.35,23418.6,23414.9,23415.35],[23415.65,23419.1,23414.3,23415.65],[23415.6,23419.25,23414.9,23418.45],[23418.8,23419.55,23414.3,23415.8],[23415.8,23422.1,23415.8,23420.25],[23420.25,23421.5,23411.4,23412.35],[23412.05,23415.7,23409.65,23411.2],[23411.35,23415.1,23410.65,23413.95],[23414.65,23416.5,23413.4,23415.1],[23414.75,23420.65,23414.6,23416.1],[23416.25,23419.45,23415.1,23416.7],[23417.3,23420.65,23416.1,23417.5],[23419.1,23421.0,23418.25,23419.45],[23419.75,23423.0,23419.3,23422.85],[23424.0,23424.25,23418.6,23419.45],[23419.45,23422.6,23414.9,23415.75],[23416.05,23417.95,23409.95,23412.3],[23412.35,23415.7,23412.1,23414.9],[23415.8,23416.9,23412.4,23414.7],[23414.9,23416.55,23413.1,23414.4],[23414.65,23417.7,23414.15,23415.0],[23415.45,23417.5,23414.25,23415.55],[23416.55,23416.9,23411.1,23412.5],[23412.75,23414.6,23409.9,23413.05],[23413.35,23413.75,23407.95,23410.85],[23410.65,23413.2,23410.1,23410.8],[23411.65,23413.0,23410.15,23410.55],[23411.3,23415.75,23409.85,23414.45],[23414.65,23416.45,23413.2,23415.55],[23415.8,23417.25,23414.2,23414.7],[23415.7,23415.85,23412.05,23413.9],[23413.6,23414.7,23411.7,23413.0],[23413.3,23414.2,23411.25,23413.6],[23413.4,23414.15,23410.5,23413.45],[23413.1,23415.45,23411.05,23414.1],[23414.95,23415.6,23411.4,23412.55],[23411.45,23414.2,23410.6,23412.75],[23414.1,23417.55,23413.85,23415.1],[23416.4,23418.0,23414.1,23415.25],[23415.45,23417.25,23413.25,23415.3],[23416.05,23417.85,23413.65,23415.25],[23414.45,23417.25,23411.95,23414.1],[23414.45,23415.65,23411.95,23412.65],[23412.4,23413.55,23410.3,23410.4],[23410.05,23414.0,23409.95,23413.1],[23412.4,23415.45,23411.7,23414.1],[23412.95,23415.2,23406.4,23406.75],[23406.3,23407.95,23403.25,23405.75],[23404.8,23410.55,23403.35,23407.85]],"prem":[149.15,147.75,146.6,147.7,147.75,149.35,148.85,150.9,152.7,156.75,155.95,158.7,159.5,160.75,159.0,161.0,159.3,157.8,156.05,158.5,157.8,158.35,157.15,156.95,156.5,154.55,157.1,156.8,157.95,158.7,158.55,158.25,157.1,156.05,157.1,157.75,158.35,157.35,155.15,156.1,155.55,156.0,156.7,156.7,157.95,159.0,157.3,156.45,155.35,157.55,156.15,155.7,156.1,155.35,155.25,155.5,152.3,154.0,153.45,156.05,156.9,157.0,154.4,154.65,154.4,154.15,154.85,152.7,152.85,154.65,154.8,155.5,155.65,154.9,153.35,152.6,154.9,153.75,150.6,150.2,150.0],"payoff":{"grid":[22650,22700,22750,22800,22850,22900,22950,23000,23050,23100,23150,23200,23250,23300,23350,23400,23450,23500,23550,23600,23650,23700,23750,23800,23850,23900,23950,24000,24050,24100,24150],"pnl":[-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-10136.75,-6886.75,-3636.75,-386.75,2863.25,6113.25,9363.25,12613.25,15863.25,19113.25,22363.25,25613.25,28863.25,32113.25,35363.25,38613.25],"strike":23400.0,"premium":155.95},"entry_i":10,"exit_i":70,"strike":23400.0,"entry_premium":155.95,"exit_premium":154.8,"sl_prem":109.16,"tp_prem":249.52,"sl_pct":0.3,"tp_pct":0.6,"mae_pts":-3.65,"mfe_pts":5.05,"direction":"LONG","opt":"CE","reason":"ORB up break 23416>23400","exit_reason":"TIME","entry_spot":23416.75,"exit_spot":23415.25,"net_pnl":-145.96,"points":-2.246,"strategy":"nifty_momentum","symbol":"NIFTY26SEP23400CE","hold_min":60.0}],"days":[{"date":"2026-09-21","n_trades":4,"net_pnl":-2222.39,"expiry":"2026-09-29","dte":8,"coverage_pct":100.0,"spot_open":23345.0,"spot_close":23414.3,"spot_range":[23345.0,23464.75]},{"date":"2026-09-22","n_trades":5,"net_pnl":1290.68,"expiry":"2026-09-29","dte":7,"coverage_pct":100.0,"spot_open":23451.85,"spot_close":23329.0,"spot_range":[23288.65,23467.05]},{"date":"2026-09-23","n_trades":5,"net_pnl":86.47,"expiry":"2026-09-29","dte":6,"coverage_pct":100.0,"spot_open":23354.8,"spot_close":23446.8,"spot_range":[23352.6,23462.85]},{"date":"2026-09-24","n_trades":7,"net_pnl":2060.68,"expiry":"2026-09-29","dte":5,"coverage_pct":100.0,"spot_open":23258.6,"spot_close":23063.1,"spot_range":[23047.85,23270.25]},{"date":"2026-09-25","n_trades":5,"net_pnl":-3815.52,"expiry":"2026-09-29","dte":4,"coverage_pct":100.0,"spot_open":23088.8,"spot_close":23140.5,"spot_range":[23028.9,23153.9]}],"caveats":["This is a replay of recorded 1-minute option prints on a single random week \u2014 it is a demonstration, not a backtest of an edge, and not advice.","No lookahead: a signal is taken on the close of a completed bar and filled at the next bar's recorded premium.","No profit exit on the fill bar, and the stop is checked before the target on every bar.","No overnight carry: every position flattens at the strategy's end-of-day cut.","Costs are the real Upstox 2026 schedule (\u20b920/order, 0.15% STT on the sell premium, NSE txn, SEBI, IPFT, stamp, 18% GST).","The expiry payoff diagram is shown gross of costs and assumes a hold to expiry; the strategies exit intraday, so it depicts structure, not the realised result.","Greeks use Black-76 on the parity-implied forward, a flat 6.5% rate, calendar time floored at 15 minutes; the ATM implied vol is used as the leg's IV proxy.","The 2026 1-minute panel carries no open interest (it was fetched without it), so OI walls / PCR / dealer gamma are unavailable and the OI-wall strategy cannot signal on these sessions.","The panel holds only contracts that were still listed on the fetch date (2026-09-26) \u2014 FYERS did not serve expired contracts \u2014 so the nearest available expiry is used and early sessions cannot trade a front weekly. Sessions are filtered to those within --max-dte days of that expiry."],"skipped_strategies":["nifty_wall_bounce","stock_momentum"]}</script>
+
+<script>
+"use strict";
+/* ---------- data ---------- */
+function loadData(){
+  var raw=(document.getElementById("screen-data").textContent||"").trim();
+  if(raw.charAt(0)==="{"){ try{ return JSON.parse(raw); }catch(e){} }
+  try{ return JSON.parse(document.getElementById("demo-data").textContent); }
+  catch(e){ return null; }
+}
+var D=loadData();
+
+/* ---------- helpers ---------- */
+function num(x){ x=Number(x); return isFinite(x)?x:0; }
+function arr(x){ return Array.isArray(x)?x:[]; }
+function fmtM(x){ x=num(x); var s=Math.abs(x)>=1000?Math.round(x).toLocaleString("en-IN"):x.toFixed(2);
+  return (x<0?"-":"")+"\u20b9"+s.replace("-",""); }
+function fmtP(x){ x=num(x); return (x<0?"":"")+x.toFixed(2); }
+function pct(x){ return (num(x)*100).toFixed(1)+"%"; }
+function cls(x){ return num(x)>0?"up":(num(x)<0?"dn":""); }
+function el(t,a,kids){ var n=document.createElementNS("http://www.w3.org/2000/svg",t);
+  for(var k in (a||{})) n.setAttribute(k,a[k]); (kids||[]).forEach(function(c){n.appendChild(c);}); return n; }
+function svg(w,h){ return el("svg",{viewBox:"0 0 "+w+" "+h,preserveAspectRatio:"xMidYMid meet"}); }
+function svgText(x,y,s,a){ var n=el("text",Object.assign({x:x,y:y,fill:"#8B949E","font-size":10},a||{}));
+  n.textContent=s; return n; }
+function host(id){ return document.getElementById(id); }
+function money(x){ return "\u20b9"+Math.round(num(x)).toLocaleString("en-IN"); }
+
+var C={up:"#3FB950",down:"#F85149",info:"#58A6FF",warn:"#D29922",pur:"#A371F7",
+  teal:"#39D2C0",accent:"#1F6FEB",grid:"#21262D",zero:"#484F58",txt:"#E6EDF3",dim:"#8B949E"};
+var PAL=[C.info,C.teal,C.pur,C.warn,C.up,C.down,C.accent];
+
+/* Generic line chart. cfg={series:[{name,color,pts:[[x,y]..]}],xlabels:[{i,label}],
+   yLabel,vlines:[{x,label,color}],height,zero:true,xfmt,yfmt} */
+function svgLine(cfg){
+  var series=arr(cfg.series);
+  var pts=[]; series.forEach(function(se){ arr(se.pts).forEach(function(p){ if(isFinite(num(p[1]))) pts.push(p); }); });
+  if(!pts.length){ return null; }
+  var W=1100,HH=cfg.height||280,P={l:62,r:76,t:14,b:28};
+  var iw=W-P.l-P.r, ih=HH-P.t-P.b;
+  var xs=pts.map(function(p){return num(p[0]);});
+  var x0=Math.min.apply(null,xs), x1=Math.max.apply(null,xs); if(x1===x0) x1=x0+1;
+  var ys=pts.map(function(p){return num(p[1]);});
+  var y0=Math.min.apply(null,ys), y1=Math.max.apply(null,ys);
+  if(cfg.zero!==false){ y0=Math.min(y0,0); y1=Math.max(y1,0); }
+  if(y1===y0){ y1=y0+1; }
+  var pad=(y1-y0)*0.08; y0-=pad; y1+=pad;
+  var X=function(x){ return P.l+iw*(num(x)-x0)/(x1-x0); };
+  var Y=function(y){ return P.t+ih*(1-(num(y)-y0)/(y1-y0)); };
+  var yfmt=cfg.yfmt||function(v){return v.toFixed(0);};
+  var s=svg(W,HH);
+  for(var g=0;g<=4;g++){ var yv=y0+(y1-y0)*g/4, yy=Y(yv);
+    s.appendChild(el("line",{x1:P.l,x2:W-P.r,y1:yy,y2:yy,stroke:C.grid,"stroke-width":1}));
+    s.appendChild(svgText(P.l-9,yy+3,yfmt(yv),{"text-anchor":"end"})); }
+  if(y0<0&&y1>0){ s.appendChild(el("line",{x1:P.l,x2:W-P.r,y1:Y(0),y2:Y(0),stroke:C.zero,"stroke-width":1.4})); }
+  arr(cfg.hlines).forEach(function(L){ var yv=num(L.y); if(yv<y0||yv>y1) return;
+    s.appendChild(el("line",{x1:P.l,x2:W-P.r,y1:Y(yv),y2:Y(yv),stroke:L.color||C.dim,
+      "stroke-width":1,"stroke-dasharray":L.dash||"4 4",opacity:0.85}));
+    if(L.label) s.appendChild(svgText(W-P.r+5,Y(yv)+3,L.label,{fill:L.color||C.dim,"font-size":10})); });
+  arr(cfg.vlines).forEach(function(v){ if(num(v.x)<x0||num(v.x)>x1) return; var xx=X(v.x);
+    s.appendChild(el("line",{x1:xx,x2:xx,y1:P.t,y2:P.t+ih,stroke:v.color||C.zero,
+      "stroke-width":1,"stroke-dasharray":v.dash||"4 4",opacity:0.7}));
+    if(v.label) s.appendChild(svgText(xx+3,P.t+10,v.label,{fill:v.color||C.dim,"font-size":10})); });
+  series.forEach(function(se,si){ var col=se.color||PAL[si%PAL.length];
+    var good=arr(se.pts).filter(function(p){return isFinite(num(p[1]));});
+    var d=good.map(function(p,i){ return (i?"L":"M")+X(p[0])+" "+Y(p[1]); }).join(" ");
+    if(se.area){ var d0=good.map(function(p,i){return (i?"L":"M")+X(p[0])+" "+Y(Math.max(y0,0));}).join(" ");
+      s.appendChild(el("path",{d:d+" "+d0.slice(1)+"Z",fill:col,opacity:0.10})); }
+    s.appendChild(el("path",{d:d,fill:"none",stroke:col,"stroke-width":1.9,
+      "stroke-linejoin":"round","stroke-linecap":"round"})); });
+  arr(cfg.markers).forEach(function(m){ var x=X(m.x), y=Y(m.y), col=m.color||C.info;
+    if(m.shape==="tri"){ s.appendChild(el("polygon",{points:(x-5)+","+(y-5)+" "+(x+5)+","+(y-5)+" "+x+","+(y+5),
+      fill:col,stroke:"#0D1117","stroke-width":1})); }
+    else { s.appendChild(el("circle",{cx:x,cy:y,r:4.5,fill:col,stroke:"#0D1117","stroke-width":1.2})); }
+    if(m.label) s.appendChild(svgText(x+7,y-6,m.label,{fill:col,"font-size":10})); });
+  arr(cfg.xlabels).forEach(function(L){ s.appendChild(svgText(X(L.i),P.t+ih+16,L.label,{"text-anchor":"middle"})); });
+  if(cfg.yLabel) s.appendChild(svgText(P.l+6,P.t-3,cfg.yLabel,{"text-anchor":"start",fill:C.dim,"font-size":10}));
+  return s;
+}
+function lineChart(hostId,cfg){ var H=host(hostId); if(!H) return; H.innerHTML="";
+  var n=svgLine(cfg); if(n) H.appendChild(n); else H.innerHTML='<div class="muted">no data</div>'; }
+
+/* Candlesticks. cfg={candles:[[o,h,l,c]], times:[iso], lines:[{price,color,label}],
+   markers:[{i,price,color,label,shape}], span:[i0,i1], height, yLabel} */
+function svgCandles(cfg){
+  var cs=arr(cfg.candles); if(!cs.length) return null;
+  var W=1100,H=cfg.height||300,P={l:62,r:16,t:14,b:26};
+  var iw=W-P.l-P.r, ih=H-P.t-P.b, n=cs.length;
+  var his=[],los=[];
+  cs.forEach(function(k){ his.push(num(k[1])); los.push(num(k[2])); });
+  arr(cfg.markers).forEach(function(m){ his.push(num(m.price)); los.push(num(m.price)); });
+  // NOTE: reference lines are deliberately NOT in the y-range — a far strike
+  // would otherwise squash the whole price action into a thin band.
+  var y1=Math.max.apply(null,his), y0=Math.min.apply(null,los);
+  if(y1===y0){ y1=y0+1; }
+  var pad=(y1-y0)*0.08; y0-=pad; y1+=pad;
+  var X=function(i){ return P.l+iw*(n<=1?0.5:(i+0.5)/n); };
+  var Y=function(v){ return P.t+ih*(1-(num(v)-y0)/(y1-y0)); };
+  var s=svg(W,H);
+  for(var g=0;g<=4;g++){ var yv=y0+(y1-y0)*g/4, yy=Y(yv);
+    s.appendChild(el("line",{x1:P.l,x2:W-P.r,y1:yy,y2:yy,stroke:C.grid,"stroke-width":1}));
+    s.appendChild(svgText(P.l-9,yy+3,num(yv).toFixed(0),{"text-anchor":"end"})); }
+  // held-span band
+  var sp=arr(cfg.span);
+  if(sp.length===2){ var xa=X(num(sp[0])), xb=X(num(sp[1]));
+    s.appendChild(el("rect",{x:xa,y:P.t,width:Math.max(1,xb-xa),height:ih,fill:C.info,opacity:0.06})); }
+  var bw=Math.max(1.5,Math.min(9,iw/n*0.62));
+  cs.forEach(function(k,i){ var o=num(k[0]),h=num(k[1]),l=num(k[2]),c=num(k[3]);
+    var col=(c>=o)?C.up:C.down, x=X(i);
+    s.appendChild(el("line",{x1:x,x2:x,y1:Y(h),y2:Y(l),stroke:col,"stroke-width":1,opacity:0.85}));
+    var yt=Y(Math.max(o,c)), yb=Y(Math.min(o,c));
+    s.appendChild(el("rect",{x:x-bw/2,y:yt,width:bw,height:Math.max(1,yb-yt),fill:col,
+      stroke:col,"stroke-width":0.6,rx:1})); });
+  arr(cfg.lines).forEach(function(L){ var yv=num(L.price), inr=(yv>=y0&&yv<=y1);
+    var yy=inr?Y(yv):(yv>y1?P.t+1:P.t+ih-1);
+    s.appendChild(el("line",{x1:P.l,x2:W-P.r,y1:yy,y2:yy,stroke:L.color||C.dim,
+      "stroke-width":1.2,"stroke-dasharray":L.dash||"5 4",opacity:inr?0.9:0.6}));
+    if(L.label) s.appendChild(svgText(W-P.r-3,yy+(yv>y1?11:-4),
+      L.label+(inr?"":" "+(yv>y1?"\u2191":"\u2193")),{"text-anchor":"end",fill:L.color||C.dim,"font-size":10})); });
+  arr(cfg.markers).forEach(function(m){ var x=X(num(m.i)), y=Y(m.price);
+    if(m.shape==="tri"){ s.appendChild(el("polygon",{points:(x-5)+","+(y+6)+" "+(x+5)+","+(y+6)+" "+x+","+(y-4),
+      fill:m.color,stroke:"#0D1117","stroke-width":1})); }
+    else { s.appendChild(el("circle",{cx:x,cy:y,r:4.5,fill:m.color,stroke:"#0D1117","stroke-width":1.2})); }
+    if(m.label) s.appendChild(svgText(x+7,y-6,m.label,{fill:m.color,"font-size":10})); });
+  var tl=arr(cfg.times);
+  if(tl.length>1){ [0,0.25,0.5,0.75,1].forEach(function(f){
+    var i=Math.min(n-1,Math.round(f*(n-1))); var t=String(tl[i]||"");
+    s.appendChild(svgText(X(i),P.t+ih+16,t.slice(11,16),{"text-anchor":"middle"})); }); }
+  if(cfg.yLabel) s.appendChild(svgText(P.l+6,P.t-3,cfg.yLabel,{"text-anchor":"start",fill:C.dim,"font-size":10}));
+  return s;
+}
+
+/* MAE/MFE excursion: one row per trade, stop/target as lines, exit as a dot. */
+function svgExcursion(rows){
+  rows=arr(rows); if(!rows.length) return null;
+  var W=1100,rh=30,H=rows.length*rh+40,P={l:340,r:60,t:18,b:26};
+  var iw=W-P.l-P.r;
+  var vals=[]; rows.forEach(function(r){ vals.push(num(r.mae_pts),num(r.mfe_pts),num(r.points),0); });
+  var lo=Math.min.apply(null,vals), hi=Math.max.apply(null,vals);
+  var pad=(hi-lo)*0.08||1; lo-=pad; hi+=pad;
+  var X=function(v){ return P.l+iw*(num(v)-lo)/(hi-lo); };
+  var s=svg(W,H);
+  s.appendChild(el("line",{x1:X(0),x2:X(0),y1:P.t-6,y2:H-P.b+2,stroke:C.zero,"stroke-width":1.4}));
+  s.appendChild(svgText(X(0),H-8,"0",{"text-anchor":"middle"}));
+  s.appendChild(svgText(X(lo+pad),H-8, (lo+pad).toFixed(0),{"text-anchor":"middle",fill:C.dim}));
+  s.appendChild(svgText(X(hi-pad),H-8,(hi-pad).toFixed(0),{"text-anchor":"middle",fill:C.dim}));
+  rows.forEach(function(r,i){ var y=P.t+i*rh+rh/2;
+    var xa=X(Math.min(num(r.mae_pts),num(r.mfe_pts))), xb=X(Math.max(num(r.mae_pts),num(r.mfe_pts)));
+    s.appendChild(el("line",{x1:xa,x2:xb,y1:y,y2:y,stroke:C.info,"stroke-width":6,opacity:0.35,"stroke-linecap":"round"}));
+    s.appendChild(el("circle",{cx:X(num(r.points)),cy:y,r:3.4,fill:num(r.net_pnl)>=0?C.info:C.warn}));
+    s.appendChild(svgText(P.l-6,y+3,String(r.label||"").slice(0,54),{"text-anchor":"end",fill:C.dim,"font-size":10}));
+    if(r.stop_pts!==undefined && num(r.stop_pts)>=lo && num(r.stop_pts)<=hi)
+      s.appendChild(el("line",{x1:X(r.stop_pts),x2:X(r.stop_pts),y1:y-7,y2:y+7,stroke:C.down,"stroke-dasharray":"3 2"}));
+    if(r.target_pts!==undefined && num(r.target_pts)>=lo && num(r.target_pts)<=hi)
+      s.appendChild(el("line",{x1:X(r.target_pts),x2:X(r.target_pts),y1:y-7,y2:y+7,stroke:C.up,"stroke-dasharray":"3 2"})); });
+  return s;
+}
+function legend(id,items){ var H=host(id); if(!H) return; H.innerHTML="";
+  items.forEach(function(it){ var sp=document.createElement("span");
+    var sw=document.createElement("i"); sw.className="sw"; sw.style.background=it.color;
+    sp.appendChild(sw); sp.appendChild(document.createTextNode(it.name+(it.extra?" "+it.extra:""))); H.appendChild(sp); }); }
+
+/* ---------- header + kpis ---------- */
+function render(){
+  var m=D.meta||{}, t=D.totals||{}, wk=arr(m.week);
+  document.title=(m.title||"Options paper")+" — "+(wk[0]||"")+" to "+(wk[wk.length-1]||"");
+  host("title").textContent=m.title||"Options paper — live-simulation replay";
+  host("subtitle").textContent="Week "+(wk[0]||"?")+" \u2192 "+(wk[wk.length-1]||"?")
+    +"  ·  "+arr(D.days).length+" sessions  ·  expiry "+m.expiry+"  ·  DTE "+m.dte
+    +"  ·  "+m.lots+" lot \u00d7 "+m.lot_size+"  ·  "+(m.scope||"")
+    +"  ·  cost model: "+(m.cost_model||"");
+  host("note").textContent=m.note||"";
+  host("gen").textContent=m.generated_at||"";
+
+  var capital=num(m.capital), end=capital+num(t.net_pnl);
+  var k=[["Net P&L",money(t.net_pnl),"of "+money(t.gross_pnl)+" gross",cls(t.net_pnl)],
+    ["Net points",fmtP(t.net_points),( num(t.net_points)>=0?"":"")+"per unit",cls(t.net_points)],
+    ["Trades",String(num(t.n_trades)),num(t.n_win)+"W / "+num(t.n_loss)+"L",""],
+    ["Win rate",pct(t.win_rate),"",num(t.win_rate)>=0.5?"up":"dn"],
+    ["Cost drag",pct(t.cost_drag_pct),"costs \u00f7 |gross|",num(t.cost_drag_pct)>0.5?"dn":"up"],
+    ["Best / worst",money(t.best)," / "+money(t.worst),""],
+    ["Equity",money(end),"from "+money(capital),(end>=capital?"up":"dn")]];
+  var kp=host("kpis"); kp.innerHTML="";
+  k.forEach(function(row){ var d=document.createElement("div"); d.className="kpi";
+    d.innerHTML='<div class="k">'+row[0]+'</div><div class="v '+row[3]+'">'+row[1]
+      +'</div><div class="s">'+row[2]+'</div>'; kp.appendChild(d); });
+
+  renderDays(); renderByStrat(); renderPayoff(); renderEquity();
+  renderExcursion(); renderTradeCharts();
+  renderGreeks(); renderAttrib(); renderTrades(); renderCaveats();
+}
+
+function renderDays(){
+  var H=host("days"); if(!H) return; var rows=arr(D.days);
+  if(!rows.length){ H.innerHTML='<div class="muted">no sessions</div>'; return; }
+  var h='<table><tr><th>Date</th><th>Expiry</th><th>DTE</th><th>Cov %</th><th>Open</th>'
+    +'<th>Close</th><th>Range</th><th>Trades</th><th>Net</th></tr>';
+  rows.forEach(function(r){ var rng=arr(r.spot_range);
+    h+='<tr><td>'+r.date+'</td><td>'+(r.expiry||"")+'</td><td>'+num(r.dte)+'</td>'
+      +'<td>'+num(r.coverage_pct).toFixed(0)+'</td><td>'+num(r.spot_open).toFixed(1)+'</td>'
+      +'<td>'+num(r.spot_close).toFixed(1)+'</td><td>'+(rng.length?(num(rng[0]).toFixed(0)+"\u2013"+num(rng[1]).toFixed(0)):"")
+      +'</td><td>'+num(r.n_trades)+'</td><td class="'+cls(r.net_pnl)+'">'+money(r.net_pnl)+'</td></tr>'; });
+  H.innerHTML=h+"</table>";
+}
+
+function renderByStrat(){
+  var H=host("byStrat"); if(!H) return; var rows=arr(D.by_strategy);
+  if(!rows.length){ H.innerHTML='<div class="muted">no trades</div>'; return; }
+  var mx=Math.max.apply(null,rows.map(function(r){return Math.abs(num(r.net_pnl));}).concat([1]));
+  var h='<table><tr><th>Strategy</th><th>Trades</th><th>Win</th><th>Net points</th>'
+    +'<th>Gross</th><th>Costs</th><th>Net</th><th style="text-align:left">Relative</th></tr>';
+  rows.forEach(function(r){ var w=Math.max(2,Math.abs(num(r.net_pnl))/mx*120);
+    h+='<tr><td>'+(r.label||r.strategy)+'</td><td>'+num(r.n_trades)+'</td><td>'+pct(r.win_rate)+'</td>'
+      +'<td class="'+cls(r.net_points)+'">'+fmtP(r.net_points)+'</td><td>'+money(r.gross_pnl)+'</td>'
+      +'<td>'+money(r.costs)+'</td><td class="'+cls(r.net_pnl)+'"><b>'+money(r.net_pnl)+'</b></td>'
+      +'<td style="text-align:left"><span class="bar'+(num(r.net_pnl)<0?" neg":"")+'" style="width:'+w+'px"></span></td></tr>'; });
+  H.innerHTML=h+"</table>";
+}
+
+/* ---------- payoff ---------- */
+var payoffIdx=0;
+function renderPayoff(){
+  var exps=arr((D.payoff||{}).expiries), tabs=host("payoffTabs");
+  if(tabs){ tabs.innerHTML=""; exps.forEach(function(e,i){ var b=document.createElement("button");
+    b.textContent=e.label||("structure "+(i+1)); b.className=(i===payoffIdx?"on":"");
+    b.onclick=function(){ payoffIdx=i; renderPayoff(); }; tabs.appendChild(b); }); }
+  var box=host("payoff"); if(!box) return;
+  if(!exps.length){ box.innerHTML='<div class="muted">no structure</div>'; legend("payoffLegend",[]); return; }
+  var e=exps[Math.min(payoffIdx,exps.length-1)];
+  var grid=arr(e.spot_grid), lines=arr(e.lines), series=[], vlines=[], leg=[];
+  lines.forEach(function(L,i){ var col=L.direction==="SHORT"?C.warn:PAL[i%PAL.length];
+    if(L.direction==="SHORT"&&i>0) col=PAL[i%PAL.length];
+    series.push({name:(L.strategy||"")+" "+(L.opt||"")+(L.direction==="SHORT"?" (short)":" (long)"),
+      color:col,pts:grid.map(function(s,j){return [s,num(arr(L.pnl)[j])];})});
+    vlines.push({x:L.strike,color:col}); leg.push({name:(L.strategy||"")+" \u00b7 "+(L.opt||"")+" @ "+num(L.strike).toFixed(0),
+      color:col,extra:" \u20b9"+num(L.premium).toFixed(2)+" \u00d7 "+num(L.qty)}); });
+  var es=num(lines[0]&&lines[0].entry_spot);
+  if(es>0) vlines.push({x:es,color:C.dim,dash:"1 4",label:"entry "+es.toFixed(0)});
+  lineChart("payoff",{series:series,vlines:vlines,height:400,yLabel:"P&L \u20b9",
+    yfmt:function(v){return (v/1000).toFixed(0)+"k";},
+    xlabels:[{i:grid[0],label:num(grid[0]).toFixed(0)},
+      {i:grid[Math.floor(grid.length/2)],label:num(grid[Math.floor(grid.length/2)]).toFixed(0)},
+      {i:grid[grid.length-1],label:num(grid[grid.length-1]).toFixed(0)}]});
+  legend("payoffLegend",leg);
+}
+
+/* ---------- equity ---------- */
+function renderEquity(){
+  var eq=arr(D.equity), box=host("equity"); if(!box) return;
+  if(!eq.length){ box.innerHTML='<div class="muted">no trades</div>'; legend("equityLegend",[]); return; }
+  var pts=eq.map(function(p,i){return [i,num(p.cum_net)];});
+  var seen={},xl=[];
+  eq.forEach(function(p,i){ if(!seen[p.day]){seen[p.day]=1;
+    xl.push({i:i,label:(p.day||"").slice(5)});} });
+  lineChart("equity",{series:[{name:"cumulative net",color:C.info,pts:pts,area:true}],
+    height:360,yLabel:"\u20b9",xlabels:xl,yfmt:function(v){return (v/1000).toFixed(1)+"k";}});
+  legend("equityLegend",[{name:"cumulative net P&L ("+eq.length+" closed trades)",color:C.info}]);
+}
+
+/* ---------- greeks ---------- */
+function renderGreeks(){
+  var gs=arr(D.greeks_series), box=host("greekChips");
+  if(box){ box.innerHTML="";
+    if(gs.length){ var last=gs[gs.length-1];
+      [["\u0394 delta",num(last.delta).toFixed(3)],["\u0393 gamma",num(last.gamma).toFixed(5)],
+       ["\u0398 theta",num(last.theta).toFixed(2)],["\u03bd vega",num(last.vega).toFixed(2)]]
+      .forEach(function(c){ var sp=document.createElement("span"); sp.className="chip";
+        sp.innerHTML=c[0]+" <b>"+c[1]+"</b>"; box.appendChild(sp); }); } }
+  if(!gs.length){ ["gDelta","gTheta","gVega","gGamma"].forEach(function(id){
+    var H=host(id); if(H) H.innerHTML='<div class="muted">no data</div>'; }); return; }
+  var xs=gs.map(function(_,i){return i;});
+  var xl=[]; var seen={};
+  gs.forEach(function(p,i){ if(!seen[p.day]){seen[p.day]=1; xl.push({i:i,label:(p.day||"").slice(5)});} });
+  [["gDelta","delta",C.info],["gTheta","theta",C.warn],["gVega","vega",C.teal],["gGamma","gamma",C.pur]]
+  .forEach(function(def){
+    lineChart(def[0],{series:[{name:def[1],color:def[2],
+      pts:gs.map(function(p,i){return [i,num(p[def[1]])];})}],height:210,xlabels:xl,
+      yfmt:function(v){return Math.abs(v)>=100?v.toFixed(0):v.toFixed(Math.abs(v)<1?4:2);}});
+  });
+}
+
+/* ---------- attribution ---------- */
+function renderAttrib(){
+  var rows=arr(D.attribution), box=host("attrib"); if(!box) return;
+  if(!rows.length){ box.innerHTML='<div class="muted">no data</div>'; legend("attribLegend",[]); return; }
+  var keys=[["delta_pnl","delta",C.info],["gamma_pnl","gamma",C.pur],
+    ["theta_pnl","theta",C.warn],["vega_pnl","vega",C.teal]];
+  var W=1100,gw=W/rows.length,HH=250,P={l:66,r:18,t:14,b:46},ih=HH-P.t-P.b;
+  var vals=[]; rows.forEach(function(r){ keys.forEach(function(k){vals.push(num(r[k[0]]));});
+    vals.push(num(r.actual)); vals.push(num(r.residual)); });
+  var lo=Math.min.apply(null,vals.concat([0])), hi=Math.max.apply(null,vals.concat([0]));
+  var pad=(hi-lo)*0.1||1; lo-=pad; hi+=pad;
+  var Y=function(v){ return P.t+ih*(1-(num(v)-lo)/(hi-lo)); };
+  var s=svg(W,HH);
+  for(var g=0;g<=4;g++){ var yv=lo+(hi-lo)*g/4; s.appendChild(
+    el("line",{x1:P.l,x2:W-P.r,y1:Y(yv),y2:Y(yv),stroke:C.grid}));
+    s.appendChild(svgText(P.l-8,Y(yv)+3,yv.toFixed(2),{"text-anchor":"end"})); }
+  if(lo<0&&hi>0) s.appendChild(el("line",{x1:P.l,x2:W-P.r,y1:Y(0),y2:Y(0),stroke:C.zero,"stroke-width":1.4}));
+  rows.forEach(function(r,ri){
+    var cx=P.l+gw*(ri+0.5), bw=Math.min(22,gw/(keys.length+1.2));
+    keys.forEach(function(k,ki){ var v=num(r[k[0]]), x=cx+(ki-(keys.length-1)/2)*bw;
+      var y0=Y(0), y1=Y(v); s.appendChild(el("rect",{x:x,y:Math.min(y0,y1),width:bw*0.86,
+        height:Math.max(1,Math.abs(y1-y0)),fill:k[2],rx:1.5})); });
+    var ax=cx+(keys.length/2+0.35)*bw, ay=Y(num(r.actual));
+    s.appendChild(el("line",{x1:ax-6,x2:ax+6,y1:ay,y2:ay,stroke:C.txt,"stroke-width":2}));
+    var ry=Y(num(r.residual));
+    s.appendChild(el("circle",{cx:cx+(keys.length/2+0.9)*bw,cy:ry,r:3,fill:C.down}));
+    s.appendChild(svgText(cx,HH-P.b+16,(r.strategy||"").slice(0,12),{"text-anchor":"middle",fill:C.dim}));
+    s.appendChild(svgText(cx,HH-P.b+30,"resid "+num(r.residual).toFixed(2),{"text-anchor":"middle",fill:C.down})); });
+  box.innerHTML=""; box.appendChild(s);
+  legend("attribLegend",keys.map(function(k){return {name:k[1],color:k[2]};})
+    .concat([{name:"actual (bar)",color:C.txt},{name:"residual (dot)",color:C.down}]));
+}
+
+/* ---------- trades ---------- */
+var sortKey="entry_time", sortDir=1;
+function renderTrades(){
+  var H=host("trades"); if(!H) return; var rows=arr(D.trades).slice();
+  if(!rows.length){ H.innerHTML='<div class="muted">no trades</div>'; return; }
+  rows.sort(function(a,b){ var x=a[sortKey],y=b[sortKey];
+    if(typeof x==="number"||typeof y==="number"){} else {x=String(x);y=String(y);}
+    return (x<y?-1:x>y?1:0)*sortDir; });
+  var cols=[["exit_time","Exit"],["strategy","Strategy"],["symbol","Symbol"],["opt","Opt"],
+    ["direction","Dir"],["qty","Qty"],["entry_premium","In \u20b9"],["exit_premium","Out \u20b9"],
+    ["entry_spot","In spot"],["exit_spot","Out spot"],["hold_min","Hold"],["gross_pnl","Gross"],
+    ["costs","Costs"],["net_pnl","Net"],["points","Pts"],["exit_reason","Why"]];
+  var h='<table><tr>';
+  cols.forEach(function(c){ var arrow=(sortKey===c[0]?(sortDir>0?" \u25b2":" \u25bc"):"");
+    h+='<th class="sortable" data-k="'+c[0]+'">'+c[1]+'<span class="ar">'+arrow+'</span></th>'; });
+  h+='<th>Greeks \u0394 \u0393 \u0398 \u03bd (IV)</th></tr>';
+  rows.forEach(function(r){
+    var mark=num(r.net_pnl)>0?'<span class="win-dot"></span>':'<span class="loss-tri"></span>';
+    h+='<tr><td>'+(r.exit_time||"").slice(11,16)+'</td><td>'+(r.strategy||"")+'</td>'
+      +'<td>'+(r.symbol||"")+'</td><td>'+(r.opt||"")+'</td><td>'+(r.direction||"")+'</td>'
+      +'<td>'+num(r.qty)+'</td><td>'+num(r.entry_premium).toFixed(2)+'</td>'
+      +'<td>'+num(r.exit_premium).toFixed(2)+'</td><td>'+num(r.entry_spot).toFixed(0)+'</td>'
+      +'<td>'+num(r.exit_spot).toFixed(0)+'</td><td>'+num(r.hold_min).toFixed(0)+'m</td>'
+      +'<td>'+money(r.gross_pnl)+'</td><td>'+money(r.costs)+'</td>'
+      +'<td class="'+cls(r.net_pnl)+'">'+money(r.net_pnl)+'</td><td class="'+cls(r.points)+'">'+fmtP(r.points)+'</td>'
+      +'<td>'+(r.exit_reason||"")+'</td>'
+      +'<td style="text-align:left;white-space:nowrap">'+mark+' <span class="chip">\u0394<b>'+num(r.entry_delta).toFixed(2)
+      +'</b></span><span class="chip">\u0393<b>'+num(r.entry_gamma).toFixed(4)+'</b></span>'
+      +'<span class="chip">\u0398<b>'+num(r.entry_theta).toFixed(1)+'</b></span>'
+      +'<span class="chip">\u03bd<b>'+num(r.entry_vega).toFixed(1)+'</b></span>'
+      +'<span class="chip">IV<b>'+(num(r.entry_iv)*100).toFixed(1)+'</b></span></td></tr>'; });
+  H.innerHTML=h+"</table>";
+  H.querySelectorAll("th.sortable").forEach(function(th){
+    th.onclick=function(){ var k=th.getAttribute("data-k");
+      if(k===sortKey) sortDir=-sortDir; else {sortKey=k; sortDir=1;} renderTrades(); }; });
+}
+
+/* ---------- excursion (MAE/MFE) ---------- */
+function renderExcursion(){
+  var box=host("excursion"); if(!box) return; box.innerHTML="";
+  var cs=arr(D.charts);
+  if(!cs.length){ box.innerHTML='<div class="muted">no trades</div>'; legend("excursionLegend",[]); return; }
+  var rows=cs.map(function(c){
+    return {label:(c.strategy||"")+" "+(c.opt||"")+(c.direction==="SHORT"?" S":" L")+" "
+        +num(c.strike).toFixed(0)+"  "+(c.exit_reason||"")+"  SL"+num(c.sl_pct*100).toFixed(0)
+        +"/TP"+num(c.tp_pct*100).toFixed(0),
+      mae_pts:num(c.mae_pts), mfe_pts:num(c.mfe_pts), points:num(c.points),
+      stop_pts:-num(c.sl_pct)*num(c.entry_premium), target_pts:num(c.tp_pct)*num(c.entry_premium),
+      net_pnl:num(c.net_pnl)}; });
+  rows.sort(function(a,b){ return a.points-b.points; });
+  var n=svgExcursion(rows); if(n) box.appendChild(n); else box.innerHTML='<div class="muted">no data</div>';
+  legend("excursionLegend",[{name:"worst\u2192best excursion",color:C.info},
+    {name:"exit (dot)",color:C.info},{name:"stop",color:C.down},{name:"target",color:C.up}]);
+}
+
+/* ---------- per-trade candle cards ---------- */
+function renderTradeCharts(){
+  var box=host("charts"); if(!box) return; box.innerHTML="";
+  var cs=arr(D.charts);
+  if(!cs.length){ box.innerHTML='<div class="muted">no trades</div>'; return; }
+  cs.forEach(function(c){
+    var card=document.createElement("div"); card.className="card";
+    var up=num(c.net_pnl)>=0;
+    var times=arr(c.times), ent=times[num(c.entry_i)]||"", ext=times[num(c.exit_i)]||"";
+    var hh=function(iso){ return (iso||"").slice(11,16); };
+    var head='<div class="ch">'+((c.strategy||"")+" \u00b7 "+(c.symbol||"")+" \u00b7 "
+      +(c.direction||"")+" "+(c.opt||""))+' <span class="'+(up?"up":"dn")+'">'
+      +money(c.net_pnl)+'</span> <span class="dim">('+fmtP(c.points)+' pts, '
+      +num(c.hold_min).toFixed(0)+'m)</span></div>';
+    var why='<div class="why"><b>why in:</b> '+(c.reason||"\u2014")+'<br><b>why out:</b> '
+      +(c.exit_reason||"")+' at '+hh(ext)+'  \u00b7  <b>stop:</b> '+num(c.sl_pct*100).toFixed(0)
+      +'%  \u00b7  <b>target:</b> '+num(c.tp_pct*100).toFixed(0)+'%  \u00b7  excursion '
+      +fmtP(c.mae_pts)+' / '+fmtP(c.mfe_pts)+' pts</div>';
+    card.innerHTML=head+why;
+    var cap=function(t){ var d=document.createElement("div"); d.className="cap"; d.textContent=t; return d; };
+
+    card.appendChild(cap("NIFTY 1-min (underlying) \u2014 held span shaded, dashed = strike"));
+    var cHost=document.createElement("div"); card.appendChild(cHost);
+    var cv=svgCandles({candles:c.candles,times:c.times,height:330,yLabel:"NIFTY",
+      span:[num(c.entry_i),num(c.exit_i)],
+      lines:[{price:c.strike,color:C.pur,dash:"6 4",label:"strike "+num(c.strike).toFixed(0)}],
+      markers:[{i:num(c.entry_i),price:num(c.entry_spot),color:C.info,label:"IN"},
+               {i:num(c.exit_i),price:num(c.exit_spot),color:up?C.up:C.warn,label:"OUT",shape:"tri"}]});
+    if(cv) cHost.appendChild(cv);
+
+    card.appendChild(cap("option premium (the exact contract traded) \u2014 dashed entry; SL/TP drawn when the premium reaches them"));
+    var pHost=document.createElement("div"); card.appendChild(pHost);
+    var pts=[]; arr(c.prem).forEach(function(v,i){ if(v!==null&&isFinite(num(v))) pts.push([i,num(v)]); });
+    var hl=[{y:num(c.entry_premium),color:C.dim,dash:"3 3",label:"entry "+num(c.entry_premium).toFixed(0)}];
+    if(num(c.sl_prem)>0) hl.push({y:num(c.sl_prem),color:C.down,
+      label:"SL "+(c.direction==="SHORT"?"+":"-")+num(c.sl_pct*100).toFixed(0)+"% "+num(c.sl_prem).toFixed(0)});
+    if(num(c.tp_prem)>0) hl.push({y:num(c.tp_prem),color:C.up,
+      label:"TP "+(c.direction==="SHORT"?"-":"+")+num(c.tp_pct*100).toFixed(0)+"% "+num(c.tp_prem).toFixed(0)});
+    var pv=svgLine({series:[{name:"premium",color:C.teal,pts:pts}],height:240,zero:false,
+      yfmt:function(v){return v.toFixed(0);}, hlines:hl,
+      markers:[{x:num(c.entry_i),y:num(c.entry_premium),color:C.info,label:"IN"},
+               {x:num(c.exit_i),y:num(c.exit_premium),color:up?C.up:C.warn,label:"OUT",shape:"tri"}],
+      xlabels:[]});
+    if(pv) pHost.appendChild(pv);
+
+    var pay=c.payoff;
+    if(pay && arr(pay.grid).length){
+      card.appendChild(cap("expiry payoff (structure \u2014 gross of costs; the engine exits intraday)"));
+      var payHost=document.createElement("div"); card.appendChild(payHost);
+      var g=arr(pay.grid), pl=arr(pay.pnl);
+      var pts2=g.map(function(s,i){ return [s,num(pl[i])]; });
+      var pv2=svgLine({series:[{name:"payoff",color:C.pur,pts:pts2}],height:250,zero:true,
+        yLabel:"P&L \u20b9", yfmt:function(v){return (v/1000).toFixed(0)+"k";},
+        hlines:[{y:0,color:C.zero,dash:"1 0"}],
+        vlines:[{x:num(pay.strike),color:C.warn,dash:"5 4",label:"K "+num(pay.strike).toFixed(0)},
+                {x:num(c.entry_spot),color:C.info,dash:"2 4",label:"entry spot"}],
+        xlabels:[{i:num(g[0]),label:num(g[0]).toFixed(0)},
+                 {i:num(pay.strike),label:num(pay.strike).toFixed(0)},
+                 {i:num(g[g.length-1]),label:num(g[g.length-1]).toFixed(0)}]});
+      if(pv2) payHost.appendChild(pv2);
+    }
+    var lg=document.createElement("div"); lg.className="legend";
+    lg.innerHTML='<span><i class="sw" style="background:'+C.info+'"></i>IN</span>'
+      +'<span><i class="sw" style="background:'+(up?C.up:C.warn)+'"></i>OUT</span>'
+      +'<span><i class="sw" style="background:'+C.teal+'"></i>premium</span>'
+      +'<span><i class="sw" style="background:'+C.down+'"></i>stop</span>'
+      +'<span><i class="sw" style="background:'+C.up+'"></i>target</span>'
+      +'<span><i class="sw" style="background:'+C.pur+'"></i>expiry payoff</span>';
+    card.appendChild(lg);
+    box.appendChild(card);
+  });
+}
+
+
+function renderCaveats(){
+  var H=host("caveats"); if(!H) return; H.innerHTML="";
+  arr(D.caveats).forEach(function(c){ var li=document.createElement("li");
+    li.textContent=c; H.appendChild(li); });
+  if(D.skipped_strategies){ var li=document.createElement("li");
+    li.textContent="Not run on this panel: "+arr(D.skipped_strategies).join(", ")
+      +" (needs a live broker chain and/or option open interest, which the recorded panel does not carry).";
+    H.appendChild(li); }
+}
+
+/* ---------- run (after every definition is initialised) ---------- */
+if(!D){ document.body.innerHTML='<p class="muted">No data.</p>'; }
+else { render(); }
+</script></body></html>

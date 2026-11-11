@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type WebSocketRoute } from "@playwright/test";
 import {
   setupApiMocks,
   loginAsTestUser,
@@ -7,12 +7,13 @@ import {
 } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
 
-test.describe("Nifty Report - OI tape panel", () => {
+test.describe("Index Report - OI tape panel", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
     await setupNiftyTapeMocks(page);
-    await page.goto("/report/nifty");
+    await page.goto("/report/index");
+    await page.locator('[data-testid="nifty-desk-toggle"]').getByText("RESEARCH").click();
     await page.waitForSelector('[data-testid="nifty-tape-panel"]', { timeout: 10000 });
   });
 
@@ -54,7 +55,7 @@ test.describe("Nifty Report - OI tape panel", () => {
   });
 });
 
-test.describe("Nifty Report - OI tape empty state", () => {
+test.describe("Index Report - OI tape empty state", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
@@ -68,7 +69,8 @@ test.describe("Nifty Report - OI tape empty state", () => {
         body: JSON.stringify({ rows: [] }),
       });
     });
-    await page.goto("/report/nifty");
+    await page.goto("/report/index");
+    await page.locator('[data-testid="nifty-desk-toggle"]').getByText("RESEARCH").click();
     await page.waitForSelector('[data-testid="nifty-tape-panel"]', { timeout: 10000 });
   });
 
@@ -80,28 +82,65 @@ test.describe("Nifty Report - OI tape empty state", () => {
   });
 });
 
-test.describe("Nifty Report - OI tape auto-refresh", () => {
-  test("live auto-refresh refetches tape", async ({ page }) => {
-    let tapeHits = 0;
+test.describe("Index Report - OI tape auto-refresh", () => {
+  test("live tape updates arrive over the report WebSocket", async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
     await setupNiftyTapeMocks(page);
-    // Counting override registered last so it wins; still serves the fixture.
-    // The panel fetches the tape with every live report load, so the 30s live
-    // poll loop refetches it without any manual refresh.
-    await page.route(apiRoute("reports/nifty/tape"), async (route) => {
-      tapeHits += 1;
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(mockNiftyTape),
+
+    // Live tape is pushed over the report WebSocket (the single live source);
+    // the REST tape endpoint only paints the first frame. Intercept the socket
+    // and hold it so the push can be timed AFTER the REST paint — otherwise
+    // the two writers race and the assertion is flaky.
+    let reportSocket: WebSocketRoute | null = null;
+    await page.routeWebSocket(/\/ws\/nifty\/report/, (ws) => {
+      reportSocket = ws;
+      ws.onMessage(() => {
+        /* the client sends no frames on this socket */
       });
     });
-    await page.goto("/report/nifty");
+
+    await page.goto("/report/index");
+    await page.locator('[data-testid="nifty-desk-toggle"]').getByText("RESEARCH").click();
     await page.waitForSelector('[data-testid="nifty-tape-panel"]', { timeout: 10000 });
 
-    // No sleeps: poll the request counter until the live loop refetches.
-    // Timeout covers the panel's live poll cadence (30s) plus margin.
-    await expect.poll(async () => tapeHits, { timeout: 45000 }).toBeGreaterThanOrEqual(2);
+    const rows = page.locator('[data-testid="nifty-tape-row"]');
+    // The REST paint lands first (the fixture's four rows).
+    await expect(rows).toHaveCount(mockNiftyTape.rows.length, { timeout: 10000 });
+
+    await expect.poll(() => reportSocket !== null, { timeout: 10000 }).toBe(true);
+
+    // Now push a frame with an extra row the REST fixture never had.
+    const pushedRow = {
+      t: "09:20",
+      spot: 22370,
+      call_doi: 13000,
+      put_doi: 19000,
+      net: 6000,
+      net_pct: 1.6,
+      call_tick: 44,
+      put_tick: 58,
+      pcr_vol: 1.22,
+      pcr_oi: 0.64,
+      pcr_doi: 0.08,
+      spot_flip: 6,
+      max_pain: 22400,
+      flip: 22360,
+      walls: { call: 22500, put: 22200 },
+    };
+    reportSocket?.send(
+      JSON.stringify({
+        type: "aux",
+        tape: {
+          date: mockNiftyTape.date,
+          interval_sec: 60,
+          rows: [...mockNiftyTape.rows, pushedRow],
+        },
+        sensex: null,
+      }),
+    );
+
+    await expect(rows).toHaveCount(mockNiftyTape.rows.length + 1, { timeout: 10000 });
+    await expect(rows.first().getByTestId("nifty-tape-time")).toContainText("09:20");
   });
 });

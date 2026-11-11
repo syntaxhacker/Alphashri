@@ -3,6 +3,7 @@ Admin API — LLM stats, cache stats, 52W range batch status, and cache invalida
 """
 
 import asyncio
+import os
 import subprocess
 import sys
 from datetime import datetime
@@ -205,6 +206,16 @@ def _watch_52w_batch_subprocess(proc: "subprocess.Popen") -> None:
 def _run_52w_batch_subprocess(skip_existing: bool, redis: bool, limit: int, skip_updated_today: bool = False) -> None:
     script = _PROJECT_ROOT / "scripts" / "compute_52w_ranges_upstox.py"
     cmd = [sys.executable, str(script)]
+    # Upstox's historical-candle quota is 2000/30min (~66/min). The script's
+    # defaults (3 workers x 0.35s ~= 514/min) exhaust it in ~4 minutes and
+    # starve the report charts/pivots for the next 30 minutes. Throttle from
+    # the environment so the daily 52W refresh cannot starve interactive data.
+    workers = os.environ.get("SCREENER_52W_WORKERS")
+    delay = os.environ.get("SCREENER_52W_DELAY_SEC")
+    if workers:
+        cmd.extend(["--workers", str(workers)])
+    if delay:
+        cmd.extend(["--delay", str(delay)])
     if skip_updated_today:
         cmd.append("--skip-updated-today")
     elif skip_existing:
@@ -729,3 +740,94 @@ async def get_orderflow_journal(
     summary["broker_available"] = orderflow_journal.is_enabled()
     summary["fetched_at"] = datetime.now().isoformat()
     return _sanitize_for_json(summary)
+
+
+class PatternTimeframeToggleRequest(BaseModel):
+    enabled: bool
+
+
+class PatternTimeframeOrderRequest(BaseModel):
+    ids: List[str]
+
+
+class PatternTimeframeCreateRequest(BaseModel):
+    id: str
+    minutes: int
+    label: Optional[str] = None
+    source_tf: Optional[str] = None
+    max_lookback_days: Optional[int] = None
+    min_bars: Optional[int] = None
+
+
+@router.get("/api/admin/pattern-timeframes")
+async def get_pattern_timeframes(current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    from chart_patterns import timeframe_config
+
+    return {"timeframes": timeframe_config.get_configs()}
+
+
+@router.post("/api/admin/pattern-timeframes")
+async def create_pattern_timeframe(
+    body: PatternTimeframeCreateRequest,
+    current_user=Depends(get_current_user),
+):
+    _require_admin(current_user)
+    from chart_patterns import timeframe_config
+
+    try:
+        row = timeframe_config.add_timeframe(body.model_dump())
+    except timeframe_config.TimeframeExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"timeframe": row}
+
+
+@router.delete("/api/admin/pattern-timeframes/{tf_id}")
+async def delete_pattern_timeframe(
+    tf_id: str,
+    current_user=Depends(get_current_user),
+):
+    _require_admin(current_user)
+    from chart_patterns import timeframe_config
+
+    try:
+        deleted = timeframe_config.delete_timeframe(tf_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"deleted": deleted}
+
+
+@router.put("/api/admin/pattern-timeframes/order")
+async def reorder_pattern_timeframes(
+    body: PatternTimeframeOrderRequest,
+    current_user=Depends(get_current_user),
+):
+    _require_admin(current_user)
+    from chart_patterns import timeframe_config
+
+    try:
+        rows = timeframe_config.set_order(body.ids)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"timeframes": rows}
+
+
+@router.patch("/api/admin/pattern-timeframes/{tf_id}")
+async def update_pattern_timeframe(
+    tf_id: str,
+    body: PatternTimeframeToggleRequest,
+    current_user=Depends(get_current_user),
+):
+    _require_admin(current_user)
+    from chart_patterns import timeframe_config
+
+    known = [row["id"] for row in timeframe_config.get_configs()]
+    if tf_id not in known:
+        raise HTTPException(status_code=404, detail=f"unknown timeframe {tf_id!r}")
+    try:
+        row = timeframe_config.set_enabled(tf_id, body.enabled)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"timeframe": row}

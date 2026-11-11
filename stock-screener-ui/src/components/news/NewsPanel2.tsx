@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { usePolling } from "@/hooks/usePolling";
 import { useNavigate } from "react-router-dom";
 import { Box, Button, Divider, Indicator, Overlay, ScrollArea, Stack } from "@/ui";
 import { IconNews } from "@tabler/icons-react";
@@ -112,24 +113,12 @@ function useAutoRefresh(
   autoRefreshMs: string,
 ) {
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const autoRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    if (autoRefreshRef.current) {
-      clearInterval(autoRefreshRef.current);
-      autoRefreshRef.current = null;
-    }
-    const ms = parseInt(autoRefreshMs, 10);
-    if (ms > 0) {
-      autoRefreshRef.current = setInterval(() => {
-        setIsRefreshing(true);
-        loadNews(true).finally(() => setIsRefreshing(false));
-      }, ms);
-    }
-    return () => {
-      if (autoRefreshRef.current) clearInterval(autoRefreshRef.current);
-    };
-  }, [autoRefreshMs, loadNews]);
+  const ms = parseInt(autoRefreshMs, 10);
+  usePolling(() => {
+    setIsRefreshing(true);
+    loadNews(true).finally(() => setIsRefreshing(false));
+  }, ms, { skipIfRunning: false });
 
   useEffect(() => {
     saveAutoRefresh(autoRefreshMs);
@@ -204,22 +193,25 @@ function NewsPanelToggle({
     <Indicator
       color={hasNewArticles ? "success" : "error"}
       size={16}
-      label={unreadCount > 99 ? "99+" : unreadCount}
+      label={unreadCount > 9 ? "9+" : unreadCount}
       disabled={unreadCount === 0 || isOpen}
       offset={4}
       className={hasNewArticles ? "news-badge-pulse" : undefined}
     >
+      {/* Icon-only in the header: the word "NEWS" cost ~54px of tape width.
+          The count is capped at "9+" and the tooltip/aria-label carry the
+          meaning. */}
       <Button
-        variant="filled"
+        variant="subtle"
         color="primary"
         size="sm"
         onClick={onToggle}
         data-testid="news-toggle-btn"
-        title="Open news panel"
-        leftSection={<IconNews size={16} />}
-      >
-        NEWS
-      </Button>
+        aria-label="News"
+        title={`Open news panel${unreadCount > 0 ? ` — ${unreadCount} unread` : ""}`}
+        leftSection={<IconNews size={18} />}
+        style={{ minWidth: 32, width: 32, height: 32, padding: 0 }}
+      />
     </Indicator>
   );
 }

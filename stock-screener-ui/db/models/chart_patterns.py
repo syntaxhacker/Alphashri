@@ -177,3 +177,20 @@ class PatternImage(Base):
             "size": self.size or 0,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+
+
+class PatternTimeframeConfig(Base):
+    """Admin-controlled visibility, ordering and spec for a pattern timeframe."""
+
+    __tablename__ = "pattern_timeframe_config"
+
+    id = Column(String(8), primary_key=True)
+    enabled = Column(Boolean, nullable=False, default=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    label = Column(String(16), nullable=True)
+    minutes = Column(Integer, nullable=True)
+    native = Column(Boolean, nullable=True)
+    source_tf = Column(String(8), nullable=True)
+    max_lookback_days = Column(Integer, nullable=True)
+    min_bars = Column(Integer, nullable=True)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

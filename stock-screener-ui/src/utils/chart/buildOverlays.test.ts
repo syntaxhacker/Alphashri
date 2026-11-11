@@ -20,6 +20,14 @@ describe("buildOverlays", () => {
     ...overrides,
   });
 
+  const createBoxOverlay = (value: number | null = 100): UnifiedOverlay => ({
+    id: "box1",
+    label: "Box",
+    type: "box",
+    color: BULLISH,
+    levels: [{ value: value as unknown as number }],
+  });
+
   const identityExtend = (data: (number | null)[]) => data;
 
   describe("line overlays", () => {
@@ -146,40 +154,19 @@ describe("buildOverlays", () => {
 
   describe("box overlays", () => {
     it("creates one line series for box type", () => {
-      const overlay: UnifiedOverlay = {
-        id: "box1",
-        label: "Box",
-        type: "box",
-        color: BULLISH,
-        levels: [{ value: 100 }],
-      };
-      const result = buildOverlays([overlay], mockCandles, [], identityExtend);
+      const result = buildOverlays([createBoxOverlay()], mockCandles, [], identityExtend);
       expect(result).toHaveLength(1);
     });
 
     it("creates top line for box", () => {
-      const overlay: UnifiedOverlay = {
-        id: "box1",
-        label: "Box",
-        type: "box",
-        color: BULLISH,
-        levels: [{ value: 100 }],
-      };
-      const result = buildOverlays([overlay], mockCandles, [], identityExtend);
+      const result = buildOverlays([createBoxOverlay()], mockCandles, [], identityExtend);
       const topLine = result.find((s) => s.id === "box1_top");
       expect(topLine).toBeDefined();
       expect(topLine.data).toEqual([100, 100, 100]);
     });
 
     it("sets box lines with lower z-index and transparency", () => {
-      const overlay: UnifiedOverlay = {
-        id: "box1",
-        label: "Box",
-        type: "box",
-        color: BULLISH,
-        levels: [{ value: 100 }],
-      };
-      const result = buildOverlays([overlay], mockCandles, [], identityExtend);
+      const result = buildOverlays([createBoxOverlay()], mockCandles, [], identityExtend);
       const topLine = result.find((s) => s.id === "box1_top");
       expect(topLine.z).toBe(4);
       expect(topLine.lineStyle.opacity).toBe(0.5);
@@ -187,14 +174,7 @@ describe("buildOverlays", () => {
     });
 
     it("skips box if top value is null", () => {
-      const overlay: UnifiedOverlay = {
-        id: "box1",
-        label: "Box",
-        type: "box",
-        color: BULLISH,
-        levels: [{ value: null }],
-      };
-      const result = buildOverlays([overlay], mockCandles, [], identityExtend);
+      const result = buildOverlays([createBoxOverlay(null)], mockCandles, [], identityExtend);
       // Should return empty array because top value is null
       expect(result).toEqual([]);
     });

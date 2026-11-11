@@ -19,8 +19,12 @@ const fetchSymbolChart = vi.fn();
 const fetchWatchSetups = vi.fn();
 const fetchWatch = vi.fn();
 const fetchMarketStatus = vi.fn();
+const fetchPatternMatrix = vi.fn();
+const fetchPatternHit = vi.fn();
 vi.mock("@/api/chartPatterns", () => ({
   fetchSymbolChart: (...args: unknown[]) => fetchSymbolChart(...args),
+  fetchPatternMatrix: (...args: unknown[]) => fetchPatternMatrix(...args),
+  fetchPatternHit: (...args: unknown[]) => fetchPatternHit(...args),
   fetchWatchSetups: (...args: unknown[]) => fetchWatchSetups(...args),
   fetchWatch: (...args: unknown[]) => fetchWatch(...args),
   fetchMarketStatus: (...args: unknown[]) => fetchMarketStatus(...args),
@@ -157,6 +161,7 @@ function makeProps(overrides: Partial<PatternsPageProps> = {}): PatternsPageProp
     scan: vi.fn(),
     refresh: vi.fn(),
     forceRefresh: vi.fn(),
+    defaultView: "list",
     ...overrides,
   };
 }
@@ -194,6 +199,7 @@ describe("PatternsPage watch tab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fetchPatternImages.mockResolvedValue({});
+    fetchPatternHit.mockResolvedValue(undefined as never);
     fetchSymbolChart.mockResolvedValue({
       symbol: "RELIANCE",
       timeframe: "1D",
@@ -270,5 +276,27 @@ describe("PatternsPage watch tab", () => {
     await waitFor(() =>
       expect(screen.getByTestId("patterns-fullscreen-modal")).toBeInTheDocument(),
     );
+  });
+
+  test("desktop: a watch row renders the chart modal, not an invisible dock", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("1200px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    try {
+      r(<PatternsPage {...makeProps({ tab: "watch" })} />);
+      await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
+      await userEvent.click(screen.getByTestId("watch-row-RELIANCE"));
+      expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
+      expect(screen.queryByTestId("patterns-chart-dock")).not.toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

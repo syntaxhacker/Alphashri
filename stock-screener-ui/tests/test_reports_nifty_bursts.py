@@ -9,13 +9,14 @@ Call the endpoint function directly, passing every Query param explicitly
 """
 
 import json
+from datetime import datetime
 
 import pytest
 from fastapi import HTTPException
 
 import api.reports_api.nifty as nifty
 from api.reports_api.nifty import get_nifty_bursts
-from api.reports_api.nifty_bursts import NIFTY_LOT_SIZE
+from api.reports_api.nifty_bursts import NIFTY_LOT_SIZE, coalesce_bursts
 
 DATE = "2026-10-13"
 
@@ -135,6 +136,136 @@ class TestGetNiftyBursts:
         assert exc.value.status_code == 400
 
 
+# -------------------------------------------------------- no tape alert (09:20)
+
+class TestNoTapeAlert:
+    """Tests for the 'no tape by 09:20' data_stale alert.
+
+    The alert fires when:
+    - date is TODAY
+    - market is OPEN
+    - local time >= 09:20 IST
+    - tape is empty (no rows recorded since market open)
+    It is deduped to once per 5 minutes per process/day.
+    """
+
+    def test_no_tape_alert_at_0925_today_market_open(self, _tmp_tape, monkeypatch):
+        """Empty tape + today + market open + 09:25 -> alert present."""
+        now = datetime.fromisoformat(f"{DATE}T09:25:00+05:30")
+        # Mock _today_str to return DATE
+        monkeypatch.setattr(nifty, "_today_str", lambda: DATE)
+        # Mock _market_open to return True
+        monkeypatch.setattr(nifty, "_market_open", lambda: True)
+        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000, _now=now)
+        assert out["count"] == 1
+        assert out["reason"] == "no tape"
+        alert = out["bursts"][0]
+        assert alert["type"] == "data_stale"
+        assert alert["kind"] == "data_stale"
+        assert alert["severity"] == "critical"
+        assert alert["label"] == "TAPE MISSING"
+        assert "no tape rows recorded since market open" in alert["detail"]
+        assert "09:25" in alert["detail"]
+
+    def test_no_tape_alert_absent_when_market_closed(self, _tmp_tape, monkeypatch):
+        """Empty tape + market closed -> no alert."""
+        now = datetime.fromisoformat(f"{DATE}T16:20:00+05:30")
+        monkeypatch.setattr(nifty, "_today_str", lambda: DATE)
+        monkeypatch.setattr(nifty, "_market_open", lambda: False)
+        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000, _now=now)
+        assert out["count"] == 0
+        assert out["bursts"] == []
+
+    def test_no_tape_alert_absent_for_past_date(self, _tmp_tape, monkeypatch):
+        """Empty tape + past date -> no alert."""
+        past_date = "2026-01-01"
+        now = datetime.fromisoformat(f"{DATE}T09:25:00+05:30")
+        monkeypatch.setattr(nifty, "_today_str", lambda: DATE)
+        monkeypatch.setattr(nifty, "_market_open", lambda: True)
+        out = get_nifty_bursts(date=past_date, window=3, min_abs=1000, _now=now)
+        assert out["count"] == 0
+        assert out["bursts"] == []
+
+    def test_no_tape_alert_absent_before_0920(self, _tmp_tape, monkeypatch):
+        """Empty tape + 09:18 -> no alert (before cutoff)."""
+        now = datetime.fromisoformat(f"{DATE}T09:18:00+05:30")
+        monkeypatch.setattr(nifty, "_today_str", lambda: DATE)
+        monkeypatch.setattr(nifty, "_market_open", lambda: True)
+        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000, _now=now)
+        assert out["count"] == 0
+        assert out["bursts"] == []
+
+    def test_no_tape_alert_dedupe_within_5_minutes(self, _tmp_tape, monkeypatch):
+        """Two calls within 5 minutes -> only one alert."""
+        state: dict[str, float] = {}
+        monkeypatch.setattr(nifty, "_NO_TAPE_ALERT_AT", state)
+        monkeypatch.setattr(nifty, "_today_str", lambda: DATE)
+        monkeypatch.setattr(nifty, "_market_open", lambda: True)
+        t0 = datetime.fromisoformat(f"{DATE}T09:21:00+05:30")
+        out1 = get_nifty_bursts(date=DATE, window=3, min_abs=1000, _now=t0)
+        assert out1["count"] == 1
+        t1 = datetime.fromisoformat(f"{DATE}T09:24:00+05:30")
+        out2 = get_nifty_bursts(date=DATE, window=3, min_abs=1000, _now=t1)
+        assert out2["count"] == 0  # deduped
+        t2 = datetime.fromisoformat(f"{DATE}T09:27:00+05:30")
+        out3 = get_nifty_bursts(date=DATE, window=3, min_abs=1000, _now=t2)
+        assert out3["count"] == 1  # emitted again after 5 min window
+
+    def test_detect_no_tape_alert_direct(self, monkeypatch):
+        """Test the pure detection function directly."""
+        date_str = "2026-10-13"
+        monkeypatch.setattr(nifty, "_today_str", lambda: date_str)
+        now = datetime.fromisoformat(f"{date_str}T09:25:00+05:30")
+        alert = nifty.detect_no_tape_alert(date_str, [], now=now, market_open=True)
+        assert alert is not None
+        assert alert["type"] == "data_stale"
+        assert alert["severity"] == "critical"
+        assert alert["label"] == "TAPE MISSING"
+
+    def test_detect_no_tape_alert_closed_market(self, monkeypatch):
+        """Closed market -> no alert."""
+        date_str = "2026-10-13"
+        monkeypatch.setattr(nifty, "_today_str", lambda: date_str)
+        now = datetime.fromisoformat(f"{date_str}T16:00:00+05:30")
+        assert nifty.detect_no_tape_alert(date_str, [], now=now, market_open=False) is None
+
+    def test_detect_no_tape_alert_past_date(self, monkeypatch):
+        """Past date -> no alert."""
+        date_str = "2026-01-01"
+        today = "2026-10-13"
+        monkeypatch.setattr(nifty, "_today_str", lambda: today)
+        now = datetime.fromisoformat(f"{today}T09:25:00+05:30")
+        assert nifty.detect_no_tape_alert(date_str, [], now=now, market_open=True) is None
+
+    def test_detect_no_tape_alert_before_cutoff(self, monkeypatch):
+        """Before 09:20 -> no alert."""
+        date_str = "2026-10-13"
+        monkeypatch.setattr(nifty, "_today_str", lambda: date_str)
+        now = datetime.fromisoformat(f"{date_str}T09:18:00+05:30")
+        assert nifty.detect_no_tape_alert(date_str, [], now=now, market_open=True) is None
+
+    def test_detect_no_tape_alert_non_empty_tape(self, monkeypatch):
+        """Non-empty tape -> no alert."""
+        date_str = "2026-10-13"
+        monkeypatch.setattr(nifty, "_today_str", lambda: date_str)
+        now = datetime.fromisoformat(f"{date_str}T09:25:00+05:30")
+        rows = [{"t": f"{date_str}T09:15:00+05:30", "spot": 22500}]
+        assert nifty.detect_no_tape_alert(date_str, rows, now=now, market_open=True) is None
+
+    def test_no_tape_alert_dedupe_direct(self, monkeypatch):
+        """Direct test of the deduped wrapper."""
+        state: dict[str, float] = {}
+        date_str = "2026-10-13"
+        monkeypatch.setattr(nifty, "_today_str", lambda: date_str)
+        t0 = datetime.fromisoformat(f"{date_str}T09:21:00+05:30")
+        first = nifty.no_tape_alert(date_str, [], now=t0, market_open=True, state=state)
+        assert first is not None
+        t1 = datetime.fromisoformat(f"{date_str}T09:23:00+05:30")
+        assert nifty.no_tape_alert(date_str, [], now=t1, market_open=True, state=state) is None
+        t2 = datetime.fromisoformat(f"{date_str}T09:27:00+05:30")
+        assert nifty.no_tape_alert(date_str, [], now=t2, market_open=True, state=state) is not None
+
+
 class TestBurstSignal:
     def test_signal_attached_from_snapshot(self, _tmp_tape, _tmp_snapshots):
         _write_tape(_tmp_tape, _spike_rows())
@@ -202,10 +333,9 @@ class TestBurstSignal:
 # ------------------------------------------------------------ trend gate
 
 class TestTrendGate:
-    """The trend gate: counter-trend plans are flagged, not silently emitted.
-
-    Evidence (2026-10-13): trend-aligned plans went 10/12 (avg +81.7 pts) while
-    counter-trend plans went 1/9 (avg −94.4 pts) — the whole loss side.
+    """The trend gate: counter-trend bursts get no plan — they were the entire
+    loss side on 2026-10-13 (1/9) and again on 2026-10-15 (resolved 0.32 vs
+    0.80 aligned), so emitting a plan that says "skip" is just noise.
     """
 
     @staticmethod
@@ -249,13 +379,11 @@ class TestTrendGate:
         assert sig["aligned"] is True
         assert "COUNTER-TREND" not in sig["basis"]
 
-    def test_counter_trend_plan_is_flagged_with_reason(self):
+    def test_counter_trend_burst_gets_no_plan(self):
         from api.reports_api.nifty_bursts import derive_oi_signal
         # call unwind -> CE (bullish) but session trend is DOWN -> wrong side
         sig = derive_oi_signal(self._burst("call", -50_000), self._chain, 22700, trend="down")
-        assert sig["leg"] == "CE"
-        assert sig["aligned"] is False
-        assert sig["basis"].startswith("COUNTER-TREND (session down) — skip:")
+        assert sig is None
 
     def test_unknown_trend_leaves_the_plan_ungated(self):
         from api.reports_api.nifty_bursts import derive_oi_signal
@@ -264,13 +392,51 @@ class TestTrendGate:
         assert sig["trend"] is None
         assert "COUNTER-TREND" not in sig["basis"]
 
-    def test_endpoint_flags_today_style_losers_as_counter_trend(self, _tmp_tape, _tmp_snapshots):
-        """A rising tape + a bearish (PE) plan must come back aligned=False."""
+    def test_flow_leg_follows_who_traded(self):
+        """The side says which leg moved; the premium says who did it.
+
+        2026-10-23 11:19 live: call unwind −2.55M with premChg −4.45 and
+        flow=liquidation (longs sold out → PE). The legacy side-only rule said
+        CE, so the banner read "LONGS LIQUIDATING → BUY CE".
+        """
+        from api.reports_api.nifty_bursts import _flow_leg
+
+        assert _flow_leg({"bearish": True}, True, False) == "PE"
+        assert _flow_leg({"bearish": False}, False, False) == "CE"
+        assert _flow_leg({"flow": "liquidation"}, True, False) == "PE"
+        assert _flow_leg({"flow": "covering"}, False, False) == "CE"
+        assert _flow_leg({"flow": "buyers"}, True, True) == "CE"
+        assert _flow_leg({"flow": "writers"}, True, True) == "PE"
+        # No flow information at all → legacy OI rule (replayed old bursts).
+        assert _flow_leg({}, True, False) == "CE"
+        assert _flow_leg({}, True, True) == "PE"
+
+    def test_call_liquidation_never_plans_a_long_call(self):
+        """Integration: a spent-fuel call liquidation must not emit a CE plan."""
+        from api.reports_api.nifty_bursts import derive_oi_signal
+
+        burst = {
+            **self._burst("call", -2_551_640),
+            "flow": "liquidation",
+            "bearish": True,
+            "premChg": -4.45,
+            "fuel_state": "longs_liquidating",
+            # The fuel gate needs a close beyond structure in the covering
+            # direction; call covering maps to "up".
+            "structure": {"level": 22_520.0, "direction": "up", "kind": "pivot"},
+        }
+        sig = derive_oi_signal(burst, self._chain, 22_515.0)
+        assert sig is not None
+        assert sig["leg"] == "PE"
+        assert "liquidation" in sig["basis"]
+
+    def test_endpoint_emits_no_bearish_plan_on_rising_tape(self, _tmp_tape, _tmp_snapshots):
+        """A rising tape + a bearish (PE) move must NOT produce a plan."""
         rows = []
         spot = 22500.0
         for i in range(14):
             # steady grind up, with a CALL-OI build (-> bearish -> PE) on the
-            # last minute: bullish tape + bearish plan = counter-trend.
+            # last minute: bullish tape + bearish move = counter-trend = no plan.
             spot += 5
             rows.append({"t": f"2026-10-13T09:{15 + i:02d}:00+05:30", "spot": spot,
                          "ce_oi": 1000 * i, "pe_oi": 0, "ce_vol": 0, "pe_vol": 0,
@@ -283,12 +449,9 @@ class TestTrendGate:
             {"strike": 22600.0, "ce": {"ltp": 25.0}, "pe": {"ltp": 30.0}},
         ])))
         out = get_nifty_bursts(date=DATE, window=3, min_abs=1000)
-        pe_plans = [b for b in out["bursts"]
-                    if b.get("signal") and b["signal"]["leg"] == "PE"]
-        assert pe_plans, "expected at least one bearish plan"
-        # tape only rises -> a bearish leg is counter-trend
-        assert all(b["signal"]["aligned"] is False for b in pe_plans)
-        assert all("COUNTER-TREND" in b["signal"]["basis"] for b in pe_plans)
+        assert out["bursts"], "expected bursts to still be recorded"
+        assert not any(b.get("signal") and b["signal"]["leg"] == "PE" for b in out["bursts"]), \
+            "no bearish plan on a rising tape"
 
 
 # ------------------------------------------------------------ auth gate
@@ -492,7 +655,8 @@ class TestDetectStrikeBursts:
         chain = [{"strike": 22700.0, "ce": {"ltp": 22.0}, "pe": {"ltp": 28.0}},
                  {"strike": 22750.0, "ce": {"ltp": 9.0}, "pe": {"ltp": 60.0}}]
         burst = {"type": "strike", "side": "call", "strike": 22750.0, "delta": 6_200_000.0}
-        sig = derive_oi_signal(burst, chain, 22_720.0, trend="up")
+        # call build -> PE leg; trend down keeps it aligned so the plan survives
+        sig = derive_oi_signal(burst, chain, 22_720.0, trend="down")
         assert sig["strike"] == 22750.0     # named, even though 22,700 is nearer
 
     def test_endpoint_includes_strike_bursts(self, _tmp_tape, _tmp_snapshots):
@@ -614,3 +778,51 @@ class TestDetectCoiling:
         rows = [self._row(f"2026-10-14T15:{20 + i:02d}:00+05:30", 22702.05)
                 for i in range(11)]
         assert detect_coiling(rows, window_min=10) == []
+
+
+# ------------------------------------------------------------------- coalescing
+
+class TestCoalesceBursts:
+    """One alert per (minute, side) — the 2026-10-16 10:01 flood was 4 bursts
+    (one index + a burst per strike) all describing the same call-side event."""
+
+    def test_same_minute_same_side_merges_to_strongest(self):
+        t = "2026-10-16T10:01:35+05:30"
+        bursts = [
+            {"t": t, "side": "call", "strike": None, "severity": "watch", "score": 3.86},
+            {"t": t, "side": "call", "strike": 22950.0, "severity": "alert", "score": 6.38},
+            {"t": t, "side": "call", "strike": 23000.0, "severity": "alert", "score": 7.19},
+            {"t": t, "side": "call", "strike": 23100.0, "severity": "watch", "score": 4.04},
+        ]
+        out = coalesce_bursts(bursts)
+        assert len(out) == 1
+        assert out[0]["strike"] == 23000.0  # strongest of the two 'alert's
+        assert out[0]["coalesced"] == 4
+        assert out[0]["strikes"] == [22950.0, 23000.0, 23100.0]
+
+    def test_critical_beats_higher_scored_alert(self):
+        t = "2026-10-16T10:01:00+05:30"
+        bursts = [
+            {"t": t, "side": "call", "strike": 23000.0, "severity": "alert", "score": 99.0},
+            {"t": t, "side": "call", "strike": 23100.0, "severity": "critical", "score": 8.0},
+        ]
+        out = coalesce_bursts(bursts)
+        assert out[0]["strike"] == 23100.0
+
+    def test_different_side_or_minute_stay_separate(self):
+        bursts = [
+            {"t": "2026-10-16T10:01:00+05:30", "side": "call", "severity": "alert", "score": 5},
+            {"t": "2026-10-16T10:01:00+05:30", "side": "put", "severity": "alert", "score": 5},
+            {"t": "2026-10-16T10:02:00+05:30", "side": "call", "severity": "alert", "score": 5},
+        ]
+        assert len(coalesce_bursts(bursts)) == 3
+
+    def test_single_burst_untouched(self):
+        bursts = [{"t": "2026-10-16T10:01:00+05:30", "side": "call",
+                   "severity": "alert", "score": 5}]
+        out = coalesce_bursts(bursts)
+        assert out == bursts
+        assert "coalesced" not in out[0]
+
+    def test_empty(self):
+        assert coalesce_bursts([]) == []

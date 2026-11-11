@@ -1,3 +1,4 @@
+import { formatNumberIN } from "@/utils/ui-helpers";
 import {
   NEGATIVE,
   NEUTRAL,
@@ -61,7 +62,7 @@ export function formatCr(v: number | null | undefined): string {
   if (v === null || v === undefined || Number.isNaN(v)) return EM_DASH;
   if (v === 0) return "0 Cr";
   const sign = v < 0 ? "-" : "";
-  return `${sign}${Math.abs(Math.round(v)).toLocaleString("en-IN")} Cr`;
+  return `${sign}${formatNumberIN(Math.abs(Math.round(v)))} Cr`;
 }
 
 /** Compact share count, e.g. 123456 -> "1.2L", null -> "—". */
@@ -82,7 +83,7 @@ export function formatPct(v: number | null | undefined, digits = 1): string {
   return `${sign}${Math.abs(v).toFixed(digits)}%`;
 }
 
-export interface VerdictMeta {
+interface VerdictMeta {
   icon: "▼" | "▲" | "■";
   colorToken: string;
   tintToken: string;

@@ -2,20 +2,12 @@
  * Experiments Types
  *
  * Type definitions for the autoresearch experiment sweeps feature.
+ * Shared shapes live in ./shared and are re-exported here so existing imports keep working.
  */
 
-import type { CandleData, ORBZone, PivotLevels, Week52Levels, ChartTrade } from "./backtest";
+import type { BaseChartData, StrategyParam } from "./shared";
 
-export interface StrategyParam {
-  key: string;
-  label: string;
-  type: "number" | "select" | "boolean";
-  default: number | string | boolean;
-  min?: number;
-  max?: number;
-  step?: number;
-  options?: string[];
-}
+export type { StrategyParam } from "./shared";
 
 export interface ExperimentStrategy {
   key: string;
@@ -75,28 +67,8 @@ export interface SweepParam {
   values: (number | string | boolean)[];
 }
 
-export interface ExperimentChartData {
-  symbol: string;
-  candles: CandleData[];
-  orb_zones: ORBZone[];
-  pivot_levels: PivotLevels[];
-  week52_levels: Week52Levels[];
-  trades: ChartTrade[];
-  visuals?: {
-    overlays: any[];
-    ema_series?: Array<{
-      label: string;
-      color: string;
-      data: number[];
-    }>;
-  };
-  date_range: {
-    start: string;
-    end: string;
-  };
-  total_candles: number;
-  total_trades: number;
-}
+// Chart payload shares the backtest shape via ./shared (adds no RSI overlay).
+export interface ExperimentChartData extends BaseChartData {}
 
 /**
  * Loading state keys for experiment data-fetching operations.

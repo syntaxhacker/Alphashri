@@ -15,6 +15,8 @@ import type {
   JobStatus,
   MarketStatus,
   PatternHitDTO,
+  IndexMembersResponse,
+  PatternMatrixResponse,
   PatternSummary,
   ScanProvenance,
   SymbolDetail,
@@ -26,6 +28,8 @@ import type {
 } from "../types/chartPatterns";
 import { fetchWithAuth } from "../state/auth";
 import { API_BASE } from "./config";
+import { readSseStream } from "./sse";
+import { appendParams, buildQueryString } from "./queryParams";
 
 const CHART_PATTERNS_BASE = `${API_BASE}/api/chart-patterns`;
 
@@ -144,49 +148,36 @@ async function getJson<T>(url: string, fallback: string): Promise<T> {
 
 /** Serialize a `PatternsQuery` into a query string (repeated keys for arrays). */
 export function buildPatternsQuery(query: PatternsQuery = {}): string {
-  const params = new URLSearchParams();
-
-  if (query.job_id) params.set("job_id", query.job_id);
-  if (query.universe) params.set("universe", query.universe);
-  if (query.timeframe) params.set("timeframe", query.timeframe);
-  if (query.lookback_bars != null) params.set("lookback_bars", String(query.lookback_bars));
-  for (const family of query.family ?? []) params.append("family", family);
-  for (const patternId of query.pattern_id ?? []) params.append("pattern_id", patternId);
-  for (const direction of query.direction ?? []) params.append("direction", direction);
-  for (const status of query.status ?? []) params.append("status", status);
-  if (query.quality) params.set("quality", query.quality);
-  if (query.formed_within_bars != null) {
-    params.set("formed_within_bars", String(query.formed_within_bars));
-  }
-  if (query.volume_confirmed != null) {
-    params.set("volume_confirmed", String(query.volume_confirmed));
-  }
-  if (query.min_rr != null) params.set("min_rr", String(query.min_rr));
-  if (query.min_base_days != null) {
-    params.set("min_base_days", String(query.min_base_days));
-  }
-  if (query.max_range_pct != null) {
-    params.set("max_range_pct", String(query.max_range_pct));
-  }
-  if (query.max_52w_gap != null) {
-    params.set("max_52w_gap", String(query.max_52w_gap));
-  }
-  if (query.min_range_pos != null) {
-    params.set("min_range_pos", String(query.min_range_pos));
-  }
-  if (query.symbol) params.set("symbol", query.symbol);
-  for (const symbol of query.symbols ?? []) params.append("symbol", symbol);
-  if (query.q) params.set("q", query.q);
-  if (query.from_date) params.set("from_date", query.from_date);
-  if (query.to_date) params.set("to_date", query.to_date);
-  if (query.sort && query.sort !== "confidence") params.set("sort", query.sort);
-  // Opt-out flag: only serialized when false (compute is the default).
-  if (query.compute_trendlines === false) params.set("compute_trendlines", "0");
-  if (query.limit != null) params.set("limit", String(query.limit));
-  if (query.offset != null) params.set("offset", String(query.offset));
-
-  const qs = params.toString();
-  return qs ? `?${qs}` : "";
+  // Param order is wire order — do not reorder entries.
+  return buildQueryString([
+    ["job_id", query.job_id],
+    ["universe", query.universe],
+    ["timeframe", query.timeframe],
+    ["lookback_bars", query.lookback_bars],
+    ["family", query.family],
+    ["pattern_id", query.pattern_id],
+    ["direction", query.direction],
+    ["status", query.status],
+    ["quality", query.quality],
+    ["formed_within_bars", query.formed_within_bars],
+    ["volume_confirmed", query.volume_confirmed],
+    ["min_rr", query.min_rr],
+    ["min_base_days", query.min_base_days],
+    ["max_range_pct", query.max_range_pct],
+    ["max_52w_gap", query.max_52w_gap],
+    ["min_range_pos", query.min_range_pos],
+    ["symbol", query.symbol],
+    ["symbol", query.symbols],
+    ["q", query.q],
+    ["from_date", query.from_date],
+    ["to_date", query.to_date],
+    // The default sort is implied by the server; only deviations hit the wire.
+    ["sort", query.sort && query.sort !== "confidence" ? query.sort : null],
+    // Opt-out flag: only serialized when false (compute is the default).
+    ["compute_trendlines", query.compute_trendlines === false ? "0" : null],
+    ["limit", query.limit],
+    ["offset", query.offset],
+  ]);
 }
 
 export async function fetchTimeframes(): Promise<TFSpec[]> {
@@ -232,6 +223,37 @@ export async function startScan(req: ScanRequest): Promise<ScanResponse> {
   return (await response.json()) as ScanResponse;
 }
 
+export interface DetectResponse {
+  symbol: string;
+  timeframe: string;
+  data_through: string | null;
+  hits: PatternHitDTO[];
+  count: number;
+}
+
+/**
+ * Synchronous single-symbol detection (`POST /detect`).
+ *
+ * The queued scan is the right tool for a universe; a chart button needs an
+ * answer in seconds even when a 500-symbol job owns the queue.
+ */
+export async function detectPatterns(
+  symbol: string,
+  timeframe: string,
+  lookback_bars = 150,
+): Promise<DetectResponse> {
+  const response = await fetchWithAuth(`${CHART_PATTERNS_BASE}/detect`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ symbol, timeframe, lookback_bars }),
+  });
+  if (!response.ok) {
+    const { detail } = await readError(response, `Pattern check failed (${response.status})`);
+    throw new Error(detail);
+  }
+  return (await response.json()) as DetectResponse;
+}
+
 export async function fetchJob(id: string): Promise<JobDTO> {
   return getJson<JobDTO>(
     `${CHART_PATTERNS_BASE}/jobs/${encodeURIComponent(id)}`,
@@ -275,6 +297,20 @@ export async function fetchSymbolDetail(symbol: string, timeframe: string): Prom
   );
 }
 
+export async function fetchIndexMembers(indexId: string): Promise<IndexMembersResponse> {
+  return getJson<IndexMembersResponse>(
+    `${CHART_PATTERNS_BASE}/index/${encodeURIComponent(indexId)}/members`,
+    "Failed to load index members",
+  );
+}
+
+export async function fetchPatternHit(hitId: number): Promise<PatternHitDTO> {
+  return getJson<PatternHitDTO>(
+    `${CHART_PATTERNS_BASE}/hit/${hitId}`,
+    "Failed to fetch pattern hit",
+  );
+}
+
 export interface SymbolChartOptions {
   limit?: number;
   lookbackBars?: number | null;
@@ -300,12 +336,14 @@ export async function fetchSymbolChart(
   const detectPatterns = typeof opts === "number" ? undefined : opts?.detectPatterns;
   const asOf = typeof opts === "number" ? undefined : opts?.asOf;
   const fromDate = typeof opts === "number" ? undefined : opts?.fromDate;
-  if (limit != null) params.set("limit", String(limit));
-  if (lookbackBars != null) params.set("lookback_bars", String(lookbackBars));
-  if (computeTrendlines === false) params.set("compute_trendlines", "0");
-  if (detectPatterns) params.set("detect_patterns", "1");
-  if (asOf) params.set("as_of_date", asOf);
-  if (fromDate) params.set("from_date", fromDate);
+  appendParams(params, [
+    ["limit", limit],
+    ["lookback_bars", lookbackBars],
+    ["compute_trendlines", computeTrendlines === false ? "0" : null],
+    ["detect_patterns", detectPatterns ? "1" : null],
+    ["as_of_date", asOf],
+    ["from_date", fromDate],
+  ]);
   return getJson<ChartPayload>(
     `${CHART_PATTERNS_BASE}/symbol/${encodeURIComponent(symbol)}/chart?${params.toString()}`,
     `Failed to load ${symbol} chart`,
@@ -342,79 +380,6 @@ export interface StreamHandlers<TMeta, TItem> {
   signal?: AbortSignal;
 }
 
-type SseHandler = (event: string, data: string) => void;
-
-/**
- * Shared SSE reader (mirrors `src/hooks/useLivePrices.ts`): buffers
- * `ReadableStream` chunks, splits frames on `\n\n`, parses `event:`/`data:`
- * lines and dispatches each event. Never throws — transport/parse failures
- * are reported via `onStreamError` (abort is silent).
- */
-async function readSseStream(
-  response: Response,
-  onEvent: SseHandler,
-  onStreamError: (error: Error) => void,
-  signal?: AbortSignal,
-): Promise<void> {
-  const body = response.body;
-  if (!body) {
-    onStreamError(new Error("Empty stream response"));
-    return;
-  }
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  const onAbort = (): void => {
-    try {
-      void reader.cancel();
-    } catch {
-      /* non-fatal */
-    }
-  };
-  signal?.addEventListener("abort", onAbort, { once: true });
-  try {
-    for (;;) {
-      if (signal?.aborted) return;
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const parts = buffer.split("\n\n");
-      buffer = parts.pop() ?? "";
-      for (const part of parts) {
-        if (!part.trim()) continue;
-        let eventType = "";
-        const dataLines: string[] = [];
-        for (const line of part.split("\n")) {
-          if (line.startsWith("event:")) eventType = line.slice(6).trim();
-          else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
-          else if (line.startsWith(":")) continue;
-        }
-        if (!eventType) continue;
-        onEvent(eventType, dataLines.join("\n"));
-      }
-    }
-    if (buffer.trim()) {
-      let eventType = "";
-      const dataLines: string[] = [];
-      for (const line of buffer.split("\n")) {
-        if (line.startsWith("event:")) eventType = line.slice(6).trim();
-        else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
-      }
-      if (eventType) onEvent(eventType, dataLines.join("\n"));
-    }
-  } catch (err) {
-    if ((err as Error)?.name === "AbortError" || signal?.aborted) return;
-    onStreamError(err instanceof Error ? err : new Error("Stream read failed"));
-  } finally {
-    signal?.removeEventListener("abort", onAbort);
-    try {
-      reader.releaseLock();
-    } catch {
-      /* non-fatal */
-    }
-  }
-}
-
 function dispatchSse<TMeta, TItem>(
   event: string,
   data: string,
@@ -446,19 +411,19 @@ function dispatchSse<TMeta, TItem>(
 }
 
 /**
- * Stream enriched pattern results (`GET /results/stream`): `meta` carries the
- * total/summary up front, then one `item` per result, then `done`. Uses
- * `fetchWithAuth` (NOT `EventSource`) so the `Authorization` header is sent.
- * Never throws — failures go to `onError`.
+ * Shared SSE transport for the pattern/watch streams: open `url` with the
+ * auth header, then drain frames into `dispatchSse`. Never throws — aborts
+ * and failures are reported via `handlers.onError`.
  */
-export async function streamResults(
-  query: PatternsQuery = {},
-  handlers: StreamHandlers<ResultsStreamMeta, PatternHitDTO> = {},
+async function streamSse<TMeta, TItem>(
+  url: string,
+  handlers: StreamHandlers<TMeta, TItem>,
+  fallbackDetail: string,
 ): Promise<void> {
   const { signal, onError, ...rest } = handlers;
   let response: Response;
   try {
-    response = await fetchWithAuth(`${CHART_PATTERNS_BASE}/results/stream${buildPatternsQuery(query)}`, {
+    response = await fetchWithAuth(url, {
       headers: { Accept: "text/event-stream" },
       signal,
     });
@@ -469,12 +434,12 @@ export async function streamResults(
   }
   if (signal?.aborted) return;
   if (!response.ok) {
-    const { detail } = await readError(response, "Failed to stream pattern results");
+    const { detail } = await readError(response, fallbackDetail);
     onError?.(new Error(detail));
     return;
   }
   let finished = false;
-  const wrapped: StreamHandlers<ResultsStreamMeta, PatternHitDTO> = {
+  const wrapped: StreamHandlers<TMeta, TItem> = {
     ...rest,
     onDone: () => {
       finished = true;
@@ -485,13 +450,32 @@ export async function streamResults(
       onError?.(err);
     },
   };
-  await readSseStream(
-    response,
-    (event, data) => dispatchSse(event, data, wrapped),
-    (err) => {
-      if (!finished) onError?.(err);
-    },
-    signal,
+  try {
+    await readSseStream(
+      response,
+      (frame) => dispatchSse(frame.event, frame.data, wrapped),
+      { signal },
+    );
+  } catch (err) {
+    if ((err as Error)?.name === "AbortError" || signal?.aborted) return;
+    if (!finished) onError?.(err instanceof Error ? err : new Error("Stream read failed"));
+  }
+}
+
+/**
+ * Stream enriched pattern results (`GET /results/stream`): `meta` carries the
+ * total/summary up front, then one `item` per result, then `done`. Uses
+ * `fetchWithAuth` (NOT `EventSource`) so the `Authorization` header is sent.
+ * Never throws — failures go to `onError`.
+ */
+export async function streamResults(
+  query: PatternsQuery = {},
+  handlers: StreamHandlers<ResultsStreamMeta, PatternHitDTO> = {},
+): Promise<void> {
+  return streamSse(
+    `${CHART_PATTERNS_BASE}/results/stream${buildPatternsQuery(query)}`,
+    handlers,
+    "Failed to stream pattern results",
   );
 }
 
@@ -504,56 +488,23 @@ export async function streamWatch(
   query: WatchQuery,
   handlers: StreamHandlers<WatchStreamMeta, WatchRow> = {},
 ): Promise<void> {
-  const { signal, onError, ...rest } = handlers;
-  let response: Response;
-  try {
-    response = await fetchWithAuth(`${CHART_PATTERNS_BASE}/watch/stream${buildWatchQuery(query)}`, {
-      headers: { Accept: "text/event-stream" },
-      signal,
-    });
-  } catch (err) {
-    if ((err as Error)?.name === "AbortError" || signal?.aborted) return;
-    onError?.(err instanceof Error ? err : new Error("Stream request failed"));
-    return;
-  }
-  if (signal?.aborted) return;
-  if (!response.ok) {
-    const { detail } = await readError(response, "Failed to stream breakout watch");
-    onError?.(new Error(detail));
-    return;
-  }
-  let finished = false;
-  const wrapped: StreamHandlers<WatchStreamMeta, WatchRow> = {
-    ...rest,
-    onDone: () => {
-      finished = true;
-      rest.onDone?.();
-    },
-    onError: (err) => {
-      finished = true;
-      onError?.(err);
-    },
-  };
-  await readSseStream(
-    response,
-    (event, data) => dispatchSse(event, data, wrapped),
-    (err) => {
-      if (!finished) onError?.(err);
-    },
-    signal,
+  return streamSse(
+    `${CHART_PATTERNS_BASE}/watch/stream${buildWatchQuery(query)}`,
+    handlers,
+    "Failed to stream breakout watch",
   );
 }
 
 /** Serialize a `WatchQuery` into a query string for `GET /watch`. */
 export function buildWatchQuery(query: WatchQuery): string {
-  const params = new URLSearchParams();
-  if (query.setup) params.set("setup", query.setup);
-  if (query.universe) params.set("universe", query.universe);
-  if (query.timeframe) params.set("timeframe", query.timeframe);
-  if (query.minBaseDays != null) params.set("min_base_days", String(query.minBaseDays));
-  if (query.minRelVolume != null) params.set("min_rel_volume", String(query.minRelVolume));
-  const qs = params.toString();
-  return qs ? `?${qs}` : "";
+  // Param order is wire order — do not reorder entries.
+  return buildQueryString([
+    ["setup", query.setup],
+    ["universe", query.universe],
+    ["timeframe", query.timeframe],
+    ["min_base_days", query.minBaseDays],
+    ["min_rel_volume", query.minRelVolume],
+  ]);
 }
 
 export async function fetchWatchSetups(): Promise<WatchSetup[]> {
@@ -570,6 +521,26 @@ export async function fetchWatch(query: WatchQuery): Promise<WatchPayload> {
     "Failed to fetch breakout watch",
   );
   return { ...data, items: data.items ?? [] };
+}
+
+export interface PatternMatrixOptions {
+  limit?: number;
+  timeframes?: string[];
+}
+
+export async function fetchPatternMatrix(
+  universe: string,
+  options: PatternMatrixOptions = {},
+): Promise<PatternMatrixResponse> {
+  const params = new URLSearchParams({ universe });
+  appendParams(params, [
+    ["limit", options.limit],
+    ["timeframes", options.timeframes],
+  ]);
+  return getJson<PatternMatrixResponse>(
+    `${CHART_PATTERNS_BASE}/matrix?${params.toString()}`,
+    "Failed to fetch pattern matrix",
+  );
 }
 
 /** Holiday-aware market open state (`GET /api/chart-patterns/market-status`). */

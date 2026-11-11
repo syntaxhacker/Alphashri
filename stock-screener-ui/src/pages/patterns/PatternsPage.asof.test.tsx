@@ -16,8 +16,12 @@ vi.mock("@/hooks/useECharts", () => ({
 }));
 
 const fetchSymbolChart = vi.fn();
+const fetchPatternMatrix = vi.fn();
+const fetchPatternHit = vi.fn();
 vi.mock("@/api/chartPatterns", () => ({
   fetchSymbolChart: (...args: unknown[]) => fetchSymbolChart(...args),
+  fetchPatternMatrix: (...args: unknown[]) => fetchPatternMatrix(...args),
+  fetchPatternHit: (...args: unknown[]) => fetchPatternHit(...args),
 }));
 
 const fetchPatternImages = vi.fn();
@@ -179,6 +183,7 @@ function makeProps(overrides: Partial<PatternsPageProps> = {}): PatternsPageProp
     scan: vi.fn(),
     refresh: vi.fn(),
     forceRefresh: vi.fn(),
+    defaultView: "list",
     ...overrides,
   };
 }
@@ -191,6 +196,7 @@ describe("PatternsPage fullscreen as-of replay", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fetchPatternImages.mockResolvedValue({});
+    fetchPatternHit.mockResolvedValue(undefined as never);
     fetchSymbolChart.mockResolvedValue({
       symbol: "IRCON",
       timeframe: "1D",

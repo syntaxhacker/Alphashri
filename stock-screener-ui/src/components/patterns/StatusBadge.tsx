@@ -1,32 +1,32 @@
 import { Badge } from "@/ui";
 import type { PatternStatus } from "@/types/chartPatterns";
-
-const STATUS_COLORS: Record<string, string> = {
-  confirmed: "success",
-  forming: "info",
-  failed: "error",
-  marginal: "warning",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  confirmed: "Confirmed",
-  forming: "Forming",
-  failed: "Failed",
-  marginal: "Marginal",
-};
+import type { DisplayStatus, DisplayTone } from "./patternDisplayStatus";
+import { statusBadgeTone, statusLabel, type BadgeTone } from "./patternTone";
 
 export interface StatusBadgeProps {
   status: PatternStatus | string | null | undefined;
+  /** Derived display status (ARMED / BREAKOUT / …). Falls back to `status`. */
+  display?: DisplayStatus | null;
   "data-testid"?: string;
 }
 
+/** `BREAKOUT` → `Breakout` — badges are sentence-case, the card pill is upper. */
+function titleCase(label: string): string {
+  return label.charAt(0) + label.slice(1).toLowerCase();
+}
+
+function toneToBadgeTone(tone: DisplayTone): BadgeTone {
+  return tone === "neutral" ? "default" : tone;
+}
+
 /** Small semantic chip for a pattern detection status. */
-export function StatusBadge({ status, "data-testid": testId }: StatusBadgeProps) {
+export function StatusBadge({ status, display, "data-testid": testId }: StatusBadgeProps) {
   const key = String(status ?? "").toLowerCase();
-  const label = STATUS_LABELS[key] ?? (key ? key.charAt(0).toUpperCase() + key.slice(1) : "Unknown");
+  const label = display ? titleCase(display.label) : statusLabel(status);
+  const color = display ? toneToBadgeTone(display.tone) : statusBadgeTone(status);
   return (
     <Badge
-      color={STATUS_COLORS[key] ?? "default"}
+      color={color}
       variant="light"
       size="sm"
       data-testid={testId ?? `patterns-status-${key || "unknown"}`}

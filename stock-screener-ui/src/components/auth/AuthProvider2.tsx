@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { Box } from "@/ui";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+import { API_BASE } from "@/api/config";
+import { fetchWithAuth } from "@/state/auth";
 const TOKEN_KEY = "alphashri_token";
 const REFRESH_TOKEN_KEY = "alphashri_refresh_token";
 const USER_KEY = "alphashri_user";
@@ -92,19 +93,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAuthenticated = !!user && !!getStoredToken();
 
   const getAccessToken = useCallback(() => getStoredToken(), []);
-
-  const fetchWithAuth = useCallback(
-    async (url: string, options: RequestInit = {}): Promise<Response> => {
-      const token = getStoredToken();
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        ...(options.headers as Record<string, string>),
-      };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-      return fetch(url, { ...options, headers });
-    },
-    [],
-  );
 
   const refreshTokens = useCallback(async (): Promise<boolean> => {
     const rt = getStoredRefreshToken();

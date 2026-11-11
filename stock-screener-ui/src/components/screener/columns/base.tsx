@@ -1,6 +1,13 @@
 import type { ColumnDef } from "./index";
-import { getPnLTextColor, formatPercentage, formatTimeAgo } from "../../../utils/ui-helpers";
+import { getPnLTextColor, formatTimeAgo } from "../../../utils/ui-helpers";
 import { Tooltip, Text } from "@/ui";
+import {
+  pnlPctCell,
+  fixedOrZero,
+  signedPercent,
+  signedPercentCell,
+  numCol,
+} from "./columnHelpers";
 
 export const symbolCol: ColumnDef = {
   key: "symbol",
@@ -28,9 +35,7 @@ export const dayChangeCol: ColumnDef = {
   label: "Day Change",
   type: "number",
   sortable: true,
-  format: (value: number) => {
-    return { value: formatPercentage(value, 2, true), className: getPnLTextColor(value) };
-  },
+  format: (value: number) => pnlPctCell(value),
 };
 
 export const volumeMCol: ColumnDef = {
@@ -38,7 +43,7 @@ export const volumeMCol: ColumnDef = {
   label: "Volume (M)",
   type: "number",
   sortable: true,
-  format: (value: number) => (value ?? 0).toFixed(2),
+  format: (value: number) => fixedOrZero(value, 2),
 };
 
 export const rsiCol: ColumnDef = {
@@ -46,7 +51,7 @@ export const rsiCol: ColumnDef = {
   label: "RSI",
   type: "number",
   sortable: true,
-  format: (value: number) => (value ?? 0).toFixed(1),
+  format: (value: number) => fixedOrZero(value, 1),
 };
 
 export const adxCol: ColumnDef = {
@@ -54,7 +59,7 @@ export const adxCol: ColumnDef = {
   label: "ADX",
   type: "number",
   sortable: true,
-  format: (value: number) => (value ?? 0).toFixed(1),
+  format: (value: number) => fixedOrZero(value, 1),
 };
 
 export const touched52wCol: ColumnDef = {
@@ -92,31 +97,25 @@ export const volumeSurgeCol: ColumnDef = {
   format: (value: number) => (value ?? 1).toFixed(1) + "x",
 };
 
-export const moveCol = (key: string, label: string): ColumnDef => ({
-  key,
-  label,
-  type: "number",
-  sortable: true,
-  format: (value: number) => ({
-    value: value != null ? `${value > 0 ? "+" : ""}${value.toFixed(2)}%` : "-",
-    className: value != null ? getPnLTextColor(value) : "",
-  }),
-});
-
-function pctFormat(value: number) {
-  const cls = value > 0 ? "success" : "error";
-  return { value: `${value > 0 ? "+" : ""}${value.toFixed(1)}%`, className: cls };
-}
+export const moveCol = (key: string, label: string): ColumnDef =>
+  numCol(key, label, (value: number) =>
+    value != null
+      ? { value: signedPercent(value, 2), className: getPnLTextColor(value) }
+      : { value: "-", className: "" },
+  );
 
 export const recentReturn5dCol: ColumnDef = {
   key: "recent_return_5d",
   label: "Return 5D",
   type: "number",
   sortable: true,
-  format: (value: number) => ({
-    ...pctFormat(value),
-    value: `${value > 5 ? "🚀" : value > 0 ? "🟢" : "🔴"} ${pctFormat(value).value}`,
-  }),
+  format: (value: number) => {
+    const cell = signedPercentCell(value, 1);
+    return {
+      ...cell,
+      value: `${value > 5 ? "🚀" : value > 0 ? "🟢" : "🔴"} ${cell.value}`,
+    };
+  },
 };
 
 export const perfWCol: ColumnDef = {
@@ -124,5 +123,5 @@ export const perfWCol: ColumnDef = {
   label: "Perf W",
   type: "number",
   sortable: true,
-  format: pctFormat,
+  format: (value: number) => signedPercentCell(value, 1),
 };

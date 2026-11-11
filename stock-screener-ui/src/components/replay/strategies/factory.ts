@@ -3,9 +3,9 @@
 // (normalize/envelope, chip panel, summary, trade explainer, chart fit padding) so a
 // new strategy is one config object, not another near-identical module.
 import Stack from "@mui/material/Stack";
-import Chip from "@mui/material/Chip";
-import { createElement, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { TZ_IST_LABEL } from "@/config/constants";
+import { tradeStatChips } from "./shared";
 import type { ReplayBundle, ReplayTrade } from "../tick";
 import type { ReplayParamSpec, ReplayStrategyPlugin, TimelineData } from "../core/plugin";
 
@@ -88,17 +88,10 @@ export function makeReplayPlugin(spec: ReplayPluginSpec): ReplayStrategyPlugin {
   };
   plugin.panel =
     spec.panel ??
-    ((bundle: ReplayBundle) => {
-      const trades = bundle.trades;
-      const net = trades.reduce((a, t) => a + t.pnl, 0);
-      const wins = trades.filter(t => t.pnl > 0).length;
-      return createElement(
-        Stack,
-        { direction: "row", spacing: 1, sx: { mb: 1, flexWrap: "wrap" } },
-        createElement(Chip, { size: "small", label: `${trades.length} trades`, sx: { bgcolor: "#1F2937", color: "#00FF00" } }),
-        createElement(Chip, { size: "small", label: `win ${wins}/${trades.length}`, sx: { bgcolor: "#1F2937", color: "#9CA3AF" } }),
-        createElement(Chip, { size: "small", label: `net ${net > 0 ? "+" : ""}${net.toFixed(1)} pts`, color: net > 0 ? "success" : "error" }),
-      );
-    });
+    ((bundle: ReplayBundle) => createElement(
+      Stack,
+      { direction: "row", spacing: 1, sx: { mb: 1, flexWrap: "wrap" } },
+      ...tradeStatChips(bundle),
+    ));
   return plugin;
 }

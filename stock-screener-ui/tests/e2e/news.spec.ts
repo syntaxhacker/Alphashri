@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFirstArticleOnMobile } from "./helpers/flowsB";
 import { setupNewsTest, openNewsPanel, gotoNewsPage, openRootPage } from "./helpers/newsHelpers";
 
 test.describe("News Panel - Basic Functionality", () => {
@@ -10,7 +11,7 @@ test.describe("News Panel - Basic Functionality", () => {
     await openRootPage(page);
     const toggleBtn = page.locator('[data-testid="news-toggle-btn"]');
     await expect(toggleBtn).toBeVisible({ timeout: 15000 });
-    await expect(toggleBtn).toContainText("NEWS");
+    await expect(toggleBtn).toHaveAttribute("aria-label", "News");
   });
 
   test("should open panel when toggle button is clicked", async ({ page }) => {
@@ -272,35 +273,11 @@ test.describe("News Page - Article Detail", () => {
   });
 
   test("should show back button in article detail", async ({ page }) => {
-    await page.setViewportSize({ width: 575, height: 800 });
-    await gotoNewsPage(page);
-    const firstNewsItem = page.locator('[data-testid="news-list-item"]').first();
-    await firstNewsItem.scrollIntoViewIfNeeded({ timeout: 15000 });
-    await expect(firstNewsItem).toBeVisible({ timeout: 15000 });
-
-    // Use native dispatchEvent - Playwright click({ force: true }) doesn't reliably trigger React onClick
-    await page.evaluate(() => {
-      const item = document.querySelector('[data-testid="news-list-item"]');
-      item?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-    });
-
-    await expect(page.locator('[data-testid="close-article-btn"]')).toBeVisible({ timeout: 15000 });
+    await openFirstArticleOnMobile(page);
   });
 
   test("should return to news list when clicking back", async ({ page }) => {
-    await page.setViewportSize({ width: 575, height: 800 });
-    await gotoNewsPage(page);
-    const firstNewsItem = page.locator('[data-testid="news-list-item"]').first();
-    await firstNewsItem.scrollIntoViewIfNeeded({ timeout: 15000 });
-    await expect(firstNewsItem).toBeVisible({ timeout: 15000 });
-
-    // Use native dispatchEvent - Playwright click({ force: true }) doesn't reliably trigger React onClick
-    await page.evaluate(() => {
-      const item = document.querySelector('[data-testid="news-list-item"]');
-      item?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-    });
-
-    await expect(page.locator('[data-testid="close-article-btn"]')).toBeVisible({ timeout: 15000 });
+    await openFirstArticleOnMobile(page);
 
     const closeBtn = page.locator('[data-testid="close-article-btn"]');
     await closeBtn.scrollIntoViewIfNeeded({ timeout: 15000 });

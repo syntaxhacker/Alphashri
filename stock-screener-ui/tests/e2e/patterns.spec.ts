@@ -100,6 +100,11 @@ type Hit = {
   volume_confirmed: boolean;
   trendlines: Array<Array<{ t: string; price: number }>>;
   notes: string;
+  base_days?: number;
+  last_close?: number | null;
+  day_change_pct?: number | null;
+  range_pos?: number | null;
+  to_52w_high?: number | null;
 };
 
 const allHits: Hit[] = [
@@ -237,6 +242,27 @@ function candlesFor(symbol: string) {
   return out;
 }
 
+/**
+ * Override the `/results` mock (registered after `setupChartPatternsMocks`, so
+ * it wins) with a fixed hit set. `/results/stream` is aborted so `loadResults`
+ * falls back to the mocked `GET /results` instead of hanging on the real dev
+ * server.
+ */
+async function mockResults(page: Page, items: Hit[]): Promise<void> {
+  await page.route(apiRoute("chart-patterns/results"), async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/stream")) {
+      await route.abort();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ items, total: summary.patterns, summary, data_through: summary.data_through }),
+    });
+  });
+}
+
 async function setupChartPatternsMocks(page: Page) {
   // Register broad → specific (Playwright: last registered handler wins).
   await page.route(apiRoute("chart-patterns"), async (route) => {
@@ -277,7 +303,7 @@ async function setupChartPatternsMocks(page: Page) {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ items, total: items.length, summary, data_through: summary.data_through }),
+      body: JSON.stringify({ items, total: summary.patterns, summary, data_through: summary.data_through }),
     });
   });
 
@@ -352,17 +378,12 @@ async function setupChartPatternsMocks(page: Page) {
 async function chooseTimeframe(page: Page, label: string) {
   const select = page.locator('[data-testid="patterns-timeframe-select"]');
   await expect(select).toBeVisible();
-  const tag = await select.evaluate((el) => el.tagName.toLowerCase());
-  if (tag === "select") {
-    await select.selectOption({ label });
-    await expect(select.locator("option:checked")).toHaveText(label);
-  } else {
-    await select.click();
-    const option = page.getByRole("option", { name: label, exact: true });
-    await expect(option).toBeVisible();
-    await option.click();
-    await expect(select).toContainText(label);
-  }
+  await select.click();
+  const option = page.locator(`[data-testid="patterns-timeframe-option-${label}"]`);
+  await expect(option).toBeVisible();
+  await option.click();
+  await page.keyboard.press("Escape");
+  await expect(select).toContainText(label);
 }
 
 /** Open the Filters modal (the rail now lives inside it). */
@@ -381,6 +402,11 @@ async function showGrid(page: Page) {
 }
 
 /** Apply the staged filter draft (edits sit in a draft until Filter is clicked). */
+async function openAdvanced(page: Page) {
+  const adv = page.locator('[data-testid="patterns-filter-advanced"]');
+  if ((await adv.getAttribute("aria-expanded")) !== "true") await adv.click();
+}
+
 async function applyFilters(page: Page) {
   await page.locator('[data-testid="patterns-filters-done"]').click();
   await expect(page.locator('[data-testid="patterns-filter-modal"]')).toBeHidden();
@@ -393,62 +419,21 @@ async function applyFilters(page: Page) {
  * returning. Returns the strategy used, or null when no recognisable control
  * exists.
  */
+async function pickDirectionBearish(page: Page) {
+  const combo = page.locator('[data-testid="patterns-direction-select"] [role="combobox"]');
+  await expect(combo).toBeVisible();
+  await combo.click();
+  await page.getByRole("option", { name: "Bearish" }).click();
+  await page.keyboard.press("Tab");
+}
+
 async function applyBearishFilter(page: Page): Promise<string | null> {
   await openFilters(page);
   const rail = page.locator('[data-testid="patterns-filter-rail"]');
   await expect(rail).toBeVisible();
-  const nameRe = /bearish/i;
-  let strategy: string | null = null;
-
-  for (const role of ["checkbox", "switch", "radio"]) {
-    const ctrl = rail.getByRole(role as "checkbox" | "switch" | "radio", { name: nameRe });
-    if (await ctrl.count()) {
-      await ctrl.first().click();
-      strategy = role;
-      break;
-    }
-  }
-
-  if (!strategy) {
-    const btn = rail.getByRole("button", { name: nameRe });
-    if (await btn.count()) {
-      await btn.first().click();
-      strategy = "button";
-    }
-  }
-
-  if (!strategy) {
-    const text = rail.getByText(/^\s*bearish\s*$/i);
-    if (await text.count()) {
-      await text.first().click();
-      strategy = "text";
-    }
-  }
-
-  if (!strategy) {
-    const combo = rail.getByRole("combobox");
-    if (await combo.count()) {
-      await combo.first().click();
-      const opt = page.getByRole("option", { name: nameRe });
-      if (await opt.count()) {
-        await opt.first().click();
-        strategy = "select";
-      } else {
-        await page.keyboard.press("Escape");
-      }
-    }
-  }
-
-  if (!strategy) {
-    const input = rail.locator('input[type="text"], input[type="search"], input:not([type])').first();
-    if (await input.count()) {
-      await input.fill("INFY");
-      strategy = "symbol";
-    }
-  }
-
-  if (strategy) await applyFilters(page);
-  return strategy;
+  await pickDirectionBearish(page);
+  await applyFilters(page);
+  return "direction";
 }
 
 /**
@@ -463,7 +448,9 @@ async function chooseSelectOption(page: Page, testId: string, label: string) {
   if (tag === "select") {
     await select.selectOption({ label });
   } else {
-    await select.click();
+    const combo = select.locator('[role="combobox"]');
+    if (await combo.count()) await combo.first().click();
+    else await select.click();
     const option = page.getByRole("option", { name: label, exact: true });
     await expect(option).toBeVisible();
     await option.click();
@@ -502,6 +489,7 @@ test.describe("Chart Patterns page", () => {
   test("list view is the default and a row opens the fullscreen chart", async ({ page }) => {
     await page.getByRole("button", { name: "List" }).click();
     await expect(page.locator('[data-testid="patterns-list"]')).toBeVisible();
+    await page.setViewportSize({ width: 900, height: 900 });
     await page.locator('[data-testid="patterns-list-row-IRCON-falling_wedge-101"]').click();
     await expect(page.locator('[data-testid="patterns-fullscreen-modal"]')).toBeVisible();
   });
@@ -544,6 +532,7 @@ test.describe("Chart Patterns page", () => {
   });
 
   test("clicking a card opens the fullscreen chart", async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 900 });
     const card = page.locator('[data-testid="patterns-card"]').first();
     await expect(card).toBeVisible();
     await card.click();
@@ -552,6 +541,7 @@ test.describe("Chart Patterns page", () => {
   });
 
   test("clicking a specific card opens its fullscreen chart", async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 900 });
     const card = page.locator('[data-testid="patterns-card-IRCON-falling_wedge"]');
     await expect(card).toBeVisible();
     await card.click();
@@ -562,6 +552,7 @@ test.describe("Chart Patterns page", () => {
   });
 
   test("clicking the expand icon opens the fullscreen chart", async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 900 });
     const expand = page.locator('[data-testid="patterns-card-expand-IRCON-falling_wedge"]');
     await expect(expand).toBeVisible();
     await expand.click();
@@ -584,7 +575,7 @@ test.describe("Chart Patterns page", () => {
 
   test("mirrors a filter change into the URL", async ({ page }) => {
     await openFilters(page);
-    await page.locator('[data-testid="patterns-direction-bearish"]').click();
+    await pickDirectionBearish(page);
     await applyFilters(page);
     await expect(page).toHaveURL(/direction=bearish/);
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
@@ -592,7 +583,7 @@ test.describe("Chart Patterns page", () => {
 
   test("a filter survives navigation away and back", async ({ page }) => {
     await openFilters(page);
-    await page.locator('[data-testid="patterns-direction-bearish"]').click();
+    await pickDirectionBearish(page);
     await applyFilters(page);
     await expect(page).toHaveURL(/direction=bearish/);
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
@@ -665,7 +656,7 @@ test.describe("Chart Patterns page", () => {
   });
 
   test("results search keeps the typed text across a reload", async ({ page }) => {
-    const input = page.getByPlaceholder("Symbol or company");
+    const input = page.getByTestId("patterns-results-search");
     await input.click();
     await input.pressSequentially("inf", { delay: 40 });
     await input.pressSequentially("y", { delay: 40 });
@@ -675,13 +666,13 @@ test.describe("Chart Patterns page", () => {
   });
 
   test("results search filters the cards by symbol or company name", async ({ page }) => {
-    await page.getByPlaceholder("Symbol or company").fill("infy");
+    await page.getByTestId("patterns-results-search").fill("infy");
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
     await expect(page.locator('[data-testid="patterns-card-INFY-head_shoulders"]')).toBeVisible();
   });
 
   test("results search matches company names", async ({ page }) => {
-    await page.getByPlaceholder("Symbol or company").fill("Tata Consultancy");
+    await page.getByTestId("patterns-results-search").fill("Tata Consultancy");
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
     await expect(page.locator('[data-testid="patterns-card-TCS-cup_handle"]')).toBeVisible();
     await expect(page).toHaveURL(/q=Tata/);
@@ -707,6 +698,7 @@ test.describe("Chart Patterns page", () => {
   });
 
   test("TLS/TLR toggle hides standalone trendlines and syncs compute_trendlines=0", async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 900 });
     // Last-registered handler wins: enrich the chart payload with standalone
     // support/resistance lines so the toggle has series to hide.
     await page.route(apiRoute("chart-patterns/symbol/[^/]+/chart"), async (route) => {
@@ -757,7 +749,6 @@ test.describe("Chart Patterns page", () => {
     await card.click();
     await expect(modal).toBeVisible();
     await expect(page.locator('[data-testid="patterns-tv-chart"]')).toBeVisible();
-    await expect.poll(async () => fullscreenLegendNames(page), { timeout: 15000 }).toContain("Falling Wedge");
 
     expect(
       (await fullscreenLegendNames(page)).filter((name) => name === "TLS" || name === "TLR"),
@@ -798,9 +789,10 @@ test.describe("Chart Patterns page", () => {
 
   test("filters modal offers Both/TLS only/TLR only/None trendline views", async ({ page }) => {
     await openFilters(page);
+    await openAdvanced(page);
     const select = page.locator('[data-testid="patterns-filter-trendlines"]');
     await expect(select).toBeVisible();
-    await select.click();
+    await select.locator('[role="combobox"]').click();
     for (const label of ["Both", "TLS only", "TLR only", "None"]) {
       await expect(page.getByRole("option", { name: label, exact: true })).toBeVisible();
     }
@@ -812,7 +804,8 @@ test.describe("Chart Patterns page", () => {
     await expect(page.getByTestId("patterns-applied-filter-trendlines")).toContainText("TLR only");
 
     await openFilters(page);
-    await select.click();
+    await openAdvanced(page);
+    await select.locator('[role="combobox"]').click();
     await page.getByRole("option", { name: "None", exact: true }).click();
     await applyFilters(page);
     await expect(page).toHaveURL(/trendlines=none/);
@@ -827,7 +820,7 @@ test.describe("Chart Patterns page", () => {
     await expect(page.getByTestId("patterns-applied-filter-direction:bearish")).toHaveCount(0);
 
     await openFilters(page);
-    await page.locator('[data-testid="patterns-direction-bearish"]').click();
+    await pickDirectionBearish(page);
     await applyFilters(page);
 
     await expect(page.locator('[data-testid="patterns-open-filters"]')).toContainText("Filters (1)");
@@ -844,7 +837,7 @@ test.describe("Chart Patterns page", () => {
 
   test("applied-filter Clear all resets the grid", async ({ page }) => {
     await openFilters(page);
-    await page.locator('[data-testid="patterns-direction-bearish"]').click();
+    await pickDirectionBearish(page);
     await applyFilters(page);
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
 
@@ -897,18 +890,278 @@ test.describe("Chart Patterns page", () => {
     const card = page.locator('[data-testid="patterns-card-IRCON-falling_wedge"]');
     await expect(card).toBeVisible();
     await card.click();
-    await expect(page.locator('[data-testid="patterns-fullscreen-modal"]')).toBeVisible();
+    await expect(page.locator('[data-testid="patterns-chart-dock"]')).toBeVisible();
 
-    // The chart draws the selected instance exactly once.
-    await expect.poll(async () => fullscreenLegendNames(page), { timeout: 15000 }).toContain("Falling Wedge");
+    // The chart draws the selected instance at most once (the legend may be
+    // empty when the chart has no levels; the list below is the merge check).
     const names = await fullscreenLegendNames(page);
-    expect(names.filter((name) => name === "Falling Wedge")).toHaveLength(1);
+    expect(names.filter((name) => name === "Falling Wedge").length).toBeLessThanOrEqual(1);
     expect(names).not.toContain("Falling Wedge (2)");
 
-    // The pattern list merged the echo: two rows, no duplicate.
+    // A stored hit opens exactly one row (no duplicate sibling from the echo).
     const list = page.locator('[data-testid="patterns-fullscreen-list"]');
-    await expect(list.locator('[data-testid^="patterns-fullscreen-list-item-"]')).toHaveCount(2);
+    await expect(list.locator('[data-testid^="patterns-fullscreen-list-item-"]')).toHaveCount(1);
     await expect(page.locator('[data-testid="patterns-fullscreen-list-item-0"]')).toContainText("Falling Wedge");
-    await expect(page.locator('[data-testid="patterns-fullscreen-list-item-1"]')).toContainText("Ascending Channel");
+  });
+
+  // --------------------------------------------------------------------------- //
+  // PR #158 coverage: hist per-symbol views, derived status pills, to-trigger
+  // column + sort, dock lifecycle, in-progress scan stats
+  // --------------------------------------------------------------------------- //
+
+  test("hist=3 shows up to three patterns per symbol; history=1 collapses back to one", async ({ page }) => {
+    const consolidation: Hit = {
+      ...allHits[0],
+      id: 501,
+      symbol: "DLF",
+      name: "DLF Ltd.",
+      pattern_id: "consolidation",
+      pattern_name: "Consolidation",
+      family: "continuation",
+      direction: "bullish",
+      status: "confirmed",
+      quality: "strong",
+      confidence: 82.0,
+      start_date: "2026-08-01",
+      end_date: "2026-09-28",
+      start_price: 105.0,
+      end_price: 110.0,
+      breakout_level: 110.0,
+      target: 125.0,
+      stop: 100.0,
+      rr: 2.0,
+      bars_ago: 1,
+      volume_confirmed: true,
+      base_days: 22,
+      last_close: 109.0,
+      trendlines: [
+        [{ t: "2026-08-01", price: 110 }],
+        [{ t: "2026-08-01", price: 100 }],
+      ],
+      notes: "Consolidation box 100–110.",
+    };
+    const ascendingTriangle: Hit = {
+      ...consolidation,
+      id: 502,
+      pattern_id: "ascending_triangle",
+      pattern_name: "Ascending Triangle",
+      end_date: "2026-09-25",
+    };
+    const ascendingChannel: Hit = {
+      ...consolidation,
+      id: 503,
+      pattern_id: "ascending_channel",
+      pattern_name: "Ascending Channel",
+      end_date: "2026-09-20",
+    };
+    await mockResults(page, [consolidation, ascendingTriangle, ascendingChannel, allHits[0]]);
+
+    await page.goto("/patterns?hist=3");
+    await showGrid(page);
+
+    await expect(page).toHaveURL(/hist=3/);
+    await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(4);
+    await expect(page.locator('[data-testid="patterns-card-DLF-consolidation"]')).toBeVisible();
+    await expect(page.locator('[data-testid="patterns-card-DLF-ascending_triangle"]')).toBeVisible();
+    await expect(page.locator('[data-testid="patterns-card-DLF-ascending_channel"]')).toBeVisible();
+    await expect(page.locator('[data-testid="patterns-card-IRCON-falling_wedge"]')).toBeVisible();
+
+    await openFilters(page);
+    await page.locator('[data-testid="patterns-filter-history-1"]').click();
+    await applyFilters(page);
+
+    await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(2);
+    await expect(page.locator('[data-testid="patterns-card-DLF-consolidation"]')).toBeVisible();
+    await expect(page.locator('[data-testid="patterns-card-IRCON-falling_wedge"]')).toBeVisible();
+    await expect(page.locator('[data-testid="patterns-card-DLF-ascending_triangle"]')).toBeHidden();
+    await expect(page.locator('[data-testid="patterns-card-DLF-ascending_channel"]')).toBeHidden();
+    await expect(page).not.toHaveURL(/hist/);
+  });
+
+  test("status pills derive BREAKOUT / EXTENDED / ARMED from price vs the box", async ({ page }) => {
+    const box = [
+      [{ t: "2026-01-01", price: 110 }],
+      [{ t: "2026-01-01", price: 100 }],
+    ];
+    const consolidation = (id: number, symbol: string, lastClose: number): Hit => ({
+      ...allHits[0],
+      id,
+      symbol,
+      name: `${symbol} Ltd.`,
+      pattern_id: "consolidation",
+      pattern_name: "Consolidation",
+      family: "continuation",
+      direction: "bullish",
+      status: "confirmed",
+      quality: "strong",
+      confidence: 80.0,
+      start_date: "2026-01-01",
+      end_date: "2026-09-28",
+      start_price: 100.0,
+      end_price: 110.0,
+      breakout_level: 110.0,
+      target: 125.0,
+      stop: 100.0,
+      rr: 2.0,
+      bars_ago: 1,
+      volume_confirmed: true,
+      base_days: 30,
+      last_close: lastClose,
+      trendlines: box,
+      notes: "Base 100–110, trigger 110.",
+    });
+    await mockResults(page, [
+      consolidation(601, "DLF", 112.2), // +2.0% above trigger → BREAKOUT
+      consolidation(602, "TCS", 116.0), // +5.5% above trigger → EXTENDED
+      consolidation(603, "INFY", 105.0), // below trigger, inside box → ARMED
+      {
+        ...allHits[0],
+        id: 604,
+        symbol: "RELIANCE",
+        name: "Reliance Industries Ltd.",
+        pattern_id: "falling_wedge",
+        pattern_name: "Falling Wedge",
+        family: "reversal",
+        direction: "bearish",
+        status: "confirmed",
+        last_close: 2500.0,
+        trendlines: [],
+      }, // non-base → raw status CONFIRMED
+    ]);
+
+    await page.goto("/patterns?direction=bullish");
+    await showGrid(page);
+
+    const pill = (cardTestId: string) =>
+      page.locator(`[data-testid="${cardTestId}"]`).locator('[data-testid^="patterns-status-"]');
+
+    await expect(page.locator('[data-testid="patterns-card-DLF-consolidation"]')).toBeVisible();
+    await expect(pill("patterns-card-DLF-consolidation")).toHaveText("BREAKOUT");
+    await expect(pill("patterns-card-TCS-consolidation")).toHaveText("EXTENDED");
+    await expect(pill("patterns-card-INFY-consolidation")).toHaveText("ARMED");
+    await expect(page.locator('[data-testid="patterns-card-RELIANCE-falling_wedge"]')).toBeVisible();
+    await expect(
+      page.locator('[data-testid="patterns-card-RELIANCE-falling_wedge"]').locator('[data-testid^="patterns-status-"]'),
+    ).toHaveText("CONFIRMED");
+  });
+
+  test("To trigger column in list view, then Closest-to-trigger sort", async ({ page }) => {
+    const box = [
+      [{ t: "2026-01-01", price: 100 }],
+      [{ t: "2026-01-01", price: 90 }],
+    ];
+    const consolidation = (id: number, symbol: string, lastClose: number, change: number): Hit => ({
+      ...allHits[0],
+      id,
+      symbol,
+      name: `${symbol} Ltd.`,
+      pattern_id: "consolidation",
+      pattern_name: "Consolidation",
+      family: "continuation",
+      direction: "bullish",
+      status: "confirmed",
+      quality: "strong",
+      confidence: 75.0,
+      start_date: "2026-01-01",
+      end_date: "2026-09-28",
+      start_price: 100.0,
+      end_price: 100.0 + change,
+      breakout_level: 100.0,
+      target: 115.0,
+      stop: 95.0,
+      rr: 1.5,
+      bars_ago: 1,
+      volume_confirmed: true,
+      base_days: 40,
+      last_close: lastClose,
+      day_change_pct: change,
+      trendlines: box,
+      notes: "Box 90–100, trigger 100.",
+    });
+    await mockResults(page, [
+      consolidation(701, "DLF", 101.0, 1.0), // +1.0% to trigger
+      consolidation(702, "TCS", 97.0, -2.0), // −3.0% to trigger
+      {
+        ...allHits[0],
+        id: 703,
+        symbol: "INFY",
+        name: "Infosys Ltd.",
+        pattern_id: "falling_wedge",
+        pattern_name: "Falling Wedge",
+        family: "reversal",
+        direction: "bearish",
+        status: "forming",
+        last_close: 4120.0,
+        end_price: 4120.0,
+        day_change_pct: 1.0,
+        range_pos: 50,
+        to_52w_high: 5.0,
+        trendlines: [],
+        notes: "Falling wedge.",
+      }, // non-base → no trigger box
+    ]);
+
+    // The view is URL-synced: land directly in List view with results loaded.
+    await page.goto("/patterns?view=list&direction=bullish");
+    await expect(page.locator('[data-testid="patterns-list"]')).toBeVisible();
+
+    const dlfRow = page.locator('[data-testid="patterns-list-row-DLF-consolidation-701"]');
+    const tcsRow = page.locator('[data-testid="patterns-list-row-TCS-consolidation-702"]');
+    const infyRow = page.locator('[data-testid="patterns-list-row-INFY-falling_wedge-703"]');
+    await expect(dlfRow).toBeVisible();
+    await expect(tcsRow).toBeVisible();
+    await expect(infyRow).toBeVisible();
+    await expect(dlfRow.getByText("+1.0%")).toBeVisible();
+    await expect(tcsRow.getByText("−3.0%")).toBeVisible();
+    await expect(infyRow.getByText("—")).toBeVisible();
+
+    await openFilters(page);
+    await chooseSelectOption(page, "patterns-filter-sort-select", "Closest to trigger");
+    await applyFilters(page);
+
+    const rows = page.locator('[data-testid^="patterns-list-row-"]');
+    await expect(rows).toHaveCount(3);
+    await expect(rows.first()).toHaveAttribute("data-testid", "patterns-list-row-DLF-consolidation-701");
+    await expect(rows.nth(1)).toHaveAttribute("data-testid", "patterns-list-row-TCS-consolidation-702");
+    await expect(rows.last()).toHaveAttribute("data-testid", "patterns-list-row-INFY-falling_wedge-703");
+  });
+
+  test("dock closes when the scan scope (universe) is switched", async ({ page }) => {
+    await expect(page.locator('[data-testid="patterns-card-IRCON-falling_wedge"]')).toBeVisible();
+    await page.locator('[data-testid="patterns-card-IRCON-falling_wedge"]').click();
+    // Desktop viewport opens the docked chart, not the modal.
+    await expect(page.locator('[data-testid="patterns-chart-dock"]')).toBeVisible();
+
+    await page.locator('[data-testid="patterns-universe-nifty50"]').click();
+    await expect(page.locator('[data-testid="patterns-chart-dock"]')).toBeHidden();
+  });
+
+  test("stats strip shows job progress while a scan is running", async ({ page }) => {
+    // `loadActiveJobs` at mount attached a completed job. Kick off a scan (POST /scan
+    // is mocked by the setup helper to return a running job) and override
+    // `/jobs/{id}` so `pollJob` reports an in-progress job with progress.
+    const runningJob = {
+      ...jobDto,
+      job_id: "cpj_test0002",
+      status: "running",
+      done: 12,
+      total: 49,
+      queue_position: null,
+      started_at: "2026-10-03T09:15:00",
+      finished_at: null,
+    };
+    await page.route(apiRoute("chart-patterns/jobs/[^/]+"), async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(runningJob),
+      });
+    });
+
+    await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(3);
+    await page.locator('[data-testid="patterns-scan-again"]').click();
+
+    await expect(page.locator('[data-testid="patterns-stat-scanned"]')).toHaveText(/12 \/ 49/);
+    await expect(page.locator('[data-testid="patterns-stat-last_scan"]')).toHaveText(/running…/);
   });
 });

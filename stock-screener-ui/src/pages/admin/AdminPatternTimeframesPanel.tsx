@@ -1,0 +1,475 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { ActionIcon, Alert, Box, Button, Loader, NumberInput, Select, Switch, Text } from "@/ui";
+import { IconArrowDown, IconArrowUp, IconTrash } from "@tabler/icons-react";
+import { useAuth } from "../../components/auth/AuthProvider2";
+import { TanStackTable } from "../../components/common/TanStackTable";
+import {
+  addAdminPatternTimeframe,
+  deleteAdminPatternTimeframe,
+  fetchAdminPatternTimeframes,
+  reorderAdminPatternTimeframes,
+  setAdminPatternTimeframeEnabled,
+} from "../../api/adminPatternTimeframes";
+import type { AdminPatternTimeframe } from "../../types/admin";
+
+const UNIT_OPTIONS = [
+  { value: "m", label: "minutes", multiplier: 1 },
+  { value: "h", label: "hours", multiplier: 60 },
+  { value: "D", label: "days", multiplier: 1440 },
+  { value: "W", label: "weeks", multiplier: 10080 },
+  { value: "M", label: "months", multiplier: 43200 },
+] as const;
+
+const UNIT_DATA = UNIT_OPTIONS.map(({ value, label }) => ({ value, label }));
+const SOURCE_AUTO = "auto";
+
+export function formatDuration(minutes: number): string {
+  if (!Number.isFinite(minutes) || minutes <= 0) return "—";
+  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 1440) return `${formatUnits(minutes / 60)} h`;
+  if (minutes < 10080) return `${formatUnits(minutes / 1440)} D`;
+  if (minutes < 43200) return `${formatUnits(minutes / 10080)} W`;
+  return `${formatUnits(minutes / 43200)} M`;
+}
+
+function formatUnits(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function cell(align: "left" | "right" | "center", children: React.ReactNode) {
+  const justify = align === "right" ? "flex-end" : align === "center" ? "center" : "flex-start";
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", justifyContent: justify, gap: 0.5 }}>
+      {children}
+    </Box>
+  );
+}
+
+export function AdminPatternTimeframesPanel() {
+  const { fetchWithAuth } = useAuth();
+  const [timeframes, setTimeframes] = useState<AdminPatternTimeframe[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [reordering, setReordering] = useState(false);
+  const [amount, setAmount] = useState<number | string>("");
+  const [unit, setUnit] = useState<string>("m");
+  const [sourceTf, setSourceTf] = useState<string>(SOURCE_AUTO);
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setLoadError(null);
+    fetchAdminPatternTimeframes(fetchWithAuth)
+      .then((rows) => {
+        if (active) setTimeframes(rows);
+      })
+      .catch((err: unknown) => {
+        if (active) setLoadError(err instanceof Error ? err.message : "Failed to load timeframes");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [fetchWithAuth]);
+
+  const updateRow = useCallback((id: string, patch: Partial<AdminPatternTimeframe>) => {
+    setTimeframes((prev) => prev.map((tf) => (tf.id === id ? { ...tf, ...patch } : tf)));
+  }, []);
+
+  const handleToggle = useCallback(
+    async (timeframe: AdminPatternTimeframe, enabled: boolean) => {
+      setActionError(null);
+      setSavingId(timeframe.id);
+      updateRow(timeframe.id, { enabled });
+      try {
+        const updated = await setAdminPatternTimeframeEnabled(fetchWithAuth, timeframe.id, enabled);
+        updateRow(timeframe.id, updated);
+      } catch (err) {
+        updateRow(timeframe.id, { enabled: timeframe.enabled });
+        setActionError(err instanceof Error ? err.message : "Failed to update timeframe");
+      } finally {
+        setSavingId(null);
+      }
+    },
+    [fetchWithAuth, updateRow],
+  );
+
+  const handleMove = useCallback(
+    async (index: number, direction: -1 | 1) => {
+      const target = index + direction;
+      if (target < 0 || target >= timeframes.length) return;
+      setActionError(null);
+      setReordering(true);
+      const previous = timeframes;
+      const next = [...timeframes];
+      const [moved] = next.splice(index, 1);
+      next.splice(target, 0, moved);
+      const reordered = next.map((tf, i) => ({ ...tf, sort_order: i }));
+      setTimeframes(reordered);
+      try {
+        const updated = await reorderAdminPatternTimeframes(
+          fetchWithAuth,
+          reordered.map((tf) => tf.id),
+        );
+        if (updated.length > 0) setTimeframes(updated);
+      } catch (err) {
+        setTimeframes(previous);
+        setActionError(err instanceof Error ? err.message : "Failed to reorder timeframes");
+      } finally {
+        setReordering(false);
+      }
+    },
+    [fetchWithAuth, timeframes],
+  );
+
+  const multiplier = UNIT_OPTIONS.find((option) => option.value === unit)?.multiplier ?? 1;
+  const amountValue = typeof amount === "number" ? amount : Number.NaN;
+  const validAmount = Number.isInteger(amountValue) && amountValue >= 1;
+  const minutes = validAmount ? amountValue * multiplier : 0;
+  const targetId = validAmount ? `${amountValue}${unit}` : "";
+  const duplicateId = targetId !== "" && timeframes.some((tf) => tf.id === targetId);
+  const canAdd = targetId !== "" && !duplicateId && !adding;
+
+  const sourceOptions = useMemo(() => {
+    if (targetId === "") return [];
+    const candidates = timeframes
+      .filter((tf) => tf.native && tf.minutes < minutes && minutes % tf.minutes === 0)
+      .sort((a, b) => b.minutes - a.minutes)
+      .map((tf) => ({ value: tf.id, label: tf.label }));
+    return candidates.length === 0 ? [] : [{ value: SOURCE_AUTO, label: "Auto" }, ...candidates];
+  }, [minutes, targetId, timeframes]);
+
+  const effectiveSource = sourceOptions.some((option) => option.value === sourceTf) ? sourceTf : SOURCE_AUTO;
+
+  const handleAdd = useCallback(async () => {
+    if (!canAdd) return;
+    setAddError(null);
+    setActionError(null);
+    setAdding(true);
+    try {
+      const row = await addAdminPatternTimeframe(fetchWithAuth, {
+        id: targetId,
+        label: targetId,
+        minutes,
+        ...(effectiveSource === SOURCE_AUTO ? {} : { source_tf: effectiveSource }),
+      });
+      setTimeframes((prev) => [...prev, row]);
+      setAmount("");
+      setSourceTf(SOURCE_AUTO);
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : "Failed to add timeframe");
+    } finally {
+      setAdding(false);
+    }
+  }, [canAdd, effectiveSource, fetchWithAuth, minutes, targetId]);
+
+  const handleDelete = useCallback(
+    async (timeframe: AdminPatternTimeframe) => {
+      if (deletingId !== null) return;
+      setActionError(null);
+      setAddError(null);
+      setDeletingId(timeframe.id);
+      const previous = timeframes;
+      setTimeframes((prev) => prev.filter((tf) => tf.id !== timeframe.id));
+      try {
+        await deleteAdminPatternTimeframe(fetchWithAuth, timeframe.id);
+      } catch (err) {
+        setTimeframes(previous);
+        setActionError(err instanceof Error ? err.message : "Failed to delete timeframe");
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [deletingId, fetchWithAuth, timeframes],
+  );
+
+  const columns = useMemo<ColumnDef<AdminPatternTimeframe>[]>(
+    () => [
+      {
+        id: "order",
+        header: () => cell("right", "#"),
+        meta: { align: "right" },
+        cell: (info) => (
+          <Box sx={{ display: "flex", justifyContent: "flex-end", fontVariantNumeric: "tabular-nums" }}>
+            <Text size="xs" c="dimmed">{info.row.index + 1}</Text>
+          </Box>
+        ),
+      },
+      {
+        id: "label",
+        header: () => cell("left", "Timeframe"),
+        accessorKey: "label",
+        meta: { align: "left" },
+        cell: (info) => {
+          const tf = info.row.original;
+          return (
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
+              <Text size="xs" fw={700} data-testid={`admin-tf-label-${tf.id}`}>{tf.label}</Text>
+            </Box>
+          );
+        },
+      },
+      {
+        id: "duration",
+        header: () => cell("right", "Duration"),
+        accessorKey: "minutes",
+        meta: { align: "right" },
+        cell: (info) => (
+          <Box sx={{ display: "flex", justifyContent: "flex-end", fontVariantNumeric: "tabular-nums" }}>
+            <Text size="xs">{formatDuration(info.row.original.minutes)}</Text>
+          </Box>
+        ),
+      },
+      {
+        id: "native",
+        header: () => cell("left", "Native"),
+        accessorFn: (tf) => (tf.native ? "Yes" : `Resampled from ${tf.source_tf ?? "—"}`),
+        meta: { align: "left" },
+        cell: (info) => {
+          const tf = info.row.original;
+          return (
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
+              <Text size="xs" c={tf.native ? "text.primary" : "dimmed"}>
+                {tf.native ? "Yes" : `Resampled from ${tf.source_tf ?? "—"}`}
+              </Text>
+            </Box>
+          );
+        },
+      },
+      {
+        id: "max_lookback_days",
+        header: () => cell("right", "Max lookback"),
+        accessorKey: "max_lookback_days",
+        meta: { align: "right" },
+        cell: (info) => (
+          <Box sx={{ display: "flex", justifyContent: "flex-end", fontVariantNumeric: "tabular-nums" }}>
+            <Text size="xs">{info.row.original.max_lookback_days.toLocaleString()}</Text>
+          </Box>
+        ),
+      },
+      {
+        id: "min_bars",
+        header: () => cell("right", "Min bars"),
+        accessorKey: "min_bars",
+        meta: { align: "right" },
+        cell: (info) => (
+          <Box sx={{ display: "flex", justifyContent: "flex-end", fontVariantNumeric: "tabular-nums" }}>
+            <Text size="xs">{info.row.original.min_bars.toLocaleString()}</Text>
+          </Box>
+        ),
+      },
+      {
+        id: "enabled",
+        header: () => cell("center", "Enabled"),
+        accessorKey: "enabled",
+        meta: { align: "center" },
+        cell: (info) => {
+          const tf = info.row.original;
+          return (
+            <Box sx={{ display: "flex", justifyContent: "center" }}>
+              <Switch
+                size="xs"
+                checked={tf.enabled}
+                disabled={savingId === tf.id}
+                onChange={(event) => void handleToggle(tf, event.currentTarget.checked)}
+                data-testid={`admin-tf-toggle-${tf.id}`}
+              />
+            </Box>
+          );
+        },
+      },
+      {
+        id: "move",
+        header: () => cell("center", "Move"),
+        meta: { align: "center" },
+        cell: (info) => {
+          const tf = info.row.original;
+          const index = info.row.index;
+          return (
+            <Box sx={{ display: "flex", justifyContent: "center", gap: 0.25 }}>
+              <ActionIcon
+                size="xs"
+                variant="subtle"
+                aria-label={`Move ${tf.id} up`}
+                disabled={index === 0 || reordering || savingId !== null}
+                onClick={() => void handleMove(index, -1)}
+                data-testid={`admin-tf-up-${tf.id}`}
+              >
+                <IconArrowUp size={13} />
+              </ActionIcon>
+              <ActionIcon
+                size="xs"
+                variant="subtle"
+                aria-label={`Move ${tf.id} down`}
+                disabled={index === timeframes.length - 1 || reordering || savingId !== null}
+                onClick={() => void handleMove(index, 1)}
+                data-testid={`admin-tf-down-${tf.id}`}
+              >
+                <IconArrowDown size={13} />
+              </ActionIcon>
+            </Box>
+          );
+        },
+      },
+      {
+        id: "delete",
+        header: () => cell("center", ""),
+        meta: { align: "center" },
+        cell: (info) => {
+          const tf = info.row.original;
+          if (!tf.custom) return null;
+          return (
+            <Box sx={{ display: "flex", justifyContent: "center" }}>
+              <ActionIcon
+                size="xs"
+                variant="subtle"
+                color="error"
+                aria-label={`Delete ${tf.id}`}
+                disabled={deletingId !== null}
+                onClick={() => void handleDelete(tf)}
+                data-testid={`admin-tf-delete-${tf.id}`}
+              >
+                <IconTrash size={13} />
+              </ActionIcon>
+            </Box>
+          );
+        },
+      },
+    ],
+    [deletingId, handleDelete, handleMove, handleToggle, reordering, savingId, timeframes.length],
+  );
+
+  const enabledCount = timeframes.filter((tf) => tf.enabled).length;
+  const totalCount = timeframes.length;
+  const resampledCount = timeframes.filter((tf) => !tf.native).length;
+
+  if (loading && timeframes.length === 0) {
+    return (
+      <Box data-testid="admin-pattern-timeframes-panel" sx={{ display: "flex", alignItems: "center", gap: 0.5, p: 0.5 }}>
+        <Loader size="sm" />
+        <Text size="xs" c="dimmed">Loading pattern timeframes…</Text>
+      </Box>
+    );
+  }
+
+  return (
+    <Box
+      data-testid="admin-pattern-timeframes-panel"
+      sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, p: 0.25 }}
+    >
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 1,
+          px: 0.5,
+          py: 0.25,
+          flexShrink: 0,
+        }}
+      >
+        <Text size="xs" c="dimmed" data-testid="admin-tf-summary" style={{ fontSize: 10 }}>
+          {`${enabledCount} enabled / ${totalCount} total · ${Math.max(0, totalCount - enabledCount)} disabled · ${resampledCount} resampled`}
+        </Text>
+        <Text size="xs" c="dimmed" data-testid="admin-tf-note" style={{ fontSize: 10 }}>
+          3m and 2h are off by default
+        </Text>
+      </Box>
+
+      {loadError && (
+        <Alert color="error" variant="light" data-testid="admin-tf-load-error">{loadError}</Alert>
+      )}
+
+      <Box
+        data-testid="admin-tf-add-row"
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "4px",
+          px: 0.5,
+          py: 0,
+          minHeight: 26,
+          flexShrink: 0,
+          "& .MuiInputBase-root": { height: 24, fontSize: 11 },
+          "& .MuiInputBase-input": { py: 0, px: "6px", fontSize: 11, height: "auto" },
+          "& .MuiSelect-select": { py: "3px", px: "6px", pr: "20px", fontSize: 11 },
+        }}
+      >
+        <NumberInput
+          size="xs"
+          w={52}
+          min={1}
+          placeholder="15"
+          value={amount}
+          onChange={setAmount}
+          data-testid="admin-tf-amount"
+        />
+        <Select
+          size="xs"
+          w={86}
+          data={UNIT_DATA}
+          value={unit}
+          onChange={(value) => setUnit(value ?? "m")}
+          data-testid="admin-tf-unit"
+        />
+        {sourceOptions.length > 0 && (
+          <>
+            <Text size="xs" c="dimmed" style={{ fontSize: 10 }}>src</Text>
+            <Select
+              size="xs"
+              w={90}
+              data={sourceOptions}
+              value={effectiveSource}
+              onChange={(value) => setSourceTf(value ?? SOURCE_AUTO)}
+              data-testid="admin-tf-source"
+            />
+          </>
+        )}
+        <Button
+          size="xs"
+          variant="filled"
+          disabled={!canAdd}
+          onClick={() => void handleAdd()}
+          data-testid="admin-tf-add"
+          style={{ minWidth: 0, minHeight: 24, padding: "2px 10px", fontSize: 11, lineHeight: 1.2 }}
+        >
+          Add
+        </Button>
+        <Text size="xs" c="dimmed" style={{ fontSize: 10 }}>e.g. 45m, 6h, 2D, 3W, 3M</Text>
+        {addError && (
+          <Text size="xs" c="error" data-testid="admin-tf-add-error" style={{ fontSize: 10 }}>
+            <span data-testid="admin-tf-error">{addError}</span>
+          </Text>
+        )}
+      </Box>
+
+      {actionError && (
+        <Alert color="error" variant="light" data-testid="admin-tf-error">{actionError}</Alert>
+      )}
+
+      <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        <TanStackTable<AdminPatternTimeframe>
+          data={timeframes}
+          columns={columns}
+          dataTestId="admin-pattern-timeframes"
+          enableSorting={false}
+          dense
+          fillContainer
+          loading={loading}
+          loadingMessage="Loading pattern timeframes…"
+          emptyMessage="No timeframes configured"
+          getRowTestId={(tf) => `admin-tf-row-${tf.id}`}
+        />
+      </Box>
+    </Box>
+  );
+}

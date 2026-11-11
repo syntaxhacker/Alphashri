@@ -49,9 +49,9 @@ export const StrategyCard = memo(function StrategyCard({
         sx={{
           display: "flex",
           alignItems: "center",
-          gap: 1,
-          px: 1,
-          py: 0.5,
+          gap: 0.75,
+          px: 0.75,
+          py: 0.25,
           minWidth: 0,
           bgcolor: "action.hover",
         }}

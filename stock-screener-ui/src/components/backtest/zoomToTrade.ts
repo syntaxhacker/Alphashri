@@ -1,16 +1,12 @@
 import type { SymbolChartData } from "../../types/backtest";
 import { normalizeTime } from "../../utils/ui-helpers";
 import {
-  MARKER_TP,
-  MARKER_SL,
-  MARKER_EOD,
-  MARKER_BORDER,
-  CHART_AVG_ENTRY,
-  CHART_TRADE_EXIT,
-  CHART_DARK_DROPDOWN,
-  INDICATOR_BLUE_A,
-  INDICATOR_BLUE_B,
-} from "../../config/colors";
+  extractTradeLevels,
+  buildHighlightEntryMarker,
+  buildHighlightExitMarker,
+  build52wHighSeries,
+  buildOrLevelSeries,
+} from "../../utils/chart/scaleHelpers";
 
 export const chartInstances = new Map<string, any>();
 
@@ -86,100 +82,6 @@ function computeAndApplyZoom(
   }
 }
 
-function buildHighlightEntryMarker(
-  entryMarker: any,
-  entryIdx: number,
-  tradeIndex: number,
-  fontSizes: any,
-) {
-  return {
-    value: [entryIdx, entryMarker.price],
-    symbol: "triangle",
-    symbolSize: 32,
-    itemStyle: {
-      color: CHART_AVG_ENTRY,
-      borderColor: CHART_TRADE_EXIT,
-      borderWidth: 4,
-      shadowBlur: 10,
-      shadowColor: CHART_AVG_ENTRY,
-    },
-    label: {
-      show: true,
-      position: "top",
-      distance: 8,
-      formatter: `▼ Entry #${tradeIndex + 1}`,
-      color: CHART_AVG_ENTRY,
-      fontSize: fontSizes.md,
-      fontWeight: "bold",
-      backgroundColor: CHART_DARK_DROPDOWN,
-      padding: [4, 8],
-      borderRadius: 4,
-    },
-  };
-}
-
-function buildHighlightExitMarker(exitMarker: any, exitIdx: number, fontSizes: any) {
-  if (!exitMarker || exitIdx === undefined) return null;
-
-  const exitReason = (exitMarker.trade as any).exit_reason;
-  const color = exitReason === "TP" ? MARKER_TP : exitReason === "SL" ? MARKER_SL : MARKER_EOD;
-
-  return {
-    value: [exitIdx, exitMarker.price],
-    symbol: "circle",
-    symbolSize: 28,
-    itemStyle: {
-      color,
-      borderColor: MARKER_BORDER,
-      borderWidth: 4,
-      shadowBlur: 10,
-      shadowColor: color,
-    },
-    label: {
-      show: true,
-      position: "bottom",
-      distance: 8,
-      formatter: `● ${exitReason || "Exit"}`,
-      color: MARKER_BORDER,
-      fontSize: fontSizes.md,
-      fontWeight: "bold",
-      backgroundColor: CHART_DARK_DROPDOWN,
-      padding: [4, 8],
-      borderRadius: 4,
-    },
-  };
-}
-
-function build52wHighSeries(level52wHighData: any[], level52wHigh: any, fontSizes: any) {
-  return {
-    id: "selected-52w-high",
-    name: "52W High Target",
-    type: "line",
-    data: level52wHighData,
-    showSymbol: false,
-    connectNulls: false,
-    silent: true,
-    z: 6,
-    markLine: {
-      symbol: "none",
-      label: {
-        show: true,
-        position: "end",
-        formatter: `52W High: ₹${level52wHigh}`,
-        color: CHART_AVG_ENTRY,
-        fontSize: fontSizes.sm,
-        fontWeight: "bold",
-        backgroundColor: CHART_DARK_DROPDOWN,
-        padding: [2, 6],
-        borderRadius: 3,
-      },
-      lineStyle: { color: CHART_AVG_ENTRY, width: 2, type: "dashed" },
-      data: [{ yAxis: level52wHigh }],
-      animation: false,
-    },
-  };
-}
-
 function buildLevelSeries(
   show52wLine: boolean,
   level52wHighData: any[],
@@ -191,33 +93,7 @@ function buildLevelSeries(
   if (show52wLine && level52wHighData.length > 0) {
     return [build52wHighSeries(level52wHighData, level52wHigh, fontSizes)];
   }
-
-  return [
-    {
-      id: "selected-or-high",
-      name: "Selected Level High",
-      type: "line",
-      data: levelHighData,
-      showSymbol: false,
-      connectNulls: false,
-      silent: true,
-      z: 6,
-      lineStyle: { color: INDICATOR_BLUE_A, width: 2, type: "dashed" },
-      tooltip: { show: false },
-    },
-    {
-      id: "selected-or-low",
-      name: "Selected Level Low",
-      type: "line",
-      data: levelLowData,
-      showSymbol: false,
-      connectNulls: false,
-      silent: true,
-      z: 6,
-      lineStyle: { color: INDICATOR_BLUE_B, width: 2, type: "dashed" },
-      tooltip: { show: false },
-    },
-  ];
+  return buildOrLevelSeries(levelHighData, levelLowData);
 }
 
 function applyHighlightSeries(
@@ -311,19 +187,12 @@ export function zoomToTrade(
   computeAndApplyZoom(chart, entryIdx, resolvedExitIdx, entryDate, exitDate, chartData.candles);
 
   if (selectedTrade && entryDate) {
-    const levelHigh =
-      (selectedTrade as any).or_high ??
-      (selectedTrade as any).r1 ??
-      (selectedTrade as any)["52w_high"];
-    const levelLow = (selectedTrade as any).or_low ?? (selectedTrade as any).s1;
-    const level52wHigh = (selectedTrade as any)["52w_high"];
+    const { levelHigh, levelLow, level52wHigh } = extractTradeLevels(selectedTrade);
     const show52wLine = entryDate !== exitDate && level52wHigh;
 
     const levelHighData = chartData.candles.map((c) => (c.date === entryDate ? levelHigh : null));
     const level52wHighData = show52wLine
-      ? chartData.candles.map((c, i) =>
-          i >= entryIdx && i <= resolvedExitIdx ? level52wHigh : null,
-        )
+      ? chartData.candles.map((c, i) => (i >= entryIdx && i <= resolvedExitIdx ? level52wHigh : null))
       : [];
     const levelLowData = chartData.candles.map((c) => (c.date === entryDate ? levelLow : null));
 

@@ -7,8 +7,9 @@ describe("formatTimeLabel", () => {
     expect(formatTimeLabel("2025-01-15T14:45:30")).toBe("14:45");
   });
 
-  it("returns original value for space-separated datetime (not supported)", () => {
-    expect(formatTimeLabel("2025-01-15 09:30:00")).toBe("2025-01-15 09:30:00");
+  it("extracts time from space-separated datetime", () => {
+    expect(formatTimeLabel("2025-01-15 09:30:00")).toBe("09:30");
+    expect(formatTimeLabel("2025-01-15 14:45:30")).toBe("14:45");
   });
 
   it("handles time_str format directly", () => {
@@ -27,7 +28,12 @@ describe("formatTimeLabel", () => {
 
   it("handles undefined", () => {
     // @ts-expect-error - testing edge case
-    expect(formatTimeLabel(undefined)).toBe(undefined);
+    expect(formatTimeLabel(undefined)).toBe("");
+  });
+
+  it("handles null", () => {
+    // @ts-expect-error - testing edge case
+    expect(formatTimeLabel(null)).toBe("");
   });
 
   it("extracts first 5 characters (HH:MM) only", () => {
@@ -42,5 +48,16 @@ describe("formatTimeLabel", () => {
   it("handles strings shorter than 5 chars", () => {
     expect(formatTimeLabel("09:3")).toBe("09:3");
     expect(formatTimeLabel("9")).toBe("9");
+  });
+
+  it("handles epoch milliseconds (formats in IST)", () => {
+    // 2025-01-15T09:30:00Z = 15:00 IST (UTC+5:30)
+    const ms = Date.UTC(2025, 0, 15, 9, 30, 0);
+    expect(formatTimeLabel(ms)).toBe("15:00");
+  });
+
+  it("handles epoch seconds (formats in IST)", () => {
+    const sec = Date.UTC(2025, 0, 15, 9, 30, 0) / 1000;
+    expect(formatTimeLabel(sec)).toBe("15:00");
   });
 });

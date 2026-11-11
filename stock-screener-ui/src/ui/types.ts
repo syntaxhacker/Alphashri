@@ -144,6 +144,10 @@ export interface UIGridColProps extends UIBaseProps {
 }
 
 export interface UITextProps extends UIBaseProps {
+  /** Merged with the size/weight/tone styles, never replacing them. */
+  sx?: import("@mui/material/styles").SxProps<UITheme>;
+  /** Native tooltip — the full text when the visible label is truncated. */
+  title?: string;
   size?: UISize;
   fw?: UIFontWeight;
   c?: UIColor;

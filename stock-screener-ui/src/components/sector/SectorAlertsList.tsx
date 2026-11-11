@@ -1,54 +1,13 @@
-import { Badge, Text, Box, Stack } from "@/ui";
-import TableContainer from "@mui/material/TableContainer";
-import CardContent from "@mui/material/CardContent";
-import type { ColumnDef } from "@tanstack/react-table";
-import { TanStackTable } from "../common/TanStackTable";
+import { Box, Text } from "@/ui";
 import type { SectorAlert } from "./sectorUtils";
 import { formatPercentage } from "../../utils/ui-helpers";
-
-function DirectionBadge({ alert }: { alert: SectorAlert }) {
-  return (
-    <Badge color={alert.direction === "SURGING" ? "green" : "red"} size="sm">
-      {alert.direction} ({formatPercentage(alert.delta, 2, false)})
-    </Badge>
-  );
-}
-
-const columns: ColumnDef<SectorAlert>[] = [
-  {
-    id: "timestamp",
-    header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>Time</Box>,
-    accessorKey: "timestamp",
-    meta: { align: "left" },
-    cell: (info) => (
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
-        <Text size="sm" fw={700}>
-          {info.getValue<string>()}
-        </Text>
-      </Box>
-    ),
-  },
-  {
-    id: "sector",
-    header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>Sector</Box>,
-    accessorKey: "sector",
-    meta: { align: "left" },
-    cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Text size="sm">{info.getValue<string>()}</Text></Box>,
-  },
-  {
-    id: "direction",
-    header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>Move</Box>,
-    accessorKey: "direction",
-    meta: { align: "left" },
-    cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><DirectionBadge alert={row.original} /></Box>,
-  },
-];
+import { NEGATIVE, POSITIVE } from "@/ui/palette";
 
 export function SectorAlertsList({ alerts }: { alerts: SectorAlert[] }) {
   if (alerts.length === 0) {
     return (
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
-        <Text size="sm" c="dimmed" ta="center" py="xl">
+        <Text size="xs" c="dimmed" ta="center" py={1}>
           Waiting for major movements...
         </Text>
       </Box>
@@ -56,17 +15,39 @@ export function SectorAlertsList({ alerts }: { alerts: SectorAlert[] }) {
   }
 
   return (
-    <TableContainer sx={{ p: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <Stack gap={1} sx={{ width: "100%", alignItems: "center" }}>
-        <CardContent sx={{ p: 1, width: "100%", "&:last-child": { pb: 1 } }}>
-          <TanStackTable<SectorAlert>
-            data={alerts}
-            columns={columns}
-            enableSorting={false}
-            dataTestId="sector-alerts-table"
-          />
-        </CardContent>
-      </Stack>
-    </TableContainer>
+    <Box data-testid="sector-alerts-table" sx={{ display: "flex", flexDirection: "column" }}>
+      {alerts.map((alert) => {
+        const positive = alert.direction === "SURGING";
+        const color = positive ? POSITIVE : NEGATIVE;
+        return (
+          <Box
+            key={`${alert.timestamp}-${alert.sector}`}
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "62px minmax(0, 1fr) auto",
+              alignItems: "center",
+              gap: 0.5,
+              minHeight: 20,
+              px: 0.5,
+              borderBottom: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <Text c="dimmed" sx={{ fontSize: 9, fontVariantNumeric: "tabular-nums" }}>
+              {alert.timestamp}
+            </Text>
+            <Text truncate sx={{ fontSize: 10.5 }}>
+              {alert.sector}
+            </Text>
+            <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
+              <Box sx={{ width: 5, height: 5, borderRadius: "50%", bgcolor: color, flexShrink: 0 }} />
+              <Text sx={{ fontSize: 9.5, fontWeight: 700, color, whiteSpace: "nowrap" }}>
+                {alert.direction} ({formatPercentage(alert.delta, 2, false)})
+              </Text>
+            </Box>
+          </Box>
+        );
+      })}
+    </Box>
   );
 }

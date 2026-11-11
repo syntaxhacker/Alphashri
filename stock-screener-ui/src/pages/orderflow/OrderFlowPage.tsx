@@ -31,7 +31,7 @@ import {
   type Underlying,
 } from "@/api/upstoxOptions";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+import { API_BASE } from "@/api/config";
 
 /**
  * Derive the Order Flow bridge WebSocket URL from the API base, so the iframe

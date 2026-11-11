@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, render, screen, within } from "@testing-library/react";
 import { UIProvider } from "@/ui";
-import type { PatternSummary } from "@/types/chartPatterns";
+import type { JobDTO, PatternSummary } from "@/types/chartPatterns";
 import { ScanStats } from "./ScanStats";
 
 const SUMMARY: PatternSummary = {
@@ -15,6 +15,25 @@ const SUMMARY: PatternSummary = {
   bearish: 3,
   data_through: "2026-09-30",
 };
+
+function makeJob(overrides: Partial<JobDTO> = {}): JobDTO {
+  return {
+    job_id: "cpj_1",
+    universe: "all_equity",
+    timeframe: "1D",
+    status: "running",
+    total: 1081,
+    done: 360,
+    failed: 0,
+    skipped: 0,
+    queue_position: null,
+    started_at: "2026-10-01T04:00:00Z",
+    finished_at: null,
+    data_through: null,
+    error: null,
+    ...overrides,
+  };
+}
 
 function r(jsx: React.ReactElement) {
   return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
@@ -116,5 +135,64 @@ describe("ScanStats", () => {
     const twoDaysAgo = new Date(Date.now() - 2 * 86_400_000).toISOString();
     r(<ScanStats summary={{ ...SUMMARY, last_scan_at: twoDaysAgo }} />);
     expect(screen.getByTestId("patterns-stat-last_scan")).toHaveTextContent("2 d ago");
+  });
+
+  test("a running job reports live progress instead of the last completed scan", () => {
+    r(<ScanStats summary={{ ...SUMMARY, last_scan_at: "2026-10-01T00:00:00Z" }} job={makeJob()} />);
+    expect(screen.getByTestId("patterns-stat-scanned")).toHaveTextContent("360 / 1,081");
+    expect(screen.getByTestId("patterns-stat-last_scan")).toHaveTextContent("running…");
+    // Non-progress cells still come from the summary.
+    expect(screen.getByTestId("patterns-stat-confirmed")).toHaveTextContent("5");
+  });
+
+  test("a running job with no total falls back to the summary count", () => {
+    r(<ScanStats summary={SUMMARY} job={makeJob({ total: 0, done: 0 })} />);
+    expect(screen.getByTestId("patterns-stat-scanned")).toHaveTextContent("500");
+  });
+
+  test("a queued job shows its queue position", () => {
+    r(
+      <ScanStats
+        summary={SUMMARY}
+        job={makeJob({ status: "queued", queue_position: 3, done: 0 })}
+      />,
+    );
+    expect(screen.getByTestId("patterns-stat-last_scan")).toHaveTextContent("queued #3");
+  });
+
+  test("a queued job without a queue position shows plain 'queued'", () => {
+    r(
+      <ScanStats
+        summary={SUMMARY}
+        job={makeJob({ status: "queued", queue_position: null, done: 0 })}
+      />,
+    );
+    expect(screen.getByTestId("patterns-stat-last_scan")).toHaveTextContent("queued");
+    expect(screen.getByTestId("patterns-stat-last_scan")).not.toHaveTextContent("#");
+  });
+
+  test("a running job prefers its own data_through", () => {
+    r(
+      <ScanStats
+        summary={SUMMARY}
+        job={makeJob({ data_through: "2026-10-02" })}
+      />,
+    );
+    expect(screen.getByTestId("patterns-stat-data_through")).toHaveTextContent("2026-10-02");
+    cleanup();
+    r(<ScanStats summary={SUMMARY} job={makeJob({ data_through: null })} />);
+    expect(screen.getByTestId("patterns-stat-data_through")).toHaveTextContent("2026-09-30");
+  });
+
+  test("a completed job keeps the summary behavior", () => {
+    const twelveMinAgo = new Date(Date.now() - 12 * 60_000).toISOString();
+    r(
+      <ScanStats
+        summary={{ ...SUMMARY, last_scan_at: twelveMinAgo }}
+        job={makeJob({ status: "completed", finished_at: new Date().toISOString() })}
+      />,
+    );
+    expect(screen.getByTestId("patterns-stat-scanned")).toHaveTextContent("500");
+    expect(screen.getByTestId("patterns-stat-last_scan")).toHaveTextContent("12 min ago");
   });
 });

@@ -50,7 +50,7 @@ import functools
 import importlib
 import json
 import logging
-import os
+import pandas as pd
 import pickle
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -58,7 +58,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from chart_patterns._ist_date import ist_session_date, today_ist_iso
+from chart_patterns._symbols import norm_symbol, norm_symbols
 from chart_patterns.parallel import run_symbols
+from chart_patterns.tags import tags_for
 
 log = logging.getLogger(__name__)
 
@@ -154,6 +157,15 @@ _NEAR52W_MIN_BARS = 21
 #: Lookback for the prior 52W high (daily bars, latest bar excluded).
 _NEAR52W_LOOKBACK = 252
 
+#: Calendar window (days) for the prior 52W high: bars whose UTC index is
+#: within the last 365 days of the latest bar are eligible (latest bar
+#: excluded). Bars older than 365 days are ignored even when they sit inside
+#: the last 252 trading bars -- APLLTD had a 367-day-old high wrongly arming
+#: the screen; excluding it lets a recent high become the trigger. If fewer
+#: than _NEAR52W_MIN_BARS bars qualify (short-history symbols), fall back to
+#: the last 252 bars so the screen still runs for young symbols.
+_NEAR52W_WINDOW_DAYS = 365
+
 #: Accumulation windows (daily bars): OBV slope + volume ratio denominator.
 _NEAR52W_ACCUM_WINDOW = 20
 
@@ -167,7 +179,7 @@ _NEAR52W_VOL_SHORT = 5
 #: Version of the ``near_52w`` detector + row shape. Bump whenever
 #: :func:`_near52w_row` changes so stale per-symbol and whole-screen cache
 #: entries are ignored instead of served as fresh.
-DETECTOR_VERSION = 4
+DETECTOR_VERSION = 5
 
 #: Per-symbol detection-result cache subdirectory of ``_NEAR52W_CACHE_DIR``:
 #: ``detect/{setup}__{SYM}__{tf}__{session}.v{N}.pkl``. Kept in a
@@ -255,18 +267,56 @@ def _near52w_session() -> str:
         return _last_completed_session().isoformat()
     except Exception:
         pass
-    try:
-        import config
-
-        return datetime.now(config.IST).strftime("%Y-%m-%d")
-    except Exception:
-        return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return today_ist_iso()
 
 
 def _near52w_cache_key(scope: str, timeframe: str) -> str:
     """Filesystem-safe cache stem for a computed-arm scope (no session)."""
     safe = "".join(c for c in str(scope) if c.isalnum() or c in ("-", "_")) or "all"
     return f"near_52w__{safe}__{timeframe}"
+
+
+def _cache_read(path: Path, session: str) -> Optional[dict]:
+    """Cached payload for ``(path, session)``; ``None`` on miss/stale.
+
+    Validates the stored ``session`` and ``DETECTOR_VERSION`` so a session
+    rollover or detector bump always recomputes. Never raises.
+    """
+    try:
+        if not path.exists():
+            return None
+        with open(path, "rb") as f:
+            payload = pickle.load(f)
+        if not isinstance(payload, dict):
+            return None
+        if payload.get("session") != session:
+            return None
+        if payload.get("version") != DETECTOR_VERSION:
+            return None
+        return payload
+    except Exception:
+        return None
+
+
+def _cache_write(
+    path: Path, session: str, payload_extra: dict, *, sibling_glob: str
+) -> None:
+    """Persist ``{"session", "version", **payload_extra}`` to ``path`` and prune
+    older session/version siblings matching ``sibling_glob``. Never raises."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        for old in path.parent.glob(sibling_glob):
+            try:
+                if old.name != path.name:
+                    old.unlink()
+            except Exception:
+                pass
+        with open(path, "wb") as f:
+            pickle.dump(
+                {"session": session, "version": DETECTOR_VERSION, **payload_extra}, f
+            )
+    except Exception:
+        pass
 
 
 def _near52w_cache_read(key: str, session: str) -> Optional[list]:
@@ -276,47 +326,25 @@ def _near52w_cache_read(key: str, session: str) -> Optional[list]:
     payload checks on ``session`` and ``DETECTOR_VERSION``, so a session
     rollover or a detector bump always recomputes. Never raises.
     """
-    try:
-        path = _NEAR52W_CACHE_DIR / f"{key}__{session}.pkl"
-        if not path.exists():
-            return None
-        with open(path, "rb") as f:
-            payload = pickle.load(f)
-        if not isinstance(payload, dict) or payload.get("session") != session:
-            return None
-        if payload.get("version") != DETECTOR_VERSION:
-            return None
-        rows = payload.get("rows")
-        if not isinstance(rows, list):
-            return None
-        return [dict(r) for r in rows if isinstance(r, dict)]
-    except Exception:
+    payload = _cache_read(_NEAR52W_CACHE_DIR / f"{key}__{session}.pkl", session)
+    if payload is None:
         return None
+    rows = payload.get("rows")
+    if not isinstance(rows, list):
+        return None
+    return [dict(r) for r in rows if isinstance(r, dict)]
 
 
 def _near52w_cache_write(key: str, session: str, rows: list) -> None:
     """Persist computed rows for ``(key, session)`` and prune older sessions
     for the same key. Never raises."""
-    try:
-        _NEAR52W_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        name = f"{key}__{session}.pkl"
-        for old in _NEAR52W_CACHE_DIR.glob(f"{key}__*.pkl"):
-            try:
-                if old.name != name:
-                    old.unlink()
-            except Exception:
-                pass
-        with open(_NEAR52W_CACHE_DIR / name, "wb") as f:
-            pickle.dump(
-                {
-                    "session": session,
-                    "version": DETECTOR_VERSION,
-                    "rows": [dict(r) for r in rows],
-                },
-                f,
-            )
-    except Exception:
-        pass
+    path = _NEAR52W_CACHE_DIR / f"{key}__{session}.pkl"
+    _cache_write(
+        path,
+        session,
+        {"rows": [dict(r) for r in rows]},
+        sibling_glob=f"{key}__*.pkl",
+    )
 
 
 def _detect_cache_file(setup_id: str, symbol: str, timeframe: str, session: str) -> Path:
@@ -325,7 +353,7 @@ def _detect_cache_file(setup_id: str, symbol: str, timeframe: str, session: str)
         return "".join(c for c in str(part) if c.isalnum() or c in ("-", "_")) or "x"
 
     name = (
-        f"{_safe(setup_id)}__{str(symbol).upper()}__{_safe(timeframe)}"
+        f"{_safe(setup_id)}__{norm_symbol(symbol)}__{_safe(timeframe)}"
         f"__{_safe(session)}.v{DETECTOR_VERSION}.pkl"
     )
     return _NEAR52W_CACHE_DIR / _DETECT_CACHE_SUBDIR / name
@@ -340,26 +368,15 @@ def _detect_cache_read(
     hit is a cached skip (short history or fetch failure — not recomputed
     within the session). Never raises.
     """
-    try:
-        path = _detect_cache_file(setup_id, symbol, timeframe, session)
-        if not path.exists():
-            return (False, None)
-        with open(path, "rb") as f:
-            payload = pickle.load(f)
-        if not isinstance(payload, dict):
-            return (False, None)
-        if payload.get("session") != session:
-            return (False, None)
-        if payload.get("version") != DETECTOR_VERSION:
-            return (False, None)
-        row = payload.get("row")
-        if row is None:
-            return (True, None)
-        if not isinstance(row, dict):
-            return (False, None)
-        return (True, dict(row))
-    except Exception:
+    payload = _cache_read(_detect_cache_file(setup_id, symbol, timeframe, session), session)
+    if payload is None:
         return (False, None)
+    row = payload.get("row")
+    if row is None:
+        return (True, None)
+    if not isinstance(row, dict):
+        return (False, None)
+    return (True, dict(row))
 
 
 def _detect_cache_write(
@@ -367,34 +384,100 @@ def _detect_cache_write(
 ) -> None:
     """Persist one symbol's detection result (``None`` = cached skip) and
     prune older sessions/versions for the same symbol. Never raises."""
-    try:
-        path = _detect_cache_file(setup_id, symbol, timeframe, session)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        prefix = "__".join(path.name.split("__")[:3])
-        for old in path.parent.glob(f"{prefix}__*.pkl"):
-            try:
-                if old.name != path.name:
-                    old.unlink()
-            except Exception:
-                pass
-        with open(path, "wb") as f:
-            pickle.dump(
-                {
-                    "session": session,
-                    "version": DETECTOR_VERSION,
-                    "row": dict(row) if isinstance(row, dict) else None,
-                },
-                f,
-            )
-    except Exception:
-        pass
+    path = _detect_cache_file(setup_id, symbol, timeframe, session)
+    prefix = "__".join(path.name.split("__")[:3])
+    _cache_write(
+        path,
+        session,
+        {"row": dict(row) if isinstance(row, dict) else None},
+        sibling_glob=f"{prefix}__*.pkl",
+    )
+
+
+def _obv_slope(wclose: list[float], wvol: list[float], prev_close: float) -> float:
+    """Linreg slope of OBV over a close/volume window, normalised by mean volume.
+
+    Pure and independent of a DataFrame so it can be unit-tested in isolation.
+    Mirrors the accumulation math in :func:`_near52w_row` exactly.
+    """
+    obv = 0.0
+    obvs: list[float] = []
+    prev = prev_close
+    for c, v in zip(wclose, wvol):
+        if c > prev:
+            obv += v
+        elif c < prev:
+            obv -= v
+        obvs.append(obv)
+        prev = c
+    n = len(wclose)
+    if n == 0:
+        return 0.0
+    mean_vol = sum(wvol) / n
+    sx = n * (n - 1) / 2.0
+    sxx = (n - 1) * n * (2 * n - 1) / 6.0
+    sy = sum(obvs)
+    sxy = sum(i * y for i, y in enumerate(obvs))
+    den = n * sxx - sx * sx
+    slope = (n * sxy - sx * sy) / den if den else 0.0
+    return slope / mean_vol if mean_vol > 0 else 0.0
+
+
+def _updown_ratio(wclose: list[float], wvol: list[float], prev_close: float) -> float:
+    """Up-day volume / down-day volume over a window; neutral 1.0 when all-flat.
+
+    Pure and independent of a DataFrame so it can be unit-tested in isolation.
+    Mirrors the up/down-volume math in :func:`_near52w_row` exactly.
+    """
+    up_vol = 0.0
+    down_vol = 0.0
+    prev = prev_close
+    for c, v in zip(wclose, wvol):
+        if c > prev:
+            up_vol += v
+        elif c < prev:
+            down_vol += v
+        prev = c
+    return up_vol / down_vol if down_vol > 0 else (up_vol if up_vol > 0 else 1.0)
+
+
+def _vol_ratio(vols: list[float], short_window: int, long_window: int) -> float:
+    """Mean volume over the short window divided by mean volume over the long
+    window; ``1.0`` when the long-window mean is zero or the list is empty."""
+    if not vols:
+        return 1.0
+    long_slice = vols[-long_window:] if len(vols) >= long_window else vols
+    short_slice = vols[-short_window:] if len(vols) >= short_window else vols
+    vlong = sum(long_slice) / len(long_slice)
+    if not vlong > 0:
+        return 1.0
+    vshort = sum(short_slice) / len(short_slice) if short_slice else 0.0
+    return vshort / vlong
+
+
+def _rising_lows(lows: list[float]) -> bool:
+    """True when each shorter low window's minimum is strictly higher
+    (``min(low,5) > min(low,10) > min(low,20)``). Pure and unit-testable."""
+    if len(lows) < 5:
+        return False
+    m5 = min(lows[-5:])
+    m10 = min(lows[-10:]) if len(lows) >= 10 else min(lows)
+    m20 = min(lows[-20:]) if len(lows) >= 20 else min(lows)
+    return bool(m5 > m10 > m20)
 
 
 def _near52w_row(symbol: str, df) -> Optional[dict]:
     """Screen one daily frame; a watch row or ``None`` (skip). Never raises.
 
-    * ``prior_high`` = ``max(high)`` over the last 252 bars **excluding**
-      the latest bar; ``touched`` = latest high ``>=`` prior high.
+    * ``prior_high`` = ``max(high)`` over the calendar 52W window (last 365
+      days, latest bar excluded); bars older than 365 days are ignored even
+      when inside the last 252 trading bars. If fewer than
+      ``_NEAR52W_MIN_BARS`` bars qualify (short history), falls back to the
+      last 252 bars. ``touched`` = latest high ``>=`` prior high.
+    * ``trigger_date`` = IST session date (YYYY-MM-DD) of the bar in the
+      window that set prior_high; ``last_touch_date`` = most recent IST
+      session date in the full frame (latest bar included) whose high >=
+      prior_high, else ``None``.
     * ``high_gap``/``close_gap`` = ``(prior_high - last_high/close) /
       prior_high * 100`` (negative = exceeded intraday / closed above).
     * Accumulation over the last ~20 sessions: ``obv_slope`` (linreg slope
@@ -418,7 +501,17 @@ def _near52w_row(symbol: str, df) -> Optional[dict]:
 
         hist = df.iloc[:-1]
         last = df.iloc[-1]
-        prior_high = float(hist["high"].astype(float).tail(_NEAR52W_LOOKBACK).max())
+
+        # Prior 52W high over a calendar window: bars whose UTC index is within
+        # the last 365 days of the latest bar (latest bar excluded). Bars older
+        # than 365 days are ignored even when inside the last 252 trading bars.
+        # With too few in-window bars (short history), fall back to the last 252
+        # bars so the screen still runs for young symbols.
+        window_start = df.index[-1] - pd.Timedelta(days=_NEAR52W_WINDOW_DAYS)
+        win = hist[hist.index >= window_start]
+        if len(win) < _NEAR52W_MIN_BARS:
+            win = hist.tail(_NEAR52W_LOOKBACK)
+        prior_high = float(win["high"].astype(float).max())
         last_high = float(last["high"])
         close = float(last["close"])
         if not prior_high > 0:
@@ -427,57 +520,56 @@ def _near52w_row(symbol: str, df) -> Optional[dict]:
         high_gap = (prior_high - last_high) / prior_high * 100.0
         close_gap = (prior_high - close) / prior_high * 100.0
 
+        # trigger_date: IST session date of the bar in the window that set
+        # prior_high (most recent such bar wins on a re-touch).
+        trigger_date = None
+        try:
+            hit = win[win["high"] == prior_high]
+            if not hit.empty:
+                trigger_date = ist_session_date(hit.index[-1])
+        except Exception:
+            trigger_date = None
+
+        # last_touch_date: most recent IST session date in the full frame
+        # (latest bar included) whose high >= prior_high; None when never.
+        last_touch_date = None
+        try:
+            touch = df[df["high"] >= prior_high]
+            if not touch.empty:
+                last_touch_date = ist_session_date(touch.index[-1])
+        except Exception:
+            last_touch_date = None
+
         n = min(len(df), _NEAR52W_ACCUM_WINDOW)
         wclose = [float(v) for v in closes.tail(n).tolist()]
         wvol = [float(v) for v in vols.tail(n).tolist()]
         prev = float(closes.iloc[len(df) - n - 1]) if len(df) > n else wclose[0]
-        obv = 0.0
-        obvs: list[float] = []
-        for c, v in zip(wclose, wvol):
-            if c > prev:
-                obv += v
-            elif c < prev:
-                obv -= v
-            obvs.append(obv)
-            prev = c
-        mean_vol = sum(wvol) / n if n else 0.0
-        sx = n * (n - 1) / 2.0
-        sxx = (n - 1) * n * (2 * n - 1) / 6.0
-        sy = sum(obvs)
-        sxy = sum(i * y for i, y in enumerate(obvs))
-        den = n * sxx - sx * sx
-        slope = (n * sxy - sx * sy) / den if den else 0.0
-        obv_slope = slope / mean_vol if mean_vol > 0 else 0.0
+        obv_slope = _obv_slope(wclose, wvol, prev)
 
-        up_vol = 0.0
-        down_vol = 0.0
-        start = len(df) - min(len(df), _NEAR52W_UPDOWN_WINDOW)
-        for i in range(start, len(df)):
-            c = float(closes.iloc[i])
-            p = float(closes.iloc[i - 1]) if i > 0 else c
-            v = float(vols.iloc[i])
-            if c > p:
-                up_vol += v
-            elif c < p:
-                down_vol += v
-        updown = up_vol / down_vol if down_vol > 0 else (up_vol if up_vol > 0 else 1.0)
+        u = min(len(df), _NEAR52W_UPDOWN_WINDOW)
+        start = len(df) - u
+        updown_prev = float(closes.iloc[start - 1]) if start > 0 else float(closes.iloc[start])
+        updown = _updown_ratio(
+            [float(v) for v in closes.tail(u).tolist()],
+            [float(v) for v in vols.tail(u).tolist()],
+            updown_prev,
+        )
 
-        vlong = float(vols.tail(_NEAR52W_ACCUM_WINDOW).mean())
-        vshort = float(vols.tail(_NEAR52W_VOL_SHORT).mean())
-        vol_ratio = vshort / vlong if vlong > 0 else 1.0
+        vols_list = [float(v) for v in vols.tolist()]
+        vol_ratio = _vol_ratio(vols_list, _NEAR52W_VOL_SHORT, _NEAR52W_ACCUM_WINDOW)
 
-        m5 = float(lows.tail(5).min())
-        m10 = float(lows.tail(_NEAR52W_UPDOWN_WINDOW).min())
-        m20 = float(lows.tail(_NEAR52W_ACCUM_WINDOW).min())
-        rising_lows = bool(m5 > m10 > m20)
+        lows_list = [float(v) for v in lows.tolist()]
+        rising_lows = _rising_lows(lows_list)
 
         return {
-            "symbol": str(symbol).upper(),
+            "symbol": norm_symbol(symbol),
             "setup_id": "near_52w",
             "trigger_level": prior_high,
             "invalidate_level": float(lows.tail(_NEAR52W_INVALIDATE_WINDOW).min()),
             "close": close,
             "last_high": last_high,
+            "trigger_date": trigger_date,
+            "last_touch_date": last_touch_date,
             "touched": touched,
             "high_gap": high_gap,
             "close_gap": close_gap,
@@ -545,17 +637,13 @@ def _arm_computed(
     """
     gap_max = float(max_gap) if max_gap is not None else float(setup.get("max_gap", 5.0))
     if symbol:
-        symbols = (
-            [symbol.upper()]
-            if isinstance(symbol, str)
-            else [str(s).upper() for s in symbol]
-        )
+        symbols = [norm_symbol(symbol)] if isinstance(symbol, str) else norm_symbols(symbol)
         scope = "sym_" + "_".join(sorted(symbols))
     elif universe:
         try:
             from chart_patterns import universes
 
-            symbols = [str(s).upper() for s in universes.get_universe(universe)]
+            symbols = norm_symbols(universes.get_universe(universe))
         except Exception as exc:
             log.warning("breakout watch: unknown universe %r (%s)", universe, exc)
             return []
@@ -671,7 +759,7 @@ def arm(
     if universe:
         filters["universe"] = universe
     if symbol:
-        filters["symbol"] = [symbol.upper()] if isinstance(symbol, str) else [str(s).upper() for s in symbol]
+        filters["symbol"] = [norm_symbol(symbol)] if isinstance(symbol, str) else norm_symbols(symbol)
     try:
         items, _total, _summary = store.query_results(filters, limit=_ARM_QUERY_LIMIT)
     except Exception as exc:
@@ -702,7 +790,7 @@ def arm(
             else:
                 continue
             row = {
-                "symbol": str(hit.get("symbol") or "").upper(),
+                "symbol": norm_symbol(hit.get("symbol")),
                 "setup_id": setup_id,
                 "trigger_level": trigger,
                 "invalidate_level": float(base_low),
@@ -740,21 +828,9 @@ def _broker_token_data() -> Optional[dict]:
 
 def _token() -> Optional[str]:
     """Upstox OAuth token: DB → ``.upstox_token.json`` → env. Never raises."""
-    try:
-        data = _broker_token_data()
-        if data and data.get("access_token"):
-            return data["access_token"]
-    except Exception:
-        pass
-    try:
-        token_file = Path(__file__).resolve().parent.parent / ".upstox_token.json"
-        if token_file.exists():
-            token = json.loads(token_file.read_text()).get("access_token")
-            if token:
-                return token
-    except Exception:
-        pass
-    return os.getenv("UPSTOX_ACCESS_TOKEN")
+    from api.upstox_token import resolve_upstox_token
+
+    return resolve_upstox_token(use_env=True)
 
 
 def _upstox_token_expired() -> bool:
@@ -841,17 +917,15 @@ def _try_refresh_upstox_token() -> Optional[str]:
 
 
 def _instrument_keys(symbols: list[str]) -> dict[str, str]:
-    """Map trading symbols to Upstox instrument keys. Never raises."""
-    try:
-        from api.symbols import _load_instruments
+    """Map trading symbols to Upstox instrument keys. Never raises.
 
-        want = {str(s).upper() for s in symbols}
-        out: dict[str, str] = {}
-        for inst in _load_instruments():
-            sym = inst.get("trading_symbol")
-            if sym in want and inst.get("instrument_key"):
-                out[sym] = inst["instrument_key"]
-        return out
+    Delegates to the OHLC resolver so watch live prices and candle fetches
+    cannot disagree about a symbol's key.
+    """
+    try:
+        from market_data.market_data import _ohlc_instrument_keys
+
+        return _ohlc_instrument_keys(norm_symbols(symbols))
     except Exception:
         return {}
 
@@ -887,7 +961,7 @@ def _ltp_prices(symbols: list[str]) -> dict[str, float]:
     token = _token()
     if not token:
         return {}
-    keys = _instrument_keys([str(s).upper() for s in symbols])
+    keys = _instrument_keys(norm_symbols(symbols))
     if not keys:
         return {}
     reverse = {v: k for k, v in keys.items()}
@@ -939,7 +1013,7 @@ def _tape_price(symbol: str, timeframe: str = "1m") -> Optional[float]:
     ``_TAPE_CACHE_TTL_SECONDS`` so repeated polls (endpoint + CLI watching
     the same names) don't refetch every bar.
     """
-    key = f"{str(symbol).upper()}|{timeframe}"
+    key = f"{norm_symbol(symbol)}|{timeframe}"
     try:
         now = time.monotonic()
         cached = _TAPE_CACHE.get(key)
@@ -1081,7 +1155,7 @@ def _vol_adj_one(symbol: str, now=None) -> Optional[float]:
 
 def _vol_adj_cached(symbol: str, now=None) -> Optional[float]:
     """Memoised :func:`_vol_adj_one` per symbol (TTL ``30s``). Never raises."""
-    key = str(symbol).upper()
+    key = norm_symbol(symbol)
     try:
         stamp = time.monotonic()
         hit = _VOL_ADJ_CACHE.get(key)
@@ -1105,7 +1179,7 @@ def vol_adj_map(symbols: list[str], now=None) -> dict[str, float]:
     cheap. Symbols whose tape/daily fetch fails are simply absent (callers
     treat a missing entry as ``vol_adj=None``). Never raises.
     """
-    syms = [str(s).upper() for s in (symbols or []) if str(s or "").strip()]
+    syms = norm_symbols(symbols)
     out: dict[str, float] = {}
     if not syms:
         return out
@@ -1196,7 +1270,7 @@ def live(rows: list[dict], *, min_rel_volume: float = 0.7) -> list[dict]:
     and ``state="armed"``.
     """
     rows = [dict(r) for r in rows or []]
-    symbols = [str(r.get("symbol") or "").upper() for r in rows if r.get("symbol")]
+    symbols = norm_symbols([r.get("symbol") for r in rows if r.get("symbol")])
     try:
         prices = _ltp_prices(symbols)
     except Exception:
@@ -1222,7 +1296,7 @@ def live(rows: list[dict], *, min_rel_volume: float = 0.7) -> list[dict]:
     out: list[dict] = []
     for row in rows:
         try:
-            sym = str(row.get("symbol") or "").upper()
+            sym = norm_symbol(row.get("symbol"))
             ltp = prices.get(sym)
             rel = (metrics.get(sym) or {}).get("rel_volume")
             try:
@@ -1244,6 +1318,7 @@ def live(rows: list[dict], *, min_rel_volume: float = 0.7) -> list[dict]:
             row["rel_volume"] = rel
             row["vol_adj"] = va
             row["pct_to_trigger"] = round(pct, 2) if pct is not None else None
+            row["tags"] = tags_for(sym)
             above = (
                 ltp is not None
                 and trigger is not None
@@ -1264,6 +1339,7 @@ def live(rows: list[dict], *, min_rel_volume: float = 0.7) -> list[dict]:
             row.setdefault("rel_volume", None)
             row.setdefault("vol_adj", None)
             row.setdefault("pct_to_trigger", None)
+            row.setdefault("tags", [])
             row["state"] = "armed"
         out.append(row)
     return out

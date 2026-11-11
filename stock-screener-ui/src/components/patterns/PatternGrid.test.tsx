@@ -57,6 +57,17 @@ function r(jsx: React.ReactElement) {
 describe("PatternGrid", () => {
   afterEach(() => cleanup());
 
+  test("outlines only the card that is open in the docked chart", () => {
+    const hits = [
+      makeHit({ id: 11, symbol: "AAA", start_date: "2026-04-26" }),
+      makeHit({ id: 22, symbol: "BBB", start_date: "2026-07-01" }),
+    ];
+    r(<PatternGrid hits={hits} onSelect={vi.fn()} activeHit={hits[1]} />);
+    const cards = screen.getAllByTestId("patterns-card");
+    expect(cards[1]).toHaveAttribute("data-selected", "true");
+    expect(cards[0]).not.toHaveAttribute("data-selected");
+  });
+
   test("renders two hits with the same symbol+pattern+timeframe without duplicate keys", () => {
     const warnings: string[] = [];
     const origError = console.error;
@@ -180,4 +191,14 @@ describe("PatternGrid missing coverage", () => {
     r(<PatternGrid hits={[makeHit({ id: 1 })]} onSelect={vi.fn()} />);
     expect(screen.getByTestId("mini-stub")).toHaveAttribute("data-trendlines-view", "both");
   });
+
+  test("renders the 200-hit results limit", () => {
+    const hits = Array.from({ length: 200 }, (_, i) => makeHit({ id: 1000 + i, symbol: `S${i}` }));
+    r(<PatternGrid hits={hits} onSelect={vi.fn()} />);
+    expect(screen.getByTestId("patterns-grid")).toBeInTheDocument();
+    expect(screen.getAllByTestId("patterns-card")).toHaveLength(200);
+    expect(screen.getAllByTestId("mini-stub")).toHaveLength(200);
+    expect(screen.getByTestId("patterns-card-S0-falling_wedge")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-card-S199-falling_wedge")).toBeInTheDocument();
+  }, 20000);
 });

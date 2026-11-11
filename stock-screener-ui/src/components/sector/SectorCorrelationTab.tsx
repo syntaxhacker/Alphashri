@@ -1,11 +1,8 @@
 import { useEffect, useMemo } from "react";
-import { Box, Stack } from "@/ui";
+import { Box, Stack, Text } from "@/ui";
 import Grid from "@mui/material/Grid";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
 import Typography from "@mui/material/Typography";
 import Chip from "@mui/material/Chip";
-import TableContainer from "@mui/material/TableContainer";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import Select from "@mui/material/Select";
@@ -26,6 +23,7 @@ import {
   subscribe as subscribeToState,
 } from "../../state/sectorCorrelation";
 import { TanStackTable } from "../common/TanStackTable";
+import { CompactPanel } from "../common/compact";
 import { formatPercentage } from "../../utils/ui-helpers";
 import { CorrelationHeatmap, SectorBetaChart, RotationTimeline } from "./SectorCorrelationCharts";
 
@@ -36,6 +34,17 @@ const LOOKBACK_OPTIONS = [
   { label: "6M", value: 132 },
   { label: "1Y", value: 252 },
 ];
+
+/** Dense control row shared by the header strip (8pt grid → 4px gaps). */
+const HEADER_ROW_SX = {
+  display: "flex",
+  alignItems: "center",
+  gap: 0.5,
+  flexWrap: "wrap",
+  px: 0.5,
+  py: 0.25,
+  minHeight: 28,
+} as const;
 
 function CorrelationHeader({
   currentMarket,
@@ -59,32 +68,50 @@ function CorrelationHeader({
   };
 
   return (
-    <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-      <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, "&:last-child": { pb: 1 } }}>
-        <Box sx={{ minHeight: 48, display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, flexWrap: "wrap", width: "100%" }}>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
-            <Select size="small" value={currentMarket} onChange={(e) => handleMarketChange(String(e.target.value))} data-testid="market-segment">
-              <MenuItem value="india">India</MenuItem>
-              <MenuItem value="america">US</MenuItem>
-            </Select>
-            <Select size="small" value={String(currentLookback)} onChange={(e) => handleLookbackChange(String(e.target.value))} data-testid="lookback-segment">
-              {LOOKBACK_OPTIONS.map((o) => (<MenuItem key={o.value} value={String(o.value)}>{o.label}</MenuItem>))}
-            </Select>
-          </Box>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
-            {lastUpdated && (
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
-                <IconClock size={12} color="var(--mui-palette-text-secondary)" />
-                <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{new Date(lastUpdated).toLocaleTimeString()}</Typography>
-              </Box>
-            )}
-            <Box sx={{ p: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }} onClick={handleRefresh}>
-              <IconRefresh size={14} />
-            </Box>
-          </Box>
+    <Box data-testid="sector-correlation-header" sx={{ ...HEADER_ROW_SX, borderBottom: "1px solid", borderColor: "divider" }}>
+      <Text fw={700} sx={{ fontSize: 12, whiteSpace: "nowrap" }}>
+        Sector Correlation
+      </Text>
+      <Select
+        size="small"
+        value={currentMarket}
+        onChange={(e) => handleMarketChange(String(e.target.value))}
+        data-testid="market-segment"
+        sx={{ height: 24, fontSize: 11, minWidth: 84 }}
+      >
+        <MenuItem value="india">India</MenuItem>
+        <MenuItem value="america">US</MenuItem>
+      </Select>
+      <Select
+        size="small"
+        value={String(currentLookback)}
+        onChange={(e) => handleLookbackChange(String(e.target.value))}
+        data-testid="lookback-segment"
+        sx={{ height: 24, fontSize: 11, minWidth: 64 }}
+      >
+        {LOOKBACK_OPTIONS.map((o) => (
+          <MenuItem key={o.value} value={String(o.value)}>
+            {o.label}
+          </MenuItem>
+        ))}
+      </Select>
+      <Box sx={{ flex: 1 }} />
+      {lastUpdated && (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <IconClock size={12} color="var(--mui-palette-text-secondary)" />
+          <Typography variant="caption" sx={{ fontSize: 10, fontVariantNumeric: "tabular-nums" }}>
+            {new Date(lastUpdated).toLocaleTimeString()}
+          </Typography>
         </Box>
-      </CardContent>
-    </Card>
+      )}
+      <Box
+        data-testid="sector-correlation-refresh"
+        sx={{ p: 0.5, cursor: "pointer", display: "flex", alignItems: "center" }}
+        onClick={handleRefresh}
+      >
+        <IconRefresh size={14} />
+      </Box>
+    </Box>
   );
 }
 
@@ -93,66 +120,104 @@ function RelativeStrengthTable({ sectors }: { sectors: SectorCorrelationResponse
     () => [
       {
         id: "rank",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>Rank</Box>,
+        header: "Rank",
         accessorKey: "rank_current",
+        size: 56,
         meta: { align: "center" },
         cell: (info) => {
           const rank = info.getValue<number>();
-          return (<Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Chip size="small" label={`#${rank}`} color={rank <= 3 ? "success" : "default"} variant="outlined" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }} /></Box>);
+          return (
+            <Chip
+              size="small"
+              label={`#${rank}`}
+              color={rank <= 3 ? "success" : "default"}
+              variant="outlined"
+              sx={{ height: 16, fontSize: 9.5, "& .MuiChip-label": { px: 0.5 } }}
+            />
+          );
         },
       },
       {
         id: "sector",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>Sector</Box>,
+        header: "Sector",
         accessorKey: "name",
-        meta: { align: "center" },
-        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center" }}>{info.getValue<string>()}</Typography></Box>,
+        meta: { align: "left" },
+        cell: (info) => (
+          <Text sx={{ fontWeight: 600, fontSize: 10.5, whiteSpace: "nowrap" }}>{info.getValue<string>()}</Text>
+        ),
       },
       {
         id: "rs_5d",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>5D RS</Box>,
+        header: "5D RS",
         accessorKey: "relative_strength_5d",
-        meta: { align: "center" },
+        size: 80,
+        meta: { align: "right" },
         cell: (info) => {
           const val = info.getValue<number>();
-          return (<Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ color: val >= 0 ? "success.main" : "error.main", display: "flex", alignItems: "center", justifyContent: "center" }}>{formatPercentage(val / 100, 2, false)}</Typography></Box>);
+          return (
+            <Text c={val >= 0 ? "success.main" : "error.main"} sx={{ fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}>
+              {formatPercentage(val / 100, 2, false)}
+            </Text>
+          );
         },
       },
       {
         id: "rs_1m",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>1M RS</Box>,
+        header: "1M RS",
         accessorKey: "relative_strength_1m",
-        meta: { align: "center" },
+        size: 80,
+        meta: { align: "right" },
         cell: (info) => {
           const val = info.getValue<number>();
-          return (<Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ color: val >= 0 ? "success.main" : "error.main", display: "flex", alignItems: "center", justifyContent: "center" }}>{formatPercentage(val / 100, 2, false)}</Typography></Box>);
+          return (
+            <Text c={val >= 0 ? "success.main" : "error.main"} sx={{ fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}>
+              {formatPercentage(val / 100, 2, false)}
+            </Text>
+          );
         },
       },
       {
         id: "rs_3m",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>3M RS</Box>,
+        header: "3M RS",
         accessorKey: "relative_strength_3m",
-        meta: { align: "center" },
+        size: 80,
+        meta: { align: "right" },
         cell: (info) => {
           const val = info.getValue<number>();
-          return (<Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ color: val >= 0 ? "success.main" : "error.main", display: "flex", alignItems: "center", justifyContent: "center" }}>{formatPercentage(val / 100, 2, false)}</Typography></Box>);
+          return (
+            <Text c={val >= 0 ? "success.main" : "error.main"} sx={{ fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}>
+              {formatPercentage(val / 100, 2, false)}
+            </Text>
+          );
         },
       },
       {
         id: "beta",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>Beta</Box>,
+        header: "Beta",
         accessorKey: "beta_vs_index",
-        meta: { align: "center" },
-        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{info.getValue<number>().toFixed(2)}</Typography></Box>,
+        size: 64,
+        meta: { align: "right" },
+        cell: (info) => (
+          <Text sx={{ fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}>{info.getValue<number>().toFixed(2)}</Text>
+        ),
       },
       {
         id: "rank_change",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>1M Change</Box>,
+        header: "1M Change",
         accessorKey: "rank_change_1m",
+        size: 88,
         meta: { align: "center" },
         cell: (info) => {
           const change = info.getValue<number>();
-          return (<Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Chip size="small" label={change > 0 ? `+${change}` : String(change)} color={change > 0 ? "success" : change < 0 ? "error" : "default"} variant="outlined" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }} /></Box>);
+          return (
+            <Chip
+              size="small"
+              label={change > 0 ? `+${change}` : String(change)}
+              color={change > 0 ? "success" : change < 0 ? "error" : "default"}
+              variant="outlined"
+              sx={{ height: 16, fontSize: 9.5, "& .MuiChip-label": { px: 0.5 } }}
+            />
+          );
         },
       },
     ],
@@ -160,47 +225,44 @@ function RelativeStrengthTable({ sectors }: { sectors: SectorCorrelationResponse
   );
 
   return (
-    <TableContainer sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, maxHeight: 400, overflow: "auto", width: "100%" }}>
-      <Stack spacing={1} sx={{ width: "100%", alignItems: "center", justifyContent: "center" }}>
-        <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-          <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, "&:last-child": { pb: 1 } }}>
-            <Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
-              <TanStackTable data={sectors} columns={columns} enableSorting={false} />
-            </Box>
-          </CardContent>
-        </Card>
-      </Stack>
-    </TableContainer>
+    <TanStackTable
+      data={sectors}
+      columns={columns}
+      enableSorting={false}
+      dataTestId="relative-strength-table-inner"
+      emptyMessage="No relative-strength rows"
+      dense
+      stickyHeader
+      rowWindowSize={40}
+    />
   );
 }
 
-
 function LoadingState() {
   return (
-    <Card elevation={1} sx={{ width: "100%", p: 1, minHeight: 400, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-      <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, gap: 1, width: "100%", "&:last-child": { pb: 1 } }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
-          <CircularProgress size={20} />
-          <Typography variant="subtitle2" sx={{ fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>Loading sector correlation...</Typography>
-        </Box>
-        <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Computing cross-sector relationships and relative strength.</Typography>
-      </CardContent>
-    </Card>
+    <Box
+      data-testid="sector-correlation-loading"
+      sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0.5, flex: 1, minHeight: 200 }}
+    >
+      <CircularProgress size={16} />
+      <Typography variant="caption">Loading sector correlation…</Typography>
+    </Box>
   );
 }
 
 function ErrorState({ error }: { error: string }) {
-  const handleRefresh = () => { void fetchCorrelationData(); };
+  const handleRefresh = () => {
+    void fetchCorrelationData();
+  };
   return (
-    <Card elevation={1} sx={{ width: "100%", p: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
-      <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, gap: 1, width: "100%", "&:last-child": { pb: 1 } }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
-          <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Error</Typography>
-        </Box>
-        <Typography variant="body2" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{error}</Typography>
-        <Button variant="outlined" color="error" size="small" onClick={handleRefresh} sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Retry</Button>
-      </CardContent>
-    </Card>
+    <Box data-testid="sector-correlation-error" sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+      <Typography variant="caption" color="error">
+        {error}
+      </Typography>
+      <Button variant="outlined" color="error" size="small" onClick={handleRefresh} sx={{ height: 22, fontSize: 10 }}>
+        Retry
+      </Button>
+    </Box>
   );
 }
 
@@ -221,65 +283,72 @@ export function SectorCorrelationTab() {
   if (stateError) return <ErrorState error={stateError} />;
   if (!data || !data.sector_names || data.sector_names.length === 0) {
     return (
-      <Card elevation={1} sx={{ width: "100%", p: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
-        <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, "&:last-child": { pb: 1 } }}>
-          <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>No data</Typography>
-          <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>No correlation data available.</Typography>
-        </CardContent>
-      </Card>
+      <Box data-testid="sector-correlation-empty" sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+        <Typography variant="caption" color="text.secondary">
+          No correlation data available.
+        </Typography>
+      </Box>
     );
   }
   const benchmark = sectorMarket === "india" ? "NIFTY 50" : "SPY";
 
   return (
-    <Stack spacing={1} sx={{ p: 1, alignItems: "center", justifyContent: "center", width: "100%" }}>
+    <Stack spacing={0.5} sx={{ p: 0.5, width: "100%", minWidth: 0 }}>
       <CorrelationHeader currentMarket={sectorMarket} currentLookback={lookbackDays} lastUpdated={data.last_updated} />
-      <Grid container spacing={1} sx={{ justifyContent: "center", alignItems: "stretch", width: "100%" }}>
-        <Grid size={{ xs: 12, lg: 6 }} sx={{ display: "flex", justifyContent: "center" }}>
-          <Card elevation={1} sx={{ width: "100%", p: 1, minHeight: 400, display: "flex", flexDirection: "column", alignItems: "center" }} id="sector-correlation-heatmap" data-testid="sector-correlation-heatmap">
-            <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", flex: 1, "&:last-child": { pb: 1 } }}>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-                <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Cross-Sector Correlation</Typography>
-              </Box>
-              <Box sx={{ p: 1, minHeight: 300, width: "100%", display: "block" }}>
-                <CorrelationHeatmap matrix={data.correlation_matrix} symbols={data.sector_names} isDark={isDark} />
-              </Box>
-            </CardContent>
-          </Card>
+      <Grid container spacing={0.5} sx={{ width: "100%" }}>
+        <Grid size={{ xs: 12, lg: 6 }}>
+          <CompactPanel
+            flush
+            padded={false}
+            id="sector-correlation-heatmap"
+            testId="sector-correlation-heatmap"
+            title={<Text sx={{ fontSize: 10, fontWeight: 700 }}>Cross-Sector Correlation</Text>}
+            sx={{ minWidth: 0 }}
+          >
+            <Box sx={{ p: 0.5, minHeight: 280, width: "100%" }}>
+              <CorrelationHeatmap matrix={data.correlation_matrix} symbols={data.sector_names} isDark={isDark} />
+            </Box>
+          </CompactPanel>
         </Grid>
-        <Grid size={{ xs: 12, lg: 6 }} sx={{ display: "flex", justifyContent: "center" }}>
-          <Card elevation={1} sx={{ width: "100%", p: 1, minHeight: 450, display: "flex", flexDirection: "column", alignItems: "center" }} id="sector-beta-chart" data-testid="sector-beta-chart">
-            <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", flex: 1, "&:last-child": { pb: 1 } }}>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-                <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Sector Beta vs Benchmark</Typography>
-              </Box>
-              <Box sx={{ p: 1, height: 350, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <SectorBetaChart sectors={sortedSectors} benchmark={benchmark} isDark={isDark} />
-              </Box>
-            </CardContent>
-          </Card>
+        <Grid size={{ xs: 12, lg: 6 }}>
+          <CompactPanel
+            flush
+            padded={false}
+            id="sector-beta-chart"
+            testId="sector-beta-chart"
+            title={<Text sx={{ fontSize: 10, fontWeight: 700 }}>Sector Beta vs Benchmark</Text>}
+            sx={{ minWidth: 0 }}
+          >
+            <Box sx={{ p: 0.5, height: 320, width: "100%", display: "flex" }}>
+              <SectorBetaChart sectors={sortedSectors} benchmark={benchmark} isDark={isDark} />
+            </Box>
+          </CompactPanel>
         </Grid>
       </Grid>
-      <Card elevation={1} sx={{ width: "100%", p: 1, display: "flex", flexDirection: "column", alignItems: "center" }} id="relative-strength-table" data-testid="relative-strength-table">
-        <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", "&:last-child": { pb: 1 } }}>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-            <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Relative Strength Rankings</Typography>
-          </Box>
-          <Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
-            <RelativeStrengthTable sectors={sortedSectors} />
-          </Box>
-        </CardContent>
-      </Card>
-      <Card elevation={1} sx={{ width: "100%", p: 1, minHeight: 500, display: "flex", flexDirection: "column", alignItems: "center" }} id="rotation-timeline" data-testid="rotation-timeline">
-        <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", flex: 1, "&:last-child": { pb: 1 } }}>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-            <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Sector Rotation (1-Month Rank Change)</Typography>
-          </Box>
-          <Box sx={{ p: 1, height: 450, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <RotationTimeline sectors={sortedSectors} isDark={isDark} />
-          </Box>
-        </CardContent>
-      </Card>
+      <CompactPanel
+        flush
+        padded={false}
+        id="relative-strength-table"
+        testId="relative-strength-table"
+        title={<Text sx={{ fontSize: 10, fontWeight: 700 }}>Relative Strength Rankings</Text>}
+        sx={{ minWidth: 0 }}
+      >
+        <Box sx={{ width: "100%", minWidth: 0 }}>
+          <RelativeStrengthTable sectors={sortedSectors} />
+        </Box>
+      </CompactPanel>
+      <CompactPanel
+        flush
+        padded={false}
+        id="rotation-timeline"
+        testId="rotation-timeline"
+        title={<Text sx={{ fontSize: 10, fontWeight: 700 }}>Sector Rotation (1-Month Rank Change)</Text>}
+        sx={{ minWidth: 0 }}
+      >
+        <Box sx={{ p: 0.5, height: 400, width: "100%", display: "flex" }}>
+          <RotationTimeline sectors={sortedSectors} isDark={isDark} />
+        </Box>
+      </CompactPanel>
     </Stack>
   );
 }

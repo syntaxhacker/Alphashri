@@ -138,6 +138,73 @@ class TestIsForceExitTime:
         assert is_force_exit_time(datetime(2026, 1, 20, *FORCE_EXIT)) is True
 
 
+class TestIsDerivativesOpen:
+    """Tests for is_derivatives_open()."""
+
+    @patch("trading.utils._get_cache")
+    def test_returns_false_on_saturday(self, mock_cache):
+        mock_cache.return_value = {"trading": set(), "clearing": set()}
+        dt = datetime(2026, 1, 17, 10, 0, tzinfo=IST)  # Saturday
+        from trading.utils import is_derivatives_open
+        assert is_derivatives_open(dt) is False
+
+    @patch("trading.utils._get_cache")
+    def test_returns_false_on_sunday(self, mock_cache):
+        mock_cache.return_value = {"trading": set(), "clearing": set()}
+        dt = datetime(2026, 1, 18, 10, 0, tzinfo=IST)  # Sunday
+        from trading.utils import is_derivatives_open
+        assert is_derivatives_open(dt) is False
+
+    @patch("trading.utils._get_cache")
+    def test_returns_false_on_trading_holiday(self, mock_cache):
+        mock_cache.return_value = {"trading": {date(2026, 1, 26)}, "clearing": set()}
+        dt = datetime(2026, 1, 26, 10, 0, tzinfo=IST)  # Monday, Republic Day
+        from trading.utils import is_derivatives_open
+        assert is_derivatives_open(dt) is False
+
+    @patch("trading.utils._get_cache")
+    def test_returns_true_during_derivatives_hours(self, mock_cache):
+        mock_cache.return_value = {"trading": set(), "clearing": set()}
+        dt = datetime(2026, 1, 20, 10, 30, tzinfo=IST)  # Tuesday 10:30
+        from trading.utils import is_derivatives_open
+        assert is_derivatives_open(dt) is True
+
+    @patch("trading.utils._get_cache")
+    def test_returns_false_before_open(self, mock_cache):
+        mock_cache.return_value = {"trading": set(), "clearing": set()}
+        dt = datetime(2026, 1, 20, 9, 0, tzinfo=IST)  # 09:00 - before 09:15
+        from trading.utils import is_derivatives_open
+        assert is_derivatives_open(dt) is False
+
+    @patch("trading.utils._get_cache")
+    def test_returns_false_after_close(self, mock_cache):
+        mock_cache.return_value = {"trading": set(), "clearing": set()}
+        dt = datetime(2026, 1, 20, 15, 41, tzinfo=IST)  # 15:41 - after 15:40
+        from trading.utils import is_derivatives_open
+        assert is_derivatives_open(dt) is False
+
+    @patch("trading.utils._get_cache")
+    def test_returns_true_at_open_time(self, mock_cache):
+        mock_cache.return_value = {"trading": set(), "clearing": set()}
+        dt = datetime(2026, 1, 20, 9, 15, tzinfo=IST)  # Exactly 09:15
+        from trading.utils import is_derivatives_open
+        assert is_derivatives_open(dt) is True
+
+    @patch("trading.utils._get_cache")
+    def test_returns_true_at_close_time(self, mock_cache):
+        mock_cache.return_value = {"trading": set(), "clearing": set()}
+        dt = datetime(2026, 1, 20, 15, 40, tzinfo=IST)  # Exactly 15:40
+        from trading.utils import is_derivatives_open
+        assert is_derivatives_open(dt) is True
+
+    @patch("trading.utils._get_cache")
+    def test_returns_false_one_minute_after_close(self, mock_cache):
+        mock_cache.return_value = {"trading": set(), "clearing": set()}
+        dt = datetime(2026, 1, 20, 15, 41, tzinfo=IST)  # 15:41
+        from trading.utils import is_derivatives_open
+        assert is_derivatives_open(dt) is False
+
+
 class TestIsTradingHoliday:
     """Tests for is_trading_holiday()."""
 

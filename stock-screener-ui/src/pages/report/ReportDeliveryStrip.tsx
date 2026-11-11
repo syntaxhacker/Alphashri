@@ -2,6 +2,7 @@ import { Alert, Badge, Box, Paper, Skeleton, Text } from "@/ui";
 import { BORDER, SURFACE } from "@/ui/palette";
 import type { DeliveryResponse } from "../../types/report";
 import { formatCurrency, formatNumber } from "../../utils/ui-helpers";
+import { symbolRowCursor, symbolRowProps } from "../../components/common/symbolRowProps";
 
 interface ReportDeliveryStripProps {
   data: DeliveryResponse | null;
@@ -60,26 +61,14 @@ export function ReportDeliveryStrip({ data, loading, error, onOpenSymbol }: Repo
             key={row.symbol}
             data-testid={`report-delivery-row-${row.symbol}`}
             data-symbol={row.symbol}
-            role={onOpenSymbol ? "button" : undefined}
-            tabIndex={onOpenSymbol ? 0 : undefined}
-            onClick={onOpenSymbol ? () => onOpenSymbol(row.symbol) : undefined}
-            onKeyDown={
-              onOpenSymbol
-                ? (e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      onOpenSymbol(row.symbol);
-                    }
-                  }
-                : undefined
-            }
+            {...symbolRowProps(onOpenSymbol, row.symbol)}
             sx={{
               display: "flex",
               flexDirection: "column",
               gap: 0,
               minWidth: 120,
               flexShrink: 0,
-              cursor: onOpenSymbol ? "pointer" : "default",
+              cursor: symbolRowCursor(onOpenSymbol),
               fontVariantNumeric: "tabular-nums",
             }}
           >

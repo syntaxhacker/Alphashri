@@ -56,7 +56,10 @@ class StrategyConfig(Base):
 
     cooldown_minutes = Column(Integer, default=30)
     max_distance_from_or_pct = Column(Float, default=1.5)
-    max_distance_from_r1_pct = Column(Float, default=5.0)
+    # ORM-side default only (column already exists; no migration).  Tightened
+    # 5.0 -> 2.0 to match the generator: chases >2% past R1 stop out.
+    # NOTE: existing DB rows keep their stored value - update via strategy UI.
+    max_distance_from_r1_pct = Column(Float, default=2.0)
 
     entry_threshold_pct = Column(Float, default=3.0)
     min_breakout_pct = Column(Float, default=0.5)

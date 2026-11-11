@@ -45,9 +45,9 @@ const paneSx = {
 const paneHeaderSx = {
   display: "flex",
   alignItems: "center",
-  gap: 1,
-  px: 1.5,
-  minHeight: 40,
+  gap: 0.5,
+  px: 1,
+  minHeight: 28,
   borderBottom: 1,
   borderColor: "divider",
   flex: "0 0 auto",
@@ -77,15 +77,15 @@ export function ExperimentsPage() {
         minHeight: 0,
         display: "flex",
         flexDirection: "column",
-        gap: 1,
-        p: 1,
+        gap: 0.5,
+        p: 0.5,
         overflow: "hidden",
       }}
     >
       <ToolbarRow
         justify="space-between"
         gap={8}
-        style={{ minHeight: 40, flex: "0 0 auto" }}
+        style={{ minHeight: 28, flex: "0 0 auto" }}
       >
         <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, minWidth: 0 }}>
           <Typography variant="h6" fontWeight={700} sx={{ lineHeight: 1.2 }}>
@@ -136,7 +136,7 @@ export function ExperimentsPage() {
           flex: 1,
           minHeight: 0,
           display: "grid",
-          gap: 1,
+          gap: 0.5,
           overflow: "auto",
           gridTemplateColumns: { xs: "1fr", lg: "280px minmax(0,1fr) minmax(0,1.25fr)" },
         }}
@@ -151,15 +151,15 @@ export function ExperimentsPage() {
               {state.sessions.length}
             </Text>
           </Box>
-          <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 1 }}>
+          <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 0.5 }}>
             {state.sessions.length === 0 ? (
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 2 }}>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
                 <Text size="sm" c="dimmed">
                   No sessions yet
                 </Text>
               </Box>
             ) : (
-              <Stack gap={1} sx={{ alignItems: "stretch" }}>
+              <Stack gap={0.5} sx={{ alignItems: "stretch" }}>
                 {state.sessions.map((session) => {
                   const active = session.session === state.activeSession;
                   return (
@@ -216,7 +216,7 @@ export function ExperimentsPage() {
               Results
             </Text>
           </Box>
-          <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 1, display: "flex", flexDirection: "column", gap: 1 }}>
+          <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 0.5, display: "flex", flexDirection: "column", gap: 0.5 }}>
             <ExperimentsProgress />
             <ExperimentsResultsTable />
           </Box>

@@ -1,18 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("./utils", () => ({
-  apiGet: vi.fn(),
-  apiPost: vi.fn(),
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-  buildUrl: vi.fn((endpoint: string, params?: Record<string, string>) => {
-    if (!params || Object.keys(params).length === 0) {
-      return `http://localhost:8765${endpoint}`;
-    }
-    const qs = new URLSearchParams(params).toString();
-    return `http://localhost:8765${endpoint}?${qs}`;
-  }),
-}));
+vi.mock("./utils", async () => {
+  const { createApiUtilsMock } = await import("./apiTestMocks");
+  return createApiUtilsMock();
+});
 
 import { apiGet, apiPost, apiPut, apiDelete } from "./utils";
 import {

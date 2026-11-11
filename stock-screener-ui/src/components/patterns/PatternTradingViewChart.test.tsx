@@ -175,16 +175,10 @@ describe("PatternTradingViewChart", () => {
       scaleMargins: { top: 0.85, bottom: 0 },
     });
 
-    // Breakout/target/stop price lines on the candle series.
-    expect(candleSeries?.createPriceLine).toHaveBeenCalledTimes(3);
-    const titles = (candleSeries?.createPriceLine.mock.calls ?? []).map((c) => (c[0] as { title: string }).title);
-    expect(titles.sort()).toEqual(["Breakout", "Stop", "Target"]);
-
-    // Pivot markers via the v5 plugin API.
-    expect(mocks.createSeriesMarkers).toHaveBeenCalledTimes(1);
-    expect(mocks.setMarkers).toHaveBeenCalled();
-    const markers = mocks.setMarkers.mock.calls[0]?.[0] as Array<{ shape: string }>;
-    expect(markers).toHaveLength(2);
+    // No breakout/target/stop price lines and no dot markers: the chart draws
+    // pattern lines only (risk sizing is the trader's job).
+    expect(candleSeries?.createPriceLine).not.toHaveBeenCalled();
+    expect(mocks.setMarkers).toHaveBeenCalledWith([]);
 
     // Fitted once the data landed.
     expect(mocks.fitContent).toHaveBeenCalled();
@@ -220,20 +214,12 @@ describe("PatternTradingViewChart", () => {
     expect(hiddenSeries).toHaveLength(0);
   });
 
-  it("hides a level price line when its title is in hiddenNames", () => {
-    render(<PatternTradingViewChart hit={makeHit()} candles={CANDLES} hiddenNames={new Set(["Target"])} />);
+  it("draws no price lines or dot markers (risk levels are the trader's job)", () => {
+    render(<PatternTradingViewChart hit={makeHit()} candles={CANDLES} />);
     const calls = mocks.createdSeries[0]?.createPriceLine.mock.calls ?? [];
-    const target = calls.find((c) => (c[0] as { title?: string }).title === "Target")?.[0] as
-      | { lineVisible?: boolean; axisLabelVisible?: boolean }
-      | undefined;
-    expect(target?.lineVisible).toBe(false);
-    expect(target?.axisLabelVisible).toBe(false);
-  });
-
-  it("clears pivot markers when the Pivots entry is hidden", () => {
-    render(<PatternTradingViewChart hit={makeHit()} candles={CANDLES} hiddenNames={new Set(["Pivots"])} />);
-    const calls = mocks.setMarkers.mock.calls;
-    expect(calls[calls.length - 1]?.[0]).toEqual([]);
+    expect(calls).toHaveLength(0);
+    const markerCalls = mocks.setMarkers.mock.calls;
+    expect(markerCalls[markerCalls.length - 1]?.[0]).toEqual([]);
   });
 
   it("formats the time axis and crosshair in IST (not the raw UTC epoch)", () => {

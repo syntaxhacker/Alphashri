@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { UIProvider } from "@/ui";
 import { DEFAULT_PATTERN_FILTERS } from "@/state/chartPatterns";
 import type { PatternDef, PatternFilters } from "@/types/chartPatterns";
@@ -186,26 +186,23 @@ describe("buildAppliedFilterChips", () => {
 
   test("builds volume scan chips that reset to null", () => {
     const chips = buildAppliedFilterChips(
-      makeFilters({ min_rel_volume: 1.5, min_volume_m: 5 }),
+      makeFilters({ min_rel_volume: 1.5, min_volume_m: 5, min_avg_volume_10d: 250 }),
       PATTERNS,
     );
     expect(chips).toMatchObject([
       { id: "min_rel_volume", group: "Volume", label: "rel vol ≥ 1.5", nextValue: null },
       { id: "min_volume_m", group: "Volume", label: "vol ≥ 5M", nextValue: null },
-      { id: "min_avg_volume_10d", group: "Volume", label: "10d vol ≥ 150K", nextValue: null },
+      { id: "min_avg_volume_10d", group: "Volume", label: "10d vol ≥ 250K", nextValue: null },
     ]);
     expect(chips.find((c) => c.id === "min_rel_volume")?.key).toBe("min_rel_volume");
     expect(chips.find((c) => c.id === "min_volume_m")?.key).toBe("min_volume_m");
     expect(chips.find((c) => c.id === "min_avg_volume_10d")?.key).toBe("min_avg_volume_10d");
   });
 
-  test("builds a 10d avg volume chip from the default that resets to null", () => {
-    const chips = buildAppliedFilterChips(makeFilters(), PATTERNS);
-    expect(chips).toMatchObject([
-      { id: "min_avg_volume_10d", group: "Volume", label: "10d vol ≥ 150K", nextValue: null },
-    ]);
-    const chip = chips.find((c) => c.id === "min_avg_volume_10d");
-    expect(chip?.key).toBe("min_avg_volume_10d");
+  test("omits the default-on 10d avg volume floor from the chip row", () => {
+    // The 10d floor is a system default, not a user choice: rendering it made
+    // the chip row disagree with the Filters badge count.
+    expect(buildAppliedFilterChips(makeFilters(), PATTERNS)).toEqual([]);
   });
 });
 
@@ -505,7 +502,7 @@ describe("AppliedFilters", () => {
     expect(setFilter).toHaveBeenCalledWith("sort", "confidence");
   });
 
-  test("shows the volume scan chips", () => {
+  test("groups the volume chips under one label (no repeated prefix)", () => {
     r(
       <AppliedFilters
         filters={makeFilters({ min_rel_volume: 1.5, min_volume_m: 5 })}
@@ -514,28 +511,23 @@ describe("AppliedFilters", () => {
         resetFilters={vi.fn()}
       />,
     );
-    expect(screen.getByText("Volume: rel vol ≥ 1.5")).toBeInTheDocument();
-    expect(screen.getByText("Volume: vol ≥ 5M")).toBeInTheDocument();
-    expect(screen.getByText("Volume: 10d vol ≥ 150K")).toBeInTheDocument();
+    const group = screen.getByTestId("patterns-applied-group-volume");
+    expect(within(group).getByText("Volumes")).toBeInTheDocument();
+    expect(within(group).getByText("rel vol ≥ 1.5")).toBeInTheDocument();
+    expect(within(group).getByText("vol ≥ 5M")).toBeInTheDocument();
   });
 
-  test("shows the default 10d avg volume chip and clears it", () => {
-    const setFilter = vi.fn();
+  test("does not render the default 10d avg volume floor as a removable chip", () => {
     r(
       <AppliedFilters
         filters={makeFilters()}
         patterns={PATTERNS}
-        setFilter={setFilter}
+        setFilter={vi.fn()}
         resetFilters={vi.fn()}
       />,
     );
-    expect(screen.getByText("Volume: 10d vol ≥ 150K")).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByTestId("patterns-applied-filter-min_avg_volume_10d").querySelector(
-        ".MuiChip-deleteIcon",
-      ) as Element,
-    );
-    expect(setFilter).toHaveBeenCalledWith("min_avg_volume_10d", null);
+    expect(screen.queryByTestId("patterns-applied-filter-min_avg_volume_10d")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("patterns-applied-filters")).not.toBeInTheDocument();
   });
 
   test.each([
@@ -546,7 +538,7 @@ describe("AppliedFilters", () => {
     const setFilter = vi.fn();
     r(
       <AppliedFilters
-        filters={makeFilters({ min_rel_volume: 1.5, min_volume_m: 5 })}
+        filters={makeFilters({ min_rel_volume: 1.5, min_volume_m: 5, min_avg_volume_10d: 250 })}
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}

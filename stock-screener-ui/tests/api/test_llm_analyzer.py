@@ -15,6 +15,11 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+# ``preciz`` is an optional git dependency (api/requirements.txt). Without it
+# the import below raises at COLLECTION time, which aborts the whole backend
+# run - not just this module. Skip cleanly where it is not installed.
+pytest.importorskip("preciz", reason="optional agent SDK (git dep) not installed")
+
 from llm_analyzer import ArticleAnalyzer
 
 @pytest.fixture

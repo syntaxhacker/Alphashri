@@ -188,6 +188,28 @@ class TestFetchCandles:
         assert result.index.is_monotonic_increasing
 
     @patch("market_data.market_data.get_api_client")
+    def test_today_window_falls_back_to_intraday_when_history_fails(self, mock_client):
+        # A failed historical leg used to return None and silently empty every
+        # 1m chart/pattern scan; today's intraday is still valid history.
+        from market_data.market_data import _IST
+
+        mock_api = MagicMock()
+        mock_client.return_value = mock_api
+        mock_api.fetch_historical_data_v3.side_effect = RuntimeError("provider down")
+        mock_api.fetch_intraday_data_v3.return_value = _make_1m_candles(
+            4, start="2026-04-02 09:15:00"
+        )
+
+        today = datetime.now(_IST).strftime("%Y-%m-%d")
+        result = fetch_candles("RELIANCE", tf=1, from_date="2026-04-01", to_date=today)
+
+        assert result is not None
+        assert len(result) == 4
+        mock_api.fetch_intraday_data_v3.assert_called_once_with(
+            symbol="RELIANCE", interval="1"
+        )
+
+    @patch("market_data.market_data.get_api_client")
     def test_resample_to(self, mock_client):
         mock_api = MagicMock()
         mock_client.return_value = mock_api

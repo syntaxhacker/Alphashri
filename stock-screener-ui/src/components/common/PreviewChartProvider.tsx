@@ -23,6 +23,7 @@ import {
 import { IconArrowsMaximize } from "@tabler/icons-react";
 import { fetchChartPreview, type ChartPreviewData } from "../../api/chartPreview";
 import { buildChartOption } from "../chart/chartRenderer";
+import { loadEcharts } from "../../utils/loadEcharts";
 import { useNotification } from "../../hooks/useNotification";
 import { TIMEFRAMES, OR_MINUTES_OPTIONS } from "../../config/constants";
 
@@ -83,6 +84,9 @@ export function PreviewChartProvider({ children }: { children: ReactNode }) {
   const expandedChartRef = useRef<EChartsInstance | null>(null);
 
   const showPreviewChart = useCallback((event: React.MouseEvent, symbol: string) => {
+    // Prefetch the ECharts engine on hover so it's ready when the preview
+    // actually renders (no-op once cached on `window`).
+    void loadEcharts();
     // Immediately clear any pending show to prevent stale previews
     if (hoverTimerRef.current) {
       clearTimeout(hoverTimerRef.current);
@@ -145,6 +149,8 @@ export function PreviewChartProvider({ children }: { children: ReactNode }) {
 
   const toggleExpandedChart = useCallback(
     (symbol: string) => {
+      // Prefetch the ECharts engine when the expanded panel opens.
+      void loadEcharts();
       if (hoverTimerRef.current) {
         clearTimeout(hoverTimerRef.current);
       }
@@ -280,11 +286,6 @@ function HoverPreview({ symbol, x, y, data, loading, chartRef }: HoverPreviewPro
 
   useEffect(() => {
     if (!data || !containerRef.current) return;
-    if (!window.echarts) return;
-
-    if (chartRef.current) {
-      chartRef.current.dispose();
-    }
 
     const chartOption = buildChartOption({
       symbol: data.symbol,
@@ -299,14 +300,28 @@ function HoverPreview({ symbol, x, y, data, loading, chartRef }: HoverPreviewPro
 
     if (!chartOption) return;
 
-    const chartDiv = containerRef.current.querySelector(".echarts-container") as HTMLElement;
-    if (!chartDiv) return;
+    let cancelled = false;
+    // ECharts is loaded lazily (dynamic import, cached on `window`), so the
+    // preview chart renders as soon as the engine is available instead of
+    // requiring it in the initial shell.
+    void loadEcharts().then((echartsLib) => {
+      if (cancelled || !echartsLib) return;
 
-    chartRef.current = window.echarts.init(chartDiv);
-    chartRef.current.setOption(chartOption);
-    chartRef.current.resize();
+      const chartDiv = containerRef.current.querySelector(".echarts-container") as HTMLElement;
+      if (!chartDiv) return;
+
+      if (chartRef.current) {
+        chartRef.current.dispose();
+        chartRef.current = null;
+      }
+
+      chartRef.current = echartsLib.init(chartDiv);
+      chartRef.current.setOption(chartOption);
+      chartRef.current.resize();
+    });
 
     return () => {
+      cancelled = true;
       if (chartRef.current) {
         chartRef.current.dispose();
         chartRef.current = null;
@@ -393,11 +408,6 @@ function ExpandedPanel({
 
   useEffect(() => {
     if (!data || !chartContainerRef.current) return;
-    if (!window.echarts) return;
-
-    if (chartRef.current) {
-      chartRef.current.dispose();
-    }
 
     const chartOption = buildChartOption({
       symbol: data.symbol,
@@ -412,17 +422,29 @@ function ExpandedPanel({
 
     if (!chartOption) return;
 
-    const chartDiv = chartContainerRef.current.querySelector(".echarts-container") as HTMLElement;
-    if (!chartDiv) return;
-
-    chartRef.current = window.echarts.init(chartDiv);
-    chartRef.current.setOption(chartOption);
-    chartRef.current.resize();
-
+    let cancelled = false;
     const handleResize = () => chartRef.current?.resize();
-    window.addEventListener("resize", handleResize);
+
+    void loadEcharts().then((echartsLib) => {
+      if (cancelled || !echartsLib) return;
+
+      const chartDiv = chartContainerRef.current.querySelector(".echarts-container") as HTMLElement;
+      if (!chartDiv) return;
+
+      if (chartRef.current) {
+        chartRef.current.dispose();
+        chartRef.current = null;
+      }
+
+      chartRef.current = echartsLib.init(chartDiv);
+      chartRef.current.setOption(chartOption);
+      chartRef.current.resize();
+
+      window.addEventListener("resize", handleResize);
+    });
 
     return () => {
+      cancelled = true;
       window.removeEventListener("resize", handleResize);
       if (chartRef.current) {
         chartRef.current.dispose();

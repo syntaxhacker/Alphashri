@@ -1,5 +1,5 @@
-import { Flex, Text, Loader } from "@/ui";
 import type { ReactNode } from "react";
+import { InlineLoader } from "./states";
 
 interface TableLoadingStateProps {
   message?: string;
@@ -9,33 +9,17 @@ interface TableLoadingStateProps {
 
 /**
  * Reusable loading state component for tables.
- * Displays a centered loader with optional message.
+ * Thin wrapper over `InlineLoader`.
  *
  * @example
  * <TableLoadingState />
  * <TableLoadingState message="Loading positions..." />
  * <TableLoadingState showSpinner={false} message="Fetching data..." />
  */
-export function TableLoadingState({
-  message = "Loading...",
-  showSpinner = true,
-  children,
-}: TableLoadingStateProps) {
+export function TableLoadingState({ message = "Loading...", showSpinner = true, children }: TableLoadingStateProps) {
   return (
-    <Flex
-      justify="center"
-      align="center"
-      py="lg"
-      data-testid="table-loading-state"
-      direction="column"
-      gap="xs"
-    >
-      {showSpinner && <Loader size="sm" />}
-      {children || (
-        <Text size="xs" c="dimmed">
-          {message}
-        </Text>
-      )}
-    </Flex>
+    <InlineLoader data-testid="table-loading-state" size="sm" message={message} showSpinner={showSpinner}>
+      {children}
+    </InlineLoader>
   );
 }

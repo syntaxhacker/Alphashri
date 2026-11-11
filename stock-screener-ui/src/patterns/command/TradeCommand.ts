@@ -254,28 +254,32 @@ export class ClosePositionCommand implements Command {
 }
 
 /**
- * Modifies the stop-loss of an open position.
- * On undo, restores the previous SL value.
+ * Shared base for SL/TP modify commands — the two differ only by field
+ * name and label; execute/undo are otherwise identical.
  */
-export class ModifyStopLossCommand implements Command {
+abstract class ModifyLevelCommand implements Command {
   readonly name: string;
   readonly timestamp: number;
   private store: PositionStore;
   private _snapshot: SlTpSnapshot | null = null;
   private _executed = false;
 
-  constructor(
+  protected abstract readonly levelField: "stop_loss" | "take_profit";
+
+  protected constructor(
     store: PositionStore,
     position: PaperPosition,
-    newSl: number,
+    name: string,
+    oldValue: number,
+    newValue: number,
   ) {
     this.store = store;
-    this.name = `Modify SL ${position.symbol}: ${position.stop_loss} → ${newSl}`;
+    this.name = name;
     this.timestamp = Date.now();
     this._snapshot = {
       position: { ...position },
-      oldValue: position.stop_loss,
-      newValue: newSl,
+      oldValue,
+      newValue,
     };
   }
 
@@ -283,7 +287,7 @@ export class ModifyStopLossCommand implements Command {
     if (!this._snapshot) return false;
     const pos = this.store.get(this._snapshot.position.symbol);
     if (!pos) return false;
-    pos.stop_loss = this._snapshot.newValue;
+    pos[this.levelField] = this._snapshot.newValue;
     this.store.set(pos);
     this._snapshot.position = pos;
     this._executed = true;
@@ -294,7 +298,7 @@ export class ModifyStopLossCommand implements Command {
     if (!this._snapshot || !this._executed) return false;
     const pos = this.store.get(this._snapshot.position.symbol);
     if (!pos) return false;
-    pos.stop_loss = this._snapshot.oldValue;
+    pos[this.levelField] = this._snapshot.oldValue;
     this.store.set(pos);
     this._executed = false;
     return true;
@@ -306,54 +310,46 @@ export class ModifyStopLossCommand implements Command {
 }
 
 /**
+ * Modifies the stop-loss of an open position.
+ * On undo, restores the previous SL value.
+ */
+export class ModifyStopLossCommand extends ModifyLevelCommand {
+  protected readonly levelField = "stop_loss" as const;
+
+  constructor(
+    store: PositionStore,
+    position: PaperPosition,
+    newSl: number,
+  ) {
+    super(
+      store,
+      position,
+      `Modify SL ${position.symbol}: ${position.stop_loss} → ${newSl}`,
+      position.stop_loss,
+      newSl,
+    );
+  }
+}
+
+/**
  * Modifies the take-profit of an open position.
  * On undo, restores the previous TP value.
  */
-export class ModifyTakeProfitCommand implements Command {
-  readonly name: string;
-  readonly timestamp: number;
-  private store: PositionStore;
-  private _snapshot: SlTpSnapshot | null = null;
-  private _executed = false;
+export class ModifyTakeProfitCommand extends ModifyLevelCommand {
+  protected readonly levelField = "take_profit" as const;
 
   constructor(
     store: PositionStore,
     position: PaperPosition,
     newTp: number,
   ) {
-    this.store = store;
-    this.name = `Modify TP ${position.symbol}: ${position.take_profit} → ${newTp}`;
-    this.timestamp = Date.now();
-    this._snapshot = {
-      position: { ...position },
-      oldValue: position.take_profit,
-      newValue: newTp,
-    };
-  }
-
-  async execute(): Promise<boolean> {
-    if (!this._snapshot) return false;
-    const pos = this.store.get(this._snapshot.position.symbol);
-    if (!pos) return false;
-    pos.take_profit = this._snapshot.newValue;
-    this.store.set(pos);
-    this._snapshot.position = pos;
-    this._executed = true;
-    return true;
-  }
-
-  async undo(): Promise<boolean> {
-    if (!this._snapshot || !this._executed) return false;
-    const pos = this.store.get(this._snapshot.position.symbol);
-    if (!pos) return false;
-    pos.take_profit = this._snapshot.oldValue;
-    this.store.set(pos);
-    this._executed = false;
-    return true;
-  }
-
-  canUndo(): boolean {
-    return this._executed && this._snapshot !== null;
+    super(
+      store,
+      position,
+      `Modify TP ${position.symbol}: ${position.take_profit} → ${newTp}`,
+      position.take_profit,
+      newTp,
+    );
   }
 }
 

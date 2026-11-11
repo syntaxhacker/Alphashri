@@ -1,6 +1,14 @@
 import { test, expect } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser, setupOptionsMocks } from "../mocks/apiResponses";
 
+async function setupOptionsPage(page: Page) {
+  await setupApiMocks(page);
+  await loginAsTestUser(page);
+  await setupOptionsMocks(page);
+  await page.goto("/options");
+  await page.waitForSelector('[data-testid="options-chain-panel"]', { timeout: 10000 });
+}
+
 test.describe("Options View - Navigation and Basic Display", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
@@ -32,11 +40,7 @@ test.describe("Options View - Navigation and Basic Display", () => {
 
 test.describe("Options View - Option Chain", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
-    await setupOptionsMocks(page);
-    await page.goto("/options");
-    await page.waitForSelector('[data-testid="options-chain-panel"]', { timeout: 10000 });
+    await setupOptionsPage(page);
   });
 
   test("should display underlying and expiry selectors", async ({ page }) => {
@@ -89,11 +93,7 @@ test.describe("Options View - Option Chain", () => {
 
 test.describe("Options View - Filters", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
-    await setupOptionsMocks(page);
-    await page.goto("/options");
-    await page.waitForSelector('[data-testid="options-chain-panel"]', { timeout: 10000 });
+    await setupOptionsPage(page);
   });
 
   test("should filter by option type", async ({ page }) => {

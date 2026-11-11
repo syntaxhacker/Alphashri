@@ -7,14 +7,20 @@ progress. Per-symbol failures never abort the job.
 from __future__ import annotations
 
 import dataclasses
+import functools
+import hashlib
+import logging
 import os
 import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Optional
 
-from chart_patterns import candles, config, jobs as jobs_mod, store
+import pandas as pd
+
+from chart_patterns import candles, config, jobs as jobs_mod, parallel, store
 
 try:
     from chart_patterns import tv_prefilter as tv_prefilter_mod
@@ -45,13 +51,30 @@ except Exception:  # pragma: no cover - trading package always present in app en
     _market_mod = None
     _IST = timezone.utc
 
+logger = logging.getLogger(__name__)
+
 SYMBOL_WORKERS = int(os.environ.get("PATTERN_SCAN_SYMBOL_WORKERS", "4"))
+# Auto process fan-out threshold: resolved symbol counts at/above this use a
+# process pool for the GIL-bound detect+trendlines work when spawn is
+# available and nothing forced the mode. Below it threads win -- spawn startup
+# (re-importing pandas/numpy per worker) would dominate a small scan. Override
+# with ``PATTERN_SCAN_PROCESS_THRESHOLD``.
+PROCESS_THRESHOLD = int(os.environ.get("PATTERN_SCAN_PROCESS_THRESHOLD", "300"))
 DEFAULT_MIN_BARS = 60
 # Upper bound on the resolved symbol count of an as-of (replay) scan. Replays
 # fetch explicit historical windows per symbol; without a cap one request
 # could enqueue a universe-sized replay by accident.
 ASOF_SCAN_MAX_SYMBOLS = 200
 _PERSIST_EVERY = 10
+# Redis mirror cadence: mirror live job state (done/failed/skipped/no_hits) at
+# most every N symbols or every ~500 ms, whichever comes first, plus the final
+# symbol. DB persist keeps its own cadence (_PERSIST_EVERY / final). A 0.5 s
+# UI lag is acceptable; the mirror is what was hitting Redis per symbol.
+_MIRROR_EVERY = 10
+_MIRROR_INTERVAL_SEC = 0.5
+# Hit-write cadence: accumulate enriched hits and flush in one transaction
+# every N symbols, plus at the end (and before any terminal state).
+_HITS_EVERY = 20
 # A non-forced scan for a universe/timeframe with a completed job younger than
 # this is a no-op (results are still fresh); ``force=True`` always recomputes.
 SCAN_FRESH_SECONDS = int(os.environ.get("PATTERN_SCAN_FRESH_SEC", "300"))
@@ -59,6 +82,10 @@ SCAN_FRESH_SECONDS = int(os.environ.get("PATTERN_SCAN_FRESH_SEC", "300"))
 # any detector changes so a non-forced scan recomputes once instead of
 # silently reusing hits from the previous detector version.
 SCAN_DETECTOR_VERSION = 5
+# Columns hashed for the frame-interior digest. Fixed order keeps the digest
+# deterministic; tail stats alone can't detect a historical correction/backfill
+# that leaves the last bar untouched.
+_FRAME_INTERIOR_COLS = ("close", "high", "low", "volume")
 
 
 def _detector_signature(data_through: Optional[str] = None) -> str:
@@ -79,6 +106,82 @@ def _detector_signature(data_through: Optional[str] = None) -> str:
     if data_through:
         return f"{base}|data:{data_through}"
     return base
+
+
+def _frame_interior_digest(df) -> Optional[str]:
+    """Stable 16-hex digest of the frame interior.
+
+    Hashes the exact bytes of ``close``, ``high``, ``low`` and ``volume``
+    (numpy ``to_numpy(dtype=float).tobytes()``) in a fixed order. Two frames
+    with identical tail stats but different interiors (e.g. a backfilled
+    correction) now produce different signatures instead of colliding.
+
+    Never uses Python's ``hash()``: it is randomized per process and the
+    signature is persisted and compared across restarts. Returns ``None`` when
+    any column is missing or unreadable, which forces a re-detect (safe: never
+    silently reuse a frame we can't fingerprint).
+    """
+    try:
+        h = hashlib.sha1()
+        for col in _FRAME_INTERIOR_COLS:
+            h.update(df[col].to_numpy(dtype=float).tobytes())
+        return h.hexdigest()[:16]
+    except Exception:
+        return None
+
+
+def _frame_signature(df) -> Optional[str]:
+    """Compact hash of the frame tail + interior that determines detection output.
+
+    ``(frame_last_date, last_bar_timestamp, last_close, len(df), interior_digest)``.
+    The tail stats catch a new/latest bar; the interior digest catches a
+    historical correction or backfill that leaves the last bar untouched.
+    Two frames with the same signature produce the same detection result, so
+    detection + trendlines can be skipped.
+    """
+    if df is None or getattr(df, "empty", True):
+        return None
+    try:
+        last_date = candles.frame_last_date(df)
+        ts = pd.Timestamp(df.index[-1])
+        if ts.tz is None:
+            ts = ts.tz_localize("UTC")
+        stamp = ts.isoformat()
+        close = None
+        try:
+            close = float(df.iloc[-1]["close"])
+        except (KeyError, TypeError, ValueError):
+            close = None
+        interior = _frame_interior_digest(df)
+        if interior is None:
+            # Cannot prove the interior is unchanged: never silently reuse.
+            return None
+        payload = f"{last_date}|{stamp}|{close}|{len(df)}|{interior}"
+        return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:16]
+    except Exception:
+        return None
+
+
+def _source_sig(
+    df, timeframe: str, lookback_bars: Optional[int] = None,
+    compute_trendlines: bool = True,
+) -> Optional[str]:
+    """Per-symbol source signature: frame + detector build + detection params.
+
+    Stored with each hit (in ``payload_json``) and compared on the next scan to
+    decide whether a symbol can be reused without re-detecting. Includes the
+    detector signature so a detector change forces recompute, and the params
+    that alter the detection input (``lookback_bars``, ``compute_trendlines``).
+    Universe/timeframe are enforced by the store query scope, not the hash.
+    """
+    frame_sig = _frame_signature(df)
+    if not frame_sig:
+        return None
+    payload = (
+        f"{frame_sig}|{_detector_signature()}|{lookback_bars}|"
+        f"{bool(compute_trendlines)}|{timeframe}"
+    )
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:16]
 
 
 def _stored_scan_signature(prev: dict) -> Optional[str]:
@@ -170,6 +273,19 @@ def _load_symbols(universe: str):
         raise RuntimeError("chart_patterns.universes unavailable")
     raw = universes_mod.get_universe(universe)
     return _normalize_universe(raw)
+
+
+def _latest_record(records: list[dict]) -> dict:
+    def bars(record: dict):
+        value = record.get("bars_ago")
+        return value if isinstance(value, (int, float)) else float("inf")
+
+    floor = min(bars(record) for record in records)
+    pool = [record for record in records if bars(record) == floor]
+    return max(
+        pool,
+        key=lambda record: (str(record.get("end_date") or ""), record.get("confidence") or 0),
+    )
 
 
 def _hit_to_dict(hit) -> dict:
@@ -272,7 +388,9 @@ def _is_cancelled(job_id: str) -> bool:
 def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
                    lookback_bars=None, compute_trendlines: bool = True,
                    as_of_date=None, from_date=None,
-                   include_partial_today: Optional[bool] = None) -> dict:
+                   include_partial_today: Optional[bool] = None,
+                   prev_hit: Optional[dict] = None,
+                   partial_bar: Optional[pd.DataFrame] = None) -> dict:
     """Fetch + detect one symbol. Never raises; returns a status dict.
 
     With ``as_of_date`` set the fetch window ends on that date (its time
@@ -290,6 +408,13 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
     :func:`candles.fetch_for_timeframe` (official bar wins, empty tape
     appends nothing, never cached), so it cannot be double-counted and
     ``frame_last_date``/``data_through`` reflect the current session.
+
+    ``partial_bar`` is an optional pre-fetched synthetic today bar (one per
+    symbol, from :func:`market_data.fetch_ohlc_batch`). When supplied for a
+    live ``1D`` scan it is appended in place of the per-symbol 1-minute tape
+    fetch, so a whole universe is topped up with a single batched quote
+    request instead of one tape call per symbol. When missing for a symbol
+    that needs it, that symbol falls back to its own tape fetch.
 
     The returned dict always carries ``from_cache`` (True = candles served
     from disk, False = freshly fetched, None = no fetch attempted) so
@@ -320,11 +445,12 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
     try:
         try:
             df = candles.fetch_for_timeframe(
-                symbol, timeframe, **{**fetch_kwargs, "provenance": prov}
+                symbol, timeframe,
+                **{**fetch_kwargs, "provenance": prov, "partial_bar": partial_bar},
             )
         except TypeError:
             # Backward compatible: patched/custom fetchers without the
-            # ``provenance`` out-param.
+            # ``provenance`` / ``partial_bar`` out-param.
             df = candles.fetch_for_timeframe(symbol, timeframe, **fetch_kwargs)
     except Exception:
         return {"status": "failed", "data_through": None, "from_cache": False}
@@ -350,6 +476,26 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
 
     if _is_cancelled(job_id):
         return {"status": "skipped", "data_through": data_through, "from_cache": from_cache}
+
+    # Source-signature reuse: if the frame that produced the previous hit for
+    # this symbol is byte-identical (same last date/bar/close/length) and the
+    # detector build + detection params match, skip detection + trendlines and
+    # return the stored hit instead. A missing or legacy signature falls
+    # through to a normal detect.
+    source_sig = _source_sig(df, timeframe, lookback_bars, compute_trendlines)
+    if prev_hit and source_sig:
+        prev_sig = prev_hit.get("source_sig") if isinstance(prev_hit, dict) else None
+        if prev_sig and prev_sig == source_sig:
+            record = dict(prev_hit)
+            record["symbol"] = symbol
+            if name:
+                record["name"] = name
+            record.setdefault("timeframe", timeframe)
+            record["source_sig"] = source_sig
+            return {
+                "status": "ok", "data_through": data_through, "from_cache": from_cache,
+                "hits": [record], "reused": True, "source_sig": source_sig,
+            }
 
     try:
         hits = _detect(df, timeframe, symbol) or []
@@ -383,15 +529,20 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
         record["trend_lines"] = list(scan_trend_lines)
         if compute_trendlines:
             record["trend_lines_sig"] = config.trendline_signature()
+        record["source_sig"] = source_sig
         enriched.append(record)
 
     if enriched:
-        try:
-            store.save_hits(job_id, enriched)
-        except Exception:
-            return {"status": "failed", "data_through": data_through, "from_cache": from_cache}
+        if len(enriched) > 1:
+            enriched = [_latest_record(enriched)]
+        return {
+            "status": "ok", "data_through": data_through, "from_cache": from_cache,
+            "hits": enriched,
+        }
 
-    return {"status": "ok", "data_through": data_through, "from_cache": from_cache}
+    # Detector ran cleanly but found nothing: a distinct, non-error outcome so
+    # the job's ``failed`` counter stays honest.
+    return {"status": "empty", "data_through": data_through, "from_cache": from_cache, "hits": []}
 
 
 def _provenance(
@@ -400,8 +551,13 @@ def _provenance(
     candles_fetched: int,
     prefilter_dropped: Optional[int],
     data_through: Optional[str],
+    reused: int = 0,
 ) -> dict:
-    """Cache provenance for a job (also mirrored into ``params`` for DB restarts)."""
+    """Cache provenance for a job (also mirrored into ``params`` for DB restarts).
+
+    ``reused`` counts symbols whose source frame was unchanged since the last
+    completed scan and whose stored hit was reused without re-detecting.
+    """
     return {
         "scan_reused": bool(scan_reused),
         "candles_cached": int(candles_cached),
@@ -409,7 +565,24 @@ def _provenance(
         "prefilter_dropped": prefilter_dropped,
         "detector_version": SCAN_DETECTOR_VERSION,
         "data_through": data_through,
+        "reused": int(reused),
     }
+
+
+def _use_processes_for(n_symbols: int, params: dict) -> bool:
+    """Decide processes vs threads for this job.
+
+    Precedence: explicit env (``0`` off / ``1`` on) > explicit
+    ``params["use_processes"]`` > auto (``n >= PROCESS_THRESHOLD`` and spawn
+    available). Small scans stay on threads so spawn startup doesn't dominate.
+    """
+    env = os.environ.get("PATTERN_SCAN_USE_PROCESSES")
+    if env is not None:
+        return env == "1"
+    explicit = params.get("use_processes")
+    if explicit is not None:
+        return bool(explicit)
+    return n_symbols >= PROCESS_THRESHOLD and parallel.supports_processes()
 
 
 def run_job(job_id: str) -> None:
@@ -531,22 +704,61 @@ def run_job(job_id: str) -> None:
             )
             return
 
+    # Symbol-level reuse: load the previous completed job's hits for this
+    # universe/timeframe so unchanged symbols skip detection + trendlines.
+    # Never reuse when force/replay is set or when the symbol set differs.
+    prev_by_symbol: dict[str, dict] = {}
+    if not force and not is_replay:
+        if raw_symbols:
+            # Custom scans only reuse when the explicit symbol set matches the
+            # previous completed job's set; any difference forces recompute.
+            prev_job = store.latest_completed_job(universe, timeframe)
+            prev_symbols = None
+            if prev_job is not None:
+                prev_symbols = [
+                    str(s).upper() for s in (_job_params(prev_job).get("symbols") or [])
+                ]
+            if prev_symbols is not None and set(prev_symbols) == set(symbols):
+                try:
+                    prev_by_symbol = (
+                        store.latest_hits_by_symbol(universe, timeframe, exclude_job_id=job_id)
+                        or {}
+                    )
+                except Exception:
+                    prev_by_symbol = {}
+        else:
+            try:
+                prev_by_symbol = (
+                    store.latest_hits_by_symbol(universe, timeframe, exclude_job_id=job_id) or {}
+                )
+            except Exception:
+                prev_by_symbol = {}
+
     _running_state: dict = {"status": "running", "total": total}
     if prefilter_message:
         _running_state["message"] = prefilter_message
     jobs_mod.update_state(job_id, **_running_state)
 
-    # Supersede any previous hits for this universe/timeframe so results never
-    # mix stale rows from an earlier scan.
-    try:
-        store.delete_hits_for(universe, timeframe, keep_job_id=job_id)
-    except Exception:
-        pass
-
-    done = failed = skipped = 0
+    done = failed = skipped = no_hits = reused = 0
     candles_cached = candles_fetched = 0
     max_date = None
     lock = threading.Lock()
+    pending_hits: list[dict] = []
+    last_mirror = time.monotonic()
+
+    def _flush_hits(force: bool = False) -> None:
+        nonlocal pending_hits
+        if not pending_hits and not force:
+            return
+        batch = pending_hits
+        pending_hits = []
+        if batch:
+            try:
+                # One session + one commit for the whole batch instead of one
+                # per symbol.
+                store.save_hits_batch([(job_id, batch)])
+            except Exception:  # pragma: no cover - DB write failure must not abort a scan
+                logger.warning("scan %s: hit batch flush failed", job_id, exc_info=True)
 
     if not symbols:
         _empty_provenance = _provenance(False, 0, 0, prefilter_dropped, None)
@@ -563,14 +775,134 @@ def run_job(job_id: str) -> None:
         jobs_mod.update_state(job_id, **_empty_state)
         return
 
-    with ThreadPoolExecutor(max_workers=max(1, SYMBOL_WORKERS)) as pool:
-        futures = {
-            pool.submit(_process_symbol, symbol, timeframe, job_id, names.get(symbol), lookback_bars,
-                        compute_trendlines, as_of_date, from_date,
-                        include_partial_today): symbol
-            for symbol in symbols
-        }
-        cancelled = False
+    # One batched OHLC snapshot for the whole symbol list (one
+    # /v3/market-quote/ohlc call, chunked at ~500 keys) so every live 1D symbol
+    # appends its in-progress session bar without a per-symbol 1-minute tape
+    # fetch. Skipped for replays, non-1D timeframes, when the flag is off, or
+    # off-session (weekend/holiday). Symbols missing from the batch fall back
+    # to their own tape fetch inside _process_symbol.
+    partial_bars: dict[str, pd.DataFrame] = {}
+    want_partial = (
+        include_partial_today if include_partial_today is not None
+        else (timeframe == "1D")
+    )
+    if (
+        not is_replay
+        and want_partial
+        and timeframe == "1D"
+        and candles._today_is_session()
+    ):
+        try:
+            from market_data.market_data import fetch_ohlc_batch
+            partial_bars = fetch_ohlc_batch(symbols, interval="1d") or {}
+        except Exception:
+            partial_bars = {}
+
+    # Executor selection: spawn processes -> threads -> sequential.
+    # All DB/Redis/mirror writes stay in the parent; workers only fetch +
+    # detect + trendlines and return a status dict.
+    use_processes = _use_processes_for(total, params)
+    proc_workers = min(max(1, SYMBOL_WORKERS), parallel.max_workers())
+
+    def _open_pool():
+        """(executor, mode). Never raises; sequential when no pool is available."""
+        if use_processes:
+            try:
+                ctx = parallel.spawn_context()
+                return ProcessPoolExecutor(max_workers=proc_workers, mp_context=ctx), "processes"
+            except Exception:
+                pass
+        try:
+            return ThreadPoolExecutor(max_workers=max(1, SYMBOL_WORKERS)), "threads"
+        except Exception:
+            return None, "sequential"
+
+    pool, mode = _open_pool()
+    cancelled = False
+    done_symbols: set[str] = set()
+
+    def _submit(symbol: str):
+        return functools.partial(
+            _process_symbol, symbol, timeframe, job_id, names.get(symbol), lookback_bars,
+            compute_trendlines, as_of_date, from_date, include_partial_today,
+            prev_by_symbol.get(symbol), partial_bars.get(symbol),
+        )
+
+    def _consume(symbol: str, result: dict) -> None:
+        nonlocal done, failed, skipped, no_hits, reused
+        nonlocal candles_cached, candles_fetched, max_date
+        with lock:
+            done_symbols.add(symbol)
+            done += 1
+            if result.get("reused"):
+                reused += 1
+            hits = result.get("hits") or []
+            if hits:
+                pending_hits.extend(hits)
+            status = result.get("status")
+            if status == "failed":
+                failed += 1
+            elif status == "skipped":
+                skipped += 1
+            elif status == "empty":
+                no_hits += 1
+            from_cache = result.get("from_cache")
+            if from_cache is True:
+                candles_cached += 1
+            elif from_cache is False:
+                candles_fetched += 1
+            data_through = result.get("data_through")
+            if data_through and (max_date is None or data_through > max_date):
+                max_date = data_through
+
+    def _mirror_flush(final: bool = False) -> None:
+        nonlocal last_mirror
+        now = time.monotonic()
+        mirror_due = (
+            final
+            or done == total
+            or done % _MIRROR_EVERY == 0
+            or now - last_mirror >= _MIRROR_INTERVAL_SEC
+        )
+        hits_due = final or done == total or len(pending_hits) >= _HITS_EVERY
+        if mirror_due:
+            jobs_mod.update_state(
+                job_id, persist=(done % _PERSIST_EVERY == 0 or done == total),
+                done=done, failed=failed, skipped=skipped, no_hits=no_hits,
+                reused=reused, data_through=max_date,
+            )
+            last_mirror = now
+        if hits_due:
+            _flush_hits(force=final or done == total)
+
+    def _handle(symbol: str, result: dict) -> None:
+        _consume(symbol, result)
+        _mirror_flush()
+
+    def _run_remaining(remaining: list[str]) -> None:
+        nonlocal cancelled
+        for symbol in remaining:
+            if jobs_mod.is_cancelled(job_id):
+                cancelled = True
+                break
+            try:
+                result = _submit(symbol)()
+            except Exception as exc:  # _process_symbol never raises; defensive
+                logger.warning(
+                    "scan %s: %s failed: %s: %s", job_id, symbol, type(exc).__name__, exc
+                )
+                result = {"status": "failed", "data_through": None}
+            _handle(symbol, result)
+
+    def _drive(pool, symbol_list) -> bool:
+        """Apply ``pool`` to ``symbol_list``; returns True if cancelled.
+
+        A per-symbol exception is swallowed inside ``_process_symbol``; an
+        exception here means the pool itself is broken and the caller falls
+        back (processes -> threads -> sequential).
+        """
+        nonlocal cancelled
+        futures = {pool.submit(_submit(symbol)): symbol for symbol in symbol_list}
         for future in as_completed(futures):
             if jobs_mod.is_cancelled(job_id):
                 cancelled = True
@@ -580,48 +912,105 @@ def run_job(job_id: str) -> None:
             symbol = futures[future]
             try:
                 result = future.result()
+            except Exception as exc:  # broken pool/worker -> caller falls back
+                logger.warning(
+                    "scan %s: %s failed: %s: %s", job_id, symbol, type(exc).__name__, exc
+                )
+                raise
+            _handle(symbol, result)
+        return cancelled
+
+    def _run_subset_via_threads(symbol_list) -> bool:
+        with ThreadPoolExecutor(max_workers=max(1, SYMBOL_WORKERS)) as tp:
+            return _drive(tp, symbol_list)
+
+    primary_failed = False
+    primary_exc = None
+    if pool is not None:
+        try:
+            cancelled = _drive(pool, symbols)
+        except Exception as exc:  # broken pool -> fall back below
+            primary_failed = True
+            primary_exc = exc
+            try:
+                pool.shutdown(wait=False, cancel_futures=True)
             except Exception:
-                result = {"status": "failed", "data_through": None}
-            with lock:
-                done += 1
-                if result.get("status") == "failed":
-                    failed += 1
-                elif result.get("status") == "skipped":
-                    skipped += 1
-                if result.get("from_cache") is True:
-                    candles_cached += 1
-                elif result.get("from_cache") is False:
-                    candles_fetched += 1
-                data_through = result.get("data_through")
-                if data_through and (max_date is None or data_through > max_date):
-                    max_date = data_through
-                persist = done % _PERSIST_EVERY == 0 or done == total
-            jobs_mod.update_state(
-                job_id, persist=persist,
-                done=done, failed=failed, skipped=skipped,
-                data_through=max_date,
+                pass
+        else:
+            try:
+                pool.shutdown(wait=True, cancel_futures=False)
+            except Exception:
+                pass
+
+    remaining = [s for s in symbols if s not in done_symbols]
+    if pool is None:
+        _run_remaining(remaining)
+    elif primary_failed and not cancelled and remaining:
+        if mode == "processes":
+            # processes -> threads
+            try:
+                cancelled = _run_subset_via_threads(remaining)
+            except Exception as exc:
+                # threads -> sequential
+                logger.warning(
+                    "scan %s: thread pool failed (%s); falling back to sequential",
+                    job_id, exc,
+                )
+                _run_remaining(remaining)
+        else:
+            logger.warning(
+                "scan %s: thread pool failed (%s); falling back to sequential",
+                job_id, primary_exc,
             )
+            _run_remaining(remaining)
 
     if cancelled or jobs_mod.is_cancelled(job_id):
+        # Persist any hits computed so far before terminal state; old hits of
+        # previous jobs are intentionally left intact on cancel.
+        _flush_hits(force=True)
         _cancel_provenance = _provenance(
-            False, candles_cached, candles_fetched, prefilter_dropped, max_date
+            False, candles_cached, candles_fetched, prefilter_dropped, max_date,
+            reused=reused,
         )
         jobs_mod.update_state(
             job_id, status="cancelled", done=done, failed=failed,
-            skipped=skipped, data_through=max_date, finished_at=_now(),
+            skipped=skipped, no_hits=no_hits, reused=reused,
+            data_through=max_date, finished_at=_now(),
             provenance=_cancel_provenance,
-            params={**params, "provenance": _cancel_provenance},
+            params={**params, "reused": reused,
+                    "provenance": _cancel_provenance},
         )
     else:
+        # Flush pending hits first so this job's rows are durable before old
+        # hits are superseded.
+        _flush_hits(force=True)
+        # Supersede previous hits now that this job's own hits are durable.
+        # ``keep_job_id=job_id`` preserves the rows this job just wrote, so the
+        # stored hits always belong to this (about-to-be) completed job. Old
+        # hits stay visible while the scan runs (no empty result list mid
+        # scan) and survive a cancel/failure, since the new job produced
+        # nothing durable to replace them with.
+        try:
+            if universe == "custom":
+                store.delete_hits_for(
+                    universe, timeframe, keep_job_id=job_id, symbols=symbols
+                )
+            else:
+                store.delete_hits_for(universe, timeframe, keep_job_id=job_id)
+        except Exception:
+            pass
         _done_provenance = _provenance(
-            False, candles_cached, candles_fetched, prefilter_dropped, max_date
+            False, candles_cached, candles_fetched, prefilter_dropped, max_date,
+            reused=reused,
         )
         _done_state: dict = {
             "status": "completed", "done": done, "failed": failed,
-            "skipped": skipped, "data_through": max_date, "finished_at": _now(),
+            "skipped": skipped, "no_hits": no_hits, "reused": reused,
+            "data_through": max_date, "finished_at": _now(),
             "scan_signature": _detector_signature(max_date),
             "provenance": _done_provenance,
-            "params": {**params, "scan_signature": _detector_signature(max_date),
+            "params": {**params, "reused": reused,
+                       "scan_signature": _detector_signature(max_date),
                        "provenance": _done_provenance},
         }
         if prefilter_message:

@@ -17,7 +17,7 @@ import {
 import { fetchWithAuth } from "../state/auth";
 import { showError } from "@/ui";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+import { API_BASE } from "@/api/config";
 
 export interface StartExperimentPayload {
   session: string;

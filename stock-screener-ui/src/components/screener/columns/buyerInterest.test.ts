@@ -1,18 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { getBuyerInterestColumns } from "./buyerInterest";
+import { fmtOf, expectSymbolFirstSectorLast, expectPctClass } from "./columnTestFixtures";
 
-function fmt(key: string) {
-  const c = getBuyerInterestColumns().find((x) => x.key === key);
-  if (!c?.format) throw new Error(key);
-  return c.format as any;
-}
+const fmt = (key: string) => fmtOf(getBuyerInterestColumns, key);
 
 describe("buyerInterest columns", () => {
   it("7 columns", () => expect(getBuyerInterestColumns().length).toBe(7));
   it("symbol first sector last", () => {
-    const cols = getBuyerInterestColumns();
-    expect(cols[0].key).toBe("symbol");
-    expect(cols[cols.length - 1].key).toBe("sector");
+    expectSymbolFirstSectorLast(getBuyerInterestColumns());
   });
 
   describe("touched_52w badge", () => {
@@ -32,11 +27,7 @@ describe("buyerInterest columns", () => {
       [1.25, "+1.25%", "success"],
       [-0.75, "-0.75%", "error"],
       [0, "+0.00%", "success"],
-    ])("day_change %s", (v, ev, ec) => {
-      const r: any = fmt("day_change")(v);
-      expect(r.value).toBe(ev);
-      expect(r.className).toBe(ec);
-    });
+    ])("day_change %s", (v, ev, ec) => expectPctClass(fmt("day_change")(v), ev, ec));
     it("NaN -> NaN% red", () => expect((fmt("day_change")(NaN) as any).value).toBe("NaN%"));
   });
 

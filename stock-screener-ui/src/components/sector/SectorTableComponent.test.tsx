@@ -100,9 +100,9 @@ describe("SectorTable rendering", () => {
     renderWithProviders(<SectorTable sectors={mockSectors} />);
     expect(screen.getByText("Sector")).toBeInTheDocument();
     expect(screen.getByText("Change")).toBeInTheDocument();
-    expect(screen.getByText("Movement")).toBeInTheDocument();
-    expect(screen.getByText("A/D Ratio")).toBeInTheDocument();
-    expect(screen.getByText("Strength")).toBeInTheDocument();
+    expect(screen.getByText("Move")).toBeInTheDocument();
+    expect(screen.getByText("A/D")).toBeInTheDocument();
+    expect(screen.getByText("ADX")).toBeInTheDocument();
     expect(screen.getByText("Top Movers")).toBeInTheDocument();
   });
 

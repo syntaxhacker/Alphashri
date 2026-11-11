@@ -52,6 +52,10 @@ export interface MarkLineData {
   yAxis: number;
   lineStyle: { color: string; type: string; width: number };
   label: { position: string; formatter: string };
+  /** Opt-in: when the chart sets `fitMarkLines`, only lines with this flag
+   *  widen the price scale. Keeps far-away reference walls from squashing the
+   *  candles while still making actionable levels (e.g. GEX) visible. */
+  includeInScale?: boolean;
 }
 
 /** Horizontal price zone rendered as a shaded rectangle on the chart. */
@@ -106,6 +110,28 @@ export interface ChartColors {
   borderColor: string;
   gridLineColor: string;
 }
+
+/** Visible-bars price range (the rendered candle window) used as the floor for
+ *  autoscale math. The axis must always cover this range — never a tight
+ *  last-price-anchored slice of it. */
+export interface VisibleBarsRange {
+  low: number;
+  high: number;
+}
+
+/** A level may widen the price scale only when it sits within ±this fraction
+ *  of spot (≈±136 pts at a 22,690 spot) or inside the visible bars' range
+ *  ±`AUTOSCALE_RANGE_PAD_PCT`. Far levels stay drawn as edge badges. */
+export const AUTOSCALE_LEVEL_PCT = 0.006;
+
+/** Extra band around the visible candle range, as a fraction of that range,
+ *  that still counts as "visible" for scale purposes (i.e. ±5%). */
+export const AUTOSCALE_RANGE_PAD_PCT = 0.05;
+
+/** Upper bound on the final visible span, as a multiple of the visible bars'
+ *  span. Level extensions may widen the axis to at most 1.3× the bars' range
+ *  — beyond that the extra budget is clamped, never the bars themselves. */
+export const AUTOSCALE_MAX_SPAN_FACTOR = 1.3;
 
 export interface MarketHoliday {
   date: string;

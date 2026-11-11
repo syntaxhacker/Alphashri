@@ -8,6 +8,7 @@ from functools import lru_cache
 from datetime import datetime
 
 import config
+from api.tv import get_scanner_data
 
 from fastapi import APIRouter, Query, HTTPException
 from tradingview_screener import Query as TVQuery, col
@@ -43,7 +44,7 @@ def _get_cached_stocks() -> List[dict]:
             query = query.where(col('sector') != '', col('price_earnings_ttm') > 0)
             query = query.order_by('market_cap_basic', ascending=False).limit(1000)
 
-            _, df = query.get_scanner_data()
+            _, df = get_scanner_data(query)
 
             if df.empty:
                 logger.warning("TradingView screener returned empty result")

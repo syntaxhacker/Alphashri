@@ -1,12 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("./utils", () => ({
-  apiGet: vi.fn(),
-  apiPost: vi.fn(),
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-  apiPostAction: vi.fn(),
-}));
+vi.mock("./utils", async () => {
+  const { createApiUtilsMock } = await import("./apiTestMocks");
+  return createApiUtilsMock();
+});
 
 import { apiGet, apiPost, apiPut, apiDelete, apiPostAction } from "./utils";
 

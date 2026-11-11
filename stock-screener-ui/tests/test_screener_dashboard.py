@@ -111,9 +111,12 @@ class _FakeQuery:
     def limit(self, *a):
         return self
 
-    def get_scanner_data(self):
+    last_kwargs = None
+
+    def get_scanner_data(self, **kwargs):
         if _FakeQuery.boom:
             raise RuntimeError("TV down")
+        _FakeQuery.last_kwargs = dict(kwargs)
         return 0, _FakeQuery.frame
 
 
@@ -310,6 +313,17 @@ def test_cached_flag_on_second_hit():
     assert second["as_of"] == first["as_of"]
 
 
+def test_dashboard_passes_tv_cookies(monkeypatch):
+    import api.tv.client as tv_client
+
+    monkeypatch.setattr(tv_client, "get_tv_cookies", lambda **kw: {"sessionid": "abc"})
+    _FakeQuery.last_kwargs = None
+
+    _client().get("/api/screener/dashboard")
+
+    assert _FakeQuery.last_kwargs == {"cookies": {"sessionid": "abc"}}
+
+
 def test_metric_formatting():
     body = _client().get("/api/screener/dashboard").json()
     movers = _panels(body, "movers")
@@ -394,7 +408,11 @@ def test_nan_to_null():
     movers = _panels(body, "movers")
     active = {r["symbol"]: r for r in movers["most_active"]["rows"]}
     assert active["EEE"]["change"] is None
-    assert "nan" not in json.dumps(body).lower()
+    # Serialized NaN/Infinity tokens are the leak we care about; a lowercase
+    # "nan" substring also matches legitimate URLs like ".../nan.svg".
+    text = json.dumps(body)
+    assert "NaN" not in text
+    assert "Infinity" not in text
 
 
 def test_tv_error_is_fail_soft():

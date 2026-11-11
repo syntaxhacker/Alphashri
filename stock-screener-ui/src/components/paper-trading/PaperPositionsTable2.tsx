@@ -160,9 +160,9 @@ export function PaperPositionsTable({ activeBotId }: { activeBotId?: string | nu
   const isLive = state.availableBots.find(b => b.id === (activeBotId ?? state.filterBot))?.live_trading ?? false;
 
   return (
-    <Stack className="paper-positions-table-container" id="paper-positions-table-container" spacing={1} data-testid="positions-table-container">
-      <Box className="paper-positions-header" id="paper-positions-header" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1, py: 1, gap: 1 }}>
-        <Box className="paper-positions-header-left" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+    <Stack className="paper-positions-table-container" id="paper-positions-table-container" spacing={0.25} data-testid="positions-table-container">
+      <Box className="paper-positions-header" id="paper-positions-header" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 0.5, py: 0.25, gap: 0.5 }}>
+        <Box className="paper-positions-header-left" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
           <Text className="paper-positions-title" size="xs" c="dimmed" tt="uppercase" fw={600}>
             Positions ({sortedPositions.length})
           </Text>
@@ -170,13 +170,13 @@ export function PaperPositionsTable({ activeBotId }: { activeBotId?: string | nu
             {isLive ? "LIVE" : "PAPER"}
           </Badge>
         </Box>
-        <Box className="paper-positions-header-right" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <Box className="paper-positions-header-right" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
           <CloseAllButton positions={sortedPositions} />
         </Box>
       </Box>
 
       {sortedPositions.length > 0 && (
-        <Stack className="paper-positions-groups" id="paper-positions-groups" spacing={1}>
+        <Stack className="paper-positions-groups" id="paper-positions-groups" spacing={0}>
           {Array.from(strategyGroups.entries()).map(([strategyId, group]) => {
             const displayName = group[0]?.strategy_name || `Strategy ${strategyId}`;
             return (

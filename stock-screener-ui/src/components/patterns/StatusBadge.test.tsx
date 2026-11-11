@@ -48,4 +48,14 @@ describe("StatusBadge", () => {
     r(<StatusBadge status="failed" data-testid="custom-status" />);
     expect(screen.getByTestId("custom-status")).toHaveTextContent("Failed");
   });
+
+  test("uses the derived display label when provided", () => {
+    r(<StatusBadge status="failed" display={{ label: "ARMED", tone: "info", tooltip: "t" }} />);
+    expect(screen.getByTestId("patterns-status-failed")).toHaveTextContent("Armed");
+  });
+
+  test("falls back to the raw status when display is null", () => {
+    r(<StatusBadge status="failed" display={null} />);
+    expect(screen.getByTestId("patterns-status-failed")).toHaveTextContent("Failed");
+  });
 });

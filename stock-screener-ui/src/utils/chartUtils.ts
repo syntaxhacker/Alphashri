@@ -11,12 +11,6 @@ import {
   MARKER_STOP_LOSS,
   MARKER_MAX_HOLDING,
   PIVOT_S2,
-  MARKER_BORDER,
-  CHART_AVG_ENTRY,
-  CHART_TRADE_EXIT,
-  CHART_DARK_DROPDOWN,
-  INDICATOR_BLUE_A,
-  INDICATOR_BLUE_B,
   BG,
   TEXT,
   TEXT_MUTED,
@@ -24,6 +18,13 @@ import {
   CHART_BG,
   CHART_LIGHT_BG,
 } from "../config/colors";
+import {
+  extractTradeLevels,
+  buildHighlightEntryMarker,
+  buildHighlightExitMarker,
+  build52wHighSeries,
+  buildOrLevelSeries,
+} from "./chart/scaleHelpers";
 
 export function getChartThemeColors(isDark: boolean, theme: UITheme | Record<string, any>) {
   const t: any = theme as any;
@@ -240,61 +241,8 @@ export function buildHighlightMarkers(
   tradeIndex: number,
   fontSizes: Record<string, number>,
 ) {
-  const highlightEntryMarker = {
-    value: [entryIdx, entryMarker.price],
-    symbol: "triangle",
-    symbolSize: 32,
-    itemStyle: {
-      color: CHART_AVG_ENTRY,
-      borderColor: CHART_TRADE_EXIT,
-      borderWidth: 4,
-      shadowBlur: 10,
-      shadowColor: CHART_AVG_ENTRY,
-    },
-    label: {
-      show: true,
-      position: "top",
-      distance: 8,
-      formatter: `▼ Entry #${tradeIndex + 1}`,
-      color: CHART_AVG_ENTRY,
-      fontSize: fontSizes.md,
-      fontWeight: "bold",
-      backgroundColor: CHART_DARK_DROPDOWN,
-      padding: [4, 8],
-      borderRadius: 4,
-    },
-  };
-
-  const exitReason = exitMarker ? (exitMarker.trade as any).exit_reason : null;
-  const exitColor = exitReason === "TP" ? MARKER_TP : exitReason === "SL" ? MARKER_SL : MARKER_EOD;
-
-  const highlightExitMarker =
-    exitMarker && exitIdx !== undefined
-      ? {
-          value: [exitIdx, exitMarker.price],
-          symbol: "circle",
-          symbolSize: 28,
-          itemStyle: {
-            color: exitColor,
-            borderColor: MARKER_BORDER,
-            borderWidth: 4,
-            shadowBlur: 10,
-            shadowColor: exitColor,
-          },
-          label: {
-            show: true,
-            position: "bottom",
-            distance: 8,
-            formatter: `● ${exitReason || "Exit"}`,
-            color: MARKER_BORDER,
-            fontSize: fontSizes.md,
-            fontWeight: "bold",
-            backgroundColor: CHART_DARK_DROPDOWN,
-            padding: [4, 8],
-            borderRadius: 4,
-          },
-        }
-      : null;
+  const highlightEntryMarker = buildHighlightEntryMarker(entryMarker, entryIdx, tradeIndex, fontSizes);
+  const highlightExitMarker = buildHighlightExitMarker(exitMarker, exitIdx, fontSizes);
 
   return { highlightEntryMarker, highlightExitMarker };
 }
@@ -308,12 +256,7 @@ export function buildHighlightLevelSeries(
   isSameDay: boolean,
   fontSizes: Record<string, number>,
 ): any[] {
-  const levelHigh =
-    (selectedTrade as any).or_high ??
-    (selectedTrade as any).r1 ??
-    (selectedTrade as any)["52w_high"];
-  const levelLow = (selectedTrade as any).or_low ?? (selectedTrade as any).s1;
-  const level52wHigh = (selectedTrade as any)["52w_high"];
+  const { levelHigh, levelLow, level52wHigh } = extractTradeLevels(selectedTrade);
   const show52wLine = !isSameDay && level52wHigh;
 
   const levelHighData = candles.map((c) => (c.date === entryDate ? levelHigh : null));
@@ -325,62 +268,11 @@ export function buildHighlightLevelSeries(
   const series: any[] = [];
 
   if (show52wLine && level52wHighData.length > 0) {
-    series.push({
-      id: "selected-52w-high",
-      name: "52W High Target",
-      type: "line",
-      data: level52wHighData,
-      showSymbol: false,
-      connectNulls: false,
-      silent: true,
-      z: 6,
-      markLine: {
-        symbol: "none",
-        label: {
-          show: true,
-          position: "end",
-          formatter: `52W High: ₹${level52wHigh}`,
-          color: CHART_AVG_ENTRY,
-          fontSize: fontSizes.sm,
-          fontWeight: "bold",
-          backgroundColor: CHART_DARK_DROPDOWN,
-          padding: [2, 6],
-          borderRadius: 3,
-        },
-        lineStyle: { color: CHART_AVG_ENTRY, width: 2, type: "dashed" },
-        data: [{ yAxis: level52wHigh }],
-        animation: false,
-      },
-    });
+    series.push(build52wHighSeries(level52wHighData, level52wHigh, fontSizes));
   }
 
   if (!show52wLine) {
-    series.push(
-      {
-        id: "selected-or-high",
-        name: "Selected Level High",
-        type: "line",
-        data: levelHighData,
-        showSymbol: false,
-        connectNulls: false,
-        silent: true,
-        z: 6,
-        lineStyle: { color: INDICATOR_BLUE_A, width: 2, type: "dashed" },
-        tooltip: { show: false },
-      },
-      {
-        id: "selected-or-low",
-        name: "Selected Level Low",
-        type: "line",
-        data: levelLowData,
-        showSymbol: false,
-        connectNulls: false,
-        silent: true,
-        z: 6,
-        lineStyle: { color: INDICATOR_BLUE_B, width: 2, type: "dashed" },
-        tooltip: { show: false },
-      },
-    );
+    series.push(...buildOrLevelSeries(levelHighData, levelLowData));
   }
 
   return series;

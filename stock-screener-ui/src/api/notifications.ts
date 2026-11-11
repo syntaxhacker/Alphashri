@@ -1,7 +1,7 @@
 import { apiFetch } from "../state/auth";
 import type { PriceSurgeEvent } from "../types/notifications";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+import { API_BASE } from "@/api/config";
 
 export async function fetchSurges(
   limit: number = 10,

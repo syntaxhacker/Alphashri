@@ -2,13 +2,17 @@ import { test, expect } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser, setupNiftyReportMocks } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
 
-test.describe("Nifty Report - Live mode", () => {
+async function setupNiftyReportPage(page: Page) {
+  await setupApiMocks(page);
+  await loginAsTestUser(page);
+  await setupNiftyReportMocks(page);
+  await page.goto("/report/index");
+  await page.waitForSelector('[data-testid="nifty-report-panel"]', { timeout: 10000 });
+}
+
+test.describe("Index Report - Live mode", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
-    await setupNiftyReportMocks(page);
-    await page.goto("/report/nifty");
-    await page.waitForSelector('[data-testid="nifty-report-panel"]', { timeout: 10000 });
+    await setupNiftyReportPage(page);
   });
 
   test("@smoke live mode renders stat strip + chart + OI rows from mock", async ({ page }) => {
@@ -31,13 +35,9 @@ test.describe("Nifty Report - Live mode", () => {
   });
 });
 
-test.describe("Nifty Report - EOD mode", () => {
+test.describe("Index Report - EOD mode", () => {
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
-    await setupNiftyReportMocks(page);
-    await page.goto("/report/nifty");
-    await page.waitForSelector('[data-testid="nifty-report-panel"]', { timeout: 10000 });
+    await setupNiftyReportPage(page);
   });
 
   test("EOD mode: pick date via fill shows timeline events", async ({ page }) => {
@@ -45,7 +45,10 @@ test.describe("Nifty Report - EOD mode", () => {
       timeout: 10000,
     });
 
-    await page.locator('[data-testid="nifty-mode-toggle"]').getByText("EOD").click();
+    await page
+      .locator('[data-testid="nifty-mode-toggle"]')
+      .getByRole("button", { name: "EOD" })
+      .click();
     const dateInput = page.locator('[data-testid="nifty-date-input"]');
     await expect(dateInput).toBeVisible();
     await dateInput.fill("2026-10-10");
@@ -84,7 +87,10 @@ test.describe("Nifty Report - EOD mode", () => {
       timeout: 10000,
     });
 
-    await page.locator('[data-testid="nifty-mode-toggle"]').getByText("EOD").click();
+    await page
+      .locator('[data-testid="nifty-mode-toggle"]')
+      .getByRole("button", { name: "EOD" })
+      .click();
     const dateInput = page.locator('[data-testid="nifty-date-input"]');
     await expect(dateInput).toBeVisible();
     await dateInput.fill("2026-10-11");
@@ -93,21 +99,21 @@ test.describe("Nifty Report - EOD mode", () => {
   });
 });
 
-test.describe("Nifty Report - Navigation", () => {
+test.describe("Index Report - Navigation", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
     await setupNiftyReportMocks(page);
   });
 
-  test("sidemenu nav-nifty-report navigates to the page", async ({ page }) => {
+  test("sidemenu nav-index-report navigates to the page", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
-    await page.locator('[data-testid="nav-nifty-report"]').click();
+    await page.locator('[data-testid="nav-index-report"]').click();
     await expect(page.locator('[data-testid="nifty-report-panel"]')).toBeVisible({
       timeout: 10000,
     });
-    await expect(page).toHaveURL(/\/report\/nifty/);
+    await expect(page).toHaveURL(/\/report\/index/);
   });
 });

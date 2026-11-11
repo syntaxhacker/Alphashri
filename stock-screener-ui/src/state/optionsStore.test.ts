@@ -43,6 +43,38 @@ function createMockUnderlying(symbol: string): Underlying {
   return { symbol, name: symbol, instrument_key: `key-${symbol}`, lot_size: 25, tick_size: 0.05 };
 }
 
+// Same-strike CE+PE pair at 24k, used by the CE/PE type-filter tests.
+function createCePePair() {
+  return [
+    createMockContract({
+      strike_price: 24000,
+      instrument_type: "CE",
+      trading_symbol: "NIFTY24000CE",
+    }),
+    createMockContract({
+      strike_price: 24000,
+      instrument_type: "PE",
+      trading_symbol: "NIFTY24000PE",
+    }),
+  ];
+}
+
+// 23900/24000/24100 CE strikes around spot 24000, shared by the moneyness tests.
+function createItmCeTrio() {
+  return [
+    createMockContract({ strike_price: 23900, instrument_type: "CE", trading_symbol: "NIFTY23900CE" }),
+    createMockContract({ strike_price: 24000, instrument_type: "CE", trading_symbol: "NIFTY24000CE" }),
+    createMockContract({ strike_price: 24100, instrument_type: "CE", trading_symbol: "NIFTY24100CE" }),
+  ];
+}
+
+// Point the store at a chain (and optionally a spot price) for getFilteredChain assertions.
+function setChain(contracts: OptionContract[], spotPrice?: number | null) {
+  const state = getOptionsState() as any;
+  state.optionChain = contracts;
+  if (spotPrice !== undefined) state.spotPrice = spotPrice;
+}
+
 function resetStoreState() {
   const state = getOptionsState();
   (state as any).optionChain = [];
@@ -158,13 +190,14 @@ describe("getFilteredChain", () => {
   });
 
   it("filters by strike range", () => {
-    const state = getOptionsState();
-    (state as any).optionChain = [
-      createMockContract({ strike_price: 23000 }),
-      createMockContract({ strike_price: 24000 }),
-      createMockContract({ strike_price: 25000 }),
-    ];
-    (state as any).spotPrice = 24000;
+    setChain(
+      [
+        createMockContract({ strike_price: 23000 }),
+        createMockContract({ strike_price: 24000 }),
+        createMockContract({ strike_price: 25000 }),
+      ],
+      24000,
+    );
     setFilters({ strikeRange: [23500, 24500] });
 
     const result = getFilteredChain();
@@ -173,19 +206,7 @@ describe("getFilteredChain", () => {
   });
 
   it("filters by option type CE", () => {
-    const state = getOptionsState();
-    (state as any).optionChain = [
-      createMockContract({
-        strike_price: 24000,
-        instrument_type: "CE",
-        trading_symbol: "NIFTY24000CE",
-      }),
-      createMockContract({
-        strike_price: 24000,
-        instrument_type: "PE",
-        trading_symbol: "NIFTY24000PE",
-      }),
-    ];
+    setChain(createCePePair());
     setFilters({ optionType: "CE" });
 
     const result = getFilteredChain();
@@ -194,19 +215,7 @@ describe("getFilteredChain", () => {
   });
 
   it("filters by option type PE", () => {
-    const state = getOptionsState();
-    (state as any).optionChain = [
-      createMockContract({
-        strike_price: 24000,
-        instrument_type: "CE",
-        trading_symbol: "NIFTY24000CE",
-      }),
-      createMockContract({
-        strike_price: 24000,
-        instrument_type: "PE",
-        trading_symbol: "NIFTY24000PE",
-      }),
-    ];
+    setChain(createCePePair());
     setFilters({ optionType: "PE" });
 
     const result = getFilteredChain();
@@ -215,25 +224,7 @@ describe("getFilteredChain", () => {
   });
 
   it("filters by moneyness ITM for CE", () => {
-    const state = getOptionsState();
-    (state as any).optionChain = [
-      createMockContract({
-        strike_price: 23900,
-        instrument_type: "CE",
-        trading_symbol: "NIFTY23900CE",
-      }),
-      createMockContract({
-        strike_price: 24000,
-        instrument_type: "CE",
-        trading_symbol: "NIFTY24000CE",
-      }),
-      createMockContract({
-        strike_price: 24100,
-        instrument_type: "CE",
-        trading_symbol: "NIFTY24100CE",
-      }),
-    ];
-    (state as any).spotPrice = 24000;
+    setChain(createItmCeTrio(), 24000);
     setFilters({ moneyness: "ITM" });
 
     const result = getFilteredChain();
@@ -242,20 +233,21 @@ describe("getFilteredChain", () => {
   });
 
   it("does not filter by moneyness when spotPrice is null", () => {
-    const state = getOptionsState();
-    (state as any).optionChain = [
-      createMockContract({
-        strike_price: 23900,
-        instrument_type: "CE",
-        trading_symbol: "NIFTY23900CE",
-      }),
-      createMockContract({
-        strike_price: 24100,
-        instrument_type: "CE",
-        trading_symbol: "NIFTY24100CE",
-      }),
-    ];
-    (state as any).spotPrice = null;
+    setChain(
+      [
+        createMockContract({
+          strike_price: 23900,
+          instrument_type: "CE",
+          trading_symbol: "NIFTY23900CE",
+        }),
+        createMockContract({
+          strike_price: 24100,
+          instrument_type: "CE",
+          trading_symbol: "NIFTY24100CE",
+        }),
+      ],
+      null,
+    );
     setFilters({ moneyness: "ITM" });
 
     const result = getFilteredChain();
@@ -263,12 +255,11 @@ describe("getFilteredChain", () => {
   });
 
   it("sorts ascending by strike_price", () => {
-    const state = getOptionsState();
-    (state as any).optionChain = [
+    setChain([
       createMockContract({ strike_price: 25000 }),
       createMockContract({ strike_price: 23000 }),
       createMockContract({ strike_price: 24000 }),
-    ];
+    ]);
     setFilters({ sortBy: "strike_price", sortOrder: "asc" });
 
     const result = getFilteredChain();
@@ -276,12 +267,11 @@ describe("getFilteredChain", () => {
   });
 
   it("sorts descending by strike_price", () => {
-    const state = getOptionsState();
-    (state as any).optionChain = [
+    setChain([
       createMockContract({ strike_price: 23000 }),
       createMockContract({ strike_price: 25000 }),
       createMockContract({ strike_price: 24000 }),
-    ];
+    ]);
     setFilters({ sortBy: "strike_price", sortOrder: "desc" });
 
     const result = getFilteredChain();
@@ -289,30 +279,17 @@ describe("getFilteredChain", () => {
   });
 
   it("applies all filters together", () => {
-    const state = getOptionsState();
-    (state as any).optionChain = [
-      createMockContract({
-        strike_price: 23900,
-        instrument_type: "CE",
-        trading_symbol: "NIFTY23900CE",
-      }),
-      createMockContract({
-        strike_price: 24000,
-        instrument_type: "CE",
-        trading_symbol: "NIFTY24000CE",
-      }),
-      createMockContract({
-        strike_price: 24100,
-        instrument_type: "CE",
-        trading_symbol: "NIFTY24100CE",
-      }),
-      createMockContract({
-        strike_price: 23900,
-        instrument_type: "PE",
-        trading_symbol: "NIFTY23900PE",
-      }),
-    ];
-    (state as any).spotPrice = 24000;
+    setChain(
+      [
+        ...createItmCeTrio(),
+        createMockContract({
+          strike_price: 23900,
+          instrument_type: "PE",
+          trading_symbol: "NIFTY23900PE",
+        }),
+      ],
+      24000,
+    );
     setFilters({ optionType: "CE", moneyness: "ITM", strikeRange: [0, 100000] });
 
     const result = getFilteredChain();
@@ -334,18 +311,8 @@ describe("getStrikeMatrix", () => {
   });
 
   it("groups CE and PE by strike price", () => {
-    const state = getOptionsState();
-    const ce = createMockContract({
-      strike_price: 24000,
-      instrument_type: "CE",
-      trading_symbol: "NIFTY24000CE",
-    });
-    const pe = createMockContract({
-      strike_price: 24000,
-      instrument_type: "PE",
-      trading_symbol: "NIFTY24000PE",
-    });
-    (state as any).optionChain = [ce, pe];
+    const [ce, pe] = createCePePair();
+    setChain([ce, pe]);
 
     const matrix = getStrikeMatrix();
     expect(matrix).toHaveLength(1);
@@ -355,13 +322,8 @@ describe("getStrikeMatrix", () => {
   });
 
   it("handles CE-only strike", () => {
-    const state = getOptionsState();
-    const ce = createMockContract({
-      strike_price: 24000,
-      instrument_type: "CE",
-      trading_symbol: "NIFTY24000CE",
-    });
-    (state as any).optionChain = [ce];
+    const [ce] = createCePePair();
+    setChain([ce]);
 
     const matrix = getStrikeMatrix();
     expect(matrix).toHaveLength(1);
@@ -370,13 +332,8 @@ describe("getStrikeMatrix", () => {
   });
 
   it("handles PE-only strike", () => {
-    const state = getOptionsState();
-    const pe = createMockContract({
-      strike_price: 24000,
-      instrument_type: "PE",
-      trading_symbol: "NIFTY24000PE",
-    });
-    (state as any).optionChain = [pe];
+    const [, pe] = createCePePair();
+    setChain([pe]);
 
     const matrix = getStrikeMatrix();
     expect(matrix).toHaveLength(1);
@@ -385,25 +342,20 @@ describe("getStrikeMatrix", () => {
   });
 
   it("sorts by strike price ascending", () => {
-    const state = getOptionsState();
-    (state as any).optionChain = [
+    setChain([
       createMockContract({ strike_price: 25000, instrument_type: "CE" }),
       createMockContract({ strike_price: 23000, instrument_type: "CE" }),
       createMockContract({ strike_price: 24000, instrument_type: "CE" }),
-    ];
+    ]);
 
     const matrix = getStrikeMatrix();
     expect(matrix.map((m) => m.strike)).toEqual([23000, 24000, 25000]);
   });
 
   it("handles multiple strikes with mixed types", () => {
-    const state = getOptionsState();
-    (state as any).optionChain = [
-      createMockContract({
-        strike_price: 24000,
-        instrument_type: "CE",
-        trading_symbol: "NIFTY24000CE",
-      }),
+    const [ce24000, pe24000] = createCePePair();
+    setChain([
+      ce24000,
       createMockContract({
         strike_price: 25000,
         instrument_type: "PE",
@@ -414,12 +366,8 @@ describe("getStrikeMatrix", () => {
         instrument_type: "CE",
         trading_symbol: "NIFTY25000CE",
       }),
-      createMockContract({
-        strike_price: 24000,
-        instrument_type: "PE",
-        trading_symbol: "NIFTY24000PE",
-      }),
-    ];
+      pe24000,
+    ]);
 
     const matrix = getStrikeMatrix();
     expect(matrix).toHaveLength(2);

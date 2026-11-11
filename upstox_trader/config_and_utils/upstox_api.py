@@ -177,6 +177,15 @@ class UpstoxAPI(BaseAPIClient):
                           option_type: Optional[str] = None,
                           force_refresh: bool = False) -> Optional[str]:
         """Fetches the instrument key from a cached or newly downloaded instrument list."""
+        if instrument_type in ('EQ', 'INDEX'):
+            try:
+                from chart_patterns.indices import INDEX_KEYS
+                static = INDEX_KEYS.get(str(symbol).strip().upper())
+            except Exception:
+                static = None
+            if static:
+                return static
+
         clean_symbol = get_valid_symbol(symbol)
         if not clean_symbol:
             self._log(f"❌ Invalid symbol after cleaning: {symbol}")

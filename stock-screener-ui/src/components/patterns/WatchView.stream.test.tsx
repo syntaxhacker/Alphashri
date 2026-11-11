@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, cleanup, waitFor } from "@testing-library/react";
 import { UIProvider } from "@/ui";
 import type { WatchPayload, WatchRow } from "@/types/chartPatterns";
-import { WatchView } from "./WatchView";
+import { WatchView, WATCH_SLOW_HINT_MS, universeLabel } from "./WatchView";
 
 const mockFetchWatchSetups = vi.fn();
 const mockFetchWatch = vi.fn();
@@ -147,5 +147,132 @@ describe("WatchView streaming", () => {
       expect(screen.getByTestId("watch-snapshot-age")).toHaveTextContent("snapshot 15:30"),
     );
     expect(screen.getByTestId("watch-live-indicator")).toBeInTheDocument();
+  });
+
+  test("shows items/total when the stream meta carries total, keeping the streaming text", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    mockStreamWatch.mockImplementation(async (_query: unknown, handlers: any) => {
+      handlers.onMeta?.({ setup: "breakout", min_rel_volume: 0.7, total: 10 });
+      handlers.onItem?.(makeRow("RELIANCE", 1.69, "armed"));
+      await gate;
+      handlers.onItem?.(makeRow("TCS", -1.25, "triggered"));
+      handlers.onDone?.();
+    });
+
+    r(<WatchView universe="nifty500" timeframe="1D" />);
+
+    await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
+    expect(screen.getByTestId("watch-count")).toHaveTextContent("1 / 10");
+    expect(screen.getByTestId("watch-streaming")).toHaveTextContent("loading more… 1 rows");
+
+    release();
+
+    await waitFor(() => expect(screen.getByTestId("watch-row-TCS")).toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByTestId("watch-streaming")).not.toBeInTheDocument());
+    expect(screen.getByTestId("watch-count")).toHaveTextContent("2 / 10");
+  });
+
+  test("falls back to filtered/items when the stream meta carries no total", async () => {
+    mockStreamWatch.mockImplementation(async (_query: unknown, handlers: any) => {
+      handlers.onMeta?.({ setup: "breakout", min_rel_volume: 0.7 });
+      handlers.onItem?.(makeRow("RELIANCE", 1.69, "armed"));
+      handlers.onItem?.(makeRow("TCS", -1.25, "triggered"));
+      handlers.onDone?.();
+    });
+
+    r(<WatchView universe="nifty500" timeframe="1D" />);
+
+    await waitFor(() => expect(screen.getByTestId("watch-row-TCS")).toBeInTheDocument());
+    expect(screen.getByTestId("watch-count")).toHaveTextContent("2 / 2");
+
+    fireEvent.change(screen.getByTestId("watch-search"), { target: { value: "rel" } });
+
+    await waitFor(() => expect(screen.queryByTestId("watch-row-TCS")).not.toBeInTheDocument());
+    expect(screen.getByTestId("watch-count")).toHaveTextContent("1 / 2");
+  });
+
+  test("universeLabel maps known ids and falls back to the raw id", () => {
+    expect(universeLabel("all_equity")).toBe("All NSE Equity");
+    expect(universeLabel("nifty500")).toBe("NIFTY 500");
+    expect(universeLabel("some_custom_universe")).toBe("some_custom_universe");
+    expect(WATCH_SLOW_HINT_MS).toBe(8000);
+  });
+
+  test("shows the slow computing hint after WATCH_SLOW_HINT_MS while streaming with no rows, without aborting the stream", async () => {
+    vi.useFakeTimers();
+    try {
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      mockStreamWatch.mockImplementation(async (_query: unknown, handlers: any) => {
+        handlers.onMeta?.({ setup: "breakout", min_rel_volume: 0.7 });
+        // No item yet — the stream stays pending (slow arm/live).
+        await gate;
+        handlers.onItem?.(makeRow("RELIANCE", 1.69, "armed"));
+        handlers.onDone?.();
+      });
+
+      r(<WatchView universe="all_equity" timeframe="1D" />);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(screen.getByTestId("watch-loading")).toBeInTheDocument();
+      expect(screen.queryByTestId("watch-loading-hint")).not.toBeInTheDocument();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(WATCH_SLOW_HINT_MS - 1);
+      });
+      expect(screen.queryByTestId("watch-loading-hint")).not.toBeInTheDocument();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(screen.getByTestId("watch-loading-hint")).toHaveTextContent(
+        "Computing the All NSE Equity screen — this can take a few seconds for All NSE Equity.",
+      );
+      // Still loading and still streaming — the hint did not abort anything.
+      expect(screen.getByTestId("watch-loading")).toBeInTheDocument();
+      expect(mockFetchWatch).not.toHaveBeenCalled();
+
+      // First item lands: loading + hint clear, the table takes over.
+      await act(async () => {
+        release();
+        await Promise.resolve();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(screen.queryByTestId("watch-loading-hint")).not.toBeInTheDocument();
+      expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("does not show the slow hint when rows arrive before the delay", async () => {
+    vi.useFakeTimers();
+    try {
+      mockStreamWatch.mockImplementation(async (_query: unknown, handlers: any) => {
+        handlers.onMeta?.({ setup: "breakout", min_rel_volume: 0.7, total: 2 });
+        handlers.onItem?.(makeRow("RELIANCE", 1.69, "armed"));
+        handlers.onDone?.();
+      });
+
+      r(<WatchView universe="nifty500" timeframe="1D" />);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(WATCH_SLOW_HINT_MS + 1000);
+      });
+      expect(screen.queryByTestId("watch-loading-hint")).not.toBeInTheDocument();
+      expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument();
+      expect(screen.getByTestId("watch-count")).toHaveTextContent("1 / 2");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

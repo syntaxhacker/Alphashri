@@ -4,6 +4,7 @@ import * as state from "../state";
 import { subscribe } from "../state";
 import { fetchData, setupAutoRefresh, loadScreeners } from "../api";
 import { useStoreSubscription } from "./useStoreSubscription";
+import { approachingStocksOf, touchedStocksOf } from "@/api/screenerQuery";
 import type { ScreenerData } from "../types";
 
 interface ScreenerDefaults {
@@ -16,6 +17,11 @@ export function getScreenerDefaults(data?: ScreenerData | null): ScreenerDefault
     provider: data?.provider || "upstox",
     mode: data?.mode || "intraday",
   };
+}
+
+function fetchScreener(provider: string | undefined, mode: string | undefined, screener: string) {
+  const defaults = getScreenerDefaults(state.data);
+  return fetchData(provider || defaults.provider, mode || defaults.mode, screener);
 }
 
 export function useScreenerState(initialScreener?: string) {
@@ -40,11 +46,7 @@ export function useScreenerState(initialScreener?: string) {
           if (useUrlScreener) {
             state.setActiveScreener(initialScreener);
           }
-          fetchData(
-            state.data?.provider || "upstox",
-            state.data?.mode || "intraday",
-            state.activeScreener,
-          );
+          fetchScreener(undefined, undefined, state.activeScreener);
           setupAutoRefresh();
         })
         .catch((err) => {
@@ -52,31 +54,23 @@ export function useScreenerState(initialScreener?: string) {
           initialLoadDone.current = false;
         });
     } else {
-      fetchData(
-        state.data?.provider || "upstox",
-        state.data?.mode || "intraday",
-        state.activeScreener,
-      );
+      fetchScreener(undefined, undefined, state.activeScreener);
       setupAutoRefresh();
     }
   }, []);
 
   // Derived state from global state
   const approachingStocks = useMemo(() => {
-    return state.data?.approaching || [];
+    return approachingStocksOf(state.data);
   }, [state.data]);
 
   const touchedStocks = useMemo(() => {
-    return state.data?.touched || [];
+    return touchedStocksOf(state.data);
   }, [state.data]);
 
   // Actions
   const onRefresh = useCallback(() => {
-    fetchData(
-      state.data?.provider || "upstox",
-      state.data?.mode || "intraday",
-      state.activeScreener,
-    );
+    fetchScreener(undefined, undefined, state.activeScreener);
   }, []);
 
   const onAutoRefreshChange = useCallback((seconds: number) => {
@@ -85,17 +79,17 @@ export function useScreenerState(initialScreener?: string) {
   }, []);
 
   const onProviderChange = useCallback((newProvider: string) => {
-    fetchData(newProvider, state.data?.mode || "intraday", state.activeScreener);
+    fetchScreener(newProvider, undefined, state.activeScreener);
   }, []);
 
   const onModeChange = useCallback((newMode: string) => {
-    fetchData(state.data?.provider || "upstox", newMode, state.activeScreener);
+    fetchScreener(undefined, newMode, state.activeScreener);
   }, []);
 
   const onScreenerChange = useCallback((screenerId: string) => {
     const cleanId = screenerId.replace(/^builtin:/, "");
     state.setActiveScreener(cleanId);
-    fetchData(state.data?.provider || "upstox", state.data?.mode || "intraday", cleanId);
+    fetchScreener(undefined, undefined, cleanId);
     setupAutoRefresh();
     const next = new URLSearchParams(searchParams);
     next.set("screener", cleanId);
@@ -115,6 +109,8 @@ export function useScreenerState(initialScreener?: string) {
 
   const onSymbolHover = useCallback((_symbol: string | null) => {}, []);
 
+  const { provider, mode } = getScreenerDefaults(state.data);
+
   return {
     approachingStocks,
     touchedStocks,
@@ -124,8 +120,8 @@ export function useScreenerState(initialScreener?: string) {
     error: state.error,
     warning: state.data?.warning || null,
     autoRefreshSeconds: state.autoRefreshSeconds,
-    provider: state.data?.provider || "upstox",
-    mode: state.data?.mode || "intraday",
+    provider,
+    mode,
     onRefresh,
     onAutoRefreshChange,
     onProviderChange,

@@ -10,24 +10,9 @@ import {
   uploadPatternImage,
   deletePatternImage,
 } from "./patternImages";
+import { errorResponse, nonJsonErrorResponse, okResponse } from "./apiTestMocks";
 
 const mockedFetch = vi.mocked(fetchWithAuth);
-
-function okResponse(body: unknown): Response {
-  return {
-    ok: true,
-    status: 200,
-    json: async () => body,
-  } as unknown as Response;
-}
-
-function errorResponse(status: number, body: unknown): Response {
-  return {
-    ok: false,
-    status,
-    json: async () => body,
-  } as unknown as Response;
-}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -123,13 +108,7 @@ describe("error-field + non-JSON fallbacks", () => {
   });
 
   it("fetchPatternImages falls back when the error body is not JSON", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: false,
-      status: 500,
-      json: async () => {
-        throw new Error("bad json");
-      },
-    } as unknown as Response);
+    mockedFetch.mockResolvedValue(nonJsonErrorResponse(500));
     await expect(fetchPatternImages()).rejects.toThrow(
       "Failed to load pattern images (500)",
     );
@@ -143,13 +122,7 @@ describe("error-field + non-JSON fallbacks", () => {
   });
 
   it("uploadPatternImage falls back when the error body is not JSON", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: false,
-      status: 500,
-      json: async () => {
-        throw new Error("bad json");
-      },
-    } as unknown as Response);
+    mockedFetch.mockResolvedValue(nonJsonErrorResponse(500));
     await expect(
       uploadPatternImage("p", new File(["x"], "a.png", { type: "image/png" })),
     ).rejects.toThrow("Failed to upload image (500)");
@@ -161,13 +134,7 @@ describe("error-field + non-JSON fallbacks", () => {
   });
 
   it("deletePatternImage falls back when the error body is not JSON", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: false,
-      status: 404,
-      json: async () => {
-        throw new Error("bad json");
-      },
-    } as unknown as Response);
+    mockedFetch.mockResolvedValue(nonJsonErrorResponse(404));
     await expect(deletePatternImage("p")).rejects.toThrow("Failed to delete image (404)");
   });
 });

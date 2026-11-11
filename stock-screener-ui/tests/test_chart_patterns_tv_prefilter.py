@@ -15,6 +15,7 @@ def _tv_df(rows):
 class _FakeQuery:
     """Stands in for tradingview_screener.Query; serves one canned frame."""
     last_kwargs = {}
+    last_tickers = ()
     frame = None
     raise_on_fetch = False
 
@@ -23,6 +24,7 @@ class _FakeQuery:
 
     def set_tickers(self, *tickers):
         self.calls["tickers"] = tickers
+        _FakeQuery.last_tickers = tickers
         return self
 
     def set_markets(self, *markets):
@@ -53,9 +55,32 @@ def fake_tv(monkeypatch):
     import tradingview_screener
 
     _FakeQuery.frame = None
+    _FakeQuery.last_tickers = ()
     _FakeQuery.raise_on_fetch = False
     monkeypatch.setattr(tradingview_screener, "Query", _FakeQuery)
     return _FakeQuery
+
+
+def test_module_uses_shared_tv_transport():
+    """api.tv is the only scanner/symbol implementation; no local copies."""
+    import api.tv
+    from api.symbols import normalize_tv_symbol, to_tv_ticker
+
+    assert tv_prefilter.get_scanner_data is api.tv.get_scanner_data
+    assert normalize_tv_symbol is api.tv.normalize_tv_symbol
+    assert to_tv_ticker is api.tv.to_tv_ticker
+
+
+def test_colliding_suffix_symbols_are_queried_intact(fake_tv):
+    """Regression: SIEMENS/CONS/TEMBO must not be truncated before set_tickers."""
+    fake_tv.frame = _tv_df([{
+        "ticker": "NSE:SIEMENS", "name": "SIEMENS", "volume": 1_000_000.0,
+        "relative_volume_10d_calc": 2.0, "average_volume_10d_calc": 500_000.0,
+        "close": 3000.0, "change": 0.5, "market_cap_basic": 1_000_000_000.0,
+    }])
+    got = tv_prefilter.fetch_tv_volume_metrics(["SIEMENS", "CONS", "TEMBO"])
+    assert fake_tv.last_tickers == ("NSE:SIEMENS", "NSE:CONS", "NSE:TEMBO")
+    assert "SIEMENS" in got
 
 
 def test_metrics_mapping(fake_tv):

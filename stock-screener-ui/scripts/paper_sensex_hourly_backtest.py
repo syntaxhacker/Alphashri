@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import statistics
 import sys
 from datetime import datetime
@@ -24,6 +23,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
+
+from options_paper import greeks as _gr  # noqa: E402
 
 try:
     from scripts.paper_sensex import option_costs
@@ -65,22 +66,9 @@ BREAKDOWN_ONLY = ["breakdown"]
 BOUNCE_REJECT = ["support_bounce", "resistance_reject"]
 
 
-def norm_cdf(x):
-    return 0.5 * (1 + math.erf(x / math.sqrt(2)))
-
-
 def bs_premium(side: str, spot: float, strike: float, t_years: float, iv: float = IV) -> float:
-    if t_years <= 1e-6:
-        t_years = 1e-6
-    d1 = (math.log(spot / strike) + (R + iv * iv / 2) * t_years) / (iv * math.sqrt(t_years))
-    d2 = d1 - iv * math.sqrt(t_years)
-    if side == "CE":
-        bs = spot * norm_cdf(d1) - strike * math.exp(-R * t_years) * norm_cdf(d2)
-        intr = max(spot - strike, 0)
-    else:
-        bs = strike * math.exp(-R * t_years) * norm_cdf(-d2) - spot * norm_cdf(-d1)
-        intr = max(strike - spot, 0)
-    return max(bs, intr)
+    """Black-Scholes premium on the spot (shared implementation)."""
+    return _gr.bs_price(side, spot, strike, t_years, iv, R)
 
 
 def load_hourly() -> dict:

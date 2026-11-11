@@ -87,6 +87,72 @@ const DEFAULT_POSITIONS = [
   },
 ];
 
+// The /paper/positions endpoint echoes the bot positions plus a pnl_pct mirror.
+const DEFAULT_LIVE_POSITIONS = DEFAULT_POSITIONS.map((p) => ({
+  ...p,
+  pnl_pct: p.unrealized_pnl_pct,
+}));
+
+const DEFAULT_PAPER_TRADES = [
+  {
+    id: 1,
+    symbol: "TCS",
+    side: "BUY",
+    entry_price: 3750,
+    exit_price: 3800,
+    pnl: 500,
+    entry_time: "2026-03-02T09:30:00",
+    exit_time: "2026-03-02T11:00:00",
+    strategy_name: "ORB Conservative",
+    strategy_id: 1,
+  },
+  {
+    id: 2,
+    symbol: "INFY",
+    side: "BUY",
+    entry_price: 1480,
+    exit_price: 1500,
+    pnl: 400,
+    entry_time: "2026-03-02T10:00:00",
+    exit_time: "2026-03-02T14:00:00",
+    strategy_name: "ORB Aggressive",
+    strategy_id: 2,
+  },
+];
+
+export async function mockPaperTradesRoute(page: Page, trades: object[] = DEFAULT_PAPER_TRADES) {
+  await page.route(apiRoute("paper/trades"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ trades, count: trades.length }),
+    });
+  });
+}
+
+export async function mockJournalSummaryRoute(
+  page: Page,
+  summary: object = { total_pnl: 900, total_trades: 2, win_rate: 100 },
+) {
+  await page.route(apiRoute("paper/journal/summary"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(summary),
+    });
+  });
+}
+
+export async function mockPaperChartRoute(page: Page, chartResponse: object) {
+  await page.route(apiRoute("paper/chart/"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(chartResponse),
+    });
+  });
+}
+
 export async function setupBotMocksForId(page: Page, botId: string, customScanItems?: object[]) {
   const scanItems = customScanItems || DEFAULT_SCAN_ITEMS;
 
@@ -118,47 +184,8 @@ export async function setupBotMocksForId(page: Page, botId: string, customScanIt
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        positions: [
-          {
-            id: 1,
-            symbol: "TCS",
-            side: "BUY",
-            quantity: 10,
-            entry_price: 3750,
-            current_price: 3800,
-            entry_time: "2026-03-02T09:30:00",
-            stop_loss: 3700,
-            take_profit: 3900,
-            unrealized_pnl: 500,
-            unrealized_pnl_pct: 1.33,
-            pnl: 500,
-            pnl_pct: 1.33,
-            margin_used: 37500,
-            strategy_name: "ORB Conservative",
-            strategy_id: 1,
-            order_id: "order-1",
-          },
-          {
-            id: 2,
-            symbol: "INFY",
-            side: "BUY",
-            quantity: 20,
-            entry_price: 1480,
-            current_price: 1500,
-            entry_time: "2026-03-02T10:00:00",
-            stop_loss: 1450,
-            take_profit: 1520,
-            unrealized_pnl: 400,
-            unrealized_pnl_pct: 1.35,
-            pnl: 400,
-            pnl_pct: 1.35,
-            margin_used: 29600,
-            strategy_name: "ORB Aggressive",
-            strategy_id: 2,
-            order_id: "order-2",
-          },
-        ],
-        count: 2,
+        positions: DEFAULT_LIVE_POSITIONS,
+        count: DEFAULT_LIVE_POSITIONS.length,
       }),
     });
   });
@@ -181,7 +208,7 @@ export async function navigateToBot(page: Page, _botId?: string) {
   await page.waitForTimeout(1000);
 }
 
-export async function verifyStrategyPanel(page: Page, strategyName: string): Promise<void> {
+export async function verifyStrategyPanel(page: Page): Promise<void> {
   // In the current UI, positions are shown in strategy panels (not tabs)
   // Verify the positions container is visible (all positions shown by default)
   const positionsContainer = page.getByTestId("positions-table-container");

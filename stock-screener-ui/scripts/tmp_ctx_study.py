@@ -12,170 +12,29 @@ Usage:
   .venv/bin/python scripts/lrl_ifvg_check.py --matrix --window prime
 """
 import argparse
-import json
 import os
 import sys
-from datetime import timezone, timedelta, datetime
+from datetime import timezone, datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import config  # noqa: E402
 from scripts.smc_tick_eval import fetch_ticks  # cached, no download
 
-IST = timezone(timedelta(hours=5, minutes=30))
+IST = config.IST
 CACHE_NOTE = "experiments/data/duka_cache"
 TF_ORDER = ["30s", "1m", "2m", "3m"]
 TF_SEC = {"30s": 30, "1m": 60, "2m": 120, "3m": 180}
 
 
-def prev_trading_day(date_str):
-    from datetime import date as _d, timedelta as _td
-    p = _d.fromisoformat(date_str) - _td(days=1)
-    while p.weekday() >= 5:
-        p -= _td(days=1)
-    return p.isoformat()
-
-
-def session_profile(ticks, t_end_ms, bin_pts=5.0):
-    """Volume profile (bid+ask vol weights) over ticks with ts < t_end_ms.
-    Returns (poc, vah, val) with 70% value-area expansion from POC. None-safe."""
-    bins = {}
-    for x in ticks:
-        if x["timestamp"] >= t_end_ms:
-            break  # ticks are time-ordered
-        mid = (x["bidPrice"] + x["askPrice"]) / 2.0
-        w = (x.get("bidVolume") or 0) + (x.get("askVolume") or 0)
-        k = int(mid // bin_pts)
-        bins[k] = bins.get(k, 0) + w
-    if not bins:
-        return None
-    total = sum(bins.values())
-    poc_k = max(bins, key=lambda k: bins[k])
-    lo = hi = poc_k
-    covered = bins[poc_k]
-    while covered < 0.70 * total:
-        up = bins.get(hi + 1, 0)
-        dn = bins.get(lo - 1, 0)
-        if up == 0 and dn == 0:
-            break
-        if up >= dn:
-            hi += 1
-            covered += up
-        else:
-            lo -= 1
-            covered += dn
-    c = lambda k: (k + 0.5) * bin_pts
-    return {"poc": c(poc_k), "vah": c(hi) + bin_pts / 2, "val": c(lo) - bin_pts / 2}
-
-
-def build_bars(ticks, sec):
-    bars = {}
-    for t in ticks:
-        ts = t["timestamp"] / 1000.0
-        bkt = int(ts // sec) * sec
-        bid = t["bidPrice"]
-        b = bars.get(bkt)
-        if b is None:
-            bars[bkt] = {"time": bkt, "open": bid, "high": bid, "low": bid, "close": bid}
-        else:
-            b["high"] = max(b["high"], bid)
-            b["low"] = min(b["low"], bid)
-            b["close"] = bid
-    return [bars[k] for k in sorted(bars)]
-
-
-def atr(bars, i, n=14):
-    if i < n:
-        return 0.0
-    return sum(bars[k]["high"] - bars[k]["low"] for k in range(i - n + 1, i + 1)) / n
-
-
-def detect_fvg(bars, i, gap_min=2.0):
-    # 3-bar pattern ending at i, same as engine
-    if i < 2:
-        return None
-    a, c = bars[i - 2], bars[i]
-    if c["high"] < a["low"] and a["low"] - c["high"] > gap_min:
-        return {"type": "bear", "top": a["low"], "bot": c["high"], "form": i}
-    if c["low"] > a["high"] and c["low"] - a["high"] > gap_min:
-        return {"type": "bull", "top": c["low"], "bot": a["high"], "form": i}
-    return None
-
-
-def swing_pivots(bars, i, left=2, right=2):
-    """fractal pivots confirmed at i (center = i-right), like engine j=i-2."""
-    out_hi, out_lo = None, None
-    if i >= left + right:
-        j = i - right
-        w = bars[j - left:j + right + 1]
-        if all(w[left]["high"] > w[k]["high"] for k in range(len(w)) if k != left):
-            out_hi = (j, w[left]["high"])
-        if all(w[left]["low"] < w[k]["low"] for k in range(len(w)) if k != left):
-            out_lo = (j, w[left]["low"])
-    return out_hi, out_lo
-
-
-def detect_lrl(bars, i, lookback=120, min_touches=3, tol_mult=0.60, max_dist_atr=5.0):
-    """Return {'dir': 'above'|'below', 'touches': n, 'target': px} or None.
-    Best-3-of-recent-6 collinear pivots (not all-6 must fit), residual < tol_mult*ATR."""
-    import itertools
-    if i < 20:
-        return None
-    a = atr(bars, i) or 5.0
-    tol = tol_mult * a
-    # collect pivots in window
-    his, los = [], []
-    for k in range(max(left_bound := i - lookback, 4), i):
-        # pivot centered at k needs k+2 <= i to confirm
-        if k + 2 > i:
-            continue
-        w = bars[k - 2:k + 3]
-        if len(w) < 5:
-            continue
-        if all(w[2]["high"] > w[m]["high"] for m in (0, 1, 3, 4)):
-            his.append((k, w[2]["high"]))
-        if all(w[2]["low"] < w[m]["low"] for m in (0, 1, 3, 4)):
-            los.append((k, w[2]["low"]))
-    cands = []
-    for side, pts in (("above", his), ("below", los)):
-        if len(pts) < min_touches:
-            continue
-        # best subset of 3 (or more) from recent 6 — one outlier must not kill the setup
-        pool = pts[-6:]
-        best = None
-        for r in (4, 3) if len(pool) >= 4 else (3,):
-            if len(pool) < r:
-                continue
-            for combo in itertools.combinations(pool, r):
-                n = len(combo)
-                sx = sum(p[0] for p in combo) / n
-                sy = sum(p[1] for p in combo) / n
-                den = sum((p[0] - sx) ** 2 for p in combo) or 1
-                slope = sum((p[0] - sx) * (p[1] - sy) for p in combo) / den
-                max_res = max(abs(p[1] - (sy + slope * (p[0] - sx))) for p in combo)
-                if max_res > tol:
-                    continue
-                target = sy + slope * (i - sx)
-                px = bars[i]["close"]
-                if side == "above" and target <= px + 2:
-                    continue  # already swept/touching
-                if side == "below" and target >= px - 2:
-                    continue
-                # distance sanity
-                if abs(target - px) > max_dist_atr * a:
-                    continue
-                score = (-n, max_res)
-                if best is None or score < (best["score"]):
-                    best = {"dir": side, "touches": n, "target": target,
-                            "resid": max_res, "slope": slope, "score": score}
-            if best:
-                break
-        if best:
-            del best["score"]
-            cands.append(best)
-    if not cands:
-        return None
-    # prefer most touches, then smallest residual
-    cands.sort(key=lambda c: (-c["touches"], c["resid"]))
-    return cands[0]
+from scripts.indicators import (  # noqa: E402  (shared indicator math)
+    atr_range as atr,
+    build_bars,
+    detect_fvg,
+    detect_lrl,
+    prev_trading_day,
+    session_profile,
+    swing_pivots,
+)
 
 
 def run_date(date, gap_min=2.0, sl_buf=6.0, window="prime", verbose=True):

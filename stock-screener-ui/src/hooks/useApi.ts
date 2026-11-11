@@ -1,5 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 
+import { fetchWithAuth } from "@/state/auth";
+import { abortPendingRequest, getAbortSignal, isAbortError } from "./useFetch";
+export { abortPendingRequest, getAbortSignal, isAbortError };
+
 export interface UseApiOptions<T> {
   url: string | (() => string);
   method?: "GET" | "POST" | "PATCH" | "DELETE";
@@ -18,26 +22,6 @@ export interface UseApiState<T> {
   isAborted: boolean;
   execute: () => Promise<void>;
   abort: () => void;
-}
-
-const API_BASE = "http://localhost:8765";
-
-let globalAbortController: AbortController | null = null;
-
-export function abortPendingRequest(): AbortController {
-  if (globalAbortController) {
-    globalAbortController.abort();
-  }
-  globalAbortController = new AbortController();
-  return globalAbortController;
-}
-
-export function getAbortSignal(): AbortSignal | null {
-  return globalAbortController?.signal || null;
-}
-
-export function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === "AbortError";
 }
 
 function buildUrl(
@@ -86,11 +70,10 @@ export function useApi<T>(options: UseApiOptions<T>): UseApiState<T> {
     setError(null);
 
     try {
-      const res = await fetch(fullUrl, {
+      const res = await fetchWithAuth(fullUrl, {
         method,
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
           ...headers,
         },
         body: body ? JSON.stringify(body) : null,

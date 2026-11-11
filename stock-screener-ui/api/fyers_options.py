@@ -37,6 +37,18 @@ _FYERS_UNDERLYINGS = {
 #: (underlying, expiry YYYY-MM-DD) -> (expires_at_monotonic, chain payload).
 _CHAIN_CACHE: dict[tuple[str, str], tuple[float, dict]] = {}
 
+#: Expired entries are only evicted when the SAME key is looked up, so a
+#: process that sees many (underlying, expiry) pairs kept them all. Bound it.
+_CHAIN_CACHE_MAX = 32
+
+
+def _cache_put(key: tuple[str, str], payload: tuple[float, dict]) -> None:
+    """Store a chain entry, evicting the oldest ones past the cap."""
+    _CHAIN_CACHE[key] = payload
+    while len(_CHAIN_CACHE) > _CHAIN_CACHE_MAX:
+        oldest = min(_CHAIN_CACHE, key=lambda k: _CHAIN_CACHE[k][0])
+        _CHAIN_CACHE.pop(oldest, None)
+
 
 def clear_fyers_chain_cache() -> None:
     """Drop the cached chains (tests / manual refresh)."""
@@ -138,7 +150,7 @@ def resolve_fyers_option_symbol(
             chain = _fetch_option_chain(fyers_underlying)
             if chain is None:
                 return None
-            _CHAIN_CACHE[cache_key] = (time.monotonic() + CHAIN_TTL_SEC, chain)
+            _cache_put(cache_key, (time.monotonic() + CHAIN_TTL_SEC, chain))
 
         # The requested expiry must be one Fyers actually lists. When Fyers
         # omits expiryData entirely we fall through to the leg match rather

@@ -7,6 +7,32 @@ import {
   BEARISH,
   BLACK,
 } from "../../config/colors";
+import {
+  makeBacktestCandle,
+  makeBacktestEntry,
+  makeBacktestExit,
+  entryExitPair,
+  backtestPivotHighlight,
+} from "./normalizeTestFixtures";
+
+const runWithHighlight = (
+  data: Parameters<typeof normalizeBacktest>[0],
+  highlightedTradeId?: number | null,
+  holidays?: { date: string; type: string; description: string }[],
+) => normalizeBacktest(data, false, holidays, highlightedTradeId);
+
+// Data wrapper for the single-overlay visual-normalization tests.
+const overlayData = (overlay: unknown) => ({
+  candles: [],
+  trades: [],
+  visuals: { overlays: [overlay] },
+});
+
+const emaSeriesData = (emaSeries: unknown[], candles: unknown[]) => ({
+  candles,
+  trades: [],
+  visuals: { ema_series: emaSeries },
+});
 
 describe("normalizeBacktest", () => {
   const mockHolidays = [
@@ -17,18 +43,7 @@ describe("normalizeBacktest", () => {
   describe("candle normalization", () => {
     it("maps raw candles to UnifiedCandle format", () => {
       const data = {
-        candles: [
-          {
-            time: "2025-01-15T09:30:00",
-            date: "2025-01-15",
-            time_str: "09:30",
-            open: 100,
-            high: 110,
-            low: 95,
-            close: 105,
-            volume: 1000,
-          },
-        ],
+        candles: [makeBacktestCandle()],
         trades: [],
       };
       const result = normalizeBacktest(data, false);
@@ -56,26 +71,7 @@ describe("normalizeBacktest", () => {
     it("pairs entry and exit trades into unified format", () => {
       const data = {
         candles: [],
-        trades: [
-          {
-            type: "entry",
-            trade: { entry_price: 100, entry_time: "09:30", quantity: 10 },
-            trade_id: 1,
-            candle_idx: 0,
-          },
-          {
-            type: "exit",
-            trade: {
-              exit_price: 110,
-              exit_time: "09:35",
-              exit_reason: "TP",
-              net_pnl: 10,
-              trading_costs: 1,
-            },
-            trade_id: 1,
-            candle_idx: 3,
-          },
-        ],
+        trades: entryExitPair(1),
       };
       const result = normalizeBacktest(data, false);
       expect(result.trades).toHaveLength(1);
@@ -99,12 +95,7 @@ describe("normalizeBacktest", () => {
       const data = {
         candles: [],
         trades: [
-          {
-            type: "entry",
-            trade: { entry_price: 100, entry_time: "09:30", quantity: 10 },
-            trade_id: 1,
-            candle_idx: 0,
-          },
+          makeBacktestEntry(),
         ],
       };
       const result = normalizeBacktest(data, false);
@@ -121,13 +112,9 @@ describe("normalizeBacktest", () => {
       const data = {
         candles: [{ time: "09:30" }],
         trades: [
-          {
-            type: "entry",
-            trade: { entry_price: 100, quantity: 10 },
-            trade_id: 1,
-            candle_idx: 0,
+          makeBacktestEntry({ entry_time: undefined }, 1, 0, {
             time: "2025-01-15T09:30:00",
-          },
+          }),
         ],
       };
       const result = normalizeBacktest(data, false);
@@ -138,19 +125,10 @@ describe("normalizeBacktest", () => {
       const data = {
         candles: [],
         trades: [
-          {
-            type: "entry",
-            trade: { entry_price: 100, entry_time: "09:30", quantity: 10 },
-            trade_id: 1,
-            candle_idx: 0,
-          },
-          {
-            type: "exit",
-            trade: { exit_price: 110, exit_reason: "TP", net_pnl: 10, trading_costs: 1 },
-            trade_id: 1,
-            candle_idx: 3,
+          makeBacktestEntry(),
+          makeBacktestExit({ exit_time: undefined }, 1, 3, {
             time: "2025-01-15T09:35:00",
-          },
+          }),
         ],
       };
       const result = normalizeBacktest(data, false);
@@ -160,26 +138,7 @@ describe("normalizeBacktest", () => {
     it("always sets side to BUY for backtest", () => {
       const data = {
         candles: [],
-        trades: [
-          {
-            type: "entry",
-            trade: { entry_price: 100, entry_time: "09:30", quantity: 10 },
-            trade_id: 1,
-            candle_idx: 0,
-          },
-          {
-            type: "exit",
-            trade: {
-              exit_price: 110,
-              exit_time: "09:35",
-              exit_reason: "TP",
-              net_pnl: 10,
-              trading_costs: 1,
-            },
-            trade_id: 1,
-            candle_idx: 3,
-          },
-        ],
+        trades: entryExitPair(1),
       };
       const result = normalizeBacktest(data, false);
       expect(result.trades[0].side).toBe("BUY");
@@ -189,42 +148,19 @@ describe("normalizeBacktest", () => {
       const data = {
         candles: [],
         trades: [
-          {
-            type: "entry",
-            trade: { entry_price: 100, entry_time: "09:30", quantity: 10 },
-            trade_id: 1,
-            candle_idx: 0,
-          },
-          {
-            type: "exit",
-            trade: {
-              exit_price: 110,
-              exit_time: "09:35",
-              exit_reason: "TP",
-              net_pnl: 10,
-              trading_costs: 1,
-            },
-            trade_id: 1,
-            candle_idx: 3,
-          },
-          {
-            type: "entry",
-            trade: { entry_price: 200, entry_time: "09:40", quantity: 5 },
-            trade_id: 2,
-            candle_idx: 2,
-          },
-          {
-            type: "exit",
-            trade: {
+          ...entryExitPair(1),
+          makeBacktestEntry({ entry_price: 200, entry_time: "09:40", quantity: 5 }, 2, 2),
+          makeBacktestExit(
+            {
               exit_price: 190,
               exit_time: "09:45",
               exit_reason: "SL",
               net_pnl: -10,
               trading_costs: 1,
             },
-            trade_id: 2,
-            candle_idx: 4,
-          },
+            2,
+            4,
+          ),
         ],
       };
       const result = normalizeBacktest(data, false);
@@ -234,22 +170,14 @@ describe("normalizeBacktest", () => {
 
   describe("overlays normalization", () => {
     it("converts visuals.overlays to UnifiedOverlay", () => {
-      const data = {
-        candles: [],
-        trades: [],
-        visuals: {
-          overlays: [
-            {
-              id: "line1",
-              label: "EMA Fast",
-              type: "line",
-              color: BULLISH,
-              dash: [2, 2],
-              levels: [{ value: 100 }],
-            },
-          ],
-        },
-      };
+      const data = overlayData({
+        id: "line1",
+        label: "EMA Fast",
+        type: "line",
+        color: BULLISH,
+        dash: [2, 2],
+        levels: [{ value: 100 }],
+      });
       const result = normalizeBacktest(data, false);
       expect(result.overlays).toHaveLength(1);
       expect(result.overlays[0]).toMatchObject({
@@ -264,35 +192,25 @@ describe("normalizeBacktest", () => {
     });
 
     it("showLabel defaults to false", () => {
-      const data = {
-        candles: [],
-        trades: [],
-        visuals: {
-          overlays: [
-            { id: "line1", label: "Test", type: "line", color: BLACK, levels: [{ value: 100 }] },
-          ],
-        },
-      };
+      const data = overlayData({
+        id: "line1",
+        label: "Test",
+        type: "line",
+        color: BLACK,
+        levels: [{ value: 100 }],
+      });
       const result = normalizeBacktest(data, false);
       expect(result.overlays[0].showLabel).toBe(false);
     });
 
     it("handles overlay with levels array", () => {
-      const data = {
-        candles: [],
-        trades: [],
-        visuals: {
-          overlays: [
-            {
-              id: "line1",
-              label: "Test",
-              type: "line",
-              color: BLACK,
-              levels: [{ value: 100 }, { value: 110 }],
-            },
-          ],
-        },
-      };
+      const data = overlayData({
+        id: "line1",
+        label: "Test",
+        type: "line",
+        color: BLACK,
+        levels: [{ value: 100 }, { value: 110 }],
+      });
       const result = normalizeBacktest(data, false);
       expect(result.overlays[0].levels).toHaveLength(2);
     });
@@ -306,16 +224,13 @@ describe("normalizeBacktest", () => {
 
   describe("EMA data normalization", () => {
     it("maps ema_series to emaData format", () => {
-      const data = {
-        candles: [{ time: "09:30" }, { time: "09:31" }],
-        trades: [],
-        visuals: {
-          ema_series: [
-            { label: "EMA 9", color: BULLISH, data: [100, 101] },
-            { label: "EMA 21", color: BEARISH, data: [99, 100] },
-          ],
-        },
-      };
+      const data = emaSeriesData(
+        [
+          { label: "EMA 9", color: BULLISH, data: [100, 101] },
+          { label: "EMA 21", color: BEARISH, data: [99, 100] },
+        ],
+        [{ time: "09:30" }, { time: "09:31" }],
+      );
       const result = normalizeBacktest(data, false);
       expect(result.emaData).toHaveLength(2);
       expect(result.emaData[0]).toMatchObject({
@@ -326,27 +241,21 @@ describe("normalizeBacktest", () => {
     });
 
     it("clears emaData when length mismatch", () => {
-      const data = {
-        candles: [{ time: "09:30" }],
-        trades: [],
-        visuals: {
-          ema_series: [
-            { label: "EMA 9", color: BULLISH, data: [100, 101] }, // length 2, candles length 1
-          ],
-        },
-      };
+      const data = emaSeriesData(
+        [
+          { label: "EMA 9", color: BULLISH, data: [100, 101] }, // length 2, candles length 1
+        ],
+        [{ time: "09:30" }],
+      );
       const result = normalizeBacktest(data, false);
       expect(result.emaData).toEqual([]); // Should be cleared
     });
 
     it("keeps emaData when lengths match", () => {
-      const data = {
-        candles: [{ time: "09:30" }, { time: "09:31" }],
-        trades: [],
-        visuals: {
-          ema_series: [{ label: "EMA 9", color: BULLISH, data: [100, 101] }],
-        },
-      };
+      const data = emaSeriesData(
+        [{ label: "EMA 9", color: BULLISH, data: [100, 101] }],
+        [{ time: "09:30" }, { time: "09:31" }],
+      );
       const result = normalizeBacktest(data, false);
       expect(result.emaData).toHaveLength(1);
     });
@@ -363,15 +272,10 @@ describe("normalizeBacktest", () => {
       const data = {
         candles: [],
         trades: [
-          {
-            type: "entry",
-            trade: { entry_price: 100, or_high: 105, or_low: 95 },
-            trade_id: 1,
-            candle_idx: 0,
-          },
+          makeBacktestEntry({ entry_price: 100, or_high: 105, or_low: 95 }),
         ],
       };
-      const result = normalizeBacktest(data, false, undefined, 1);
+      const result = runWithHighlight(data, 1);
       expect(result.markLines).toHaveLength(2);
       expect(result.markLines[0]).toMatchObject({
         yAxis: 105,
@@ -386,35 +290,17 @@ describe("normalizeBacktest", () => {
     });
 
     it("adds R1 line when present", () => {
-      const data = {
-        candles: [],
-        trades: [
-          { type: "entry", trade: { entry_price: 100, r1: 115 }, trade_id: 1, candle_idx: 0 },
-        ],
-      };
-      const result = normalizeBacktest(data, false, undefined, 1);
+      const result = runWithHighlight(backtestPivotHighlight({ r1: 115 }), 1);
       expect(result.markLines.find((ml) => ml.label.formatter.includes("R1"))).toBeDefined();
     });
 
     it("adds S1 line when present", () => {
-      const data = {
-        candles: [],
-        trades: [
-          { type: "entry", trade: { entry_price: 100, s1: 90 }, trade_id: 1, candle_idx: 0 },
-        ],
-      };
-      const result = normalizeBacktest(data, false, undefined, 1);
+      const result = runWithHighlight(backtestPivotHighlight({ s1: 90 }), 1);
       expect(result.markLines.find((ml) => ml.label.formatter.includes("S1"))).toBeDefined();
     });
 
     it("adds PP line when present", () => {
-      const data = {
-        candles: [],
-        trades: [
-          { type: "entry", trade: { entry_price: 100, pp: 100 }, trade_id: 1, candle_idx: 0 },
-        ],
-      };
-      const result = normalizeBacktest(data, false, undefined, 1);
+      const result = runWithHighlight(backtestPivotHighlight({ pp: 100 }), 1);
       expect(result.markLines.find((ml) => ml.label.formatter.includes("PP"))).toBeDefined();
     });
 
@@ -422,19 +308,19 @@ describe("normalizeBacktest", () => {
       const data = {
         candles: [],
         trades: [
-          { type: "entry", trade: { entry_price: 100, or_high: 105 }, trade_id: 1, candle_idx: 0 },
+          makeBacktestEntry({ entry_price: 100, or_high: 105 }),
         ],
       };
-      const result = normalizeBacktest(data, false, undefined, null);
+      const result = runWithHighlight(data, null);
       expect(result.markLines).toEqual([]);
     });
 
     it("does not add markLines for trade without pivot levels", () => {
       const data = {
         candles: [],
-        trades: [{ type: "entry", trade: { entry_price: 100 }, trade_id: 1, candle_idx: 0 }],
+        trades: [makeBacktestEntry()],
       };
-      const result = normalizeBacktest(data, false, undefined, 1);
+      const result = runWithHighlight(data, 1);
       expect(result.markLines).toEqual([]);
     });
   });

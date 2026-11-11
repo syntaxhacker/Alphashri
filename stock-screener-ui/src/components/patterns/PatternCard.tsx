@@ -1,36 +1,77 @@
+import { memo, useMemo } from "react";
 import { ActionIcon, Badge, Box, Card, Text, ToolbarRow, Tooltip } from "@/ui";
 import { IconArrowsMaximize } from "@tabler/icons-react";
-import { formatCurrency, formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
+import { formatPercentage } from "@/utils/ui-helpers";
 import type { PatternHitDTO, TrendlinesView } from "@/types/chartPatterns";
+import { QUALITY_INFO } from "@/config/patternCatalog";
+import { SymbolLink } from "@/components/common/SymbolLink";
+import { hasIndexMembers } from "@/config/indexGroups";
+import { PATTERN_CONFIRMED, PATTERN_FAILED } from "@/ui/palette";
+import { formatPrice } from "./shared";
+import { patternDisplayStatus } from "./patternDisplayStatus";
+import {
+  formatOneDecimal,
+  formatRangePos,
+  formatScore,
+  formatSignedPct1,
+  hitChangePct,
+  hitLastPrice,
+} from "./patternFormat";
+import { changeChartColor, displayToneColor, qualityLabel as qualityLabelFor } from "./patternTone";
 import { PatternMiniChart } from "./PatternMiniChart";
-import { QualityBadge } from "./QualityBadge";
-import { StatusBadge } from "./StatusBadge";
 
 export interface PatternCardProps {
   hit: PatternHitDTO;
   selected?: boolean;
   onClick?: (hit: PatternHitDTO) => void;
   onExpand?: (hit: PatternHitDTO) => void;
+  onShowMembers?: (symbol: string) => void;
   /** View-only filter for standalone support/resistance lines. */
   trendlinesView?: TrendlinesView;
+  /** Hover intent for the right-side symbol preview (host debounces). */
+  onSymbolPreview?: (symbol: string) => void;
+  onSymbolPreviewEnd?: (symbol: string) => void;
+  /** Chart icon: open the symbol in the right-side chart. */
+  onSymbolOpen?: (symbol: string) => void;
 }
 
-function price(value: number | null | undefined): string {
-  return value == null ? "—" : formatCurrency(value, 2);
-}
-
-/** Render a range percentage with at most one decimal (`13` not `13.0`). */
-function rangePct(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <Box sx={{ px: 0.75, py: 0.5, minWidth: 0 }}>
+      <Text
+        size="xs"
+        c="dimmed"
+        fw={700}
+        truncate
+        sx={{ fontSize: 9, lineHeight: 1, letterSpacing: 0.6, textTransform: "uppercase" }}
+      >
+        {label}
+      </Text>
+      <Text
+        size="xs"
+        fw={600}
+        truncate
+        sx={{ fontSize: 11, lineHeight: 1.25, fontVariantNumeric: "tabular-nums" }}
+      >
+        {value}
+      </Text>
+    </Box>
+  );
 }
 
 function Level({ label, value, testId }: { label: string; value: string; testId?: string }) {
   return (
     <Box data-testid={testId} sx={{ display: "flex", flexDirection: "column", gap: 0.25, minWidth: 0 }}>
-      <Text size="xs" c="dimmed" style={{ textTransform: "uppercase" }} fw={700} truncate>
+      <Text
+        size="xs"
+        c="dimmed"
+        fw={700}
+        truncate
+        sx={{ fontSize: 9, lineHeight: 1, letterSpacing: 0.5, textTransform: "uppercase" }}
+      >
         {label}
       </Text>
-      <Text size="sm" fw={600} truncate>
+      <Text size="xs" fw={600} truncate sx={{ fontSize: 11, lineHeight: 1.2, fontVariantNumeric: "tabular-nums" }}>
         {value}
       </Text>
     </Box>
@@ -50,8 +91,12 @@ function consolidationBounds(hit: PatternHitDTO): { lo: number | null; hi: numbe
     .map((line) => line[0]?.price)
     .filter((p): p is number => typeof p === "number" && Number.isFinite(p));
 
+  const pivotHighs = (hit.pivots ?? [])
+    .filter((p) => p.kind !== "low")
+    .map((p) => p.price)
+    .filter((p): p is number => typeof p === "number" && Number.isFinite(p));
   const hi =
-    hit.breakout_level > 0 ? hit.breakout_level : prices.length > 0 ? Math.max(...prices) : null;
+    prices.length > 0 ? Math.max(...prices) : pivotHighs.length > 0 ? Math.max(...pivotHighs) : null;
   const below = hi == null ? prices : prices.filter((p) => p < hi);
   const pivotLows = (hit.pivots ?? [])
     .filter((p) => p.kind !== "high")
@@ -61,24 +106,52 @@ function consolidationBounds(hit: PatternHitDTO): { lo: number | null; hi: numbe
   let lo: number | null = null;
   if (below.length > 0) lo = Math.min(...below);
   else if (pivotLows.length > 0) lo = Math.min(...pivotLows);
-  else if (hit.stop > 0 && (hi == null || hit.stop < hi)) lo = hit.stop;
 
   return { lo, hi };
 }
 
 /** One pattern result card in the grid. */
-export function PatternCard({ hit, selected = false, onClick, onExpand, trendlinesView = "both" }: PatternCardProps) {
-  const sinceStart = hit.start_price !== 0 ? ((hit.end_price - hit.start_price) / hit.start_price) * 100 : 0;
-  const lastPrice = hit.last_close ?? hit.end_price;
-  const changePct = hit.day_change_pct ?? sinceStart;
+export const PatternCard = memo(function PatternCard({
+  hit,
+  selected = false,
+  onClick,
+  onExpand,
+  onShowMembers,
+  trendlinesView = "both",
+  onSymbolPreview,
+  onSymbolPreviewEnd,
+  onSymbolOpen,
+}: PatternCardProps) {
+  const lastPrice = hitLastPrice(hit);
+  const changePct = hitChangePct(hit);
   const barsLabel = `${hit.bars_ago} ${hit.timeframe} candle${hit.bars_ago === 1 ? "" : "s"} ago`;
   const baseDays = hit.base_days ?? 0;
   const isConsolidation = hit.pattern_id === "consolidation" || baseDays > 0;
-  const bounds = isConsolidation ? consolidationBounds(hit) : null;
-  // Enrichment failed for this card (rate-limit/fetch error): the mini chart
-  // falls back to a boundary sketch with no candles. Flag it visibly so a
-  // candle-less card is never mistaken for a clean one.
   const missingCandles = (hit.candles ?? []).length === 0;
+  const bounds = useMemo(() => (isConsolidation ? consolidationBounds(hit) : null), [hit, isConsolidation]);
+  const triggerDistance = useMemo(() => {
+    if (!isConsolidation || bounds?.hi == null || lastPrice <= 0) return null;
+    return ((lastPrice - bounds.hi) / bounds.hi) * 100;
+  }, [isConsolidation, bounds, lastPrice]);
+  const display = useMemo(
+    () =>
+      patternDisplayStatus({
+        rawStatus: hit.status,
+        isBase: isConsolidation,
+        lastClose: hit.last_close ?? null,
+        upper: bounds?.hi ?? null,
+        lower: bounds?.lo ?? null,
+      }),
+    [hit, isConsolidation, bounds]
+  );
+  const qualityKey = String(hit.quality ?? "").toLowerCase();
+  const qualityInfo = QUALITY_INFO[qualityKey as keyof typeof QUALITY_INFO];
+  const quality = qualityLabelFor(qualityKey, "—");
+  const canShowMembers = Boolean(onShowMembers && hasIndexMembers(hit.symbol));
+  const metrics = [
+    { label: "Score", value: formatScore(hit.confidence) },
+    { label: "Pos", value: formatRangePos(hit.range_pos) },
+  ];
 
   return (
     <Card
@@ -89,6 +162,9 @@ export function PatternCard({ hit, selected = false, onClick, onExpand, trendlin
       onKeyDown={
         onClick
           ? (e: React.KeyboardEvent) => {
+              // Inner controls (Members, expand) own their own keys; a bubbled
+              // Enter must not also select the card.
+              if (e.target !== e.currentTarget) return;
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
                 onClick(hit);
@@ -99,62 +175,208 @@ export function PatternCard({ hit, selected = false, onClick, onExpand, trendlin
       sx={{
         border: "1px solid",
         borderColor: selected ? "primary.main" : missingCandles ? "error.main" : "divider",
+        boxShadow: selected ? "inset 0 0 0 1px var(--mui-palette-primary-main)" : "none",
         borderRadius: 1,
         bgcolor: "background.paper",
-        p: 1,
+        overflow: "hidden",
         cursor: onClick ? "pointer" : "default",
+        transition: "border-color 120ms ease",
+        "&:hover": onClick ? { borderColor: "primary.main" } : undefined,
+        // Offscreen containment: the browser skips layout/paint for cards
+        // outside the visible area while the user scrolls a long results grid.
+        contentVisibility: "auto",
+        containIntrinsicSize: "300px 480px",
       }}
     >
-      <Box data-testid="patterns-card" sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-        <ToolbarRow justify="space-between" gap={1} wrap={false}>
-          <Box sx={{ minWidth: 0 }}>
-            <Text size="sm" fw={700} truncate>
-              {hit.symbol}
-            </Text>
-            <Text size="xs" c="dimmed" truncate>
+      <Box
+        data-testid="patterns-card"
+        data-selected={selected ? "true" : undefined}
+        sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}
+      >
+        <Box sx={{ px: 0.75, pt: 0.75, pb: 0.5, display: "flex", gap: 0.75, minWidth: 0 }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <SymbolLink
+              symbol={hit.symbol}
+              testId={`patterns-card-tv-${hit.symbol}-${hit.pattern_id}`}
+              chartTestId={`patterns-card-chart-${hit.symbol}-${hit.pattern_id}`}
+              onOpen={onSymbolOpen}
+              onPreview={onSymbolPreview}
+              onPreviewEnd={onSymbolPreviewEnd}
+              size="sm"
+              weight={700}
+              sx={{ maxWidth: "100%" }}
+            />
+            <Text size="xs" c="dimmed" truncate sx={{ fontSize: 10, lineHeight: 1.25 }}>
               {hit.pattern_name}
             </Text>
           </Box>
-          <ToolbarRow gap={0.5} wrap={false} sx={{ flexShrink: 0 }}>
-            <StatusBadge status={hit.status} />
-            {missingCandles ? (
-              <Tooltip label="Chart data failed to load (rate limit or fetch error) — pattern levels only. Refresh or force-rescan to retry." withArrow position="left">
-                <Badge color="error" size="xs" data-testid={`patterns-card-no-data-${hit.symbol}`}>
-                  No chart
-                </Badge>
+          <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.25, flexShrink: 0 }}>
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-end",
+                gap: 0.25,
+                minWidth: 0,
+              }}
+            >
+              <Text size="xs" c="dimmed" sx={{ fontSize: 9, lineHeight: 1, whiteSpace: "nowrap" }}>
+                {barsLabel}
+              </Text>
+              <Tooltip label={display.tooltip} withArrow position="top">
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Box
+                    sx={{
+                      width: 5,
+                      height: 5,
+                      borderRadius: "50%",
+                      bgcolor: displayToneColor(display.tone),
+                      flexShrink: 0,
+                    }}
+                  />
+                  <Text
+                    data-testid={`patterns-status-${String(hit.status ?? "").toLowerCase()}`}
+                    size="xs"
+                    fw={700}
+                    sx={{
+                      fontSize: 9,
+                      lineHeight: 1,
+                      letterSpacing: 0.5,
+                      textTransform: "uppercase",
+                      color: displayToneColor(display.tone),
+                    }}
+                  >
+                    {display.label}
+                  </Text>
+                </Box>
               </Tooltip>
-            ) : null}
+              <Tooltip label={qualityInfo?.description ?? quality} position="left" withArrow>
+                <Text
+                  data-testid={`patterns-quality-${qualityKey || "unknown"}`}
+                  size="xs"
+                  fw={600}
+                  sx={{
+                    fontSize: 9,
+                    lineHeight: 1,
+                    letterSpacing: 0.5,
+                    textTransform: "uppercase",
+                    color: "text.secondary",
+                    cursor: "help",
+                  }}
+                >
+                  {quality}
+                </Text>
+              </Tooltip>
+            </Box>
+          </Box>
+        </Box>
+
+        <Box sx={{ px: 0.75, pb: 0.5, display: "flex", alignItems: "baseline", gap: 1, minWidth: 0 }}>
+          <Text
+            size="sm"
+            fw={700}
+            sx={{ fontSize: 16, lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}
+          >
+            {formatPrice(lastPrice)}
+          </Text>
+          <Text
+            size="xs"
+            sx={{
+              fontSize: 11,
+              lineHeight: 1.1,
+              fontVariantNumeric: "tabular-nums",
+              color: changeChartColor(changePct),
+            }}
+          >
+            {formatPercentage(changePct, 2)}
+          </Text>
+          {triggerDistance != null ? (
+            <Text
+              data-testid={`patterns-card-to-trigger-${hit.symbol}`}
+              size="xs"
+              c={triggerDistance >= 0 ? "success" : "dimmed"}
+              sx={{
+                fontSize: 10,
+                lineHeight: 1.1,
+                fontVariantNumeric: "tabular-nums",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {`${formatSignedPct1(triggerDistance)} to trigger`}
+            </Text>
+          ) : null}
+          {missingCandles ? (
+            <Tooltip
+              label="Chart data failed to load (rate limit or fetch error) — pattern levels only. Refresh or force-rescan to retry."
+              withArrow
+              position="top"
+            >
+              <Badge color="error" size="xs" data-testid={`patterns-card-no-data-${hit.symbol}`}>
+                No chart
+              </Badge>
+            </Tooltip>
+          ) : null}
+        </Box>
+
+        <Box
+          sx={{
+            position: "relative",
+            borderTop: "1px solid",
+            borderColor: "divider",
+            bgcolor: "background.default",
+            minWidth: 0,
+          }}
+        >
+          <PatternMiniChart hit={hit} trendlinesView={trendlinesView} />
+          <Box
+            sx={{
+              position: "absolute",
+              top: 2,
+              right: 2,
+              display: "flex",
+              alignItems: "center",
+              gap: 0.25,
+              zIndex: 1,
+            }}
+          >
             {onExpand ? (
               <Tooltip label="Open fullscreen chart" withArrow position="left">
                 <ActionIcon
                   variant="subtle"
-                  size="sm"
+                  size="xs"
                   aria-label={`Open fullscreen chart for ${hit.symbol} ${hit.pattern_name}`}
                   data-testid={`patterns-card-expand-${hit.symbol}-${hit.pattern_id}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     onExpand(hit);
                   }}
+                  sx={{
+                    color: "text.secondary",
+                    bgcolor: "background.paper",
+                    opacity: 0.85,
+                    "&:hover": { color: "text.primary", opacity: 1 },
+                  }}
                 >
-                  <IconArrowsMaximize size={15} />
+                  <IconArrowsMaximize size={12} />
                 </ActionIcon>
               </Tooltip>
             ) : null}
-          </ToolbarRow>
-        </ToolbarRow>
-
-        <Box sx={{ px: 0.5 }}>
-          <PatternMiniChart hit={hit} trendlinesView={trendlinesView} />
+          </Box>
         </Box>
 
         {isConsolidation && bounds ? (
-          <ToolbarRow gap={1.5} justify="space-between" wrap={false}>
+          <ToolbarRow
+            gap={1.5}
+            justify="space-between"
+            wrap={false}
+            sx={{ px: 0.75, py: 0.5, borderTop: "1px solid", borderColor: "divider" }}
+          >
             <Level
               testId={`patterns-card-range-${hit.symbol}`}
               label="Range"
               value={
                 bounds.lo != null && bounds.hi != null
-                  ? `${price(bounds.lo)} – ${price(bounds.hi)}`
+                  ? `${formatPrice(bounds.lo)} – ${formatPrice(bounds.hi)}`
                   : "—"
               }
             />
@@ -162,15 +384,21 @@ export function PatternCard({ hit, selected = false, onClick, onExpand, trendlin
               data-testid={`patterns-card-breakout-both-${hit.symbol}`}
               sx={{ display: "flex", flexDirection: "column", gap: 0.25, minWidth: 0 }}
             >
-              <Text size="xs" c="dimmed" style={{ textTransform: "uppercase" }} fw={700} truncate>
-                Breakout
+              <Text
+                size="xs"
+                c="dimmed"
+                fw={700}
+                truncate
+                sx={{ fontSize: 9, lineHeight: 1, letterSpacing: 0.5, textTransform: "uppercase" }}
+              >
+                Range
               </Text>
               <ToolbarRow gap={6} wrap={false}>
-                <Text size="sm" fw={600} c="success" truncate>
-                  ↑ {price(bounds.hi)}
+                <Text size="xs" fw={600} truncate sx={{ fontSize: 11, color: PATTERN_CONFIRMED }}>
+                  ↑ {formatPrice(bounds.hi)}
                 </Text>
-                <Text size="sm" fw={600} c="error" truncate>
-                  ↓ {price(bounds.lo)}
+                <Text size="xs" fw={600} truncate sx={{ fontSize: 11, color: PATTERN_FAILED }}>
+                  ↓ {formatPrice(bounds.lo)}
                 </Text>
               </ToolbarRow>
             </Box>
@@ -178,16 +406,21 @@ export function PatternCard({ hit, selected = false, onClick, onExpand, trendlin
         ) : null}
 
         {baseDays > 0 || hit.to_52w_high != null ? (
-          <ToolbarRow justify="space-between" gap={1}>
+          <ToolbarRow
+            justify="space-between"
+            gap={1}
+            sx={{ px: 0.75, py: 0.25, borderTop: "1px solid", borderColor: "divider" }}
+          >
             {baseDays > 0 ? (
               <Text
                 size="xs"
                 c="dimmed"
                 truncate
                 data-testid={`patterns-card-base-${hit.symbol}-${hit.pattern_id}`}
+                sx={{ fontSize: 9, lineHeight: 1.2 }}
               >
                 {hit.range_pct != null
-                  ? `Base ${baseDays}d · ${rangePct(hit.range_pct)}%`
+                  ? `Base ${baseDays}d · ${formatOneDecimal(hit.range_pct)}%`
                   : `Base ${baseDays}d`}
               </Text>
             ) : (
@@ -199,30 +432,72 @@ export function PatternCard({ hit, selected = false, onClick, onExpand, trendlin
                 c="dimmed"
                 truncate
                 data-testid="patterns-card-52w-gap"
-                sx={{ textAlign: "right" }}
+                sx={{ fontSize: 9, lineHeight: 1.2, textAlign: "right" }}
               >
-                52W: {rangePct(hit.to_52w_high)}%
+                52W: {formatOneDecimal(hit.to_52w_high)}%
               </Text>
             ) : null}
           </ToolbarRow>
         ) : null}
 
-        <ToolbarRow justify="space-between" gap={1}>
-          <Text size="xs" c="dimmed" truncate>
-            {barsLabel}
-          </Text>
-          <QualityBadge quality={hit.quality} />
-        </ToolbarRow>
-
-        <ToolbarRow justify="space-between" gap={1}>
-          <Text size="sm" fw={600}>
-            {price(lastPrice)}
-          </Text>
-          <Text size="xs" c={getPnLTextColor(changePct)}>
-            {formatPercentage(changePct, 2)}
-          </Text>
-        </ToolbarRow>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: `repeat(${canShowMembers ? 5 : 4}, minmax(0, 1fr))`,
+            borderTop: "1px solid",
+            borderColor: "divider",
+          }}
+        >
+          {metrics.map((metric, index) => (
+            <Box
+              key={metric.label}
+              sx={{
+                borderLeft: index === 0 ? "none" : "1px solid",
+                borderColor: "divider",
+                minWidth: 0,
+              }}
+            >
+              <Metric label={metric.label} value={metric.value} />
+            </Box>
+          ))}
+          {canShowMembers ? (
+            <Box
+              sx={{
+                borderLeft: "1px solid",
+                borderColor: "divider",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                minWidth: 0,
+              }}
+            >
+              <Box
+                component="button"
+                type="button"
+                data-testid={`patterns-card-members-${hit.symbol}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onShowMembers?.(hit.symbol);
+                }}
+                sx={{
+                  border: 0,
+                  bgcolor: "transparent",
+                  color: "primary.main",
+                  cursor: "pointer",
+                  fontSize: 9,
+                  fontWeight: 700,
+                  letterSpacing: 0.5,
+                  textTransform: "uppercase",
+                  p: 0.5,
+                  "&:hover": { textDecoration: "underline" },
+                }}
+              >
+                Members
+              </Box>
+            </Box>
+          ) : null}
+        </Box>
       </Box>
     </Card>
   );
-}
+});

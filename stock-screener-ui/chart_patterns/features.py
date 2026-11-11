@@ -12,6 +12,8 @@ primitives to describe geometry (pivots, trendlines, curvature, ATR).
 
 from __future__ import annotations
 
+import weakref
+from collections import OrderedDict
 from typing import Iterable, Sequence
 
 import numpy as np
@@ -20,8 +22,147 @@ import pandas as pd
 OHLCV_COLUMNS = ["open", "high", "low", "close", "volume"]
 
 # ---------------------------------------------------------------------------
+# Frame-scoped memo storage
+# ---------------------------------------------------------------------------
+#
+# ``atr_value`` and ``envelope_line`` are called many times with the same frame
+# inside one ``detect_patterns`` pass (~19 detectors, 63% of envelope calls are
+# exact duplicates). Caching on ``df.attrs`` looked free but pandas 3 deep-copies
+# ``attrs`` on every derived Series (``__finalize__``), which cost ~5% of the
+# engine. This store is keyed by object identity, holds only a weak reference to
+# the frame, and is bounded, so a frame's entries disappear with the frame and a
+# recycled ``id`` can never produce a wrong hit (the weakref identity check
+# fails and the entry is rebuilt).
+#
+# Values are keyed by shape + index edges (not by price values): the lifetime
+# contract is "one frame, one value", exactly like the old ``attrs`` cache, so
+# an in-place price edit on the same frame keeps the memoized ATR. ``envelope_line``
+# additionally fingerprints the boundary column it reads, so a price edit there
+# forces a refit rather than a stale line.
+
+_FRAME_CACHE_MAX = 32
+_ENVELOPE_ENTRY_MAX = 512
+
+
+class _FrameEntry:
+    __slots__ = ("ref", "token", "atr", "envelope")
+
+    def __init__(self, token: tuple) -> None:
+        self.ref = None
+        self.token = token
+        self.atr: dict[int, float] = {}
+        self.envelope: dict[tuple, dict | None] = {}
+
+
+_FRAME_CACHE: "OrderedDict[int, _FrameEntry]" = OrderedDict()
+
+
+def _frame_token(df: pd.DataFrame) -> tuple | None:
+    """Shape + index-edge fingerprint used to reject a recycled ``id``.
+
+    ``DatetimeIndex.asi8`` exposes the raw int64 values without building a
+    ``Timestamp`` per edge (~8x cheaper than ``index[0]``), which matters
+    because this runs on every memoized call.
+    """
+    try:
+        n = len(df)
+        if n == 0:
+            return (0, None, None)
+        index = df.index
+        raw = getattr(index, "asi8", None)
+        if raw is not None:
+            return (n, raw[0], raw[-1])
+        return (n, index[0], index[-1])
+    except Exception:
+        return None
+
+
+def _make_dropper(key: int, entry: _FrameEntry):
+    def _drop(_ref) -> None:
+        # Only remove our own entry: a later frame may already own ``key``.
+        if _FRAME_CACHE.get(key) is entry:
+            _FRAME_CACHE.pop(key, None)
+
+    return _drop
+
+
+def _frame_entry(df: pd.DataFrame) -> _FrameEntry | None:
+    """Return this frame's memo entry, creating it on first use.
+
+    The store is shared across detector threads: every operation is a single
+    dict/OrderedDict call, and a lost race only causes a recompute — never a
+    wrong hit (the weakref identity check and token still gate reuse).
+    """
+    try:
+        key = id(df)
+    except Exception:
+        return None
+    token = _frame_token(df)
+    if token is None:
+        return None
+    entry = _FRAME_CACHE.get(key)
+    if (
+        entry is not None
+        and entry.ref is not None
+        and entry.ref() is df
+        and token == entry.token
+    ):
+        return entry
+    entry = _FrameEntry(token)
+    try:
+        entry.ref = weakref.ref(df, _make_dropper(key, entry))
+    except TypeError:
+        return None
+    _FRAME_CACHE[key] = entry
+    if len(_FRAME_CACHE) > _FRAME_CACHE_MAX:
+        try:
+            _FRAME_CACHE.popitem(last=False)
+        except KeyError:  # another thread emptied it first
+            pass
+    return entry
+
+
+# ---------------------------------------------------------------------------
 # Normalisation
 # ---------------------------------------------------------------------------
+
+
+def _normalized_copy(df: pd.DataFrame) -> pd.DataFrame | None:
+    """Fast path: a defensive copy when ``df`` already meets the contract.
+
+    Returns ``None`` whenever the full path would do any real work (case
+    normalisation, dtype coercion, dedupe/sort, NaN handling, missing volume),
+    so the caller falls back with identical results. Extra columns (e.g. the
+    ``oi`` column on cached frames) are allowed and dropped, matching the
+    full path's ``out[OHLCV_COLUMNS]`` projection; they are never read here.
+    """
+    try:
+        columns = list(df.columns)
+        if len(columns) != len(set(columns)) or not set(OHLCV_COLUMNS) <= set(columns):
+            return None
+        for col in OHLCV_COLUMNS:
+            if df[col].dtype != np.float64:
+                return None
+        index = df.index
+        if not (index.is_unique and index.is_monotonic_increasing):
+            return None
+        close = df["close"].to_numpy(dtype=float, copy=False)
+        volume = df["volume"].to_numpy(dtype=float, copy=False)
+        if not np.isfinite(close).all() or not np.isfinite(volume).all():
+            return None
+        out = df.copy()
+        if columns[: len(OHLCV_COLUMNS)] == OHLCV_COLUMNS:
+            # Cached frames append extras (``oi``) after OHLCV: deleting them
+            # from the copy is far cheaper than a ``df[OHLCV]`` re-selection.
+            for col in columns[len(OHLCV_COLUMNS) :]:
+                del out[col]
+        else:
+            out = out[OHLCV_COLUMNS]
+        # Backward compatibility: callers may still inspect ``attrs``.
+        out.attrs.pop("_atr_cache", None)
+        return out
+    except Exception:
+        return None
 
 
 def normalize_ohlcv(df: pd.DataFrame | None) -> pd.DataFrame | None:
@@ -36,11 +177,15 @@ def normalize_ohlcv(df: pd.DataFrame | None) -> pd.DataFrame | None:
     if not isinstance(df, pd.DataFrame) or df.empty:
         return None
 
+    fast = _normalized_copy(df)
+    if fast is not None:
+        return fast
+
     out = df.copy()
     out.columns = [str(c).lower() for c in out.columns]
-    # Drop any memoized ATR (see ``atr_value``): the copy inherits the input's
-    # ``attrs``, but filtering/sorting below can change the rows, so a cached
-    # value from the source frame must never be reused here.
+    # Drop a legacy memoized ATR (see ``atr_value``): the copy inherits the
+    # input's ``attrs``, but filtering/sorting below can change the rows, so a
+    # cached value from the source frame must never be reused here.
     try:
         out.attrs.pop("_atr_cache", None)
     except AttributeError:
@@ -140,15 +285,20 @@ def linreg_fit(
         return 0.0, 0.0, 0.0
     if len(xs) == 1:
         return 0.0, float(ys[0]), 1.0
-    slope, intercept = np.polyfit(xs, ys, 1)
-    yhat = slope * xs + intercept
-    ss_res = float(((ys - yhat) ** 2).sum())
-    ss_tot = float(((ys - ys.mean()) ** 2).sum())
-    if ss_tot <= 0:
-        r2 = 1.0
-    else:
-        r2 = 1.0 - ss_res / ss_tot
-    return float(slope), float(intercept), float(min(1.0, max(0.0, r2)))
+    # Closed-form OLS: avoids np.polyfit's SVD (`lstsq`) on every window.
+    x_mean = float(xs.mean())
+    y_mean = float(ys.mean())
+    dx = xs - x_mean
+    denom = float((dx * dx).sum())
+    if denom <= 0:
+        return 0.0, y_mean, 1.0
+    slope = float((dx * (ys - y_mean)).sum() / denom)
+    intercept = y_mean - slope * x_mean
+    y_hat = slope * xs + intercept
+    ss_res = float(((ys - y_hat) ** 2).sum())
+    ss_tot = float(((ys - y_mean) ** 2).sum())
+    r2 = 1.0 if ss_tot <= 0 else min(1.0, max(0.0, 1.0 - ss_res / ss_tot))
+    return slope, intercept, r2
 
 
 def fit_pivot_line(
@@ -263,19 +413,17 @@ def atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
 def atr_value(df: pd.DataFrame, period: int = 14) -> float:
     """Last ATR value, with a sane fallback for very short frames.
 
-    Memoized on the frame itself (``df.attrs``): one ``detect_patterns`` call
-    runs ~19 detectors over the same normalised frame and each asks for the
-    ATR, so the ~1ms EMA is computed once per frame instead of ~28 times. The
-    cache dies with the frame, so distinct symbols/frames never share values.
+    Memoized per frame in the frame-scoped store (see ``_frame_entry``): one
+    ``detect_patterns`` call runs ~19 detectors over the same normalised frame
+    and each asks for the ATR, so the ~1ms EMA is computed once per frame
+    instead of ~28 times. The entry dies with the frame, so distinct
+    symbols/frames never share values.
     """
     if df is None or df.empty:
         return 0.0
-    try:
-        cache = df.attrs.get("_atr_cache")
-    except AttributeError:
-        cache = None
-    if isinstance(cache, dict) and period in cache:
-        return cache[period]
+    entry = _frame_entry(df)
+    if entry is not None and period in entry.atr:
+        return entry.atr[period]
     series = atr(df, period)
     val = float(series.iloc[-1]) if not series.empty else 0.0
     if not np.isfinite(val) or val <= 0:
@@ -283,10 +431,8 @@ def atr_value(df: pd.DataFrame, period: int = 14) -> float:
         val = float(rng.tail(min(len(rng), period)).mean())
     if not np.isfinite(val) or val < 0:
         val = 0.0
-    try:
-        df.attrs.setdefault("_atr_cache", {})[period] = val
-    except (AttributeError, TypeError):
-        pass
+    if entry is not None:
+        entry.atr[period] = val
     return val
 
 
@@ -345,15 +491,36 @@ def envelope_line(
     P = sorted(pivots, key=lambda t: t[0]) if pivots else []
     if len(P) < 2:
         return None
-    # Fully vectorised over pivot pairs: one NumPy pass scores every ``(i, j)``
-    # pair instead of a Python loop per pair per bar. The per-cell arithmetic
-    # (``q0 + slope * (x - x0)``, ``d > tol``) is the same IEEE-754 float64
-    # sequence as the scalar loop, rows run in the same ``(i, j)`` order, and
-    # the winner is the first row with the minimal ``(viol, -span)`` key —
-    # exactly the scalar loop's strict-``<`` pick. Rows are chunked so peak
-    # memory stays bounded on pivot-dense frames.
+    # Vectorised over pivot pairs. Every pair (i, j) scores (violations, -span)
+    # over bars in its own span [x0, x1]; cells outside the span never count, so
+    # each pair is scored only over the bars its line is actually drawn across.
+    # Violations for all pairs are counted in one np.bincount pass; the winner is
+    # the first pair (pair order = triu_indices) with the minimal (viol, -span)
+    # key under strict ``<`` improvement -- identical to the reference scalar
+    # loop. ``worst`` (max pierce depth) is reported for the winning pair only and
+    # is recomputed once after selection, so it can never influence which pair
+    # wins.
     boundary = df["high"].to_numpy(dtype=float) if side == "upper" else df["low"].to_numpy(dtype=float)
     n = len(boundary)
+    # Frame-scoped memo: detectors ask for the same boundary repeatedly within
+    # one pass. The key includes the boundary's byte hash so an in-place price
+    # edit can never return a stale line, and the store is keyed by frame
+    # identity (weakref-verified), so symbols never share entries.
+    entry = _frame_entry(df)
+    memo_key = None
+    if entry is not None:
+        try:
+            memo_key = (
+                side,
+                tuple((int(p), float(q)) for p, q in P),
+                float(tol),
+                hash(boundary.tobytes()),
+            )
+        except (TypeError, ValueError):
+            memo_key = None
+        if memo_key is not None and memo_key in entry.envelope:
+            cached = entry.envelope[memo_key]
+            return dict(cached) if cached is not None else None
     xs = np.array([int(p) for p, _ in P])
     qs = np.array([float(q) for _, q in P])
     m = len(P)
@@ -369,37 +536,68 @@ def envelope_line(
     Q1 = qs[rows_j]
     span = X1 - X0
     slopes = (Q1 - Q0) / span
-    grid = np.arange(n, dtype=float)
-    best = None
-    rows_per_chunk = max(1, min(len(X0), 1_000_000 // max(n, 1)))
-    for blk in range(0, len(X0), rows_per_chunk):
-        s = slice(blk, blk + rows_per_chunk)
-        y = Q0[s, None] + slopes[s, None] * (grid[None, :] - X0[s, None])
-        seg = (grid[None, :] >= X0[s, None]) & (grid[None, :] <= X1[s, None])
+    counts = span.astype(np.int64) + 1  # bars in [x0, x1], inclusive
+    num_pairs = len(X0)
+    best_key = None
+    best = -1
+    viol = np.zeros(num_pairs, dtype=np.int64)
+    # Cell budget per block keeps peak memory bounded; blocks run in pair order
+    # so the global first-wins tie-break is unchanged.
+    blk_pairs = max(1, 1_000_000 // max(n, 1))
+    for p0 in range(0, num_pairs, blk_pairs):
+        p1 = min(p0 + blk_pairs, num_pairs)
+        sl = slice(p0, p1)
+        b_counts = counts[sl]
+        b_total = int(b_counts.sum())
+        Pidx = np.repeat(np.arange(p0, p1), b_counts)
+        cell_idx = np.arange(b_total)
+        starts = np.cumsum(b_counts) - b_counts
+        K = (X0[Pidx] + (cell_idx - np.repeat(starts, b_counts))).astype(np.int64)
+        Kf = K.astype(np.float64)
+        y = Q0[Pidx] + slopes[Pidx] * (Kf - X0[Pidx])
         if side == "upper":
-            d = boundary[None, :] - y
+            d = boundary[K] - y  # violation: price pierces above the line
         else:
-            d = y - boundary[None, :]
-        over = seg & (d > tol)
-        viol = over.sum(axis=1)
-        worst = np.where(over, d, -np.inf).max(axis=1)
-        w = int(np.lexsort((-(span[s]), viol))[0])
-        key = (int(viol[w]), -int(span[s][w]))
-        if best is None or key < best["key"]:
-            slope = float(slopes[s][w])
-            x0 = int(X0[s][w])
-            best = {
-                "key": key,
-                "slope": slope,
-                "intercept": float(Q0[s][w]) - slope * x0,
-                "x0": x0,
-                "q0": float(Q0[s][w]),
-                "x1": int(X1[s][w]),
-                "q1": float(Q1[s][w]),
-                "viol": int(viol[w]),
-                "worst": float(worst[w]) if viol[w] > 0 else 0.0,
-            }
-    return best
+            d = y - boundary[K]  # violation: price pierces below the line
+        over = d > tol
+        viol[sl] = np.bincount(Pidx, weights=over.astype(np.uint8), minlength=p1 - p0).astype(np.int64)
+        for k in range(p0, p1):
+            key = (int(viol[k]), -int(span[k]))
+            if best_key is None or key < best_key:
+                best_key = key
+                best = k
+    if best < 0:
+        return None
+    # Winner's cells are contiguous ([start, start+count)), so its worst pierce
+    # depth is one small vectorised reduction instead of per-row work.
+    x0b = int(X0[best])
+    x1b = int(X1[best])
+    Kb = np.arange(x0b, x1b + 1, dtype=np.int64)
+    Kbf = Kb.astype(np.float64)
+    yb = float(Q0[best]) + float(slopes[best]) * (Kbf - X0[best])
+    if side == "upper":
+        db = boundary[Kb] - yb
+    else:
+        db = yb - boundary[Kb]
+    overb = db > tol
+    worst = float(db[overb].max()) if bool(overb.any()) else 0.0
+    slope = float(slopes[best])
+    result = {
+        "slope": slope,
+        "intercept": float(Q0[best]) - slope * x0b,
+        "x0": x0b,
+        "q0": float(Q0[best]),
+        "x1": x1b,
+        "q1": float(Q1[best]),
+        "viol": int(viol[best]),
+        "worst": worst,
+    }
+    if entry is not None and memo_key is not None:
+        if len(entry.envelope) >= _ENVELOPE_ENTRY_MAX:
+            entry.envelope.clear()
+        # Store a private copy: the caller owns the returned dict and may edit it.
+        entry.envelope[memo_key] = dict(result)
+    return result
 
 
 def count_touches(

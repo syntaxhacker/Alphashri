@@ -4,7 +4,7 @@
 
 import { createSubscriber } from "./createSubscriber";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+import { API_BASE } from "@/api/config";
 const TOKEN_KEY = "alphashri_token";
 const REFRESH_TOKEN_KEY = "alphashri_refresh_token";
 const USER_KEY = "alphashri_user";

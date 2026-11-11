@@ -9,11 +9,18 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import json
+import logging
+import os
 import queue as _queue
 import threading
+import time as _time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
-from typing import Optional
+from datetime import date, datetime, timedelta
+from typing import NamedTuple, Optional
+
+from sqlalchemy.orm import Session
+
+from db.database import get_db
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
@@ -24,6 +31,7 @@ from chart_patterns import candles, config, jobs, store
 from chart_patterns import scan as scan_mod
 from chart_patterns import trendlines as trendlines_mod
 from chart_patterns import watch as watch_mod
+from chart_patterns.tags import tags_for
 from chart_patterns.parallel import max_workers as _parallel_max_workers
 
 import config as root_config
@@ -38,6 +46,31 @@ from api.utils import _sanitize_for_json
 
 router = APIRouter(prefix="/api/chart-patterns", tags=["chart-patterns"])
 
+# Risk sizing (stop/target/breakout/RR) is the trader's job, not the pattern
+# engine's. The DB keeps the columns for the watch trigger, but the API never
+# exposes them to the chart/scan.
+_RISK_FIELDS = ("breakout_level", "target", "stop", "rr", "breakout_score")
+
+
+def _strip_risk_fields(items) -> None:
+    for item in items or []:
+        if isinstance(item, dict):
+            for key in _RISK_FIELDS:
+                item.pop(key, None)
+
+
+def _json_response(payload) -> JSONResponse:
+    """Sanitize once, then serialize directly instead of letting FastAPI re-encode.
+
+    Every endpoint previously wrote ``JSONResponse(content=_sanitize_for_json(x))``
+    (or ``return _sanitize_for_json(x)``). The dict form makes FastAPI run a
+    second full ``jsonable_encoder`` traversal — costly on candle-heavy cards.
+    Both forms produce the same wire body: ``_sanitize_for_json`` has already
+    flattened every leaf, and ``JSONResponse`` refuses NaN/Inf (``allow_nan``
+    is off), so nothing sanitizable reaches the encoder either way.
+    """
+    return JSONResponse(content=_sanitize_for_json(payload))
+
 
 # ---------------------------------------------------------------------------
 # Frozen fallbacks (CONTRACT.md §1/§2) — used only if Agent 1's registries are
@@ -46,13 +79,11 @@ router = APIRouter(prefix="/api/chart-patterns", tags=["chart-patterns"])
 
 _FALLBACK_TIMEFRAMES = [
     {"id": "1m", "label": "1m", "minutes": 1, "native": True, "source_tf": None, "max_lookback_days": 30, "min_bars": 60},
-    {"id": "3m", "label": "3m", "minutes": 3, "native": False, "source_tf": "1m", "max_lookback_days": 30, "min_bars": 60},
     {"id": "5m", "label": "5m", "minutes": 5, "native": True, "source_tf": None, "max_lookback_days": 90, "min_bars": 60},
     {"id": "10m", "label": "10m", "minutes": 10, "native": True, "source_tf": None, "max_lookback_days": 90, "min_bars": 60},
     {"id": "15m", "label": "15m", "minutes": 15, "native": True, "source_tf": None, "max_lookback_days": 90, "min_bars": 60},
     {"id": "30m", "label": "30m", "minutes": 30, "native": True, "source_tf": None, "max_lookback_days": 180, "min_bars": 60},
     {"id": "1h", "label": "1h", "minutes": 60, "native": True, "source_tf": None, "max_lookback_days": 365, "min_bars": 60},
-    {"id": "2h", "label": "2h", "minutes": 120, "native": False, "source_tf": "1h", "max_lookback_days": 365, "min_bars": 60},
     {"id": "3h", "label": "3h", "minutes": 180, "native": False, "source_tf": "1h", "max_lookback_days": 365, "min_bars": 60},
     {"id": "4h", "label": "4h", "minutes": 240, "native": False, "source_tf": "1h", "max_lookback_days": 365, "min_bars": 60},
     {"id": "1D", "label": "1D", "minutes": 1440, "native": True, "source_tf": None, "max_lookback_days": 730, "min_bars": 60},
@@ -102,6 +133,657 @@ _UNIVERSE_ALIASES = {"all": "all_equity"}
 _name_cache: Optional[dict] = None
 
 
+# Candle ``t`` strings depend only on the frame index, and every symbol
+# fetched for the same session shares the same trading calendar — reformatting
+# 712 timestamps per distinct symbol is pure recomputation. The lists are
+# time-invariant for a given (tz, length, timestamp bytes) key, so a small
+# bounded cache turns a ~1.8 ms per-frame isoformat loop into a lookup.
+_TS_CACHE_LOCK = threading.Lock()
+_TS_CACHE: dict = {}
+_TS_CACHE_MAX = 8
+
+
+# ---------------------------------------------------------------------------
+# Short-TTL read cache (stale-scan-safe)
+#
+# ``/summary`` and ``/matrix`` re-query the store on every UI poll, but the
+# underlying hit set only changes when a new scan completes. Entries are keyed
+# on the ``last_scan_at`` of the latest completed job for the requested
+# universe/timeframe(s), plus a 3-second TTL backstop: if a newer scan
+# finishes, the key changes and the recompute runs immediately, so no
+# response can outlive the scan it was built from by more than the TTL.
+# ``/results`` is deliberately *not* cached (enrichment + fresh cards).
+# ---------------------------------------------------------------------------
+
+_READ_CACHE_TTL_SEC = 3.0
+_summary_cache: dict = {}
+_matrix_cache: dict = {}
+_read_cache_lock = threading.Lock()
+_READ_CACHE_MAX_ENTRIES = 64
+
+
+def _freeze_filters(filters: dict) -> tuple:
+    """Hashable snapshot of a store filter dict (lists become tuples)."""
+    items = []
+    for key in sorted(filters):
+        value = filters[key]
+        if isinstance(value, list):
+            value = tuple(value)
+        items.append((key, value))
+    return tuple(items)
+
+
+def _last_scan_at_for(universe, timeframe):
+    """Latest completed job's ``finished_at`` for a combo (``None``-safe)."""
+    try:
+        session = store._new_session()
+        try:
+            return store._last_scan_at(session, {"universe": universe, "timeframe": timeframe})
+        finally:
+            session.close()
+    except Exception:
+        return None
+
+
+def _read_cache_get(cache: dict, key):
+    now = _time.monotonic()
+    with _read_cache_lock:
+        entry = cache.get(key)
+        if entry is None:
+            return None
+        expires, payload = entry
+        if now < expires:
+            return payload
+        cache.pop(key, None)
+        return None
+
+
+def _read_cache_put(cache: dict, key, payload) -> None:
+    now = _time.monotonic()
+    with _read_cache_lock:
+        while len(cache) >= _READ_CACHE_MAX_ENTRIES:
+            cache.pop(next(iter(cache)), None)
+        cache[key] = (now + _READ_CACHE_TTL_SEC, payload)
+
+
+def _clear_read_caches() -> None:
+    """Drop the short-TTL read caches (tests + operator resets)."""
+    with _read_cache_lock:
+        _summary_cache.clear()
+        _matrix_cache.clear()
+
+
+# ---------------------------------------------------------------------------
+# Symbol chart fetch: hard timeout + negative cache for empty results.
+#
+# A missing/slow symbol (Upstox DNS failure, hung feed) must not hold
+# ``GET /symbol/{symbol}/chart`` for 30s and then repeat the wait on every
+# click. The upstream fetch is capped by ``CHART_FETCH_TIMEOUT_SEC``; on
+# timeout or an empty frame the endpoint answers ``{"candles":[]}`` with an
+# ``error``/``note`` instead of 500. Empty results are cached per
+# ``(symbol, timeframe, IST session)`` for ~5 minutes so a repeat click is
+# instant; entries never outlive the session they were taken in.
+#
+# When the upstream fails (timeout / error / no data) and the default
+# live-edge disk cache entry holds a completed-session frame, the endpoint
+# serves that frame marked ``cached``/``stale`` with ``as_of`` set to the
+# frame's last session — never as current data. The read is local disk,
+# adds no network call, and never applies to historical/as-of namespaced
+# cache files.
+# ---------------------------------------------------------------------------
+
+#: Hard upper bound on one symbol-chart candle fetch (seconds). Env-overridable
+#: for deployments on slower feeds; 0 disables the cap.
+_CHART_FETCH_TIMEOUT_SEC = float(os.environ.get("CHART_FETCH_TIMEOUT_SEC", "7.0"))
+#: TTL of a negative (empty-result) cache entry (seconds).
+_CHART_NEG_CACHE_TTL_SEC = float(os.environ.get("CHART_NEG_CACHE_TTL_SEC", "300.0"))
+_CHART_NEG_CACHE_MAX = 256
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+
+
+#: Max calendar-day lag (daily bars only print on NSE sessions, so this is
+#: effectively "N sessions behind") beyond which stale-first refuses to serve a
+#: cached frame and falls through to the normal (bounded) network path. On
+#: network failure the endpoint returns an error instead of an ancient cached
+#: frame — a stale frame older than this is never served as current.
+#: Env-overridable; default 3 keeps the previous 3-day tolerance.
+_MAX_STALE_DAYS = _env_int("CHART_MAX_STALE_DAYS", 3)
+
+#: Background refresh: max fetch attempts and bounded backoff (seconds) between
+#: them, so a transient Upstox 429/timeout cannot pin the cache forever.
+_MAX_REFRESH_ATTEMPTS = _env_int("CHART_REFRESH_MAX_ATTEMPTS", 3)
+_REFRESH_BACKOFF_SEC = (0.0, 2.0, 5.0)
+
+
+_chart_neg_cache: dict[tuple[str, str, str], tuple[float, dict]] = {}
+_chart_neg_cache_lock = threading.Lock()
+_chart_logger = logging.getLogger(__name__)
+
+
+def _ist_session_date() -> str:
+    """Today's IST session date — the date component of the negative-cache key."""
+    return datetime.now(root_config.IST).strftime("%Y-%m-%d")
+
+
+def _chart_neg_cache_get(symbol: str, timeframe: str, session: str) -> Optional[dict]:
+    now = _time.monotonic()
+    key = (str(symbol).upper(), str(timeframe), session)
+    with _chart_neg_cache_lock:
+        entry = _chart_neg_cache.get(key)
+        if entry is None:
+            return None
+        expires, payload = entry
+        if now < expires:
+            return payload
+        _chart_neg_cache.pop(key, None)
+        return None
+
+
+def _chart_neg_cache_put(symbol: str, timeframe: str, session: str, payload: dict) -> None:
+    now = _time.monotonic()
+    key = (str(symbol).upper(), str(timeframe), session)
+    with _chart_neg_cache_lock:
+        while len(_chart_neg_cache) >= _CHART_NEG_CACHE_MAX:
+            _chart_neg_cache.pop(next(iter(_chart_neg_cache)), None)
+        _chart_neg_cache[key] = (now + _CHART_NEG_CACHE_TTL_SEC, payload)
+
+
+def _chart_empty_payload(symbol: str, timeframe: str, *, reason: str, note: str) -> dict:
+    """Empty chart answer carrying a machine-readable ``error`` + human ``note``."""
+    return {
+        "symbol": str(symbol).upper(),
+        "timeframe": timeframe,
+        "candles": [],
+        "overlays": [],
+        "trend_lines": [],
+        "error": reason,
+        "note": note,
+    }
+
+
+def _stale_chart_fallback(
+    symbol: str,
+    timeframe: str,
+    *,
+    fetch_lookback: Optional[int],
+    clamp_lookback: Optional[int],
+    limit: int,
+    reason: str,
+) -> Optional[dict]:
+    """Last good on-disk frame for the live-edge cache entry, else ``None``.
+
+    Read-only and network-free. Only the default live-edge entry the fetch
+    itself would have used (matching ``lb{N}`` lookback variant) is
+    considered — historical/as-of namespaced files are never served. A frame
+    from an earlier session is returned solely with ``cached``/``stale`` set
+    and ``as_of`` pinned to the frame's last session date, so it can never
+    present itself as current data. Never raises.
+    """
+    try:
+        lb = None if fetch_lookback is None else int(fetch_lookback)
+        variant = f"lb{lb}" if lb is not None else None
+        path = candles._cache_path(timeframe, symbol, None, variant=variant)
+        df = candles._read_pickle_any(path)
+        if df is None:
+            return None
+        as_of = candles.frame_last_date(df)
+        if not as_of:
+            return None
+        series = _clamped_candle_series(df, clamp_lookback, limit)
+        if not series:
+            return None
+    except Exception:
+        return None
+    return {
+        "symbol": str(symbol).upper(),
+        "timeframe": timeframe,
+        "candles": series,
+        "overlays": [],
+        "trend_lines": [],
+        "cached": True,
+        "stale": True,
+        "as_of": as_of,
+        "note": f"served last cached frame (through {as_of}); {reason}",
+    }
+
+
+def _log_chart_fetch(
+    symbol: str,
+    timeframe: str,
+    *,
+    elapsed_ms: float,
+    rows: int,
+    cache_hit: bool,
+    timeout: bool,
+    error: Optional[str],
+    stale_fallback: bool = False,
+) -> None:
+    _chart_logger.info(
+        "chart_fetch symbol=%s timeframe=%s elapsed_ms=%.0f rows=%d cache_hit=%s timeout=%s error=%s stale_fallback=%s",
+        symbol, timeframe, elapsed_ms, rows, bool(cache_hit), bool(timeout), error or "",
+        "true" if stale_fallback else "false",
+    )
+
+
+def _session_lag_days(as_of: Optional[str], expected: Optional[str]) -> Optional[int]:
+    """Calendar-day lag of ``as_of`` behind ``expected`` (sessions for daily
+    frames, which only print on trading days). ``None`` when unparseable."""
+    if not as_of or not expected:
+        return None
+    try:
+        return (date.fromisoformat(expected) - date.fromisoformat(as_of)).days
+    except (ValueError, TypeError):
+        return None
+
+
+def _log_refresh_result(symbol: str, timeframe: str, *, attempt: int,
+                        max_attempts: int, rows: int, as_of: Optional[str],
+                        expected_as_of: Optional[str], fresh: bool,
+                        lag_days: Optional[int], elapsed_ms: float,
+                        error: Optional[str] = None) -> None:
+    """One structured line per background refresh attempt / final give-up."""
+    _chart_logger.info(
+        "chart_stale_first_refresh symbol=%s timeframe=%s attempt=%d/%d rows=%d "
+        "as_of=%s expected_as_of=%s fresh=%s lag_days=%s elapsed_ms=%.0f error=%s",
+        symbol, timeframe, attempt, max_attempts, rows,
+        as_of or "", expected_as_of or "", fresh,
+        lag_days if lag_days is not None else "", elapsed_ms, error or "",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Symbol chart fetch: stale-first serving + pattern-hit cache.
+#
+# For live ``GET /symbol/{symbol}/chart`` (no replay/as-of) the default
+# live-edge disk cache is checked *before* the network. A session-current
+# frame is returned immediately with ``cached``/``stale`` set and ``as_of``
+# pinned to its last session — never as current data — while a daemon thread
+# re-fetches in the background so the next poll sees fresh candles. "Session
+# current" means: an intraday frame must carry a bar from today (IST); a 1D
+# frame must reach the last completed session. The read is one local pickle,
+# size-capped, adds no network call, and never applies to replay/as-of
+# requests.
+#
+# ``detect_patterns`` results (and the trend lines computed alongside them)
+# are cached per ``(symbol, timeframe, IST session)`` for ~5 minutes so a
+# fullscreen poll does not re-run the detector when nothing changed. Entries
+# never apply across sessions.
+# ---------------------------------------------------------------------------
+
+#: Largest default live-edge pickle the stale-first read will touch (bytes).
+_STALE_FIRST_MAX_BYTES = int(os.environ.get("CHART_STALE_FIRST_MAX_BYTES", str(16 * 1024 * 1024)))
+#: Expected upper bound (ms) for the stale-first disk read; breaches are logged.
+_STALE_FIRST_DISK_BUDGET_MS = float(os.environ.get("CHART_STALE_FIRST_DISK_BUDGET_MS", "250"))
+_PATTERN_HIT_CACHE_TTL_SEC = float(os.environ.get("CHART_PATTERN_HIT_CACHE_TTL_SEC", "300.0"))
+_PATTERN_HIT_CACHE_MAX = 256
+
+_pattern_hit_cache: dict[tuple[str, str, str], tuple[float, dict]] = {}
+_pattern_hit_cache_lock = threading.Lock()
+#: (symbol, timeframe) pairs with an in-flight background refresh (dedupe).
+_refresh_inflight: set[tuple[str, str]] = set()
+_refresh_inflight_lock = threading.Lock()
+
+
+def _pattern_hit_cache_get(symbol: str, timeframe: str, session: str) -> Optional[dict]:
+    now = _time.monotonic()
+    key = (str(symbol).upper(), str(timeframe), session)
+    with _pattern_hit_cache_lock:
+        entry = _pattern_hit_cache.get(key)
+        if entry is None:
+            return None
+        expires, payload = entry
+        if now < expires:
+            return payload
+        _pattern_hit_cache.pop(key, None)
+        return None
+
+
+def _pattern_hit_cache_put(symbol: str, timeframe: str, session: str, payload: dict) -> None:
+    now = _time.monotonic()
+    key = (str(symbol).upper(), str(timeframe), session)
+    with _pattern_hit_cache_lock:
+        while len(_pattern_hit_cache) >= _PATTERN_HIT_CACHE_MAX:
+            _pattern_hit_cache.pop(next(iter(_pattern_hit_cache)), None)
+        _pattern_hit_cache[key] = (now + _PATTERN_HIT_CACHE_TTL_SEC, payload)
+
+
+def _clear_pattern_hit_cache() -> None:
+    """Drop the pattern-hit cache (tests + operator resets)."""
+    with _pattern_hit_cache_lock:
+        _pattern_hit_cache.clear()
+
+
+def _clear_chart_caches() -> None:
+    """Drop every symbol-chart cache (tests + operator resets)."""
+    with _chart_neg_cache_lock:
+        _chart_neg_cache.clear()
+    _clear_pattern_hit_cache()
+    with _refresh_inflight_lock:
+        _refresh_inflight.clear()
+
+
+def _stale_first_frame(symbol: str, timeframe: str, lookback_bars) -> Optional[tuple]:
+    """Default live-edge disk frame when session-current, else ``None``.
+
+    Local-disk read only: one size-capped pickle, no network. Returns
+    ``(df, as_of, read_ms)`` where ``as_of`` is the frame's last IST session
+    date. Never raises.
+
+    For ``1W``/``1M`` with no exact (fresh) cache, falls back to resampling
+    the default ``1D`` cache locally (``W-FRI`` / month-end) so a weekly or
+    monthly chart loads instantly instead of going to the network.
+    """
+    try:
+        lb = None if lookback_bars is None else int(lookback_bars)
+        variant = f"lb{lb}" if lb is not None else None
+        path = candles._cache_path(timeframe, symbol, None, variant=variant)
+        # A chart asks for the READ_LOOKBACK_BARS variant (e.g. lb500); if that
+        # file was never written, the default live-edge frame is still a valid
+        # stale fallback. This is what makes a symbol chart load instantly
+        # after any prior fetch, regardless of the lookback variant.
+        candidates = [path]
+        if variant is not None:
+            alt = candles._cache_path(timeframe, symbol, None)
+            if alt != path:
+                candidates.append(alt)
+        chosen = None
+        for candidate in candidates:
+            try:
+                candidate.stat().st_size
+            except OSError:
+                continue
+            chosen = candidate
+            break
+        df = None
+        read_ms = 0.0
+        if chosen is not None:
+            try:
+                size = chosen.stat().st_size
+            except OSError:
+                size = 0
+            if size <= _STALE_FIRST_MAX_BYTES:
+                start = _time.monotonic()
+                df = candles._read_pickle_any(chosen)
+                read_ms = (_time.monotonic() - start) * 1000.0
+                if read_ms > _STALE_FIRST_DISK_BUDGET_MS:
+                    _chart_logger.warning(
+                        "chart_stale_first slow disk read symbol=%s timeframe=%s read_ms=%.0f",
+                        symbol, timeframe, read_ms,
+                    )
+        if df is not None:
+            as_of = candles.frame_last_date(df)
+            if as_of:
+                try:
+                    lcs = candles._last_completed_session().isoformat()
+                except Exception:
+                    lcs = None
+                if timeframe == "1D":
+                    # One stale session (or a weekend) is still worth serving:
+                    # the whole point is instant candles while the background
+                    # refresh runs. Anything beyond the max-staleness cap is
+                    # refused so the caller falls through to the live fetch.
+                    lag = _session_lag_days(as_of, lcs)
+                    ok = bool(lcs) and lag is not None and lag <= _MAX_STALE_DAYS
+                    if not ok and lcs:
+                        _chart_logger.info(
+                            "chart_stale_first rejected=stale symbol=%s timeframe=%s "
+                            "as_of=%s expected_as_of=%s lag_days=%s max_stale_days=%d",
+                            symbol, timeframe, as_of, lcs,
+                            lag if lag is not None else "", _MAX_STALE_DAYS,
+                        )
+                else:
+                    ok = as_of == _ist_session_date()
+                if ok:
+                    return df, as_of, read_ms
+        # Weekly/monthly resample fallback: no exact (fresh) 1W/1M cache, so
+        # resample the default 1D cache locally — capped work, no network.
+        if timeframe in ("1W", "1M"):
+            return _stale_first_resampled_daily(symbol, timeframe)
+        return None
+    except Exception:
+        return None
+
+
+def _stale_first_resampled_daily(symbol: str, timeframe: str) -> Optional[tuple]:
+    """Resample the default ``1D`` live-edge cache into ``1W`` (``W-FRI``) or
+    ``1M`` (month-end) candles. Network-free, local disk only.
+
+    Returns ``(df, as_of, read_ms)`` where ``as_of`` is the last session date
+    of the source daily frame (truthful "data through" date), or ``None`` when
+    there is no usable ``1D`` cache. The caller marks the result ``stale``.
+    """
+    try:
+        path = candles._cache_path("1D", symbol, None)
+        try:
+            size = path.stat().st_size
+        except OSError:
+            return None
+        if size > _STALE_FIRST_MAX_BYTES:
+            _chart_logger.info(
+                "chart_stale_first_resample skipped=size symbol=%s timeframe=%s bytes=%d",
+                symbol, timeframe, size,
+            )
+            return None
+        start = _time.monotonic()
+        df = candles._read_pickle_any(path)
+        read_ms = (_time.monotonic() - start) * 1000.0
+        if df is None:
+            return None
+        as_of = candles.frame_last_date(df)
+        if not as_of:
+            return None
+        # Same 3-day freshness tolerance as the 1D stale-first path.
+        try:
+            lcs = candles._last_completed_session().isoformat()
+        except Exception:
+            lcs = None
+        if (
+            not lcs
+            or as_of
+            < (datetime.fromisoformat(lcs) - timedelta(days=3)).date().isoformat()
+        ):
+            return None
+        rule = "W-FRI" if timeframe == "1W" else "ME"
+        out = candles._resample_ohlcv(df, rule)
+        if out is None or out.empty:
+            return None
+        return out, as_of, read_ms
+    except Exception:
+        return None
+
+
+def _kick_stale_first_refresh(symbol: str, timeframe: str, lookback_bars) -> bool:
+    """Re-fetch the default live-edge frame in a daemon thread, with bounded
+    retries so a transient Upstox 429/timeout cannot pin the cache forever.
+
+    The request never waits on this; the fresh frame lands in the disk cache
+    for the next poll. ``force_refresh`` bypasses the disk read and the
+    empty-result negative caches so the refresh actually rewrites the cache.
+    Returns ``False`` when a refresh for the pair is already in flight.
+    """
+    key = (str(symbol).upper(), str(timeframe))
+    with _refresh_inflight_lock:
+        if key in _refresh_inflight:
+            return False
+        _refresh_inflight.add(key)
+
+    def _run() -> None:
+        last_exc: Optional[Exception] = None
+        try:
+            try:
+                expected_as_of = candles._last_completed_session().isoformat()
+            except Exception:
+                expected_as_of = None
+            for attempt in range(1, _MAX_REFRESH_ATTEMPTS + 1):
+                attempt_started = _time.monotonic()
+                exc: Optional[Exception] = None
+                try:
+                    df = candles.fetch_for_timeframe(
+                        key[0], key[1],
+                        lookback_bars=None if lookback_bars is None else int(lookback_bars),
+                        include_partial_today=False,
+                        force_refresh=True,
+                    )
+                except Exception as e:  # noqa: BLE001 - background refresh never propagates
+                    exc = e
+                    df = None
+                last_exc = exc or last_exc
+                rows = 0
+                as_of: Optional[str] = None
+                fresh = False
+                lag_days: Optional[int] = None
+                if df is not None and not getattr(df, "empty", True):
+                    rows = int(len(df))
+                    as_of = candles.frame_last_date(df)
+                    lag_days = _session_lag_days(as_of, expected_as_of)
+                    fresh = bool(expected_as_of and as_of and as_of >= expected_as_of)
+                elapsed_ms = (_time.monotonic() - attempt_started) * 1000.0
+                _log_refresh_result(
+                    key[0], key[1], attempt=attempt,
+                    max_attempts=_MAX_REFRESH_ATTEMPTS, rows=rows, as_of=as_of,
+                    expected_as_of=expected_as_of, fresh=fresh, lag_days=lag_days,
+                    elapsed_ms=elapsed_ms,
+                    error=None if exc is None else str(exc)[:200],
+                )
+                # A non-empty frame (even one that lags the daily API) is the
+                # best available data — fetch_for_timeframe has already written
+                # it to the cache — so stop retrying and let the next poll serve
+                # it (marked with expected_as_of when it lags).
+                if df is not None and not getattr(df, "empty", True):
+                    return
+                # Empty frame (Upstox returned nothing this session) or an
+                # exception: retry after bounded backoff.
+                if attempt < _MAX_REFRESH_ATTEMPTS:
+                    try:
+                        _time.sleep(_REFRESH_BACKOFF_SEC[
+                            min(attempt - 1, len(_REFRESH_BACKOFF_SEC) - 1)])
+                    except Exception:
+                        pass
+        finally:
+            with _refresh_inflight_lock:
+                _refresh_inflight.discard(key)
+        _chart_logger.warning(
+            "chart_stale_first_refresh exhausted symbol=%s timeframe=%s "
+            "attempts=%d last_error=%s", key[0], key[1], _MAX_REFRESH_ATTEMPTS,
+            str(last_exc)[:200] if last_exc else "",
+        )
+
+    threading.Thread(target=_run, name=f"chart-stale-refresh-{key[0]}-{key[1]}", daemon=True).start()
+    return True
+
+
+def _stored_overlays_and_lines(symbol_u: str, timeframe: str) -> tuple[list, list]:
+    """Stored-scan overlays + fresh stored trend lines. Never raises."""
+    overlays: list = []
+    stored_fresh_lines: list = []
+    try:
+        detail = store.get_symbol_detail(symbol_u, timeframe)
+    except Exception:
+        detail = {}
+    try:
+        chart_sig = config.trendline_signature()
+    except Exception:
+        chart_sig = None
+    for pattern in (detail.get("patterns", []) if isinstance(detail, dict) else []):
+        if pattern.get("trendlines"):
+            overlays.append({
+                "pattern_id": pattern.get("pattern_id"),
+                "pattern_name": pattern.get("pattern_name"),
+                "direction": pattern.get("direction"),
+                "trendlines": pattern.get("trendlines"),
+                "start_date": pattern.get("start_date"),
+                "end_date": pattern.get("end_date"),
+                "id": pattern.get("id"),
+            })
+        if not stored_fresh_lines and _stored_lines_fresh(pattern, chart_sig):
+            stored_fresh_lines = list(pattern.get("trend_lines") or [])
+    return overlays, stored_fresh_lines
+
+
+def _detect_trend_lines(df, lookback_bars, stored_fresh_lines) -> list:
+    if stored_fresh_lines:
+        return list(stored_fresh_lines)
+    try:
+        _res = trendlines_mod.detect_trendlines(df, lookback_bars=lookback_bars)
+        return [v for v in (_res.get("support"), _res.get("resistance")) if v] if isinstance(_res, dict) else []
+    except Exception:
+        return []
+
+
+def _pattern_block(df, symbol_u: str, timeframe: str, session: str, lookback_bars,
+                   compute_trendlines: bool, stored_fresh_lines) -> dict:
+    """Hits/trend lines for the live chart, pattern-hit-cache aware.
+
+    Shared by the network path and the stale-first path. On a cache hit (same
+    IST session) the engine/detector are not re-run. Returns a dict with
+    ``hits``, ``live_overlays``, ``trend_lines`` (``None`` when not computed)
+    and ``cache_hit``. Never raises.
+    """
+    cached = _pattern_hit_cache_get(symbol_u, timeframe, session)
+    if cached is not None:
+        cached_tl = cached.get("trend_lines")
+        tl_ok = False
+        if cached_tl is not None:
+            try:
+                tl_ok = cached.get("trend_lines_sig") == config.trendline_signature()
+            except Exception:
+                tl_ok = True
+        if not compute_trendlines:
+            trend_lines: Optional[list] = []
+        elif tl_ok:
+            trend_lines = list(cached_tl)
+        else:
+            trend_lines = _detect_trend_lines(df, lookback_bars, stored_fresh_lines)
+        return {
+            "hits": list(cached.get("hits") or []),
+            "live_overlays": list(cached.get("live_overlays") or []),
+            "trend_lines": trend_lines,
+            "cache_hit": True,
+        }
+    hits: list = []
+    live_overlays: list = []
+    if df is not None and not getattr(df, "empty", True) and engine_mod is not None:
+        try:
+            live = engine_mod.detect_patterns(df, timeframe, symbol_u) or []
+        except Exception:
+            live = []
+        for hit in live:
+            record = _live_hit_to_dict(hit, symbol_u, timeframe)
+            if record is not None:
+                hits.append(record)
+    for record in hits:
+        overlay = _live_overlay(record)
+        if overlay is not None:
+            live_overlays.append(overlay)
+    trend_lines = _detect_trend_lines(df, lookback_bars, stored_fresh_lines) if compute_trendlines else None
+    return {
+        "hits": hits,
+        "live_overlays": live_overlays,
+        "trend_lines": trend_lines,
+        "cache_hit": False,
+    }
+
+
+def _store_pattern_block(symbol_u: str, timeframe: str, session: str, block: dict,
+                         compute_trendlines: bool) -> None:
+    try:
+        sig = config.trendline_signature() if compute_trendlines else None
+    except Exception:
+        sig = None
+    _pattern_hit_cache_put(symbol_u, timeframe, session, {
+        "hits": list(block["hits"]),
+        "live_overlays": list(block["live_overlays"]),
+        "trend_lines": list(block["trend_lines"]) if compute_trendlines and block["trend_lines"] is not None else None,
+        "trend_lines_sig": sig,
+    })
+
+
 # ---------------------------------------------------------------------------
 # Resolvers
 # ---------------------------------------------------------------------------
@@ -122,11 +804,11 @@ def _spec_to_dict(spec) -> dict:
 
 def _timeframes_payload() -> list[dict]:
     try:
-        from chart_patterns import timeframes as tf
+        from chart_patterns import timeframe_config
 
-        specs = getattr(tf, "TIMEFRAMES", None)
-        if specs:
-            return [_spec_to_dict(s) for s in specs]
+        rows = timeframe_config.enabled_timeframes()
+        if rows:
+            return [_spec_to_dict(row) for row in rows]
     except Exception:
         pass
     return [dict(s) for s in _FALLBACK_TIMEFRAMES]
@@ -280,11 +962,11 @@ def _valid_universe_ids() -> set:
 
 
 def _valid_timeframe_ids() -> set:
-    """Timeframe ids from the real registry, falling back to the frozen list."""
+    """Enabled timeframe ids, falling back to the frozen list."""
     try:
-        from chart_patterns import timeframes as tf
+        from chart_patterns import timeframe_config
 
-        ids = getattr(tf, "TIMEFRAME_IDS", None)
+        ids = timeframe_config.enabled_timeframe_ids()
         if ids:
             return set(ids)
     except Exception:
@@ -351,7 +1033,7 @@ def _slice_candles(df, start_date, end_date, max_bars: int = config.CARD_MAX_BAR
     hi = min(n - 1, ei + max(pad, 30))
     length = hi - lo + 1
     if length <= max_bars:
-        return candles.candles_to_series(df.iloc[lo:hi + 1], max_bars)
+        return _fast_candle_series(df.iloc[lo:hi + 1], max_bars)
     # Uniform downsample across the whole window, always keeping pattern
     # endpoints. Exactly max_bars points are picked (lo/hi from the linspace
     # edges, si/ei swapped in for their nearest non-critical neighbour), so
@@ -359,7 +1041,7 @@ def _slice_candles(df, start_date, end_date, max_bars: int = config.CARD_MAX_BAR
     # the pattern head.
     if max_bars < 2:
         keep = [i for i in (si, ei) if 0 <= i < n][:max(1, max_bars)] if max_bars else []
-        return candles.candles_to_series(df.iloc[keep], max(1, max_bars))
+        return _fast_candle_series(df.iloc[keep], max(1, max_bars))
     grid = {lo + round(k * (length - 1) / (max_bars - 1)) for k in range(max_bars)}
     grid = {g for g in grid if lo <= g <= hi}
     grid |= {lo, hi}
@@ -381,7 +1063,7 @@ def _slice_candles(df, start_date, end_date, max_bars: int = config.CARD_MAX_BAR
         rest = [g for i, g in enumerate(rest) if i not in drop_idx]
         ordered = sorted(keep | set(rest))
     window = df.iloc[ordered]
-    return candles.candles_to_series(window, len(window))
+    return _fast_candle_series(window, len(window))
 
 
 def _stored_trend_lines(item) -> Optional[list]:
@@ -408,15 +1090,19 @@ def _stored_lines_sig(item) -> Optional[str]:
     return str(sig) if isinstance(sig, str) and sig else None
 
 
-def _stored_lines_fresh(item) -> bool:
+def _stored_lines_fresh(item, current_sig=None) -> bool:
     """True when stored ``trend_lines`` are non-empty and match the detector.
 
     After a detector change the stored lines are stale and must be recomputed
-    so cards and fullscreen agree.
+    so cards and fullscreen agree. ``current_sig`` lets batch callers compute
+    the detector signature once per request instead of per item; when omitted
+    it is built on demand.
     """
     if _stored_trend_lines(item) is None:
         return False
-    return _stored_lines_sig(item) == config.trendline_signature()
+    if current_sig is None:
+        current_sig = config.trendline_signature()
+    return _stored_lines_sig(item) == current_sig
 
 
 def _clamp_to_lookback(df, lookback_bars: Optional[int]):
@@ -438,7 +1124,134 @@ def _clamp_to_lookback(df, lookback_bars: Optional[int]):
     return df.tail(n)
 
 
-def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache, lock=None):
+def _ts_list(idx) -> list:
+    """Isoformat timestamp strings for an index (calendar-cached)."""
+    try:
+        key = (str(getattr(idx, "tz", None)), len(idx), idx.asi8.tobytes())
+    except Exception:
+        return [t.isoformat() if hasattr(t, "isoformat") else str(t) for t in idx]
+    with _TS_CACHE_LOCK:
+        cached = _TS_CACHE.get(key)
+    if cached is not None:
+        return cached
+    ts = [t.isoformat() if hasattr(t, "isoformat") else str(t) for t in idx]
+    with _TS_CACHE_LOCK:
+        while len(_TS_CACHE) >= _TS_CACHE_MAX:
+            _TS_CACHE.pop(next(iter(_TS_CACHE)), None)
+        _TS_CACHE[key] = ts
+    return ts
+
+
+def _fast_candle_series(frame, limit) -> list:
+    """Vectorized twin of ``candles.candles_to_series`` (same ``{t,o,h,l,c,v}`` shape).
+
+    ``iterrows`` with per-value ``import math`` costs ~20-27 ms per 500-bar
+    frame; column arrays do the same row work in ~3 ms. Any unexpected frame
+    shape falls back to :func:`candles.candles_to_series` so output never
+    changes (NaN/Inf -> 0.0 and the tail/limit rule are mirrored).
+
+    The limit slice is applied to the numpy arrays / index views instead of
+    ``frame.tail()``, so no 700-row DataFrame copy runs per distinct symbol,
+    and non-finite cleaning is vectorized (the per-scalar ``float`` /
+    ``isinf`` pairing only pays up front in ``tolist``). Output is identical
+    to the previous per-row loop.
+    """
+    if frame is None or getattr(frame, "empty", True):
+        return []
+    try:
+        import numpy as _np
+
+        n = len(frame)
+        if limit and limit > 0:
+            try:
+                keep = int(limit)
+            except (TypeError, ValueError):
+                keep = 0
+            if keep > 0 and n > keep:
+                idx = frame.index[n - keep:]
+            else:
+                idx = frame.index
+        else:
+            idx = frame.index
+        ts = _ts_list(idx)
+
+        def _col(name: str) -> list:
+            arr = frame[name].to_numpy(dtype=float)
+            if limit and limit > 0:
+                try:
+                    keep = int(limit)
+                except (TypeError, ValueError):
+                    keep = 0
+                if keep > 0 and len(arr) > keep:
+                    arr = arr[len(arr) - keep:]
+            if arr.size and not _np.isfinite(arr).all():
+                arr = _np.where(_np.isfinite(arr), arr, 0.0)
+            return arr.tolist()
+
+        opens = _col("open")
+        highs = _col("high")
+        lows = _col("low")
+        closes = _col("close")
+        vols = _col("volume")
+        series: list = []
+        append = series.append
+        for t, o, h, l, c, v in zip(ts, opens, highs, lows, closes, vols):
+            append({"t": t, "o": o, "h": h, "l": l, "c": c, "v": v})
+        return series
+    except Exception:
+        return candles.candles_to_series(frame, limit)
+
+
+def _last_close_change(df) -> tuple[Optional[float], Optional[float]]:
+    """Last close and its 2dp % change vs the previous bar, or ``(None, None)``.
+
+    Shared by card enrichment (:func:`_finalize_item`) and the ``/symbol``
+    header (:func:`_candle_fields`) so both report the same number from the
+    same frame instead of two copies of the arithmetic drifting apart.
+    """
+    if df is None or getattr(df, "empty", True):
+        return None, None
+    try:
+        vals = df["close"].to_numpy()
+        close = float(vals[-1])
+        prev = float(vals[-2]) if len(vals) > 1 else close
+        change = ((close - prev) / prev * 100.0) if prev else 0.0
+        return close, round(change, 2)
+    except Exception:
+        return None, None
+
+
+def _clamped_candle_series(df, lookback_bars, limit) -> list:
+    """Candle series tail-clamped to the Lookback, then to the chart limit.
+
+    ``tail(N)`` followed by ``tail(limit)`` is ``tail(min(N, limit))``, so the
+    clamp and the limit collapse into one series conversion. Never raises: a
+    broken frame yields ``[]`` (same fail-soft stance as :func:`_finalize_item`).
+    """
+    try:
+        frame = _clamp_to_lookback(df, lookback_bars)
+        if frame is None or getattr(frame, "empty", True):
+            return []
+        return _fast_candle_series(frame, limit)
+    except Exception:
+        return []
+
+
+def _cache_setdefault(cache, key, value, lock=None) -> None:
+    """Insert ``value`` under ``key`` unless present; ``lock`` guards sharing.
+
+    Batch and SSE paths share one per-request cache dict across threads, and
+    first writer wins (duplicate ``(symbol, timeframe)`` work is wasted, not
+    fatal).
+    """
+    if lock is None:
+        cache.setdefault(key, value)
+        return
+    with lock:
+        cache.setdefault(key, value)
+
+
+def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache, lock=None, current_sig=None):
     """Attach a candle window + last close/day change + trend lines to one item.
 
     Phase-2 of :func:`_enrich_with_candles`, factored so the SSE stream
@@ -449,37 +1262,36 @@ def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache
     ``lock`` when calling from worker threads (guards the shared caches).
     Mutates and returns ``item``; never raises for a dict item.
     """
+    if isinstance(item, dict):
+        item.setdefault("tags", tags_for(str(item.get("symbol") or "")))
+    if current_sig is None:
+        current_sig = config.trendline_signature()
+    stored_lines = _stored_trend_lines(item) if _stored_lines_fresh(item, current_sig) else None
     if key is None:
         if isinstance(item, dict):
-            fresh = _stored_lines_fresh(item)
-            stored_lines = _stored_trend_lines(item) if fresh else None
             item.setdefault("candles", [])
             item.setdefault("last_close", None)
             item.setdefault("day_change_pct", None)
-            item["trend_lines"] = [] if not compute_trendlines else (stored_lines if stored_lines is not None else [])
+            item["trend_lines"] = (stored_lines or []) if compute_trendlines else []
         return item
-    fresh = _stored_lines_fresh(item)
-    stored_lines = _stored_trend_lines(item) if fresh else None
-    try:
-        if df is not None and not getattr(df, "empty", True):
-            frame = _clamp_to_lookback(df, lookback_bars)
-            item["candles"] = candles.candles_to_series(frame, config.CHART_MAX_BARS)
-        else:
-            item["candles"] = []
-    except Exception:
-        item["candles"] = []
-    if df is not None and not getattr(df, "empty", True):
-        try:
-            last = float(df["close"].iloc[-1])
-            prev = float(df["close"].iloc[-2]) if len(df) > 1 else last
-            item["last_close"] = last
-            item["day_change_pct"] = round(((last - prev) / prev * 100.0) if prev else 0.0, 2)
-        except Exception:
-            item["last_close"] = None
-            item["day_change_pct"] = None
+    # Per-key candle window + closes: result sets repeat (symbol, timeframe)
+    # across patterns; rebuilding the series per item is the dominant
+    # enrichment cost. Cache under a namespaced key in the shared ``tl_cache``
+    # (the batch path and the SSE worker both share one dict per request), so
+    # duplicates reuse one conversion. Sharing the list object is safe: the
+    # endpoint deep-copies via ``_sanitize_for_json`` before serializing.
+    series_key = ("__series__", key, lookback_bars)
+    cached = tl_cache.get(series_key) if isinstance(tl_cache, dict) else None
+    if cached is not None:
+        item["candles"], item["last_close"], item["day_change_pct"] = cached
     else:
-        item["last_close"] = None
-        item["day_change_pct"] = None
+        candle_series = _clamped_candle_series(df, lookback_bars, config.CHART_MAX_BARS)
+        last_close, day_change = _last_close_change(df)
+        if isinstance(tl_cache, dict):
+            _cache_setdefault(tl_cache, series_key, (candle_series, last_close, day_change), lock)
+        item["candles"] = candle_series
+        item["last_close"] = last_close
+        item["day_change_pct"] = day_change
     if not compute_trendlines:
         item["trend_lines"] = []
         return item
@@ -494,17 +1306,68 @@ def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache
                 computed = {"support": None, "resistance": None}
         except Exception:
             computed = {"support": None, "resistance": None}
-        if lock is not None:
-            with lock:
-                tl_cache.setdefault(key, computed)
-        else:
-            tl_cache[key] = computed
+        _cache_setdefault(tl_cache, key, computed, lock)
     try:
         res = tl_cache[key] or {}
         item["trend_lines"] = [v for v in (res.get("support"), res.get("resistance")) if v]
     except Exception:
         item["trend_lines"] = []
     return item
+
+
+def _item_fetch_key(item, default_timeframe: Optional[str] = None):
+    """``(symbol, timeframe)`` fetch key for a result item, or ``None``.
+
+    Shared by the batch (:func:`_enrich_with_candles`) and SSE
+    (:func:`_stream_results_worker`) paths so an item resolves the same frame
+    in both — a per-item ``timeframe`` wins over the request default.
+    """
+    if not isinstance(item, dict):
+        return None
+    symbol = item.get("symbol")
+    timeframe = item.get("timeframe") or default_timeframe
+    if not symbol or not timeframe:
+        return None
+    return (symbol, timeframe)
+
+
+def _distinct_fetch_keys(items, default_timeframe: Optional[str] = None) -> list:
+    """Distinct per-item fetch keys, first-seen order (stable enrichment order)."""
+    ordered: list = []
+    seen: set = set()
+    for item in items:
+        key = _item_fetch_key(item, default_timeframe)
+        if key is None or key in seen:
+            continue
+        seen.add(key)
+        ordered.append(key)
+    return ordered
+
+
+def _fetch_candles_retry(symbol, timeframe, lookback_bars, *, log_failure: bool = False):
+    """``fetch_for_timeframe`` with one retry; ``None`` after both attempts fail.
+
+    Candle fetches routinely hit transient Upstox 429s (especially with bots
+    consuming the shared budget), so a single retry turns most of those into
+    hits instead of candle-less cards. ``_enrich_with_candles`` logs the final
+    failure; the SSE worker stays quiet (the stream already surfaces errors).
+    """
+    last_exc = None
+    for attempt in (0, 1):
+        try:
+            return candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=lookback_bars)
+        except Exception as exc:  # noqa: BLE001 - fail-soft per card
+            last_exc = exc
+            if attempt == 0:
+                _time.sleep(0.5)
+    if log_failure:
+        import logging as _logging
+
+        _logging.getLogger(__name__).warning(
+            "card enrich: candle fetch failed for %s %s: %s",
+            symbol, timeframe, last_exc,
+        )
+    return None
 
 
 def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bars: int = config.CARD_MAX_BARS,
@@ -527,49 +1390,17 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
     items = list(items or [])
 
     def _fetch_one(key) -> object:
-        """One ``(symbol, timeframe)`` frame; ``None`` on any failure.
-
-        Retries once: candle fetches routinely hit transient Upstox 429s
-        (especially with bots consuming the shared budget), and a single
-        retry turns most of those into hits instead of candle-less cards.
-        """
-        import logging as _logging
-        import time as _time
-
-        symbol, timeframe = key
-        last_exc: Exception | None = None
-        for attempt in (0, 1):
-            try:
-                return candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=fetch_lb)
-            except Exception as exc:  # noqa: BLE001 - fail-soft per card
-                last_exc = exc
-                if attempt == 0:
-                    _time.sleep(0.5)
-        _logging.getLogger(__name__).warning(
-            "card enrich: candle fetch failed for %s %s: %s",
-            symbol, timeframe, last_exc,
-        )
-        return None
+        return _fetch_candles_retry(key[0], key[1], fetch_lb, log_failure=True)
 
     # Phase 1: collect the distinct fetch keys in first-seen order, then fan
     # the disk-cached ``fetch_for_timeframe`` calls out over a bounded thread
-    # pool. Serial fetching here is the market-hours bottleneck (each fetch
-    # is ~0.5-3s under contention, so a 24-card page takes 20-40s); threads
+    # pool. Serial fetching is the market-hours bottleneck (each fetch is
+    # ~0.5-3s under contention, so a 24-card page takes 20-40s); threads
     # overlap the I/O waits while pandas work stays on this thread below.
     # ``run_symbols`` does not fit (its worker takes a bare symbol, but each
     # key also carries its own timeframe), so only ``max_workers()`` is
     # reused for the pool bound.
-    ordered_keys: list = []
-    seen_keys: set = set()
-    for item in items:
-        symbol = item.get("symbol") if isinstance(item, dict) else None
-        timeframe = (item.get("timeframe") if isinstance(item, dict) else None) or default_timeframe
-        if not symbol or not timeframe:
-            continue
-        key = (symbol, timeframe)
-        if key not in seen_keys:
-            seen_keys.add(key)
-            ordered_keys.append(key)
+    ordered_keys = _distinct_fetch_keys(items, default_timeframe)
     cache: dict = {}
     if len(ordered_keys) == 1:
         cache[ordered_keys[0]] = _fetch_one(ordered_keys[0])
@@ -589,16 +1420,16 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
                 if key not in cache:
                     cache[key] = _fetch_one(key)
     tl_cache: dict = {}
+    # One detector signature per batch (instead of one rebuild per item).
+    current_sig = config.trendline_signature()
     # Phase 2: per-item enrichment in the original order (clamp, series,
     # last close/day change, stored-vs-recomputed trendlines) — unchanged.
     for item in items:
-        symbol = item.get("symbol") if isinstance(item, dict) else None
-        timeframe = (item.get("timeframe") if isinstance(item, dict) else None) or default_timeframe
-        key = (symbol, timeframe) if (symbol and timeframe) else None
+        key = _item_fetch_key(item, default_timeframe)
         _finalize_item(
             item, cache.get(key) if key is not None else None, key=key,
             lookback_bars=lookback_bars, compute_trendlines=compute_trendlines,
-            tl_cache=tl_cache,
+            tl_cache=tl_cache, current_sig=current_sig,
         )
     return items
 
@@ -606,6 +1437,14 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
 # ---------------------------------------------------------------------------
 # Request models
 # ---------------------------------------------------------------------------
+
+class DetectRequest(BaseModel):
+    """Single-symbol, synchronous pattern check (no job queue)."""
+
+    symbol: str
+    timeframe: str
+    lookback_bars: Optional[int] = 150
+
 
 class ScanRequest(BaseModel):
     universe: str = ""
@@ -668,17 +1507,71 @@ def _normalize_symbol_list(raw) -> list[str]:
 
 @router.get("/timeframes")
 async def get_timeframes():
-    return _sanitize_for_json({"timeframes": _timeframes_payload()})
+    return _json_response({"timeframes": _timeframes_payload()})
 
 
 @router.get("/universes")
 async def get_universes():
-    return _sanitize_for_json({"universes": _universes_payload(), "default": "nifty50"})
+    return _json_response({"universes": _universes_payload(), "default": "nifty50"})
 
 
 @router.get("/patterns")
 async def get_patterns():
-    return _sanitize_for_json({"families": list(_FAMILIES), "patterns": _patterns_payload()})
+    return _json_response({"families": list(_FAMILIES), "patterns": _patterns_payload()})
+
+
+@router.post("/detect")
+def detect_one(request: DetectRequest, user: User = Depends(get_current_user)):
+    """Run the detector on ONE symbol now and return the hits.
+
+    The Nifty chart's PATTERNS button needs an answer in seconds. The queued
+    scan can sit behind a 500-symbol universe job for minutes, so this bypasses
+    the queue: fetch candles (disk-cached after the first call) → detect →
+    return. No job row, no store writes.
+    """
+    symbol = (request.symbol or "").strip().upper()
+    if not symbol:
+        raise HTTPException(status_code=422, detail="symbol is required")
+    tf = request.timeframe
+    if tf not in _valid_timeframe_ids():
+        raise HTTPException(status_code=422, detail=f"unknown timeframe {tf!r}")
+    lookback = request.lookback_bars if isinstance(request.lookback_bars, int) else 150
+    lookback = max(config.LOOKBACK_MIN, min(config.LOOKBACK_MAX, lookback))
+    try:
+        df = candles.fetch_for_timeframe(symbol, tf, lookback_bars=lookback)
+    except Exception as exc:  # noqa: BLE001 - surface a clean 502
+        raise HTTPException(status_code=502, detail=f"candles unavailable: {exc}") from exc
+    if df is None or getattr(df, "empty", True):
+        return _json_response({"symbol": symbol, "timeframe": tf, "data_through": None, "hits": [], "count": 0})
+    data_through = candles.frame_last_date(df)
+    if len(df) < scan_mod._resolve_min_bars(tf):
+        return _json_response({"symbol": symbol, "timeframe": tf, "data_through": data_through, "hits": [], "count": 0})
+    if len(df) > lookback:
+        df = df.iloc[-lookback:]
+    try:
+        hits = scan_mod._detect(df, tf, symbol) or []
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"detector failed: {exc}") from exc
+    items = []
+    for hit in hits:
+        try:
+            items.append(scan_mod._hit_to_dict(hit))
+        except Exception:
+            continue
+    # ONE pattern per symbol/timeframe — the most recent. A chart button shows
+    # the live read, not a catalogue; the queued scan applies the same rule
+    # (scan._process_symbol → _latest_record).
+    if len(items) > 1:
+        items = [scan_mod._latest_record(items)]
+    # Sanitized like every other endpoint: a NaN in a detector float would
+    # otherwise make JSONResponse (allow_nan=False) 500 the request.
+    return _json_response({
+        "symbol": symbol,
+        "timeframe": tf,
+        "data_through": data_through,
+        "hits": items,
+        "count": len(items),
+    })
 
 
 @router.post("/scan")
@@ -781,7 +1674,7 @@ async def create_scan(request: ScanRequest, user: User = Depends(get_current_use
                 "max_queue": jobs.PATTERN_SCAN_MAX_QUEUE,
             },
         )
-    return _sanitize_for_json({
+    return _json_response({
         "job_id": dto["job_id"],
         "status": dto["status"],
         "queue_position": dto["queue_position"],
@@ -792,7 +1685,7 @@ async def create_scan(request: ScanRequest, user: User = Depends(get_current_use
 @router.get("/jobs")
 async def list_jobs(active: int = Query(0, ge=0, le=1)):
     rows = jobs.list_active() if active else store.list_jobs(limit=50)
-    return _sanitize_for_json({"jobs": rows})
+    return _json_response({"jobs": rows})
 
 
 @router.get("/jobs/{job_id}")
@@ -800,7 +1693,7 @@ async def get_job(job_id: str):
     dto = jobs.get_job(job_id)
     if not dto:
         raise HTTPException(status_code=404, detail="job not found")
-    return _sanitize_for_json(dto)
+    return _json_response(dto)
 
 
 def _build_filters(
@@ -834,6 +1727,94 @@ def _build_filters(
     }
 
 
+class _ResultsQuery(NamedTuple):
+    """Resolved query for the ``/results`` and ``/results/stream`` twins."""
+
+    filters: dict
+    limit: int
+    offset: int
+    lookback_bars: Optional[int]
+    compute_trendlines: bool
+
+
+def _results_query(
+    job_id: Optional[str] = Query(None),
+    universe: Optional[str] = Query(None),
+    timeframe: Optional[str] = Query(None),
+    family: Optional[list[str]] = Query(None),
+    direction: Optional[list[str]] = Query(None),
+    status: Optional[list[str]] = Query(None),
+    quality: Optional[str] = Query(None),
+    formed_within_bars: Optional[int] = Query(None),
+    volume_confirmed: Optional[bool] = Query(None),
+    min_rr: Optional[float] = Query(None),
+    symbol: Optional[list[str]] = Query(None),
+    pattern_id: Optional[list[str]] = Query(None),
+    min_base_days: Optional[int] = Query(None),
+    max_range_pct: Optional[float] = Query(None),
+    q: Optional[str] = Query(None),
+    sort: str = Query("confidence"),
+    limit: int = Query(100, ge=1, le=config.RESULTS_MAX_LIMIT),
+    offset: int = Query(0, ge=0),
+    lookback_bars: Optional[int] = Query(None),
+    compute_trendlines: bool = Query(True),
+    max_52w_gap: Optional[float] = Query(None),
+    min_range_pos: Optional[float] = Query(None),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+) -> _ResultsQuery:
+    """Query params shared by ``/results`` and ``/results/stream``.
+
+    Declared in the same order as the original endpoint signatures so the
+    generated OpenAPI parameter list is unchanged. FastAPI hoists a
+    dependency's query params in declaration order; both routes have no other
+    query params, so the operation stays byte-identical.
+    """
+    return _ResultsQuery(
+        filters=_build_filters(
+            job_id, universe, timeframe, family, direction, status, quality,
+            formed_within_bars, volume_confirmed, min_rr, symbol, pattern_id,
+            min_base_days, max_range_pct, q, sort=sort, max_52w_gap=max_52w_gap,
+            min_range_pos=min_range_pos, from_date=from_date, to_date=to_date,
+        ),
+        limit=limit,
+        offset=offset,
+        lookback_bars=lookback_bars,
+        compute_trendlines=compute_trendlines,
+    )
+
+
+def _summary_filters(
+    job_id: Optional[str] = Query(None),
+    universe: Optional[str] = Query(None),
+    timeframe: Optional[str] = Query(None),
+    family: Optional[list[str]] = Query(None),
+    direction: Optional[list[str]] = Query(None),
+    status: Optional[list[str]] = Query(None),
+    quality: Optional[str] = Query(None),
+    formed_within_bars: Optional[int] = Query(None),
+    volume_confirmed: Optional[bool] = Query(None),
+    min_rr: Optional[float] = Query(None),
+    symbol: Optional[list[str]] = Query(None),
+    pattern_id: Optional[list[str]] = Query(None),
+    min_base_days: Optional[int] = Query(None),
+    max_range_pct: Optional[float] = Query(None),
+    q: Optional[str] = Query(None),
+    sort: str = Query("confidence"),
+    max_52w_gap: Optional[float] = Query(None),
+    min_range_pos: Optional[float] = Query(None),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+) -> dict:
+    """Query params for ``/summary`` (same filter set, no paging/chart knobs)."""
+    return _build_filters(
+        job_id, universe, timeframe, family, direction, status, quality,
+        formed_within_bars, volume_confirmed, min_rr, symbol, pattern_id,
+        min_base_days, max_range_pct, q, sort=sort, max_52w_gap=max_52w_gap,
+        min_range_pos=min_range_pos, from_date=from_date, to_date=to_date,
+    )
+
+
 # ---------------------------------------------------------------------------
 # SSE streaming (Patterns screen progressive render).
 # ---------------------------------------------------------------------------
@@ -850,6 +1831,11 @@ _STREAM_POOL_WORKERS = 8
 #: SSE keep-alive: the drain emits ``event: heartbeat`` after this many idle
 #: seconds so proxies do not close a slow stream.
 _STREAM_HEARTBEAT_SEC = 15.0
+
+#: ``watch.live`` batches LTP/TV/vol_adj across its whole input, so the watch
+#: live stream fans rows off in chunks instead of one ``live([row])`` call per
+#: row (159 armed rows were ~159 separate price/TV/volume calls — the hang).
+_STREAM_LIVE_CHUNK = 50
 
 _SSE_HEADERS = {
     "Cache-Control": "no-cache",
@@ -868,6 +1854,32 @@ def _sse_event(name: str, payload) -> str:
     return f"event: {name}\ndata: {json.dumps(payload)}\n\n"
 
 
+def _iter_completed_results(futs, stop, out):
+    """Yield finished futures' results in completion order; abort on stop/failure.
+
+    Shared by the results and watch stream workers: both bridge a
+    ``ThreadPoolExecutor`` to ``_drain_stream_queue`` via ``out``. On a task
+    failure the error is enqueued once (``("error", message)``) and pending
+    futures are cancelled; both exits end iteration so the caller's
+    ``finally`` still terminates the queue with ``("end", None)``.
+    """
+    for fut in as_completed(futs):
+        if stop.is_set():
+            for pending in futs:
+                pending.cancel()
+            return
+        try:
+            yield fut.result()
+        except Exception as exc:
+            try:
+                out.put(("error", str(exc)[:300]))
+            except Exception:
+                pass
+            for pending in futs:
+                pending.cancel()
+            return
+
+
 def _stream_results_worker(items, *, default_timeframe, fetch_lb, lookback_bars,
                            compute_trendlines, out, stop):
     """Enrich each item on a bounded pool, enqueueing as results arrive.
@@ -879,21 +1891,13 @@ def _stream_results_worker(items, *, default_timeframe, fetch_lb, lookback_bars,
     df_cache: dict = {}
     tl_cache: dict = {}
     lock = threading.Lock()
+    current_sig = config.trendline_signature()
 
     def _cached_fetch(key):
         with lock:
             if key in df_cache:
                 return df_cache[key]
-        df = None
-        for attempt in (0, 1):
-            try:
-                df = candles.fetch_for_timeframe(key[0], key[1], lookback_bars=fetch_lb)
-                break
-            except Exception:
-                if attempt == 0:
-                    import time as _time
-
-                    _time.sleep(0.5)
+        df = _fetch_candles_retry(key[0], key[1], fetch_lb)
         with lock:
             df_cache.setdefault(key, df)
         return df_cache.get(key)
@@ -901,34 +1905,19 @@ def _stream_results_worker(items, *, default_timeframe, fetch_lb, lookback_bars,
     def _task(item):
         if stop.is_set():
             return None
-        symbol = item.get("symbol") if isinstance(item, dict) else None
-        timeframe = (item.get("timeframe") if isinstance(item, dict) else None) or default_timeframe
-        key = (symbol, timeframe) if (symbol and timeframe) else None
+        key = _item_fetch_key(item, default_timeframe)
         df = _cached_fetch(key) if key is not None else None
         return _finalize_item(
             item, df, key=key, lookback_bars=lookback_bars,
             compute_trendlines=compute_trendlines, tl_cache=tl_cache, lock=lock,
+            current_sig=current_sig,
         )
 
     try:
         workers = max(1, min(_STREAM_POOL_WORKERS, len(items) or 1))
         with ThreadPoolExecutor(max_workers=workers) as pool:
             futs = [pool.submit(_task, item) for item in items]
-            for fut in as_completed(futs):
-                if stop.is_set():
-                    for pending in futs:
-                        pending.cancel()
-                    break
-                try:
-                    enriched = fut.result()
-                except Exception as exc:
-                    try:
-                        out.put(("error", str(exc)[:300]))
-                    except Exception:
-                        pass
-                    for pending in futs:
-                        pending.cancel()
-                    break
+            for enriched in _iter_completed_results(futs, stop, out):
                 if enriched is None:
                     continue
                 try:
@@ -1029,45 +2018,18 @@ async def _results_sse_events(items, *, default_timeframe, lookback_bars,
 
 
 @router.get("/results")
-async def get_results(
-    job_id: Optional[str] = Query(None),
-    universe: Optional[str] = Query(None),
-    timeframe: Optional[str] = Query(None),
-    family: Optional[list[str]] = Query(None),
-    direction: Optional[list[str]] = Query(None),
-    status: Optional[list[str]] = Query(None),
-    quality: Optional[str] = Query(None),
-    formed_within_bars: Optional[int] = Query(None),
-    volume_confirmed: Optional[bool] = Query(None),
-    min_rr: Optional[float] = Query(None),
-    symbol: Optional[list[str]] = Query(None),
-    pattern_id: Optional[list[str]] = Query(None),
-    min_base_days: Optional[int] = Query(None),
-    max_range_pct: Optional[float] = Query(None),
-    q: Optional[str] = Query(None),
-    sort: str = Query("confidence"),
-    limit: int = Query(100, ge=1, le=config.RESULTS_MAX_LIMIT),
-    offset: int = Query(0, ge=0),
-    lookback_bars: Optional[int] = Query(None),
-    compute_trendlines: bool = Query(True),
-    max_52w_gap: Optional[float] = Query(None),
-    min_range_pos: Optional[float] = Query(None),
-    from_date: Optional[str] = Query(None),
-    to_date: Optional[str] = Query(None),
-):
-    filters = _build_filters(
-        job_id, universe, timeframe, family, direction, status, quality,
-        formed_within_bars, volume_confirmed, min_rr, symbol, pattern_id,
-        min_base_days, max_range_pct, q, sort=sort, max_52w_gap=max_52w_gap,
-        min_range_pos=min_range_pos, from_date=from_date, to_date=to_date,
+async def get_results(query: _ResultsQuery = Depends(_results_query)):
+    items, total, summary = store.query_results(
+        query.filters, limit=query.limit, offset=query.offset,
     )
-    items, total, summary = store.query_results(filters, limit=limit, offset=offset)
     # Candle enrichment may hit the (disk-cached) Upstox API on a miss — keep it
     # off the event loop so a slow/hung fetch cannot freeze the whole server.
     # The card window spans the active Lookback so mini-charts match the view.
-    await run_in_threadpool(_enrich_with_candles, items, timeframe, lookback_bars=lookback_bars,
-                            compute_trendlines=compute_trendlines)
-    return _sanitize_for_json({
+    await run_in_threadpool(_enrich_with_candles, items, query.filters.get("timeframe"),
+                            lookback_bars=query.lookback_bars,
+                            compute_trendlines=query.compute_trendlines)
+    _strip_risk_fields(items)
+    return _json_response({
         "items": items,
         "total": total,
         "summary": summary,
@@ -1075,34 +2037,47 @@ async def get_results(
     })
 
 
+@router.get("/index/{index_id}/members")
+def get_index_members(index_id: str):
+    from chart_patterns.index_members import NO_MEMBERS_INDEX_IDS, members_for_index
+    from chart_patterns.indices import INDEX_LABELS
+
+    key = str(index_id or "").strip().upper()
+    try:
+        symbols = members_for_index(key)
+    except Exception as exc:
+        import logging as _logging
+
+        _logging.getLogger(__name__).warning("index members failed for %s: %s", key, exc)
+        raise HTTPException(status_code=503, detail="Failed to load index constituents") from exc
+    if symbols is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Constituents are not available for {index_id!r}",
+        )
+    payload = {
+        "index": key,
+        "label": INDEX_LABELS.get(key, key),
+        "count": len(symbols),
+        "symbols": symbols,
+    }
+    if key in NO_MEMBERS_INDEX_IDS:
+        payload["note"] = "Volatility index has no constituent stocks."
+    return _json_response(payload)
+
+
+@router.get("/hit/{hit_id}")
+def get_hit(hit_id: int, db: Session = Depends(get_db)):
+    from db.models.chart_patterns import PatternHit
+
+    row = db.query(PatternHit).filter(PatternHit.id == hit_id).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Pattern hit not found")
+    return _json_response(row.to_dict())
+
+
 @router.get("/results/stream")
-async def stream_results(
-    request: Request,
-    job_id: Optional[str] = Query(None),
-    universe: Optional[str] = Query(None),
-    timeframe: Optional[str] = Query(None),
-    family: Optional[list[str]] = Query(None),
-    direction: Optional[list[str]] = Query(None),
-    status: Optional[list[str]] = Query(None),
-    quality: Optional[str] = Query(None),
-    formed_within_bars: Optional[int] = Query(None),
-    volume_confirmed: Optional[bool] = Query(None),
-    min_rr: Optional[float] = Query(None),
-    symbol: Optional[list[str]] = Query(None),
-    pattern_id: Optional[list[str]] = Query(None),
-    min_base_days: Optional[int] = Query(None),
-    max_range_pct: Optional[float] = Query(None),
-    q: Optional[str] = Query(None),
-    sort: str = Query("confidence"),
-    limit: int = Query(100, ge=1, le=config.RESULTS_MAX_LIMIT),
-    offset: int = Query(0, ge=0),
-    lookback_bars: Optional[int] = Query(None),
-    compute_trendlines: bool = Query(True),
-    max_52w_gap: Optional[float] = Query(None),
-    min_range_pos: Optional[float] = Query(None),
-    from_date: Optional[str] = Query(None),
-    to_date: Optional[str] = Query(None),
-):
+async def stream_results(request: Request, query: _ResultsQuery = Depends(_results_query)):
     """SSE twin of ``GET /results`` (same query params, read-only, open).
 
     Events: ``meta`` → ``{total, summary, data_through}`` (immediately, before
@@ -1113,22 +2088,21 @@ async def stream_results(
     query itself is instant, only the enrichment is slow. Client disconnect
     stops production. Never raises mid-stream (``event: error`` + close).
     """
-    filters = _build_filters(
-        job_id, universe, timeframe, family, direction, status, quality,
-        formed_within_bars, volume_confirmed, min_rr, symbol, pattern_id,
-        min_base_days, max_range_pct, q, sort=sort, max_52w_gap=max_52w_gap,
-        min_range_pos=min_range_pos, from_date=from_date, to_date=to_date,
-    )
+    filters = query.filters
 
     async def _body():
         try:
-            items, total, summary = store.query_results(filters, limit=limit, offset=offset)
+            items, total, summary = store.query_results(
+                filters, limit=query.limit, offset=query.offset,
+            )
         except Exception as exc:
             yield _sse_event("error", {"message": str(exc)[:300]})
             return
+        _strip_risk_fields(items)
         async for frame in _results_sse_events(
-            items, default_timeframe=timeframe, lookback_bars=lookback_bars,
-            compute_trendlines=compute_trendlines, total=total,
+            items, default_timeframe=filters.get("timeframe"),
+            lookback_bars=query.lookback_bars,
+            compute_trendlines=query.compute_trendlines, total=total,
             summary=summary, data_through=summary.get("data_through"),
             request=request,
         ):
@@ -1138,36 +2112,17 @@ async def stream_results(
 
 
 @router.get("/summary")
-async def get_summary(
-    job_id: Optional[str] = Query(None),
-    universe: Optional[str] = Query(None),
-    timeframe: Optional[str] = Query(None),
-    family: Optional[list[str]] = Query(None),
-    direction: Optional[list[str]] = Query(None),
-    status: Optional[list[str]] = Query(None),
-    quality: Optional[str] = Query(None),
-    formed_within_bars: Optional[int] = Query(None),
-    volume_confirmed: Optional[bool] = Query(None),
-    min_rr: Optional[float] = Query(None),
-    symbol: Optional[list[str]] = Query(None),
-    pattern_id: Optional[list[str]] = Query(None),
-    min_base_days: Optional[int] = Query(None),
-    max_range_pct: Optional[float] = Query(None),
-    q: Optional[str] = Query(None),
-    sort: str = Query("confidence"),
-    max_52w_gap: Optional[float] = Query(None),
-    min_range_pos: Optional[float] = Query(None),
-    from_date: Optional[str] = Query(None),
-    to_date: Optional[str] = Query(None),
-):
-    filters = _build_filters(
-        job_id, universe, timeframe, family, direction, status, quality,
-        formed_within_bars, volume_confirmed, min_rr, symbol, pattern_id,
-        min_base_days, max_range_pct, q, sort=sort, max_52w_gap=max_52w_gap,
-        min_range_pos=min_range_pos, from_date=from_date, to_date=to_date,
+async def get_summary(filters: dict = Depends(_summary_filters)):
+    cache_key = (
+        getattr(store, "_session_factory", None),
+        _freeze_filters(filters),
+        _last_scan_at_for(filters.get("universe"), filters.get("timeframe")),
     )
+    cached = _read_cache_get(_summary_cache, cache_key)
+    if cached is not None:
+        return JSONResponse(content=cached)
     summary = store.compute_summary(filters)
-    return _sanitize_for_json({
+    payload = _sanitize_for_json({
         "scanned": summary.get("scanned", 0),
         "patterns": summary.get("patterns", 0),
         "in_view": summary.get("in_view", 0),
@@ -1179,6 +2134,8 @@ async def get_summary(
         "pattern_counts": summary.get("pattern_counts", {}),
         "family_counts": summary.get("family_counts", {}),
     })
+    _read_cache_put(_summary_cache, cache_key, payload)
+    return JSONResponse(content=payload)
 
 
 def _candle_fields(symbol: str, timeframe: str) -> dict:
@@ -1188,23 +2145,26 @@ def _candle_fields(symbol: str, timeframe: str) -> dict:
         df = None
     if df is None or getattr(df, "empty", True):
         return {"last_close": None, "day_change_pct": None, "history_bars": 0}
-    try:
-        close = float(df["close"].iloc[-1])
-        prev = float(df["close"].iloc[-2]) if len(df) > 1 else close
-        change = ((close - prev) / prev * 100.0) if prev else 0.0
-        return {"last_close": close, "day_change_pct": round(change, 2), "history_bars": int(len(df))}
-    except Exception:
-        return {"last_close": None, "day_change_pct": None, "history_bars": int(len(df))}
+    last_close, day_change = _last_close_change(df)
+    return {"last_close": last_close, "day_change_pct": day_change, "history_bars": int(len(df))}
 
 
 @router.get("/symbol/{symbol}")
-async def get_symbol(symbol: str, timeframe: str = Query("1D")):
-    detail = store.get_symbol_detail(symbol, timeframe)
+async def get_symbol(
+    symbol: str,
+    timeframe: str = Query("1D"),
+    limit: int = Query(0, ge=0, le=50),
+    non_overlapping: bool = Query(False),
+):
+    detail = store.get_symbol_detail(
+        symbol, timeframe, limit=limit or None, non_overlapping=non_overlapping
+    )
     detail.update(await run_in_threadpool(_candle_fields, symbol, timeframe))
     await run_in_threadpool(_enrich_with_candles, detail.get("patterns", []), timeframe)
+    _strip_risk_fields(detail.get("patterns", []))
     if not detail.get("name"):
         detail["name"] = _lookup_name(symbol)
-    return _sanitize_for_json(detail)
+    return _json_response(detail)
 
 
 def _live_hit_to_dict(hit, symbol: str, timeframe: str) -> Optional[dict]:
@@ -1229,10 +2189,6 @@ def _live_hit_to_dict(hit, symbol: str, timeframe: str) -> Optional[dict]:
         return None
     record.setdefault("symbol", symbol.upper())
     record.setdefault("timeframe", timeframe)
-    try:
-        record["breakout_score"] = store.breakout_score(record)
-    except Exception:
-        pass
     return record
 
 
@@ -1295,7 +2251,7 @@ async def _asof_symbol_chart(
     if df is not None and not getattr(df, "empty", True):
         df = candles.truncate_frame_to(df, to_dt)
     empty = df is None or getattr(df, "empty", True)
-    series = candles.candles_to_series(_clamp_to_lookback(df, lookback_bars), limit) if not empty else []
+    series = _clamped_candle_series(df, lookback_bars, limit)
     if not compute_trendlines:
         trend_lines: list = []
     else:
@@ -1348,18 +2304,169 @@ async def get_symbol_chart(
     from_date: Optional[str] = Query(None),
 ):
     if as_of_date is not None:
-        return _sanitize_for_json(await _asof_symbol_chart(
+        return _json_response(await _asof_symbol_chart(
             symbol, timeframe, limit, lookback_bars, compute_trendlines,
             detect_patterns, as_of_date, from_date,
         ))
-    try:
-        lb = lookback_bars if lookback_bars is not None else config.READ_LOOKBACK_BARS
-        df = candles.fetch_for_timeframe(
-            symbol, timeframe, lookback_bars=lb,
-            include_partial_today=(timeframe == "1D"),
+    symbol_u = str(symbol).strip().upper()
+    session = _ist_session_date()
+    lb = lookback_bars if lookback_bars is not None else config.READ_LOOKBACK_BARS
+
+    # Stale-first: a session-current frame in the default live-edge disk cache
+    # is served immediately (marked cached/stale) while a daemon thread
+    # refreshes the cache for the next poll. Replay/as-of never takes this.
+    stale_first = _stale_first_frame(symbol_u, timeframe, lb)
+    if stale_first is not None:
+        df, as_of, read_ms = stale_first
+        series = _clamped_candle_series(df, lookback_bars, limit)
+        if series:
+            overlays, stored_fresh_lines = _stored_overlays_and_lines(symbol_u, timeframe)
+            hits_block = None
+            if detect_patterns:
+                hits_block = _pattern_block(df, symbol_u, timeframe, session, lookback_bars, compute_trendlines, stored_fresh_lines)
+                overlays.extend(hits_block["live_overlays"])
+            if hits_block is not None and hits_block["trend_lines"] is not None:
+                trend_lines = hits_block["trend_lines"]
+            elif not compute_trendlines:
+                trend_lines = []
+            else:
+                trend_lines = _detect_trend_lines(df, lookback_bars, stored_fresh_lines)
+            try:
+                chart_lcs = candles._last_completed_session().isoformat()
+            except Exception:
+                chart_lcs = None
+            payload = {
+                "symbol": symbol_u,
+                "timeframe": timeframe,
+                "candles": series,
+                "overlays": overlays,
+                "trend_lines": trend_lines,
+                "cached": True,
+                "stale": True,
+                "as_of": as_of,
+                "note": f"served cached frame (through {as_of}); refreshing in background",
+            }
+            # Mark the expected session clearly when Upstox daily data lags the
+            # last completed session, so the UI can badge "data through as_of,
+            # expected through expected_as_of" instead of a permanent stale badge.
+            if chart_lcs and as_of and as_of < chart_lcs:
+                payload["expected_as_of"] = chart_lcs
+                payload["note"] = (
+                    f"served cached frame (through {as_of}); Upstox daily data "
+                    f"expected through {chart_lcs}; refreshing in background"
+                )
+            if detect_patterns:
+                payload["hits"] = list(hits_block["hits"])
+                _store_pattern_block(symbol_u, timeframe, session, hits_block, compute_trendlines)
+            _kick_stale_first_refresh(symbol_u, timeframe, lb)
+            _log_chart_fetch(
+                symbol_u, timeframe, elapsed_ms=read_ms, rows=len(series),
+                cache_hit=True, timeout=False, error=None, stale_fallback=True,
+            )
+            _chart_logger.info(
+                "chart_stale_first symbol=%s timeframe=%s read_ms=%.0f as_of=%s",
+                symbol_u, timeframe, read_ms, as_of,
+            )
+            return _json_response(payload)
+
+    # Negative cache hit: this (symbol, timeframe) already returned no
+    # candles this session — answer instantly, no upstream fetch at all.
+    neg = _chart_neg_cache_get(symbol_u, timeframe, session)
+    if neg is not None:
+        _log_chart_fetch(
+            symbol_u, timeframe, elapsed_ms=0.0, rows=0,
+            cache_hit=True, timeout=False, error=None,
         )
-    except Exception:
+        return _json_response(neg)
+
+    start = _time.monotonic()
+    try:
+        df = await asyncio.wait_for(
+            run_in_threadpool(
+                candles.fetch_for_timeframe,
+                symbol_u, timeframe,
+                lookback_bars=lb,
+                include_partial_today=(timeframe == "1D"),
+            ),
+            timeout=_CHART_FETCH_TIMEOUT_SEC,
+        )
+    except asyncio.TimeoutError:
         df = None
+        elapsed_ms = (_time.monotonic() - start) * 1000.0
+        reason = "fetch_timeout"
+        note = (
+            f"candle fetch for {symbol_u} {timeframe} exceeded "
+            f"{_CHART_FETCH_TIMEOUT_SEC:.0f}s and was aborted"
+        )
+        stale = _stale_chart_fallback(
+            symbol_u, timeframe,
+            fetch_lookback=lb, clamp_lookback=lookback_bars, limit=limit,
+            reason=f"upstream timed out after {_CHART_FETCH_TIMEOUT_SEC:.0f}s",
+        )
+        if stale is not None:
+            _log_chart_fetch(
+                symbol_u, timeframe, elapsed_ms=elapsed_ms,
+                rows=len(stale["candles"]), cache_hit=True,
+                timeout=True, error=reason, stale_fallback=True,
+            )
+            return _json_response(stale)
+        payload = _chart_empty_payload(symbol_u, timeframe, reason=reason, note=note)
+        _chart_neg_cache_put(symbol_u, timeframe, session, payload)
+        _log_chart_fetch(
+            symbol_u, timeframe, elapsed_ms=elapsed_ms, rows=0,
+            cache_hit=False, timeout=True, error=reason, stale_fallback=False,
+        )
+        return _json_response(payload)
+    except Exception as exc:  # noqa: BLE001 - transient upstream failure, never 500
+        df = None
+        elapsed_ms = (_time.monotonic() - start) * 1000.0
+        reason = "fetch_error"
+        note = str(exc)[:200]
+        stale = _stale_chart_fallback(
+            symbol_u, timeframe,
+            fetch_lookback=lb, clamp_lookback=lookback_bars, limit=limit,
+            reason="upstream fetch error",
+        )
+        if stale is not None:
+            _log_chart_fetch(
+                symbol_u, timeframe, elapsed_ms=elapsed_ms,
+                rows=len(stale["candles"]), cache_hit=True,
+                timeout=False, error=reason, stale_fallback=True,
+            )
+            return _json_response(stale)
+        payload = _chart_empty_payload(symbol_u, timeframe, reason=reason, note=note)
+        # Transient errors are NOT cached: the next click retries (still bounded
+        # by the timeout) so a recovered feed isn't papered over for 5 minutes.
+        _log_chart_fetch(
+            symbol_u, timeframe, elapsed_ms=elapsed_ms, rows=0,
+            cache_hit=False, timeout=False, error=reason, stale_fallback=False,
+        )
+        return _json_response(payload)
+
+    elapsed_ms = (_time.monotonic() - start) * 1000.0
+    rows = 0 if df is None or getattr(df, "empty", True) else int(len(df))
+    if df is None or getattr(df, "empty", True):
+        reason = "no_data"
+        note = f"no candles for {symbol_u} {timeframe} in session {session}"
+        stale = _stale_chart_fallback(
+            symbol_u, timeframe,
+            fetch_lookback=lb, clamp_lookback=lookback_bars, limit=limit,
+            reason=f"upstream returned no candles in session {session}",
+        )
+        if stale is not None:
+            _log_chart_fetch(
+                symbol_u, timeframe, elapsed_ms=elapsed_ms,
+                rows=len(stale["candles"]), cache_hit=True,
+                timeout=False, error=reason, stale_fallback=True,
+            )
+            return _json_response(stale)
+        payload = _chart_empty_payload(symbol_u, timeframe, reason=reason, note=note)
+        _chart_neg_cache_put(symbol_u, timeframe, session, payload)
+        _log_chart_fetch(
+            symbol_u, timeframe, elapsed_ms=elapsed_ms, rows=0,
+            cache_hit=False, timeout=False, error=reason, stale_fallback=False,
+        )
+        return _json_response(payload)
     # The fetch window carries ~1.5x headroom; clamp the displayed chart to
     # exactly the requested Lookback (Auto keeps the whole window). A trailing
     # synthetic session bar (1D only) is flagged for distinct UI rendering;
@@ -1367,66 +2474,38 @@ async def get_symbol_chart(
     partial_last = bool(
         df is not None and getattr(df, "attrs", {}).get("partial_today", False)
     )
-    series = candles.candles_to_series(_clamp_to_lookback(df, lookback_bars), limit) if df is not None else []
+    series = _clamped_candle_series(df, lookback_bars, limit)
     if partial_last and series:
         series[-1]["is_partial"] = True
-    detail = store.get_symbol_detail(symbol, timeframe)
-    overlays = []
-    stored_fresh_lines: list = []
-    for pattern in detail.get("patterns", []):
-        if pattern.get("trendlines"):
-            overlays.append({
-                "pattern_id": pattern.get("pattern_id"),
-                "pattern_name": pattern.get("pattern_name"),
-                "direction": pattern.get("direction"),
-                "trendlines": pattern.get("trendlines"),
-                "start_date": pattern.get("start_date"),
-                "end_date": pattern.get("end_date"),
-                "id": pattern.get("id"),
-            })
-        # Reuse fresh scan-time lines so fullscreen agrees with the cards;
-        # stale lines (detector changed) fall through to the recompute below.
-        if not stored_fresh_lines and _stored_lines_fresh(pattern):
-            stored_fresh_lines = list(pattern.get("trend_lines") or [])
-    if not compute_trendlines:
+    overlays, stored_fresh_lines = _stored_overlays_and_lines(symbol_u, timeframe)
+    hits_block = None
+    if detect_patterns:
+        hits_block = _pattern_block(df, symbol_u, timeframe, session, lookback_bars, compute_trendlines, stored_fresh_lines)
+        overlays.extend(hits_block["live_overlays"])
+    if hits_block is not None and hits_block["trend_lines"] is not None:
+        trend_lines = hits_block["trend_lines"]
+    elif not compute_trendlines:
         trend_lines = []
-    elif stored_fresh_lines:
-        trend_lines = stored_fresh_lines
     else:
-        try:
-            _res = trendlines_mod.detect_trendlines(df, lookback_bars=lookback_bars)
-            trend_lines = [v for v in (_res.get("support"), _res.get("resistance")) if v] if isinstance(_res, dict) else []
-        except Exception:
-            trend_lines = []
+        # Reuse fresh scan-time lines so fullscreen agrees with the cards;
+        # stale lines (detector changed) fall through to the recompute.
+        trend_lines = _detect_trend_lines(df, lookback_bars, stored_fresh_lines)
     payload = {
-        "symbol": symbol.upper(),
+        "symbol": symbol_u,
         "timeframe": timeframe,
         "candles": series,
         "overlays": overlays,
         "trend_lines": trend_lines,
     }
     if detect_patterns:
-        hits: list = []
-        if df is not None and not getattr(df, "empty", True) and engine_mod is not None:
-            try:
-                live = engine_mod.detect_patterns(df, timeframe, symbol) or []
-            except Exception:
-                live = []
-            for hit in live:
-                record = _live_hit_to_dict(hit, symbol, timeframe)
-                if record is not None:
-                    hits.append(record)
-        for record in hits:
-            overlay = _live_overlay(record)
-            if overlay is not None:
-                overlays.append(overlay)
-        payload["hits"] = hits
-    return _sanitize_for_json(payload)
+        payload["hits"] = list(hits_block["hits"])
+        _store_pattern_block(symbol_u, timeframe, session, hits_block, compute_trendlines)
+    return _json_response(payload)
 
 
 @router.get("/watch/setups")
 async def get_watch_setups():
-    return _sanitize_for_json({"setups": watch_mod.public_setups()})
+    return _json_response({"setups": watch_mod.public_setups()})
 
 
 @router.get("/market-status")
@@ -1458,7 +2537,7 @@ async def market_status():
     try:
         is_open = bool(_market_utils.is_market_open(now)) if _market_utils is not None else False
     except Exception:
-        return _sanitize_for_json({
+        return _json_response({
             "open": False, "holiday": False,
             "now_ist": now.isoformat(), "reason": "clock unavailable",
         })
@@ -1474,7 +2553,7 @@ async def market_status():
         reason = "weekend"
     else:
         reason = "outside trading hours"
-    return _sanitize_for_json({
+    return _json_response({
         "open": is_open,
         "holiday": holiday,
         "now_ist": now.isoformat(),
@@ -1527,7 +2606,7 @@ async def get_watch(
     # returns instantly; only a miss/stale cache falls through to arm + live.
     snap = _watch_snapshot(setup, universe, timeframe)
     if snap is not None:
-        return _sanitize_for_json(snap)
+        return _json_response(snap)
     # Store reads + price/volume fan-out can block — keep them off the loop.
     rows = await run_in_threadpool(
         watch_mod.arm,
@@ -1545,7 +2624,7 @@ async def get_watch(
         _rank.get(it.get("state"), 3),
         abs(it["pct_to_trigger"]) if it.get("pct_to_trigger") is not None else 1e9,
     ))
-    return _sanitize_for_json({
+    return _json_response({
         "setup": setup,
         "min_rel_volume": min_rel_volume,
         "updated_at": datetime.now(root_config.IST).isoformat(),
@@ -1554,35 +2633,26 @@ async def get_watch(
 
 
 def _stream_watch_live_worker(rows, *, min_rel_volume, out, stop):
-    """Run ``watch.live`` per armed row on a bounded pool, streaming each row.
+    """Run ``watch.live`` in chunks of ``_STREAM_LIVE_CHUNK`` armed rows per
+    call, streaming each returned row as an ``item`` in completion order.
 
-    Each single-row ``live([row])`` call reuses the exact batch logic, so a
-    streamed row matches its ``/watch`` twin; rows are enqueued as computed
-    (completion order, not the batch endpoint's ranked order — clients
-    re-sort). Queue protocol mirrors :func:`_stream_results_worker`.
+    ``watch.live`` batches LTP/TV/vol_adj across its whole input, so one call
+    per chunk (instead of one per row) keeps the stream fast: 159 armed rows
+    become 3 calls instead of ~159. Each chunk call reuses the exact batch
+    logic, so a streamed row matches its ``/watch`` twin; rows are enqueued as
+    computed (completion order, not the batch endpoint's ranked order — clients
+    re-sort). Queue protocol mirrors :func:`_stream_results_worker`; never
+    raises.
     """
     try:
-        workers = max(1, min(_STREAM_POOL_WORKERS, len(rows) or 1))
+        chunks = [rows[i:i + _STREAM_LIVE_CHUNK] for i in range(0, len(rows), _STREAM_LIVE_CHUNK)]
+        workers = max(1, min(_STREAM_POOL_WORKERS, len(chunks) or 1))
         with ThreadPoolExecutor(max_workers=workers) as pool:
             futs = [
-                pool.submit(watch_mod.live, [row], min_rel_volume=min_rel_volume)
-                for row in rows
+                pool.submit(watch_mod.live, list(chunk), min_rel_volume=min_rel_volume)
+                for chunk in chunks
             ]
-            for fut in as_completed(futs):
-                if stop.is_set():
-                    for pending in futs:
-                        pending.cancel()
-                    break
-                try:
-                    computed = fut.result()
-                except Exception as exc:
-                    try:
-                        out.put(("error", str(exc)[:300]))
-                    except Exception:
-                        pass
-                    for pending in futs:
-                        pending.cancel()
-                    break
+            for computed in _iter_completed_results(futs, stop, out):
                 for live_row in computed or []:
                     try:
                         out.put(("item", _sanitize_for_json(live_row)))
@@ -1604,10 +2674,12 @@ async def _watch_sse_events(setup, *, universe, timeframe, min_base_days,
                             max_range_pct, min_rel_volume, request=None):
     """Async SSE body for ``GET /watch/stream`` (also drives the tests).
 
-    Emits ``meta`` → ``{setup, min_rel_volume}`` immediately, then one
-    ``item`` per live row (snapshot rows first when a fresh snapshot exists,
-    else each ``live()`` row as computed), then ``done``. Never raises
-    mid-stream: unexpected failures become ``event: error`` and close.
+    Emits ``meta`` → ``{setup, min_rel_volume}`` immediately, then a second
+    ``meta`` → ``{setup, min_rel_volume, total}`` after ``arm()`` so the UI can
+    show progress, then one ``item`` per live row (snapshot rows first when a
+    fresh snapshot exists, else each ``live()`` row as computed), then
+    ``done``. Never raises mid-stream: unexpected failures become ``event:
+    error`` and close.
     """
     try:
         yield _sse_event("meta", _sanitize_for_json({
@@ -1639,6 +2711,15 @@ async def _watch_sse_events(setup, *, universe, timeframe, min_base_days,
     rows = list(rows or [])[:_STREAM_MAX_ITEMS]
     if not rows:
         yield _sse_event("done", {})
+        return
+    # Second meta (after arm): the UI replaces the immediate first meta with
+    # this one so it can show progress against ``total``.
+    try:
+        yield _sse_event("meta", _sanitize_for_json({
+            "setup": setup, "min_rel_volume": min_rel_volume, "total": len(rows),
+        }))
+    except Exception as exc:
+        yield _sse_event("error", {"message": str(exc)[:300]})
         return
     out: _queue.Queue = _queue.Queue(maxsize=_STREAM_MAX_ITEMS + 10)
     stop = threading.Event()
@@ -1679,15 +2760,18 @@ async def stream_watch(
 ):
     """SSE twin of ``GET /watch`` (same query params, read-only, open).
 
-    Events: ``meta`` → ``{setup, min_rel_volume}`` (immediately);
-    ``item`` → one live row; ``done`` → ``{}``. ``arm()`` rows are cheap
-    (store read / session cache) so they resolve fast; each ``live()`` row
-    streams as computed on a bounded pool (``queue.Queue`` bridge, like
-    ``api/paper/live_stream.py``). A fresh precomputed snapshot
-    (``watch.get_snapshot``) is emitted item-by-item instead. Client
-    disconnect stops production. Never raises mid-stream (``event: error``
-    + close). Unknown setups 404 before the stream starts (same as
-    ``/watch``).
+    Events: ``meta`` → ``{setup, min_rel_volume}`` (immediately), then a
+    second ``meta`` → ``{setup, min_rel_volume, total}`` after ``arm()`` so
+    the UI can show progress; ``item`` → one live row; ``done`` → ``{}``.
+    ``arm()`` rows are cheap (store read / session cache) so they resolve
+    fast; each ``live()`` row streams as computed on a bounded pool
+    (``queue.Queue`` bridge, like ``api/paper/live_stream.py``). Rows are
+    fanned to ``watch.live`` in ``_STREAM_LIVE_CHUNK``-sized chunks so one
+    batched price/volume call serves up to 50 armed names instead of one call
+    per row. A fresh precomputed snapshot (``watch.get_snapshot``) is emitted
+    item-by-item instead. Client disconnect stops production. Never raises
+    mid-stream (``event: error`` + close). Unknown setups 404 before the
+    stream starts (same as ``/watch``).
     """
     if setup not in watch_mod.SETUPS:
         raise HTTPException(
@@ -1704,3 +2788,185 @@ async def stream_watch(
             yield frame
 
     return StreamingResponse(_body(), media_type="text/event-stream", headers=dict(_SSE_HEADERS))
+
+
+_MATRIX_HIT_KEYS = (
+    "id", "symbol", "name", "timeframe", "pattern_id", "pattern_name",
+    "family", "direction", "status", "quality", "confidence", "start_date",
+    "end_date", "start_price", "end_price", "bars_ago", "volume_confirmed",
+    "range_pos", "to_52w_high",
+)
+
+_MATRIX_MAX_HITS = 40
+
+
+def _matrix_number(value) -> Optional[float]:
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return None
+    if out != out or out in (float("inf"), float("-inf")):
+        return None
+    return out
+
+
+def _matrix_desc(value) -> tuple:
+    num = _matrix_number(value)
+    return (1, 0.0) if num is None else (0, -num)
+
+
+def _matrix_asc(value) -> tuple:
+    num = _matrix_number(value)
+    return (1, 0.0) if num is None else (0, num)
+
+
+def _matrix_rank_key(hit: dict) -> tuple:
+    return (
+        _matrix_desc(hit.get("confidence")),
+        _matrix_asc(hit.get("bars_ago")),
+    )
+
+
+def _matrix_latest(group: list[dict]) -> dict:
+    bars = [_matrix_number(hit.get("bars_ago")) for hit in group]
+    values = [value for value in bars if value is not None]
+    if values:
+        floor = min(values)
+        pool = [hit for hit, value in zip(group, bars) if value == floor]
+    else:
+        pool = list(group)
+    return max(
+        pool,
+        key=lambda hit: (str(hit.get("end_date") or ""), _matrix_number(hit.get("id")) or 0),
+    )
+
+
+def _matrix_slim(hit: dict) -> dict:
+    return {key: hit.get(key) for key in _MATRIX_HIT_KEYS}
+
+
+def _matrix_timeframes(requested) -> list[str]:
+    if requested:
+        valid = _valid_timeframe_ids()
+        out: list[str] = []
+        for tf in requested:
+            key = str(tf or "").strip()
+            if key in valid and key not in out:
+                out.append(key)
+        return out
+    return [str(spec["id"]) for spec in _timeframes_payload() if spec.get("id")]
+
+
+def _matrix_row_key(row: dict) -> tuple:
+    best = row.get("best") or {}
+    return (
+        _matrix_desc(best.get("confidence")),
+        str(row.get("symbol") or ""),
+    )
+
+
+def _matrix_rows(pairs) -> list[dict]:
+    rows: dict[str, dict] = {}
+    for timeframe, items in pairs:
+        for item in items or []:
+            if not isinstance(item, dict):
+                continue
+            symbol = str(item.get("symbol") or "").strip().upper()
+            if not symbol:
+                continue
+            row = rows.get(symbol)
+            if row is None:
+                row = {
+                    "symbol": symbol,
+                    "name": None,
+                    "ltp": None,
+                    "day_change_pct": None,
+                    "groups": {},
+                    "hits": [],
+                }
+                rows[symbol] = row
+            if row["name"] is None and item.get("name"):
+                row["name"] = item.get("name")
+            if row["ltp"] is None:
+                number = _matrix_number(item.get("last_close"))
+                if number is not None:
+                    row["ltp"] = number
+            if row["day_change_pct"] is None and item.get("day_change_pct") is not None:
+                row["day_change_pct"] = item.get("day_change_pct")
+            hit_tf = str(item.get("timeframe") or timeframe or "")
+            row["groups"].setdefault(hit_tf, []).append(item)
+            row["hits"].append(item)
+
+    out: list[dict] = []
+    for row in rows.values():
+        groups = row.pop("groups")
+        hits = row.pop("hits")
+        cells: dict[str, dict] = {}
+        latest_hits: list[dict] = []
+        for timeframe, group in groups.items():
+            latest = _matrix_latest(group)
+            latest_hits.append(latest)
+            name = latest.get("pattern_name")
+            cells[timeframe] = {
+                "direction": latest.get("direction"),
+                "status": latest.get("status"),
+                "count": len(group),
+                "confidence": latest.get("confidence"),
+                "patterns": [name] if name else [],
+                "best_id": latest.get("id"),
+            }
+        best_hit = min(latest_hits, key=_matrix_rank_key) if latest_hits else None
+        if row["ltp"] is None and hits:
+            freshest = min(hits, key=lambda hit: _matrix_asc(hit.get("bars_ago")))
+            row["ltp"] = _matrix_number(freshest.get("end_price"))
+        row["timeframes"] = cells
+        row["hits"] = [_matrix_slim(hit) for hit in latest_hits[:_MATRIX_MAX_HITS]]
+        row["best"] = _matrix_slim(best_hit) if best_hit is not None else None
+        row["hit_count"] = len(hits)
+        out.append(row)
+    out.sort(key=_matrix_row_key)
+    return out
+
+
+@router.get("/matrix")
+async def get_matrix(
+    universe: str = Query(...),
+    limit: int = Query(400, ge=1, le=1000),
+    timeframes: Optional[list[str]] = Query(None),
+):
+    """One row per symbol, one compact cell per timeframe, from stored hits."""
+    tf_ids = _matrix_timeframes(timeframes)
+    cache_key = (
+        getattr(store, "_session_factory", None),
+        universe,
+        tuple(tf_ids),
+        limit,
+        tuple(_last_scan_at_for(universe, tf) for tf in tf_ids),
+    )
+    cached = _read_cache_get(_matrix_cache, cache_key)
+    if cached is not None:
+        return JSONResponse(content=cached)
+    pairs: list[tuple[str, list]] = []
+    through_values: list = []
+    for tf in tf_ids:
+        try:
+            items, _total, summary = store.query_results(
+                {"universe": universe, "timeframe": tf, "sort": "confidence"},
+                limit=limit,
+                offset=0,
+            )
+        except Exception:
+            items, summary = [], {}
+        if not isinstance(summary, dict):
+            summary = {}
+        if summary.get("data_through") is not None:
+            through_values.append(summary["data_through"])
+        pairs.append((tf, items or []))
+    payload = _sanitize_for_json({
+        "universe": universe,
+        "timeframes": tf_ids,
+        "rows": _matrix_rows(pairs),
+        "data_through": max(through_values, key=str) if through_values else None,
+    })
+    _read_cache_put(_matrix_cache, cache_key, payload)
+    return JSONResponse(content=payload)

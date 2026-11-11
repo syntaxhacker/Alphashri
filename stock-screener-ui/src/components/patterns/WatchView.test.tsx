@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor, within, fireEvent } from "@testing-library/react";
+import { act, render, screen, cleanup, waitFor, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import type { WatchPayload, WatchRow, WatchSetup } from "@/types/chartPatterns";
-import { WatchView, WATCH_POLL_MS, WATCH_DEFAULT_WITHIN_PCT, WATCH_DEFAULT_MIN_REL_VOLUME, WATCH_SNAPSHOT_TICK_MS, WATCH_AUTO_REFRESH, formatSnapshotAge } from "./WatchView";
+import { WatchView, WATCH_POLL_MS, WATCH_DEFAULT_WITHIN_PCT, WATCH_DEFAULT_MIN_REL_VOLUME, WATCH_SNAPSHOT_TICK_MS, WATCH_AUTO_REFRESH, WATCH_SLOW_HINT_MS, formatSnapshotAge, universeLabel } from "./WatchView";
 
 const mockFetchWatchSetups = vi.fn();
 const mockFetchWatch = vi.fn();
@@ -437,6 +437,33 @@ describe("WatchView", () => {
     // No crash, badge still renders (open/closed per the local IST clock).
     expect(screen.getByTestId("watch-live-indicator")).toBeInTheDocument();
   });
+
+  test("universeLabel maps known ids and falls back to the raw id", () => {
+    expect(universeLabel("all_equity")).toBe("All NSE Equity");
+    expect(universeLabel("nifty500")).toBe("NIFTY 500");
+    expect(universeLabel("some_custom_universe")).toBe("some_custom_universe");
+    expect(WATCH_SLOW_HINT_MS).toBe(8000);
+  });
+
+  test("non-streaming fallback never shows the slow computing hint", async () => {
+    vi.useFakeTimers();
+    try {
+      r(<WatchView universe="nifty500" timeframe="1D" />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument();
+      // The stream errors in this file's mock, so `streaming` is false and the
+      // hint must stay hidden even well past the empty-stream delay.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(WATCH_SLOW_HINT_MS + 1000);
+      });
+      expect(screen.queryByTestId("watch-loading-hint")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("watch-streaming")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("WatchView near_52w", () => {
@@ -605,6 +632,101 @@ describe("WatchView near_52w", () => {
     expect(screen.queryByText("52W high")).not.toBeInTheDocument();
     expect(screen.queryByText(/Close gap %/)).not.toBeInTheDocument();
     expect(screen.queryByTestId("watch-touched-RELIANCE")).not.toBeInTheDocument();
+  });
+});
+
+describe("WatchView last-touch badge", () => {
+  function badgeRow(symbol: string, extra: Record<string, unknown>): WatchRow {
+    return {
+      symbol,
+      setup_id: "breakout",
+      trigger_level: 1000,
+      invalidate_level: 900,
+      base_days: 60,
+      range_pct: 5,
+      confidence: 70,
+      status: "forming",
+      end_date: "2026-09-30",
+      ltp: 990,
+      rel_volume: 2.0,
+      vol_adj: 1.1,
+      pct_to_trigger: 1.0,
+      state: "armed",
+      ...extra,
+    } as WatchRow;
+  }
+
+  function badgePayload(items: WatchRow[]): WatchPayload {
+    return {
+      setup: "breakout",
+      min_rel_volume: 0.7,
+      updated_at: "2026-09-30T15:30:00+05:30",
+      items,
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetchWatchSetups.mockResolvedValue(SETUPS);
+    mockFetchMarketStatus.mockResolvedValue({
+      open: true,
+      holiday: false,
+      now_ist: "2026-09-30T10:00:00+05:30",
+      reason: "open",
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  test("PDSL-shaped row renders the last-touch badge with short date and full date in the title", async () => {
+    mockFetchWatch.mockResolvedValue(
+      badgePayload([
+        badgeRow("PDSL", { touched: false, last_touch_date: "2026-11-05" }),
+        badgeRow("TOUCHED", { touched: true }),
+        badgeRow("PLAIN", { touched: false }),
+      ]),
+    );
+    r(<WatchView universe="nifty500" timeframe="1D" />);
+    await waitFor(() => expect(screen.getByTestId("watch-row-PDSL")).toBeInTheDocument());
+
+    const badge = screen.getByTestId("watch-last-touch-PDSL");
+    expect(badge).toHaveTextContent("touched 5 Nov");
+    expect(screen.getByTitle("52W high touched 2026-11-05")).toBeInTheDocument();
+    // Not the live "touched" badge.
+    expect(screen.queryByTestId("watch-touched-PDSL")).not.toBeInTheDocument();
+  });
+
+  test("touched:true still renders the original badge and not the dated one", async () => {
+    mockFetchWatch.mockResolvedValue(
+      badgePayload([
+        badgeRow("PDSL", { touched: false, last_touch_date: "2026-11-05" }),
+        badgeRow("TOUCHED", { touched: true }),
+        badgeRow("PLAIN", { touched: false }),
+      ]),
+    );
+    r(<WatchView universe="nifty500" timeframe="1D" />);
+    await waitFor(() => expect(screen.getByTestId("watch-row-TOUCHED")).toBeInTheDocument());
+
+    expect(screen.getByTestId("watch-touched-TOUCHED")).toHaveTextContent("touched");
+    expect(screen.queryByTestId("watch-last-touch-TOUCHED")).not.toBeInTheDocument();
+  });
+
+  test("row with neither touched nor last_touch_date renders no touched badge", async () => {
+    mockFetchWatch.mockResolvedValue(
+      badgePayload([
+        badgeRow("PDSL", { touched: false, last_touch_date: "2026-11-05" }),
+        badgeRow("TOUCHED", { touched: true }),
+        badgeRow("PLAIN", { touched: false }),
+      ]),
+    );
+    r(<WatchView universe="nifty500" timeframe="1D" />);
+    await waitFor(() => expect(screen.getByTestId("watch-row-PLAIN")).toBeInTheDocument());
+
+    expect(screen.queryByTestId("watch-touched-PLAIN")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("watch-last-touch-PLAIN")).not.toBeInTheDocument();
   });
 });
 
@@ -808,5 +930,219 @@ describe("WatchView copy CSV", () => {
 
     const toast = await screen.findByTestId("watch-copy-toast");
     expect(toast).toHaveTextContent("Copy failed");
+  });
+});
+
+describe("WatchView tags and Hide ETFs", () => {
+  function breakoutRow(symbol: string, extra: Record<string, unknown>): WatchRow {
+    return {
+      symbol,
+      setup_id: "breakout",
+      trigger_level: 1000,
+      invalidate_level: 900,
+      base_days: 60,
+      range_pct: 5,
+      confidence: 70,
+      status: "forming",
+      end_date: "2026-09-30",
+      ltp: 990,
+      rel_volume: 2.0,
+      vol_adj: 1.1,
+      pct_to_trigger: 1.0,
+      state: "armed",
+      ...extra,
+    } as WatchRow;
+  }
+
+  function taggedPayload(items: WatchRow[]): WatchPayload {
+    return {
+      setup: "breakout",
+      min_rel_volume: 0.7,
+      updated_at: "2026-09-30T15:30:00+05:30",
+      items,
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetchWatchSetups.mockResolvedValue(SETUPS);
+    mockFetchMarketStatus.mockResolvedValue({
+      open: true,
+      holiday: false,
+      now_ist: "2026-09-30T10:00:00+05:30",
+      reason: "open",
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  test("renders F&O and ETF badges next to the symbol: F&O only, ETF only, both, none", async () => {
+    mockFetchWatch.mockResolvedValue(
+      taggedPayload([
+        breakoutRow("RELIANCE", { tags: ["F&O"] }),
+        breakoutRow("ETFONE", { tags: ["ETF"] }),
+        breakoutRow("BOTH", { tags: ["F&O", "ETF"] }),
+        breakoutRow("PLAIN", { tags: [] }),
+      ]),
+    );
+    const user = userEvent.setup();
+    r(<WatchView universe="nifty500" timeframe="1D" />);
+
+    // The non-ETF rows are visible under the default Hide ETFs toggle.
+    await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
+    expect(screen.getByTestId("watch-tag-fno-RELIANCE")).toHaveTextContent("F&O");
+    expect(screen.queryByTestId("watch-tag-etf-RELIANCE")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("watch-tag-fno-PLAIN")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("watch-tag-etf-PLAIN")).not.toBeInTheDocument();
+
+    // Reveal the ETF-tagged rows to inspect their badges.
+    await user.click(screen.getByTestId("watch-hide-etfs"));
+    await waitFor(() => expect(screen.getByTestId("watch-row-ETFONE")).toBeInTheDocument());
+
+    expect(screen.queryByTestId("watch-tag-fno-ETFONE")).not.toBeInTheDocument();
+    expect(screen.getByTestId("watch-tag-etf-ETFONE")).toHaveTextContent("ETF");
+    expect(screen.getByTestId("watch-tag-fno-BOTH")).toHaveTextContent("F&O");
+    expect(screen.getByTestId("watch-tag-etf-BOTH")).toHaveTextContent("ETF");
+  });
+
+  test("hide-ETFs is on by default and the count reflects the filtered rows; toggling reveals ETF rows", async () => {
+    mockFetchWatch.mockResolvedValue(
+      taggedPayload([
+        breakoutRow("ALPHA", { tags: ["F&O"] }),
+        breakoutRow("ETFONE", { tags: ["ETF"] }),
+      ]),
+    );
+    const user = userEvent.setup();
+    r(<WatchView universe="nifty500" timeframe="1D" />);
+
+    await waitFor(() => expect(screen.getByTestId("watch-row-ALPHA")).toBeInTheDocument());
+
+    const toggle = screen.getByTestId("watch-hide-etfs");
+    expect(toggle).toBeChecked();
+    expect(screen.queryByTestId("watch-row-ETFONE")).not.toBeInTheDocument();
+    expect(screen.getByTestId("watch-count")).toHaveTextContent("1 / 2");
+
+    await user.click(toggle);
+    expect(toggle).not.toBeChecked();
+    await waitFor(() => expect(screen.getByTestId("watch-row-ETFONE")).toBeInTheDocument());
+    expect(screen.getByTestId("watch-count")).toHaveTextContent("2 / 2");
+
+    await user.click(toggle);
+    expect(toggle).toBeChecked();
+    await waitFor(() => expect(screen.queryByTestId("watch-row-ETFONE")).not.toBeInTheDocument());
+    expect(screen.getByTestId("watch-count")).toHaveTextContent("1 / 2");
+  });
+
+  test("hiding every row shows the table empty state with a 0 count", async () => {
+    mockFetchWatch.mockResolvedValue(
+      taggedPayload([
+        breakoutRow("ETFONE", { tags: ["ETF"] }),
+        breakoutRow("ETFTWO", { tags: ["ETF"] }),
+      ]),
+    );
+    r(<WatchView universe="nifty500" timeframe="1D" />);
+
+    await waitFor(() => expect(screen.getByTestId("watch-hide-etfs")).toBeChecked());
+    await waitFor(() => expect(screen.getByTestId("watch-count")).toHaveTextContent("0 / 2"));
+    expect(screen.queryByTestId("watch-row-ETFONE")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("watch-row-ETFTWO")).not.toBeInTheDocument();
+    expect(screen.getByText("No rows match the filters.")).toBeInTheDocument();
+  });
+});
+
+describe("WatchView near_52w trigger date", () => {
+  const NEAR_SETUPS: WatchSetup[] = [
+    { id: "breakout", label: "Breakout", description: "Base breakout candidates", default_min_rel_volume: 0.7 },
+    { id: "near_52w", label: "Near 52W high + accumulation", description: "Near-high accumulation candidates", default_min_rel_volume: 0.7 },
+  ];
+
+  function nearRow(overrides: Record<string, unknown>): WatchRow {
+    return {
+      setup_id: "near_52w",
+      trigger_level: 1000,
+      invalidate_level: 900,
+      base_days: 0,
+      range_pct: 0,
+      confidence: 70,
+      status: "",
+      end_date: "2026-09-30",
+      ltp: 990,
+      rel_volume: 2.5,
+      vol_adj: 1.1,
+      pct_to_trigger: null,
+      state: "armed",
+      close_gap: 1.0,
+      high_gap: -0.5,
+      ...overrides,
+    } as WatchRow;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetchWatchSetups.mockResolvedValue(NEAR_SETUPS);
+    mockFetchMarketStatus.mockResolvedValue({
+      open: true,
+      holiday: false,
+      now_ist: "2026-09-30T10:00:00+05:30",
+      reason: "open",
+    });
+    const breakout = makePayload();
+    const near: WatchPayload = {
+      setup: "near_52w",
+      min_rel_volume: 0.7,
+      updated_at: "2026-09-30T15:30:00+05:30",
+      items: [
+        nearRow({
+          symbol: "APLLTD",
+          trigger_level: 963.35,
+          ltp: 950,
+          trigger_date: "2026-11-04",
+          touched: true,
+        }),
+        nearRow({ symbol: "NODATE", trigger_date: null }),
+        nearRow({ symbol: "NOFIELD" }),
+      ],
+    };
+    mockFetchWatch.mockImplementation((query: { setup: string }) =>
+      Promise.resolve(query.setup === "near_52w" ? near : breakout),
+    );
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  test("surfaces trigger_date next to the numeric 52W high value", async () => {
+    const user = userEvent.setup();
+    r(<WatchView universe="nifty500" timeframe="1D" />);
+    await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
+
+    await user.click(within(screen.getByTestId("watch-setup-select")).getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "Near 52W high + accumulation" }));
+    await waitFor(() => expect(screen.getByTestId("watch-row-APLLTD")).toBeInTheDocument());
+
+    // Numeric value kept (exact) with the date next to it + the full caption in the tooltip.
+    const row = within(screen.getByTestId("watch-row-APLLTD"));
+    expect(row.getByText("₹963.35")).toBeInTheDocument();
+    expect(screen.getByTestId("watch-trigger-date-APLLTD")).toHaveTextContent("2026-11-04");
+    expect(screen.getByTitle("52W high ₹963.35 · 2026-11-04")).toHaveTextContent("₹963.35");
+  });
+
+  test("renders nothing extra when trigger_date is null or missing", async () => {
+    const user = userEvent.setup();
+    r(<WatchView universe="nifty500" timeframe="1D" />);
+    await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
+
+    await user.click(within(screen.getByTestId("watch-setup-select")).getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "Near 52W high + accumulation" }));
+    await waitFor(() => expect(screen.getByTestId("watch-row-NODATE")).toBeInTheDocument());
+
+    expect(within(screen.getByTestId("watch-row-NODATE")).getByText("₹1000.00")).toBeInTheDocument();
+    expect(screen.queryByTestId("watch-trigger-date-NODATE")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("watch-trigger-date-NOFIELD")).not.toBeInTheDocument();
   });
 });

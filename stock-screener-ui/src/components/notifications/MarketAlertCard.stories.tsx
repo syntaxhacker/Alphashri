@@ -61,7 +61,7 @@ const ALERTS: MarketAlert[] = [
     ],
     ts: NOW,
     source: "Nifty OI tape",
-    href: "/report/nifty",
+    href: "/report/index",
   },
   {
     id: "a2",

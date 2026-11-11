@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { screen, cleanup } from "@testing-library/react";
+import { screen, cleanup, within, fireEvent } from "@testing-library/react";
 import { renderWithProviders } from "../../test-utils/renderWithProviders";
 
 const mockStateStore: any = {
@@ -18,6 +18,7 @@ const mockStateStore: any = {
   filterSymbol: null,
   filterStrategy: null,
   filterBot: null,
+  filterSource: "all",
   selectedSymbol: null,
   selectedStrategyId: null,
   selectedStrategyTab: null,
@@ -55,6 +56,7 @@ vi.mock("../../state/paperTrading", () => ({
   setSelectedSymbol: vi.fn(),
   setFilterStrategy: vi.fn(),
   setFilterBot: vi.fn(),
+  setFilterSource: vi.fn(),
   setFilterFromDate: vi.fn(),
   setFilterToDate: vi.fn(),
   setSelectedTradeId: vi.fn(),
@@ -167,6 +169,167 @@ describe("PaperHistoryTable", () => {
       mockStateStore.trades = [mockTrade({ strategy_id: 1, strategy_name: "ORB" })];
       r();
       expect(screen.queryByTestId("strategy-filter-select")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("source filter (books)", () => {
+    test("renders the source filter select next to bot/strategy filters", () => {
+      mockStateStore.trades = [mockTrade()];
+      r();
+      expect(screen.getByTestId("source-filter-select")).toBeInTheDocument();
+    });
+
+    test("selecting Options calls setFilterSource with 'options'", async () => {
+      mockStateStore.trades = [mockTrade()];
+      r();
+      const select = screen.getByTestId("source-filter-select");
+      fireEvent.mouseDown(within(select).getByRole("combobox"));
+      const option = await screen.findByRole("option", { name: "Options" });
+      fireEvent.click(option);
+      const { setFilterSource } = await import("../../state/paperTrading");
+      expect(setFilterSource).toHaveBeenCalledWith("options");
+    });
+
+    test("selecting Equity calls setFilterSource with 'equity'", async () => {
+      mockStateStore.trades = [mockTrade()];
+      r();
+      const select = screen.getByTestId("source-filter-select");
+      fireEvent.mouseDown(within(select).getByRole("combobox"));
+      const option = await screen.findByRole("option", { name: "Equity" });
+      fireEvent.click(option);
+      const { setFilterSource } = await import("../../state/paperTrading");
+      expect(setFilterSource).toHaveBeenCalledWith("equity");
+    });
+
+    test("filterSource=options shows only option trades", () => {
+      mockStateStore.filterSource = "options";
+      mockStateStore.trades = [
+        mockTrade({ trade_id: "o1", symbol: "NIFTY 2026-10-19 22900CE", source: "options_paper" }),
+        mockTrade({ trade_id: "e1" }),
+      ];
+      r();
+      expect(screen.getByTestId("trade-row-o1")).toBeInTheDocument();
+      expect(screen.queryByTestId("trade-row-e1")).not.toBeInTheDocument();
+    });
+
+    test("filterSource=equity shows only equity trades", () => {
+      mockStateStore.filterSource = "equity";
+      mockStateStore.trades = [
+        mockTrade({ trade_id: "o1", symbol: "NIFTY26OCT23000PE", source: "options_paper" }),
+        mockTrade({ trade_id: "e1" }),
+      ];
+      r();
+      expect(screen.getByTestId("trade-row-e1")).toBeInTheDocument();
+      expect(screen.queryByTestId("trade-row-o1")).not.toBeInTheDocument();
+    });
+
+    test("option symbol without source still counts as options", () => {
+      mockStateStore.filterSource = "options";
+      mockStateStore.trades = [mockTrade({ trade_id: "o2", symbol: "NIFTY26OCT23000PE" })];
+      r();
+      expect(screen.getByTestId("trade-row-o2")).toBeInTheDocument();
+    });
+
+    test("offers a Futures book when a futures trade is present", async () => {
+      mockStateStore.trades = [
+        mockTrade({ trade_id: "e1" }),
+        mockTrade({ trade_id: "f1", symbol: "NIFTY", source: "futures_paper" }),
+      ];
+      r();
+      const select = screen.getByTestId("source-filter-select");
+      fireEvent.mouseDown(within(select).getByRole("combobox"));
+      expect(await screen.findByRole("option", { name: "Futures" })).toBeInTheDocument();
+    });
+
+    test("does not offer a Futures book when no futures trade is present", async () => {
+      mockStateStore.trades = [mockTrade({ trade_id: "e1" })];
+      r();
+      const select = screen.getByTestId("source-filter-select");
+      fireEvent.mouseDown(within(select).getByRole("combobox"));
+      await screen.findByRole("option", { name: "Options" });
+      expect(screen.queryByRole("option", { name: "Futures" })).not.toBeInTheDocument();
+    });
+
+    test("selecting Futures calls setFilterSource with 'futures'", async () => {
+      mockStateStore.trades = [
+        mockTrade({ trade_id: "f1", symbol: "NIFTY", source: "futures_paper" }),
+      ];
+      r();
+      const select = screen.getByTestId("source-filter-select");
+      fireEvent.mouseDown(within(select).getByRole("combobox"));
+      const option = await screen.findByRole("option", { name: "Futures" });
+      fireEvent.click(option);
+      const { setFilterSource } = await import("../../state/paperTrading");
+      expect(setFilterSource).toHaveBeenCalledWith("futures");
+    });
+
+    test("filterSource=futures shows only futures trades", () => {
+      mockStateStore.filterSource = "futures";
+      mockStateStore.trades = [
+        mockTrade({ trade_id: "f1", symbol: "NIFTY", source: "futures_paper" }),
+        mockTrade({ trade_id: "e1" }),
+        mockTrade({ trade_id: "o1", symbol: "NIFTY26OCT23000PE", source: "options_paper" }),
+      ];
+      r();
+      expect(screen.getByTestId("trade-row-f1")).toBeInTheDocument();
+      expect(screen.queryByTestId("trade-row-e1")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("trade-row-o1")).not.toBeInTheDocument();
+    });
+
+    test("filterSource=equity excludes futures trades", () => {
+      mockStateStore.filterSource = "equity";
+      mockStateStore.trades = [
+        mockTrade({ trade_id: "f1", symbol: "NIFTY", source: "futures_paper" }),
+        mockTrade({ trade_id: "e1" }),
+      ];
+      r();
+      expect(screen.getByTestId("trade-row-e1")).toBeInTheDocument();
+      expect(screen.queryByTestId("trade-row-f1")).not.toBeInTheDocument();
+    });
+
+    test("filterSource=commodities shows only commodities trades", () => {
+      mockStateStore.filterSource = "commodities";
+      mockStateStore.trades = [
+        mockTrade({ trade_id: "c1", symbol: "XAU", source: "commodities_paper" }),
+        mockTrade({ trade_id: "e1" }),
+      ];
+      r();
+      expect(screen.getByTestId("trade-row-c1")).toBeInTheDocument();
+      expect(screen.queryByTestId("trade-row-e1")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("option trade chart selection", () => {
+    test("clicking an option trade fetches the underlying chart (no spaces)", async () => {
+      const user = userEvent.setup();
+      mockStateStore.trades = [
+        mockTrade({
+          trade_id: "opt-1",
+          symbol: "NIFTY 2026-10-19 22900CE",
+          source: "options_paper",
+        }),
+      ];
+      r();
+      await user.click(screen.getByTestId("trade-row-opt-1"));
+      await vi.waitFor(() => {
+        expect(mocks.mockFetchPaperChart).toHaveBeenCalled();
+      });
+      expect(mocks.mockFetchPaperChart.mock.calls[0][0]).toBe("NIFTY");
+      const { setSelectedSymbol } = await import("../../state/paperTrading");
+      expect(setSelectedSymbol).toHaveBeenCalledWith("NIFTY");
+    });
+
+    test("clicking a compact-format option trade resolves the underlying too", async () => {
+      const user = userEvent.setup();
+      mockStateStore.trades = [
+        mockTrade({ trade_id: "opt-2", symbol: "RELIANCE26OCT3000CE", source: "options_paper" }),
+      ];
+      r();
+      await user.click(screen.getByTestId("trade-row-opt-2"));
+      await vi.waitFor(() => {
+        expect(mocks.mockFetchPaperChart).toHaveBeenCalled();
+      });
+      expect(mocks.mockFetchPaperChart.mock.calls[0][0]).toBe("RELIANCE");
     });
   });
 

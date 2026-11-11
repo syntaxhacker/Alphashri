@@ -45,9 +45,9 @@ describe("ResultsSearch", () => {
     expect(setFilter).toHaveBeenCalledTimes(1);
   });
 
-  test("renders the label and current value", () => {
+  test("renders the current value", () => {
     r(<ResultsSearch filters={makeFilters({ q: "infy" })} setFilter={vi.fn()} />);
-    expect(screen.getByLabelText("Filter results")).toHaveValue("infy");
+    expect(screen.getByTestId("patterns-results-search")).toHaveValue("infy");
   });
 
   test("keeps characters typed after a commit when the parent echoes q back", async () => {

@@ -11,7 +11,9 @@ beforeEach(() => {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: vi.fn().mockImplementation((query) => ({
-      matches: false,
+      // Desktop drawdown: MUI's md breakpoint is (min-width:900px). Every
+      // other query (colour scheme, print, …) stays false like a fresh browser.
+      matches: /min-width:\s*900px/.test(String(query)),
       media: query,
       onchange: null,
       addListener: vi.fn(),
@@ -36,6 +38,7 @@ vi.mock("../layout/NavbarNested", () => ({
 }));
 
 vi.mock("./MarketTicker", () => ({
+  MarketStatus: () => <div data-testid="market-status-mock" />,
   MarketTicker: () => <div data-testid="market-ticker-mock" />,
 }));
 
@@ -77,16 +80,15 @@ describe("AppLayout", () => {
         </AppLayout>
       </TestWrapper>,
     );
-    // AppLayout is MUI-based (MuiAppBar + Box with bgcolor background.paper), not MUI.
+    // The shell is MUI-based (Box with bgcolor background.paper), not MUI.
     // Verify shell elements exist and have theme-aware attributes/classes instead of legacy vars.
     const main = screen.getByTestId("app-main");
-    const header = screen.getByTestId("app-header");
+    const header = screen.getByTestId("app-sidebar-header");
     const shell = screen.getByTestId("app-shell");
     expect(main).toBeInTheDocument();
     expect(header).toBeInTheDocument();
     expect(shell).toBeInTheDocument();
-    // header is MuiAppBar with paper background via sx; ensure it renders as header landmark
-    expect(header.tagName.toLowerCase()).toBe("header");
+    expect(header.tagName.toLowerCase()).toBe("div");
   });
 
   it("renders app shell structure", () => {
@@ -99,9 +101,25 @@ describe("AppLayout", () => {
     );
 
     expect(screen.getByTestId("app-shell")).toBeInTheDocument();
-    expect(screen.getByTestId("app-header")).toBeInTheDocument();
+    expect(screen.getByTestId("app-sidebar-header")).toBeInTheDocument();
     expect(screen.getByTestId("app-navbar")).toBeInTheDocument();
     expect(screen.getByTestId("app-main")).toBeInTheDocument();
+  });
+
+  it("does not render a top app bar", () => {
+    render(
+      <TestWrapper>
+        <AppLayout>
+          <div>Content</div>
+        </AppLayout>
+      </TestWrapper>,
+    );
+
+    // The header was removed to reclaim its vertical space; the brand and the
+    // controls live in the sidebar chrome instead.
+    expect(screen.queryByTestId("app-header")).not.toBeInTheDocument();
+    expect(screen.getByTestId("app-sidebar-header")).toBeInTheDocument();
+    expect(screen.getByTestId("market-status-mock")).toBeInTheDocument();
   });
 
   it("renders logo", () => {
@@ -182,8 +200,33 @@ describe("AppLayout", () => {
     const toggles = screen.getAllByLabelText("Toggle sidebar");
     await user.click(toggles[toggles.length - 1]);
     expect(screen.getAllByTestId("navbar-nested")[0]).toHaveAttribute("data-collapsed", "true");
-    await user.click(toggles[toggles.length - 1]);
+    // The rail renders a different subtree when collapsed, so re-query the
+    // control instead of reusing the now-detached expanded-mode node.
+    await user.click(screen.getAllByLabelText("Toggle sidebar").pop()!);
     expect(screen.getAllByTestId("navbar-nested")[0]).toHaveAttribute("data-collapsed", "false");
+  });
+
+  it("collapsed rail hides brand, news and bell but keeps the expand control", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+    render(
+      <TestWrapper>
+        <AppLayout>
+          <div>Content</div>
+        </AppLayout>
+      </TestWrapper>,
+    );
+
+    expect(screen.getByTestId("app-logo")).toBeInTheDocument();
+    expect(screen.getByTestId("notif-bell")).toBeInTheDocument();
+
+    await user.click(screen.getAllByLabelText("Toggle sidebar").pop()!);
+
+    // The 64px rail keeps only the control needed to expand it again; the
+    // brand, news button and notification bell return on expand.
+    expect(screen.queryByTestId("app-logo")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("notif-bell")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-collapse-toggle")).toBeInTheDocument();
   });
 
   it("renders notification bell and opens panel on click", async () => {

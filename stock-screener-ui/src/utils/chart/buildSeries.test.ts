@@ -51,6 +51,15 @@ describe("buildSeries", () => {
   });
 
   describe("markLines integration", () => {
+    // The identical one-line bracket used by the symbol/label cases.
+    const singleBlackMarkLine = [
+      {
+        yAxis: 100,
+        lineStyle: { color: BLACK },
+        label: { position: "insideEndTop", formatter: "Test" },
+      },
+    ];
+
     it("adds markLines when provided", () => {
       const markLines = [
         {
@@ -65,26 +74,12 @@ describe("buildSeries", () => {
     });
 
     it("configures markLine symbol correctly", () => {
-      const markLines = [
-        {
-          yAxis: 100,
-          lineStyle: { color: BLACK },
-          label: { position: "insideEndTop", formatter: "Test" },
-        },
-      ];
-      const result = buildSeries(mockCandles, {} as any, false, markLines);
+      const result = buildSeries(mockCandles, {} as any, false, singleBlackMarkLine);
       expect(result.series[0].markLine.symbol).toEqual(["none", "none"]);
     });
 
     it("sets markLine label style", () => {
-      const markLines = [
-        {
-          yAxis: 100,
-          lineStyle: { color: BLACK },
-          label: { position: "insideEndTop", formatter: "Test" },
-        },
-      ];
-      const result = buildSeries(mockCandles, {} as any, false, markLines);
+      const result = buildSeries(mockCandles, {} as any, false, singleBlackMarkLine);
       expect(result.series[0].markLine.label).toEqual({
         color: "inherit",
         fontSize: 11,

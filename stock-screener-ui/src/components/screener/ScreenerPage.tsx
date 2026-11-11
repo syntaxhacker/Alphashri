@@ -1,21 +1,32 @@
-import { useState, useCallback, lazy, Suspense, useTransition } from "react";
+import { useState, useCallback, lazy, Suspense, useTransition, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import MuiStack from "@mui/material/Stack";
 import Paper from "@mui/material/Paper";
 import { Box, Tabs, Text, Select, Skeleton, ActionIcon, Switch, Tooltip } from "@/ui";
 import { BORDER, SURFACE } from "@/ui/palette";
-import { IconTable, IconChartDots, IconSettings, IconLayoutDashboard, IconRefresh } from "@tabler/icons-react";
+import { IconTable, IconChartDots, IconSettings, IconLayoutDashboard, IconRefresh, IconCoins, IconCalendarEvent, IconWorld } from "@tabler/icons-react";
 import * as state from "../../state";
 import { DashboardView } from "./DashboardView";
 import { ScreenerHeader } from "./ScreenerHeader";
-import { ScreenerContent } from "./ScreenerContent";
+// ScreenerContent pulls the table + heatmap (echarts) graph — several MB of
+// module evaluation on the critical path of every landing. Load it on first
+// render of the Screener tab, not at page boot.
+const ScreenerContent = lazy(() =>
+  import("./ScreenerContent").then((m) => ({ default: m.ScreenerContent })),
+);
 import { SelectionBar } from "./SelectionBar";
 import { screenerHasSideFilters } from "./ScreenerSidePanel";
 import { GroupPerformancePanel } from "./GroupPerformancePanel";
 import { ScreenerInlineFilters } from "./ScreenerInlineFilters";
+import { ErrorBoundary } from "../common/ErrorBoundary";
 
 const CorrelationTab = lazy(() => import("./CorrelationTab").then((m) => ({ default: m.CorrelationTab })));
 const ScreenerConfigView = lazy(() => import("./ScreenerConfigView").then((m) => ({ default: m.ScreenerConfigView })));
+const DeepValueTab = lazy(() => import("../value/ValuePanel").then((m) => ({ default: m.ValuePanel })));
+const EventsTab = lazy(() => import("../events/EventsPanel").then((m) => ({ default: m.EventsPanel })));
+const MarketTab = lazy(() =>
+  import("../../pages/market/MarketScreenerPage").then((m) => ({ default: m.MarketScreenerPage })),
+);
 import {
   setSymbols,
   setTimeframe,
@@ -24,6 +35,21 @@ import {
   fetchCorrelationData,
 } from "../../state/correlation";
 import type { Stock } from "../../types";
+
+let marketTabPrefetch: Promise<unknown> | null = null;
+/**
+ * Warm the Market chunk. Hover/focus/idle all share one promise, so the
+ * chunk is requested at most once and never eagerly on mount.
+ */
+function prefetchMarketTab() {
+  if (!marketTabPrefetch) {
+    marketTabPrefetch = import("../../pages/market/MarketScreenerPage").catch(() => {
+      // Failed chunk loads must not wedge future prefetch attempts.
+      marketTabPrefetch = null;
+    });
+  }
+  return marketTabPrefetch;
+}
 
 interface ScreenerPageProps {
   screenerOptions: Array<{ id: string; label: string; description?: string }>;
@@ -160,11 +186,45 @@ export function ScreenerPage({
   const [viewMode, setViewMode] = useState<"table" | "heatmap">("table");
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "dashboard";
+  const isValueTab = activeTab === "deepvalue";
+  const isEventsTab = activeTab === "events";
+  const isMarketTab = activeTab === "market";
   const [isPending, startTransition] = useTransition();
   const [internalUniverse, setInternalUniverse] = useState(DEFAULT_DASHBOARD_UNIVERSE);
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
   const [showLastClose, setShowLastClose] = useState(false);
   const universe = universeProp ?? internalUniverse;
+
+  // Mount the expensive dashboard/screener panels on first visit, then keep
+  // them alive. Landing on ?tab=market must not pay the dashboard fetch or
+  // the screener table's module/render cost.
+  const [visitedTabs, setVisitedTabs] = useState<ReadonlySet<string>>(
+    () => new Set([activeTab]),
+  );
+  useEffect(() => {
+    setVisitedTabs((prev) => {
+      if (prev.has(activeTab)) return prev;
+      const next = new Set(prev);
+      next.add(activeTab);
+      return next;
+    });
+  }, [activeTab]);
+  const visited = useMemo(() => new Set(visitedTabs).add(activeTab), [visitedTabs, activeTab]);
+
+  // Warm the Market chunk once the browser is idle after mount; hover/focus
+  // on the tab does the same sooner. Never blocks the initial load.
+  useEffect(() => {
+    const w = window as unknown as {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (typeof w.requestIdleCallback === "function") {
+      const id = w.requestIdleCallback(prefetchMarketTab, { timeout: 2500 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const id = window.setTimeout(prefetchMarketTab, 1500);
+    return () => window.clearTimeout(id);
+  }, []);
   const handleUniverseChange = useCallback(
     (u: string) => {
       if (onUniverseChange) {
@@ -267,6 +327,22 @@ export function ScreenerPage({
                 comboboxProps={{ withinPortal: true }}
                 aria-label="Market universe"
               />
+            ) : isValueTab ? (
+              <Text size="xs" fw={600} data-testid="deep-value-tab-label">
+                Deep Value
+              </Text>
+            ) : isEventsTab ? (
+              // Keeps the tab strip from jumping: the slot below it is a
+              // 148px Select on the other tabs. The word "Events" is already
+              // the active tab two elements to the right, so this slot names
+              // the surface instead of repeating it.
+              <Text size="xs" fw={600} data-testid="events-tab-label" sx={{ width: 148, flexShrink: 0 }}>
+                Event calendar
+              </Text>
+            ) : isMarketTab ? (
+              <Text size="xs" fw={600} data-testid="market-tab-label" sx={{ width: 148, flexShrink: 0 }}>
+                Market
+              </Text>
             ) : (
               <Select
                 value={activeScreener}
@@ -293,6 +369,15 @@ export function ScreenerPage({
                 <Tabs.Tab value="screener" leftSection={<IconTable size={14} />} data-testid="tab-screener" style={{ minHeight: 32 }}>
                   Screener
                 </Tabs.Tab>
+                <Tabs.Tab value="deepvalue" leftSection={<IconCoins size={14} />} data-testid="tab-deepvalue" style={{ minHeight: 32 }}>
+                  Deep Value
+                </Tabs.Tab>
+                <Tabs.Tab value="events" leftSection={<IconCalendarEvent size={14} />} data-testid="tab-events" style={{ minHeight: 32 }}>
+                  Events
+                </Tabs.Tab>
+                <Tabs.Tab value="market" leftSection={<IconWorld size={14} />} data-testid="tab-market" style={{ minHeight: 32 }} onMouseEnter={prefetchMarketTab} onFocus={prefetchMarketTab}>
+                  Market
+                </Tabs.Tab>
                 <Tabs.Tab value="correlation" leftSection={<IconChartDots size={14} />} data-testid="tab-correlation" style={{ minHeight: 32 }}>
                   Correlation
                 </Tabs.Tab>
@@ -302,10 +387,12 @@ export function ScreenerPage({
               </Tabs.List>
             </Tabs>
           </Box>
-          <Box sx={{ flex: 1, minWidth: 0, px: 1, display: "flex", justifyContent: "center", overflow: "hidden" }}>
-            <Text size="xs" c="dimmed" truncate sx={{ fontSize: 11 }} title={status} data-testid="screener-status">
-              {status}
-            </Text>
+          <Box sx={{ flex: 1, minWidth: 80, px: 1, display: "flex", justifyContent: "center", overflow: "hidden" }}>
+            {isMarketTab ? null : (
+              <Text size="xs" c="dimmed" truncate sx={{ fontSize: 11 }} title={status} data-testid="screener-status">
+                {status}
+              </Text>
+            )}
           </Box>
           <Box sx={{ flexShrink: 0, display: "flex", alignItems: "center", flexWrap: "nowrap" }}>
             {isDashboard ? (
@@ -332,7 +419,7 @@ export function ScreenerPage({
                   </ActionIcon>
                 </Tooltip>
               </Box>
-            ) : (
+            ) : isValueTab ? null : isEventsTab ? null : isMarketTab ? null : (
               <ScreenerHeader
               status={status}
               isLoading={isLoading}
@@ -360,48 +447,82 @@ export function ScreenerPage({
             data-testid="dashboard-panel"
             sx={{ display: isDashboard ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}
           >
-            <DashboardView
-              key={`dashboard-${dashboardRefreshKey}`}
-              universe={universe}
-              onOpenSymbol={onSymbolClick}
-              onOpenScan={handleOpenScan}
-            />
+            {visited.has("dashboard") ? (
+              <DashboardView
+                key={`dashboard-${dashboardRefreshKey}`}
+                universe={universe}
+                onOpenSymbol={onSymbolClick}
+                onOpenScan={handleOpenScan}
+              />
+            ) : null}
           </Box>
           <Box sx={{ display: activeTab === "screener" ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, gap: 1 }}>
-            <GroupPerformancePanel />
-            <Paper
-              elevation={0}
-              sx={{
-                flex: 1,
-                minWidth: 0,
-                minHeight: 0,
-                display: "flex",
-                flexDirection: "column",
-                overflow: "hidden",
-                border: 1,
-                borderColor: BORDER,
-                borderRadius: 2,
-                bgcolor: SURFACE,
-                opacity: isPending ? 0.6 : 1,
-              }}
-            >
-              <CompactAlerts activeScreener={activeScreener} warning={warning} />
-              {hasSideFilters && <ScreenerInlineFilters activeScreener={activeScreener} embedded />}
-              <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column", p: 0.5, gap: 0.5 }}>
-                <ScreenerContent
-                  approachingStocks={approachingStocks}
-                  touchedStocks={touchedStocks}
-                  isLoading={isLoading}
-                  error={error}
-                  onRefresh={onRefresh}
-                  onSymbolClick={onSymbolClick}
-                  onSymbolHover={onSymbolHover}
-                  activeScreener={activeScreener}
-                  viewMode={viewMode}
-                />
-                <SelectionBar onCompare={handleCompare} />
-              </Box>
-            </Paper>
+            {visited.has("screener") ? (
+              <>
+                <GroupPerformancePanel />
+                <Paper
+                  elevation={0}
+                  sx={{
+                    flex: 1,
+                    minWidth: 0,
+                    minHeight: 0,
+                    display: "flex",
+                    flexDirection: "column",
+                    overflow: "hidden",
+                    border: 1,
+                    borderColor: BORDER,
+                    borderRadius: 2,
+                    bgcolor: SURFACE,
+                    opacity: isPending ? 0.6 : 1,
+                  }}
+                >
+                  <CompactAlerts activeScreener={activeScreener} warning={warning} />
+                  {hasSideFilters && <ScreenerInlineFilters activeScreener={activeScreener} embedded />}
+                  <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column", p: 0.5, gap: 0.5 }}>
+                    <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
+                      <ScreenerContent
+                        approachingStocks={approachingStocks}
+                        touchedStocks={touchedStocks}
+                        isLoading={isLoading}
+                        error={error}
+                        onRefresh={onRefresh}
+                        onSymbolClick={onSymbolClick}
+                        onSymbolHover={onSymbolHover}
+                        activeScreener={activeScreener}
+                        viewMode={viewMode}
+                      />
+                    </Suspense>
+                    <SelectionBar onCompare={handleCompare} />
+                  </Box>
+                </Paper>
+              </>
+            ) : null}
+          </Box>
+          <Box
+            data-testid="deep-value-panel"
+            sx={{ display: isValueTab ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}
+          >
+            <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
+              {isValueTab ? <DeepValueTab /> : null}
+            </Suspense>
+          </Box>
+          <Box
+            data-testid="events-tab-panel"
+            sx={{ display: isEventsTab ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}
+          >
+            <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
+              {isEventsTab ? <EventsTab /> : null}
+            </Suspense>
+          </Box>
+          <Box
+            data-testid="market-tab-panel"
+            sx={{ display: isMarketTab ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden" }}
+          >
+            <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
+              <ErrorBoundary label="Market screener">
+                {isMarketTab ? <MarketTab /> : null}
+              </ErrorBoundary>
+            </Suspense>
           </Box>
           <Box sx={{ display: activeTab === "correlation" || activeTab === "config" ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}>
             <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>

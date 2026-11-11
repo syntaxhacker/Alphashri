@@ -15,7 +15,7 @@ import type { DailyMoveRow, DailyReportResponse } from "../../types/report";
 import { copyToClipboard } from "../../utils/copyCsv";
 import { formatCurrency, formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
 
-export interface EventWatchProps {
+interface EventWatchProps {
   universe?: string;
   days?: number;
   /** Daily report payload reused client-side for the technical snapshot. */
@@ -455,6 +455,7 @@ export function EventWatch({ universe = "nifty500", days = 7, daily, onOpenSymbo
                         emptyMessage="No scheduled events"
                         stickyHeader
                         bare
+                        dense
                         onRowClick={onOpenSymbol ? (row) => onOpenSymbol(row.symbol) : undefined}
                         getRowTestId={(row) => `event-watch-upcoming-row-${row.symbol}-${row.kind}`}
                       />
@@ -491,6 +492,7 @@ export function EventWatch({ universe = "nifty500", days = 7, daily, onOpenSymbo
                     emptyMessage="No fresh events"
                     stickyHeader
                     bare
+                    dense
                     onRowClick={onOpenSymbol ? (row) => onOpenSymbol(row.symbol) : undefined}
                     getRowTestId={(row) => `event-watch-recent-row-${row.symbol}-${row.kind}`}
                   />

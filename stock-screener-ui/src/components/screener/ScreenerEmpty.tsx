@@ -1,23 +1,15 @@
-import { Group, Text } from "@/ui";
 import { IconDatabaseOff } from "@tabler/icons-react";
-import { CompactPanel } from "../common/compact";
+import { EmptyCompact } from "../common/states";
 import type { ScreenerEmptyProps } from "./types";
 
 export function ScreenerEmpty({ message = "No results found" }: ScreenerEmptyProps) {
   return (
-    <CompactPanel
+    <EmptyCompact
       id="screener-empty"
-      testId="screener-empty"
-      title={
-        <Group gap="sm" wrap="nowrap" align="center">
-          <IconDatabaseOff size={18} stroke={1.7} />
-          <Text fw={600} size="sm">
-            No results found
-          </Text>
-        </Group>
-      }
+      data-testid="screener-empty"
+      icon={<IconDatabaseOff size={18} stroke={1.7} />}
+      title="No results found"
       description={message}
-      padded
     />
   );
 }

@@ -5,14 +5,12 @@ import {
   HistogramSeries,
   LineSeries,
   LineStyle,
-  TickMarkType,
   createChart,
   createSeriesMarkers,
   type IChartApi,
   type IPriceLine,
   type ISeriesApi,
   type LineWidth,
-  type Time,
 } from "lightweight-charts";
 import Box from "@mui/material/Box";
 import * as palette from "@/ui/palette";
@@ -23,9 +21,9 @@ import type {
   TrendLine,
   TrendlinesView,
 } from "@/types/chartPatterns";
-import { buildPatternTVData, type TVSiblingOverlay } from "./patternTVData";
-import { PIVOT_LEGEND_NAME } from "@/config/patterns";
-import { formatISTCrosshair, formatISTTick } from "@/utils/istChartTime";
+import { buildPatternTVData, type TVMarker, type TVSiblingOverlay } from "./patternTVData";
+import { KEY_POINTS_LEGEND_NAME, PIVOT_LEGEND_NAME } from "@/config/patterns";
+import { tvTickMarkFormatter, tvTimeFormatter } from "@/utils/tvTimeFormat";
 
 export interface PatternTradingViewChartProps {
   hit: PatternHitDTO | null;
@@ -33,6 +31,8 @@ export interface PatternTradingViewChartProps {
   overlays?: TVSiblingOverlay[];
   trendLines?: TrendLine[];
   trendlinesView?: TrendlinesView;
+  /** Last N hits (newest first) to draw as historical patterns. */
+  historyHits?: PatternHitDTO[];
   /** Pattern names (see `buildPatternTVData(...).lines[].name`) hidden from the chart. */
   hiddenNames?: ReadonlySet<string>;
   /** Fixed pixel height, or `"100%"` (default) to fill the flex parent. */
@@ -47,26 +47,12 @@ function clampWidth(w?: number): LineWidth {
 /** Stable empty set so the visibility effect never sees a new reference. */
 const EMPTY_HIDDEN: ReadonlySet<string> = new Set<string>();
 
-/** Crosshair time label — IST (lightweight-charts otherwise shows UTC). */
-function tvTimeFormatter(time: Time): string {
-  return typeof time === "number" ? formatISTCrosshair(time) : "";
-}
-
-/** Axis tick labels — IST, granularity-aware. */
-function tvTickMarkFormatter(time: Time, tickMarkType: TickMarkType): string {
-  if (typeof time !== "number") return "";
-  switch (tickMarkType) {
-    case TickMarkType.Year:
-      return formatISTTick(time, "year");
-    case TickMarkType.Month:
-      return formatISTTick(time, "month");
-    case TickMarkType.DayOfMonth:
-      return formatISTTick(time, "day");
-    case TickMarkType.TimeWithSeconds:
-      return formatISTTick(time, "timeSeconds");
-    default:
-      return formatISTTick(time, "time");
-  }
+function visibleMarkers(markers: TVMarker[], hidden: ReadonlySet<string>): TVMarker[] {
+  return markers.filter((marker) =>
+    marker.group === "keypoints"
+      ? !hidden.has(KEY_POINTS_LEGEND_NAME)
+      : !hidden.has(PIVOT_LEGEND_NAME),
+  );
 }
 
 /**
@@ -82,6 +68,7 @@ export function PatternTradingViewChart({
   overlays,
   trendLines,
   trendlinesView = "both",
+  historyHits,
   hiddenNames,
   height = "100%",
 }: PatternTradingViewChartProps) {
@@ -96,8 +83,8 @@ export function PatternTradingViewChart({
   const hiddenRef = useRef<ReadonlySet<string>>(hiddenNames ?? EMPTY_HIDDEN);
 
   const data = useMemo(
-    () => buildPatternTVData({ candles, hit, overlays, trendLines, trendlinesView }),
-    [candles, hit, overlays, trendLines, trendlinesView],
+    () => buildPatternTVData({ candles, hit, overlays, trendLines, trendlinesView, historyHits }),
+    [candles, hit, overlays, trendLines, trendlinesView, historyHits],
   );
 
   // Create the chart once; data/overlays update in the effect below.
@@ -106,7 +93,7 @@ export function PatternTradingViewChart({
     const initialHeight = containerRef.current.clientHeight || 360;
     const chart = createChart(containerRef.current, {
       layout: { background: { type: ColorType.Solid, color: palette.CHART_TV_BG }, textColor: palette.TEXT },
-      grid: { vertLines: { color: palette.BORDER }, horzLines: { color: palette.BORDER } },
+      grid: { vertLines: { visible: false }, horzLines: { visible: false } },
       width: containerRef.current.clientWidth,
       height: initialHeight,
       timeScale: {
@@ -238,9 +225,7 @@ export function PatternTradingViewChart({
     });
 
     try {
-      markersRef.current?.setMarkers(
-        hiddenRef.current.has(PIVOT_LEGEND_NAME) ? [] : (data.markers as never),
-      );
+      markersRef.current?.setMarkers(visibleMarkers(data.markers, hiddenRef.current) as never);
     } catch {
       /* noop */
     }
@@ -291,10 +276,10 @@ export function PatternTradingViewChart({
         | { priceToCoordinate?: (p: number) => number | null }
         | undefined;
       if (!series || typeof series.priceToCoordinate !== "function") return;
-      const last = line.points[line.points.length - 1];
-      if (!last) return;
-      const x = ts.timeToCoordinate?.(last.time as never);
-      const y = series.priceToCoordinate(last.value);
+      const anchor = line.labelAt === "start" ? line.points[0] : line.points[line.points.length - 1];
+      if (!anchor) return;
+      const x = ts.timeToCoordinate?.(anchor.time as never);
+      const y = series.priceToCoordinate(anchor.value);
       if (x == null || y == null) return;
       const text = line.label ?? line.name;
       const padX = 4;
@@ -302,16 +287,23 @@ export function PatternTradingViewChart({
       const w = ctx.measureText(text).width + padX * 2;
       // Sit the label just left of the line's last point so it never collides
       // with the library's right-axis price-line titles (Breakout/Stop/Target).
-      const bx = Math.max(0, Math.min(x - w - 6, Math.max(0, rect.width - w)));
+      let bx = Math.max(0, Math.min(x - w - 6, Math.max(0, rect.width - w)));
       let by = Math.min(Math.max(y - h / 2, 0), Math.max(0, rect.height - h));
-      // Nudge overlapping labels apart (keeps every label visible, unlike
-      // ECharts' hideOverlap) so the right-edge titles never stack up.
+      // Spread overlapping labels HORIZONTALLY first (same row, shifted left,
+      // then right) so a stack of patterns reads along one line; only fall
+      // back to a vertical step when the row is full.
       for (let guard = 0; guard < 12; guard++) {
         const clash = placed.some(
           (p) => bx < p.x + p.w && bx + w > p.x && by < p.y + p.h && by + h > p.y,
         );
         if (!clash) break;
-        by = Math.min(by + h + 2, Math.max(0, rect.height - h));
+        if (bx - (w + 4) >= 0) {
+          bx -= w + 4;
+        } else if (bx + w + 4 + w <= rect.width) {
+          bx += w + 4;
+        } else {
+          by = Math.min(by + h + 2, Math.max(0, rect.height - h));
+        }
       }
       placed.push({ x: bx, y: by, w, h });
       ctx.fillStyle = "rgba(8,8,8,0.92)";
@@ -364,9 +356,7 @@ export function PatternTradingViewChart({
       line.applyOptions({ lineVisible: !hidden, axisLabelVisible: !hidden });
     });
     try {
-      markersRef.current?.setMarkers(
-        next.has(PIVOT_LEGEND_NAME) ? [] : (data.markers as never),
-      );
+      markersRef.current?.setMarkers(visibleMarkers(data.markers, next) as never);
     } catch {
       /* noop */
     }

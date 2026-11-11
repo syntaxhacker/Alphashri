@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
-import { apiRoute } from "../mocks/routeHelper";
+import { mockMarketTicker } from "./helpers/flowsB";
 
 test.describe("Layout - App Structure", () => {
   test.beforeEach(async ({ page }) => {
@@ -14,10 +14,14 @@ test.describe("Layout - App Structure", () => {
     await expect(page.locator('[data-testid="app-shell"]')).toBeVisible();
   });
 
-  test("@smoke app-header is visible", async ({ page }) => {
+  test("@smoke no top app bar is rendered", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
-    await expect(page.locator('[data-testid="app-header"]')).toBeVisible();
+    // The header was removed to reclaim its vertical space; the brand, market
+    // state and actions live in the sidebar chrome instead.
+    await expect(page.locator('[data-testid="app-header"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="app-sidebar-header"]')).toBeVisible();
+    await expect(page.locator('[data-testid="app-market-status"]')).toBeVisible();
   });
 
   test("@smoke app-navbar is visible", async ({ page }) => {
@@ -140,11 +144,20 @@ test.describe("Layout - Sidebar", () => {
     await expect(sidemenu.locator('[data-testid="nav-settings"]')).toBeVisible();
   });
 
-  test("app-header contains logo", async ({ page }) => {
+  test("sidebar contains the logo", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
-    await expect(page.locator('[data-testid="app-logo"]')).toBeVisible();
+    await expect(page.locator('[data-testid="app-sidebar-header"] [data-testid="app-logo"]')).toBeVisible();
     await expect(page.locator('[data-testid="app-logo"]')).toContainText("Alphashri");
+  });
+
+  test("sidebar header carries news, notifications and collapse controls", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
+    const header = page.locator('[data-testid="app-sidebar-header"]');
+    await expect(header.locator('[data-testid="news-toggle-btn"]')).toBeVisible();
+    await expect(header.locator('[data-testid="notif-bell"]')).toBeVisible();
+    await expect(header.locator('[data-testid="sidebar-collapse-toggle"]')).toBeVisible();
   });
 
   test("navbar-footer contains user button", async ({ page }) => {
@@ -156,7 +169,7 @@ test.describe("Layout - Sidebar", () => {
     await expect(footer.locator('[data-testid="user-menu-trigger"]')).toBeVisible();
   });
 
-  test("sidebar-collapse-toggle collapses sidebar and hides itself", async ({ page }) => {
+  test("sidebar-collapse-toggle collapses the rail and stays reachable", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
@@ -179,8 +192,16 @@ test.describe("Layout - Sidebar", () => {
       expect(box?.width).toBeLessThanOrEqual(100);
     }).toPass({ timeout: 15000 });
 
-    // After collapse, toggle button should be hidden (removed from DOM)
-    await expect(toggleBtn).not.toBeVisible();
+    // The toggle lives in the sidebar chrome (not inside the scrolling nav),
+    // so it must remain visible in both states — otherwise a collapsed rail
+    // could never be expanded again without the removed app bar.
+    await expect(toggleBtn).toBeVisible();
+
+    // The 64px rail drops the brand, news and notification controls.
+    const header = page.locator('[data-testid="app-sidebar-header"]');
+    await expect(header.locator('[data-testid="app-logo"]')).toHaveCount(0);
+    await expect(header.locator('[data-testid="news-toggle-btn"]')).toHaveCount(0);
+    await expect(header.locator('[data-testid="notif-bell"]')).toHaveCount(0);
   });
 
   test("when collapsed, navbar-links still exists", async ({ page }) => {
@@ -236,22 +257,10 @@ test.describe("Layout - Market Ticker", () => {
   };
 
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
-    });
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
-
-    await page.route(apiRoute("market-ticker"), async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(mockTickerData),
-      });
-    });
+    await mockMarketTicker(page, mockTickerData);
   });
 
-  test("market-ticker is visible in header", async ({ page }) => {
+  test("market-ticker is visible in the main column when the market is open", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="market-ticker"]', { timeout: 10000 });
     await expect(page.locator('[data-testid="market-ticker"]')).toBeVisible();
@@ -266,10 +275,9 @@ test.describe("Layout - Market Ticker", () => {
     await expect(page.locator('[data-testid="ticker-clf"]')).toBeVisible();
   });
 
-  test("market-ticker-updated shows timestamp", async ({ page }) => {
+  test("market-ticker carries the update timestamp as a title", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="market-ticker"]', { timeout: 10000 });
-    await expect(page.locator('[data-testid="market-ticker-updated"]')).toBeVisible();
-    await expect(page.locator('[data-testid="market-ticker-updated"]')).toContainText("Updated:");
+    await expect(page.locator('[data-testid="market-ticker"]')).toHaveAttribute("title", /Updated:/);
   });
 });

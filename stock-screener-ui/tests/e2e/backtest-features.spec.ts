@@ -3,8 +3,6 @@ import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
 import {
   gotoBacktest,
-  selectSymbolAndRun,
-  waitForBacktestResult,
   mockBacktestStrategies,
   mockSymbolSearch,
   mockBacktestRun,
@@ -14,6 +12,23 @@ import {
   withTradeHistoryPanel,
   ensureResultsPanelOpen,
 } from "./helpers/backtestHelpers";
+import { runBacktest, clickFirstTradeRow } from "./helpers/flowsB";
+
+const tradeDetail = {
+  entry_price: 2450,
+  exit_price: 2520,
+  entry_time: "2024-01-15T09:30",
+  exit_time: "2024-01-15T14:30",
+  quantity: 100,
+  gross_pnl: 7000,
+  trading_costs: 500,
+  net_pnl: 6500,
+  net_pnl_pct: 2.65,
+  exit_reason: "TP",
+  hold_duration_minutes: 300,
+  or_high: 2525,
+  or_low: 2440,
+};
 
 const mockBacktestResults = {
   results: [
@@ -108,21 +123,7 @@ const mockChartData = {
       time: "2024-01-15T09:30",
       date: "2024-01-15",
       price: 2450,
-      trade: {
-        entry_price: 2450,
-        exit_price: 2520,
-        entry_time: "2024-01-15T09:30",
-        exit_time: "2024-01-15T14:30",
-        quantity: 100,
-        gross_pnl: 7000,
-        trading_costs: 500,
-        net_pnl: 6500,
-        net_pnl_pct: 2.65,
-        exit_reason: "TP",
-        hold_duration_minutes: 300,
-        or_high: 2525,
-        or_low: 2440,
-      },
+      trade: tradeDetail,
     },
     {
       trade_id: 1,
@@ -130,32 +131,13 @@ const mockChartData = {
       time: "2024-01-15T14:30",
       date: "2024-01-15",
       price: 2520,
-      trade: {
-        entry_price: 2450,
-        exit_price: 2520,
-        entry_time: "2024-01-15T09:30",
-        exit_time: "2024-01-15T14:30",
-        quantity: 100,
-        gross_pnl: 7000,
-        trading_costs: 500,
-        net_pnl: 6500,
-        net_pnl_pct: 2.65,
-        exit_reason: "TP",
-        hold_duration_minutes: 300,
-        or_high: 2525,
-        or_low: 2440,
-      },
+      trade: tradeDetail,
     },
   ],
   date_range: { start: "2024-01-01", end: "2024-01-31" },
   total_candles: 100,
   total_trades: 1,
 };
-
-async function setupBacktest(page: Page) {
-  await selectSymbolAndRun(page);
-  await waitForBacktestResult(page, "results-summary");
-}
 
 async function expectRowHighlighted(page: Page) {
   // BacktestPage.highlightTradeRow adds .trade-row-highlighted to the clicked
@@ -249,7 +231,7 @@ test.describe("Backtest Features", () => {
   test.describe("Chart Zoom Functionality", () => {
     test("should display zoom dropdown with All, 30D, 7D, 1D options", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
       const zoomSelect = page.locator('[data-testid="chart-zoom-select"]');
       await expect(zoomSelect).toBeVisible();
       await zoomSelect.click({ force: true });
@@ -265,7 +247,7 @@ test.describe("Backtest Features", () => {
   test.describe("Chart Symbol Tabs", () => {
     test("should display symbol tabs when multiple symbols in results", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
       const chartTabs = page.locator('[data-testid="chart-tabs"]');
       await expect(chartTabs).toBeVisible();
       await expect(page.locator('[data-testid="chart-tab-RELIANCE"]')).toBeVisible();
@@ -273,47 +255,21 @@ test.describe("Backtest Features", () => {
 
     test("should switch chart when clicking different symbol tab", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
       await expect(page.locator('[data-testid="chart-tabs"]')).toBeVisible();
     });
   });
 
   test.describe("Trade Row Click -> Chart Zoom", () => {
     test("should highlight trade row when clicked", async ({ page }) => {
-      await gotoBacktest(page);
-      await setupBacktest(page);
-      await openTradeHistoryForReliance(page);
-
-      const firstTradeRow = page.locator('[data-testid="trade-history-row-0"]');
-      await firstTradeRow.scrollIntoViewIfNeeded({ timeout: 15000 });
-      await expect(firstTradeRow).toBeVisible({ timeout: 15000 });
-
-      // Use native dispatchEvent - Playwright click({ force: true }) doesn't reliably trigger React onClick
-      await page.evaluate(() => {
-        const row = document.querySelector('[data-testid="trade-history-row-0"]');
-        row?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-      });
-
-      // New behavior: clicking a row zooms the chart to that trade and highlights its markers
+      await clickFirstTradeRow(page);
       await expectChartHighlighted(page);
     });
   });
 
   test.describe("Trade Row Highlight", () => {
     test("should highlight trade row with golden background when clicked", async ({ page }) => {
-      await gotoBacktest(page);
-      await setupBacktest(page);
-      await openTradeHistoryForReliance(page);
-
-      const firstTradeRow = page.locator('[data-testid="trade-history-row-0"]');
-      await firstTradeRow.scrollIntoViewIfNeeded({ timeout: 15000 });
-      await expect(firstTradeRow).toBeVisible({ timeout: 15000 });
-
-      // Use native dispatchEvent - Playwright click({ force: true }) doesn't reliably trigger React onClick
-      await page.evaluate(() => {
-        const row = document.querySelector('[data-testid="trade-history-row-0"]');
-        row?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-      });
+      await clickFirstTradeRow(page);
 
       // The row flash (.trade-row-highlighted, tinted background via style.css)
       // proves the click registered; the chart zoom target must stay intact.
@@ -321,19 +277,7 @@ test.describe("Backtest Features", () => {
     });
 
     test("should keep chart highlighted after click (no stale timeout state)", async ({ page }) => {
-      await gotoBacktest(page);
-      await setupBacktest(page);
-      await openTradeHistoryForReliance(page);
-
-      const firstTradeRow = page.locator('[data-testid="trade-history-row-0"]');
-      await firstTradeRow.scrollIntoViewIfNeeded({ timeout: 15000 });
-      await expect(firstTradeRow).toBeVisible({ timeout: 15000 });
-
-      // Use native dispatchEvent - Playwright click({ force: true }) doesn't reliably trigger React onClick
-      await page.evaluate(() => {
-        const row = document.querySelector('[data-testid="trade-history-row-0"]');
-        row?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-      });
+      const firstTradeRow = await clickFirstTradeRow(page);
 
       // The row flash is transient by design (BacktestPage.highlightTradeRow
       // clears .trade-row-highlighted after 3s); the chart zoom persists.
@@ -366,7 +310,7 @@ test.describe("Backtest Features", () => {
   test.describe("Results Table Sorting", () => {
     test("should sort results when clicking column header", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
       await expect(page.locator('[data-testid="results-table"]')).toBeVisible();
       // TanStackTable renders native <th> headers — select the Net PnL header by text
       const netPnlHeader = page.locator('[data-testid="results-table"] th', {
@@ -386,7 +330,7 @@ test.describe("Backtest Features", () => {
 
     test("should toggle sort direction when clicking same column twice", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
       const netPnlHeader = page.locator('[data-testid="results-table"] th', {
         hasText: /Net PnL/i,
       });
@@ -416,7 +360,7 @@ test.describe("Backtest Features", () => {
   test.describe("Backtest Progress", () => {
     test("@smoke should have working run backtest button", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
       await expect(page.locator('[data-testid="results-summary"]')).toBeVisible();
     });
   });
@@ -424,26 +368,26 @@ test.describe("Backtest Features", () => {
   test.describe("Results Summary", () => {
     test("should display Net PnL in summary", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
       await expect(page.locator('[data-testid="results-summary"]')).toBeVisible();
       await expect(page.locator('[data-testid="summary-net-pnl"]')).toBeVisible();
     });
 
     test("should display Costs in summary", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
       await expect(page.locator('[data-testid="summary-costs"]')).toBeVisible();
     });
 
     test("should display Win Rate in summary", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
       await expect(page.locator('[data-testid="summary-wr"]')).toBeVisible();
     });
 
     test("should display Trades count in summary", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
       await expect(page.locator('[data-testid="summary-trades"]')).toBeVisible();
     });
   });
@@ -478,7 +422,7 @@ test.describe("Backtest Features", () => {
   test.describe("Chart Legend", () => {
     test("should display chart legend", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
       const firstRow = page.locator('[data-testid^="result-row-"]').first();
       await expect(firstRow).toBeVisible({ timeout: 5000 });
       await firstRow.click();
@@ -492,7 +436,7 @@ test.describe("Backtest Features", () => {
   test.describe("Trade History Sorting", () => {
     test("should sort trade history by time", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
       await openTradeHistoryForReliance(page);
       // TanStackTable renders native <th> headers — the time column header is "Entry"
       const timeHeader = page
@@ -505,7 +449,7 @@ test.describe("Backtest Features", () => {
 
     test("should sort trade history by P&L", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
       await openTradeHistoryForReliance(page);
       const pnlHeader = page.locator('[data-testid="trade-history-table"] th', {
         hasText: /^P&L/,
@@ -519,7 +463,7 @@ test.describe("Backtest Features", () => {
   test.describe("Trade History Details", () => {
     test("should display trade summary in history panel", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
       await withTradeHistoryPanel(page, async () => {
         await expect(page.locator('[data-testid="trade-summary-pnl"]')).toBeVisible();
         await expect(page.locator('[data-testid="trade-summary-wr"]')).toBeVisible();
@@ -529,7 +473,7 @@ test.describe("Backtest Features", () => {
 
     test("should close trade history panel", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
       await withTradeHistoryPanel(page, async () => {
         const closeBtn = page.locator('[data-testid="close-trade-history-btn"]');
         if (await closeBtn.isVisible()) {
@@ -545,37 +489,37 @@ test.describe("Backtest Features", () => {
   test.describe("Results Table Details", () => {
     test("should display symbol in results", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
       await expect(page.locator('[data-testid="symbol-RELIANCE"]')).toBeVisible();
     });
 
     test("should display P&L value in results", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
       await expect(page.locator('[data-testid="net-pnl-RELIANCE"]')).toBeVisible();
     });
 
     test("should display trades count in results", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
       await expect(page.locator('[data-testid="trades-RELIANCE"]')).toBeVisible();
     });
 
     test("should display win rate in results", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
       await expect(page.locator('[data-testid="wr-RELIANCE"]')).toBeVisible();
     });
 
     test("should display profit factor in results", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
       await expect(page.locator('[data-testid="pf-RELIANCE"]')).toBeVisible();
     });
 
     test("should display TP/SL exits in results", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
       await expect(page.locator('[data-testid="tpsl-RELIANCE"]')).toBeVisible();
     });
   });
@@ -583,7 +527,7 @@ test.describe("Backtest Features", () => {
   test.describe("Reset Functionality", () => {
     test("should reset backtest state when reset menu item clicked", async ({ page }) => {
       await gotoBacktest(page);
-      await setupBacktest(page);
+      await runBacktest(page, "results-summary");
 
       const resultsSummary = page.locator('[data-testid="results-summary"]');
       await expect(resultsSummary).toBeVisible();

@@ -147,3 +147,18 @@ def test_dedupe_keeps_non_overlapping_same_family():
     a = make_hit(80, "reversal", "bullish", "2024-01-01", "2024-03-01")
     b = make_hit(70, "reversal", "bullish", "2024-05-01", "2024-07-01")
     assert len(_dedupe([a, b])) == 2
+
+
+def test_detect_patterns_output_is_stable_on_multi_pattern_frame():
+    """Regression snapshot: a deterministic multi-pattern frame must keep yielding
+    the same hits (pattern, family, direction, status, quality, confidence) so a
+    detector performance change cannot silently alter detector output."""
+    hits = detect_patterns(triple_bottom_frame(), "1D", "TEST")
+    expected = [
+        ("triple_bottom", "reversal", "bullish", "confirmed", "strong", 75.0),
+        ("rectangle", "continuation", "neutral", "confirmed", "strong", 74.2),
+        ("bull_flag", "continuation", "bullish", "forming", "fair", 47.5),
+    ]
+    actual = [(h.pattern_id, h.family, h.direction, h.status, h.quality, h.confidence)
+              for h in hits]
+    assert actual == expected, actual

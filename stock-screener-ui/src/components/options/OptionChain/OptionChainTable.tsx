@@ -1,3 +1,4 @@
+import { formatNumberIN } from "@/utils/ui-helpers";
 import {
   Box,
   Text,
@@ -151,16 +152,16 @@ function OptionColumn({
   const cellMeta = (
     type === "CE"
       ? [
-          { value: formatNumber(oi), kind: "oi", isOI: true, title: `OI ${oi.toLocaleString("en-IN")}` },
+          { value: formatNumber(oi), kind: "oi", isOI: true, title: `OI ${formatNumberIN(oi)}` },
           {
             value: oiChangeText,
             kind: "change",
             c: getPnLTextColor(oiChange),
             badge: sentiment.label !== "Neutral" ? sentiment : undefined,
             positive: oiChange >= 0,
-            title: `OI change ${oiChange.toLocaleString("en-IN")} (${oiChangePct.toFixed(2)}%)`,
+            title: `OI change ${formatNumberIN(oiChange)} (${oiChangePct.toFixed(2)}%)`,
           },
-          { value: formatNumber(volume), kind: "volume", isVol: true, title: `Volume ${volume.toLocaleString("en-IN")}` },
+          { value: formatNumber(volume), kind: "volume", isVol: true, title: `Volume ${formatNumberIN(volume)}` },
           { value: iv.toFixed(1), kind: "iv", c: "dimmed", title: `IV ${iv.toFixed(2)}%` },
           {
             value: ltp.toFixed(2),
@@ -181,16 +182,16 @@ function OptionColumn({
             title: `LTP ₹${ltp.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
           },
           { value: iv.toFixed(1), kind: "iv", c: "dimmed", title: `IV ${iv.toFixed(2)}%` },
-          { value: formatNumber(volume), kind: "volume", isVol: true, title: `Volume ${volume.toLocaleString("en-IN")}` },
+          { value: formatNumber(volume), kind: "volume", isVol: true, title: `Volume ${formatNumberIN(volume)}` },
           {
             value: oiChangeText,
             kind: "change",
             c: getPnLTextColor(oiChange),
             badge: sentiment.label !== "Neutral" ? sentiment : undefined,
             positive: oiChange >= 0,
-            title: `OI change ${oiChange.toLocaleString("en-IN")} (${oiChangePct.toFixed(2)}%)`,
+            title: `OI change ${formatNumberIN(oiChange)} (${oiChangePct.toFixed(2)}%)`,
           },
-          { value: formatNumber(oi), kind: "oi", isOI: true, title: `OI ${oi.toLocaleString("en-IN")}` },
+          { value: formatNumber(oi), kind: "oi", isOI: true, title: `OI ${formatNumberIN(oi)}` },
         ]
   ) as Array<{
     value: string;

@@ -266,6 +266,7 @@ export function ReportBreakoutTable({
           emptyMessage={emptyMessage}
           stickyHeader
           bare
+          dense
           initialState={{ sorting: [{ id: "pct_above", desc: true }] }}
           onRowClick={onOpenSymbol ? (row) => onOpenSymbol(row.symbol) : undefined}
           getRowTestId={(row) => `${testId}-row-${row.symbol}`}

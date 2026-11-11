@@ -220,6 +220,7 @@ async def get_paper_chart(
     timeframe: str = "5min",
     intraday_only: bool = False,
     strategy_id: Optional[int] = None,
+    trade_id: Optional[str] = None,
     user: "User" = Depends(get_current_user),
 ):
     """
@@ -307,9 +308,71 @@ async def get_paper_chart(
         
         fetched_at_tf = False  # Track if we got data at the requested TF
         
+        def _candles_from_recorded(index_symbol, day):
+            """1-min OHLC for an index from our own logs.
+
+            Upstox's intraday endpoint returns no rows for the NSE index, which is
+            why a NIFTY option trade's chart came back empty. The snapshot log
+            carries true 1-min OHLC in ``report.intraday``; the light tape is the
+            fallback (flat bars from the recorded spot).
+            """
+            import json as _json
+            from pathlib import Path as _Path
+            root = _Path(config.BASE_DIR)
+            rows = []
+            snap = root / "experiments" / "data" / "nifty_snapshots" / f"{day}.jsonl"
+            if snap.exists():
+                with open(snap, "rb") as fh:
+                    fh.seek(0, 2)
+                    size = fh.tell()
+                    fh.seek(max(0, size - 4_000_000))
+                    data = fh.read().decode("utf-8", "ignore")
+                for line in reversed(data.splitlines()):
+                    line = line.strip()
+                    if not line.startswith("{"):
+                        continue
+                    try:
+                        rep = _json.loads(line).get("report") or {}
+                    except Exception:
+                        continue
+                    intr = rep.get("intraday") or []
+                    if intr:
+                        rows = intr
+                        break
+            if not rows:
+                tape = root / "experiments" / "data" / "nifty_tape" / f"{day}.jsonl"
+                if tape.exists():
+                    with open(tape) as fh:
+                        for line in fh:
+                            try:
+                                r = _json.loads(line)
+                            except Exception:
+                                continue
+                            s = r.get("spot")
+                            if s:
+                                rows.append({"time": r.get("t"), "open": s, "high": s,
+                                             "low": s, "close": s})
+            if not rows:
+                return None
+            df_idx = pd.DataFrame(rows)
+            df_idx["time"] = pd.to_datetime(df_idx["time"])
+            df_idx = df_idx.set_index("time").sort_index()
+            for c in ("open", "high", "low", "close"):
+                df_idx[c] = pd.to_numeric(df_idx[c], errors="coerce")
+            df_idx["volume"] = 0
+            df_idx = df_idx.dropna(subset=["open", "high", "low", "close"])
+            return df_idx if not df_idx.empty else None
+
         def _fetch_chart_data():
             nonlocal fetched_at_tf
             sym = symbol.upper()
+
+            # Index symbols have no equity candle series on Upstox -> use our logs.
+            if sym in ("NIFTY", "NIFTY50", "NIFTY 50", "BANKNIFTY", "FINNIFTY"):
+                df_idx = _candles_from_recorded(sym, date)
+                if df_idx is not None and not df_idx.empty:
+                    save_cached_candles(sym, date, df_idx)
+                    return df_idx, False
 
             # For longer TFs, try direct fetch first, fallback to resampling
             if timeframe in direct_tf_timeframes:
@@ -617,6 +680,29 @@ async def get_paper_chart(
         trades_data = [_trade_to_dict(t) for t in symbol_trades]
         from api.paper.history import _resolve_trade_bot_ids
         trades_data = _resolve_trade_bot_ids(trades_data)
+
+        # A selected option trade is not on the underlying's trade list, but its
+        # entry/exit times belong on the chart. Include it when explicitly asked.
+        if trade_id and all(str(d.get("trade_id")) != str(trade_id) for d in trades_data):
+            try:
+                from db.models import Trade as TradeModel
+                _t = None
+                with SessionLocal() as _db:
+                    if str(trade_id).upper().startswith("TRADE-"):
+                        try:
+                            _pk = int(str(trade_id).split("-")[-1])
+                        except ValueError:
+                            _pk = None
+                        if _pk is not None:
+                            _t = _db.query(TradeModel).filter(TradeModel.id == _pk).first()
+                    else:
+                        _t = _db.query(TradeModel).filter(TradeModel.uuid == str(trade_id)).first()
+                if _t is not None:
+                    _row = _t.to_dict() if hasattr(_t, "to_dict") else _trade_to_dict(_t)
+                    _row = _resolve_trade_bot_ids([_row])[0]
+                    trades_data.append(_row)
+            except Exception as e:
+                console.print(f"[yellow]trade_id include failed: {e}[/yellow]")
 
         current_position = None
 

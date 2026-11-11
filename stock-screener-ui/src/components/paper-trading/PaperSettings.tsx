@@ -139,7 +139,7 @@ function SettingsSection({
     <Paper
       component="section"
       variant="outlined"
-      sx={{ p: 2, height: "100%", borderRadius: 2, display: "flex", flexDirection: "column" }}
+      sx={{ p: 1, height: "100%", borderRadius: 2, display: "flex", flexDirection: "column" }}
     >
       <Typography
         variant="subtitle2"
@@ -289,7 +289,7 @@ function SettingsContent({
 
       <Grid
         container
-        spacing={2}
+        spacing={1}
         className="paper-settings-content"
         id="settings-content"
         sx={{ alignItems: "stretch" }}

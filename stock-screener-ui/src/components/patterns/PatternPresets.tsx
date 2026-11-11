@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ActionIcon, Box, Button, Chip, Select, Text, TextInput, Tooltip } from "@/ui";
 import { Close as CloseIcon } from "@mui/icons-material";
+import { IconBookmarkPlus } from "@tabler/icons-react";
 import { BUILTIN_PRESETS, type PatternPreset } from "@/config/patternCatalog";
 import type { PatternFilters } from "@/types/chartPatterns";
 
@@ -45,7 +46,6 @@ function newPresetId(): string {
  */
 export function PatternPresets({ filters, applyFilters }: PatternPresetsProps) {
   const [saved, setSaved] = useState<PatternPreset[]>(() => readSavedPresets());
-  const [selected, setSelected] = useState<string | null>(null);
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState("");
 
@@ -67,17 +67,14 @@ export function PatternPresets({ filters, applyFilters }: PatternPresetsProps) {
     persist([...saved, preset]);
     setName("");
     setNaming(false);
-    setSelected(preset.id);
   };
 
   const handleDelete = (id: string): void => {
     persist(saved.filter((preset) => preset.id !== id));
-    if (selected === id) setSelected(null);
   };
 
   const handleSelect = (value: string | null): void => {
     if (!value) return;
-    setSelected(value);
     const found = saved.find((preset) => preset.id === value);
     if (found) apply(found.filters);
   };
@@ -87,25 +84,36 @@ export function PatternPresets({ filters, applyFilters }: PatternPresetsProps) {
       data-testid="patterns-presets"
       sx={{ display: "flex", flexDirection: "column", gap: 0.75, minWidth: 0 }}
     >
-      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-        {BUILTIN_PRESETS.map((preset) => (
-          <Chip
-            key={preset.id}
-            size="xs"
-            variant="light"
-            onClick={() => apply(preset.filters)}
-            data-testid={`patterns-preset-${preset.id}`}
-          >
-            {preset.name}
-          </Chip>
-        ))}
+      <Box data-testid="patterns-preset-select">
+        <Select
+          data={[
+            ...BUILTIN_PRESETS.map((preset) => ({
+              value: `builtin:${preset.id}`,
+              label: preset.name,
+            })),
+            ...saved.map((preset) => ({ value: `saved:${preset.id}`, label: preset.name })),
+          ]}
+          value=""
+          onChange={(value) => {
+            if (!value) return;
+            if (value.startsWith("builtin:")) {
+              const found = BUILTIN_PRESETS.find((preset) => preset.id === value.slice(8));
+              if (found) apply(found.filters);
+            } else if (value.startsWith("saved:")) {
+              handleSelect(value.slice(6));
+            }
+          }}
+          size="xs"
+          placeholder="Apply preset…"
+          data-testid="patterns-preset-select-input"
+        />
       </Box>
 
       {saved.length > 0 && (
         <>
           <Select
             data={saved.map((preset) => ({ value: preset.id, label: preset.name }))}
-            value={selected ?? ""}
+            value=""
             onChange={(value) => handleSelect(value as string | null)}
             size="sm"
             placeholder="Saved presets"
@@ -120,10 +128,7 @@ export function PatternPresets({ filters, applyFilters }: PatternPresetsProps) {
                 <Chip
                   size="xs"
                   variant="light"
-                  onClick={() => {
-                    setSelected(preset.id);
-                    apply(preset.filters);
-                  }}
+                  onClick={() => apply(preset.filters)}
                   data-testid={`patterns-preset-apply-${preset.id}`}
                 >
                   {preset.name}
@@ -187,15 +192,18 @@ export function PatternPresets({ filters, applyFilters }: PatternPresetsProps) {
           ) : null}
         </Box>
       ) : (
-        <Button
-          size="xs"
-          variant="outline"
-          onClick={() => setNaming(true)}
-          data-testid="patterns-preset-save"
-          sx={{ alignSelf: "flex-start" }}
-        >
-          Save current
-        </Button>
+        <Tooltip label="Save current filters as a preset">
+          <ActionIcon
+            size="sm"
+            variant="subtle"
+            aria-label="Save current filters as a preset"
+            onClick={() => setNaming(true)}
+            data-testid="patterns-preset-save"
+            sx={{ alignSelf: "flex-start" }}
+          >
+            <IconBookmarkPlus size={15} />
+          </ActionIcon>
+        </Tooltip>
       )}
     </Box>
   );

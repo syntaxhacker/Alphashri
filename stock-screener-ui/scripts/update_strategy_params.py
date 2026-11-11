@@ -55,15 +55,6 @@ EMA_FIELDS = COMMON_FIELDS + [
 ]
 
 
-def get_strategy_type(name: str) -> str:
-    db = SessionLocal()
-    try:
-        s = db.query(StrategyConfig).filter(StrategyConfig.name == name).first()
-        return s.strategy_type if s else ""
-    finally:
-        db.close()
-
-
 def cmd_list(args):
     db = SessionLocal()
     try:

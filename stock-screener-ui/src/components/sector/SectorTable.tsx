@@ -1,10 +1,5 @@
 import { useMemo } from "react";
-import { Text, Badge, Progress, Box, Stack } from "@/ui";
-import TableContainer from "@mui/material/TableContainer";
-import Paper from "@mui/material/Paper";
-import Grid from "@mui/material/Grid";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
+import { Text, Badge, Progress, Box } from "@/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { SectorItem } from "../../types/sector";
 import { TanStackTable } from "../common/TanStackTable";
@@ -31,8 +26,37 @@ function getMovementBar(pctChange: number) {
   const { capped, color } = getMovementBarValue(pctChange);
 
   return (
-    <Box sx={{ width: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <Box sx={{ width: 70, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <Progress value={capped} color={color} size="sm" radius="xl" />
+    </Box>
+  );
+}
+
+function TopMoversCell({ text }: { text: string }) {
+  const parts = Array.from(text.matchAll(/([A-Za-z0-9&._-]+)\(([+-]?\d+(?:\.\d+)?%)\)/g));
+  if (parts.length === 0) {
+    return (
+      <Text size="xs" c="dimmed" lineClamp={1}>
+        {text}
+      </Text>
+    );
+  }
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0, overflow: "hidden", whiteSpace: "nowrap" }}>
+      {parts.map((part) => {
+        const symbol = part[1];
+        const raw = part[2];
+        return (
+          <Text key={`${symbol}-${raw}`} span sx={{ fontSize: 10 }}>
+            <Box component="span" sx={{ color: "text.secondary" }}>
+              {symbol}
+            </Box>
+            <Box component="span" sx={{ color: getPnLTextColor(parseFloat(raw)), fontWeight: 600 }}>
+              ({raw})
+            </Box>
+          </Text>
+        );
+      })}
     </Box>
   );
 }
@@ -45,17 +69,19 @@ export function SectorTable({ sectors }: SectorTableProps) {
         header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>Sector</Box>,
         accessorKey: "sector",
         meta: { align: "left" },
-        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", fontWeight: 700, fontSize: 13 }}>{info.getValue<string>()}</Box>,
+        size: 170,
+        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", fontWeight: 600, fontSize: 11 }}>{info.getValue<string>()}</Box>,
       },
       {
         id: "avg_change",
         header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>Change</Box>,
         accessorKey: "avg_change",
         meta: { align: "right" },
+        size: 72,
         cell: (info) => {
           const val = info.getValue<number>();
           return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", color: getPnLTextColor(val), fontWeight: 700, fontSize: 12 }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", color: getPnLTextColor(val), fontWeight: 600, fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}>
               {val >= 0 ? "+" : ""}
               {val.toFixed(2)}%
             </Box>
@@ -64,21 +90,23 @@ export function SectorTable({ sectors }: SectorTableProps) {
       },
       {
         id: "movement",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Movement</Box>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Move</Box>,
         accessorKey: "avg_change",
         meta: { align: "center" },
+        size: 88,
         cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{getMovementBar(info.getValue<number>())}</Box>,
       },
       {
         id: "ad_ratio",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>A/D Ratio</Box>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>A/D</Box>,
         accessorFn: (row) => `${row.advances} : ${row.declines}`,
         meta: { align: "right" },
+        size: 76,
         cell: (info) => {
           const row = info.row.original;
-          const adColor = row.advances > row.declines ? "green" : "red";
+          const adColor = row.advances > row.declines ? "success" : row.advances < row.declines ? "error" : "dimmed";
           return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", color: adColor, fontSize: 12, fontWeight: 600 }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", color: adColor, fontSize: 10.5, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
               {row.advances} : {row.declines}
             </Box>
           );
@@ -86,14 +114,15 @@ export function SectorTable({ sectors }: SectorTableProps) {
       },
       {
         id: "strength",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Strength</Box>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>ADX</Box>,
         accessorKey: "avg_adx",
         meta: { align: "center" },
+        size: 72,
         cell: (info) => {
           const { label, color } = getStrengthInfo(info.getValue<number>());
           return (
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Badge color={color} variant="filled" size="sm">
+              <Badge color={color} variant="filled" size="xs">
                 {label}
               </Badge>
             </Box>
@@ -105,38 +134,24 @@ export function SectorTable({ sectors }: SectorTableProps) {
         header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>Top Movers</Box>,
         accessorKey: "top_movers",
         meta: { align: "left" },
-        cell: (info) => (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
-            <Text size="sm" c="dimmed" lineClamp={1}>
-              {info.getValue<string>()}
-            </Text>
-          </Box>
-        ),
+        cell: (info) => <TopMoversCell text={info.getValue<string>()} />,
       },
     ],
     [],
   );
 
   return (
-    <TableContainer component={Paper} elevation={1} sx={{ display: "flex", flexDirection: "column", alignItems: "center", p: 1 }}>
-      <Stack spacing={1} sx={{ width: "100%", alignItems: "center", justifyContent: "center" }}>
-        <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-          <CardContent sx={{ p: 1, width: "100%", "&:last-child": { pb: 1 } }}>
-            <Grid container spacing={2} justifyContent="center" sx={{ width: "100%" }}>
-              <Grid size={12} sx={{ display: "flex", justifyContent: "center" }}>
-                <TanStackTable<SectorItem>
-                  data={sectors}
-                  columns={columns}
-                  enableSorting={false}
-                  emptyMessage="No sector data available"
-                  dataTestId="sector-table"
-                  getRowTestId={(sector) => `sector-row-${sector.sector.toLowerCase()}`}
-                />
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      </Stack>
-    </TableContainer>
+    <TanStackTable<SectorItem>
+      data={sectors}
+      columns={columns}
+      enableSorting={false}
+      emptyMessage="No sector data available"
+      dataTestId="sector-table"
+      getRowTestId={(sector) => `sector-row-${sector.sector.toLowerCase()}`}
+      dense
+      fillContainer
+      rowWindowSize={40}
+      style={{ minWidth: "100%" }}
+    />
   );
 }

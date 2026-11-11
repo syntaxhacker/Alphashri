@@ -15,7 +15,7 @@ import {
   getPnLTextColor,
 } from "../../utils/ui-helpers";
 
-export interface ProfitabilityPageProps {
+interface ProfitabilityPageProps {
   universe?: string;
   onOpenSymbol?: (symbol: string) => void;
 }
@@ -306,6 +306,7 @@ export function ProfitabilityPage({ universe: universeProp = "nifty500", onOpenS
             dataTestId="profitability-strategies"
             initialState={{ sorting: [{ id: "net_pnl", desc: true }] }}
             emptyMessage="No strategy data"
+            dense
           />
           <ToolbarRow gap={8} wrap={false}>
             <Text size="sm" fw={700} span data-testid="profitability-signals-title">
@@ -318,6 +319,7 @@ export function ProfitabilityPage({ universe: universeProp = "nifty500", onOpenS
             dataTestId="profitability-signals"
             initialState={{ sorting: [{ id: "net", desc: true }] }}
             emptyMessage="No signals"
+            dense
             onRowClick={onOpenSymbol ? (row) => onOpenSymbol(row.symbol) : undefined}
             getRowTestId={(row, index) => `profitability-signal-row-${row.symbol}-${index}`}
           />
