@@ -7,6 +7,12 @@ import {
 } from "../../mocks/apiResponses";
 
 export async function setupSectorTest(page: Page) {
+  // The sector refresh button is disabled while the market is closed, so the
+  // suite would fail outside 09:15–15:30 IST. Pin the market open instead of
+  // depending on the wall clock.
+  await page.addInitScript(() => {
+    (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
+  });
   await setupApiMocks(page);
   await loginAsTestUser(page);
   await setupMultiStrategyBotMocks(page);

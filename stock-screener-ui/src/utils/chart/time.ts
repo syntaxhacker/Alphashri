@@ -11,6 +11,8 @@
 
 const IST_OFFSET = "+05:30";
 const MS_PER_SEC = 1000;
+/** IST is a fixed +05:30 offset (no DST), so epoch → IST is a plain shift. */
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
 /**
  * Parse a timestamp string as IST and return epoch seconds.
@@ -91,6 +93,10 @@ export function toEpochMs(time: string | number): number {
  * - Other strings → returned as-is (best effort)
  * - null/undefined → empty string
  *
+ * Epochs are rendered in IST (the exchange timezone), never in the host
+ * timezone — a CI runner in UTC must produce the same label as a laptop in
+ * IST.
+ *
  * The `kind` parameter is reserved for future "FULL" format (date + time).
  * Currently only "HM" (default) is implemented.
  */
@@ -104,10 +110,11 @@ export function formatChartTimeLabel(
     const ms = epochMsOrString < 1e12 ? epochMsOrString * MS_PER_SEC : epochMsOrString;
     const date = new Date(ms);
     if (Number.isNaN(date.getTime())) return "";
-    const hh = String(date.getHours()).padStart(2, "0");
-    const mm = String(date.getMinutes()).padStart(2, "0");
+    const ist = new Date(ms + IST_OFFSET_MS);
+    const hh = String(ist.getUTCHours()).padStart(2, "0");
+    const mm = String(ist.getUTCMinutes()).padStart(2, "0");
     return kind === "FULL"
-      ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")} ${hh}:${mm}`
+      ? `${ist.getUTCFullYear()}-${String(ist.getUTCMonth() + 1).padStart(2, "0")}-${String(ist.getUTCDate()).padStart(2, "0")} ${hh}:${mm}`
       : `${hh}:${mm}`;
   }
 

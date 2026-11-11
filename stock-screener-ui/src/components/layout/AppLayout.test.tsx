@@ -39,6 +39,7 @@ vi.mock("../layout/NavbarNested", () => ({
 
 vi.mock("./MarketTicker", () => ({
   MarketStatus: () => <div data-testid="market-status-mock" />,
+  MarketTicker: () => <div data-testid="market-ticker-mock" />,
 }));
 
 vi.mock("../news/NewsPanel2", () => ({
