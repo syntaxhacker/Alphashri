@@ -1,8 +1,9 @@
-import { For, Show } from "solid-js";
-import type { JSX } from "solid-js";
+import { For, Show, createMemo } from "solid-js";
+import type { ComponentProps, JSX } from "solid-js";
 import { Box, Button, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { hexToRgba } from "@/utils/color";
+import { formatNumberIN } from "@/utils/ui-helpers";
 import { PanelModal } from "@/components/common/PanelModal";
 import { useNiftyReport } from "./ReportContext";
 import { NiftyDeskPlan } from "./NiftyDeskPlan";
@@ -11,6 +12,11 @@ import { NiftyGexProfile } from "./NiftyGexProfile";
 import { NiftyDeltaPositioning } from "./NiftyDeltaPositioning";
 import { NiftyChartPanel } from "./NiftyChartPanel";
 import { NiftyIvSkew } from "./NiftyIvSkew";
+import { NiftyOiHeatmap } from "./NiftyOiHeatmap";
+import { NiftyFlowStrip } from "./NiftyFlowStrip";
+import { NiftyPressureLane } from "./NiftyPressureLane";
+import { NiftyFlowChart } from "./NiftyFlowChart";
+import { buildFlowSeries } from "./niftyFlowSeries";
 import { NiftyOiChain, getNiftyOiColumns } from "./reportCells";
 import type { NiftyStrike } from "@/types/niftyReport";
 
@@ -42,6 +48,11 @@ export function ReportOverlays() {
     const atm = store.data.atmStrike();
     return atm !== null && row.strike === atm ? "nifty-strike-atm" : "nifty-strike-row";
   };
+
+  const pressureRange = () => store.data.pressure();
+  const flowSeries = createMemo(() => buildFlowSeries(store.data.tapeRows()));
+  const heatRows = () =>
+    store.data.tapeRows() as unknown as ComponentProps<typeof NiftyOiHeatmap>["rows"];
 
   return (
     <>
@@ -187,6 +198,85 @@ export function ReportOverlays() {
             tableTestId="nifty-oi-expanded-table"
             wrapTestId="nifty-oi-expanded-wrap"
           />
+        </Box>
+      </PanelModal>
+
+      <PanelModal
+        open={ui.heatExpand()}
+        variant="drawer"
+        title="OI heatmap — expanded"
+        onClose={() => ui.setHeatExpand(false)}
+      >
+        <Box data-testid="nifty-heatmap-expanded-body" className="h-[78vh] flex min-h-0">
+          <NiftyOiHeatmap
+            rows={heatRows()}
+            viewBoxHeight={380}
+            metric={ui.heatMetric()}
+            gex={store.data.report()?.gex}
+            spot={store.data.report()?.spot ?? null}
+          />
+        </Box>
+      </PanelModal>
+
+      <PanelModal
+        open={ui.flowExpand()}
+        variant="drawer"
+        title="Flow strip — expanded"
+        onClose={() => ui.setFlowExpand(false)}
+        autoHeight
+      >
+        <Box data-testid="nifty-flow-expanded-body" className="w-full min-w-0">
+          <NiftyFlowStrip rows={store.data.tapeRows()} />
+        </Box>
+      </PanelModal>
+
+      <PanelModal
+        open={ui.pressureExpand()}
+        variant="drawer"
+        title="Option volume pressure — expanded"
+        onClose={() => ui.setPressureExpand(false)}
+        autoHeight
+      >
+        <Box data-testid="nifty-pressure-expanded-body" className="flex flex-col gap-2 min-h-0">
+          <Box
+            data-testid="nifty-pressure-expanded-stats"
+            className="flex gap-2 flex-wrap text-[10px] text-fin-text-muted"
+          >
+            <span>median {formatNumberIN(Math.round(pressureRange().median))}</span>
+            <span>peak {pressureRange().maxRatio.toFixed(1)}×</span>
+            <span>{pressureRange().bursts} minutes ≥2×</span>
+            <span>last {pressureRange().lastRatio.toFixed(1)}×</span>
+            <span>last 3-min {pressureRange().last3Ratio.toFixed(1)}×</span>
+          </Box>
+          <Box className="flex-1 min-h-0 flex items-stretch">
+            <NiftyPressureLane series={pressureRange()} height={420} showAxis />
+          </Box>
+        </Box>
+      </PanelModal>
+
+      <PanelModal
+        open={ui.flowChartExpand()}
+        variant="drawer"
+        title="Cumulative flow + gamma — expanded"
+        onClose={() => ui.setFlowChartExpand(false)}
+        autoHeight
+      >
+        <Box data-testid="nifty-flowchart-expanded-body" className="flex flex-col gap-2 min-w-0">
+          <Box
+            data-testid="nifty-flowchart-expanded-stats"
+            className="flex gap-2 flex-wrap text-[10px] text-fin-text-muted"
+          >
+            <span>
+              flow{" "}
+              {flowSeries().points.length
+                ? `${(flowSeries().points[flowSeries().points.length - 1].net / 1e6).toFixed(1)}M`
+                : "—"}
+            </span>
+            <span>{flowSeries().flips.length} regime flips</span>
+            <span>{Math.round(flowSeries().shortShare * 100)}% short book Γ</span>
+            <span>{flowSeries().points.length} buckets</span>
+          </Box>
+          <NiftyFlowChart series={flowSeries()} height={420} showAxis />
         </Box>
       </PanelModal>
 

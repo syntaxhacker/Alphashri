@@ -23,14 +23,6 @@ const SELF = fileURLToPath(import.meta.url);
  * fails the guard.
  */
 const ALLOWLIST: string[] = [
-  "pages/report/NiftyReportPanel.tsx",
-  "pages/report/NiftyReportPanel.test.tsx",
-  "pages/report/NiftyReportPanel.parity.test.tsx",
-  "hooks/useNiftyReportStream.ts",
-  "hooks/useNiftyReportStream.test.ts",
-  "hooks/useNiftyBurstStream.ts",
-  "hooks/useNiftyBurstStream.test.ts",
-  "hooks/niftyStreamCore.ts",
   "pages/report/DailyReportPage.test.tsx",
   "pages/report/EventWatch.test.tsx",
   "pages/report/NiftyChartPanel.test.tsx",

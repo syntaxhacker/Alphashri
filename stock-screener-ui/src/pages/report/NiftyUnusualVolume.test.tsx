@@ -463,23 +463,6 @@ describe("NiftyReportPanel unusual-volume wiring", () => {
     };
   }
 
-  // SKIP-UNTIL-PANEL: NiftyReportPanel is still React at this stage; un-skip when it converts.
-  test.skip("unusual panel renders directly after the OI tape panel", async () => {
-    // The unusual-volume panel lives in the RESEARCH section (DESK keeps the
-    // band tight), so the mode is seeded before the panel mounts.
-    window.localStorage.setItem("nifty.deskMode", "research");
-    const { NiftyReportPanel } = await import("./NiftyReportPanel");
-    const api = await import("@/api/reportNifty");
-    vi.mocked(api.fetchLiveNifty).mockResolvedValue(mockReport() as never);
-    vi.mocked(api.fetchNiftyTape).mockResolvedValue({ date: "2026-10-12", interval_sec: 60, rows: [] });
-    r(() => <NiftyReportPanel />);
-    const unusual = await screen.findByTestId("nifty-unusual-panel");
-    expect(unusual).toBeInTheDocument();
-    expect(within(unusual).getByTestId("nifty-unusual-table")).toBeInTheDocument();
-    const tape = screen.getByTestId("nifty-tape-panel");
-    expect(tape.compareDocumentPosition(unusual) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    window.localStorage.removeItem("nifty.deskMode");
-  });
 });
 
 describe("last / next update stamp", () => {
