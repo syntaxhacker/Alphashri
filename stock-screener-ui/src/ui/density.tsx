@@ -100,7 +100,6 @@ applyRowPyVar(DENSITY_TOKENS[currentDensity].tableRowPy);
 export interface DensityValue {
   density: () => Density;
   setDensity: (next: Density) => void;
-  /** Reactive: reads through `density()`, so consumers stay subscribed. */
   readonly tokens: DensityTokens;
 }
 

@@ -14,7 +14,8 @@ export default defineConfig(({ mode }) => {
     // `solid-js/web` on the client instead of the SSR stub.
     resolve: {
       alias: {
-        '@': fileURLToPath(new URL('./src', import.meta.url)),
+        "@": fileURLToPath(new URL('./src', import.meta.url)),
+        tslib: fileURLToPath(new URL('./node_modules/tslib/tslib.es6.js', import.meta.url)),
       },
       conditions: ['development', 'browser'],
     },

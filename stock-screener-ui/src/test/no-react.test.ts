@@ -23,8 +23,6 @@ const SELF = fileURLToPath(import.meta.url);
  * fails the guard.
  */
 const ALLOWLIST: string[] = [
-  // NiftyReportPanel is the last React component; these five modules exist only
-  // to serve it and are deleted when it converts to `./niftyStreamSolid`.
   "pages/report/NiftyReportPanel.tsx",
   "pages/report/NiftyReportPanel.test.tsx",
   "pages/report/NiftyReportPanel.parity.test.tsx",
@@ -33,8 +31,6 @@ const ALLOWLIST: string[] = [
   "hooks/useNiftyBurstStream.ts",
   "hooks/useNiftyBurstStream.test.ts",
   "hooks/niftyStreamCore.ts",
-  // Solid component tests that still drive inputs with user-event. They render
-  // fine, so this is a loose end, not a blocker: port to `fireEvent` and drop.
   "pages/report/DailyReportPage.test.tsx",
   "pages/report/EventWatch.test.tsx",
   "pages/report/NiftyChartPanel.test.tsx",

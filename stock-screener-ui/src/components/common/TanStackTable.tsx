@@ -107,8 +107,6 @@ export function TanStackTable<T>(props: Props<T>) {
   const isDense = () => props.dense ?? false;
   const isComfortable = () => densityApi.density() === "comfortable";
 
-  // Sizing is written once as CSS variables and read by every cell. Toggling
-  // density then repaints through CSS instead of re-rendering rows.
   let tableEl: HTMLTableElement | undefined;
   createEffect(() => {
     const el = tableEl;

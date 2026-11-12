@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/check_bundle_interop.mjs",
     "preview": "vite preview",
     "deploy": "wrangler pages deploy dist --project-name=alphashri",
     "deploy:preview": "wrangler pages deploy dist --project-name=alphashri --branch=preview",
@@ -25,7 +25,8 @@
     "check:unused": "knip",
     "check:deps": "depcheck",
     "check:all": "bun run lint && bun run check:duplicates && bun run check:duplicates:python && bun run check:unused",
-    "check:duplicates:python": "jscpd api/ scripts/ trading/ backtest/ db/ -f python --min-lines 5 --reporters console --threshold 10 || echo 'DRY note: threshold exceeded (migrations/strategy boilerplate intentional - see docs/DRY_OPPORTUNITIES.md); treated as non-fatal for this check.'"
+    "check:duplicates:python": "jscpd api/ scripts/ trading/ backtest/ db/ -f python --min-lines 5 --reporters console --threshold 10 || echo 'DRY note: threshold exceeded (migrations/strategy boilerplate intentional - see docs/DRY_OPPORTUNITIES.md); treated as non-fatal for this check.'",
+    "check:bundle": "node scripts/check_bundle_interop.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

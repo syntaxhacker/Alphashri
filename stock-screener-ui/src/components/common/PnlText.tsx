@@ -10,7 +10,6 @@ interface PnlTextProps {
   span?: boolean;
   ml?: number | string;
   fs?: string;
-  /** Opt out of the mono numeral face (e.g. when embedding in prose). */
   mono?: boolean;
   className?: string;
   "data-testid"?: string;

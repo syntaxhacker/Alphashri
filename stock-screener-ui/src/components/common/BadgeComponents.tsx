@@ -27,9 +27,6 @@ export function ExitReasonBadge(props: ExitReasonBadgeProps) {
   const size = () => props.size ?? "sm";
   const r = () => (props.reason || "").toLowerCase().trim();
 
-  // Accessors, not body-time constants: `props.reason` is a getter and the
-  // component body runs once, so a plain `const color = ...` would pin the
-  // first reason forever.
   const color = () => {
     const ladder = r();
     if (ladder === "tp" || ladder === "target") return "success";
