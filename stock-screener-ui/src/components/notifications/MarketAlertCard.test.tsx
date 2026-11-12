@@ -2,6 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
 import { render, screen, within, cleanup, fireEvent } from "@solidjs/testing-library";
+import { createSignal, type JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import {
   ALERT_KIND_CODE,
@@ -35,7 +36,7 @@ function alert(overrides?: Partial<MarketAlert>): MarketAlert {
 }
 
 function r(jsx: JSX.Element) {
-  return render(jsx, { wrapper: UIProvider });
+  return render(() => <UIProvider>{jsx}</UIProvider>);
 }
 
 afterEach(() => cleanup());
@@ -126,9 +127,10 @@ describe("MarketAlertCard", () => {
   });
 
   test("critical is announced assertively, others politely", () => {
-    const { rerender } = r(<MarketAlertCard alert={alert({ severity: "critical" })} />);
+    const [severity, setSeverity] = createSignal<"critical" | "watch">("critical");
+    r(<MarketAlertCard alert={alert({ severity: severity() })} />);
     expect(screen.getByRole("alert")).toHaveAttribute("aria-live", "assertive");
-    rerender(<MarketAlertCard alert={alert({ severity: "watch" })} />);
+    setSeverity("watch");
     expect(screen.getByRole("alert")).toHaveAttribute("aria-live", "polite");
   });
 

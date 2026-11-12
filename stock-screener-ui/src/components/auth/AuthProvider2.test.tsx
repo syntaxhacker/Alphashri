@@ -127,9 +127,7 @@ describe("AuthProvider2", () => {
         </AuthProvider>
       </UIProvider>),
     );
-    await act(async () => {
-      await fireEvent.click(screen.getByText("Fetch"));
-    });
+    await fireEvent.click(screen.getByText("Fetch"));
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalled();
       const call = mockFetch.mock.calls[0];
@@ -160,9 +158,7 @@ describe("AuthProvider2", () => {
 
     renderWithProvider();
 
-    await act(async () => {
-      await fireEvent.click(screen.getByTestId("btn-login"));
-    });
+    await fireEvent.click(screen.getByTestId("btn-login"));
 
     await waitFor(() => {
       const loginCalls = mockFetch.mock.calls.filter(
@@ -172,9 +168,11 @@ describe("AuthProvider2", () => {
     });
 
     // Tokens and user are stored on successful login.
-    expect(localStorage.getItem(TOKEN_KEY)).toBe("new-token");
-    expect(localStorage.getItem(REFRESH_TOKEN_KEY)).toBe("new-refresh");
-    expect(screen.getByTestId("auth-user")).toHaveTextContent("test@test.com");
+    await waitFor(() => {
+      expect(localStorage.getItem(TOKEN_KEY)).toBe("new-token");
+      expect(localStorage.getItem(REFRESH_TOKEN_KEY)).toBe("new-refresh");
+      expect(screen.getByTestId("auth-user")).toHaveTextContent("test@test.com");
+    });
   });
 
   it("login returns error on failure", async () => {
@@ -185,9 +183,7 @@ describe("AuthProvider2", () => {
     });
 
     renderWithProvider();
-    await act(async () => {
-      await fireEvent.click(screen.getByTestId("btn-login"));
-    });
+    await fireEvent.click(screen.getByTestId("btn-login"));
 
     await waitFor(() => {
       expect(screen.getByTestId("auth-error")).toHaveTextContent("Invalid credentials");
@@ -195,21 +191,35 @@ describe("AuthProvider2", () => {
   });
 
   it("logout calls /api/auth/logout and clears stored tokens/user", async () => {
-          localStorage.setItem(TOKEN_KEY, "test-token");
+    // Mount-time checkAuth would race the click; settle it first (default
+    // mock returns 401 → it finds nothing and stores nothing), then seed.
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({}),
+    });
+    renderWithProvider();
+    await waitFor(() => {
+      expect(screen.getByTestId("auth-loading")).toHaveTextContent("false");
+    });
+
+    localStorage.setItem(TOKEN_KEY, "test-token");
     localStorage.setItem(REFRESH_TOKEN_KEY, "test-refresh");
     localStorage.setItem(USER_KEY, JSON.stringify({ id: 1, email: "test@test.com" }));
 
     mockFetch.mockResolvedValue({ ok: true, json: async () => ({}) });
+    await fireEvent.click(screen.getByTestId("btn-logout"));
 
-    renderWithProvider();
-
-    await act(async () => {
-      await fireEvent.click(screen.getByTestId("btn-logout"));
+    await waitFor(() => {
+      expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
+      expect(localStorage.getItem(REFRESH_TOKEN_KEY)).toBeNull();
+      expect(localStorage.getItem(USER_KEY)).toBeNull();
     });
 
-    expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
-    expect(localStorage.getItem(REFRESH_TOKEN_KEY)).toBeNull();
-    expect(localStorage.getItem(USER_KEY)).toBeNull();
+    const logoutCalls = mockFetch.mock.calls.filter(
+      (c) => typeof c[0] === "string" && (c[0] as string).includes("/api/auth/logout"),
+    );
+    expect(logoutCalls.length).toBeGreaterThanOrEqual(1);
   });
 
   it("checkAuth validates stored token via /api/auth/me", async () => {
@@ -243,17 +253,13 @@ describe("AuthProvider2", () => {
 
     renderWithProvider();
 
-    await act(async () => {
-      await fireEvent.click(screen.getByTestId("btn-login"));
-    });
+    await fireEvent.click(screen.getByTestId("btn-login"));
 
     await waitFor(() => {
       expect(screen.getByTestId("auth-error")).not.toHaveTextContent("null");
     });
 
-    await act(async () => {
-      await fireEvent.click(screen.getByTestId("btn-clear-error"));
-    });
+    await fireEvent.click(screen.getByTestId("btn-clear-error"));
 
     await waitFor(() => {
       expect(screen.getByTestId("auth-error")).toHaveTextContent("null");

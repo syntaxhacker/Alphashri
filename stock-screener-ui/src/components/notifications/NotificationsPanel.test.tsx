@@ -5,6 +5,7 @@ import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { NotificationsPanel } from "./NotificationsPanel";
 import { fetchSurges } from "../../api/notifications";
+import { createSignal } from "solid-js";
 import type { PriceSurgeEvent } from "../../types/notifications";
 
 vi.mock("../../api/notifications", () => ({
@@ -71,24 +72,17 @@ describe("NotificationsPanel", () => {
       .mockResolvedValueOnce({ total: 12, events: [makeEvent({ id: 1 })] })
       .mockResolvedValueOnce({ total: 12, events: [makeEvent({ id: 11 })] })
       .mockResolvedValueOnce({ total: 12, events: [makeEvent({ id: 1 })] });
-        const { rerender } = render(() => (<UIProvider>
-        <NotificationsPanel opened onClose={vi.fn()} />
+    const [opened, setOpened] = createSignal(true);
+    render(() => (<UIProvider>
+        <NotificationsPanel opened={opened()} onClose={vi.fn()} />
       </UIProvider>),
     );
 
     await fireEvent.click(await screen.findByTestId("surge-alerts-more"));
     expect(await screen.findByTestId("surge-card-11")).toBeInTheDocument();
 
-    rerender(
-      <UIProvider>
-        <NotificationsPanel opened={false} onClose={vi.fn()} />
-      </UIProvider>,
-    );
-    rerender(
-      <UIProvider>
-        <NotificationsPanel opened onClose={vi.fn()} />
-      </UIProvider>,
-    );
+    setOpened(false);
+    setOpened(true);
 
     expect(await screen.findByTestId("surge-card-1")).toBeInTheDocument();
     expect(mockedFetchSurges).toHaveBeenLastCalledWith(10, 0);

@@ -127,7 +127,8 @@ describe("BacktestHistory", () => {
   });
 
   it("delete removes the row after confirm", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const confirmStub = vi.fn(() => true);
+    vi.stubGlobal("confirm", confirmStub);
     render(() => (
       <Wrapper>
         <BacktestHistory active />
@@ -137,6 +138,6 @@ describe("BacktestHistory", () => {
     await fireEvent.click(screen.getByTestId("history-delete-btn-bt-1"));
     await waitFor(() => expect(deleteBacktest).toHaveBeenCalledWith("bt-1"));
     await waitFor(() => expect(screen.getByText("No backtest history")).toBeInTheDocument());
-    confirmSpy.mockRestore();
+    vi.unstubAllGlobals();
   });
 });

@@ -163,9 +163,9 @@ export function MarketAlertRow(props: MarketAlertRowProps) {
   return (
     <Box
       role="alert"
-      aria-live={alert.severity === "critical" ? "assertive" : "polite"}
+      aria-live={alert().severity === "critical" ? "assertive" : "polite"}
       aria-atomic="true"
-      aria-label={`${ALERT_KIND_LABEL[alert.kind]} ${alert.severity} — ${alert().symbol}`}
+      aria-label={`${ALERT_KIND_LABEL[alert().kind]} ${alert().severity} — ${alert().symbol}`}
       data-testid={`market-alert-${alert().kind}`}
       data-severity={alert().severity}
       data-active={active() ? "1" : undefined}
@@ -276,9 +276,9 @@ export function MarketAlertCard(props: MarketAlertCardProps) {
   return (
     <Box
       role="alert"
-      aria-live={alert.severity === "critical" ? "assertive" : "polite"}
+      aria-live={alert().severity === "critical" ? "assertive" : "polite"}
       aria-atomic="true"
-      aria-label={`${ALERT_KIND_LABEL[alert.kind]} ${alert.severity} — ${alert.symbol}`}
+      aria-label={`${ALERT_KIND_LABEL[alert().kind]} ${alert().severity} — ${alert().symbol}`}
       data-testid={`market-alert-${alert().kind}`}
       data-severity={alert().severity}
       onClick={clickable() ? () => onOpen()?.(alert()) : undefined}
