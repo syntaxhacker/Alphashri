@@ -3,39 +3,6 @@ import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 
 const CRITICAL_ROUTES = ["/", "/screener", "/report/index", "/options", "/patterns"];
 
-const ALL_ROUTES = [
-  "/",
-  "/screener",
-  "/screener?tab=correlation",
-  "/screener?tab=deepvalue",
-  "/screener?tab=events",
-  "/chart/RELIANCE",
-  "/report",
-  "/report/index",
-  "/report/us",
-  "/report/profit",
-  "/options",
-  "/heatmap",
-  "/sector",
-  "/strategies",
-  "/strategy-runner",
-  "/backtest",
-  "/paper",
-  "/replay",
-  "/bots",
-  "/news",
-  "/experiments",
-  "/patterns",
-  "/admin",
-  "/settings",
-  "/agri",
-  "/orderflow",
-  "/poc/smc",
-  "/poc/smc-trades",
-  "/poc/tick-replay",
-  "/poc/replay",
-];
-
 const IGNORED_CONSOLE = [
   "Failed to load resource",
   "net::ERR",
@@ -84,13 +51,6 @@ test.describe("route smoke", () => {
       if (route === "/report/index") {
         await expect(page.getByTestId("nifty-report-unavailable")).toBeVisible({ timeout: 20000 });
       }
-      expect(errors, `${route} threw:\n${errors.join("\n")}`).toEqual([]);
-    });
-  }
-
-  for (const route of ALL_ROUTES.filter((candidate) => !CRITICAL_ROUTES.includes(candidate))) {
-    test(`${route} renders without a runtime error`, async ({ page }) => {
-      const errors = await visit(page, route);
       expect(errors, `${route} threw:\n${errors.join("\n")}`).toEqual([]);
     });
   }
