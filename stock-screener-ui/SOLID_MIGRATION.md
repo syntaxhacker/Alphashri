@@ -359,3 +359,81 @@ the **final** value is rendered and that no stale intermediate value lingers.
 - [ ] Numbers use `font-mono tabular-nums`; rows use `h-6`, `gap-1`, `text-[11px]`.
 - [ ] The co-located `*.test.tsx` passes with `bunx vitest run <file>`.
 - [ ] `bunx oxlint <file>` is clean.
+
+---
+
+## 9. Defects we already hit (read this before you convert — it will save you a day)
+
+These are not hypothetical. Every one of them broke a real file in this repo.
+
+### 9.1 `splitProps` gives you VALUES, not accessors
+
+```ts
+// WRONG — splitProps returns a Proxy whose `get` returns props[key]
+const inputId = known.id();
+const w = known.w();
+
+// RIGHT
+const inputId = known.id;
+const w = known.w;
+```
+
+A handler prop is called, not read: `known.onChange?.(e)`, never
+`known.onChange?.()(e)`. A hyphenated prop is bracket-read:
+`known["data-testid"]`.
+
+### 9.2 Solid applies `style` objects with `style.setProperty()`
+
+`setProperty` requires **kebab-case**. A camelCase key is silently dropped —
+no error, no warning, the style just never appears.
+
+```tsx
+// WRONG — silently does nothing
+<div style={{ fontSize: size, justifyContent: "center", flexBasis: pct }} />
+
+// RIGHT
+<div style={{ "font-size": size, "justify-content": "center", "flex-basis": pct }} />
+```
+
+This applies to **JS-built style objects too**, not just inline literals:
+
+```ts
+const o: Record<string, string> = {};
+o["font-size"] = "12px";   // not o.fontSize
+```
+
+### 9.3 `render()` needs a thunk
+
+```tsx
+render(<Comp />);      // TypeError: code is not a function
+render(() => <Comp />); // correct
+```
+
+For imperative control use `createRoot` + `render` from `solid-js/web` with a
+container you append to `document.body`.
+
+### 9.4 `createSignal` has no lazy initialiser
+
+```ts
+createSignal<string[]>(() => compute())  // the VALUE is the function
+createSignal<string[]>(compute())        // correct
+```
+
+### 9.5 Never hand `undefined` to a DOM value setter
+
+`<textarea value={undefined} />` throws in happy-dom (it dereferences
+`.length`). Use a spread that omits the prop:
+
+```tsx
+<textarea {...(isControlled ? { value: v } : { defaultValue: d })} />
+```
+
+### 9.6 Two renders in one test need distinct testids
+
+`getByTestId` throws on multiple matches. Give each render its own id.
+
+### 9.7 happy-dom normalises `rem` to `px` in `getComputedStyle`
+
+`toHaveStyle("font-size: 0.75rem")` fails even when the inline style is
+correct — assert `12px` instead. Likewise `column-gap` resolves to `""` when
+only the `gap` shorthand is set; assert `gap`.
