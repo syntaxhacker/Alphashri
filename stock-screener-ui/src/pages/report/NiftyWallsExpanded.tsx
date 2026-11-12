@@ -1,5 +1,4 @@
-import { createEffect, createMemo, createSignal, onCleanup, For, Show } from "solid-js";
-import type { JSX } from "solid-js";
+import { createEffect, createMemo, createSignal, For } from "solid-js";
 import { Text, Button, Badge, Divider } from "@/ui";
 import { alpha } from "@/ui/alpha";
 import { LocalPanelModal } from "./LocalPanelModal";
@@ -518,7 +517,7 @@ function SequenceTable(props: { events: WallsEvent[] }) {
             color: palette.TEXT_COLOR,
           }}
         >
-          SEQUENCE · {events.length} events
+          SEQUENCE · {props.events.length} events
         </Text>
         <Text size="xs" span style={{ color: palette.TEXT_MUTED }}>touch → break · last 10</Text>
       </div>
