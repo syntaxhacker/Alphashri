@@ -1,29 +1,29 @@
 // ============================================================
 // SINGLE SOURCE OF TRUTH FOR ALL COLORS IN THE APP
 // ------------------------------------------------------------
-// Style: "tastytrade desk" — deep slate, violet accent, mint/rose P&L.
-//   - Body #0B0D10, panels #14171D, raised #1B1F27, hairline #262C36
-//   - Text #E8EDF5 (~17:1 on body), muted #8B95A5
-//   - Primary/accent: violet #7C5CFC (selection, focus, links, active tab)
-//   - Positive #00C98D / negative #FF4D5E — semantic, never hardcoded
-//   - Warning #F5A524, info #35B8F0
+// Style: "tastylive terminal" — obsidian canvas, crimson accent, cyan links.
+//   - Body #0E1012, panels #1A1D21, bars #15181C, hairline #2A2E35
+//   - Text #FFFFFF, muted #A0A6B1, dividers #6B7280
+//   - Primary/CTA: crimson #E11D2E (LIVE badges, active tabs, selection)
+//   - Links/categories: cyan #00B4D8
+//   - Bullish #00C853 / bearish #FF3B30 — tickers and deltas only
 // Every other color in the app derives from here. Changing a raw anchor
 // below re-themes the whole UI; never hardcode a hex outside this file.
 // ============================================================
 
 // ----- Raw anchors -----
-export const PRIMARY = "#7C5CFC";        // violet accent
-export const POSITIVE_COLOR = "#00C98D"; // mint green up
-export const NEGATIVE_COLOR = "#FF4D5E"; // rose red down
-export const TEXT_COLOR = "#E8EDF5";     // near-white
-export const TEXT_MUTED_COLOR = "#8B95A5";
-export const BG_COLOR = "#0B0D10";       // body
-export const SURFACE_COLOR = "#14171D";  // cards / panels
-export const BORDER_COLOR = "#262C36";   // hairline borders
+export const PRIMARY = "#E11D2E";        // crimson accent
+export const POSITIVE_COLOR = "#00C853"; // bullish green
+export const NEGATIVE_COLOR = "#FF3B30"; // bearish red
+export const TEXT_COLOR = "#FFFFFF";     // crisp white
+export const TEXT_MUTED_COLOR = "#A0A6B1";
+export const BG_COLOR = "#0E1012";       // body
+export const SURFACE_COLOR = "#1A1D21";  // cards / panels
+export const BORDER_COLOR = "#2A2E35";   // hairline borders
 
 // ----- dark theme scales (high-contrast ramps) -----
-export const SCALE_DARK = ["#E8EDF5","#C4CCDA","#8B95A5","#6B7484","#4A5260","#333A46","#262C36","#1B1F27","#14171D","#0B0D10"];
-export const SCALE_GRAY = ["#E8EDF5","#C4CCDA","#8B95A5","#6B7484","#4A5260","#333A46","#262C36","#1B1F27","#14171D","#0B0D10"];
+export const SCALE_DARK = ["#FFFFFF","#C9CED6","#A0A6B1","#6B7280","#4B5158","#2F343B","#2A2E35","#15181C","#1A1D21","#0E1012"];
+export const SCALE_GRAY = ["#FFFFFF","#C9CED6","#A0A6B1","#6B7280","#4B5158","#2F343B","#2A2E35","#15181C","#1A1D21","#0E1012"];
 export const SCALE_BLUE = ["#F0F7FF","#D9E8FF","#B3D1FF","#80B5FF","#4D99FF","#1F7FFF","#1F6FEB","#1A5CD6","#1449B8","#0F3A94"];
 export const SCALE_CYAN = ["#E6FAFF","#B8F0FF","#8AE4FF","#5CD6F5","#2FC4E8","#0FB5D9","#0A9CC4","#0883A8","#066A8A","#04546E"];
 export const SCALE_GREEN = ["#E6FFEC","#B7F0C4","#8CE0A4","#5CD182","#3FB950","#2EA043","#238636","#1A7F37","#1A6E32","#0F5323"];
@@ -40,10 +40,10 @@ export const SCALE_LIME = ["#f4fce3","#e9fac8","#d8f5a2","#c0eb75","#a9e34b","#9
 // ----- Semantic tokens (single place everything imports) -----
 export const POSITIVE = POSITIVE_COLOR; // green up
 export const NEGATIVE = NEGATIVE_COLOR; // red down
-export const NEUTRAL = "#8B95A5";
+export const NEUTRAL = "#A0A6B1";
 export const ERROR = NEGATIVE_COLOR;
 export const WARNING = "#F5A524";
-export const INFO = "#35B8F0";
+export const INFO = "#00B4D8";
 
 /** Tabular/mono numeral stack for price, P&L, OI and IV columns. */
 export const MONO = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';
@@ -56,7 +56,7 @@ export const TEXT = TEXT_COLOR;
 export const TEXT_MUTED = TEXT_MUTED_COLOR;
 export const BG = BG_COLOR;
 export const SURFACE = SURFACE_COLOR;
-export const SURFACE_ALT = "#1B1F27";
+export const SURFACE_ALT = "#15181C";
 export const BORDER = BORDER_COLOR;
 export const SURFACE_TEXT = TEXT_COLOR;
 
@@ -100,7 +100,7 @@ export const EXIT_COLORS: Record<string, string> = {
 export const EXIT_DEFAULT = WARNING;
 
 // Chart overlays / tooltips / axis (dark theme)
-export const TOOLTIP_BG = "#171B22";
+export const TOOLTIP_BG = "#15181C";
 export const TOOLTIP_BORDER = BORDER_COLOR;
 export const TOOLTIP_TEXT = TEXT_COLOR;
 export const AXIS_LINE = BORDER_COLOR;
@@ -112,17 +112,17 @@ export const CHART_TEXT = TEXT_COLOR;
 export const CHART_MUTED = TEXT_MUTED_COLOR;
 export const CHART_BORDER = BORDER_COLOR;
 export const CHART_SPLIT = SURFACE_ALT;
-export const CHART_CROSSHAIR = "#5A6373";
-export const CHART_OVERLAY = "rgba(11, 13, 16, 0.95)";
-export const CHART_DROPDOWN = "rgba(23, 27, 34, 0.96)";
+export const CHART_CROSSHAIR = "#6B7280";
+export const CHART_OVERLAY = "rgba(14, 16, 18, 0.95)";
+export const CHART_DROPDOWN = "rgba(21, 24, 28, 0.96)";
 export const CHART_DATAZOOM_BG = BG_COLOR;
-export const DATAZOOM_FILLER = "rgba(0, 201, 141, 0.15)";
+export const DATAZOOM_FILLER = "rgba(0, 200, 83, 0.15)";
 
 // --- Desk / terminal surface for the Nifty analytics panels ----------------
 // Deep panel, hairline border, CE-blue / PE-orange legs, mint net-gamma.
 export const TERM_BG = BG_COLOR;
-export const TERM_BORDER = "#20262F";
-export const TERM_HEADER = "#171B22";
+export const TERM_BORDER = "#2A2E35";
+export const TERM_HEADER = "#15181C";
 export const TERM_CE = "#4F8BFF";
 export const TERM_PE = "#FF8A3D";
 export const TERM_GAMMA = POSITIVE_COLOR;
@@ -135,7 +135,7 @@ export const PERF_POSITIVE = POSITIVE_COLOR;
 export const PERF_NEGATIVE = NEGATIVE_COLOR;
 export const BOT_RUNNING = POSITIVE_COLOR;
 export const BOT_STOPPED = TEXT_MUTED_COLOR;
-export const BOT_SELECTED_BG = "rgba(124, 92, 252, 0.16)";
+export const BOT_SELECTED_BG = "rgba(225, 29, 46, 0.16)";
 export const OI_CALL = POSITIVE_COLOR;
 export const OI_PUT = NEGATIVE_COLOR;
 export const INDICATOR_LINE = PRIMARY;
@@ -160,20 +160,20 @@ export const SECTOR_LIGHT_GREEN = "#345B4A";
 export const SECTOR_STRONG_RED = "#B05A53";
 export const SECTOR_RED = "#9E4640";
 export const SECTOR_LIGHT_RED = "#5E3B39";
-export const SECTOR_NEUTRAL = "#2A3140";
+export const SECTOR_NEUTRAL = "#242A31";
 
 // Tinted row backgrounds
-export const TINT_POSITIVE = "rgba(0, 201, 141, 0.12)";
-export const TINT_NEGATIVE = "rgba(255, 77, 94, 0.12)";
-export const TINT_LOSS_ROW = "rgba(255, 77, 94, 0.12)";
+export const TINT_POSITIVE = "rgba(0, 200, 83, 0.12)";
+export const TINT_NEGATIVE = "rgba(255, 59, 48, 0.12)";
+export const TINT_LOSS_ROW = "rgba(255, 59, 48, 0.12)";
 export const TINT_TEST_TRADE = "rgba(245, 165, 36, 0.12)";
 
 // Volume / ORB / IV areas
-export const VOLUME_BULLISH = "rgba(0, 201, 141, 0.45)";
-export const VOLUME_BEARISH = "rgba(255, 77, 94, 0.45)";
-export const ORB_AREA = "rgba(124, 92, 252, 0.15)";
-export const IV_AREA_START = "rgba(124, 92, 252, 0.30)";
-export const IV_AREA_END = "rgba(124, 92, 252, 0)";
+export const VOLUME_BULLISH = "rgba(0, 200, 83, 0.45)";
+export const VOLUME_BEARISH = "rgba(255, 59, 48, 0.45)";
+export const ORB_AREA = "rgba(225, 29, 46, 0.15)";
+export const IV_AREA_START = "rgba(225, 29, 46, 0.30)";
+export const IV_AREA_END = "rgba(225, 29, 46, 0)";
 
 // ----- Legacy light/dark aliases (app is DARK theme) -----
 export const TOOLTIP_DARK_BG = TOOLTIP_BG;

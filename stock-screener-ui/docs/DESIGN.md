@@ -1,4 +1,4 @@
-# Design language — "tastytrade desk"
+# Design language — "tastylive terminal"
 
 Dense, high-contrast, calm. The screen should look like a professional options
 desk, not a dashboard template: dark slate surfaces, one violet accent for
@@ -9,17 +9,17 @@ aligned and tabular.
 
 | Role | Token | Value | Use |
 |---|---|---|---|
-| Body | `BG_COLOR` / `bg-fin-bg` | `#0B0D10` | page background |
-| Panel | `SURFACE_COLOR` / `bg-fin-surface` | `#14171D` | cards, tables, chrome |
-| Raised | `SURFACE_ALT` / `bg-fin-surface-alt` | `#1B1F27` | sticky headers, hover, wells |
-| Hairline | `BORDER_COLOR` / `border-fin-border` | `#262C36` | 1px separators only |
-| Text | `TEXT_COLOR` / `text-fin-text` | `#E8EDF5` | primary copy, prices |
-| Muted | `TEXT_MUTED_COLOR` | `#8B95A5` | labels, units, timestamps, headers |
-| Accent | `PRIMARY` / `bg-fin-primary` | `#7C5CFC` | focus, selection, active tab, links |
-| Up | `POSITIVE_COLOR` / `text-fin-positive` | `#00C98D` | gains, long, bullish |
-| Down | `NEGATIVE_COLOR` / `text-fin-negative` | `#FF4D5E` | losses, short, bearish |
+| Body | `BG_COLOR` / `bg-fin-bg` | `#0E1012` | page background |
+| Panel | `SURFACE_COLOR` / `bg-fin-surface` | `#1A1D21` | cards, tables, chrome |
+| Raised | `SURFACE_ALT` / `bg-fin-surface-alt` | `#15181C` | sticky headers, hover, wells |
+| Hairline | `BORDER_COLOR` / `border-fin-border` | `#2A2E35` | 1px separators only |
+| Text | `TEXT_COLOR` / `text-fin-text` | `#FFFFFF` | primary copy, prices |
+| Muted | `TEXT_MUTED_COLOR` | `#A0A6B1` | labels, units, timestamps, headers |
+| Accent | `PRIMARY` / `bg-fin-primary` | `#E11D2E` | LIVE, focus, selection, active tab, CTA |
+| Up | `POSITIVE_COLOR` / `text-fin-positive` | `#00C853` | gains, long, bullish |
+| Down | `NEGATIVE_COLOR` / `text-fin-negative` | `#FF3B30` | losses, short, bearish |
 | Warning | `WARNING` / `text-fin-warning` | `#F5A524` | stale data, muted alerts, EOD |
-| Info | `INFO` / `text-fin-info` | `#35B8F0` | neutral informational, spot line |
+| Info | `INFO` / `text-fin-info` | `#00B4D8` | links, category tags, chart highlights |
 
 Rules:
 
