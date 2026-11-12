@@ -1,12 +1,12 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, createMemoryHistory, Route } from "@solidjs/router";
 import { StrategiesContainer } from "./StrategiesContainer";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
-// We mock the hook to control states; but render real StrategiesPage (not mocked)
+// We mock the hook to control states; the real StrategiesPage is not mocked
 const mockStrategiesState = vi.fn();
 
 vi.mock("../../hooks/useStrategiesState", () => ({
@@ -24,6 +24,33 @@ vi.mock("../../state/strategies", () => ({
 
 vi.mock("../../api/symbols", () => ({
   searchSymbols: vi.fn(() => Promise.resolve([])),
+}));
+
+// src/components/strategies/{TemplateTreeView,PerformanceView} still render
+// through React hooks, which cannot run inside a Solid tree. Stub them with
+// the minimal contract the page depends on.
+vi.mock("../../components/strategies/TemplateTreeView", () => ({
+  TemplateTreeView: (props: Record<string, any>) => {
+    const hasContent =
+      (Array.isArray(props.strategies) && props.strategies.length > 0) ||
+      (Array.isArray(props.templates) && props.templates.length > 0);
+    return (
+      <div data-testid="template-tree-view">
+        {hasContent ? null : <div data-testid="template-tree-empty" />}
+      </div>
+    );
+  },
+}));
+
+vi.mock("../../components/strategies/PerformanceView", () => ({
+  PerformanceView: (props: Record<string, any>) => {
+    const hasContent = Array.isArray(props.performance) && props.performance.length > 0;
+    return (
+      <div data-testid="performance-view">
+        {hasContent ? null : <div data-testid="performance-empty-state" />}
+      </div>
+    );
+  },
 }));
 
 function baseProps(overrides: Record<string, unknown> = {}) {
@@ -61,11 +88,13 @@ function baseProps(overrides: Record<string, unknown> = {}) {
 
 function renderStrategiesRoute(propsOverrides: Record<string, unknown> = {}) {
   mockStrategiesState.mockReturnValue(baseProps(propsOverrides));
-  return render(
-    <MemoryRouter initialEntries={["/strategies"]}>
-      <StrategiesContainer />
-    </MemoryRouter>,
-  );
+  const history = createMemoryHistory();
+  history.set({ value: "/strategies", replace: true });
+  return render(() => (
+    <MemoryRouter history={history}>
+      <Route path="/strategies" component={StrategiesContainer} />
+    </MemoryRouter>
+  ));
 }
 
 beforeEach(() => {

@@ -1,3 +1,4 @@
+import { Show } from "solid-js";
 import { Select, SegmentedControl, Text, ToolbarRow } from "@/ui";
 import type { PositioningMode, PositioningView } from "@/utils/positioning";
 
@@ -23,15 +24,7 @@ const VIEW_OPTIONS = [
   { value: "chart", label: "Chart" },
 ];
 
-export function PositioningHeader({
-  underlying,
-  onUnderlyingChange,
-  mode,
-  onModeChange,
-  view,
-  onViewChange,
-  timestamp,
-}: PositioningHeaderProps) {
+export function PositioningHeader(props: PositioningHeaderProps) {
   return (
     <ToolbarRow
       data-testid="positioning-header"
@@ -42,9 +35,9 @@ export function PositioningHeader({
       <Select
         data-testid="positioning-underlying"
         data={UNDERLYINGS}
-        value={underlying}
+        value={props.underlying}
         onChange={(v) => {
-          if (v) onUnderlyingChange(v);
+          if (v) props.onUnderlyingChange(v);
         }}
         size="sm"
         w={160}
@@ -52,22 +45,22 @@ export function PositioningHeader({
       <SegmentedControl
         data-testid="positioning-mode"
         data={MODE_OPTIONS}
-        value={mode}
-        onChange={(v) => onModeChange(v as PositioningMode)}
+        value={props.mode}
+        onChange={(v) => props.onModeChange(v as PositioningMode)}
         size="sm"
       />
       <SegmentedControl
         data-testid="positioning-view"
         data={VIEW_OPTIONS}
-        value={view}
-        onChange={(v) => onViewChange(v as PositioningView)}
+        value={props.view}
+        onChange={(v) => props.onViewChange(v as PositioningView)}
         size="sm"
       />
-      {timestamp && (
+      <Show when={props.timestamp}>
         <Text size="xs" c="dimmed" data-testid="positioning-timestamp">
-          {timestamp}
+          {props.timestamp}
         </Text>
-      )}
+      </Show>
     </ToolbarRow>
   );
 }

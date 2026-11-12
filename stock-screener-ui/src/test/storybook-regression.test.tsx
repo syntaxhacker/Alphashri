@@ -3,9 +3,8 @@
 // Run: bun x vitest run src/test/storybook-regression.test.tsx
 
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { renderHook } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { render, screen } from "@solidjs/testing-library";
+import { Router } from "@solidjs/router";
 
 function withTheme(ui: React.ReactNode) {
   return <div>{ui}</div>;
@@ -32,13 +31,13 @@ describe("AuthProvider HOC", () => {
     };
     const { container } = render(
       withTheme(
-        <MemoryRouter>
+        <Router>
           <AuthContext.Provider value={mockAuth}>
             <AppShell navbar={{ width: 200, breakpoint: "sm" }}>
               <NavbarNested activePath="/" collapsed={false} />
             </AppShell>
           </AuthContext.Provider>
-        </MemoryRouter>
+        </Router>
       )
     );
     // NavbarNested renders AppShell.Section with sidemenu testid only when inside AppShell
@@ -53,11 +52,11 @@ describe("Router nesting", () => {
     // ClickableSymbol stories already wrap with BrowserRouter; adding another MemoryRouter globally would nest
     expect(() =>
       render(
-        <MemoryRouter>
-          <MemoryRouter>
+        <Router>
+          <Router>
             <ClickableSymbol symbol="RELIANCE" />
-          </MemoryRouter>
-        </MemoryRouter>
+          </Router>
+        </Router>
       )
     ).toThrow(/You cannot render.*inside another.*Router/);
   });
@@ -66,9 +65,9 @@ describe("Router nesting", () => {
     const { ClickableSymbol } = await import("@/components/common/ClickableSymbol");
     const { container } = render(
       withTheme(
-        <MemoryRouter>
+        <Router>
           <ClickableSymbol symbol="RELIANCE" />
-        </MemoryRouter>
+        </Router>
       )
     );
     expect(container.textContent).toContain("RELIANCE");
@@ -105,17 +104,30 @@ describe("NavLink leftSection", () => {
 describe("NewsWebSocketProvider HOC", () => {
   it("throws without provider (the bug)", async () => {
     const { useNewsWebSocket } = await import("@/state/newsWebSocket");
-    expect(() => renderHook(() => useNewsWebSocket())).toThrow(/useNewsWebSocket must be used within a NewsWebSocketProvider/);
+    function Probe() {
+      useNewsWebSocket();
+      return null;
+    }
+    expect(() => render(() => <Probe />)).toThrow(
+      /useNewsWebSocket must be used within a NewsWebSocketProvider/,
+    );
   });
 
   it("renders with provider (the fix) — no throw and provides context", async () => {
     const { useNewsWebSocket, NewsWebSocketProvider } = await import("@/state/newsWebSocket");
-    const { result } = renderHook(() => useNewsWebSocket(), {
-      wrapper: ({ children }: { children: React.ReactNode }) => <NewsWebSocketProvider>{children}</NewsWebSocketProvider>,
-    });
-    expect(result.current).toBeDefined();
-    expect(result.current.connected).toBe(false);
-    expect(Array.isArray(result.current.newsItems)).toBe(true);
+    let ctx: ReturnType<typeof useNewsWebSocket> | undefined;
+    function Probe() {
+      ctx = useNewsWebSocket();
+      return null;
+    }
+    render(() => (
+      <NewsWebSocketProvider>
+        <Probe />
+      </NewsWebSocketProvider>
+    ));
+    expect(ctx).toBeDefined();
+    expect(ctx!.connected()).toBe(false);
+    expect(Array.isArray(ctx!.newsItems())).toBe(true);
   });
 });
 

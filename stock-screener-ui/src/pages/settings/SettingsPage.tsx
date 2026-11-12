@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
+import { createSignal, createEffect, For } from "solid-js";
 import { usePolling } from "@/hooks/usePolling";
 import { Box, Stack, Text, ToolbarRow, Divider, Paper, Button, useDensity, type Density } from "@/ui";
 import { cn } from "@/ui/cn";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "@solidjs/router";
 import { BrokerConnectionCard } from "../../components/settings/BrokerConnectionCard";
 import {
   getBrokerStatus,
@@ -12,23 +12,42 @@ import {
   disconnectFyers,
   type BrokerStatus,
 } from "../../api/brokers";
-import { useAppDispatch } from "../../state/store/hooks";
 import { addNotification } from "../../state/store/notificationsSlice";
-import { useMarketTickerEnabled } from "../../hooks/useMarketTickerEnabled";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { subscribeToHolidays, isMarketClosedToday } from "../../state/holidays";
 
+// Inline Solid twin of src/hooks/useMarketTickerEnabled (which is still React).
+// v2: the v1 key was written automatically with its opt-in default on first
+// mount, so every existing profile looked like a deliberate opt-out.
+const MARKET_TICKER_KEY = "alphashri_show_market_ticker_v2";
+
+function loadStoredMarketTicker(): boolean {
+  try {
+    const stored = localStorage.getItem(MARKET_TICKER_KEY);
+    return stored ? (JSON.parse(stored) as boolean) : true;
+  } catch {
+    return true;
+  }
+}
+
 export function SettingsPage() {
   useStoreSubscription(subscribeToHolidays);
-  const [status, setStatus] = useState<BrokerStatus | null>(null);
-  const [fyersStatus, setFyersStatus] = useState<BrokerStatus | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = createSignal<BrokerStatus | null>(null);
+  const [fyersStatus, setFyersStatus] = createSignal<BrokerStatus | null>(null);
+  const [loading, setLoading] = createSignal(false);
   const [searchParams, setSearchParams] = useSearchParams();
-  const dispatch = useAppDispatch();
-  const [showMarketTicker, setShowMarketTicker] = useMarketTickerEnabled();
+  const [showMarketTicker, setShowMarketTicker] = createSignal(loadStoredMarketTicker());
   const { density, setDensity } = useDensity();
 
-  const fetchStatus = useCallback(async () => {
+  createEffect(() => {
+    try {
+      localStorage.setItem(MARKET_TICKER_KEY, JSON.stringify(showMarketTicker()));
+    } catch {
+      // Storage unavailable — preference still applies for this session.
+    }
+  });
+
+  const fetchStatus = async () => {
     setLoading(true);
     try {
       const [upstox, fyers] = await Promise.allSettled([
@@ -40,46 +59,42 @@ export function SettingsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
-  useEffect(() => {
-    fetchStatus();
-  }, [fetchStatus]);
+  createEffect(() => {
+    void fetchStatus();
+  });
   usePolling(
     () => {
       if (isMarketClosedToday()) return;
-      fetchStatus();
+      void fetchStatus();
     },
     60000,
     { skipIfRunning: false },
   );
 
-  useEffect(() => {
-    const connected = searchParams.get("upstox") === "connected";
-    const fyersConnected = searchParams.get("fyers") === "connected";
+  createEffect(() => {
+    const connected = searchParams.upstox === "connected";
+    const fyersConnected = searchParams.fyers === "connected";
     if (connected) {
-      dispatch(
-        addNotification({
-          type: "success",
-          message: "Upstox connected successfully!",
-          duration: 5000,
-        }),
-      );
+      addNotification({
+        type: "success",
+        message: "Upstox connected successfully!",
+        duration: 5000,
+      });
     }
     if (fyersConnected) {
-      dispatch(
-        addNotification({
-          type: "success",
-          message: "Fyers connected successfully!",
-          duration: 5000,
-        }),
-      );
+      addNotification({
+        type: "success",
+        message: "Fyers connected successfully!",
+        duration: 5000,
+      });
     }
     if (connected || fyersConnected) {
-      setSearchParams({});
-      fetchStatus();
+      setSearchParams({ upstox: null, fyers: null });
+      void fetchStatus();
     }
-  }, [searchParams, dispatch, setSearchParams, fetchStatus]);
+  });
 
   const handleConnect = () => {
     connectUpstox();
@@ -93,22 +108,18 @@ export function SettingsPage() {
     setLoading(true);
     try {
       await disconnectFyers();
-      dispatch(
-        addNotification({
-          type: "success",
-          message: "Fyers disconnected successfully",
-          duration: 5000,
-        }),
-      );
+      addNotification({
+        type: "success",
+        message: "Fyers disconnected successfully",
+        duration: 5000,
+      });
       await fetchStatus();
     } catch {
-      dispatch(
-        addNotification({
-          type: "error",
-          message: "Failed to disconnect Fyers",
-          duration: 5000,
-        }),
-      );
+      addNotification({
+        type: "error",
+        message: "Failed to disconnect Fyers",
+        duration: 5000,
+      });
     } finally {
       setLoading(false);
     }
@@ -118,22 +129,18 @@ export function SettingsPage() {
     setLoading(true);
     try {
       await disconnectUpstox();
-      dispatch(
-        addNotification({
-          type: "success",
-          message: "Upstox disconnected successfully",
-          duration: 5000,
-        }),
-      );
+      addNotification({
+        type: "success",
+        message: "Upstox disconnected successfully",
+        duration: 5000,
+      });
       await fetchStatus();
     } catch {
-      dispatch(
-        addNotification({
-          type: "error",
-          message: "Failed to disconnect Upstox",
-          duration: 5000,
-        }),
-      );
+      addNotification({
+        type: "error",
+        message: "Failed to disconnect Upstox",
+        duration: 5000,
+      });
     } finally {
       setLoading(false);
     }
@@ -168,8 +175,8 @@ export function SettingsPage() {
           </div>
           <Stack className="gap-2">
             <BrokerConnectionCard
-              status={status}
-              loading={loading}
+              status={status()}
+              loading={loading()}
               onConnect={handleConnect}
               onDisconnect={handleDisconnect}
               onRefresh={fetchStatus}
@@ -179,8 +186,8 @@ export function SettingsPage() {
               broker="fyers"
               title="Fyers Connection"
               hint="Connect your Fyers account to enable Fyers order flow (5-level depth)"
-              status={fyersStatus}
-              loading={loading}
+              status={fyersStatus()}
+              loading={loading()}
               onConnect={handleFyersConnect}
               onDisconnect={handleFyersDisconnect}
               onRefresh={fetchStatus}
@@ -203,26 +210,31 @@ export function SettingsPage() {
                 Show live indices and commodities in the header (Nifty, Gold, USD/INR, etc.)
               </Text>
             </Box>
-            <span className="relative inline-flex items-center gap-3 text-sm leading-none cursor-pointer select-none" onClick={(e) => { if (!(e.target instanceof HTMLInputElement)) setShowMarketTicker((v) => !v); }}>
+            <span
+              className="relative inline-flex items-center gap-3 text-sm leading-none cursor-pointer select-none"
+              onClick={(e) => {
+                if (!(e.target instanceof HTMLInputElement)) setShowMarketTicker((v) => !v);
+              }}
+            >
               <input
                 type="checkbox"
                 role="switch"
-                checked={showMarketTicker}
-                onChange={(event) => setShowMarketTicker(event.currentTarget.checked)}
+                checked={showMarketTicker()}
+                onInput={(event) => setShowMarketTicker(event.currentTarget.checked)}
                 className="peer sr-only"
               />
               <span
                 className={cn(
                   "relative inline-block shrink-0 flex items-center h-full rounded-full border border-fin-border bg-fin-surface transition-colors duration-200 h-5 w-9",
-                  showMarketTicker ? "bg-fin-positive" : "",
-                  "peer-checked:bg-fin-positive peer-focus-visible:ring-1 peer-focus-visible:ring-fin-primary"
+                  showMarketTicker() ? "bg-fin-positive" : "",
+                  "peer-checked:bg-fin-positive peer-focus-visible:ring-1 peer-focus-visible:ring-fin-primary",
                 )}
                 aria-hidden="true"
               >
                 <span
                   className={cn(
                     "my-auto block rounded-full bg-fin-bg shadow-sm transition-transform duration-200 h-4 w-4",
-                    showMarketTicker ? "ml-auto mr-1" : "ml-1 mr-1"
+                    showMarketTicker() ? "ml-auto mr-1" : "ml-1 mr-1",
                   )}
                   aria-hidden="true"
                 />
@@ -245,19 +257,20 @@ export function SettingsPage() {
               className="inline-flex rounded-fin border border-fin-border bg-fin-surface"
               data-testid="density-control"
             >
-              {densityItems.map((item) => (
-                <Button
-                  key={item.value}
-                  size="xs"
-                  variant={density === item.value ? "filled" : "outline"}
-                  color="primary"
-                  onClick={() => setDensity(item.value as Density)}
-                  aria-pressed={density === item.value}
-                  aria-checked={density === item.value}
-                >
-                  {item.label}
-                </Button>
-              ))}
+              <For each={densityItems}>
+                {(item) => (
+                  <Button
+                    size="xs"
+                    variant={density() === item.value ? "filled" : "outline"}
+                    color="primary"
+                    onClick={() => setDensity(item.value as Density)}
+                    aria-pressed={density() === item.value}
+                    aria-checked={density() === item.value}
+                  >
+                    {item.label}
+                  </Button>
+                )}
+              </For>
             </div>
           </ToolbarRow>
         </Paper>
