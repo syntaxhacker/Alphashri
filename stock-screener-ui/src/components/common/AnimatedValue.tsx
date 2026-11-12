@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { createEffect, createSignal, onCleanup } from "solid-js";
 
 export type FlashDirection = "up" | "down";
 
@@ -38,55 +38,49 @@ export interface AnimatedValueProps {
  * value is recorded as the baseline), and transitions to/from
  * null/undefined/non-finite render an em dash without flashing.
  */
-export function AnimatedValue({
-  value,
-  format,
-  className,
-  testId,
-}: AnimatedValueProps) {
-  const [flash, setFlash] = useState<FlashDirection | null>(null);
-  const prevRef = useRef<number | null | undefined>(value);
-  const mountedRef = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+export function AnimatedValue(props: AnimatedValueProps) {
+  const [flash, setFlash] = createSignal<FlashDirection | null>(null);
+  let prev: number | null | undefined = props.value;
+  let mounted = false;
+  let timer: ReturnType<typeof setTimeout> | null = null;
 
-  useEffect(() => {
+  createEffect(() => {
+    const value = props.value;
     // Mount: record the baseline, never flash on first paint.
-    if (!mountedRef.current) {
-      mountedRef.current = true;
-      prevRef.current = value;
+    if (!mounted) {
+      mounted = true;
+      prev = value;
       return;
     }
-    const dir = flashDirection(prevRef.current, value);
-    prevRef.current = value;
+    const dir = flashDirection(prev, value);
+    prev = value;
     if (dir === null) return;
     setFlash(dir);
-    if (timerRef.current !== null) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
+    if (timer !== null) clearTimeout(timer);
+    timer = setTimeout(() => {
       setFlash(null);
-      timerRef.current = null;
+      timer = null;
     }, FLASH_MS);
-  }, [value]);
+  });
 
-  useEffect(
-    () => () => {
-      if (timerRef.current !== null) clearTimeout(timerRef.current);
-    },
-    [],
-  );
+  onCleanup(() => {
+    if (timer !== null) clearTimeout(timer);
+  });
 
-  const text =
-    value === null || value === undefined || !Number.isFinite(value)
+  const text = () =>
+    props.value === null || props.value === undefined || !Number.isFinite(props.value)
       ? "—"
-      : format
-        ? format(value)
-        : String(value);
-  const flashClass =
-    flash === "up" ? FLASH_UP_CLASS : flash === "down" ? FLASH_DOWN_CLASS : "";
-  const combined = [className, flashClass].filter(Boolean).join(" ");
+      : props.format
+        ? props.format(props.value)
+        : String(props.value);
+  const combined = () =>
+    [props.className, flash() === "up" ? FLASH_UP_CLASS : flash() === "down" ? FLASH_DOWN_CLASS : ""]
+      .filter(Boolean)
+      .join(" ");
 
   return (
-    <span data-testid={testId} className={combined || undefined}>
-      {text}
+    <span data-testid={props.testId} className={combined() || undefined}>
+      {text()}
     </span>
   );
 }

@@ -453,3 +453,18 @@ const items = useAppSelector((s) => s.notifications.items);
 
 `useAppDispatch()` is a no-op: the slice mutators (`removeNotification(id)`)
 already write the store before `dispatch(...)` is reached.
+
+### 9.9 A hook that returns state returns accessors
+
+```ts
+// React
+const { copyMsg, copyFailed } = useCopyFeedback();
+{copyMsg ? <span>{copyMsg}</span> : null}
+
+// Solid — the hook returns the accessor itself, and you call it in JSX
+const { copyMsg, copyFailed } = useCopyFeedback();
+<Show when={copyMsg()} fallback={null}>{copyMsg()}</Show>
+```
+
+Reading the accessor in the component body (outside JSX/memo) pins the first
+value, because a Solid component function runs exactly once.

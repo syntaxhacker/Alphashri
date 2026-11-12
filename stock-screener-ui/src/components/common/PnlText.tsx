@@ -1,10 +1,10 @@
-import type { ReactNode } from "react";
+import type { JSX } from "solid-js";
 import { Text, Badge } from "@/ui";
 import { getPnLTextColor } from "../../utils/ui-helpers";
 
 interface PnlTextProps {
   value: number;
-  children?: ReactNode;
+  children?: JSX.Element;
   size?: string;
   fw?: number | string;
   span?: boolean;
@@ -13,30 +13,18 @@ interface PnlTextProps {
   "data-testid"?: string;
 }
 
-export function PnlText({
-  value,
-  children,
-  size,
-  fw,
-  span,
-  ml,
-  fs,
-  "data-testid": testId,
-}: PnlTextProps) {
-  const color = getPnLTextColor(value);
-  const displayText = children ?? (value >= 0 ? `+${value}` : `${value}`);
-
+export function PnlText(props: PnlTextProps) {
   return (
     <Text
-      c={color}
-      fw={fw ?? 600}
-      size={size}
-      span={span}
-      ml={ml}
-      fs={fs}
-      data-testid={testId}
+      c={getPnLTextColor(props.value)}
+      fw={props.fw ?? 600}
+      size={props.size}
+      span={props.span}
+      ml={props.ml}
+      fs={props.fs}
+      data-testid={props["data-testid"]}
     >
-      {displayText}
+      {props.children ?? (props.value >= 0 ? `+${props.value}` : `${props.value}`)}
     </Text>
   );
 }
@@ -48,13 +36,10 @@ interface PnlBadgeProps {
   "data-testid"?: string;
 }
 
-export function PnlBadge({ value, children, size, "data-testid": testId }: PnlBadgeProps) {
-  const color = getPnLTextColor(value);
-  const displayText = children ?? (value >= 0 ? `+${value}` : `${value}`);
-
+export function PnlBadge(props: PnlBadgeProps) {
   return (
-    <Badge color={color} variant="filled" size={size} data-testid={testId}>
-      {displayText}
+    <Badge color={getPnLTextColor(props.value)} variant="filled" size={props.size} data-testid={props["data-testid"]}>
+      {props.children ?? (props.value >= 0 ? `+${props.value}` : `${props.value}`)}
     </Badge>
   );
 }

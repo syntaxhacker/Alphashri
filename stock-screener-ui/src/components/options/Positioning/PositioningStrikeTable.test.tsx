@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, afterEach } from "vitest";
-import { screen, within, cleanup } from "@testing-library/react";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
+import { render, screen, within, cleanup } from "@solidjs/testing-library";
 import { PositioningStrikeTable, heatBg } from "./PositioningStrikeTable";
 import type { PositioningStrikeRow } from "@/utils/positioning";
 
@@ -50,14 +49,14 @@ describe("heatBg", () => {
 
 describe("PositioningStrikeTable", () => {
   test("renders table with strike rows", () => {
-    renderWithProviders(<PositioningStrikeTable rows={mockRows} />);
+    render(() => <PositioningStrikeTable rows={mockRows} />);
     expect(screen.getByTestId("positioning-strike-table")).toBeInTheDocument();
     expect(screen.getByTestId("positioning-strike-row-25400")).toBeInTheDocument();
     expect(screen.getByTestId("positioning-strike-row-25500")).toBeInTheDocument();
   });
 
   test("renders strike, classes, shares, and Cr values", () => {
-    renderWithProviders(<PositioningStrikeTable rows={mockRows} />);
+    render(() => <PositioningStrikeTable rows={mockRows} />);
     const row = screen.getByTestId("positioning-strike-row-25400");
     expect(within(row).getByText("25,400")).toBeInTheDocument();
     expect(within(row).getByText("Short Buildup")).toBeInTheDocument();
@@ -69,20 +68,20 @@ describe("PositioningStrikeTable", () => {
   });
 
   test("renders covering and unwinding badges", () => {
-    renderWithProviders(<PositioningStrikeTable rows={mockRows} />);
+    render(() => <PositioningStrikeTable rows={mockRows} />);
     const row = screen.getByTestId("positioning-strike-row-25500");
     expect(within(row).getByText("Short Covering")).toBeInTheDocument();
     expect(within(row).getByText("Long Unwinding")).toBeInTheDocument();
   });
 
   test("renders em dash for null Cr and shares", () => {
-    renderWithProviders(<PositioningStrikeTable rows={mockRows} />);
+    render(() => <PositioningStrikeTable rows={mockRows} />);
     const row = screen.getByTestId("positioning-strike-row-25500");
     expect(within(row).getAllByText("—").length).toBeGreaterThanOrEqual(2);
   });
 
   test("renders empty message when rows are empty", () => {
-    renderWithProviders(<PositioningStrikeTable rows={[]} />);
+    render(() => <PositioningStrikeTable rows={[]} />);
     expect(screen.getByTestId("positioning-strike-table")).toBeInTheDocument();
     expect(screen.getByText("No strikes to display")).toBeInTheDocument();
     expect(screen.queryByTestId("positioning-strike-row-25400")).not.toBeInTheDocument();
