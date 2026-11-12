@@ -38,7 +38,9 @@ export function ReplayMainView(props: ReplayMainViewProps) {
       <Flex gap="sm" h="100%">
         <Box style={{ flex: "0 0 60%", "min-height": 0 }}>
           <ReplayChart
-            ref={props.chartRef}
+            ref={(handle) => {
+              props.chartRef.current = handle as ChartHandle;
+            }}
             candlesBySymbol={props.candlesBySymbol}
             trades={props.trades}
             orLevels={props.orLevels}

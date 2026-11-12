@@ -21,7 +21,7 @@ const ReplayPage = lazy(() => import("./components/replay").then(m => ({ default
 const StrategyRunnerPage = lazy(() => import("./components/strategy-runner").then(m => ({ default: m.StrategyRunnerPage })));
 const BotsPage = lazy(() => import("./components/bots/components").then(m => ({ default: m.BotsPage })));
 const OptionsContainer = lazy(() => import("./pages/options/OptionsContainer").then(m => ({ default: m.OptionsContainer })));
-const NiftyReportPage = lazy(() => import("./pages/report/NiftyReportUnavailable").then(m => ({ default: m.NiftyReportUnavailable })));
+const NiftyReportPage = lazy(() => import("./pages/report/NiftyReportShell").then(m => ({ default: m.NiftyReportShell })));
 const UsReportPage = lazy(() => import("./pages/report/us/UsReportPage").then(m => ({ default: m.UsReportPage })));
 const SettingsPage = lazy(() => import("./pages/settings/SettingsPage").then(m => ({ default: m.SettingsPage })));
 const ChartView = lazy(() => import("./pages/chart/ChartView"));

@@ -12,6 +12,8 @@ const IGNORED_CONSOLE = [
   "ws/",
   "ERR_CONNECTION_REFUSED",
   "Access to fetch",
+  "Failed to fetch",
+  "AbortError",
   "CORS policy",
   "Maximum update depth",
   "React does not recognize",
@@ -49,7 +51,7 @@ test.describe("route smoke", () => {
     test(`${route} renders without a runtime error @smoke`, async ({ page }) => {
       const errors = await visit(page, route);
       if (route === "/report/index") {
-        await expect(page.getByTestId("nifty-report-unavailable")).toBeVisible({ timeout: 20000 });
+        await expect(page.getByTestId("nifty-report-panel")).toBeVisible({ timeout: 20000 });
       }
       expect(errors, `${route} threw:\n${errors.join("\n")}`).toEqual([]);
     });

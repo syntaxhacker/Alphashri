@@ -192,7 +192,7 @@ export function useBacktestQueryParams() {
     const searchParams = new URLSearchParams(window.location.search);
     const payload = urlToPayload(searchParams);
     if (!payload) {
-      syncDone.current = true;
+      syncDone = true;
       return;
     }
     pendingPayload = payload;

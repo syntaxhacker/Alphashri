@@ -69,10 +69,8 @@ export function Popover(props: PopoverProps) {
   void known._middlewares;
   void known._keepMounted;
 
-  const internalAnchorEl = createSignal<HTMLElement | null>(null);
-  const [setInternalAnchorEl] = internalAnchorEl;
-  const uncontrolledOpen = createSignal(false);
-  const [, setUncontrolledOpen] = uncontrolledOpen;
+  const [internalAnchorEl, setInternalAnchorEl] = createSignal<HTMLElement | null>(null);
+  const [uncontrolledOpen, setUncontrolledOpen] = createSignal(false);
 
   const isControlled = createMemo(() => known.opened !== undefined);
   const open = createMemo(() => (isControlled() ? !!known.opened : uncontrolledOpen()));

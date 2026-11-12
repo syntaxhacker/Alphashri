@@ -138,20 +138,7 @@ const PAGES: { specifier: string; exportName?: string }[] = Array.from(
   ),
 ).map((match) => ({ specifier: match[1], exportName: match[2] }));
 
-const SKIP: { specifier: string; reason: string }[] = [
-  {
-    specifier: "./components/backtest",
-    reason: "mount crashes: useBacktestQueryParams.ts:195 sets .current on the boolean flag syncDone",
-  },
-  {
-    specifier: "./components/replay",
-    reason: "mount crashes: ReplayMainView.tsx:41 hands the chartRef object to ReplayChart's component ref, which ReplayChart.tsx:126 calls",
-  },
-  {
-    specifier: "./pages/orderflow/OrderFlowPage",
-    reason: "mount crashes: ui/overlay/Popover.tsx:74 drops the signal getter, so uncontrolledOpen() is not a function",
-  },
-];
+const SKIP: { specifier: string; reason: string }[] = [];
 
 const PAGE_SUFFIXES = ["Page", "Container", "Panel"];
 
@@ -237,7 +224,7 @@ describe("page render smoke", () => {
   });
 
   it("keeps the explicit skip list at or below three entries", () => {
-    expect(SKIP.length).toBeLessThanOrEqual(3);
+    expect(SKIP.length).toBe(0);
   });
 
   it("resolves every lazy route to a component export", async () => {
