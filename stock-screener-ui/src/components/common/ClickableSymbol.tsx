@@ -39,8 +39,9 @@ export function ClickableSymbol(props: ClickableSymbolProps) {
     hidePreviewChart();
   };
 
-  const handleMouseEnter = (e: MouseEvent) => {
+  const handleMouseEnter = (_symbol: string, e?: MouseEvent) => {
     if (!(props.showPreview ?? false)) return;
+    if (!e) return;
     clearCloseTimer();
     showPreviewChart(e, props.symbol);
   };

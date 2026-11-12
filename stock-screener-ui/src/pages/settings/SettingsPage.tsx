@@ -1,6 +1,6 @@
 import { createSignal, createEffect, For } from "solid-js";
 import { usePolling } from "@/hooks/usePolling";
-import { Box, Stack, Text, ToolbarRow, Divider, Paper, Button, useDensity, type Density } from "@/ui";
+import { Box, Stack, Text, ToolbarRow, Divider, Paper, useDensity, type Density } from "@/ui";
 import { cn } from "@/ui/cn";
 import { useSearchParams } from "@solidjs/router";
 import { BrokerConnectionCard } from "../../components/settings/BrokerConnectionCard";
@@ -212,6 +212,7 @@ export function SettingsPage() {
             </Box>
             <span
               className="relative inline-flex items-center gap-3 text-sm leading-none cursor-pointer select-none"
+              data-testid="market-ticker-toggle"
               onClick={(e) => {
                 if (!(e.target instanceof HTMLInputElement)) setShowMarketTicker((v) => !v);
               }}
@@ -259,16 +260,23 @@ export function SettingsPage() {
             >
               <For each={densityItems}>
                 {(item) => (
-                  <Button
-                    size="xs"
-                    variant={density() === item.value ? "filled" : "outline"}
-                    color="primary"
+                  // Plain button: @/ui Button drops aria-* props, and the
+                  // density control's aria-pressed/aria-checked contract is
+                  // asserted by tests and E2E.
+                  <button
+                    type="button"
+                    class={cn(
+                      "px-2 h-5 text-[11px] leading-none rounded-sm transition-colors duration-150 border",
+                      density() === item.value
+                        ? "bg-fin-primary text-fin-bg border-fin-primary"
+                        : "bg-transparent text-fin-primary border-fin-primary",
+                    )}
                     onClick={() => setDensity(item.value as Density)}
                     aria-pressed={density() === item.value}
                     aria-checked={density() === item.value}
                   >
                     {item.label}
-                  </Button>
+                  </button>
                 )}
               </For>
             </div>

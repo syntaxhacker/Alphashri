@@ -1,19 +1,12 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
-import { UIProvider } from "@/ui";
+import { render, screen, cleanup } from "@solidjs/testing-library";
+import { LivePriceUpdater } from "./LivePriceUpdater";
 
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
-}
+type SseFrame = { event: string; data: string };
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: TestWrapper });
-}
-
-let currentState: any = { positions: [] };
-let mockListeners: Set<Function> = new Set();
+const frameHandlers: Array<(frame: SseFrame) => void> = [];
 
 vi.mock("../../state/paperTrading", () => ({
   getPaperTradingState: vi.fn(() => currentState),
@@ -21,20 +14,40 @@ vi.mock("../../state/paperTrading", () => ({
   setPositions: vi.fn(),
 }));
 
-vi.mock("../../hooks/useLivePrices", () => ({
-  useLivePrices: vi.fn(() => ({
-    subscribe: (fn: Function) => {
-      mockListeners.add(fn);
-      return () => mockListeners.delete(fn);
-    },
-    getPrices: vi.fn(() => ({})),
-  })),
+vi.mock("../../state/holidays", () => ({
+  isMarketClosedToday: vi.fn(() => false),
 }));
+
+vi.mock("../../state/auth", () => ({
+  getAccessToken: vi.fn(() => "tok"),
+}));
+
+vi.mock("@/api/config", () => ({
+  API_BASE: "http://test.local",
+}));
+
+vi.mock("../../api/sse", () => ({
+  readSseStream: vi.fn(async (_response: unknown, handler: (frame: SseFrame) => void) => {
+    frameHandlers.push(handler);
+  }),
+}));
+
+let currentState: any = { positions: [] };
+
+const mockFetch = vi.fn(async () => ({ ok: true }) as Response);
 
 function notifyLivePrices(prices: Record<string, any>) {
   for (const [symbol, price] of Object.entries(prices)) {
-    mockListeners.forEach((fn) => fn(symbol, price));
+    for (const handler of frameHandlers) {
+      handler({ event: "price", data: JSON.stringify(price) });
+    }
   }
+}
+
+async function waitForStreamAttached() {
+  await vi.waitFor(() => {
+    expect(frameHandlers.length).toBeGreaterThan(0);
+  });
 }
 
 function setState(overrides: any) {
@@ -51,18 +64,20 @@ function resetState() {
 describe("LivePriceUpdater", () => {
   beforeEach(() => {
     resetState();
-    mockListeners = new Set();
+    frameHandlers.length = 0;
     vi.clearAllMocks();
+    vi.stubGlobal("fetch", mockFetch);
   });
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
   });
 
   test("renders hidden div with data-testid", async () => {
-    const { LivePriceUpdater } = await import("./LivePriceUpdater");
-    r(<LivePriceUpdater />);
+    render(() => <LivePriceUpdater />);
     expect(screen.getByTestId("live-price-updater")).toBeInTheDocument();
+    await waitForStreamAttached();
   });
 
   test("updates position price when live prices arrive", async () => {
@@ -83,10 +98,10 @@ describe("LivePriceUpdater", () => {
       ],
     });
 
-    const { LivePriceUpdater } = await import("./LivePriceUpdater");
     const { setPositions } = await import("../../state/paperTrading");
 
-    r(<LivePriceUpdater />);
+    render(() => <LivePriceUpdater />);
+    await waitForStreamAttached();
 
     notifyLivePrices({
       RELIANCE: {
@@ -138,10 +153,10 @@ describe("LivePriceUpdater", () => {
       ],
     });
 
-    const { LivePriceUpdater } = await import("./LivePriceUpdater");
     const { setPositions } = await import("../../state/paperTrading");
 
-    r(<LivePriceUpdater />);
+    render(() => <LivePriceUpdater />);
+    await waitForStreamAttached();
 
     notifyLivePrices({
       RELIANCE: { symbol: "RELIANCE", ltp: 1650 },
@@ -175,10 +190,10 @@ describe("LivePriceUpdater", () => {
       ],
     });
 
-    const { LivePriceUpdater } = await import("./LivePriceUpdater");
     const { setPositions } = await import("../../state/paperTrading");
 
-    r(<LivePriceUpdater />);
+    render(() => <LivePriceUpdater />);
+    await waitForStreamAttached();
 
     notifyLivePrices({
       RELIANCE: { symbol: "RELIANCE", ltp: 1550 },
@@ -197,9 +212,9 @@ describe("LivePriceUpdater", () => {
 
   test("does not crash when no positions in state", async () => {
     setState({ positions: [] });
-    const { LivePriceUpdater } = await import("./LivePriceUpdater");
     const { setPositions } = await import("../../state/paperTrading");
-    r(<LivePriceUpdater />);
+    render(() => <LivePriceUpdater />);
+    await waitForStreamAttached();
     notifyLivePrices({ RELIANCE: { symbol: "RELIANCE", ltp: 1650 } });
     await vi.waitFor(() => {
       expect(setPositions).toHaveBeenCalledWith([]);
@@ -223,9 +238,9 @@ describe("LivePriceUpdater", () => {
         },
       ],
     });
-    const { LivePriceUpdater } = await import("./LivePriceUpdater");
     const { setPositions } = await import("../../state/paperTrading");
-    r(<LivePriceUpdater />);
+    render(() => <LivePriceUpdater />);
+    await waitForStreamAttached();
     notifyLivePrices({ TCS: { symbol: "TCS", ltp: 3400 } });
     await vi.waitFor(() => {
       expect(setPositions).toHaveBeenCalled();
@@ -253,9 +268,9 @@ describe("LivePriceUpdater", () => {
         },
       ],
     });
-    const { LivePriceUpdater } = await import("./LivePriceUpdater");
     const { setPositions } = await import("../../state/paperTrading");
-    r(<LivePriceUpdater />);
+    render(() => <LivePriceUpdater />);
+    await waitForStreamAttached();
     notifyLivePrices({ RELIANCE: { symbol: "RELIANCE", ltp: null } });
     expect(setPositions).not.toHaveBeenCalled();
   });
@@ -277,9 +292,9 @@ describe("LivePriceUpdater", () => {
         },
       ],
     });
-    const { LivePriceUpdater } = await import("./LivePriceUpdater");
     const { setPositions } = await import("../../state/paperTrading");
-    r(<LivePriceUpdater />);
+    render(() => <LivePriceUpdater />);
+    await waitForStreamAttached();
     notifyLivePrices({ RELIANCE: { symbol: "RELIANCE", ltp: undefined } });
     // Guard: !Number.isFinite(ltp) => skip update, should NOT call setPositions
     await new Promise((r) => setTimeout(r, 50));
@@ -303,9 +318,9 @@ describe("LivePriceUpdater", () => {
         },
       ],
     });
-    const { LivePriceUpdater } = await import("./LivePriceUpdater");
     const { setPositions } = await import("../../state/paperTrading");
-    r(<LivePriceUpdater />);
+    render(() => <LivePriceUpdater />);
+    await waitForStreamAttached();
     notifyLivePrices({ RELIANCE: { symbol: "RELIANCE", ltp: 1650 } });
     await vi.waitFor(() => {
       expect(setPositions).toHaveBeenCalled();
@@ -334,9 +349,9 @@ describe("LivePriceUpdater", () => {
         },
       ],
     });
-    const { LivePriceUpdater } = await import("./LivePriceUpdater");
     const { setPositions } = await import("../../state/paperTrading");
-    r(<LivePriceUpdater />);
+    render(() => <LivePriceUpdater />);
+    await waitForStreamAttached();
     notifyLivePrices({ RELIANCE: { symbol: "RELIANCE", ltp: 1650 } });
     await vi.waitFor(() => {
       expect(setPositions).toHaveBeenCalled();
@@ -364,9 +379,9 @@ describe("LivePriceUpdater", () => {
         },
       ],
     });
-    const { LivePriceUpdater } = await import("./LivePriceUpdater");
     const { setPositions } = await import("../../state/paperTrading");
-    r(<LivePriceUpdater />);
+    render(() => <LivePriceUpdater />);
+    await waitForStreamAttached();
     notifyLivePrices({ RELIANCE: { symbol: "RELIANCE", ltp: 50 } });
     await vi.waitFor(() => {
       expect(setPositions).toHaveBeenCalled();
@@ -394,9 +409,9 @@ describe("LivePriceUpdater", () => {
         },
       ],
     });
-    const { LivePriceUpdater } = await import("./LivePriceUpdater");
     const { setPositions } = await import("../../state/paperTrading");
-    r(<LivePriceUpdater />);
+    render(() => <LivePriceUpdater />);
+    await waitForStreamAttached();
     notifyLivePrices({ RELIANCE: { symbol: "RELIANCE", ltp: 10001 } });
     await vi.waitFor(() => {
       expect(setPositions).toHaveBeenCalled();
@@ -405,5 +420,40 @@ describe("LivePriceUpdater", () => {
     const pos = updated.find((p: any) => p.symbol === "RELIANCE");
     expect(pos.pnl).toBe(100000 * (10001 - 1));
     expect(pos.current_price).toBe(10001);
+  });
+
+  test("drives 120 rapid ticks and lands on the final value with no stale intermediate", async () => {
+    setState({
+      positions: [
+        {
+          symbol: "RELIANCE",
+          side: "BUY",
+          quantity: 2,
+          entry_price: 1000,
+          current_price: 1000,
+          pnl: 0,
+          pnl_pct: 0,
+          entry_time: new Date().toISOString(),
+          stop_loss: 900,
+          take_profit: 1200,
+        },
+      ],
+    });
+    const { setPositions } = await import("../../state/paperTrading");
+    render(() => <LivePriceUpdater />);
+    await waitForStreamAttached();
+
+    for (let i = 1; i <= 120; i++) {
+      notifyLivePrices({ RELIANCE: { symbol: "RELIANCE", ltp: 1000 + i } });
+    }
+
+    const calls = (vi.mocked(setPositions) as any).mock.calls;
+    expect(calls.length).toBe(120);
+    const last = calls[calls.length - 1][0];
+    expect(last[0].current_price).toBe(1120);
+    expect(last[0].pnl).toBe(2 * 120);
+    // No stale intermediate value in the final state: every earlier price was
+    // superseded by the last write.
+    expect(new Set(calls.map((c: any) => c[0][0].current_price)).size).toBe(120);
   });
 });

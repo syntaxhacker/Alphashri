@@ -1,5 +1,4 @@
-import { Show, splitProps, type JSX, type MouseEvent as DOMMouseEvent } from "solid-js";
-import type { CSSProperties } from "solid-js";
+import { Show, splitProps, type JSX, type CSSProperties } from "solid-js";
 import { ActionIcon, Box, CopyButton, Text, Tooltip, cn } from "@/ui";
 import { IconChartCandle, IconCheck, IconCopy, IconExternalLink } from "@tabler/icons-react";
 import { tradingViewSymbol } from "@/config/tvSymbols";
@@ -19,9 +18,10 @@ export interface SymbolLinkProps {
   onOpen?: (symbol: string) => void;
   /**
    * Hover intent. The HOST owns the debounce (one place for the whole app);
-   * this fires on pointer enter and `onPreviewEnd` on leave.
+   * this fires on pointer enter and `onPreviewEnd` on leave. The native
+   * mouseenter event is passed through so hosts can position a preview.
    */
-  onPreview?: (symbol: string) => void;
+  onPreview?: (symbol: string, event?: MouseEvent) => void;
   onPreviewEnd?: (symbol: string) => void;
   /** Render the symbol text as an external TradingView link (default true). */
   tvLink?: boolean;
@@ -32,7 +32,7 @@ export interface SymbolLinkProps {
   /** Copy the symbol to the clipboard (default false). Rendered after the symbol text. */
   showCopy?: boolean;
   /** Click handler for the symbol text when NOT a TV link (ClickableSymbol use case). */
-  onTextClick?: (symbol: string, event: DOMMouseEvent) => void;
+  onTextClick?: (symbol: string, event: MouseEvent) => void;
   /** Test id for the TradingView link / text button (kept for existing contracts). */
   testId?: string;
   /** Test id for the chart icon (default `symbol-chart-<SYMBOL>`). */
@@ -110,14 +110,14 @@ export function SymbolLink(props: SymbolLinkProps) {
       ? `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv()!)}`
       : "";
 
-  const stop = (event: DOMMouseEvent) => {
+  const stop = (event: MouseEvent) => {
     if (stopPropagation()) event.stopPropagation();
   };
 
-  const handlePreview = () => previewHandler()(label());
+  const handlePreview = (event: MouseEvent) => previewHandler()(label(), event);
   const handlePreviewEnd = () => previewEndHandler()(label());
 
-  const handleTextClick = (event: DOMMouseEvent) => {
+  const handleTextClick = (event: MouseEvent) => {
     stop(event);
     if (local.onTextClick) {
       local.onTextClick(label(), event);

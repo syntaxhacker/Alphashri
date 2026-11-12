@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, afterEach } from "vitest";
-import { render, screen, within, cleanup } from "@testing-library/react";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
+import { render, screen, within, cleanup } from "@solidjs/testing-library";
 import { VerdictBanner } from "./VerdictBanner";
 import type { PositioningData } from "@/utils/positioning";
 
@@ -39,7 +38,7 @@ const mockData: PositioningData = {
 
 describe("VerdictBanner", () => {
   test("renders bearish verdict with initiated and lean lines", () => {
-    renderWithProviders(<VerdictBanner data={mockData} />);
+    render(() => <VerdictBanner data={mockData} />);
     const banner = screen.getByTestId("positioning-verdict");
     expect(banner).toBeInTheDocument();
     expect(within(banner).getByTestId("positioning-verdict-word")).toHaveTextContent("▼ Bearish");
@@ -52,7 +51,7 @@ describe("VerdictBanner", () => {
   });
 
   test("renders biggest move line when present", () => {
-    renderWithProviders(<VerdictBanner data={mockData} />);
+    render(() => <VerdictBanner data={mockData} />);
     const banner = screen.getByTestId("positioning-verdict");
     expect(within(banner).getByTestId("positioning-verdict-biggest")).toHaveTextContent(
       "Biggest move: call writers opened (today) · -50,462 Cr",
@@ -60,7 +59,7 @@ describe("VerdictBanner", () => {
   });
 
   test("omits biggest move line when null", () => {
-    renderWithProviders(<VerdictBanner data={{ ...mockData, biggest_move: null }} />);
+    render(() => <VerdictBanner data={{ ...mockData, biggest_move: null }} />);
     const banner = screen.getByTestId("positioning-verdict");
     expect(banner).toBeInTheDocument();
     expect(
@@ -69,9 +68,7 @@ describe("VerdictBanner", () => {
   });
 
   test("renders bullish verdict", () => {
-    renderWithProviders(
-      <VerdictBanner data={{ ...mockData, verdict: "bullish", initiated_cr: 45210 }} />,
-    );
+    render(() => <VerdictBanner data={{ ...mockData, verdict: "bullish", initiated_cr: 45210 }} />);
     expect(screen.getByTestId("positioning-verdict-word")).toHaveTextContent("▲ Bullish");
     expect(screen.getByTestId("positioning-verdict-initiated")).toHaveTextContent(
       "Today since open 45,210 Cr",
@@ -79,14 +76,12 @@ describe("VerdictBanner", () => {
   });
 
   test("renders neutral verdict with square icon", () => {
-    renderWithProviders(
-      <VerdictBanner data={{ ...mockData, verdict: "neutral", initiated_cr: 0 }} />,
-    );
+    render(() => <VerdictBanner data={{ ...mockData, verdict: "neutral", initiated_cr: 0 }} />);
     expect(screen.getByTestId("positioning-verdict-word")).toHaveTextContent("■ Neutral");
   });
 
   test("renders disclaimer", () => {
-    renderWithProviders(<VerdictBanner data={mockData} />);
+    render(() => <VerdictBanner data={mockData} />);
     expect(
       within(screen.getByTestId("positioning-verdict")).getByText(
         "A read of OI and premium changes, not advice.",
@@ -95,7 +90,7 @@ describe("VerdictBanner", () => {
   });
 
   test("renders null initiated Cr as em dash", () => {
-    render(<VerdictBanner data={{ ...mockData, initiated_cr: null }} />);
+    render(() => <VerdictBanner data={{ ...mockData, initiated_cr: null }} />);
     expect(screen.getByTestId("positioning-verdict-initiated")).toHaveTextContent(
       "Today since open —",
     );

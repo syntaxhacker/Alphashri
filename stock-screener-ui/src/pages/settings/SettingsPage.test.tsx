@@ -1,33 +1,34 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, cleanup, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
+import { MemoryRouter, Route } from "@solidjs/router";
 import { SettingsPage } from "./SettingsPage";
-import { MemoryRouter, Routes, Route } from "react-router-dom";
-import { renderWithProviders, renderWithRouter } from "../../test-utils/renderWithProviders";
+import { UIProvider } from "@/ui";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 import { setDensity } from "@/ui";
 
 // Mock modules using vi.hoisted
-const { mockGetBrokerStatus, mockConnectUpstox, mockDisconnectUpstox, mockDispatch } = vi.hoisted(
-  () => {
-    const mockGetBrokerStatus = vi.fn();
-    const mockConnectUpstox = vi.fn();
-    const mockDisconnectUpstox = vi.fn();
-    const mockDispatch = vi.fn();
-    return { mockGetBrokerStatus, mockConnectUpstox, mockDisconnectUpstox, mockDispatch };
-  },
-);
+const { mockGetBrokerStatus, mockConnectUpstox, mockConnectFyers, mockDisconnectUpstox, mockDisconnectFyers, mockAddNotification } =
+  vi.hoisted(() => ({
+    mockGetBrokerStatus: vi.fn(),
+    mockConnectUpstox: vi.fn(),
+    mockConnectFyers: vi.fn(),
+    mockDisconnectUpstox: vi.fn(),
+    mockDisconnectFyers: vi.fn(),
+    mockAddNotification: vi.fn(),
+  }));
 
 vi.mock("../../api/brokers", () => ({
   getBrokerStatus: () => mockGetBrokerStatus(),
   connectUpstox: () => mockConnectUpstox(),
   disconnectUpstox: () => mockDisconnectUpstox(),
+  connectFyers: () => mockConnectFyers(),
+  disconnectFyers: () => mockDisconnectFyers(),
 }));
 
-vi.mock("../../state/store/hooks", () => ({
-  useAppDispatch: () => mockDispatch,
+vi.mock("../../state/store/notificationsSlice", () => ({
+  addNotification: (...args: any[]) => mockAddNotification(...args),
 }));
 
 vi.mock("../../state/holidays", () => ({
@@ -35,27 +36,61 @@ vi.mock("../../state/holidays", () => ({
   isMarketClosedToday: vi.fn().mockReturnValue(false),
 }));
 
-// Mock useMarketTickerEnabled
-const mockSetShowMarketTicker = vi.fn();
-vi.mock("../../hooks/useMarketTickerEnabled", () => ({
-  useMarketTickerEnabled: () => [false, mockSetShowMarketTicker],
+// BrokerConnectionCard still imports @tabler/icons-react (React forwardRef
+// objects), which Solid cannot mount. Stub it with the same testids/buttons.
+vi.mock("../../components/settings/BrokerConnectionCard", () => ({
+  BrokerConnectionCard: (props: any) => {
+    const suffix = props.broker ?? "upstox";
+    const isConnected = () =>
+      props.status?.connected &&
+      (props.status.expires_in_hours === null || props.status.expires_in_hours >= 0);
+    return (
+      <div data-testid={suffix === "upstox" ? "broker-connection-card" : `${suffix}-connection-card`}>
+        <span>{props.title ?? "Upstox Connection"}</span>
+        <span data-testid={suffix === "upstox" ? "broker-status-badge" : `${suffix}-status-badge`}>
+          {isConnected() ? "Connected" : "Disconnected"}
+        </span>
+        {isConnected() ? (
+          <button data-testid={`disconnect-${suffix}-btn`} onClick={() => props.onDisconnect()}>
+            Disconnect
+          </button>
+        ) : (
+          <button data-testid={`connect-${suffix}-btn`} onClick={() => props.onConnect()}>
+            Connect
+          </button>
+        )}
+        <button data-testid={suffix === "upstox" ? "refresh-broker-status-btn" : `refresh-${suffix}-status-btn`} onClick={() => props.onRefresh()}>
+          Refresh
+        </button>
+      </div>
+    );
+  },
 }));
+
+const renderSettings = () =>
+  render(() => (
+    <MemoryRouter>
+      <Route
+        path="/"
+        component={() => (
+          <UIProvider>
+            <SettingsPage />
+          </UIProvider>
+        )}
+      />
+    </MemoryRouter>
+  ));
 
 describe("SettingsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setupBrowserMocks();
     localStorage.removeItem("alphashri_ui_density");
+    localStorage.removeItem("alphashri_show_market_ticker_v2");
     setDensity("compact");
-    // Reset mock implementations
     mockGetBrokerStatus.mockReset();
     mockConnectUpstox.mockReset();
     mockDisconnectUpstox.mockReset();
-    mockSetShowMarketTicker.mockReset();
-  });
-
-  afterEach(() => {
-    cleanup();
   });
 
   const mockBrokerStatus = {
@@ -68,21 +103,15 @@ describe("SettingsPage", () => {
   it("renders settings page container", () => {
     mockGetBrokerStatus.mockResolvedValue(null);
 
-    renderWithRouter(<SettingsPage />);
+    renderSettings();
 
     expect(screen.getByTestId("settings-page")).toBeInTheDocument();
   });
 
-  it("loads settings page when accessed via /settings URL", () => {
+  it("renders settings page inside the app router", () => {
     mockGetBrokerStatus.mockResolvedValue(null);
 
-    renderWithProviders(
-      <MemoryRouter initialEntries={["/settings"]}>
-        <Routes>
-          <Route path="/settings" element={<SettingsPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderSettings();
 
     expect(screen.getByTestId("settings-page")).toBeInTheDocument();
   });
@@ -90,7 +119,7 @@ describe("SettingsPage", () => {
   it("renders page title", async () => {
     mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
 
-    renderWithRouter(<SettingsPage />);
+    renderSettings();
 
     await waitFor(() => {
       expect(screen.getByText("Settings")).toBeInTheDocument();
@@ -100,7 +129,7 @@ describe("SettingsPage", () => {
   it("fetches broker status on mount", async () => {
     mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
 
-    renderWithRouter(<SettingsPage />);
+    renderSettings();
 
     await waitFor(() => {
       // One card per broker (upstox + fyers).
@@ -111,7 +140,7 @@ describe("SettingsPage", () => {
   it("renders broker connection card", async () => {
     mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
 
-    renderWithRouter(<SettingsPage />);
+    renderSettings();
 
     await waitFor(() => {
       expect(screen.getByText("Upstox Connection")).toBeInTheDocument();
@@ -121,10 +150,9 @@ describe("SettingsPage", () => {
   it("displays connected status when upstox is connected", async () => {
     mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
 
-    renderWithRouter(<SettingsPage />);
+    renderSettings();
 
     await waitFor(() => {
-      // Both broker cards report Connected.
       expect(screen.getAllByText("Connected").length).toBeGreaterThan(0);
     });
   });
@@ -137,7 +165,7 @@ describe("SettingsPage", () => {
       expires_at: null,
     });
 
-    renderWithRouter(<SettingsPage />);
+    renderSettings();
 
     await waitFor(() => {
       expect(screen.getAllByText("Disconnected").length).toBeGreaterThan(0);
@@ -145,7 +173,6 @@ describe("SettingsPage", () => {
   });
 
   it("calls connectUpstox when connect button is clicked", async () => {
-      const user = userEvent.setup();
     mockGetBrokerStatus.mockResolvedValue({
       connected: false,
       broker: "upstox",
@@ -153,101 +180,78 @@ describe("SettingsPage", () => {
       expires_at: null,
     });
 
-    renderWithRouter(<SettingsPage />);
+    renderSettings();
 
-    // Wait for the button to appear AND for loading to complete
     await waitFor(() => {
-      const btn = screen.getByTestId("connect-upstox-btn");
-      expect(btn).toBeInTheDocument();
-      // Ensure button is not in loading state
-      expect(btn).not.toHaveAttribute("data-loading");
+      expect(screen.getByTestId("connect-upstox-btn")).toBeInTheDocument();
     });
 
-    const connectBtn = screen.getByTestId("connect-upstox-btn");
-    await user.click(connectBtn);
+    fireEvent.click(screen.getByTestId("connect-upstox-btn"));
 
     expect(mockConnectUpstox).toHaveBeenCalledTimes(1);
   });
 
   it("calls disconnectUpstox when disconnect button is clicked", async () => {
-      const user = userEvent.setup();
     mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
     mockDisconnectUpstox.mockResolvedValue({});
 
-    renderWithRouter(<SettingsPage />);
-
-    // Wait for the button to appear AND for loading to complete
-    await waitFor(() => {
-      const btn = screen.getByTestId("disconnect-upstox-btn");
-      expect(btn).toBeInTheDocument();
-      expect(btn).not.toHaveAttribute("data-loading");
-    });
-
-    const disconnectBtn = screen.getByTestId("disconnect-upstox-btn");
-    await user.click(disconnectBtn);
-
-    expect(mockDisconnectUpstox).toHaveBeenCalledTimes(1);
-  });
-
-  it("shows success notification on successful disconnect", async () => {
-      const user = userEvent.setup();
-    mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
-    mockDisconnectUpstox.mockResolvedValue({});
-
-    renderWithRouter(<SettingsPage />);
-
-    // Wait for the button to appear AND for loading to complete
-    await waitFor(() => {
-      const btn = screen.getByTestId("disconnect-upstox-btn");
-      expect(btn).toBeInTheDocument();
-      expect(btn).not.toHaveAttribute("data-loading");
-    });
-
-    const disconnectBtn = screen.getByTestId("disconnect-upstox-btn");
-    await user.click(disconnectBtn);
-
-    await waitFor(() => {
-      expect(mockDispatch).toHaveBeenCalledWith({
-        type: "notifications/addNotification",
-        payload: {
-          type: "success",
-          message: "Upstox disconnected successfully",
-          duration: 5000,
-        },
-      });
-    });
-  });
-
-  it("shows error notification on failed disconnect", async () => {
-      const user = userEvent.setup();
-    mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
-    mockDisconnectUpstox.mockRejectedValue(new Error("Failed"));
-
-    renderWithRouter(<SettingsPage />);
+    renderSettings();
 
     await waitFor(() => {
       expect(screen.getByTestId("disconnect-upstox-btn")).toBeInTheDocument();
     });
 
-    const disconnectBtn = screen.getByTestId("disconnect-upstox-btn");
-    await user.click(disconnectBtn);
+    fireEvent.click(screen.getByTestId("disconnect-upstox-btn"));
+
+    expect(mockDisconnectUpstox).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows success notification on successful disconnect", async () => {
+    mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
+    mockDisconnectUpstox.mockResolvedValue({});
+
+    renderSettings();
 
     await waitFor(() => {
-      expect(mockDispatch).toHaveBeenCalledWith({
-        payload: {
-          duration: 5000,
-          message: "Failed to disconnect Upstox",
-          type: "error",
-        },
-        type: "notifications/addNotification",
+      expect(screen.getByTestId("disconnect-upstox-btn")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("disconnect-upstox-btn"));
+
+    await waitFor(() => {
+      expect(mockAddNotification).toHaveBeenCalledWith({
+        type: "success",
+        message: "Upstox disconnected successfully",
+        duration: 5000,
       });
     });
   });
 
-  it("handles upstox connected query param", async () => {
+  it("shows error notification on failed disconnect", async () => {
+    mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
+    mockDisconnectUpstox.mockRejectedValue(new Error("Failed"));
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("disconnect-upstox-btn")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("disconnect-upstox-btn"));
+
+    await waitFor(() => {
+      expect(mockAddNotification).toHaveBeenCalledWith({
+        type: "error",
+        message: "Failed to disconnect Upstox",
+        duration: 5000,
+      });
+    });
+  });
+
+  it("fetches broker status on mount for connected query param handling", async () => {
     mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
 
-    renderWithRouter(<SettingsPage />);
+    renderSettings();
 
     await waitFor(() => {
       expect(mockGetBrokerStatus).toHaveBeenCalled();
@@ -258,7 +262,7 @@ describe("SettingsPage", () => {
     mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
     const setIntervalSpy = vi.spyOn(global, "setInterval");
 
-    renderWithRouter(<SettingsPage />);
+    renderSettings();
 
     await waitFor(() => {
       expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 60000);
@@ -270,45 +274,42 @@ describe("SettingsPage", () => {
   it("renders market ticker toggle section", async () => {
     mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
 
-    renderWithRouter(<SettingsPage />);
+    renderSettings();
 
     await waitFor(() => {
       expect(screen.getByText("Market Ticker")).toBeInTheDocument();
     });
   });
 
-  it("shows market ticker toggle unchecked by default", async () => {
+  it("shows market ticker toggle checked by default", async () => {
     mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
 
-    renderWithRouter(<SettingsPage />);
+    renderSettings();
 
     await waitFor(() => {
-      const toggle = screen.getByRole("switch");
-      expect(toggle).not.toBeChecked();
+      expect(screen.getByRole("switch")).toBeChecked();
     });
   });
 
   it("updates market ticker preference when toggle is changed", async () => {
-      const user = userEvent.setup();
     mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
 
-    renderWithRouter(<SettingsPage />);
+    renderSettings();
 
     await waitFor(() => {
       expect(screen.getByRole("switch")).toBeInTheDocument();
     });
 
-    const toggle = screen.getByRole("switch");
-    await user.click(toggle);
+    fireEvent.click(screen.getByTestId("market-ticker-toggle"));
 
-    expect(mockSetShowMarketTicker).toHaveBeenCalledWith(true);
+    expect(localStorage.getItem("alphashri_show_market_ticker_v2")).toBe("false");
   });
 
   it("renders table density control defaulting to Compact", async () => {
     mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
     localStorage.removeItem("alphashri_ui_density");
 
-    renderWithRouter(<SettingsPage />);
+    renderSettings();
 
     await waitFor(() => {
       expect(screen.getByTestId("density-control")).toBeInTheDocument();
@@ -320,17 +321,16 @@ describe("SettingsPage", () => {
   });
 
   it("persists Comfortable density to localStorage when selected", async () => {
-      const user = userEvent.setup();
     mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
     localStorage.removeItem("alphashri_ui_density");
 
-    renderWithRouter(<SettingsPage />);
+    renderSettings();
 
     await waitFor(() => {
       expect(screen.getByTestId("density-control")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole("button", { name: "Comfortable" }));
+    fireEvent.click(screen.getByRole("button", { name: "Comfortable" }));
 
     await waitFor(() => {
       expect(localStorage.getItem("alphashri_ui_density")).toBe("comfortable");

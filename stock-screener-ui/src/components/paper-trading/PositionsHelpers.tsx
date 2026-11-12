@@ -79,8 +79,8 @@ export function calcStrategySummary(positions: PaperPosition[]): StrategySummary
 
 // Rows are destroyed and re-created on every store tick (TanStackTable keys
 // `<For>` items by identity and every tick produces fresh position objects),
-// so previous *values* are remembered at module scope to keep tick flashes
-// working across remounts.
+// so previous *values* live at module scope to keep tick flashes working
+// across remounts.
 const _prevPrice = new Map<string, number>();
 const _prevPnl = new Map<string, number>();
 
@@ -95,9 +95,9 @@ function PriceCell(props: { price: number; quantity: number; entry: number; flas
     _prevPrice.set(props.flashKey, safePrice);
   });
   return (
-    <Text class="paper-price-cell whitespace-nowrap" size="sm">
+    <Text className="paper-price-cell whitespace-nowrap font-mono tabular-nums" size="sm">
       {safeQty}×₹{safeEntry.toFixed(2)}
-      <Text class="paper-price-arrow" span c="dimmed" size="xs" mx={0.5}>→</Text>
+      <Text className="paper-price-arrow" span c="dimmed" size="xs" mx={0.5}>→</Text>
       <PriceDisplay price={safePrice} prevPrice={prev !== undefined && Number.isFinite(prev) ? prev : 0} />
     </Text>
   );
@@ -158,12 +158,12 @@ function PnLDisplay(props: { pnl: number; pnlPct: number; flashKey: string }) {
     <Text
       c={pnlClass}
       fw={600}
-      class={`paper-pnl-display font-mono tabular-nums${flash() === "up" ? " price-flash-up" : flash() === "down" ? " price-flash-down" : ""}`}
+      className={`paper-pnl-display font-mono tabular-nums${flash() === "up" ? " price-flash-up" : flash() === "down" ? " price-flash-down" : ""}`}
       onAnimationEnd={() => setFlash(null)}
       style={{ display: "inline" }}
     >
       {formatSignedPnl(pnl)}
-      <Text class="paper-pnl-pct font-mono tabular-nums" span c={pnlClass} size="sm">
+      <Text className="paper-pnl-pct font-mono tabular-nums" span c={pnlClass} size="sm">
         {" "}
         ({formatPercentage(props.pnlPct)})
       </Text>
@@ -206,21 +206,18 @@ const _52wCache: Record<string, { high_52w: number; low_52w: number }> = {};
 const _notesDrafts = new Map<string, string>();
 
 function PositionDetail(props: { pos: PaperPosition }) {
-  const draftKey = () => String(props.pos.order_id || props.pos.symbol);
-  const [notes, setNotes] = createSignal(_notesDrafts.get(draftKey()) ?? props.pos.notes ?? "");
+  const draftKey = String(props.pos.order_id || props.pos.symbol);
+  const [notes, setNotes] = createSignal(_notesDrafts.get(draftKey) ?? props.pos.notes ?? "");
   const [saving, setSaving] = createSignal(false);
-  const [week52, setWeek52] = createSignal<{ high_52w: number; low_52w: number } | null>(() => {
-    // eslint-disable-next-line solid/reactivity
-    return null;
-  });
+  const [week52, setWeek52] = createSignal<{ high_52w: number; low_52w: number } | null>(null);
   const [loading52, setLoading52] = createSignal(true);
+  let cancelled = false;
 
   onMount(() => {
-    let cancelled = false;
     if (_52wCache[props.pos.symbol]) {
       setWeek52(_52wCache[props.pos.symbol]);
       setLoading52(false);
-      return () => { cancelled = true; };
+      return;
     }
     setLoading52(true);
     fetch52WLevels(props.pos.symbol)
@@ -235,11 +232,11 @@ function PositionDetail(props: { pos: PaperPosition }) {
       .finally(() => {
         if (!cancelled) setLoading52(false);
       });
-    return () => { cancelled = true; };
   });
 
   onCleanup(() => {
-    _notesDrafts.set(draftKey(), notes());
+    cancelled = true;
+    _notesDrafts.set(draftKey, notes());
   });
 
   const handleSaveNotes = async () => {
@@ -249,62 +246,62 @@ function PositionDetail(props: { pos: PaperPosition }) {
   };
 
   const updateNotes = (v: string) => {
-    _notesDrafts.set(draftKey(), v);
+    _notesDrafts.set(draftKey, v);
     setNotes(v);
   };
 
   return (
-    <Stack class="paper-position-detail" id={`paper-position-detail-${props.pos.order_id || props.pos.symbol}`} gap={1}>
-      <SimpleGrid class="paper-position-detail-reasons" id={`paper-position-reasons-${props.pos.symbol}`} cols={2} spacing="xs">
-        <Box class="paper-position-entry-reason overflow-hidden" id={`paper-position-entry-reason-${props.pos.symbol}`}>
-          <Text class="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Entry Reason</Text>
-          <Text class="paper-position-value break-words" size="sm">{props.pos.entry_reason || "—"}</Text>
+    <Stack className="paper-position-detail" id={`paper-position-detail-${props.pos.order_id || props.pos.symbol}`} gap={1}>
+      <SimpleGrid className="paper-position-detail-reasons" id={`paper-position-reasons-${props.pos.symbol}`} cols={2} spacing="xs">
+        <Box className="paper-position-entry-reason overflow-hidden" id={`paper-position-entry-reason-${props.pos.symbol}`}>
+          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Entry Reason</Text>
+          <Text className="paper-position-value break-words" size="sm">{props.pos.entry_reason || "—"}</Text>
         </Box>
-        <Box class="paper-position-exit-reason overflow-hidden" id={`paper-position-exit-reason-${props.pos.symbol}`}>
-          <Text class="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Exit Reason</Text>
-          <Text class="paper-position-value break-words" size="sm">Open (no exit yet)</Text>
+        <Box className="paper-position-exit-reason overflow-hidden" id={`paper-position-exit-reason-${props.pos.symbol}`}>
+          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Exit Reason</Text>
+          <Text className="paper-position-value break-words" size="sm">Open (no exit yet)</Text>
         </Box>
       </SimpleGrid>
-      <SimpleGrid class="paper-position-detail-stats" id={`paper-position-stats-${props.pos.symbol}`} cols={4} spacing="sm">
-        <Box class="paper-position-stat p-1" id={`paper-position-sl-${props.pos.symbol}`}>
-          <Text class="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Stop Loss</Text>
-          <Text class="paper-position-value font-mono tabular-nums" size="sm" c="error">{props.pos.stop_loss ? `₹${props.pos.stop_loss.toFixed(2)}` : "—"}</Text>
+      <SimpleGrid className="paper-position-detail-stats" id={`paper-position-stats-${props.pos.symbol}`} cols={4} spacing="sm">
+        <Box className="paper-position-stat p-1" id={`paper-position-sl-${props.pos.symbol}`}>
+          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Stop Loss</Text>
+          <Text className="paper-position-value font-mono tabular-nums" size="sm" c="error">{props.pos.stop_loss ? `₹${props.pos.stop_loss.toFixed(2)}` : "—"}</Text>
         </Box>
-        <Box class="paper-position-stat p-1" id={`paper-position-tp-${props.pos.symbol}`}>
-          <Text class="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Take Profit</Text>
-          <Text class="paper-position-value font-mono tabular-nums" size="sm" c="success">{props.pos.take_profit ? `₹${props.pos.take_profit.toFixed(2)}` : "—"}</Text>
+        <Box className="paper-position-stat p-1" id={`paper-position-tp-${props.pos.symbol}`}>
+          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Take Profit</Text>
+          <Text className="paper-position-value font-mono tabular-nums" size="sm" c="success">{props.pos.take_profit ? `₹${props.pos.take_profit.toFixed(2)}` : "—"}</Text>
         </Box>
-        <Box class="paper-position-stat p-1" id={`paper-position-peak-${props.pos.symbol}`}>
-          <Text class="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Peak</Text>
-          <Text class="paper-position-value font-mono tabular-nums" size="sm">{props.pos.peak_price ? `₹${props.pos.peak_price.toFixed(2)}` : "—"}</Text>
+        <Box className="paper-position-stat p-1" id={`paper-position-peak-${props.pos.symbol}`}>
+          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Peak</Text>
+          <Text className="paper-position-value font-mono tabular-nums" size="sm">{props.pos.peak_price ? `₹${props.pos.peak_price.toFixed(2)}` : "—"}</Text>
         </Box>
-        <Box class="paper-position-stat p-1" id={`paper-position-low-${props.pos.symbol}`}>
-          <Text class="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Low</Text>
-          <Text class="paper-position-value font-mono tabular-nums" size="sm">{props.pos.low_price ? `₹${props.pos.low_price.toFixed(2)}` : "—"}</Text>
+        <Box className="paper-position-stat p-1" id={`paper-position-low-${props.pos.symbol}`}>
+          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Low</Text>
+          <Text className="paper-position-value font-mono tabular-nums" size="sm">{props.pos.low_price ? `₹${props.pos.low_price.toFixed(2)}` : "—"}</Text>
         </Box>
-        <Box class="paper-position-stat p-1" id={`paper-position-52high-${props.pos.symbol}`}>
-          <Text class="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>52W High</Text>
-          <Text class="paper-position-value font-mono tabular-nums" size="sm" c="warning">
+        <Box className="paper-position-stat p-1" id={`paper-position-52high-${props.pos.symbol}`}>
+          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>52W High</Text>
+          <Text className="paper-position-value font-mono tabular-nums" size="sm" c="warning">
             {loading52() ? <Loader size="xs" /> : week52()?.high_52w ? `₹${week52()!.high_52w.toFixed(2)}` : "—"}
           </Text>
         </Box>
-        <Box class="paper-position-stat p-1" id={`paper-position-52low-${props.pos.symbol}`}>
-          <Text class="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>52W Low</Text>
-          <Text class="paper-position-value font-mono tabular-nums" size="sm" c="primary">
+        <Box className="paper-position-stat p-1" id={`paper-position-52low-${props.pos.symbol}`}>
+          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>52W Low</Text>
+          <Text className="paper-position-value font-mono tabular-nums" size="sm" c="primary">
             {loading52() ? <Loader size="xs" /> : week52()?.low_52w ? `₹${week52()!.low_52w.toFixed(2)}` : "—"}
           </Text>
         </Box>
-        <Box class="paper-position-stat p-1" id={`paper-position-id-${props.pos.symbol}`}>
-          <Text class="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Position ID</Text>
-          <Text class="paper-position-value font-mono tabular-nums" size="xs break-all">{props.pos.order_id || props.pos.id || "—"}</Text>
+        <Box className="paper-position-stat p-1" id={`paper-position-id-${props.pos.symbol}`}>
+          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Position ID</Text>
+          <Text className="paper-position-value font-mono tabular-nums" size="xs break-all">{props.pos.order_id || props.pos.id || "—"}</Text>
         </Box>
       </SimpleGrid>
-      <Box class="paper-position-notes" id={`paper-position-notes-${props.pos.symbol}`}>
-        <Text class="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600} mb="xs">Notes</Text>
-        <Box class="paper-position-notes-row flex items-center gap-2">
-          <Box class="paper-position-notes-input-wrap flex-1 flex items-center">
+      <Box className="paper-position-notes" id={`paper-position-notes-${props.pos.symbol}`}>
+        <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600} mb="xs">Notes</Text>
+        <Box className="paper-position-notes-row flex items-center gap-2">
+          <Box className="paper-position-notes-input-wrap flex-1 flex items-center">
             <Textarea
-              class="paper-position-notes-textarea"
+              className="paper-position-notes-textarea"
               size="xs"
               value={notes()}
               onInput={(e) => updateNotes(e.currentTarget.value)}
@@ -315,7 +312,7 @@ function PositionDetail(props: { pos: PaperPosition }) {
               maxRows={3}
             />
           </Box>
-          <Button class="paper-position-notes-save self-center" id={`paper-position-notes-save-${props.pos.symbol}`} size="compact-xs" variant="light" onClick={handleSaveNotes} loading={saving()}>Save</Button>
+          <Button className="paper-position-notes-save self-center" id={`paper-position-notes-save-${props.pos.symbol}`} size="compact-xs" variant="light" onClick={handleSaveNotes} loading={saving()}>Save</Button>
         </Box>
       </Box>
     </Stack>
@@ -394,11 +391,11 @@ export function PositionsTableBody(props: {
   const columns = createMemo<TableColumnDef<PaperPosition>[]>(() => [
     {
       id: "toggle",
-       header: "",
+      header: "",
       size: 32,
       meta: { align: "center" },
       enableSorting: false,
-        cell: ({ row }) => (
+      cell: ({ row }) => (
         <ActionIcon
           variant="subtle"
           color="secondary"
@@ -458,7 +455,7 @@ export function PositionsTableBody(props: {
       size: 80,
       meta: { align: "right" },
       accessorFn: (row) => row.entry_time,
-      cell: ({ row }) => <Text size="xs" c="dimmed" class="whitespace-nowrap font-mono tabular-nums">{formatElapsed(row.original.entry_time)}</Text>,
+      cell: ({ row }) => <Text size="xs" c="dimmed" className="whitespace-nowrap font-mono tabular-nums">{formatElapsed(row.original.entry_time)}</Text>,
     },
     {
       id: "close",
@@ -492,7 +489,7 @@ export function PositionsTableBody(props: {
       columns={columns()}
       getRowCanExpand={() => true}
       renderSubComponent={(pos) => (
-        <Box class="paper-position-expanded p-1" id={`paper-position-expanded-${pos.order_id || pos.symbol}`} style={{ "background-color": BG, borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
+        <Box className="paper-position-expanded p-1" id={`paper-position-expanded-${pos.order_id || pos.symbol}`} style={{ "background-color": BG, borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
           <PositionDetail pos={pos} />
         </Box>
       )}
@@ -509,16 +506,25 @@ export function PositionsTableBody(props: {
   );
 }
 
+interface StrategySummaryRow {
+  id: number;
+  name: string;
+  totalPnl: number;
+  marginUsed: number;
+  count: number;
+}
+
 export function StrategySummaryFooter(props: {
   strategyGroups: Map<number, PaperPosition[]>;
 }) {
-  const summaries = () => Array.from(props.strategyGroups.entries()).map(([id, positions]) => ({
-    id,
-    name: positions[0]?.strategy_name || `Strategy ${id}`,
-    ...calcStrategySummary(positions),
-  }));
+  const summaries = (): StrategySummaryRow[] =>
+    Array.from(props.strategyGroups.entries()).map(([id, positions]) => ({
+      id,
+      name: positions[0]?.strategy_name || `Strategy ${id}`,
+      ...calcStrategySummary(positions),
+    }));
 
-  const columns: TableColumnDef<(typeof summaries extends () => infer R ? (R extends (infer U)[] ? U : never) : never)>[] = [
+  const columns: TableColumnDef<StrategySummaryRow>[] = [
     { id: "name", header: "Strategy", accessorKey: "name", meta: { align: "left" }, cell: ({ row }) => <Text fw={600} size="sm">{row.original.name}</Text> },
     { id: "count", header: "Pos", accessorKey: "count", meta: { align: "right" }, cell: ({ row }) => <>{row.original.count}</> },
     { id: "marginUsed", header: "Margin", accessorKey: "marginUsed", meta: { align: "right" }, cell: ({ row }) => <>₹{formatCurrencyIN(row.original.marginUsed)}</> },
@@ -528,7 +534,7 @@ export function StrategySummaryFooter(props: {
       accessorKey: "totalPnl",
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text c={getPnLTextColor(row.original.totalPnl)} fw={600} size="sm" class="font-mono tabular-nums">
+        <Text c={getPnLTextColor(row.original.totalPnl)} fw={600} size="sm" className="font-mono tabular-nums">
           {formatSignedPnl(row.original.totalPnl)}
         </Text>
       ),
