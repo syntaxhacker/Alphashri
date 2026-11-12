@@ -13,11 +13,11 @@ import type { SectorLeader, SectorLeaderBoard } from "../../types/report";
 
 export function BreadthStat({ label, value, testId, color }: { label: string; value: string; testId: string; color?: "success" | "error" | "dimmed" }) {
   return (
-    <div data-testid={testId} class="flex items-baseline gap-1 whitespace-nowrap" style={{ fontVariantNumeric: "tabular-nums" }}>
+    <div data-testid={testId} class="flex items-baseline gap-1 whitespace-nowrap" style={{ "font-variant-numeric": "tabular-nums" }}>
       <Text size="xs" c="dimmed" span>
         {label}
       </Text>
-      <Text size="xs" fw={700} c={color ?? "default"} span style={{ fontVariantNumeric: "tabular-nums" }}>
+      <Text size="xs" fw={700} c={color ?? "default"} span style={{ "font-variant-numeric": "tabular-nums" }}>
         {value}
       </Text>
     </div>
@@ -68,7 +68,7 @@ function LeaderRows({
               fw={600}
               c={leader.change >= 0 ? "success" : "error"}
               span
-              style={{ fontVariantNumeric: "tabular-nums" }}
+              style={{ "font-variant-numeric": "tabular-nums" }}
             >
               {formatPercentage(leader.change)}
             </Text>

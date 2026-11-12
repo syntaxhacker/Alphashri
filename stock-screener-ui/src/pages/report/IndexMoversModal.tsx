@@ -48,10 +48,10 @@ function MoversTable(props: {
           size="xs"
           fw={600}
           style={{
-            fontSize: REPORT_FONT.xs,
-            fontVariantNumeric: "tabular-nums",
+            "font-size": REPORT_FONT.xs,
+            "font-variant-numeric": "tabular-nums",
             color: palette.TEXT_MUTED,
-            fontFamily: palette.MONO,
+            "font-family": palette.MONO,
           }}
         >
           {String(row.original.rank)}
@@ -69,9 +69,9 @@ function MoversTable(props: {
           size="xs"
           fw={700}
           style={{
-            fontSize: REPORT_FONT.sm,
-            fontVariantNumeric: "tabular-nums",
-            fontFamily: palette.MONO,
+            "font-size": REPORT_FONT.sm,
+            "font-variant-numeric": "tabular-nums",
+            "font-family": palette.MONO,
           }}
         >
           {row.original.symbol}
@@ -89,9 +89,9 @@ function MoversTable(props: {
           size="xs"
           fw={600}
           style={{
-            fontSize: REPORT_FONT.sm,
-            fontVariantNumeric: "tabular-nums",
-            fontFamily: palette.MONO,
+            "font-size": REPORT_FONT.sm,
+            "font-variant-numeric": "tabular-nums",
+            "font-family": palette.MONO,
           }}
         >
           {formatNumberIN(row.original.ltp)}
@@ -112,9 +112,9 @@ function MoversTable(props: {
             size="xs"
             fw={700}
             style={{
-              fontSize: REPORT_FONT.sm,
-              fontVariantNumeric: "tabular-nums",
-              fontFamily: palette.MONO,
+              "font-size": REPORT_FONT.sm,
+              "font-variant-numeric": "tabular-nums",
+              "font-family": palette.MONO,
               color: isGainer ? GAINER_COLOR : LOSER_COLOR,
             }}
           >
@@ -137,9 +137,9 @@ function MoversTable(props: {
               size="xs"
               c="dimmed"
               style={{
-                fontSize: REPORT_FONT.sm,
-                fontVariantNumeric: "tabular-nums",
-                fontFamily: palette.MONO,
+                "font-size": REPORT_FONT.sm,
+                "font-variant-numeric": "tabular-nums",
+                "font-family": palette.MONO,
               }}
             >
               —
@@ -153,9 +153,9 @@ function MoversTable(props: {
             size="xs"
             fw={600}
             style={{
-              fontSize: REPORT_FONT.sm,
-              fontVariantNumeric: "tabular-nums",
-              fontFamily: palette.MONO,
+              "font-size": REPORT_FONT.sm,
+              "font-variant-numeric": "tabular-nums",
+              "font-family": palette.MONO,
               color: isGainer ? GAINER_COLOR : LOSER_COLOR,
             }}
           >
@@ -175,9 +175,9 @@ function MoversTable(props: {
           size="xs"
           c="dimmed"
           style={{
-            fontSize: REPORT_FONT.xs,
-            fontVariantNumeric: "tabular-nums",
-            fontFamily: palette.MONO,
+            "font-size": REPORT_FONT.xs,
+            "font-variant-numeric": "tabular-nums",
+            "font-family": palette.MONO,
           }}
         >
           {formatNumberIN(row.original.volume)}
@@ -304,7 +304,7 @@ export function IndexMoversModal(props: IndexMoversModalProps) {
           class="flex items-center justify-center min-h-[120px] text-fin-text-muted"
         >
           <Loader size="xs" color={palette.PRIMARY} />
-          <Text span size="xs" c="dimmed" style={{ marginLeft: 8 }}>
+          <Text span size="xs" c="dimmed" style={{ "margin-left": 8 }}>
             loading movers…
           </Text>
         </div>

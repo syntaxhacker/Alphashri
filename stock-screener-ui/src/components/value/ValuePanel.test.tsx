@@ -114,9 +114,9 @@ describe("ValuePanel", () => {
   test("applying a preset sends it to the client", async () => {
         r(<ValuePanel />);
     await screen.findByTestId("value-row-RELIANCE");
-    await user.selectOptions(
+    fireEvent.input(
       within(screen.getByTestId("value-preset-select")).getByRole("combobox"),
-      "DEEP",
+      { target: { value: "DEEP" } },
     );
     await waitFor(
       () => {

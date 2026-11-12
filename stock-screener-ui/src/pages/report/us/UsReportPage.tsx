@@ -63,7 +63,7 @@ export function UsReportPage() {
       class="flex flex-col h-full min-h-0 gap-1 p-[6px] overflow-hidden tabular-nums"
     >
       {/* ---- controls ---- */}
-      <ToolbarRow gap={6} data-testid="us-toolbar" style={{ minHeight: 26 }}>
+      <ToolbarRow gap={6} data-testid="us-toolbar" style={{ "min-height": 26 }}>
         <Text size="xs" fw={800} span className="tracking-[0.8px] text-[11px]">
           US FUTURES
         </Text>
@@ -78,7 +78,7 @@ export function UsReportPage() {
               title={r.enabled ? r.id : "coming later"}
               onClick={() => r.enabled && setRoot(r.id)}
               data-testid={`us-root-${r.id}`}
-              style={{ minWidth: 34, height: 22, paddingLeft: 6, paddingRight: 6, fontSize: 10 }}
+              style={{ "min-width": 34, height: 22, "padding-left": 6, "padding-right": 6, "font-size": 10 }}
             >
               {r.id}
             </Button>
@@ -94,7 +94,7 @@ export function UsReportPage() {
               variant={mode() === m ? "filled" : "subtle"}
               onClick={() => setMode(m)}
               data-testid={`us-mode-${m}`}
-              style={{ minWidth: 42, height: 22, paddingLeft: 6, paddingRight: 6, fontSize: 10, textTransform: "uppercase" }}
+              style={{ "min-width": 42, height: 22, "padding-left": 6, "padding-right": 6, "font-size": 10, "text-transform": "uppercase" }}
             >
               {m}
             </Button>
@@ -110,7 +110,7 @@ export function UsReportPage() {
               variant={tf() === v ? "filled" : "subtle"}
               onClick={() => setTf(v)}
               data-testid={`us-tf-${v}`}
-              style={{ minWidth: 26, height: 22, paddingLeft: 4, paddingRight: 4, fontSize: 10 }}
+              style={{ "min-width": 26, height: 22, "padding-left": 4, "padding-right": 4, "font-size": 10 }}
             >
               {v}m
             </Button>
@@ -135,15 +135,15 @@ export function UsReportPage() {
         <div
           class="w-1.5 h-1.5 rounded-full"
           style={{
-            backgroundColor: us.status()?.market_open ? POSITIVE : SCALE_DARK[3],
-            boxShadow: us.status()?.market_open ? `0 0 6px ${POSITIVE}` : "none",
+            "background-color": us.status()?.market_open ? POSITIVE : SCALE_DARK[3],
+            "box-shadow": us.status()?.market_open ? `0 0 6px ${POSITIVE}` : "none",
           }}
           data-testid="us-session-dot"
         />
         <Text size="xs" c="dimmed" span className="text-[9px]">
           {us.status()?.market_open ? "RTH" : "CLOSED"} {fmtTime(us.status()?.now_et)} ET
         </Text>
-        <Button size="xs" variant="subtle" onClick={us.refresh} data-testid="us-refresh" style={{ height: 22, fontSize: 10 }}>
+        <Button size="xs" variant="subtle" onClick={us.refresh} data-testid="us-refresh" style={{ height: 22, "font-size": 10 }}>
           REFRESH
         </Button>
       </ToolbarRow>
@@ -175,7 +175,7 @@ export function UsReportPage() {
         <div
           data-testid="us-eod"
           class="flex items-center gap-[10px] flex-wrap px-1 py-[1px] border-b border-fin-border"
-          style={{ backgroundColor: "rgba(88,166,255,0.04)" }}
+          style={{ "background-color": "rgba(88,166,255,0.04)" }}
         >
           <Stat label="OPEN" value={fmtInt(us.eod()!.open)} />
           <Stat label="HIGH" value={fmtInt(us.eod()!.high)} color={POSITIVE} />
@@ -205,7 +205,7 @@ export function UsReportPage() {
                 variant="subtle"
                 onClick={() => us.setCursor(0)}
                 disabled={!us.frames().length}
-                style={{ minWidth: 24, height: 20, paddingLeft: 4, paddingRight: 4, fontSize: 10 }}
+                style={{ "min-width": 24, height: 20, "padding-left": 4, "padding-right": 4, "font-size": 10 }}
                 aria-label="Jump to first frame"
               >
                 |&lt;
@@ -216,7 +216,7 @@ export function UsReportPage() {
                 onClick={us.togglePlay}
                 disabled={us.frames().length < 2}
                 data-testid="us-play"
-                style={{ minWidth: 28, height: 20, paddingLeft: 4, paddingRight: 4, fontSize: 10 }}
+                style={{ "min-width": 28, height: 20, "padding-left": 4, "padding-right": 4, "font-size": 10 }}
               >
                 {us.playing() ? "||" : ">"}
               </Button>
@@ -225,7 +225,7 @@ export function UsReportPage() {
                 variant="subtle"
                 onClick={() => us.setCursor(us.frames().length - 1)}
                 disabled={!us.frames().length}
-                style={{ minWidth: 24, height: 20, paddingLeft: 4, paddingRight: 4, fontSize: 10 }}
+                style={{ "min-width": 24, height: 20, "padding-left": 4, "padding-right": 4, "font-size": 10 }}
                 aria-label="Jump to last frame"
               >
                 &gt;|
@@ -282,9 +282,9 @@ export function UsReportPage() {
                 key={s.k}
                 data-testid={`us-strike-${s.k}`}
                 class="grid grid-cols-[70px_70px_70px_70px_70px_70px_1fr] px-1"
-                style={{ backgroundColor: s.k === row?.put_wall || s.k === row?.call_wall ? "rgba(255,255,255,0.04)" : "transparent" }}
+                style={{ "background-color": s.k === row?.put_wall || s.k === row?.call_wall ? "rgba(255,255,255,0.04)" : "transparent" }}
               >
-                <span style={{ fontWeight: s.k === row?.max_pain ? 800 : 500, color: s.k === row?.max_pain ? WARNING : undefined }}>
+                <span style={{ "font-weight": s.k === row?.max_pain ? 800 : 500, color: s.k === row?.max_pain ? WARNING : undefined }}>
                   {fmtInt(s.k)}
                 </span>
                 <span style={{ textAlign: "right", color: POSITIVE }}>{fmtInt(s.c_oi)}</span>

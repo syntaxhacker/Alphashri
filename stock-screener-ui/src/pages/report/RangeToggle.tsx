@@ -31,13 +31,13 @@ export function RangeToggle({
           aria-pressed={value === range}
           onClick={() => onChange(range)}
           style={{
-            minWidth: "30px",
-            paddingLeft: "5px",
-            paddingRight: "5px",
-            paddingTop: 0,
-            paddingBottom: 0,
-            fontSize: "9.5px",
-            lineHeight: "1.7",
+            "min-width": "30px",
+            "padding-left": "5px",
+            "padding-right": "5px",
+            "padding-top": 0,
+            "padding-bottom": 0,
+            "font-size": "9.5px",
+            "line-height": "1.7",
             color: value === range ? palette.TEXT : palette.TEXT_MUTED,
           }}
         >

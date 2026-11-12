@@ -69,7 +69,7 @@ function LegBar(props: {
         span
         fw={700}
         c="dimmed"
-        style={{ width: 22, flexShrink: 0, fontSize: 10 }}
+        style={{ width: 22, "flex-shrink": 0, "font-size": 10 }}
       >
         {props.leg.toUpperCase()}
       </Text>
@@ -77,7 +77,7 @@ function LegBar(props: {
         data-testid={`nifty-participant-flow-bar-${props.leg}`}
         title={`${props.leg.toUpperCase()} writers ${formatFlowRupees(props.writers)} · buyers ${formatFlowRupees(props.buyers)} · cover ${formatFlowRupees(props.cover)}`}
         className="flex-1 min-w-0 h-[10px] rounded-[8px] overflow-hidden flex items-stretch"
-        style={{ backgroundColor: "rgba(139, 148, 158, 0.15)" }}
+        style={{ "background-color": "rgba(139, 148, 158, 0.15)" }}
       >
         <Show when={!empty() && shares().writers > 0}>
           <span
@@ -176,7 +176,7 @@ export function NiftyParticipantFlow(props: NiftyParticipantFlowProps) {
                 component="span"
                 aria-hidden
                 class="block w-[8px] h-[8px] rounded-[8px]"
-                style={{ backgroundColor: e.color }}
+                style={{ "background-color": e.color }}
               />
               <Text size="xs" span c="dimmed">
                 {e.name}
@@ -193,7 +193,7 @@ export function NiftyParticipantFlow(props: NiftyParticipantFlowProps) {
               class="flex flex-col gap-[2px] min-w-0"
             >
               <div className="flex items-baseline gap-[8px] min-w-0">
-                <Text size="xs" span fw={700} style={{ fontVariantNumeric: "tabular-nums" }}>
+                <Text size="xs" span fw={700} style={{ "font-variant-numeric": "tabular-nums" }}>
                   {b.label}
                 </Text>
                 <Text
@@ -201,7 +201,7 @@ export function NiftyParticipantFlow(props: NiftyParticipantFlowProps) {
                   size="xs"
                   span
                   fw={700}
-                  style={{ color: flowTone(b.net), fontVariantNumeric: "tabular-nums" }}
+                  style={{ color: flowTone(b.net), "font-variant-numeric": "tabular-nums" }}
                 >
                   {formatFlowRupees(b.net)}
                 </Text>

@@ -118,7 +118,7 @@ export function SimPayoff(props: SimPayoffProps) {
         label: {
           formatter: axisSpot(value),
           position: "insideEndTop",
-          fontSize: 12,
+          "font-size": 12,
           color: palette.CHART_AVG_ENTRY,
         },
       }));
@@ -132,14 +132,14 @@ export function SimPayoff(props: SimPayoffProps) {
         coord: [spot(), expiryAtSpot],
         symbol: "circle",
         symbolSize: 10,
-        itemStyle: { color: palette.TERM_SPOT, borderColor: palette.TERM_BG, borderWidth: 2 },
+        itemStyle: { color: palette.TERM_SPOT, "border-color": palette.TERM_BG, "border-width": 2 },
         label: {
           formatter: `expiry ${fmtSignedInr(expiryAtSpot)}`,
           position: "right",
           distance: 6,
-          fontSize: 12,
+          "font-size": 12,
           color: palette.TEXT,
-          backgroundColor: palette.TERM_BG,
+          "background-color": palette.TERM_BG,
           padding: [2, 4],
         },
       },
@@ -156,10 +156,10 @@ export function SimPayoff(props: SimPayoffProps) {
 
     void chart.setChartOption({
       animation: false,
-      backgroundColor: "transparent",
+      "background-color": "transparent",
       tooltip: {
         trigger: "axis",
-        textStyle: { fontSize: 12 },
+        textStyle: { "font-size": 12 },
         axisPointer: { type: "line", lineStyle: { color: palette.CHART_MUTED } },
         formatter: (params: unknown) => {
           const rows = Array.isArray(params) ? params : [params];
@@ -179,7 +179,7 @@ export function SimPayoff(props: SimPayoffProps) {
         splitNumber: 5,
         axisLabel: {
           color: palette.CHART_MUTED,
-          fontSize: 12,
+          "font-size": 12,
           formatter: axisSpot,
           hideOverlap: true,
         },
@@ -192,7 +192,7 @@ export function SimPayoff(props: SimPayoffProps) {
         splitNumber: 4,
         axisLabel: {
           color: palette.CHART_MUTED,
-          fontSize: 12,
+          "font-size": 12,
           formatter: axisInr,
           hideOverlap: true,
         },
@@ -236,7 +236,7 @@ export function SimPayoff(props: SimPayoffProps) {
                 label: {
                   formatter: "SPOT",
                   position: "insideEndBottom",
-                  fontSize: 12,
+                  "font-size": 12,
                   color: palette.TERM_SPOT,
                 },
               },
@@ -249,7 +249,7 @@ export function SimPayoff(props: SimPayoffProps) {
                     fmtSignedInr(mark()) +
                     (markTime() ? " @ " + fmtTime(markTime()!) : ""),
                   position: "insideStartTop",
-                  fontSize: 12,
+                  "font-size": 12,
                   color: toneColor(mark()),
                 },
               },
@@ -265,8 +265,8 @@ export function SimPayoff(props: SimPayoffProps) {
             z: 6,
             itemStyle: {
               color: toneColor(mark()),
-              borderColor: palette.TERM_BG,
-              borderWidth: 2,
+              "border-color": palette.TERM_BG,
+              "border-width": 2,
             },
             data: [[spot(), mark()]],
             label: {
@@ -275,8 +275,8 @@ export function SimPayoff(props: SimPayoffProps) {
                 fmtSignedInr(mark()) +
                 (markTime() ? " @ " + fmtTime(markTime()!) : ""),
               position: "bottom",
-              fontSize: 12,
-              backgroundColor: palette.TERM_BG,
+              "font-size": 12,
+              "background-color": palette.TERM_BG,
               padding: [2, 4],
             },
           },
@@ -297,7 +297,7 @@ export function SimPayoff(props: SimPayoffProps) {
         <div
           data-testid="sim-payoff-empty"
           class="flex items-center justify-center"
-          style={{ minHeight: `${height()}px` }}
+          style={{ "min-height": `${height()}px` }}
         >
           <Text size="sm" c="dimmed">
             Run the desk to see the expiry payoff
@@ -319,7 +319,7 @@ export function SimPayoff(props: SimPayoffProps) {
         <div
           data-testid="sim-payoff-not-entered"
           class="absolute inset-0 z-[2] flex flex-col items-center justify-center gap-1.5 px-4 text-center"
-          style={{ backgroundColor: palette.TERM_BG }}
+          style={{ "background-color": palette.TERM_BG }}
         >
           <Badge color="warning" variant="outline" size="xs">
             NOT ENTERED

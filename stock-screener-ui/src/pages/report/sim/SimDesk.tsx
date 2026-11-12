@@ -402,7 +402,7 @@ export function SimDesk(props: SimDeskProps) {
                       data-testid={`sim-strategy-${item.id}`}
                       size="xs"
                       variant={item.id === selectedId() ? "light" : "subtle"}
-                      style={{ flex: "1", minWidth: 0, justifyContent: "flex-start" }}
+                      style={{ flex: "1", "min-width": 0, "justify-content": "flex-start" }}
                       onClick={() => setSelectedId(item.id)}
                     >
                       {item.name}

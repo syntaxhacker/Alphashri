@@ -172,7 +172,7 @@ function IntelBody(props: { intel: NiftyIntel; eod?: boolean }) {
             size="xs"
             fw={700}
             title="Total change in call OI across the chain, in units (contracts × lot size)"
-            style={{ color: palette.NEGATIVE, letterSpacing: "0.06em" }}
+            style={{ color: palette.NEGATIVE, "letter-spacing": "0.06em" }}
           >
             TOP CALL ΔOI {fmtIntelOi(intel().dce_oi)}
           </Text>
@@ -183,7 +183,7 @@ function IntelBody(props: { intel: NiftyIntel; eod?: boolean }) {
             size="xs"
             fw={700}
             title="Total change in put OI across the chain, in units (contracts × lot size)"
-            style={{ color: palette.POSITIVE, letterSpacing: "0.06em" }}
+            style={{ color: palette.POSITIVE, "letter-spacing": "0.06em" }}
           >
             TOP PUT ΔOI {fmtIntelOi(intel().dpe_oi)}
           </Text>
@@ -192,7 +192,7 @@ function IntelBody(props: { intel: NiftyIntel; eod?: boolean }) {
       </div>
 
       <div data-testid="nifty-intel-modal-news" class="min-w-0">
-        <Text size="xs" fw={700} style={{ color: palette.TEXT_MUTED, letterSpacing: "0.06em" }}>
+        <Text size="xs" fw={700} style={{ color: palette.TEXT_MUTED, "letter-spacing": "0.06em" }}>
           NEWS ({intel().news.length})
         </Text>
         <Show

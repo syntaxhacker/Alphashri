@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
+import type { JSX } from "solid-js";
 import { ValueFilters } from "./ValueFilters";
 import type { ValueFilters as ValueFilterState } from "../../api/valueScan";
 
@@ -18,19 +19,19 @@ describe("ValueFilters", () => {
     r(<ValueFilters filters={{}} onChange={onChange} />);
     const input = screen.getByTestId("value-filter-max-pe").querySelector("input");
     expect(input).toBeInTheDocument();
-    fireEvent.change(input as HTMLInputElement, { target: { value: "15" } });
+    fireEvent.input(input as HTMLInputElement, { target: { value: "15" } });
     expect(onChange).toHaveBeenCalledWith({ max_pe: 15 });
   });
 
   test("min ROE and FCF yield filters emit numbers", () => {
     const onChange = vi.fn();
     r(<ValueFilters filters={{}} onChange={onChange} />);
-    fireEvent.change(
+    fireEvent.input(
       screen.getByTestId("value-filter-min-roe").querySelector("input") as HTMLInputElement,
       { target: { value: "12" } },
     );
     expect(onChange).toHaveBeenCalledWith({ min_roe: 12 });
-    fireEvent.change(
+    fireEvent.input(
       screen.getByTestId("value-filter-min-fcf").querySelector("input") as HTMLInputElement,
       { target: { value: "4.5" } },
     );
@@ -49,15 +50,15 @@ describe("ValueFilters", () => {
   test("sort and limit selects emit values", async () => {
         const onChange = vi.fn();
     r(<ValueFilters filters={{ sort: "score", limit: 100 }} onChange={onChange} />);
-    await user.selectOptions(
+    fireEvent.input(
       screen.getByTestId("value-filter-sort").querySelector("select") as HTMLSelectElement,
-      "pe",
+      { target: { value: "pe" } },
     );
     expect(onChange).toHaveBeenCalledWith({ sort: "pe" });
 
-    await user.selectOptions(
+    fireEvent.input(
       screen.getByTestId("value-filter-limit").querySelector("select") as HTMLSelectElement,
-      "200",
+      { target: { value: "200" } },
     );
     expect(onChange).toHaveBeenCalledWith({ limit: 200 });
   });
@@ -69,7 +70,7 @@ describe("ValueFilters", () => {
     expect(screen.queryByTestId("value-more-filters-modal")).not.toBeInTheDocument();
     await fireEvent.click(screen.getByTestId("value-more-filters"));
     expect(screen.getByTestId("value-more-filters-modal")).toBeInTheDocument();
-    fireEvent.change(
+    fireEvent.input(
       screen.getByTestId("value-more-max-pb").querySelector("input") as HTMLInputElement,
       { target: { value: "1.5" } },
     );

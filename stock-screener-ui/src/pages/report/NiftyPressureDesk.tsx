@@ -4,7 +4,7 @@ import type { JSX } from "solid-js";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import * as palette from "@/ui/palette";
-import type { WallsPayload, WallsRow } from "@/api/reportNifty";
+import type { WallsPayload } from "@/api/reportNifty";
 import { fmtOI, fmtPct, flowLabel, statusTone } from "./niftyWallsFormat";
 import {
   REPORT_FONT,
@@ -115,12 +115,13 @@ function SideMark({ side, size = 7 }: { side: PressureSide; size?: number }) {
   );
 }
 
-function FuelBar({ score, width = 54 }: { score: number | undefined; width?: number }) {
-  const value = Math.max(0, Math.min(100, score ?? 0));
+function FuelBar(props: { score: number | undefined; width?: number }) {
+  const value = () => Math.max(0, Math.min(100, props.score ?? 0));
+  const width = () => props.width ?? 54;
   return (
     <div
       class="relative shrink-0"
-      style={{ width: `${width}px`, height: "4px" }}
+      style={{ width: `${width()}px`, height: "4px" }}
     >
       <div
         class="absolute inset-0 rounded-[1px]"
@@ -128,7 +129,7 @@ function FuelBar({ score, width = 54 }: { score: number | undefined; width?: num
       />
       <div
         class="absolute left-0 top-0 bottom-0 rounded-[1px]"
-        style={{ width: `${value}%`, "border-radius": "1px", "background-color": palette.TEXT }}
+        style={{ width: `${value()}%`, "border-radius": "1px", "background-color": palette.TEXT }}
       />
       <div
         class="absolute left-[60%] top-[-2px] bottom-[-2px] w-[1px]"
@@ -154,8 +155,8 @@ function StatusPill({ status }: { status: string | null | undefined }) {
   );
 }
 
-function FlowPlane({ payload, selectedKey, onSelect }: FlowPlaneProps) {
-  const walls = useMemo(() => planeWalls(payload), [payload]);
+function FlowPlane(props: FlowPlaneProps) {
+  const walls = createMemo(() => planeWalls(props.payload));
   const W = 520;
   const H = 500;
   const m = { l: 42, r: 150, t: 14, b: 34 };
@@ -168,9 +169,9 @@ function FlowPlane({ payload, selectedKey, onSelect }: FlowPlaneProps) {
   const sy = (value: number) => y1 - ((value + domain) / (domain * 2)) * (y1 - y0);
   const clamp = (value: number) => Math.max(-domain, Math.min(domain, value));
 
-  const placed = useMemo(() => {
+  const placed = createMemo(() => {
     let lastY = -Infinity;
-    return walls
+    return walls()
       .map((wall) => ({
         wall,
         x: scaleX(clamp(wall.oiPct ?? 0)),
@@ -182,7 +183,7 @@ function FlowPlane({ payload, selectedKey, onSelect }: FlowPlaneProps) {
         lastY = ly;
         return { ...entry, ly: Math.min(ly, y1 - 2) };
       });
-  }, [walls, x0, x1, y0, y1]);
+  });
 
   return (
     <div class="flex flex-col min-w-0">
@@ -195,15 +196,15 @@ function FlowPlane({ payload, selectedKey, onSelect }: FlowPlaneProps) {
           class="w-full h-full"
           style={{ overflow: "visible" }}
         >
-          {[-12, -8, -4, 0, 4, 8, 12].map((value) => (
-            <g key={value}>
+          <For each={[-12, -8, -4, 0, 4, 8, 12]}>{(value) => (
+            <g>
               <line
                 x1={scaleX(value)}
                 y1={y0}
                 x2={scaleX(value)}
                 y2={y1}
                 stroke={value === 0 ? palette.AXIS_LINE : BORDER}
-                strokeOpacity={value === 0 ? 0.9 : 0.55}
+                stroke-opacity={value === 0 ? 0.9 : 0.55}
                 stroke-width={1}
               />
               <line
@@ -212,24 +213,24 @@ function FlowPlane({ payload, selectedKey, onSelect }: FlowPlaneProps) {
                 x2={x1}
                 y2={sy(value)}
                 stroke={value === 0 ? palette.AXIS_LINE : BORDER}
-                strokeOpacity={value === 0 ? 0.9 : 0.55}
+                stroke-opacity={value === 0 ? 0.9 : 0.55}
                 stroke-width={1}
               />
             </g>
-          ))}
-          <text x={x0 + 4} y={y0 + 11} fill={MUTED} font-size={9} fontFamily={MONO}>
+          )}</For>
+          <text x={x0 + 4} y={y0 + 11} fill={MUTED} font-size={9} font-family={MONO}>
             COVER
           </text>
-          <text x={x1 - 4} y={y0 + 11} fill={MUTED} font-size={9} fontFamily={MONO} textAnchor="end">
+          <text x={x1 - 4} y={y0 + 11} fill={MUTED} font-size={9} font-family={MONO} text-anchor="end">
             BUILD
           </text>
-          <text x={x0 + 4} y={y1 - 5} fill={MUTED} font-size={9} fontFamily={MONO}>
+          <text x={x0 + 4} y={y1 - 5} fill={MUTED} font-size={9} font-family={MONO}>
             UNWIND
           </text>
-          <text x={x1 - 4} y={y1 - 5} fill={MUTED} font-size={9} fontFamily={MONO} textAnchor="end">
+          <text x={x1 - 4} y={y1 - 5} fill={MUTED} font-size={9} font-family={MONO} text-anchor="end">
             SELL
           </text>
-          <text x={(x0 + x1) / 2} y={H - 8} fill={MUTED} font-size={8} fontFamily={MONO} textAnchor="middle">
+          <text x={(x0 + x1) / 2} y={H - 8} fill={MUTED} font-size={8} font-family={MONO} text-anchor="middle">
             OI Δ / 30m %
           </text>
           <text
@@ -237,28 +238,27 @@ function FlowPlane({ payload, selectedKey, onSelect }: FlowPlaneProps) {
             y={(y0 + y1) / 2}
             fill={MUTED}
             font-size={8}
-            fontFamily={MONO}
-            textAnchor="middle"
+            font-family={MONO}
+            text-anchor="middle"
             transform={`rotate(-90 12 ${(y0 + y1) / 2})`}
           >
             PREMIUM Δ / 30m %
           </text>
 
-          {placed.map(({ wall, x, y, ly }) => {
-            const selected = wall.key === selectedKey;
+          <For each={placed()}>{({ wall, x, y, ly }) => {
+            const selected = wall.key === props.selectedKey;
             const color = sideColor(wall.side);
             return (
               <g
-                key={wall.key}
                 data-testid={`pressure-plane-${wall.key}`}
                 role="button"
                 tabIndex={0}
                 aria-label={`Select ${wallLabel(wall.side, wall.strike)}`}
-                onClick={() => onSelect(wall.key)}
+                onClick={() => props.onSelect(wall.key)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    onSelect(wall.key);
+                    props.onSelect(wall.key);
                   }
                 }}
                 style={{ cursor: "pointer" }}
@@ -270,23 +270,23 @@ function FlowPlane({ payload, selectedKey, onSelect }: FlowPlaneProps) {
                   x2={x1 + 8}
                   y2={ly}
                   stroke={selected ? SELECTED : BORDER}
-                  strokeOpacity={selected ? 0.95 : 0.7}
+                  stroke-opacity={selected ? 0.95 : 0.7}
                   stroke-width={1}
                   pointer-events="none"
                 />
-                {selected ? (
+                <Show when={selected}>
                   <circle
                     cx={x}
                     cy={y}
                     r={8}
                     fill="none"
                     stroke={SELECTED}
-                    strokeOpacity={0.5}
+                    stroke-opacity={0.5}
                     stroke-width={1}
                     pointer-events="none"
                   />
-                ) : null}
-                {wall.side === "CALL" ? (
+                </Show>
+                <Show when={wall.side === "CALL"}>
                   <circle
                     cx={x}
                     cy={y}
@@ -295,7 +295,8 @@ function FlowPlane({ payload, selectedKey, onSelect }: FlowPlaneProps) {
                     stroke={selected ? SELECTED : SURFACE}
                     stroke-width={selected ? 2 : 1.5}
                   />
-                ) : (
+                </Show>
+                <Show when={wall.side !== "CALL"}>
                   <rect
                     x={x - (selected ? 5 : 3.7)}
                     y={y - (selected ? 5 : 3.7)}
@@ -306,26 +307,26 @@ function FlowPlane({ payload, selectedKey, onSelect }: FlowPlaneProps) {
                     stroke={selected ? SELECTED : SURFACE}
                     stroke-width={selected ? 2 : 1.5}
                   />
-                )}
-                {wall.side === "CALL" ? (
-                  <circle cx={x1 + 13} cy={ly - 3} r={3} fill={color} pointer-events="none" />
-                ) : (
+                </Show>
+                <Show when={wall.side === "CALL"} fallback={
                   <rect x={x1 + 10} y={ly - 6} width={6} height={6} rx={1} fill={color} pointer-events="none" />
-                )}
+                }>
+                  <circle cx={x1 + 13} cy={ly - 3} r={3} fill={color} pointer-events="none" />
+                </Show>
                 <text
                   x={x1 + 22}
                   y={ly}
                   fill={selected ? SELECTED : MUTED}
                   font-size={9}
                   font-weight={selected ? 700 : 400}
-                  fontFamily={MONO}
+                  font-family={MONO}
                   pointer-events="none"
                 >
                   {wall.strike.toLocaleString("en-IN")} {wall.side === "CALL" ? "CE" : "PE"}
                 </text>
               </g>
             );
-          })}
+          }}</For>
         </svg>
       </div>
       <div class="mt-1 font-mono text-[10px] text-fin-text-muted">
@@ -362,10 +363,10 @@ function HistoryPanel({
   if (finite.length < 2) {
     return (
       <g>
-        <text x={8} y={top + 10} fill={color} font-size={7.5} fontFamily={MONO}>
+        <text x={8} y={top + 10} fill={color} font-size={7.5} font-family={MONO}>
           {label} · INDEX 100
         </text>
-        <text x={272} y={top + 10} fill={MUTED} font-size={7.5} textAnchor="end" fontFamily={MONO}>
+        <text x={272} y={top + 10} fill={MUTED} font-size={7.5} text-anchor="end" font-family={MONO}>
           no history
         </text>
       </g>
@@ -395,13 +396,13 @@ function HistoryPanel({
         stroke-width={1}
         strokeDasharray="2 3"
       />
-      <text x={8} y={top + 10} fill={color} font-size={7.5} fontFamily={MONO}>
+      <text x={8} y={top + 10} fill={color} font-size={7.5} font-family={MONO}>
         {label} · INDEX 100
       </text>
-      <text x={272} y={top + 10} fill={color} font-size={7.5} textAnchor="end" fontFamily={MONO}>
+      <text x={272} y={top + 10} fill={color} font-size={7.5} text-anchor="end" font-family={MONO}>
         {last.toFixed(1)}
       </text>
-      <text x={272} y={y(100) - 3} fill={MUTED} font-size={6.5} textAnchor="end" fontFamily={MONO}>
+      <text x={272} y={y(100) - 3} fill={MUTED} font-size={6.5} text-anchor="end" font-family={MONO}>
         100
       </text>
       <polyline points={points} fill="none" stroke={color} stroke-width={1.7} />
@@ -410,25 +411,25 @@ function HistoryPanel({
   );
 }
 
-function WallHistory({ wall }: HistoryProps) {
-  const oi = useMemo(() => normalizeHistory(wall.row.oi_history ?? []), [wall.row.oi_history]);
-  const prem = useMemo(() => normalizeHistory(wall.row.ltp_history ?? []), [wall.row.ltp_history]);
-  const color = sideColor(wall.side);
+function WallHistory(props: HistoryProps) {
+  const oi = createMemo(() => normalizeHistory(props.wall.row.oi_history ?? []));
+  const prem = createMemo(() => normalizeHistory(props.wall.row.ltp_history ?? []));
+  const color = () => sideColor(props.wall.side);
   return (
     <div class="mt-1.5 border-t border-fin-border pt-1">
       <div class="mb-[2px]" style={{ ...panelTitleStyles() }}>30m path</div>
       <svg
         viewBox="0 0 280 230"
         role="img"
-        aria-label={`${wallLabel(wall.side, wall.strike)} OI and premium history`}
+        aria-label={`${wallLabel(props.wall.side, props.wall.strike)} OI and premium history`}
         class="block w-full h-[188px]"
       >
-        <HistoryPanel values={oi} color={color} label="OI" top={12} height={78} />
-        <HistoryPanel values={prem} color={palette.TEXT_MUTED} label="PREM" top={118} height={78} />
-        <text x={8} y={226} fill={MUTED} font-size={6.5} fontFamily={MONO}>
+        <HistoryPanel values={oi()} color={color()} label="OI" top={12} height={78} />
+        <HistoryPanel values={prem()} color={palette.TEXT_MUTED} label="PREM" top={118} height={78} />
+        <text x={8} y={226} fill={MUTED} font-size={6.5} font-family={MONO}>
           last 30 tape minutes
         </text>
-        <text x={272} y={226} fill={MUTED} font-size={6.5} textAnchor="end" fontFamily={MONO}>
+        <text x={272} y={226} fill={MUTED} font-size={6.5} text-anchor="end" font-family={MONO}>
           indexed at start
         </text>
       </svg>
@@ -444,19 +445,19 @@ function Detail({ label, value, color }: { label: string; value: string; color?:
     <div class="min-w-0">
       <div
         class="text-[10px] text-fin-text-muted tracking-[0.08em]"
-        style={{ fontSize: REPORT_FONT.micro, color: MUTED, letterSpacing: REPORT_LETTER_SPACING.wide }}
+        style={{ "font-size": `${REPORT_FONT.micro}px`, color: MUTED, "letter-spacing": REPORT_LETTER_SPACING.wide }}
       >
         {label}
       </div>
       <div
         class="font-mono text-[12px] font-semibold tabular-nums whitespace-nowrap"
         style={{
-          fontFamily: MONO,
-          fontSize: REPORT_FONT.sm,
-          fontWeight: REPORT_FONT_WEIGHT.semibold,
+          "font-family": MONO,
+          "font-size": `${REPORT_FONT.sm}px`,
+          "font-weight": String(REPORT_FONT_WEIGHT.semibold),
           color: color ?? palette.TEXT,
-          fontVariantNumeric: "tabular-nums",
-          whiteSpace: "nowrap",
+          "font-variant-numeric": "tabular-nums",
+          "white-space": "nowrap",
         }}
       >
         {value}
@@ -465,83 +466,80 @@ function Detail({ label, value, color }: { label: string; value: string; color?:
   );
 }
 
-function WallRead({ wall, payload }: WallReadProps) {
-  const row: WallsRow = wall.row;
-  const confidence = confidenceOf(row);
-  const sentence = sentenceFor(wall.quadrant);
-  const why = whyRead(row, payload.spot, payload.flip);
-  const distance = row.distance_pts ?? wall.strike - payload.spot;
-  const distanceText = `${distance >= 0 ? "+" : ""}${distance.toFixed(1)} pts`;
-  const status = row.status ?? "STABLE";
-  const short = isShortGamma(payload.spot, payload.flip);
+function WallRead(props: WallReadProps) {
+  const row = () => props.wall.row;
+  const confidence = createMemo(() => confidenceOf(row()));
+  const sentence = createMemo(() => sentenceFor(props.wall.quadrant));
+  const why = createMemo(() => whyRead(row(), props.payload.spot, props.payload.flip));
+  const distance = () => row().distance_pts ?? props.wall.strike - props.payload.spot;
+  const distanceText = () => `${distance() >= 0 ? "+" : ""}${distance().toFixed(1)} pts`;
+  const status = () => row().status ?? "STABLE";
+  const short = () => isShortGamma(props.payload.spot, props.payload.flip);
 
   return (
     <div class="min-w-0 flex flex-col h-full">
       <div class="mb-1.5" style={{ ...panelTitleStyles() }}>Selected wall</div>
       <div class="flex items-center flex-wrap gap-1.5">
-        <SideMark side={wall.side} size={9} />
+        <SideMark side={props.wall.side} size={9} />
         <div
           data-testid="pressure-read-name"
           class="text-[14px] font-bold tracking-[-0.01em]"
-          style={{ fontSize: REPORT_FONT.lg, fontWeight: REPORT_FONT_WEIGHT.bold, letterSpacing: "-0.01em" }}
+          style={{ "font-size": `${REPORT_FONT.lg}px`, "font-weight": String(REPORT_FONT_WEIGHT.bold), "letter-spacing": "-0.01em" }}
         >
-          {wallLabel(wall.side, wall.strike)}
+          {wallLabel(props.wall.side, props.wall.strike)}
         </div>
         <div class="font-mono text-[10px] font-black tracking-[0.08em] text-fin-text-muted uppercase">
-          {quadrantFlowText(wall.quadrant)}
+          {quadrantFlowText(props.wall.quadrant)}
         </div>
       </div>
       <div class="flex items-center gap-2 mt-1">
         <div class="font-mono text-[10px] text-fin-text-muted tracking-[0.08em]">
           FUEL
         </div>
-        <div class="font-mono text-[15px] font-semibold">{row.fuel_score ?? "—"}</div>
-        <FuelBar score={row.fuel_score} width={76} />
+        <div class="font-mono text-[15px] font-semibold">{row().fuel_score ?? "—"}</div>
+        <FuelBar score={row().fuel_score} width={76} />
         <div class="ml-auto font-mono text-[10px] text-fin-text-muted">
-          {short ? "SHORT Γ" : "LONG Γ"}
+          {short() ? "SHORT Γ" : "LONG Γ"}
         </div>
       </div>
-      <div class="mt-1.5 text-[11.5px] leading-loose text-fin-text" style={{ fontSize: REPORT_FONT.xsPlus, lineHeight: REPORT_LINE_HEIGHT.loose, color: palette.TEXT }}>
-        {sentence}
+      <div class="mt-1.5 text-[11.5px] leading-loose text-fin-text" style={{ "font-size": `${REPORT_FONT.xsPlus}px`, "line-height": REPORT_LINE_HEIGHT.loose, color: palette.TEXT }}>
+        {sentence()}
       </div>
-      <div class="mt-[2px] text-[11px] leading-loose text-fin-text-muted" style={{ fontSize: REPORT_FONT.xs, lineHeight: REPORT_LINE_HEIGHT.loose, color: MUTED }}>
-        {why}
+      <div class="mt-[2px] text-[11px] leading-loose text-fin-text-muted" style={{ "font-size": `${REPORT_FONT.xs}px`, "line-height": REPORT_LINE_HEIGHT.loose, color: MUTED }}>
+        {why()}
       </div>
       <div
         class="mt-1.5 grid grid-cols-[1fr_1fr] gap-1.5 row-gap-[3px]"
-        style={{ mt: 0.75, display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: 1.5, rowGap: 0.4 }}
+        style={{ "margin-top": "6px", display: "grid", "grid-template-columns": "1fr 1fr", "column-gap": "12px", "row-gap": "3px" }}
       >
-        <Detail label="OI" value={fmtOI(row.oi)} />
-        <Detail label="Open" value={fmtOI(row.oi_open)} />
+        <Detail label="OI" value={fmtOI(row().oi)} />
+        <Detail label="Open" value={fmtOI(row().oi_open)} />
         <Detail
           label="30m OI"
-          value={fmtPct(row.erosion_30m)}
-          color={row.erosion_30m != null && row.erosion_30m < 0 ? palette.WARNING : undefined}
+          value={fmtPct(row().erosion_30m)}
+          color={row().erosion_30m != null && row().erosion_30m! < 0 ? palette.WARNING : undefined}
         />
-        <Detail label="30m prem" value={fmtPct(row.prem_chg_30m)} />
-        <Detail label="5m OI" value={fmtPct(row.erosion_5m)} />
-        <Detail label="Wall" value={distanceText} />
+        <Detail label="30m prem" value={fmtPct(row().prem_chg_30m)} />
+        <Detail label="5m OI" value={fmtPct(row().erosion_5m)} />
+        <Detail label="Wall" value={distanceText()} />
       </div>
       <div class="flex items-center flex-wrap gap-2 mt-1.5">
-        <StatusPill status={status} />
+        <StatusPill status={status()} />
         <div class="font-mono text-[10px] text-fin-text-muted">
-          {confidence.level} confidence · {confidence.text}
+          {confidence().level} confidence · {confidence().text}
         </div>
       </div>
-      <WallHistory wall={wall} />
+      <WallHistory wall={props.wall} />
     </div>
   );
 }
 
-function WallList({ walls, selectedKey, spot, onSelect }: WallListProps) {
-  const view = useMemo(() => {
-    const groups: { label: string; rows: PressureWall[] }[] = [
-      { label: "CALLS", rows: walls.filter((wall) => wall.side === "CALL") },
-      { label: "PUTS", rows: walls.filter((wall) => wall.side === "PUT") },
-    ];
-    return groups;
-  }, [walls]);
-  const nearest = nearestWall(walls, spot);
+function WallList(props: WallListProps) {
+  const view = createMemo(() => [
+    { label: "CALLS", rows: props.walls.filter((wall) => wall.side === "CALL") },
+    { label: "PUTS", rows: props.walls.filter((wall) => wall.side === "PUT") },
+  ]);
+  const nearest = createMemo(() => nearestWall(props.walls, props.spot));
 
   return (
     <div class="min-w-0 flex flex-col h-full">
@@ -550,54 +548,55 @@ function WallList({ walls, selectedKey, spot, onSelect }: WallListProps) {
         class="grid grid-cols-[minmax(0,1fr)_50px_46px_58px] gap-1.5 pb-[2px] border-b border-fin-border font-mono text-[10px] font-black tracking-[0.08em] text-fin-text-muted uppercase"
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(0,1fr) 50px 46px 58px",
-          columnGap: 0.75,
-          borderBottom: `1px solid ${BORDER}`,
-          fontFamily: MONO,
-          fontSize: `${REPORT_FONT.micro}px`,
-          fontWeight: String(REPORT_FONT_WEIGHT.extrabold),
-          letterSpacing: REPORT_LETTER_SPACING.wide,
+          "grid-template-columns": "minmax(0,1fr) 50px 46px 58px",
+          "column-gap": "6px",
+          "border-bottom": `1px solid ${BORDER}`,
+          "font-family": MONO,
+          "font-size": `${REPORT_FONT.micro}px`,
+          "font-weight": String(REPORT_FONT_WEIGHT.extrabold),
+          "letter-spacing": REPORT_LETTER_SPACING.wide,
           color: MUTED,
-          textTransform: "uppercase",
+          "text-transform": "uppercase",
         }}
       >
         <span>Wall</span>
-        <span style={{ textAlign: "right" }}>OI</span>
-        <span style={{ textAlign: "right" }}>30m</span>
-        <span style={{ textAlign: "right" }}>Fuel</span>
+        <span style={{ "text-align": "right" }}>OI</span>
+        <span style={{ "text-align": "right" }}>30m</span>
+        <span style={{ "text-align": "right" }}>Fuel</span>
       </div>
       <div class="overflow-auto min-h-0 max-h-[430px]">
-        {view.map((group) => (
-          <div key={group.label}>
-            <div class="mb-1.5" style={{ ...panelTitleStyles(), mt: 0.75, mb: 0.25 }}>{group.label}</div>
-            {group.rows.map((wall) => {
-              const selected = wall.key === selectedKey;
+        <For each={view()}>{(group) => (
+          <div>
+            <div class="mb-1.5" style={{ ...panelTitleStyles(), "margin-top": "6px", "margin-bottom": "2px" }}>{group.label}</div>
+            <For each={group.rows}>{(wall) => {
+              const selected = wall.key === props.selectedKey;
               const borderLeft = selected ? `2px solid ${SELECTED}` : "2px solid transparent";
               const backgroundColor = selected ? palette.SURFACE_ALT : "transparent";
               return (
                 <div
-                  key={wall.key}
                   role="button"
                   tabIndex={0}
                   data-testid={`pressure-row-${wall.key}`}
                   aria-pressed={selected}
-                  onClick={() => onSelect(wall.key)}
+                  onClick={() => props.onSelect(wall.key)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
-                      onSelect(wall.key);
+                      props.onSelect(wall.key);
                     }
                   }}
-                  className="grid grid-cols-[minmax(0,1fr)_50px_46px_58px] gap-1.5 items-center min-h-[28px] px-1 cursor-pointer hover:bg-fin-surface-alt"
+                  class="grid grid-cols-[minmax(0,1fr)_50px_46px_58px] gap-1.5 items-center min-h-[28px] px-1 cursor-pointer hover:bg-fin-surface-alt"
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "minmax(0,1fr) 50px 46px 58px",
-                    columnGap: 0.75,
-                    alignItems: "center",
-                    minHeight: 28,
-                    px: 0.5,
-                    borderLeft: borderLeft as any,
-                    backgroundColor,
+                    "grid-template-columns": "minmax(0,1fr) 50px 46px 58px",
+                    "column-gap": "6px",
+                    "align-items": "center",
+                    "min-height": "28px",
+                    "margin-left": "2px",
+                    "padding-left": "4px",
+                    "padding-right": "4px",
+                    "border-left": borderLeft,
+                    "background-color": backgroundColor,
                   }}
                 >
                   <div class="flex items-center gap-1 min-w-0">
@@ -605,13 +604,13 @@ function WallList({ walls, selectedKey, spot, onSelect }: WallListProps) {
                     <div
                       class={`font-mono text-[11px] text-fin-text whitespace-nowrap overflow-hidden overflow-ellipsis ${selected ? "font-bold" : "font-medium"}`}
                       style={{
-                        fontFamily: MONO,
-                        fontSize: REPORT_FONT.xs,
-                        fontWeight: selected ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.medium,
+                        "font-family": MONO,
+                        "font-size": `${REPORT_FONT.xs}px`,
+                        "font-weight": String(selected ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.medium),
                         color: palette.TEXT,
-                        whiteSpace: "nowrap",
+                        "white-space": "nowrap",
                         overflow: "hidden",
-                        textOverflow: "ellipsis",
+                        "text-overflow": "ellipsis",
                       }}
                     >
                       {wall.strike.toLocaleString("en-IN")}
@@ -621,9 +620,9 @@ function WallList({ walls, selectedKey, spot, onSelect }: WallListProps) {
                   <div
                     class="font-mono text-[11px] text-right"
                     style={{
-                      fontFamily: MONO,
-                      fontSize: REPORT_FONT.xs,
-                      textAlign: "right",
+                      "font-family": MONO,
+                      "font-size": `${REPORT_FONT.xs}px`,
+                      "text-align": "right",
                       color: wall.oiPct != null && wall.oiPct < 0 ? palette.WARNING : MUTED,
                     }}
                   >
@@ -635,14 +634,14 @@ function WallList({ walls, selectedKey, spot, onSelect }: WallListProps) {
                   </div>
                 </div>
               );
-            })}
+            }}</For>
           </div>
-        ))}
+        )}</For>
       </div>
       <div class="mt-auto pt-1 border-t border-fin-border font-mono text-[10px] text-fin-text-muted">
         nearest{" "}
         <span style={{ color: palette.TEXT }}>
-          {nearest ? wallLabel(nearest.side, nearest.strike) : "—"}
+          {nearest() ? wallLabel(nearest()!.side, nearest()!.strike) : "—"}
         </span>{" "}
         · click a row to inspect
       </div>
@@ -650,7 +649,7 @@ function WallList({ walls, selectedKey, spot, onSelect }: WallListProps) {
   );
 }
 
-function pressureColumns(): ColumnDef<PressureWall>[] {
+function pressureColumns(): TableColumnDef<PressureWall>[] {
   return [
     {
       id: "wall",
@@ -769,31 +768,27 @@ function pressureColumns(): ColumnDef<PressureWall>[] {
   ];
 }
 
-function PressureTable({
-  walls,
-  selectedKey,
-  onSelect,
-}: {
+function PressureTable(props: {
   walls: PressureWall[];
   selectedKey: string | null;
   onSelect: (key: string) => void;
 }) {
-  const columns = useMemo(() => pressureColumns(), []);
+  const columns = pressureColumns();
   return (
     <div class="h-[218px] min-w-0">
       <TanStackTable<PressureWall>
-        data={walls}
+        data={props.walls}
         columns={columns}
         dataTestId="pressure-desk-table"
         ariaLabel="Pressure desk wall values"
         dense
         fillContainer
         minTableWidth={1050}
-        onRowClick={(wall) => onSelect(wall.key)}
-        getRowClassName={(wall) => (wall.key === selectedKey ? "pressure-row-selected" : undefined)}
+        onRowClick={(wall) => props.onSelect(wall.key)}
+        getRowClassName={(wall) => (wall.key === props.selectedKey ? "pressure-row-selected" : undefined)}
         getRowStyle={(wall) =>
-          wall.key === selectedKey
-            ? { background: palette.SURFACE_ALT, boxShadow: `inset 2px 0 0 ${SELECTED}` }
+          wall.key === props.selectedKey
+            ? { background: palette.SURFACE_ALT, "box-shadow": `inset 2px 0 0 ${SELECTED}` }
             : undefined
         }
         getRowTestId={(wall) => `pressure-table-${wall.key}`}
@@ -807,13 +802,13 @@ function SummaryChip({ label, value }: { label: string; value: string }) {
     <span
       class="inline-flex items-center gap-1 rounded-sm border px-1.5 py-[2px] text-[10px] font-mono whitespace-nowrap"
       style={{
-        height: 20,
-        borderColor: BORDER,
+        height: "20px",
+        "border-color": BORDER,
         color: palette.TEXT,
         border: `1px solid ${BORDER}`,
       }}
     >
-      <span class="text-fin-text-muted" style={{ marginRight: 4 }}>
+      <span class="text-fin-text-muted" style={{ "margin-right": "4px" }}>
         {label}
       </span>
       {value}
@@ -821,77 +816,88 @@ function SummaryChip({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function NiftyPressureDesk({ open, onClose, walls }: NiftyPressureDeskProps) {
-  const allWalls = useMemo(() => (walls ? combineWalls(walls) : []), [walls]);
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const selected = allWalls.find((wall) => wall.key === selectedKey) ?? allWalls[0] ?? null;
+export function NiftyPressureDesk(props: NiftyPressureDeskProps) {
+  const allWalls = createMemo(() => (props.walls ? combineWalls(props.walls) : []));
+  const [selectedKey, setSelectedKey] = createSignal<string | null>(null);
+  const selected = () =>
+    allWalls().find((wall) => wall.key === selectedKey()) ?? allWalls()[0] ?? null;
 
-  useEffect(() => {
-    if (!open || !walls) return;
-    const keys = new Set(allWalls.map((wall) => wall.key));
+  createEffect(() => {
+    if (!props.open || !props.walls) return;
+    const wallsList = allWalls();
+    const keys = new Set(wallsList.map((wall) => wall.key));
     setSelectedKey((prev) => {
       if (prev && keys.has(prev)) return prev;
-      return nearestWall(allWalls, walls.spot)?.key ?? allWalls[0]?.key ?? null;
+      return nearestWall(wallsList, props.walls!.spot)?.key ?? wallsList[0]?.key ?? null;
     });
-  }, [open, walls, allWalls]);
+  });
 
   const title = (
     <div class="flex items-center gap-1.5 min-w-0">
       <div class="font-mono text-[11px] font-black tracking-[0.1em] text-fin-text whitespace-nowrap">
         PRESSURE DESK
       </div>
-      {walls ? (
-        <>
-          <SummaryChip label="" value={walls.symbol} />
-          <SummaryChip label="" value={`${walls.date} · ${walls.dte == null ? "—" : `${walls.dte}-DTE`}`} />
-          <SummaryChip
-            label="spot"
-            value={walls.spot.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
-          />
-          {walls.expiry ? <SummaryChip label="exp" value={walls.expiry} /> : null}
-        </>
-      ) : null}
+      <Show when={props.walls}>
+        {(walls) => (
+          <>
+            <SummaryChip label="" value={walls().symbol} />
+            <SummaryChip label="" value={`${walls().date} · ${walls().dte == null ? "—" : `${walls().dte}-DTE`}`} />
+            <SummaryChip
+              label="spot"
+              value={walls().spot.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+            />
+            <Show when={walls().expiry}>
+              {(expiry) => <SummaryChip label="exp" value={expiry()!} />}
+            </Show>
+          </>
+        )}
+      </Show>
     </div>
   );
 
   return (
-    <PanelModal open={open} onClose={onClose} max-width={1480} title={title}>
+    <LocalPanelModal open={props.open} onClose={props.onClose} maxWidth={1480} title={title}>
       <div data-testid="pressure-desk" class="p-1 min-h-0">
-        {!walls || allWalls.length === 0 || !selected ? (
-          <div data-testid="pressure-desk-empty" class="py-10 text-center text-fin-text-muted font-mono text-[12px]">
-            No walls tape at this replay time.
-          </div>
-        ) : (
-          <>
+        <Show
+          when={props.walls && allWalls().length > 0 ? selected() : null}
+          fallback={
+            <div data-testid="pressure-desk-empty" class="py-10 text-center text-fin-text-muted font-mono text-[12px]">
+              No walls tape at this replay time.
+            </div>
+          }
+        >
+          {(sel) => (
+            <>
             {/* Responsive grid with breakpoint-based column widths (md = 900px). */}
-            <Box
-              className="grid grid-cols-1 min-[900px]:grid-cols-[minmax(330px,1.05fr)_minmax(290px,0.9fr)_minmax(320px,1fr)] min-[900px]:gap-x-3 gap-y-3 items-stretch min-h-0"
+            <div
+              class="grid grid-cols-1 min-[900px]:grid-cols-[minmax(330px,1.05fr)_minmax(290px,0.9fr)_minmax(320px,1fr)] min-[900px]:gap-x-3 gap-y-3 items-stretch min-h-0"
             >
               <div class="min-w-0 flex">
-                <FlowPlane payload={walls} selectedKey={selected.key} onSelect={setSelectedKey} />
+                <FlowPlane payload={props.walls!} selectedKey={sel().key} onSelect={setSelectedKey} />
               </div>
               {/* Left padding + left border only apply at the md breakpoint */}
-              <Box
-                className="min-w-0 min-[900px]:pl-3 min-[900px]:border-l min-[900px]:border-fin-border"
+              <div
+                class="min-w-0 min-[900px]:pl-3 min-[900px]:border-l min-[900px]:border-fin-border"
               >
-                <WallRead wall={selected} payload={walls} />
-              </Box>
-              <Box
-                className="min-w-0 min-[900px]:pl-3 min-[900px]:border-l min-[900px]:border-fin-border"
+                <WallRead wall={sel()} payload={props.walls!} />
+              </div>
+              <div
+                class="min-w-0 min-[900px]:pl-3 min-[900px]:border-l min-[900px]:border-fin-border"
               >
-                <WallList walls={allWalls} selectedKey={selected.key} spot={walls.spot} onSelect={setSelectedKey} />
-              </Box>
-            </Box>
-            <div class="mt-2 pt-[6px] border-t border-fin-border min-w-0" style={{ borderTop: `1px solid ${BORDER}`, minWidth: 0 }}>
+                <WallList walls={allWalls()} selectedKey={sel().key} spot={props.walls!.spot} onSelect={setSelectedKey} />
+              </div>
+            </div>
+            <div class="mt-2 pt-[6px] border-t border-fin-border min-w-0" style={{ "border-top": `1px solid ${BORDER}`, "min-width": "0" }}>
               <div class="flex items-baseline justify-between gap-2 mb-1">
                 <div class="mb-1.5" style={{ ...panelTitleStyles() }}>Current minute · full values</div>
                 <div class="font-mono text-[10px] text-fin-text-muted">% vs 5 / 15 / 30m</div>
               </div>
-              <PressureTable walls={allWalls} selectedKey={selected.key} onSelect={setSelectedKey} />
+              <PressureTable walls={allWalls()} selectedKey={sel().key} onSelect={setSelectedKey} />
             </div>
-          </>
-        )}
+            </>
+          )}
+        </Show>
       </div>
-    </PanelModal>
+    </LocalPanelModal>
   );
 }

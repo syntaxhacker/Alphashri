@@ -40,7 +40,7 @@ function ChartMessage(props: ChartMessageProps) {
         {props.title}
       </Text>
       <Show when={props.detail}>
-        <Text size="xs" c="dimmed" style={{ textAlign: "center", maxWidth: "520px" }}>
+        <Text size="xs" c="dimmed" style={{ textAlign: "center", "max-width": "520px" }}>
           {props.detail}
         </Text>
       </Show>

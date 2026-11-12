@@ -41,7 +41,7 @@ export function BreadthStrip(props: { data: BreadthPayload | null }) {
                   style={{ color: palette.TEXT_MUTED }}
                 >
                   {r.label}
-                  <b style={{ color: tone, fontWeight: 800 }}>
+                  <b style={{ color: tone, "font-weight": 800 }}>
                     {pct >= 0 ? "+" : ""}
                     {pct.toFixed(2)}%
                   </b>

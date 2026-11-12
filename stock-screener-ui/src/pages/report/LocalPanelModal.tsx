@@ -49,16 +49,16 @@ export function LocalPanelModal(props: LocalPanelModalProps) {
     top: "0",
     right: "0",
     width: "100%",
-    maxWidth: `min(${drawerWidth()}px, 74vw)`,
+    "max-width": `min(${drawerWidth()}px, 74vw)`,
     height: "100%",
     overflow: "hidden",
-    backgroundColor: palette.TERM_BG,
+    "background-color": palette.TERM_BG,
     color: palette.TEXT,
     border: `1px solid ${palette.TERM_BORDER}`,
-    borderRight: "none",
-    boxShadow: palette.DIALOG_SHADOW,
+    "border-right": "none",
+    "box-shadow": palette.DIALOG_SHADOW,
     display: "flex",
-    flexDirection: "column",
+    "flex-direction": "column",
   };
 
   const modalPanelStyle = (): Record<string, string> => {
@@ -69,13 +69,13 @@ export function LocalPanelModal(props: LocalPanelModalProps) {
       left: "50%",
       transform: "translate(-50%, -50%)",
       width: width,
-      backgroundColor: palette.TERM_BG,
+      "background-color": palette.TERM_BG,
       color: palette.TEXT,
       border: `1px solid ${palette.TERM_BORDER}`,
-      borderRadius: "4px",
-      boxShadow: palette.DIALOG_SHADOW,
+      "border-radius": "4px",
+      "box-shadow": palette.DIALOG_SHADOW,
       display: "flex",
-      flexDirection: "column",
+      "flex-direction": "column",
       overflow: "hidden",
     };
     if (compact()) {
@@ -100,12 +100,12 @@ export function LocalPanelModal(props: LocalPanelModalProps) {
           style={{
             position: "fixed",
             inset: "0",
-            zIndex: 50,
+            "z-index": 50,
             display: "flex",
-            justifyContent: isDrawer() ? "flex-end" : "center",
-            alignItems: isDrawer() ? "stretch" : "center",
+            "justify-content": isDrawer() ? "flex-end" : "center",
+            "align-items": isDrawer() ? "stretch" : "center",
             padding: isDrawer() ? "0" : "16px",
-            backgroundColor: withAlpha(palette.BG, isDrawer() ? 0.18 : 0.5),
+            "background-color": withAlpha(palette.BG, isDrawer() ? 0.18 : 0.5),
           }}
           onClick={handleBackdropClick}
           onKeyDown={(e) => {
@@ -124,23 +124,23 @@ export function LocalPanelModal(props: LocalPanelModalProps) {
               data-testid="panel-modal-titlebar"
               style={{
                 display: "flex",
-                alignItems: "center",
+                "align-items": "center",
                 gap: "8px",
                 padding: "12px 16px",
-                minHeight: "36px",
-                flexShrink: 0,
-                backgroundColor: palette.TERM_HEADER,
-                borderBottom: `1px solid ${palette.TERM_BORDER}`,
+                "min-height": "36px",
+                "flex-shrink": 0,
+                "background-color": palette.TERM_HEADER,
+                "border-bottom": `1px solid ${palette.TERM_BORDER}`,
               }}
             >
               <div
                 data-testid="panel-modal-title"
                 style={{
                   flex: "1",
-                  minWidth: 0,
+                  "min-width": 0,
                   overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
+                  "text-overflow": "ellipsis",
+                  "white-space": "nowrap",
                 }}
               >
                 {typeof props.title === "string" ? (
@@ -174,7 +174,7 @@ export function LocalPanelModal(props: LocalPanelModalProps) {
               data-testid="panel-modal-body"
               style={{
                 flex: compact() ? "0 1 auto" : "1",
-                minHeight: 0,
+                "min-height": 0,
                 overflow: "auto",
                 padding: "8px",
               }}
@@ -186,13 +186,13 @@ export function LocalPanelModal(props: LocalPanelModalProps) {
                 data-testid="panel-modal-actions"
                 style={{
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "flex-end",
+                  "align-items": "center",
+                  "justify-content": "flex-end",
                   gap: "8px",
                   padding: "12px 16px",
-                  flexShrink: 0,
-                  borderTop: `1px solid ${palette.TERM_BORDER}`,
-                  backgroundColor: palette.TERM_HEADER,
+                  "flex-shrink": 0,
+                  "border-top": `1px solid ${palette.TERM_BORDER}`,
+                  "background-color": palette.TERM_HEADER,
                 }}
               >
                 {props.actions}

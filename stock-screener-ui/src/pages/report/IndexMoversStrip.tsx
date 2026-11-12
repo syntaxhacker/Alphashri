@@ -43,10 +43,10 @@ function MoverItem(props: { row: IndexMoverRow; isGainer: boolean }) {
         size="xs"
         fw={700}
         style={{
-          fontSize: VALUE_FONT,
-          fontVariantNumeric: "tabular-nums",
+          "font-size": VALUE_FONT,
+          "font-variant-numeric": "tabular-nums",
           color: color(),
-          fontFamily: palette.MONO,
+          "font-family": palette.MONO,
         }}
       >
         {arrow()}
@@ -56,10 +56,10 @@ function MoverItem(props: { row: IndexMoverRow; isGainer: boolean }) {
         size="xs"
         fw={700}
         style={{
-          fontSize: VALUE_FONT,
-          fontVariantNumeric: "tabular-nums",
+          "font-size": VALUE_FONT,
+          "font-variant-numeric": "tabular-nums",
           color: color(),
-          fontFamily: palette.MONO,
+          "font-family": palette.MONO,
         }}
       >
         {row().symbol}
@@ -69,10 +69,10 @@ function MoverItem(props: { row: IndexMoverRow; isGainer: boolean }) {
         size="xs"
         fw={700}
         style={{
-          fontSize: VALUE_FONT,
-          fontVariantNumeric: "tabular-nums",
+          "font-size": VALUE_FONT,
+          "font-variant-numeric": "tabular-nums",
           color: color(),
-          fontFamily: palette.MONO,
+          "font-family": palette.MONO,
         }}
       >
         {signed()}{row().change_pct.toFixed(2)}%
@@ -199,7 +199,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
             losers past the strip's `overflow: hidden`. */}
         <span
           className="shrink-0 self-center mx-[2px] h-[10px] w-[1px] min-w-[1px]"
-          style={{ backgroundColor: palette.TERM_BORDER }}
+          style={{ "background-color": palette.TERM_BORDER }}
         />
 
         {/* Losers */}
@@ -246,7 +246,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
             <Show when={isError() && !data()} fallback={dataView()}>
               {stripChrome(
                 <>
-                  <Text span size="xs" fw={700} c="dimmed" style={{ letterSpacing: "0.1em" }}>
+                  <Text span size="xs" fw={700} c="dimmed" style={{ "letter-spacing": "0.1em" }}>
                     MOVERS
                   </Text>
                   <Text span size="xs" c="error" className="ml-2">
@@ -266,7 +266,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
         >
           {stripChrome(
             <>
-              <Text span size="xs" fw={700} c="dimmed" style={{ letterSpacing: "0.1em" }}>
+              <Text span size="xs" fw={700} c="dimmed" style={{ "letter-spacing": "0.1em" }}>
                 MOVERS
               </Text>
               <span class="ml-2 inline-flex items-center gap-1">
@@ -284,10 +284,10 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
         data-testid="movers-strip"
         class="flex items-center justify-center h-[24px] min-h-[24px] px-2 border-t border-fin-border border-b border-fin-border bg-fin-surface font-mono text-[11px] text-fin-text-muted"
       >
-        <Text span size="xs" fw={700} c="dimmed" style={{ letterSpacing: "0.1em" }}>
+        <Text span size="xs" fw={700} c="dimmed" style={{ "letter-spacing": "0.1em" }}>
           MOVERS
         </Text>
-        <Text span size="xs" c="dimmed" className="ml-4 italic" style={{ fontSize: REPORT_FONT.xs }}>
+        <Text span size="xs" c="dimmed" className="ml-4 italic" style={{ "font-size": REPORT_FONT.xs }}>
           · live only
         </Text>
       </div>

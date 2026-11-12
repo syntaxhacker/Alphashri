@@ -71,7 +71,7 @@ export function DeskDock(props: {
             color: "#fff",
             "font-size": 7.5,
             "font-weight": 800,
-            lineHeight: 1,
+            "line-height": 1,
           }}
         >
           {tab.badge}

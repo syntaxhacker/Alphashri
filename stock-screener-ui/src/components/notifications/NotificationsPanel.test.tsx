@@ -84,8 +84,10 @@ describe("NotificationsPanel", () => {
     setOpened(false);
     setOpened(true);
 
-    expect(await screen.findByTestId("surge-card-1")).toBeInTheDocument();
-    expect(mockedFetchSurges).toHaveBeenLastCalledWith(10, 0);
+    await waitFor(() => {
+      expect(screen.getByTestId("surge-card-1")).toBeInTheDocument();
+      expect(mockedFetchSurges).toHaveBeenLastCalledWith(10, 0);
+    });
   });
 
   it("shows an error and retries the same page", async () => {

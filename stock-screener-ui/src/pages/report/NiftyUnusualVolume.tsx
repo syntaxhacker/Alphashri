@@ -469,7 +469,7 @@ export function NiftyUnusualVolume(props: {
           getRowStyle={getRowStyle}
           getRowTestId={getUnusualRowTestId}
           dense
-          style={{ minWidth: 0 }}
+          style={{ "min-width": 0 }}
         />
       </div>
     </div>

@@ -342,7 +342,7 @@ export function NiftyPositionsDrawer(props: NiftyPositionsDrawerProps) {
                 enableSorting={false}
                 stickyHeader
                 dense
-                style={{ minWidth: 0 }}
+                style={{ "min-width": 0 }}
               />
             </div>
             }

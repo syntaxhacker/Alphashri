@@ -176,7 +176,7 @@ export function NiftyPnlAttribution(props: NiftyPnlAttributionProps) {
 
         <div
           class="flex items-center justify-between gap-[8px] min-w-0"
-          style={{ borderTop: `1px solid ${palette.TERM_BORDER}`, paddingTop: 4 }}
+          style={{ "border-top": `1px solid ${palette.TERM_BORDER}`, "padding-top": 4 }}
         >
           <div
             data-testid={`${testId()}-legend`}

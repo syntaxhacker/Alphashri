@@ -30,7 +30,7 @@ function structureText(trade: SimTrade): string {
 
 function Num({ value, color }: { value: string; color?: string }) {
   return (
-    <Text span size="xs" style={{ fontFamily: palette.MONO, color }}>
+    <Text span size="xs" style={{ "font-family": palette.MONO, color }}>
       {value}
     </Text>
   );
@@ -48,7 +48,7 @@ export function SimRuns(props: SimRunsProps) {
     if (points.length === 0) return;
     void chart.setChartOption({
       animation: false,
-      backgroundColor: "transparent",
+      "background-color": "transparent",
       tooltip: {
         trigger: "axis",
         formatter: (params: unknown) => {
@@ -62,13 +62,13 @@ export function SimRuns(props: SimRunsProps) {
       xAxis: {
         type: "category",
         data: points.map((point) => fmtTime(point.t)),
-        axisLabel: { color: palette.CHART_MUTED, fontSize: 9, hideOverlap: true },
+        axisLabel: { color: palette.CHART_MUTED, "font-size": 9, hideOverlap: true },
         axisLine: { lineStyle: { color: palette.AXIS_LINE } },
       },
       yAxis: {
         type: "value",
         scale: true,
-        axisLabel: { color: palette.CHART_MUTED, fontSize: 9 },
+        axisLabel: { color: palette.CHART_MUTED, "font-size": 9 },
         axisLine: { lineStyle: { color: palette.AXIS_LINE } },
         splitLine: { lineStyle: { color: palette.AXIS_SPLIT } },
       },
@@ -111,7 +111,7 @@ export function SimRuns(props: SimRunsProps) {
               span
               size="xs"
               fw={open ? 700 : 400}
-              style={{ fontFamily: palette.MONO, color: open ? palette.TERM_FLIP : palette.TEXT }}
+              style={{ "font-family": palette.MONO, color: open ? palette.TERM_FLIP : palette.TEXT }}
             >
               {open ? "OPEN" : fmtTime(trade.exitTime)}
             </Text>
@@ -124,7 +124,7 @@ export function SimRuns(props: SimRunsProps) {
         size: 168,
         meta: { align: "left" },
         cell: ({ row }) => (
-          <Text span size="xs" style={{ minWidth: 0 }} title={structureText(row.original)}>
+          <Text span size="xs" style={{ "min-width": 0 }} title={structureText(row.original)}>
             {structureText(row.original)}
           </Text>
         ),
@@ -192,7 +192,7 @@ export function SimRuns(props: SimRunsProps) {
         cell: ({ row }) => {
           const reason = String(row.original.exitReason ?? "");
           return (
-            <Text span size="xs" c="dimmed" style={{ whiteSpace: "normal" }}>
+            <Text span size="xs" c="dimmed" style={{ "white-space": "normal" }}>
               {reason || "—"}
             </Text>
           );

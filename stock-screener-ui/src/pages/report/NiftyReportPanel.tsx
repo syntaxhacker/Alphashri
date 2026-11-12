@@ -180,45 +180,45 @@ const EMPTY_WALL_HISTORY: WallSnapshot[] = [];
  */
 const DECISION_CELL_CLASS =
   "flex flex-col justify-center flex-[1_1_0] gap-[1px] min-w-[92px] md:min-w-[96px] px-1 py-0.5 border-l first:border-l-0";
-const DECISION_CELL_STYLE: CSSProperties = { borderLeft: `1px solid ${palette.TERM_BORDER}` };
+const DECISION_CELL_STYLE: CSSProperties = { "border-left": `1px solid ${palette.TERM_BORDER}` };
 
 const DECISION_LABEL_STYLE: CSSProperties = {
-  fontSize: REPORT_FONT.xs - 1,
-  lineHeight: REPORT_LINE_HEIGHT.snug,
-  letterSpacing: REPORT_LETTER_SPACING.wide,
-  textTransform: "uppercase",
+  "font-size": REPORT_FONT.xs - 1,
+  "line-height": REPORT_LINE_HEIGHT.snug,
+  "letter-spacing": REPORT_LETTER_SPACING.wide,
+  "text-transform": "uppercase",
 };
 
 const DECISION_VALUE_STYLE: CSSProperties = {
-  fontSize: REPORT_FONT.sm,
-  fontWeight: REPORT_FONT_WEIGHT.bold,
-  lineHeight: REPORT_LINE_HEIGHT.tight,
-  fontFamily: palette.MONO,
-  fontVariantNumeric: "tabular-nums",
-  whiteSpace: "nowrap",
+  "font-size": REPORT_FONT.sm,
+  "font-weight": REPORT_FONT_WEIGHT.bold,
+  "line-height": REPORT_LINE_HEIGHT.tight,
+  "font-family": palette.MONO,
+  "font-variant-numeric": "tabular-nums",
+  "white-space": "nowrap",
   overflow: "hidden",
-  textOverflow: "ellipsis",
+  "text-overflow": "ellipsis",
 };
 
 /** Secondary context cell (PCR / max pain) — same rows, quieter type. */
 const CONTEXT_CELL_CLASS =
   "flex flex-col justify-center flex-[1_1_0] gap-[1px] min-w-[64px] px-1 py-0.5 border-l";
-const CONTEXT_CELL_STYLE: CSSProperties = { borderLeft: `1px solid ${palette.TERM_BORDER}` };
+const CONTEXT_CELL_STYLE: CSSProperties = { "border-left": `1px solid ${palette.TERM_BORDER}` };
 
 const CONTEXT_LABEL_STYLE: CSSProperties = {
-  fontSize: REPORT_FONT.xs - 1,
-  lineHeight: REPORT_LINE_HEIGHT.snug,
-  letterSpacing: REPORT_LETTER_SPACING.normal,
-  textTransform: "uppercase",
+  "font-size": REPORT_FONT.xs - 1,
+  "line-height": REPORT_LINE_HEIGHT.snug,
+  "letter-spacing": REPORT_LETTER_SPACING.normal,
+  "text-transform": "uppercase",
 };
 
 const CONTEXT_VALUE_STYLE: CSSProperties = {
-  fontSize: REPORT_FONT.sm,
-  fontWeight: REPORT_FONT_WEIGHT.bold,
-  lineHeight: REPORT_LINE_HEIGHT.snug,
-  fontFamily: palette.MONO,
-  fontVariantNumeric: "tabular-nums",
-  whiteSpace: "nowrap",
+  "font-size": REPORT_FONT.sm,
+  "font-weight": REPORT_FONT_WEIGHT.bold,
+  "line-height": REPORT_LINE_HEIGHT.snug,
+  "font-family": palette.MONO,
+  "font-variant-numeric": "tabular-nums",
+  "white-space": "nowrap",
 };
 
 /** One headline number. `hint` feeds the tooltip, never a third text line. */
@@ -256,7 +256,7 @@ function DecisionCell({
         c={accent}
         style={{
           ...DECISION_VALUE_STYLE,
-          ...(valueSize != null ? { fontSize: valueSize } : {}),
+          ...(valueSize != null ? { "font-size": valueSize } : {}),
         }}
         data-testid={`${testId}-value`}
       >
@@ -311,14 +311,14 @@ function DecisionChip({
       className="min-w-0 h-[20px] px-1 py-0 gap-[3px] rounded-[4px] whitespace-nowrap border-l"
       style={{ border: `1px solid ${palette.TERM_BORDER}` }}
     >
-      <Text span size="xs" fw={700} c="dimmed" style={{ fontSize: 8, letterSpacing: "0.05em" }}>
+      <Text span size="xs" fw={700} c="dimmed" style={{ "font-size": 8, "letter-spacing": "0.05em" }}>
         {label}
       </Text>
       <Text
         span
         size="xs"
         fw={700}
-        style={{ fontSize: 9, color: tone ?? palette.TEXT, fontVariantNumeric: "tabular-nums" }}
+        style={{ "font-size": 9, color: tone ?? palette.TEXT, "font-variant-numeric": "tabular-nums" }}
       >
         {value}
       </Text>
@@ -418,26 +418,26 @@ function sentimentBadge(sentiment: string, side: "ce" | "pe") {
       title={title}
       style={{
         display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
+        "align-items": "center",
+        "justify-content": "center",
         gap: "4px",
-        maxWidth: "100%",
+        "max-width": "100%",
         overflow: "hidden",
-        paddingLeft: "4px",
-        paddingRight: "4px",
-        paddingTop: "1px",
-        paddingBottom: "1px",
-        borderRadius: "3px",
+        "padding-left": "4px",
+        "padding-right": "4px",
+        "padding-top": "1px",
+        "padding-bottom": "1px",
+        "border-radius": "3px",
         // No "fill": a coloured block behind 16 identical labels turns both
         // signal columns into a pair of neon bands. The tick + coloured text
         // carries the same meaning on a black surface.
-        whiteSpace: "nowrap",
-        verticalAlign: "middle",
+        "white-space": "nowrap",
+        "vertical-align": "middle",
       }}
     >
       <span
         aria-hidden
-        style={{ width: "3px", height: "11px", borderRadius: "1px", backgroundColor: tone, flexShrink: 0 }}
+        style={{ width: "3px", height: "11px", "border-radius": "1px", "background-color": tone, "flex-shrink": 0 }}
       />
       <Text size="xs" fw={700} span truncate style={{ color: tone }}>
         {short}
@@ -473,16 +473,16 @@ function wallTag(strike: number, spot: number, isCall: boolean, color: string) {
       title={title}
       style={{
         display: "inline-flex",
-        alignItems: "center",
+        "align-items": "center",
         gap: "3px",
-        flexShrink: 0,
+        "flex-shrink": 0,
       }}
     >
       <span
         aria-hidden
-        style={{ width: "5px", height: "5px", borderRadius: "50%", backgroundColor: color, flexShrink: 0 }}
+        style={{ width: "5px", height: "5px", "border-radius": "50%", "background-color": color, "flex-shrink": 0 }}
       />
-      <Text size="xs" span fw={700} style={{ fontSize: "9px", color }}>
+      <Text size="xs" span fw={700} style={{ "font-size": "9px", color }}>
         {code}
       </Text>
     </span>
@@ -512,12 +512,12 @@ function oiChangeBarCell(
       title={`${text} ΔOI`}
       style={{
         display: "flex",
-        flexDirection: "column",
-        alignItems: "flex-end",
+        "flex-direction": "column",
+        "align-items": "flex-end",
         gap: "2px",
         overflow: "hidden",
-        fontFamily: palette.MONO,
-        fontVariantNumeric: "tabular-nums",
+        "font-family": palette.MONO,
+        "font-variant-numeric": "tabular-nums",
       }}
     >
       <Text size="xs" span fw={500} style={{ color: legHue }}>
@@ -529,8 +529,8 @@ function oiChangeBarCell(
           display: "block",
           width: "100%",
           height: "3px",
-          borderRadius: "1px",
-          backgroundColor: hexToRgba(legHue, 0.18),
+          "border-radius": "1px",
+          "background-color": hexToRgba(legHue, 0.18),
           overflow: "hidden",
         }}
       >
@@ -541,8 +541,8 @@ function oiChangeBarCell(
             display: "block",
             width: `${pct}%`,
             height: "100%",
-            borderRadius: "1px",
-            backgroundColor: tone,
+            "border-radius": "1px",
+            "background-color": tone,
           }}
         />
       </span>
@@ -573,17 +573,17 @@ function legChangeCell(leg: NiftyStrike["ce"], legHue: string) {
       style={{
         display: "block",
         overflow: "hidden",
-        textOverflow: "ellipsis",
-        whiteSpace: "nowrap",
-        fontFamily: palette.MONO,
-        fontVariantNumeric: "tabular-nums",
+        "text-overflow": "ellipsis",
+        "white-space": "nowrap",
+        "font-family": palette.MONO,
+        "font-variant-numeric": "tabular-nums",
       }}
     >
       <Text size="xs" span fw={500} style={{ color: tone }}>
         {pointsText}
       </Text>
       {pctText ? (
-        <Text size="xs" span c="dimmed" style={{ fontSize: "10px" }}>
+        <Text size="xs" span c="dimmed" style={{ "font-size": "10px" }}>
           {" "}
           {pctText}
         </Text>
@@ -787,11 +787,11 @@ export function getNiftyOiColumns(
         <span
           style={{
             display: "flex",
-            alignItems: "center",
-            justifyContent: "flex-end",
+            "align-items": "center",
+            "justify-content": "flex-end",
             gap: "4px",
             overflow: "hidden",
-            fontVariantNumeric: "tabular-nums",
+            "font-variant-numeric": "tabular-nums",
           }}
         >
           {isCW ? wallTag(strike, spot, true, palette.TERM_CE) : null}
@@ -889,8 +889,8 @@ const UNUSUAL_VOLUME_CLASS = "min-w-0";
 /** OI-chain panel skin — hoisted so the memoised chain never rebuilds it. */
 const OI_CHAIN_PANEL_CLASS = "min-w-0 min-h-0";
 const OI_CHAIN_PANEL_STYLE: CSSProperties = {
-  backgroundColor: palette.TERM_BG,
-  borderColor: palette.TERM_BORDER,
+  "background-color": palette.TERM_BG,
+  "border-color": palette.TERM_BORDER,
   contain: "size",
 };
 
@@ -899,9 +899,9 @@ const OI_CHAIN_PANEL_STYLE: CSSProperties = {
 const OI_CHAIN_WRAP_CLASS = "flex min-w-0 min-h-0";
 const OI_CHAIN_WRAP_STYLE: CSSProperties = { height: "100%" };
 
-/** `minWidth: 0` overrides the shared 640px floor, which forced a sideways
+/** `"min-width": 0` overrides the shared 640px floor, which forced a sideways
  *  scrollbar and cut the PE columns off at the panel edge. */
-const OI_CHAIN_TABLE_STYLE: CSSProperties = { minWidth: 0 };
+const OI_CHAIN_TABLE_STYLE: CSSProperties = { "min-width": 0 };
 
 /** Analytics grid cell: the panel fills the row height so both columns end on
  *  the same line instead of leaving a hole under the shorter panel. The delta
@@ -930,7 +930,7 @@ const NiftySpotValue = memo(function NiftySpotValue({
   return <AnimatedValue value={(live ? tick?.spot : undefined) ?? fallback} format={formatInt} />;
 });
 
-/** `minWidth: 0` overrides the shared 640px floor, which forced a sideways
+/** `"min-width": 0` overrides the shared 640px floor, which forced a sideways
  *  scrollbar and cut the PE columns off at the panel edge. */
 
 interface NiftyOiChainProps {
@@ -2457,14 +2457,14 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
       <span
         style={{
           flex: 1,
-          minWidth: 0,
-          fontSize: "10px",
-          fontWeight: 700,
-          letterSpacing: "0.08em",
+          "min-width": 0,
+          "font-size": "10px",
+          "font-weight": 700,
+          "letter-spacing": "0.08em",
           color: palette.TEXT_MUTED,
-          whiteSpace: "nowrap",
+          "white-space": "nowrap",
           overflow: "hidden",
-          textOverflow: "ellipsis",
+          "text-overflow": "ellipsis",
         }}
       >
         {label}
@@ -3089,7 +3089,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   // bar (title + newest 2 rows, ~72px) with an Open action that shows the
   // full log in a PanelModal — one definition, mounted in exactly one place.
   const burstsTitle = (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", minWidth: 0 }}>
+    <span style={{ display: "inline-flex", "align-items": "center", gap: "4px", "min-width": 0 }}>
       <span>
         OI bursts ({trail.length})
         {isDesk && criticalCount > 0 ? ` · critical ${criticalCount}` : ""}
@@ -3207,7 +3207,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             title="Expand option volume pressure"
             onClick={() => setPressureExpand(true)}
             className="absolute min-w-[20px] px-[3px] leading-none text-[11px] z-1"
-            style={{ top: "-2px", right: "-2px", backgroundColor: palette.TERM_HEADER }}
+            style={{ top: "-2px", right: "-2px", "background-color": palette.TERM_HEADER }}
           >
             ⤢
           </Button>
@@ -3222,7 +3222,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             title="Expand cumulative flow + gamma regime"
             onClick={() => setFlowChartExpand(true)}
             className="absolute min-w-[20px] px-[3px] py-0 leading-none text-[11px] z-2"
-            style={{ top: "-2px", right: "-2px", backgroundColor: palette.TERM_HEADER }}
+            style={{ top: "-2px", right: "-2px", "background-color": palette.TERM_HEADER }}
           >
             ⤢
           </Button>
@@ -3238,7 +3238,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
           title="Expand the flow strip"
           onClick={() => setFlowExpand(true)}
           className="absolute min-w-[22px] px-[4px] leading-none text-[12px] z-1"
-          style={{ top: 0, right: "2px", backgroundColor: palette.TERM_HEADER }}
+          style={{ top: 0, right: "2px", "background-color": palette.TERM_HEADER }}
         >
           ⤢
         </Button>
@@ -3303,11 +3303,11 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             <Box
               data-testid="nifty-plan-oneliner"
               className="flex items-center gap-1 px-2 min-h-[20px] rounded-[4px] border w-full max-w-full min-w-0 shrink-0"
-              style={{ borderColor: palette.TERM_BORDER, backgroundColor: palette.TERM_HEADER }}
+              style={{ "border-color": palette.TERM_BORDER, "background-color": palette.TERM_HEADER }}
             >
               <span
                 aria-hidden
-                style={{ width: "3px", alignSelf: "stretch", marginTop: "6px", marginBottom: "6px", borderRadius: "1px", backgroundColor: planTone, flexShrink: 0 }}
+                style={{ width: "3px", "align-self": "stretch", "margin-top": "6px", "margin-bottom": "6px", "border-radius": "1px", "background-color": planTone, "flex-shrink": 0 }}
               />
               <Box
                 data-testid="nifty-plan-headline"
@@ -3315,16 +3315,16 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                 className="min-w-0"
                 style={{
                   flex: 1,
-                  minWidth: 0,
+                  "min-width": 0,
                   overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  letterSpacing: "0.02em",
-                  fontFamily: palette.MONO,
+                  "text-overflow": "ellipsis",
+                  "white-space": "nowrap",
+                  "font-size": "12px",
+                  "font-weight": 700,
+                  "letter-spacing": "0.02em",
+                  "font-family": palette.MONO,
                   color: planTone,
-                  fontVariantNumeric: "tabular-nums",
+                  "font-variant-numeric": "tabular-nums",
                 }}
               >
                 {planSummary.headline}
@@ -3334,12 +3334,12 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                 title="Weighted confidence behind the active side"
                 className="shrink-0"
                 style={{
-                  fontSize: "9px",
-                  fontWeight: 700,
+                  "font-size": "9px",
+                  "font-weight": 700,
                   color: palette.TEXT_MUTED,
-                  fontVariantNumeric: "tabular-nums",
-                  whiteSpace: "nowrap",
-                  flexShrink: 0,
+                  "font-variant-numeric": "tabular-nums",
+                  "white-space": "nowrap",
+                  "flex-shrink": 0,
                   opacity: 0.8,
                 }}
               >
@@ -3364,19 +3364,19 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                     data-conflict={conflict ? "true" : "false"}
                     title={`Last 5 min ${up ? "+" : ""}${Math.round(tapeSpeed.delta)} pts — ${tapeSpeed.ratio.toFixed(1)}× the median 5-min move${conflict ? " · this OPPOSES the plan side" : ""}`}
                     style={{
-                      flexShrink: 0,
-                      paddingLeft: "4px",
-                      paddingRight: "4px",
-                      paddingTop: "1px",
-                      paddingBottom: "1px",
+                      "flex-shrink": 0,
+                      "padding-left": "4px",
+                      "padding-right": "4px",
+                      "padding-top": "1px",
+                      "padding-bottom": "1px",
                       border: `1px solid ${tone}`,
-                      borderRadius: "3px",
+                      "border-radius": "3px",
                       color: tone,
-                      fontSize: "9px",
-                      fontWeight: 800,
-                      letterSpacing: "0.03em",
-                      fontFamily: palette.MONO,
-                      whiteSpace: "nowrap",
+                      "font-size": "9px",
+                      "font-weight": 800,
+                      "letter-spacing": "0.03em",
+                      "font-family": palette.MONO,
+                      "white-space": "nowrap",
                     }}
                   >
                     {conflict ? "⚠ " : ""}TAPE {up ? "↑" : "↓"} {tapeSpeed.ratio.toFixed(1)}×
@@ -3503,7 +3503,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
         [&_[data-testid='nifty-oi-panel']_[id='paper-tanstack-header-strike']]:sticky [&_[data-testid='nifty-oi-panel']_[id='paper-tanstack-header-strike']]:left-[var(--oi-sticky-left)] [&_[data-testid='nifty-oi-panel']_[id='paper-tanstack-header-strike']]:z-[3]
         [&_[data-testid='nifty-oi-panel']_[id^='paper-tanstack-cell-strike-']]:sticky [&_[data-testid='nifty-oi-panel']_[id^='paper-tanstack-cell-strike-']]:left-[var(--oi-sticky-left)] [&_[data-testid='nifty-oi-panel']_[id^='paper-tanstack-cell-strike-']]:z-[1]"
       style={{
-        backgroundColor: palette.TERM_BG,
+        "background-color": palette.TERM_BG,
         "--desk-bg": palette.TERM_BG,
         "--desk-border": palette.TERM_BORDER,
         "--desk-header": palette.TERM_HEADER,
@@ -3593,15 +3593,15 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               data-testid="nifty-generic-expiry-note"
               title="Recorded history (tape, OI stream, replay) is captured for the nearest expiry — the selected expiry applies to the live chain only."
               style={{
-                fontSize: "9px",
-                fontWeight: 700,
-                letterSpacing: "0.04em",
+                "font-size": "9px",
+                "font-weight": 700,
+                "letter-spacing": "0.04em",
                 color: palette.TEXT_MUTED,
                 border: `1px solid ${palette.TERM_BORDER}`,
-                borderRadius: "3px",
-                paddingLeft: "4px",
-                paddingRight: "4px",
-                whiteSpace: "nowrap",
+                "border-radius": "3px",
+                "padding-left": "4px",
+                "padding-right": "4px",
+                "white-space": "nowrap",
               }}
             >
               history = nearest expiry
@@ -3652,13 +3652,13 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               style={{
                 display: "inline-block",
                 border: "1px solid",
-                borderColor: palette.WARNING,
-                borderRadius: "9999px",
-                paddingLeft: "8px",
-                paddingRight: "8px",
-                paddingTop: "2px",
-                paddingBottom: "2px",
-                whiteSpace: "nowrap",
+                "border-color": palette.WARNING,
+                "border-radius": "9999px",
+                "padding-left": "8px",
+                "padding-right": "8px",
+                "padding-top": "2px",
+                "padding-bottom": "2px",
+                "white-space": "nowrap",
               }}
             >
               <Text size="xs" fw={700} c="warning" span>
@@ -3765,11 +3765,11 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               className="flex items-center gap-1.5 px-2 min-h-[28px] shrink-0 rounded-[4px] font-mono tabular-nums"
               style={{
                 border: `1px solid ${palette.WARNING}`,
-                borderLeft: `3px solid ${palette.WARNING}`,
-                backgroundColor: hexToRgba(palette.WARNING, 0.08),
+                "border-left": `3px solid ${palette.WARNING}`,
+                "background-color": hexToRgba(palette.WARNING, 0.08),
               }}
             >
-              <span style={{ fontWeight: 800, fontSize: "12px", color: palette.WARNING }}>
+              <span style={{ "font-weight": 800, "font-size": "12px", color: palette.WARNING }}>
                 {setupBannerHeadline(
                   currentFlip.flipped,
                   currentFlip.reason,
@@ -3777,7 +3777,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                   preMoveAlert.max,
                 )}
               </span>
-              <span style={{ fontSize: "10px", color: palette.TEXT_MUTED }}>
+              <span style={{ "font-size": "10px", color: palette.TEXT_MUTED }}>
                 {currentFlip.flipped
                   ? "5m leg disagrees with the 15m/session read — waiting for alignment"
                   : preMoveAlert.components
@@ -3804,8 +3804,8 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               className="flex items-center gap-1.5 px-2 min-h-[28px] shrink-0 rounded-[4px] font-mono tabular-nums"
               style={{
                 border: `1px solid ${blast.bias === "bull" ? palette.POSITIVE : blast.bias === "bear" ? palette.NEGATIVE : palette.WARNING}`,
-                borderLeft: `3px solid ${blast.bias === "bull" ? palette.POSITIVE : blast.bias === "bear" ? palette.NEGATIVE : palette.WARNING}`,
-                backgroundColor: hexToRgba(
+                "border-left": `3px solid ${blast.bias === "bull" ? palette.POSITIVE : blast.bias === "bear" ? palette.NEGATIVE : palette.WARNING}`,
+                "background-color": hexToRgba(
                   blast.bias === "bull" ? palette.POSITIVE : blast.bias === "bear" ? palette.NEGATIVE : palette.WARNING,
                   0.08,
                 ),
@@ -3814,15 +3814,15 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               <span
                 data-testid="nifty-blast-label"
                 style={{
-                  fontWeight: 800,
-                  fontSize: "12px",
-                  letterSpacing: "0.02em",
+                  "font-weight": 800,
+                  "font-size": "12px",
+                  "letter-spacing": "0.02em",
                   color: blast.bias === "bull" ? palette.POSITIVE : blast.bias === "bear" ? palette.NEGATIVE : palette.WARNING,
                 }}
               >
                 ⚡ {blast.label}
               </span>
-              <span style={{ fontSize: "10px", color: palette.TEXT_MUTED }}>
+              <span style={{ "font-size": "10px", color: palette.TEXT_MUTED }}>
                 {blast.detail} ·{" "}
                 {formatReportClock(Date.parse(blast.t))}
               </span>
@@ -3861,18 +3861,18 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                     className="flex items-center gap-1 px-2 min-h-[28px] rounded-[4px] cursor-pointer tabular-nums"
                     style={{
                       border: `1px solid ${accent}`,
-                      borderLeft: `3px solid ${accent}`,
-                      backgroundColor: hexToRgba(accent, 0.08),
+                      "border-left": `3px solid ${accent}`,
+                      "background-color": hexToRgba(accent, 0.08),
                     }}
                   >
                     <span
                       data-testid="nifty-critical-banner-time"
                       style={{
                         color: palette.TEXT_MUTED,
-                        fontSize: "10px",
-                        fontWeight: 700,
-                        fontFamily: palette.MONO,
-                        flexShrink: 0,
+                        "font-size": "10px",
+                        "font-weight": 700,
+                        "font-family": palette.MONO,
+                        "flex-shrink": 0,
                       }}
                       title={`Fired ${new Date(a.ts).toLocaleString("en-IN", { hour12: false, timeZone: "Asia/Kolkata" })}`}
                     >
@@ -3887,14 +3887,14 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                       data-testid="nifty-critical-banner-text"
                       style={{
                         flex: 1,
-                        minWidth: 0,
+                        "min-width": 0,
                         overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        fontSize: "12px",
-                        fontWeight: 700,
-                        letterSpacing: "0.02em",
-                        fontFamily: palette.MONO,
+                        "text-overflow": "ellipsis",
+                        "white-space": "nowrap",
+                        "font-size": "12px",
+                        "font-weight": 700,
+                        "letter-spacing": "0.02em",
+                        "font-family": palette.MONO,
                         color: accent,
                       }}
                     >
@@ -3910,20 +3910,20 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                         data-testid="nifty-critical-banner-pin"
                         title={pin.detail}
                         style={{
-                          flexShrink: 0,
-                          paddingLeft: "4px",
-                          paddingRight: "4px",
-                          paddingTop: "1px",
-                          paddingBottom: "1px",
+                          "flex-shrink": 0,
+                          "padding-left": "4px",
+                          "padding-right": "4px",
+                          "padding-top": "1px",
+                          "padding-bottom": "1px",
                           border: `1px solid ${palette.WARNING}`,
-                          borderRadius: "3px",
-                          backgroundColor: hexToRgba(palette.WARNING, 0.14),
+                          "border-radius": "3px",
+                          "background-color": hexToRgba(palette.WARNING, 0.14),
                           color: palette.WARNING,
-                          fontSize: "9.5px",
-                          fontWeight: 800,
-                          letterSpacing: "0.04em",
-                          fontFamily: palette.MONO,
-                          whiteSpace: "nowrap",
+                          "font-size": "9.5px",
+                          "font-weight": 800,
+                          "letter-spacing": "0.04em",
+                          "font-family": palette.MONO,
+                          "white-space": "nowrap",
                         }}
                       >
                         ⚠ PIN — SWEEP RISK
@@ -3953,7 +3953,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
           <Box
             data-testid="nifty-stat-strip"
             className="flex flex-col border border-[var(--desk-border)] rounded-[4px] overflow-hidden w-full max-w-full min-w-0 shrink-0"
-            style={{ backgroundColor: palette.TERM_HEADER, "--desk-border": palette.TERM_BORDER } as CSSProperties}
+            style={{ "background-color": palette.TERM_HEADER, "--desk-border": palette.TERM_BORDER } as CSSProperties}
           >
             <Box
               className="flex flex-wrap min-[1200px]:flex-nowrap items-stretch min-w-0 min-h-[28px]"
@@ -4146,16 +4146,16 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                   data-testid="nifty-india-vix-label"
                   title="VIX source: INDIA_VIX — this is India VIX, not a US VIX."
                   style={{
-                    flexShrink: 0,
-                    fontSize: "9px",
-                    fontWeight: 700,
-                    letterSpacing: "0.06em",
+                    "flex-shrink": 0,
+                    "font-size": "9px",
+                    "font-weight": 700,
+                    "letter-spacing": "0.06em",
                     color: palette.TEXT_MUTED,
                     border: `1px solid ${palette.TERM_BORDER}`,
-                    borderRadius: "3px",
+                    "border-radius": "3px",
                     px: 0.5,
                     py: "1px",
-                    whiteSpace: "nowrap",
+                    "white-space": "nowrap",
                   }}
                 >
                   INDIA VIX
@@ -4323,7 +4323,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
         <Box
           data-testid="nifty-main-row"
           className={`grid grid-cols-1 ${isDesk ? "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,420px)]" : "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,624px)]"} grid-rows-[minmax(0,1fr)] gap-0 items-stretch w-full max-w-full min-w-0 flex-auto min-h-[300px] overflow-hidden`}
-          style={{ maxHeight: isDesk && chartSize !== "fill" ? chartRowHeight : undefined }}
+          style={{ "max-height": isDesk && chartSize !== "fill" ? chartRowHeight : undefined }}
         >
           <NiftyChartPanel
             report={report}
@@ -4354,7 +4354,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               <Box
                 data-testid="nifty-side-tabs"
                 className="flex items-center gap-0.5 h-5 min-h-5 px-0.5 border-b border-[var(--desk-border)]"
-                style={{ backgroundColor: palette.TERM_HEADER }}
+                style={{ "background-color": palette.TERM_HEADER }}
               >
                 <Button
                   data-testid="nifty-side-tab-chain"
@@ -4362,7 +4362,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                   variant={sideTab === "chain" ? "filled" : "subtle"}
                   aria-pressed={sideTab === "chain"}
                   onClick={() => setSideTab("chain")}
-                  style={{ height: 18, minWidth: 0, paddingLeft: 4.8, paddingRight: 4.8, paddingTop: 0, paddingBottom: 0, fontSize: 8, fontWeight: 800, letterSpacing: 0.4 }}
+                  style={{ height: 18, "min-width": 0, "padding-left": 4.8, "padding-right": 4.8, "padding-top": 0, "padding-bottom": 0, "font-size": 8, "font-weight": 800, "letter-spacing": 0.4 }}
                 >
                   CHAIN
                 </Button>
@@ -4372,7 +4372,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                   variant={sideTab === "heatmap" ? "filled" : "subtle"}
                   aria-pressed={sideTab === "heatmap"}
                   onClick={() => setSideTab("heatmap")}
-                  style={{ height: 18, minWidth: 0, paddingLeft: 4.8, paddingRight: 4.8, paddingTop: 0, paddingBottom: 0, fontSize: 8, fontWeight: 800, letterSpacing: 0.4 }}
+                  style={{ height: 18, "min-width": 0, "padding-left": 4.8, "padding-right": 4.8, "padding-top": 0, "padding-bottom": 0, "font-size": 8, "font-weight": 800, "letter-spacing": 0.4 }}
                 >
                   HEATMAP
                 </Button>
@@ -4413,7 +4413,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                       aria-pressed={heatMetric === m}
                       title={m === "oi" ? "Colour by OI change" : m === "volume" ? "Colour by traded volume" : "Colour by premium change"}
                       onClick={() => setHeatMetric(m)}
-                      style={{ minWidth: 26, paddingLeft: 3, paddingRight: 3, paddingTop: 0, paddingBottom: 0, fontSize: 8.5, lineHeight: 1.4 }}
+                      style={{ "min-width": 26, "padding-left": 3, "padding-right": 3, "padding-top": 0, "padding-bottom": 0, "font-size": 8.5, "line-height": 1.4 }}
                     >
                       {m === "oi" ? "OI" : m === "volume" ? "VOL" : "PREM"}
                     </Button>
@@ -4444,7 +4444,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                   title="Expand the OI heatmap"
                   onClick={() => setHeatExpand(true)}
                   className="absolute top-0 right-0 w-[22px] h-[18px] min-w-[22px] px-0 py-0 leading-[18px] text-[11px] z-[3]"
-                  style={{ backgroundColor: palette.TERM_HEADER }}
+                  style={{ "background-color": palette.TERM_HEADER }}
                 >
                   ⤢
                 </Button>
@@ -4480,9 +4480,9 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                 size={20}
                 onClick={() => setGexOpen(true)}
                 className="absolute top-0.5 right-0.5 p-[2px] rounded-none hover:text-fin-text!"
-                style={{ color: palette.TEXT_MUTED, backgroundColor: palette.TERM_HEADER }}
+                style={{ color: palette.TEXT_MUTED, "background-color": palette.TERM_HEADER }}
               >
-                <Text span size="xs" fw={700} style={{ fontSize: 12, lineHeight: 1 }}>
+                <Text span size="xs" fw={700} style={{ "font-size": 12, "line-height": 1 }}>
                   ⤢
                 </Text>
               </ActionIcon>
@@ -4507,14 +4507,14 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                 size={20}
                 onClick={() => setIvOpen(true)}
                 className="absolute top-0.5 right-0.5 p-[2px] rounded-none hover:text-fin-text!"
-                style={{ color: palette.TEXT_MUTED, backgroundColor: palette.TERM_HEADER }}
+                style={{ color: palette.TEXT_MUTED, "background-color": palette.TERM_HEADER }}
               >
-                <Text span size="xs" fw={700} style={{ fontSize: 12, lineHeight: 1 }}>
+                <Text span size="xs" fw={700} style={{ "font-size": 12, "line-height": 1 }}>
                   ⤢
                 </Text>
               </ActionIcon>
             </Box>
-          <CompactPanel flush title="OI · tick tape" testId="nifty-tape-panel" style={{ minWidth: 0, backgroundColor: palette.TERM_BG, borderColor: palette.TERM_BORDER }}>
+          <CompactPanel flush title="OI · tick tape" testId="nifty-tape-panel" style={{ "min-width": 0, "background-color": palette.TERM_BG, "border-color": palette.TERM_BORDER }}>
             {tape && tapeRows.length > 0 ? (
               <NiftyTapeTable
                 rows={tapeRows}
@@ -4580,7 +4580,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
           <Box
             data-testid="nifty-detail"
             className="border border-[var(--desk-border)] rounded-[4px] overflow-hidden w-full max-w-full min-w-0 shrink-0"
-            style={{ backgroundColor: palette.TERM_HEADER }}
+            style={{ "background-color": palette.TERM_HEADER }}
           >
             <Button
               data-testid="nifty-detail-toggle"
@@ -4590,38 +4590,38 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               aria-controls="nifty-detail-body"
               onClick={toggleDetail}
               className="w-full rounded-none normal-case gap-2 px-3 py-1"
-              style={{ justifyContent: "space-between" }}
+              style={{ "justify-content": "space-between" }}
             >
               <Box
                 className="flex items-baseline"
-                style={{ gap: "8px", minWidth: 0 }}
+                style={{ gap: "8px", "min-width": 0 }}
               >
                 <span
                   style={{
-                    fontSize: "10px",
-                    fontWeight: 700,
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
+                    "font-size": "10px",
+                    "font-weight": 700,
+                    "letter-spacing": "0.08em",
+                    "text-transform": "uppercase",
                     color: palette.TEXT,
-                    whiteSpace: "nowrap",
+                    "white-space": "nowrap",
                   }}
                 >
                   Session detail
                 </span>
                 <span
                   style={{
-                    fontSize: "10px",
+                    "font-size": "10px",
                     color: palette.TEXT_MUTED,
-                    whiteSpace: "nowrap",
+                    "white-space": "nowrap",
                     overflow: "hidden",
-                    textOverflow: "ellipsis",
+                    "text-overflow": "ellipsis",
                   }}
                 >
                   Session forensics · OI bursts, structure, volume, levels, straddle, gamma, flow, P&amp;L
                 </span>
               </Box>
               <span
-                style={{ fontSize: "11px", fontWeight: 700, color: palette.TEXT_MUTED, flexShrink: 0 }}
+                style={{ "font-size": "11px", "font-weight": 700, color: palette.TEXT_MUTED, "flex-shrink": 0 }}
               >
                 {detailOpen ? "Hide" : "Show"}
               </span>
@@ -4663,7 +4663,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                   flush
                   padded={false}
                   testId="nifty-unusual-panel-wrap"
-                  style={{ minWidth: 0, backgroundColor: UNUSUAL_TERM_BG, borderColor: UNUSUAL_TERM_BORDER }}
+                  style={{ "min-width": 0, "background-color": UNUSUAL_TERM_BG, "border-color": UNUSUAL_TERM_BORDER }}
                 >
                   <NiftyUnusualVolume
                     strikes={report.strikes}
@@ -4686,7 +4686,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                 )}
 
                 {report.gex ? (
-                <CompactPanel flush title="GEX levels" testId="nifty-gex-panel" style={{ minWidth: 0 }}>
+                <CompactPanel flush title="GEX levels" testId="nifty-gex-panel" style={{ "min-width": 0 }}>
                   <Box data-testid="nifty-gex-row">
                     <CompactStatGrid>
                       <CompactStat
@@ -4750,7 +4750,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                   </Box>
                 </CompactPanel>
                 ) : (
-                <CompactPanel flush title="Next-session levels" testId="nifty-tomorrow-panel" style={{ minWidth: 0 }}>
+                <CompactPanel flush title="Next-session levels" testId="nifty-tomorrow-panel" style={{ "min-width": 0 }}>
                   {levels && (
                   <Box data-testid="nifty-levels-row">
                     <CompactStatGrid>
@@ -4857,14 +4857,14 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                 <span
                   style={{
                     flex: 1,
-                    minWidth: 0,
-                    fontSize: "10px",
-                    fontWeight: 700,
-                    letterSpacing: "0.08em",
+                    "min-width": 0,
+                    "font-size": "10px",
+                    "font-weight": 700,
+                    "letter-spacing": "0.08em",
                     color: palette.TEXT_MUTED,
-                    whiteSpace: "nowrap",
+                    "white-space": "nowrap",
                     overflow: "hidden",
-                    textOverflow: "ellipsis",
+                    "text-overflow": "ellipsis",
                   }}
                 >
                   {symbol} CHART — FULLSCREEN
@@ -4877,7 +4877,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                     variant={chartTf === tf ? "filled" : "subtle"}
                     aria-pressed={chartTf === tf}
                     onClick={() => handleChartTf(tf)}
-                    style={{ minWidth: 34, paddingLeft: 6, paddingRight: 6, paddingTop: 0, paddingBottom: 0, fontSize: 10, lineHeight: 1.6 }}
+                    style={{ "min-width": 34, "padding-left": 6, "padding-right": 6, "padding-top": 0, "padding-bottom": 0, "font-size": 10, "line-height": 1.6 }}
                   >
                     {tf}
                   </Button>
@@ -5062,7 +5062,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
           ) : (
             <>
             <LevelsInPlay report={report} sensex={sensex} />
-            <CompactPanel title="Sensex levels" testId="sensex-focus-panel" style={{ minWidth: 0, flexShrink: 0 }}>
+            <CompactPanel title="Sensex levels" testId="sensex-focus-panel" style={{ "min-width": 0, "flex-shrink": 0 }}>
               {sensex ? (
                 <>
                   <CompactStatGrid>

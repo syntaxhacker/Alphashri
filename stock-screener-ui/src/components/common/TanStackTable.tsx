@@ -1,4 +1,4 @@
-import { For, createEffect, createMemo, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { Box, Paper, ScrollArea, useDensity } from "@/ui";
 import { InlineLoader } from "./states";
 import * as palette from "@/ui/palette";
@@ -337,14 +337,16 @@ export function TanStackTable<T>(props: Props<T>) {
   };
 
   const renderSubRow = (row: T, index: number) => {
+    if (!props.getRowCanExpand?.(row) || !props.renderSubComponent) return null;
     const expanded = () => isRowExpanded(row, index);
-    if (!props.getRowCanExpand?.(row) || !expanded || !props.renderSubComponent) return null;
     return (
-      <tr className="paper-tanstack-expanded-row">
-        <td colSpan={colCount()} style={{ padding: "0px", "border-top": `1px solid ${palette.BORDER}`, "border-bottom": `1px solid ${palette.BORDER}`, background: palette.BG }}>
-          {props.renderSubComponent(row)}
-        </td>
-      </tr>
+      <Show when={expanded()}>
+        <tr className="paper-tanstack-expanded-row">
+          <td colSpan={colCount()} style={{ padding: "0px", "border-top": `1px solid ${palette.BORDER}`, "border-bottom": `1px solid ${palette.BORDER}`, background: palette.BG }}>
+            {props.renderSubComponent(row)}
+          </td>
+        </tr>
+      </Show>
     );
   };
 
