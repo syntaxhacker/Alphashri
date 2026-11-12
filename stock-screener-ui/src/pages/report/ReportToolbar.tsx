@@ -40,7 +40,7 @@ const EXPIRY_SELECT_CLASS = "w-[120px] flex-none min-w-0";
 const SYMBOL_SELECT_CLASS = "w-[130px] flex-none min-w-0";
 
 const TOOLBAR_CLASS =
-  "flex items-center gap-1 px-2 py-[2px] min-h-[26px] flex-nowrap w-full max-w-full min-w-0 shrink-0 overflow-x-auto [&_[data-testid='nifty-updated-at']]:leading-[20px]";
+  "flex items-center gap-2 px-2 py-1 min-h-[30px] flex-nowrap w-full max-w-full min-w-0 shrink-0 overflow-x-auto [&>*]:flex-none [&_[data-testid='nifty-updated-at']]:leading-[20px]";
 
 const GENERIC_EXPIRY_NOTE_STYLE: JSX.CSSProperties = {
   "font-size": "9px",

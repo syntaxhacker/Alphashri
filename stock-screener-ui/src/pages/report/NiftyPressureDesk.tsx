@@ -844,7 +844,11 @@ export function NiftyPressureDesk(props: NiftyPressureDeskProps) {
             <SummaryChip label="" value={`${walls().date} · ${walls().dte == null ? "—" : `${walls().dte}-DTE`}`} />
             <SummaryChip
               label="spot"
-              value={walls().spot.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+              value={
+                Number.isFinite(walls().spot)
+                  ? walls().spot.toLocaleString("en-IN", { maximumFractionDigits: 2 })
+                  : "—"
+              }
             />
             <Show when={walls().expiry}>
               {(expiry) => <SummaryChip label="exp" value={expiry()!} />}

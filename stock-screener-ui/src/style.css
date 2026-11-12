@@ -6,7 +6,7 @@
   --font-size-xl: 20px;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* { box-sizing: border-box; }
 
 body {
   font: var(--font-size-sm) var(--font-family);

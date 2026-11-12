@@ -1,5 +1,6 @@
-import { Show } from "solid-js";
+import { ErrorBoundary, Show } from "solid-js";
 import { Box } from "@/ui";
+import * as palette from "@/ui/palette";
 import { EmptyState, ErrorAlert, InlineLoader } from "@/components/common/states";
 import { ReportProvider, useNiftyReport } from "./ReportContext";
 import { ReportToolbar } from "./ReportToolbar";
@@ -8,6 +9,23 @@ import { ReportStrips } from "./ReportStrips";
 import { ReportWorkspace } from "./ReportWorkspace";
 import { ReportAnalytics } from "./ReportAnalytics";
 import { ReportOverlays } from "./ReportOverlays";
+
+function SectionError(props: { name: string; error: unknown }) {
+  return (
+    <Box
+      data-testid="nifty-section-error"
+      style={{
+        border: "1px solid " + palette.NEGATIVE,
+        "border-radius": "8px",
+        padding: "8px",
+        "font-size": "11px",
+        color: palette.TEXT_MUTED,
+      }}
+    >
+      {props.name} failed: {props.error instanceof Error ? props.error.message : String(props.error)}
+    </Box>
+  );
+}
 
 function ReportBody() {
   const store = useNiftyReport();
@@ -64,10 +82,18 @@ function ReportBody() {
             padding: "4px",
           }}
         >
-          <ReportDecisionStrip />
-          <ReportStrips />
-          <ReportWorkspace />
-          <ReportAnalytics />
+          <ErrorBoundary fallback={(err) => <SectionError name="decision strip" error={err} />}>
+            <ReportDecisionStrip />
+          </ErrorBoundary>
+          <ErrorBoundary fallback={(err) => <SectionError name="desk strips" error={err} />}>
+            <ReportStrips />
+          </ErrorBoundary>
+          <ErrorBoundary fallback={(err) => <SectionError name="workspace" error={err} />}>
+            <ReportWorkspace />
+          </ErrorBoundary>
+          <ErrorBoundary fallback={(err) => <SectionError name="analytics" error={err} />}>
+            <ReportAnalytics />
+          </ErrorBoundary>
         </Box>
       </Show>
 
