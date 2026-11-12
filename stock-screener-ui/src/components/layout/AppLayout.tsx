@@ -26,7 +26,7 @@ export function AppLayout(props: AppLayoutProps) {
   const [notifRefreshKey, setNotifRefreshKey] = createSignal(0);
   // Read-through accessor: the surge total refetches when the key bumps.
   const surgeTotal = useSurgeAlertTotal(notifRefreshKey);
-  const navWidth = () => (desktopCollapsed() ? 64 : 200);
+  const navWidth = () => (desktopCollapsed() ? 52 : 176);
 
   // The desk dock drawer is portaled to <body>, outside #app-shell; publish the
   // nav width on the root so the bottom sheet aligns with the main column.
@@ -91,7 +91,7 @@ export function AppLayout(props: AppLayoutProps) {
             top: "0px",
             left: "0px",
             bottom: "0px",
-            width: "220px",
+            width: "192px",
             "box-sizing": "border-box",
             "z-index": 1300,
           }}

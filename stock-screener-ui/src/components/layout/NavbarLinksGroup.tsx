@@ -31,19 +31,19 @@ export function NavbarLinksGroup(props: NavbarLinksGroupProps) {
       id={`nav-link-${props.label.toLowerCase().replace(/\s+/g, "-")}`}
       aria-label={props.label}
       title={props.label}
-      className="flex items-center gap-2 rounded-fin px-3 py-3 min-w-0 cursor-pointer transition-colors"
+      className="flex items-center gap-1.5 rounded-fin px-1.5 py-1 min-w-0 cursor-pointer transition-colors"
       style={{
         "justify-content": collapsed() ? "center" : "flex-start",
         ...(props.active
-          ? { "background-color": "#80B5FF", color: "#1A5CD6" }
+          ? { "background-color": "rgba(225, 29, 46, 0.14)", color: palette.TEXT, "box-shadow": "inset 2px 0 0 0 " + palette.PRIMARY }
           : {}),
       }}
     >
-      <Box className="flex items-center justify-center min-w-[36px]" style={{ color: props.active ? "#1A5CD6" : palette.TEXT_MUTED }}>
+      <Box className="flex items-center justify-center min-w-[20px]" style={{ color: props.active ? palette.PRIMARY : palette.TEXT_MUTED }}>
         <IconC size={16} />
       </Box>
       <Show when={!collapsed()}>
-        <Text size="sm" style={{ "font-size": "0.875rem", "font-weight": props.active ? 600 : 400 }}>
+        <Text size="sm" style={{ "font-size": "12.5px", "font-weight": props.active ? 600 : 500 }}>
           {props.label}
         </Text>
       </Show>
