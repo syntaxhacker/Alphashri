@@ -72,22 +72,22 @@ function NewsWorkspaceHeader(props: { storyCount: number; sourceCount: number })
       component="header"
       data-testid="news-workspace-header"
       className="flex items-center gap-2 border-b border-fin-border bg-fin-surface"
-      style={{ minHeight: 56, paddingLeft: 16, paddingRight: 16, paddingTop: 8, paddingBottom: 8 }}
+      style={{ "min-height": 56, "padding-left": 16, "padding-right": 16, "padding-top": 8, "padding-bottom": 8 }}
     >
       <Box
         className="size-8 grid place-items-center rounded-fin flex-shrink-0"
         style={{
           width: 32,
           height: 32,
-          borderRadius: 8,
+          "border-radius": 8,
           color: palette.PRIMARY,
-          backgroundColor: "rgba(88, 166, 255, 0.12)",
+          "background-color": "rgba(88, 166, 255, 0.12)",
         }}
       >
         <Icon name="news" size={18} stroke={1.8} aria-hidden="true" />
       </Box>
       <Box className="min-w-0">
-        <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
+        <Text size="sm" fw={700} style={{ "line-height": 1.2 }}>
           Market intelligence
         </Text>
         <Text size="xs" c="dimmed" className="hidden sm:block">
@@ -101,18 +101,18 @@ function NewsWorkspaceHeader(props: { storyCount: number; sourceCount: number })
         className="hidden sm:flex divide-x divide-fin-border"
       >
         <Box className="text-right">
-          <Text size="xs" c="dimmed" style={{ lineHeight: 1 }}>
+          <Text size="xs" c="dimmed" style={{ "line-height": 1 }}>
             Stories
           </Text>
-          <Text size="xs" fw={700} style={{ fontVariantNumeric: "tabular-nums" }}>
+          <Text size="xs" fw={700} style={{ "font-variant-numeric": "tabular-nums" }}>
             {props.storyCount}
           </Text>
         </Box>
         <Box className="text-right pl-4">
-          <Text size="xs" c="dimmed" style={{ lineHeight: 1 }}>
+          <Text size="xs" c="dimmed" style={{ "line-height": 1 }}>
             Sources
           </Text>
-          <Text size="xs" fw={700} style={{ fontVariantNumeric: "tabular-nums" }}>
+          <Text size="xs" fw={700} style={{ "font-variant-numeric": "tabular-nums" }}>
             {props.sourceCount}
           </Text>
         </Box>
@@ -224,7 +224,7 @@ export default function NewsPage() {
         fallback={
           <Box
             className="flex-1 min-h-0 grid gap-2 p-2"
-            style={{ gridTemplateColumns: "minmax(300px, 0.78fr) minmax(0, 1.22fr)" }}
+            style={{ "grid-template-columns": "minmax(300px, 0.78fr) minmax(0, 1.22fr)" }}
           >
             <Paper
               component="section"

@@ -147,6 +147,33 @@ yesterday's close of the ATM contract, invert it to an implied vol, and
 re-price today with the current spot — see `scripts/iv_crush.py` for the
 Black-Scholes helpers.
 
+### Trend-strength battery (is it momentum or drift?)
+
+`scripts/trend_strength.py` measures ATR (₹ and %, plus expansion vs the 60-day
+median), Wilder ADX with +DI/−DI, Kaufman efficiency ratio (ER20), the R² of a
+40-day log-price regression, and **today's net displacement in ATR units**:
+
+```bash
+.venv/bin/python .prime/agent/skills/position-probability/scripts/trend_strength.py \
+    --names SBIN,ICICIBANK,IRFC,INFY
+```
+
+**ADX alone lies.** It is a 14-day read of the *previous* leg: IRFC printed
+ADX 29 while sitting below a falling 200-DMA with ER 0.20 and R² 0.00 — a
+reversal, not a trend. Read it with the DI spread (who is in control *now*),
+ER (is the path directional), R² (is there a trend at all) and move-in-ATR
+(did it actually move today).
+
+### Option carry test
+
+The companion question: *how far must the underlying move to pay for the
+premium?* Breakeven over the hold =
+`(theta × days + vega × IV-gap × bleed) / delta`, expressed in ATR units.
+For a 11-DTE ATM call on a 30%-ATR stock this is often only **0.05–0.15 ATR per
+day** (cheap carry). It is expensive exactly when you pay a big vol premium
+over realised — e.g. a 42%-IV IRFC put against 27% realised needs ~0.6 ATR of
+downside over 3 days, so use a **put spread**, not a naked put.
+
 ### Dark-theme EDA report (HTML + charts)
 
 `scripts/generate_dark_report.py` turns all of the above into a self-contained

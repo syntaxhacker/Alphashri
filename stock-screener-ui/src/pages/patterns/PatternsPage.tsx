@@ -652,7 +652,7 @@ export function PatternsPage(props: PatternsPageProps) {
             Watch
           </Tabs.Tab>
         </Tabs.List>
-        <Tabs.Panel value="scan" data-testid="patterns-panel-scan" style={{ paddingTop: 0, paddingBottom: 0 }}>
+        <Tabs.Panel value="scan" data-testid="patterns-panel-scan" style={{ "padding-top": 0, "padding-bottom": 0 }}>
       <ScanStats
         summary={displaySummary()}
         job={job()}
@@ -708,7 +708,7 @@ export function PatternsPage(props: PatternsPageProps) {
                   />
                 </Box>
               </Box>
-              <Divider orientation="vertical" style={{ height: 18, alignSelf: "center" }} />
+              <Divider orientation="vertical" style={{ height: 18, "align-self": "center" }} />
               <TimeframeSelect
                 timeframes={timeframes()}
                 value={tfSelection()}
@@ -724,7 +724,7 @@ export function PatternsPage(props: PatternsPageProps) {
                   {`as of ${formatAsOfLabel(replayAsOf())}`}
                 </Text>
               ) : null}
-              <Divider orientation="vertical" style={{ height: 18, alignSelf: "center" }} />
+              <Divider orientation="vertical" style={{ height: 18, "align-self": "center" }} />
               <Tooltip label="Draw standalone support / resistance lines (TLS = support, TLR = resistance)">
                 <Box className="inline-flex">
                   <Switch
@@ -769,7 +769,7 @@ export function PatternsPage(props: PatternsPageProps) {
                   onChange={(v) => {
                     if (v === "all" || v === "big" || v === "others") changeIndexGroup(v);
                   }}
-                  leftSection={<Text size="xs" c="dimmed" style={{ fontSize: 10 }}>IDX</Text>}
+                  leftSection={<Text size="xs" c="dimmed" style={{ "font-size": 10 }}>IDX</Text>}
                   w={106}
                   size="xs"
                   data-testid="patterns-index-group"
@@ -779,7 +779,7 @@ export function PatternsPage(props: PatternsPageProps) {
                 <Text
                   size="xs"
                   c="dimmed"
-                  style={{ fontSize: 10, whiteSpace: "nowrap" }}
+                  style={{ "font-size": 10, "white-space": "nowrap" }}
                   data-testid="patterns-multi-tf-hint"
                 >
                   {`List/Grid: ${timeframe()}`}
@@ -932,9 +932,8 @@ export function PatternsPage(props: PatternsPageProps) {
                   <Text size="xs" c="dimmed">
                     Relax:
                   </Text>
-                  {activeChips().slice(0, 3).map((chip) => (
+                  <For each={activeChips().slice(0, 3)}>{(chip) => (
                     <Chip
-                      key={chip.id}
                       size="xs"
                       variant="light"
                       onClick={() => setFilter(chip.key, chip.nextValue)}
@@ -942,7 +941,7 @@ export function PatternsPage(props: PatternsPageProps) {
                     >
                       {`${chip.group}: ${chip.label}`}
                     </Chip>
-                  ))}
+                  )}</For>
                   <Button
                     size="xs"
                     variant="subtle"
@@ -1047,7 +1046,7 @@ export function PatternsPage(props: PatternsPageProps) {
         )}
       </Box>
         </Tabs.Panel>
-        <Tabs.Panel value="watch" data-testid="patterns-panel-watch" style={{ paddingTop: 0, paddingBottom: 0 }}>
+        <Tabs.Panel value="watch" data-testid="patterns-panel-watch" style={{ "padding-top": 0, "padding-bottom": 0 }}>
           <WatchView
             universe={universe()}
             timeframe={timeframe()}
@@ -1083,7 +1082,7 @@ export function PatternsPage(props: PatternsPageProps) {
         <ToolbarRow
           justify="space-between"
           gap={8}
-          style={{ paddingTop: 12, borderTop: "1px solid", borderColor: "var(--color-fin-border)" }}
+          style={{ "padding-top": 12, "border-top": "1px solid", "border-color": "var(--color-fin-border)" }}
         >
           <Button
             size="sm"

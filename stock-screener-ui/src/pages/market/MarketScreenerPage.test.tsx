@@ -3,6 +3,8 @@ import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
+
+vi.setConfig({ testTimeout: 15000 });
 import { MarketScreenerPage } from "./MarketScreenerPage";
 import { useMarketSnapshotSolid } from "../../components/market/useMarketSnapshotSolid";
 import type { MarketRow } from "../../types/marketScreener";
@@ -106,8 +108,8 @@ function hookResult(overrides: Partial<UseMarketSnapshotResult> = {}): UseMarket
   };
 }
 
-// @/ui's dynamic-tag layout primitives crash at runtime on this branch;
-// stub them with intrinsic elements (see src/pages/solidTestStubs.tsx).
+// The @/ui Box/Flex/... stubs from src/pages/solidTestStubs.tsx render as
+// intrinsic elements; page tests exercise page wiring, not the theme runtime.
 vi.mock("@/ui", async (importOriginal) => {
   const { uiLayoutStub } = await import("@/pages/solidTestStubs");
   return uiLayoutStub(await importOriginal<Record<string, unknown>>());

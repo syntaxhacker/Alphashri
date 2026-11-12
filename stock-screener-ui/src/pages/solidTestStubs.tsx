@@ -1,11 +1,10 @@
 /**
- * Test-only stub for the six @/ui dynamic-tag layout primitives
+ * Test-only stub for the six @/ui layout primitives
  * (Box/Flex/Stack/Group/Paper/Card).
  *
- * Those primitives crash at runtime on this branch — Solid calls the string
- * tag as a function component ("Comp is not a function") and the @/ui suite
- * has no render test covering them. Stubbing them with intrinsic elements
- * lets page tests exercise the page wiring instead of the broken primitives.
+ * The @/ui primitives render now (intrinsic-registry pass-throughs). These
+ * stubs remain as cheap intrinsic elements so page tests exercise page
+ * wiring without pulling the full theme runtime.
  *
  * Explicit props only: a `{...rest}` spread in the stub dropped
  * props.children inside the Solid dev transform (child vanished).

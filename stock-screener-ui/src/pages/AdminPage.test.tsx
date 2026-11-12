@@ -5,11 +5,10 @@ import "@testing-library/jest-dom/vitest";
 import AdminPage from "./AdminPage";
 import { setupBrowserMocks } from "../test-utils/setupBrowser";
 
-// @/ui's dynamic-tag layout primitives crash at runtime on this branch;
-// stub them with intrinsic elements (see src/pages/solidTestStubs.tsx).
-// @/ui's Tabs is also broken on this branch (calls createSignal without
-// importing it → ReferenceError on mount), so provide a minimal faithful
-// Tabs mock with the same compound API (Tabs / Tabs.Tab / Tabs.Panel).
+// The @/ui Box/Flex/... stubs from src/pages/solidTestStubs.tsx render as
+// intrinsic elements; page tests exercise page wiring, not the theme runtime.
+// Minimal faithful Tabs mock with the compound API
+// (Tabs / Tabs.Tab / Tabs.Panel) and the same testids.
 vi.mock("@/ui", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   const { uiLayoutStub } = await import("@/pages/solidTestStubs");

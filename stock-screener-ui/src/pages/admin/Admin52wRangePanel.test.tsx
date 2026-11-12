@@ -4,8 +4,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup } from "@solidjs/testing-library";
 import { Admin52wRangePanel } from "./Admin52wRangePanel";
 
-// @/ui's dynamic-tag layout primitives crash at runtime on this branch;
-// stub them with intrinsic elements (see src/pages/solidTestStubs.tsx).
+// The @/ui Box/Flex/... stubs from src/pages/solidTestStubs.tsx render as
+// intrinsic elements; page tests exercise page wiring, not the theme runtime.
 vi.mock("@/ui", async (importOriginal) => {
   const { uiLayoutStub } = await import("@/pages/solidTestStubs");
   return uiLayoutStub(await importOriginal<Record<string, unknown>>());

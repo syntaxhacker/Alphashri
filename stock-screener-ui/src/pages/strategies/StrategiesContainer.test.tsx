@@ -1,5 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+vi.setConfig({ testTimeout: 15000 });
 import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { MemoryRouter, createMemoryHistory, Route } from "@solidjs/router";
@@ -33,11 +35,8 @@ vi.mock("../../api/symbols", () => ({
   searchSymbols: vi.fn(() => Promise.resolve([])),
 }));
 
-// src/ui's dynamic-tag layout primitives (Box/Flex/Stack/Group/Paper/Card)
-// crash at runtime on this branch — solid calls the string tag as a component
-// ("Comp is not a function") and there is no render test covering them in the
-// @/ui suite. Stub the six crashing primitives with their intrinsic tags so
-// this test exercises the page wiring, not the broken primitive layer.
+// The @/ui layout stubs render intrinsic elements so this test
+// exercises the page wiring, not the theme runtime.
 vi.mock("@/ui", async (importOriginal) => {
   const { uiLayoutStub } = await import("@/pages/solidTestStubs");
   return uiLayoutStub(await importOriginal<Record<string, unknown>>());

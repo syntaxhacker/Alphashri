@@ -11,8 +11,8 @@ vi.mock("@tabler/icons-react", () => ({
 }));
 import { PatternsPage, type PatternsPageProps } from "./PatternsPage";
 
-// @/ui's Menu is broken on this branch (calls createSignal without importing
-// it), so stub the compound with bare pass-throughs.
+// Menu stub: bare pass-throughs with an onSelect-fired button; the suite
+// asserts page wiring, not Menu internals.
 vi.mock("@/ui", async (importOriginal) => {
   const { uiLayoutStub } = await import("@/pages/solidTestStubs");
   const stubbed = await uiLayoutStub(await importOriginal<Record<string, unknown>>());

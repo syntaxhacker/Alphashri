@@ -23,10 +23,10 @@ vi.mock("@/api/upstoxOptions", () => ({
   getFyersSymbol: vi.fn(),
 }));
 
-// @/ui's dynamic-tag layout primitives crash at runtime on this branch;
-// stub them with intrinsic elements (see src/pages/solidTestStubs.tsx).
-// @/ui's Popover is also broken on this branch (`uncontrolledOpen()` calls a
-// createSignal TUPLE), so stub it with a bare pass-through.
+// The @/ui Box/Flex/... stubs from src/pages/solidTestStubs.tsx render as
+// intrinsic elements; page tests exercise page wiring, not the theme runtime.
+// Popover is stubbed with a bare pass-through; no OrderFlow test opens the
+// View dropdown.
 vi.mock("@/ui", async (importOriginal) => {
   const { uiLayoutStub } = await import("@/pages/solidTestStubs");
   const actual = await importOriginal<Record<string, unknown>>();

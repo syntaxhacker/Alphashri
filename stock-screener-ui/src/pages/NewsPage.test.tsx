@@ -5,8 +5,8 @@ import "@testing-library/jest-dom/vitest";
 import NewsPage from "./NewsPage";
 import { setupBrowserMocks } from "../test-utils/setupBrowser";
 
-// @/ui's dynamic-tag layout primitives crash at runtime on this branch;
-// stub them with intrinsic elements (see src/pages/solidTestStubs.tsx).
+// The @/ui Box/Flex/... stubs from src/pages/solidTestStubs.tsx render as
+// intrinsic elements; page tests exercise page wiring, not the theme runtime.
 vi.mock("@/ui", async (importOriginal) => {
   const { uiLayoutStub } = await import("@/pages/solidTestStubs");
   return uiLayoutStub(await importOriginal<Record<string, unknown>>());
@@ -40,13 +40,13 @@ vi.mock("@solidjs/router", () => ({
 }));
 
 vi.mock("../components/news/NewsList", () => ({
-  NewsList: ({ onArticleClick, error }: any) => (
+  NewsList: (props: any) => (
     <div data-testid="news-list">
-      {error && <div data-testid="news-error">{error}</div>}
+      {props.error ? <div data-testid="news-error">{props.error}</div> : null}
       <div
         data-testid="news-item"
         onClick={() =>
-          onArticleClick({
+          props.onArticleClick?.({
             id: 1,
             title: "Test News Article",
             source: "TestSource",

@@ -1,4 +1,4 @@
-import { createEffect, createSignal, createMemo, onMount, onCleanup, Show } from "solid-js";
+import { createEffect, createSignal, createMemo, onMount, onCleanup, Show, For } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import {
   Alert,
@@ -446,7 +446,7 @@ export function OrderFlowPage() {
     <Box className="flex flex-1 min-h-0 flex-col" data-testid="orderflow-page">
       <ToolbarRow
         gap={8}
-        style={{ padding: "8px 16px", borderBottom: "1px solid var(--color-fin-border)" }}
+        style={{ padding: "8px 16px", "border-bottom": "1px solid var(--color-fin-border)" }}
         data-testid="orderflow-toolbar"
       >
         <Text size="sm" fw={600}>
@@ -470,17 +470,16 @@ export function OrderFlowPage() {
             </Button>
           </PopoverTarget>
           <PopoverDropdown>
-            <Stack gap={2} style={{ padding: 8, minWidth: 220 }}>
-              {VIEW_ITEMS.map((item) => (
+            <Stack gap={2} style={{ padding: 8, "min-width": 220 }}>
+              <For each={[...VIEW_ITEMS]}>{(item) => (
                 <Checkbox
-                  key={item.key}
                   size="sm"
                   label={item.label}
                   checked={view()[item.key]}
                   onChange={(e) => toggleView(item.key, e.currentTarget.checked)}
                   data-testid={`orderflow-view-${item.key}`}
                 />
-              ))}
+              )}</For>
             </Stack>
           </PopoverDropdown>
         </Popover>
@@ -526,7 +525,7 @@ export function OrderFlowPage() {
       <Show when={mode() === "replay"}>
         <ToolbarRow
           gap={8}
-          style={{ padding: "8px 16px", borderBottom: "1px solid var(--color-fin-border)" }}
+          style={{ padding: "8px 16px", "border-bottom": "1px solid var(--color-fin-border)" }}
           data-testid="orderflow-replay-row"
         >
           <Select
@@ -595,7 +594,7 @@ export function OrderFlowPage() {
       <Show when={mode() === "options"}>
         <ToolbarRow
           gap={8}
-          style={{ padding: "8px 16px", borderBottom: "1px solid var(--color-fin-border)" }}
+          style={{ padding: "8px 16px", "border-bottom": "1px solid var(--color-fin-border)" }}
           data-testid="orderflow-options-row"
         >
           <Select

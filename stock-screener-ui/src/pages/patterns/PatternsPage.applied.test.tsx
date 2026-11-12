@@ -13,13 +13,13 @@ import { PatternsPage, type PatternsPageProps } from "./PatternsPage";
 // the 5s default; the assertions are deterministic, so allow a slower machine.
 vi.setConfig({ testTimeout: 20_000 });
 
-// @/ui's dynamic-tag layout primitives crash at runtime on this branch;
-// stub them with intrinsic elements (see src/pages/solidTestStubs.tsx).
+// The @/ui Box/Flex/... stubs from src/pages/solidTestStubs.tsx render as
+// intrinsic elements; page tests exercise page wiring, not the theme runtime.
 vi.mock("@/ui", async (importOriginal) => {
   const { uiLayoutStub } = await import("@/pages/solidTestStubs");
   const stubbed = await uiLayoutStub(await importOriginal<Record<string, unknown>>());
-  // @/ui's Menu is broken on this branch (calls createSignal without
-  // importing it), so stub the compound with bare pass-throughs.
+  // Menu stub: bare pass-throughs with an onSelect-fired button; the
+  // suite asserts page wiring, not Menu internals.
   const passthrough = (props: any) => <div>{props.children}</div>;
   const Item = (props: any) => (
     <button
@@ -51,9 +51,8 @@ vi.mock("@/ui", async (importOriginal) => {
   };
 });
 
-// src/components/common/MembersDrawer.tsx is mid-edit (syntax-broken object
-// spread in the other agent's in-flight conversion); IndexMembersDrawer wraps
-// it. Mocking it here keeps this suite green until that file compiles again.
+// IndexMembersDrawer pulls its own data path; this suite asserts page
+// wiring and filter staging, not the members drawer — render nothing.
 vi.mock("@/components/patterns/IndexMembersDrawer", () => ({
   IndexMembersDrawer: () => null,
 }));

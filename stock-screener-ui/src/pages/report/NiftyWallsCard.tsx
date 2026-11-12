@@ -1,6 +1,7 @@
-import { memo, useEffect, useState, ReactNode } from "react";
-import { Box, Stack, Text, Button, Badge } from "@/ui";
-import { CompactPanel } from "@/components/common/compact";
+import { createEffect, createSignal, For, Show } from "solid-js";
+import type { JSX } from "solid-js";
+import { Text, Button, Badge } from "@/ui";
+import { LocalCompactPanel } from "./reportBits";
 import { Sparkline } from "@/components/common/Sparkline";
 import * as palette from "@/ui/palette";
 import type { WallsEvent, WallsPayload, WallsRow } from "@/api/reportNifty";
@@ -59,7 +60,7 @@ const WALLS_GRID_COLS = {
 
 function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <Box className="min-w-0 py-[2px]">
+    <div class="min-w-0 py-[2px]">
       <Text
         size="xs"
         span
@@ -89,7 +90,7 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
       >
         {value}
       </Text>
-    </Box>
+    </div>
   );
 }
 
@@ -124,11 +125,11 @@ function wallFuelColor(side: "CALL" | "PUT", row: WallsRow): string {
  *  row height as a live row, so the table never shrinks. */
 function WallPlaceholderRow({ side }: { side: "CALL" | "PUT" }) {
   return (
-    <Box
+    <div
       data-testid={`nifty-walls-${side.toLowerCase()}-placeholder`}
       data-placeholder="true"
       data-wall-row="true"
-      className="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] items-center pl-[8px]"
+      class="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] items-center pl-[8px]"
       style={{
         "column-gap": `${REPORT_PAD.xs}px`,
         "padding-top": `${REPORT_PAD.xs}px`,
@@ -138,7 +139,7 @@ function WallPlaceholderRow({ side }: { side: "CALL" | "PUT" }) {
         "border-left": "2px solid transparent",
       }}
     >
-      <Box className="flex flex-col gap-[4px] min-w-0" style={{ "padding-left": `${REPORT_PAD.xs}px` }}>
+      <div class="flex flex-col gap-[4px] min-w-0" style={{ "padding-left": `${REPORT_PAD.xs}px` }}>
         <Text
           size="xs"
           span
@@ -162,10 +163,9 @@ function WallPlaceholderRow({ side }: { side: "CALL" | "PUT" }) {
         >
           —
         </Text>
-      </Box>
-      {WALLS_HEADINGS.map((heading) => (
+      </div>
+      <For each={WALLS_HEADINGS}>{() => (
         <Text
-          key={heading}
           size="xs"
           span
           style={{
@@ -178,8 +178,8 @@ function WallPlaceholderRow({ side }: { side: "CALL" | "PUT" }) {
         >
           —
         </Text>
-      ))}
-    </Box>
+      )}</For>
+    </div>
   );
 }
 
@@ -195,9 +195,9 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
     ...Array.from({ length: placeholders }, () => null),
   ];
   return (
-    <Box data-testid={`nifty-walls-${sideKey}`} className="min-w-0">
-      <Box
-        className="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] border-b border-solid pb-[4px] mb-[4px]"
+    <div data-testid={`nifty-walls-${sideKey}`} class="min-w-0">
+      <div
+        class="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] border-b border-solid pb-[4px] mb-[4px]"
         style={{
           "column-gap": `${REPORT_PAD.xs}px`,
           "border-bottom": `1px solid ${palette.BORDER}`,
@@ -217,9 +217,8 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
         >
           {side}
         </Text>
-        {WALLS_HEADINGS.map((heading) => (
+        <For each={WALLS_HEADINGS}>{(heading) => (
           <Text
-            key={heading}
             size="xs"
             span
             title={heading === "NEW" ? "New OI since session open (old book → new book)" : undefined}
@@ -232,11 +231,11 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
           >
             {heading}
           </Text>
-        ))}
-      </Box>
-      {display.map((row, index) => {
+        )}</For>
+      </div>
+      <For each={display}>{(row) => {
         if (!row) {
-          return <WallPlaceholderRow key={`${side}-placeholder-${index}`} side={side} />;
+          return <WallPlaceholderRow side={side} />;
         }
         const view = wallErosionView(row, side);
         const nearest = Boolean(row.nearest);
@@ -256,10 +255,9 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
             ? `2px solid ${color}`
             : "2px solid transparent";
         return (
-          <Box
-            key={`${side}-${row.strike}`}
+          <div
             data-wall-row="true"
-            className="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] items-center pl-[8px]"
+            class="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] items-center pl-[8px]"
             style={{
               "column-gap": `${REPORT_PAD.xs}px`,
               "align-items": "center",
@@ -272,8 +270,8 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
               transition: "background-color 180ms ease",
             }}
           >
-            <Box className="flex flex-col gap-[4px] min-w-0" style={{ "padding-left": `${REPORT_PAD.xs}px` }}>
-              <Box className="flex items-baseline gap-[4px] min-w-0">
+            <div class="flex flex-col gap-[4px] min-w-0" style={{ "padding-left": `${REPORT_PAD.xs}px` }}>
+              <div class="flex items-baseline gap-[4px] min-w-0">
                 <Text
                   size="xs"
                   span
@@ -291,10 +289,10 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                 >
                   {fmtNum(row.strike)}
                 </Text>
-                {nearest && (
-                  <Box className="w-[3px] h-[3px] rounded-full shrink-0" style={{ "background-color": cellColor }} />
-                )}
-                {view.arrow !== "—" && (
+                <Show when={nearest}>
+                  <div class="w-[3px] h-[3px] rounded-full shrink-0" style={{ "background-color": cellColor }} />
+                </Show>
+                <Show when={view.arrow !== "—"}>
                   <Text
                     size="xs"
                     span
@@ -309,11 +307,11 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                   >
                     {view.arrow}
                   </Text>
-                )}
+                </Show>
                 <span style={{ "font-size": REPORT_FONT.micro, "margin-left": "3px", color: palette.TEXT_MUTED }}>
                   {wallCode(side === "CALL", wallSide(row.strike, spot), false)}
                 </span>
-              </Box>
+              </div>
               <Text
                 size="xs"
                 span
@@ -334,8 +332,8 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
               >
                 {flowSuffix}
               </Text>
-            </Box>
-            <Box
+            </div>
+            <div
               title={`Old ${fmtOI(row.oi_open)} → new ${fmtOI(row.oi)}`}
               style={{
                 position: "relative",
@@ -346,7 +344,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                 "justify-content": "flex-end",
               }}
             >
-              <Box
+              <div
                 style={{
                   position: "absolute",
                   left: 0,
@@ -357,7 +355,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                   overflow: "hidden",
                 }}
               >
-                <Box
+                <div
                   style={{
                     width: `${Math.min(100, (row.oi / maxOi) * 100)}%`,
                     height: "100%",
@@ -366,7 +364,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                     transition: "width 280ms cubic-bezier(.22,1,.36,1)",
                   }}
                 />
-              </Box>
+              </div>
               <Text
                 size="sm"
                 span
@@ -380,7 +378,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
               >
                 {fmtOI(row.oi)}
               </Text>
-            </Box>
+            </div>
             <Text
               size="sm"
               span
@@ -441,19 +439,19 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
             >
               {dist(row.distance_pct)}
             </Text>
-          </Box>
+          </div>
         );
-      })}
-    </Box>
+      }}</For>
+    </div>
   );
 }
 
-function SequenceLine({ events }: { events: WallsEvent[] }) {
-  const recent = events.slice(-3);
-  const hidden = events.length - recent.length;
-  const firstBreakAt = firstBreakEvent(events)?.at;
+function SequenceLine(props: { events: WallsEvent[] }) {
+  const recent = () => props.events.slice(-3);
+  const hidden = () => props.events.length - recent().length;
+  const firstBreakAt = () => firstBreakEvent(props.events)?.at;
   return (
-    <Box className="flex items-center gap-[8px] min-w-0 overflow-hidden" style={{ "margin-left": `${REPORT_PAD.sm}px` }}>
+    <div class="flex items-center gap-[8px] min-w-0 overflow-hidden" style={{ "margin-left": `${REPORT_PAD.sm}px` }}>
       <Text
         size="xs"
         span
@@ -467,19 +465,18 @@ function SequenceLine({ events }: { events: WallsEvent[] }) {
       >
         SEQ
       </Text>
-      {hidden > 0 && (
+      <Show when={hidden() > 0}>
         <Text size="xs" span style={{ color: palette.TEXT_MUTED, "flex-shrink": 0 }}>
-          +{hidden}
+          +{hidden()}
         </Text>
-      )}
-      {recent.map((event, index) => {
+      </Show>
+      <For each={recent()}>{(event) => {
         const isBreak = event.kind === "BREAK";
-        const isFirst = isBreak && event.at === firstBreakAt;
+        const isFirst = isBreak && event.at === firstBreakAt();
         return (
-          <Box
-            key={`${event.at}-${index}`}
+          <div
             data-wall-anim=""
-            className="flex items-center gap-[4px] shrink-0"
+            class="flex items-center gap-[4px] shrink-0"
             style={{
               display: "flex",
               "align-items": "center",
@@ -488,7 +485,7 @@ function SequenceLine({ events }: { events: WallsEvent[] }) {
               animation: "wall-event-in 160ms cubic-bezier(.22,1,.36,1)",
             }}
           >
-            <Box className="w-[4px] h-[4px] rounded-full shrink-0" style={{ "background-color": isBreak ? palette.NEGATIVE : palette.WARNING }} />
+            <div class="w-[4px] h-[4px] rounded-full shrink-0" style={{ "background-color": isBreak ? palette.NEGATIVE : palette.WARNING }} />
             <Text
               size="xs"
               span
@@ -512,21 +509,21 @@ function SequenceLine({ events }: { events: WallsEvent[] }) {
             >
               {isBreak ? (isFirst ? "BREAK" : "RE-BRK") : "TOUCH"}
             </Text>
-          </Box>
+          </div>
         );
-      })}
-    </Box>
+      }}</For>
+    </div>
   );
 }
 
-function MiniHistory({ walls }: { walls: WallsPayload }) {
-  const callValues = walls.history.map((point) => point.call_oi ?? null);
-  const putValues = walls.history.map((point) => point.put_oi ?? null);
-  const first = walls.history[0];
-  const last = walls.history[walls.history.length - 1];
+function MiniHistory(props: { walls: WallsPayload }) {
+  const callValues = () => props.walls.history.map((point) => point.call_oi ?? null);
+  const putValues = () => props.walls.history.map((point) => point.put_oi ?? null);
+  const first = () => props.walls.history[0];
+  const last = () => props.walls.history[props.walls.history.length - 1];
   return (
-    <Box className="min-w-0">
-      <Stack direction="row" className="items-center justify-between" style={{ "align-items": "center", "justify-content": "space-between" }}>
+    <div class="min-w-0">
+      <div class="flex items-center justify-between" style={{ "align-items": "center", "justify-content": "space-between" }}>
         <Text
           size="xs"
           span
@@ -538,13 +535,13 @@ function MiniHistory({ walls }: { walls: WallsPayload }) {
             "letter-spacing": REPORT_LETTER_SPACING.wide,
           }}
         >
-          TRACKED WALL {fmtNum(walls.call_wall.strike)} · LAST {walls.window_min}m
+          TRACKED WALL {fmtNum(props.walls.call_wall.strike)} · LAST {props.walls.window_min}m
         </Text>
         <Text size="xs" span style={{ color: palette.TEXT_MUTED }}>
-          {first?.t?.slice(11, 16)} → {last?.t?.slice(11, 16)}
+          {first()?.t?.slice(11, 16)} → {last()?.t?.slice(11, 16)}
         </Text>
-      </Stack>
-      <Stack direction="row" className="items-center justify-between" style={{ "align-items": "center", "justify-content": "space-between", "margin-top": `${REPORT_PAD.xs}px` }}>
+      </div>
+      <div class="flex items-center justify-between" style={{ "align-items": "center", "justify-content": "space-between", "margin-top": `${REPORT_PAD.xs}px` }}>
         <Text size="xs" span style={{ color: palette.TEXT_MUTED }}>call OI · 30m Δ</Text>
         <Text
           size="xs"
@@ -553,16 +550,14 @@ function MiniHistory({ walls }: { walls: WallsPayload }) {
           style={{
             "font-size": REPORT_FONT.xs,
             "font-weight": REPORT_FONT_WEIGHT.bold,
-            color: erosionColor(walls.tracked_call_erosion_30m),
+            color: erosionColor(props.walls.tracked_call_erosion_30m),
           }}
         >
-          {fmtPct(walls.tracked_call_erosion_30m)}
+          {fmtPct(props.walls.tracked_call_erosion_30m)}
         </Text>
-      </Stack>
-      <Box style={{ "& svg": { width: "100%", "height": "18px", "max-width": "420px" } }}>
-        <Sparkline values={callValues} width={420} height={18} color={palette.NEGATIVE} testId="walls-card-call-spark" animate responsive />
-      </Box>
-      <Stack direction="row" className="items-center justify-between" style={{ "align-items": "center", "justify-content": "space-between" }}>
+      </div>
+      <Sparkline values={callValues()} width={420} height={18} color={palette.NEGATIVE} testId="walls-card-call-spark" animate responsive />
+      <div class="flex items-center justify-between" style={{ "align-items": "center", "justify-content": "space-between" }}>
         <Text size="xs" span style={{ color: palette.TEXT_MUTED }}>put OI · 30m Δ</Text>
         <Text
           size="xs"
@@ -571,23 +566,21 @@ function MiniHistory({ walls }: { walls: WallsPayload }) {
           style={{
             "font-size": REPORT_FONT.xs,
             "font-weight": REPORT_FONT_WEIGHT.bold,
-            color: erosionColor(walls.tracked_put_build_30m),
+            color: erosionColor(props.walls.tracked_put_build_30m),
           }}
         >
-          {fmtPct(walls.tracked_put_build_30m)}
+          {fmtPct(props.walls.tracked_put_build_30m)}
         </Text>
-      </Stack>
-      <Box style={{ "& svg": { width: "100%", "height": "18px", "max-width": "420px" } }}>
-        <Sparkline values={putValues} width={420} height={18} color={palette.POSITIVE} testId="walls-card-put-spark" animate responsive />
-      </Box>
-    </Box>
+      </div>
+      <Sparkline values={putValues()} width={420} height={18} color={palette.POSITIVE} testId="walls-card-put-spark" animate responsive />
+    </div>
   );
 }
 
 /** Muted placeholder block used by the null-payload skeleton. */
 function SkeletonBar({ height, width = "100%" }: { height: number; width?: number | string }) {
   return (
-    <Box
+    <div
       style={{
         height: `${height}px`,
         width: typeof width === "number" ? `${width}px` : width,
@@ -602,19 +595,19 @@ function SkeletonBar({ height, width = "100%" }: { height: number; width?: numbe
  *  keeps the height of the live one. */
 function SkeletonStat() {
   return (
-    <Box className="min-w-0 py-[2px]">
+    <div class="min-w-0 py-[2px]">
       <SkeletonBar height={11} width="42%" />
       <SkeletonBar height={15} width="68%" />
-    </Box>
+    </div>
   );
 }
 
 /** The levels rows live inside this card in both states — dropping them on a
  *  null payload would change the card height by the levels band. */
-function WallsLevelsBlock({ levels }: { levels?: ReactNode }) {
+function WallsLevelsBlock({ levels }: { levels?: JSX.Element }) {
   if (!levels) return null;
   return (
-    <Box
+    <div
       style={{
         "border-top": `1px solid ${palette.BORDER}`,
         "padding-top": `${REPORT_PAD.sm}px`,
@@ -622,7 +615,7 @@ function WallsLevelsBlock({ levels }: { levels?: ReactNode }) {
       }}
     >
       {levels}
-    </Box>
+    </div>
   );
 }
 
@@ -637,9 +630,9 @@ function WallsLevelsBlock({ levels }: { levels?: ReactNode }) {
  *  never collapse below the live bands. */
 function WallsSkeleton({ emptyText }: { emptyText: string }) {
   return (
-    <Box
+    <div
       data-testid="nifty-walls-skeleton"
-      className="grid gap-[8px] p-[8px] items-start"
+      class="grid gap-[8px] p-[8px] items-start"
       style={{
         display: "grid",
         "grid-template-columns": WALLS_GRID_COLS.xs,
@@ -648,13 +641,13 @@ function WallsSkeleton({ emptyText }: { emptyText: string }) {
         "align-items": "start",
       }}
     >
-      <Box data-testid="nifty-walls-skeleton-strip" className="min-w-0">
-        <Stack direction="row" spacing={1} className="items-center flex-wrap" style={{ "align-items": "center", "flex-wrap": "wrap", "row-gap": `${REPORT_PAD.xs}px` }}>
+      <div data-testid="nifty-walls-skeleton-strip" class="min-w-0">
+        <div class="flex items-center flex-wrap gap-2" style={{ "align-items": "center", "flex-wrap": "wrap", "row-gap": `${REPORT_PAD.xs}px` }}>
           <SkeletonBar height={18} width={64} />
           <SkeletonBar height={12} width={46} />
           <SkeletonBar height={12} width={108} />
-        </Stack>
-        <Box
+        </div>
+        <div
           style={{
             display: "grid",
             "grid-template-columns": "1fr 1fr",
@@ -667,7 +660,7 @@ function WallsSkeleton({ emptyText }: { emptyText: string }) {
           <SkeletonStat />
           <SkeletonStat />
           <SkeletonStat />
-        </Box>
+        </div>
         <Text
           size="xs"
           span
@@ -679,12 +672,12 @@ function WallsSkeleton({ emptyText }: { emptyText: string }) {
         >
           {emptyText}
         </Text>
-      </Box>
+      </div>
 
       <WallTable side="CALL" rows={[]} spot={0} />
       <WallTable side="PUT" rows={[]} spot={0} />
 
-      <Box
+      <div
         data-testid="nifty-walls-skeleton-read"
         style={{
           "min-height": WALLS_RESERVED_H,
@@ -727,9 +720,9 @@ function WallsSkeleton({ emptyText }: { emptyText: string }) {
           SEQ
         </Text>
         <SkeletonBar height={10} width="60%" />
-      </Box>
+      </div>
 
-      <Box
+      <div
         data-testid="nifty-walls-skeleton-history"
         style={{
           "min-height": WALLS_RESERVED_H,
@@ -744,18 +737,12 @@ function WallsSkeleton({ emptyText }: { emptyText: string }) {
         <SkeletonBar height={18} />
         <SkeletonBar height={10} width="34%" />
         <SkeletonBar height={18} />
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }
 
-export function NiftyWallsCardInner({
-  walls,
-  onExpand,
-  onOpenDesk,
-  emptyText = "No walls data.",
-  levels,
-}: {
+export function NiftyWallsCardInner(props: {
   walls: WallsPayload | null;
   onExpand: () => void;
   /** Opens the deeper pressure desk (phase plane + selected-wall path). */
@@ -763,17 +750,20 @@ export function NiftyWallsCardInner({
   emptyText?: string;
   /** Optional dense levels rows (e.g. LevelsInPlayContent) rendered inside
    *  this same card, after the walls grid. */
-  levels?: ReactNode;
+  levels?: JSX.Element;
 }) {
-  const [dismissed, setDismissed] = useState<string | null>(null);
+  const walls = () => props.walls;
+  const { onExpand, onOpenDesk, emptyText = "No walls data.", levels } = props;
+  const [dismissed, setDismissed] = createSignal<string | null>(null);
 
   // One alert per wall per cooldown: the backend latches `alert.at` to the
   // first break of the run; localStorage makes the dismiss survive reloads
   // and suppresses a re-break inside the same 15-minute window.
-  useEffect(() => {
-    if (!walls?.alert) return;
-    const alert = walls.alert;
-    const key = `walls.alert.v1.${walls.symbol}.${walls.date}.${alert.wall}`;
+  createEffect(() => {
+    const currentWalls = walls();
+    if (!currentWalls?.alert) return;
+    const alert = currentWalls.alert;
+    const key = `walls()!.alert.v1.${currentWalls.symbol}.${currentWalls.date}.${alert.wall}`;
     try {
       const stored = window.localStorage.getItem(key);
       if (!stored) return;
@@ -790,31 +780,33 @@ export function NiftyWallsCardInner({
     } catch {
       /* localStorage can be blocked; the in-memory dismiss still works */
     }
-  }, [walls?.alert?.at, walls?.alert?.wall, walls?.symbol, walls?.date]);
+  });
 
-  if (!walls) {
+  if (!walls()) {
     return (
-      <CompactPanel title="WALLS" testId="nifty-walls-card" padded={false}>
+      <LocalCompactPanel title="WALLS" testId="nifty-walls-card" flush>
         <WallsSkeleton emptyText={emptyText} />
         <WallsLevelsBlock levels={levels} />
-      </CompactPanel>
+      </LocalCompactPanel>
     );
   }
-  const stateColor = STATE_COLOR[walls.state] ?? palette.TEXT_MUTED;
-  const alert = walls.alert;
-  const showAlert = Boolean(alert && walls.alert_eligible && dismissed !== alert.at);
-  const events = walls.events ?? [];
-  const firstBreak = firstBreakEvent(events) ?? null;
-  const lastBreak = lastBreakEvent(events) ?? null;
-  const breakEvent = firstBreak ?? lastBreak;
-  const dteLabel = formatDte(walls.dte);
-  const pinColor =
-    Math.abs(walls.pin_distance_pct) <= 0.15 ? palette.PRIMARY : palette.TEXT_MUTED;
+  const stateColor = () => STATE_COLOR[walls()!.state] ?? palette.TEXT_MUTED;
+  const alert = () => walls()!.alert;
+  const showAlert = () => Boolean(alert() && walls()!.alert_eligible && dismissed() !== alert()!.at);
+  const events = () => walls()!.events ?? [];
+  const firstBreak = () => firstBreakEvent(events()) ?? null;
+  const lastBreak = () => lastBreakEvent(events()) ?? null;
+  const breakEvent = () => firstBreak() ?? lastBreak();
+  const dteLabel = () => formatDte(walls()!.dte);
+  const pinColor = () =>
+    Math.abs(walls()!.pin_distance_pct) <= 0.15 ? palette.PRIMARY : palette.TEXT_MUTED;
   const dismiss = (at: string, wall: number) => {
     setDismissed(at);
+    const currentWalls = walls();
+    if (!currentWalls) return;
     try {
       window.localStorage.setItem(
-        `walls.alert.v1.${walls.symbol}.${walls.date}.${wall}`,
+        `walls()!.alert.v1.${currentWalls.symbol}.${currentWalls.date}.${wall}`,
         at,
       );
     } catch {
@@ -823,12 +815,12 @@ export function NiftyWallsCardInner({
   };
 
   return (
-    <CompactPanel
+    <LocalCompactPanel
       title="WALLS"
       testId="nifty-walls-card"
       padded={false}
       action={
-        <Stack direction="row" spacing={0.5} className="items-center" style={{ "align-items": "center" }}>
+        <div class="flex items-center gap-1">
           {onOpenDesk ? (
             <Button
               size="xs"
@@ -862,12 +854,12 @@ export function NiftyWallsCardInner({
           >
             EXPAND
           </Button>
-        </Stack>
+        </div>
       }
       style={{ "border-top": "none" }}
     >
-      <Box
-        className="grid items-start"
+      <div
+        class="grid items-start"
         style={{
           display: "grid",
           "grid-template-columns": WALLS_GRID_COLS.xs,
@@ -876,28 +868,28 @@ export function NiftyWallsCardInner({
           "align-items": "start",
         }}
       >
-        <Box className="min-w-0">
-          <Stack direction="row" spacing={1} className="items-center flex-wrap" style={{ "align-items": "center", "flex-wrap": "wrap", "row-gap": `${REPORT_PAD.xs}px` }}>
+        <div class="min-w-0">
+          <div class="flex items-center flex-wrap gap-2" style={{ "align-items": "center", "flex-wrap": "wrap", "row-gap": `${REPORT_PAD.xs}px` }}>
             <Badge
               size="xs"
               variant="outline"
-              color={stateColor}
+              color={stateColor()}
               className="min-w-0"
               style={{
                 "height": "18px",
                 "font-size": REPORT_FONT.xs,
                 "font-weight": REPORT_FONT_WEIGHT.extrabold,
                 "letter-spacing": REPORT_LETTER_SPACING.wide,
-                color: stateColor,
+                color: stateColor(),
                 "background-color": "transparent",
-                border: `1px solid ${stateColor}`,
+                border: `1px solid ${stateColor()}`,
                 "padding-left": `${REPORT_PAD.xs}px`,
                 "padding-right": `${REPORT_PAD.xs}px`,
               }}
             >
-              {walls.state.replace("_", " ")}
+              {walls()!.state.replace("_", " ")}
             </Badge>
-            {dteLabel && (
+            {dteLabel() && (
               <Text
                 size="xs"
                 span
@@ -905,11 +897,11 @@ export function NiftyWallsCardInner({
                 style={{
                   "font-size": REPORT_FONT.xs,
                   "font-weight": REPORT_FONT_WEIGHT.bold,
-                  color: walls.expiry_day ? palette.WARNING : palette.TEXT_MUTED,
+                  color: walls()!.expiry_day ? palette.WARNING : palette.TEXT_MUTED,
                   "white-space": "nowrap",
                 }}
               >
-                {dteLabel}
+                {dteLabel()}
               </Text>
             )}
             <Text
@@ -921,9 +913,9 @@ export function NiftyWallsCardInner({
                 "white-space": "nowrap",
               }}
             >
-              {walls.expiry ?? "—"} · tape {walls.freshness.last_t.slice(11, 16)}
+              {walls()!.expiry ?? "—"} · tape {walls()!.freshness.last_t.slice(11, 16)}
             </Text>
-            {walls.freshness.stale && (
+            {walls()!.freshness.stale && (
               <Badge
                 size="xs"
                 variant="outline"
@@ -942,9 +934,9 @@ export function NiftyWallsCardInner({
                 STALE
               </Badge>
             )}
-          </Stack>
+          </div>
 
-          <Box
+          <div
             style={{
               display: "grid",
               "grid-template-columns": "1fr 1fr",
@@ -953,26 +945,26 @@ export function NiftyWallsCardInner({
               "margin-top": `${REPORT_PAD.sm}px`,
             }}
           >
-            <Stat label="SPOT" value={fmtNum(walls.spot, 2)} />
-            <Stat label="MAX PAIN" value={fmtNum(walls.max_pain)} />
+            <Stat label="SPOT" value={fmtNum(walls()!.spot, 2)} />
+            <Stat label="MAX PAIN" value={fmtNum(walls()!.max_pain)} />
             <Stat
               label="PIN"
-              value={`${walls.pin_distance_pts > 0 ? "+" : ""}${fmtNum(walls.pin_distance_pts, 0)} (${walls.pin_distance_pct.toFixed(2)}%)`}
-              color={pinColor}
+              value={`${walls()!.pin_distance_pts > 0 ? "+" : ""}${fmtNum(walls()!.pin_distance_pts, 0)} (${walls()!.pin_distance_pct.toFixed(2)}%)`}
+              color={pinColor()}
             />
             <Stat
               label="GEX"
-              value={walls.gex_degraded ? "n/a" : fmtNum(walls.net_gex, 1)}
-              color={walls.gex_degraded ? palette.TEXT_MUTED : palette.TEXT_COLOR}
+              value={walls()!.gex_degraded ? "n/a" : fmtNum(walls()!.net_gex, 1)}
+              color={walls()!.gex_degraded ? palette.TEXT_MUTED : palette.TEXT_COLOR}
             />
-          </Box>
+          </div>
 
-        </Box>
+        </div>
 
-        <WallTable side="CALL" rows={walls.calls} spot={walls.spot} />
-        <WallTable side="PUT" rows={walls.puts} spot={walls.spot} />
+        <WallTable side="CALL" rows={walls()!.calls} spot={walls()!.spot} />
+        <WallTable side="PUT" rows={walls()!.puts} spot={walls()!.spot} />
 
-        <Box
+        <div
           style={{
             "min-width": 0,
             display: "grid",
@@ -980,9 +972,9 @@ export function NiftyWallsCardInner({
             gap: `${REPORT_PAD.md}px`,
           }}
         >
-          <Box style={{ "min-width": 0, display: "flex", "flex-direction": "column", gap: `${REPORT_PAD.sm}px` }}>
-            {showAlert && alert ? (
-              <Box
+          <div style={{ "min-width": 0, display: "flex", "flex-direction": "column", gap: `${REPORT_PAD.sm}px` }}>
+            {showAlert() && alert() ? (
+              <div
                 data-testid="nifty-walls-alert"
                 data-wall-anim=""
                 style={{
@@ -994,7 +986,7 @@ export function NiftyWallsCardInner({
                   animation: "wall-alert-in 180ms cubic-bezier(.22,1,.36,1)",
                 }}
               >
-                <Stack direction="row" spacing={1} className="items-center justify-between" style={{ "align-items": "center", "justify-content": "space-between", gap: `${REPORT_PAD.sm}px` }}>
+                <div class="flex items-center justify-between gap-2" style={{ "align-items": "center", "justify-content": "space-between", gap: `${REPORT_PAD.sm}px` }}>
                   <Text
                     size="xs"
                     span
@@ -1008,12 +1000,12 @@ export function NiftyWallsCardInner({
                       "text-overflow": "ellipsis",
                     }}
                   >
-                    WALL BREAK · {fmtNum(alert.wall)} · {fmtNum(alert.spot, 1)}
+                    WALL BREAK · {fmtNum(alert()!.wall)} · {fmtNum(alert()!.spot, 1)}
                   </Text>
                   <Button
                     size="xs"
                     variant="text"
-                    onClick={() => dismiss(alert.at, alert.wall)}
+                    onClick={() => dismiss(alert()!.at, alert()!.wall)}
                     className="min-w-0 shrink-0"
                     style={{
                       "min-width": 0,
@@ -1027,7 +1019,7 @@ export function NiftyWallsCardInner({
                   >
                     dismiss
                   </Button>
-                </Stack>
+                </div>
                 <Text
                   size="xs"
                   span
@@ -1039,10 +1031,10 @@ export function NiftyWallsCardInner({
                 >
                   call {fmtPct(alert.erosion_30m)} · put {fmtPct(alert.put_build_30m)} · {alert.at.slice(11, 19)}
                 </Text>
-              </Box>
-            ) : breakEvent ? (
-              <Box style={{ "padding-left": `${REPORT_PAD.sm}px`, "border-left": `2px solid ${palette.NEGATIVE}`, display: "flex", "flex-direction": "column", gap: `${REPORT_PAD.xs}px` }}>
-                <Stack direction="row" spacing={1} className="items-center flex-wrap" style={{ "align-items": "center", "flex-wrap": "wrap", "row-gap": `${REPORT_PAD.xs}px` }}>
+              </div>
+            ) : breakEvent() ? (
+              <div style={{ "padding-left": `${REPORT_PAD.sm}px`, "border-left": `2px solid ${palette.NEGATIVE}`, display: "flex", "flex-direction": "column", gap: `${REPORT_PAD.xs}px` }}>
+                <div class="flex items-center flex-wrap gap-2" style={{ "align-items": "center", "flex-wrap": "wrap", "row-gap": `${REPORT_PAD.xs}px` }}>
                   <Text
                     size="xs"
                     span
@@ -1068,7 +1060,7 @@ export function NiftyWallsCardInner({
                       "font-variant-numeric": "tabular-nums",
                     }}
                   >
-                    {breakEvent.at.slice(11, 19)} · {fmtNum(breakEvent.wall)}
+                    {breakEvent().at.slice(11, 19)} · {fmtNum(breakEvent().wall)}
                   </Text>
                   <Text
                     size="xs"
@@ -1078,11 +1070,11 @@ export function NiftyWallsCardInner({
                       color: palette.TEXT_MUTED,
                     }}
                   >
-                    call {fmtPct(breakEvent.erosion_30m)} · put {fmtPct(breakEvent.put_build_30m)}
+                    call {fmtPct(breakEvent().erosion_30m)} · put {fmtPct(breakEvent().put_build_30m)}
                   </Text>
-                </Stack>
-                {lastBreak && lastBreak.at !== breakEvent.at && (
-                  <Stack direction="row" spacing={1} className="items-center flex-wrap" style={{ "align-items": "center", "flex-wrap": "wrap", "row-gap": `${REPORT_PAD.xs}px` }}>
+                </div>
+                {lastBreak() && lastBreak().at !== breakEvent().at && (
+                  <div class="flex items-center flex-wrap gap-2" style={{ "align-items": "center", "flex-wrap": "wrap", "row-gap": `${REPORT_PAD.xs}px` }}>
                     <Text
                       size="xs"
                       span
@@ -1108,7 +1100,7 @@ export function NiftyWallsCardInner({
                         "font-variant-numeric": "tabular-nums",
                       }}
                     >
-                      {lastBreak.at.slice(11, 19)} · {fmtNum(lastBreak.wall)}
+                      {lastBreak().at.slice(11, 19)} · {fmtNum(lastBreak().wall)}
                     </Text>
                     <Text
                       size="xs"
@@ -1118,12 +1110,12 @@ export function NiftyWallsCardInner({
                         color: palette.TEXT_MUTED,
                       }}
                     >
-                      call {fmtPct(lastBreak.erosion_30m)} · put {fmtPct(lastBreak.put_build_30m)}
+                      call {fmtPct(lastBreak().erosion_30m)} · put {fmtPct(lastBreak().put_build_30m)}
                     </Text>
-                  </Stack>
+                  </div>
                 )}
-              </Box>
-            ) : walls.expiry_day ? (
+              </div>
+            ) : walls()!.expiry_day ? (
               <Text
                 size="xs"
                 span
@@ -1137,9 +1129,9 @@ export function NiftyWallsCardInner({
               </Text>
             ) : null}
             <SequenceLine events={events} />
-          </Box>
+          </div>
 
-          <Box style={{ "min-width": 0, "border-left": `1px solid ${palette.BORDER}`, "padding-left": `${REPORT_PAD.sm}px` }}>
+          <div style={{ "min-width": 0, "border-left": `1px solid ${palette.BORDER}`, "padding-left": `${REPORT_PAD.sm}px` }}>
             <Text
               size="xs"
               span
@@ -1163,7 +1155,7 @@ export function NiftyWallsCardInner({
                 "margin-top": `${REPORT_PAD.xs}px`,
               }}
             >
-              {walls.reasons.slice(0, 4).join(" · ")}
+              {walls()!.reasons.slice(0, 4).join(" · ")}
             </Text>
             <Text
               size="xs"
@@ -1175,19 +1167,16 @@ export function NiftyWallsCardInner({
                 "margin-top": `${REPORT_PAD.sm}px`,
               }}
             >
-              {walls.expiry_day ? "break = erosion + put floor" : "Non-expiry: positioning, not gamma"}
+              {walls()!.expiry_day ? "break = erosion + put floor" : "Non-expiry: positioning, not gamma"}
             </Text>
-          </Box>
-        </Box>
+          </div>
+        </div>
 
-        <MiniHistory walls={walls} />
-      </Box>
+        <MiniHistory walls={walls()!} />
+      </div>
       <WallsLevelsBlock levels={levels} />
-    </CompactPanel>
+    </LocalCompactPanel>
   );
 }
 
-/** Memoised: the report panel re-renders on every ~1 s spot tick, and this
- *  card's inputs (`walls` object, stable callbacks) only change per poll. */
-export const NiftyWallsCard = memo(NiftyWallsCardInner);
-NiftyWallsCard.displayName = "NiftyWallsCard";
+export const NiftyWallsCard = NiftyWallsCardInner;

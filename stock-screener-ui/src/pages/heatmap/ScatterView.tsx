@@ -77,8 +77,8 @@ export function ScatterView(props: ScatterViewProps) {
             show: true,
             formatter: (params: any) => params.data?.symbol || "",
             position: "top",
-            fontSize: 11,
-            fontWeight: "bold",
+            "font-size": 11,
+            "font-weight": "bold",
             color: tooltipText(),
           },
         },
@@ -86,7 +86,7 @@ export function ScatterView(props: ScatterViewProps) {
     });
 
     return {
-      backgroundColor: "transparent",
+      "background-color": "transparent",
       tooltip: {
         trigger: "item",
         formatter: (params: any) => {
@@ -103,8 +103,8 @@ export function ScatterView(props: ScatterViewProps) {
             `</div>`,
           ].join("\n");
         },
-        backgroundColor: tooltipBg(),
-        borderColor: isDark() ? TOOLTIP_DARK_BORDER : TOOLTIP_LIGHT_BORDER,
+        "background-color": tooltipBg(),
+        "border-color": isDark() ? TOOLTIP_DARK_BORDER : TOOLTIP_LIGHT_BORDER,
         textStyle: { color: tooltipText() },
       },
       legend: {
@@ -112,7 +112,7 @@ export function ScatterView(props: ScatterViewProps) {
         orient: "vertical",
         right: 10,
         top: 40,
-        textStyle: { color: tooltipText(), fontSize: 10 },
+        textStyle: { color: tooltipText(), "font-size": 10 },
         pageTextStyle: { color: tooltipText() },
       },
       grid: {
@@ -126,7 +126,7 @@ export function ScatterView(props: ScatterViewProps) {
         name: metricXLabel(),
         nameLocation: "center",
         nameGap: 30,
-        nameTextStyle: { fontSize: 12, fontWeight: "bold", color: tooltipText() },
+        nameTextStyle: { "font-size": 12, "font-weight": "bold", color: tooltipText() },
         axisLabel: { show: false },
         axisLine: { lineStyle: { color: axisLineColor() } },
         splitLine: { lineStyle: { color: splitLineColor() } },
@@ -136,7 +136,7 @@ export function ScatterView(props: ScatterViewProps) {
         name: metricYLabel(),
         nameLocation: "center",
         nameGap: 40,
-        nameTextStyle: { fontSize: 12, fontWeight: "bold", color: tooltipText() },
+        nameTextStyle: { "font-size": 12, "font-weight": "bold", color: tooltipText() },
         axisLabel: { show: false },
         axisLine: { lineStyle: { color: axisLineColor() } },
         splitLine: { lineStyle: { color: splitLineColor() } },

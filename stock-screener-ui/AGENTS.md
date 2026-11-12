@@ -609,6 +609,13 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
   rebuilt from the local instrument cache (`upstox_trader/config_and_utils/nse_instruments.json` →
   contract keys, lot sizes, expiries) + the historical-candle API (yesterday's ATM close → implied
   IV → re-price at today's spot).
+- **Trend-strength battery**: `scripts/trend_strength.py --names SBIN,ICICIBANK,IRFC` → ATR (₹/%,
+  expansion vs 60d median), Wilder ADX + DI spread, Kaufman ER20, 40-day regression R², and
+  **move-in-ATR** (today's net displacement in ATR units). **ADX alone lies** — it reads the
+  *previous* leg (IRFC printed ADX 29 while below a falling 200-DMA with ER 0.20); read it with the
+  DI spread, ER, R² and move-in-ATR. Companion carry test: breakeven stock move =
+  `(theta × days + vega × IV-gap × bleed) / delta` — typically 0.05–0.15 ATR/day for an 11-DTE ATM
+  call, but expensive when you pay a big vol premium (use a spread, not a naked put).
 - Tests: `.venv/bin/python -m pytest .prime/agent/skills/position-probability/tests -q` (15, offline).
 
 ## Known Issues / Deferred

@@ -1,16 +1,16 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
+import { For } from "solid-js";
 import "@testing-library/jest-dom/vitest";
 import { HeatmapPage } from "./HeatmapPage";
 import { fetchHeatmapData, fetchHeatmapSectors } from "../../api/heatmap";
 import { UIProvider } from "@/ui";
 
-// @/ui's dynamic-tag layout primitives crash at runtime on this branch;
-// stub them with intrinsic elements (see src/pages/solidTestStubs.tsx).
-// @/ui's searchable Select is broken on this branch too (SearchableSelect
-// calls createSignal without importing it), so swap in a minimal Select mock
-// with the same value/onChange-onInput API.
+// The @/ui Box/Flex/... stubs from src/pages/solidTestStubs.tsx render as
+// intrinsic elements; page tests exercise page wiring, not the theme runtime.
+// Minimal native-select stub kept from before the @/ui Select repair;
+// same value/onChange-onInput API as the real component.
 vi.mock("@/ui", async (importOriginal) => {
   const { uiLayoutStub } = await import("@/pages/solidTestStubs");
   const actual = await importOriginal<Record<string, unknown>>();
@@ -26,9 +26,7 @@ vi.mock("@/ui", async (importOriginal) => {
       }}
     >
       <option value="">{props.placeholder ?? "Select"}</option>
-      {(props.data ?? []).map((o: any) => (
-        <option value={o.value}>{o.label}</option>
-      ))}
+      <For each={props.data ?? []}>{(o: any) => <option value={o.value}>{o.label}</option>}</For>
     </select>
   );
   return { ...stubbed, Select };
@@ -39,11 +37,8 @@ vi.mock("./EChart", () => ({
   EChart: () => null,
 }));
 
-// src/components/heatmap/stockTreemap.ts is broken on this branch — commit
-// 17edb93d "repaired" `const borderColor = ...` into `const ["border-color"]
-// = ...`, which is a syntax error (and the borderColor references at
-// lines 181/188/195 are left undefined). Mock the module so this test
-// exercises HeatmapPage wiring instead of the syntax-broken file.
+// stockTreemap is mocked: this suite exercises HeatmapPage wiring, not the
+// treemap option builder (and avoids pulling echarts).
 vi.mock("../../components/heatmap/stockTreemap", () => ({
   buildStockTreemapOption: () => ({ series: [] }),
   getStockMetricRange: () => ({ min: 0, max: 1 }),

@@ -55,7 +55,7 @@ export function TopBottomView(props: TopBottomViewProps) {
       accessorKey: "name",
       meta: { align: "left" },
       cell: ({ row }) => (
-        <Box className="flex items-center justify-start"><Text size="xs" className="overflow-hidden text-ellipsis whitespace-nowrap" style={{ maxWidth: 160 }}>{row.original.name}</Text></Box>
+        <Box className="flex items-center justify-start"><Text size="xs" className="overflow-hidden text-ellipsis whitespace-nowrap" style={{ "max-width": 160 }}>{row.original.name}</Text></Box>
       ),
     },
     {
@@ -69,7 +69,7 @@ export function TopBottomView(props: TopBottomViewProps) {
         const tc = props.getMetricTextColor(val, minAll(), maxAll());
         return (
           <Box className="flex items-center justify-end">
-            <Box className={`flex items-center justify-center px-1 rounded font-bold text-[11px] ${MONO}`} style={{ backgroundColor: bg, color: tc }}>
+            <Box className={`flex items-center justify-center px-1 rounded font-bold text-[11px] ${MONO}`} style={{ "background-color": bg, color: tc }}>
               {fmt()(val)}
             </Box>
           </Box>
@@ -91,7 +91,7 @@ export function TopBottomView(props: TopBottomViewProps) {
       accessorKey: "sector",
       meta: { align: "left" },
       cell: ({ row }) => (
-        <Box className="flex items-center justify-start"><Text size="xs" className="overflow-hidden text-ellipsis whitespace-nowrap" style={{ maxWidth: 120 }}>{row.original.sector}</Text></Box>
+        <Box className="flex items-center justify-start"><Text size="xs" className="overflow-hidden text-ellipsis whitespace-nowrap" style={{ "max-width": 120 }}>{row.original.sector}</Text></Box>
       ),
     },
   ]);

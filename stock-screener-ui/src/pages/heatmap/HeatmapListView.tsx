@@ -40,7 +40,7 @@ export function HeatmapListView(props: Props) {
         const tc = getMetricTextColor(val, props.metricMin, props.metricMax);
         return (
           <Box className="flex items-center justify-end gap-2 p-2">
-            <Box className={`flex items-center justify-center px-2 rounded font-bold text-[12px] ${MONO}`} style={{ backgroundColor: bg, color: tc }}>
+            <Box className={`flex items-center justify-center px-2 rounded font-bold text-[12px] ${MONO}`} style={{ "background-color": bg, color: tc }}>
               {props.activeMetric.fmt(val)}
             </Box>
           </Box>

@@ -25,7 +25,22 @@ function optionsFromChildren(children: unknown): SelectOption[] {
   const walk = (n: unknown) => {
     if (Array.isArray(n)) { n.forEach(walk); return; }
     if (!n || typeof n !== "object") return;
-    const el = n as { type?: unknown; props?: { value?: unknown; disabled?: boolean; children?: unknown } };
+
+    // In Solid, `props.children` evaluates to real DOM nodes: a <select> built
+    // from <option> children hands back HTMLOptionElements, not React-style
+    // {type, props} vnodes. Reading only the vnode shape found nothing, so every
+    // children-driven select rendered "No options".
+    if (typeof Element !== "undefined" && n instanceof Element) {
+      if (n.tagName === "OPTION") {
+        const opt = n as HTMLOptionElement;
+        out.push({ value: opt.value, label: opt.textContent ?? "", disabled: opt.disabled });
+        return;
+      }
+      n.childNodes.forEach(walk);
+      return;
+    }
+
+    const el = n as { props?: { value?: unknown; disabled?: boolean; children?: unknown } };
     if (el.props && el.props.value !== undefined) {
       out.push({ value: String(el.props.value), label: textOf(el.props.children), disabled: Boolean(el.props.disabled) });
     }
