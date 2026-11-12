@@ -14,8 +14,7 @@ afterEach(() => {
 
 describe("ReplayPositions", () => {
   it("returns null when positions array is empty", () => {
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayPositions positions={[]} />
       </UIProvider>,
     );
@@ -27,8 +26,7 @@ describe("ReplayPositions", () => {
       id: 1, symbol: "TCS", strategy: "ORB", side: "LONG",
       entry_price: 100, sl: 90, tp: 110, entry_time: "09:15", quantity: 100,
     }];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayPositions positions={positions} />
       </UIProvider>,
     );
@@ -40,8 +38,7 @@ describe("ReplayPositions", () => {
       { id: 1, symbol: "TCS", strategy: "ORB", side: "LONG", entry_price: 100, sl: 90, tp: 110, entry_time: "09:15", quantity: 100 },
       { id: 2, symbol: "INFY", strategy: "ORB", side: "SHORT", entry_price: 200, sl: 210, tp: 190, entry_time: "09:20", quantity: 50 },
     ];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayPositions positions={positions} />
       </UIProvider>,
     );
@@ -53,8 +50,7 @@ describe("ReplayPositions", () => {
       id: 1, symbol: "TCS", strategy: "ORB", side: "LONG",
       entry_price: 100, sl: 90, tp: 110, entry_time: "09:15", quantity: 100,
     }];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayPositions positions={positions} />
       </UIProvider>,
     );
@@ -73,8 +69,7 @@ describe("ReplayPositions", () => {
       { id: 1, symbol: "TCS", strategy: "ORB", side: "LONG", entry_price: 100.5, sl: 90, tp: 110, entry_time: "09:15", quantity: 100 },
       { id: 2, symbol: "INFY", strategy: "52W", side: "SHORT", entry_price: 200, sl: 210, tp: 190, entry_time: "09:20", quantity: 50 },
     ];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayPositions positions={positions} />
       </UIProvider>,
     );
@@ -89,8 +84,7 @@ describe("ReplayPositions", () => {
       { id: 1, symbol: "TCS", strategy: "ORB", side: "LONG", entry_price: 100, sl: 90, tp: 110, entry_time: "09:15", quantity: 100 },
       { id: 2, symbol: "INFY", strategy: "ORB", side: "SHORT", entry_price: 200, sl: 210, tp: 190, entry_time: "09:20", quantity: 50 },
     ];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayPositions positions={positions} />
       </UIProvider>,
     );
@@ -104,8 +98,7 @@ describe("ReplayPositions", () => {
     const positions: ReplayOpenPosition[] = [
       { id: 1, symbol: "TCS", strategy: "ORB", side: "LONG", entry_price: 100, sl: 90, tp: 110, entry_time: "09:15", quantity: 100 },
     ];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayPositions positions={positions} />
       </UIProvider>,
     );
@@ -116,8 +109,7 @@ describe("ReplayPositions", () => {
     const positions: ReplayOpenPosition[] = [
       { id: 1, symbol: "TCS", strategy: "ORB", side: "LONG", entry_price: 100.5, sl: 90, tp: 110, entry_time: "09:15", quantity: 100 },
     ];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayPositions positions={positions} />
       </UIProvider>,
     );
@@ -128,8 +120,7 @@ describe("ReplayPositions", () => {
     const positions: ReplayOpenPosition[] = [
       { id: 1, symbol: "TCS", strategy: "ORB", side: "LONG", entry_price: 100, sl: 90.5, tp: 110, entry_time: "09:15", quantity: 100 },
     ];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayPositions positions={positions} />
       </UIProvider>,
     );
@@ -142,8 +133,7 @@ describe("ReplayPositions", () => {
     const positions: ReplayOpenPosition[] = [
       { id: 1, symbol: "TCS", strategy: "ORB", side: "LONG", entry_price: 100, sl: 90, tp: 110.5, entry_time: "09:15", quantity: 100 },
     ];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayPositions positions={positions} />
       </UIProvider>,
     );
@@ -156,8 +146,7 @@ describe("ReplayPositions", () => {
     const positions: ReplayOpenPosition[] = [
       { id: 1, symbol: "TCS", strategy: "ORB", side: "LONG", entry_price: 100, sl: 90, tp: 110, entry_time: "09:15", quantity: 100 },
     ];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayPositions positions={positions} />
       </UIProvider>,
     );
@@ -168,8 +157,7 @@ describe("ReplayPositions", () => {
     const positions: ReplayOpenPosition[] = [
       { id: 1, symbol: "TCS", strategy: "ORB", side: "LONG", entry_price: 100, sl: 90, tp: 110, entry_time: "09:15", quantity: 100 },
     ];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayPositions positions={positions} />
       </UIProvider>,
     );
@@ -181,8 +169,7 @@ describe("ReplayPositions", () => {
       { id: 1, symbol: "TCS", strategy: "ORB", side: "LONG", entry_price: 100, sl: 90, tp: 110, entry_time: "09:15", quantity: 100 },
       { id: 2, symbol: "TCS", strategy: "52W", side: "SHORT", entry_price: 200, sl: 210, tp: 190, entry_time: "09:20", quantity: 50 },
     ];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayPositions positions={positions} />
       </UIProvider>,
     );

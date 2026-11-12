@@ -1,6 +1,5 @@
 import { For, createEffect, createMemo, createSignal } from "solid-js";
-import { Box, Paper } from "./primitives";
-import { ScrollArea, useDensity } from "@/ui";
+import { ScrollArea, useDensity, Box, Paper } from "@/ui";
 import { InlineLoader } from "../common/states";
 import * as palette from "@/ui/palette";
 import type { CSSProperties, JSX } from "solid-js";
@@ -207,18 +206,20 @@ export function TanStackTable<T>(props: Props<T>) {
     setExpandedRows((prev) => ({ ...prev, [k]: !isRowExpanded(row, index) }));
   };
 
-  const hasSizedColumns = visibleColumns().some((col) => {
-    const w = getColumnWidth(col);
-    return w !== undefined && w !== 0;
-  });
-  const colCount = visibleColumns().length;
-  const showLoading = props.loading && props.data.length === 0;
-  const showEmpty = !props.loading && props.data.length === 0;
+  const hasSizedColumns = createMemo(() =>
+    visibleColumns().some((col) => {
+      const w = getColumnWidth(col);
+      return w !== undefined && w !== 0;
+    }),
+  );
+  const colCount = createMemo(() => visibleColumns().length);
+  const showLoading = () => props.loading === true && props.data.length === 0;
+  const showEmpty = () => !props.loading && props.data.length === 0;
 
   const tableStyle: CSSProperties = {
     width: "100%",
-    tableLayout: hasSizedColumns ? "fixed" : "auto",
-    minWidth: props.minTableWidth ?? Math.max(640, colCount * 96),
+    "table-layout": hasSizedColumns() ? "fixed" : "auto",
+    minWidth: props.minTableWidth ?? Math.max(640, colCount() * 96),
     borderCollapse: "collapse",
     backgroundColor: palette.SURFACE,
     ...props.style,
@@ -226,16 +227,19 @@ export function TanStackTable<T>(props: Props<T>) {
 
   const tableClassName = `paper-tanstack-table ${props.className || ""}`;
 
-  const numericColumnIds = new Set<string>();
-  const sampleRows = sortedData().slice(0, 5);
-  if (sampleRows.length > 0) {
-    for (const col of visibleColumns()) {
-      const values = sampleRows.map((r) => getValue(r, col)).filter((v) => v !== null && v !== undefined && v !== "");
-      if (values.length > 0 && values.every((v) => typeof v === "number")) {
-        numericColumnIds.add(col.id);
+  const numericColumnIds = createMemo(() => {
+    const ids = new Set<string>();
+    const sampleRows = sortedData().slice(0, 5);
+    if (sampleRows.length > 0) {
+      for (const col of visibleColumns()) {
+        const values = sampleRows.map((r) => getValue(r, col)).filter((v) => v !== null && v !== undefined && v !== "");
+        if (values.length > 0 && values.every((v) => typeof v === "number")) {
+          ids.add(col.id);
+        }
       }
     }
-  }
+    return ids;
+  });
 
   const rowStyleBase = (row: T, index: number): CSSProperties => ({
     cursor: props.onRowClick ? "pointer" : undefined,
@@ -255,7 +259,7 @@ export function TanStackTable<T>(props: Props<T>) {
       backgroundColor: palette.SURFACE,
       width: width !== undefined ? width : undefined,
       display: width === 0 ? "none" : undefined,
-      textAlign: align ?? (numericColumnIds.has(col.id) ? "right" : "left"),
+      textAlign: align ?? (numericColumnIds().has(col.id) ? "right" : "left"),
     };
     if (width !== undefined) {
       s.overflow = "hidden";
@@ -266,7 +270,7 @@ export function TanStackTable<T>(props: Props<T>) {
 
   const alignClass = (col: TableColumnDef<T>) => {
     const { align } = getColumnMeta(col);
-    return (align === "right" || numericColumnIds.has(col.id)) ? "font-mono" : "";
+    return (align === "right" || numericColumnIds().has(col.id)) ? "font-mono" : "";
   };
 
   const renderHeader = (col: TableColumnDef<T>) => {
@@ -286,7 +290,7 @@ export function TanStackTable<T>(props: Props<T>) {
       borderBottom: `1px solid ${palette.BORDER}`,
       width: width !== undefined ? width : undefined,
       display: width === 0 ? "none" : undefined,
-      textAlign: getColumnMeta(col).align ?? (numericColumnIds.has(col.id) ? "right" : "left"),
+      textAlign: getColumnMeta(col).align ?? (numericColumnIds().has(col.id) ? "right" : "left"),
       cursor: col.enableSorting !== false && props.enableSorting ? "pointer" : "default",
       position: props.stickyHeader ? "sticky" : undefined,
       top: props.stickyHeader ? 0 : undefined,
@@ -314,7 +318,7 @@ export function TanStackTable<T>(props: Props<T>) {
     if (!props.getRowCanExpand?.(row) || !expanded || !props.renderSubComponent) return null;
     return (
       <tr key={`${rowKey(row, index)}-expanded`} className="paper-tanstack-expanded-row">
-        <td colSpan={colCount} style={{ padding: 0, borderTop: `1px solid ${palette.BORDER}`, borderBottom: `1px solid ${palette.BORDER}`, background: palette.BG }}>
+        <td colSpan={colCount()} style={{ padding: 0, borderTop: `1px solid ${palette.BORDER}`, borderBottom: `1px solid ${palette.BORDER}`, background: palette.BG }}>
           {props.renderSubComponent(row)}
         </td>
       </tr>
@@ -399,15 +403,15 @@ export function TanStackTable<T>(props: Props<T>) {
           </tr>
         </thead>
         <tbody>
-          {showLoading ? (
+          {showLoading() ? (
             <tr>
-              <td colSpan={colCount}>
+              <td colSpan={colCount()}>
                 <InlineLoader data-testid="table-loading-state" size="sm" message={props.loadingMessage} />
               </td>
             </tr>
-          ) : showEmpty ? (
+          ) : showEmpty() ? (
             <tr>
-              <td colSpan={colCount}>
+              <td colSpan={colCount()}>
                 <div className="flex flex-col items-center justify-center py-3">
                   {props.emptyIcon}
                   {props.emptyMessage && <div className="text-xs c-dimmed">{props.emptyMessage}</div>}
@@ -428,7 +432,7 @@ export function TanStackTable<T>(props: Props<T>) {
                       style={{ cursor: "pointer" }}
                       className="paper-tanstack-group-row"
                     >
-                      <Box component="td" colSpan={colCount} style={{ padding: 0, border: "none" }}>
+                      <Box component="td" colSpan={colCount()} style={{ padding: 0, border: "none" }}>
                         {props.renderGroupHeader?.({
                           value: item.value,
                           rows: item.rows,
@@ -437,14 +441,6 @@ export function TanStackTable<T>(props: Props<T>) {
                         })}
                       </Box>
                     </tr>
-                    {expanded &&
-                      (() => {
-                        const out: JSX.Element[] = [];
-                        for (let i = 0; i < item.rows.length; i++) {
-                          out.push(<>{renderRow(item.rows[i], item.baseIndex + i)}</>);
-                        }
-                        return out;
-                      })()}
                   </>
                 );
               }

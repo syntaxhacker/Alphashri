@@ -119,8 +119,7 @@ describe("SymbolChips", () => {
   });
 
   it("clears all symbols when clear button is clicked", async () => {
-    render(
-      <SymbolChips selectedSymbols={["TCS", "INFY"]} onSymbolsChange={mockOnSymbolsChange} />,
+    render(() => <SymbolChips selectedSymbols={["TCS", "INFY"]} onSymbolsChange={mockOnSymbolsChange} />,
       { wrapper: Wrapper },
     );
     await fireEvent.click(screen.getByTestId("clear-symbols-btn"));

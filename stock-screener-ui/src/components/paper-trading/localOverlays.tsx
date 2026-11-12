@@ -8,93 +8,13 @@ import {
   type JSX,
 } from "solid-js";
 import { cn } from "@/ui";
-import { Group } from "./primitives";
-import { Text } from "@/ui";
 
 /**
- * Local overlays matching the @/ui Modal / Popover / Tabs API surface used by
- * my scope. The @/ui versions crash at mount in the Solid build (missing
- * createSignal import in Menu/Tabs, an un-called tuple in Popover, a bare
- * `testId` reference in Modal), so my scope carries faithful minimal copies.
+ * Local overlays for @/ui components that are still broken in the Solid build
+ * as of this migration (Menu and Popover crash at mount; both are owned by the
+ * @/ui agent). Faithful minimal copies of the Menu/Popover API surface used by
+ * my scope so my components don't depend on the broken ones.
  */
-
-// ---------------------------------------------------------------------------
-// Modal
-// ---------------------------------------------------------------------------
-
-export function Modal(props: {
-  opened: boolean;
-  onClose: () => void;
-  title?: JSX.Element;
-  size?: "sm" | "md" | "lg" | number;
-  children?: JSX.Element;
-  "data-testid"?: string;
-  closeOnEscape?: boolean;
-  closeOnClickOutside?: boolean;
-  withCloseButton?: boolean;
-  className?: string;
-  style?: JSX.CSSProperties;
-}) {
-  const close = () => props.onClose();
-  const closeOnEscape = () => props.closeOnEscape ?? true;
-  const closeOnClickOutside = () => props.closeOnClickOutside ?? true;
-
-  createEffect(() => {
-    if (!props.opened) return;
-    const onDocKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && closeOnEscape()) close();
-    };
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    document.addEventListener("keydown", onDocKey);
-    onCleanup(() => {
-      document.removeEventListener("keydown", onDocKey);
-      document.body.style.overflow = previousOverflow;
-    });
-  });
-
-  const maxWidth = () =>
-    props.size === "sm" ? 420 : props.size === "lg" ? 760 : typeof props.size === "number" ? props.size : 560;
-
-  return (
-    <Show when={props.opened}>
-      <div class="fixed inset-0 z-50 flex items-center justify-center" role="presentation">
-        <button
-          type="button"
-          aria-label="Close modal"
-          class="absolute inset-0 bg-black/60 cursor-default"
-          onClick={() => closeOnClickOutside() && close()}
-        />
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={typeof props.title === "string" ? props.title : undefined}
-          class="relative bg-neutral-900 border border-neutral-800 rounded-fin shadow-lg p-3 w-full mx-3"
-          style={{ maxWidth: `${maxWidth()}px`, ...(props.style as Record<string, unknown> | undefined) }}
-          data-testid={props["data-testid"]}
-        >
-          <Show when={props.title != null}>
-            <Group justify="space-between" align="center" className="mb-2">
-              <Text fw={700} size="sm">{props.title}</Text>
-              <Show when={props.withCloseButton ?? true}>
-                <button
-                  type="button"
-                  aria-label="Close"
-                  data-testid={props["data-testid"] ? `${props["data-testid"]}-close` : undefined}
-                  onClick={close}
-                  class="text-neutral-400 hover:text-neutral-100 text-base leading-none px-1"
-                >
-                  ×
-                </button>
-              </Show>
-            </Group>
-          </Show>
-          {props.children}
-        </div>
-      </div>
-    </Show>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Popover
@@ -227,87 +147,6 @@ export function PopoverDropdown(props: {
     </Show>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Tabs
-// ---------------------------------------------------------------------------
-
-const TabsContext = createContext<{
-  value: () => string | null | undefined;
-  onChange: (v: string) => void;
-} | null>(null);
-
-function useTabsContext() {
-  const ctx = useContext(TabsContext);
-  if (!ctx) throw new Error("Tabs compound components must be used within Tabs");
-  return ctx;
-}
-
-function TabsRoot(props: {
-  value?: string | null;
-  onChange?: (v: string | null) => void;
-  variant?: string;
-  className?: string;
-  id?: string;
-  "data-testid"?: string;
-  children?: JSX.Element;
-}) {
-  const ctxValue = {
-    value: () => props.value ?? null,
-    onChange: (v: string) => props.onChange?.(v),
-  };
-  return (
-    <TabsContext.Provider value={ctxValue}>
-      <div id={props.id} class={cn(props.className)} data-testid={props["data-testid"]}>
-        {props.children}
-      </div>
-    </TabsContext.Provider>
-  );
-}
-
-function TabsList(props: { className?: string; children?: JSX.Element }) {
-  return (
-    <div role="tablist" class={cn("flex items-center gap-1 border-b border-fin-border", props.className)}>
-      {props.children}
-    </div>
-  );
-}
-
-function Tab(props: {
-  value: string;
-  leftSection?: JSX.Element;
-  rightSection?: JSX.Element;
-  disabled?: boolean;
-  className?: string;
-  id?: string;
-  "data-testid"?: string;
-  children?: JSX.Element;
-}) {
-  const ctx = useTabsContext();
-  const active = () => ctx.value() === props.value;
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active()}
-      id={props.id}
-      disabled={props.disabled}
-      class={cn(
-        "flex items-center gap-1 px-2 py-1 text-xs border-b-2 -mb-px transition-colors",
-        active() ? "text-fin-primary border-fin-primary" : "text-fin-text-muted border-transparent hover:text-fin-text",
-        props.className,
-      )}
-      data-testid={props["data-testid"]}
-      onClick={() => ctx.onChange(props.value)}
-    >
-      {props.leftSection}
-      {props.children}
-      {props.rightSection}
-    </button>
-  );
-}
-
-export const Tabs = Object.assign(TabsRoot, { List: TabsList, Tab });
 
 // ---------------------------------------------------------------------------
 // Menu

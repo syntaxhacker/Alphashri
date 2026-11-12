@@ -69,20 +69,16 @@ describe("UniverseBar", () => {
   });
 
   test("labels the scan action with the custom symbol count", () => {
-    r(
-      <UniverseBar
+    render(() =>       <UniverseBar
         {...makeProps({ universe: "custom", customUniverse: "custom", customSymbolCount: 3 })}
-      />,
-    );
+      />);
     expect(screen.getByTestId("patterns-scan-again")).toHaveTextContent("Scan 3 symbols");
   });
 
   test("disables the scan action for an empty custom scope", () => {
-    r(
-      <UniverseBar
+    render(() =>       <UniverseBar
         {...makeProps({ universe: "custom", customUniverse: "custom", customSymbolCount: 0 })}
-      />,
-    );
+      />);
     expect(screen.getByTestId("patterns-scan-again")).toBeDisabled();
   });
 
@@ -93,11 +89,9 @@ describe("UniverseBar", () => {
   });
 
   test("uses the singular symbol label for a one-symbol custom set", () => {
-    r(
-      <UniverseBar
+    render(() =>       <UniverseBar
         {...makeProps({ universe: "custom", customUniverse: "custom", customSymbolCount: 1 })}
-      />,
-    );
+      />);
     expect(screen.getByTestId("patterns-scan-again")).toHaveTextContent("Scan 1 symbol");
     expect(screen.getByTestId("patterns-scan-again")).not.toHaveTextContent("symbols");
   });

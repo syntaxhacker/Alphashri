@@ -4,6 +4,30 @@ import { describe, expect, test, vi } from "vitest";
 import { render, screen, within, fireEvent } from "@solidjs/testing-library";
 import { ReplayTradeTable, type RTrade } from "./ReplayTradeTable";
 
+vi.mock("../../paper-trading/TanStackTable", () => ({
+  TanStackTable: ({ data, columns, renderSubComponent, getRowCanExpand, getRowTestId, onRowClick, emptyMessage }: any) => (
+    <div data-testid="mock-table">
+      {data.length === 0 ? (
+        <div>{emptyMessage}</div>
+      ) : (
+        data.map((row: RTrade, i: number) => (
+          <div key={i} data-testid={getRowTestId?.(row, i)} onClick={() => onRowClick?.(row)}>
+            {columns.map((c: any) => (
+              <span key={c.id} data-testid={`cell-${c.id}`}>
+                {c.cell?.({ row: { original: row, index: i, isExpanded: () => false, toggle: () => {} } })}
+              </span>
+            ))}
+          </div>
+        ))
+      )}
+      {renderSubComponent && data.length > 0 && (
+        <div data-testid="sub">{renderSubComponent(data[0])}</div>
+      )}
+      {String(!!getRowCanExpand)}
+    </div>
+  ),
+}));
+
 vi.mock("@/components/common", () => ({
   TanStackTable: ({ data, columns, renderSubComponent, getRowCanExpand, getRowTestId, onRowClick, emptyMessage }: any) => (
     <div data-testid="mock-table">
@@ -14,7 +38,28 @@ vi.mock("@/components/common", () => ({
           <div key={i} data-testid={getRowTestId?.(row, i)} onClick={() => onRowClick?.(row)}>
             {columns.map((c: any) => (
               <span key={c.id} data-testid={`cell-${c.id}`}>
-                {c.cell?.({ row: { original: row, getIsExpanded: () => false, toggleExpanded: () => {} } })}
+                {c.cell?.({ row: { original: row, index: i, isExpanded: () => false, toggle: () => {} } })}
+              </span>
+            ))}
+          </div>
+        ))
+      )}
+      {renderSubComponent && data.length > 0 && (
+        <div data-testid="sub">{renderSubComponent(data[0])}</div>
+      )}
+      {String(!!getRowCanExpand)}
+    </div>
+  ),
+  TanStackTable: ({ data, columns, renderSubComponent, getRowCanExpand, getRowTestId, onRowClick, emptyMessage }: any) => (
+    <div data-testid="mock-table">
+      {data.length === 0 ? (
+        <div>{emptyMessage}</div>
+      ) : (
+        data.map((row: RTrade, i: number) => (
+          <div key={i} data-testid={getRowTestId?.(row, i)} onClick={() => onRowClick?.(row)}>
+            {columns.map((c: any) => (
+              <span key={c.id} data-testid={`cell-${c.id}`}>
+                {c.cell?.({ row: { original: row, index: i, isExpanded: () => false, toggle: () => {} } })}
               </span>
             ))}
           </div>

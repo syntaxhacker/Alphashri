@@ -158,8 +158,7 @@ describe("PatternSymbolMatrix", () => {
         timeframes={["1D", "5m", "1W"]}
         onSelect={vi.fn()}
         activeSymbol={rowB.symbol}
-      />,
-    );
+      />);
     expect(screen.getByTestId(`patterns-matrix-row-${rowB.symbol}`)).toHaveAttribute(
       "data-active",
       "true",
@@ -297,8 +296,7 @@ describe("PatternSymbolMatrix", () => {
         timeframes={["5m", "1D"]}
         onSelect={vi.fn()}
         onShowMembers={onShowMembers}
-      />,
-    );
+      />);
 
     fireEvent.click(screen.getByTestId("patterns-matrix-members-NIFTY"));
     expect(onShowMembers).toHaveBeenCalledWith("NIFTY");
@@ -311,8 +309,7 @@ describe("PatternSymbolMatrix", () => {
         timeframes={["5m"]}
         onSelect={vi.fn()}
         emptyMessage="Nothing to show."
-      />,
-    );
+      />);
     expect(screen.getByText("Nothing to show.")).toBeInTheDocument();
   });
 });

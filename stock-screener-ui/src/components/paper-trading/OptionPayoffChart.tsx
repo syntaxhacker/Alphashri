@@ -1,6 +1,6 @@
 import { createSignal, createEffect, createMemo, onCleanup, onMount, Show } from "solid-js";
 import { formatNumberIN } from "@/utils/ui-helpers";
-import { ActionIcon, Badge, Collapse, Text } from "@/ui";
+import { ActionIcon, Badge, Collapse, Text, Card } from "@/ui";
 import { IconChevronDown, IconChevronRight } from "@/components/common/Icons";
 import { loadEcharts } from "../../utils/loadEcharts";
 import {
@@ -18,8 +18,6 @@ import {
   type PayoffPoint,
 } from "./optionTradeUtils";
 import type { PaperTrade } from "../../types/paperTrading";
-import { Card } from "./primitives";
-
 const CHART_HEIGHT = 210;
 
 function fmtInr(value: number): string {
@@ -126,8 +124,12 @@ export function OptionPayoffChart(props: {
 
   const applyOption = () => {
     if (!chart) return;
-    chart.setOption(buildOption(), true);
-    chart.resize();
+    try {
+      chart.setOption(buildOption(), true);
+      chart.resize();
+    } catch {
+      /* headless DOM without canvas 2d */
+    }
   };
 
   const initChart = () => {

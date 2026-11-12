@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
+import { render, screen, cleanup, fireEvent, waitFor } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import "@testing-library/jest-dom/vitest";
 import { ScreenerTable } from "./ScreenerTable";
 import { UIProvider } from "@/ui";
@@ -148,6 +149,36 @@ describe("ScreenerTable", () => {
     expect(screen.queryByTestId("stock-row-TCS")).not.toBeInTheDocument();
   });
 
+});
+
+describe("ScreenerTable market-tick updates", () => {
+  const tickColumns: ColumnDef[] = [
+    { key: "symbol", label: "Symbol", type: "string", sortable: true },
+    { key: "day_change", label: "Change", type: "number", sortable: true, format: (value: number) => ({ value: `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`, className: value >= 0 ? "success" : "error" }) },
+  ];
+
+  it("shows the FINAL value after 120 rapid market ticks (no stale intermediate renders)", async () => {
+    const [stocks, setStocks] = createSignal<Stock[]>([{ ...mockStock, day_change: 1.0 }]);
+    render(() => (
+      <UIProvider>
+        <ScreenerTable
+          stocks={stocks()}
+          columns={tickColumns}
+          touchedSymbols={new Set()}
+          onSymbolClick={vi.fn()}
+          onSymbolHover={vi.fn()}
+        />
+      </UIProvider>
+    ));
+    expect(screen.getByTestId("stock-row-RELIANCE")).toHaveTextContent("+1.00%");
+    for (let i = 1; i <= 120; i++) {
+      setStocks([{ ...mockStock, day_change: 1.0 + i / 100 }]);
+    }
+    await waitFor(() => {
+      expect(screen.getByTestId("stock-row-RELIANCE")).toHaveTextContent("+2.20%");
+    });
+    expect(screen.getByTestId("stock-row-RELIANCE")).not.toHaveTextContent("+1.00%");
+  });
 });
 
 describe("ScreenerTable approach badges", () => {

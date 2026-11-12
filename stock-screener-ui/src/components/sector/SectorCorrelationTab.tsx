@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { Box, Stack, Text } from "@/ui";
 import { Button } from "@/ui";
 import { Loader } from "@/ui";

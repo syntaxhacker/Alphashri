@@ -4,7 +4,6 @@ import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, fireEvent, cleanup } from "@solidjs/testing-library";
 import { WatchlistScan2 } from "./WatchlistScan2";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
 import { BORDER_COLOR, NEGATIVE_COLOR, POSITIVE_COLOR, WARNING } from "@/ui/palette";
 
 // Resolved value of #80b5ff under the palette theme.
@@ -296,7 +295,7 @@ describe("WatchlistScan2", () => {
       const snap = createMockSnapshot();
       r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const searchInput = screen.getByPlaceholderText("Search symbol");
-      await fireEvent.input(searchInput, "REL");
+      await fireEvent.input(searchInput, { target: { value: "REL" } });
       expect(row("RELIANCE")).toBeInTheDocument();
       expect(queryRow("TCS")).not.toBeInTheDocument();
       expect(queryRow("INFY")).not.toBeInTheDocument();
@@ -307,7 +306,7 @@ describe("WatchlistScan2", () => {
       const snap = createMockSnapshot();
       r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const searchInput = screen.getByPlaceholderText("Search symbol");
-      await fireEvent.input(searchInput, "tcs");
+      await fireEvent.input(searchInput, { target: { value: "tcs" } });
       expect(row("TCS")).toBeInTheDocument();
       expect(queryRow("RELIANCE")).not.toBeInTheDocument();
     });
@@ -316,9 +315,9 @@ describe("WatchlistScan2", () => {
       const snap = createMockSnapshot();
       r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const searchInput = screen.getByPlaceholderText("Search symbol");
-      await fireEvent.input(searchInput, "ZZZ");
+      await fireEvent.input(searchInput, { target: { value: "ZZZ" } });
       expect(queryRow("RELIANCE")).not.toBeInTheDocument();
-      await fireEvent.input(searchInput);
+      await fireEvent.input(searchInput, { target: { value: "" } });
       expect(row("RELIANCE")).toBeInTheDocument();
       expect(row("TCS")).toBeInTheDocument();
       expect(row("INFY")).toBeInTheDocument();
@@ -341,7 +340,7 @@ describe("WatchlistScan2", () => {
       const snap = createMockSnapshot();
       r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const strategyInput = screen.getByPlaceholderText("Filter strategy");
-      await fireEvent.click(strategyInput);
+      fireEvent.focus(strategyInput);
       const srOption = await screen.findByRole("option", { name: "SR Breakout" });
       await fireEvent.click(within(srOption).getByRole("checkbox"));
       expect(row("TCS")).toBeInTheDocument();
@@ -354,7 +353,7 @@ describe("WatchlistScan2", () => {
       const snap = createMockSnapshot();
       r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const strategyInput = screen.getByPlaceholderText("Filter strategy");
-      await fireEvent.click(strategyInput);
+      fireEvent.focus(strategyInput);
       const orbOption = await screen.findByRole("option", { name: "ORB Strategy" });
       await fireEvent.click(within(orbOption).getByRole("checkbox"));
       expect(row("RELIANCE")).toBeInTheDocument();
@@ -404,7 +403,7 @@ describe("WatchlistScan2", () => {
   // ──────────────────────────────────────────────
 
   function hasSparkle(symbol: string) {
-    return row(symbol).querySelector(".tabler-icon-sparkles") !== null;
+    return row(symbol).querySelector('[data-testid="icon-sparkles"]') !== null;
   }
 
   describe("new signal indicator", () => {
@@ -507,7 +506,8 @@ describe("WatchlistScan2", () => {
       const snap = createMockSnapshot();
       r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const searchInput = screen.getByPlaceholderText("Search symbol");
-      await fireEvent.input(searchInput, "ZZZZ");
+      await fireEvent.input(searchInput, { target: { value: "ZZZZ" } });
+      console.log("bottom:", document.body.innerHTML.slice(-900));
       expect(screen.getByText("1 skipped")).toBeInTheDocument();
     });
 
@@ -534,7 +534,7 @@ describe("WatchlistScan2", () => {
         />,
       );
       const searchInput = screen.getByPlaceholderText("Search symbol");
-      await fireEvent.input(searchInput, "ZZZZ");
+      await fireEvent.input(searchInput, { target: { value: "ZZZZ" } });
       expect(screen.getByText("No items")).toBeInTheDocument();
     });
 

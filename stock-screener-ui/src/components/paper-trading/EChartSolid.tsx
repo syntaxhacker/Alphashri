@@ -30,7 +30,7 @@ export function EChartSolid(props: {
     if (resizeHandler) window.removeEventListener("resize", resizeHandler);
     ro?.disconnect();
     if (chart) {
-      chart.dispose();
+      try { chart.dispose(); } catch { /* echarts dispose can throw in headless DOM */ }
       chart = null;
     }
   });
@@ -48,8 +48,12 @@ export function EChartSolid(props: {
       }
     }
     if (!chart) return;
-    chart.setOption(option, true);
-    chart.resize();
+    try {
+      chart.setOption(option, true);
+      chart.resize();
+    } catch {
+      /* headless DOM without canvas 2d */
+    }
   });
 
   return (

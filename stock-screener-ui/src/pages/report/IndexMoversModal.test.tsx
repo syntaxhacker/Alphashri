@@ -1,12 +1,35 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, waitFor, fireEvent } from "@solidjs/testing-library";
+import { For } from "solid-js";
 import { IndexMoversModal } from "./IndexMoversModal";
 import { fetchIndexMovers, IndexMoversResponse } from "@/api/indexMovers";
 
 // Mock the API
 vi.mock("@/api/indexMovers", () => ({
   fetchIndexMovers: vi.fn(),
+}));
+
+vi.mock("@/components/common/TanStackTable", () => ({
+  TanStackTable: (props: any) => (
+    <table data-testid={props.dataTestId}>
+      <thead>
+        <tr>
+          {props.columns.map((col: any, j: number) => (
+            <th key={j}>{typeof col.header === "string" ? col.header : null}</th>
+          ))}
+        </tr>
+      </thead>
+      <For each={props.data}>
+        {(row: any, i) => (
+          <tr>
+            {props.columns.map((col: any, j: number) => (
+              <td key={j}>{col.cell ? col.cell({ row: { original: row, index: i() }, column: col }) : null}</td>
+            ))}
+          </tr>
+        )}
+      </For>
+    </table>
+  ),
 }));
 
 const mockFetchIndexMovers = vi.mocked(fetchIndexMovers);
@@ -36,14 +59,14 @@ describe("IndexMoversModal", () => {
   });
 
   it("renders nothing when closed", () => {
-    render(<IndexMoversModal open={false} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={false} onClose={vi.fn()} index="NIFTY" />);
     expect(screen.queryByTestId("panel-modal")).not.toBeInTheDocument();
   });
 
   it("renders modal when open", async () => {
     mockFetchIndexMovers.mockResolvedValue(createMockResponse());
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByTestId("panel-modal")).toBeInTheDocument(), { timeout: 10000 });
     // Title is in panel-modal-title
@@ -55,7 +78,7 @@ describe("IndexMoversModal", () => {
     const promise = new Promise<IndexMoversResponse>((r) => { _resolve = r; });
     mockFetchIndexMovers.mockReturnValue(promise);
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByTestId("panel-modal")).toBeInTheDocument(), { timeout: 10000 });
     expect(screen.getByText("loading movers…")).toBeInTheDocument();
@@ -64,12 +87,12 @@ describe("IndexMoversModal", () => {
   it("renders table with gainers and losers in ALL tab", async () => {
     mockFetchIndexMovers.mockResolvedValue(createMockResponse());
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByTestId("movers-table")).toBeInTheDocument(), { timeout: 10000 });
     
     // Click ALL tab
-    await userEvent.click(screen.getByText("ALL"));
+    fireEvent.click(screen.getByText("ALL"));
     
     await waitFor(() => expect(screen.getByText("HDFCBANK")).toBeInTheDocument(), { timeout: 10000 });
     await waitFor(() => expect(screen.getByText("TCS")).toBeInTheDocument(), { timeout: 10000 });
@@ -79,12 +102,12 @@ describe("IndexMoversModal", () => {
   it("shows GAINERS tab with only gainers", async () => {
     mockFetchIndexMovers.mockResolvedValue(createMockResponse());
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByTestId("movers-table")).toBeInTheDocument(), { timeout: 10000 });
 
     // Click GAINERS tab
-    await userEvent.click(screen.getByText("GAINERS"));
+    fireEvent.click(screen.getByText("GAINERS"));
 
     await waitFor(() => expect(screen.getByText("HDFCBANK")).toBeInTheDocument(), { timeout: 10000 });
     expect(screen.queryByText("TCS")).not.toBeInTheDocument();
@@ -94,12 +117,12 @@ describe("IndexMoversModal", () => {
   it("shows LOSERS tab with only losers", async () => {
     mockFetchIndexMovers.mockResolvedValue(createMockResponse());
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByTestId("movers-table")).toBeInTheDocument(), { timeout: 10000 });
 
     // Click LOSERS tab
-    await userEvent.click(screen.getByText("LOSERS"));
+    fireEvent.click(screen.getByText("LOSERS"));
 
     await waitFor(() => expect(screen.getByText("TCS")).toBeInTheDocument(), { timeout: 10000 });
     expect(screen.queryByText("HDFCBANK")).not.toBeInTheDocument();
@@ -108,7 +131,7 @@ describe("IndexMoversModal", () => {
   it("sorts by change_pct desc by default", async () => {
     mockFetchIndexMovers.mockResolvedValue(createMockResponse());
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByTestId("movers-table")).toBeInTheDocument(), { timeout: 10000 });
 
@@ -121,7 +144,7 @@ describe("IndexMoversModal", () => {
   it("shows stale badge when data.stale is true", async () => {
     mockFetchIndexMovers.mockResolvedValue(createMockResponse({ stale: true }));
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByText("STALE")).toBeInTheDocument(), { timeout: 10000 });
   });
@@ -131,7 +154,7 @@ describe("IndexMoversModal", () => {
     const isoString = now.toISOString();
     mockFetchIndexMovers.mockResolvedValue(createMockResponse({ as_of: isoString }));
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByTestId("movers-table")).toBeInTheDocument(), { timeout: 10000 });
 
@@ -143,10 +166,10 @@ describe("IndexMoversModal", () => {
     const onClose = vi.fn();
     mockFetchIndexMovers.mockResolvedValue(createMockResponse());
 
-    render(<IndexMoversModal open={true} onClose={onClose} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={onClose} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByTestId("panel-modal-close")).toBeInTheDocument(), { timeout: 10000 });
-    await userEvent.click(screen.getByTestId("panel-modal-close"));
+    fireEvent.click(screen.getByTestId("panel-modal-close"));
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -154,7 +177,7 @@ describe("IndexMoversModal", () => {
   it("shows error state when fetch fails", async () => {
     mockFetchIndexMovers.mockRejectedValue(new Error("Network error"));
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByText("unavailable")).toBeInTheDocument(), { timeout: 10000 });
     expect(screen.getByText("Retry")).toBeInTheDocument();
@@ -163,7 +186,7 @@ describe("IndexMoversModal", () => {
   it("shows MOVERS_UNAVAILABLE error correctly", async () => {
     mockFetchIndexMovers.mockRejectedValue(new Error("MOVERS_UNAVAILABLE"));
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByText("unavailable")).toBeInTheDocument(), { timeout: 10000 });
   });
@@ -171,7 +194,7 @@ describe("IndexMoversModal", () => {
   it("renders SENSEX 30 label correctly", async () => {
     mockFetchIndexMovers.mockResolvedValue(createMockResponse({ index: "SENSEX" }));
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="SENSEX" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="SENSEX" />);
 
     await waitFor(() => expect(screen.getByTestId("panel-modal")).toBeInTheDocument(), { timeout: 10000 });
     // Title is in panel-modal-title
@@ -185,7 +208,7 @@ describe("IndexMoversModal", () => {
     response.losers[0] = { ...response.losers[0], contribution_pct: undefined };
     mockFetchIndexMovers.mockResolvedValue(response);
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByTestId("movers-table")).toBeInTheDocument(), { timeout: 10000 });
 

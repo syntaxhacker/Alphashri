@@ -1,13 +1,10 @@
-import type { JSX } from "solid-js";
-import { useEffect, useMemo } from "react";
-import { Select, NumberInput, Checkbox, Button, Text } from "@/ui";
-import { Menu } from "../paper-trading/overlays";
-import { IconPlayerPlay, IconChevronDown, IconRotate } from "@tabler/icons-react";
+import { createMemo, createEffect, For, Show, onCleanup, type JSX } from "solid-js";
+import { Select, NumberInput, Checkbox, Button, Text, Box } from "@/ui";
+import { Menu } from "../paper-trading/localOverlays";
+import { IconPlayerPlay, IconChevronDown, IconRefresh } from "@/components/common/Icons";
 import type { Strategy, StrategyVariation } from "../../types/backtest";
 import { ParamInput } from "./ParamInput";
 import { SymbolChips } from "./SymbolChips";
-import { Box } from "../paper-trading/primitives";
-
 interface BacktestConfigProps {
   strategies: Strategy[];
   variations: StrategyVariation[];
@@ -31,122 +28,95 @@ interface BacktestConfigProps {
   onRunAndSave: () => void;
 }
 
-function Field({ label, span, children }: { label?: string; span?: boolean; children: JSX.Element }) {
+function Field(props: { label?: string; span?: boolean; children?: JSX.Element }) {
   return (
-    <Box className="flex flex-col gap-0.25 min-w-0" style={{ gridColumn: span ? "1 / -1" : undefined, display: "flex", flexDirection: "column", gap: "2px", minWidth: 0 }}>
-      {label ? (
-        <Text size="xs" c="dimmed" fw={700} style={{ letterSpacing: 0.5, textTransform: "uppercase", fontSize: 10, lineHeight: 1.2 }}>
-          {label}
+    <Box
+      className="flex flex-col gap-0.25 min-w-0"
+      style={{ gridColumn: props.span ? "1 / -1" : undefined, display: "flex", flexDirection: "column", gap: "2px", minWidth: 0 }}
+    >
+      <Show when={props.label}>
+        <Text size="xs" c="dimmed" fw={700} style={{ letterSpacing: 0.5, textTransform: "uppercase", fontSize: "10px", lineHeight: 1.2 }}>
+          {props.label}
         </Text>
-      ) : null}
-      {children}
+      </Show>
+      {props.children}
     </Box>
   );
 }
 
-export function BacktestConfig({
-  strategies,
-  variations,
-  selectedStrategy,
-  selectedVariation,
-  params,
-  selectedSymbols,
-  days,
-  includeCosts,
-  isRunning,
-  saveToHistory: _saveToHistory,
-  onStrategyChange,
-  onVariationChange,
-  onParamChange,
-  onDaysChange,
-  onIncludeCostsChange,
-  onSaveToHistoryChange,
-  onSymbolsChange,
-  onReset,
-  onRun,
-  onRunAndSave,
-}: BacktestConfigProps) {
-  const strategy = strategies.find((s) => s.id === selectedStrategy);
-  const selectedVariationData = variations.find((v) => v.id === selectedVariation);
+export function BacktestConfig(props: BacktestConfigProps) {
+  const strategy = createMemo(() => props.strategies.find((s) => s.id === props.selectedStrategy));
+  const selectedVariationData = createMemo(() => props.variations.find((v) => v.id === props.selectedVariation));
 
-  useEffect(() => {
+  createEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-        if (!isRunning && selectedSymbols.length > 0) {
-          onRun();
+        if (!props.isRunning && props.selectedSymbols.length > 0) {
+          props.onRun();
         }
       }
     };
     document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [isRunning, selectedSymbols, onRun]);
+    onCleanup(() => document.removeEventListener("keydown", handler));
+  });
 
   // Only variations whose strategy the backtest engine can actually run. The bot
   // strategies list is broader (e.g. adx_trend), and selecting an unsupported one
   // previously produced a 200 with a null payload.
-  const supportedIds = useMemo(
-    () => new Set(strategies.map((s) => s.id.toLowerCase())),
-    [strategies],
-  );
-  const runnableVariations = useMemo(
-    () => variations.filter((v) => supportedIds.has((v.strategy_type || "").toLowerCase())),
-    [variations, supportedIds],
+  const supportedIds = createMemo(() => new Set(props.strategies.map((s) => s.id.toLowerCase())));
+  const runnableVariations = createMemo(() =>
+    props.variations.filter((v) => supportedIds().has((v.strategy_type || "").toLowerCase())),
   );
 
   // Every backtestable strategy must be selectable — including ones with no saved
   // variation (e.g. `smc`). Those get a synthetic "run with defaults" option.
-  const coveredStrategyIds = useMemo(
-    () => new Set(runnableVariations.map((v) => (v.strategy_type || "").toLowerCase())),
-    [runnableVariations],
+  const coveredStrategyIds = createMemo(
+    () => new Set(runnableVariations().map((v) => (v.strategy_type || "").toLowerCase())),
   );
-  const strategyOptions = useMemo(
-    () =>
-      strategies
-        .filter((s) => !coveredStrategyIds.has(s.id.toLowerCase()))
-        .map((s) => ({ value: `strategy:${s.id}`, label: `${s.name} (strategy)` })),
-    [strategies, coveredStrategyIds],
+  const strategyOptions = createMemo(() =>
+    props.strategies
+      .filter((s) => !coveredStrategyIds().has(s.id.toLowerCase()))
+      .map((s) => ({ value: `strategy:${s.id}`, label: `${s.name} (strategy)` })),
   );
 
-  const selectData = useMemo(
-    () => [
-      ...runnableVariations
-        .filter((v) => v.is_template)
-        .map((v) => ({ value: v.id, label: `${v.name} (${v.strategy_type})` })),
-      ...runnableVariations
-        .filter((v) => !v.is_template)
-        .map((v) => ({ value: v.id, label: v.name })),
-      ...strategyOptions,
-      // Keep a label (instead of a raw UUID) if a persisted selection is no longer runnable.
-      ...(selectedVariation && !runnableVariations.some((v) => v.id === selectedVariation)
-        ? [{
-            value: selectedVariation,
-            label: `${selectedVariationData?.name ?? selectedVariationData?.strategy_type ?? "Selection"} (unsupported)`,
-          }]
-        : []),
-    ],
-    [runnableVariations, strategyOptions, selectedVariation, selectedVariationData],
-  );
+  const selectData = createMemo(() => [
+    ...runnableVariations()
+      .filter((v) => v.is_template)
+      .map((v) => ({ value: v.id, label: `${v.name} (${v.strategy_type})` })),
+    ...runnableVariations()
+      .filter((v) => !v.is_template)
+      .map((v) => ({ value: v.id, label: v.name })),
+    ...strategyOptions(),
+    // Keep a label (instead of a raw UUID) if a persisted selection is no longer runnable.
+    ...(props.selectedVariation && !runnableVariations().some((v) => v.id === props.selectedVariation)
+      ? [{
+          value: props.selectedVariation,
+          label: `${selectedVariationData()?.name ?? selectedVariationData()?.strategy_type ?? "Selection"} (unsupported)`,
+        }]
+      : []),
+  ]);
 
-  const selectValue =
-    selectedVariation ??
-    (strategyOptions.some((o) => o.value === `strategy:${selectedStrategy}`)
-      ? `strategy:${selectedStrategy}`
-      : undefined);
+  const selectValue = createMemo(() =>
+    props.selectedVariation
+      ?? (strategyOptions().some((o) => o.value === `strategy:${props.selectedStrategy}`)
+        ? `strategy:${props.selectedStrategy}`
+        : undefined),
+  );
 
   const handleVariationChange = (value: string | null) => {
     if (value && value.startsWith("strategy:")) {
-      onStrategyChange(value.slice("strategy:".length));
+      props.onStrategyChange(value.slice("strategy:".length));
       return;
     }
-    onVariationChange(value);
+    props.onVariationChange(value);
   };
 
   const handleRunAndSave = () => {
-    onSaveToHistoryChange(true);
-    onRunAndSave();
+    props.onSaveToHistoryChange(true);
+    props.onRunAndSave();
   };
 
-  const hasParams = Boolean(strategy && strategy.params.length > 0);
+  const hasParams = () => Boolean(strategy() && strategy()!.params.length > 0);
 
   return (
     <Box
@@ -161,46 +131,49 @@ export function BacktestConfig({
           className="config-variation-select"
           data-testid="variation-select"
           placeholder="Select strategy or template"
-          value={selectValue}
+          value={selectValue()}
           onChange={(v) => handleVariationChange(v)}
-          data={selectData}
+          data={selectData()}
           size="sm"
           clearable
           searchable
           w="100%"
         />
-        {selectedVariationData?.description && (
+        <Show when={selectedVariationData()?.description}>
           <Text size="xs" c="dimmed" style={{ marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {selectedVariationData.description}
+            {selectedVariationData()?.description}
           </Text>
-        )}
+        </Show>
       </Field>
 
       <Field label="Symbols" span>
-        <SymbolChips selectedSymbols={selectedSymbols} onSymbolsChange={onSymbolsChange} />
+        <SymbolChips selectedSymbols={props.selectedSymbols} onSymbolsChange={props.onSymbolsChange} />
       </Field>
 
-      {hasParams ? (
-        (strategy as Strategy).params.map((param) => (
-          <Field key={param.key} label={param.label}>
+      <Show
+        when={hasParams()}
+        fallback={
+          <Text size="xs" c="dimmed" style={{ gridColumn: "1 / -1" }}>
+            Select a strategy to configure parameters
+          </Text>
+        }
+      >
+        <For each={strategy()!.params}>{(param) => (
+          <Field label={param.label}>
             <ParamInput
               param={param}
-              value={params[param.key]}
-              onChange={(value) => onParamChange(param.key, value)}
+              value={props.params[param.key]}
+              onChange={(value) => props.onParamChange(param.key, value)}
             />
           </Field>
-        ))
-      ) : (
-        <Text size="xs" c="dimmed" style={{ gridColumn: "1 / -1" }}>
-          Select a strategy to configure parameters
-        </Text>
-      )}
+        )}</For>
+      </Show>
 
       <Field label="Days">
         <NumberInput
           data-testid="days-input"
-          value={days}
-          onChange={(v) => onDaysChange(Number(v) || 30)}
+          value={props.days}
+          onChange={(v) => props.onDaysChange(Number(v) || 30)}
           min={30}
           max={365}
           step={30}
@@ -210,35 +183,35 @@ export function BacktestConfig({
       </Field>
 
       <Field label="Options">
-        <Box className="flex items-center" style={{ display: "flex", alignItems: "center", minHeight: 32 }}>
+        <Box className="flex items-center" style={{ display: "flex", alignItems: "center", minHeight: "32px" }}>
           <Checkbox
             data-testid="include-costs-checkbox"
             label="Include Costs"
-            checked={includeCosts}
-            onChange={(checked) => onIncludeCostsChange(checked)}
+            checked={props.includeCosts}
+            onChange={(e) => props.onIncludeCostsChange(e.currentTarget.checked)}
             size="sm"
           />
         </Box>
       </Field>
 
-      <Box className="flex justify-end gap-2" style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: 4 }}>
+      <Box className="flex justify-end gap-2" style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: "4px" }}>
         <Button
           variant="filled"
           size="sm"
-          onClick={onRun}
-          disabled={isRunning || selectedSymbols.length === 0}
-          loading={isRunning}
+          onClick={props.onRun}
+          disabled={props.isRunning || props.selectedSymbols.length === 0}
+          loading={props.isRunning}
           data-testid="run-backtest-btn"
-          leftSection={isRunning ? undefined : <IconPlayerPlay size={12} />}
+          leftSection={props.isRunning ? undefined : <IconPlayerPlay size={12} />}
         >
-          {isRunning ? null : "Run"}
+          {props.isRunning ? null : "Run"}
         </Button>
         <Menu>
           <Menu.Target>
             <Button
               variant="filled"
               size="sm"
-              disabled={isRunning || selectedSymbols.length === 0}
+              disabled={props.isRunning || props.selectedSymbols.length === 0}
               p={0}
               w={28}
               data-testid="run-menu-btn"
@@ -249,8 +222,8 @@ export function BacktestConfig({
           </Menu.Target>
           <Menu.Dropdown>
             <Menu.Item
-              onClick={onRun}
-              disabled={isRunning || selectedSymbols.length === 0}
+              onClick={props.onRun}
+              disabled={props.isRunning || props.selectedSymbols.length === 0}
               leftSection={<IconPlayerPlay size={14} />}
               data-testid="menu-run-backtest"
             >
@@ -258,7 +231,7 @@ export function BacktestConfig({
             </Menu.Item>
             <Menu.Item
               onClick={handleRunAndSave}
-              disabled={isRunning || selectedSymbols.length === 0}
+              disabled={props.isRunning || props.selectedSymbols.length === 0}
               leftSection={<IconPlayerPlay size={14} />}
               data-testid="menu-run-save"
             >
@@ -266,9 +239,9 @@ export function BacktestConfig({
             </Menu.Item>
             <Menu.Divider />
             <Menu.Item
-              onClick={onReset}
+              onClick={props.onReset}
               color="secondary"
-              leftSection={<IconRotate size={14} />}
+              leftSection={<IconRefresh size={14} />}
               data-testid="reset-btn"
             >
               Reset Config

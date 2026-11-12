@@ -5,11 +5,9 @@ import { ReplayStats } from "./ReplayStats";
 import { ReplayMainView } from "./ReplayMainView";
 import { ReplayPositions } from "./ReplayPositions";
 import { ReplaySummaryPanel } from "./ReplaySummary";
-import { Text, Title, ToolbarRow } from "@/ui";
+import { Text, Title, ToolbarRow, Box } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { ReplayTrade } from "../../types/replay";
-import { Box } from "../paper-trading/primitives";
-
 type ReplayStateHandle = ReturnType<typeof useReplayState>;
 type ReplayState = ReturnType<ReplayStateHandle["state"]>;
 type ChartRef = { zoomToTrade: (entryTime: string, exitTime: string) => void } | null;

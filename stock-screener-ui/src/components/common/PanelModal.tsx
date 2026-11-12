@@ -149,6 +149,7 @@ export function PanelModal(props: PanelModalProps) {
 
   return (
     <Show when={props.open}>
+      {() => (
       <Portal>
         <div
           data-testid="panel-modal"
@@ -229,6 +230,7 @@ export function PanelModal(props: PanelModalProps) {
           </div>
         </div>
       </Portal>
+      )}
     </Show>
   );
 }

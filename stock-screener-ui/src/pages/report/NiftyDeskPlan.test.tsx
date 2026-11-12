@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import type { JSX } from "solid-js";
+import { fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import type {
   NiftyIntradayCandle,
@@ -152,11 +153,11 @@ function emptyReport(): NiftyReport {
 }
 
 function renderPlan(report: NiftyReport) {
-  return render(
+  return render(() => (
     <UIProvider>
       <NiftyDeskPlan report={report} />
-    </UIProvider>,
-  );
+    </UIProvider>
+  ));
 }
 
 describe("NiftyDeskPlan", () => {

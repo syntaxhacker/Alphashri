@@ -8,8 +8,7 @@ import { TZ_IST_LABEL } from "@/config/constants";
 import { tradeStatChips } from "./shared";
 import type { ReplayBundle, ReplayTrade } from "../tick";
 import type { ReplayParamSpec, ReplayStrategyPlugin, TimelineData } from "../core/plugin";
-import { Stack } from "../../paper-trading/primitives";
-
+import { Stack } from "@/ui";
 const DAY_MIN = 1440;
 
 interface TradeMeta {

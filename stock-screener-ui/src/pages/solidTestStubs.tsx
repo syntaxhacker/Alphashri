@@ -10,6 +10,16 @@
  * Explicit props only: a `{...rest}` spread in the stub dropped
  * props.children inside the Solid dev transform (child vanished).
  */
+let stubCalls = 0;
+let stubTime = 0;
+export function __getStubStats() {
+  return { stubCalls, stubTime };
+}
+export function __resetStubStats() {
+  stubCalls = 0;
+  stubTime = 0;
+}
+import type { JSX } from "solid-js";
 export async function uiLayoutStub(actual: Record<string, unknown>) {
   const safeProps = (props: any) => {
     const out: Record<string, unknown> = {};
@@ -37,14 +47,19 @@ export async function uiLayoutStub(actual: Record<string, unknown>) {
   };
   const makeStub = (Tag: "div" | "section" | "article") =>
     (props: any) => {
+      const start = performance.now();
+      stubCalls++;
       const passthrough = safeProps(props);
+      let el: JSX.Element;
       if (Tag === "section") {
-        return <section {...passthrough}>{props.children}</section>;
+        el = <section {...passthrough}>{props.children}</section>;
+      } else if (Tag === "article") {
+        el = <article {...passthrough}>{props.children}</article>;
+      } else {
+        el = <div {...passthrough}>{props.children}</div>;
       }
-      if (Tag === "article") {
-        return <article {...passthrough}>{props.children}</article>;
-      }
-      return <div {...passthrough}>{props.children}</div>;
+      stubTime += performance.now() - start;
+      return el;
     };
   return {
     ...actual,

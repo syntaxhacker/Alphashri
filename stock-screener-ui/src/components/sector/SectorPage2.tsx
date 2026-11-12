@@ -1,4 +1,4 @@
-import { Show, For, createEffect, createMemo, createSignal, onCleanup, onMount, type Accessor, type Setter, type JSX } from "solid-js";
+import { Show, For, createEffect, createMemo, createSignal, onCleanup, type Accessor, type Setter } from "solid-js";
 import { Box, cn, Group, Text, Button, Stack, Tabs, Loader, SegmentedControl, ScrollArea, ToolbarRow } from "@/ui";
 import {
   IconChartBar,
@@ -416,7 +416,7 @@ function useSectorState(): SectorState {
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal<string | null>(null);
   const [market, setMarket] = createSignal<"india" | "america">("india");
-  const [activeTabState, setActiveTabState] = createSignal<SectorTab>(readTabFromUrl);
+  const [activeTabState, setActiveTabState] = createSignal<SectorTab>(readTabFromUrl());
   const [alerts, setAlerts] = createSignal<SectorAlert[]>([]);
   const [intervalMovers, setIntervalMovers] = createSignal<InternalStockMover[]>([]);
   const prevSectorData: Record<string, number> = {};
@@ -606,19 +606,40 @@ function SectorPageHeader(props: {
         data-testid="sector-market-selector"
       />
       <Show when={props.showRefresh}>
-        <Button
-          variant="light"
-          color="secondary"
-          size="xs"
-          leftSection={<IconRefresh size={12} />}
-          onClick={props.onRefresh}
-          loading={props.loading}
-          disabled={!marketOpen()}
-          title={!marketOpen() ? "Market is closed" : undefined}
-          data-testid="sector-refresh-btn"
-        >
-          Refresh
-        </Button>
+        {/* @/ui Button reads `disabled`/`loading` once at construction, so the
+            button is rebuilt whenever the loading flag flips. */}
+        <Show when={props.loading} keyed>
+          {() => (
+            <Button
+              variant="light"
+              color="secondary"
+              size="xs"
+              leftSection={<IconRefresh size={12} />}
+              onClick={props.onRefresh}
+              loading={true}
+              disabled={true}
+              title={!marketOpen() ? "Market is closed" : undefined}
+              data-testid="sector-refresh-btn"
+            >
+              Refresh
+            </Button>
+          )}
+        </Show>
+        <Show when={!props.loading}>
+          <Button
+            variant="light"
+            color="secondary"
+            size="xs"
+            leftSection={<IconRefresh size={12} />}
+            onClick={props.onRefresh}
+            loading={false}
+            disabled={!marketOpen()}
+            title={!marketOpen() ? "Market is closed" : undefined}
+            data-testid="sector-refresh-btn"
+          >
+            Refresh
+          </Button>
+        </Show>
       </Show>
     </ToolbarRow>
   );
@@ -684,7 +705,7 @@ export function SectorPage() {
   const state = useSectorData();
 
   const [viewMode, setViewMode] = createSignal<ViewMode>("sector");
-  const [dashboardView, setDashboardView] = createSignal<DashboardView>(readDashboardView);
+  const [dashboardView, setDashboardView] = createSignal<DashboardView>(readDashboardView());
   const [heatmapMetric, setHeatmapMetric] = createSignal("change_pct");
   const [stockSectorFilter, setStockSectorFilter] = createSignal<string | null>(null);
   const [heatmapStocks, setHeatmapStocks] = createSignal<HeatmapStock[]>([]);

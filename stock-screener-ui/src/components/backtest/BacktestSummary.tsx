@@ -1,8 +1,6 @@
-import { Text } from "@/ui";
+import { Text, Stack } from "@/ui";
 import type { BacktestTotals } from "../../types/backtest";
 import { formatPnl as formatPnlShared, getPnLTextColor } from "../../utils/ui-helpers";
-import { Stack } from "../paper-trading/primitives";
-
 interface BacktestSummaryProps {
   totals: BacktestTotals | null;
 }

@@ -1,6 +1,6 @@
 import { createSignal, createMemo, createEffect, onCleanup, onMount, Show, Match, Switch } from "solid-js";
 import { useStoreSnapshot } from "./storeSnapshot";
-import { Alert, ScrollArea } from "@/ui";
+import { Alert, ScrollArea, Stack, Card } from "@/ui";
 import {
   getPaperTradingState,
   subscribe,
@@ -39,8 +39,6 @@ import { SelectedPositionBar } from "./SelectedPositionBar";
 import { OptionPayoffCard } from "./OptionPayoffChart";
 import { isOptionTrade } from "./optionTradeUtils";
 import type { Portfolio } from "./PaperPortfolioCard";
-import { Stack, Card } from "./primitives";
-
 type PaperTradingSnapshot = ReturnType<typeof getPaperTradingState>;
 
 function useLoadInitialData(setBotSummaries: (summaries: BotSummary[]) => void) {

@@ -2,7 +2,6 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, within } from "@solidjs/testing-library";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
 
 const mockStateStore: any = {
   currentView: "live",

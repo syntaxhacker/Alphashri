@@ -2,7 +2,7 @@
 // Pure rule-based edge breakdown: long/short, time-of-day, weekday, hold
 // duration, and exit reason, rendered as compact diverging bars.
 import { createMemo } from "solid-js";
-import { Text } from "@/ui";
+import { Text, Box } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { Trade } from "../../types/backtest";
 import { filterTrades, type TradeFilters } from "./tradeFilters";
@@ -18,8 +18,6 @@ import {
   type EdgeBucket,
 } from "./edgeAnalytics";
 import { For } from "solid-js";
-import { Box } from "../paper-trading/primitives";
-
 function Row({ b, maxAbs }: { b: EdgeBucket; maxAbs: number }) {
   const positive = b.netPnl >= 0;
   const width = maxAbs > 0 ? Math.max(1.5, (Math.abs(b.netPnl) / maxAbs) * 50) : 0;

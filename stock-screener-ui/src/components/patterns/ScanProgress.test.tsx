@@ -1,15 +1,15 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { UIProvider } from "@/ui";
+import { cleanup, render, screen, fireEvent } from "@solidjs/testing-library";
 import type { JobDTO } from "@/types/chartPatterns";
 import { ScanProgress, ScanCacheChip, getScanCacheState } from "./ScanProgress";
 
-function r(ui: React.ReactElement) {
-  return render(ui, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
 
 function makeJob(overrides: Partial<JobDTO> = {}): JobDTO {
   return {
@@ -34,84 +34,77 @@ afterEach(() => cleanup());
 
 describe("ScanProgress", () => {
   test("renders nothing when idle", () => {
-    const { container } = r(<ScanProgress job={null} scanning={false} />);
+    const { container } = render(() => <ScanProgress job={null} scanning={false} />);
     expect(container).toBeEmptyDOMElement();
   });
 
   test("shows how many stocks are done while scanning", () => {
-    r(<ScanProgress job={makeJob()} scanning universe="nifty50" timeframe="1h" />);
+    render(() => <ScanProgress job={makeJob()} scanning universe="nifty50" timeframe="1h" />);
     expect(screen.getByTestId("patterns-scan-progress-count")).toHaveTextContent("23 / 50 stocks");
     expect(screen.getByTestId("patterns-scan-progress")).toHaveTextContent("Scanning NIFTY 50 · 1h");
   });
 
   test("shows a starting state before the total is known", () => {
-    r(<ScanProgress job={makeJob({ total: 0, done: 0 })} scanning universe="nifty50" timeframe="1h" />);
+    render(() => <ScanProgress job={makeJob({ total: 0, done: 0 })} scanning universe="nifty50" timeframe="1h" />);
     expect(screen.getByTestId("patterns-scan-progress-count")).toHaveTextContent("Starting…");
   });
 
   test("shows the queue position when queued", () => {
-    r(
-      <ScanProgress
+    render(() =>       <ScanProgress
         job={makeJob({ status: "queued", done: 0, queue_position: 2 })}
         scanning={false}
         universe="nifty50"
         timeframe="1h"
-      />,
-    );
+      />);
     const el = screen.getByTestId("patterns-scan-progress");
     expect(el).toHaveTextContent("Queued");
     expect(el).toHaveTextContent("position 2");
   });
 
   test("renders nothing when the last job finished and no scan is active", () => {
-    const { container } = r(
-      <ScanProgress job={makeJob({ status: "completed" })} scanning={false} />,
+    const { container } = render(() =>       <ScanProgress job={makeJob({ status: "completed" })} scanning={false} />,
     );
     expect(container).toBeEmptyDOMElement();
   });
 
   test("block variant shows the completion percent alongside done/total", () => {
-    r(<ScanProgress job={makeJob()} scanning variant="block" universe="nifty50" timeframe="1h" />);
+    render(() => <ScanProgress job={makeJob()} scanning variant="block" universe="nifty50" timeframe="1h" />);
     // 23/50 → 46%
     expect(screen.getByTestId("patterns-scan-progress-count")).toHaveTextContent("23 / 50 stocks");
     expect(screen.getByTestId("patterns-scan-progress")).toHaveTextContent("46%");
   });
 
   test("banner variant shows compact done/total and percent", () => {
-    r(<ScanProgress job={makeJob()} scanning variant="banner" universe="nifty50" timeframe="1h" />);
+    render(() => <ScanProgress job={makeJob()} scanning variant="banner" universe="nifty50" timeframe="1h" />);
     const el = screen.getByTestId("patterns-scan-progress");
     expect(el).toHaveTextContent("Scanning NIFTY 50 · 1h");
     expect(screen.getByTestId("patterns-scan-progress-count")).toHaveTextContent("23/50 stocks · 46%");
   });
 
   test("inline variant shows a one-line count", () => {
-    r(<ScanProgress job={makeJob()} scanning variant="inline" universe="nifty50" timeframe="1h" />);
+    render(() => <ScanProgress job={makeJob()} scanning variant="inline" universe="nifty50" timeframe="1h" />);
     expect(screen.getByTestId("patterns-scan-progress")).toHaveTextContent("23 / 50 stocks");
   });
 
   test("banner variant shows starting state when total is 0", () => {
-    r(
-      <ScanProgress
+    render(() =>       <ScanProgress
         job={makeJob({ total: 0, done: 0 })}
         scanning
         variant="banner"
         universe="nifty50"
         timeframe="1h"
-      />,
-    );
+      />);
     expect(screen.getByTestId("patterns-scan-progress-count")).toHaveTextContent("starting…");
   });
 
   test("inline variant shows starting state when total is 0", () => {
-    r(
-      <ScanProgress
+    render(() =>       <ScanProgress
         job={makeJob({ total: 0, done: 0 })}
         scanning
         variant="inline"
         universe="nifty50"
         timeframe="1h"
-      />,
-    );
+      />);
     expect(screen.getByTestId("patterns-scan-progress")).toHaveTextContent("starting…");
   });
 
@@ -122,8 +115,7 @@ describe("ScanProgress", () => {
       vi.setSystemTime(now);
       // elapsed 46s, done 23/50 → 46/23*27 ≈ 54s left
       const startedAt = new Date(now - 46_000).toISOString();
-      r(
-        <ScanProgress
+      render(() =>         <ScanProgress
           job={makeJob({ started_at: startedAt, done: 23, total: 50 })}
           scanning
           variant="inline"
@@ -142,8 +134,7 @@ describe("ScanProgress", () => {
       vi.setSystemTime(now);
       // elapsed 60s, done 25/50 → 60s left → ~1 min left
       const startedAt = new Date(now - 60_000).toISOString();
-      r(
-        <ScanProgress
+      render(() =>         <ScanProgress
           job={makeJob({ started_at: startedAt, done: 25, total: 50 })}
           scanning
           variant="inline"
@@ -156,17 +147,15 @@ describe("ScanProgress", () => {
   });
 
   test("omits ETA before any stock finishes", () => {
-    r(<ScanProgress job={makeJob({ total: 0, done: 0 })} scanning variant="inline" />);
+    render(() => <ScanProgress job={makeJob({ total: 0, done: 0 })} scanning variant="inline" />);
     expect(screen.getByTestId("patterns-scan-progress")).not.toHaveTextContent("left");
   });
 
   test("shows the reused notice when the job reused a previous scan", () => {
-    r(
-      <ScanProgress
+    render(() =>       <ScanProgress
         job={makeJob({ status: "completed", reused: true, reused_age_sec: 720 })}
         scanning={false}
-      />,
-    );
+      />);
     const notice = screen.getByTestId("patterns-scan-reused");
     expect(notice).toHaveTextContent("Reused scan from 12 min ago");
     expect(notice).toHaveTextContent("data unchanged");
@@ -174,7 +163,7 @@ describe("ScanProgress", () => {
   });
 
   test("reused notice falls back when no age signal is available", () => {
-    r(<ScanProgress job={makeJob({ status: "completed", reused: true })} scanning={false} />);
+    render(() => <ScanProgress job={makeJob({ status: "completed", reused: true })} scanning={false} />);
     expect(screen.getByTestId("patterns-scan-reused")).toHaveTextContent(
       "Reused scan — data unchanged",
     );
@@ -186,8 +175,7 @@ describe("ScanProgress", () => {
       const now = new Date("2026-10-03T10:00:00Z").getTime();
       vi.setSystemTime(now);
       const finishedAt = new Date(now - 12 * 60_000).toISOString();
-      r(
-        <ScanProgress
+      render(() =>         <ScanProgress
           job={makeJob({ status: "completed", reused: true, reused_finished_at: finishedAt })}
           scanning={false}
         />,
@@ -202,13 +190,11 @@ describe("ScanProgress", () => {
 
   test("reused notice renders the force action when a handler is provided", () => {
     const onForceRefresh = vi.fn();
-    r(
-      <ScanProgress
+    render(() =>       <ScanProgress
         job={makeJob({ status: "completed", reused: true, reused_age_sec: 60 })}
         scanning={false}
         onForceRefresh={onForceRefresh}
-      />,
-    );
+      />);
     expect(screen.getByTestId("patterns-scan-reused-force")).toBeInTheDocument();
   });
 });
@@ -289,13 +275,12 @@ describe("getScanCacheState", () => {
 
 describe("ScanCacheChip", () => {
   test("renders nothing without a job", () => {
-    const { container } = r(<ScanCacheChip job={null} />);
+    const { container } = render(() => <ScanCacheChip job={null} />);
     expect(container).toBeEmptyDOMElement();
   });
 
   test("fresh chip for a fully computed scan", () => {
-    r(
-      <ScanCacheChip
+    render(() =>       <ScanCacheChip
         job={makeJob({
           status: "completed",
           provenance: {
@@ -307,8 +292,7 @@ describe("ScanCacheChip", () => {
             data_through: "2026-09-30",
           },
         })}
-      />,
-    );
+      />);
     expect(screen.getByTestId("patterns-scan-status")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-scan-fresh")).toHaveTextContent("Fresh");
     expect(screen.queryByTestId("patterns-scan-reused")).not.toBeInTheDocument();
@@ -316,19 +300,18 @@ describe("ScanCacheChip", () => {
   });
 
   test("cached chip with age keeps the reused testid when reused", () => {
-    r(<ScanCacheChip job={makeJob({ status: "completed", reused: true, reused_age_sec: 720 })} />);
+    render(() => <ScanCacheChip job={makeJob({ status: "completed", reused: true, reused_age_sec: 720 })} />);
     expect(screen.getByTestId("patterns-scan-status")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-scan-reused")).toHaveTextContent("Cached · 12 min ago");
   });
 
   test("cached chip without an age signal still labels the reuse", () => {
-    r(<ScanCacheChip job={makeJob({ status: "completed", reused: true })} />);
+    render(() => <ScanCacheChip job={makeJob({ status: "completed", reused: true })} />);
     expect(screen.getByTestId("patterns-scan-reused")).toHaveTextContent("Cached");
   });
 
   test("mixed chip shows the cache-hit percent", () => {
-    r(
-      <ScanCacheChip
+    render(() =>       <ScanCacheChip
         job={makeJob({
           status: "completed",
           provenance: {
@@ -340,26 +323,22 @@ describe("ScanCacheChip", () => {
             data_through: null,
           },
         })}
-      />,
-    );
+      />);
     expect(screen.getByTestId("patterns-scan-fresh")).toHaveTextContent("Cache 25%");
   });
 
   test("force re-run action calls the handler when reused", async () => {
     const onForceRefresh = vi.fn();
-    r(
-      <ScanCacheChip
+    render(() =>       <ScanCacheChip
         job={makeJob({ status: "completed", reused: true, reused_age_sec: 60 })}
         onForceRefresh={onForceRefresh}
-      />,
-    );
-    await userEvent.click(screen.getByTestId("patterns-scan-reused-force"));
+      />);
+    fireEvent.click(screen.getByTestId("patterns-scan-reused-force"));
     expect(onForceRefresh).toHaveBeenCalledTimes(1);
   });
 
   test("tooltip exposes the cache layers as its accessible label", async () => {
-    r(
-      <ScanCacheChip
+    render(() =>       <ScanCacheChip
         job={makeJob({
           status: "completed",
           reused: true,
@@ -374,11 +353,9 @@ describe("ScanCacheChip", () => {
             data_through: "2026-09-30",
           },
         })}
-      />,
-    );
+      />);
     // The local Tooltip renders the joined layers inside the bubble on hover.
-    const user = userEvent.setup();
-    await user.hover(screen.getByTestId("patterns-scan-reused"));
+    fireEvent.mouseOver(screen.getByTestId("patterns-scan-reused"));
     expect(
       await screen.findByText(
         "Scan reused: yes (12 min ago) — data unchanged · Candle cache: 480 cached / 20 fetched · Prefilter dropped: 12 · Detector v3 · Data as of 2026-09-30",
@@ -387,9 +364,8 @@ describe("ScanCacheChip", () => {
   });
 
   test("tooltip degrades gracefully without provenance", async () => {
-    const user = userEvent.setup();
-    r(<ScanCacheChip job={makeJob({ status: "completed", data_through: "2026-09-30" })} />);
-    await user.hover(screen.getByTestId("patterns-scan-fresh"));
+    render(() => <ScanCacheChip job={makeJob({ status: "completed", data_through: "2026-09-30" })} />);
+    fireEvent.mouseOver(screen.getByTestId("patterns-scan-fresh"));
     expect(
       await screen.findByText("Scan reused: no — freshly computed · Data as of 2026-09-30"),
     ).toBeInTheDocument();

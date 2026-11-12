@@ -1,10 +1,12 @@
-import type { JSX } from "solid-js";
+import { Show, type JSX } from "solid-js";
 import { Stack, Group, Text, Loader, Button, Alert } from "@/ui";
 import { IconAlertCircle, IconDatabaseOff } from "@/components/common/Icons";
 import { CompactPanel } from "./compact";
 
 export interface InlineLoaderProps {
   "data-testid"?: string;
+  /** @deprecated kebab-case `data-testid` is the supported spelling. */
+  dataTestid?: string;
   className?: string;
   size?: string;
   message?: string;
@@ -12,18 +14,14 @@ export interface InlineLoaderProps {
   children?: JSX.Element;
 }
 
-export function InlineLoader({
-  dataTestid: testId,
-  className,
-  size = "sm",
-  message,
-  showSpinner = true,
-  children,
-}: InlineLoaderProps) {
+export function InlineLoader(props: InlineLoaderProps) {
+  const testId = () => props["data-testid"] ?? props.dataTestid;
+  const size = () => props.size ?? "sm";
+  const showSpinner = () => props.showSpinner ?? true;
   return (
-    <Group justify="center" direction="column" gap="xs" py="xl" data-testid={testId} className={className}>
-      {showSpinner && <Loader size={size} />}
-      {children || (message && <Text size="xs" c="dimmed">{message}</Text>)}
+    <Group justify="center" direction="column" gap="xs" py="xl" data-testid={testId()} className={props.className}>
+      {showSpinner() && <Loader size={size()} />}
+      {props.children || (props.message && <Text size="xs" c="dimmed">{props.message}</Text>)}
     </Group>
   );
 }
@@ -34,26 +32,21 @@ interface EmptyStateProps {
   title: string;
   description?: string;
   "data-testid"?: string;
+  /** @deprecated kebab-case `data-testid` is the supported spelling. */
+  dataTestid?: string;
   className?: string;
 }
 
-export function EmptyState({
-  icon,
-  emoji,
-  title,
-  description,
-  dataTestid: testId,
-  className,
-}: EmptyStateProps) {
+export function EmptyState(props: EmptyStateProps) {
   return (
-    <Stack align="center" gap="xs" py="sm" data-testid={testId} className={className}>
-      {icon ?? (emoji ? <Text size="xl">{emoji}</Text> : <IconDatabaseOff size={40} color="secondary" />)}
-      <Text fw={600}>{title}</Text>
-      {description && (
+    <Stack align="center" gap="xs" py="sm" data-testid={props["data-testid"] ?? props.dataTestid} className={props.className}>
+      {props.icon ?? (props.emoji ? <Text size="xl">{props.emoji}</Text> : <IconDatabaseOff size={40} color="secondary" />)}
+      <Text fw={600}>{props.title}</Text>
+      <Show when={props.description}>
         <Text size="sm" c="dimmed">
-          {description}
+          {props.description}
         </Text>
-      )}
+      </Show>
     </Stack>
   );
 }
@@ -63,45 +56,40 @@ interface ErrorAlertProps {
   message: string;
   onClose?: () => void;
   "data-testid"?: string;
+  /** @deprecated kebab-case `data-testid` is the supported spelling. */
+  dataTestid?: string;
   className?: string;
   withRetry?: boolean;
   onRetry?: () => void;
 }
 
-export function ErrorAlert({
-  title = "Error",
-  message,
-  onClose,
-  dataTestid: testId,
-  className,
-  withRetry,
-  onRetry,
-}: ErrorAlertProps) {
+export function ErrorAlert(props: ErrorAlertProps) {
+  const testId = () => props["data-testid"] ?? props.dataTestid;
   return (
     <Alert
       icon={<IconAlertCircle size="1rem" />}
-      title={title}
+      title={props.title ?? "Error"}
       color="error"
       variant="filled"
       mb="md"
-      withCloseButton={!!onClose}
-      onClose={onClose}
-      data-testid={testId}
-      className={className}
+      withCloseButton={!!props.onClose}
+      onClose={props.onClose}
+      data-testid={testId()}
+      className={props.className}
     >
-      {message}
-      {withRetry && onRetry && (
+      {props.message}
+      <Show when={props.withRetry && props.onRetry}>
         <Button
           variant="filled"
           color="error"
           size="sm"
-          onClick={onRetry}
+          onClick={props.onRetry}
           mt="xs"
-          data-testid={testId ? `${testId}-retry` : undefined}
+          data-testid={testId() ? `${testId()}-retry` : undefined}
         >
           Retry
         </Button>
-      )}
+      </Show>
     </Alert>
   );
 }
@@ -112,25 +100,18 @@ interface EmptyCompactProps {
   title: string;
   description?: string;
   "data-testid"?: string;
+  /** @deprecated kebab-case `data-testid` is the supported spelling. */
+  dataTestid?: string;
   className?: string;
   id?: string;
   children?: JSX.Element;
 }
 
-export function EmptyCompact({
-  icon,
-  emoji,
-  title,
-  description,
-  dataTestid: testId,
-  className,
-  id,
-  children,
-}: EmptyCompactProps) {
+export function EmptyCompact(props: EmptyCompactProps) {
   return (
-    <CompactPanel data-testid={testId} className={className} id={id} description={description}>
-      <EmptyState icon={icon} emoji={emoji} title={title} />
-      {children}
+    <CompactPanel data-testid={props["data-testid"] ?? props.dataTestid} className={props.className} id={props.id} description={props.description}>
+      <EmptyState icon={props.icon} emoji={props.emoji} title={props.title} />
+      {props.children}
     </CompactPanel>
   );
 }

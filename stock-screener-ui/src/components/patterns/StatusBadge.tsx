@@ -1,3 +1,4 @@
+import { splitProps } from "solid-js";
 import { Badge } from "@/ui";
 import type { PatternStatus } from "@/types/chartPatterns";
 import type { DisplayStatus, DisplayTone } from "./patternDisplayStatus";
@@ -20,18 +21,20 @@ function toneToBadgeTone(tone: DisplayTone): BadgeTone {
 }
 
 /** Small semantic chip for a pattern detection status. */
-export function StatusBadge({ status, display, dataTestid: testId }: StatusBadgeProps) {
-  const key = String(status ?? "").toLowerCase();
-  const label = display ? titleCase(display.label) : statusLabel(status);
-  const color = display ? toneToBadgeTone(display.tone) : statusBadgeTone(status);
+export function StatusBadge(props: StatusBadgeProps) {
+  const [local] = splitProps(props, ["status", "display"]);
+  const key = () => String(local.status ?? "").toLowerCase();
+  const label = () => (local.display ? titleCase(local.display.label) : statusLabel(local.status));
+  const color = () =>
+    local.display ? toneToBadgeTone(local.display.tone) : statusBadgeTone(local.status);
   return (
     <Badge
-      color={color}
+      color={color()}
       variant="light"
       size="sm"
-      data-testid={testId ?? `patterns-status-${key || "unknown"}`}
+      data-testid={props["data-testid"] ?? `patterns-status-${key() || "unknown"}`}
     >
-      {label}
+      {label()}
     </Badge>
   );
 }

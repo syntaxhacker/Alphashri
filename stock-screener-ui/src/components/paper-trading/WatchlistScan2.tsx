@@ -1,6 +1,6 @@
 import { createSignal, createMemo, Show } from "solid-js";
 import { alpha } from "@/ui/alpha";
-import { ActionIcon, Badge, Checkbox, MultiSelect, ScrollArea, SegmentedControl, Text, TextInput, ToolbarRow, Tooltip } from "@/ui";
+import { ActionIcon, Badge, Checkbox, MultiSelect, ScrollArea, SegmentedControl, Text, TextInput, ToolbarRow, Tooltip, Group, Stack } from "@/ui";
 import type { TableColumnDef } from "./TanStackTable";
 import { IconRefresh, IconSparkles } from "@/components/common/Icons";
 import { TanStackTable } from "./TanStackTable";
@@ -12,8 +12,6 @@ import { formatTimeAgo } from "../../utils/ui-helpers";
 import type { PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
 import { nearBreakoutPct } from "./PositionsHelpers";
 import * as palette from "@/ui/palette";
-import { Group, Stack } from "./primitives";
-
 interface WatchlistScan2Props {
   snapshot: PaperBotSnapshot | null;
   selectedSymbol: string | null;

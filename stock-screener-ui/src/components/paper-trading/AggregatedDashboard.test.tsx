@@ -2,15 +2,14 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, fireEvent, cleanup, screen, waitFor, within } from "@solidjs/testing-library";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
 import { AggregatedDashboard } from "./AggregatedDashboard";
 import * as paperTradingState from "../../state/paperTrading";
 import type { PaperDashboardAnalyticsData } from "../../types/paperTrading";
 
 const fetchDashboardAnalytics = vi.fn().mockResolvedValue(null);
 
-vi.mock("echarts-for-react", () => ({
-  default: () => <div data-testid="mock-echarts">ECharts</div>,
+vi.mock("./EChartSolid", () => ({
+  EChartSolid: () => <div data-testid="mock-echarts">ECharts</div>,
 }));
 
 vi.mock("../../api/paperTrading", () => ({
@@ -184,7 +183,7 @@ describe("AggregatedDashboard", () => {
     render(() => <AggregatedDashboard />);
 
     const botFilter = within(screen.getByTestId("dashboard-bot-filter")).getByRole("combobox");
-    await fireEvent.input(botFilter, "bot-1");
+    await fireEvent.input(botFilter, { target: { value: "bot-1" } });
 
     await waitFor(() => {
       expect(fetchDashboardAnalytics).toHaveBeenLastCalledWith({

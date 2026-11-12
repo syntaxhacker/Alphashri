@@ -1,16 +1,18 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { UIProvider } from "@/ui";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import * as palette from "@/ui/palette";
+import { createSignal } from "solid-js";
 import { PatternChartLegend } from "./PatternChartLegend";
 import { buildPatternTVData } from "./patternTVData";
 import type { ChartCandle, PatternHitDTO } from "@/types/chartPatterns";
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
 
 const CANDLES: ChartCandle[] = [
   { t: "2026-04-01", o: 100, h: 103, l: 99, c: 102, v: 1000 },
@@ -86,7 +88,7 @@ describe("PatternChartLegend", () => {
   test("renders one swatch+label per drawn line name from buildPatternTVData", () => {
     const { lines } = buildPatternTVData({ candles: CANDLES, hit: makeHit() });
     expect(lines.length).toBeGreaterThan(0);
-    r(<PatternChartLegend lines={lines} />);
+    render(() => <PatternChartLegend lines={lines} />);
 
     expect(screen.getByTestId("patterns-chart-legend")).toBeInTheDocument();
     // Two boundary segments share the pattern name → a single legend entry.
@@ -96,7 +98,7 @@ describe("PatternChartLegend", () => {
 
   test("renders TLS/TLR entries when standalone lines are present", () => {
     const { lines } = buildPatternTVData({ candles: CANDLES, hit: makeHit() });
-    r(<PatternChartLegend lines={lines} />);
+    render(() => <PatternChartLegend lines={lines} />);
 
     expect(screen.getByTestId("patterns-chart-legend-item-TLS")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-chart-legend-item-TLR")).toBeInTheDocument();
@@ -106,7 +108,7 @@ describe("PatternChartLegend", () => {
 
   test("omits TLS/TLR when the view filter hides standalone lines", () => {
     const { lines } = buildPatternTVData({ candles: CANDLES, hit: makeHit(), trendlinesView: "none" });
-    r(<PatternChartLegend lines={lines} />);
+    render(() => <PatternChartLegend lines={lines} />);
 
     expect(screen.getByTestId("patterns-chart-legend")).toBeInTheDocument();
     expect(screen.queryByTestId("patterns-chart-legend-item-TLS")).toBeNull();
@@ -114,7 +116,7 @@ describe("PatternChartLegend", () => {
   });
 
   test("renders nothing when there are no lines", () => {
-    const { container } = r(<PatternChartLegend lines={[]} />);
+    const { container } = render(() => <PatternChartLegend lines={[]} />);
     expect(screen.queryByTestId("patterns-chart-legend")).toBeNull();
     expect(container).toBeEmptyDOMElement();
   });
@@ -122,20 +124,21 @@ describe("PatternChartLegend", () => {
   test("toggles a series via onToggle and reflects the hidden state", () => {
     const { lines } = buildPatternTVData({ candles: CANDLES, hit: makeHit() });
     const onToggle = vi.fn();
-    const { rerender } = r(<PatternChartLegend lines={lines} hidden={new Set()} onToggle={onToggle} />);
+    const [hidden, setHidden] = createSignal<ReadonlySet<string>>(new Set());
+    render(() => <PatternChartLegend lines={lines} hidden={hidden()} onToggle={onToggle} />);
 
     const item = screen.getByTestId("patterns-chart-legend-item-TLS");
     expect(item).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(item);
     expect(onToggle).toHaveBeenCalledWith("TLS");
 
-    rerender(<PatternChartLegend lines={lines} hidden={new Set(["TLS"])} onToggle={onToggle} />);
+    setHidden(new Set(["TLS"]));
     expect(screen.getByTestId("patterns-chart-legend-item-TLS")).toHaveAttribute("aria-pressed", "false");
   });
 
   test("is display-only without onToggle", () => {
     const { lines } = buildPatternTVData({ candles: CANDLES, hit: makeHit() });
-    r(<PatternChartLegend lines={lines} />);
+    render(() => <PatternChartLegend lines={lines} />);
     const item = screen.getByTestId("patterns-chart-legend-item-TLS");
     expect(item).not.toHaveAttribute("aria-pressed");
     expect(item.tagName).toBe("SPAN");
@@ -144,8 +147,7 @@ describe("PatternChartLegend", () => {
   test("includes level guides (Breakout/Target/Stop) as toggleable entries", () => {
     const { lines } = buildPatternTVData({ candles: CANDLES, hit: makeHit() });
     const onToggle = vi.fn();
-    r(
-      <PatternChartLegend
+    render(() =>       <PatternChartLegend
         lines={lines}
         levels={[
           { name: "Breakout", color: "#4C8DFF" },
@@ -154,8 +156,7 @@ describe("PatternChartLegend", () => {
         ]}
         hidden={new Set()}
         onToggle={onToggle}
-      />,
-    );
+      />);
 
     const item = screen.getByTestId("patterns-chart-legend-item-Breakout");
     expect(item).toBeInTheDocument();
@@ -166,14 +167,12 @@ describe("PatternChartLegend", () => {
   test("includes a Pivots marker entry as a toggleable item", () => {
     const { lines } = buildPatternTVData({ candles: CANDLES, hit: makeHit() });
     const onToggle = vi.fn();
-    r(
-      <PatternChartLegend
+    render(() =>       <PatternChartLegend
         lines={lines}
         markers={[{ name: "Pivots", color: palette.NEUTRAL }]} 
         hidden={new Set()}
         onToggle={onToggle}
-      />,
-    );
+      />);
 
     const item = screen.getByTestId("patterns-chart-legend-item-Pivots");
     expect(item).toBeInTheDocument();

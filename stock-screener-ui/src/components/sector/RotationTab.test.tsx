@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen, waitFor, within } from "@solidjs/testing-library";
+import { cleanup, render, screen, waitFor, within, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import type { RotationOverviewResponse, RotationRow } from "../../types/rotation";
 import { RotationTab } from "./RotationTab";
@@ -127,7 +127,8 @@ describe("RotationTab", () => {
         expect.objectContaining({ kind: "theme" }),
       );
     });
-    expect(screen.getByTestId("rotation-detail")).toHaveTextContent("Technology");
+    // The refetch only commits once its promise resolves — wait for the DOM
+    await waitFor(() => expect(screen.getByTestId("rotation-detail")).toHaveTextContent("Technology"));
   });
 
   test("shows an error state when the overview request fails", async () => {

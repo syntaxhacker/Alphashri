@@ -165,8 +165,7 @@ describe("SymbolFilter", () => {
         filters={makeFilters({ symbols: ["TCS", "RELIANCE"] })}
         setFilter={setFilter}
         onChange={onChange}
-      />,
-    );
+      />);
 
     fireEvent.click(screen.getByRole("button", { name: "Remove RELIANCE" }));
     expect(onChange).toHaveBeenCalledWith(["TCS"]);
@@ -191,8 +190,7 @@ describe("SymbolFilter", () => {
         setFilter={vi.fn()}
         placeholder="Pick symbols…"
         helperText="Custom helper"
-      />,
-    );
+      />);
     expect(screen.getByPlaceholderText("Pick symbols…")).toBeInTheDocument();
     expect(screen.getByText("Custom helper")).toBeInTheDocument();
     expect(screen.queryByText("Show patterns only for these symbols")).not.toBeInTheDocument();

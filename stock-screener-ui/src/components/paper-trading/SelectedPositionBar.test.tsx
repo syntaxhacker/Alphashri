@@ -2,9 +2,9 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import { SelectedPositionBar } from "./SelectedPositionBar";
 import { mockPosition } from "./testFixtures";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
 
 afterEach(() => {
   cleanup();
@@ -29,14 +29,11 @@ describe("SelectedPositionBar", () => {
     });
 
     test("renders side badge with correct color (BUY=teal, SELL=red)", () => {
-      const buyPos = mockPosition({ side: "BUY" });
-      const { rerender } = render(() => 
-        <SelectedPositionBar position={buyPos} />,
-      );
+      const [pos, setPos] = createSignal(mockPosition({ side: "BUY" as const }));
+      render(() => <SelectedPositionBar position={pos()} />);
       expect(screen.getByText("BUY")).toBeInTheDocument();
 
-      const sellPos = mockPosition({ side: "SELL" });
-      rerender(<SelectedPositionBar position={sellPos} />);
+      setPos(mockPosition({ side: "SELL" }));
       expect(screen.getByText("SELL")).toBeInTheDocument();
     });
 

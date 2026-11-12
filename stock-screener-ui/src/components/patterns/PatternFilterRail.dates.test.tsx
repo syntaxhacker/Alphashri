@@ -1,9 +1,12 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { UIProvider } from "@/ui";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { DEFAULT_PATTERN_FILTERS } from "@/state/chartPatterns";
 import type { PatternFilters } from "@/types/chartPatterns";
 import { PatternFilterRail, type PatternFilterRailProps } from "./PatternFilterRail";
@@ -20,9 +23,6 @@ function makeProps(overrides: Partial<PatternFilterRailProps> = {}): PatternFilt
   };
 }
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
 
 function filtersWith(overrides: Partial<PatternFilters>): PatternFilters {
   return { ...DEFAULT_PATTERN_FILTERS, ...overrides };
@@ -33,7 +33,7 @@ describe("PatternFilterRail formed-between dates", () => {
   afterEach(() => cleanup());
 
   test("renders From + To datetime inputs in the rail layout", () => {
-    r(<PatternFilterRail {...makeProps()} />);
+    render(() => <PatternFilterRail {...makeProps()} />);
     expect(screen.getByText("Formed between")).toBeInTheDocument();
     const from = screen.getByTestId("patterns-filter-from-date");
     const to = screen.getByTestId("patterns-filter-to-date");
@@ -44,7 +44,7 @@ describe("PatternFilterRail formed-between dates", () => {
   });
 
   test("renders From + To datetime inputs in the panel layout", () => {
-    r(<PatternFilterRail {...makeProps({ layout: "panel" })} />);
+    render(() => <PatternFilterRail {...makeProps({ layout: "panel" })} />);
     expect(screen.getByText("Formed between")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-from-date")).toHaveAttribute(
       "type",
@@ -58,7 +58,7 @@ describe("PatternFilterRail formed-between dates", () => {
 
   test("typing a From value writes from_date", () => {
     const props = makeProps();
-    r(<PatternFilterRail {...props} />);
+    render(() => <PatternFilterRail {...props} />);
     fireEvent.change(screen.getByTestId("patterns-filter-from-date"), {
       target: { value: "2026-06-01T09:15" },
     });
@@ -67,7 +67,7 @@ describe("PatternFilterRail formed-between dates", () => {
 
   test("typing a To value writes to_date", () => {
     const props = makeProps();
-    r(<PatternFilterRail {...props} />);
+    render(() => <PatternFilterRail {...props} />);
     fireEvent.change(screen.getByTestId("patterns-filter-to-date"), {
       target: { value: "2026-09-30T14:30" },
     });
@@ -78,7 +78,7 @@ describe("PatternFilterRail formed-between dates", () => {
     const props = makeProps({
       filters: filtersWith({ from_date: "2026-06-01T09:15", to_date: "2026-09-30T14:30" }),
     });
-    r(<PatternFilterRail {...props} />);
+    render(() => <PatternFilterRail {...props} />);
     fireEvent.change(screen.getByTestId("patterns-filter-from-date"), {
       target: { value: "" },
     });
@@ -93,17 +93,17 @@ describe("PatternFilterRail formed-between dates", () => {
     const props = makeProps({
       filters: filtersWith({ from_date: "2026-06-01T09:15", to_date: "2026-09-30T14:30" }),
     });
-    r(<PatternFilterRail {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-filter-from-date-clear"));
+    render(() => <PatternFilterRail {...props} />);
+    fireEvent.click(screen.getByTestId("patterns-filter-from-date-clear"));
     expect(props.setFilter).toHaveBeenCalledWith("from_date", null);
-    await userEvent.click(screen.getByTestId("patterns-filter-to-date-clear"));
+    fireEvent.click(screen.getByTestId("patterns-filter-to-date-clear"));
     expect(props.setFilter).toHaveBeenCalledWith("to_date", null);
   });
 
   test("Last 30 days preset sets from_date ~30 days ago", async () => {
     const props = makeProps();
-    r(<PatternFilterRail {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-filter-date-last-30d"));
+    render(() => <PatternFilterRail {...props} />);
+    fireEvent.click(screen.getByTestId("patterns-filter-date-last-30d"));
     expect(props.setFilter).toHaveBeenCalledTimes(1);
     const [key, value] = (props.setFilter as ReturnType<typeof vi.fn>).mock.calls[0] as [
       string,
@@ -119,8 +119,8 @@ describe("PatternFilterRail formed-between dates", () => {
 
   test("This month preset sets from_date to the first of the month", async () => {
     const props = makeProps();
-    r(<PatternFilterRail {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-filter-date-this-month"));
+    render(() => <PatternFilterRail {...props} />);
+    fireEvent.click(screen.getByTestId("patterns-filter-date-this-month"));
     expect(props.setFilter).toHaveBeenCalledTimes(1);
     const [key, value] = (props.setFilter as ReturnType<typeof vi.fn>).mock.calls[0] as [
       string,

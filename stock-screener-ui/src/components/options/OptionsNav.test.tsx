@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { screen, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { OptionsNav } from "./OptionsNav";
 import { renderWithProviders } from "../../test-utils/renderWithProviders";
@@ -13,7 +12,7 @@ afterEach(() => {
 
 describe("OptionsNav", () => {
   it("renders all tabs", () => {
-    renderWithProviders(<OptionsNav activeTab="chain" onTabChange={vi.fn()} />);
+    render(() => <OptionsNav activeTab="chain" onTabChange={vi.fn()} />);
     expect(screen.getByText("Option Chain")).toBeInTheDocument();
     expect(screen.getByText("Positions")).toBeInTheDocument();
     expect(screen.getByText("Premium")).toBeInTheDocument();
@@ -23,23 +22,23 @@ describe("OptionsNav", () => {
 
   it("has clickable tabs", async () => {
     const onTabChange = vi.fn();
-    renderWithProviders(<OptionsNav activeTab="chain" onTabChange={onTabChange} />);
-    await userEvent.click(screen.getByText("Positions"));
+    render(() => <OptionsNav activeTab="chain" onTabChange={onTabChange} />);
+    fireEvent.click(screen.getByText("Positions"));
     expect(onTabChange).toHaveBeenCalledWith("positions");
 
-    await userEvent.click(screen.getByText("Premium"));
+    fireEvent.click(screen.getByText("Premium"));
     expect(onTabChange).toHaveBeenCalledWith("premium");
   });
 
   it("clicking Simulator tab emits simulator value", async () => {
     const onTabChange = vi.fn();
-    renderWithProviders(<OptionsNav activeTab="premium" onTabChange={onTabChange} />);
-    await userEvent.click(screen.getByText("Simulator"));
+    render(() => <OptionsNav activeTab="premium" onTabChange={onTabChange} />);
+    fireEvent.click(screen.getByText("Simulator"));
     expect(onTabChange).toHaveBeenCalledWith("simulator");
   });
 
   it("marks active tab with correct value", () => {
-    renderWithProviders(<OptionsNav activeTab="positions" onTabChange={vi.fn()} />);
+    render(() => <OptionsNav activeTab="positions" onTabChange={vi.fn()} />);
     const tab = screen.getByTestId("nav-tab-positions");
     expect(tab).toHaveAttribute("aria-selected", "true");
   });

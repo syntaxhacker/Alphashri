@@ -18,7 +18,8 @@ describe("TanStackTable width — TDD RED for dense layout", () => {
     // should be 100% width and have a minWidth to enable horizontal scroll when dense
     expect(table.style.width).toBe("100%");
     // RED if no minWidth —dense tables overflow without scroll
-    expect(parseInt(table.style.minWidth || "0", 10)).toBeGreaterThanOrEqual(640);
+    // solid sets the kebab-case "min-width" property, so read it via getPropertyValue
+    expect(parseInt(table.style.getPropertyValue("min-width") || "0", 10)).toBeGreaterThanOrEqual(640);
   });
 
 });

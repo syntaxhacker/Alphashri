@@ -1,6 +1,7 @@
-import { memo, useEffect, useState, useCallback, useRef } from "react";
+import { createEffect, createSignal, For, Show, onCleanup } from "solid-js";
+import type { JSX } from "solid-js";
 import { Loader, Text, Tooltip } from "@/ui";
-import { IconChevronRight } from "@tabler/icons-react";
+import { IconChevronRight } from "@/components/common/Icons";
 import * as palette from "@/ui/palette";
 import {
   REPORT_FONT,
@@ -27,16 +28,12 @@ const ARROW_GAINER = "▲";
 const ARROW_LOSER = "▼";
 
 /** One mover line: symbol + % change. */
-function MoverItem({
-  row,
-  isGainer,
-}: {
-  row: IndexMoverRow;
-  isGainer: boolean;
-}) {
-  const arrow = isGainer ? ARROW_GAINER : ARROW_LOSER;
-  const color = isGainer ? GAINER_COLOR : LOSER_COLOR;
-  const signed = isGainer ? "+" : "";
+function MoverItem(props: { row: IndexMoverRow; isGainer: boolean }) {
+  const row = () => props.row;
+  const isGainer = () => props.isGainer;
+  const arrow = () => (isGainer() ? ARROW_GAINER : ARROW_LOSER);
+  const color = () => (isGainer() ? GAINER_COLOR : LOSER_COLOR);
+  const signed = () => (isGainer() ? "+" : "");
   return (
     <span
       className="inline-flex items-center gap-1 shrink-0 whitespace-nowrap"
@@ -48,11 +45,11 @@ function MoverItem({
         style={{
           fontSize: VALUE_FONT,
           fontVariantNumeric: "tabular-nums",
-          color,
+          color: color(),
           fontFamily: palette.MONO,
         }}
       >
-        {arrow}
+        {arrow()}
       </Text>
       <Text
         span
@@ -61,11 +58,11 @@ function MoverItem({
         style={{
           fontSize: VALUE_FONT,
           fontVariantNumeric: "tabular-nums",
-          color,
+          color: color(),
           fontFamily: palette.MONO,
         }}
       >
-        {row.symbol}
+        {row().symbol}
       </Text>
       <Text
         span
@@ -74,11 +71,11 @@ function MoverItem({
         style={{
           fontSize: VALUE_FONT,
           fontVariantNumeric: "tabular-nums",
-          color,
+          color: color(),
           fontFamily: palette.MONO,
         }}
       >
-        {signed}{row.change_pct.toFixed(2)}%
+        {signed()}{row().change_pct.toFixed(2)}%
       </Text>
     </span>
   );
@@ -96,7 +93,7 @@ function MoverSection({
   return (
     <span className="flex items-center gap-2 min-w-0 shrink-0">
       {rows.map((row, i) => (
-        <MoverItem key={`${row.symbol}-${i}`} row={row} isGainer={isGainer} />
+        <MoverItem key={`${row().symbol}-${i}`} row={row} isGainer={isGainer} />
       ))}
     </span>
   );
@@ -108,135 +105,77 @@ function MoverSection({
  * EOD/replay: "MOVERS · live only" (no fake rows).
  * RELIANCE: parent should not render this component.
  */
-export const IndexMoversStrip = memo(function IndexMoversStrip({
-  index,
-  onExpand,
-  liveOnly = false,
-  loading: loadingProp,
-  error: errorProp,
-}: IndexMoversStripProps) {
-  const [data, setData] = useState<IndexMoversResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mountedRef = useRef(true);
+export function IndexMoversStrip(props: IndexMoversStripProps) {
+  const index = () => props.index;
+  const liveOnly = () => props.liveOnly ?? false;
+  const [data, setData] = createSignal<IndexMoversResponse | null>(null);
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  let abortController: AbortController | null = null;
+  let mounted = true;
 
   // Poll every 30s in live mode
-  const poll = useCallback(async () => {
-    if (!mountedRef.current || liveOnly) return;
-    abortRef.current?.abort();
+  const poll = async () => {
+    if (!mounted || liveOnly()) return;
+    abortController?.abort();
     const controller = new AbortController();
-    abortRef.current = controller;
+    abortController = controller;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetchIndexMovers(index, 5, controller.signal);
-      if (!mountedRef.current || controller.signal.aborted) return;
+      const res = await fetchIndexMovers(index(), 5, controller.signal);
+      if (!mounted || controller.signal.aborted) return;
       setData(res);
     } catch (e) {
-      if (!mountedRef.current || controller.signal.aborted) return;
+      if (!mounted || controller.signal.aborted) return;
       if (e instanceof Error && e.message === "MOVERS_UNAVAILABLE") {
         setError("unavailable");
       } else {
         setError(e instanceof Error ? e.message : "Failed to load movers");
       }
     } finally {
-      if (mountedRef.current) setLoading(false);
+      if (mounted) setLoading(false);
     }
-  }, [index, liveOnly]);
+  };
 
   // Initial load + interval
-  useEffect(() => {
-    mountedRef.current = true;
-    if (!liveOnly) {
-      poll();
-      pollTimerRef.current = window.setInterval(poll, 30_000);
+  createEffect(() => {
+    // Track the index/liveOnly inputs so switching re-arms the poll.
+    index();
+    liveOnly();
+    mounted = true;
+    if (!liveOnly()) {
+      void poll();
+      const id = window.setInterval(() => void poll(), 30_000);
+      onCleanup(() => window.clearInterval(id));
     }
-    return () => {
-      mountedRef.current = false;
-      abortRef.current?.abort();
-      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
-    };
-  }, [poll, liveOnly]);
+    onCleanup(() => {
+      mounted = false;
+      abortController?.abort();
+    });
+  });
 
   // Use parent's loading/error if provided, else local
-  const isLoading = loadingProp ?? loading;
-  const isError = errorProp ?? error;
+  const isLoading = () => props.loading ?? loading();
+  const isError = () => props.error ?? error();
 
   // Stale detection: backend sets the `stale` flag
-  const isStale = data?.stale === true;
+  const isStale = () => data()?.stale === true;
 
-  // Live-only message
-  if (liveOnly) {
-    return (
-      <div
-        data-testid="movers-strip"
-        className="flex items-center justify-center h-[24px] min-h-[24px] px-2 border-t border-fin-border border-b border-fin-border bg-fin-surface font-mono text-[11px] text-fin-text-muted"
-      >
-        <Text span size="xs" fw={700} c="dimmed" style={{ letterSpacing: "0.1em" }}>
-          MOVERS
-        </Text>
-        <Text span size="xs" c="dimmed" className="ml-4 italic" style={{ fontSize: REPORT_FONT.xs }}>
-          · live only
-        </Text>
-      </div>
-    );
-  }
-
-  // Strip chrome shared by loading / error / data states
-  const stripChrome = (children: React.ReactNode) => (
+  const stripChrome = (children: JSX.Element) => (
     <div
       data-testid="movers-strip"
-      className="flex items-center h-[24px] min-h-[24px] px-2 border-t border-fin-border border-b border-fin-border bg-fin-surface font-mono text-[11px]"
+      class="flex items-center h-[24px] min-h-[24px] px-2 border-t border-fin-border border-b border-fin-border bg-fin-surface font-mono text-[11px]"
     >
       {children}
     </div>
   );
 
-  // Loading state
-  if (isLoading && !data) {
-    return stripChrome(
-      <>
-        <Text span size="xs" fw={700} c="dimmed" style={{ letterSpacing: "0.1em" }}>
-          MOVERS
-        </Text>
-        <span className="ml-2 inline-flex items-center gap-1">
-          <Loader size="xs" color={palette.PRIMARY} />
-          <Text span size="xs" c="dimmed">
-            loading…
-          </Text>
-        </span>
-      </>
-    );
-  }
-
-  // Error state
-  if (isError && !data) {
-    return stripChrome(
-      <>
-        <Text span size="xs" fw={700} c="dimmed" style={{ letterSpacing: "0.1em" }}>
-          MOVERS
-        </Text>
-        <Text span size="xs" c="error" className="ml-2">
-          unavailable
-        </Text>
-        <button
-          type="button"
-          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-border text-fin-border bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 px-2 py-0 text-[10px] font-bold ml-auto min-w-0"
-          onClick={poll}
-        >
-          Retry
-        </button>
-      </>
-    );
-  }
-
   // Render data
-  const gainers = data?.gainers ?? [];
-  const losers = data?.losers ?? [];
+  const gainers = () => data()?.gainers ?? [];
+  const losers = () => data()?.losers ?? [];
 
-  return (
+  const dataView = () => (
     <div
       data-testid="movers-strip"
       className="flex items-center justify-between gap-2 h-[24px] min-h-[24px] px-2 border-t border-fin-border border-b border-fin-border bg-fin-surface font-mono text-[11px] whitespace-nowrap overflow-hidden shrink-0"
@@ -250,11 +189,11 @@ export const IndexMoversStrip = memo(function IndexMoversStrip({
           className="shrink-0 tracking-[0.1em] text-[11px]"
           style={{ color: palette.TEXT_MUTED }}
         >
-          MOVERS · {index} {index === "NIFTY" ? "50" : "30"}
+          MOVERS · {index()} {index() === "NIFTY" ? "50" : "30"}
         </Text>
 
         {/* Gainers */}
-        <MoverSection rows={gainers} isGainer={true} />
+        <MoverSection rows={gainers()} isGainer={true} />
 
         {/* Separator — fixed 1px: a stretched flex item would push the
             losers past the strip's `overflow: hidden`. */}
@@ -264,13 +203,13 @@ export const IndexMoversStrip = memo(function IndexMoversStrip({
         />
 
         {/* Losers */}
-        <MoverSection rows={losers} isGainer={false} />
+        <MoverSection rows={losers()} isGainer={false} />
       </span>
 
       {/* Right side: EXPAND button + stale badge */}
       <span className="flex items-center gap-1 shrink-0">
-        {isStale && (
-          <Tooltip label={`Data is stale (${data?.as_of})`} placement="bottom-start">
+        <Show when={isStale()}>
+          <Tooltip label={`Data is stale (${data()?.as_of})`} position="bottom-start">
             <span
               className="inline-flex items-center gap-1 px-[2px] py-[1px] rounded-sm text-[10px] font-bold tracking-[0.05em] whitespace-nowrap"
               style={{
@@ -281,12 +220,12 @@ export const IndexMoversStrip = memo(function IndexMoversStrip({
               STALE
             </span>
           </Tooltip>
-        )}
+        </Show>
         <button
           type="button"
           data-testid="movers-expand"
           className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-border text-fin-border bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 min-w-0 shrink-0 h-[20px] px-1 py-0 text-[10px] font-bold tracking-[0.08em] uppercase"
-          onClick={onExpand}
+          onClick={() => props.onExpand()}
           aria-label="Expand index movers"
           title="Expand index movers"
         >
@@ -296,6 +235,62 @@ export const IndexMoversStrip = memo(function IndexMoversStrip({
       </span>
     </div>
   );
-});
 
-IndexMoversStrip.displayName = "IndexMoversStrip";
+  return (
+    <Show
+      when={liveOnly()}
+      fallback={
+        <Show
+          when={isLoading() && !data()}
+          fallback={
+            <Show when={isError() && !data()} fallback={dataView()}>
+              {stripChrome(
+                <>
+                  <Text span size="xs" fw={700} c="dimmed" style={{ letterSpacing: "0.1em" }}>
+                    MOVERS
+                  </Text>
+                  <Text span size="xs" c="error" className="ml-2">
+                    unavailable
+                  </Text>
+                  <button
+                    type="button"
+                    class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-border text-fin-border bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 px-2 py-0 text-[10px] font-bold ml-auto min-w-0"
+                    onClick={() => void poll()}
+                  >
+                    Retry
+                  </button>
+                </>,
+              )}
+            </Show>
+          }
+        >
+          {stripChrome(
+            <>
+              <Text span size="xs" fw={700} c="dimmed" style={{ letterSpacing: "0.1em" }}>
+                MOVERS
+              </Text>
+              <span class="ml-2 inline-flex items-center gap-1">
+                <Loader size="xs" color={palette.PRIMARY} />
+                <Text span size="xs" c="dimmed">
+                  loading…
+                </Text>
+              </span>
+            </>,
+          )}
+        </Show>
+      }
+    >
+      <div
+        data-testid="movers-strip"
+        class="flex items-center justify-center h-[24px] min-h-[24px] px-2 border-t border-fin-border border-b border-fin-border bg-fin-surface font-mono text-[11px] text-fin-text-muted"
+      >
+        <Text span size="xs" fw={700} c="dimmed" style={{ letterSpacing: "0.1em" }}>
+          MOVERS
+        </Text>
+        <Text span size="xs" c="dimmed" className="ml-4 italic" style={{ fontSize: REPORT_FONT.xs }}>
+          · live only
+        </Text>
+      </div>
+    </Show>
+  );
+}

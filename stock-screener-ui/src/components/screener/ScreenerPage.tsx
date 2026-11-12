@@ -184,7 +184,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
   // them alive. Landing on ?tab=market must not pay the dashboard fetch or
   // the screener table's module/render cost.
   const [visitedTabs, setVisitedTabs] = createSignal<ReadonlySet<string>>(
-    () => new Set([activeTab()]),
+    new Set([activeTab()]),
   );
   createEffect(() => {
     const tab = activeTab();
@@ -420,13 +420,14 @@ export function ScreenerPage(props: ScreenerPageProps) {
           className="min-h-0 flex overflow-hidden"
           style={{ display: "flex" }}
         >
-          <Box
+          <div
             data-testid="dashboard-panel"
-            className="min-w-0 min-h-0 overflow-auto"
+            class="min-w-0 min-h-0 overflow-auto"
             style={{ display: isDashboard() ? "flex" : "none", flex: 1 }}
           >
             <Show when={visited().has("dashboard")}>
-              <Show when={dashboardRefreshKey()} keyed>
+              {/* Keyed on the refresh counter so the toolbar Refresh remounts the panel. */}
+              <Show when={`r${dashboardRefreshKey()}`} keyed>
                 {(_key) => (
                   <DashboardView
                     universe={universe()}
@@ -436,12 +437,11 @@ export function ScreenerPage(props: ScreenerPageProps) {
                 )}
               </Show>
             </Show>
-          </Box>
-          <Box
-            flex={1}
-            gap={1}
-            className="min-w-0 min-h-0"
-            style={{ display: activeTab() === "screener" ? "flex" : "none" }}
+          </div>
+          <div
+            data-testid="screener-panel"
+            class="min-w-0 min-h-0 flex-col gap-1"
+            style={{ display: activeTab() === "screener" ? "flex" : "none", flex: 1 }}
           >
             <Show when={visited().has("screener")}>
               <GroupPerformancePanel />
@@ -472,10 +472,10 @@ export function ScreenerPage(props: ScreenerPageProps) {
                 </Box>
               </Paper>
             </Show>
-          </Box>
-          <Box
+          </div>
+          <div
             data-testid="deep-value-panel"
-            className="min-w-0 min-h-0 overflow-auto"
+            class="min-w-0 min-h-0 overflow-auto"
             style={{ display: isValueTab() ? "flex" : "none", flex: 1 }}
           >
             <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
@@ -483,10 +483,10 @@ export function ScreenerPage(props: ScreenerPageProps) {
                 <DeepValueTab />
               </Show>
             </Suspense>
-          </Box>
-          <Box
+          </div>
+          <div
             data-testid="events-tab-panel"
-            className="min-w-0 min-h-0 overflow-auto"
+            class="min-w-0 min-h-0 overflow-auto"
             style={{ display: isEventsTab() ? "flex" : "none", flex: 1 }}
           >
             <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
@@ -494,11 +494,11 @@ export function ScreenerPage(props: ScreenerPageProps) {
                 <EventsTab />
               </Show>
             </Suspense>
-          </Box>
-          <Box
+          </div>
+          <div
             data-testid="fno-tab-panel"
-            className="min-w-0 min-h-0"
-            style={{ display: isFnoTab() ? "flex" : "none", flex: 1, overflow: "hidden" }}
+            class="min-w-0 min-h-0 overflow-hidden"
+            style={{ display: isFnoTab() ? "flex" : "none", flex: 1 }}
           >
             <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
               <ErrorBoundary label="Market screener">
@@ -507,10 +507,10 @@ export function ScreenerPage(props: ScreenerPageProps) {
                 </Show>
               </ErrorBoundary>
             </Suspense>
-          </Box>
-          <Box
+          </div>
+          <div
             data-testid="market-tab-panel"
-            className="min-w-0 min-h-0 overflow-hidden"
+            class="min-w-0 min-h-0 overflow-hidden"
             style={{ display: isMarketTab() ? "flex" : "none", flex: 1 }}
           >
             <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
@@ -520,9 +520,10 @@ export function ScreenerPage(props: ScreenerPageProps) {
                 </Show>
               </ErrorBoundary>
             </Suspense>
-          </Box>
-          <Box
-            className="min-w-0 min-h-0 overflow-auto"
+          </div>
+          <div
+            data-testid="correlation-config-panel"
+            class="min-w-0 min-h-0 overflow-auto"
             style={{ display: activeTab() === "correlation" || activeTab() === "config" ? "flex" : "none", flex: 1 }}
           >
             <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
@@ -538,7 +539,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
                 />
               </Show>
             </Suspense>
-          </Box>
+          </div>
         </Box>
       </Stack>
     </Box>

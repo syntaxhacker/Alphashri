@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
-import userEvent from "@testing-library/user-event";
+import { within, cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import type { PatternFilters } from "@/types/chartPatterns";
 import {
   PatternPresets,
@@ -34,9 +33,6 @@ function makeProps(overrides: Partial<PatternPresetsProps> = {}): PatternPresets
   return { filters: { ...FILTERS }, applyFilters: vi.fn(), ...overrides };
 }
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
 
 describe("PatternPresets", () => {
   beforeEach(() => {
@@ -48,7 +44,7 @@ describe("PatternPresets", () => {
   test("applies a built-in preset through applyFilters", async () => {
     const props = makeProps();
     render(() => <PatternPresets {...props} />);
-    fireEvent.change(screen.getByTestId("patterns-preset-select-input"), { target: { value: "builtin:fresh_reversals" } });
+    fireEvent.change(within(screen.getByTestId("patterns-preset-select-input")).getByRole("combobox"), { target: { value: "builtin:fresh_reversals" } });
     expect(props.applyFilters).toHaveBeenCalledWith({
       family: ["reversal"],
       formed_within_bars: 3,
@@ -59,7 +55,7 @@ describe("PatternPresets", () => {
   test("re-applying the same preset fires again (action select, no sticky value)", () => {
     const props = makeProps();
     render(() => <PatternPresets {...props} />);
-    const select = screen.getByTestId("patterns-preset-select-input");
+    const select = within(screen.getByTestId("patterns-preset-select-input")).getByRole("combobox");
     fireEvent.change(select, { target: { value: "builtin:fresh_reversals" } });
     fireEvent.change(select, { target: { value: "builtin:fresh_reversals" } });
     expect(props.applyFilters).toHaveBeenCalledTimes(2);
@@ -69,14 +65,14 @@ describe("PatternPresets", () => {
     const props = makeProps();
     render(() => <PatternPresets {...props} />);
     fireEvent.click(screen.getByTestId("patterns-preset-save"));
-    fireEvent.input(screen.getByTestId("patterns-preset-name"), "My setup");
+    fireEvent.input(screen.getByTestId("patterns-preset-name"), { target: { value: "My setup" } });
     fireEvent.click(screen.getByTestId("patterns-preset-name-save"));
 
     const stored = JSON.parse(localStorage.getItem(PATTERN_PRESETS_STORAGE_KEY) ?? "[]");
     expect(stored).toHaveLength(1);
     expect(stored[0].name).toBe("My setup");
     expect(stored[0].filters.direction).toEqual([]);
-    expect(screen.getByTestId("patterns-preset-saved")).toBeInTheDocument();
+    expect(within(screen.getByTestId("patterns-preset-saved")).getByRole("combobox")).toBeInTheDocument();
     expect(screen.getByTestId(`patterns-preset-apply-${stored[0].id}`)).toHaveTextContent("My setup");
   });
 
@@ -103,7 +99,7 @@ describe("PatternPresets", () => {
     const props = makeProps();
     render(() => <PatternPresets {...props} />);
 
-    fireEvent.change(screen.getByTestId("patterns-preset-saved"), "p1");
+    fireEvent.change(within(screen.getByTestId("patterns-preset-saved")).getByRole("combobox"), { target: { value: "p1" } });
 
     expect(props.applyFilters).toHaveBeenCalledWith(savedFilters);
   });
@@ -118,7 +114,7 @@ describe("PatternPresets", () => {
     // Accessible name for the preset input.
     expect(screen.getByLabelText("Preset name")).toBeInTheDocument();
 
-    fireEvent.input(screen.getByTestId("patterns-preset-name"), "My setup");
+    fireEvent.input(screen.getByTestId("patterns-preset-name"), { target: { value: "My setup" } });
     expect(screen.getByTestId("patterns-preset-name-save")).not.toBeDisabled();
   });
 
@@ -127,7 +123,7 @@ describe("PatternPresets", () => {
     const props = makeProps({ filters: nested });
     render(() => <PatternPresets {...props} />);
     fireEvent.click(screen.getByTestId("patterns-preset-save"));
-    fireEvent.input(screen.getByTestId("patterns-preset-name"), "Clone check");
+    fireEvent.input(screen.getByTestId("patterns-preset-name"), { target: { value: "Clone check" } });
     fireEvent.click(screen.getByTestId("patterns-preset-name-save"));
 
     const stored = JSON.parse(localStorage.getItem(PATTERN_PRESETS_STORAGE_KEY) ?? "[]");
@@ -145,14 +141,14 @@ describe("PatternPresets", () => {
     const props = makeProps();
     const first = render(() => <PatternPresets {...props} />);
     fireEvent.click(screen.getByTestId("patterns-preset-save"));
-    fireEvent.input(screen.getByTestId("patterns-preset-name"), "Round trip");
+    fireEvent.input(screen.getByTestId("patterns-preset-name"), { target: { value: "Round trip" } });
     fireEvent.click(screen.getByTestId("patterns-preset-name-save"));
     const stored = JSON.parse(localStorage.getItem(PATTERN_PRESETS_STORAGE_KEY) ?? "[]");
     expect(stored).toHaveLength(1);
     first.unmount();
 
     render(() => <PatternPresets {...makeProps()} />);
-    expect(screen.getByTestId("patterns-preset-saved")).toBeInTheDocument();
+    expect(within(screen.getByTestId("patterns-preset-saved")).getByRole("combobox")).toBeInTheDocument();
     expect(
       screen.getByTestId(`patterns-preset-apply-${stored[0].id}`),
     ).toHaveTextContent("Round trip");
@@ -175,28 +171,28 @@ describe("PatternPresets", () => {
   test("applies the bullish built-in preset payload", async () => {
     const props = makeProps();
     render(() => <PatternPresets {...props} />);
-    fireEvent.change(screen.getByTestId("patterns-preset-select-input"), { target: { value: "builtin:bullish_setups" } });
+    fireEvent.change(within(screen.getByTestId("patterns-preset-select-input")).getByRole("combobox"), { target: { value: "builtin:bullish_setups" } });
     expect(props.applyFilters).toHaveBeenCalledWith({ direction: ["bullish"] });
   });
 
   test("applies the latest_formed built-in preset payload", async () => {
     const props = makeProps();
     render(() => <PatternPresets {...props} />);
-    fireEvent.change(screen.getByTestId("patterns-preset-select-input"), { target: { value: "builtin:latest_formed" } });
+    fireEvent.change(within(screen.getByTestId("patterns-preset-select-input")).getByRole("combobox"), { target: { value: "builtin:latest_formed" } });
     expect(props.applyFilters).toHaveBeenCalledWith({ formed_within_bars: 3, sort: "newest" });
   });
 
   test("applies the near_52w_high built-in preset payload", async () => {
     const props = makeProps();
     render(() => <PatternPresets {...props} />);
-    fireEvent.change(screen.getByTestId("patterns-preset-select-input"), { target: { value: "builtin:near_52w_high" } });
+    fireEvent.change(within(screen.getByTestId("patterns-preset-select-input")).getByRole("combobox"), { target: { value: "builtin:near_52w_high" } });
     expect(props.applyFilters).toHaveBeenCalledWith({ max_52w_gap: 3, sort: "newest" });
   });
 
   test("applies the near_breakout built-in preset payload", async () => {
     const props = makeProps();
     render(() => <PatternPresets {...props} />);
-    fireEvent.change(screen.getByTestId("patterns-preset-select-input"), { target: { value: "builtin:near_breakout" } });
+    fireEvent.change(within(screen.getByTestId("patterns-preset-select-input")).getByRole("combobox"), { target: { value: "builtin:near_breakout" } });
     expect(props.applyFilters).toHaveBeenCalledWith({
       pattern_id: ["consolidation"],
       min_base_days: 60,
@@ -208,7 +204,7 @@ describe("PatternPresets", () => {
   test("applies the high_conviction built-in preset payload", async () => {
     const props = makeProps();
     render(() => <PatternPresets {...props} />);
-    fireEvent.change(screen.getByTestId("patterns-preset-select-input"), { target: { value: "builtin:high_conviction" } });
+    fireEvent.change(within(screen.getByTestId("patterns-preset-select-input")).getByRole("combobox"), { target: { value: "builtin:high_conviction" } });
     expect(props.applyFilters).toHaveBeenCalledWith({
       min_confidence: 70,
       min_breakout_score: 60,
@@ -222,15 +218,15 @@ describe("PatternPresets", () => {
     render(() => <PatternPresets {...props} />);
 
     expect(screen.queryByTestId("patterns-preset-saved")).not.toBeInTheDocument();
-    expect(screen.getByTestId("patterns-preset-select-input")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-preset-select-input")).toHaveValue("");
+    expect(within(screen.getByTestId("patterns-preset-select-input")).getByRole("combobox")).toBeInTheDocument();
+    expect(within(screen.getByTestId("patterns-preset-select-input")).getByRole("combobox")).toHaveValue("");
     expect(props.applyFilters).not.toHaveBeenCalled();
   });
 
   test("applies the high_rel_vol built-in preset payload", async () => {
     const props = makeProps();
     render(() => <PatternPresets {...props} />);
-    fireEvent.change(screen.getByTestId("patterns-preset-select-input"), { target: { value: "builtin:high_rel_vol" } });
+    fireEvent.change(within(screen.getByTestId("patterns-preset-select-input")).getByRole("combobox"), { target: { value: "builtin:high_rel_vol" } });
     expect(props.applyFilters).toHaveBeenCalledWith({
       min_rel_volume: 1.5,
       min_volume_m: 5,

@@ -5,7 +5,6 @@ import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library";
 import { StrategyCard } from "./StrategyCard";
 import { mockPosition } from "./testFixtures";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
 import type { PaperPosition } from "../../types/paperTrading";
 
 afterEach(() => {

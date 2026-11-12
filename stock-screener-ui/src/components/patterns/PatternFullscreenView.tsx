@@ -4,7 +4,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconX,
-} from "@tabler/icons-react";
+} from "@/patterns/icons";
 import type {
   ChartCandle,
   PatternHitDTO,

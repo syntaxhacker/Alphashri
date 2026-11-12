@@ -3,6 +3,7 @@ import type { JSX } from "solid-js";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
+import { LocalCompactPanel, LocalCompactStat } from "./reportBits";
 import { spotVsFlip } from "./NiftyGammaTime";
 import { MiniLineChart } from "@/components/common/charts/MiniLineChart";
 import type {
@@ -493,51 +494,6 @@ function GexLevelValue(props: { level: GexSideLevel | null }) {
   );
 }
 
-function LocalStat(props: {
-  testId?: string;
-  label: string;
-  tone?: string;
-  value: JSX.Element;
-  hint?: JSX.Element | string;
-}) {
-  return (
-    <div
-      data-testid={props.testId}
-      class="flex flex-col items-center justify-center text-center gap-0.5 bg-fin-surface border border-fin-border rounded-[4px] px-1 py-1.5 min-w-0"
-    >
-      <span class="text-[9px] uppercase tracking-[0.06em] leading-[1.1] text-fin-text-muted">
-        {props.label}
-      </span>
-      <span
-        class="text-[11px] font-bold leading-none tabular-nums"
-        style={{ color: props.tone ?? "var(--color-fin-text)" }}
-      >
-        {props.value}
-      </span>
-      <Show when={props.hint}>
-        <span class="text-[8px] leading-[1.1] text-fin-text-muted">{props.hint}</span>
-      </Show>
-    </div>
-  );
-}
-
-function LocalPanel(props: { title: string; testId?: string; style?: JSX.CSSProperties; children: JSX.Element }) {
-  return (
-    <div
-      data-testid={props.testId}
-      class="flex flex-col border rounded-[8px] overflow-hidden"
-      style={props.style}
-    >
-      <div class="flex items-center justify-between px-2 py-1 border-b border-fin-border bg-fin-surface">
-        <span class="text-[10px] font-bold uppercase tracking-[0.07em] text-fin-text-secondary">
-          {props.title}
-        </span>
-      </div>
-      <div class="flex flex-col gap-1 p-[6px]">{props.children}</div>
-    </div>
-  );
-}
-
 export function NiftyGexProfile(props: NiftyGexProfileProps) {
   const gex = () => props.gex;
   const spot = () => props.spot;
@@ -567,7 +523,7 @@ export function NiftyGexProfile(props: NiftyGexProfileProps) {
         : "";
 
   return (
-    <LocalPanel
+    <LocalCompactPanel
       title="GEX profile"
       testId="nifty-gex-profile-panel"
       style={{
@@ -584,27 +540,27 @@ export function NiftyGexProfile(props: NiftyGexProfileProps) {
         <div
           class="grid grid-cols-[repeat(4,minmax(0,1fr))] gap-[4px] w-full min-w-0"
         >
-          <LocalStat
+          <LocalCompactStat
             testId="nifty-gex-profile-net"
             label="Net γ (book)"
             tone={gexTone(stats().netTotal) ?? undefined}
             value={formatGexCr(stats().netTotal)}
             hint="Σ all strikes"
           />
-          <LocalStat
+          <LocalCompactStat
             testId="nifty-gex-profile-zero"
             label="Flip level"
             value={formatGexStrike(stats().zeroCross)}
             hint="zero γ"
           />
-          <LocalStat
+          <LocalCompactStat
             testId="nifty-gex-profile-support"
             label={belowCopy().label}
             tone={gexTone(below()?.netGex ?? null) ?? undefined}
             value={GexLevelValue({ level: below() })}
             hint={belowCopy().hint}
           />
-          <LocalStat
+          <LocalCompactStat
             testId="nifty-gex-profile-resist"
             label={aboveCopy().label}
             tone={gexTone(above()?.netGex ?? null) ?? undefined}
@@ -697,6 +653,6 @@ export function NiftyGexProfile(props: NiftyGexProfileProps) {
           </Text>
         </Show>
       </div>
-    </LocalPanel>
+    </LocalCompactPanel>
   );
 }

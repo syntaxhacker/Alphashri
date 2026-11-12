@@ -1,5 +1,5 @@
 import { createMemo, createSignal, Index, Show, onCleanup } from "solid-js";
-import { Badge, Text, Tooltip, Button } from "@/ui";
+import { Badge, Text, Tooltip, Button, Stack } from "@/ui";
 import { getPaperTradingState, subscribe, setSelectedSymbol, setSelectedTradeId } from "../../state/paperTrading";
 import type { PaperPosition } from "../../types/paperTrading";
 import { useStoreSnapshot } from "./storeSnapshot";
@@ -7,8 +7,6 @@ import { closeAllPositions, closePaperPosition, refreshBotLiveData, refreshLiveD
 import dayjs from "dayjs";
 import { StrategyCard } from "./StrategyCard";
 import { groupPositionsByStrategy } from "./PositionsHelpers";
-import { Stack } from "./primitives";
-
 function EmptyPositions() {
   return (
     <div class="paper-positions-empty flex flex-col items-center justify-center gap-2 py-8 flex-1 min-h-40 text-center" id="paper-positions-empty" data-testid="positions-empty">
@@ -150,7 +148,7 @@ export function PaperPositionsTable(props: { activeBotId?: string | null }) {
         <Stack className="paper-positions-table-container" id="paper-positions-table-container" spacing={0.25} data-testid="positions-table-container">
           <div class="paper-positions-header flex items-center justify-between gap-1 px-1 py-0.5" id="paper-positions-header">
             <div class="paper-positions-header-left flex items-center gap-1">
-              <Text className="paper-positions-title" size="xs" c="dimmed" tt="uppercase" fw={600}>
+              <Text className="paper-positions-title uppercase" size="xs" c="dimmed" fw={600}>
                 Positions ({sortedPositions().length})
               </Text>
               <Badge className="paper-positions-mode-badge" color={isLive() ? "error" : "success"} variant="filled" size="xs">

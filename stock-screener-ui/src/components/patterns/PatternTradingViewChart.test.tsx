@@ -1,7 +1,12 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@solidjs/testing-library";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 import type { ChartCandle, PatternHitDTO } from "@/types/chartPatterns";
 
@@ -151,7 +156,7 @@ afterEach(() => {
 
 describe("PatternTradingViewChart", () => {
   it("creates the chart and draws candles, levels, boundary/TLS-TLR lines and pivots", () => {
-    render(<PatternTradingViewChart hit={makeHit()} candles={CANDLES} />);
+    render(() => <PatternTradingViewChart hit={makeHit()} candles={CANDLES} />);
 
     expect(screen.getByTestId("patterns-tv-chart")).toBeInTheDocument();
     expect(mocks.createChart).toHaveBeenCalledTimes(1);
@@ -185,13 +190,13 @@ describe("PatternTradingViewChart", () => {
   });
 
   it("disposes the chart on unmount", () => {
-    const { unmount } = render(<PatternTradingViewChart hit={makeHit()} candles={CANDLES} />);
+    const { unmount } = render(() => <PatternTradingViewChart hit={makeHit()} candles={CANDLES} />);
     unmount();
     expect(mocks.chartApi.remove).toHaveBeenCalledTimes(1);
   });
 
   it("renders an empty chart without overlays when there is no hit", () => {
-    render(<PatternTradingViewChart hit={null} candles={CANDLES} />);
+    render(() => <PatternTradingViewChart hit={null} candles={CANDLES} />);
     const [candleSeries] = mocks.createdSeries;
     expect(candleSeries?.setData).toHaveBeenCalled();
     expect(candleSeries?.createPriceLine).not.toHaveBeenCalled();
@@ -199,7 +204,7 @@ describe("PatternTradingViewChart", () => {
   });
 
   it("hides only the toggled-off line series via hiddenNames", () => {
-    render(<PatternTradingViewChart hit={makeHit()} candles={CANDLES} hiddenNames={new Set(["TLS"])} />);
+    render(() => <PatternTradingViewChart hit={makeHit()} candles={CANDLES} hiddenNames={new Set(["TLS"])} />);
     const hiddenSeries = mocks.createdSeries.filter((s) =>
       s.applyOptions.mock.calls.some((c) => (c[0] as { visible?: boolean })?.visible === false),
     );
@@ -207,7 +212,7 @@ describe("PatternTradingViewChart", () => {
   });
 
   it("shows every line series when nothing is hidden", () => {
-    render(<PatternTradingViewChart hit={makeHit()} candles={CANDLES} />);
+    render(() => <PatternTradingViewChart hit={makeHit()} candles={CANDLES} />);
     const hiddenSeries = mocks.createdSeries.filter((s) =>
       s.applyOptions.mock.calls.some((c) => (c[0] as { visible?: boolean })?.visible === false),
     );
@@ -215,7 +220,7 @@ describe("PatternTradingViewChart", () => {
   });
 
   it("draws no price lines or dot markers (risk levels are the trader's job)", () => {
-    render(<PatternTradingViewChart hit={makeHit()} candles={CANDLES} />);
+    render(() => <PatternTradingViewChart hit={makeHit()} candles={CANDLES} />);
     const calls = mocks.createdSeries[0]?.createPriceLine.mock.calls ?? [];
     expect(calls).toHaveLength(0);
     const markerCalls = mocks.setMarkers.mock.calls;
@@ -223,7 +228,7 @@ describe("PatternTradingViewChart", () => {
   });
 
   it("formats the time axis and crosshair in IST (not the raw UTC epoch)", () => {
-    render(<PatternTradingViewChart hit={makeHit()} candles={CANDLES} />);
+    render(() => <PatternTradingViewChart hit={makeHit()} candles={CANDLES} />);
     const options = mocks.createChart.mock.calls[0]?.[1] as {
       timeScale: { tickMarkFormatter: (t: number, k: number) => string };
       localization: { timeFormatter: (t: number) => string };

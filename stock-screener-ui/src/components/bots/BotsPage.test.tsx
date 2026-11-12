@@ -2,9 +2,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import { MemoryRouter, useSearchParams } from "react-router-dom";
+import { MemoryRouter, useSearchParams, createMemoryHistory } from "@solidjs/router";
 import { UIProvider } from "@/ui";
 import type { BotsState } from "../../types/bots";
+
+// The mocked store never emits on its own, so tests drive a manual tick:
+// `useBotsState`/`useCurrentView` re-read the mocked getters whenever a
+// subscriber fires.
+const storeSubscribers = new Set<() => void>();
+function notifyStore() {
+  storeSubscribers.forEach((cb) => cb());
+}
 
 const mockGetBotsState = vi.fn();
 const mockGetCurrentView = vi.fn();
@@ -36,7 +44,12 @@ vi.mock("../../state/bots", () => ({
   openEditModal: (...args: any[]) => mockOpenEditModal(...args),
   closeCreateModal: (...args: any[]) => mockCloseCreateModal(...args),
   closeEditModal: (...args: any[]) => mockCloseEditModal(...args),
-  subscribe: vi.fn(() => () => {}),
+  subscribe: vi.fn((cb: () => void) => {
+    storeSubscribers.add(cb);
+    return () => {
+      storeSubscribers.delete(cb);
+    };
+  }),
   loadBotStatus: (...args: any[]) => mockLoadBotStatus(...args),
   loadBotTrades: (...args: any[]) => mockLoadBotTrades(...args),
 }));
@@ -52,18 +65,19 @@ vi.mock("../../state/holidays", () => ({
 
 import { BotsPage } from "./BotsPage";
 
-import { Router } from "@solidjs/router";
 import type { JSX } from "solid-js";
 
-// Local equivalent of the shared renderWithProviders test helper, fixed for
-// Solid: solid-router renders no plain children, so tests mount through the
-// router's `root` prop instead.
-function renderWithProviders(ui: () => JSX.Element) {
+function mountWithHistory(ui: () => JSX.Element, path = "/bots") {
+  const history = createMemoryHistory();
+  history.set({ value: path, replace: true, scroll: false });
   return render(() => (
-    <Router root={() => <UIProvider>{ui()}</UIProvider>} />
+    <MemoryRouter history={history} root={() => <UIProvider>{ui()}</UIProvider>} />
   ));
 }
 
+function renderWithProviders(ui: () => JSX.Element, path = "/bots") {
+  return mountWithHistory(ui, path);
+}
 
 const baseState = (): BotsState =>
   ({
@@ -90,16 +104,25 @@ const baseState = (): BotsState =>
     editingBot: null,
   }) as BotsState;
 
-function renderWithProviders(ui: JSX.Element, initialEntries: string[] = ["/bots"]) {
-  return render(() => (<MemoryRouter initialEntries={initialEntries}>
-      <UIProvider>{ui}</UIProvider>
-    </MemoryRouter>),
-  );
+function SearchProbe() {
+  const [searchParams] = useSearchParams<{ tab?: string }>();
+  return <div data-testid="search-probe">{searchParams.tab ? `tab=${searchParams.tab}` : ""}</div>;
 }
 
-function SearchProbe() {
-  const [params] = useSearchParams();
-  return <div data-testid="search-probe">{params.toString()}</div>;
+function renderWithProbe(path = "/bots") {
+  const history = createMemoryHistory();
+  history.set({ value: path, replace: true, scroll: false });
+  return render(() => (
+    <MemoryRouter
+      history={history}
+      root={() => (
+        <UIProvider>
+          <BotsPage />
+          <SearchProbe />
+        </UIProvider>
+      )}
+    />
+  ));
 }
 
 function createBot(overrides: Record<string, any> = {}) {
@@ -326,45 +349,29 @@ describe("BotsPage", () => {
 
   it("deep-links ?tab=performance to the Performance view", () => {
     mockGetBotsState.mockReturnValue(baseState());
-    renderWithProviders(() => <BotsPage />, ["/bots?tab=performance"]);
+    renderWithProviders(() => <BotsPage />, "/bots?tab=performance");
     expect(mockSetCurrentView).toHaveBeenCalledWith("performance");
   });
 
   it("falls back to list for ?tab=status with no bot selected", () => {
     mockGetBotsState.mockReturnValue(baseState());
-    renderWithProviders(() => <BotsPage />, ["/bots?tab=status"]);
+    renderWithProviders(() => <BotsPage />, "/bots?tab=status");
     expect(mockSetCurrentView).toHaveBeenCalledWith("list");
   });
 
   it("writes current view to the URL when no ?tab= present", () => {
     mockGetBotsState.mockReturnValue(baseState());
-    render(() => (<MemoryRouter initialEntries={["/bots"]}>
-        <UIProvider>
-          <BotsPage />
-          <SearchProbe />
-        </UIProvider>
-      </MemoryRouter>),
-    );
+    renderWithProbe("/bots");
     expect(screen.getByTestId("search-probe")).toHaveTextContent("tab=list");
   });
 
   it("updates ?tab= when switching tabs", async () => {
-        mockGetBotsState.mockReturnValue(baseState());
-    const makeTree = () => (
-      <MemoryRouter initialEntries={["/bots"]}>
-        <UIProvider>
-          <BotsPage />
-          <SearchProbe />
-        </UIProvider>
-      </MemoryRouter>
-    );
-    const { rerender } = render(makeTree());
+    mockGetBotsState.mockReturnValue(baseState());
+    renderWithProbe("/bots");
     await fireEvent.click(screen.getByTestId("bots-tab-performance"));
     expect(mockSetCurrentView).toHaveBeenCalledWith("performance");
-    // emulate the store update with a FRESH tree so React re-renders
-    // (re-rendering the identical element object bails out and reads nothing new)
     mockGetCurrentView.mockReturnValue("performance");
-    rerender(makeTree());
+    notifyStore();
     await waitFor(() => {
       expect(screen.getByTestId("search-probe")).toHaveTextContent("tab=performance");
     });

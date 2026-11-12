@@ -11,16 +11,9 @@ import { isMarketClosedToday, getHolidayState } from "../../state/holidays";
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-// Mock useMarketTickerEnabled with controllable value
-let mockMarketTickerEnabled = true;
-const mockSetMarketTickerEnabled = vi.fn();
-
-vi.mock("../../hooks/useMarketTickerEnabled", () => ({
-  useMarketTickerEnabled: () => [mockMarketTickerEnabled, mockSetMarketTickerEnabled],
-}));
-
 vi.mock("../../state/holidays", () => ({
-  subscribeToHolidays: vi.fn(),
+  // the hook expects an unsubscribe function back
+  subscribeToHolidays: vi.fn(() => () => {}),
   isMarketClosedToday: vi.fn().mockReturnValue(false),
   getHolidayState: vi.fn(() => ({ holidays: [] })),
 }));
@@ -29,8 +22,8 @@ describe("MarketTicker", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(isMarketClosedToday).mockReturnValue(false);
-    // Reset mock to enabled by default
-    mockMarketTickerEnabled = true;
+    // Component reads the enabled flag straight from localStorage (v2 key)
+    localStorage.clear();
     setupBrowserMocks();
   });
 
@@ -395,7 +388,7 @@ describe("MarketTicker", () => {
     for (const testId of ["ticker-nsei", "ticker-gcf"]) {
       const item = screen.getByTestId(testId);
       expect(item.children).toHaveLength(3);
-      expect(item.style.gridTemplateColumns).toBe(
+      expect(item.style.getPropertyValue("grid-template-columns")).toBe(
         "minmax(56px, auto) minmax(64px, 1fr) 82px",
       );
       expect(within(item).getByText(/Nifty 50|Gold/)).toHaveStyle({
@@ -434,8 +427,7 @@ describe("MarketTicker", () => {
   });
 
   it("returns null when disabled", () => {
-    // Set mock to disabled
-    mockMarketTickerEnabled = false;
+    localStorage.setItem("alphashri_show_market_ticker_v2", "false");
 
     render(() => (<UIProvider>
         <MarketTicker />

@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import type { JSX } from "solid-js";
+import { createSignal } from "solid-js";
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import {render, screen, cleanup, within, fireEvent} from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
@@ -162,14 +163,12 @@ describe("ParamInput", () => {
 
     it("toggles correctly through rerender", () => {
       const param = mockParam({ type: "boolean" });
-      const { rerender } = render(
-        <ParamInput param={param} value={false} onChange={mockOnChange} />,
+      const [value, setValue] = createSignal(false);
+      render(() => <ParamInput param={param} value={value()} onChange={mockOnChange} />,
         { wrapper: Wrapper },
       );
       expect(screen.getByTestId("param-test_param")).not.toBeChecked();
-      rerender(<ParamInput param={param} value={true} onChange={mockOnChange} />, {
-        wrapper: Wrapper,
-      });
+      setValue(true);
       expect(screen.getByTestId("param-test_param")).toBeChecked();
     });
   });

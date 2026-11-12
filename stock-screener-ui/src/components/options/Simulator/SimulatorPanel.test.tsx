@@ -74,8 +74,7 @@ describe("SimulatorPanel", () => {
         availableExpiries={["25MAY"]}
         onUnderlyingChange={onUnderlyingChange}
         onExpiryChange={vi.fn()}
-      />,
-    );
+      />);
 
     expect(screen.getByTestId("simulator-underlying-search")).toBeInTheDocument();
     expect(screen.queryByTestId("simulator-underlying-select")).not.toBeInTheDocument();
@@ -181,8 +180,7 @@ describe("SimulatorPanel", () => {
         selectedExpiry="25MAY"
         spotPrice={null}
         strikeMatrix={matrix}
-      />,
-    );
+      />);
     expect(screen.getByTestId("simulator-panel")).toBeInTheDocument();
     expect(screen.getByText("ATM 23150")).toBeInTheDocument();
     expect(screen.getByText("Spot —")).toBeInTheDocument();
@@ -196,8 +194,7 @@ describe("SimulatorPanel", () => {
         selectedExpiry="25MAY"
         spotPrice={0}
         strikeMatrix={matrix}
-      />,
-    );
+      />);
     expect(screen.getByText("Spot —")).toBeInTheDocument();
     expect(screen.queryByText("Spot 0")).not.toBeInTheDocument();
   });
@@ -211,8 +208,7 @@ describe("SimulatorPanel", () => {
         strikeMatrix={matrix}
         loading
         error="Upstox token expired or invalid"
-      />,
-    );
+      />);
     expect(screen.getByText("Loading live chain")).toBeInTheDocument();
     expect(screen.getByText("Upstox token expired or invalid")).toBeInTheDocument();
   });
@@ -224,8 +220,7 @@ describe("SimulatorPanel", () => {
         selectedExpiry="2026-11-23"
         spotPrice={null}
         strikeMatrix={[]}
-      />,
-    );
+      />);
     fireEvent.click(screen.getByTestId("simulator-template-long-call"));
     expect(screen.queryAllByTestId(/^simulator-leg-\d+$/)).toHaveLength(0);
     expect(screen.getByText(/Waiting for the live option chain/)).toBeInTheDocument();

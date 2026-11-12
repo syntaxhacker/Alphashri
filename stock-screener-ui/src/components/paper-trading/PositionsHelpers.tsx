@@ -1,5 +1,5 @@
 import { For, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import { Text, Tooltip, ActionIcon, SimpleGrid, Textarea, Button, Loader } from "@/ui";
+import { Text, Tooltip, ActionIcon, SimpleGrid, Textarea, Button, Loader, Flex, Box, Stack } from "@/ui";
 import { IconChevronRight, IconChevronDown } from "@/components/common/Icons";
 import dayjs from "dayjs";
 import { ClickableSymbolSolid } from "./ClickableSymbolSolid";
@@ -21,8 +21,6 @@ import {
 } from "../../utils/ui-helpers";
 import { POSITIVE, NEGATIVE, WARNING, BG, BORDER } from "@/ui/palette";
 import { withAlpha } from "../../utils/color";
-import { Flex, Box, Stack } from "./primitives";
-
 export function nearBreakoutPct(item: PaperScanItem): number {
   const price = item.price;
   const orHigh = item.or_high;
@@ -255,50 +253,50 @@ function PositionDetail(props: { pos: PaperPosition }) {
     <Stack className="paper-position-detail" id={`paper-position-detail-${props.pos.order_id || props.pos.symbol}`} gap={1}>
       <SimpleGrid className="paper-position-detail-reasons" id={`paper-position-reasons-${props.pos.symbol}`} cols={2} spacing="xs">
         <Box className="paper-position-entry-reason overflow-hidden" id={`paper-position-entry-reason-${props.pos.symbol}`}>
-          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Entry Reason</Text>
+          <Text className="paper-position-label" size="xs" c="dimmed" className="uppercase" fw={600}>Entry Reason</Text>
           <Text className="paper-position-value break-words" size="sm">{props.pos.entry_reason || "—"}</Text>
         </Box>
         <Box className="paper-position-exit-reason overflow-hidden" id={`paper-position-exit-reason-${props.pos.symbol}`}>
-          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Exit Reason</Text>
+          <Text className="paper-position-label" size="xs" c="dimmed" className="uppercase" fw={600}>Exit Reason</Text>
           <Text className="paper-position-value break-words" size="sm">Open (no exit yet)</Text>
         </Box>
       </SimpleGrid>
       <SimpleGrid className="paper-position-detail-stats" id={`paper-position-stats-${props.pos.symbol}`} cols={4} spacing="sm">
         <Box className="paper-position-stat p-1" id={`paper-position-sl-${props.pos.symbol}`}>
-          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Stop Loss</Text>
+          <Text className="paper-position-label" size="xs" c="dimmed" className="uppercase" fw={600}>Stop Loss</Text>
           <Text className="paper-position-value font-mono tabular-nums" size="sm" c="error">{props.pos.stop_loss ? `₹${props.pos.stop_loss.toFixed(2)}` : "—"}</Text>
         </Box>
         <Box className="paper-position-stat p-1" id={`paper-position-tp-${props.pos.symbol}`}>
-          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Take Profit</Text>
+          <Text className="paper-position-label" size="xs" c="dimmed" className="uppercase" fw={600}>Take Profit</Text>
           <Text className="paper-position-value font-mono tabular-nums" size="sm" c="success">{props.pos.take_profit ? `₹${props.pos.take_profit.toFixed(2)}` : "—"}</Text>
         </Box>
         <Box className="paper-position-stat p-1" id={`paper-position-peak-${props.pos.symbol}`}>
-          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Peak</Text>
+          <Text className="paper-position-label" size="xs" c="dimmed" className="uppercase" fw={600}>Peak</Text>
           <Text className="paper-position-value font-mono tabular-nums" size="sm">{props.pos.peak_price ? `₹${props.pos.peak_price.toFixed(2)}` : "—"}</Text>
         </Box>
         <Box className="paper-position-stat p-1" id={`paper-position-low-${props.pos.symbol}`}>
-          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Low</Text>
+          <Text className="paper-position-label" size="xs" c="dimmed" className="uppercase" fw={600}>Low</Text>
           <Text className="paper-position-value font-mono tabular-nums" size="sm">{props.pos.low_price ? `₹${props.pos.low_price.toFixed(2)}` : "—"}</Text>
         </Box>
         <Box className="paper-position-stat p-1" id={`paper-position-52high-${props.pos.symbol}`}>
-          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>52W High</Text>
+          <Text className="paper-position-label" size="xs" c="dimmed" className="uppercase" fw={600}>52W High</Text>
           <Text className="paper-position-value font-mono tabular-nums" size="sm" c="warning">
             {loading52() ? <Loader size="xs" /> : week52()?.high_52w ? `₹${week52()!.high_52w.toFixed(2)}` : "—"}
           </Text>
         </Box>
         <Box className="paper-position-stat p-1" id={`paper-position-52low-${props.pos.symbol}`}>
-          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>52W Low</Text>
+          <Text className="paper-position-label" size="xs" c="dimmed" className="uppercase" fw={600}>52W Low</Text>
           <Text className="paper-position-value font-mono tabular-nums" size="sm" c="primary">
             {loading52() ? <Loader size="xs" /> : week52()?.low_52w ? `₹${week52()!.low_52w.toFixed(2)}` : "—"}
           </Text>
         </Box>
         <Box className="paper-position-stat p-1" id={`paper-position-id-${props.pos.symbol}`}>
-          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Position ID</Text>
+          <Text className="paper-position-label" size="xs" c="dimmed" className="uppercase" fw={600}>Position ID</Text>
           <Text className="paper-position-value font-mono tabular-nums" size="xs break-all">{props.pos.order_id || props.pos.id || "—"}</Text>
         </Box>
       </SimpleGrid>
       <Box className="paper-position-notes" id={`paper-position-notes-${props.pos.symbol}`}>
-        <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600} mb="xs">Notes</Text>
+        <Text className="paper-position-label" size="xs" c="dimmed" className="uppercase" fw={600} mb="xs">Notes</Text>
         <Box className="paper-position-notes-row flex items-center gap-2">
           <Box className="paper-position-notes-input-wrap flex-1 flex items-center">
             <Textarea
@@ -551,7 +549,7 @@ export function StrategySummaryFooter(props: {
       className="paper-strategy-summary"
       id="strategy-summary"
     >
-      <Text fw={600} size="xs" c="dimmed" tt="uppercase" mb={0.5}>
+      <Text fw={600} size="xs" c="dimmed" className="uppercase" mb={0.5}>
         Strategy Summary
       </Text>
       <TanStackTable

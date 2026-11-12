@@ -9,8 +9,7 @@ import type {
 } from "../../types/replay";
 import { ReplayChart } from "./ReplayChart";
 import { ReplayTradeLog } from "./ReplayTradeLog";
-import { Box, Flex } from "../paper-trading/primitives";
-
+import { Box, Flex } from "@/ui";
 type ChartHandle = { zoomToTrade: (entryTime: string, exitTime: string) => void } | null;
 
 interface ReplayMainViewProps {

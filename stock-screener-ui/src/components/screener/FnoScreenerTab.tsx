@@ -326,7 +326,7 @@ function FnoRowDetail(props: { row: FnoScreenerRow }) {
         spot={row().spot}
         height={180}
         rangePct={rangePct()}
-        data-testid={`fno-payoff-${row().symbol}`}
+        dataTestid={`fno-payoff-${row().symbol}`}
       />
     </Box>
   );

@@ -1,9 +1,13 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
-import { screen, cleanup, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 import { OptionChainHeader } from "./OptionChainHeader";
 
 afterEach(() => {
@@ -22,14 +26,13 @@ describe("OptionChainHeader", () => {
   };
 
   it("has select labels", () => {
-    renderWithProviders(<OptionChainHeader {...defaultProps} />);
+    render(() => <OptionChainHeader {...defaultProps} />);
     expect(screen.getAllByText("Underlying").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Expiry").length).toBeGreaterThan(0);
   });
 
   it("displays available underlyings as select options", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<OptionChainHeader {...defaultProps} />);
+    render(() => <OptionChainHeader {...defaultProps} />);
     await user.click(within(screen.getByTestId("underlying-select")).getByRole("combobox"));
     expect(await screen.findByRole("option", { name: "NIFTY" })).toBeInTheDocument();
     expect(await screen.findByRole("option", { name: "BANKNIFTY" })).toBeInTheDocument();
@@ -37,8 +40,7 @@ describe("OptionChainHeader", () => {
   });
 
   it("displays available expiries as select options", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<OptionChainHeader {...defaultProps} />);
+    render(() => <OptionChainHeader {...defaultProps} />);
     await user.click(within(screen.getByTestId("expiry-select")).getByRole("combobox"));
     expect(await screen.findByRole("option", { name: "25MAY" })).toBeInTheDocument();
     expect(await screen.findByRole("option", { name: "01JUN" })).toBeInTheDocument();

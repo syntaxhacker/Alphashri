@@ -1,4 +1,4 @@
-import { createContext, createEffect, createMemo, Show, splitProps, useContext } from "solid-js";
+import { createContext, createEffect, createMemo, createSignal, Show, splitProps, useContext } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
 import type { UIMenuProps, UIMenuTargetProps, UIMenuDropdownProps, UIMenuItemProps } from "../types";
@@ -45,15 +45,15 @@ function menuPosition(anchorEl: HTMLElement, position?: string, offset = 0): { t
       style.left = centerX;
       style.transform = "translateX(-50%)";
       break;
-    case topStart:
+    case "top-start":
       style.bottom = aboveBottom;
       style.left = `${rect.left}px`;
       break;
-    case topEnd:
+    case "top-end":
       style.bottom = aboveBottom;
       style.right = `${vpW - rect.right}px`;
       break;
-    case bottomEnd:
+    case "bottom-end":
       style.top = `${rect.bottom + offset}px`;
       style.right = `${vpW - rect.right}px`;
       break;
@@ -62,8 +62,21 @@ function menuPosition(anchorEl: HTMLElement, position?: string, offset = 0): { t
       style.top = `${rect.top}px`;
       break;
     case "right":
+    case "right-start":
       style.left = `${rect.right + offset}px`;
       style.top = `${rect.top}px`;
+      break;
+    case "left-start":
+      style.right = `${vpW - rect.left + offset}px`;
+      style.top = `${rect.top}px`;
+      break;
+    case "left-end":
+      style.right = `${vpW - rect.left + offset}px`;
+      style.bottom = aboveBottom;
+      break;
+    case "right-end":
+      style.left = `${rect.right + offset}px`;
+      style.bottom = aboveBottom;
       break;
     case "bottom":
     default:
@@ -95,10 +108,8 @@ export function Menu(props: UIMenuProps) {
     "data-testid",
   ]);
 
-  const internalAnchorEl = createSignal<HTMLElement | null>(null);
-  const [setInternalAnchorEl] = internalAnchorEl;
-  const dropdownElRef = createSignal<HTMLElement | null>(null);
-  const [setDropdownEl] = dropdownElRef;
+  const [internalAnchorEl, setInternalAnchorEl] = createSignal<HTMLElement | null>(null);
+  const [dropdownElRef, setDropdownEl] = createSignal<HTMLElement | null>(null);
 
   const isControlled = createMemo(() => known.opened !== undefined);
   const open = createMemo(() => (isControlled() ? !!known.opened : !!internalAnchorEl()));
@@ -155,7 +166,7 @@ export function Menu(props: UIMenuProps) {
     open,
     onClose,
     onOpen,
-    closeOnItemClick: known.closeOnItemClick,
+    closeOnItemClick: known.closeOnItemClick ?? true,
     closeOnClickOutside: known.closeOnClickOutside,
     position: () => known.position,
     offset: () => known.offset,
@@ -165,7 +176,6 @@ export function Menu(props: UIMenuProps) {
     registerDropdownEl,
   };
 
-  const children = known.children;
   return (
     <MenuContext.Provider value={ctxValue}>
       <div
@@ -175,13 +185,13 @@ export function Menu(props: UIMenuProps) {
         data-testid={known["data-testid"]}
         {...(rest as Record<string, unknown>)}
       >
-        <Show when={typeof children === "function"}>
-          {(children as (payload: { open: boolean; close: () => void }) => JSX.Element)({
+        <Show when={typeof known.children === "function"}>
+          {(known.children as (payload: { open: boolean; close: () => void }) => JSX.Element)({
             open: open(),
             close: onClose,
           })}
         </Show>
-        <Show when={typeof children !== "function"}>{children}</Show>
+        <Show when={typeof known.children !== "function"}>{known.children}</Show>
       </div>
     </MenuContext.Provider>
   );
@@ -200,7 +210,7 @@ export function MenuTarget(props: UIMenuTargetProps) {
   const { setAnchorEl, anchorEl, open, onClose, trigger } = useMenuContext();
   const isHover = createMemo(() => trigger() === "hover" || trigger() === "click-hover");
 
-  const handleClick = () => {
+  const handleClick = (e: MouseEvent) => {
     const target = e.currentTarget as HTMLElement;
     if (open() && anchorEl() === target) {
       onClose();
@@ -234,7 +244,7 @@ export function MenuTarget(props: UIMenuTargetProps) {
 
 export function MenuDropdown(props: UIMenuDropdownProps) {
   const [known, rest] = splitProps(props, ["children", "className", "style", "id", "data-testid"]);
-  const { open, position, offset, shadow, withArrow } = useMenuContext();
+  const { open, position, offset, shadow, withArrow, anchorEl } = useMenuContext();
   const [, setPlaceEl] = createSignal<HTMLElement | null>(null);
 
   const posStyle = createMemo(() => {

@@ -14,7 +14,12 @@ import {
 } from "./BotHelpers";
 import { BOT_RUNNING, BOT_STOPPED } from "../../config/colors";
 import type {
-
+  PortfolioSummary,
+  StrategyStatus,
+  BotPosition,
+  BotTrade,
+  BotConfig,
+} from "../../types/bots";
 import { Router } from "@solidjs/router";
 import type { JSX } from "solid-js";
 
@@ -27,21 +32,10 @@ function renderWithProviders(ui: () => JSX.Element) {
   ));
 }
 
-  PortfolioSummary,
-  StrategyStatus,
-  BotPosition,
-  BotTrade,
-  BotConfig,
-} from "../../types/bots";
-
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
 });
-
-function renderWithProviders(ui: JSX.Element) {
-  return render(() => (<UIProvider>{ui}</UIProvider>));
-}
 
 const mockPortfolio: PortfolioSummary = {
   initial_capital: 100000,

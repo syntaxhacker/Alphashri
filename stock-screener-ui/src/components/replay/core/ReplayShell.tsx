@@ -1,8 +1,8 @@
 // ReplayShell — strategy-agnostic replay host. Owns date/param state, fetch + abort,
 // playback clock, and delegates rendering to the existing core/tick components. All
 // strategy vocabulary (labels, endpoints, envelopes, captions) lives in the plugin.
-import { createSignal, createMemo, createEffect, For, Show, type JSX } from "solid-js";
-import { Button, Text, Select, TextInput, Checkbox } from "@/ui";
+import { createSignal, createMemo, createEffect, For, Show, onCleanup, type JSX } from "solid-js";
+import { Button, Text, Select, TextInput, Checkbox, Box, Card, Stack } from "@/ui";
 import * as palette from "@/ui/palette";
 import { TZ_IST, TZ_IST_LABEL } from "@/config/constants";
 import {
@@ -15,7 +15,6 @@ import { useReplayClock } from "./useReplayClock";
 import ReplayChartHost, { type ReplayChartHandle } from "./ReplayChartHost";
 import ReplayControls from "./ReplayControls";
 import SymbolAutocomplete from "./SymbolAutocomplete";
-import { Box, Card, Stack } from "../../paper-trading/primitives";
 import type {
   ReplayParamSpec,
   ReplayParamValues,

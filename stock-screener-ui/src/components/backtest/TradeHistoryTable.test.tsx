@@ -291,16 +291,14 @@ describe("TradeHistoryTable rendering", () => {
   });
 
   test("renders nothing when trades empty", () => {
-    render(
-      <TradeHistoryTable symbol="TCS" trades={[]} {...defaultProps} />,
+    render(() => <TradeHistoryTable symbol="TCS" trades={[]} {...defaultProps} />,
       { wrapper: Wrapper },
     );
     expect(screen.queryByTestId("trade-history-panel")).toBeNull();
   });
 
   test("renders nothing when trades null", () => {
-    render(
-      <TradeHistoryTable symbol="TCS" trades={null as unknown as Trade[]} {...defaultProps} />,
+    render(() => <TradeHistoryTable symbol="TCS" trades={null as unknown as Trade[]} {...defaultProps} />,
       { wrapper: Wrapper },
     );
     expect(screen.queryByTestId("trade-history-panel")).toBeNull();

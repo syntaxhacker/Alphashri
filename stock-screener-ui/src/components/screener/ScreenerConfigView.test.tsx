@@ -54,8 +54,6 @@ vi.mock("../../api/index", () => ({
   loadScreeners: (...args: any[]) => mockLoadScreeners(...args),
 }));
 
-let mockPreviewStocks: any[] = [];
-let mockPreviewLoading = true;
 const mockFetchWithAuth = vi.fn();
 vi.mock("@/api/screenerQuery", () => ({
   buildScreenerPreviewUrl: () => "/api/screener/preview?screener=test",
@@ -97,9 +95,7 @@ describe("ScreenerConfigView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSelectedSymbols = [];
-    mockPreviewStocks = [];
     // Default: preview fetch never resolves so the loading skeleton persists.
-    mockPreviewLoading = true;
     mockFetchWithAuth.mockReset();
     mockFetchWithAuth.mockReturnValue(new Promise(() => {}));
   });
@@ -244,7 +240,6 @@ describe("ScreenerConfigView", () => {
 
   describe("preview panel", () => {
     it("Preview shows loading state", () => {
-      mockPreviewLoading = true;
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
       expect(screen.getByTestId("preview-loading")).toBeInTheDocument();
       expect(screen.getByText("Loading...")).toBeInTheDocument();

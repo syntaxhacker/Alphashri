@@ -76,8 +76,7 @@ describe("RunnerSettingsSection", () => {
 
   describe("rendering", () => {
     it("renders the root Stack with correct className and id", () => {
-      const { container } = render(
-        <RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />,
+      const { container } = render(() => <RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />,
         { wrapper: TestWrapper },
       );
       const stack = container.querySelector(".paper-settings-section");
@@ -91,7 +90,7 @@ describe("RunnerSettingsSection", () => {
       const header = screen.getByText("Runner Configuration");
       expect(header).toBeInTheDocument();
       // Check inline styles for uppercase and font weight
-      expect(header).toHaveStyle({ textTransform: "uppercase" });
+      expect(header.className).toContain("uppercase");
       expect(header).toHaveStyle({ fontWeight: "600" });
     });
 
@@ -174,8 +173,7 @@ describe("RunnerSettingsSection", () => {
 
   describe("edge cases - boundary values", () => {
     it("renders with zero cooldown (min boundary)", () => {
-      render(
-        <RunnerSettingsSection
+      render(() => <RunnerSettingsSection
           config={createMockConfig({ cooldown_minutes: 0 })}
           onChange={mockOnChange}
         />,
@@ -186,8 +184,7 @@ describe("RunnerSettingsSection", () => {
     });
 
     it("renders with max cooldown value (120)", () => {
-      render(
-        <RunnerSettingsSection
+      render(() => <RunnerSettingsSection
           config={createMockConfig({ cooldown_minutes: 120 })}
           onChange={mockOnChange}
         />,
@@ -198,8 +195,7 @@ describe("RunnerSettingsSection", () => {
     });
 
     it("renders with min max_distance (0.5)", () => {
-      render(
-        <RunnerSettingsSection
+      render(() => <RunnerSettingsSection
           config={createMockConfig({ max_distance_from_or_pct: 0.5 })}
           onChange={mockOnChange}
         />,
@@ -210,8 +206,7 @@ describe("RunnerSettingsSection", () => {
     });
 
     it("renders with max max_distance value (5)", () => {
-      render(
-        <RunnerSettingsSection
+      render(() => <RunnerSettingsSection
           config={createMockConfig({ max_distance_from_or_pct: 5 })}
           onChange={mockOnChange}
         />,

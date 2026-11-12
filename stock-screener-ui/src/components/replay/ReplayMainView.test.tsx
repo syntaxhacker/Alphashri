@@ -33,8 +33,7 @@ const baseProps = {
 
 describe("ReplayMainView", () => {
   it("renders a flex-fill container that fills its parent", () => {
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayMainView {...baseProps} />
       </UIProvider>,
     );
@@ -45,8 +44,7 @@ describe("ReplayMainView", () => {
   });
 
   it("flex layout includes both chart and trade log", () => {
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayMainView {...baseProps} />
       </UIProvider>,
     );

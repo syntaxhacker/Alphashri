@@ -1,10 +1,8 @@
 import { For } from "solid-js";
-import { Tabs, Select, Text, Center } from "@/ui";
+import { Tabs, Select, Text, Center, Group, Box } from "@/ui";
 import { BacktestChart } from "./BacktestChart";
 import type { SymbolChartData } from "../../types/backtest";
 import type { MarketHoliday } from "../../types/holidays";
-import { Group, Box } from "../paper-trading/primitives";
-
 export interface BacktestChartTabsProps {
   symbols: string[];
   selectedSymbol: string | null;

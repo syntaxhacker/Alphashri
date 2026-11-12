@@ -54,9 +54,10 @@ function loadState(): BacktestLayoutState {
 }
 
 export interface BacktestLayoutApi {
-  railWidth: number;
-  panels: Record<BacktestPanelId, boolean>;
-  chartMode: BacktestChartMode;
+  /** Reactive accessors for the layout state. */
+  railWidth: () => number;
+  panels: () => Record<BacktestPanelId, boolean>;
+  chartMode: () => BacktestChartMode;
   togglePanel: (id: BacktestPanelId) => void;
   setPanelOpen: (id: BacktestPanelId, open: boolean) => void;
   openPanel: (id: BacktestPanelId) => void;
@@ -66,7 +67,7 @@ export interface BacktestLayoutApi {
 }
 
 export function useBacktestLayout(): BacktestLayoutApi {
-  const [state, setState] = createSignal<BacktestLayoutState>(loadState);
+  const [state, setState] = createSignal<BacktestLayoutState>(loadState());
 
   createEffect(() => {
     const s = state();
@@ -101,9 +102,9 @@ export function useBacktestLayout(): BacktestLayoutApi {
   const reset = () => setState(defaultState());
 
   return {
-    railWidth: state.railWidth,
-    panels: state.panels,
-    chartMode: state.chartMode,
+    railWidth: () => state().railWidth,
+    panels: () => state().panels,
+    chartMode: () => state().chartMode,
     togglePanel,
     setPanelOpen,
     openPanel,

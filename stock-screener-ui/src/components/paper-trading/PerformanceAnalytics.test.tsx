@@ -2,7 +2,6 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach, afterEach, test } from "vitest";
 import { render, screen, cleanup } from "@solidjs/testing-library";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
 import { PerformanceAnalytics } from "./PerformanceAnalytics";
 import * as paperTradingState from "../../state/paperTrading";
 

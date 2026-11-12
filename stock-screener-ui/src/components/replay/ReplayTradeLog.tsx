@@ -1,5 +1,5 @@
 import { createSignal, createMemo, createEffect } from "solid-js";
-import { Text, Select, ScrollArea, Badge, Anchor } from "@/ui";
+import { Text, Select, ScrollArea, Badge, Anchor, Group, Box } from "@/ui";
 import type { TableColumnDef } from "../paper-trading/TanStackTable";
 import {
   getPnLTextColor,
@@ -11,8 +11,6 @@ import { SideBadge } from "../common/BadgeComponents";
 import { alpha } from "@/ui/alpha";
 import * as palette from "@/ui/palette";
 import type { ReplayTrade } from "../../types/replay";
-import { Group, Box } from "../paper-trading/primitives";
-
 const EXIT_REASON_COLORS: Record<string, string> = {
   TP: "success",
   SL: "error",

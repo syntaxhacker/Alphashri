@@ -1,7 +1,5 @@
-import { Text, NumberInput } from "@/ui";
+import { Text, NumberInput, Stack } from "@/ui";
 import type { StrategyConfig } from "../../types/paperTrading";
-import { Stack } from "./primitives";
-
 type ConfigValueHandler = (
   key: keyof StrategyConfig,
   value: number | string | boolean | undefined,
@@ -18,7 +16,7 @@ const pct = (v: number, decimals = 4) => Number((v * 100).toFixed(decimals));
 export function TradingCostsSection(props: TradingCostsSectionProps) {
   return (
     <Stack gap="xs" className="paper-settings-section" id="costs-section">
-      <Text fw={600} size="xs" tt="uppercase" c="dimmed" className="mb-2">
+      <Text fw={600} size="xs" className="uppercase mb-2" c="dimmed">
         Cost Parameters
       </Text>
       <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">

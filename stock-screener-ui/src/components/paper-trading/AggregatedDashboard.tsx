@@ -1,6 +1,6 @@
 import { createSignal, createMemo, createEffect, For, Show } from "solid-js";
 import { IconRefresh } from "@/components/common/Icons";
-import { Badge, Button, Center, Loader, Select, Text } from "@/ui";
+import { Badge, Button, Center, Loader, Select, Text, Box, Flex, Group, Stack } from "@/ui";
 import { useStoreSnapshot } from "./storeSnapshot";
 import { getPaperTradingState, subscribe } from "../../state/paperTrading";
 import { fetchDashboardAnalytics } from "../../api/paperTrading";
@@ -24,7 +24,6 @@ import {
 import { withAlpha } from "../../utils/color";
 import { TanStackTable, type TableColumnDef } from "./TanStackTable";
 import { EChartSolid } from "./EChartSolid";
-import { Box, Flex, Group, Stack } from "./primitives";
 import type {
   PaperDashboardAnalyticsData,
   PaperDashboardBotRanking,
@@ -378,7 +377,7 @@ export function AggregatedDashboard() {
         }
       >
         <Show
-          when={data() && data()!.summary.total_trades > 0}
+          when={data()}
           fallback={
             <Center h={260} className="paper-dashboard-empty">
               <Text c="dimmed">No closed trades found for this period.</Text>
@@ -386,6 +385,15 @@ export function AggregatedDashboard() {
           }
         >
           {(d) => (
+            <Show
+              when={d().summary.total_trades > 0}
+              fallback={
+                <Center h={260} className="paper-dashboard-empty">
+                  <Text c="dimmed">No closed trades found for this period.</Text>
+                </Center>
+              }
+            >
+
             <>
               <SummaryStrip data={d()} />
 
@@ -428,6 +436,7 @@ export function AggregatedDashboard() {
 
               <SymbolPanel data={d()} />
             </>
+            </Show>
           )}
         </Show>
       </Show>

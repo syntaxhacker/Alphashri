@@ -72,8 +72,7 @@ describe("BacktestConfig", () => {
 
   it("shows description when variation has description", () => {
     const variation = mockVariation({ description: "Test description" });
-    render(
-      <BacktestConfig
+    render(() => <BacktestConfig
         {...defaultProps({ selectedVariation: variation.id, variations: [variation] })}
       />,
       { wrapper: Wrapper },
@@ -92,8 +91,7 @@ describe("BacktestConfig", () => {
 
   it("renders param inputs when strategy selected and variation selected", () => {
     const strategy = mockStrategy();
-    render(
-      <BacktestConfig
+    render(() => <BacktestConfig
         {...defaultProps({
           selectedStrategy: strategy.id,
           selectedVariation: "var-1",
@@ -164,8 +162,7 @@ describe("BacktestConfig", () => {
   it("selecting 'Run & Save to History' calls onSaveToHistoryChange and onRunAndSave", async () => {
     const onRunAndSave = vi.fn();
     const onSaveToHistoryChange = vi.fn();
-    render(
-      <BacktestConfig
+    render(() => <BacktestConfig
         {...defaultProps({ onRunAndSave, onSaveToHistoryChange, selectedSymbols: ["TCS"] })}
       />,
       { wrapper: Wrapper },
@@ -190,8 +187,7 @@ describe("BacktestConfig", () => {
 
   it("Ctrl+Enter triggers onRun when conditions met", () => {
     const onRun = vi.fn();
-    render(
-      <BacktestConfig {...defaultProps({ onRun, selectedSymbols: ["TCS"], isRunning: false })} />,
+    render(() => <BacktestConfig {...defaultProps({ onRun, selectedSymbols: ["TCS"], isRunning: false })} />,
       { wrapper: Wrapper },
     );
     const event = new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true });
@@ -201,8 +197,7 @@ describe("BacktestConfig", () => {
 
   it("Ctrl+Enter does not run when isRunning true", () => {
     const onRun = vi.fn();
-    render(
-      <BacktestConfig {...defaultProps({ onRun, selectedSymbols: ["TCS"], isRunning: true })} />,
+    render(() => <BacktestConfig {...defaultProps({ onRun, selectedSymbols: ["TCS"], isRunning: true })} />,
       { wrapper: Wrapper },
     );
     const event = new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true });

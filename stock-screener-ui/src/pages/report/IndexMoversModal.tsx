@@ -1,7 +1,7 @@
-import React, { memo, useState, useEffect, useMemo, useRef } from "react";
-import type { ColumnDef, SortingState } from "@tanstack/react-table";
-import { PanelModal } from "@/components/common/PanelModal";
-import { TanStackTable } from "@/components/common/TanStackTable";
+import { createEffect, createMemo, createSignal, Show, onCleanup } from "solid-js";
+import type { JSX } from "solid-js";
+import { TanStackTable, type TableColumnDef } from "@/components/common/TanStackTable";
+import { LocalPanelModal } from "./LocalPanelModal";
 import * as palette from "@/ui/palette";
 import { Loader, Text, SegmentedControl, Button, Tooltip } from "@/ui";
 import { formatNumberIN } from "@/utils/ui-helpers";
@@ -32,24 +32,17 @@ const TABS = [
 
 type TabValue = (typeof TABS)[number]["value"];
 
-function MoversTable({
-  rows,
-  index,
-}: {
+function MoversTable(props: {
   rows: MoversTableRow[];
   index: "NIFTY" | "SENSEX";
 }) {
-  const [_sorting, setSorting] = useState<SortingState>([{ id: "change_pct", desc: true }]);
-  const [sortMode, _setSortMode] = useState<"change" | "contribution" | "symbol">("change");
-
-  // Column definitions with explicit meta.align
-  const columns = useMemo<ColumnDef<MoversTableRow>[]>(() => [
+  const columns = createMemo<TableColumnDef<MoversTableRow>[]>(() => [
     {
       header: "RANK",
       accessorKey: "rank",
       size: 50,
       meta: { align: "center" },
-      cell: (info) => (
+      cell: ({ row }) => (
         <Text
           span
           size="xs"
@@ -61,7 +54,7 @@ function MoversTable({
             fontFamily: palette.MONO,
           }}
         >
-          {info.getValue()}
+          {String(row.original.rank)}
         </Text>
       ),
     },
@@ -70,7 +63,7 @@ function MoversTable({
       accessorKey: "symbol",
       size: 120,
       meta: { align: "left" },
-      cell: (info) => (
+      cell: ({ row }) => (
         <Text
           span
           size="xs"
@@ -81,7 +74,7 @@ function MoversTable({
             fontFamily: palette.MONO,
           }}
         >
-          {info.getValue()}
+          {row.original.symbol}
         </Text>
       ),
     },
@@ -90,7 +83,7 @@ function MoversTable({
       accessorKey: "ltp",
       size: 90,
       meta: { align: "right" },
-      cell: (info) => (
+      cell: ({ row }) => (
         <Text
           span
           size="xs"
@@ -101,7 +94,7 @@ function MoversTable({
             fontFamily: palette.MONO,
           }}
         >
-          {formatNumberIN(info.getValue() as number)}
+          {formatNumberIN(row.original.ltp)}
         </Text>
       ),
     },
@@ -110,8 +103,8 @@ function MoversTable({
       accessorKey: "change_pct",
       size: 90,
       meta: { align: "right" },
-      cell: (info) => {
-        const val = info.getValue() as number;
+      cell: ({ row }) => {
+        const val = row.original.change_pct;
         const isGainer = val > 0;
         return (
           <Text
@@ -135,8 +128,8 @@ function MoversTable({
       accessorKey: "contribution_pct",
       size: 90,
       meta: { align: "right" },
-      cell: (info) => {
-        const val = info.getValue() as number | undefined;
+      cell: ({ row }) => {
+        const val = row.original.contribution_pct;
         if (val === undefined || val === null) {
           return (
             <Text
@@ -176,7 +169,7 @@ function MoversTable({
       accessorKey: "volume",
       size: 110,
       meta: { align: "right" },
-      cell: (info) => (
+      cell: ({ row }) => (
         <Text
           span
           size="xs"
@@ -187,31 +180,19 @@ function MoversTable({
             fontFamily: palette.MONO,
           }}
         >
-          {formatNumberIN(info.getValue() as number)}
+          {formatNumberIN(row.original.volume)}
         </Text>
       ),
     },
-  ], [index]);
-
-  // Apply sort based on sortMode
-  useEffect(() => {
-    if (sortMode === "change") {
-      setSorting([{ id: "change_pct", desc: true }]);
-    } else if (sortMode === "contribution") {
-      setSorting([{ id: "contribution_pct", desc: true }]);
-    } else {
-      setSorting([{ id: "symbol", desc: false }]);
-    }
-  }, [sortMode]);
+  ]);
 
   return (
     <TanStackTable<MoversTableRow>
-      data={rows}
-      columns={columns}
+      data={props.rows}
+      columns={columns()}
       dataTestId="movers-table"
-      enableSorting={true}
+      enableSorting={false}
       initialState={{ sorting: [{ id: "change_pct", desc: true }] }}
-      onSortingChange={setSorting}
       dense
       fillContainer
       minTableWidth={560}
@@ -223,34 +204,33 @@ function MoversTable({
   );
 }
 
-export const IndexMoversModal = memo(function IndexMoversModal({
-  open,
-  onClose,
-  index,
-}: IndexMoversModalProps) {
-  const [data, setData] = useState<IndexMoversResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<TabValue>("gainers");
-  const abortRef = useRef<AbortController | null>(null);
-  const mountedRef = useRef(true);
+export function IndexMoversModal(props: IndexMoversModalProps) {
+  const open = () => props.open;
+  const index = () => props.index;
+  const [data, setData] = createSignal<IndexMoversResponse | null>(null);
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  const [tab, setTab] = createSignal<TabValue>("gainers");
+  let abortController: AbortController | null = null;
+  let mounted = true;
 
   // Load all movers when modal opens
-  useEffect(() => {
-    if (!open) return;
-    mountedRef.current = true;
-    abortRef.current?.abort();
+  createEffect(() => {
+    if (!open()) return;
+    index();
+    mounted = true;
+    abortController?.abort();
     const controller = new AbortController();
-    abortRef.current = controller;
+    abortController = controller;
     setLoading(true);
     setError(null);
-    fetchIndexMovers(index, "all", controller.signal)
+    fetchIndexMovers(index(), "all", controller.signal)
       .then((res) => {
-        if (!mountedRef.current || controller.signal.aborted) return;
+        if (!mounted || controller.signal.aborted) return;
         setData(res);
       })
       .catch((e) => {
-        if (!mountedRef.current || controller.signal.aborted) return;
+        if (!mounted || controller.signal.aborted) return;
         if (e instanceof Error && e.message === "MOVERS_UNAVAILABLE") {
           setError("unavailable");
         } else {
@@ -258,53 +238,55 @@ export const IndexMoversModal = memo(function IndexMoversModal({
         }
       })
       .finally(() => {
-        if (mountedRef.current) setLoading(false);
+        if (mounted) setLoading(false);
       });
-    return () => {
-      mountedRef.current = false;
+    onCleanup(() => {
+      mounted = false;
       controller.abort();
-    };
-  }, [open, index]);
+    });
+  });
 
   // Derive rows for current tab
-  const rows = useMemo(() => {
-    if (!data) return [];
+  const rows = createMemo(() => {
+    const d = data();
+    if (!d) return [];
+    const t = tab();
     let source: IndexMoverRow[];
-    if (tab === "gainers") source = data.gainers;
-    else if (tab === "losers") source = data.losers;
-    else source = [...data.gainers, ...data.losers].sort((a, b) => b.change_pct - a.change_pct);
+    if (t === "gainers") source = d.gainers;
+    else if (t === "losers") source = d.losers;
+    else source = [...d.gainers, ...d.losers].sort((a, b) => b.change_pct - a.change_pct);
 
     return source.map((r, i) => ({
       ...r,
       rank: i + 1,
       absChange: Math.abs(r.change_pct),
     }));
-  }, [data, tab]);
+  });
 
   // Stale badge
-  const isStale = data?.stale === true;
+  const isStale = () => data()?.stale === true;
 
   return (
-    <PanelModal
-      open={open}
-      title={`MOVERS · ${index} ${index === "NIFTY" ? "50" : "30"}`}
-      onClose={onClose}
-      max-width={720}
+    <LocalPanelModal
+      open={open()}
+      title={`MOVERS · ${index()} ${index() === "NIFTY" ? "50" : "30"}`}
+      onClose={props.onClose}
+      maxWidth={720}
       autoHeight
-      max-height="75vh"
+      maxHeight="75vh"
       actions={
-        <div className="flex items-center gap-1">
+        <div class="flex items-center gap-1">
           <SegmentedControl
-            value={tab}
-            onChange={setTab}
+            value={tab()}
+            onChange={(v) => setTab(v as TabValue)}
             data={TABS}
             size="xs"
-            className="min-w-0"
+            class="min-w-0"
           />
-          {isStale && (
+          <Show when={isStale()}>
             <Tooltip label="Data is stale — quotes may be delayed">
               <span
-                className="inline-flex items-center gap-1 px-[2px] py-[1px] rounded-sm text-[10px] font-bold tracking-[0.05em] whitespace-nowrap"
+                class="inline-flex items-center gap-1 px-[2px] py-[1px] rounded-sm text-[10px] font-bold tracking-[0.05em] whitespace-nowrap"
                 style={{
                   border: `1px solid ${palette.WARNING}`,
                   color: palette.WARNING,
@@ -313,24 +295,24 @@ export const IndexMoversModal = memo(function IndexMoversModal({
                 STALE
               </span>
             </Tooltip>
-          )}
+          </Show>
         </div>
       }
     >
-      {loading && !data && (
+      <Show when={loading() && !data()}>
         <div
-          className="flex items-center justify-center min-h-[120px] text-fin-text-muted"
+          class="flex items-center justify-center min-h-[120px] text-fin-text-muted"
         >
           <Loader size="xs" color={palette.PRIMARY} />
           <Text span size="xs" c="dimmed" style={{ marginLeft: 8 }}>
             loading movers…
           </Text>
         </div>
-      )}
+      </Show>
 
-      {error && !data && (
+      <Show when={error() && !data()}>
         <div
-          className="flex items-center justify-center min-h-[120px] gap-2 flex-wrap"
+          class="flex items-center justify-center min-h-[120px] gap-2 flex-wrap"
         >
           <Text span size="xs" c="error" fw={700}>
             unavailable
@@ -339,32 +321,32 @@ export const IndexMoversModal = memo(function IndexMoversModal({
             Retry
           </Button>
         </div>
-      )}
+      </Show>
 
-      {data && rows.length === 0 && (
-        <div className="flex items-center justify-center min-h-[120px] text-fin-text-muted">
+      <Show when={data() && rows().length === 0}>
+        <div class="flex items-center justify-center min-h-[120px] text-fin-text-muted">
           <Text span size="xs" c="dimmed">
             No movers data
           </Text>
         </div>
-      )}
+      </Show>
 
-      {data && rows.length > 0 && (
-        <div className="min-w-0">
-          <MoversTable rows={rows} index={index} />
+      <Show when={data() && rows().length > 0}>
+        <div class="min-w-0">
+          <MoversTable rows={rows()} index={index()} />
         </div>
-      )}
+      </Show>
 
       {/* Footer meta */}
-      {data && (
+      <Show when={data()}>
         <div
-          className="flex items-center justify-between mt-2 pt-1 border-t border-fin-border font-mono text-[10px] text-fin-text-muted"
+          class="flex items-center justify-between mt-2 pt-1 border-t border-fin-border font-mono text-[10px] text-fin-text-muted"
         >
           <Text span size="xs" c="dimmed">
-            Source: {data.source}
+            Source: {data()!.source}
           </Text>
           <Text span size="xs" c="dimmed">
-            As of: {new Date(data.as_of).toLocaleTimeString("en-IN", {
+            As of: {new Date(data()!.as_of).toLocaleTimeString("en-IN", {
               hour12: false,
               hour: "2-digit",
               minute: "2-digit",
@@ -373,9 +355,7 @@ export const IndexMoversModal = memo(function IndexMoversModal({
             })}
           </Text>
         </div>
-      )}
-    </PanelModal>
+      </Show>
+    </LocalPanelModal>
   );
-});
-
-IndexMoversModal.displayName = "IndexMoversModal";
+}

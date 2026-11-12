@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import { MemoryRouter } from "react-router-dom";
+import { Router } from "@solidjs/router";
 import { NavbarNested } from "./NavbarNested";
 import { AuthContext } from "../auth/AuthProvider2";
 import * as hooks from "@/ui/hooks";
@@ -27,16 +27,19 @@ function renderNavbar(opts: {
   onMobileNavigate?: any;
 } = {}) {
   const { activePath = "/", collapsed = false, auth = mockAdminAuth, onMobileNavigate } = opts;
-  return render(() => (<MemoryRouter>
-      <AuthContext.Provider value={auth}>
-        <NavbarNested
-          activePath={activePath}
-          collapsed={collapsed}
-          onMobileNavigate={onMobileNavigate}
-        />
-      </AuthContext.Provider>
-    </MemoryRouter>),
-  );
+  return render(() => (
+    <Router
+      root={() => (
+        <AuthContext.Provider value={auth}>
+          <NavbarNested
+            activePath={activePath}
+            collapsed={collapsed}
+            onMobileNavigate={onMobileNavigate}
+          />
+        </AuthContext.Provider>
+      )}
+    />
+  ));
 }
 
 beforeEach(() => {
@@ -152,21 +155,8 @@ describe("NavbarNested active path highlighting", () => {
   });
 
   it("highlights correct item each time activePath changes (rerender)", () => {
-    const { rerender } = render(() => (<MemoryRouter>
-        <AuthContext.Provider value={mockAdminAuth}>
-          <NavbarNested activePath="/news" />
-        </AuthContext.Provider>
-      </MemoryRouter>),
-    );
+    renderNavbar({ activePath: "/news" });
     expect(screen.getByTestId("nav-news")).toHaveAttribute("data-active", "true");
-    rerender(
-      <MemoryRouter>
-        <AuthContext.Provider value={mockAdminAuth}>
-          <NavbarNested activePath="/sector" />
-        </AuthContext.Provider>
-      </MemoryRouter>,
-    );
-    // happy-dom rerender may duplicate; query again
     cleanup();
     renderNavbar({ activePath: "/sector" });
     expect(screen.getByTestId("nav-sector")).toHaveAttribute("data-active", "true");
@@ -309,8 +299,8 @@ describe("NavbarNested theme toggle", () => {
   it("calls underlying useColorScheme toggle (spy)", async () => {
     const toggleSpy = vi.fn();
     vi.spyOn(hooks, "useColorScheme").mockReturnValue({
-      colorScheme: "dark",
-      isDark: true,
+      colorScheme: () => "dark",
+      isDark: () => true,
       toggleColorScheme: toggleSpy,
       setColorScheme: vi.fn(),
     } as any);

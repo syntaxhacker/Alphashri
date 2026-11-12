@@ -1,5 +1,5 @@
 import { createSignal, createEffect, Show } from "solid-js";
-import { Text, Loader, Center, SegmentedControl } from "@/ui";
+import { Text, Loader, Center, SegmentedControl, Box, Flex, Paper, Group } from "@/ui";
 import { useStoreSnapshot } from "./storeSnapshot";
 import { getPaperTradingState, subscribe } from "../../state/paperTrading";
 import { fetchAnalytics } from "../../api/paperTrading";
@@ -8,8 +8,6 @@ import { EChartSolid } from "./EChartSolid";
 import type { AnalyticsData, DailyPnLPoint, EquityCurvePoint } from "../../types/paperTrading";
 import { PERF_POSITIVE, PERF_NEGATIVE, POSITIVE, NEGATIVE, TEXT_MUTED, PRIMARY, INFO } from "../../config/colors";
 import { withAlpha } from "../../utils/color";
-import { Box, Flex, Paper, Group } from "./primitives";
-
 const splitLine = { lineStyle: { color: withAlpha(TEXT_MUTED, 0.12) } };
 
 function chartOption({

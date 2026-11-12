@@ -81,8 +81,7 @@ afterEach(() => {
 describe("ReplayPage", () => {
   it("renders title and description text", async () => {
     const { ReplayPage } = await import("./ReplayPage");
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayPage />
       </UIProvider>,
     );
@@ -92,8 +91,7 @@ describe("ReplayPage", () => {
 
   it("renders ReplayConfigBar component", async () => {
     const { ReplayPage } = await import("./ReplayPage");
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayPage />
       </UIProvider>,
     );
@@ -102,8 +100,7 @@ describe("ReplayPage", () => {
 
   it("renders ReplayStats component", async () => {
     const { ReplayPage } = await import("./ReplayPage");
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayPage />
       </UIProvider>,
     );
@@ -112,8 +109,7 @@ describe("ReplayPage", () => {
 
   it("hides ReplayPositions when no open positions", async () => {
     const { ReplayPage } = await import("./ReplayPage");
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayPage />
       </UIProvider>,
     );
@@ -122,8 +118,7 @@ describe("ReplayPage", () => {
 
   it("renders ReplayMainView component", async () => {
     const { ReplayPage } = await import("./ReplayPage");
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayPage />
       </UIProvider>,
     );
@@ -165,8 +160,7 @@ describe("ReplayPage", () => {
       loadSymbols: vi.fn(),
     });
     const { ReplayPage } = await import("./ReplayPage");
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayPage />
       </UIProvider>,
     );
@@ -208,8 +202,7 @@ describe("ReplayPage", () => {
       loadSymbols: vi.fn(),
     });
     const { ReplayPage } = await import("./ReplayPage");
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayPage />
       </UIProvider>,
     );
@@ -251,8 +244,7 @@ describe("ReplayPage", () => {
       loadSymbols: vi.fn(),
     });
     const { ReplayPage } = await import("./ReplayPage");
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayPage />
       </UIProvider>,
     );

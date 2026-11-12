@@ -1,7 +1,7 @@
 import { createMemo, Show, Switch, Match, type JSX } from "solid-js";
 import dayjs from "dayjs";
-import { Text, Select } from "@/ui";
-import { Tabs } from "./overlays";
+import { Text, Select, Flex, Group } from "@/ui";
+import { Tabs } from "@/ui";
 import { IconActivity, IconChartDots, IconClipboardList, IconSettings, IconTimeline } from "@/components/common/Icons";
 import { TradingDatePicker } from "../common/TradingDatePicker";
 import {
@@ -43,8 +43,6 @@ const normDate = (v: unknown): string => {
   }
   return String(v);
 };
-import { Flex, Group } from "./primitives";
-
 export function usePaperViewActions(getActiveBotId: () => string | null) {
   const handleViewChange = async (view: string | null) => {
     if (!view) return;

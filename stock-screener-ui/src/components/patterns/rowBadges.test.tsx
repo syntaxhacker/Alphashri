@@ -1,13 +1,9 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
-import { UIProvider } from "@/ui";
+import { cleanup, render, screen } from "@solidjs/testing-library";
 import { PatternTags, fullDate, hasTag, rowTags, shortIstDate } from "./rowBadges";
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
 
 describe("rowTags / hasTag", () => {
   afterEach(() => cleanup());
@@ -75,50 +71,48 @@ describe("PatternTags", () => {
   afterEach(() => cleanup());
 
   test("renders the F&O badge only when tagged F&O", () => {
-    r(<PatternTags tags={["F&O"]} symbol="RELIANCE" testIdPrefix="watch" compact />);
+    render(() => <PatternTags tags={["F&O"]} symbol="RELIANCE" testIdPrefix="watch" compact />);
     expect(screen.getByTestId("watch-tag-fno-RELIANCE")).toHaveTextContent("F&O");
     expect(screen.queryByTestId("watch-tag-etf-RELIANCE")).not.toBeInTheDocument();
   });
 
   test("renders the ETF badge only when tagged ETF", () => {
-    r(<PatternTags tags={["ETF"]} symbol="NIFTYBEES" testIdPrefix="watch" compact />);
+    render(() => <PatternTags tags={["ETF"]} symbol="NIFTYBEES" testIdPrefix="watch" compact />);
     expect(screen.getByTestId("watch-tag-etf-NIFTYBEES")).toHaveTextContent("ETF");
     expect(screen.queryByTestId("watch-tag-fno-NIFTYBEES")).not.toBeInTheDocument();
   });
 
   test("renders both badges when tagged F&O and ETF", () => {
-    r(<PatternTags tags={["F&O", "ETF"]} symbol="BOTH" testIdPrefix="watch" compact />);
+    render(() => <PatternTags tags={["F&O", "ETF"]} symbol="BOTH" testIdPrefix="watch" compact />);
     expect(screen.getByTestId("watch-tag-fno-BOTH")).toHaveTextContent("F&O");
     expect(screen.getByTestId("watch-tag-etf-BOTH")).toHaveTextContent("ETF");
   });
 
   test("renders nothing when tagged neither or tags are missing", () => {
-    const { container } = r(<PatternTags tags={["OTHER"]} symbol="PLAIN" testIdPrefix="watch" compact />);
+    const { container } = render(() => <PatternTags tags={["OTHER"]} symbol="PLAIN" testIdPrefix="watch" compact />);
     expect(screen.queryByTestId("watch-tag-fno-PLAIN")).not.toBeInTheDocument();
     expect(screen.queryByTestId("watch-tag-etf-PLAIN")).not.toBeInTheDocument();
     expect(container).toBeEmptyDOMElement();
     cleanup();
-    r(<PatternTags tags={null} symbol="MISSING" testIdPrefix="watch" compact />);
+    render(() => <PatternTags tags={null} symbol="MISSING" testIdPrefix="watch" compact />);
     expect(screen.queryByTestId("watch-tag-fno-MISSING")).not.toBeInTheDocument();
     expect(screen.queryByTestId("watch-tag-etf-MISSING")).not.toBeInTheDocument();
   });
 
   test("honours the testid prefix (patterns-list namespace)", () => {
-    r(<PatternTags tags={["F&O"]} symbol="IRCON" testIdPrefix="patterns-list" compact />);
+    render(() => <PatternTags tags={["F&O"]} symbol="IRCON" testIdPrefix="patterns-list" compact />);
     expect(screen.getByTestId("patterns-list-tag-fno-IRCON")).toHaveTextContent("F&O");
     expect(screen.queryByTestId("watch-tag-fno-IRCON")).not.toBeInTheDocument();
   });
 
   test("showEtf={false} suppresses the ETF badge while keeping F&O", () => {
-    r(
-      <PatternTags
+    render(() =>       <PatternTags
         tags={["F&O", "ETF"]}
         symbol="AAA"
         testIdPrefix="patterns-list"
         showEtf={false}
         compact
-      />,
-    );
+      />);
     expect(screen.getByTestId("patterns-list-tag-fno-AAA")).toHaveTextContent("F&O");
     expect(screen.queryByTestId("patterns-list-tag-etf-AAA")).not.toBeInTheDocument();
   });

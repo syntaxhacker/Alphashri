@@ -101,6 +101,11 @@ function shape(props: DivProps) {
     onFocus: local.onFocus,
     onSubmit: local.onSubmit,
     onKeyUp: local.onKeyUp,
+    "aria-expanded": local["aria-expanded"],
+    "aria-controls": local["aria-controls"],
+    "aria-pressed": local["aria-pressed"],
+    "aria-hidden": local["aria-hidden"],
+    "aria-busy": local["aria-busy"],
     ...extra,
   };
 }
@@ -380,7 +385,11 @@ function StubNumberInput(props: DivProps & {
   ] as const);
   const id = local.id ?? `num-${Math.random().toString(36).slice(2, 8)}`;
   return (
-    <span class="inline-flex min-w-0 flex-col gap-1" style={{ width: typeof local.w === "number" ? `${local.w}px` : local.w }}>
+    <span
+      class="inline-flex min-w-0 flex-col gap-1"
+      style={{ width: typeof local.w === "number" ? `${local.w}px` : local.w }}
+      data-testid={local["data-testid"]}
+    >
       <Show when={local.label}>
         <label for={id} class="text-xs font-medium text-fin-text-muted">{local.label}</label>
       </Show>
@@ -397,7 +406,7 @@ function StubNumberInput(props: DivProps & {
           placeholder={local.placeholder}
           disabled={Boolean(local.disabled)}
           name={local.name}
-          data-testid={local["data-testid"]}
+          data-testid={local["data-testid"] ? `${local["data-testid"]}-input` : undefined}
           value={local.value === undefined ? "" : String(local.value)}
           onInput={(e) => local.onChange?.(coerceNumber(e.currentTarget.value))}
           {...(rest as Record<string, unknown>)}
@@ -475,26 +484,30 @@ function StubSelect(props: DivProps & {
     "label", "clearable", "searchable", "data-testid", "id", "className", "onBlur",
   ] as const);
   const options = () => normalizeOptions(local.data);
+  const id = local.id ?? `sel-${Math.random().toString(36).slice(2, 8)}`;
   let selectEl: HTMLSelectElement | undefined;
   createEffect(() => {
     if (selectEl) selectEl.value = String(local.value ?? "");
   });
   return (
-    <span class="inline-flex min-w-0 flex-col gap-1" style={{ width: typeof local.w === "number" ? `${local.w}px` : local.w }}>
+    <span class="inline-flex min-w-0 flex-col gap-1" style={{ width: typeof local.w === "number" ? `${local.w}px` : local.w }} data-testid={local["data-testid"]}>
       <Show when={local.label}>
-        <label class="text-xs font-medium text-fin-text-muted">{local.label}</label>
+        <label for={id} class="text-xs font-medium text-fin-text-muted">{local.label}</label>
       </Show>
       <select
         ref={(el) => (selectEl = el)}
-        id={local.id}
+        id={id}
+        role="combobox"
+        aria-haspopup="listbox"
         class={cn(INPUT_CHROME, "px-2 py-1.5 text-xs", local.className)}
-        data-testid={local["data-testid"]}
         disabled={Boolean(local.disabled)}
         onChange={(e) => local.onChange?.(e.currentTarget.value === "" ? null : e.currentTarget.value)}
         onBlur={local.onBlur}
         {...(rest as Record<string, unknown>)}
       >
-        <option value="">{local.placeholder ?? "Select…"}</option>
+        <Show when={local.placeholder}>
+          <option value="">{local.placeholder}</option>
+        </Show>
         <For each={options()}>{(opt) => <option value={opt.value}>{opt.label}</option>}</For>
       </select>
     </span>
@@ -551,6 +564,7 @@ function StubMultiSelect(props: DivProps & {
           local.onSearchChange?.(e.currentTarget.value);
         }}
         onFocus={() => setOpen(true)}
+        onClick={() => setOpen(true)}
         {...(rest as Record<string, unknown>)}
       />
       <Show when={open()}>
@@ -568,12 +582,18 @@ function StubMultiSelect(props: DivProps & {
                   role="option"
                   aria-selected={picked()}
                   class="flex cursor-pointer items-center gap-1 px-2 py-1 text-xs hover:bg-fin-surface-alt"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    toggle(opt.value);
-                  }}
+                  onClick={() => toggle(opt.value)}
                 >
-                  <input type="checkbox" readOnly checked={picked()} tabIndex={-1} />
+                  <input
+                    type="checkbox"
+                    readOnly
+                    checked={picked()}
+                    tabIndex={-1}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggle(opt.value);
+                    }}
+                  />
                   {opt.label}
                 </li>
               );
@@ -627,9 +647,28 @@ function StubCheckbox(props: DivProps & { checked?: boolean; onChange?: (e: any)
   );
 }
 
-function StubChip(props: DivProps & { onClick?: (e: any) => void }) {
-  const s = shape(props);
-  return <button {...s} type="button" onClick={props.onClick}>{props.children}</button>;
+function StubChip(props: DivProps & { checked?: boolean; defaultChecked?: boolean; onChange?: (next: boolean) => void; onClick?: (e: any) => void; disabled?: boolean }) {
+  const [internal, setInternal] = createSignal(Boolean(props.defaultChecked));
+  const isChecked = () => (props.checked !== undefined ? Boolean(props.checked) : internal());
+  return (
+    <button
+      type="button"
+      aria-pressed={isChecked()}
+      data-testid={props["data-testid"]}
+      disabled={Boolean(props.disabled)}
+      class={props.className}
+      style={props.style}
+      onClick={(e) => {
+        if (props.disabled) return;
+        props.onClick?.(e);
+        const next = !isChecked();
+        if (props.checked === undefined) setInternal(next);
+        props.onChange?.(next);
+      }}
+    >
+      {props.children}
+    </button>
+  );
 }
 
 function StubSegmentedControl(props: DivProps & {
@@ -641,7 +680,12 @@ function StubSegmentedControl(props: DivProps & {
 }) {
   const [local, rest] = splitProps(props, ["data", "value", "onChange", "size", "disabled", "data-testid"] as const);
   return (
-    <span role="group" class="inline-flex rounded-fin border border-fin-border" {...(rest as Record<string, unknown>)}>
+    <span
+      role="group"
+      data-testid={local["data-testid"]}
+      class="inline-flex rounded-fin border border-fin-border"
+      {...(rest as Record<string, unknown>)}
+    >
       <For each={local.data ?? []}>
         {(item) => (
           <button
@@ -664,12 +708,19 @@ function StubSegmentedControl(props: DivProps & {
   );
 }
 
-function StubBadge(props: DivProps & { variant?: string; color?: string; size?: string }) {
+function StubBadge(props: DivProps & {
+  variant?: string;
+  color?: string;
+  size?: string;
+  leftSection?: JSX.Element;
+  rightSection?: JSX.Element;
+}) {
   const s = shape(props);
   return (
     <span {...s} data-testid={props["data-testid"]}>
       {props.leftSection}
       {props.children}
+      {props.rightSection}
     </span>
   );
 }
@@ -710,9 +761,20 @@ function StubProgress(props: DivProps & { value?: number; max?: number }) {
 
 function StubRingProgress(props: DivProps & { value?: number; sections?: Array<{ value: number; color: string }>; size?: number }) {
   return (
-    <div role="progressbar" aria-valuenow={props.value ?? 50} aria-valuemin={0} aria-valuemax={100} data-testid={props["data-testid"]} style={props.style}>
+    <svg
+      role="progressbar"
+      aria-valuenow={props.value ?? 50}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      data-testid={props["data-testid"]}
+      style={props.style}
+      width={props.size ?? 48}
+      height={props.size ?? 48}
+      viewBox="0 0 48 48"
+    >
+      <circle cx="24" cy="24" r="20" stroke="currentColor" fill="none" stroke-width="4" />
       {props.children}
-    </div>
+    </svg>
   );
 }
 
@@ -722,8 +784,22 @@ function StubSkeleton(props: DivProps & { h?: number | string; w?: number | stri
 }
 
 function StubTooltip(props: DivProps & { label?: JSX.Element; position?: string; multiline?: boolean; openDelay?: number; disabled?: boolean }) {
-  const title = typeof props.label === "string" ? props.label : undefined;
-  return <span {...shape(props)} title={title}>{props.children}</span>;
+  const [open, setOpen] = createSignal(false);
+  const labelText = () => (typeof props.label === "string" ? props.label : undefined);
+  const s = shape(props);
+  return (
+    <span
+      {...s}
+      title={labelText()}
+      onMouseOver={() => setOpen(true)}
+      onMouseOut={() => setOpen(false)}
+    >
+      {props.children}
+      <Show when={open() && props.label != null}>
+        <span role="tooltip">{props.label}</span>
+      </Show>
+    </span>
+  );
 }
 
 function StubDivider(props: DivProps & { orientation?: string }) {
@@ -733,7 +809,11 @@ function StubDivider(props: DivProps & { orientation?: string }) {
 
 function StubCollapse(props: DivProps & { in?: boolean }) {
   const s = shape(props);
-  return <Show when={props.in}><div {...s}>{props.children}</div></Show>;
+  return (
+    <div {...s} aria-hidden={!props.in || undefined} style={{ overflow: "hidden", height: props.in ? "auto" : 0, ...(props.style ?? {}) }}>
+      {props.children}
+    </div>
+  );
 }
 
 function StubSimpleGrid(props: DivProps & { cols?: number }) {
@@ -897,7 +977,19 @@ function Modal(props: DivProps & { opened?: boolean; title?: JSX.Element; onClos
         class={props.className}
         style={props.style}
       >
-        {props.title ? <div data-testid={props["data-testid"] ? `${props["data-testid"]}-title` : undefined}>{props.title}</div> : null}
+        <div class="relative flex items-center justify-between border-b" style={{ width: "100%" }}>
+          {props.title ? <div data-testid={props["data-testid"] ? `${props["data-testid"]}-title` : undefined}>{props.title}</div> : <div />}
+          {props.onClose ? (
+            <button
+              type="button"
+              aria-label="close"
+              data-testid={props["data-testid"] ? `${props["data-testid"]}-close` : undefined}
+              onClick={props.onClose}
+            >
+              ×
+            </button>
+          ) : null}
+        </div>
         {props.children}
       </div>
     </Show>

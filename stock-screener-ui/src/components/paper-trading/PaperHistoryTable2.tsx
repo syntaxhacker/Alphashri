@@ -1,6 +1,6 @@
 import { createSignal, createMemo, For, Show } from "solid-js";
 import dayjs from "dayjs";
-import { Select, Text, Loader, SegmentedControl, Anchor, Badge, ActionIcon, Textarea, Button, LoadingOverlay } from "@/ui";
+import { Select, Text, Loader, SegmentedControl, Anchor, Badge, ActionIcon, Textarea, Button, LoadingOverlay, Group, Stack } from "@/ui";
 import type { TableColumnDef } from "./TanStackTable";
 import type { PaperTrade, TradeSourceFilter } from "../../types/paperTrading";
 import {
@@ -38,8 +38,6 @@ import {
   getPeriodFromDateRange,
 } from "../../utils/tradeHistoryUtils";
 import { useStoreSnapshot } from "./storeSnapshot";
-import { Group, Stack } from "./primitives";
-
 type PaperTradingSnapshot = ReturnType<typeof getPaperTradingState>;
 
 function useQuickFilter(state: () => PaperTradingSnapshot) {

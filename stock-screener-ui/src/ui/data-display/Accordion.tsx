@@ -1,4 +1,4 @@
-import { createContext, createMemo, Show, splitProps, useContext } from "solid-js";
+import { createContext, createMemo, createSignal, Show, splitProps, useContext } from "solid-js";
 import { cn } from "../cn";
 import type { UIAccordionProps, UIAccordionItemProps, UIAccordionControlProps, UIAccordionPanelProps } from "../types";
 

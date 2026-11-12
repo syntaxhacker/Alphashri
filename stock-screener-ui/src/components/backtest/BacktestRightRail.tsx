@@ -4,8 +4,7 @@ import type { JSX } from "solid-js";
 
 import * as palette from "@/ui/palette";
 import { RAIL_MAX_WIDTH, RAIL_MIN_WIDTH } from "./useBacktestLayout";
-import { Box } from "../paper-trading/primitives";
-
+import { Box } from "@/ui";
 interface BacktestRightRailProps {
   width: number;
   onWidthChange: (width: number) => void;

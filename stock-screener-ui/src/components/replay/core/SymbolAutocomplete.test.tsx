@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach } from "vitest";
+import { createSignal } from "solid-js";
 import { render, screen, waitFor, fireEvent } from "@solidjs/testing-library";
 
 const searchSymbols = vi.fn();
@@ -22,7 +23,7 @@ describe("SymbolAutocomplete", () => {
 
     const input = screen.getByLabelText("Symbol");
     await fireEvent.input(input);
-    await fireEvent.input(input, "RELI");
+    await fireEvent.input(input, { target: { value: "RELI" } });
 
     await waitFor(() => expect(searchSymbols).toHaveBeenCalledWith("RELI", 10));
 
@@ -36,7 +37,7 @@ describe("SymbolAutocomplete", () => {
     render(() => <SymbolAutocomplete value="" onChange={vi.fn()} />);
     const input = screen.getByLabelText("Symbol");
 
-    await fireEvent.input(input, "RELI");
+    await fireEvent.input(input, { target: { value: "RELI" } });
     await waitFor(() => expect(searchSymbols).toHaveBeenCalledWith("RELI", 10));
     await screen.findByText("RELIANCE");
 
@@ -45,10 +46,11 @@ describe("SymbolAutocomplete", () => {
   });
 
   test("syncs the input to an external value change", () => {
-    const { rerender } = render(() => <SymbolAutocomplete value="NETWEB" onChange={vi.fn()} />);
+    const [value, setValue] = createSignal("NETWEB");
+    render(() => <SymbolAutocomplete value={value()} onChange={vi.fn()} />);
     expect(screen.getByLabelText("Symbol")).toHaveValue("NETWEB");
 
-    rerender(<SymbolAutocomplete value="INFY" onChange={vi.fn()} />);
+    setValue("INFY");
     expect(screen.getByLabelText("Symbol")).toHaveValue("INFY");
   });
 });

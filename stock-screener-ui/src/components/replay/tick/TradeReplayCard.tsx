@@ -1,12 +1,10 @@
 // TradeReplayCard — trade summary + TickReplayChart. The per-trade unit of every
 // future strategy page (iFVG, LRL, ORB…): header chips + stats + explainer + chart.
-import { Text, Chip } from "@/ui";
+import { Text, Chip, Box, Card, Stack } from "@/ui";
 import { Show } from "solid-js";
 import * as palette from "@/ui/palette";
 import TickReplayChart from "./TickReplayChart";
 import type { Bar, ReplayTrade, ReplayTrend, ReplayZone, TradeStack } from "./types";
-import { Box, Card, Stack } from "../../paper-trading/primitives";
-
 export const stackLabel = (stack: TradeStack | undefined): string =>
   stack === "inv" ? "MOMENTUM" : stack === "retest" ? "REVERSION" : "TRADE";
 export const stackColor = (stack: TradeStack | undefined): string =>

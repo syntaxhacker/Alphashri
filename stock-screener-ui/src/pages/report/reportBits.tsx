@@ -4,7 +4,7 @@
  * cannot mount. Keeps the same props and data-* contracts (sparkline,
  * symbol-avatar, data-positive, data-points, data-fallback, data-symbol).
  */
-import { createEffect, createSignal, Show } from "solid-js";
+import { createEffect, createSignal, Show, type JSX } from "solid-js";
 import { SCALE_BLUE, SCALE_CYAN, SCALE_GREEN, SCALE_ORANGE, SCALE_PINK, SCALE_VIOLET, TEXT } from "@/ui/palette";
 
 const AVATAR_TINTS = [
@@ -140,6 +140,66 @@ export function LocalSparkline(props: { data: number[]; change?: number; width?:
           stroke-linejoin="round"
         />
       </svg>
+    </div>
+  );
+}
+
+
+export function LocalCompactPanel(props: {
+  title: string;
+  testId?: string;
+  style?: JSX.CSSProperties;
+  children: JSX.Element;
+}) {
+  return (
+    <div
+      data-testid={props.testId}
+      class="flex flex-col border border-fin-border rounded-[8px] overflow-hidden font-mono"
+      style={props.style}
+    >
+      <div class="flex items-center justify-between gap-2 px-2 py-1 border-b border-fin-border bg-fin-surface shrink-0">
+        <span class="text-[10px] font-bold uppercase tracking-[0.07em] text-fin-text-secondary">
+          {props.title}
+        </span>
+      </div>
+      <div class="flex flex-col gap-1 p-[6px]">{props.children}</div>
+    </div>
+  );
+}
+
+export function LocalCompactStat(props: {
+  testId?: string;
+  label: string;
+  tone?: string;
+  value: JSX.Element | string;
+  hint?: JSX.Element | string;
+}) {
+  return (
+    <div
+      data-testid={props.testId}
+      class="flex flex-col items-center justify-center text-center gap-0.5 bg-fin-surface border border-fin-border rounded-[4px] px-1 py-1.5 min-w-0"
+    >
+      <span class="text-[9px] uppercase tracking-[0.06em] leading-[1.1] text-fin-text-muted">
+        {props.label}
+      </span>
+      <span
+        class="text-[11px] font-bold leading-none tabular-nums"
+        style={{ color: props.tone ?? "var(--color-fin-text)" }}
+      >
+        {props.value}
+      </span>
+      <Show when={props.hint}>
+        <span class="text-[8px] leading-[1.1] text-fin-text-muted">{props.hint}</span>
+      </Show>
+    </div>
+  );
+}
+
+export function LocalEmptyState(props: { testId?: string; title: string; description: string }) {
+  return (
+    <div data-testid={props.testId} class="flex flex-col items-center justify-center gap-1 py-4 px-2 text-center">
+      <span class="text-[11px] font-semibold leading-tight text-fin-text">{props.title}</span>
+      <span class="text-[9px] leading-snug text-fin-text-muted">{props.description}</span>
     </div>
   );
 }

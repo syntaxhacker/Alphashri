@@ -1,9 +1,12 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { UIProvider } from "@/ui";
+import { cleanup, render, screen, fireEvent } from "@solidjs/testing-library";
 import { PATTERN_CONFIRMED, PATTERN_FAILED } from "@/ui/palette";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { PatternCard } from "./PatternCard";
@@ -77,28 +80,25 @@ const CONSOLIDATION: PatternHitDTO = {
   ],
 };
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
 
 describe("PatternCard", () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => cleanup());
 
   test("flags cards with missing candles (red border + No chart badge)", () => {
-    r(<PatternCard hit={HIT} />);
+    render(() => <PatternCard hit={HIT} />);
     expect(screen.getByTestId("patterns-card-no-data-IRCON")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-card-no-data-IRCON")).toHaveTextContent("No chart");
   });
 
   test("no flag when candles are present", () => {
-    r(<PatternCard hit={{ ...HIT, candles: [{ t: "2026-09-26", o: 100, h: 110, l: 99, c: 108, v: 1000 }] }} />);
+    render(() => <PatternCard hit={{ ...HIT, candles: [{ t: "2026-09-26", o: 100, h: 110, l: 99, c: 108, v: 1000 }] }} />);
     expect(screen.queryByTestId("patterns-card-no-data-IRCON")).not.toBeInTheDocument();
   });
 
 
   test("renders symbol, pattern, status and meta", () => {
-    r(<PatternCard hit={HIT} />);
+    render(() => <PatternCard hit={HIT} />);
     expect(screen.getByTestId("patterns-card-IRCON-falling_wedge")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-card")).toBeInTheDocument();
     expect(screen.getByText("Falling Wedge")).toBeInTheDocument();
@@ -109,43 +109,43 @@ describe("PatternCard", () => {
 
   test("clicking the card passes the hit to onClick", async () => {
     const onClick = vi.fn();
-    r(<PatternCard hit={HIT} onClick={onClick} />);
-    await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
+    render(() => <PatternCard hit={HIT} onClick={onClick} />);
+    fireEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
     expect(onClick).toHaveBeenCalledWith(HIT);
   });
 
   test("card is keyboard-operable with role=button", async () => {
     const onClick = vi.fn();
-    r(<PatternCard hit={HIT} onClick={onClick} />);
+    render(() => <PatternCard hit={HIT} onClick={onClick} />);
     const card = screen.getByTestId("patterns-card-IRCON-falling_wedge");
     expect(card).toHaveAttribute("role", "button");
     expect(card).toHaveAttribute("tabIndex", "0");
 
     card.focus();
     expect(card).toHaveFocus();
-    await userEvent.keyboard("{Enter}");
+    fireEvent.keyDown(card, { key: "Enter" });
     expect(onClick).toHaveBeenCalledTimes(1);
-    await userEvent.keyboard(" ");
+    fireEvent.keyDown(card, { key: " " });
     expect(onClick).toHaveBeenCalledTimes(2);
   });
 
   test("card without onClick has no button role", () => {
-    r(<PatternCard hit={HIT} />);
+    render(() => <PatternCard hit={HIT} />);
     expect(screen.getByTestId("patterns-card-IRCON-falling_wedge")).not.toHaveAttribute("role");
   });
 
   test("renders the base length line when base_days is present", () => {
-    r(<PatternCard hit={{ ...HIT, base_days: 120, range_pct: 13 }} />);
+    render(() => <PatternCard hit={{ ...HIT, base_days: 120, range_pct: 13 }} />);
     expect(screen.getByText("Base 120d · 13%")).toBeInTheDocument();
   });
 
   test("omits the base length line when base_days is absent", () => {
-    r(<PatternCard hit={HIT} />);
+    render(() => <PatternCard hit={HIT} />);
     expect(screen.queryByText(/Base \d+d/)).toBeNull();
   });
 
   test("non-consolidation omits the breakout/target/stop/rr row", () => {
-    r(<PatternCard hit={HIT} />);
+    render(() => <PatternCard hit={HIT} />);
     expect(screen.queryByText("Breakout")).toBeNull();
     expect(screen.queryByText("Target")).toBeNull();
     expect(screen.queryByText("Stop")).toBeNull();
@@ -155,7 +155,7 @@ describe("PatternCard", () => {
   });
 
   test("consolidation shows both range edges and a two-sided breakout", () => {
-    r(<PatternCard hit={CONSOLIDATION} />);
+    render(() => <PatternCard hit={CONSOLIDATION} />);
     const range = screen.getByTestId("patterns-card-range-CONS");
     expect(range).toHaveTextContent("Range");
     expect(range).toHaveTextContent("₹100.00 – ₹130.00");
@@ -174,7 +174,7 @@ describe("PatternCard", () => {
 
   test("base_days alone triggers the consolidation range layout", () => {
     // A non-consolidation id that still carries a base is treated as a range.
-    r(<PatternCard hit={{ ...HIT, base_days: 60 }} />);
+    render(() => <PatternCard hit={{ ...HIT, base_days: 60 }} />);
     const range = screen.getByTestId("patterns-card-range-IRCON");
     expect(range).toHaveTextContent("₹102.50 – ₹112.60");
     expect(screen.getByTestId("patterns-card-breakout-both-IRCON")).toHaveTextContent("↓ ₹102.50");
@@ -182,8 +182,7 @@ describe("PatternCard", () => {
   });
 
   test("consolidation range row falls back to pivot lows when trendlines are absent", () => {
-    r(
-      <PatternCard
+    render(() =>       <PatternCard
         hit={{
           ...CONSOLIDATION,
           trendlines: [],
@@ -194,63 +193,62 @@ describe("PatternCard", () => {
             { t: "2026-04-01", price: 128, kind: "high" },
           ],
         }}
-      />,
-    );
+      />);
     expect(screen.getByTestId("patterns-card-range-CONS")).toHaveTextContent("₹105.00 – ₹128.00");
   });
 
   describe("status pill (derived display status)", () => {
     // CONSOLIDATION: raw status "forming", box ₹100.00 – ₹130.00 (hi = breakout trigger).
     test("consolidation below the trigger but inside the box shows ARMED", () => {
-      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: 120 }} />);
+      render(() => <PatternCard hit={{ ...CONSOLIDATION, last_close: 120 }} />);
       expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("ARMED");
       // (120 - 130) / 130 = -7.7% → distance line is shown.
       expect(screen.getByTestId("patterns-card-to-trigger-CONS")).toHaveTextContent("−7.7% to trigger");
     });
 
     test("consolidation at the lower box edge is still ARMED", () => {
-      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: 100 }} />);
+      render(() => <PatternCard hit={{ ...CONSOLIDATION, last_close: 100 }} />);
       expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("ARMED");
     });
 
     test("consolidation closed above the trigger within 5% shows BREAKOUT", () => {
-      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: 133 }} />);
+      render(() => <PatternCard hit={{ ...CONSOLIDATION, last_close: 133 }} />);
       // (133 - 130) / 130 ≈ 2.3%
       expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("BREAKOUT");
     });
 
     test("consolidation exactly 5% above the trigger shows BREAKOUT", () => {
-      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: 136.5 }} />);
+      render(() => <PatternCard hit={{ ...CONSOLIDATION, last_close: 136.5 }} />);
       // (136.5 - 130) / 130 = 5%
       expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("BREAKOUT");
     });
 
     test("consolidation more than 5% above the trigger shows EXTENDED", () => {
-      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: 140 }} />);
+      render(() => <PatternCard hit={{ ...CONSOLIDATION, last_close: 140 }} />);
       // (140 - 130) / 130 ≈ 7.7%
       expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("EXTENDED");
     });
 
     test("consolidation below the box shows INVALID", () => {
-      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: 90 }} />);
+      render(() => <PatternCard hit={{ ...CONSOLIDATION, last_close: 90 }} />);
       // 90 < lower 100
       expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("INVALID");
     });
 
     test("consolidation without a live price falls back to the raw DB status", () => {
-      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: null }} />);
+      render(() => <PatternCard hit={{ ...CONSOLIDATION, last_close: null }} />);
       expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("FORMING");
     });
 
     test("consolidation with a non-positive price falls back to the raw DB status", () => {
-      r(<PatternCard hit={{ ...CONSOLIDATION, last_close: 0 }} />);
+      render(() => <PatternCard hit={{ ...CONSOLIDATION, last_close: 0 }} />);
       expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("FORMING");
     });
 
     test("non-base patterns keep the raw DB status even with a live price", () => {
       // Not a consolidation and no base_days → bounds are null → raw mapping,
       // never ARMED, even though a price exists.
-      r(<PatternCard hit={{ ...HIT, status: "marginal", last_close: 50 }} />);
+      render(() => <PatternCard hit={{ ...HIT, status: "marginal", last_close: 50 }} />);
       expect(screen.getByTestId("patterns-status-marginal")).toHaveTextContent("MARGINAL");
     });
   });
@@ -262,18 +260,18 @@ describe("PatternCard missing coverage", () => {
 
   test("shows Members for a broad index and calls onShowMembers", async () => {
     const onShowMembers = vi.fn();
-    r(<PatternCard hit={{ ...HIT, symbol: "NIFTY" }} onShowMembers={onShowMembers} />);
-    await userEvent.click(screen.getByTestId("patterns-card-members-NIFTY"));
+    render(() => <PatternCard hit={{ ...HIT, symbol: "NIFTY" }} onShowMembers={onShowMembers} />);
+    fireEvent.click(screen.getByTestId("patterns-card-members-NIFTY"));
     expect(onShowMembers).toHaveBeenCalledWith("NIFTY");
   });
 
   test("omits Members for a normal stock", () => {
-    r(<PatternCard hit={HIT} onShowMembers={vi.fn()} />);
+    render(() => <PatternCard hit={HIT} onShowMembers={vi.fn()} />);
     expect(screen.queryByTestId("patterns-card-members-IRCON")).not.toBeInTheDocument();
   });
 
   test("renders a TradingView chart link", () => {
-    r(<PatternCard hit={HIT} />);
+    render(() => <PatternCard hit={HIT} />);
     const link = screen.getByTestId("patterns-card-tv-IRCON-falling_wedge");
     expect(link).toHaveAttribute(
       "href",
@@ -286,8 +284,8 @@ describe("PatternCard missing coverage", () => {
   test("expand button calls onExpand without triggering onClick", async () => {
     const onClick = vi.fn();
     const onExpand = vi.fn();
-    r(<PatternCard hit={HIT} onClick={onClick} onExpand={onExpand} />);
-    await userEvent.click(screen.getByTestId("patterns-card-expand-IRCON-falling_wedge"));
+    render(() => <PatternCard hit={HIT} onClick={onClick} onExpand={onExpand} />);
+    fireEvent.click(screen.getByTestId("patterns-card-expand-IRCON-falling_wedge"));
     expect(onExpand).toHaveBeenCalledTimes(1);
     expect(onExpand).toHaveBeenCalledWith(HIT);
     expect(onClick).not.toHaveBeenCalled();
@@ -296,27 +294,32 @@ describe("PatternCard missing coverage", () => {
   test("Enter on the expand button does not also select the card", async () => {
     const onClick = vi.fn();
     const onExpand = vi.fn();
-    r(<PatternCard hit={HIT} onClick={onClick} onExpand={onExpand} />);
+    render(() => <PatternCard hit={HIT} onClick={onClick} onExpand={onExpand} />);
     const expand = screen.getByTestId("patterns-card-expand-IRCON-falling_wedge");
     expand.focus();
-    await userEvent.keyboard("{Enter}");
-    expect(onExpand).toHaveBeenCalledTimes(1);
+    // happy-dom does not activate buttons on keydown; the card's own
+    // onKeyDown must ignore events whose target is an inner control.
+    fireEvent.keyDown(expand, { key: "Enter" });
     expect(onClick).not.toHaveBeenCalled();
+    fireEvent.keyDown(expand, { key: " " });
+    expect(onClick).not.toHaveBeenCalled();
+    fireEvent.click(expand);
+    expect(onExpand).toHaveBeenCalledTimes(1);
   });
 
   test("renders no expand button when onExpand is omitted", () => {
-    r(<PatternCard hit={HIT} onClick={vi.fn()} />);
+    render(() => <PatternCard hit={HIT} onClick={vi.fn()} />);
     expect(
       screen.queryByTestId("patterns-card-expand-IRCON-falling_wedge"),
     ).not.toBeInTheDocument();
   });
 
   test("selected card renders a different border treatment than unselected", () => {
-    const selected = r(<PatternCard hit={HIT} selected />);
+    const selected = render(() => <PatternCard hit={HIT} selected />);
     const selectedCard = selected.container.querySelector(
       '[data-testid="patterns-card-IRCON-falling_wedge"]',
     );
-    const plain = r(<PatternCard hit={HIT} />);
+    const plain = render(() => <PatternCard hit={HIT} />);
     const plainCard = plain.container.querySelector(
       '[data-testid="patterns-card-IRCON-falling_wedge"]',
     );
@@ -326,22 +329,22 @@ describe("PatternCard missing coverage", () => {
   });
 
   test("shows the last close and signed day change", () => {
-    const view = r(<PatternCard hit={{ ...HIT, last_close: 120, day_change_pct: 2.5 }} />);
+    const view = render(() => <PatternCard hit={{ ...HIT, last_close: 120, day_change_pct: 2.5 }} />);
     expect(view.getByText("₹120.00")).toBeInTheDocument();
     expect(view.getByText("+2.50%")).toBeInTheDocument();
   });
 
   test("falls back to end price and since-start change without enrichment", () => {
-    const view = r(<PatternCard hit={{ ...HIT, end_price: 115.4 }} />);
+    const view = render(() => <PatternCard hit={{ ...HIT, end_price: 115.4 }} />);
     expect(view.getByText("₹115.40")).toBeInTheDocument();
     expect(view.getByText("+15.40%")).toBeInTheDocument();
   });
 
   test("gain and loss day-change render with different color treatments", () => {
-    const gain = r(<PatternCard hit={{ ...HIT, last_close: 120, day_change_pct: 2.5 }} />);
+    const gain = render(() => <PatternCard hit={{ ...HIT, last_close: 120, day_change_pct: 2.5 }} />);
     const gainEl = gain.getByText("+2.50%");
     gain.unmount();
-    const loss = r(<PatternCard hit={{ ...HIT, last_close: 118, day_change_pct: -1.25 }} />);
+    const loss = render(() => <PatternCard hit={{ ...HIT, last_close: 118, day_change_pct: -1.25 }} />);
     const lossEl = loss.getByText("-1.25%");
     expect(lossEl).toBeInTheDocument();
     expect(gainEl.style.color).toBe(PATTERN_CONFIRMED);
@@ -349,17 +352,17 @@ describe("PatternCard missing coverage", () => {
   });
 
   test("uses the singular candle label when bars_ago is 1", () => {
-    const view = r(<PatternCard hit={{ ...HIT, bars_ago: 1 }} />);
+    const view = render(() => <PatternCard hit={{ ...HIT, bars_ago: 1 }} />);
     expect(view.getByText("1 1D candle ago")).toBeInTheDocument();
   });
 
   test("trims a fractional range_pct to one decimal", () => {
-    const view = r(<PatternCard hit={{ ...HIT, base_days: 45, range_pct: 13.26 }} />);
+    const view = render(() => <PatternCard hit={{ ...HIT, base_days: 45, range_pct: 13.26 }} />);
     expect(view.getByText("Base 45d · 13.3%")).toBeInTheDocument();
   });
 
   test("omits the range share when range_pct is absent", () => {
-    const view = r(<PatternCard hit={{ ...HIT, base_days: 60 }} />);
+    const view = render(() => <PatternCard hit={{ ...HIT, base_days: 60 }} />);
     expect(
       view.getByTestId("patterns-card-base-IRCON-falling_wedge"),
     ).toHaveTextContent("Base 60d");
@@ -369,12 +372,12 @@ describe("PatternCard missing coverage", () => {
   });
 
   test("forwards the default trendlinesView to the mini chart", () => {
-    r(<PatternCard hit={HIT} />);
+    render(() => <PatternCard hit={HIT} />);
     expect(screen.getByTestId("mini-stub")).toHaveAttribute("data-trendlines-view", "both");
   });
 
   test("forwards a custom trendlinesView to the mini chart", () => {
-    r(<PatternCard hit={HIT} trendlinesView="resistance" />);
+    render(() => <PatternCard hit={HIT} trendlinesView="resistance" />);
     expect(screen.getByTestId("mini-stub")).toHaveAttribute(
       "data-trendlines-view",
       "resistance",
@@ -382,12 +385,12 @@ describe("PatternCard missing coverage", () => {
   });
 
   test("renders the 52W gap stat when to_52w_high is present", () => {
-    r(<PatternCard hit={{ ...HIT, to_52w_high: 1.7 }} />);
+    render(() => <PatternCard hit={{ ...HIT, to_52w_high: 1.7 }} />);
     expect(screen.getByTestId("patterns-card-52w-gap")).toHaveTextContent("52W: 1.7%");
   });
 
   test("renders nothing for the 52W gap when to_52w_high is null", () => {
-    r(<PatternCard hit={{ ...HIT, to_52w_high: null }} />);
+    render(() => <PatternCard hit={{ ...HIT, to_52w_high: null }} />);
     expect(screen.queryByTestId("patterns-card-52w-gap")).toBeNull();
   });
 });
@@ -396,7 +399,7 @@ describe("PatternCard offscreen containment", () => {
   afterEach(() => cleanup());
 
   test("content-visibility containment adds no wrapper and keeps every testid", () => {
-    const { container } = r(<PatternCard hit={HIT} />);
+    const { container } = render(() => <PatternCard hit={HIT} />);
     expect(container.children).toHaveLength(1);
     const card = container.children[0];
     expect(card).not.toBeNull();

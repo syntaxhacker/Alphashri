@@ -5,7 +5,6 @@ import { describe, expect, test, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup, waitFor, within, fireEvent } from "@solidjs/testing-library";
 import { PaperChart } from "./PaperChart2";
 import { mockPosition } from "./testFixtures";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
 import type { PaperChartData, PaperTradingState } from "../../types/paperTrading";
 
 afterEach(() => {
@@ -105,7 +104,7 @@ vi.mock("../../hooks/useStoreSubscription", () => ({
 // PaperTradingHelpers.test.tsx does for TradingDatePicker. Values convert to
 // Date like the real picker (empty -> null).
 vi.mock("@/ui/dates/DatePicker", () => ({
-  DatePicker: ({ value, onChange, dataTestid: testId, placeholder }: any) => (
+  DatePicker: ({ value, onChange, "data-testid": testId, placeholder }: any) => (
     <input
       type="text"
       data-testid={testId}
@@ -249,7 +248,7 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
     });
     r(() => <PaperChart />);
     // Native select: "1h" label maps to "1hour" api value
-    await fireEvent.input(within(screen.getByTestId("chart-timeframe-select")).getByRole("combobox"), "1hour");
+    fireEvent.input(within(screen.getByTestId("chart-timeframe-select")).getByRole("combobox"), { target: { value: "1hour" } });
     expect(mockSetChartTimeframe).toHaveBeenCalledWith("1hour");
     await waitFor(() => expect(mockFetchPaperChart).toHaveBeenCalled());
     // fetchPaperChart called with symbol, date, new timeframe, strategy, fromDate, true, tradeId
@@ -271,7 +270,7 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
       chartLoading: false,
     });
     r(() => <PaperChart />);
-    fireEvent.input(screen.getByTestId("chart-date-range"), { target: { value: "04/20/2026" } });
+    fireEvent.change(screen.getByTestId("chart-date-range"), { target: { value: "2026-04-20" } });
     await waitFor(() => expect(mockFetchPaperChart).toHaveBeenCalled());
   });
 
@@ -285,7 +284,7 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
     });
     r(() => <PaperChart />);
     mockFetchPaperChart.mockClear();
-    fireEvent.input(screen.getByTestId("chart-date-range"), { target: { value: "" } });
+    fireEvent.change(screen.getByTestId("chart-date-range"), { target: { value: "" } });
     // let any async handling settle, then assert silence
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(mockFetchPaperChart).not.toHaveBeenCalled();

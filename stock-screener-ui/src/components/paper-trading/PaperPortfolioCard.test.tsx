@@ -3,7 +3,6 @@ import "@testing-library/jest-dom/vitest";
 import { render, cleanup, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { PaperPortfolioCard, type Portfolio } from "./PaperPortfolioCard";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
 
 afterEach(() => {
   cleanup();

@@ -52,7 +52,7 @@ describe("NiftyFlowWindows", () => {
   });
 
   test("aligned legs show ALIGNED instead of a flip", () => {
-    r(
+    r(() => (
       <NiftyFlowWindows
         report={report({
           flow_window: {
@@ -61,14 +61,14 @@ describe("NiftyFlowWindows", () => {
             "5m": { from: "", ce: 1, pe: -1, net: 2 },
           },
         })}
-      />,
-    );
+      />
+    ));
     expect(screen.getByTestId("flow-aligned")).toHaveTextContent("ALIGNED");
     expect(screen.queryByTestId("flow-flip")).not.toBeInTheDocument();
   });
 
   test("aligned legs show the persisted LAST FLIP chip", () => {
-    r(
+    r(() => (
       <NiftyFlowWindows
         report={report({
           flow_window: {
@@ -78,18 +78,18 @@ describe("NiftyFlowWindows", () => {
           },
         })}
         lastFlip={{ at: "2026-11-04T11:28:00+05:30", reason: "5m vs 15m" }}
-      />,
-    );
+      />
+    ));
     expect(screen.getByTestId("flow-last-flip")).toHaveTextContent("LAST FLOW FLIP 11:28");
   });
 
   test("a current flip keeps the FLIP badge and never shows LAST FLIP", () => {
-    r(
+    r(() => (
       <NiftyFlowWindows
         report={report()}
         lastFlip={{ at: "2026-11-04T11:28:00+05:30", reason: "5m vs 15m" }}
-      />,
-    );
+      />
+    ));
     expect(screen.getByTestId("flow-flip")).toBeInTheDocument();
     expect(screen.queryByTestId("flow-last-flip")).not.toBeInTheDocument();
   });

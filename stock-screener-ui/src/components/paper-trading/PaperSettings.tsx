@@ -1,6 +1,6 @@
 import { createSignal, onMount, Show, Switch, Match, type JSX } from "solid-js";
 import { useStoreSnapshot } from "./storeSnapshot";
-import { Text, Select, Button, Badge, Loader, Alert } from "@/ui";
+import { Text, Select, Button, Badge, Loader, Alert, Card, Group } from "@/ui";
 import { IconAlertCircle } from "@/components/common/Icons";
 import { getPaperTradingState, subscribe, updateConfigValue } from "../../state/paperTrading";
 import {
@@ -15,8 +15,6 @@ import { RiskManagementSection } from "./RiskManagementSection";
 import { RunnerSettingsSection } from "./RunnerSettingsSection";
 import { TradingCostsSection } from "./TradingCostsSection";
 import { SettingsActions } from "./SettingsActions";
-import { Card, Group } from "./primitives";
-
 function handleConfigValue(
   key: keyof StrategyConfig,
   value: number | string | boolean | undefined,
@@ -105,7 +103,7 @@ function SettingsContent(props: {
         </div>
 
         <div class="mt-4 flex items-center gap-2 flex-wrap">
-          <Text fw={600} size="xs" tt="uppercase" c="dimmed">
+          <Text fw={600} size="xs" className="uppercase" c="dimmed">
             Active Strategy
           </Text>
           <Select

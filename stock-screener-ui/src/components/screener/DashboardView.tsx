@@ -481,7 +481,7 @@ export function DashboardView(props: DashboardViewProps) {
   const [query, setQuery] = createSignal("");
   const [expanded, setExpanded] = createSignal(false);
   const [minMcapCr, setMinMcapCr] = createSignal<number>(DASHBOARD_DEFAULT_MIN_MCAP_CR);
-  const [hiddenPanels, setHiddenPanels] = createSignal<string[]>(loadHiddenPanels);
+  const [hiddenPanels, setHiddenPanels] = createSignal<string[]>(loadHiddenPanels());
   let bypassCache = false;
 
   const limit = () => (expanded() ? DASHBOARD_MAX_LIMIT : 8);
@@ -522,7 +522,6 @@ export function DashboardView(props: DashboardViewProps) {
     let cancelled = false;
     const controller = new AbortController();
     onCleanup(() => {
-      console.log("DBG cleanup fired");
       cancelled = true;
       controller.abort();
     });
@@ -544,13 +543,11 @@ export function DashboardView(props: DashboardViewProps) {
       : fetchScreenerDashboard(currentUniverse, controller.signal);
     request
       .then((payload) => {
-        console.log("DBG then", cancelled);
         if (cancelled) return;
         setData(payload);
         setLoading(false);
       })
       .catch((err: unknown) => {
-        console.log("DBG catch", cancelled, err);
         if (cancelled) return;
         if (err instanceof DOMException && err.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Failed to load dashboard");
@@ -577,6 +574,25 @@ export function DashboardView(props: DashboardViewProps) {
   };
 
   const sections = () => data()?.sections ?? [];
+
+  const sectionGroups = createMemo(() =>
+    sections()
+      .map((section) => {
+        const groups = groupPanels(section.panels)
+          .map((group) => ({
+            ...group,
+            panels: group.panels.filter((p) => !hiddenPanels().includes(p.id)),
+          }))
+          .filter((group) => group.panels.length > 0);
+        if (groups.length === 0) return null;
+        const qualifyTotal = groups.reduce(
+          (m, g) => m + g.panels.reduce((n, p) => n + (p.qualify ?? 0), 0),
+          0,
+        );
+        return { section, groups, qualifyTotal };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== null),
+  );
 
   const allPanelIds = createMemo(() => {
     const ids: string[] = [];
@@ -719,20 +735,8 @@ export function DashboardView(props: DashboardViewProps) {
           </Box>
         </Match>
         <Match when={true}>
-          <For each={sections()}>
-            {(section) => {
-              const groups = groupPanels(section.panels)
-                .map((group) => ({
-                  ...group,
-                  panels: group.panels.filter((p) => !hiddenPanels().includes(p.id)),
-                }))
-                .filter((group) => group.panels.length > 0);
-              if (groups.length === 0) return null;
-              const qualifyTotal = groups.reduce(
-                (m, g) => m + g.panels.reduce((n, p) => n + (p.qualify ?? 0), 0),
-                0,
-              );
-              return (
+          <For each={sectionGroups()}>
+            {({ section, groups, qualifyTotal }) => (
                 <Box
                   data-testid={`dashboard-section-${section.id}`}
                   className="flex w-full min-w-0 flex-col gap-2"
@@ -762,8 +766,7 @@ export function DashboardView(props: DashboardViewProps) {
                     </For>
                   </Box>
                 </Box>
-              );
-            }}
+            )}
           </For>
         </Match>
       </Switch>

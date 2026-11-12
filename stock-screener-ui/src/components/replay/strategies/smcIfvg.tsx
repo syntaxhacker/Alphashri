@@ -2,12 +2,10 @@
 // SMC iFVG engine on real NQ ticks, merging the `inv` + `retest` entry feeds.
 import { TZ_IST_LABEL } from "@/config/constants";
 import * as palette from "@/ui/palette";
-import { Chip } from "@/ui";
+import { Chip, Stack } from "@/ui";
 import { tradeStatChips } from "./shared";
 import { stackColor, type ReplayTrade, type TradeStack } from "../tick";
 import type { ReplayStrategyPlugin } from "../core/plugin";
-import { Stack } from "../../paper-trading/primitives";
-
 // Real trades from /api/poc/smc-ifvg — SMCIFVGEngine (trading/smc_ifvg.py) run bar-by-bar
 // on Dukascopy ticks: history-only signals, tick-accurate fills (ask/bid), SL-first exits.
 const DUKA_DATES = ["2026-09-02", "2026-08-26", "2026-07-24", "2026-07-22", "2026-07-10", "2026-07-02"];

@@ -247,7 +247,7 @@ export function ScreenerTable(props: ScreenerTableProps) {
                 className="w-full min-w-0"
                 getRowTestId={(row) => `stock-row-${row.symbol}`}
                 onRowClick={(row) => props.onSymbolClick(row.symbol)}
-                rowWindowSize={props.stocks.length > 120 ? 80 : 0}
+                rowWindowSize={props.stocks.length > 120 ? 80 : undefined}
               />
             </Box>
           </Stack>

@@ -3,8 +3,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor, fireEvent, within } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
-import { MemoryRouter } from "@solidjs/router";
 import type { JSX } from "solid-js";
+
+let mockSearchParams: Record<string, string | undefined> = {};
+const mockSetSearchParams = vi.fn();
+vi.mock("@solidjs/router", () => ({
+  useSearchParams: () => [mockSearchParams, mockSetSearchParams],
+}));
 
 const mockSearchSymbols = vi.fn();
 vi.mock("../../api/symbols", () => ({
@@ -79,15 +84,12 @@ vi.mock("../common/compact", () => ({
 import { CorrelationTab } from "./CorrelationTab";
 
 const renderWithProvider = (ui: JSX.Element) =>
-  render(() => (
-    <MemoryRouter initialEntries={["/"]}>
-      <UIProvider>{ui}</UIProvider>
-    </MemoryRouter>
-  ));
+  render(() => <UIProvider>{ui}</UIProvider>);
 
 describe("CorrelationTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSearchParams = {};
     mockSymbols = [];
     mockTimeframe = "daily";
     mockPeriod = 90;
@@ -211,28 +213,18 @@ describe("CorrelationTab", () => {
 
   describe("URL search params", () => {
     it("initializes symbols/timeframe/period from URL search params", async () => {
-      render(() =>
-        <MemoryRouter initialEntries={["/?symbols=RELIANCE,TCS&timeframe=daily&period=90"]}>
-          <UIProvider>
-            <CorrelationTab />
-          </UIProvider>
-        </MemoryRouter>
-      ));
+      mockSearchParams = { symbols: "RELIANCE,TCS", timeframe: "daily", period: "90" };
+      render(() => <UIProvider><CorrelationTab /></UIProvider>);
       await waitFor(() => {
         expect(mockSetSymbols).toHaveBeenCalledWith(["RELIANCE", "TCS"]);
       });
       expect(mockSetTimeframe).toHaveBeenCalledWith("daily");
-      expect(mockFetchCorrelationData).toHaveBeenCalled();
+      await waitFor(() => expect(mockFetchCorrelationData).toHaveBeenCalled());
     });
 
     it("initializes with intraday timeframe from URL", async () => {
-      render(() =>
-        <MemoryRouter initialEntries={["/?symbols=INFY,WIPRO&timeframe=intraday&period=1"]}>
-          <UIProvider>
-            <CorrelationTab />
-          </UIProvider>
-        </MemoryRouter>
-      ));
+      mockSearchParams = { symbols: "INFY,WIPRO", timeframe: "intraday", period: "1" };
+      render(() => <UIProvider><CorrelationTab /></UIProvider>);
       await waitFor(() => {
         expect(mockSetSymbols).toHaveBeenCalledWith(["INFY", "WIPRO"]);
       });
@@ -242,13 +234,8 @@ describe("CorrelationTab", () => {
 
     it("updates URL search params on calculate", async () => {
       mockSymbols = ["RELIANCE", "TCS", "INFY"];
-      render(() =>
-        <MemoryRouter initialEntries={["/"]}>
-          <UIProvider>
-            <CorrelationTab />
-          </UIProvider>
-        </MemoryRouter>
-      ));
+      mockSearchParams = {};
+      render(() => <UIProvider><CorrelationTab /></UIProvider>);
       fireEvent.click(screen.getByRole("button", { name: /Calculate/ }));
       await waitFor(() => {
         expect(mockFetchCorrelationData).toHaveBeenCalled();

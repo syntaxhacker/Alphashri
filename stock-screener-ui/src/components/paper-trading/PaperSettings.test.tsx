@@ -388,7 +388,7 @@ describe("PaperSettings", () => {
         expect(combo).not.toBeDisabled();
         expect(combo.querySelectorAll("option").length).toBeGreaterThan(1);
       });
-      await fireEvent.input(combo, "2");
+      await fireEvent.input(combo, { target: { value: "2" } });
       expect(fetchStrategyConfig).toHaveBeenCalledWith(2);
     });
   });

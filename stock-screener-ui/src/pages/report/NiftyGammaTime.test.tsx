@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { describe, expect, test } from "vitest";
+import type { JSX } from "solid-js";
+import { render, screen } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { NiftyGex, NiftyTape, NiftyTapeRow } from "@/types/niftyReport";
@@ -16,10 +17,9 @@ import {
   spotVsFlip,
 } from "./NiftyGammaTime";
 
-afterEach(cleanup);
 
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
+function TestWrapper(props: { children?: JSX.Element }) {
+  return <UIProvider>{props.children}</UIProvider>;
 }
 
 function row(overrides?: Partial<NiftyTapeRow>): NiftyTapeRow {
@@ -226,7 +226,7 @@ describe("formatGammaCr", () => {
 
 describe("NiftyGammaTime render", () => {
   test("renders the four stats and the chart from tape + gex", () => {
-    render(
+    render(() => 
       <NiftyGammaTime
         tape={tape([row({ t: "2026-10-14T09:15:00+05:30", net_gex: 2 }), row({ t: "2026-10-14T09:16:00+05:30", net_gex: 5.5 })])}
         gex={gex()}
@@ -250,7 +250,7 @@ describe("NiftyGammaTime render", () => {
   });
 
   test("uses the report's wall list for call/put walls", () => {
-    render(
+    render(() => 
       <NiftyGammaTime
         rows={[row({ net_gex: 2, walls: { call: 9999, put: 8888 } })]}
         walls={{
@@ -266,7 +266,7 @@ describe("NiftyGammaTime render", () => {
   });
 
   test("degraded gamma renders n/a instead of a contract count", () => {
-    render(
+    render(() => 
       <NiftyGammaTime
         rows={[row({ net_gex: 17_435_535 })]}
         gex={gex({ netTotal: 17_435_535 })}
@@ -281,7 +281,7 @@ describe("NiftyGammaTime render", () => {
   });
 
   test("tape-only (no gex) still resolves stats from the last row", () => {
-    render(
+    render(() => 
       <NiftyGammaTime
         tape={tape([row({ net_gex: -3.25, flip: 25500, walls: { call: 25900, put: 25200 } })])}
         spot={25750}
@@ -295,7 +295,7 @@ describe("NiftyGammaTime render", () => {
   });
 
   test("shows the empty state and dashes when no row carries net_gex", () => {
-    render(
+    render(() => 
       <NiftyGammaTime tape={tape([row({ net_gex: null })])} spot={25750} />,
       { wrapper: TestWrapper },
     );
@@ -306,7 +306,7 @@ describe("NiftyGammaTime render", () => {
   });
 
   test("renders without a tape or gex without crashing", () => {
-    render(<NiftyGammaTime spot={25750} />, { wrapper: TestWrapper });
+    render(() => <NiftyGammaTime spot={25750} />, { wrapper: TestWrapper });
     expect(screen.getByTestId("nifty-gamma-time-empty")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-gamma-flip")).toHaveTextContent("—");
     expect(screen.getByTestId("nifty-gamma-callwall")).toHaveTextContent("—");
@@ -314,7 +314,7 @@ describe("NiftyGammaTime render", () => {
   });
 
   test("explains the regime in words and shows spot vs flip", () => {
-    render(
+    render(() => 
       <NiftyGammaTime
         tape={tape([row({ net_gex: 5.5, flip: 25680 })])}
         spot={25750}

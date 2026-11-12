@@ -49,17 +49,24 @@ export function useMediaQuery(query: string, defaultValue?: boolean, _options?: 
   return matches;
 }
 
-// useDebouncedValue: [debounced] — debounced is a signal, read as debounced()
-export function useDebouncedValue<T>(value: T, wait: number): [() => T] {
-  const [debounced, setDebounced] = createSignal<T>(value);
+/**
+ * Debounce a value. Pass either a plain value or an **accessor** — a plain
+ * value is read once, because a Solid component body runs exactly once, so
+ * `useDebouncedValue(count(), 300)` would never track `count`.
+ *
+ * Returns `[debounced]`, read as `debounced()`.
+ */
+export function useDebouncedValue<T>(value: T | (() => T), wait: number): [() => T] {
+  const read = () => (typeof value === "function" ? (value as () => T)() : value);
+  const [debounced, setDebounced] = createSignal<T>(read());
 
   createEffect(() => {
+    const next = read(); // tracked: re-runs when an accessor's dependency changes
     let timeout: ReturnType<typeof setTimeout> | null = null;
     const run = () => {
       timeout = null;
-      setDebounced(value);
+      setDebounced(() => next);
     };
-    if (timeout) clearTimeout(timeout);
     timeout = setTimeout(run, wait);
     onCleanup(() => {
       if (timeout) clearTimeout(timeout);

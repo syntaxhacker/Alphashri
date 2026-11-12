@@ -1,21 +1,50 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render as rtlRender, screen, cleanup, waitFor, within } from "@solidjs/testing-library";
+import { render as rtlRender, screen, cleanup, waitFor, within, fireEvent } from "@solidjs/testing-library";
 import type { JSX } from "solid-js";
-import { MemoryRouter } from "@solidjs/router";
 import "@testing-library/jest-dom/vitest";
 import { ScreenerPage, mapDashboardPanelToScreener, DEFAULT_DASHBOARD_UNIVERSE } from "./ScreenerPage";
 import { UIProvider } from "@/ui";
 import { fetchMarketSnapshot } from "../../api/marketScreener";
 
-// This page mounts the full screener table (hundreds of SymbolLinks) inside
-// MemoryRouter; under a full-suite run the 5s default is not enough.
 vi.setConfig({ testTimeout: 20_000 });
 
-const render = (ui: JSX.Element, options?: { initialRoute?: string }) =>
-  rtlRender(() => (
-    <MemoryRouter initialEntries={[options?.initialRoute ?? "/?tab=screener"]}>{ui}</MemoryRouter>
-  ));
+// @solidjs/router's navigation path never settles in happy-dom and MemoryRouter
+// has no initialEntries, so the router is replaced with a reactive
+// window.location-backed searchParams. The helper seeds it from initialRoute.
+vi.mock("@solidjs/router", async () => {
+  const { createSignal } = await import("solid-js");
+  const state = globalThis.__screenerSearchParams ??= createSignal<Record<string, string | undefined>>({});
+  const [search, setSearch] = state;
+  return {
+    useSearchParams: () => [
+      new Proxy({}, { get: (_, key) => search()[key as string] }) as Record<string, string | undefined>,
+      (params: Record<string, string | string[] | null | undefined>) => {
+        const next = { ...search() };
+        for (const [k, v] of Object.entries(params)) {
+          if (v == null || v === "" || (Array.isArray(v) && v.length === 0)) delete next[k];
+          else next[k] = String(Array.isArray(v) ? v[0] : v);
+        }
+        setSearch(next);
+      },
+    ],
+    MemoryRouter: (props: any) => props.children,
+    Route: (props: any) => (props.component ? props.component() : props.children),
+    createMemoryHistory: () => ({ get: () => "/", set: () => {}, listen: () => () => {} }),
+  };
+});
+
+const seedSearchParams = (route?: string) => {
+  const state = (globalThis as any).__screenerSearchParams;
+  if (!state) return;
+  const q = (route ?? "/?tab=screener").split("?")[1];
+  state[1](q ? Object.fromEntries(new URLSearchParams(q).entries()) : {});
+};
+
+const render = (ui: JSX.Element, options?: { initialRoute?: string }) => {
+  seedSearchParams(options?.initialRoute);
+  return rtlRender(() => ui);
+};
 
 // Mock child components to isolate ScreenerPage tests
 vi.mock("./ScreenerNav", () => ({
@@ -52,12 +81,12 @@ vi.mock("./ScreenerHeader", () => ({
       <input
         data-testid="auto-refresh-input"
         value={props.autoRefreshSeconds}
-        onChange={(e) => props.onAutoRefreshChange(Number(e.target.value))}
+        onInput={(e) => props.onAutoRefreshChange(Number(e.currentTarget.value))}
       />
       <select
         data-testid="provider-select"
         value={props.provider}
-        onChange={(e) => props.onProviderChange(e.target.value)}
+        onInput={(e) => props.onProviderChange(e.currentTarget.value)}
       >
         <option value="upstox">Upstox</option>
         <option value="indmoney">INDMONEY</option>
@@ -65,7 +94,7 @@ vi.mock("./ScreenerHeader", () => ({
       <select
         data-testid="mode-select"
         value={props.mode}
-        onChange={(e) => props.onModeChange(e.target.value)}
+        onInput={(e) => props.onModeChange(e.currentTarget.value)}
       >
         <option value="intraday">Intraday</option>
         <option value="historical">5D</option>
@@ -344,6 +373,7 @@ describe("ScreenerPage", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    seedSearchParams("/?tab=screener");
     dashboardMounts.count = 0;
     mockFetchMarketSnapshot.mockResolvedValue(marketSnapshot);
   });
@@ -584,9 +614,7 @@ describe("ScreenerPage", () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-      { initialRoute: "/" },
-    );
+      </UIProvider>), { initialRoute: "/" });
     expect(screen.getByTestId("tab-dashboard")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-view")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-view")).toHaveAttribute(
@@ -604,9 +632,7 @@ describe("ScreenerPage", () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-      { initialRoute: "/" },
-    );
+      </UIProvider>), { initialRoute: "/" });
     expect(screen.getByTestId("dashboard-view")).toBeVisible();
 
     fireEvent.click(screen.getByTestId("tab-screener"));
@@ -622,9 +648,7 @@ describe("ScreenerPage", () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-      { initialRoute: "/" },
-    );
+      </UIProvider>), { initialRoute: "/" });
     expect(mockFetchMarketSnapshot).not.toHaveBeenCalled();
     expect(screen.queryByTestId("market-screener")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("tab-market"));
@@ -639,9 +663,7 @@ describe("ScreenerPage", () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-      { initialRoute: "/?tab=market" },
-    );
+      </UIProvider>), { initialRoute: "/?tab=market" });
     expect(dashboardMounts.count).toBe(0);
     expect(screen.queryByTestId("dashboard-view")).not.toBeInTheDocument();
     expect(screen.queryByTestId("screener-table-approaching")).not.toBeInTheDocument();
@@ -653,9 +675,7 @@ describe("ScreenerPage", () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-      { initialRoute: "/" },
-    );
+      </UIProvider>), { initialRoute: "/" });
     expect(valueScanSpy).not.toHaveBeenCalled();
     expect(fetchEventsSpy).not.toHaveBeenCalled();
     expect(fetchAnomaliesSpy).not.toHaveBeenCalled();
@@ -680,9 +700,7 @@ describe("ScreenerPage", () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-      { initialRoute: "/" },
-    );
+      </UIProvider>), { initialRoute: "/" });
     expect(valueScanSpy).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByTestId("tab-deepvalue"));
@@ -702,9 +720,7 @@ describe("ScreenerPage", () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-      { initialRoute: "/" },
-    );
+      </UIProvider>), { initialRoute: "/" });
     expect(fetchEventsSpy).not.toHaveBeenCalled();
     expect(fetchAnomaliesSpy).not.toHaveBeenCalled();
 
@@ -730,9 +746,7 @@ describe("ScreenerPage", () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-      { initialRoute: "/" },
-    );
+      </UIProvider>), { initialRoute: "/" });
     fireEvent.click(screen.getByTestId("tab-correlation"));
     await waitFor(
       () => expect(screen.queryByTestId("dashboard-view")).not.toBeVisible(),
@@ -779,9 +793,7 @@ describe("ScreenerPage", () => {
           onScreenerChange={onScreenerChange}
           universe="nifty500"
         />
-      </UIProvider>,
-      { initialRoute: "/" },
-    );
+      </UIProvider>), { initialRoute: "/" });
     fireEvent.click(screen.getByTestId("dashboard-open-scan-near_52w"));
     expect(onScreenerChange).toHaveBeenCalledWith("52w_high");
     expect(await screen.findByTestId("screener-table-approaching")).toBeVisible();
@@ -792,9 +804,7 @@ describe("ScreenerPage", () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} onScreenerChange={onScreenerChange} universe="nifty500" />
-      </UIProvider>,
-      { initialRoute: "/" },
-    );
+      </UIProvider>), { initialRoute: "/" });
     fireEvent.click(screen.getByTestId("dashboard-open-scan-gainers"));
     expect(onScreenerChange).not.toHaveBeenCalled();
     expect(await screen.findByTestId("screener-table-approaching")).toBeVisible();
@@ -804,9 +814,7 @@ describe("ScreenerPage", () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} universe="nifty500" />
-      </UIProvider>,
-      { initialRoute: "/" },
-    );
+      </UIProvider>), { initialRoute: "/" });
     expect(dashboardMounts.count).toBe(1);
     fireEvent.click(screen.getByTestId("dashboard-refresh"));
     expect(dashboardMounts.count).toBe(2);
@@ -818,9 +826,7 @@ describe("ScreenerPage", () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} universe="nifty50" onUniverseChange={onUniverseChange} />
-      </UIProvider>,
-      { initialRoute: "/" },
-    );
+      </UIProvider>), { initialRoute: "/" });
     fireEvent.input(within(screen.getByTestId("dashboard-universe-select")).getByRole("combobox"), { target: { value: "nifty500" } });
     expect(onUniverseChange).toHaveBeenCalledWith("nifty500");
   });
@@ -829,9 +835,7 @@ describe("ScreenerPage", () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-      { initialRoute: "/" },
-    );
+      </UIProvider>), { initialRoute: "/" });
     const toggle = screen.getByTestId("dashboard-last-close-toggle");
     expect(toggle).not.toBeChecked();
     fireEvent.click(toggle);
@@ -843,9 +847,7 @@ describe("ScreenerPage", () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} onSymbolClick={onSymbolClick} />
-      </UIProvider>,
-      { initialRoute: "/" },
-    );
+      </UIProvider>), { initialRoute: "/" });
     fireEvent.click(screen.getByTestId("dashboard-open-symbol"));
     expect(onSymbolClick).toHaveBeenCalledWith("RELIANCE");
   });

@@ -1,6 +1,6 @@
-import { useMemo } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
+import { createMemo, Show } from "solid-js";
 import { Box, Text } from "@/ui";
+import type { TableColumnDef } from "@/components/common/TanStackTable";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
 import type { PatternHitDTO } from "@/types/chartPatterns";
@@ -58,253 +58,245 @@ function gapPct(value: number | null | undefined): string {
 }
 
 /** Compact direction glyph: ▲ bullish / ▼ bearish / ◆ otherwise (value kept in title/aria). */
-function DirectionGlyph({ direction }: { direction: string | null | undefined }) {
-  const raw = String(direction ?? "—").toLowerCase();
+function DirectionGlyph(props: { direction: string | null | undefined }) {
+  const raw = () => String(props.direction ?? "—").toLowerCase();
   return (
     <Text
       size="sm"
       fw={700}
-      c={directionTone(direction)}
-      title={raw}
-      aria-label={raw}
+      c={directionTone(props.direction)}
+      title={raw()}
+      aria-label={raw()}
       truncate
     >
-      {directionGlyph(direction)}
+      {directionGlyph(props.direction)}
     </Text>
   );
 }
 
 /** Compact shape-quality letter: T/S/F/M with the tier color (full label in the title tooltip). */
-function QualityGlyph({ quality }: { quality: string | null | undefined }) {
-  const key = String(quality ?? "").toLowerCase();
-  const info = QUALITY_INFO[key as keyof typeof QUALITY_INFO];
-  const label = qualityLabel(quality);
-  const letter = label.charAt(0).toUpperCase();
-  const tone = qualityBadgeTone(quality);
-  const title = info ? `${info.label}: ${info.description}` : label;
+function QualityGlyph(props: { quality: string | null | undefined }) {
+  const key = () => String(props.quality ?? "").toLowerCase();
+  const info = () => QUALITY_INFO[key() as keyof typeof QUALITY_INFO];
+  const label = () => qualityLabel(props.quality);
+  const letter = () => label().charAt(0).toUpperCase();
+  const tone = () => qualityBadgeTone(props.quality);
+  const title = () => (info() ? `${info()!.label}: ${info()!.description}` : label());
   return (
     <Text
       size="sm"
       fw={700}
-      c={tone}
-      title={title}
-      aria-label={label}
-      data-testid={`patterns-quality-${key || "unknown"}`}
+      c={tone()}
+      title={title()}
+      aria-label={label()}
+      data-testid={`patterns-quality-${key() || "unknown"}`}
       truncate
     >
-      {letter}
+      {letter()}
     </Text>
   );
 }
 
 /** Dense scanner table: one row per hit, ~28px rows, no sticky thead (see below). */
-export function PatternListView({
-  hits,
-  onSelect,
-  onShowMembers,
-  sort,
-  activeHit = null,
-  onOrderChange,
-  onSymbolPreview,
-  onSymbolPreviewEnd,
-  onSymbolOpen,
-}: PatternListViewProps) {
-  const activeKey = activeHit ? fullscreenDedupeKey(activeHit) : null;
-  const columns = useMemo<ColumnDef<PatternHitDTO>[]>(
-    () => [
-      {
-        id: "symbol",
-        header: "Symbol",
-        accessorFn: (hit) => hit.symbol,
-        size: 134,
-        meta: { align: "left" },
-        cell: (info) => {
-          const symbol = info.getValue<string>();
-          const canShowMembers = Boolean(onShowMembers && hasIndexMembers(symbol));
-          return (
-            <Box className="flex min-w-0 items-center gap-[2px]">
-              <SymbolLink
+export function PatternListView(props: PatternListViewProps) {
+  const activeKey = () => (props.activeHit ? fullscreenDedupeKey(props.activeHit) : null);
+
+  const columns: TableColumnDef<PatternHitDTO>[] = [
+    {
+      id: "symbol",
+      header: "Symbol",
+      accessorKey: "symbol",
+      size: 134,
+      meta: { align: "left" },
+      cell: (ctx) => {
+        const hit = ctx.row.original;
+        const symbol = hit.symbol;
+        const canShowMembers = Boolean(props.onShowMembers && hasIndexMembers(symbol));
+        return (
+          <Box className="flex min-w-0 items-center gap-[2px]">
+            <SymbolLink
+              symbol={symbol}
+              testId={`patterns-list-tv-${symbol}`}
+              chartTestId={`patterns-list-chart-${symbol}`}
+              onOpen={props.onSymbolOpen}
+              onPreview={props.onSymbolPreview}
+              onPreviewEnd={props.onSymbolPreviewEnd}
+              className="flex-1"
+            />
+            {/* Results are equities, so only the F&O badge is shown — an ETF
+                tag is tolerated (no crash) but never rendered. */}
+            <PatternTags
+              tags={rowTags(hit)}
+              symbol={symbol}
+              testIdPrefix="patterns-list"
+              showEtf={false}
+              compact
+            />
+            <Show when={canShowMembers}>
+              <MembersButton
                 symbol={symbol}
-                testId={`patterns-list-tv-${symbol}`}
-                chartTestId={`patterns-list-chart-${symbol}`}
-                onOpen={onSymbolOpen}
-                onPreview={onSymbolPreview}
-                onPreviewEnd={onSymbolPreviewEnd}
-                className="flex-1"
+                testId={`patterns-list-members-${symbol}`}
+                onShowMembers={props.onShowMembers}
               />
-              {/* Results are equities, so only the F&O badge is shown — an ETF
-                  tag is tolerated (no crash) but never rendered. */}
-              <PatternTags
-                tags={rowTags(info.row.original)}
-                symbol={symbol}
-                testIdPrefix="patterns-list"
-                showEtf={false}
-                compact
-              />
-              {canShowMembers ? (
-                <MembersButton
-                  symbol={symbol}
-                  testId={`patterns-list-members-${symbol}`}
-                  onShowMembers={onShowMembers}
-                />
-              ) : null}
-            </Box>
-          );
-        },
+            </Show>
+          </Box>
+        );
       },
-      {
-        id: "pattern",
-        header: "Pattern",
-        accessorFn: (hit) => hit.pattern_name,
-        meta: { align: "left" },
-        cell: (info) => (
-          <Text size="sm" truncate>
-            {info.getValue<string>()}
+    },
+    {
+      id: "pattern",
+      header: "Pattern",
+      accessorKey: "pattern_name",
+      meta: { align: "left" },
+      cell: (ctx) => (
+        <Text size="sm" truncate>
+          {ctx.row.original.pattern_name}
+        </Text>
+      ),
+    },
+    {
+      id: "confidence",
+      header: () => (
+        <span title="Pattern-fit confidence (geometry fit, R², volume) — not breakout conviction.">
+          Score
+        </span>
+      ),
+      accessorKey: "confidence",
+      size: 70,
+      meta: { align: "right" },
+      cell: (ctx) => {
+        const value = ctx.row.original.confidence;
+        return (
+          <Text size="sm" fw={600} truncate>
+            {value == null ? "—" : value.toFixed(1)}
           </Text>
-        ),
+        );
       },
-      {
-        id: "confidence",
-        header: () => (
-          <span title="Pattern-fit confidence (geometry fit, R², volume) — not breakout conviction.">
-            Score
-          </span>
-        ),
-        accessorKey: "confidence",
-        size: 70,
-        meta: { align: "right" },
-        cell: (info) => {
-          const value = info.getValue<number>();
-          return (
-            <Text size="sm" fw={600} truncate>
-              {value == null ? "—" : value.toFixed(1)}
-            </Text>
-          );
-        },
+    },
+    {
+      id: "direction",
+      header: "Dir",
+      accessorKey: "direction",
+      size: 44,
+      meta: { align: "center" },
+      cell: (ctx) => <DirectionGlyph direction={ctx.row.original.direction} />,
+    },
+    {
+      id: "status",
+      header: "Status",
+      accessorKey: "status",
+      size: 110,
+      meta: { align: "center" },
+      cell: (ctx) => (
+        <StatusBadge
+          status={ctx.row.original.status}
+          display={displayStatusForHit(ctx.row.original)}
+        />
+      ),
+    },
+    {
+      id: "quality",
+      header: "Q",
+      accessorKey: "quality",
+      size: 44,
+      meta: { align: "center" },
+      cell: (ctx) => <QualityGlyph quality={ctx.row.original.quality} />,
+    },
+    {
+      id: "gap52w",
+      header: "52W gap %",
+      accessorFn: (hit) => hit.to_52w_high,
+      size: 90,
+      meta: { align: "right" },
+      cell: (ctx) => {
+        const value = ctx.row.original.to_52w_high;
+        return (
+          <Text size="sm" truncate>
+            {gapPct(value)}
+          </Text>
+        );
       },
-      {
-        id: "direction",
-        header: "Dir",
-        accessorFn: (hit) => hit.direction,
-        size: 44,
-        meta: { align: "center" },
-        cell: (info) => <DirectionGlyph direction={info.getValue<string>()} />,
+    },
+    {
+      id: "range_pos",
+      header: "Pos %",
+      accessorKey: "range_pos",
+      size: 70,
+      meta: { align: "right" },
+      cell: (ctx) => {
+        const value = ctx.row.original.range_pos;
+        return (
+          <Text size="sm" truncate>
+            {value == null ? "—" : `${Math.round(value)}%`}
+          </Text>
+        );
       },
-      {
-        id: "status",
-        header: "Status",
-        accessorKey: "status",
-        size: 110,
-        meta: { align: "center" },
-        cell: (info) => (
-          <StatusBadge
-            status={info.row.original.status}
-            display={displayStatusForHit(info.row.original)}
-          />
-        ),
+    },
+    {
+      id: "bars_ago",
+      header: "Bars ago",
+      accessorKey: "bars_ago",
+      size: 80,
+      meta: { align: "right" },
+    },
+    {
+      id: "price",
+      header: "Price",
+      accessorFn: priceOf,
+      size: 100,
+      meta: { align: "right" },
+      cell: (ctx) => {
+        const value = priceOf(ctx.row.original);
+        return (
+          <Text size="sm" fw={600} truncate>
+            {formatPrice(value)}
+          </Text>
+        );
       },
-      {
-        id: "quality",
-        header: "Q",
-        accessorKey: "quality",
-        size: 44,
-        meta: { align: "center" },
-        cell: (info) => <QualityGlyph quality={info.row.original.quality} />,
+    },
+    {
+      id: "chg",
+      header: "Chg %",
+      accessorFn: hitChangePct,
+      size: 90,
+      meta: { align: "right" },
+      cell: (ctx) => {
+        const value = hitChangePct(ctx.row.original);
+        return (
+          <Text size="sm" c={getPnLTextColor(value)} truncate>
+            {formatPercentage(value, 2)}
+          </Text>
+        );
       },
-      {
-        id: "gap52w",
-        header: "52W gap %",
-        accessorFn: (hit) => hit.to_52w_high,
-        size: 90,
-        meta: { align: "right" },
-        cell: (info) => {
-          const value = info.getValue<number | null>();
-          return (
-            <Text size="sm" truncate>
-              {gapPct(value)}
-            </Text>
-          );
-        },
+    },
+    {
+      id: "to_trigger",
+      header: "To trigger",
+      accessorFn: (hit) =>
+        hit.pattern_id === "consolidation" || (hit.base_days ?? 0) > 0
+          ? triggerDistancePct(hit)
+          : null,
+      size: 100,
+      meta: { align: "right" },
+      cell: (ctx) => {
+        const distance =
+          ctx.row.original.pattern_id === "consolidation" || (ctx.row.original.base_days ?? 0) > 0
+            ? triggerDistancePct(ctx.row.original)
+            : null;
+        const text = formatSignedPct1(distance);
+        const tone = distance == null ? "text.disabled" : distance > 0 ? "success" : "text.secondary";
+        return (
+          <Text size="sm" fw={600} c={tone} truncate>
+            {text}
+          </Text>
+        );
       },
-      {
-        id: "range_pos",
-        header: "Pos %",
-        accessorKey: "range_pos",
-        size: 70,
-        meta: { align: "right" },
-        cell: (info) => {
-          const value = info.getValue<number | null | undefined>();
-          return (
-            <Text size="sm" truncate>
-              {value == null ? "—" : `${Math.round(value)}%`}
-            </Text>
-          );
-        },
-      },
-      {
-        id: "bars_ago",
-        header: "Bars ago",
-        accessorKey: "bars_ago",
-        size: 80,
-        meta: { align: "right" },
-      },
-      {
-        id: "price",
-        header: "Price",
-        accessorFn: priceOf,
-        size: 100,
-        meta: { align: "right" },
-        cell: (info) => {
-          const value = info.getValue<number | null>();
-          return (
-            <Text size="sm" fw={600} truncate>
-              {formatPrice(value)}
-            </Text>
-          );
-        },
-      },
-      {
-        id: "chg",
-        header: "Chg %",
-        accessorFn: hitChangePct,
-        size: 90,
-        meta: { align: "right" },
-        cell: (info) => {
-          const value = info.getValue<number>();
-          return (
-            <Text size="sm" c={getPnLTextColor(value)} truncate>
-              {formatPercentage(value, 2)}
-            </Text>
-          );
-        },
-      },
-      {
-        id: "to_trigger",
-        header: "To trigger",
-        accessorFn: (hit) =>
-          hit.pattern_id === "consolidation" || (hit.base_days ?? 0) > 0
-            ? triggerDistancePct(hit)
-            : null,
-        size: 100,
-        meta: { align: "right" },
-        cell: (info) => {
-          const distance = info.getValue<number | null>();
-          const text = formatSignedPct1(distance);
-          const tone = distance == null ? "text.disabled" : distance > 0 ? "success" : "text.secondary";
-          return (
-            <Text size="sm" fw={600} c={tone} truncate>
-              {text}
-            </Text>
-          );
-        },
-      },
-    ],
-    [onShowMembers, onSymbolOpen, onSymbolPreview, onSymbolPreviewEnd],
-  );
+    },
+  ];
 
   return (
     <TanStackTable
-      data={hits}
+      data={props.hits}
       columns={columns}
       dataTestId="patterns-list"
       // No sticky thead: the merged universe/results toolbar above is sticky
@@ -314,11 +306,11 @@ export function PatternListView({
       // remounts (key=sort) so changing the rail re-seeds it. Sort keys match
       // the server ordering (confidence desc / bars_ago asc / range_pos desc /
       // breakout_score desc).
-      initialState={{ sorting: sortingFor(sort) }}
-      onRowClick={onSelect}
-      onSortedRowsChange={onOrderChange}
+      initialState={{ sorting: sortingFor(props.sort) }}
+      onRowClick={props.onSelect}
+      onSortedRowsChange={props.onOrderChange}
       getRowStyle={(hit) =>
-        activeKey && fullscreenDedupeKey(hit) === activeKey
+        activeKey() && fullscreenDedupeKey(hit) === activeKey()
           ? {
               background: "rgba(88, 166, 255, 0.12)",
               boxShadow: "inset 3px 0 0 var(--color-fin-primary)",
@@ -326,8 +318,7 @@ export function PatternListView({
           : undefined
       }
       getRowAttributes={(hit) => ({
-        dataActive:
-          activeKey && fullscreenDedupeKey(hit) === activeKey ? "true" : undefined,
+        "data-active": activeKey() && fullscreenDedupeKey(hit) === activeKey() ? "true" : undefined,
       })}
       getRowTestId={(hit) =>
         `patterns-list-row-${hit.symbol}-${hit.pattern_id}${hit.id != null ? `-${hit.id}` : ""}`

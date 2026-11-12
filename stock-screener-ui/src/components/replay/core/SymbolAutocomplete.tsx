@@ -2,8 +2,7 @@
 // SymbolAutocomplete with the @/ui Box replaced by the local primitive (the
 // @/ui Box crashes at mount in the Solid build).
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, splitProps } from "solid-js";
-import { Box } from "../../paper-trading/primitives";
-import { TextInput } from "@/ui";
+import { TextInput, Box } from "@/ui";
 import * as palette from "@/ui/palette";
 import { searchSymbols, type SymbolResult } from "@/api/symbols";
 import { withAlpha } from "@/utils/color";

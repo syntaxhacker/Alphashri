@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test } from "vitest";
 
 import { render, screen, cleanup, within } from "@solidjs/testing-library";
+import type { JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import {
   buildParticipantFlow,
@@ -30,12 +31,16 @@ function row(t: string, chain?: Record<string, number[]>): ParticipantFlowRow {
   return chain ? { t, chain } : { t };
 }
 
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>children</UIProvider>;
+function TestWrapper(props: { children?: JSX.Element }) {
+  return <UIProvider>{props.children}</UIProvider>;
 }
 
 function renderFlow(props: { rows: ParticipantFlowRow[]; bucketMin?: number }) {
-  return render(() => <TestWrapper>h(NiftyParticipantFlow, props)</TestWrapper>);
+  return render(() => (
+    <TestWrapper>
+      <NiftyParticipantFlow {...props} />
+    </TestWrapper>
+  ));
 }
 
 describe("classifyParticipantFlow — the 4 cases", () => {

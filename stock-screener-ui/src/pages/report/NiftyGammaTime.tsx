@@ -1,9 +1,9 @@
+import { createMemo, Show } from "solid-js";
+import type { JSX } from "solid-js";
 import { formatNumberIN } from "@/utils/ui-helpers";
-import { memo, useMemo } from "react";
-import { Box, Text } from "@/ui";
+import { Text } from "@/ui";
 import { MiniLineChart, type MiniSeries } from "@/components/common/charts/MiniLineChart";
-import { CompactPanel, CompactStat } from "@/components/common/compact";
-import { EmptyState } from "@/components/common/states";
+import { LocalCompactPanel, LocalCompactStat, LocalEmptyState } from "./reportBits";
 import * as palette from "@/ui/palette";
 import { gexFlipAtSpot } from "./niftyGex";
 import type { NiftyGex, NiftyTape, NiftyTapeRow, NiftyWall } from "@/types/niftyReport";
@@ -268,41 +268,35 @@ interface NiftyGammaTimeProps {
  * purely from the rows (+ GEX fallback); absent data renders dashes and an
  * empty chart state, never an exception.
  */
-function NiftyGammaTimeInner({
-  rows: rowsProp,
-  tape,
-  gex,
-  spot,
-  walls,
-  degraded = false,
-}: NiftyGammaTimeProps) {
-  const rows = useMemo(
-    () =>
-      Array.isArray(rowsProp)
-        ? rowsProp
-        : Array.isArray(tape?.rows)
-          ? tape.rows
-          : [],
-    [rowsProp, tape],
+export function NiftyGammaTime(props: NiftyGammaTimeProps) {
+  const rows = createMemo(() =>
+    Array.isArray(props.rows)
+      ? props.rows
+      : Array.isArray(props.tape?.rows)
+        ? props.tape!.rows
+        : [],
   );
-  const series = useMemo(() => buildGammaSeries(rows), [rows]);
-  const stats = useMemo(
-    () => gammaStats(rows, gex, spot, walls, degraded),
-    [rows, gex, spot, walls, degraded],
+  const gex = () => props.gex;
+  const spot = () => props.spot;
+  const walls = () => props.walls;
+  const degraded = () => props.degraded ?? false;
+  const series = createMemo(() => buildGammaSeries(rows()));
+  const stats = createMemo(
+    () => gammaStats(rows(), gex(), spot(), walls(), degraded()),
   );
-  const chart = useMemo(() => buildGammaChart(series), [series]);
-  const regime = useMemo(() => gammaRegime(stats.now), [stats.now]);
-  const flipDistance = useMemo(() => spotVsFlip(spot, stats.flip), [spot, stats.flip]);
+  const chart = createMemo(() => buildGammaChart(series()));
+  const regime = () => gammaRegime(stats().now);
+  const flipDistance = () => spotVsFlip(spot(), stats().flip);
 
   return (
-    <CompactPanel
+    <LocalCompactPanel
       title="Dealer gamma — net per minute"
       testId="nifty-gamma-time-panel"
       style={{
-        backgroundColor: palette.TERM_BG,
-        border: `1px solid ${palette.TERM_BORDER}`,
-        borderColor: palette.TERM_BORDER,
-        borderRadius: 8,
+        "background-color": palette.TERM_BG,
+        "border": `1px solid ${palette.TERM_BORDER}`,
+        "border-color": palette.TERM_BORDER,
+        "border-radius": "8px",
       }}
     >
       {/* Tight column + tight stat row: plain grids instead of
@@ -310,68 +304,64 @@ function NiftyGammaTimeInner({
           stats, labels and values are unchanged — only the chrome shrinks.
           No overflow/min-height here: this panel stretches inside its flex
           row, and overflow would drop min-height:auto and collapse it. */}
-      <Box className="flex flex-col gap-[4px] min-w-0">
-        <Box
-          className="grid grid-cols-[repeat(4,minmax(0,1fr))] gap-[4px] w-full min-w-0"
+      <div class="flex flex-col gap-[4px] min-w-0">
+        <div
+          class="grid grid-cols-[repeat(4,minmax(0,1fr))] gap-[4px] w-full min-w-0"
         >
-          <CompactStat
-            data-testid="nifty-gamma-now"
+          <LocalCompactStat
+            testId="nifty-gamma-now"
             label="Net gamma now"
-            valueSize="md"
-            value={degraded ? GAMMA_NA : formatGammaCr(stats.now)}
+            value={degraded() ? GAMMA_NA : formatGammaCr(stats().now)}
             tone={
-              degraded
-                ? "text.primary"
-                : stats.now === null
-                  ? "text.primary"
-                  : stats.now < 0
+              degraded()
+                ? undefined
+                : stats().now === null
+                  ? undefined
+                  : stats().now! < 0
                     ? palette.TERM_GAMMA_NEG
                     : palette.TERM_GAMMA
             }
           />
-          <CompactStat
-            data-testid="nifty-gamma-flip"
+          <LocalCompactStat
+            testId="nifty-gamma-flip"
             label="Flip"
-            valueSize="md"
-            value={degraded ? GAMMA_NA : formatGammaLevel(stats.flip)}
+            value={degraded() ? GAMMA_NA : formatGammaLevel(stats().flip)}
             tone={palette.TERM_FLIP}
           />
-          <CompactStat
-            data-testid="nifty-gamma-callwall"
+          <LocalCompactStat
+            testId="nifty-gamma-callwall"
             label="Call wall"
-            valueSize="md"
-            value={formatGammaLevel(stats.callWall)}
+            value={formatGammaLevel(stats().callWall)}
           />
-          <CompactStat
-            data-testid="nifty-gamma-putwall"
+          <LocalCompactStat
+            testId="nifty-gamma-putwall"
             label="Put wall"
-            valueSize="md"
-            value={formatGammaLevel(stats.putWall)}
+            value={formatGammaLevel(stats().putWall)}
           />
-        </Box>
+        </div>
 
         {/* What the sign actually means for the next move — the panel's whole
             point. Without this the four numbers read as trivia. */}
-        {regime && (
-          <Box data-testid="nifty-gamma-regime" className="flex items-center gap-[6px] flex-wrap min-w-0">
+        <Show when={regime()}>
+          <div data-testid="nifty-gamma-regime" class="flex items-center gap-[6px] flex-wrap min-w-0">
             <Text
               size="xs"
               span
               fw={700}
               className="whitespace-nowrap"
               style={{
-                color: regime.tone,
-                border: `1px solid ${regime.tone}`,
-                borderRadius: 6,
-                padding: "4px 2px",
+                "color": regime()!.tone,
+                "border": `1px solid ${regime()!.tone}`,
+                "border-radius": "6px",
+                "padding": "4px 2px",
               }}
             >
-              {regime.label}
+              {regime()!.label}
             </Text>
             <Text size="xs" span className="min-w-0" style={{ color: palette.TEXT_MUTED }}>
-              {regime.detail}
+              {regime()!.detail}
             </Text>
-            {flipDistance && (
+            <Show when={flipDistance()}>
               <Text
                 data-testid="nifty-gamma-spot-flip"
                 size="xs"
@@ -379,48 +369,47 @@ function NiftyGammaTimeInner({
                 c="dimmed"
                 className="whitespace-nowrap"
               >
-                Spot {formatGammaLevel(spot)} · {flipDistance}
+                Spot {formatGammaLevel(spot())} · {flipDistance()}
               </Text>
-            )}
-          </Box>
-        )}
+            </Show>
+          </div>
+        </Show>
 
-        {series.length === 0 ? (
-          <EmptyState
-            data-testid="nifty-gamma-time-empty"
-            title={degraded ? "No gamma in this frame" : "No gamma tape yet"}
-            description={
-              degraded
-                ? "This frame carries no option greeks — the gamma block is an open-interest proxy, so no ₹ Cr/point figure can be shown."
-                : "Net gamma is recorded per minute once the option tape builds."
-            }
-          />
-        ) : (
+        <Show
+          when={series().length > 0}
+          fallback={
+            <LocalEmptyState
+              testId="nifty-gamma-time-empty"
+              title={degraded() ? "No gamma in this frame" : "No gamma tape yet"}
+              description={
+                degraded()
+                  ? "This frame carries no option greeks — the gamma block is an open-interest proxy, so no ₹ Cr/point figure can be shown."
+                  : "Net gamma is recorded per minute once the option tape builds."
+              }
+            />
+          }
+        >
           // Explicit px height (never vh — vh balloons on tall monitors).
           // 80px still resolves the single net-gamma line + zero line; the
           // line spans the full inner box edge to edge.
           <MiniLineChart
-            series={chart.series}
-            labels={chart.labels}
-            zeroLine={chart.zeroLine}
+            series={chart().series}
+            labels={chart().labels}
+            zeroLine={chart().zeroLine}
             height={120}
             testId="nifty-gamma-time-chart"
             formatValue={formatGammaCr}
             emptyMessage="No gamma tape yet"
           />
-        )}
-        {series.length > 0 && (
+        </Show>
+        <Show when={series().length > 0}>
           <Text data-testid="nifty-gamma-caption" size="xs" span c="dimmed">
-            {degraded
+            {degraded()
               ? "Open-interest proxy (no option greeks in this frame) — the scale is contracts, not ₹ Cr/point."
               : "Net dealer gamma each minute (₹ Cr) · the 0 line is the gamma flip — above it dealers dampen moves (pinning), below it they amplify them (squeeze)."}
           </Text>
-        )}
-      </Box>
-    </CompactPanel>
+        </Show>
+      </div>
+    </LocalCompactPanel>
   );
 }
-
-/** Memoised leaf panel — `tape`/`gex` keep identity between unrelated parent renders. */
-export const NiftyGammaTime = memo(NiftyGammaTimeInner);
-NiftyGammaTime.displayName = "NiftyGammaTime";

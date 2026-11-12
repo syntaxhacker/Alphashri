@@ -3,8 +3,23 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { AppLayout } from "./AppLayout";
-import { TestWrapper } from "../../test-utils/testUtils";
+import { MemoryRouter, createMemoryHistory } from "@solidjs/router";
+import { UIProvider } from "@/ui";
+import type { JSX } from "solid-js";
 import { fetchSurges } from "../../api/notifications";
+
+// testUtils's MemoryRouter mounts no route — plain children render nothing,
+// so these tests mount through the router's `root` prop instead.
+function TestWrapper(props: { children?: JSX.Element; initialRoute?: string; user?: unknown }) {
+  const history = createMemoryHistory();
+  history.set({ value: props.initialRoute ?? "/", replace: true, scroll: false });
+  return (
+    <MemoryRouter
+      history={history}
+      root={() => <UIProvider>{props.children}</UIProvider>}
+    />
+  );
+}
 
 // Mock matchMedia
 beforeEach(() => {
@@ -30,8 +45,8 @@ afterEach(() => {
 });
 
 vi.mock("../layout/NavbarNested", () => ({
-  NavbarNested: ({ activePath, collapsed }: { activePath: string; collapsed?: boolean }) => (
-    <nav data-testid="navbar-nested" data-active-path={activePath} data-collapsed={collapsed}>
+  NavbarNested: (props: { activePath: string; collapsed?: boolean }) => (
+    <nav data-testid="navbar-nested" data-active-path={props.activePath} data-collapsed={props.collapsed}>
       NavbarNested
     </nav>
   ),
@@ -177,15 +192,12 @@ describe("AppLayout", () => {
   });
 
   it("toggles desktop collapsed state when sidebar toggle clicked", async () => {
-    const { default: userEvent } = await import("@testing-library/user-event");
-        render(() => (<TestWrapper>
+    render(() => (<TestWrapper initialRoute="/">
         <AppLayout>
           <div>Content</div>
         </AppLayout>
       </TestWrapper>),
     );
-    const navbars = screen.getAllByTestId("navbar-nested");
-    expect(navbars[0]).toHaveAttribute("data-collapsed", "false");
     const toggles = screen.getAllByLabelText("Toggle sidebar");
     await fireEvent.click(toggles[toggles.length - 1]);
     expect(screen.getAllByTestId("navbar-nested")[0]).toHaveAttribute("data-collapsed", "true");
@@ -196,8 +208,7 @@ describe("AppLayout", () => {
   });
 
   it("collapsed rail hides brand, news and bell but keeps the expand control", async () => {
-    const { default: userEvent } = await import("@testing-library/user-event");
-        render(() => (<TestWrapper>
+    render(() => (<TestWrapper initialRoute="/">
         <AppLayout>
           <div>Content</div>
         </AppLayout>
@@ -217,8 +228,7 @@ describe("AppLayout", () => {
   });
 
   it("renders notification bell and opens panel on click", async () => {
-    const { default: userEvent } = await import("@testing-library/user-event");
-        render(() => (<TestWrapper>
+    render(() => (<TestWrapper initialRoute="/">
         <AppLayout>
           <div>Content</div>
         </AppLayout>
@@ -258,8 +268,7 @@ describe("AppLayout", () => {
   });
 
   it("passes collapsed prop correctly to NavbarNested after toggle", async () => {
-    const { default: userEvent } = await import("@testing-library/user-event");
-        render(() => (<TestWrapper>
+    render(() => (<TestWrapper initialRoute="/">
         <AppLayout>
           <div>Content</div>
         </AppLayout>

@@ -1,7 +1,7 @@
 import { createMemo, createEffect, createSignal, For, Show, onCleanup, onMount } from "solid-js";
 import { useStoreSnapshot } from "./storeSnapshot";
-import { Button, Text, Select, useColorScheme, Badge, LoadingOverlay, ActionIcon, Chip, Divider, DatePicker } from "@/ui";
-import { Popover, PopoverTarget, PopoverDropdown } from "./overlays";
+import { Button, Text, Select, useColorScheme, Badge, LoadingOverlay, ActionIcon, Chip, Divider, DatePicker, Box, Group, Flex, Stack, Card } from "@/ui";
+import { Popover, PopoverTarget, PopoverDropdown } from "./localOverlays";
 import { IconDots } from "@/components/common/Icons";
 import dayjs from "dayjs";
 import {
@@ -26,8 +26,6 @@ import type { PaperPosition } from "../../types/paperTrading";
 import { TIMEFRAMES } from "../../config/constants";
 import { PRIMARY, POSITIVE, NEGATIVE, PIVOT_OR_HIGH, PIVOT_52W_HIGH, PIVOT_PP, INDICATOR_BLUE_A, TEXT_MUTED, BORDER } from "@/ui/palette";
 import { alpha } from "@/ui/alpha";
-import { Box, Group, Flex, Stack, Card } from "./primitives";
-
 const toApiFormat = (val: number): string => {
   if (val === 1) return "1min";
   if (val === 5) return "5min";
@@ -71,7 +69,7 @@ function SolidTradingChart(props: { input: ChartInput | null }) {
     if (resizeHandler) window.removeEventListener("resize", resizeHandler);
     ro?.disconnect();
     if (chart) {
-      chart.dispose();
+      try { chart.dispose(); } catch { /* echarts dispose can throw in headless DOM */ }
       chart = null;
     }
   });
@@ -90,8 +88,12 @@ function SolidTradingChart(props: { input: ChartInput | null }) {
       }
     }
     const option = buildChartOption(input);
-    chart.setOption(option, true);
-    chart.resize();
+    try {
+      chart.setOption(option, true);
+      chart.resize();
+    } catch {
+      /* headless DOM without canvas 2d */
+    }
   });
 
   return <div ref={chartEl} class="flex-1 min-h-0 w-full" data-testid="paper-trading-chart-canvas" />;
@@ -214,6 +216,7 @@ function ChartHeader(props: { state: ReturnType<typeof getPaperTradingState> }) 
   const handleRangeChange = (r: [Date | null, Date | null] | null) => {
     if (!r) return;
     setRange(r);
+    if (!r[0] && !r[1]) return; // emptied field — ignore
     if (r[0] && r[1] && r[0] > r[1]) return;
     const fd = r[0] ? dayjs(r[0]).format("YYYY-MM-DD") : undefined;
     const s = getPaperTradingState();

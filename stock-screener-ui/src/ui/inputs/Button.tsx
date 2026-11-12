@@ -92,7 +92,7 @@ export function Button(props: UIButtonProps) {
   ]);
 
   const token = colorToken(known.color);
-  const disabledOrLoading = known.disabled || known.loading;
+  const disabledOrLoading = () => known.disabled || known.loading;
   void known._elevation; void known._spacing; void known._alignItems;
 
   // `compact` is accepted for backward compat but has no dedicated Tailwind
@@ -113,7 +113,7 @@ export function Button(props: UIButtonProps) {
         known.className,
       )}
       style={{ ...(typeof known.radius === "number" ? { "border-radius": known.radius } : {}), ...known.style }}
-      disabled={disabledOrLoading}
+      disabled={disabledOrLoading()}
       data-loading={known.loading || undefined}
       aria-busy={known.loading || undefined}
       onClick={(e) => known.onClick?.(e)}

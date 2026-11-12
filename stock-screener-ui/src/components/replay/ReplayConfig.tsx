@@ -1,6 +1,5 @@
 import { createSignal, createMemo, createEffect, For, Show, onMount, onCleanup } from "solid-js";
-import { Text, Select, Button, Switch, Alert, MultiSelect, Tooltip, ActionIcon, Badge, TextInput } from "@/ui";
-import { Modal } from "../paper-trading/overlays";
+import { Text, Select, Button, Switch, Alert, MultiSelect, Tooltip, ActionIcon, Badge, TextInput, Modal, Group, Box, Stack } from "@/ui";
 import { IconPlayerPlay, IconPlayerStop, IconAlertTriangle, IconX, IconDeviceFloppy, IconFolderOpen, IconTrash } from "@/components/common/Icons";
 import { ScreenerSymbolPicker } from "./ScreenerSymbolPicker";
 import { listBots } from "../../api/bots";
@@ -10,7 +9,6 @@ import type { BotConfig } from "../../types/bots";
 import type { ReplayConfig as ReplayConfigType, ReplaySavedConfig } from "../../types/replay";
 import { useStoreSnapshot } from "../paper-trading/storeSnapshot";
 import { TradingDatePicker } from "../common/TradingDatePicker";
-import { Group, Box, Stack } from "../paper-trading/primitives";
 import {
   getHolidayState,
   subscribeToHolidays,

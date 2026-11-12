@@ -2,7 +2,6 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
 
 const mocks = vi.hoisted(() => ({
   mockSetOption: vi.fn(),

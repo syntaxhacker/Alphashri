@@ -1,5 +1,6 @@
-import { Box, Text } from "@/ui";
-import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
+import { Text } from "@/ui";
+import { createEffect, createMemo, createSignal, For, Show, onCleanup } from "solid-js";
+import type { JSX } from "solid-js";
 import {
   buildFlowEvents,
   clockLabel,
@@ -82,33 +83,32 @@ const FLOW_LEGEND: { id: string; color: string; text: string; title: string }[] 
 
 function FlowLegend() {
   return (
-    <Box
+    <div
       data-testid="nifty-flowstrip-legend"
       aria-label="Flow strip legend"
-      className="flex flex-wrap items-center gap-x-2 gap-y-[2px] text-[9px] leading-[1.2] font-mono text-fin-text-muted px-[6px] py-[2px] border-b border-fin-border bg-white/[0.03]"
+      class="flex flex-wrap items-center gap-x-2 gap-y-[2px] text-[9px] leading-[1.2] font-mono text-fin-text-muted px-[6px] py-[2px] border-b border-fin-border bg-white/[0.03]"
     >
-      <Box component="span" className="text-[9px] tracking-[0.08em] opacity-60">
+      <span class="text-[9px] tracking-[0.08em] opacity-60">
         FLOW
-      </Box>
-      {FLOW_LEGEND.map((item) => (
-        <Box
-          key={item.id}
-          component="span"
-          data-testid={`nifty-flowstrip-legend-${item.id}`}
-          title={item.title}
-          className="inline-flex items-center gap-1 whitespace-nowrap"
-        >
-          <Box
-            component="span"
-            data-testid={`nifty-flowstrip-legend-${item.id}-swatch`}
-            aria-hidden
-            className="inline-block shrink-0 w-2 h-2 rounded-[1px]"
-            style={{ backgroundColor: item.color }}
-          />
-          <Box component="span">{item.text}</Box>
-        </Box>
-      ))}
-    </Box>
+      </span>
+      <For each={FLOW_LEGEND}>
+        {(item) => (
+          <span
+            data-testid={`nifty-flowstrip-legend-${item.id}`}
+            title={item.title}
+            class="inline-flex items-center gap-1 whitespace-nowrap"
+          >
+            <span
+              data-testid={`nifty-flowstrip-legend-${item.id}-swatch`}
+              aria-hidden
+              class="inline-block shrink-0 w-2 h-2 rounded-[1px]"
+              style={{ "background-color": item.color }}
+            />
+            <span>{item.text}</span>
+          </span>
+        )}
+      </For>
+    </div>
   );
 }
 
@@ -118,21 +118,22 @@ interface NiftyFlowStripProps {
   maxLabels?: number;
 }
 
-function NiftyFlowStripInner({ rows, burstThreshold, maxLabels = FLOW_MAX_LABELS }: NiftyFlowStripProps) {
-  const events = useMemo(
-    () => buildFlowEvents(rows, burstThreshold !== undefined ? { burstThreshold } : {}),
-    [rows, burstThreshold],
+export function NiftyFlowStrip(props: NiftyFlowStripProps) {
+  const rows = () => props.rows;
+  const maxLabels = () => props.maxLabels ?? FLOW_MAX_LABELS;
+  const events = createMemo(
+    () => buildFlowEvents(rows(), props.burstThreshold !== undefined ? { burstThreshold: props.burstThreshold } : {}),
   );
-  const buckets = useMemo(() => groupFlowRuns(events), [events]);
+  const buckets = createMemo(() => groupFlowRuns(events()));
 
   // Fit the one-line summary to the measured lane width. A character budget
   // (rather than CSS ellipsis) guarantees we never clip halfway through a
   // number: buckets are whole strings or they move into `+N earlier`.
-  const labelsRef = useRef<HTMLDivElement | null>(null);
-  const [maxChars, setMaxChars] = useState(FLOW_SUMMARY_MAX_CHARS);
+  let labelsRef: HTMLDivElement | undefined;
+  const [maxChars, setMaxChars] = createSignal(FLOW_SUMMARY_MAX_CHARS);
 
-  useEffect(() => {
-    const el = labelsRef.current;
+  createEffect(() => {
+    const el = labelsRef;
     if (!el) return;
     const measure = () => {
       const width = el.clientWidth;
@@ -144,106 +145,103 @@ function NiftyFlowStripInner({ rows, burstThreshold, maxLabels = FLOW_MAX_LABELS
       }
     };
     measure();
-    if (typeof ResizeObserver === "undefined") {
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    if (ro) {
+      ro.observe(el);
+      onCleanup(() => ro.disconnect());
+    } else {
       window.addEventListener("resize", measure);
-      return () => window.removeEventListener("resize", measure);
+      onCleanup(() => window.removeEventListener("resize", measure));
     }
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  });
 
-  const summary = useMemo(
-    () => summarizeFlowRuns(buckets, { maxLabels, maxChars }),
-    [buckets, maxLabels, maxChars],
+  const summary = createMemo(
+    () => summarizeFlowRuns(buckets(), { maxLabels: maxLabels(), maxChars: maxChars() }),
   );
-
-  if (events.length === 0) {
-    return (
-      <Box data-testid="nifty-flowstrip-empty" className="py-2 text-center">
-        <Text size="xs" c="dimmed" data-testid="nifty-flowstrip-empty-text">
-          no flow events
-        </Text>
-      </Box>
-    );
-  }
 
   const leftPct = (t: string): string => flowTickPct(t);
   const sep = (
-    <Box
-      component="span"
+    <span
       aria-hidden
-      className="shrink-0 opacity-45 text-fin-text-muted"
+      class="shrink-0 opacity-45 text-fin-text-muted"
     >
       ·
-    </Box>
+    </span>
   );
 
-  return (
-    <Box data-testid="nifty-flowstrip" className="w-full min-w-0">
+  const emptyView = () => (
+    <div data-testid="nifty-flowstrip-empty" class="py-2 text-center">
+      <Text size="xs" c="dimmed" data-testid="nifty-flowstrip-empty-text">
+        no flow events
+      </Text>
+    </div>
+  );
+
+  const stripView = () => (
+    <div data-testid="nifty-flowstrip" class="w-full min-w-0">
       <FlowLegend />
-      <Box data-testid="nifty-flowstrip-lane" className="relative h-7 w-full">
+      <div data-testid="nifty-flowstrip-lane" class="relative h-7 w-full">
         {/* baseline */}
-        <Box
-          className="absolute left-0 right-0 top-[17px] h-0.5 opacity-25 bg-current"
+        <div
+          class="absolute left-0 right-0 top-[17px] h-0.5 opacity-25 bg-current"
         />
-        {events.map((e, i) => (
-          <Box
-            key={`${e.t}-${e.kind}-${i}`}
-            data-testid="nifty-flow-tick"
-            data-kind={e.kind}
-            data-side={e.side}
-            title={`${clockLabel(e.t)} · ${e.label}`}
-            className="absolute top-[10px] w-[3px] h-[15px] -translate-x-1/2 rounded-[1px]"
-            style={{ left: leftPct(e.t), backgroundColor: tickColor(e.side) }}
-          />
-        ))}
-      </Box>
+        <For each={events()}>
+          {(e) => (
+            <div
+              data-testid="nifty-flow-tick"
+              data-kind={e.kind}
+              data-side={e.side}
+              title={`${clockLabel(e.t)} · ${e.label}`}
+              class="absolute top-[10px] w-[3px] h-[15px] -translate-x-1/2 rounded-[1px]"
+              style={{ "left": leftPct(e.t), "background-color": tickColor(e.side) }}
+            />
+          )}
+        </For>
+      </div>
       {/* One-line, run-aggregated summary. Ticks above keep every raw print;
           this row answers "what actually happened" instead of listing six
           near-identical Put unwind minutes in a row. */}
-      <Box
-        ref={labelsRef}
+      <div
+        ref={(el) => (labelsRef = el)}
         data-testid="nifty-flowstrip-labels"
-        title={summary.fullText}
-        className="flex items-center gap-x-[6px] min-w-0 max-w-full overflow-hidden whitespace-nowrap font-mono text-[10px] leading-[1.2] text-fin-text-muted tabular-nums px-[6px] py-[2px]"
+        title={summary().fullText}
+        class="flex items-center gap-x-[6px] min-w-0 max-w-full overflow-hidden whitespace-nowrap font-mono text-[10px] leading-[1.2] text-fin-text-muted tabular-nums px-[6px] py-[2px]"
       >
-        {summary.showMarker && summary.hidden > 0 ? (
-          <Fragment>
-            <Box
-              component="span"
-              data-testid="nifty-flowstrip-more"
-              title={`${summary.hidden} older run${summary.hidden === 1 ? "" : "s"} hidden — ${summary.fullText}`}
-              className="shrink-0 opacity-75"
-            >
-              +{summary.hidden} earlier
-            </Box>
-            {sep}
-          </Fragment>
-        ) : null}
-        {summary.visible.map((b, i) => (
-          <Fragment key={`${b.segment}-${b.start}-${i}`}>
-            {i > 0 ? sep : null}
-            <Box
-              component="span"
-              data-testid="nifty-flow-label"
-              data-kind={b.kind}
-              data-count={b.count}
-              data-total={Math.round(b.total)}
-              title={b.detail}
-              className="shrink-0"
-              style={{ color: tickColor(b.side) }}
-            >
-              {b.label}
-            </Box>
-          </Fragment>
-        ))}
-      </Box>
-    </Box>
+        <Show when={summary().showMarker && summary().hidden > 0}>
+          <span
+            data-testid="nifty-flowstrip-more"
+            title={`${summary().hidden} older run${summary().hidden === 1 ? "" : "s"} hidden — ${summary().fullText}`}
+            class="shrink-0 opacity-75"
+          >
+            +{summary().hidden} earlier
+          </span>
+          {sep}
+        </Show>
+        <For each={summary().visible}>
+          {(b, i) => (
+            <>
+              <Show when={i() > 0}>{sep}</Show>
+              <span
+                data-testid="nifty-flow-label"
+                data-kind={b.kind}
+                data-count={b.count}
+                data-total={Math.round(b.total)}
+                title={b.detail}
+                class="shrink-0"
+                style={{ "color": tickColor(b.side) }}
+              >
+                {b.label}
+              </span>
+            </>
+          )}
+        </For>
+      </div>
+    </div>
+  );
+
+  return (
+    <Show when={events().length > 0} fallback={emptyView()}>
+      {stripView()}
+    </Show>
   );
 }
-
-/** Memoised: `rows` (the replay-filtered tape) is a stable memo between
- *  report frames, so the spot tick does not repaint the flow buckets. */
-export const NiftyFlowStrip = memo(NiftyFlowStripInner);
-NiftyFlowStrip.displayName = "NiftyFlowStrip";

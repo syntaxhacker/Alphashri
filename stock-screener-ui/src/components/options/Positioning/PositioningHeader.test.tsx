@@ -49,7 +49,7 @@ describe("PositioningHeader", () => {
   test("changing underlying calls onUnderlyingChange", async () => {
     const onUnderlyingChange = vi.fn();
     render(() => <PositioningHeader {...baseProps} onUnderlyingChange={onUnderlyingChange} />);
-    fireEvent.change(screen.getByTestId("positioning-underlying"), { target: { value: "BANKNIFTY" } });
+    fireEvent.change(within(screen.getByTestId("positioning-underlying")).getByRole("combobox"), { target: { value: "BANKNIFTY" } });
     expect(onUnderlyingChange).toHaveBeenCalledWith("BANKNIFTY");
   });
 

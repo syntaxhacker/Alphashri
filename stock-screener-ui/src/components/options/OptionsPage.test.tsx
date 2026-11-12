@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, cleanup } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { OptionsPage } from "./OptionsPage";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
@@ -51,43 +51,43 @@ const defaultProps = {
 
 describe("OptionsPage", () => {
   it("shows chain panel by default", () => {
-    renderWithProviders(<OptionsPage {...defaultProps} />);
+    render(() => <OptionsPage {...defaultProps} />);
     expect(screen.getByTestId("options-chain-panel")).toBeInTheDocument();
   });
 
   it("shows positions panel when activeTab is positions", () => {
-    renderWithProviders(<OptionsPage {...defaultProps} activeTab="positions" />);
+    render(() => <OptionsPage {...defaultProps} activeTab="positions" />);
     expect(screen.getByTestId("options-positions-panel")).toBeInTheDocument();
   });
 
   it("hides chain panel when positions tab is active", () => {
-    renderWithProviders(<OptionsPage {...defaultProps} activeTab="positions" />);
+    render(() => <OptionsPage {...defaultProps} activeTab="positions" />);
     expect(screen.queryByTestId("options-chain-panel")).not.toBeInTheDocument();
   });
 
   it("shows premium panel when activeTab is premium", () => {
-    renderWithProviders(<OptionsPage {...defaultProps} activeTab="premium" />);
+    render(() => <OptionsPage {...defaultProps} activeTab="premium" />);
     expect(screen.getByTestId("premium-tracker-panel")).toBeInTheDocument();
   });
 
   it("hides chain panel when premium tab is active", () => {
-    renderWithProviders(<OptionsPage {...defaultProps} activeTab="premium" />);
+    render(() => <OptionsPage {...defaultProps} activeTab="premium" />);
     expect(screen.queryByTestId("options-chain-panel")).not.toBeInTheDocument();
   });
 
   it("renders simulator tab", () => {
-    renderWithProviders(<OptionsPage {...defaultProps} />);
+    render(() => <OptionsPage {...defaultProps} />);
     expect(screen.getByText("Simulator")).toBeInTheDocument();
   });
 
   it("shows simulator panel when activeTab is simulator", () => {
-    renderWithProviders(<OptionsPage {...defaultProps} activeTab="simulator" />);
+    render(() => <OptionsPage {...defaultProps} activeTab="simulator" />);
     expect(screen.getByTestId("options-simulator-tab")).toBeInTheDocument();
     expect(screen.getByTestId("simulator-panel")).toBeInTheDocument();
   });
 
   it("hides chain panel when simulator tab is active", () => {
-    renderWithProviders(<OptionsPage {...defaultProps} activeTab="simulator" />);
+    render(() => <OptionsPage {...defaultProps} activeTab="simulator" />);
     expect(screen.queryByTestId("options-chain-panel")).not.toBeInTheDocument();
     expect(screen.getByTestId("simulator-panel")).toBeInTheDocument();
   });

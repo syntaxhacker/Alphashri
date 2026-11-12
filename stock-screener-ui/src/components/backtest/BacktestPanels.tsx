@@ -1,6 +1,5 @@
-import { Tabs } from "@/ui";
+import { Tabs, Box, Flex } from "@/ui";
 import { IconTable, IconHistory } from "@tabler/icons-react";
-import { Box, Flex } from "../paper-trading/primitives";
 import {
   BacktestSummary,
   BacktestResultsTable,

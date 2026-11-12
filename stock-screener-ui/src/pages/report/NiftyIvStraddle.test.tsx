@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import type { JSX } from "solid-js";
+import { render, screen } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
 
@@ -17,13 +18,11 @@ import {
 import type { NiftyRegimeBlock, NiftyTapeRow } from "@/types/niftyReport";
 import type { ReplayCandle } from "@/types/replay";
 
-afterEach(cleanup);
-
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
+function TestWrapper(props: { children?: JSX.Element }) {
+  return <UIProvider>{props.children}</UIProvider>;
 }
 
-function r(jsx: React.ReactElement) {
+function r(jsx: () => JSX.Element) {
   return render(jsx, { wrapper: TestWrapper });
 }
 
@@ -191,7 +190,7 @@ describe("formatIvTime", () => {
 
 describe("NiftyIvStraddle render", () => {
   test("renders the four stats from the regime block plus the chart", () => {
-    r(
+    r(() => (
       <NiftyIvStraddle
         regime={regime}
         tape={{
@@ -203,8 +202,8 @@ describe("NiftyIvStraddle render", () => {
             row({ t: "09:17", atm_ce_ltp: 120, atm_pe_ltp: 120, atm_ce_iv: 14, atm_pe_iv: 16 }),
           ],
         }}
-      />,
-    );
+      />
+    ));
     expect(screen.getByTestId("nifty-iv-straddle-panel")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-iv-atm")).toHaveTextContent("15.50%");
     expect(screen.getByTestId("nifty-iv-straddle")).toHaveTextContent("240.00");
@@ -215,7 +214,7 @@ describe("NiftyIvStraddle render", () => {
   });
 
   test("falls back to tape and candles when no regime block is present", () => {
-    r(
+    r(() => (
       <NiftyIvStraddle
         tape={{
           date: "2026-10-14",
@@ -232,8 +231,8 @@ describe("NiftyIvStraddle render", () => {
           candle("09:18", 101),
           candle("09:19", 100),
         ]}
-      />,
-    );
+      />
+    ));
     // last ATM IV avg = (14 + 16) / 2
     expect(screen.getByTestId("nifty-iv-atm")).toHaveTextContent("15.00%");
     expect(screen.getByTestId("nifty-iv-straddle")).toHaveTextContent("240.00");
@@ -245,7 +244,8 @@ describe("NiftyIvStraddle render", () => {
   });
 
   test("no tape renders the empty state and dashes every stat", () => {
-    r(<NiftyIvStraddle />);
+    r(() =>
+    <NiftyIvStraddle />);
     expect(screen.getByTestId("nifty-iv-straddle-panel")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-iv-straddle-empty")).toBeInTheDocument();
     expect(screen.queryByTestId("nifty-iv-straddle-chart")).not.toBeInTheDocument();
@@ -256,15 +256,15 @@ describe("NiftyIvStraddle render", () => {
   });
 
   test("tape rows with only dead legs fall back to the empty state", () => {
-    r(
+    r(() => (
       <NiftyIvStraddle
         tape={{
           date: "2026-10-14",
           interval_sec: 60,
           rows: [row({ atm_ce_ltp: null, atm_pe_ltp: null, atm_ce_iv: null, atm_pe_iv: null })],
         }}
-      />,
-    );
+      />
+    ));
     expect(screen.getByTestId("nifty-iv-straddle-empty")).toBeInTheDocument();
     expect(screen.queryByTestId("nifty-iv-straddle-chart")).not.toBeInTheDocument();
   });

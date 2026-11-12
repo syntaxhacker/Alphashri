@@ -75,7 +75,7 @@ interface Props<T> {
   renderSubComponent?: (row: T) => JSX.Element;
   /** Ultra-dense rows regardless of the global density. */
   dense?: boolean;
-  /** Accepted for API compatibility (this build renders all rows). */
+  /** Cap the number of mounted rows (virtualization window). */
   rowWindowSize?: number;
   /** When true the table fills its parent's height instead of the 65vh cap. */
   fillContainer?: boolean;
@@ -117,10 +117,13 @@ export function TanStackTable<T>(props: Props<T>) {
 
   const visibleColumns = createMemo(() => props.columns.filter((col) => getColumnWidth(col) !== 0));
 
+  const enableSorting = () => props.enableSorting ?? true;
+  const enableSortingRemoval = () => props.enableSortingRemoval ?? true;
+
   const sortedData = createMemo(() => {
     const rows = [...props.data];
     const sorters = sorting();
-    if (!props.enableSorting || sorters.length === 0) return rows;
+    if (!enableSorting() || sorters.length === 0) return rows;
     for (let i = sorters.length - 1; i >= 0; i--) {
       const { id, desc } = sorters[i];
       const col = props.columns.find((c) => c.id === id);
@@ -162,13 +165,15 @@ export function TanStackTable<T>(props: Props<T>) {
     return testId != null ? testId : String(index);
   };
 
-  const groupKey = (value: unknown) => String(value);
+  // expanded map keys are `columnId:value` (same shape as TanStack's grouping state)
+  const groupKey = (value: unknown) =>
+    `${props.grouping?.[0] ?? ""}:${String(value)}`;
 
   const isGroupExpanded = (value: unknown) => {
     const map = expandedGroups();
     const k = groupKey(value);
     if (k in map) return map[k];
-    return props.initialState?.expanded?.[k] ?? true;
+    return props.initialState?.expanded?.[k] ?? false;
   };
 
   const isRowExpanded = (row: T, index: number) => {
@@ -182,11 +187,33 @@ export function TanStackTable<T>(props: Props<T>) {
     setSorting((prev) => {
       const found = prev.find((s) => s.id === id);
       const next = prev.filter((s) => s.id !== id);
+      // The clicked column becomes PRIMARY. Pushing it to the end left the
+      // previous sorter dominant, so clicking a header could never reorder the
+      // table — a header click always means "sort by this".
       if (found) {
-        if (props.enableSortingRemoval && found.desc) return next;
-        next.push({ id, desc: !found.desc });
+        if (enableSortingRemoval() && found.desc) return next;
+        next.unshift({ id, desc: !found.desc });
       } else {
-        next.push({ id, desc: false });
+        // TanStack's auto-sort contract: text columns sort A→Z first, numeric
+        // columns sort biggest-first. Sample the first values to pick.
+        let desc = false;
+        const col = props.columns.find((c) => c.id === id);
+        if (col) {
+          let seen = 0;
+          let numeric = true;
+          for (const row of props.data) {
+            if (seen >= 5) break;
+            const v = getValue(row, col);
+            if (v === null || v === undefined || v === "") continue;
+            seen++;
+            if (typeof v !== "number") {
+              numeric = false;
+              break;
+            }
+          }
+          desc = seen > 0 && numeric;
+        }
+        next.unshift({ id, desc });
       }
       return next;
     });
@@ -211,15 +238,16 @@ export function TanStackTable<T>(props: Props<T>) {
     return w !== undefined && w !== 0;
   });
   const colCount = visibleColumns().length;
-  const showLoading = props.loading && props.data.length === 0;
-  const showEmpty = !props.loading && props.data.length === 0;
+  const showLoading = () => props.loading && props.data.length === 0;
+  const showEmpty = () => !props.loading && props.data.length === 0;
+  const emptyMessage = () => props.emptyMessage ?? "No data";
 
   const tableStyle: CSSProperties = {
     width: "100%",
-    tableLayout: hasSizedColumns ? "fixed" : "auto",
-    minWidth: props.minTableWidth ?? Math.max(640, colCount * 96),
-    borderCollapse: "collapse",
-    backgroundColor: palette.SURFACE,
+    "table-layout": hasSizedColumns ? "fixed" : "auto",
+    "min-width": `${props.minTableWidth ?? Math.max(640, colCount * 96)}px`,
+    "border-collapse": "collapse",
+    "background-color": palette.SURFACE,
     ...props.style,
   };
 
@@ -245,16 +273,16 @@ export function TanStackTable<T>(props: Props<T>) {
     const { align } = getColumnMeta(col);
     const s: CSSProperties = {
       padding: width === 0 ? "0" : cellPad,
-      fontSize: cellFontSize,
-      lineHeight: 1.2,
-      fontVariantNumeric: "tabular-nums",
-      whiteSpace: "nowrap",
-      height: rowEstimated,
-      borderBottom: `1px solid ${palette.BORDER}`,
-      backgroundColor: palette.SURFACE,
-      width: width !== undefined ? width : undefined,
+      "font-size": cellFontSize,
+      "line-height": "1.2px",
+      "font-variant-numeric": "tabular-nums",
+      "white-space": "nowrap",
+      height: `${rowEstimated}px`,
+      "border-bottom": `1px solid ${palette.BORDER}`,
+      "background-color": palette.SURFACE,
+      width: width !== undefined ? `${width}px` : undefined,
       display: width === 0 ? "none" : undefined,
-      textAlign: align ?? (numericColumnIds.has(col.id) ? "right" : "left"),
+      "text-align": align ?? (numericColumnIds.has(col.id) ? "right" : "left"),
     };
     if (width !== undefined) {
       s.overflow = "hidden";
@@ -270,40 +298,40 @@ export function TanStackTable<T>(props: Props<T>) {
 
   const renderHeader = (col: TableColumnDef<T>) => {
     const width = getColumnWidth(col);
-    const isSorted = sorting().some((s) => s.id === col.id);
-    const sortDir = sorting().find((s) => s.id === col.id);
+    const isSorted = () => sorting().some((s) => s.id === col.id);
+    const sortDir = () => sorting().find((s) => s.id === col.id);
     const headerStyle: CSSProperties = {
       padding: width === 0 ? "0" : cellPad,
-      height: headerHeight,
-      fontSize: cellFontSize,
-      lineHeight: 1.2,
-      fontWeight: 600,
-      fontVariantNumeric: "tabular-nums",
-      whiteSpace: "nowrap",
-      userSelect: "none",
+      height: `${headerHeight}px`,
+      "font-size": cellFontSize,
+      "line-height": "1.2px",
+      "font-weight": "600px",
+      "font-variant-numeric": "tabular-nums",
+      "white-space": "nowrap",
+      "user-select": "none",
       color: palette.TEXT_MUTED,
-      borderBottom: `1px solid ${palette.BORDER}`,
-      width: width !== undefined ? width : undefined,
+      "border-bottom": `1px solid ${palette.BORDER}`,
+      width: width !== undefined ? `${width}px` : undefined,
       display: width === 0 ? "none" : undefined,
-      textAlign: getColumnMeta(col).align ?? (numericColumnIds.has(col.id) ? "right" : "left"),
-      cursor: col.enableSorting !== false && props.enableSorting ? "pointer" : "default",
+      "text-align": getColumnMeta(col).align ?? (numericColumnIds.has(col.id) ? "right" : "left"),
+      cursor: col.enableSorting !== false && enableSorting() ? "pointer" : "default",
       position: props.stickyHeader ? "sticky" : undefined,
       top: props.stickyHeader ? 0 : undefined,
-      zIndex: props.stickyHeader ? 1 : undefined,
+      "z-index": props.stickyHeader ? 1 : undefined,
     };
     const h = col.header;
     const content = typeof h === "function" ? h({ column: col }) : h != null ? <span>{h}</span> : <span>{col.id}</span>;
     return (
       <Box
         component="th"
-        key={col.id}
+        
         className="paper-tanstack-header-cell"
         id={`paper-tanstack-header-${String(col.id)}`}
         style={headerStyle}
-        onClick={() => col.enableSorting !== false && props.enableSorting && toggleSort(col.id)}
+        onClick={() => col.enableSorting !== false && enableSorting() && toggleSort(col.id)}
       >
         {content}
-        {isSorted && (sortDir?.desc ? " ▼" : " ▲")}
+        {isSorted() && (sortDir()?.desc ? " ▼" : " ▲")}
       </Box>
     );
   };
@@ -312,8 +340,8 @@ export function TanStackTable<T>(props: Props<T>) {
     const expanded = isRowExpanded(row, index);
     if (!props.getRowCanExpand?.(row) || !expanded || !props.renderSubComponent) return null;
     return (
-      <tr key={`${rowKey(row, index)}-expanded`} className="paper-tanstack-expanded-row">
-        <td colSpan={colCount} style={{ padding: 0, borderTop: `1px solid ${palette.BORDER}`, borderBottom: `1px solid ${palette.BORDER}`, background: palette.BG }}>
+      <tr className="paper-tanstack-expanded-row">
+        <td colSpan={colCount} style={{ padding: 0, "border-top": `1px solid ${palette.BORDER}`, "border-bottom": `1px solid ${palette.BORDER}`, background: palette.BG }}>
           {props.renderSubComponent(row)}
         </td>
       </tr>
@@ -344,7 +372,7 @@ export function TanStackTable<T>(props: Props<T>) {
             return (
               <Box
                 component="td"
-                key={col.id}
+                
                 className={`paper-tanstack-cell ${alignClass(col)}`}
                 id={`paper-tanstack-cell-${String(col.id)}-${k}`}
                 style={cellStyle(col, width)}
@@ -379,10 +407,15 @@ export function TanStackTable<T>(props: Props<T>) {
     return items;
   });
 
+  const visibleItems = createMemo(() => {
+    const items = bodyItems();
+    return props.rowWindowSize != null ? items.slice(0, props.rowWindowSize) : items;
+  });
+
   const tableScroll = (
     <ScrollArea
       className="paper-tanstack-scroll"
-      style={{ flex: 1, minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column", backgroundColor: palette.SURFACE }}
+      style={{ flex: 1, "min-height": "0px", overflow: "auto", display: "flex", "flex-direction": "column", "background-color": palette.SURFACE }}
     >
       <Box
         component="table"
@@ -398,58 +431,57 @@ export function TanStackTable<T>(props: Props<T>) {
           </tr>
         </thead>
         <tbody>
-          {showLoading ? (
+          <Show
+            when={showLoading()}
+            fallback={
+              <Show
+                when={showEmpty()}
+                fallback={(
+                  <For each={visibleItems()}>{(item) => {
+                    if (item.kind === "group") {
+                      const expanded = isGroupExpanded(item.value);
+                      return (
+                        <>
+                          <tr
+                            data-testid={props.getGroupRowTestId?.(item.value)}
+                            onClick={() => toggleGroup(item.value)}
+                            style={{ cursor: "pointer" }}
+                            className="paper-tanstack-group-row"
+                          >
+                            <Box component="td" colSpan={colCount} style={{ padding: 0, border: "none" }}>
+                              {props.renderGroupHeader?.({
+                                value: item.value,
+                                rows: item.rows,
+                                isExpanded: () => expanded,
+                                toggle: () => toggleGroup(item.value),
+                              })}
+                            </Box>
+                          </tr>
+                        </>
+                      );
+                    }
+                    return <>{renderRow(item.row, item.index)}</>;
+                  }}</For>
+                )}
+              >
+                <tr>
+                  <td colSpan={colCount}>
+                    <div className="flex flex-col items-center justify-center py-3">
+                      {props.emptyIcon}
+                      <div className="text-xs c-dimmed">{emptyMessage()}</div>
+                      {props.emptyAction}
+                    </div>
+                  </td>
+                </tr>
+              </Show>
+            }
+          >
             <tr>
               <td colSpan={colCount}>
                 <InlineLoader data-testid="table-loading-state" size="sm" message={props.loadingMessage} />
               </td>
             </tr>
-          ) : showEmpty ? (
-            <tr>
-              <td colSpan={colCount}>
-                <div className="flex flex-col items-center justify-center py-3">
-                  {props.emptyIcon}
-                  {props.emptyMessage && <div className="text-xs c-dimmed">{props.emptyMessage}</div>}
-                  {props.emptyAction}
-                </div>
-              </td>
-            </tr>
-          ) : (
-            <For each={bodyItems()}>{(item) => {
-              if (item.kind === "group") {
-                const expanded = isGroupExpanded(item.value);
-                return (
-                  <>
-                    <tr
-                      key={`group-${groupKey(item.value)}`}
-                      data-testid={props.getGroupRowTestId?.(item.value)}
-                      onClick={() => toggleGroup(item.value)}
-                      style={{ cursor: "pointer" }}
-                      className="paper-tanstack-group-row"
-                    >
-                      <Box component="td" colSpan={colCount} style={{ padding: 0, border: "none" }}>
-                        {props.renderGroupHeader?.({
-                          value: item.value,
-                          rows: item.rows,
-                          isExpanded: () => expanded,
-                          toggle: () => toggleGroup(item.value),
-                        })}
-                      </Box>
-                    </tr>
-                    {expanded &&
-                      (() => {
-                        const out: JSX.Element[] = [];
-                        for (let i = 0; i < item.rows.length; i++) {
-                          out.push(<>{renderRow(item.rows[i], item.baseIndex + i)}</>);
-                        }
-                        return out;
-                      })()}
-                  </>
-                );
-              }
-              return <>{renderRow(item.row, item.index)}</>;
-            }}</For>
-          )}
+          </Show>
         </tbody>
       </Box>
     </ScrollArea>
@@ -459,13 +491,13 @@ export function TanStackTable<T>(props: Props<T>) {
 
   const containerStyle: CSSProperties = {
     display: "flex",
-    flexDirection: "column",
+    "flex-direction": "column",
     overflow: "hidden",
-    borderRadius: 8,
+    "border-radius": "8px",
     border: `1px solid ${palette.BORDER}`,
-    backgroundColor: palette.SURFACE,
-    maxHeight: props.fillContainer ? undefined : "65vh",
-    minHeight: props.fillContainer ? 0 : 200,
+    "background-color": palette.SURFACE,
+    "max-height": props.fillContainer ? undefined : "65vh",
+    "min-height": props.fillContainer ? 0 : "200px",
     flex: props.fillContainer ? 1 : undefined,
     height: props.fillContainer ? "100%" : undefined,
   };

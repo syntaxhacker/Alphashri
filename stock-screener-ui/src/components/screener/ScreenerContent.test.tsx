@@ -47,6 +47,7 @@ vi.mock("./ScreenerErrorPanel", () => ({
 }));
 
 vi.mock("../../state", () => ({
+  subscribe: vi.fn(() => vi.fn()),
   screenerOptions: [
     { id: "trending", label: "Trending" },
     { id: "buyer_interest", label: "Buyer Interest" },

@@ -120,7 +120,7 @@ export function AppLayout(props: AppLayoutProps) {
           }}
         >
           <SidebarHeader
-            rail={desktopCollapsed}
+            rail={desktopCollapsed()}
             surgeTotal={surgeTotal()}
             onToggleCollapse={toggleDesktop}
             onOpenNotifications={handleNotifOpen}

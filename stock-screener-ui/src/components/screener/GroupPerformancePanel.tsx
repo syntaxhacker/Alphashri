@@ -1,4 +1,4 @@
-import { Show, Switch, Match, createEffect, createMemo, createSignal, For, onCleanup } from "solid-js";
+import { Switch, Match, createEffect, createMemo, createSignal, For, onCleanup } from "solid-js";
 import { IconChevronLeft, IconChevronRight } from "./icons";
 import { ActionIcon, Box, Button, Paper, Select, Skeleton, Text, ToolbarRow } from "@/ui";
 import { cn } from "@/ui/cn";

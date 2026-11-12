@@ -1,9 +1,7 @@
-import { Text } from "@/ui";
+import { Text, Group, Stack } from "@/ui";
 import type { BotSummary } from "../../types/paperTrading";
 import { BOT_SELECTED_BG } from "../../config/colors";
 import * as palette from "@/ui/palette";
-import { Group, Stack } from "./primitives";
-
 interface BotCardStripProps {
   bots: BotSummary[];
   selectedBotId: string | null;

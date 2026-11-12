@@ -356,12 +356,13 @@ describe("FnoScreenerTab", () => {
 
     const clickPremiumHeader = () => fireEvent.click(screen.getByText(/PREMIUM/));
     clickPremiumHeader();
-    // First click sorts premium ascending → IRFC 91 CE (lowest premium, 3.9) first.
-    expect(firstSymbol()).toBe("IRFC");
+    // Premium is numeric, so the first click sorts biggest-first (TanStack's
+    // auto-sort contract) → LT (89) first, and IRFC (3.9) last.
+    expect(firstSymbol()).toBe("LT");
 
     clickPremiumHeader();
-    // Second click sorts premium descending → LT (highest premium, 89) first.
-    expect(firstSymbol()).toBe("LT");
+    // Second click flips to ascending → IRFC 91 CE (lowest premium, 3.9) first.
+    expect(firstSymbol()).toBe("IRFC");
   });
 
   it("shows one row per symbol by default, deduping contracts", async () => {

@@ -1,5 +1,5 @@
 import { createMemo } from "solid-js";
-import { Text, Chip } from "@/ui";
+import { Text, Chip, Box } from "@/ui";
 import type { TableColumnDef } from "../../paper-trading/TanStackTable";
 import { TanStackTable } from "../../paper-trading/TanStackTable";
 import { SideBadge, ExitReasonBadge } from "@/components/common";
@@ -8,8 +8,6 @@ import { TZ_IST } from "@/config/constants";
 import * as palette from "@/ui/palette";
 import { IconChevronRight, IconChevronDown } from "@/components/common/Icons";
 import type { ReplayTrade } from "./types";
-import { Box } from "../../paper-trading/primitives";
-
 export type RTrade = ReplayTrade;
 
 const fmtT = (ts: number) =>

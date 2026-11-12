@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { UIProvider } from "@/ui";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { DEFAULT_PATTERN_FILTERS } from "@/state/chartPatterns";
 import type { PatternDef, PatternFilters } from "@/types/chartPatterns";
 import { AppliedFilters, buildAppliedFilterChips } from "./AppliedFilters";
@@ -42,14 +41,12 @@ describe("AppliedFilters date chips", () => {
   });
 
   test("groups the date chips under one Dates label", () => {
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ from_date: "2026-06-01", to_date: "2026-09-30T14:30" })}
         patterns={PATTERNS}
         setFilter={vi.fn()}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     expect(screen.getByText("Dates")).toBeInTheDocument();
     expect(screen.getByText("formed ≥ 2026-06-01")).toBeInTheDocument();
     expect(screen.getByText("formed ≤ 2026-09-30 14:30")).toBeInTheDocument();
@@ -57,14 +54,12 @@ describe("AppliedFilters date chips", () => {
 
   test("removing a date chip resets it to null", () => {
     const setFilter = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ from_date: "2026-06-01", to_date: "2026-09-30T14:30" })}
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-from_date").querySelector(
         "[data-testid$='-remove']",

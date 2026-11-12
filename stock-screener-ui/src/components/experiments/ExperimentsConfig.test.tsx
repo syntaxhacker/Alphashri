@@ -66,9 +66,7 @@ function makeStrategies(): ExperimentStrategy[] {
 async function seedStrategies() {
   api.fetchStrategies.mockResolvedValue(makeStrategies());
   api.fetchSessions.mockResolvedValue([]);
-  await act(async () => {
-    await storeFetchStrategies();
-  });
+  await storeFetchStrategies();
 }
 
 // seedStrategies now pre-populates the or_minutes sweep for immediate Start;
@@ -140,18 +138,16 @@ describe("ExperimentsConfig", () => {
     await seedStrategies();
     setConfig({ symbols: ["RELIANCE"] });
     addSweepParam("sl_pct");
-    act(() => {
-      setSessionState({
-        status: "running",
-        current: 1,
-        total: 4,
-        best_pf: 1.2,
-        best_desc: "",
-        last_result: null,
-        strategy: "orb",
-        symbols: ["RELIANCE"],
-        tf: 5,
-      });
+    setSessionState({
+      status: "running",
+      current: 1,
+      total: 4,
+      best_pf: 1.2,
+      best_desc: "",
+      last_result: null,
+      strategy: "orb",
+      symbols: ["RELIANCE"],
+      tf: 5,
     });
     renderWithProviders(() => <ExperimentsConfig />);
     expect(screen.getByTestId("experiments-start-btn")).toBeDisabled();

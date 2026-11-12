@@ -3,7 +3,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { render, screen, fireEvent, cleanup, within } from "@solidjs/testing-library";
 import { renderHook } from "@solidjs/testing-library";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
 
 // --- Mock external modules ---
 const mockStateStore: any = {
@@ -97,7 +96,7 @@ vi.mock("../../state/paperTrading", () => ({
 }));
 
 vi.mock("../../state/holidays", () => ({
-  subscribeToHolidays: vi.fn(),
+  subscribeToHolidays: vi.fn(() => () => {}),
   isMarketClosedToday: vi.fn().mockReturnValue(false),
 }));
 

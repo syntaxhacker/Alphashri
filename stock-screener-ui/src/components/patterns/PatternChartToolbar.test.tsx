@@ -64,10 +64,9 @@ describe("PatternChartToolbar", () => {
         timeframe="1D"
         timeframes={TFS}
         onTimeframeChange={onTimeframeChange}
-      />,
-    );
+      />);
     const box = screen.getByTestId("patterns-fullscreen-timeframe");
-    const select = within(box).getByTestId("patterns-timeframe-select");
+    const select = within(box).getByRole("combobox");
     expect(select).toHaveValue("1D");
     fireEvent.change(select, { target: { value: "5m" } });
     expect(onTimeframeChange).toHaveBeenCalledTimes(1);
@@ -93,8 +92,7 @@ describe("PatternChartToolbar", () => {
         asOf="2026-09-26T10:00"
         fromDate="2026-09-01T09:15"
         onAsOfChange={onAsOfChange}
-      />,
-    );
+      />);
     const fromInput = screen.getByTestId("patterns-fullscreen-asof-from");
     expect(fromInput).not.toBeNull();
     fireEvent.input(fromInput as HTMLInputElement, { target: { value: "2026-09-26T09:15" } });
@@ -108,8 +106,7 @@ describe("PatternChartToolbar", () => {
         asOf="2026-09-26T10:00"
         fromDate="2026-09-01T09:15"
         onAsOfChange={onAsOfChange}
-      />,
-    );
+      />);
     const toInput = screen.getByTestId("patterns-fullscreen-asof-to");
     expect(toInput).not.toBeNull();
     fireEvent.input(toInput as HTMLInputElement, { target: { value: "2026-09-27T10:00" } });
@@ -122,8 +119,7 @@ describe("PatternChartToolbar", () => {
         title="RELIANCE"
         fromDate="2026-09-01T09:15"
         onAsOfChange={onAsOfChange}
-      />,
-    );
+      />);
     const fromInput = screen.getByTestId("patterns-fullscreen-asof-from");
     expect(fromInput).not.toBeNull();
     fireEvent.input(fromInput as HTMLInputElement, { target: { value: "" } });

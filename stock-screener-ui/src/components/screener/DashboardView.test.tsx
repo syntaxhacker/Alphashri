@@ -16,10 +16,54 @@ vi.mock("../../api/screenerDashboard", () => ({
 // at construction, so the whole @/ui module is stubbed with the repo's
 // pass-through twins (see src/patterns/solidUiMock.tsx). Everything else is
 // the real implementation.
-vi.mock("@/ui", async (importOriginal) => {
+vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/patterns/solidUiMock");
-  const actual = await importOriginal<typeof import("@/ui")>();
-  return mockSolidUi(actual);
+  const { For } = await import("solid-js");
+  // The repo's stubs are near-miss twins: they drop `data-testid` from
+  // SegmentedControl's root and Chip's onChange toggle. These match the real
+  // component contracts (role=group with data-testid; role=checkbox toggling).
+  const SegmentedControl = (props: any) => (
+    <div role="group" data-testid={props["data-testid"]} class={props.className} style={props.style} id={props.id}>
+      <For each={props.data ?? []}>
+        {(item: any) => (
+          <button
+            type="button"
+            aria-pressed={props.value === item.value}
+            data-value={item.value}
+            disabled={item.disabled}
+            onClick={() => {
+              if (!item.disabled) props.onChange?.(item.value);
+            }}
+          >
+            {item.label}
+          </button>
+        )}
+      </For>
+    </div>
+  );
+  const Chip = (props: any) => {
+    const checked = () => (props.checked !== undefined ? props.checked : props.defaultChecked ?? false);
+    return (
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={checked()}
+        disabled={props.disabled}
+        data-testid={props["data-testid"]}
+        className={props.className}
+        style={props.style}
+        id={props.id}
+        onClick={(e: any) => {
+          if (props.disabled) return;
+          props.onClick?.(e);
+          props.onChange?.(!checked());
+        }}
+      >
+        {props.children ?? props.label}
+      </button>
+    );
+  };
+  return mockSolidUi({ SegmentedControl, Chip });
 });
 
 import { DashboardView } from "./DashboardView";

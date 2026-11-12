@@ -220,9 +220,9 @@ describe("ExperimentsResultsTable", () => {
     expect(screen.getByTestId("experiments-run-row-2")).toBeInTheDocument();
 
     const combo = within(screen.getByTestId("experiments-symbol-filter")).getByRole("combobox");
-    await fireEvent.click(combo);
+    fireEvent.focus(combo);
     const option = await screen.findByRole("option", { name: "TCS" });
-    await fireEvent.click(option);
+    fireEvent.mouseDown(option);
 
     expect(screen.getByTestId("experiments-run-row-1")).toBeInTheDocument();
     expect(
@@ -239,9 +239,9 @@ describe("ExperimentsResultsTable", () => {
     ).toBeInTheDocument();
 
     const combo = within(screen.getByTestId("experiments-symbol-filter")).getByRole("combobox");
-    await fireEvent.click(combo);
+    fireEvent.focus(combo);
     const option = await screen.findByRole("option", { name: "TCS" });
-    await fireEvent.click(option);
+    fireEvent.mouseDown(option);
 
     expect(
       screen.getByTestId("experiments-symbol-row-1-TCS"),

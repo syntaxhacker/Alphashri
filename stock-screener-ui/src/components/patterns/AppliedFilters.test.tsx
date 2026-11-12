@@ -219,8 +219,7 @@ describe("AppliedFilters", () => {
         patterns={PATTERNS}
         setFilter={vi.fn()}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     expect(screen.getByText("Direction: Bullish")).toBeInTheDocument();
     expect(screen.getByText("Quality: Strong")).toBeInTheDocument();
     expect(screen.getByText("R:R: ≥ 2")).toBeInTheDocument();
@@ -233,8 +232,7 @@ describe("AppliedFilters", () => {
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     const chip = screen.getByTestId("patterns-applied-filter-direction:bullish");
     fireEvent.click(chip.querySelector("[data-testid$='-remove']") as Element);
     expect(setFilter).toHaveBeenCalledWith("direction", ["bearish"]);
@@ -247,8 +245,7 @@ describe("AppliedFilters", () => {
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     const chip = screen.getByTestId("patterns-applied-filter-quality:strong");
     fireEvent.click(chip.querySelector("[data-testid$='-remove']") as Element);
     expect(setFilter).toHaveBeenCalledWith("quality", null);
@@ -261,8 +258,7 @@ describe("AppliedFilters", () => {
         patterns={PATTERNS}
         setFilter={vi.fn()}
         resetFilters={resetFilters}
-      />,
-    );
+      />);
     fireEvent.click(screen.getByTestId("patterns-applied-clear-all"));
     expect(resetFilters).toHaveBeenCalledTimes(1);
   });
@@ -274,8 +270,7 @@ describe("AppliedFilters", () => {
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     expect(screen.getByText("Trendlines: Hidden")).toBeInTheDocument();
     const chip = screen.getByTestId("patterns-applied-filter-trendlines");
     fireEvent.click(chip.querySelector("[data-testid$='-remove']") as Element);
@@ -288,8 +283,7 @@ describe("AppliedFilters", () => {
         patterns={PATTERNS}
         setFilter={vi.fn()}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     expect(screen.getByText("Trendlines: TLS only")).toBeInTheDocument();
     cleanup();
     render(() =>       <AppliedFilters
@@ -297,8 +291,7 @@ describe("AppliedFilters", () => {
         patterns={PATTERNS}
         setFilter={vi.fn()}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     expect(screen.getByText("Trendlines: TLR only")).toBeInTheDocument();
   });
 
@@ -323,8 +316,7 @@ describe("AppliedFilters", () => {
         patterns={PATTERNS}
         setFilter={vi.fn()}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     for (const text of [
       "Family: Reversal",
       "Pattern: Double Bottom",
@@ -356,8 +348,7 @@ describe("AppliedFilters", () => {
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-family:reversal").querySelector(
         "[data-testid$='-remove']",
@@ -401,8 +392,7 @@ describe("AppliedFilters", () => {
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     fireEvent.click(
       screen.getByTestId(testId).querySelector("[data-testid$='-remove']") as Element,
     );
@@ -416,8 +406,7 @@ describe("AppliedFilters", () => {
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-sort:newest").querySelector(
         "[data-testid$='-remove']",
@@ -433,8 +422,7 @@ describe("AppliedFilters", () => {
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     expect(screen.getByText("Range: pos ≥ 80%")).toBeInTheDocument();
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-min_range_pos").querySelector(
@@ -451,8 +439,7 @@ describe("AppliedFilters", () => {
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     expect(screen.getByText("Score: ≥ 70")).toBeInTheDocument();
     expect(screen.getByText("Breakout: ≥ 60")).toBeInTheDocument();
     fireEvent.click(
@@ -476,8 +463,7 @@ describe("AppliedFilters", () => {
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     expect(screen.getByText("Sort: Near breakout")).toBeInTheDocument();
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-sort:range_pos").querySelector(
@@ -493,8 +479,7 @@ describe("AppliedFilters", () => {
         patterns={PATTERNS}
         setFilter={vi.fn()}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     const group = screen.getByTestId("patterns-applied-group-volume");
     expect(within(group).getByText("Volumes")).toBeInTheDocument();
     expect(within(group).getByText("rel vol ≥ 1.5")).toBeInTheDocument();
@@ -507,8 +492,7 @@ describe("AppliedFilters", () => {
         patterns={PATTERNS}
         setFilter={vi.fn()}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     expect(screen.queryByTestId("patterns-applied-filter-min_avg_volume_10d")).not.toBeInTheDocument();
     expect(screen.queryByTestId("patterns-applied-filters")).not.toBeInTheDocument();
   });
@@ -524,8 +508,7 @@ describe("AppliedFilters", () => {
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     fireEvent.click(
       screen.getByTestId(testId).querySelector("[data-testid$='-remove']") as Element,
     );

@@ -1,14 +1,11 @@
 import { createSignal, Show, For } from "solid-js";
-import { Select, Button, Checkbox, ScrollArea, Text, Badge, Divider } from "@/ui";
-import { Modal } from "../paper-trading/overlays";
+import { Select, Button, Checkbox, ScrollArea, Text, Badge, Divider, Modal, Stack, Group } from "@/ui";
 import { IconDatabase, IconPlus } from "@/components/common/Icons";
 import { fetchWithAuth } from "../../state/auth";
 import type { Stock } from "../../types";
 
 import { API_BASE } from "@/api/config";
 import * as palette from "@/ui/palette";
-import { Stack, Group } from "../paper-trading/primitives";
-
 const SCREENER_OPTIONS = [
   { value: "52w_high", label: "52W High" },
   { value: "near_52w_breakout", label: "Near 52W Breakout (Legacy)" },

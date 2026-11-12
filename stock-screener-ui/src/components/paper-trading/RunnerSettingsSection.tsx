@@ -1,7 +1,5 @@
-import { Text, NumberInput } from "@/ui";
+import { Text, NumberInput, Stack } from "@/ui";
 import type { StrategyConfig } from "../../types/paperTrading";
-import { Stack } from "./primitives";
-
 type ConfigValueHandler = (
   key: keyof StrategyConfig,
   value: number | string | boolean | undefined,
@@ -15,7 +13,7 @@ interface RunnerSettingsSectionProps {
 export function RunnerSettingsSection(props: RunnerSettingsSectionProps) {
   return (
     <Stack gap="xs" className="paper-settings-section" id="runner-section">
-      <Text fw={600} size="xs" tt="uppercase" c="dimmed" mb={1}>
+      <Text fw={600} size="xs" className="uppercase" c="dimmed" mb={1}>
         Runner Configuration
       </Text>
       <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">

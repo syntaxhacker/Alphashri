@@ -104,7 +104,7 @@ describe("UserButton", () => {
 
     await fireEvent.click(screen.getByTestId("user-menu-trigger"));
     const logoutBtn = await screen.findByText("Logout");
-    await expect(fireEvent.click(logoutBtn)).resolves.not.toThrow();
+    expect(() => fireEvent.click(logoutBtn)).not.toThrow();
     // Menu closes after item click
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });

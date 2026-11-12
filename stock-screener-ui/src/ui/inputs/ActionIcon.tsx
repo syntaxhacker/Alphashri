@@ -1,4 +1,4 @@
-import { splitProps } from "solid-js";
+import { Show, splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UIActionIconProps } from "../types";
 
@@ -84,7 +84,8 @@ export function ActionIcon(props: UIActionIconProps) {
   ]);
 
   const token = colorToken(known.color);
-  const disabledOrLoading = known.disabled || known.loading;
+  const disabledOrLoading = () => known.disabled || known.loading;
+  const ariaBusy = () => (known.loading ? true : undefined);
 
   return (
     <button
@@ -99,13 +100,14 @@ export function ActionIcon(props: UIActionIconProps) {
         known.className,
       )}
       style={{ ...sizeStyle(known.size), ...known.style }}
-      disabled={disabledOrLoading}
-      aria-busy={known.loading || undefined}
+      disabled={disabledOrLoading()}
+      aria-busy={ariaBusy()}
       onClick={(e) => known.onClick?.(e)}
       onMouseEnter={(e) => known.onMouseEnter?.(e)}
       onMouseLeave={(e) => known.onMouseLeave?.(e)}
+      {...(_rest as Record<string, unknown>)}
     >
-      {known.loading ? <Spinner /> : known.children}
+      <Show when={known.loading} fallback={known.children}><Spinner /></Show>
     </button>
   );
 }

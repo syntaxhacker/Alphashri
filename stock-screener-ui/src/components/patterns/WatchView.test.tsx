@@ -1,11 +1,14 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { act, render, screen, cleanup, waitFor, within, fireEvent } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { UIProvider } from "@/ui";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import type { WatchPayload, WatchRow, WatchSetup } from "@/types/chartPatterns";
 import { WatchView, WATCH_POLL_MS, WATCH_DEFAULT_WITHIN_PCT, WATCH_DEFAULT_MIN_REL_VOLUME, WATCH_SNAPSHOT_TICK_MS, WATCH_AUTO_REFRESH, WATCH_SLOW_HINT_MS, formatSnapshotAge, universeLabel } from "./WatchView";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 
 const mockFetchWatchSetups = vi.fn();
 const mockFetchWatch = vi.fn();
@@ -88,9 +91,6 @@ function makePayload(): WatchPayload {
   };
 }
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
 
 describe("WatchView", () => {
   beforeEach(() => {
@@ -110,8 +110,7 @@ describe("WatchView", () => {
   });
 
   test("loads setups and renders rows with state badges", async () => {
-    const user = userEvent.setup();
-    r(<WatchView universe="nifty500" timeframe="1D" minBaseDays={60} />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" minBaseDays={60} />);
 
     expect(screen.getByTestId("watch-loading")).toBeInTheDocument();
 
@@ -128,10 +127,10 @@ describe("WatchView", () => {
 
     // Defaults focus on actionable rows (within 5%, invalidated hidden):
     // clear them to see the full list.
-    fireEvent.change(within(screen.getByTestId("watch-within-pct")).getByRole("spinbutton"), {
+    fireEvent.input(within(screen.getByTestId("watch-within-pct")).getByRole("spinbutton"), {
       target: { value: "" },
     });
-    await user.click(screen.getByTestId("watch-hide-invalidated"));
+    fireEvent.click(screen.getByTestId("watch-hide-invalidated"));
 
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
     expect(screen.getByTestId("watch-row-TCS")).toBeInTheDocument();
@@ -149,7 +148,7 @@ describe("WatchView", () => {
 
   test("shows the vol-adj gate input default from the setup and a refresh button", async () => {
     expect(WATCH_DEFAULT_MIN_REL_VOLUME).toBe(0.7);
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.queryByTestId("watch-loading")).not.toBeInTheDocument());
 
     expect(screen.getByTestId("watch-relvol-input")).toBeInTheDocument();
@@ -162,14 +161,13 @@ describe("WatchView", () => {
   });
 
   test("changing the vol-adj gate refetches with minRelVolume", async () => {
-    const user = userEvent.setup();
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(mockFetchWatch).toHaveBeenCalledTimes(1));
     expect(mockFetchWatch).toHaveBeenLastCalledWith(
       expect.objectContaining({ minRelVolume: 0.7 }),
     );
 
-    fireEvent.change(within(screen.getByTestId("watch-relvol-input")).getByRole("spinbutton"), {
+    fireEvent.input(within(screen.getByTestId("watch-relvol-input")).getByRole("spinbutton"), {
       target: { value: "1.2" },
     });
     await waitFor(() =>
@@ -177,12 +175,10 @@ describe("WatchView", () => {
         expect.objectContaining({ minRelVolume: 1.2 }),
       ),
     );
-    expect(user).toBeDefined();
   });
 
   test("renders the Vol (adj) column with formatted values and — for null", async () => {
-    const user = userEvent.setup();
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
 
     expect(screen.getByText("Vol (adj)")).toBeInTheDocument();
@@ -190,35 +186,35 @@ describe("WatchView", () => {
     expect(screen.getByTestId("watch-vol-adj-TCS")).toHaveTextContent("1.42x");
 
     // Clear the default focus filters to reveal the invalidated INFY row (null vol_adj).
-    fireEvent.change(within(screen.getByTestId("watch-within-pct")).getByRole("spinbutton"), {
+    fireEvent.input(within(screen.getByTestId("watch-within-pct")).getByRole("spinbutton"), {
       target: { value: "" },
     });
-    await user.click(screen.getByTestId("watch-hide-invalidated"));
+    fireEvent.click(screen.getByTestId("watch-hide-invalidated"));
     await waitFor(() => expect(screen.getByTestId("watch-vol-adj-INFY")).toBeInTheDocument());
     expect(screen.getByTestId("watch-vol-adj-INFY")).toHaveTextContent("—");
   });
 
   test("Refresh button re-fetches the watch list", async () => {
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(mockFetchWatch).toHaveBeenCalledTimes(1));
 
-    await userEvent.click(screen.getByTestId("watch-refresh"));
+    fireEvent.click(screen.getByTestId("watch-refresh"));
     await waitFor(() => expect(mockFetchWatch).toHaveBeenCalledTimes(2));
   });
 
   test("row click calls onOpenSymbol with the symbol", async () => {
     const onOpenSymbol = vi.fn();
-    r(<WatchView universe="nifty500" timeframe="1D" onOpenSymbol={onOpenSymbol} />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" onOpenSymbol={onOpenSymbol} />);
     await waitFor(() => expect(screen.getByTestId("watch-row-TCS")).toBeInTheDocument());
 
-    await userEvent.click(screen.getByTestId("watch-row-TCS"));
+    fireEvent.click(screen.getByTestId("watch-row-TCS"));
     expect(onOpenSymbol).toHaveBeenCalledWith("TCS");
   });
 
   test("does not auto-poll the watch list (manual refresh only)", async () => {
     const setSpy = vi.spyOn(globalThis, "setInterval");
     try {
-      r(<WatchView universe="nifty500" timeframe="1D" />);
+      render(() => <WatchView universe="nifty500" timeframe="1D" />);
       await waitFor(() => expect(mockFetchWatch).toHaveBeenCalled());
 
       // Auto-refresh is disabled: the watch-list poll interval is not installed.
@@ -230,7 +226,7 @@ describe("WatchView", () => {
 
   test("shows the error state when the watch fetch fails", async () => {
     mockFetchWatch.mockRejectedValueOnce(new Error("watch exploded"));
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
 
     await waitFor(() => expect(screen.getByTestId("watch-error")).toBeInTheDocument());
     expect(screen.getByTestId("watch-error")).toHaveTextContent("watch exploded");
@@ -238,22 +234,21 @@ describe("WatchView", () => {
 
   test("shows the empty state when there are no candidates", async () => {
     mockFetchWatch.mockResolvedValueOnce({ ...makePayload(), items: [] });
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
 
     await waitFor(() => expect(screen.getByTestId("watch-empty")).toBeInTheDocument());
     expect(screen.getByTestId("watch-empty")).toHaveTextContent("nifty500");
   });
 
   test("default-sorts by % to trigger (most advanced first)", async () => {
-    const user = userEvent.setup();
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
 
     // Clear the default focus filters to see the full sorted list.
-    fireEvent.change(within(screen.getByTestId("watch-within-pct")).getByRole("spinbutton"), {
+    fireEvent.input(within(screen.getByTestId("watch-within-pct")).getByRole("spinbutton"), {
       target: { value: "" },
     });
-    await user.click(screen.getByTestId("watch-hide-invalidated"));
+    fireEvent.click(screen.getByTestId("watch-hide-invalidated"));
 
     await waitFor(() => expect(screen.getByTestId("watch-row-INFY")).toBeInTheDocument());
     const ids = Array.from(document.querySelectorAll('[data-testid^="watch-row-"]')).map(
@@ -264,10 +259,10 @@ describe("WatchView", () => {
   });
 
   test("symbol search filters the rows client-side", async () => {
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-TCS")).toBeInTheDocument());
 
-    fireEvent.change(screen.getByTestId("watch-search"), { target: { value: "rel" } });
+    fireEvent.input(screen.getByTestId("watch-search"), { target: { value: "rel" } });
 
     await waitFor(() => expect(screen.queryByTestId("watch-row-TCS")).not.toBeInTheDocument());
     expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument();
@@ -275,7 +270,7 @@ describe("WatchView", () => {
   });
 
   test("state filter narrows to a single state", async () => {
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-TCS")).toBeInTheDocument());
 
     fireEvent.change(within(screen.getByTestId("watch-state-filter")).getByRole("combobox"), {
@@ -288,18 +283,17 @@ describe("WatchView", () => {
   });
 
   test("within % of trigger filters by distance to the level", async () => {
-    const user = userEvent.setup();
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
 
     // Clear the default focus filters to see INFY first.
-    fireEvent.change(within(screen.getByTestId("watch-within-pct")).getByRole("spinbutton"), {
+    fireEvent.input(within(screen.getByTestId("watch-within-pct")).getByRole("spinbutton"), {
       target: { value: "" },
     });
-    await user.click(screen.getByTestId("watch-hide-invalidated"));
+    fireEvent.click(screen.getByTestId("watch-hide-invalidated"));
     await waitFor(() => expect(screen.getByTestId("watch-row-INFY")).toBeInTheDocument());
 
-    fireEvent.change(within(screen.getByTestId("watch-within-pct")).getByRole("spinbutton"), {
+    fireEvent.input(within(screen.getByTestId("watch-within-pct")).getByRole("spinbutton"), {
       target: { value: "2" },
     });
 
@@ -311,7 +305,7 @@ describe("WatchView", () => {
 
   test("defaults Within % of trigger to 5 so the table opens focused", async () => {
     expect(WATCH_DEFAULT_WITHIN_PCT).toBe(5);
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
 
     expect(
@@ -324,8 +318,7 @@ describe("WatchView", () => {
   });
 
   test("hide-invalidated is on by default and the toggle reveals those rows", async () => {
-    const user = userEvent.setup();
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
 
     const toggle = screen.getByTestId("watch-hide-invalidated");
@@ -333,14 +326,14 @@ describe("WatchView", () => {
     // INFY is both invalidated and outside the default within-% window.
     expect(screen.queryByTestId("watch-row-INFY")).not.toBeInTheDocument();
 
-    fireEvent.change(within(screen.getByTestId("watch-within-pct")).getByRole("spinbutton"), {
+    fireEvent.input(within(screen.getByTestId("watch-within-pct")).getByRole("spinbutton"), {
       target: { value: "" },
     });
-    await user.click(toggle);
+    fireEvent.click(toggle);
     expect(toggle).not.toBeChecked();
     await waitFor(() => expect(screen.getByTestId("watch-row-INFY")).toBeInTheDocument());
 
-    await user.click(toggle);
+    fireEvent.click(toggle);
     expect(toggle).toBeChecked();
     await waitFor(() => expect(screen.queryByTestId("watch-row-INFY")).not.toBeInTheDocument());
   });
@@ -352,7 +345,7 @@ describe("WatchView", () => {
         row.symbol === "TCS" ? { ...row, fresh: true } : row,
       ),
     });
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-TCS")).toBeInTheDocument());
 
     expect(screen.getByTestId("watch-fresh-TCS")).toHaveTextContent("fresh");
@@ -376,7 +369,7 @@ describe("WatchView", () => {
     const clearSpy = vi.spyOn(globalThis, "clearInterval").mockImplementation((() => undefined) as never);
 
     try {
-      r(<WatchView universe="nifty500" timeframe="1D" />);
+      render(() => <WatchView universe="nifty500" timeframe="1D" />);
       await waitFor(() => expect(mockFetchWatch).toHaveBeenCalledTimes(1));
       await waitFor(() => expect(mockFetchMarketStatus).toHaveBeenCalled());
       await waitFor(() =>
@@ -411,7 +404,7 @@ describe("WatchView", () => {
     const clearSpy = vi.spyOn(globalThis, "clearInterval").mockImplementation((() => undefined) as never);
 
     try {
-      r(<WatchView universe="nifty500" timeframe="1D" />);
+      render(() => <WatchView universe="nifty500" timeframe="1D" />);
       await waitFor(() => expect(mockFetchWatch).toHaveBeenCalledTimes(1));
       await waitFor(() =>
         expect(screen.getByTestId("watch-live-indicator")).toHaveTextContent("live"),
@@ -432,7 +425,7 @@ describe("WatchView", () => {
 
   test("falls back to the client clock when market-status fails", async () => {
     mockFetchMarketStatus.mockRejectedValueOnce(new Error("status exploded"));
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(mockFetchWatch).toHaveBeenCalledTimes(1));
     // No crash, badge still renders (open/closed per the local IST clock).
     expect(screen.getByTestId("watch-live-indicator")).toBeInTheDocument();
@@ -448,16 +441,12 @@ describe("WatchView", () => {
   test("non-streaming fallback never shows the slow computing hint", async () => {
     vi.useFakeTimers();
     try {
-      r(<WatchView universe="nifty500" timeframe="1D" />);
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(0);
-      });
+      render(() => <WatchView universe="nifty500" timeframe="1D" />);
+      await vi.advanceTimersByTimeAsync(0);
       expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument();
       // The stream errors in this file's mock, so `streaming` is false and the
       // hint must stay hidden even well past the empty-stream delay.
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(WATCH_SLOW_HINT_MS + 1000);
-      });
+      await vi.advanceTimersByTimeAsync(WATCH_SLOW_HINT_MS + 1000);
       expect(screen.queryByTestId("watch-loading-hint")).not.toBeInTheDocument();
       expect(screen.queryByTestId("watch-streaming")).not.toBeInTheDocument();
     } finally {
@@ -564,7 +553,7 @@ describe("WatchView near_52w", () => {
     mockFetchWatch.mockImplementation((query: { setup: string }) =>
       Promise.resolve(query.setup === "near_52w" ? near : makePayload()),
     );
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
 
     fireEvent.change(within(screen.getByTestId("watch-setup-select")).getByRole("combobox"), {
@@ -621,7 +610,7 @@ describe("WatchView near_52w", () => {
   });
 
   test("breakout columns are unchanged", async () => {
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
 
     for (const header of ["Trigger", "Rel vol", "Vol (adj)", "Base (d)", "Status"]) {
@@ -689,7 +678,7 @@ describe("WatchView last-touch badge", () => {
         badgeRow("PLAIN", { touched: false }),
       ]),
     );
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-PDSL")).toBeInTheDocument());
 
     const badge = screen.getByTestId("watch-last-touch-PDSL");
@@ -707,7 +696,7 @@ describe("WatchView last-touch badge", () => {
         badgeRow("PLAIN", { touched: false }),
       ]),
     );
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-TOUCHED")).toBeInTheDocument());
 
     expect(screen.getByTestId("watch-touched-TOUCHED")).toHaveTextContent("touched");
@@ -722,7 +711,7 @@ describe("WatchView last-touch badge", () => {
         badgeRow("PLAIN", { touched: false }),
       ]),
     );
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-PLAIN")).toBeInTheDocument());
 
     expect(screen.queryByTestId("watch-touched-PLAIN")).not.toBeInTheDocument();
@@ -773,7 +762,7 @@ describe("WatchView snapshot age", () => {
   test("renders the snapshot age next to the live indicator", async () => {
     expect(WATCH_AUTO_REFRESH).toBe(false);
     vi.setSystemTime(new Date("2026-09-30T15:32:00+05:30"));
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
 
     const age = screen.getByTestId("watch-snapshot-age");
@@ -785,7 +774,7 @@ describe("WatchView snapshot age", () => {
 
   test("omits the snapshot age when updated_at is missing", async () => {
     mockFetchWatch.mockResolvedValueOnce({ ...makePayload(), updated_at: null });
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
 
     expect(screen.queryByTestId("watch-snapshot-age")).not.toBeInTheDocument();
@@ -802,7 +791,7 @@ describe("WatchView snapshot age", () => {
         return (fns.length * 1000) as unknown as NodeJS.Timeout;
       }) as never);
     try {
-      r(<WatchView universe="nifty500" timeframe="1D" />);
+      render(() => <WatchView universe="nifty500" timeframe="1D" />);
       await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
       expect(mockFetchWatch).toHaveBeenCalledTimes(1);
 
@@ -834,7 +823,7 @@ describe("WatchView snapshot age", () => {
       reason: "holiday",
     });
     vi.setSystemTime(new Date("2026-09-30T15:32:00+05:30"));
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
 
     await waitFor(() =>
@@ -868,14 +857,14 @@ describe("WatchView copy CSV", () => {
   });
 
   test("Copy CSV copies the filtered rows and shows a confirmation", async () => {
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
 
     // Narrow to RELIANCE via search; TCS must be excluded from the copy.
-    fireEvent.change(screen.getByTestId("watch-search"), { target: { value: "rel" } });
+    fireEvent.input(screen.getByTestId("watch-search"), { target: { value: "rel" } });
     await waitFor(() => expect(screen.queryByTestId("watch-row-TCS")).not.toBeInTheDocument());
 
-    await userEvent.click(screen.getByTestId("watch-copy-csv"));
+    fireEvent.click(screen.getByTestId("watch-copy-csv"));
 
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
     const text = String(writeText.mock.calls[0][0]);
@@ -891,13 +880,13 @@ describe("WatchView copy CSV", () => {
   });
 
   test("Copy CSV includes the Vol (adj) column", async () => {
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
 
-    fireEvent.change(screen.getByTestId("watch-search"), { target: { value: "rel" } });
+    fireEvent.input(screen.getByTestId("watch-search"), { target: { value: "rel" } });
     await waitFor(() => expect(screen.queryByTestId("watch-row-TCS")).not.toBeInTheDocument());
 
-    await userEvent.click(screen.getByTestId("watch-copy-csv"));
+    fireEvent.click(screen.getByTestId("watch-copy-csv"));
 
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
     const text = String(writeText.mock.calls[0][0]);
@@ -907,10 +896,10 @@ describe("WatchView copy CSV", () => {
   });
 
   test("Copy symbols copies the visible symbols as a comma list", async () => {
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
 
-    await userEvent.click(screen.getByTestId("watch-copy-symbols"));
+    fireEvent.click(screen.getByTestId("watch-copy-symbols"));
 
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
     const text = String(writeText.mock.calls[0][0]);
@@ -923,10 +912,10 @@ describe("WatchView copy CSV", () => {
 
   test("shows an error when the copy fails", async () => {
     writeText.mockRejectedValueOnce(new Error("denied"));
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
 
-    await userEvent.click(screen.getByTestId("watch-copy-csv"));
+    fireEvent.click(screen.getByTestId("watch-copy-csv"));
 
     const toast = await screen.findByTestId("watch-copy-toast");
     expect(toast).toHaveTextContent("Copy failed");
@@ -988,8 +977,7 @@ describe("WatchView tags and Hide ETFs", () => {
         breakoutRow("PLAIN", { tags: [] }),
       ]),
     );
-    const user = userEvent.setup();
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
 
     // The non-ETF rows are visible under the default Hide ETFs toggle.
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
@@ -999,7 +987,7 @@ describe("WatchView tags and Hide ETFs", () => {
     expect(screen.queryByTestId("watch-tag-etf-PLAIN")).not.toBeInTheDocument();
 
     // Reveal the ETF-tagged rows to inspect their badges.
-    await user.click(screen.getByTestId("watch-hide-etfs"));
+    fireEvent.click(screen.getByTestId("watch-hide-etfs"));
     await waitFor(() => expect(screen.getByTestId("watch-row-ETFONE")).toBeInTheDocument());
 
     expect(screen.queryByTestId("watch-tag-fno-ETFONE")).not.toBeInTheDocument();
@@ -1015,8 +1003,7 @@ describe("WatchView tags and Hide ETFs", () => {
         breakoutRow("ETFONE", { tags: ["ETF"] }),
       ]),
     );
-    const user = userEvent.setup();
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
 
     await waitFor(() => expect(screen.getByTestId("watch-row-ALPHA")).toBeInTheDocument());
 
@@ -1025,12 +1012,12 @@ describe("WatchView tags and Hide ETFs", () => {
     expect(screen.queryByTestId("watch-row-ETFONE")).not.toBeInTheDocument();
     expect(screen.getByTestId("watch-count")).toHaveTextContent("1 / 2");
 
-    await user.click(toggle);
+    fireEvent.click(toggle);
     expect(toggle).not.toBeChecked();
     await waitFor(() => expect(screen.getByTestId("watch-row-ETFONE")).toBeInTheDocument());
     expect(screen.getByTestId("watch-count")).toHaveTextContent("2 / 2");
 
-    await user.click(toggle);
+    fireEvent.click(toggle);
     expect(toggle).toBeChecked();
     await waitFor(() => expect(screen.queryByTestId("watch-row-ETFONE")).not.toBeInTheDocument());
     expect(screen.getByTestId("watch-count")).toHaveTextContent("1 / 2");
@@ -1043,7 +1030,7 @@ describe("WatchView tags and Hide ETFs", () => {
         breakoutRow("ETFTWO", { tags: ["ETF"] }),
       ]),
     );
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
 
     await waitFor(() => expect(screen.getByTestId("watch-hide-etfs")).toBeChecked());
     await waitFor(() => expect(screen.getByTestId("watch-count")).toHaveTextContent("0 / 2"));
@@ -1117,7 +1104,7 @@ describe("WatchView near_52w trigger date", () => {
   });
 
   test("surfaces trigger_date next to the numeric 52W high value", async () => {
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
 
     fireEvent.change(within(screen.getByTestId("watch-setup-select")).getByRole("combobox"), {
@@ -1133,7 +1120,7 @@ describe("WatchView near_52w trigger date", () => {
   });
 
   test("renders nothing extra when trigger_date is null or missing", async () => {
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
 
     fireEvent.change(within(screen.getByTestId("watch-setup-select")).getByRole("combobox"), {

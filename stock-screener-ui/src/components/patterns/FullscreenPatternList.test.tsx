@@ -1,8 +1,12 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { UIProvider } from "@/ui";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import {
   FullscreenPatternList,
@@ -43,9 +47,6 @@ const OLD = makeHit({ id: 11, pattern_name: "Falling Wedge", end_date: "2026-08-
 const MID = makeHit({ id: 22, pattern_name: "Rising Wedge", end_date: "2026-09-01", bars_ago: 20, confidence: 60 });
 const NEW = makeHit({ id: 33, pattern_name: "Bull Flag", end_date: "2026-09-26", bars_ago: 2, confidence: 70 });
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
 
 describe("sortHitsNewest", () => {
   test("orders by end_date DESC", () => {
@@ -70,7 +71,7 @@ describe("FullscreenPatternList", () => {
   afterEach(() => cleanup());
 
   test("renders only the newest pattern", () => {
-    r(<FullscreenPatternList hits={[OLD, NEW, MID]} activeKey={null} onSelect={vi.fn()} />);
+    render(() => <FullscreenPatternList hits={[OLD, NEW, MID]} activeKey={null} onSelect={vi.fn()} />);
     expect(screen.getByTestId("patterns-fullscreen-list")).toBeInTheDocument();
     expect(screen.getByText("Patterns (1)")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent("Bull Flag");
@@ -78,7 +79,7 @@ describe("FullscreenPatternList", () => {
   });
 
   test("marks the active row selected", () => {
-    r(<FullscreenPatternList hits={[OLD, NEW, MID]} activeKey="33" onSelect={vi.fn()} />);
+    render(() => <FullscreenPatternList hits={[OLD, NEW, MID]} activeKey="33" onSelect={vi.fn()} />);
     expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveAttribute(
       "data-selected",
       "true",
@@ -87,14 +88,14 @@ describe("FullscreenPatternList", () => {
 
   test("clicking the row calls onSelect with the newest hit", () => {
     const onSelect = vi.fn();
-    r(<FullscreenPatternList hits={[OLD, NEW, MID]} activeKey="33" onSelect={onSelect} />);
+    render(() => <FullscreenPatternList hits={[OLD, NEW, MID]} activeKey="33" onSelect={onSelect} />);
     fireEvent.click(screen.getByTestId("patterns-fullscreen-list-item-0"));
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith(NEW);
   });
 
   test("shows each row's formation date, bars-ago, status and confidence", () => {
-    r(<FullscreenPatternList hits={[NEW]} activeKey={null} onSelect={vi.fn()} />);
+    render(() => <FullscreenPatternList hits={[NEW]} activeKey={null} onSelect={vi.fn()} />);
     const row = screen.getByTestId("patterns-fullscreen-list-item-0");
     expect(row).toHaveTextContent("2 bars ago");
     expect(row).toHaveTextContent("70%");
@@ -102,7 +103,7 @@ describe("FullscreenPatternList", () => {
   });
 
   test("empty state", () => {
-    r(<FullscreenPatternList hits={[]} activeKey={null} onSelect={vi.fn()} />);
+    render(() => <FullscreenPatternList hits={[]} activeKey={null} onSelect={vi.fn()} />);
     expect(screen.getByText("Patterns (0)")).toBeInTheDocument();
     expect(screen.getByText("No patterns detected")).toBeInTheDocument();
   });

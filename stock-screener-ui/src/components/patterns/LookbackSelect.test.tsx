@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen, fireEvent } from "@solidjs/testing-library";
+import { within, cleanup, render, screen, fireEvent } from "@solidjs/testing-library";
 import { LookbackSelect } from "./LookbackSelect";
 
 vi.mock("@/ui", async () => {
@@ -15,7 +15,7 @@ describe("LookbackSelect", () => {
 
   test("renders the options", () => {
     render(() => <LookbackSelect value={null} onChange={vi.fn()} />);
-    const select = screen.getByTestId("patterns-lookback-select");
+    const select = within(screen.getByTestId("patterns-lookback-select")).getByRole("combobox");
     expect(select).toBeInTheDocument();
     for (const name of ["Auto", "60", "120", "250", "500", "1000"]) {
       expect(screen.getByRole("option", { name })).toBeInTheDocument();
@@ -25,23 +25,23 @@ describe("LookbackSelect", () => {
   test("selecting 250 calls onChange(250)", async () => {
     const onChange = vi.fn();
     render(() => <LookbackSelect value={null} onChange={onChange} />);
-    fireEvent.change(screen.getByTestId("patterns-lookback-select"), { target: { value: "250" } });
+    fireEvent.change(within(screen.getByTestId("patterns-lookback-select")).getByRole("combobox"), { target: { value: "250" } });
     expect(onChange).toHaveBeenCalledWith(250);
   });
 
   test("selecting Auto calls onChange(null)", async () => {
     const onChange = vi.fn();
     render(() => <LookbackSelect value={250} onChange={onChange} />);
-    fireEvent.change(screen.getByTestId("patterns-lookback-select"), { target: { value: "auto" } });
+    fireEvent.change(within(screen.getByTestId("patterns-lookback-select")).getByRole("combobox"), { target: { value: "auto" } });
     expect(onChange).toHaveBeenCalledWith(null);
   });
 
   test("reflects the current value as the selected option", () => {
     render(() => <LookbackSelect value={null} onChange={vi.fn()} />);
-    expect(screen.getByTestId("patterns-lookback-select")).toHaveValue("auto");
+    expect(within(screen.getByTestId("patterns-lookback-select")).getByRole("combobox")).toHaveValue("auto");
     cleanup();
     render(() => <LookbackSelect value={250} onChange={vi.fn()} />);
-    expect(screen.getByTestId("patterns-lookback-select")).toHaveValue("250");
+    expect(within(screen.getByTestId("patterns-lookback-select")).getByRole("combobox")).toHaveValue("250");
   });
 
   test.each([
@@ -52,7 +52,7 @@ describe("LookbackSelect", () => {
   ])("selecting %s calls onChange(%i)", async (option, expected) => {
     const onChange = vi.fn();
     render(() => <LookbackSelect value={null} onChange={onChange} />);
-    fireEvent.change(screen.getByTestId("patterns-lookback-select"), { target: { value: option } });
+    fireEvent.change(within(screen.getByTestId("patterns-lookback-select")).getByRole("combobox"), { target: { value: option } });
     expect(onChange).toHaveBeenCalledWith(expected);
   });
 });

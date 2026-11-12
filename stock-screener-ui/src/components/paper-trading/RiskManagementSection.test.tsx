@@ -83,8 +83,7 @@ function testInputChange(
 ) {
   test(description, async () => {
     const onChange = vi.fn();
-    render(
-      <TestWrapper>
+    render(() => <TestWrapper>
         <RiskManagementSection config={mockConfig} onChange={onChange} />
       </TestWrapper>,
     );
@@ -97,8 +96,7 @@ function testInputChange(
 describe("RiskManagementSection", () => {
   describe("renders all inputs", () => {
     it("renders the root Stack with correct className and id", () => {
-      const { container } = render(
-        <TestWrapper>
+      const { container } = render(() => <TestWrapper>
           <RiskManagementSection config={mockConfig} onChange={vi.fn()} />
         </TestWrapper>,
       );
@@ -108,8 +106,7 @@ describe("RiskManagementSection", () => {
     });
 
     it("renders header text with correct styling", () => {
-      render(
-        <TestWrapper>
+      render(() => <TestWrapper>
           <RiskManagementSection config={mockConfig} onChange={vi.fn()} />
         </TestWrapper>,
       );
@@ -120,8 +117,7 @@ describe("RiskManagementSection", () => {
     });
 
     it("renders all 5 NumberInputs with correct labels, descriptions, values, and testids", () => {
-      render(
-        <TestWrapper>
+      render(() => <TestWrapper>
           <RiskManagementSection config={mockConfig} onChange={vi.fn()} />
         </TestWrapper>,
       );
@@ -153,8 +149,7 @@ describe("RiskManagementSection", () => {
     });
 
     it("renders the 2 trade value NumberInputs with correct labels, descriptions, values, and testids", () => {
-      render(
-        <TestWrapper>
+      render(() => <TestWrapper>
           <RiskManagementSection config={mockConfig} onChange={vi.fn()} />
         </TestWrapper>,
       );
@@ -229,8 +224,7 @@ describe("RiskManagementSection", () => {
 
   describe("percentage conversion edge cases", () => {
     it("displays 10% as '10' for Capital/Trade %", () => {
-      render(
-        <TestWrapper>
+      render(() => <TestWrapper>
           <RiskManagementSection config={mockConfig} onChange={vi.fn()} />
         </TestWrapper>,
       );
@@ -239,8 +233,7 @@ describe("RiskManagementSection", () => {
     });
 
     it("displays 2% as '2' for Daily Loss %", () => {
-      render(
-        <TestWrapper>
+      render(() => <TestWrapper>
           <RiskManagementSection config={mockConfig} onChange={vi.fn()} />
         </TestWrapper>,
       );
@@ -254,8 +247,7 @@ describe("RiskManagementSection", () => {
         risk_per_trade_pct: 0.005,
       };
 
-      render(
-        <TestWrapper>
+      render(() => <TestWrapper>
           <RiskManagementSection config={configWithHalfPercent} onChange={vi.fn()} />
         </TestWrapper>,
       );
@@ -288,8 +280,7 @@ describe("RiskManagementSection", () => {
         max_trade_value: 0,
       };
 
-      render(
-        <TestWrapper>
+      render(() => <TestWrapper>
           <RiskManagementSection config={configWithZeros} onChange={vi.fn()} />
         </TestWrapper>,
       );
@@ -305,13 +296,12 @@ describe("RiskManagementSection", () => {
 
     it("handles entering zero in percentage inputs", async () => {
       const onChange = vi.fn();
-      render(
-        <TestWrapper>
+      render(() => <TestWrapper>
           <RiskManagementSection config={mockConfig} onChange={onChange} />
         </TestWrapper>,
       );
 
-      await fireEvent.input(within(screen.getByTestId("config-capital-per-trade")).getByRole("spinbutton")); await fireEvent.input(within(screen.getByTestId("config-capital-per-trade")).getByRole("spinbutton"), "0");
+      await fireEvent.input(within(screen.getByTestId("config-capital-per-trade")).getByRole("spinbutton")); await fireEvent.input(within(screen.getByTestId("config-capital-per-trade")).getByRole("spinbutton"), { target: { value: "0" } });
 
       expect(onChange).toHaveBeenCalledWith("max_capital_per_trade_pct", 0);
     });
@@ -319,8 +309,7 @@ describe("RiskManagementSection", () => {
 
   describe("component structure", () => {
     it("has correct Grid structure with two rows for risk parameters", () => {
-      render(
-        <TestWrapper>
+      render(() => <TestWrapper>
           <RiskManagementSection config={mockConfig} onChange={vi.fn()} />
         </TestWrapper>,
       );
@@ -333,8 +322,7 @@ describe("RiskManagementSection", () => {
     });
 
     it("root Stack has correct id 'risk-section'", () => {
-      const { container } = render(
-        <TestWrapper>
+      const { container } = render(() => <TestWrapper>
           <RiskManagementSection config={mockConfig} onChange={vi.fn()} />
         </TestWrapper>,
       );
@@ -344,8 +332,7 @@ describe("RiskManagementSection", () => {
     });
 
     it("header has correct styling (fw=600, size=xs, tt=uppercase)", () => {
-      render(
-        <TestWrapper>
+      render(() => <TestWrapper>
           <RiskManagementSection config={mockConfig} onChange={vi.fn()} />
         </TestWrapper>,
       );

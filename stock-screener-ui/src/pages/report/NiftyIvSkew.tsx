@@ -1,8 +1,8 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
-import { memo, useMemo } from "react";
+import { createMemo, For, Show } from "solid-js";
 import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
-import { CompactPanel, CompactStat } from "@/components/common/compact";
+import { LocalCompactPanel, LocalCompactStat } from "./reportBits";
 import { MiniLineChart } from "@/components/common/charts/MiniLineChart";
 import type {
   MiniMarker,
@@ -289,124 +289,119 @@ interface NiftyIvSkewProps {
   spot?: number | null;
 }
 
-function NiftyIvSkewInner({ strikes, spot = null }: NiftyIvSkewProps) {
-  const rows = useMemo(() => (Array.isArray(strikes) ? strikes : []), [strikes]);
-  const points = useMemo(
-    () => buildIvSkewPoints(rows, spot),
-    [rows, spot],
-  );
-  const stats = useMemo(
-    () => ivSkewStats(points, rows, spot),
-    [points, rows, spot],
-  );
-  const chart = useMemo(() => buildIvSkewChart(points, stats), [points, stats]);
-  const read = ivSkewRead(stats);
-  const band = chart.band;
-  const coverage = [
-    band.length > 0
-      ? `Band ${formatNumberIN(band[0].strike)}–${formatNumberIN(band[band.length - 1].strike)}`
-      : null,
-    `${band.length} OTM strikes`,
-    chart.clipped > 0 ? `${chart.clipped} legs >${IV_MAX_PCT}% clipped` : null,
-    "gaps = unquoted greeks",
-  ]
-    .filter(Boolean)
-    .join(" · ");
+export function NiftyIvSkew(props: NiftyIvSkewProps) {
+  const strikes = () => props.strikes;
+  const spot = () => props.spot ?? null;
+  const rows = createMemo(() => (Array.isArray(strikes()) ? strikes()! : []));
+  const points = createMemo(() => buildIvSkewPoints(rows(), spot()));
+  const stats = createMemo(() => ivSkewStats(points(), rows(), spot()));
+  const chart = createMemo(() => buildIvSkewChart(points(), stats()));
+  const read = () => ivSkewRead(stats());
+  const band = () => chart().band;
+  const coverage = () =>
+    [
+      band().length > 0
+        ? `Band ${formatNumberIN(band()[0].strike)}–${formatNumberIN(band()[band().length - 1].strike)}`
+        : null,
+      `${band().length} OTM strikes`,
+      chart().clipped > 0 ? `${chart().clipped} legs >${IV_MAX_PCT}% clipped` : null,
+      "gaps = unquoted greeks",
+    ]
+      .filter(Boolean)
+      .join(" · ");
 
   return (
-    <CompactPanel
+    <LocalCompactPanel
       title="IV skew (price × σ)"
       testId="nifty-iv-skew-panel"
       style={{
-        backgroundColor: palette.TERM_BG,
-        border: `1px solid ${palette.TERM_BORDER}`,
-        borderColor: palette.TERM_BORDER,
-        borderRadius: 8,
+        "background-color": palette.TERM_BG,
+        "border": `1px solid ${palette.TERM_BORDER}`,
+        "border-color": palette.TERM_BORDER,
+        "border-radius": "8px",
       }}
     >
-      <Box className="flex flex-col gap-[4px] w-full min-w-0">
-        <Box
-          className="grid grid-cols-[repeat(4,minmax(0,1fr))] gap-[4px] w-full min-w-0"
+      <div class="flex flex-col gap-[4px] w-full min-w-0">
+        <div
+          class="grid grid-cols-[repeat(4,minmax(0,1fr))] gap-[4px] w-full min-w-0"
         >
-          <CompactStat
-            data-testid="nifty-iv-skew-atm"
+          <LocalCompactStat
+            testId="nifty-iv-skew-atm"
             label="ATM IV"
-            valueSize="md"
-            value={formatIv(stats.atmIv)}
-            hint={`CE ${formatIv(stats.atmCe)} · PE ${formatIv(stats.atmPe)}`}
+            value={formatIv(stats().atmIv)}
+            hint={`CE ${formatIv(stats().atmCe)} · PE ${formatIv(stats().atmPe)}`}
           />
-          <CompactStat
-            data-testid="nifty-iv-skew-rr"
+          <LocalCompactStat
+            testId="nifty-iv-skew-rr"
             label="25Δ RR"
-            valueSize="md"
-            value={formatVolPts(stats.rr25)}
-            tone={ivSkewTone(stats.rr25)}
+            value={formatVolPts(stats().rr25)}
+            tone={ivSkewTone(stats().rr25) ?? undefined}
             hint="put − call"
           />
-          <CompactStat
-            data-testid="nifty-iv-skew-put"
+          <LocalCompactStat
+            testId="nifty-iv-skew-put"
             label="25Δ put IV"
-            valueSize="md"
-            value={formatIv(stats.put25)}
+            value={formatIv(stats().put25)}
             tone={palette.TERM_PE}
             hint="downside"
           />
-          <CompactStat
-            data-testid="nifty-iv-skew-call"
+          <LocalCompactStat
+            testId="nifty-iv-skew-call"
             label="25Δ call IV"
-            valueSize="md"
-            value={formatIv(stats.call25)}
+            value={formatIv(stats().call25)}
             tone={palette.TERM_CE}
             hint="upside"
           />
-        </Box>
+        </div>
 
         {/* Legend + the takeaway sentence. Colour stays tied to the leg (CE
             blue / PE orange / ATM gold), never to direction. */}
-        <Box className="flex items-center gap-[8px] flex-wrap min-w-0">
-          {[
+        <div class="flex items-center gap-[8px] flex-wrap min-w-0">
+          <For each={[
             { label: "CALL IV", color: palette.TERM_CE },
             { label: "PUT IV", color: palette.TERM_PE },
             { label: "ATM", color: palette.TERM_FLIP },
-          ].map((k) => (
-            <Box key={k.label} className="flex items-center gap-[4px]">
-              <Box
-                aria-hidden
-                className="w-[6px] h-[6px] rounded-full shrink-0"
-                style={{ backgroundColor: k.color }}
-              />
-              <Text size="xs" span c="dimmed">
-                {k.label}
-              </Text>
-            </Box>
-          ))}
-          {read && (
+          ]}>
+            {(k) => (
+              <div class="flex items-center gap-[4px]">
+                <div
+                  aria-hidden
+                  class="w-[6px] h-[6px] rounded-full shrink-0"
+                  style={{ "background-color": k.color }}
+                />
+                <Text size="xs" span c="dimmed">
+                  {k.label}
+                </Text>
+              </div>
+            )}
+          </For>
+          <Show when={read()}>
             <Text
               data-testid="nifty-iv-skew-read"
               size="xs"
               span
-              title={read}
+              title={read()!}
               className="min-w-0 flex-1 overflow-hidden truncate whitespace-nowrap"
               style={{ color: palette.TEXT_MUTED }}
             >
-              {read}
+              {read()}
             </Text>
-          )}
-        </Box>
+          </Show>
+        </div>
 
-        <Box className="w-full min-w-0">
+        <div class="w-full min-w-0">
           <MiniLineChart
-            series={chart.series}
-            labels={chart.labels}
-            markers={chart.markers}
+            series={chart().series}
+            labels={chart().labels}
+            markers={chart().markers}
             height={120}
             formatValue={formatIv}
             testId="nifty-iv-skew-chart"
             emptyMessage="No IV in this expiry"
           />
-        </Box>
+        </div>
 
-        {band.length > 0 && (
+        <Show when={band().length > 0}>
           <Text
             data-testid="nifty-iv-skew-coverage"
             size="xs"
@@ -415,14 +410,10 @@ function NiftyIvSkewInner({ strikes, spot = null }: NiftyIvSkewProps) {
             title="x: strike · y: implied volatility %. Calls are plotted at/above ATM and puts at/below it, so the curve is the out-of-the-money smile. The line breaks where Upstox did not quote greeks for a leg; those strikes are missing data, not zero vol. Legs above the sanity cut are clipped and counted."
             className="whitespace-nowrap overflow-hidden truncate"
           >
-            {coverage}
+            {coverage()}
           </Text>
-        )}
-      </Box>
-    </CompactPanel>
+        </Show>
+      </div>
+    </LocalCompactPanel>
   );
 }
-
-/** Memoised leaf panel — `strikes` keeps identity between unrelated renders. */
-export const NiftyIvSkew = memo(NiftyIvSkewInner);
-NiftyIvSkew.displayName = "NiftyIvSkew";

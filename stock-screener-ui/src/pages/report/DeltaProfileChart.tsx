@@ -236,8 +236,8 @@ export function DeltaProfileChart(props: DeltaProfileChartProps) {
             <line
               x1={PAD_X}
               x2={W - PAD_X}
-              y1={zeroY}
-              y2={zeroY}
+              y1={metrics().zeroY}
+              y2={metrics().zeroY}
               stroke={palette.TEXT_MUTED}
               stroke-dasharray="3 3"
               stroke-width={1}

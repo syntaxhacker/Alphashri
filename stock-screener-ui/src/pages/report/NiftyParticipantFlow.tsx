@@ -1,8 +1,7 @@
-import { memo, useMemo } from "react";
-import { Box, Text } from "@/ui";
+import { createMemo, For, Show } from "solid-js";
+import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
-import { CompactPanel, CompactStat } from "@/components/common/compact";
-import { EmptyState } from "@/components/common/states";
+import { LocalCompactPanel, LocalCompactStat, LocalEmptyState } from "./reportBits";
 import {
   buildParticipantFlow,
   type ParticipantFlowBucket,
@@ -55,21 +54,16 @@ export function legShares(
   };
 }
 
-function LegBar({
-  leg,
-  writers,
-  buyers,
-  cover,
-}: {
+function LegBar(props: {
   leg: "ce" | "pe";
   writers: number;
   buyers: number;
   cover: number;
 }) {
-  const shares = legShares(writers, buyers, cover);
-  const empty = shares.writers + shares.buyers + shares.cover <= 0;
+  const shares = () => legShares(props.writers, props.buyers, props.cover);
+  const empty = () => shares().writers + shares().buyers + shares().cover <= 0;
   return (
-    <Box className="flex items-center gap-[8px] min-w-0">
+    <div className="flex items-center gap-[8px] min-w-0">
       <Text
         size="xs"
         span
@@ -77,131 +71,128 @@ function LegBar({
         c="dimmed"
         style={{ width: 22, flexShrink: 0, fontSize: 10 }}
       >
-        {leg.toUpperCase()}
+        {props.leg.toUpperCase()}
       </Text>
-      <Box
-        data-testid={`nifty-participant-flow-bar-${leg}`}
-        title={`${leg.toUpperCase()} writers ${formatFlowRupees(writers)} · buyers ${formatFlowRupees(buyers)} · cover ${formatFlowRupees(cover)}`}
+      <div
+        data-testid={`nifty-participant-flow-bar-${props.leg}`}
+        title={`${props.leg.toUpperCase()} writers ${formatFlowRupees(props.writers)} · buyers ${formatFlowRupees(props.buyers)} · cover ${formatFlowRupees(props.cover)}`}
         className="flex-1 min-w-0 h-[10px] rounded-[8px] overflow-hidden flex items-stretch"
         style={{ backgroundColor: "rgba(139, 148, 158, 0.15)" }}
       >
-        {!empty && shares.writers > 0 ? (
+        <Show when={!empty() && shares().writers > 0}>
           <span
-            data-testid={`nifty-participant-flow-${leg}-writers`}
-            data-pct={Math.round(shares.writers)}
-            className="block"
-            style={{ width: `${shares.writers}%`, backgroundColor: palette.NEGATIVE }}
+            data-testid={`nifty-participant-flow-${props.leg}-writers`}
+            data-pct={Math.round(shares().writers)}
+            class="block"
+            style={{ "width": `${shares().writers}%`, "background-color": palette.NEGATIVE }}
           />
-        ) : null}
-        {!empty && shares.buyers > 0 ? (
+        </Show>
+        <Show when={!empty() && shares().buyers > 0}>
           <span
-            data-testid={`nifty-participant-flow-${leg}-buyers`}
-            data-pct={Math.round(shares.buyers)}
-            className="block"
-            style={{ width: `${shares.buyers}%`, backgroundColor: palette.POSITIVE }}
+            data-testid={`nifty-participant-flow-${props.leg}-buyers`}
+            data-pct={Math.round(shares().buyers)}
+            class="block"
+            style={{ "width": `${shares().buyers}%`, "background-color": palette.POSITIVE }}
           />
-        ) : null}
-        {!empty && shares.cover > 0 ? (
+        </Show>
+        <Show when={!empty() && shares().cover > 0}>
           <span
-            data-testid={`nifty-participant-flow-${leg}-cover`}
-            data-pct={Math.round(shares.cover)}
-            className="block"
-            style={{ width: `${shares.cover}%`, backgroundColor: palette.TERM_GAMMA }}
+            data-testid={`nifty-participant-flow-${props.leg}-cover`}
+            data-pct={Math.round(shares().cover)}
+            class="block"
+            style={{ "width": `${shares().cover}%`, "background-color": palette.TERM_GAMMA }}
           />
-        ) : null}
-      </Box>
-    </Box>
+        </Show>
+      </div>
+    </div>
   );
 }
 
-function NiftyParticipantFlowInner({ rows, bucketMin = 30 }: NiftyParticipantFlowProps) {
-  const buckets: ParticipantFlowBucket[] = useMemo(
-    () => buildParticipantFlow(rows, { bucketMin }),
-    [rows, bucketMin],
+export function NiftyParticipantFlow(props: NiftyParticipantFlowProps) {
+  const bucketMin = () => props.bucketMin ?? 30;
+  const buckets = createMemo(() =>
+    buildParticipantFlow(props.rows, { bucketMin: bucketMin() }),
   );
 
-  const totals = useMemo(() => {
+  const totals = createMemo(() => {
     let writers = 0;
     let buyers = 0;
     let net = 0;
-    for (const b of buckets) {
+    for (const b of buckets()) {
       writers += b.ceWriters + b.peWriters;
       buyers += b.ceBuyers + b.ceCover + b.peBuyers + b.peCover;
       net += b.net;
     }
     return { writers, buyers, net };
-  }, [buckets]);
+  });
 
-  if (buckets.length === 0) {
-    return (
-      <CompactPanel title="Participant flow" testId="nifty-participant-flow">
-        <EmptyState
-          data-testid="nifty-participant-flow-empty"
-          title="No tape yet"
-          description="Participant flow builds once the option tape records."
-        />
-      </CompactPanel>
-    );
-  }
+  const emptyView = () => (
+    <LocalCompactPanel title="Participant flow" testId="nifty-participant-flow">
+      <LocalEmptyState
+        testId="nifty-participant-flow-empty"
+        title="No tape yet"
+        description="Participant flow builds once the option tape records."
+      />
+    </LocalCompactPanel>
+  );
 
-  return (
-    <CompactPanel title="Participant flow — writers vs buyers" testId="nifty-participant-flow">
-      <Box className="flex flex-col gap-[8px] min-w-0">
-        <Box
+  const bodyView = () => (
+    <LocalCompactPanel title="Participant flow — writers vs buyers" testId="nifty-participant-flow">
+      <div className="flex flex-col gap-[8px] min-w-0">
+        <div
           className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-[4px] w-full min-w-0"
         >
-          <CompactStat
-            data-testid="nifty-participant-flow-total-buyers"
-            dense
+          <LocalCompactStat
+            testId="nifty-participant-flow-total-buyers"
             label="Buyers + cover"
-            value={formatFlowRupees(totals.buyers)}
+            value={formatFlowRupees(totals().buyers)}
             tone={palette.POSITIVE}
           />
-          <CompactStat
-            data-testid="nifty-participant-flow-total-writers"
-            dense
+          <LocalCompactStat
+            testId="nifty-participant-flow-total-writers"
             label="Writers"
-            value={formatFlowRupees(totals.writers)}
+            value={formatFlowRupees(totals().writers)}
             tone={palette.NEGATIVE}
           />
-          <CompactStat
-            data-testid="nifty-participant-flow-total-net"
-            dense
+          <LocalCompactStat
+            testId="nifty-participant-flow-total-net"
             label="Net imbalance"
-            value={formatFlowRupees(totals.net)}
-            tone={flowTone(totals.net)}
+            value={formatFlowRupees(totals().net)}
+            tone={flowTone(totals().net)}
           />
-        </Box>
-        <Box
+        </div>
+        <div
           data-testid="nifty-participant-flow-legend"
           className="flex items-center gap-[10px] flex-wrap min-w-0"
         >
-          {[
+          <For each={[
             { name: "Writers", color: palette.NEGATIVE },
             { name: "Buyers", color: palette.POSITIVE },
             { name: "Cover", color: palette.TERM_GAMMA },
-          ].map((e) => (
-            <Box key={e.name} className="inline-flex items-center gap-[4px]">
+          ]}>
+            {(e) => (
+            <div class="inline-flex items-center gap-[4px]">
               <span
                 component="span"
                 aria-hidden
-                className="block w-[8px] h-[8px] rounded-[8px]"
+                class="block w-[8px] h-[8px] rounded-[8px]"
                 style={{ backgroundColor: e.color }}
               />
               <Text size="xs" span c="dimmed">
                 {e.name}
               </Text>
-            </Box>
-          ))}
-        </Box>
-        <Box className="flex flex-col gap-[6px] min-w-0">
-          {buckets.map((b) => (
-            <Box
-              key={b.label}
+            </div>
+            )}
+          </For>
+        </div>
+        <div className="flex flex-col gap-[6px] min-w-0">
+          <For each={buckets()}>
+            {(b) => (
+            <div
               data-testid="nifty-participant-flow-row"
-              className="flex flex-col gap-[2px] min-w-0"
+              class="flex flex-col gap-[2px] min-w-0"
             >
-              <Box className="flex items-baseline gap-[8px] min-w-0">
+              <div className="flex items-baseline gap-[8px] min-w-0">
                 <Text size="xs" span fw={700} style={{ fontVariantNumeric: "tabular-nums" }}>
                   {b.label}
                 </Text>
@@ -214,7 +205,7 @@ function NiftyParticipantFlowInner({ rows, bucketMin = 30 }: NiftyParticipantFlo
                 >
                   {formatFlowRupees(b.net)}
                 </Text>
-              </Box>
+              </div>
               <LegBar
                 leg="ce"
                 writers={b.ceWriters}
@@ -227,13 +218,17 @@ function NiftyParticipantFlowInner({ rows, bucketMin = 30 }: NiftyParticipantFlo
                 buyers={b.peBuyers}
                 cover={b.peCover}
               />
-            </Box>
-          ))}
-        </Box>
-      </Box>
-    </CompactPanel>
+            </div>
+            )}
+          </For>
+        </div>
+      </div>
+    </LocalCompactPanel>
+  );
+
+  return (
+    <Show when={buckets().length > 0} fallback={emptyView()}>
+      {bodyView()}
+    </Show>
   );
 }
-
-export const NiftyParticipantFlow = memo(NiftyParticipantFlowInner);
-NiftyParticipantFlow.displayName = "NiftyParticipantFlow";

@@ -1,4 +1,4 @@
-import {  } from "solid-js";
+import { For, Show, splitProps } from "solid-js";
 import {
   Box,
   Checkbox,
@@ -37,7 +37,7 @@ export interface MarketFilterRailProps {
 const toNum = (v: number | string): number | null =>
   typeof v === "number" && Number.isFinite(v) ? v : null;
 
-function SectionTitle({ children }: { children: string }) {
+function SectionTitle(props: { children?: string }) {
   return (
     <Text
       size="xs"
@@ -45,27 +45,22 @@ function SectionTitle({ children }: { children: string }) {
       c="dimmed"
       className="text-[10px] uppercase tracking-[0.5px]"
     >
-      {children}
+      {props.children}
     </Text>
   );
 }
 
-export function MarketFilterRail({
-  filters,
-  onChange,
-  sectors,
-  tierCounts,
-  onCollapse,
-  collapseLabel = "Collapse filters",
-}: MarketFilterRailProps) {
+export function MarketFilterRail(props: MarketFilterRailProps) {
+  const filters = () => props.filters;
+  const tierCounts = () => props.tierCounts;
+  const collapseLabel = () => props.collapseLabel ?? "Collapse filters";
+
   const toggleTier = (tier: string, checked: boolean): void => {
-    const next = new Set(filters.capTiers);
+    const next = new Set(filters().capTiers);
     if (checked) next.add(tier);
     else next.delete(tier);
-    onChange({ capTiers: next });
+    props.onChange({ capTiers: next });
   };
-
-  const sectorValue = filters.sector ?? SECTOR_ALL;
 
   return (
     <Box
@@ -79,38 +74,37 @@ export function MarketFilterRail({
             Filters
           </Text>
         </Box>
-        {onCollapse ? (
-          <Tooltip label={collapseLabel}>
+        <Show when={props.onCollapse}>
+          <Tooltip label={collapseLabel()}>
             <span>
               <ActionIcon
                 variant="subtle"
                 size="sm"
-                onClick={onCollapse}
+                onClick={() => props.onCollapse?.()}
                 data-testid="market-rail-collapse"
               >
                 <IconChevronLeft size={14} />
               </ActionIcon>
             </span>
           </Tooltip>
-        ) : null}
+        </Show>
       </Box>
 
       <SectionTitle>Cap tier</SectionTitle>
       <Box className="flex flex-col gap-0.5">
-        {CAP_TIERS.map((tier) => {
-          const count = tierCounts?.[tier];
+        <For each={CAP_TIERS}>{(tier) => {
+          const count = tierCounts()?.[tier];
           const label = count !== undefined ? `${CAP_TIER_LABELS[tier]} (${count})` : CAP_TIER_LABELS[tier];
           return (
             <Checkbox
-              key={tier}
               size="xs"
               label={label}
-              checked={filters.capTiers.has(tier)}
-              onChange={(e) => toggleTier(tier, e.currentTarget.checked)}
+              checked={filters().capTiers.has(tier)}
+              onChange={(e) => toggleTier(tier, (e.currentTarget as HTMLInputElement).checked)}
               data-testid={`market-cap-${tier}`}
             />
           );
-        })}
+        }}</For>
       </Box>
 
       <Divider />
@@ -120,8 +114,8 @@ export function MarketFilterRail({
           <NumberInput
             placeholder="Min"
             aria-label="Minimum price"
-            value={filters.priceMin ?? ""}
-            onChange={(v: number | string) => onChange({ priceMin: toNum(v) })}
+            value={filters().priceMin ?? ""}
+            onChange={(v: number | string) => props.onChange({ priceMin: toNum(v) })}
             size="xs"
             style={{ width: "100%" }}
             min={0}
@@ -132,8 +126,8 @@ export function MarketFilterRail({
           <NumberInput
             placeholder="Max"
             aria-label="Maximum price"
-            value={filters.priceMax ?? ""}
-            onChange={(v: number | string) => onChange({ priceMax: toNum(v) })}
+            value={filters().priceMax ?? ""}
+            onChange={(v: number | string) => props.onChange({ priceMax: toNum(v) })}
             size="xs"
             style={{ width: "100%" }}
             min={0}
@@ -148,8 +142,8 @@ export function MarketFilterRail({
           <NumberInput
             placeholder="Min %"
             aria-label="Minimum day change percent"
-            value={filters.dayChangeMin ?? ""}
-            onChange={(v: number | string) => onChange({ dayChangeMin: toNum(v) })}
+            value={filters().dayChangeMin ?? ""}
+            onChange={(v: number | string) => props.onChange({ dayChangeMin: toNum(v) })}
             size="xs"
             style={{ width: "100%" }}
             data-testid="market-filter-day-min"
@@ -159,8 +153,8 @@ export function MarketFilterRail({
           <NumberInput
             placeholder="Max %"
             aria-label="Maximum day change percent"
-            value={filters.dayChangeMax ?? ""}
-            onChange={(v: number | string) => onChange({ dayChangeMax: toNum(v) })}
+            value={filters().dayChangeMax ?? ""}
+            onChange={(v: number | string) => props.onChange({ dayChangeMax: toNum(v) })}
             size="xs"
             style={{ width: "100%" }}
             data-testid="market-filter-day-max"
@@ -173,8 +167,8 @@ export function MarketFilterRail({
         placeholder="Min MCap (₹ Cr)"
         aria-label="Minimum market cap in crore"
         min={0}
-        value={filters.mcapMinCr ?? ""}
-        onChange={(v: number | string) => onChange({ mcapMinCr: toNum(v) })}
+        value={filters().mcapMinCr ?? ""}
+        onChange={(v: number | string) => props.onChange({ mcapMinCr: toNum(v) })}
         size="xs"
         data-testid="market-filter-mcap-min"
       />
@@ -188,8 +182,8 @@ export function MarketFilterRail({
             aria-label="Minimum RSI"
             min={0}
             max={100}
-            value={filters.rsiMin ?? ""}
-            onChange={(v: number | string) => onChange({ rsiMin: toNum(v) })}
+            value={filters().rsiMin ?? ""}
+            onChange={(v: number | string) => props.onChange({ rsiMin: toNum(v) })}
             size="xs"
             style={{ width: "100%" }}
             data-testid="market-filter-rsi-min"
@@ -201,8 +195,8 @@ export function MarketFilterRail({
             aria-label="Maximum RSI"
             min={0}
             max={100}
-            value={filters.rsiMax ?? ""}
-            onChange={(v: number | string) => onChange({ rsiMax: toNum(v) })}
+            value={filters().rsiMax ?? ""}
+            onChange={(v: number | string) => props.onChange({ rsiMax: toNum(v) })}
             size="xs"
             style={{ width: "100%" }}
             data-testid="market-filter-rsi-max"
@@ -216,8 +210,8 @@ export function MarketFilterRail({
         aria-label="Minimum relative volume"
         min={0}
         step={0.1}
-        value={filters.relVolMin ?? ""}
-        onChange={(v: number | string) => onChange({ relVolMin: toNum(v) })}
+        value={filters().relVolMin ?? ""}
+        onChange={(v: number | string) => props.onChange({ relVolMin: toNum(v) })}
         size="xs"
         data-testid="market-filter-relvol-min"
       />
@@ -228,22 +222,22 @@ export function MarketFilterRail({
         <Switch
           size="xs"
           label="Above SMA 20"
-          checked={filters.aboveSma20}
-          onChange={(e) => onChange({ aboveSma20: e.currentTarget.checked })}
+          checked={filters().aboveSma20}
+          onChange={(e) => props.onChange({ aboveSma20: (e.currentTarget as HTMLInputElement).checked })}
           data-testid="market-filter-above-sma20"
         />
         <Switch
           size="xs"
           label="Above SMA 50"
-          checked={filters.aboveSma50}
-          onChange={(e) => onChange({ aboveSma50: e.currentTarget.checked })}
+          checked={filters().aboveSma50}
+          onChange={(e) => props.onChange({ aboveSma50: (e.currentTarget as HTMLInputElement).checked })}
           data-testid="market-filter-above-sma50"
         />
         <Switch
           size="xs"
           label="Above SMA 200"
-          checked={filters.aboveSma200}
-          onChange={(e) => onChange({ aboveSma200: e.currentTarget.checked })}
+          checked={filters().aboveSma200}
+          onChange={(e) => props.onChange({ aboveSma200: (e.currentTarget as HTMLInputElement).checked })}
           data-testid="market-filter-above-sma200"
         />
       </Box>
@@ -254,15 +248,15 @@ export function MarketFilterRail({
         <Switch
           size="xs"
           label="F&O only"
-          checked={filters.fnoOnly}
-          onChange={(e) => onChange({ fnoOnly: e.currentTarget.checked })}
+          checked={filters().fnoOnly}
+          onChange={(e) => props.onChange({ fnoOnly: (e.currentTarget as HTMLInputElement).checked })}
           data-testid="market-filter-fno"
         />
         <Switch
           size="xs"
           label="ETF only"
-          checked={filters.etfOnly}
-          onChange={(e) => onChange({ etfOnly: e.currentTarget.checked })}
+          checked={filters().etfOnly}
+          onChange={(e) => props.onChange({ etfOnly: (e.currentTarget as HTMLInputElement).checked })}
           data-testid="market-filter-etf"
         />
       </Box>
@@ -273,10 +267,10 @@ export function MarketFilterRail({
         size="xs"
         data={[
           { value: SECTOR_ALL, label: "All sectors" },
-          ...sectors.map((s) => ({ value: s, label: s })),
+          ...props.sectors.map((s) => ({ value: s, label: s })),
         ]}
-        value={sectorValue}
-        onChange={(v) => onChange({ sector: !v || v === SECTOR_ALL ? null : v })}
+        value={filters().sector ?? SECTOR_ALL}
+        onChange={(v) => props.onChange({ sector: !v || v === SECTOR_ALL ? null : v })}
         aria-label="Sector"
         data-testid="market-filter-sector"
       />
@@ -285,8 +279,8 @@ export function MarketFilterRail({
       <Select
         size="xs"
         data={MARKET_SORT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-        value={filters.sort}
-        onChange={(v) => v && onChange({ sort: v as MarketSortKey })}
+        value={filters().sort}
+        onChange={(v) => v && props.onChange({ sort: v as MarketSortKey })}
         aria-label="Sort rows"
         data-testid="market-filter-sort"
       />

@@ -30,8 +30,7 @@ const makeTrade = (id: number, overrides: Partial<ReplayTrade> = {}): ReplayTrad
 
 describe("ReplayTradeLog", () => {
   it("renders with data-testid", () => {
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayTradeLog
           trades={[]}
           strategyFilter="ALL"
@@ -45,8 +44,7 @@ describe("ReplayTradeLog", () => {
   });
 
   it("shows Trade Log title", () => {
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayTradeLog
           trades={[]}
           strategyFilter="ALL"
@@ -61,8 +59,7 @@ describe("ReplayTradeLog", () => {
 
   it("renders strategy filter Select with All Strategies + unique names", () => {
     const trades = [makeTrade(1), makeTrade(2, { id: 2, strategy: "52W", symbol: "INFY" })];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -77,8 +74,7 @@ describe("ReplayTradeLog", () => {
 
   it("renders symbol filter Select with All Symbols + unique symbols", () => {
     const trades = [makeTrade(1), makeTrade(2, { id: 2, symbol: "INFY" })];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -93,8 +89,7 @@ describe("ReplayTradeLog", () => {
 
   it("shows filtered trade count text", () => {
     const trades = [makeTrade(1), makeTrade(2)];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -109,8 +104,7 @@ describe("ReplayTradeLog", () => {
 
   it("shows '1 trade' for single trade", () => {
     const trades = [makeTrade(1)];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -124,8 +118,7 @@ describe("ReplayTradeLog", () => {
   });
 
   it("shows empty state when filtered trades empty", () => {
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayTradeLog
           trades={[]}
           strategyFilter="ALL"
@@ -140,8 +133,7 @@ describe("ReplayTradeLog", () => {
 
   it("renders trade rows with index number", () => {
     const trades = [makeTrade(1)];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -156,8 +148,7 @@ describe("ReplayTradeLog", () => {
 
   it("shows SideBadge for each trade side", () => {
     const trades = [makeTrade(1)];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -171,8 +162,7 @@ describe("ReplayTradeLog", () => {
   });
 
   it("renders header columns", () => {
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayTradeLog
           trades={[]}
           strategyFilter="ALL"
@@ -192,8 +182,7 @@ describe("ReplayTradeLog", () => {
   it("calls onTradeClick when row clicked", async () => {
     const onTradeClick = vi.fn();
     const trades = [makeTrade(1)];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -211,8 +200,7 @@ describe("ReplayTradeLog", () => {
   it("strategy name as clickable Anchor that filters by strategy", async () => {
     const setStrategyFilter = vi.fn();
     const trades = [makeTrade(1)];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -229,8 +217,7 @@ describe("ReplayTradeLog", () => {
 
   it("shows exit reason as Badge with color", () => {
     const trades = [makeTrade(1)];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -245,8 +232,7 @@ describe("ReplayTradeLog", () => {
 
   it("falls back to gray for unknown exit reasons", () => {
     const trades = [makeTrade(1, { exit_reason: "MANUAL_CLOSE" })];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -263,8 +249,7 @@ describe("ReplayTradeLog", () => {
     const scrollIntoView = vi.fn();
     Element.prototype.scrollIntoView = scrollIntoView;
     const trades = [makeTrade(1)];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"

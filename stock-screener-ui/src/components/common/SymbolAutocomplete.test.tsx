@@ -55,7 +55,7 @@ describe("SymbolAutocomplete", () => {
       />),
     );
 
-    await fireEvent.click(screen.getByLabelText("Symbol"));
+    await fireEvent.focus(screen.getByLabelText("Symbol"));
 
     await waitFor(() => {
       const texts = optionTexts();
@@ -126,7 +126,7 @@ describe("SymbolAutocomplete", () => {
       />),
     );
 
-    await fireEvent.click(screen.getByPlaceholderText("Index or F&O stock"));
+    await fireEvent.focus(screen.getByPlaceholderText("Index or F&O stock"));
     await fireEvent.click(await screen.findByText("BANKNIFTY"));
 
     expect(onChange).toHaveBeenCalledWith("BANKNIFTY");

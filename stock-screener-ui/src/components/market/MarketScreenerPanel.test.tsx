@@ -4,16 +4,15 @@ import { fireEvent, render, screen, cleanup } from "@solidjs/testing-library";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { UIProvider } from "@/ui";
 import { MarketScreenerPanel } from "./MarketScreenerPanel";
-import { useMarketSnapshot } from "../../hooks/useMarketSnapshot";
+import { useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
 import * as marketFilters from "./marketFilters";
 import type { MarketRow } from "../../types/marketScreener";
-import type { UseMarketSnapshotResult } from "../../hooks/useMarketSnapshot";
 
-vi.mock("../../hooks/useMarketSnapshot", () => ({
-  useMarketSnapshot: vi.fn(),
+vi.mock("./useMarketSnapshotSolid", () => ({
+  useMarketSnapshotSolid: vi.fn(),
 }));
 
-const mockUseMarketSnapshot = vi.mocked(useMarketSnapshot);
+const mockUseMarketSnapshot = vi.mocked(useMarketSnapshotSolid);
 
 function row(symbol: string, overrides: Partial<MarketRow> = {}): MarketRow {
   return {
@@ -44,26 +43,53 @@ function row(symbol: string, overrides: Partial<MarketRow> = {}): MarketRow {
 
 const ROWS: MarketRow[] = [row("RELIANCE"), row("MPHASIS")];
 
-function hookResult(overrides: Partial<UseMarketSnapshotResult> = {}): UseMarketSnapshotResult {
-  return {
+type HookOverrides = {
+  snapshot?: unknown;
+  rows?: MarketRow[];
+  total?: number;
+  updateMode?: string | null;
+  asOf?: string | null;
+  isLoading?: boolean;
+  error?: Error | null;
+  refresh?: () => void;
+  lastUpdated?: string | null;
+  stale?: boolean;
+  warming?: boolean;
+};
+
+function hookResult(overrides: HookOverrides = {}) {
+  const o = {
     snapshot: {
       asOf: new Date().toISOString(),
       universe: "all_equity",
       total: ROWS.length,
       updateMode: "streaming",
       rows: ROWS,
-    },
+    } as unknown,
     rows: ROWS,
     total: ROWS.length,
-    updateMode: "streaming",
-    asOf: new Date().toISOString(),
+    updateMode: "streaming" as string | null,
+    asOf: new Date().toISOString() as string | null,
     isLoading: false,
-    error: null,
+    error: null as Error | null,
     refresh: vi.fn(),
-    lastUpdated: new Date().toISOString(),
+    lastUpdated: new Date().toISOString() as string | null,
     stale: false,
     warming: false,
     ...overrides,
+  };
+  return {
+    snapshot: () => o.snapshot as never,
+    rows: () => o.rows,
+    total: () => o.total,
+    updateMode: () => o.updateMode,
+    asOf: () => o.asOf,
+    isLoading: () => o.isLoading,
+    error: () => o.error,
+    refresh: o.refresh,
+    lastUpdated: () => o.lastUpdated,
+    stale: () => o.stale,
+    warming: () => o.warming,
   };
 }
 
@@ -113,12 +139,11 @@ describe("MarketScreenerPanel — stale cache, warming hint, timeout", () => {
     );
     r(<MarketScreenerPanel />);
     expect(screen.getByTestId("market-warming-hint")).toBeInTheDocument();
-        await fireEvent.click(
-      screen.getByTestId("market-universe-select").querySelector('[role="combobox"]') as HTMLElement,
-    );
-    await fireEvent.click(await screen.findByRole("option", { name: "Nifty 500" }));
+    const combo = screen.getByTestId("market-universe-select").querySelector('[role="combobox"]') as HTMLInputElement;
+    await fireEvent.focus(combo);
+    await fireEvent.mouseDown(await screen.findByRole("option", { name: "Nifty 500" }));
     expect(screen.queryByTestId("market-warming-hint")).not.toBeInTheDocument();
-    expect(mockUseMarketSnapshot).toHaveBeenLastCalledWith("nifty500");
+    expect(mockUseMarketSnapshot.mock.calls.at(-1)?.[0]()).toBe("nifty500");
   });
 
   test("warming-hint switch button jumps to Nifty 500", async () => {
@@ -127,7 +152,7 @@ describe("MarketScreenerPanel — stale cache, warming hint, timeout", () => {
     );
     r(<MarketScreenerPanel />);
         await fireEvent.click(screen.getByTestId("market-warming-switch"));
-    expect(mockUseMarketSnapshot).toHaveBeenLastCalledWith("nifty500");
+    expect(mockUseMarketSnapshot.mock.calls.at(-1)?.[0]()).toBe("nifty500");
   });
 
   test("timeout error with no rows shows the error panel", () => {
@@ -177,9 +202,7 @@ describe("MarketScreenerPanel — non-blocking filters", () => {
     expect(screen.queryByTestId("market-filter-count")).toBeNull();
 
     const sma200 = screen.getByTestId("market-filter-above-sma200");
-    act(() => {
-      fireEvent.click(sma200);
-    });
+    fireEvent.click(sma200);
 
     // Immediate path: chip and active-filter count reflect the click within the
     // same synchronous render — no waiting for a transition. The result count
@@ -199,9 +222,7 @@ describe("MarketScreenerPanel — non-blocking filters", () => {
     // committed by React's scheduler in the browser; happy-dom does not process
     // that scheduler work, so the test covers the synchronous guarantee above.)
     const filterSpy = vi.spyOn(marketFilters, "filterOnlyMarketRows");
-    act(() => {
-      fireEvent.click(screen.getByTestId("market-rail-toggle"));
-    });
+    fireEvent.click(screen.getByTestId("market-rail-toggle"));
     expect(filterSpy.mock.calls.length).toBe(0);
     expect(screen.getByTestId("market-result-count")).toHaveTextContent("248 / 496");
   });
@@ -215,9 +236,7 @@ describe("MarketScreenerPanel — non-blocking filters", () => {
     const callsBefore = filterSpy.mock.calls.length;
     expect(callsBefore).toBeGreaterThan(0);
 
-    act(() => {
-      fireEvent.click(screen.getByTestId("market-rail-toggle"));
-    });
+    fireEvent.click(screen.getByTestId("market-rail-toggle"));
 
     expect(filterSpy.mock.calls.length).toBe(callsBefore);
     expect(screen.getByTestId("market-result-count")).toHaveTextContent("496 / 496");

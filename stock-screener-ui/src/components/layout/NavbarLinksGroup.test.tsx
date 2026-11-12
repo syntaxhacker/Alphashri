@@ -4,22 +4,21 @@ import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { NavbarLinksGroup } from "./NavbarLinksGroup";
 import { UIProvider } from "@/ui";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@solidjs/router";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
 // Mock useNavigate
-vi.mock("react-router-dom", () => ({
-  useNavigate: vi.fn(() => vi.fn()),
-}));
+vi.mock("@solidjs/router", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, useNavigate: vi.fn(() => vi.fn()) };
+});
 
 describe("NavbarLinksGroup", () => {
-  const MockIcon = () => "MockIcon";
-  let user: ReturnType<typeof userEvent.setup>;
+  const MockIcon = () => <svg data-testid="mock-icon" />;
 
   beforeEach(() => {
     vi.clearAllMocks();
     setupBrowserMocks();
-    user = userEvent.setup();
   });
 
   afterEach(() => {
@@ -61,7 +60,7 @@ describe("NavbarLinksGroup", () => {
       </UIProvider>),
     );
 
-    expect(screen.getByText("MockIcon")).toBeInTheDocument();
+    expect(screen.getByTestId("mock-icon")).toBeInTheDocument();
   });
 
   it("calls navigate and onNavigate when clicked", async () => {

@@ -187,12 +187,10 @@ describe("ExperimentsChart", () => {
     });
     render(() => (<ExperimentsChart />), { wrapper: Wrapper });
 
-    const outer = screen.getByTestId("experiments-chart-symbol-select");
-    const { within } = await import("@testing-library/react");
-    const combo = within(outer).getByRole("combobox");
-    await fireEvent.click(combo);
+    const combo = screen.getByRole("combobox");
+    fireEvent.focus(combo);
     const option = await screen.findByRole("option", { name: "RELIANCE" });
-    await fireEvent.click(option);
+    fireEvent.mouseDown(option);
 
     const { fetchRunChart } = await import("../../state/experiments");
     expect(fetchRunChart).toHaveBeenCalledWith(3, "RELIANCE");

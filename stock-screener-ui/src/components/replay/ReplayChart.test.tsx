@@ -110,8 +110,7 @@ describe("aggregateCandles", () => {
 
 describe("ReplayChart", () => {
   it("shows empty state message when no symbols available", () => {
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayChart {...baseProps} />
       </UIProvider>,
     );
@@ -127,8 +126,7 @@ describe("ReplayChart", () => {
         INFY: [{ time: "09:15", open: 2000, high: 2050, low: 1990, close: 2020, volume: 500 }],
       },
     };
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayChart {...props} />
       </UIProvider>,
     );
@@ -143,8 +141,7 @@ describe("ReplayChart", () => {
         TCS: [{ time: "09:15", open: 100, high: 105, low: 98, close: 103, volume: 1000 }],
       },
     };
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayChart {...props} />
       </UIProvider>,
     );
@@ -162,8 +159,7 @@ describe("ReplayChart", () => {
         TCS: [{ time: "09:15", open: 100, high: 105, low: 98, close: 103, volume: 1000 }],
       },
     };
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayChart {...props} />
       </UIProvider>,
     );
@@ -182,8 +178,7 @@ describe("ReplayChart", () => {
         TCS: [{ time: "09:15", open: 100, high: 105, low: 98, close: 103, volume: 1000 }],
       },
     };
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayChart {...props} />
       </UIProvider>,
     );
@@ -200,8 +195,7 @@ describe("ReplayChart", () => {
       },
       selectedSymbol: "TCS",
     };
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayChart {...props} />
       </UIProvider>,
     );
@@ -222,8 +216,7 @@ describe("ReplayChart", () => {
       },
       selectedSymbol: "TCS",
     };
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayChart {...props} />
       </UIProvider>,
     );
@@ -241,8 +234,7 @@ describe("ReplayChart", () => {
       },
       selectedSymbol: "TCS",
     };
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayChart {...props} ref={ref} />
       </UIProvider>,
     );
