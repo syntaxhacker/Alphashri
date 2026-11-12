@@ -63,7 +63,25 @@ export function Card(props: UICardProps & Record<string, unknown>) {
   if (known.mah != null) styleObj["max-height"] = toSz(known.mah);
   if (known.flex != null) styleObj.flex = known.flex as unknown as string;
 
-  const Tag = (known.component ?? "article") as string;
+// Solid compiles `<Tag>` to `createComponent(Tag, ...)`, which calls the
+// value as a function. A string tag is not callable, so dynamic elements go
+// through an intrinsic registry instead.
+const CARD_TAGS: Record<string, (p: any) => JSX.Element> = {
+  div: (p) => <div {...p} />,
+  section: (p) => <section {...p} />,
+  article: (p) => <article {...p} />,
+  aside: (p) => <aside {...p} />,
+  header: (p) => <header {...p} />,
+  footer: (p) => <footer {...p} />,
+  main: (p) => <main {...p} />,
+  form: (p) => <form {...p} />,
+  figure: (p) => <figure {...p} />,
+};
+
+  // Dynamic element: a plain string is not callable in Solid, so resolve it
+  // through the intrinsic registry (see above).
+  const Tag = CARD_TAGS[(known.component as string) ?? "article"] ?? CARD_TAGS["article"];
+
 
   return (
     <Tag

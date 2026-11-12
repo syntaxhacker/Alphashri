@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { cleanup, screen, waitFor, act } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { cleanup, screen, waitFor } from "@solidjs/testing-library";
 import { renderWithProviders } from "../../test-utils/renderWithProviders";
 import { ExperimentsConfig } from "./ExperimentsConfig";
 import type { ExperimentStrategy } from "../../types/experiments";
@@ -148,8 +147,7 @@ describe("ExperimentsConfig", () => {
   });
 
   it("adding a sweep value increases the candidates count and enables start", async () => {
-    const user = userEvent.setup();
-    await seedStrategies();
+        await seedStrategies();
     clearDefaultSweep();
     setConfig({ symbols: ["RELIANCE", "TCS"] });
     renderWithProviders(<ExperimentsConfig />);
@@ -158,11 +156,11 @@ describe("ExperimentsConfig", () => {
       "candidates = 1 x 2 symbols = 2",
     );
 
-    await user.click(screen.getByTestId("sweep-add-sl_pct"));
+    await fireEvent.click(screen.getByTestId("sweep-add-sl_pct"));
     expect(screen.getByTestId("sweep-value-sl_pct-0")).toBeInTheDocument();
     expect(screen.getByTestId("experiments-start-btn")).not.toBeDisabled();
 
-    await user.click(screen.getByTestId("sweep-value-add-sl_pct"));
+    await fireEvent.click(screen.getByTestId("sweep-value-add-sl_pct"));
     expect(screen.getByTestId("sweep-value-sl_pct-1")).toBeInTheDocument();
     expect(screen.getByTestId("experiments-candidates-count")).toHaveTextContent(
       "candidates = 2 x 2 symbols = 4",
@@ -170,8 +168,7 @@ describe("ExperimentsConfig", () => {
   });
 
   it("removing a sweep value shrinks the candidates count", async () => {
-    const user = userEvent.setup();
-    await seedStrategies();
+        await seedStrategies();
     clearDefaultSweep();
     setConfig({ symbols: ["RELIANCE", "TCS"] });
     addSweepParam("sl_pct");
@@ -182,15 +179,14 @@ describe("ExperimentsConfig", () => {
       "candidates = 3 x 2 symbols = 6",
     );
 
-    await user.click(screen.getByTestId("sweep-value-remove-sl_pct-1"));
+    await fireEvent.click(screen.getByTestId("sweep-value-remove-sl_pct-1"));
     expect(screen.getByTestId("experiments-candidates-count")).toHaveTextContent(
       "candidates = 2 x 2 symbols = 4",
     );
   });
 
   it("moving a param back out of the sweep restores its fixed input", async () => {
-    const user = userEvent.setup();
-    await seedStrategies();
+        await seedStrategies();
     clearDefaultSweep();
     setConfig({ symbols: ["RELIANCE"] });
     addSweepParam("sl_pct");
@@ -198,7 +194,7 @@ describe("ExperimentsConfig", () => {
 
     expect(screen.getByTestId("sweep-value-sl_pct-0")).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("sweep-remove-sl_pct"));
+    await fireEvent.click(screen.getByTestId("sweep-remove-sl_pct"));
     expect(screen.queryByTestId("sweep-value-sl_pct-0")).not.toBeInTheDocument();
     expect(screen.getByTestId("fixed-param-sl_pct")).toBeInTheDocument();
   });
@@ -230,8 +226,7 @@ describe("ExperimentsConfig", () => {
   });
 
   it("start calls startExperiment with the configured grid", async () => {
-    const user = userEvent.setup();
-    await seedStrategies();
+        await seedStrategies();
     clearDefaultSweep();
     setConfig({ symbols: ["RELIANCE", "TCS"] });
     addSweepParam("sl_pct");
@@ -239,7 +234,7 @@ describe("ExperimentsConfig", () => {
     api.startExperiment.mockResolvedValue({ session: "exp_orb_1" });
     renderWithProviders(<ExperimentsConfig />);
 
-    await user.click(screen.getByTestId("experiments-start-btn"));
+    await fireEvent.click(screen.getByTestId("experiments-start-btn"));
 
     await waitFor(() => {
       expect(api.startExperiment).toHaveBeenCalledTimes(1);
@@ -255,13 +250,12 @@ describe("ExperimentsConfig", () => {
   });
 
   it("reset restores default config (NEWGEN symbol, no sweeps)", async () => {
-    const user = userEvent.setup();
-    await seedStrategies();
+        await seedStrategies();
     setConfig({ symbols: ["RELIANCE", "TCS"], description: "sweep run" });
     addSweepParam("sl_pct");
     renderWithProviders(<ExperimentsConfig />);
 
-    await user.click(screen.getByTestId("experiments-reset-btn"));
+    await fireEvent.click(screen.getByTestId("experiments-reset-btn"));
 
     expect(screen.getByTestId("experiments-candidates-count")).toHaveTextContent(
       "candidates = 1 x 1 symbols = 1",

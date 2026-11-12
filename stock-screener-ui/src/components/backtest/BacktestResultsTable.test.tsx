@@ -1,18 +1,18 @@
 // @vitest-environment happy-dom
+import type { JSX } from "solid-js";
 import { describe, it, expect, afterEach, beforeEach, vi, test } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { BacktestResultsTable } from "./BacktestResultsTable";
 import type { BacktestResult } from "../../types/backtest";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
 });
 
-function Wrapper({ children }: { children: React.ReactNode }) {
+function Wrapper({ children }: { children: JSX.Element }) {
   return <UIProvider>{children}</UIProvider>;
 }
 
@@ -46,20 +46,20 @@ describe("BacktestResultsTable", () => {
   };
 
   it("renders empty state when no results", () => {
-    render(<BacktestResultsTable results={[]} {...defaultProps} />, { wrapper: Wrapper });
+    render(() => <BacktestResultsTable results={[]} {...defaultProps} />, { wrapper: Wrapper });
     expect(screen.getByTestId("results-empty")).toBeInTheDocument();
     expect(screen.getByText("No results yet. Run a backtest.")).toBeInTheDocument();
   });
 
   it("renders table wrapper with testid when results present", () => {
     const results = [mockResult(), mockResult({ symbol: "INFY" })];
-    render(<BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
+    render(() => <BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
     expect(screen.getByTestId("results-table-wrapper")).toBeInTheDocument();
   });
 
   it("renders table headers with correct labels", () => {
     const results = [mockResult()];
-    render(<BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
+    render(() => <BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
     expect(screen.getByText("Symbol", { exact: false })).toBeInTheDocument();
     expect(screen.getByText("Net PnL", { exact: false })).toBeInTheDocument();
     expect(screen.getByText("Trades", { exact: false })).toBeInTheDocument();
@@ -71,7 +71,7 @@ describe("BacktestResultsTable", () => {
   it("renders rows for each result", () => {
     const symbols = ["TCS", "INFY", "RELIANCE"];
     const results = symbols.map((sym) => mockResult({ symbol: sym }));
-    render(<BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
+    render(() => <BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
     expect(screen.getByTestId("result-row-TCS")).toBeInTheDocument();
     expect(screen.getByTestId("result-row-INFY")).toBeInTheDocument();
     expect(screen.getByTestId("result-row-RELIANCE")).toBeInTheDocument();
@@ -95,23 +95,22 @@ describe("BacktestResultsTable", () => {
       ],
     ])("%s", (_, overrides, cellTestId, expectedText) => {
       const results = [mockResult(overrides)];
-      render(<BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
+      render(() => <BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
       expect(screen.getByTestId(cellTestId)).toHaveTextContent(expectedText);
     });
   });
 
   it("calls onRowClick when row is clicked", async () => {
-      const user = userEvent.setup();
     const results = [mockResult({ symbol: "TCS" })];
-    render(<BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
+    render(() => <BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
     const row = screen.getByTestId("result-row-TCS");
-    await user.click(row);
+    await fireEvent.click(row);
     expect(mockOnRowClick).toHaveBeenCalledWith("TCS");
   });
 
   it("highlights selected row", () => {
     const results = [mockResult({ symbol: "TCS" }), mockResult({ symbol: "INFY" })];
-    render(<BacktestResultsTable results={results} {...defaultProps} selectedSymbol="INFY" />, {
+    render(() => <BacktestResultsTable results={results} {...defaultProps} selectedSymbol="INFY" />, {
       wrapper: Wrapper,
     });
     const rowINFY = screen.getByTestId("result-row-INFY");
@@ -120,19 +119,19 @@ describe("BacktestResultsTable", () => {
 
   it("handles undefined win_rate gracefully", () => {
     const results = [mockResult({ win_rate: undefined })];
-    render(<BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
+    render(() => <BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
     expect(screen.getByTestId("wr-TCS")).toHaveTextContent("0%");
   });
 
   it("handles undefined pf gracefully", () => {
     const results = [mockResult({ pf: undefined })];
-    render(<BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
+    render(() => <BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
     expect(screen.getByTestId("pf-TCS")).toHaveTextContent("0.0");
   });
 
   it("handles zero values", () => {
     const results = [mockResult({ net_pnl: 0, trades: 0, win_rate: 0, pf: 0 })];
-    render(<BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
+    render(() => <BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
     expect(screen.getByTestId("net-pnl-TCS")).toHaveTextContent("₹0.0K");
     expect(screen.getByTestId("trades-TCS")).toHaveTextContent("0");
     expect(screen.getByTestId("wr-TCS")).toHaveTextContent("0%");

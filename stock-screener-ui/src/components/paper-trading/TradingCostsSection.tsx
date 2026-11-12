@@ -1,6 +1,6 @@
-import { memo } from "react";
-import { Text, Stack, NumberInput } from "@/ui";
+import { Text, NumberInput } from "@/ui";
 import type { StrategyConfig } from "../../types/paperTrading";
+import { Stack } from "./primitives";
 
 type ConfigValueHandler = (
   key: keyof StrategyConfig,
@@ -15,19 +15,19 @@ interface TradingCostsSectionProps {
 /** fraction → percent, rounded to avoid float artifacts (e.g. 0.00009999…) */
 const pct = (v: number, decimals = 4) => Number((v * 100).toFixed(decimals));
 
-export const TradingCostsSection = memo(function TradingCostsSection({ config, onChange }: TradingCostsSectionProps) {
+export function TradingCostsSection(props: TradingCostsSectionProps) {
   return (
     <Stack gap="xs" className="paper-settings-section" id="costs-section">
       <Text fw={600} size="xs" tt="uppercase" c="dimmed" className="mb-2">
         Cost Parameters
       </Text>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         <NumberInput
           label="Brokerage %"
           description="Brokerage percentage"
           data-testid="config-brokerage"
-          value={pct(config.brokerage_pct)}
-          onChange={(v) => onChange("brokerage_pct", Number(v) / 100)}
+          value={pct(props.config.brokerage_pct)}
+          onChange={(v) => props.onChange("brokerage_pct", Number(v) / 100)}
           min={0}
           max={1}
           step={0.01}
@@ -38,8 +38,8 @@ export const TradingCostsSection = memo(function TradingCostsSection({ config, o
           label="Min Brokerage"
           description="Minimum brokerage (₹)"
           data-testid="config-min-brokerage"
-          value={config.min_brokerage}
-          onChange={(v) => onChange("min_brokerage", Number(v))}
+          value={props.config.min_brokerage}
+          onChange={(v) => props.onChange("min_brokerage", Number(v))}
           min={0}
           max={100}
           step={1}
@@ -50,8 +50,8 @@ export const TradingCostsSection = memo(function TradingCostsSection({ config, o
           label="STT %"
           description="Securities transaction tax"
           data-testid="config-stt"
-          value={pct(config.stt_pct)}
-          onChange={(v) => onChange("stt_pct", Number(v) / 100)}
+          value={pct(props.config.stt_pct)}
+          onChange={(v) => props.onChange("stt_pct", Number(v) / 100)}
           min={0}
           max={0.1}
           step={0.001}
@@ -62,8 +62,8 @@ export const TradingCostsSection = memo(function TradingCostsSection({ config, o
           label="Exchange %"
           description="Exchange charges"
           data-testid="config-exchange"
-          value={pct(config.exchange_pct)}
-          onChange={(v) => onChange("exchange_pct", Number(v) / 100)}
+          value={pct(props.config.exchange_pct)}
+          onChange={(v) => props.onChange("exchange_pct", Number(v) / 100)}
           min={0}
           max={0.01}
           step={0.0001}
@@ -74,8 +74,8 @@ export const TradingCostsSection = memo(function TradingCostsSection({ config, o
           label="SEBI %"
           description="SEBI charges"
           data-testid="config-sebi"
-          value={pct(config.sebi_pct)}
-          onChange={(v) => onChange("sebi_pct", Number(v) / 100)}
+          value={pct(props.config.sebi_pct)}
+          onChange={(v) => props.onChange("sebi_pct", Number(v) / 100)}
           min={0}
           max={0.01}
           step={0.0001}
@@ -86,8 +86,8 @@ export const TradingCostsSection = memo(function TradingCostsSection({ config, o
           label="Stamp %"
           description="Stamp duty"
           data-testid="config-stamp"
-          value={pct(config.stamp_pct)}
-          onChange={(v) => onChange("stamp_pct", Number(v) / 100)}
+          value={pct(props.config.stamp_pct)}
+          onChange={(v) => props.onChange("stamp_pct", Number(v) / 100)}
           min={0}
           max={0.01}
           step={0.0001}
@@ -98,8 +98,8 @@ export const TradingCostsSection = memo(function TradingCostsSection({ config, o
           label="GST %"
           description="Goods and services tax"
           data-testid="config-gst"
-          value={pct(config.gst_pct)}
-          onChange={(v) => onChange("gst_pct", Number(v) / 100)}
+          value={pct(props.config.gst_pct)}
+          onChange={(v) => props.onChange("gst_pct", Number(v) / 100)}
           min={0}
           max={30}
           step={1}
@@ -109,4 +109,4 @@ export const TradingCostsSection = memo(function TradingCostsSection({ config, o
       </div>
     </Stack>
   );
-});
+}

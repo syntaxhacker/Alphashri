@@ -1,10 +1,17 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { RecentRunsTable, ModelBreakdown } from "./RecentRunsTable";
 import { UIProvider } from "@/ui";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
+
+// @/ui's dynamic-tag layout primitives crash at runtime on this branch;
+// stub them with intrinsic elements (see src/pages/solidTestStubs.tsx).
+vi.mock("@/ui", async (importOriginal) => {
+  const { uiLayoutStub } = await import("@/pages/solidTestStubs");
+  return uiLayoutStub(await importOriginal<Record<string, unknown>>());
+});
 
 vi.mock("../../utils/ui-helpers", () => ({
   getStatusColor: vi.fn((status) => {
@@ -31,9 +38,8 @@ describe("RecentRunsTable", () => {
 
   afterEach(() => {
     cleanup();
-  
-  vi.clearAllMocks();
-});
+    vi.clearAllMocks();
+  });
 
   const mockRuns = [
     {
@@ -61,31 +67,31 @@ describe("RecentRunsTable", () => {
   ];
 
   it("renders empty state when no runs", () => {
-    render(
+    render(() => (
       <UIProvider>
         <RecentRunsTable runs={[]} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
 
     expect(screen.getByText("No recent runs")).toBeInTheDocument();
   });
 
   it("renders table with runs", () => {
-    render(
+    render(() => (
       <UIProvider>
         <RecentRunsTable runs={mockRuns} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
 
     expect(screen.getByTestId("runs-table")).toBeInTheDocument();
   });
 
   it("displays column headers", () => {
-    render(
+    render(() => (
       <UIProvider>
         <RecentRunsTable runs={mockRuns} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
 
     expect(screen.getByText("URL")).toBeInTheDocument();
     expect(screen.getByText("Model")).toBeInTheDocument();
@@ -97,11 +103,11 @@ describe("RecentRunsTable", () => {
   });
 
   it("displays run data in table", () => {
-    render(
+    render(() => (
       <UIProvider>
         <RecentRunsTable runs={mockRuns} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
 
     expect(screen.getByText("gpt-4")).toBeInTheDocument();
     expect(screen.getByText("claude-3")).toBeInTheDocument();
@@ -112,22 +118,22 @@ describe("RecentRunsTable", () => {
   });
 
   it("displays status badges", () => {
-    render(
+    render(() => (
       <UIProvider>
         <RecentRunsTable runs={mockRuns} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
 
     expect(screen.getByText("success")).toBeInTheDocument();
     expect(screen.getByText("pending")).toBeInTheDocument();
   });
 
   it("displays formatted tokens (input+output)", () => {
-    render(
+    render(() => (
       <UIProvider>
         <RecentRunsTable runs={mockRuns} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
 
     // 1000+500 = 1500
     expect(screen.getByText("1,500")).toBeInTheDocument();
@@ -136,11 +142,11 @@ describe("RecentRunsTable", () => {
   });
 
   it("truncates long URLs", () => {
-    render(
+    render(() => (
       <UIProvider>
         <RecentRunsTable runs={mockRuns} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
 
     // The URL should be truncated to 50 characters + "..."
     const urlText = screen.getByText((content, element) => {
@@ -157,32 +163,32 @@ describe("ModelBreakdown", () => {
   ];
 
   it("renders nothing when no models", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ModelBreakdown models={[]} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
 
     expect(screen.queryByText(/runs/)).not.toBeInTheDocument();
   });
 
   it("renders model badges", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ModelBreakdown models={mockModels} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
 
     expect(screen.getByText("gpt-4: 50 runs")).toBeInTheDocument();
     expect(screen.getByText("claude-3: 30 runs")).toBeInTheDocument();
   });
 
   it("renders panel title", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ModelBreakdown models={mockModels} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
 
     expect(screen.getAllByText("Model Breakdown").length).toBeGreaterThanOrEqual(1);
   });

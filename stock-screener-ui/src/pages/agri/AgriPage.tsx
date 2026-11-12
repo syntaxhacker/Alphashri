@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { createEffect, createSignal, createMemo, onMount, Show, For } from "solid-js";
 import {
   Badge,
   Box,
@@ -9,14 +9,13 @@ import {
   Text,
   ToolbarRow,
 } from "@/ui";
-import { useAsyncData } from "@/hooks/useAsyncData";
 import { fetchAgriCommodities, fetchAgriPrices } from "@/api/agri";
-import type { AgriCommodity } from "@/types/agri";
-import { useECharts } from "@/hooks/useECharts";
+import type { AgriCommodity, AgriCommoditiesResponse, AgriPricesResponse } from "@/types/agri";
 import { useColorScheme } from "@/ui/hooks";
 import { POSITIVE, NEGATIVE, PRIMARY } from "@/ui/palette";
 import { formatNumberIN } from "@/utils/ui-helpers";
-import { IconRefresh } from "@tabler/icons-react";
+import { Icon } from "../../components/common/Icons";
+import { EChart } from "../heatmap/EChart";
 
 const COMMODITY_OPTIONS: AgriCommodity[] = [
   { key: "rice", label: "Rice" },
@@ -54,75 +53,91 @@ function formatInr(v: number | null): string {
 }
 
 export function AgriPage() {
-  const { colorScheme } = useColorScheme();
-  const isDark = colorScheme === "dark";
-  const [commodity, setCommodity] = useState<AgriCommodity>(COMMODITY_OPTIONS[0]);
+  const { isDark } = useColorScheme();
+  const [commodity, setCommodity] = createSignal<AgriCommodity>(COMMODITY_OPTIONS[0]);
 
-  const { data: commoditiesData, loading: commoditiesLoading } = useAsyncData({
-    fetchFn: () => fetchAgriCommodities(),
-    autoFetch: true,
+  const [commoditiesData, setCommoditiesData] = createSignal<AgriCommoditiesResponse | null>(null);
+  const [commoditiesLoading, setCommoditiesLoading] = createSignal(true);
+
+  const [prices, setPrices] = createSignal<AgriPricesResponse | null>(null);
+  const [pricesLoading, setPricesLoading] = createSignal(true);
+  const [pricesError, setPricesError] = createSignal<string | null>(null);
+
+  onMount(() => {
+    fetchAgriCommodities()
+      .then(setCommoditiesData)
+      .catch(() => {
+        // Best-effort: fall back to the static option list.
+      })
+      .finally(() => setCommoditiesLoading(false));
   });
 
-  const options = commoditiesData?.commodities ?? COMMODITY_OPTIONS;
+  const options = createMemo<AgriCommodity[]>(() => commoditiesData()?.commodities ?? COMMODITY_OPTIONS);
 
-  const {
-    data: prices,
-    loading: pricesLoading,
-    error: pricesError,
-    execute: refresh,
-  } = useAsyncData({
-    fetchFn: () => fetchAgriPrices(commodity.key),
-    autoFetch: true,
+  const fetchPrices = async () => {
+    setPricesLoading(true);
+    setPricesError(null);
+    try {
+      const data = await fetchAgriPrices(commodity().key);
+      setPrices(data);
+    } catch (err) {
+      setPricesError(err instanceof Error ? err.message : "Failed to load");
+    } finally {
+      setPricesLoading(false);
+    }
+  };
+
+  // Re-fetch on commodity change and on mount (createEffect runs on mount).
+  createEffect(() => {
+    commodity();
+    void fetchPrices();
   });
 
-  const snapshot = useMemo(
-    () => prices?.snapshot.find((s) => s.key === commodity.key) ?? null,
-    [prices, commodity.key],
-  );
-  const series = prices?.series ?? [];
+  const refresh = () => void fetchPrices();
 
-  const latest = snapshot?.modal ?? null;
-  const prev7d = useMemo(
-    () => nearestOnOrBefore(series, new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)),
-    [series],
+  const snapshot = createMemo(() => prices()?.snapshot.find((s) => s.key === commodity().key) ?? null);
+  const series = createMemo(() => prices()?.series ?? []);
+
+  const latest = () => snapshot()?.modal ?? null;
+  const prev7d = createMemo(() =>
+    nearestOnOrBefore(series(), new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)),
   );
-  const prev30d = useMemo(
-    () => nearestOnOrBefore(series, new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)),
-    [series],
+  const prev30d = createMemo(() =>
+    nearestOnOrBefore(series(), new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)),
   );
-  const prev180d = useMemo(
-    () => nearestOnOrBefore(series, new Date(Date.now() - 180 * 86400000).toISOString().slice(0, 10)),
-    [series],
+  const prev180d = createMemo(() =>
+    nearestOnOrBefore(series(), new Date(Date.now() - 180 * 86400000).toISOString().slice(0, 10)),
   );
-  const chg7d = latest != null ? pctChange(latest, prev7d) : null;
-  const chg30d = latest != null ? pctChange(latest, prev30d) : null;
-  const chg180d = latest != null ? pctChange(latest, prev180d) : null;
+  const chg7d = () => (latest() != null ? pctChange(latest() as number, prev7d()) : null);
+  const chg30d = () => (latest() != null ? pctChange(latest() as number, prev30d()) : null);
+  const chg180d = () => (latest() != null ? pctChange(latest() as number, prev180d()) : null);
 
   // ---- ECharts option -----------------------------------------------------
-  const { chartRef, setChartOption } = useECharts({ isDark });
-  const option = useMemo(() => {
-    if (series.length === 0) return {};
-    const dates = series.map((p) => p.date);
-    const values = series.map((p) => p.modal);
+  const option = createMemo(() => {
+    const data = series();
+    if (data.length === 0) return {};
+    const dark = isDark();
+    const dates = data.map((p) => p.date);
+    const values = data.map((p) => p.modal);
     return {
       "background-color": "transparent",
       tooltip: {
         trigger: "axis",
-        "background-color": isDark ? "rgba(20,20,20,0.85)" : "#fff",
-        textStyle: { color: isDark ? "#F0F6FC" : "#000" },
+        "background-color": dark ? "rgba(20,20,20,0.85)" : "#fff",
+        textStyle: { color: dark ? "#F0F6FC" : "#000" },
       },
       grid: { left: 60, right: 40, top: 40, bottom: 60 },
       xAxis: {
         type: "category",
         data: dates,
-        axisLabel: { "font-size": 10, color: isDark ? "#8B949E" : "#6E7681" },
-        axisLine: { lineStyle: { color: isDark ? "#30363D" : "#D1D5DB" } },
+        axisLabel: { "font-size": 10, color: dark ? "#8B949E" : "#6E7681" },
+        axisLine: { lineStyle: { color: dark ? "#30363D" : "#D1D5DB" } },
       },
       yAxis: {
         type: "value",
-        axisLabel: { "font-size": 10, color: isDark ? "#8B949E" : "#6E7681", formatter: "₹{value}" },
-        axisLine: { lineStyle: { color: isDark ? "#30363D" : "#D1D5DB" } },
-        splitLine: { lineStyle: { color: isDark ? "#161B22" : "#E5E7EB", type: "dashed" } },
+        axisLabel: { "font-size": 10, color: dark ? "#8B949E" : "#6E7681", formatter: "₹{value}" },
+        axisLine: { lineStyle: { color: dark ? "#30363D" : "#D1D5DB" } },
+        splitLine: { lineStyle: { color: dark ? "#161B22" : "#E5E7EB", type: "dashed" } },
       },
       series: [
         {
@@ -136,11 +151,7 @@ export function AgriPage() {
         },
       ],
     };
-  }, [series, colorScheme, isDark]);
-
-  useMemo(() => {
-    void setChartOption(option);
-  }, [setChartOption, option]);
+  });
 
   const statColor = (v: number | null): string => {
     if (v == null) return "dimmed";
@@ -150,11 +161,8 @@ export function AgriPage() {
   const pct = (v: number | null): string =>
     v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
 
-  const handleRefresh = useCallback(() => {
-    void refresh();
-  }, [refresh]);
-
-  const isLoading = commoditiesLoading || pricesLoading;
+  const isLoading = () => commoditiesLoading() || pricesLoading();
+  const snapshotCount = () => prices()?.snapshot.length ?? 0;
 
   return (
     <Box
@@ -172,9 +180,9 @@ export function AgriPage() {
             Commodity
           </Text>
           <Select
-            data={options.map((o) => ({ value: o.key, label: o.label }))}
-            value={commodity.key}
-            onChange={(v) => setCommodity(options.find((o) => o.key === v) ?? options[0])}
+            data={options().map((o) => ({ value: o.key, label: o.label }))}
+            value={commodity().key}
+            onChange={(v) => setCommodity(options().find((o) => o.key === v) ?? options()[0])}
             size="sm"
             w={170}
             data-testid="agri-commodity-select"
@@ -185,9 +193,9 @@ export function AgriPage() {
           <Button
             size="sm"
             variant="outline"
-            leftSection={<IconRefresh size={14} />}
-            onClick={handleRefresh}
-            disabled={isLoading}
+            leftSection={<Icon name="refresh" size={14} />}
+            onClick={refresh}
+            disabled={isLoading()}
             data-testid="agri-refresh"
           >
             Refresh
@@ -195,9 +203,9 @@ export function AgriPage() {
         </Box>
       </ToolbarRow>
 
-      {pricesError ? (
-        <Badge color="error" data-testid="agri-error">{pricesError}</Badge>
-      ) : null}
+      <Show when={pricesError()}>
+        <Badge color="error" data-testid="agri-error">{pricesError()}</Badge>
+      </Show>
 
       {/* Stat strip: selected commodity latest price + changes */}
       <Box
@@ -206,36 +214,36 @@ export function AgriPage() {
       >
         <Box className="min-w-0">
           <Text size="xs" c="dimmed" data-testid="agri-stat-date">
-            {snapshot ? snapshot.date : "—"}
+            {snapshot() ? snapshot()!.date : "—"}
           </Text>
-          <Text size="lg" fw={700} className="font-mono" data-testid="agri-stat-price">
-            {formatInr(latest)}
+          <Text size="lg" fw={700} className="font-mono tabular-nums" data-testid="agri-stat-price">
+            {formatInr(latest())}
           </Text>
           <Text
             size="xs"
-            c={statColor(chg7d)}
+            c={statColor(chg7d())}
             data-testid="agri-stat-chg7d"
           >
-            {chg7d == null ? "—" : `${pct(chg7d)} 1w`}
+            {chg7d() == null ? "—" : `${pct(chg7d())} 1w`}
           </Text>
         </Box>
         <Divider orientation="vertical" style={{ height: 32, "margin-left": 8, "margin-right": 8 }} />
         <Box className="min-w-0">
           <Text size="xs" c="dimmed">1 month</Text>
-          <Text size="sm" fw={600} c={statColor(chg30d)} data-testid="agri-stat-chg30d">
-            {pct(chg30d)}
+          <Text size="sm" fw={600} c={statColor(chg30d())} className="font-mono tabular-nums" data-testid="agri-stat-chg30d">
+            {pct(chg30d())}
           </Text>
         </Box>
         <Divider orientation="vertical" style={{ height: 32, "margin-left": 8, "margin-right": 8 }} />
         <Box className="min-w-0">
           <Text size="xs" c="dimmed">6 months</Text>
-          <Text size="sm" fw={600} c={statColor(chg180d)} data-testid="agri-stat-chg180d">
-            {pct(chg180d)}
+          <Text size="sm" fw={600} c={statColor(chg180d())} className="font-mono tabular-nums" data-testid="agri-stat-chg180d">
+            {pct(chg180d())}
           </Text>
         </Box>
         <Box className="flex-1 min-w-0" />
         <Badge color="info" size="xs" data-testid="agri-stat-markets">
-          {snapshot ? `${snapshot.markets} markets` : "—"}
+          {snapshot() ? `${snapshot()!.markets} markets` : "—"}
         </Badge>
       </Box>
 
@@ -253,84 +261,51 @@ export function AgriPage() {
               Latest mandi prices — all commodities
             </Text>
             <Text size="xs" c="dimmed" data-testid="agri-table-date">
-              {snapshot ? snapshot.date : "—"}
+              {snapshot() ? snapshot()!.date : "—"}
             </Text>
           </ToolbarRow>
           <Box
             className="min-h-0 flex-1 overflow-auto rounded border border-fin-border bg-fin-surface"
             data-testid="agri-table"
           >
-            <Box
-              component="table"
-              className="w-full border-collapse text-[11px]"
-              data-testid="agri-table-element"
-            >
+            <table className="w-full border-collapse text-[11px]" data-testid="agri-table-element">
               <thead>
-                <Box component="tr" className="bg-fin-surface-alt">
-                  <Box
-                    component="th"
-                    className="px-2 py-1.5 text-left text-[10px] text-fin-text-muted"
-                  >
-                    Commodity
-                  </Box>
-                  <Box
-                    component="th"
-                    className="px-2 py-1.5 text-left text-[10px] text-fin-text-muted"
-                  >
-                    Date
-                  </Box>
-                  <Box
-                    component="th"
-                    className="px-2 py-1.5 text-right text-[10px] text-fin-text-muted"
-                  >
-                    Modal
-                  </Box>
-                  <Box
-                    component="th"
-                    className="px-2 py-1.5 text-right text-[10px] text-fin-text-muted"
-                  >
-                    Min
-                  </Box>
-                  <Box
-                    component="th"
-                    className="px-2 py-1.5 text-right text-[10px] text-fin-text-muted"
-                  >
-                    Max
-                  </Box>
-                  <Box
-                    component="th"
-                    className="px-2 py-1.5 text-center text-[10px] text-fin-text-muted"
-                  >
-                    Markets
-                  </Box>
-                </Box>
+                <tr className="bg-fin-surface-alt">
+                  <th className="px-2 py-1.5 text-left text-[10px] text-fin-text-muted">Commodity</th>
+                  <th className="px-2 py-1.5 text-left text-[10px] text-fin-text-muted">Date</th>
+                  <th className="px-2 py-1.5 text-right text-[10px] text-fin-text-muted">Modal</th>
+                  <th className="px-2 py-1.5 text-right text-[10px] text-fin-text-muted">Min</th>
+                  <th className="px-2 py-1.5 text-right text-[10px] text-fin-text-muted">Max</th>
+                  <th className="px-2 py-1.5 text-center text-[10px] text-fin-text-muted">Markets</th>
+                </tr>
               </thead>
               <tbody>
-                {(prices?.snapshot.length ?? 0) === 0 ? (
-                  <Box component="tr">
-                    <Box component="td" colSpan={6} className="py-4 text-center text-fin-text-muted">
-                      No prices available.
-                    </Box>
-                  </Box>
-                ) : (
-                  prices!.snapshot.map((r) => (
-                    <Box
-                      component="tr"
-                      key={r.key}
-                      className="[&_td]:border-b [&_td]:border-fin-border [&_td]:px-2 [&_td]:py-1"
-                      data-testid={`agri-row-${r.key}`}
-                    >
-                      <Box component="td">{r.label}</Box>
-                      <Box component="td">{r.date}</Box>
-                      <Box component="td" className="text-right">{formatInr(r.modal)}</Box>
-                      <Box component="td" className="text-right">{formatInr(r.min)}</Box>
-                      <Box component="td" className="text-right">{formatInr(r.max)}</Box>
-                      <Box component="td" className="text-center">{r.markets}</Box>
-                    </Box>
-                  ))
-                )}
+                <Show
+                  when={snapshotCount() > 0}
+                  fallback={
+                    <tr>
+                      <td colSpan={6} className="py-4 text-center text-fin-text-muted">No prices available.</td>
+                    </tr>
+                  }
+                >
+                  <For each={prices()?.snapshot ?? []}>
+                    {(r) => (
+                      <tr
+                        className="[&_td]:border-b [&_td]:border-fin-border [&_td]:px-2 [&_td]:py-1"
+                        data-testid={`agri-row-${r.key}`}
+                      >
+                        <td>{r.label}</td>
+                        <td>{r.date}</td>
+                        <td className="text-right font-mono tabular-nums">{formatInr(r.modal)}</td>
+                        <td className="text-right font-mono tabular-nums">{formatInr(r.min)}</td>
+                        <td className="text-right font-mono tabular-nums">{formatInr(r.max)}</td>
+                        <td className="text-center font-mono tabular-nums">{r.markets}</td>
+                      </tr>
+                    )}
+                  </For>
+                </Show>
               </tbody>
-            </Box>
+            </table>
           </Box>
         </Box>
 
@@ -341,27 +316,28 @@ export function AgriPage() {
         >
           <ToolbarRow justify="space-between" gap={8} className="min-h-0">
             <Text size="sm" fw={600} data-testid="agri-chart-title">
-              Modal price trend — {commodity.label}
+              Modal price trend — {commodity().label}
             </Text>
             <Text size="xs" c="dimmed" data-testid="agri-chart-range">
-              {series.length} sessions
+              {series().length} sessions
             </Text>
           </ToolbarRow>
           <Box
-            ref={chartRef}
-            className="min-h-[300px] min-w-0 flex-1"
+            className="min-h-[300px] min-w-0 flex-1 flex"
             data-testid="agri-chart"
-          />
-          {series.length === 0 && (
+          >
+            <EChart option={option()} />
+          </Box>
+          <Show when={series().length === 0}>
             <Box className="flex flex-1 items-center justify-center text-fin-text-muted">
               No price history yet. Run the collector to build it:
               <br />python scripts/market/agri_collect.py
             </Box>
-          )}
+          </Show>
         </Box>
       </Box>
 
-      <LoadingOverlay visible={isLoading} data-testid="agri-loading" />
+      <LoadingOverlay visible={isLoading()} data-testid="agri-loading" />
     </Box>
   );
 }

@@ -1,4 +1,5 @@
-import { Box, Flex } from "@/ui";
+
+
 import type {
   ReplayTrade,
   ReplayChartOptions,
@@ -9,6 +10,7 @@ import type {
 } from "../../types/replay";
 import { ReplayChart } from "./ReplayChart";
 import { ReplayTradeLog } from "./ReplayTradeLog";
+import { Box, Flex } from "../paper-trading/primitives";
 
 interface ReplayMainViewProps {
   candlesBySymbol: Map<string, any[]>;

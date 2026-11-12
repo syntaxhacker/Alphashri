@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { act, cleanup, renderHook } from "@testing-library/react";
+import { act, cleanup, renderHook } from "@solidjs/testing-library";
 import { useReplayClock } from "./useReplayClock";
 
 let rafCbs = new Map<number, FrameRequestCallback>();

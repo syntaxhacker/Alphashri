@@ -1,4 +1,4 @@
-import { splitProps } from "solid-js";
+import { For, Match, Switch, splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
 import type { UILoaderProps } from "../types";

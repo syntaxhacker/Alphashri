@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Box } from "@/ui";
+
 import TickReplayChart from "./TickReplayChart";
 import { genMockBars, mockIfvgLong } from "./mockBars";
 import type { ReplayTrade } from "./types";
+import { Box } from "../../paper-trading/primitives";
 
 const bars = genMockBars(260, 7);
 const { trade: shortTp } = mockIfvgLong();

@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { cleanup, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { cleanup, screen, waitFor } from "@solidjs/testing-library";
 import { renderWithProviders } from "../../test-utils/renderWithProviders";
 import { ExperimentsProgress } from "./ExperimentsProgress";
 import type { ExperimentState } from "../../types/experiments";
@@ -91,8 +90,7 @@ describe("ExperimentsProgress", () => {
   });
 
   it("shows pause and cancel while running, and pause calls pauseExperiment", async () => {
-    const user = userEvent.setup();
-    setActiveSession("exp_orb_1");
+        setActiveSession("exp_orb_1");
     setSessionState(makeState());
     api.pauseExperiment.mockResolvedValue(true);
     api.fetchSessionState.mockResolvedValue(null);
@@ -102,15 +100,14 @@ describe("ExperimentsProgress", () => {
     expect(screen.queryByTestId("experiments-resume-btn")).not.toBeInTheDocument();
     expect(screen.getByTestId("experiments-cancel-btn")).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("experiments-pause-btn"));
+    await fireEvent.click(screen.getByTestId("experiments-pause-btn"));
     await waitFor(() => {
       expect(api.pauseExperiment).toHaveBeenCalledWith("exp_orb_1");
     });
   });
 
   it("shows resume and cancel while paused, and resume calls resumeExperiment", async () => {
-    const user = userEvent.setup();
-    setActiveSession("exp_orb_1");
+        setActiveSession("exp_orb_1");
     setSessionState(makeState({ status: "paused" }));
     api.resumeExperiment.mockResolvedValue(true);
     api.fetchSessionState.mockResolvedValue(null);
@@ -119,21 +116,20 @@ describe("ExperimentsProgress", () => {
     expect(screen.getByTestId("experiments-resume-btn")).toBeInTheDocument();
     expect(screen.queryByTestId("experiments-pause-btn")).not.toBeInTheDocument();
 
-    await user.click(screen.getByTestId("experiments-resume-btn"));
+    await fireEvent.click(screen.getByTestId("experiments-resume-btn"));
     await waitFor(() => {
       expect(api.resumeExperiment).toHaveBeenCalledWith("exp_orb_1");
     });
   });
 
   it("cancel calls cancelExperiment", async () => {
-    const user = userEvent.setup();
-    setActiveSession("exp_orb_1");
+        setActiveSession("exp_orb_1");
     setSessionState(makeState());
     api.cancelExperiment.mockResolvedValue(true);
     api.fetchSessionState.mockResolvedValue(null);
     renderWithProviders(<ExperimentsProgress />);
 
-    await user.click(screen.getByTestId("experiments-cancel-btn"));
+    await fireEvent.click(screen.getByTestId("experiments-cancel-btn"));
     await waitFor(() => {
       expect(api.cancelExperiment).toHaveBeenCalledWith("exp_orb_1");
     });

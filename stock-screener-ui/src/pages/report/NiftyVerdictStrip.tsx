@@ -289,7 +289,7 @@ const VerdictCell = memo(function VerdictCell({ testId, accent, primary, seconda
       data-testid={testId}
       title={`${primary} — ${secondary}`}
       className="flex flex-col justify-center gap-[2px] min-w-0 overflow-hidden px-[12px] py-[6px]"
-      style={{ borderLeft: `1px solid ${palette.TERM_BORDER}` }}
+      style={{ "border-left": `1px solid ${palette.TERM_BORDER}` }}
     >
       <Box className="flex items-center gap-[6px] min-w-0">
         <Box

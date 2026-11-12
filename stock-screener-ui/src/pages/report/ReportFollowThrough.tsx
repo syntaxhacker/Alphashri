@@ -1,7 +1,6 @@
-import { useMemo } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
-import { Badge, Box, Text, ToolbarRow } from "@/ui";
-import { TanStackTable } from "@/components/common/TanStackTable";
+import { createMemo, Show } from "solid-js";
+import { Badge, Text, ToolbarRow } from "@/ui";
+import { TanStackTable, type TableColumnDef } from "@/components/common/TanStackTable";
 import type { FollowThroughRow, FollowThroughSide } from "../../types/report";
 import { formatCurrency, formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
 import { BREAKOUT_TYPE_LABELS } from "./ReportBreakoutTable";
@@ -32,20 +31,16 @@ interface ReportFollowThroughTableProps {
   emptyNote?: string;
 }
 
-export function ReportFollowThroughTable({
-  title,
-  side,
-  testId,
-  onOpenSymbol,
-  emptyMessage = "No follow-through rows",
-  emptyNote,
-}: ReportFollowThroughTableProps) {
-  const rows = useMemo(() => {
-    const all = side?.rows ?? [];
+export function ReportFollowThroughTable(props: ReportFollowThroughTableProps) {
+  const side = () => props.side;
+  const testId = () => props.testId;
+  const emptyMessage = () => props.emptyMessage ?? "No follow-through rows";
+  const rows = createMemo(() => {
+    const all = side()?.rows ?? [];
     return [...all].sort((a, b) => b.ret_pct - a.ret_pct);
-  }, [side]);
+  });
 
-  const columns = useMemo<ColumnDef<FollowThroughRow>[]>(
+  const columns = createMemo<TableColumnDef<FollowThroughRow>[]>(
     () => [
       {
         id: "symbol",
@@ -55,16 +50,16 @@ export function ReportFollowThroughTable({
         cell: ({ row }) => {
           const r = row.original;
           return (
-            <Box className="min-w-0 flex flex-col">
+            <div class="min-w-0 flex flex-col">
               <Text size="xs" fw={700} truncate span>
                 {r.symbol}
               </Text>
-              {r.name ? (
+              <Show when={r.name}>
                 <Text size="xs" c="dimmed" truncate span>
                   {r.name}
                 </Text>
-              ) : null}
-            </Box>
+              </Show>
+            </div>
           );
         },
       },
@@ -135,39 +130,38 @@ export function ReportFollowThroughTable({
         ),
       },
     ],
-    [],
   );
 
   return (
-    <Box data-testid={`${testId}-section`} className="flex flex-col gap-2 min-w-0">
+    <div data-testid={`${testId()}-section`} class="flex flex-col gap-2 min-w-0">
       <ToolbarRow gap={8} wrap={false}>
-        <Text size="sm" fw={700} span data-testid={`${testId}-title`}>
-          {title}
+        <Text size="sm" fw={700} span data-testid={`${testId()}-title`}>
+          {props.title}
         </Text>
-        <Badge size="xs" data-testid={`${testId}-count`}>
-          {side?.count ?? 0}
+        <Badge size="xs" data-testid={`${testId()}-count`}>
+          {side()?.count ?? 0}
         </Badge>
-        <Text size="xs" c="dimmed" span data-testid={`${testId}-summary`} className="tabular-nums">
-          {formatSummary(side, emptyNote)}
+        <Text size="xs" c="dimmed" span data-testid={`${testId()}-summary`} className="tabular-nums">
+          {formatSummary(side(), props.emptyNote)}
         </Text>
-        <Box className="flex-1 min-w-0" />
+        <div class="flex-1 min-w-0" />
       </ToolbarRow>
-      <Box
-        className="min-w-0 w-full overflow-hidden border border-fin-border rounded-[1px] bg-fin-surface"
+      <div
+        class="min-w-0 w-full overflow-hidden border border-fin-border rounded-[1px] bg-fin-surface"
       >
         <TanStackTable
-          data={rows}
-          columns={columns}
-          dataTestId={testId}
-          emptyMessage={emptyMessage}
+          data={rows()}
+          columns={columns()}
+          dataTestId={testId()}
+          emptyMessage={emptyMessage()}
           stickyHeader
           bare
           dense
           initialState={{ sorting: [{ id: "ret_pct", desc: true }] }}
-          onRowClick={onOpenSymbol ? (row) => onOpenSymbol(row.symbol) : undefined}
-          getRowTestId={(row) => `${testId}-row-${row.symbol}`}
+          onRowClick={props.onOpenSymbol ? (row) => props.onOpenSymbol!(row.symbol) : undefined}
+          getRowTestId={(row) => `${testId()}-row-${row.symbol}`}
         />
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }

@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { act, fireEvent, render, screen, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, cleanup } from "@solidjs/testing-library";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { UIProvider } from "@/ui";
 import { MarketScreenerPanel } from "./MarketScreenerPanel";
@@ -68,8 +67,8 @@ function hookResult(overrides: Partial<UseMarketSnapshotResult> = {}): UseMarket
   };
 }
 
-function r(jsx: React.ReactElement) {
-  return render(<UIProvider>{jsx}</UIProvider>);
+function r(jsx: JSX.Element) {
+  return render(() => (<UIProvider>{jsx}</UIProvider>));
 }
 
 afterEach(cleanup);
@@ -114,11 +113,10 @@ describe("MarketScreenerPanel — stale cache, warming hint, timeout", () => {
     );
     r(<MarketScreenerPanel />);
     expect(screen.getByTestId("market-warming-hint")).toBeInTheDocument();
-    const user = userEvent.setup();
-    await user.click(
+        await fireEvent.click(
       screen.getByTestId("market-universe-select").querySelector('[role="combobox"]') as HTMLElement,
     );
-    await user.click(await screen.findByRole("option", { name: "Nifty 500" }));
+    await fireEvent.click(await screen.findByRole("option", { name: "Nifty 500" }));
     expect(screen.queryByTestId("market-warming-hint")).not.toBeInTheDocument();
     expect(mockUseMarketSnapshot).toHaveBeenLastCalledWith("nifty500");
   });
@@ -128,8 +126,7 @@ describe("MarketScreenerPanel — stale cache, warming hint, timeout", () => {
       hookResult({ rows: [], total: 0, snapshot: null, isLoading: true, warming: true }),
     );
     r(<MarketScreenerPanel />);
-    const user = userEvent.setup();
-    await user.click(screen.getByTestId("market-warming-switch"));
+        await fireEvent.click(screen.getByTestId("market-warming-switch"));
     expect(mockUseMarketSnapshot).toHaveBeenLastCalledWith("nifty500");
   });
 

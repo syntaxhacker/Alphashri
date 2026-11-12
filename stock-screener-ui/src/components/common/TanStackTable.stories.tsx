@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { TableColumnDef as ColumnDef } from "./TanStackTable";
 import { Button, Group, Text } from "@/ui";
-import { IconDatabaseOff } from "@tabler/icons-react";
+import { IconDatabaseOff } from "./Icons";
 import { TanStackTable } from "./TanStackTable";
 
 interface User {
@@ -26,11 +26,11 @@ const users: User[] = [
 ];
 
 const columns: ColumnDef<User>[] = [
-  { accessorKey: "id", header: "ID" },
-  { accessorKey: "name", header: "Name" },
-  { accessorKey: "email", header: "Email" },
-  { accessorKey: "role", header: "Role" },
-  { accessorKey: "age", header: "Age" },
+  { id: "id", accessorKey: "id", header: "ID" },
+  { id: "name", accessorKey: "name", header: "Name" },
+  { id: "email", accessorKey: "email", header: "Email" },
+  { id: "role", accessorKey: "role", header: "Role" },
+  { id: "age", accessorKey: "age", header: "Age" },
 ];
 
 function makeRows(count: number): User[] {

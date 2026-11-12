@@ -194,7 +194,7 @@ function NiftyWallMigrationInner({ rows, bucketMin = 15 }: NiftyWallMigrationPro
               <span
                 aria-hidden
                 className="block w-[14px] h-0 shrink-0"
-                style={{ borderTop: `2px ${s.dash ? "dashed" : "solid"} ${s.color}` }}
+                style={{ "border-top": `2px ${s.dash ? "dashed" : "solid"} ${s.color}` }}
               />
               <Text size="xs" span c="dimmed">
                 {s.name}

@@ -1,6 +1,7 @@
+import { Portal } from "solid-js";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Box, Group, Stack, Text, Title } from "@/ui";
-import { MemoryRouter } from "react-router-dom";
+import { Router } from "@solidjs/router";
 import { PreviewChartProvider, usePreviewChart } from "./PreviewChartProvider";
 import { ClickableSymbol } from "./ClickableSymbol";
 
@@ -36,11 +37,11 @@ const meta: Meta = {
   },
   decorators: [
     (Story) => (
-      <MemoryRouter>
+      <Router>
         <PreviewChartProvider>
           <Story />
         </PreviewChartProvider>
-      </MemoryRouter>
+      </Router>
     ),
   ],
 };

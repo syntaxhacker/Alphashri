@@ -3,10 +3,11 @@
 import { createElement } from "react";
 import { TZ_IST_LABEL } from "@/config/constants";
 import * as palette from "@/ui/palette";
-import { Stack, Chip } from "@/ui";
+import { Chip } from "@/ui";
 import { tradeStatChips } from "./shared";
 import { stackColor, type ReplayTrade, type TradeStack } from "../tick";
 import type { ReplayStrategyPlugin } from "../core/plugin";
+import { Stack } from "../../paper-trading/primitives";
 
 // Real trades from /api/poc/smc-ifvg — SMCIFVGEngine (trading/smc_ifvg.py) run bar-by-bar
 // on Dukascopy ticks: history-only signals, tick-accurate fills (ask/bid), SL-first exits.

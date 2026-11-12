@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect } from "vitest";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { TableColumnDef } from "../common/TanStackTable";
 import { buildFnoColumns } from "./fnoColumns";
 import type { FnoScreenerRow } from "../../api/fnoScreener";
 
@@ -55,7 +55,7 @@ const sampleRow: FnoScreenerRow = {
 type Accessor = (row: FnoScreenerRow) => unknown;
 
 function accessorOf(
-  columns: ColumnDef<FnoScreenerRow>[],
+  columns: TableColumnDef<FnoScreenerRow>[],
   id: string,
 ): Accessor {
   const col = columns.find((c) => c.id === id);

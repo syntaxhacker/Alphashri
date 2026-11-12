@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, within } from "@testing-library/react";
+import { render, screen, cleanup, within, fireEvent} from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { ScreenerHeader } from "./ScreenerHeader";
 import { UIProvider } from "@/ui";
 
@@ -40,22 +39,21 @@ describe("ScreenerHeader", () => {
   }
 
   it("calls onRefresh when refresh button clicked", async () => {
-      const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    await user.click(screen.getByTestId("refresh-btn"));
+      </UIProvider>
+    ));
+    fireEvent.click(screen.getByTestId("refresh-btn"));
     expect(defaultProps.onRefresh).toHaveBeenCalledTimes(1);
   });
 
   it("shows loading state on refresh button", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} isLoading={true} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const refreshBtn = screen.getByTestId("refresh-btn");
     // The @/ui ActionIcon shows loading as disabled + progress indicator
     expect(refreshBtn).toBeDisabled();
@@ -63,118 +61,112 @@ describe("ScreenerHeader", () => {
   });
 
   it("disables auto-refresh input when loading", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} isLoading={true} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(getNumberInput()).toBeDisabled();
   });
 
   it("keeps inputs enabled during background refresh when results are present", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} isLoading={true} disableControls={false} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(getNumberInput()).toBeEnabled();
   });
 
   it("calls onAutoRefreshChange when auto-refresh value changes", async () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const input = getNumberInput();
-    const user = userEvent.setup();
-    await user.clear(input);
-    await user.type(input, "120");
+    fireEvent.input(input, { target: { value: "" } });
+    fireEvent.input(input, { target: { value: "120" } });
     expect(defaultProps.onAutoRefreshChange).toHaveBeenCalled();
   });
 
   it("calls onProviderChange when provider changes", async () => {
-      const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    await user.selectOptions(getCombobox("provider-select"), "indmoney");
+      </UIProvider>
+    ));
+    fireEvent.input(getCombobox("provider-select"), { target: { value: "indmoney" } });
     expect(defaultProps.onProviderChange).toHaveBeenCalledWith("indmoney");
   });
 
   it("calls onModeChange when mode changes", async () => {
-      const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    await user.selectOptions(getCombobox("mode-select"), "historical");
+      </UIProvider>
+    ));
+    fireEvent.input(getCombobox("mode-select"), { target: { value: "historical" } });
     expect(defaultProps.onModeChange).toHaveBeenCalledWith("historical");
   });
 
   it("calls onViewModeChange when table button clicked", async () => {
-      const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} viewMode="heatmap" />
-      </UIProvider>,
-    );
-    await user.click(screen.getByRole("button", { name: "Tbl" }));
+      </UIProvider>
+    ));
+    fireEvent.click(screen.getByRole("button", { name: "Tbl" }));
     expect(defaultProps.onViewModeChange).toHaveBeenCalledWith("table");
   });
 
   it("calls onViewModeChange when heatmap button clicked", async () => {
-      const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    await user.click(screen.getByRole("button", { name: "Map" }));
+      </UIProvider>
+    ));
+    fireEvent.click(screen.getByRole("button", { name: "Map" }));
     expect(defaultProps.onViewModeChange).toHaveBeenCalledWith("heatmap");
   });
 
   it("displays correct view mode state", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} viewMode="heatmap" />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByRole("button", { name: "Map" })).toBeInTheDocument();
     const btn = screen.getByRole("button", { name: "Map" });
     expect(btn).toHaveAttribute("aria-pressed", "true");
   });
 
   it("handles zero auto-refresh value", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} autoRefreshSeconds={0} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(getNumberInput()).toHaveValue(0);
   });
 
   it("handles large auto-refresh value within limit", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} autoRefreshSeconds={3600} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(getNumberInput()).toHaveValue(3600);
   });
 
   it("passes correct auto-refresh value to onAutoRefreshChange", async () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const input = getNumberInput();
-    const { fireEvent } = await import("@testing-library/react");
-    fireEvent.change(input, { target: { value: "300" } });
+    fireEvent.input(input, { target: { value: "300" } });
     expect(defaultProps.onAutoRefreshChange).toHaveBeenCalled();
   });
 

@@ -32,7 +32,7 @@ vi.mock("../../state/store/notificationsSlice", () => ({
 }));
 
 vi.mock("../../state/holidays", () => ({
-  subscribeToHolidays: vi.fn(),
+  subscribeToHolidays: vi.fn(() => () => {}),
   isMarketClosedToday: vi.fn().mockReturnValue(false),
 }));
 

@@ -1,5 +1,4 @@
-import { memo } from "react";
-import type { ReactNode } from "react";
+import type { JSX } from "solid-js";
 import { CompactPanel } from "../common/compact";
 import { ScreenerStockView } from "./ScreenerStockView";
 import type { Stock, ColumnDef } from "../../types";
@@ -13,7 +12,7 @@ interface ScreenerSectionProps {
   touchedSymbols: Set<string>;
   badgeLabel?: string;
   scoreFormula?: string;
-  action?: ReactNode;
+  action?: JSX.Element;
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
   viewMode: "table" | "heatmap";
@@ -21,43 +20,28 @@ interface ScreenerSectionProps {
   activeScreener: string;
 }
 
-export const ScreenerSection = memo(function ScreenerSection({
-  title,
-  description,
-  testId,
-  stocks,
-  columns,
-  touchedSymbols,
-  badgeLabel,
-  scoreFormula,
-  action,
-  onSymbolClick,
-  onSymbolHover,
-  viewMode,
-  section,
-  activeScreener,
-}: ScreenerSectionProps) {
+export function ScreenerSection(props: ScreenerSectionProps) {
   return (
     <CompactPanel
-      title={title}
-      description={viewMode === "heatmap" ? undefined : description}
-      testId={testId}
-      action={action}
-      scrollable={viewMode !== "heatmap"}
+      title={props.title}
+      description={props.viewMode === "heatmap" ? undefined : props.description}
+      testId={props.testId}
+      action={props.action}
+      scrollable={props.viewMode !== "heatmap"}
       padded={false}
     >
       <ScreenerStockView
-        stocks={stocks}
-        columns={columns}
-        touchedSymbols={touchedSymbols}
-        badgeLabel={badgeLabel}
-        scoreFormula={scoreFormula}
-        onSymbolClick={onSymbolClick}
-        onSymbolHover={onSymbolHover}
-        viewMode={viewMode}
-        section={section}
-        activeScreener={activeScreener}
+        stocks={props.stocks}
+        columns={props.columns}
+        touchedSymbols={props.touchedSymbols}
+        badgeLabel={props.badgeLabel}
+        scoreFormula={props.scoreFormula}
+        onSymbolClick={props.onSymbolClick}
+        onSymbolHover={props.onSymbolHover}
+        viewMode={props.viewMode}
+        section={props.section}
+        activeScreener={props.activeScreener}
       />
     </CompactPanel>
   );
-});
+}

@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, afterEach } from "vitest";
-import { createElement as h } from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import {
   buildVolumeProfile,
@@ -14,7 +14,7 @@ import { NiftyVolumeProfile } from "./NiftyVolumeProfile";
 afterEach(cleanup);
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
-  return h(UIProvider, null, children);
+  return <UIProvider>children</UIProvider>;
 }
 
 // chain[strike] = [ce_ltp, pe_ltp, ce_oi, pe_oi, ce_vol, pe_vol]
@@ -116,8 +116,7 @@ describe("formatProfileCompact", () => {
 
 describe("NiftyVolumeProfile render", () => {
   test("bars per leg, ATM and top-volume markers", () => {
-    render(
-      h(TestWrapper, null, h(NiftyVolumeProfile, { rows: ROWS })),
+    render(() => <TestWrapper>h(NiftyVolumeProfile, { rows: ROWS })</TestWrapper>,
     );
     expect(screen.getByTestId("nifty-volume-profile")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-volume-profile-ce-25000")).toBeInTheDocument();
@@ -129,7 +128,7 @@ describe("NiftyVolumeProfile render", () => {
   });
 
   test("empty tape renders the muted empty state", () => {
-    render(h(TestWrapper, null, h(NiftyVolumeProfile, { rows: [] })));
+    render(() => <TestWrapper>h(NiftyVolumeProfile, { rows: [] })</TestWrapper>);
     expect(screen.getByTestId("nifty-volume-profile")).toHaveTextContent("No tape data");
   });
 });

@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, waitFor } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { BotStatusPanel } from "./BotStatusPanel2";
@@ -95,8 +94,8 @@ const mockTrade: BotTrade = {
   is_test_data: false,
 };
 
-function renderWithProviders(ui: React.ReactElement) {
-  return render(<UIProvider>{ui}</UIProvider>);
+function renderWithProviders(ui: JSX.Element) {
+  return render(() => (<UIProvider>{ui}</UIProvider>));
 }
 
 describe("BotStatusPanel", () => {
@@ -153,20 +152,18 @@ describe("BotStatusPanel", () => {
   });
 
   it("refresh button reloads status and trades", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<BotStatusPanel {...defaultProps} />);
-    await user.click(screen.getByTestId("refresh-bot-status-btn"));
+        renderWithProviders(<BotStatusPanel {...defaultProps} />);
+    await fireEvent.click(screen.getByTestId("refresh-bot-status-btn"));
     expect(loadBotStatus).toHaveBeenCalledWith("bot-1");
     expect(loadBotTrades).toHaveBeenCalledWith("bot-1");
   });
 
   it("start handler calls onStart and loads status/trades once (no polling)", async () => {
-    const user = userEvent.setup();
-    const onStart = vi.fn().mockResolvedValue(undefined);
+        const onStart = vi.fn().mockResolvedValue(undefined);
     vi.mocked(loadBotStatus).mockResolvedValue(undefined);
     vi.mocked(loadBotTrades).mockResolvedValue(undefined);
     renderWithProviders(<BotStatusPanel {...defaultProps} onStart={onStart} />);
-    await user.click(screen.getByTestId("start-bot-btn"));
+    await fireEvent.click(screen.getByTestId("start-bot-btn"));
     expect(onStart).toHaveBeenCalledWith("bot-1");
     await waitFor(() => {
       expect(loadBotStatus).toHaveBeenCalledTimes(1);
@@ -175,8 +172,7 @@ describe("BotStatusPanel", () => {
   });
 
   it("stop handler calls onStop and loads status once (no polling)", async () => {
-    const user = userEvent.setup();
-    const onStop = vi.fn().mockResolvedValue(undefined);
+        const onStop = vi.fn().mockResolvedValue(undefined);
     const status: BotStatus = {
       bot_id: "bot-1",
       running: true,
@@ -187,7 +183,7 @@ describe("BotStatusPanel", () => {
     };
     vi.mocked(loadBotStatus).mockResolvedValue(undefined);
     renderWithProviders(<BotStatusPanel {...defaultProps} status={status} onStop={onStop} />);
-    await user.click(screen.getByTestId("stop-bot-btn"));
+    await fireEvent.click(screen.getByTestId("stop-bot-btn"));
     expect(onStop).toHaveBeenCalledWith("bot-1");
     await waitFor(() => {
       expect(loadBotStatus).toHaveBeenCalledTimes(1);

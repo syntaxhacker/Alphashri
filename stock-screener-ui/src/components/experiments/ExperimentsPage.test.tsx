@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { ExperimentsPage } from "./ExperimentsPage";
@@ -43,7 +42,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function Wrapper({ children }: { children: React.ReactNode }) {
+function Wrapper({ children }: { children: JSX.Element }) {
   return <UIProvider>{children}</UIProvider>;
 }
 
@@ -95,13 +94,13 @@ describe("ExperimentsPage", () => {
   });
 
   it("calls fetchSessions on mount", async () => {
-    render(<ExperimentsPage />, { wrapper: Wrapper });
+    render(() => (<ExperimentsPage />), { wrapper: Wrapper });
     const { fetchSessions } = await import("../../state/experiments");
     expect(fetchSessions).toHaveBeenCalled();
   });
 
   it("calls fetchStrategies on mount", async () => {
-    render(<ExperimentsPage />, { wrapper: Wrapper });
+    render(() => (<ExperimentsPage />), { wrapper: Wrapper });
     const { fetchStrategies } = await import("../../state/experiments");
     expect(fetchStrategies).toHaveBeenCalled();
   });
@@ -119,7 +118,7 @@ describe("ExperimentsPage", () => {
         }),
       ],
     });
-    render(<ExperimentsPage />, { wrapper: Wrapper });
+    render(() => (<ExperimentsPage />), { wrapper: Wrapper });
     expect(screen.getByTestId("experiments-page")).toBeInTheDocument();
     expect(screen.getByTestId("experiments-session-list")).toBeInTheDocument();
     expect(
@@ -136,22 +135,21 @@ describe("ExperimentsPage", () => {
 
   it("renders the results table and chart panels", () => {
     currentState = makeState({ sessions: [makeSession()] });
-    render(<ExperimentsPage />, { wrapper: Wrapper });
+    render(() => (<ExperimentsPage />), { wrapper: Wrapper });
     expect(screen.getByTestId("mock-results-table")).toBeInTheDocument();
     expect(screen.getByTestId("mock-chart")).toBeInTheDocument();
   });
 
   it("shows empty sessions message when there are none", () => {
-    render(<ExperimentsPage />, { wrapper: Wrapper });
+    render(() => (<ExperimentsPage />), { wrapper: Wrapper });
     expect(screen.getByText("No sessions yet")).toBeInTheDocument();
   });
 
   it("calls selectSession when a session row is clicked", async () => {
-    const user = userEvent.setup();
-    currentState = makeState({ sessions: [makeSession()] });
-    render(<ExperimentsPage />, { wrapper: Wrapper });
+        currentState = makeState({ sessions: [makeSession()] });
+    render(() => (<ExperimentsPage />), { wrapper: Wrapper });
 
-    await user.click(screen.getByTestId("experiments-session-exp_orb_1"));
+    await fireEvent.click(screen.getByTestId("experiments-session-exp_orb_1"));
     const { selectSession } = await import("../../state/experiments");
     expect(selectSession).toHaveBeenCalledWith("exp_orb_1");
   });
@@ -161,20 +159,20 @@ describe("ExperimentsPage", () => {
       sessions: [makeSession()],
       activeSession: "exp_orb_1",
     });
-    render(<ExperimentsPage />, { wrapper: Wrapper });
+    render(() => (<ExperimentsPage />), { wrapper: Wrapper });
     const { startPolling } = await import("../../state/experiments");
     expect(startPolling).toHaveBeenCalledWith("exp_orb_1");
   });
 
   it("does not start polling when no active session", async () => {
-    render(<ExperimentsPage />, { wrapper: Wrapper });
+    render(() => (<ExperimentsPage />), { wrapper: Wrapper });
     const { startPolling } = await import("../../state/experiments");
     expect(startPolling).not.toHaveBeenCalled();
   });
 
   it("stops polling on unmount", async () => {
     currentState = makeState({ activeSession: "exp_orb_1" });
-    const { unmount } = render(<ExperimentsPage />, { wrapper: Wrapper });
+    const { unmount } = render(() => (<ExperimentsPage />), { wrapper: Wrapper });
     unmount();
     const { stopPolling } = await import("../../state/experiments");
     expect(stopPolling).toHaveBeenCalled();
@@ -182,7 +180,7 @@ describe("ExperimentsPage", () => {
 
   it("renders an error alert when state.error is set", () => {
     currentState = makeState({ error: "Something went wrong" });
-    render(<ExperimentsPage />, { wrapper: Wrapper });
+    render(() => (<ExperimentsPage />), { wrapper: Wrapper });
     expect(screen.getByTestId("experiments-error")).toBeInTheDocument();
     expect(screen.getByText("Something went wrong")).toBeInTheDocument();
   });

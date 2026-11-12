@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { ScreenerHeatmapView } from "./ScreenerHeatmapView";
@@ -36,7 +36,7 @@ describe("ScreenerHeatmapView", () => {
   });
 
   it("renders nothing when stocks empty", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeatmapView
           stocks={[]}
@@ -44,13 +44,13 @@ describe("ScreenerHeatmapView", () => {
           onSymbolClick={onSymbolClick}
           testId="screener-heatmap-empty"
         />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.queryByTestId("screener-heatmap-empty")).not.toBeInTheDocument();
   });
 
   it("renders shared HeatmapTreemap with screener rows", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeatmapView
           stocks={[mockStock]}
@@ -58,15 +58,15 @@ describe("ScreenerHeatmapView", () => {
           onSymbolClick={onSymbolClick}
           testId="screener-heatmap-touched"
         />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const el = screen.getByTestId("screener-heatmap-touched");
     expect(el).toHaveAttribute("data-stocks", "1");
     expect(el).toHaveAttribute("data-metric", "to_52w_high");
   });
 
   it("defaults metric to day_change for nifty_movers", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeatmapView
           stocks={[mockStock]}
@@ -74,13 +74,13 @@ describe("ScreenerHeatmapView", () => {
           onSymbolClick={onSymbolClick}
           testId="screener-heatmap-nifty"
         />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("screener-heatmap-nifty")).toHaveAttribute("data-metric", "day_change");
   });
 
   it("defaults metric to score for non-52w screeners", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeatmapView
           stocks={[mockStock]}
@@ -88,8 +88,8 @@ describe("ScreenerHeatmapView", () => {
           onSymbolClick={onSymbolClick}
           testId="screener-heatmap-approaching"
         />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("screener-heatmap-approaching")).toHaveAttribute("data-metric", "score");
   });
 });

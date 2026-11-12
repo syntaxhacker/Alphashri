@@ -1,3 +1,4 @@
+import { Show } from "solid-js";
 import { Box } from "@/ui";
 import { Text, Badge } from "@/ui";
 import * as palette from "@/ui/palette";
@@ -8,7 +9,7 @@ interface ChainFooterProps {
   spotPrice: number | null;
 }
 
-export function ChainFooter({ spotPrice }: ChainFooterProps) {
+export function ChainFooter(props: ChainFooterProps) {
   return (
     <Box
       className="chain-table-footer flex items-center justify-center gap-[8px] p-[8px] flex-wrap w-full"
@@ -43,14 +44,16 @@ export function ChainFooter({ spotPrice }: ChainFooterProps) {
           </Badge>
         </Box>
       </Box>
-      {spotPrice && (
-        <Text size="sm" fw={600} className="chain-spot-price" data-testid="options-chain-spot-price">
-          Spot:{" "}
-          <Text component="span" className="text-fin-primary">
-            {spotPrice.toFixed(2)}
+      <Show when={props.spotPrice}>
+        {(spot) => (
+          <Text size="sm" fw={600} className="chain-spot-price" data-testid="options-chain-spot-price">
+            Spot:{" "}
+            <Text component="span" className="text-fin-primary">
+              {spot().toFixed(2)}
+            </Text>
           </Text>
-        </Text>
-      )}
+        )}
+      </Show>
     </Box>
   );
 }

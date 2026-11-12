@@ -1,5 +1,4 @@
 import { describe, it, expect } from "vitest";
-import React from "react";
 import {
   symbolCol,
   scoreCol,
@@ -72,10 +71,10 @@ describe("base columns", () => {
     it("true without last_touched -> Yes", () => expect(fmt(true as any, {} as any)).toBe("Yes"));
     it("true with last_touched -> Tooltip element", () => {
       const twoDaysAgo = new Date(Date.now() - 2 * 86400000).toISOString();
-      const res = fmt(true as any, { last_touched: twoDaysAgo } as any) as React.ReactElement;
+      const res = fmt(true as any, { last_touched: twoDaysAgo } as any) as HTMLElement;
       expect(res).toBeDefined();
-      // should be Tooltip
-      expect((res as any).props.label).toContain("Touched on");
+      // Solid Tooltip surfaces its string label as the wrapper aria-label
+      expect(res.getAttribute("aria-label")).toContain("Touched on");
     });
     it("handles missing stock object", () => expect(fmt(true as any, null as any)).toBe("Yes"));
   });

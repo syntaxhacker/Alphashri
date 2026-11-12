@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from "solid-js";
 import {
   createChart,
   ColorType,
@@ -71,6 +71,8 @@ export interface TradingViewChartProps {
    *  (e.g. 52W high) keep their candles readable; the Nifty report enables it
    *  so a GEX level outside the day's range is not silently clipped off-screen. */
   fitMarkLines?: boolean;
+  /** Solid imperative-handle pattern: called with the handle on mount. */
+  ref?: (handle: TradingViewChartHandle) => void;
 }
 
 export interface TradingViewChartHandle {
@@ -112,11 +114,9 @@ function clampWidth(w?: number): LineWidth {
 /**
  * Stable identities for the optional props' defaults.
  *
- * A `= []` default parameter allocates a new array on every render, so every
- * `useCallback`/`useEffect` that depends on it changes identity on every parent
- * render — which re-subscribed the time-scale handler, rebuilt the
- * `ResizeObserver` and re-registered the window `resize` listener on every
- * report poll. One constant per prop keeps those identities stable.
+ * A fresh `= []` per render used to re-subscribe the time-scale handler and
+ * rebuild the ResizeObserver on every poll. One constant per prop keeps the
+ * memo comparators happy.
  */
 const EMPTY_TRADES: ReplayTrade[] = [];
 const EMPTY_MARK_LINES: MarkLineData[] = [];
@@ -379,61 +379,46 @@ const EXIT_OTHER_COLOR = "#FFD166";
 const NT_VOL_UP = "rgba(148, 163, 184, 0.40)";
 const NT_VOL_DOWN = "rgba(100, 116, 139, 0.40)";
 
-export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewChartProps>(function TradingViewChart({
-  candles,
-  trades = EMPTY_TRADES,
-  highlightedTradeId,
-  showAllTrades,
-  height,
-  markLines = EMPTY_MARK_LINES,
-  priceAreas = EMPTY_PRICE_AREAS,
-  emaData = EMPTY_EMA,
-  touchMarkers = EMPTY_TOUCH_MARKERS,
-  rsiData,
-  livePosition,
-  theme = "default",
-  chartType = "candles",
-  entryLabels = false,
-  onChartReady,
-  fitMarkLines = false,
-}, ref) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
-  const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
-  const markersRef = useRef<ReturnType<typeof createSeriesMarkers> | null>(null);
-  const priceLinesRef = useRef<IPriceLine[]>([]);
-  const emaSeriesRef = useRef<ISeriesApi<"Line">[]>([]);
-  /** `label|color` signature of the EMA series currently attached. */
-  const emaSigRef = useRef<string>("");
-  /** Per-series content signature of the EMA data currently pushed. */
-  const emaDataSigRef = useRef<string[]>([]);
-  /** Signature of the price lines currently attached (see `markOverlaySignature`). */
-  const markSigRef = useRef<string | null>(null);
-  /** Signature of the candle/volume data currently pushed (see `candleSignature`). */
-  const dataSigRef = useRef<string | null>(null);
-  /** Signature of the applied autoscale closure inputs (see `autoscaleSignature`). */
-  const autoscaleSigRef = useRef<string | null>(null);
-  const rsiSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
-  const rsiPriceLinesRef = useRef<IPriceLine[]>([]);
-  const heightRef = useRef(height);
-  const onReadyRef = useRef(onChartReady);
-  onReadyRef.current = onChartReady;
-  /** Latest mark lines for the (memoised) overlay painter — see `drawEntryLabels`. */
-  const markLinesRef = useRef(markLines);
-  markLinesRef.current = markLines;
-  const overlayRef = useRef<HTMLCanvasElement>(null);
-  /** Pending pan/zoom/resize redraw frame — cancelled on cleanup. */
-  const rafRef = useRef<number | null>(null);
-  const [ready, setReady] = useState(false);
+export function TradingViewChart(props: TradingViewChartProps) {
+  const theme = () => props.theme ?? "default";
+  const chartType = () => props.chartType ?? "candles";
+  const fitMarkLines = () => props.fitMarkLines ?? false;
+  const entryLabels = () => props.entryLabels ?? false;
+  const trades = () => props.trades ?? EMPTY_TRADES;
+  const markLines = () => props.markLines ?? EMPTY_MARK_LINES;
+  const priceAreas = () => props.priceAreas ?? EMPTY_PRICE_AREAS;
+  const emaData = () => props.emaData ?? EMPTY_EMA;
+  const touchMarkers = () => props.touchMarkers ?? EMPTY_TOUCH_MARKERS;
 
-  // create chart once — not on height/candles.
-  // With an explicit height -> fixed size (page-level charts). Without -> autoSize
-  // so the chart fills its flex container (paper Trade History panel).
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const fixedHeight = heightRef.current;
-    const nt = theme === "nt";
+  let containerRef: HTMLDivElement | undefined;
+  let overlayRef: HTMLCanvasElement | undefined;
+  let chart: IChartApi | null = null;
+  let candleSeries: ISeriesApi<"Candlestick"> | null = null;
+  let volumeSeries: ISeriesApi<"Histogram"> | null = null;
+  let markers: ReturnType<typeof createSeriesMarkers> | null = null;
+  let priceLines: IPriceLine[] = [];
+  let emaSeries: ISeriesApi<"Line">[] = [];
+  /** `label|color` signature of the EMA series currently attached. */
+  let emaSig = "";
+  /** Per-series content signature of the EMA data currently pushed. */
+  let emaDataSig: string[] = [];
+  /** Signature of the price lines currently attached (see `markOverlaySignature`). */
+  let currentMarkSig: string | null = null;
+  /** Signature of the candle/volume data currently pushed (see `candleSignature`). */
+  let dataSig: string | null = null;
+  /** Signature of the applied autoscale closure inputs (see `autoscaleSignature`). */
+  let autoscaleSig: string | null = null;
+  let rsiSeries: ISeriesApi<"Line"> | null = null;
+  let rsiPriceLines: IPriceLine[] = [];
+  /** Pending pan/zoom/resize redraw frame — cancelled on cleanup. */
+  let rafId: number | null = null;
+  let lastFitTime: string | undefined;
+  const [ready, setReady] = createSignal(false);
+
+  // Chart (re)creation: only on theme/chartType. Declared first so every
+  // dependent effect runs after the series refs are populated.
+  createEffect(() => {
+    const nt = theme() === "nt";
     const c = {
       bg: nt ? palette.NT_BG : palette.BG,
       grid: nt ? palette.NT_GRID : palette.BORDER,
@@ -444,11 +429,15 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       volUp: nt ? NT_VOL_UP : withAlpha(palette.POSITIVE, 0.9),
       volDown: nt ? NT_VOL_DOWN : withAlpha(palette.NEGATIVE, 0.9),
     };
-    const chart = createChart(containerRef.current, {
+    // Height changes go through applyOptions (see below) — never recreate here.
+    const fixedHeight = untrack(() => props.height);
+    const el = containerRef;
+    if (!el) return;
+    const created = createChart(el, {
       layout: { background: { type: ColorType.Solid, color: c.bg }, textColor: c.text },
       grid: { vertLines: { visible: false }, horzLines: { visible: false } },
       ...(fixedHeight != null
-        ? { width: containerRef.current.clientWidth, height: fixedHeight }
+        ? { width: el.clientWidth, height: fixedHeight }
         : { autoSize: true }),
       timeScale: { "border-color": c.grid, timeVisible: true, secondsVisible: false, rightOffset: 6, barSpacing: 5, tickMarkFormatter: tvTickMarkFormatter },
       localization: { locale: "en-IN", timeFormatter: tvTimeFormatter },
@@ -457,16 +446,16 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       handleScroll: true,
       handleScale: true,
     });
-    chartRef.current = chart;
+    chart = created;
 
-    const candleSeries = chartType === "line"
-      ? chart.addSeries(LineSeries, {
+    const createdCandle = chartType() === "line"
+      ? created.addSeries(LineSeries, {
           color: nt ? "#E5E7EB" : palette.PRIMARY,
           lineWidth: 2 as LineWidth,
           priceLineVisible: false,
           lastValueVisible: true,
         })
-      : chart.addSeries(CandlestickSeries, {
+      : created.addSeries(CandlestickSeries, {
           upColor: c.bull,
           downColor: c.bear,
           "border-color": c.bear,
@@ -477,80 +466,82 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
           borderVisible: !nt,
           wickVisible: true,
         });
-    candleSeriesRef.current = candleSeries as unknown as ISeriesApi<"Candlestick">;
+    candleSeries = createdCandle as unknown as ISeriesApi<"Candlestick">;
 
-    const volumeSeries = chart.addSeries(HistogramSeries, {
+    const createdVolume = created.addSeries(HistogramSeries, {
       color: c.volMuted,
       priceScaleId: "",
       priceFormat: { type: "volume" },
     });
-    volumeSeriesRef.current = volumeSeries as any;
-    (volumeSeries as any).priceScale().applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
+    volumeSeries = createdVolume as any;
+    (createdVolume as any).priceScale().applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
 
-    const markers = createSeriesMarkers(candleSeries, []);
-    markersRef.current = markers;
-    onReadyRef.current?.(chart, candleSeries as any);
+    const createdMarkers = createSeriesMarkers(createdCandle, []);
+    markers = createdMarkers;
+    props.onChartReady?.(created, createdCandle as any);
     setReady(true);
 
     let ro: ResizeObserver | null = null;
     if (fixedHeight != null) {
       ro = new ResizeObserver(() => {
-        if (containerRef.current && chartRef.current) {
-          chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
+        if (containerRef && chart) {
+          chart.applyOptions({ width: containerRef.clientWidth });
         }
       });
-      ro.observe(containerRef.current);
+      ro.observe(el);
     }
 
-    return () => {
+    onCleanup(() => {
       setReady(false);
       ro?.disconnect();
-      chart.remove();
-      chartRef.current = null;
-      candleSeriesRef.current = null;
-      volumeSeriesRef.current = null;
+      created.remove();
+      chart = null;
+      candleSeries = null;
+      volumeSeries = null;
       // The markers plugin is attached to the (now destroyed) candle series:
       // drop the reference so nothing can push into a dead primitive, and so the
       // marker effect re-applies markers after a recreate (`ready` dep).
-      markersRef.current = null;
-      priceLinesRef.current = [];
-      markSigRef.current = null;
-      dataSigRef.current = null;
-      autoscaleSigRef.current = null;
-      emaSeriesRef.current = [];
-      emaSigRef.current = "";
-      emaDataSigRef.current = [];
-      rsiSeriesRef.current = null;
-      rsiPriceLinesRef.current = [];
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [theme, chartType]);
+      markers = null;
+      priceLines = [];
+      currentMarkSig = null;
+      dataSig = null;
+      autoscaleSig = null;
+      emaSeries = [];
+      emaSig = "";
+      emaDataSig = [];
+      rsiSeries = null;
+      rsiPriceLines = [];
+    });
+  });
 
-  // height updates without recreate (fixed-height mode only)
-  useEffect(() => {
-    heightRef.current = height;
-    if (height != null) chartRef.current?.applyOptions({ height });
-  }, [height]);
+  // Height updates without recreate (fixed-height mode only)
+  createEffect(() => {
+    const h = props.height;
+    if (h != null) chart?.applyOptions({ height: h });
+  });
 
   // RSI pane (pane 1, below the candles) — only when rsiData is supplied.
-  useEffect(() => {
-    const chart = chartRef.current;
-    if (!chart) return;
+  createEffect(() => {
+    if (!ready()) return;
+    const currentChart = chart;
+    if (!currentChart) return;
 
-    if (rsiSeriesRef.current) {
-      rsiPriceLinesRef.current.forEach((l) => {
-        try { rsiSeriesRef.current?.removePriceLine(l); } catch { /* noop */ }
+    if (rsiSeries) {
+      rsiPriceLines.forEach((l) => {
+        try { rsiSeries?.removePriceLine(l); } catch { /* noop */ }
       });
-      rsiPriceLinesRef.current = [];
-      try { chart.removeSeries(rsiSeriesRef.current); } catch { /* noop */ }
-      rsiSeriesRef.current = null;
+      rsiPriceLines = [];
+      try { currentChart.removeSeries(rsiSeries); } catch { /* noop */ }
+      rsiSeries = null;
     }
 
+    const rsiData = props.rsiData;
+    const candles = props.candles;
     const data = rsiData?.data;
     if (!rsiData || !data || data.length === 0 || candles.length === 0) return;
 
-    const nt = theme === "nt";
-    const series = chart.addSeries(
+    const nt = theme() === "nt";
+    const series = currentChart.addSeries(
       LineSeries,
       {
         color: nt ? "#E5E7EB" : palette.PRIMARY,
@@ -561,7 +552,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       },
       1,
     );
-    rsiSeriesRef.current = series;
+    rsiSeries = series;
 
     const points = data
       .map((v, i) => (v == null || !isFinite(v) || !candles[i] ? null : { time: toEpochSeconds(candles[i].time), value: v }))
@@ -571,7 +562,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     series.priceScale().applyOptions({ scaleMargins: { top: 0.1, bottom: 0.1 } });
 
     const addGuide = (value: number, color: string) => {
-      rsiPriceLinesRef.current.push(
+      rsiPriceLines.push(
         series.createPriceLine({
           price: value,
           color,
@@ -585,19 +576,18 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     addGuide(70, nt ? "#FF5252" : palette.NEGATIVE);
     addGuide(30, nt ? "#00E676" : palette.POSITIVE);
 
-    const panes = chart.panes();
+    const panes = currentChart.panes();
     if (panes.length > 1) {
       panes[0].setStretchFactor(3);
       panes[1].setStretchFactor(1);
     }
-  }, [rsiData, candles, theme, ready]);
+  });
 
-  useImperativeHandle(ref, () => ({
-    getChart: () => chartRef.current,
-    getCandleSeries: () => candleSeriesRef.current,
-    fitContent: () => chartRef.current?.timeScale().fitContent(),
+  const handle: TradingViewChartHandle = {
+    getChart: () => chart,
+    getCandleSeries: () => candleSeries,
+    fitContent: () => chart?.timeScale().fitContent(),
     zoomToIndexRange: (startIdx: number, endIdx: number, total?: number) => {
-      const chart = chartRef.current;
       if (!chart) return;
       const lastIdx = total != null && total > 0 ? total - 1 : endIdx + 1;
       const from = Math.max(0, startIdx) - 0.5;
@@ -605,7 +595,6 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       chart.timeScale().setVisibleLogicalRange({ from, to });
     },
     zoomToTimeRange: (fromTime: string, toTime: string) => {
-      const chart = chartRef.current;
       if (!chart) return;
       const from = toEpochSeconds(fromTime);
       const to = toEpochSeconds(toTime);
@@ -615,24 +604,30 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       }
       chart.timeScale().setVisibleRange({ from, to });
     },
-  }), []);
+  };
+
+  onMount(() => {
+    props.ref?.(handle);
+  });
 
   // simple per docs: setData on candles change, fitContent once
-  useEffect(() => {
-    if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
-    const dataSig = `${theme}|${chartType}|${candleSignature(candles)}`;
-    if (dataSigRef.current === dataSig) return;
-    dataSigRef.current = dataSig;
+  createEffect(() => {
+    if (!ready()) return;
+    if (!candleSeries || !volumeSeries) return;
+    const candles = props.candles;
+    const sig = `${theme()}|${chartType()}|${candleSignature(candles)}`;
+    if (dataSig === sig) return;
+    dataSig = sig;
     if (candles.length === 0) {
-      candleSeriesRef.current.setData([]);
-      volumeSeriesRef.current.setData([]);
+      candleSeries.setData([]);
+      volumeSeries.setData([]);
       return;
     }
-    if (chartType === "line") {
+    if (chartType() === "line") {
       const lineData: LineData[] = candles
         .map((c) => ({ time: toEpochSeconds(c.time), value: c.close }))
         .sort((a, b) => (a.time as number) - (b.time as number));
-      candleSeriesRef.current.setData(lineData as any);
+      candleSeries.setData(lineData as any);
     } else {
       const candleData: CandlestickData[] = candles
         .map((c) => ({
@@ -643,28 +638,29 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
           close: c.close,
         }))
         .sort((a, b) => (a.time as number) - (b.time as number));
-      candleSeriesRef.current.setData(candleData);
+      candleSeries.setData(candleData);
     }
 
     // Index/indicator symbols carry no volume — an all-zero histogram leaves a
     // stray zero baseline + "0" last-value tag, so hide the series instead.
     const hasVolume = candles.some((c) => (c.volume ?? 0) > 0);
-    volumeSeriesRef.current.applyOptions({
+    volumeSeries.applyOptions({
       visible: hasVolume,
       lastValueVisible: hasVolume,
     });
 
+    const nt = theme() === "nt";
     const volData: HistogramData[] = candles
       .map((c) => ({
         time: toEpochSeconds(c.time),
         value: c.volume,
         color: c.close >= c.open
-          ? (theme === "nt" ? NT_VOL_UP : withAlpha(palette.POSITIVE, 0.9))
-          : (theme === "nt" ? NT_VOL_DOWN : withAlpha(palette.NEGATIVE, 0.9)),
+          ? (nt ? NT_VOL_UP : withAlpha(palette.POSITIVE, 0.9))
+          : (nt ? NT_VOL_DOWN : withAlpha(palette.NEGATIVE, 0.9)),
       }))
       .sort((a: any, b: any) => (a.time as number) - (b.time as number));
-    volumeSeriesRef.current.setData(volData as any);
-  }, [candles, theme, chartType]);
+    volumeSeries.setData(volData as any);
+  });
 
   // Horizontal overlay levels: ORB / pivots / 52W / highlighted SL-TP / position.
   //
@@ -674,27 +670,27 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
   // collection (and its axis pane views) for no visual change. The
   // **autoscale provider** is refreshed whenever the candles move, because it
   // captures the rendered window's range.
-  const markSig = useMemo(
-    () => markOverlaySignature(markLines, livePosition, `${theme}|${fitMarkLines ? 1 : 0}`),
-    [markLines, livePosition, theme, fitMarkLines],
-  );
+  const markSig = createMemo(() => markOverlaySignature(markLines(), props.livePosition, `${theme()}|${fitMarkLines() ? 1 : 0}`));
 
-  useEffect(() => {
-    const series = candleSeriesRef.current;
+  createEffect(() => {
+    if (!ready()) return;
+    const series = candleSeries;
     if (!series) return;
-    if (markSigRef.current === markSig) return;
-    markSigRef.current = markSig;
+    const sig = markSig();
+    if (currentMarkSig === sig) return;
+    currentMarkSig = sig;
 
-    priceLinesRef.current.forEach((l) => {
+    priceLines.forEach((l) => {
       try {
         series.removePriceLine(l);
       } catch {
         /* noop */
       }
     });
-    priceLinesRef.current = [];
+    priceLines = [];
 
-    const nt = theme === "nt";
+    const nt = theme() === "nt";
+    const fit = fitMarkLines();
     const add = (price: number | undefined, color: string, width: number | undefined, style: LineStyle, title: string, axisLabelVisible = true) => {
       if (price == null || !isFinite(price) || price <= 0) return;
       const line = series.createPriceLine({
@@ -707,19 +703,20 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
         // NT: solid bright badge with dark text = maximum contrast on the axis.
         ...(nt ? { axisLabelColor: color, axisLabelTextColor: palette.NT_BG } : {}),
       });
-      priceLinesRef.current.push(line);
+      priceLines.push(line);
     };
 
-    markLines.forEach((ml) => {
+    markLines().forEach((ml) => {
       // Far reference levels stay as lines (still discoverable via the left
       // edge badges below) but their gutter label + in-chart title are
       // suppressed: an off-screen line's title pins to the panel edge, so
       // three far lines above the tape (FLIP 23,250 / R1 / R2) stacked
       // unreadably at the top edge instead of merging.
-      const near = !fitMarkLines || ml.includeInScale !== false;
+      const near = !fit || ml.includeInScale !== false;
       add(ml.yAxis, ml.lineStyle.color, ml.lineStyle.width, toLineStyle(ml.lineStyle.type), near ? ml.label.formatter : "", near);
     });
 
+    const livePosition = props.livePosition;
     if (livePosition) {
       add(livePosition.entry_price, palette.PRIMARY, 1, LineStyle.Solid, `Entry ${livePosition.entry_price}`);
       if (livePosition.stop_loss && livePosition.stop_loss > 0) {
@@ -729,7 +726,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
         add(livePosition.take_profit, palette.POSITIVE, 1, LineStyle.Dashed, `TP ${livePosition.take_profit}`);
       }
     }
-  }, [markSig, markLines, livePosition, theme, fitMarkLines, ready]);
+  });
 
   // Horizontal levels do not affect lightweight-charts' autoscale, so only
   // near levels (flagged `includeInScale`) are folded into the candle
@@ -741,22 +738,25 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
   // (not the last price): the engine can hand back a tight last-price
   // slice, and without the bars floor the early session bars clip above
   // the panel. Level widening stays capped at 1.3× the bars' span.
-  useEffect(() => {
-    const series = candleSeriesRef.current;
+  createEffect(() => {
+    if (!ready()) return;
+    const series = candleSeries;
     if (!series) return;
-    const bars = fitMarkLines ? visibleBarsRange(candles) : null;
+    const fit = fitMarkLines();
+    const candles = props.candles;
+    const bars = fit ? visibleBarsRange(candles) : null;
     const spot =
-      fitMarkLines && candles.length > 0 ? candles[candles.length - 1].close : NaN;
-    const levels = fitMarkLines
-      ? markLines
+      fit && candles.length > 0 ? candles[candles.length - 1].close : NaN;
+    const levels = fit
+      ? markLines()
           .filter((ml) => ml.includeInScale)
           .map((ml) => ml.yAxis)
           .filter((v) => Number.isFinite(v) && v > 0)
       : [];
-    const sig = autoscaleSignature(fitMarkLines, bars, spot, levels);
-    if (autoscaleSigRef.current === sig) return;
-    autoscaleSigRef.current = sig;
-    if (!fitMarkLines) {
+    const sig = autoscaleSignature(fit, bars, spot, levels);
+    if (autoscaleSig === sig) return;
+    autoscaleSig = sig;
+    if (!fit) {
       series.applyOptions({ autoscaleInfoProvider: undefined });
       return;
     }
@@ -764,7 +764,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       autoscaleInfoProvider:
         !bars && levels.length === 0
           ? undefined
-          : (original) =>
+          : (original: any) =>
               extendAutoscaleWithLevels(original(), levels, {
                 spot,
                 barsRange: bars,
@@ -774,7 +774,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     // keep the visible axis at ~1.2× the session range instead of the
     // default 10% (which left the tape looking cramped).
     series.priceScale().applyOptions({ scaleMargins: { top: 0.05, bottom: 0.05 } });
-  }, [markLines, fitMarkLines, candles, ready]);
+  });
 
   // EMA overlays (line series aligned to candles).
   //
@@ -783,27 +783,28 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
   // removeSeries) every cycle even though the overlay never changed. Each
   // series' pushed points are signature-checked, so unchanged data skips
   // `setData` too.
-  useEffect(() => {
-    const chart = chartRef.current;
-    if (!chart) return;
-    const wanted = candles.length === 0 ? EMPTY_EMA : emaData;
+  createEffect(() => {
+    if (!ready()) return;
+    const currentChart = chart;
+    if (!currentChart) return;
+    const candles = props.candles;
+    const wanted = candles.length === 0 ? EMPTY_EMA : emaData();
     const sig = wanted.map((ema) => `${ema.label}|${ema.color}`).join(",");
-    const reusable =
-      emaSeriesRef.current.length === wanted.length && emaSigRef.current === sig;
+    const reusable = emaSeries.length === wanted.length && emaSig === sig;
     if (!reusable) {
-      emaSeriesRef.current.forEach((s) => {
+      emaSeries.forEach((s) => {
         try {
-          chart.removeSeries(s);
+          currentChart.removeSeries(s);
         } catch {
           /* noop */
         }
       });
-      emaSeriesRef.current = [];
-      emaSigRef.current = sig;
-      emaDataSigRef.current = [];
+      emaSeries = [];
+      emaSig = sig;
+      emaDataSig = [];
       for (const ema of wanted) {
-        emaSeriesRef.current.push(
-          chart.addSeries(LineSeries, {
+        emaSeries.push(
+          currentChart.addSeries(LineSeries, {
             color: ema.color,
             lineWidth: 1 as LineWidth,
             priceLineVisible: false,
@@ -815,7 +816,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     }
     if (wanted.length === 0) return;
 
-    emaSeriesRef.current.forEach((series, i) => {
+    emaSeries.forEach((series, i) => {
       const ema = wanted[i];
       if (!ema) return;
       const data: LineData[] = ema.data
@@ -825,48 +826,47 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
         .filter((d): d is LineData => d !== null)
         .sort((a, b) => (a.time as number) - (b.time as number));
       const dsig = emaDataSignature(ema, data);
-      if (emaDataSigRef.current[i] === dsig) return;
-      emaDataSigRef.current[i] = dsig;
+      if (emaDataSig[i] === dsig) return;
+      emaDataSig[i] = dsig;
       series.setData(data);
     });
-  }, [emaData, candles, ready]);
+  });
 
   // markers — lightweight-charts v5 uses createSeriesMarkers plugin, not series.setMarkers
-  useEffect(() => {
-    if (!markersRef.current) return;
-    const visibleTrades = filterVisibleTrades(trades, highlightedTradeId, showAllTrades);
-    const markers = visibleTrades
+  createEffect(() => {
+    if (!ready()) return;
+    if (!markers) return;
+    const visibleTrades = filterVisibleTrades(trades(), props.highlightedTradeId ?? null, props.showAllTrades);
+    const markerTrades = visibleTrades
       .filter((t) => t.entry_time)
       .map((t) => {
         const isBuy = isBuySide(t.side);
-        const isHighlighted = highlightedTradeId === (t as any).id;
+        const isHighlighted = props.highlightedTradeId === (t as any).id;
         return {
           time: toEpochSeconds(t.entry_time),
           position: isBuy ? ("belowBar" as const) : ("aboveBar" as const),
           color: isBuy ? ENTRY_BUY_COLOR : ENTRY_SELL_COLOR,
           shape: isBuy ? ("arrowUp" as const) : ("arrowDown" as const),
-          text: entryLabels ? "" : (isHighlighted ? `★ ${t.side} ${t.entry_price}` : `${t.side}`),
+          text: entryLabels() ? "" : (isHighlighted ? `★ ${t.side} ${t.entry_price}` : `${t.side}`),
           size: isHighlighted ? 2 : 1,
         };
       });
     const exitMarkers = visibleTrades
       .filter((t) => t.exit_time)
       .map((t) => {
-        const isHighlighted = highlightedTradeId === (t as any).id;
+        const isHighlighted = props.highlightedTradeId === (t as any).id;
         const isBuy = isBuySide(t.side);
         return {
-          time: toEpochSeconds(t.exit_time),
+          time: toEpochSeconds(t.exit_time!),
           position: (isBuy ? "aboveBar" : "belowBar") as "aboveBar" | "belowBar",
           color: t.exit_reason === "TP" ? EXIT_TP_COLOR : t.exit_reason === "SL" ? EXIT_SL_COLOR : EXIT_OTHER_COLOR,
           shape: "circle" as const,
-          text: entryLabels ? "" : (isHighlighted ? `✕ ${t.exit_reason} ${t.exit_price}` : `${t.exit_reason}`),
+          text: entryLabels() ? "" : (isHighlighted ? `✕ ${t.exit_reason} ${t.exit_price}` : `${t.exit_reason}`),
         };
       });
     // Max-pain touch dots ride the candle series' marker plugin (v5 series
     // markers) so the amber circle is anchored to the bar that touched the pin.
-    // A line-less scatter series was tried first but a single-point series does
-    // not reliably paint its point markers.
-    const touchMarkerList = (touchMarkers ?? [])
+    const touchMarkerList = touchMarkers()
       .filter((m) => Number.isFinite(m.value))
       .map((m) => ({
         time: toEpochSeconds(m.time),
@@ -876,15 +876,15 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
         text: m.text ?? "",
         size: m.size ?? 1,
       }));
-    const allMarkers = [...markers, ...exitMarkers, ...touchMarkerList].sort(
+    const allMarkers = [...markerTrades, ...exitMarkers, ...touchMarkerList].sort(
       (a, b) => (a.time as number) - (b.time as number),
     );
     try {
-      markersRef.current.setMarkers(allMarkers as any);
+      markers.setMarkers(allMarkers as any);
     } catch {
       /* noop */
     }
-  }, [trades, highlightedTradeId, showAllTrades, entryLabels, touchMarkers, ready]);
+  });
 
   // Larger BUY/SELL pills over entry markers (opt-in): lightweight-charts marker
   // text size is fixed, so draw our own canvas labels for readability.
@@ -892,8 +892,9 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
   // changes — the overlay redraws on every pan/zoom frame and must not re-sort.
   // Skipped entirely when `entryLabels` is off (the common case: the report
   // chart), so a new candle array per poll does not rebuild it either.
-  const entryGeometry = useMemo(() => {
-    if (!entryLabels) return EMPTY_ENTRY_GEOMETRY;
+  const entryGeometry = createMemo(() => {
+    if (!entryLabels()) return EMPTY_ENTRY_GEOMETRY;
+    const candles = props.candles;
     const barTimes = candles
       .map((c) => toEpochSeconds(c.time) as number)
       .filter((n) => Number.isFinite(n))
@@ -904,12 +905,10 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       if (Number.isFinite(tn)) byTime.set(tn, c);
     }
     return { barTimes, byTime };
-  }, [candles, entryLabels]);
+  });
 
-  const drawEntryLabels = useCallback(() => {
-    const chart = chartRef.current;
-    const series = candleSeriesRef.current;
-    const canvas = overlayRef.current;
+  const drawEntryLabels = () => {
+    const canvas = overlayRef;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -926,11 +925,13 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, rect.width, rect.height);
-    if (!chart || !series || rect.width === 0) return;
+    const currentChart = chart;
+    const series = candleSeries;
+    if (!currentChart || !series || rect.width === 0) return;
 
     // Draw price zones first so trade labels remain readable above them. The
     // canvas follows the chart's price scale on every pan/zoom redraw.
-    for (const area of priceAreas || []) {
+    for (const area of priceAreas()) {
       if (!Number.isFinite(area.from) || !Number.isFinite(area.to)) continue;
       const fromY = series.priceToCoordinate(area.from);
       const toY = series.priceToCoordinate(area.to);
@@ -950,7 +951,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       if (area.label) {
         ctx.font = "700 10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
         ctx.textBaseline = "middle";
-        ctx["text-align"] = "left";
+        ctx.textAlign = "left";
         ctx.fillStyle = area.borderColor || "#E5E7EB";
         ctx.fillText(area.label, 6, Math.max(8, top + Math.min(14, (bottom - top) / 2)));
       }
@@ -960,8 +961,9 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     // their horizontal line sits off-screen. Keep them discoverable as small
     // edge badges (top = above the visible range, bottom = below) instead of
     // silently dropping the level.
-    if (fitMarkLines) {
-      const lines = markLinesRef.current;
+    const fit = fitMarkLines();
+    if (fit) {
+      const lines = markLines();
       const above: MarkLineData[] = [];
       const below: MarkLineData[] = [];
       for (const ml of lines) {
@@ -974,7 +976,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       // edge badge can never overlap a price-line label/axis value. Bottom
       // badges also stop above the time axis so they never cover its ticks.
       const xLeft = 6;
-      const timeScale = typeof chart.timeScale === "function" ? chart.timeScale() : null;
+      const timeScale = typeof currentChart.timeScale === "function" ? currentChart.timeScale() : null;
       const timeAxisH =
         timeScale && typeof (timeScale as any).height === "function"
           ? (timeScale as any).height()
@@ -982,9 +984,9 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       const bottomEdge = rect.height - Math.max(0, timeAxisH) - 4;
       ctx.font = "600 10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
       ctx.textBaseline = "middle";
-      ctx["text-align"] = "left";
+      ctx.textAlign = "left";
       const rowH = 14;
-      const ["row-gap"] = 2;
+      const rowGap = 2;
       const drawEdge = (items: MarkLineData[], atTop: boolean) => {
         const shown = items.slice(0, 4);
         shown.forEach((ml, i) => {
@@ -1004,14 +1006,14 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       drawEdge(below, false);
     }
 
-    if (!entryLabels) return;
+    if (!entryLabels()) return;
 
-    const visible = filterVisibleTrades(trades, highlightedTradeId, showAllTrades);
+    const visible = filterVisibleTrades(trades(), props.highlightedTradeId ?? null, props.showAllTrades);
     ctx.font = "700 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
     ctx.textBaseline = "middle";
-    ctx["text-align"] = "left";
+    ctx.textAlign = "left";
 
-    const { barTimes, byTime } = entryGeometry;
+    const { barTimes, byTime } = entryGeometry();
     // Trades may carry an intraday entry time while bars are daily — snap to the
     // nearest candle time that actually exists on the scale.
     const snapTime = (secs: number): number | null => {
@@ -1052,7 +1054,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     const coordFor = (timeStr: string, isBuy: boolean, price: number, isExit: boolean) => {
       const snapped = snapTime(toEpochSeconds(timeStr) as number);
       if (snapped == null) return null;
-      const x = chart.timeScale().timeToCoordinate(snapped as Time);
+      const x = currentChart.timeScale().timeToCoordinate(snapped as Time);
       const bar = byTime.get(snapped);
       // entries sit beyond the bar on the entry side; exits on the opposite side
       const anchor = bar
@@ -1078,63 +1080,73 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
         if (c) drawPill(c.x, c.y, reason, color, isBuy);
       }
     }
-  }, [entryLabels, trades, highlightedTradeId, showAllTrades, entryGeometry, priceAreas, markSig, fitMarkLines]);
+  };
 
-  useEffect(() => { drawEntryLabels(); }, [drawEntryLabels, ready]);
+  // Redraw the overlay whenever inputs change. Everything drawEntryLabels
+  // reads is tracked here, so this fires on trade/area/level/label changes.
+  createEffect(() => {
+    if (!ready()) return;
+    drawEntryLabels();
+  });
 
   // Pan/zoom/resize redraws are coalesced into a single pending frame:
   // without this every event queued its own RAF, each retaining the
   // previous `drawEntryLabels` closure (and its candle arrays) until the
   // frame fired — and a frame pending across cleanup drew on a dead canvas.
-  useEffect(() => {
-    const chart = chartRef.current;
-    if (!chart) return;
+  createEffect(() => {
+    if (!ready()) return;
+    const currentChart = chart;
+    if (!currentChart) return;
     const onRedraw = () => {
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        rafRef.current = null;
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
         drawEntryLabels();
       });
     };
-    chart.timeScale().subscribeVisibleLogicalRangeChange(onRedraw);
-    const parent = overlayRef.current?.parentElement;
+    currentChart.timeScale().subscribeVisibleLogicalRangeChange(onRedraw);
+    const parent = overlayRef?.parentElement;
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onRedraw) : null;
     if (parent && ro) ro.observe(parent);
     window.addEventListener("resize", onRedraw);
-    return () => {
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
+    onCleanup(() => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
       }
       // The chart-creation effect's cleanup runs first and has already called
       // `chart.remove()`. Unsubscribing from a removed chart throws, and a
       // throw here would skip the ResizeObserver/ window-listener teardown —
       // leaving both (and this closure's candle arrays) alive forever.
-      if (chartRef.current === chart) {
+      if (chart === currentChart) {
         try {
-          chart.timeScale().unsubscribeVisibleLogicalRangeChange(onRedraw);
+          currentChart.timeScale().unsubscribeVisibleLogicalRangeChange(onRedraw);
         } catch {
           /* chart already disposed */
         }
       }
       ro?.disconnect();
       window.removeEventListener("resize", onRedraw);
-    };
-  }, [drawEntryLabels, ready]);
+    });
+  });
 
   // fit once on mount / symbol change
-  useEffect(() => {
-    if (candles.length) chartRef.current?.timeScale().fitContent();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [candles.length === 0 ? 0 : candles[0]?.time]);
+  createEffect(() => {
+    const candles = props.candles;
+    const t = candles.length ? candles[0]?.time : undefined;
+    if (t !== undefined && t !== lastFitTime) {
+      lastFitTime = t;
+      chart?.timeScale().fitContent();
+    }
+  });
 
   return (
     <div
       className="flex flex-col h-full min-w-0 relative"
-      style={{ width: "100%", flex: 1, "min-height": 0, position: "relative" }}
+      style={{ width: "100%", flex: 1, "min-height": "0", position: "relative" }}
     >
-      <div ref={containerRef} className="w-full flex-1 min-h-0 relative" data-testid="tradingview-chart" style={{ width: "100%", flex: 1, "min-height": 0, position: "relative", ...(height != null ? { height } : {}) }} />
-      <canvas ref={overlayRef} aria-hidden="true" data-testid="tradingview-overlay" style={{ position: "absolute", inset: 0, "pointer-events": "none", "z-index": 3 }} />
+      <div ref={(el) => (containerRef = el)} className="w-full flex-1 min-h-0 relative" data-testid="tradingview-chart" style={{ width: "100%", flex: 1, "min-height": "0", position: "relative", ...(props.height != null ? { height: `${props.height}px` } : {}) }} />
+      <canvas ref={(el) => (overlayRef = el)} aria-hidden="true" data-testid="tradingview-overlay" style={{ position: "absolute", inset: "0", "pointer-events": "none", "z-index": 3 }} />
     </div>
   );
-});
+}

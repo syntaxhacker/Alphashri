@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { createElement } from "react";
+
 import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, screen } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import * as palette from "@/ui/palette";
 import { buildOiHeatmap, heatmapReadText, readHeatmap, type HeatmapTapeRow } from "./niftyOiHeatmap";
 import { HEATMAP_CE, HEATMAP_FLIP, HEATMAP_MP, HEATMAP_PE, HEATMAP_SPOT, NiftyOiHeatmap } from "./NiftyOiHeatmap";
@@ -216,7 +216,7 @@ describe("NiftyOiHeatmap render", () => {
   ];
 
   test("paints the cells on one canvas instead of a rect per bucket × strike", () => {
-    r(createElement(NiftyOiHeatmap, { rows: twoBuckets, bucketMin: 5, widthPts: 500 }));
+    r(<NiftyOiHeatmap {...{ rows: twoBuckets, bucketMin: 5, widthPts: 500 }} />);
     const m = buildOiHeatmap(twoBuckets, { bucketMin: 5, widthPts: 500 });
     const canvas = screen.getByTestId("nifty-heatmap-canvas");
     expect(canvas.tagName.toLowerCase()).toBe("canvas");
@@ -228,7 +228,7 @@ describe("NiftyOiHeatmap render", () => {
   });
 
   test("canvas sits behind the SVG box and takes no pointer events", () => {
-    r(createElement(NiftyOiHeatmap, { rows: twoBuckets, bucketMin: 5, widthPts: 500 }));
+    r(<NiftyOiHeatmap {...{ rows: twoBuckets, bucketMin: 5, widthPts: 500 }} />);
     const canvas = screen.getByTestId("nifty-heatmap-canvas");
     expect(canvas.style.position).toBe("absolute");
     expect(canvas.style.pointerEvents).toBe("none");
@@ -245,7 +245,7 @@ describe("NiftyOiHeatmap render", () => {
     const rows = Array.from({ length: 121 }, (_, i) =>
       row(isoAt(i), 25750, chainAt(wide, 1000 + i, 1000 + i)),
     );
-    r(createElement(NiftyOiHeatmap, { rows, bucketMin: 1, widthPts: 500 }));
+    r(<NiftyOiHeatmap {...{ rows, bucketMin: 1, widthPts: 500 }} />);
     const m = buildOiHeatmap(rows, { bucketMin: 1, widthPts: 500 });
     expect(m.cells.length).toBeGreaterThan(1000);
     expect(screen.getByTestId("nifty-heatmap-canvas").getAttribute("data-cells")).toBe(
@@ -255,13 +255,13 @@ describe("NiftyOiHeatmap render", () => {
   });
 
   test("marks max-pain and flip dashed lines", () => {
-    r(createElement(NiftyOiHeatmap, { rows: twoBuckets, bucketMin: 5, widthPts: 500 }));
+    r(<NiftyOiHeatmap {...{ rows: twoBuckets, bucketMin: 5, widthPts: 500 }} />);
     expect(screen.getAllByTestId("nifty-heatmap-maxpain").length).toBeGreaterThan(0);
     expect(screen.getAllByTestId("nifty-heatmap-flip").length).toBeGreaterThan(0);
   });
 
   test(" strike labels every 100 pts and time labels every 30 min", () => {
-    r(createElement(NiftyOiHeatmap, { rows: twoBuckets, bucketMin: 5, widthPts: 500 }));
+    r(<NiftyOiHeatmap {...{ rows: twoBuckets, bucketMin: 5, widthPts: 500 }} />);
     const strikeLabels = screen.getAllByTestId("nifty-heatmap-strike-label");
     expect(strikeLabels.length).toBeGreaterThan(0);
     for (const el of strikeLabels) {
@@ -272,7 +272,7 @@ describe("NiftyOiHeatmap render", () => {
   });
 
   test("time ticks land on 30-min marks and sit inside the plot", () => {
-    r(createElement(NiftyOiHeatmap, { rows: twoBuckets, bucketMin: 5, widthPts: 500 }));
+    r(<NiftyOiHeatmap {...{ rows: twoBuckets, bucketMin: 5, widthPts: 500 }} />);
     const labels = screen.getAllByTestId("nifty-heatmap-time-label");
     // Bucket starts are 09:15 / 09:30 / 09:45 → only the :30 mark ticks.
     expect(labels.map((el) => el.textContent)).toEqual(["09:30"]);
@@ -284,13 +284,13 @@ describe("NiftyOiHeatmap render", () => {
   });
 
   test("renders the ΔOI and time axis captions", () => {
-    r(createElement(NiftyOiHeatmap, { rows: twoBuckets, bucketMin: 5, widthPts: 500 }));
+    r(<NiftyOiHeatmap {...{ rows: twoBuckets, bucketMin: 5, widthPts: 500 }} />);
     expect(screen.getByTestId("nifty-heatmap-oi-label")).toHaveTextContent("ΔOI");
     expect(screen.getByTestId("nifty-heatmap-time-axis")).toHaveTextContent("time");
   });
 
   test("renders the legend with one labelled swatch per series", () => {
-    r(createElement(NiftyOiHeatmap, { rows: twoBuckets, bucketMin: 5, widthPts: 500 }));
+    r(<NiftyOiHeatmap {...{ rows: twoBuckets, bucketMin: 5, widthPts: 500 }} />);
     const legend = screen.getByTestId("nifty-heatmap-legend");
     expect(legend).toHaveTextContent("HEATMAP");
     expect(legend).toHaveTextContent("net call-led");
@@ -303,7 +303,7 @@ describe("NiftyOiHeatmap render", () => {
   });
 
   test("legend is the header bar: above the read and the plot", () => {
-    r(createElement(NiftyOiHeatmap, { rows: twoBuckets, bucketMin: 5, widthPts: 500 }));
+    r(<NiftyOiHeatmap {...{ rows: twoBuckets, bucketMin: 5, widthPts: 500 }} />);
     const root = screen.getByTestId("nifty-heatmap");
     const legend = screen.getByTestId("nifty-heatmap-legend");
     const read = screen.getByTestId("nifty-heatmap-read");
@@ -316,7 +316,7 @@ describe("NiftyOiHeatmap render", () => {
   });
 
   test("legend swatches are solid colour marks, not glyphs", () => {
-    r(createElement(NiftyOiHeatmap, { rows: twoBuckets, bucketMin: 5, widthPts: 500 }));
+    r(<NiftyOiHeatmap {...{ rows: twoBuckets, bucketMin: 5, widthPts: 500 }} />);
     const ce = screen.getByTestId("nifty-heatmap-legend-ce-swatch");
     const pe = screen.getByTestId("nifty-heatmap-legend-pe-swatch");
     const spot = screen.getByTestId("nifty-heatmap-legend-spot-swatch");
@@ -340,7 +340,7 @@ describe("NiftyOiHeatmap render", () => {
       row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000), { max_pain: 25750 }),
       row(isoAt(6), 25752, chainAt(STRIKES, 2000, 1000), { max_pain: 25754 }),
     ];
-    r(createElement(NiftyOiHeatmap, { rows, bucketMin: 5, widthPts: 500 }));
+    r(<NiftyOiHeatmap {...{ rows, bucketMin: 5, widthPts: 500 }} />);
     const dots = screen.getAllByTestId("nifty-heatmap-mp-touch");
     expect(dots).toHaveLength(2);
     for (const dot of dots) {
@@ -360,7 +360,7 @@ describe("NiftyOiHeatmap render", () => {
       row(isoAt(0), 25700, chainAt(STRIKES, 1000, 1000), { max_pain: 25700 }),
       row(isoAt(4), 25800, chainAt(STRIKES, 2000, 1000), { max_pain: 25700 }),
     ];
-    r(createElement(NiftyOiHeatmap, { rows, bucketMin: 5, widthPts: 500 }));
+    r(<NiftyOiHeatmap {...{ rows, bucketMin: 5, widthPts: 500 }} />);
     const dots = screen.getAllByTestId("nifty-heatmap-mp-touch");
     expect(dots).toHaveLength(1);
     expect(dots[0].querySelector("title")?.textContent).toBe("Max pain touch 25,700 @ 09:19");
@@ -374,19 +374,19 @@ describe("NiftyOiHeatmap render", () => {
       row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000), { max_pain: 25500 }),
       row(isoAt(6), 25760, chainAt(STRIKES, 2000, 1000), { max_pain: 25500 }),
     ];
-    r(createElement(NiftyOiHeatmap, { rows, bucketMin: 5, widthPts: 500 }));
+    r(<NiftyOiHeatmap {...{ rows, bucketMin: 5, widthPts: 500 }} />);
     expect(screen.queryAllByTestId("nifty-heatmap-mp-touch")).toHaveLength(0);
   });
 
   test("renders the plain-English read for the tape", () => {
-    r(createElement(NiftyOiHeatmap, { rows: READ_ROWS, bucketMin: 5, widthPts: 500 }));
+    r(<NiftyOiHeatmap {...{ rows: READ_ROWS, bucketMin: 5, widthPts: 500 }} />);
     expect(screen.getByTestId("nifty-heatmap-read")).toHaveTextContent(
       "CE OI build at 25,750 · PE OI build at 25,700 · spot 25,760 below max pain 25,800",
     );
   });
 
   test("empty chain renders the muted state", () => {
-    r(createElement(NiftyOiHeatmap, { rows: [{ t: isoAt(0), spot: 25750 }] }));
+    r(<NiftyOiHeatmap {...{ rows: [{ t: isoAt(0), spot: 25750 }] }} />);
     expect(screen.getByTestId("nifty-heatmap-empty")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-heatmap-empty-text")).toHaveTextContent("no tape chain");
   });
@@ -491,13 +491,13 @@ describe("session-anchored time axis", () => {
       row(isoAt(6), 25760, chainAt(STRIKES, 2000, 1000)),
     ];
     r(
-      createElement(NiftyOiHeatmap, {
+      <NiftyOiHeatmap {...{
         rows,
         bucketMin: 5,
         widthPts: 500,
         startTime: isoAt(0),
         flipAt: isoAt(30),
-      }),
+      }} />,
     );
     const line = screen.getByTestId("heatmap-flip-line");
     expect(line.tagName.toLowerCase()).toBe("line");

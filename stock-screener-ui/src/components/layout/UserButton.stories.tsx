@@ -1,7 +1,7 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { AppShell } from "@/ui";
 import { UserButton } from "./UserButton";
-import { BrowserRouter } from "react-router-dom";
+import { Router } from "@solidjs/router";
 
 interface MockUser {
   displayName: string;
@@ -26,11 +26,11 @@ const meta: Meta<typeof UserButton> = {
         window.__ALPHASHRI_USER__ = userData;
       }
       return (
-        <BrowserRouter>
+        <Router>
           <AppShell>
             <Story />
           </AppShell>
-        </BrowserRouter>
+        </Router>
       );
     },
   ],

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { onCleanup, onMount } from "solid-js";
 import { Box } from "@/ui";
 import {
   CANDLESTICK_ITEM_STYLE,
@@ -25,40 +25,46 @@ interface TradeChartProps {
   height?: number;
 }
 
-export function TradeChart({ symbol, date, entryPrice, exitPrice, entryTime, exitTime, stopLoss, takeProfit, height = 300 }: TradeChartProps) {
-  const chartRef = useRef<HTMLDivElement>(null);
-  const instanceRef = useRef<any>(null);
+export function TradeChart(props: TradeChartProps) {
+  let chartRef: HTMLDivElement | undefined;
+  let instance: any = null;
+  let disposed = false;
 
-  useEffect(() => {
-    if (!chartRef.current) return;
-    const echartsLib = (window as any).echarts;
-    if (!echartsLib) return;
-    instanceRef.current = echartsLib.init(chartRef.current);
-    return () => { instanceRef.current?.dispose(); };
-  }, []);
+  const height = () => props.height ?? 300;
 
-  useEffect(() => {
-    const chart = instanceRef.current;
-    if (!chart) return;
+  onMount(() => {
+    const handleResize = () => instance?.resize();
+    window.addEventListener("resize", handleResize);
+    onCleanup(() => window.removeEventListener("resize", handleResize));
 
-    fetch(`${API_BASE}/api/chart/preview?symbol=${symbol}&date=${date}`)
-      .then(r => r.json())
-      .then(data => {
+    void (async () => {
+      if (!chartRef) return;
+      const mod = await import("echarts");
+      const echartsLib = (mod as any).default ?? mod;
+      if (disposed || !chartRef) return;
+      instance = echartsLib.init(chartRef);
+
+    fetch(`${API_BASE}/api/chart/preview?symbol=${props.symbol}&date=${props.date}`)
+      .then((r) => r.json())
+      .then((data) => {
         const candles = data?.candles || [];
-        if (!candles.length || !chart) return;
+        if (!candles.length || !instance) return;
 
         const times = candles.map((c: any) => c.time?.slice(11, 16) || "");
         const ohlc = candles.map((c: any) => [c.open, c.close, c.low, c.high]);
 
-        const entryIdx = candles.findIndex((c: any) => c.time >= entryTime);
-        const exitIdx = candles.findIndex((c: any) => c.time >= exitTime);
+        const entryIdx = candles.findIndex((c: any) => c.time >= props.entryTime);
+        const exitIdx = candles.findIndex((c: any) => c.time >= props.exitTime);
 
         const option = {
           tooltip: { trigger: "axis", axisPointer: { type: "cross" } },
           grid: { left: 50, right: 20, top: 40, bottom: 30 },
           xAxis: { data: times, axisLabel: { rotate: 45, "font-size": 9 }, show: entryIdx >= 0 },
-          yAxis: { scale: true, min: (value: any) => Math.min(value.min * 0.995, entryPrice * 0.99),
-                   max: (value: any) => Math.max(value.max * 1.005, exitPrice * 1.01) },
+          yAxis: {
+            scale: true,
+            min: (value: any) => Math.min(value.min * 0.995, props.entryPrice * 0.99),
+            max: (value: any) => Math.max(value.max * 1.005, props.exitPrice * 1.01),
+          },
           series: [{
             type: "candlestick",
             data: ohlc,
@@ -66,28 +72,31 @@ export function TradeChart({ symbol, date, entryPrice, exitPrice, entryTime, exi
             markLine: {
               silent: true,
               data: [
-                { yAxis: entryPrice, label: { formatter: "Entry " + entryPrice, position: "insideEndTop" }, lineStyle: { color: CHART_AVG_ENTRY, type: "dashed" } },
-                { yAxis: exitPrice, label: { formatter: "Exit " + exitPrice, position: "insideEndBottom" }, lineStyle: { color: entryPrice <= exitPrice ? TRADING_GREEN : TRADING_RED, type: "solid" } },
-                ...(stopLoss > 0 ? [{ yAxis: stopLoss, label: { formatter: "SL " + stopLoss, position: "insideEndTop" }, lineStyle: { color: MARKER_SL, type: "dotted" } }] : []),
-                ...(takeProfit > 0 ? [{ yAxis: takeProfit, label: { formatter: "TP " + takeProfit, position: "insideEndBottom" }, lineStyle: { color: MARKER_TP, type: "dotted" } }] : []),
+                { yAxis: props.entryPrice, label: { formatter: "Entry " + props.entryPrice, position: "insideEndTop" }, lineStyle: { color: CHART_AVG_ENTRY, type: "dashed" } },
+                { yAxis: props.exitPrice, label: { formatter: "Exit " + props.exitPrice, position: "insideEndBottom" }, lineStyle: { color: props.entryPrice <= props.exitPrice ? TRADING_GREEN : TRADING_RED, type: "solid" } },
+                ...(props.stopLoss != null && props.stopLoss > 0 ? [{ yAxis: props.stopLoss, label: { formatter: "SL " + props.stopLoss, position: "insideEndTop" }, lineStyle: { color: MARKER_SL, type: "dotted" } }] : []),
+                ...(props.takeProfit != null && props.takeProfit > 0 ? [{ yAxis: props.takeProfit, label: { formatter: "TP " + props.takeProfit, position: "insideEndBottom" }, lineStyle: { color: MARKER_TP, type: "dotted" } }] : []),
               ],
             },
           }],
         };
 
-        chart.setOption(option, true);
-        chart.dispatchAction({ type: "dataZoom", startValue: Math.max(0, (entryIdx || 0) - 30), endValue: Math.min(times.length - 1, (exitIdx || times.length - 1) + 30) });
+        instance.setOption(option, true);
+        instance.dispatchAction({ type: "dataZoom", startValue: Math.max(0, (entryIdx || 0) - 30), endValue: Math.min(times.length - 1, (exitIdx || times.length - 1) + 30) });
       })
       .catch(() => {});
+    })();
+  });
 
-    const handleResize = () => chart.resize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [symbol, date, entryPrice, exitPrice, entryTime, exitTime, stopLoss, takeProfit]);
+  onCleanup(() => {
+    disposed = true;
+    instance?.dispose();
+    instance = null;
+  });
 
   return (
-    <Box style={{ width: "100%", height, "min-height": height }}>
-      <div ref={chartRef} style={{ width: "100%", height: "100%" }} />
+    <Box style={{ width: "100%", height: `${height()}px`, "min-height": `${height()}px` }}>
+      <div ref={(el) => (chartRef = el)} style={{ width: "100%", height: "100%" }} />
     </Box>
   );
 }

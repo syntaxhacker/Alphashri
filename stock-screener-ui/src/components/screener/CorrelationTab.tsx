@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { useSearchParams } from "@solidjs/router";
 import {
   Alert,
   Button,
@@ -9,10 +9,8 @@ import {
   Select,
   Stack,
   Text,
-  useDebouncedValue,
 } from "@/ui";
 import { IconAlertCircle, IconChartLine } from "@tabler/icons-react";
-import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import {
   subscribe,
   symbols,
@@ -53,21 +51,52 @@ function formatDateRange(iso: string): string {
   return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function firstParam(value: string | string[] | undefined): string | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return raw ?? null;
+}
+
+// Inline Solid twin of useDebouncedValue (the ui-kit helper captures the
+// first value only, so the debounce never fires on later input).
+function useDebouncedSignal(getValue: () => string, wait: number) {
+  const [debounced, setDebounced] = createSignal(getValue());
+  createEffect(() => {
+    const value = getValue();
+    const timer = setTimeout(() => setDebounced(value), wait);
+    onCleanup(() => clearTimeout(timer));
+  });
+  return debounced;
+}
+
+// src/hooks/useStoreSubscription.ts's useStoreSnapshot misses its createMemo
+// import, so the snapshot is inlined here with the same semantics.
+function useCorrelationSnapshot() {
+  const [tick, setTick] = createSignal(0);
+  createEffect(() => {
+    const unsubscribe = subscribe(() => setTick((n) => n + 1));
+    onCleanup(unsubscribe);
+  });
+  return createMemo(() => {
+    tick();
+    return { symbols, timeframe, period, matrix, normalized, meta, isLoading, error };
+  });
+}
+
 export function CorrelationTab() {
-  useStoreSubscription(subscribe);
+  const store = useCorrelationSnapshot();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [searchData, setSearchData] = useState<SymbolResult[]>([]);
-  const [searchText, setSearchText] = useState("");
-  const [debouncedSearch] = useDebouncedValue(searchText, 250);
-  const [localSymbols, setLocalSymbols] = useState<string[]>(
-    () => searchParams.get("symbols")?.split(",").filter(Boolean) || symbols,
+  const [searchData, setSearchData] = createSignal<SymbolResult[]>([]);
+  const [searchText, setSearchText] = createSignal("");
+  const debouncedSearch = useDebouncedSignal(searchText, 250);
+  const [localSymbols, setLocalSymbols] = createSignal<string[]>(
+    firstParam(searchParams.symbols)?.split(",").filter(Boolean) || symbols,
   );
 
-  useEffect(() => {
-    const syms = searchParams.get("symbols");
-    const tf = searchParams.get("timeframe") as "daily" | "intraday" | null;
-    const p = searchParams.get("period");
+  onMount(() => {
+    const syms = firstParam(searchParams.symbols);
+    const tf = firstParam(searchParams.timeframe) as "daily" | "intraday" | null;
+    const p = firstParam(searchParams.period);
 
     if (syms) {
       const parts = syms.split(",").filter(Boolean);
@@ -82,15 +111,18 @@ export function CorrelationTab() {
         setTimeout(() => fetchCorrelationData(), 0);
       }
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  });
 
-  useEffect(() => {
-    const q = debouncedSearch.trim();
+  createEffect(() => {
+    const q = debouncedSearch().trim();
     if (q.length < 2) {
       setSearchData([]);
       return;
     }
     let active = true;
+    onCleanup(() => {
+      active = false;
+    });
     searchSymbols(q, 10)
       .then((results) => {
         if (active) setSearchData(results);
@@ -98,12 +130,9 @@ export function CorrelationTab() {
       .catch(() => {
         if (active) setSearchData([]);
       });
-    return () => {
-      active = false;
-    };
-  }, [debouncedSearch]);
+  });
 
-  const handleTimeframeChange = useCallback((value: string) => {
+  const handleTimeframeChange = (value: string) => {
     setTimeframe(value as "daily" | "intraday");
     if (value === "daily") {
       setPeriod(90);
@@ -112,28 +141,28 @@ export function CorrelationTab() {
       setPeriod(1);
       setPeriodUnit("days");
     }
-  }, []);
+  };
 
-  const handlePeriodChange = useCallback((value: string | null) => {
+  const handlePeriodChange = (value: string | null) => {
     if (value) setPeriod(parseInt(value, 10));
-  }, []);
+  };
 
-  const handleCalculate = useCallback(() => {
-    setSymbols(localSymbols);
+  const handleCalculate = () => {
+    setSymbols(localSymbols());
     void fetchCorrelationData();
     setSearchParams(
-      (prev) => {
-        prev.set("symbols", localSymbols.join(","));
-        prev.set("timeframe", timeframe);
-        prev.set("period", period.toString());
-        return prev;
+      {
+        symbols: localSymbols().join(","),
+        timeframe: store().timeframe,
+        period: store().period.toString(),
       },
       { replace: true },
     );
-  }, [localSymbols, timeframe, period, setSearchParams]);
+  };
 
-  const periods = timeframe === "daily" ? DAILY_PERIODS : INTRADAY_PERIODS;
-  const currentPeriod = period.toString();
+  const periods = () => (store().timeframe === "daily" ? DAILY_PERIODS : INTRADAY_PERIODS);
+  const currentPeriod = () => store().period.toString();
+  const isIntraday = () => store().timeframe === "intraday";
 
   return (
     <Stack spacing={2} className="h-full w-full" data-testid="correlation-tab">
@@ -147,10 +176,10 @@ export function CorrelationTab() {
                 </Text>
                 <MultiSelect
                   placeholder="Search and select symbols"
-                  data={searchData.map((s) => ({ value: s.symbol, label: s.symbol }))}
-                  value={localSymbols}
+                  data={searchData().map((s) => ({ value: s.symbol, label: s.symbol }))}
+                  value={localSymbols()}
                   onChange={setLocalSymbols}
-                  searchValue={searchText}
+                  searchValue={searchText()}
                   onSearchChange={setSearchText}
                   searchable
                   size="sm"
@@ -159,7 +188,7 @@ export function CorrelationTab() {
                 />
               </Stack>
               <SegmentedControl
-                value={timeframe}
+                value={store().timeframe}
                 onChange={handleTimeframeChange}
                 data={[
                   { label: "Daily", value: "daily" },
@@ -170,17 +199,17 @@ export function CorrelationTab() {
               />
               <Select
                 label="Period"
-                value={currentPeriod}
+                value={currentPeriod()}
                 onChange={handlePeriodChange}
-                data={periods}
+                data={periods()}
                 size="sm"
                 w={110}
                 data-testid="correlation-period"
               />
               <Button
                 onClick={handleCalculate}
-                loading={isLoading}
-                disabled={localSymbols.length < 2}
+                loading={store().isLoading}
+                disabled={localSymbols().length < 2}
                 size="sm"
                 leftSection={<IconChartLine size={16} />}
                 fullWidth
@@ -190,33 +219,35 @@ export function CorrelationTab() {
             </div>
           </Flex>
 
-          {error && (
+          <Show when={store().error}>
             <Alert icon={<IconAlertCircle size={16} />} color="error" size="sm">
-              {error}
+              {store().error}
             </Alert>
-          )}
+          </Show>
 
-          {meta && (
-            <CompactStatGrid>
-              <CompactStat
-                label="Date Range"
-                value={`${formatDateRange(meta.start_date)} → ${formatDateRange(meta.end_date)}`}
-              />
-              <CompactStat label="Data Points" value={meta.data_points} />
-              <CompactStat label="Symbols" value={symbols.length} />
-              <CompactStat label="Timeframe" value={timeframe === "daily" ? "Daily" : "Intraday"} />
-            </CompactStatGrid>
-          )}
+          <Show when={store().meta}>
+            {(m) => (
+              <CompactStatGrid>
+                <CompactStat
+                  label="Date Range"
+                  value={`${formatDateRange(m().start_date)} → ${formatDateRange(m().end_date)}`}
+                />
+                <CompactStat label="Data Points" value={m().data_points} />
+                <CompactStat label="Symbols" value={store().symbols.length} />
+                <CompactStat label="Timeframe" value={isIntraday() ? "Intraday" : "Daily"} />
+              </CompactStatGrid>
+            )}
+          </Show>
         </Stack>
       </CompactPanel>
 
       <Stack spacing={2} className="min-h-0 flex-1">
         <CompactPanel title="Correlation Matrix">
-          <CorrelationMatrix matrix={matrix || []} symbols={symbols} isLoading={isLoading} />
+          <CorrelationMatrix matrix={store().matrix || []} symbols={store().symbols} isLoading={store().isLoading} />
         </CompactPanel>
 
         <CompactPanel title="Normalized Price Chart">
-          <CorrelationChart normalized={normalized || {}} symbols={symbols} isLoading={isLoading} />
+          <CorrelationChart normalized={store().normalized || {}} symbols={store().symbols} isLoading={store().isLoading} />
         </CompactPanel>
       </Stack>
     </Stack>

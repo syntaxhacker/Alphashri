@@ -65,7 +65,38 @@ export function Group(props: UIGroupProps & Record<string, unknown>) {
   if (known.mah != null) styleObj["max-height"] = toSz(known.mah);
   if (known.flex != null) styleObj.flex = known.flex as string;
 
-  const Tag = (known.component ?? "div") as string;
+// Solid compiles `<Tag>` to `createComponent(Tag, ...)`, which calls the value
+// as a function. A string tag is not callable, so dynamic elements resolve
+// through an intrinsic registry instead.
+const GROUP_TAGS: Record<string, (p: any) => JSX.Element> = {
+  div: (p) => <div {...p} />,
+  span: (p) => <span {...p} />,
+  section: (p) => <section {...p} />,
+  article: (p) => <article {...p} />,
+  aside: (p) => <aside {...p} />,
+  header: (p) => <header {...p} />,
+  footer: (p) => <footer {...p} />,
+  main: (p) => <main {...p} />,
+  nav: (p) => <nav {...p} />,
+  ul: (p) => <ul {...p} />,
+  ol: (p) => <ol {...p} />,
+  li: (p) => <li {...p} />,
+  form: (p) => <form {...p} />,
+  p: (p) => <p {...p} />,
+  figure: (p) => <figure {...p} />,
+  figcaption: (p) => <figcaption {...p} />,
+  label: (p) => <label {...p} />,
+  a: (p) => <a {...p} />,
+  button: (p) => <button {...p} />,
+  h1: (p) => <h1 {...p} />,
+  h2: (p) => <h2 {...p} />,
+  h3: (p) => <h3 {...p} />,
+  h4: (p) => <h4 {...p} />,
+  h5: (p) => <h5 {...p} />,
+  h6: (p) => <h6 {...p} />,
+};
+
+  const Tag = GROUP_TAGS[(known.component as string) ?? "div"] ?? GROUP_TAGS["div"];
 
   return (
     <Tag

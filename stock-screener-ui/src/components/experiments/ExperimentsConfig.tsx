@@ -13,12 +13,10 @@ import {
   ActionIcon,
   Tooltip,
 } from "@/ui";
-import { IconPlus, IconX, IconPlayerPlay, IconRotate } from "@tabler/icons-react";
+import { IconPlus, IconX, IconPlayerPlay, IconRotate } from "../common/Icons";
+import { For, Show, createMemo } from "solid-js";
 import type { StrategyParam, SweepParam } from "../../types/experiments";
-import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import {
-  getExperimentState,
-  subscribe,
   setConfig,
   setFixedParam,
   setSweep,
@@ -27,6 +25,7 @@ import {
   resetConfig,
   startExperiment,
 } from "../../state/experiments";
+import { useExperimentState } from "./useExperimentState";
 import { getSweepGridSize } from "../../api/experiments";
 import { SymbolChips } from "../backtest/SymbolChips";
 
@@ -37,36 +36,32 @@ const TIMEFRAMES = [
   { value: "60", label: "60m" },
 ];
 
-function ParamValueInput({
-  param,
-  value,
-  testId,
-  onChange,
-}: {
+function ParamValueInput(props: {
   param: StrategyParam;
-  value: any;
+  value: number | string | boolean | undefined;
   testId: string;
   onChange: (value: number | string | boolean) => void;
 }) {
-  if (param.type === "select") {
+  const value = () => props.value ?? props.param.default;
+  if (props.param.type === "select") {
     return (
       <Select
-        data-testid={testId}
-        value={String(value ?? param.default)}
-        onChange={(v) => v != null && onChange(v)}
-        data={(param.options || []).map((opt) => ({ value: opt, label: opt }))}
+        data-testid={props.testId}
+        value={String(value())}
+        onChange={(v) => v != null && props.onChange(v)}
+        data={(props.param.options || []).map((opt) => ({ value: opt, label: opt }))}
         size="sm"
         w={90}
       />
     );
   }
 
-  if (param.type === "boolean") {
+  if (props.param.type === "boolean") {
     return (
       <Checkbox
-        data-testid={testId}
-        checked={Boolean(value ?? param.default)}
-        onChange={(e) => onChange(e.currentTarget.checked)}
+        data-testid={props.testId}
+        checked={Boolean(value())}
+        onChange={(e) => props.onChange((e.currentTarget as HTMLInputElement).checked)}
         size="sm"
       />
     );
@@ -74,12 +69,12 @@ function ParamValueInput({
 
   return (
     <NumberInput
-      data-testid={testId}
-      value={Number(value ?? param.default)}
-      onChange={(v) => onChange(Number(v))}
-      min={param.min}
-      max={param.max}
-      step={param.step ?? 1}
+      data-testid={props.testId}
+      value={Number(value())}
+      onChange={(v) => props.onChange(Number(v))}
+      min={props.param.min}
+      max={props.param.max}
+      step={props.param.step ?? 1}
       size="sm"
       w={70}
     />
@@ -100,27 +95,30 @@ function nextSweepValue(
 }
 
 export function ExperimentsConfig() {
-  useStoreSubscription(subscribe);
-  const s = getExperimentState();
-  const { strategies, config, fixedParams, sweeps, state: expState } = s;
+  const state = useExperimentState();
+  const strategies = createMemo(() => state().strategies);
+  const config = createMemo(() => state().config);
+  const fixedParams = createMemo(() => state().fixedParams);
+  const sweeps = createMemo(() => state().sweeps);
+  const expState = createMemo(() => state().state);
 
-  const strategy = strategies.find((st) => st.key === config.strategy);
-  const running = expState?.status === "running";
-  const hasSymbols = config.symbols.length > 0;
-  const hasSweepValues = sweeps.some((sw) => sw.values.length > 0);
+  const strategy = createMemo(() => strategies().find((st) => st.key === config().strategy));
+  const running = () => expState()?.status === "running";
+  const hasSymbols = () => config().symbols.length > 0;
+  const hasSweepValues = () => sweeps().some((sw) => sw.values.length > 0);
 
-  const grid = getSweepGridSize(sweeps);
-  const candidates = grid * config.symbols.length;
-  const tooLarge = candidates > 500;
+  const grid = createMemo(() => getSweepGridSize(sweeps()));
+  const candidates = createMemo(() => grid() * config().symbols.length);
+  const tooLarge = () => candidates() > 500;
 
   const updateSweepValue = (key: string, index: number, value: number | string | boolean) => {
-    const sweep = sweeps.find((sw) => sw.key === key);
+    const sweep = sweeps().find((sw) => sw.key === key);
     if (!sweep) return;
     setSweep(key, sweep.values.map((v, i) => (i === index ? value : v)));
   };
 
   const removeSweepValue = (key: string, index: number) => {
-    const sweep = sweeps.find((sw) => sw.key === key);
+    const sweep = sweeps().find((sw) => sw.key === key);
     if (!sweep) return;
     setSweep(key, sweep.values.filter((_, i) => i !== index));
   };
@@ -141,9 +139,9 @@ export function ExperimentsConfig() {
           <Box className="flex-1 flex items-center">
             <Select
               data-testid="experiments-strategy-select"
-              value={config.strategy}
+              value={config().strategy}
               onChange={(v) => v && setConfig({ strategy: v })}
-              data={strategies.map((st) => ({ value: st.key, label: st.key }))}
+              data={strategies().map((st) => ({ value: st.key, label: st.key }))}
               size="sm"
               searchable
             />
@@ -160,7 +158,7 @@ export function ExperimentsConfig() {
           </Box>
           <Box className="flex-1 flex items-center" data-testid="experiments-symbol-chips">
             <SymbolChips
-              selectedSymbols={config.symbols}
+              selectedSymbols={config().symbols}
               onSymbolsChange={(symbols) => setConfig({ symbols })}
             />
           </Box>
@@ -176,7 +174,7 @@ export function ExperimentsConfig() {
               </Text>
               <Select
                 data-testid="experiments-tf-select"
-                value={String(config.tf)}
+                value={String(config().tf)}
                 onChange={(v) => v && setConfig({ tf: Number(v) })}
                 data={TIMEFRAMES}
                 size="sm"
@@ -190,7 +188,7 @@ export function ExperimentsConfig() {
             type="date"
             size="sm"
             w={150}
-            value={config.dateStart}
+            value={config().dateStart}
             onChange={(v) => setConfig({ dateStart: v })}
           />
           <TextInput
@@ -199,13 +197,13 @@ export function ExperimentsConfig() {
             type="date"
             size="sm"
             w={150}
-            value={config.dateEnd}
+            value={config().dateEnd}
             onChange={(v) => setConfig({ dateEnd: v })}
           />
           <Checkbox
             data-testid="experiments-costs-checkbox"
             label="Include costs"
-            checked={config.includeCosts}
+            checked={config().includeCosts}
             onChange={(e) => setConfig({ includeCosts: e.currentTarget.checked })}
             size="sm"
           />
@@ -215,7 +213,7 @@ export function ExperimentsConfig() {
           data-testid="experiments-description"
           placeholder="Experiment description (optional)"
           size="sm"
-          value={config.description}
+          value={config().description}
           onChange={(v) => setConfig({ description: v })}
         />
 
@@ -227,13 +225,20 @@ export function ExperimentsConfig() {
               Sweep space
             </Text>
           </Box>
-          {strategy && strategy.params.length > 0 ? (
+          <Show when={strategy() && strategy()!.params.length > 0}
+            fallback={
+              <Box className="flex items-center justify-center p-2">
+                <Text size="sm" c="dimmed">
+                  Select a strategy to configure sweep parameters
+                </Text>
+              </Box>
+            }
+          >
             <Stack gap={1} className="items-stretch">
-              {strategy.params.map((param) => {
-                const sweep = sweeps.find((sw) => sw.key === param.key);
+              <For each={strategy()!.params}>{(param) => {
+                const sweep = () => sweeps().find((sw) => sw.key === param.key);
                 return (
                   <Box
-                    key={param.key}
                     className="flex items-center justify-start gap-2 flex-wrap"
                     data-testid={`sweep-param-${param.key}`}
                   >
@@ -242,46 +247,60 @@ export function ExperimentsConfig() {
                         {param.label}
                       </Text>
                     </Box>
-                    {sweep ? (
+                    <Show
+                      when={sweep()}
+                      fallback={
+                        <ParamValueInput
+                          param={param}
+                          value={fixedParams()[param.key] ?? param.default}
+                          testId={`fixed-param-${param.key}`}
+                          onChange={(v) => setFixedParam(param.key, v)}
+                        />
+                      }
+                    >
+                      {(sweepValue) => (
                       <Box className="flex items-center justify-start gap-2 flex-wrap">
-                        {sweep.values.map((value, idx) => (
-                          <Box key={idx} className="flex items-center gap-2">
+                        <For each={sweepValue().values}>{(value, idx) => (
+                          <Box className="flex items-center gap-2">
                             <ParamValueInput
                               param={param}
                               value={value}
-                              testId={`sweep-value-${param.key}-${idx}`}
-                              onChange={(v) => updateSweepValue(param.key, idx, v)}
+                              testId={`sweep-value-${param.key}-${idx()}`}
+                              onChange={(v) => updateSweepValue(param.key, idx(), v)}
                             />
                             <ActionIcon
                               size="sm"
                               variant="subtle"
                               color="secondary"
-                              data-testid={`sweep-value-remove-${param.key}-${idx}`}
-                              onClick={() => removeSweepValue(param.key, idx)}
+                              data-testid={`sweep-value-remove-${param.key}-${idx()}`}
+                              onClick={() => removeSweepValue(param.key, idx())}
                             >
                               <IconX size={12} />
                             </ActionIcon>
                           </Box>
-                        ))}
+                        )}</For>
                         <Button
                           size="xs"
                           variant="outline"
                           data-testid={`sweep-value-add-${param.key}`}
                           leftSection={<IconPlus size={12} />}
-                          onClick={() => addSweepValue(param, sweep)}
+                          onClick={() => addSweepValue(param, sweep()!)}
                         >
                           Add
                         </Button>
                       </Box>
-                    ) : (
-                      <ParamValueInput
-                        param={param}
-                        value={fixedParams[param.key] ?? param.default}
-                        testId={`fixed-param-${param.key}`}
-                        onChange={(v) => setFixedParam(param.key, v)}
-                      />
-                    )}
-                    {sweep ? (
+                      )}
+                    </Show>
+                    <Show when={sweep()} fallback={
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        data-testid={`sweep-add-${param.key}`}
+                        onClick={() => addSweepParam(param.key)}
+                      >
+                        Add to sweep
+                      </Button>
+                    }>
                       <Button
                         size="xs"
                         variant="light"
@@ -291,27 +310,12 @@ export function ExperimentsConfig() {
                       >
                         Sweep on
                       </Button>
-                    ) : (
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        data-testid={`sweep-add-${param.key}`}
-                        onClick={() => addSweepParam(param.key)}
-                      >
-                        Add to sweep
-                      </Button>
-                    )}
+                    </Show>
                   </Box>
                 );
-              })}
+                }}</For>
             </Stack>
-          ) : (
-            <Box className="flex items-center justify-center p-2">
-              <Text size="sm" c="dimmed">
-                Select a strategy to configure sweep parameters
-              </Text>
-            </Box>
-          )}
+          </Show>
         </Box>
 
         <Divider />
@@ -319,18 +323,18 @@ export function ExperimentsConfig() {
         <Box className="flex items-center justify-between gap-2 flex-wrap">
           <Box className="flex items-center gap-2">
             <Text size="sm" data-testid="experiments-candidates-count">
-              candidates = {grid} x {config.symbols.length} symbols = {candidates}
+              candidates = {grid()} x {config().symbols.length} symbols = {candidates()}
             </Text>
-            {tooLarge && (
+            <Show when={tooLarge()}>
               <Badge
                 color="error"
                 size="sm"
                 variant="outline"
                 data-testid="experiments-candidates-warning"
               >
-                {candidates} &gt; 500 — large grid
+                {candidates()} &gt; 500 — large grid
               </Badge>
-            )}
+            </Show>
           </Box>
           <Box className="flex items-center gap-2">
             <Button
@@ -338,8 +342,8 @@ export function ExperimentsConfig() {
               size="sm"
               data-testid="experiments-start-btn"
               leftSection={<IconPlayerPlay size={12} />}
-              disabled={!hasSymbols || !hasSweepValues || running || tooLarge}
-              loading={running}
+              disabled={!hasSymbols() || !hasSweepValues() || running() || tooLarge()}
+              loading={running()}
               onClick={() => void startExperiment()}
             >
               Start

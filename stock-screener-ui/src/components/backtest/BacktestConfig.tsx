@@ -1,17 +1,11 @@
+import type { JSX } from "solid-js";
 import { useEffect, useMemo } from "react";
-import {
-  Select,
-  NumberInput,
-  Checkbox,
-  Button,
-  Menu,
-  Box,
-  Text,
-} from "@/ui";
+import { Select, NumberInput, Checkbox, Button, Menu, Text } from "@/ui";
 import { IconPlayerPlay, IconChevronDown, IconRotate } from "@tabler/icons-react";
 import type { Strategy, StrategyVariation } from "../../types/backtest";
 import { ParamInput } from "./ParamInput";
 import { SymbolChips } from "./SymbolChips";
+import { Box } from "../paper-trading/primitives";
 
 interface BacktestConfigProps {
   strategies: Strategy[];
@@ -36,7 +30,7 @@ interface BacktestConfigProps {
   onRunAndSave: () => void;
 }
 
-function Field({ label, span, children }: { label?: string; span?: boolean; children: React.ReactNode }) {
+function Field({ label, span, children }: { label?: string; span?: boolean; children: JSX.Element }) {
   return (
     <Box className="flex flex-col gap-0.25 min-w-0" style={{ "grid-column": span ? "1 / -1" : undefined, display: "flex", "flex-direction": "column", gap: "2px", "min-width": 0 }}>
       {label ? (

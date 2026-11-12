@@ -1,8 +1,8 @@
+import type { JSX } from "solid-js";
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach, beforeEach } from "vitest";
-import { screen, cleanup, waitFor, within, fireEvent } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, waitFor, within, fireEvent } from "@solidjs/testing-library";
 import { PaperChart } from "./PaperChart2";
 import { mockPosition } from "./testFixtures";
 import { renderWithProviders } from "../../test-utils/renderWithProviders";
@@ -144,8 +144,8 @@ function mockChartData(overrides: Partial<PaperChartData> = {}): PaperChartData 
   };
 }
 
-function r(jsx: React.ReactElement) {
-  return renderWithProviders(jsx);
+function r(component: () => JSX.Element) {
+  return render(component);
 }
 
 describe("PaperChart2 component rendering - empty states via DOM", () => {
@@ -157,14 +157,14 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
 
   test("renders empty state when selectedSymbol is null", () => {
     setState({ selectedSymbol: null, chartData: null, chartLoading: false });
-    r(<PaperChart />);
+    r(() => <PaperChart />);
     expect(screen.getByTestId("paper-chart-empty")).toBeInTheDocument();
     expect(screen.getByText("Select a position or trade to view chart")).toBeInTheDocument();
   });
 
   test("renders loading state when chartLoading is true (DOM)", () => {
     setState({ selectedSymbol: "RELIANCE", chartData: null, chartLoading: true });
-    r(<PaperChart />);
+    r(() => <PaperChart />);
     expect(screen.getByText(/Loading RELIANCE chart/)).toBeInTheDocument();
     // should have paper-chart-loading class container
     expect(screen.getByTestId("paper-chart-empty")).toHaveClass("paper-chart-loading");
@@ -172,7 +172,7 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
 
   test("renders error state when chartData is null but symbol selected (DOM)", () => {
     setState({ selectedSymbol: "RELIANCE", chartData: null, chartLoading: false });
-    r(<PaperChart />);
+    r(() => <PaperChart />);
     expect(screen.getByText(/No data available for RELIANCE/)).toBeInTheDocument();
     expect(screen.getByText("Retry")).toBeInTheDocument();
     expect(screen.getByTestId("paper-chart-empty")).toHaveClass("paper-chart-error");
@@ -184,7 +184,7 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
       chartData: mockChartData({ candles: [] }),
       chartLoading: false,
     });
-    r(<PaperChart />);
+    r(() => <PaperChart />);
     expect(screen.getByText(/No candle data for RELIANCE/)).toBeInTheDocument();
   });
 
@@ -194,7 +194,7 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
       chartData: mockChartData(),
       chartLoading: false,
     });
-    r(<PaperChart />);
+    r(() => <PaperChart />);
     expect(screen.getByTestId("paper-chart-container")).toBeInTheDocument();
     expect(screen.getByTestId("paper-chart-header")).toBeInTheDocument();
   });
@@ -205,7 +205,7 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
       chartData: mockChartData(),
       chartLoading: false,
     });
-    r(<PaperChart />);
+    r(() => <PaperChart />);
     expect(screen.getByTestId("chart-timeframe-select")).toBeInTheDocument();
   });
 
@@ -215,7 +215,7 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
       chartData: mockChartData(),
       chartLoading: false,
     });
-    r(<PaperChart />);
+    r(() => <PaperChart />);
     expect(screen.getByTestId("chart-more-button")).toBeInTheDocument();
   });
 
@@ -234,13 +234,12 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
       }),
       chartLoading: false,
     });
-    r(<PaperChart />);
+    r(() => <PaperChart />);
     expect(screen.getByTestId("position-info")).toBeInTheDocument();
     expect(screen.getByTestId("chart-legend")).toBeInTheDocument();
   });
 
   test("timeframe Select onChange calls setChartTimeframe and fetchPaperChart", async () => {
-    const user = userEvent.setup();
     setState({
       selectedSymbol: "RELIANCE",
       chartData: mockChartData(),
@@ -248,9 +247,9 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
       chartTimeframe: "5min",
       selectedStrategyId: 1,
     });
-    r(<PaperChart />);
+    r(() => <PaperChart />);
     // Native select: "1h" label maps to "1hour" api value
-    await user.selectOptions(within(screen.getByTestId("chart-timeframe-select")).getByRole("combobox"), "1hour");
+    await fireEvent.input(within(screen.getByTestId("chart-timeframe-select")).getByRole("combobox"), "1hour");
     expect(mockSetChartTimeframe).toHaveBeenCalledWith("1hour");
     await waitFor(() => expect(mockFetchPaperChart).toHaveBeenCalled());
     // fetchPaperChart called with symbol, date, new timeframe, strategy, fromDate, true, tradeId
@@ -271,8 +270,8 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
       chartData: mockChartData(),
       chartLoading: false,
     });
-    r(<PaperChart />);
-    fireEvent.change(screen.getByTestId("chart-date-range"), { target: { value: "04/20/2026" } });
+    r(() => <PaperChart />);
+    fireEvent.input(screen.getByTestId("chart-date-range"), { target: { value: "04/20/2026" } });
     await waitFor(() => expect(mockFetchPaperChart).toHaveBeenCalled());
   });
 
@@ -284,16 +283,15 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
       chartData: mockChartData(),
       chartLoading: false,
     });
-    r(<PaperChart />);
+    r(() => <PaperChart />);
     mockFetchPaperChart.mockClear();
-    fireEvent.change(screen.getByTestId("chart-date-range"), { target: { value: "" } });
+    fireEvent.input(screen.getByTestId("chart-date-range"), { target: { value: "" } });
     // let any async handling settle, then assert silence
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(mockFetchPaperChart).not.toHaveBeenCalled();
   });
 
   test("overlay Chip toggles call corresponding setters", async () => {
-    const user = userEvent.setup();
     setState({
       selectedSymbol: "RELIANCE",
       chartData: mockChartData(),
@@ -301,24 +299,23 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
       showOrbLines: false,
       showAllTrades: false,
     });
-    r(<PaperChart />);
+    r(() => <PaperChart />);
     // Chips rendered inside PopoverDropdown — open it first
-    await user.click(screen.getByTestId("chart-more-button"));
+    await fireEvent.click(screen.getByTestId("chart-more-button"));
     const orbChip = await screen.findByTestId("chip-orb");
-    await user.click(orbChip);
+    await fireEvent.click(orbChip);
     expect(mockSetShowOrbLines).toHaveBeenCalledWith(true);
 
     const allChip = await screen.findByTestId("chip-all");
-    await user.click(allChip);
+    await fireEvent.click(allChip);
     expect(mockSetShowAllTrades).toHaveBeenCalledWith(true);
   });
 
   test("Retry button calls fetchPaperChart with forceRefresh true", async () => {
-    const user = userEvent.setup();
     setState({ selectedSymbol: "RELIANCE", chartData: null, chartLoading: false, chartTimeframe: "5min", selectedStrategyId: 2 });
-    r(<PaperChart />);
+    r(() => <PaperChart />);
     const retry = screen.getByText("Retry");
-    await user.click(retry);
+    await fireEvent.click(retry);
     expect(mockFetchPaperChart).toHaveBeenCalledWith(
       "RELIANCE",
       expect.any(String),
@@ -333,25 +330,25 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
   test("getEmptyState branches all return correct class via DOM", () => {
     // null symbol
     setState({ selectedSymbol: null, chartData: null, chartLoading: false });
-    const { unmount } = r(<PaperChart />);
+    const { unmount } = r(() => <PaperChart />);
     expect(screen.getByTestId("paper-chart-empty")).toHaveClass("paper-chart-empty");
     unmount(); cleanup();
 
     // loading
     setState({ selectedSymbol: "TCS", chartData: null, chartLoading: true });
-    const { unmount: um2 } = r(<PaperChart />);
+    const { unmount: um2 } = r(() => <PaperChart />);
     expect(screen.getByTestId("paper-chart-empty")).toHaveClass("paper-chart-loading");
     um2(); cleanup();
 
     // error (symbol but no data)
     setState({ selectedSymbol: "TCS", chartData: null, chartLoading: false });
-    const { unmount: um3 } = r(<PaperChart />);
+    const { unmount: um3 } = r(() => <PaperChart />);
     expect(screen.getByTestId("paper-chart-empty")).toHaveClass("paper-chart-error");
     um3(); cleanup();
 
     // no-data candles empty
     setState({ selectedSymbol: "TCS", chartData: mockChartData({ candles: [] }), chartLoading: false });
-    r(<PaperChart />);
+    r(() => <PaperChart />);
     expect(screen.getByTestId("paper-chart-empty")).toHaveClass("paper-chart-no-data");
   });
 });

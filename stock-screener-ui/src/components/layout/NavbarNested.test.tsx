@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { MemoryRouter } from "react-router-dom";
 import { NavbarNested } from "./NavbarNested";
@@ -28,8 +27,7 @@ function renderNavbar(opts: {
   onMobileNavigate?: any;
 } = {}) {
   const { activePath = "/", collapsed = false, auth = mockAdminAuth, onMobileNavigate } = opts;
-  return render(
-    <MemoryRouter>
+  return render(() => (<MemoryRouter>
       <AuthContext.Provider value={auth}>
         <NavbarNested
           activePath={activePath}
@@ -37,7 +35,7 @@ function renderNavbar(opts: {
           onMobileNavigate={onMobileNavigate}
         />
       </AuthContext.Provider>
-    </MemoryRouter>,
+    </MemoryRouter>),
   );
 }
 
@@ -154,12 +152,11 @@ describe("NavbarNested active path highlighting", () => {
   });
 
   it("highlights correct item each time activePath changes (rerender)", () => {
-    const { rerender } = render(
-      <MemoryRouter>
+    const { rerender } = render(() => (<MemoryRouter>
         <AuthContext.Provider value={mockAdminAuth}>
           <NavbarNested activePath="/news" />
         </AuthContext.Provider>
-      </MemoryRouter>,
+      </MemoryRouter>),
     );
     expect(screen.getByTestId("nav-news")).toHaveAttribute("data-active", "true");
     rerender(
@@ -269,8 +266,7 @@ describe("NavbarNested nav item accessible names", () => {
   it("still navigates on click when collapsed", async () => {
     const onMobileNavigate = vi.fn();
     renderNavbar({ collapsed: true, onMobileNavigate });
-    const user = userEvent.setup();
-    await user.click(screen.getByTestId("nav-index-report"));
+        await fireEvent.click(screen.getByTestId("nav-index-report"));
     expect(onMobileNavigate).toHaveBeenCalledTimes(1);
   });
 });
@@ -284,10 +280,9 @@ describe("NavbarNested theme toggle", () => {
   });
 
   it("toggles color scheme on click and persists to localStorage", async () => {
-    const user = userEvent.setup();
-    renderNavbar();
+        renderNavbar();
     const btn = screen.getByTestId("theme-toggle-btn");
-    await user.click(btn);
+    await fireEvent.click(btn);
     const after = localStorage.getItem("color-scheme");
     // should have flipped to light or dark
     expect(after).toBeTruthy();
@@ -295,18 +290,17 @@ describe("NavbarNested theme toggle", () => {
     // document attribute should be set
     expect(document.documentElement.getAttribute("data-color-scheme")).toBe(after);
     // clicking again flips back
-    await user.click(btn);
+    await fireEvent.click(btn);
     const flippedAgain = localStorage.getItem("color-scheme");
     expect(flippedAgain).not.toEqual(after);
   });
 
   it("toggles icon after click (moon/sun swap)", async () => {
-    const user = userEvent.setup();
-    renderNavbar();
+        renderNavbar();
     const btn = screen.getByTestId("theme-toggle-btn");
     const firstSvg = btn.querySelector("svg");
     expect(firstSvg).toBeTruthy();
-    await user.click(btn);
+    await fireEvent.click(btn);
     const secondSvg = screen.getByTestId("theme-toggle-btn").querySelector("svg");
     expect(secondSvg).toBeTruthy();
     // svg presence confirms render; class/paths may differ but at least button still renders
@@ -320,9 +314,8 @@ describe("NavbarNested theme toggle", () => {
       toggleColorScheme: toggleSpy,
       setColorScheme: vi.fn(),
     } as any);
-    const user = userEvent.setup();
-    renderNavbar();
-    await user.click(screen.getByTestId("theme-toggle-btn"));
+        renderNavbar();
+    await fireEvent.click(screen.getByTestId("theme-toggle-btn"));
     expect(toggleSpy).toHaveBeenCalledTimes(1);
   });
 });

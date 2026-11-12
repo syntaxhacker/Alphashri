@@ -1,6 +1,7 @@
+import {  } from "solid-js";
 import { ActionIcon, Anchor, Badge, Box, Divider, Text, ToolbarRow } from "@/ui";
 import { Portal } from "@/ui/layout/Portal";
-import { IconExternalLink, IconX } from "@tabler/icons-react";
+import { IconExternalLink, IconX } from "../common/Icons";
 import type { EventDTO, EventType } from "../../types/events";
 import { formatEventDate } from "./eventsColumns";
 import { EventTypeBadge } from "./EventTypeBadge";

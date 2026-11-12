@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createEffect, createSignal, onCleanup } from "solid-js";
 import { fetchNiftyBlasts } from "@/api/reportNifty";
 import type { NiftyBlast } from "@/api/reportNifty";
 import { alertsMuted, flashAlertTitle, playAlertSound } from "./alertSound";
@@ -89,7 +89,7 @@ function passesOpeningGate(b: NiftyBlast): boolean {
 }
 
 export interface BlastState {
-  blast: NiftyBlast | null;
+  blast: () => NiftyBlast | null;
   dismiss: () => void;
 }
 
@@ -98,22 +98,22 @@ export interface BlastOptions {
   lookbackMin?: number;
 }
 
-export function useNiftyBlasts(enabled: boolean, opts: BlastOptions = {}): BlastState {
-  const [blast, setBlast] = useState<NiftyBlast | null>(null);
-  const seenRef = useRef<Set<string>>(new Set());
-  const primedRef = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastAlertRef = useRef(0);
+export function useNiftyBlasts(enabled: () => boolean, opts: BlastOptions = {}): BlastState {
+  const [blast, setBlast] = createSignal<NiftyBlast | null>(null);
+  const seen = new Set<string>();
+  let primed = false;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let lastAlert = 0;
   const { lookbackMin = 5 } = opts;
 
-  const dismiss = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = null;
+  const dismiss = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
     setBlast(null);
-  }, []);
+  };
 
-  useEffect(() => {
-    if (!enabled) return;
+  createEffect(() => {
+    if (!enabled()) return;
     let alive = true;
     const controller = new AbortController();
 
@@ -121,11 +121,11 @@ export function useNiftyBlasts(enabled: boolean, opts: BlastOptions = {}): Blast
 
     /** Insertion-ordered Set: drop the oldest keys once the cap is hit. */
     const remember = (keys: string[]) => {
-      for (const k of keys) seenRef.current.add(k);
-      while (seenRef.current.size > MAX_SEEN_BLASTS) {
-        const oldest = seenRef.current.values().next().value;
+      for (const k of keys) seen.add(k);
+      while (seen.size > MAX_SEEN_BLASTS) {
+        const oldest = seen.values().next().value;
         if (oldest === undefined) break;
-        seenRef.current.delete(oldest);
+        seen.delete(oldest);
       }
     };
 
@@ -134,13 +134,13 @@ export function useNiftyBlasts(enabled: boolean, opts: BlastOptions = {}): Blast
         if (!alive) return;
         // Prime on the first successful poll EVEN IF EMPTY: arming on a
         // non-empty list would swallow the first real blast of the session.
-        if (!primedRef.current) {
+        if (!primed) {
           remember(rows.map(key));
-          primedRef.current = true;
+          primed = true;
           return;
         }
         if (rows.length === 0) return;
-        const fresh = rows.filter((b) => !seenRef.current.has(key(b)));
+        const fresh = rows.filter((b) => !seen.has(key(b)));
         remember(rows.map(key));
         if (fresh.length === 0) return;
 
@@ -152,17 +152,17 @@ export function useNiftyBlasts(enabled: boolean, opts: BlastOptions = {}): Blast
         const latest = gated[gated.length - 1];
         const now = Date.now();
         const gap = isOpeningWindow(latest.t) ? OPENING_ALERT_GAP_MS : ALERT_GAP_MS;
-        if (now - lastAlertRef.current < gap) return;
-        lastAlertRef.current = now;
+        if (now - lastAlert < gap) return;
+        lastAlert = now;
 
         setBlast(latest);
         if (!alertsMuted()) {
           playAlertSound(latest.severity === "warning" ? "alert" : "critical");
           flashAlertTitle(latest.label);
         }
-        if (timerRef.current) clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => {
-          timerRef.current = null;
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => {
+          timer = null;
           setBlast(null);
         }, ALERT_TTL_MS);
       });
@@ -170,14 +170,14 @@ export function useNiftyBlasts(enabled: boolean, opts: BlastOptions = {}): Blast
 
     load();
     const id = setInterval(load, POLL_MS);
-    return () => {
+    onCleanup(() => {
       alive = false;
       clearInterval(id);
       controller.abort();
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = null;
-    };
-  }, [enabled, lookbackMin]);
+      if (timer) clearTimeout(timer);
+      timer = null;
+    });
+  });
 
   return { blast, dismiss };
 }

@@ -1,6 +1,6 @@
-import { useEffect, useMemo } from "react";
-import { Badge, Box, Text } from "@/ui";
-import { useECharts } from "@/hooks/useECharts";
+import { createEffect, createMemo, Show } from "solid-js";
+import { Badge, Text } from "@/ui";
+import { createECharts } from "../echartsSolid";
 import { CompactStat, CompactStatGrid } from "@/components/common/compact";
 import * as palette from "@/ui/palette";
 import type { SimLegSpec, SimStrategyResult } from "@/types/reportSim";
@@ -70,40 +70,37 @@ function plotWindow(
   return { lo: Math.max(1, loRef - pad), hi: hiRef + pad };
 }
 
-export function SimPayoff({
-  strategy,
-  view,
-  planLegs = [],
-  entryTime = "09:35",
-  spot,
-  height = 280,
-}: SimPayoffProps) {
-  const { chartRef, setChartOption } = useECharts({ isDark: true });
+export function SimPayoff(props: SimPayoffProps) {
+  const strategy = () => props.strategy;
+  const view = () => props.view;
+  const planLegs = () => props.planLegs ?? [];
+  const spot = () => props.spot;
+  const height = () => props.height ?? 280;
+  const entryTime = () => props.entryTime ?? "09:35";
+  const chart = createECharts();
   // The backend caps max profit/loss at the plotted range. The shared payoff
   // helper knows a naked short tail (null = unbounded), so the stat never
   // pretends a short strangle has a finite worst case.
-  const summary = useMemo(
-    () => payoffSummary(toPayoffLegs(strategy?.legs ?? [])),
-    [strategy],
+  const summary = createMemo(
+    () => payoffSummary(toPayoffLegs(strategy()?.legs ?? [])),
   );
-  const hasPayoff =
-    strategy != null &&
-    strategy.payoff.spots.length > 0 &&
-    strategy.payoff.expiry.length > 0;
-  // Declared before the effect so the dependency array can reference them.
-  // `strategy` is null-safe here: the mark is only consumed inside the
-  // effect, which returns early when there is no strategy.
-  const mark = view?.total ?? (strategy?.total ?? 0);
-  const markTime = view?.equity.at(-1)?.t ?? null;
+  const hasPayoff = () =>
+    strategy() != null &&
+    strategy()!.payoff.spots.length > 0 &&
+    strategy()!.payoff.expiry.length > 0;
+  // Declared before the effect so the effect can track them.
+  const mark = () => view()?.total ?? (strategy()?.total ?? 0);
+  const markTime = () => view()?.equity.at(-1)?.t ?? null;
   // The backend resolves strikes and premiums at the entry fill. Before that
   // bar, those are future data: show the plan, never the entry structure.
-  const entered = view ? view.trades.length > 0 : true;
+  const entered = () => (view() ? view()!.trades.length > 0 : true);
 
-  useEffect(() => {
-    if (!strategy || !hasPayoff || !entered) return;
-    const legs = toPayoffLegs(strategy.legs);
-    const strikes = strategy.legs.map((leg) => leg.strike);
-    const { lo, hi } = plotWindow(strikes, strategy.breakevens, spot);
+  createEffect(() => {
+    const activeStrategy = strategy();
+    if (!activeStrategy || !hasPayoff() || !entered()) return;
+    const legs = toPayoffLegs(activeStrategy.legs);
+    const strikes = activeStrategy.legs.map((leg) => leg.strike);
+    const { lo, hi } = plotWindow(strikes, activeStrategy.breakevens, spot());
     const spots = Array.from(
       { length: POINTS },
       (_, index) => lo + ((hi - lo) * index) / (POINTS - 1),
@@ -113,7 +110,7 @@ export function SimPayoff({
     const negative = curve.map((point) => [point.spot, Math.min(0, point.pnl)]);
     const line = curve.map((point) => [point.spot, point.pnl]);
 
-    const breakevenLines = strategy.breakevens
+    const breakevenLines = activeStrategy.breakevens
       .filter((value) => value >= lo && value <= hi)
       .map((value) => ({
         xAxis: value,
@@ -128,11 +125,11 @@ export function SimPayoff({
 
     // The curve is an expiry value, so the spot marker sits ON the curve.
     // The desk's live realized/unrealized P&L lives in the stats row and RUNS.
-    const expiryAtSpot = payoffCurve(legs, [spot])[0]?.pnl ?? 0;
+    const expiryAtSpot = payoffCurve(legs, [spot()])[0]?.pnl ?? 0;
     const markPointData: Record<string, unknown>[] = [
       {
         name: "expiry at spot",
-        coord: [spot, expiryAtSpot],
+        coord: [spot(), expiryAtSpot],
         symbol: "circle",
         symbolSize: 10,
         itemStyle: { color: palette.TERM_SPOT, "border-color": palette.TERM_BG, borderWidth: 2 },
@@ -157,7 +154,7 @@ export function SimPayoff({
       areaStyle: { opacity: 0.2 },
     };
 
-    void setChartOption({
+    void chart.setChartOption({
       animation: false,
       "background-color": "transparent",
       tooltip: {
@@ -234,7 +231,7 @@ export function SimPayoff({
                 lineStyle: { color: palette.CHART_MUTED, type: "dashed", width: 1 },
               },
               {
-                xAxis: spot,
+                xAxis: spot(),
                 lineStyle: { color: palette.TERM_SPOT, type: "dotted", width: 1 },
                 label: {
                   formatter: "SPOT",
@@ -244,16 +241,16 @@ export function SimPayoff({
                 },
               },
               {
-                yAxis: mark,
+                yAxis: mark(),
                 lineStyle: { color: toneColor(mark), type: "dotted", width: 1 },
                 label: {
                   formatter:
                     "MARK " +
-                    fmtSignedInr(mark) +
-                    (markTime ? " @ " + fmtTime(markTime) : ""),
+                    fmtSignedInr(mark()) +
+                    (markTime() ? " @ " + fmtTime(markTime()!) : ""),
                   position: "insideStartTop",
                   "font-size": 12,
-                  color: toneColor(mark),
+                  color: toneColor(mark()),
                 },
               },
               ...breakevenLines,
@@ -267,16 +264,16 @@ export function SimPayoff({
             symbolSize: 9,
             z: 6,
             itemStyle: {
-              color: toneColor(mark),
+              color: toneColor(mark()),
               "border-color": palette.TERM_BG,
               borderWidth: 2,
             },
-            data: [[spot, mark]],
+            data: [[spot(), mark()]],
             label: {
               formatter:
                 "MARK " +
-                fmtSignedInr(mark) +
-                (markTime ? " @ " + fmtTime(markTime) : ""),
+                fmtSignedInr(mark()) +
+                (markTime() ? " @ " + fmtTime(markTime()!) : ""),
               position: "bottom",
               "font-size": 12,
               "background-color": palette.TERM_BG,
@@ -285,71 +282,71 @@ export function SimPayoff({
           },
         ],
     });
-  }, [strategy, spot, hasPayoff, entered, mark, markTime]);
+  });
 
-  if (!strategy || !hasPayoff) {
-    return (
-      <Box
-        data-testid="sim-payoff-empty"
-        className="flex items-center justify-center"
-        style={{ "min-height": height }}
-      >
-        <Text size="sm" c="dimmed">
-          Run the desk to see the expiry payoff
-        </Text>
-      </Box>
-    );
-  }
-
-  const unbounded = summary.maxProfit == null || summary.maxLoss == null;
-  const realized = view?.realized ?? strategy.realized;
-  const unrealized = view?.unrealized ?? strategy.unrealized;
-  const total = view?.total ?? strategy.total;
-  const planText = planLegs.length > 0 ? planLegs.map(legLabel).join(" · ") : "No legs";
+  const unbounded = () => summary().maxProfit == null || summary().maxLoss == null;
+  const realized = () => view()?.realized ?? strategy()!.realized;
+  const unrealized = () => view()?.unrealized ?? strategy()!.unrealized;
+  const total = () => view()?.total ?? strategy()!.total;
+  const planText = () => (planLegs().length > 0 ? planLegs().map(legLabel).join(" · ") : "No legs");
 
   return (
-    <Box
-      data-testid="sim-payoff"
-      className="relative flex flex-col flex-1 min-h-0 min-w-0 gap-2"
+    <Show
+      when={strategy() && hasPayoff()}
+      fallback={
+        <div
+          data-testid="sim-payoff-empty"
+          class="flex items-center justify-center"
+          style={{ "min-height": `${height()}px` }}
+        >
+          <Text size="sm" c="dimmed">
+            Run the desk to see the expiry payoff
+          </Text>
+        </div>
+      }
     >
-      <Box
-        ref={chartRef}
+    <div
+      data-testid="sim-payoff"
+      class="relative flex flex-col flex-1 min-h-0 min-w-0 gap-2"
+    >
+      <div
+        ref={chart.ref}
         data-testid="sim-payoff-chart"
-        className="w-full flex-[0_0_auto] min-w-0"
-        style={{ height }}
+        class="w-full flex-[0_0_auto] min-w-0"
+        style={{ height: `${height()}px` }}
       />
-      {!entered ? (
-        <Box
+      <Show when={!entered()}>
+        <div
           data-testid="sim-payoff-not-entered"
-          className="absolute inset-0 z-[2] flex flex-col items-center justify-center gap-1.5 px-4 text-center"
+          class="absolute inset-0 z-[2] flex flex-col items-center justify-center gap-1.5 px-4 text-center"
           style={{ "background-color": palette.TERM_BG }}
         >
           <Badge color="warning" variant="outline" size="xs">
             NOT ENTERED
           </Badge>
-          <Text size="sm">Plan: {planText}</Text>
+          <Text size="sm">Plan: {planText()}</Text>
           <Text size="xs" c="dimmed">
-            {strategy.skipped
-              ? `Skipped: ${strategy.skipped}`
-              : `Payoff, net debit and breakevens unlock after the fill (entry ${entryTime} + the next recorded minute).`}
+            {strategy()!.skipped
+              ? `Skipped: ${strategy()!.skipped}`
+              : `Payoff, net debit and breakevens unlock after the fill (entry ${entryTime()} + the next recorded minute).`}
           </Text>
-        </Box>
-      ) : null}
-      {entered ? (
+        </div>
+      </Show>
+      <Show when={entered()}>
         <Text size="xs" c="dimmed">
           Expiry payoff at these strikes, before costs. Shaded green above zero,
           red below.
-          {unbounded ? " A naked tail is unbounded beyond the plotted window." : ""}
+          {unbounded() ? " A naked tail is unbounded beyond the plotted window." : ""}
         </Text>
-      ) : null}
-      <CompactStatGrid cols={entered ? 4 : 3} spacing={4}>
-        {entered ? (
+      </Show>
+      <CompactStatGrid cols={entered() ? 4 : 3} spacing={4}>
+        <Show when={entered()}>
           <>
             <CompactStat
               dense
               data-testid="sim-payoff-debit"
               label="Net debit"
-              value={fmtInr(strategy.netDebit)}
+              value={fmtInr(strategy()!.netDebit)}
             />
             <CompactStat
               dense
@@ -357,7 +354,7 @@ export function SimPayoff({
               label="Max profit"
               tone={palette.POSITIVE}
               value={
-                summary.maxProfit == null ? "unbounded" : fmtInr(summary.maxProfit)
+                summary().maxProfit == null ? "unbounded" : fmtInr(summary().maxProfit!)
               }
             />
             <CompactStat
@@ -365,39 +362,40 @@ export function SimPayoff({
               data-testid="sim-payoff-max-loss"
               label="Max loss"
               tone={palette.NEGATIVE}
-              value={summary.maxLoss == null ? "unbounded" : fmtInr(summary.maxLoss)}
+              value={summary().maxLoss == null ? "unbounded" : fmtInr(summary().maxLoss!)}
             />
             <CompactStat
               dense
               data-testid="sim-payoff-breakevens"
               label="Breakevens"
-              value={breakevenText(strategy.breakevens)}
+              value={breakevenText(strategy()!.breakevens)}
             />
           </>
-        ) : null}
+        </Show>
         <CompactStat
           dense
           data-testid="sim-payoff-realized"
           label="Realized"
-          tone={toneColor(realized)}
-          value={fmtSignedInr(realized)}
+          tone={toneColor(realized())}
+          value={fmtSignedInr(realized())}
         />
         <CompactStat
           dense
           data-testid="sim-payoff-unrealized"
           label="Unrealized"
-          tone={toneColor(unrealized)}
-          value={fmtSignedInr(unrealized)}
+          tone={toneColor(unrealized())}
+          value={fmtSignedInr(unrealized())}
         />
         <CompactStat
           dense
           data-testid="sim-payoff-total"
           label="Total"
-          tone={toneColor(total)}
-          value={fmtSignedInr(total)}
+          tone={toneColor(total())}
+          value={fmtSignedInr(total())}
         />
       </CompactStatGrid>
-    </Box>
+    </div>
+    </Show>
   );
 }
 

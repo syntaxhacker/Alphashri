@@ -1,6 +1,7 @@
+import type { JSX } from "solid-js";
+import { Show, For } from "solid-js";
 import { NEGATIVE, POSITIVE, TEXT_MUTED } from "@/ui/palette";
 import { Box, Button, Text } from "@/ui";
-import type { ReactNode } from "react";
 import { IconUsers } from "@tabler/icons-react";
 import type { RotationPeriod, RotationRow } from "../../types/rotation";
 import { formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
@@ -10,22 +11,18 @@ const PERIODS: RotationPeriod[] = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y"];
 
 
 
-function SectionLabel({ children }: { children: ReactNode }) {
+function SectionLabel(props: { children: JSX.Element }) {
   return (
     <Text
       c="dimmed"
       className="text-[9.5px] font-bold uppercase tracking-[0.5px]"
     >
-      {children}
+      {props.children}
     </Text>
   );
 }
 
-function Metric({
-  label,
-  value,
-  tone,
-}: {
+function Metric(props: {
   label: string;
   value: string;
   tone: "success" | "error" | "muted";
@@ -36,15 +33,15 @@ function Metric({
         c="dimmed"
         className="block text-[9px] font-bold uppercase tracking-[0.4px]"
       >
-        {label}
+        {props.label}
       </Text>
       <Text
-        c={tone === "muted" ? "secondary" : tone}
+        c={props.tone === "muted" ? "secondary" : props.tone}
         fw={600}
         truncate
         className="block font-mono text-[10.5px] tabular-nums"
       >
-        {value}
+        {props.value}
       </Text>
     </Box>
   );
@@ -55,14 +52,15 @@ export interface RotationDetailProps {
   onOpenMembers: (row: RotationRow) => void;
 }
 
-export function RotationDetail({ row, onOpenMembers }: RotationDetailProps) {
-  const status = row ? {
-    label: ROTATION_STATUS_LABELS[row.status].long,
-    color: ROTATION_STATUS_COLORS_PANEL[row.status],
+export function RotationDetail(props: RotationDetailProps) {
+  const row = () => props.row;
+  const status = () => row() ? {
+    label: ROTATION_STATUS_LABELS[row()!.status].long,
+    color: ROTATION_STATUS_COLORS_PANEL[row()!.status],
   } : null;
-  const movers = row ? row.top_movers.slice(0, 5) : [];
-  const canOpenMembers = Boolean(row && row.kind === "theme" && row.slug);
-  const monthly = row ? row.returns["1M"] : 0;
+  const movers = () => row() ? row()!.top_movers.slice(0, 5) : [];
+  const canOpenMembers = () => Boolean(row() && row()!.kind === "theme" && row()!.slug);
+  const monthly = () => row() ? row()!.returns["1M"] : 0;
 
   return (
     <Box
@@ -71,48 +69,52 @@ export function RotationDetail({ row, onOpenMembers }: RotationDetailProps) {
     >
       <Box className="border-b border-fin-border px-2 py-1">
         <Box className="flex min-w-0 items-center gap-1.5">
-          {status ? (
-            <Box
-              className="h-1.5 w-1.5 shrink-0 rounded-full"
-              style={{ "background-color": status.color }}
-            />
-          ) : null}
+          <Show when={status()}>
+            {(s_) => (
+              <Box
+                className="h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ "background-color": s_().color }}
+              />
+            )}
+          </Show>
           <Text fw={700} truncate className="min-w-0 text-[11px]">
-            {row ? row.name : "Select a group"}
+            {row() ? row()!.name : "Select a group"}
           </Text>
           <Box className="flex-1" />
-          {status ? (
-            <Text
-              className="whitespace-nowrap text-[9.5px] font-bold tracking-[0.4px]"
-              style={{ color: status.color }}
-            >
-              {status.label}
-            </Text>
-          ) : null}
+          <Show when={status()}>
+            {(s_) => (
+              <Text
+                className="whitespace-nowrap text-[9.5px] font-bold tracking-[0.4px]"
+                style={{ color: s_().color }}
+              >
+                {s_().label}
+              </Text>
+            )}
+          </Show>
         </Box>
         <Text c="dimmed" truncate className="block text-[9px]">
-          {row
-            ? `${row.category ? `${row.category} · ` : ""}${row.kind} · ${row.quadrant} · ${row.members} members`
+          {row()
+            ? `${row()!.category ? `${row()!.category} · ` : ""}${row()!.kind} · ${row()!.quadrant} · ${row()!.members} members`
             : "Pick a row in the board, matrix or rotation map."}
         </Text>
       </Box>
 
-      {row ? (
+      <Show when={row()}>
         <>
           <Box
             className="grid grid-cols-4 gap-1 px-2 py-1"
           >
-            <Metric label="1M" value={formatPercentage(monthly)} tone={getPnLTextColor(monthly)} />
-            <Metric label="RS" value={row.rs_1m.toFixed(2)} tone={getPnLTextColor(row.rs_1m)} />
+            <Metric label="1M" value={formatPercentage(monthly())} tone={getPnLTextColor(monthly())} />
+            <Metric label="RS" value={row()!.rs_1m.toFixed(2)} tone={getPnLTextColor(row()!.rs_1m)} />
             <Metric
               label="Breadth"
-              value={`${row.breadth.toFixed(0)}%`}
-              tone={row.breadth >= 55 ? "success" : row.breadth <= 45 ? "error" : "muted"}
+              value={`${row()!.breadth.toFixed(0)}%`}
+              tone={row()!.breadth >= 55 ? "success" : row()!.breadth <= 45 ? "error" : "muted"}
             />
             <Metric
               label="Volume"
-              value={`${row.rel_volume.toFixed(1)}x`}
-              tone={row.rel_volume >= 1.2 ? "success" : "muted"}
+              value={`${row()!.rel_volume.toFixed(1)}x`}
+              tone={row()!.rel_volume >= 1.2 ? "success" : "muted"}
             />
           </Box>
 
@@ -121,12 +123,12 @@ export function RotationDetail({ row, onOpenMembers }: RotationDetailProps) {
             <Box
               className="mt-1 grid grid-cols-7 gap-1"
             >
-              {PERIODS.map((p) => {
-                const value = row.returns[p];
+              <For each={PERIODS}>
+                {(p) => {
+                const value = row()!.returns[p];
                 const height = Math.max(3, Math.min(36, Math.abs(value) * 2.2));
                 return (
                   <Box
-                    key={p}
                     className="flex min-w-0 flex-col items-center gap-[2px]"
                   >
                     <Box
@@ -134,7 +136,7 @@ export function RotationDetail({ row, onOpenMembers }: RotationDetailProps) {
                     >
                       <Box
                         className="w-3 rounded-t-[2px] opacity-90"
-                        style={{ height, "background-color": value >= 0 ? POSITIVE : NEGATIVE }}
+                        style={{ height: `${height}px`, "background-color": value >= 0 ? POSITIVE : NEGATIVE }}
                       />
                     </Box>
                     <Text className="text-[8px] leading-none" style={{ color: TEXT_MUTED }}>{p}</Text>
@@ -146,7 +148,8 @@ export function RotationDetail({ row, onOpenMembers }: RotationDetailProps) {
                     </Text>
                   </Box>
                 );
-              })}
+                }}
+              </For>
             </Box>
           </Box>
 
@@ -155,29 +158,26 @@ export function RotationDetail({ row, onOpenMembers }: RotationDetailProps) {
           >
             <SectionLabel>Top movers</SectionLabel>
             <Box className="flex-1" />
-            {canOpenMembers ? (
+            <Show when={canOpenMembers()}>
               <Button
                 data-testid="rotation-detail-members"
                 variant="subtle"
                 size="xs"
                 leftSection={<IconUsers size={12} />}
-                onClick={() => onOpenMembers(row)}
-                style={{ "min-height": 20, paddingInline: 6, "font-size": 10 }}
+                onClick={() => props.onOpenMembers(row()!)}
+                style={{ "min-height": "20px", "padding-inline": "6px", "font-size": "10px" }}
               >
                 Members
               </Button>
-            ) : null}
+            </Show>
           </Box>
 
           <Box className="flex flex-col gap-[2px] px-2 pb-1">
-            {movers.length === 0 ? (
-              <Text c="dimmed" className="text-[10px]">
-                No movers
-              </Text>
-            ) : (
-              movers.map((mover) => (
+            <Show when={movers().length === 0}
+              fallback={
+                <For each={movers()}>
+                  {(mover) => (
                 <Box
-                  key={`${row.id}-${mover.symbol}`}
                   className="flex min-w-0 items-center gap-1.5"
                 >
                   <Box
@@ -198,11 +198,17 @@ export function RotationDetail({ row, onOpenMembers }: RotationDetailProps) {
                     {formatPercentage(mover.change)}
                   </Text>
                 </Box>
-              ))
-            )}
+                  )}
+                </For>
+              }
+            >
+              <Text c="dimmed" className="text-[10px]">
+                No movers
+              </Text>
+            </Show>
           </Box>
         </>
-      ) : null}
+      </Show>
     </Box>
   );
 }

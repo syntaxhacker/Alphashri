@@ -1,16 +1,17 @@
 import { useRef, useEffect, useMemo, useCallback, useState } from "react";
-import { Text, Select, ScrollArea, Group, Badge, Box, Anchor } from "@/ui";
+import { Text, Select, ScrollArea, Badge, Anchor } from "@/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   getPnLTextColor,
   formatTimeOnly,
   formatDuration,
 } from "../../utils/ui-helpers";
-import { TanStackTable } from "../common/TanStackTable";
+import { TanStackTable } from "../paper-trading/TanStackTable";
 import { SideBadge } from "../common/BadgeComponents";
 import { alpha } from "@/ui/alpha";
 import * as palette from "@/ui/palette";
 import type { ReplayTrade } from "../../types/replay";
+import { Group, Box } from "../paper-trading/primitives";
 
 const EXIT_REASON_COLORS: Record<string, string> = {
   TP: "success",

@@ -1,4 +1,4 @@
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "@solidjs/router";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Box } from "@/ui";
 import { PaperHistoryTable } from "@/components/paper-trading/PaperHistoryTable2";

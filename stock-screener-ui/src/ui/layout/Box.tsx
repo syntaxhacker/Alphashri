@@ -60,7 +60,34 @@ export function Box(props: UIBoxProps & Record<string, unknown> & { alignItems?:
     styleObj.gap = typeof known.spacing === "number" ? `${known.spacing * 8}px` : sp(known.spacing);
   }
 
-  const Tag = (known.component ?? "div") as string;
+// Solid compiles `<Tag>` to `createComponent(Tag, ...)`, which calls the
+// value as a function. A string tag is not callable, so dynamic elements go
+// through an intrinsic registry instead.
+const BOX_TAGS: Record<string, (p: any) => JSX.Element> = {
+  div: (p) => <div {...p} />,
+  span: (p) => <span {...p} />,
+  section: (p) => <section {...p} />,
+  article: (p) => <article {...p} />,
+  aside: (p) => <aside {...p} />,
+  header: (p) => <header {...p} />,
+  footer: (p) => <footer {...p} />,
+  main: (p) => <main {...p} />,
+  nav: (p) => <nav {...p} />,
+  ul: (p) => <ul {...p} />,
+  ol: (p) => <ol {...p} />,
+  li: (p) => <li {...p} />,
+  form: (p) => <form {...p} />,
+  fieldset: (p) => <fieldset {...p} />,
+  label: (p) => <label {...p} />,
+  p: (p) => <p {...p} />,
+  figure: (p) => <figure {...p} />,
+  figcaption: (p) => <figcaption {...p} />,
+};
+
+  // Dynamic element: a plain string is not callable in Solid, so resolve it
+  // through the intrinsic registry (see above).
+  const Tag = BOX_TAGS[(known.component as string) ?? "div"] ?? BOX_TAGS["div"];
+
 
   return (
     <Tag

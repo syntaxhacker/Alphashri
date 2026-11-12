@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
+import { For, Show, createSignal } from "solid-js";
 import { Box, Paper, Chip, Button, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 
@@ -37,7 +37,7 @@ function MockPreviewTable() {
           RSI
         </Text>
       </Box>
-      {["RELIANCE", "TCS", "INFY", "HDFC"].map((s, i) => (
+      <For each={["RELIANCE", "TCS", "INFY", "HDFC"]}>{(s, i) => (
         <Box
           key={s}
           className="flex gap-0 px-1 py-2 border-b border-[#30363D] h-5 items-center last:border-b-0"
@@ -59,13 +59,13 @@ function MockPreviewTable() {
             {65 + i}
           </Text>
         </Box>
-      ))}
+      )}</For>
     </Box>
   );
 }
 
 function OptionA() {
-  const [active, setActive] = useState("trending");
+  const [active, setActive] = createSignal("trending");
   return (
     <Box className="flex flex-col gap-2 p-2 min-h-[420px]" style={{ "background-color": palette.BG }}>
       <Text className="text-[#8B949E] font-bold tracking-[0.5px] text-[11px]">
@@ -86,14 +86,14 @@ function OptionA() {
             </Button>
           </Box>
           <Box className="flex-1 overflow-auto p-1 flex flex-col gap-1">
-            {MOCK_CONFIGS.map((c) => (
+            <For each={MOCK_CONFIGS}>{(c) => (
               <Box
                 key={c.id}
                 onClick={() => setActive(c.id)}
                 className="p-1 rounded-sm cursor-pointer transition-colors border"
                 style={{
-                  "background-color": active === c.id ? palette.SURFACE_ALT : "transparent",
-                  "border-color": active === c.id ? palette.BORDER : "transparent",
+                  "background-color": active() === c.id ? palette.SURFACE_ALT : "transparent",
+                  "border-color": active() === c.id ? palette.BORDER : "transparent",
                 }}
               >
                 <Box className="flex items-center justify-between mb-1">
@@ -101,9 +101,9 @@ function OptionA() {
                     {c.label}
                   </Text>
                   <Box className="flex gap-1">
-                    {active === c.id && (
+                    <Show when={active() === c.id}>
                       <Chip size="xs" label="Active" className="text-[10px] h-[18px] text-[#8B949E] border border-[#30363D]" style={{ "background-color": palette.SURFACE_ALT }} />
-                    )}
+                    </Show>
                     <Button size="xs" variant="outline" color="secondary" className="text-[10px] h-[18px] min-w-[32px] px-0 border border-[#30363D] text-[#F0F6FC]" onClick={(e: any) => e.stopPropagation()}>
                       Edit
                     </Button>
@@ -113,7 +113,7 @@ function OptionA() {
                   {c.desc}
                 </Text>
               </Box>
-            ))}
+            )}</For>
           </Box>
         </Paper>
         {/* Right preview — single card */}
@@ -122,7 +122,7 @@ function OptionA() {
           style={{ "background-color": palette.SURFACE }}
         >
           <Box className="flex items-center gap-2 px-1.5 py-[10px] border-b border-[#30363D] shrink-0 h-[36px]" style={{ "background-color": palette.SURFACE_ALT }}>
-            <Chip size="xs" label={MOCK_CONFIGS.find((c) => c.id === active)?.label || active} className="text-[11px] h-5 text-[#F0F6FC] border border-[#30363D]" style={{ "background-color": palette.SURFACE }} />
+            <Chip size="xs" label={MOCK_CONFIGS.find((c) => c.id === active())?.label || active()} className="text-[11px] h-5 text-[#F0F6FC] border border-[#30363D]" style={{ "background-color": palette.SURFACE }} />
             <Chip size="xs" label="rsi: 50" className="text-[11px] h-5 text-[#8B949E] border border-[#30363D]" style={{ "background-color": palette.SURFACE }} />
             <Box className="flex-1" />
             <Text className="text-[11px] text-[#8B949E]">PREVIEW (4)</Text>

@@ -19,26 +19,9 @@ function paddingSize(v: UISize | number | string): string {
 }
 
 export function Modal(props: ModalProps) {
-  const {
-    children,
-    opened,
-    onClose,
-    title,
-    size,
-    fullScreen,
-    _centered,
-    withCloseButton = true,
-    closeOnClickOutside = true,
-    closeOnEscape = true,
-    overlayProps,
-    padding,
-    _transitionProps,
-    className,
-    style,
-    id,
-    "data-testid": testId,
-    ...rest
-  } = splitProps(props, [
+  // splitProps reads are reactive only while they stay inside a tracked scope
+  // (JSX or an effect). Destructuring them here would pin the first snapshot.
+  const [known, rest] = splitProps(props, [
     "children",
     "opened",
     "onClose",
@@ -68,11 +51,11 @@ export function Modal(props: ModalProps) {
   let dialogRef: HTMLDivElement | undefined;
 
   createEffect(() => {
-    if (!opened()) return;
+    if (!known.opened) return;
     const previous = document.activeElement as HTMLElement | null;
     const frame = window.requestAnimationFrame(() => dialogRef?.focus());
     const onDocKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && closeOnEscape()) onClose();
+      if (e.key === "Escape" && known.closeOnEscape) known.onClose?.();
     };
     document.addEventListener("keydown", onDocKey);
     const previousOverflow = document.body.style.overflow;
@@ -85,48 +68,52 @@ export function Modal(props: ModalProps) {
     });
   });
 
-  const isPreset = typeof size === "string" && size in SIZE_MAX_WIDTH;
-  const maxWidthClass = isPreset ? SIZE_MAX_WIDTH[size] : undefined;
+  const isPreset = typeof known.size === "string" && known.size in SIZE_MAX_WIDTH;
+  const maxWidthClass = isPreset ? SIZE_MAX_WIDTH[known.size] : undefined;
   const maxWidthStyle =
-    !isPreset && size != null ? (typeof size === "number" ? `${size}px` : String(size)) : undefined;
+    !isPreset && known.size != null
+      ? typeof known.size === "number"
+        ? `${known.size}px`
+        : String(known.size)
+      : undefined;
 
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape" && closeOnEscape()) onClose();
+    if (e.key === "Escape" && known.closeOnEscape) known.onClose?.();
   };
   const handleBackdropClick = (e: MouseEvent) => {
-    if (e.target === e.currentTarget && closeOnClickOutside) onClose();
+    if (e.target === e.currentTarget && known.closeOnClickOutside) known.onClose?.();
   };
 
   const overlayStyle: Record<string, string | undefined> = {
-    "background-color": overlayProps?.color ?? undefined,
-    opacity: overlayProps?.opacity != null ? overlayProps.opacity : undefined,
+    "background-color": known.overlayProps?.color ?? undefined,
+    opacity: known.overlayProps?.opacity != null ? known.overlayProps.opacity : undefined,
     backdropFilter:
-      overlayProps?.blur != null
-        ? `blur(${typeof overlayProps.blur === "number" ? `${overlayProps.blur}px` : overlayProps.blur})`
+      known.overlayProps?.blur != null
+        ? `blur(${typeof known.overlayProps.blur === "number" ? `${known.overlayProps.blur}px` : known.overlayProps.blur})`
         : undefined,
   };
 
   const panelStyle: Record<string, string | undefined> = {
     ...(maxWidthStyle ? { "max-width": maxWidthStyle } : {}),
-    ...(fullScreen
+    ...(known.fullScreen
       ? { position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }
       : {}),
-    ...style,
+    ...known.style,
   };
 
   return (
-    <Show when={opened()}>
+    <Show when={known.opened}>
       <div
         ref={(el) => (dialogRef = el)}
-        id={id}
+        id={known.id}
         data-testid={testId}
-        className={cn("fixed inset-0 z-50 flex items-center justify-center", className)}
+        className={cn("fixed inset-0 z-50 flex items-center justify-center", known.className)}
         style={overlayStyle}
         onClick={handleBackdropClick}
         onKeyDown={handleKeyDown}
         role="dialog"
         aria-modal="true"
-        aria-label={typeof title === "string" ? title : "dialog"}
+        aria-label={typeof known.title === "string" ? known.title : "dialog"}
         tabIndex={-1}
         {...(rest as Record<string, unknown>)}
       >
@@ -134,24 +121,24 @@ export function Modal(props: ModalProps) {
           className={cn(
             "relative bg-fin-surface border border-fin-border rounded-sm shadow-2xl flex flex-col w-full",
             maxWidthClass,
-            fullScreen ? "absolute inset-0 w-full h-full max-w-none rounded-none border-0" : undefined,
+            known.fullScreen ? "absolute inset-0 w-full h-full max-w-none rounded-none border-0" : undefined,
           )}
           style={panelStyle}
           onClick={(e) => e.stopPropagation()}
         >
-          <Show when={title() || withCloseButton()}>
+          <Show when={known.title || known.withCloseButton}>
             <div className="relative flex items-center justify-between border-b border-fin-border bg-fin-surface/50 px-3 py-2">
-              {title && (
+              {known.title && (
                 <div
                   className={cn(
                     "flex-1 text-sm font-medium text-fin-text truncate",
-                    withCloseButton() ? "pr-8" : undefined,
+                    known.withCloseButton ? "pr-8" : undefined,
                   )}
                 >
-                  {title()}
+                  {known.title}
                 </div>
               )}
-              {withCloseButton() && (
+              {known.withCloseButton && (
                 <button
                   type="button"
                   aria-label="close"
@@ -164,7 +151,12 @@ export function Modal(props: ModalProps) {
               )}
             </div>
           </Show>
-          <div className="flex-1 min-h-0 overflow-auto" style={{ padding: padding != null ? paddingSize(padding) : undefined }}>{children}</div>
+          <div className="flex-1 min-h-0 overflow-auto" style={{
+            "padding": known.padding != null ? paddingSize(known.padding) : undefined,
+          }}
+        >
+          {known.children}
+        </div>
         </div>
       </div>
     </Show>

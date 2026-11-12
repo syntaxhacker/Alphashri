@@ -3,7 +3,7 @@
 // strategy vocabulary (labels, endpoints, envelopes, captions) lives in the plugin.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { Box, Button, Card, Text, Stack, Select, TextInput, Checkbox } from "@/ui";
+import { Button, Text, Select, TextInput, Checkbox } from "@/ui";
 import * as palette from "@/ui/palette";
 import { TZ_IST, TZ_IST_LABEL } from "@/config/constants";
 import {
@@ -17,6 +17,7 @@ import ReplayChartHost, { type ReplayChartHandle } from "./ReplayChartHost";
 import ReplayControls from "./ReplayControls";
 import SymbolAutocomplete from "./SymbolAutocomplete";
 import type {
+import { Box, Card, Stack } from "../../paper-trading/primitives";
   ReplayParamSpec,
   ReplayParamValues,
   ReplayStrategyPlugin,

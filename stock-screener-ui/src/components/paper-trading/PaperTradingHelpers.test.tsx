@@ -1,11 +1,9 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
-import { screen, cleanup, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { renderHook, act } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, within } from "@solidjs/testing-library";
+import { renderHook } from "@solidjs/testing-library";
 import { renderWithProviders } from "../../test-utils/renderWithProviders";
-import React from "react";
 
 // --- Mock external modules ---
 const mockStateStore: any = {
@@ -195,7 +193,7 @@ import { mockTrade } from "./testFixtures";
 
 // --- Helper ---
 function r<T>(jsx: T) {
-  return renderWithProviders(jsx);
+  return render(() => jsx);
 }
 
 // --- Mock data factories ---
@@ -229,11 +227,9 @@ describe("usePaperViewActions", () => {
 
   it("handleViewChange('live') with activeBotId calls refreshBotLiveData", async () => {
     mockStateStore.currentView = "history";
-    const { result } = renderHook(() => usePaperViewActions("bot-1"));
+    const { result } = renderHook(() => usePaperViewActions(() => "bot-1"));
 
-    await act(async () => {
-      await result.current.handleViewChange("live");
-    });
+    await result.handleViewChange("live");
 
     const { refreshBotLiveData } = await import("../../api/paperTrading");
     expect(refreshBotLiveData).toHaveBeenCalledWith("bot-1");
@@ -241,11 +237,9 @@ describe("usePaperViewActions", () => {
 
   it("handleViewChange('live') without activeBotId calls refreshLiveData", async () => {
     mockStateStore.currentView = "history";
-    const { result } = renderHook(() => usePaperViewActions(null));
+    const { result } = renderHook(() => usePaperViewActions(() => null));
 
-    await act(async () => {
-      await result.current.handleViewChange("live");
-    });
+    await result.handleViewChange("live");
 
     const { refreshLiveData } = await import("../../api/paperTrading");
     expect(refreshLiveData).toHaveBeenCalled();
@@ -255,11 +249,9 @@ describe("usePaperViewActions", () => {
     mockStateStore.filterFromDate = null;
     mockStateStore.filterToDate = null;
     mockStateStore.currentView = "live";
-    const { result } = renderHook(() => usePaperViewActions(null));
+    const { result } = renderHook(() => usePaperViewActions(() => null));
 
-    await act(async () => {
-      await result.current.handleViewChange("history");
-    });
+    await result.handleViewChange("history");
 
     const { stopLiveAutoRefresh, refreshHistoryData } = await import("../../api/paperTrading");
     const { setFilterFromDate, setFilterToDate } = await import("../../state/paperTrading");
@@ -275,22 +267,18 @@ describe("usePaperViewActions", () => {
     mockStateStore.filterToDate = "2026-04-27";
     mockStateStore.filterBot = "bot-2";
     mockStateStore.currentView = "live";
-    const { result } = renderHook(() => usePaperViewActions("bot-1"));
+    const { result } = renderHook(() => usePaperViewActions(() => "bot-1"));
 
-    await act(async () => {
-      await result.current.handleViewChange("history");
-    });
+    await result.handleViewChange("history");
 
     const { refreshHistoryData } = await import("../../api/paperTrading");
     expect(refreshHistoryData).toHaveBeenCalledWith("bot-2", "2026-04-01", "2026-04-27");
   });
 
   it("handleViewChange('settings') stops auto-refresh and fetches strategy config", async () => {
-    const { result } = renderHook(() => usePaperViewActions(null));
+    const { result } = renderHook(() => usePaperViewActions(() => null));
 
-    await act(async () => {
-      await result.current.handleViewChange("settings");
-    });
+    await result.handleViewChange("settings");
 
     const { stopLiveAutoRefresh, fetchStrategyConfig } = await import("../../api/paperTrading");
     expect(stopLiveAutoRefresh).toHaveBeenCalled();
@@ -300,18 +288,14 @@ describe("usePaperViewActions", () => {
   it("handleToggleBot with activeBotId and botRunning calls stopBot then refresh", async () => {
     vi.useFakeTimers();
     mockStateStore.botRunning = true;
-    const { result } = renderHook(() => usePaperViewActions("bot-1"));
+    const { result } = renderHook(() => usePaperViewActions(() => "bot-1"));
 
-    await act(async () => {
-      await result.current.handleToggleBot();
-    });
+    await result.handleToggleBot();
 
     const { stopBot, refreshBotLiveData } = await import("../../api/paperTrading");
     expect(stopBot).toHaveBeenCalledWith("bot-1");
 
-    await act(async () => {
-      vi.advanceTimersByTime(1000);
-    });
+    vi.advanceTimersByTime(1000);
 
     expect(refreshBotLiveData).toHaveBeenCalledWith("bot-1");
 
@@ -321,18 +305,14 @@ describe("usePaperViewActions", () => {
   it("handleToggleBot with activeBotId and not running calls startBot then refresh", async () => {
     vi.useFakeTimers();
     mockStateStore.botRunning = false;
-    const { result } = renderHook(() => usePaperViewActions("bot-1"));
+    const { result } = renderHook(() => usePaperViewActions(() => "bot-1"));
 
-    await act(async () => {
-      await result.current.handleToggleBot();
-    });
+    await result.handleToggleBot();
 
     const { startBot, refreshBotLiveData } = await import("../../api/paperTrading");
     expect(startBot).toHaveBeenCalledWith("bot-1");
 
-    await act(async () => {
-      vi.advanceTimersByTime(1000);
-    });
+    vi.advanceTimersByTime(1000);
 
     expect(refreshBotLiveData).toHaveBeenCalledWith("bot-1");
 
@@ -342,18 +322,14 @@ describe("usePaperViewActions", () => {
   it("handleToggleBot without activeBotId and botRunning calls stopPaperBot then refresh live", async () => {
     vi.useFakeTimers();
     mockStateStore.botRunning = true;
-    const { result } = renderHook(() => usePaperViewActions(null));
+    const { result } = renderHook(() => usePaperViewActions(() => null));
 
-    await act(async () => {
-      await result.current.handleToggleBot();
-    });
+    await result.handleToggleBot();
 
     const { stopPaperBot, refreshLiveData } = await import("../../api/paperTrading");
     expect(stopPaperBot).toHaveBeenCalled();
 
-    await act(async () => {
-      vi.advanceTimersByTime(1000);
-    });
+    vi.advanceTimersByTime(1000);
 
     expect(refreshLiveData).toHaveBeenCalled();
 
@@ -363,18 +339,14 @@ describe("usePaperViewActions", () => {
   it("handleToggleBot without activeBotId and not running calls startPaperBot then refresh live", async () => {
     vi.useFakeTimers();
     mockStateStore.botRunning = false;
-    const { result } = renderHook(() => usePaperViewActions(null));
+    const { result } = renderHook(() => usePaperViewActions(() => null));
 
-    await act(async () => {
-      await result.current.handleToggleBot();
-    });
+    await result.handleToggleBot();
 
     const { startPaperBot, refreshLiveData } = await import("../../api/paperTrading");
     expect(startPaperBot).toHaveBeenCalled();
 
-    await act(async () => {
-      vi.advanceTimersByTime(1000);
-    });
+    vi.advanceTimersByTime(1000);
 
     expect(refreshLiveData).toHaveBeenCalled();
 
@@ -382,44 +354,36 @@ describe("usePaperViewActions", () => {
   });
 
   it("handleRefresh with activeBotId calls refreshBotLiveData", async () => {
-    const { result } = renderHook(() => usePaperViewActions("bot-1"));
+    const { result } = renderHook(() => usePaperViewActions(() => "bot-1"));
 
-    await act(async () => {
-      await result.current.handleRefresh();
-    });
+    await result.handleRefresh();
 
     const { refreshBotLiveData } = await import("../../api/paperTrading");
     expect(refreshBotLiveData).toHaveBeenCalledWith("bot-1");
   });
 
   it("handleRefresh without activeBotId calls refreshLiveData", async () => {
-    const { result } = renderHook(() => usePaperViewActions(null));
+    const { result } = renderHook(() => usePaperViewActions(() => null));
 
-    await act(async () => {
-      await result.current.handleRefresh();
-    });
+    await result.handleRefresh();
 
     const { refreshLiveData } = await import("../../api/paperTrading");
     expect(refreshLiveData).toHaveBeenCalled();
   });
 
   it("handleBotSelect with null calls refreshLiveData", async () => {
-    const { result } = renderHook(() => usePaperViewActions("bot-1"));
+    const { result } = renderHook(() => usePaperViewActions(() => "bot-1"));
 
-    await act(async () => {
-      await result.current.handleBotSelect("");
-    });
+    await result.handleBotSelect("");
 
     const { refreshLiveData } = await import("../../api/paperTrading");
     expect(refreshLiveData).toHaveBeenCalled();
   });
 
   it("handleBotSelect with botId calls refreshBotLiveData and starts bot auto-refresh", async () => {
-    const { result } = renderHook(() => usePaperViewActions("bot-1"));
+    const { result } = renderHook(() => usePaperViewActions(() => "bot-1"));
 
-    await act(async () => {
-      await result.current.handleBotSelect("bot-2");
-    });
+    await result.handleBotSelect("bot-2");
 
     const { refreshBotLiveData, stopLiveAutoRefresh, initBotAutoRefresh } = await import("../../api/paperTrading");
     expect(stopLiveAutoRefresh).toHaveBeenCalled();
@@ -448,9 +412,7 @@ describe("useHistoryFilters", () => {
     mockStateStore.filterToDate = "2026-04-27";
     const { result } = renderHook(() => useHistoryFilters());
 
-    await act(async () => {
-      await result.current.handleFilterFromDate("2026-04-01");
-    });
+    await result.handleFilterFromDate("2026-04-01");
 
     const { setFilterFromDate } = await import("../../state/paperTrading");
     const { refreshHistoryData } = await import("../../api/paperTrading");
@@ -464,9 +426,7 @@ describe("useHistoryFilters", () => {
     mockStateStore.filterToDate = "2026-04-27";
     const { result } = renderHook(() => useHistoryFilters());
 
-    await act(async () => {
-      await result.current.handleFilterFromDate("");
-    });
+    await result.handleFilterFromDate("");
 
     const { refreshHistoryData } = await import("../../api/paperTrading");
     expect(refreshHistoryData).toHaveBeenCalledWith(null, null, "2026-04-27");
@@ -477,9 +437,7 @@ describe("useHistoryFilters", () => {
     mockStateStore.filterFromDate = "2026-04-01";
     const { result } = renderHook(() => useHistoryFilters());
 
-    await act(async () => {
-      await result.current.handleFilterToDate("2026-04-27");
-    });
+    await result.handleFilterToDate("2026-04-27");
 
     const { setFilterToDate } = await import("../../state/paperTrading");
     const { refreshHistoryData } = await import("../../api/paperTrading");
@@ -491,7 +449,7 @@ describe("useHistoryFilters", () => {
   it("handleFilterSymbol sets filter symbol", async () => {
     const { result } = renderHook(() => useHistoryFilters());
 
-    result.current.handleFilterSymbol("RELIANCE");
+    result.handleFilterSymbol("RELIANCE");
 
     const { setFilterSymbol } = await import("../../state/paperTrading");
     expect(setFilterSymbol).toHaveBeenCalledWith("RELIANCE");
@@ -500,7 +458,7 @@ describe("useHistoryFilters", () => {
   it("handleFilterSymbol passes null when cleared", async () => {
     const { result } = renderHook(() => useHistoryFilters());
 
-    result.current.handleFilterSymbol(null);
+    result.handleFilterSymbol(null);
 
     const { setFilterSymbol } = await import("../../state/paperTrading");
     expect(setFilterSymbol).toHaveBeenCalledWith(null);
@@ -521,7 +479,7 @@ describe("LiveFilters", () => {
   it("renders BotCardStrip with bots and selectedBotId", () => {
     const bots = [mockBot({ id: "bot-1", name: "Bot A" }), mockBot({ id: "bot-2", name: "Bot B" })];
 
-    r(<LiveFilters activeBotId="bot-1" bots={bots} state={mockStateStore} actions={mockActions} />);
+    r(() => <LiveFilters activeBotId="bot-1" bots={bots} state={mockStateStore} actions={mockActions} />);
 
     expect(screen.getByTestId("bot-card-strip")).toBeInTheDocument();
     expect(screen.getByTestId("bot-card-bot-1")).toBeInTheDocument();
@@ -558,7 +516,6 @@ describe("LiveFilters", () => {
   });
 
   it("renders Refresh button that calls actions.handleRefresh", async () => {
-    const user = userEvent.setup();
     mockStateStore.botRunning = false;
 
     r(
@@ -574,7 +531,7 @@ describe("LiveFilters", () => {
     expect(refreshBtn).toBeInTheDocument();
     expect(refreshBtn).toHaveTextContent("Refresh");
 
-    await user.click(refreshBtn);
+    await fireEvent.click(refreshBtn);
 
     expect(mockActions.handleRefresh).toHaveBeenCalled();
   });
@@ -612,7 +569,6 @@ describe("LiveFilters", () => {
   });
 
   it("Start button calls handleToggleBot when clicked", async () => {
-    const user = userEvent.setup();
     mockStateStore.botRunning = false;
 
     r(
@@ -624,12 +580,11 @@ describe("LiveFilters", () => {
       />,
     );
 
-    await user.click(screen.getByTestId("start-bot-btn"));
+    await fireEvent.click(screen.getByTestId("start-bot-btn"));
     expect(mockActions.handleToggleBot).toHaveBeenCalled();
   });
 
   it("Stop button calls handleToggleBot when clicked", async () => {
-    const user = userEvent.setup();
 
     r(
       <LiveFilters
@@ -640,7 +595,7 @@ describe("LiveFilters", () => {
       />,
     );
 
-    await user.click(screen.getByTestId("stop-bot-btn"));
+    await fireEvent.click(screen.getByTestId("stop-bot-btn"));
     expect(mockActions.handleToggleBot).toHaveBeenCalled();
   });
 
@@ -683,99 +638,92 @@ describe("HistoryFilters", () => {
     mockStateStore.filterFromDate = "2026-04-01";
     mockStateStore.filterToDate = "2026-04-27";
 
-    r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
+    r(() => <HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
     expect(screen.getByTestId("filter-from-date")).toBeInTheDocument();
     expect(screen.getByTestId("filter-to-date")).toBeInTheDocument();
   });
 
   it("renders symbol select with clearable and 'All' option", async () => {
-    const user = userEvent.setup();
     mockStateStore.trades = [mockTrade({ symbol: "RELIANCE" })];
 
-    r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
+    r(() => <HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
     expect(screen.getByTestId("filter-symbol")).toBeInTheDocument();
-    await user.click(within(screen.getByTestId("filter-symbol")).getByRole("combobox"));
+    await fireEvent.click(within(screen.getByTestId("filter-symbol")).getByRole("combobox"));
     expect(await screen.findByRole("option", { name: "All" })).toBeInTheDocument();
   });
 
   it("symbol select shows all unique symbols from trades", async () => {
-    const user = userEvent.setup();
     mockStateStore.trades = [
       mockTrade({ symbol: "RELIANCE" }),
       mockTrade({ symbol: "TCS" }),
       mockTrade({ symbol: "RELIANCE" }),
     ];
 
-    r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
+    r(() => <HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
-    await user.click(within(screen.getByTestId("filter-symbol")).getByRole("combobox"));
+    await fireEvent.click(within(screen.getByTestId("filter-symbol")).getByRole("combobox"));
     expect(await screen.findByRole("option", { name: "RELIANCE" })).toBeInTheDocument();
     expect(await screen.findByRole("option", { name: "TCS" })).toBeInTheDocument();
   });
 
   it("changing from date calls handleFilterFromDate", async () => {
-      const user = userEvent.setup();
     mockStateStore.filterFromDate = "2026-04-01";
 
-    r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
+    r(() => <HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
     const fromPicker = screen.getByTestId("filter-from-date");
-    await user.clear(fromPicker); await user.type(fromPicker, "2026-04-02");
+    fireEvent.change(fromPicker, { target: { value: "2026-04-02" } });
 
     expect(mockFilters.handleFilterFromDate).toHaveBeenLastCalledWith("2026-04-02");
   });
 
   it("changing to date calls handleFilterToDate", async () => {
-    const user = userEvent.setup();
     mockStateStore.filterToDate = "2026-04-27";
 
-    r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
+    r(() => <HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
     const toPicker = screen.getByTestId("filter-to-date");
-    await user.clear(toPicker); await user.type(toPicker, "2026-04-28");
+    fireEvent.change(toPicker, { target: { value: "2026-04-28" } });
 
     expect(mockFilters.handleFilterToDate).toHaveBeenLastCalledWith("2026-04-28");
   });
 
   it("changing symbol select calls handleFilterSymbol", async () => {
-    const user = userEvent.setup();
     mockStateStore.trades = [mockTrade({ symbol: "RELIANCE" })];
 
-    r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
+    r(() => <HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
-    await user.selectOptions(
+    fireEvent.input(
       within(screen.getByTestId("filter-symbol")).getByRole("combobox"),
-      "RELIANCE",
+      { target: { value: "RELIANCE" } },
     );
 
     expect(mockFilters.handleFilterSymbol).toHaveBeenCalledWith("RELIANCE");
   });
 
   it("selecting 'All' clears the filter", async () => {
-    const user = userEvent.setup();
     mockStateStore.trades = [mockTrade({ symbol: "RELIANCE" })];
     mockStateStore.filterSymbol = "RELIANCE";
 
-    r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
+    r(() => <HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
-    await user.selectOptions(
+    fireEvent.input(
       within(screen.getByTestId("filter-symbol")).getByRole("combobox"),
-      "",
+      { target: { value: "" } },
     );
 
     expect(mockFilters.handleFilterSymbol).toHaveBeenCalledWith(null);
   });
 
   it("renders empty symbol options when no trades", async () => {
-    const user = userEvent.setup();
     mockStateStore.trades = [];
 
-    r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
+    r(() => <HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
     expect(screen.getByTestId("filter-symbol")).toBeInTheDocument();
-    await user.click(within(screen.getByTestId("filter-symbol")).getByRole("combobox"));
+    await fireEvent.click(within(screen.getByTestId("filter-symbol")).getByRole("combobox"));
     expect(await screen.findByRole("option", { name: "All" })).toBeInTheDocument();
     expect(screen.queryAllByRole("option")).toHaveLength(1);
   });
@@ -855,7 +803,7 @@ describe("PaperTradingTabs", () => {
   it("renders Tabs with Live, History, and Settings tabs", () => {
     const onViewChange = vi.fn();
 
-    r(<PaperTradingTabs state={mockStateStore} onViewChange={onViewChange} />);
+    r(() => <PaperTradingTabs state={mockStateStore} onViewChange={onViewChange} />);
 
     expect(screen.getByTestId("tab-live")).toBeInTheDocument();
     expect(screen.getByTestId("trade-history-tab")).toBeInTheDocument();
@@ -866,7 +814,7 @@ describe("PaperTradingTabs", () => {
     const onViewChange = vi.fn();
     mockStateStore.positions = [mockTrade() as any];
 
-    r(<PaperTradingTabs state={mockStateStore} onViewChange={onViewChange} />);
+    r(() => <PaperTradingTabs state={mockStateStore} onViewChange={onViewChange} />);
 
     expect(screen.getByText("(1)")).toBeInTheDocument();
   });
@@ -875,7 +823,7 @@ describe("PaperTradingTabs", () => {
     const onViewChange = vi.fn();
     mockStateStore.positions = [];
 
-    r(<PaperTradingTabs state={mockStateStore} onViewChange={onViewChange} />);
+    r(() => <PaperTradingTabs state={mockStateStore} onViewChange={onViewChange} />);
 
     expect(screen.queryByText("(0)")).not.toBeInTheDocument();
   });
@@ -884,18 +832,17 @@ describe("PaperTradingTabs", () => {
     const onViewChange = vi.fn();
     mockStateStore.trades = [mockTrade()];
 
-    r(<PaperTradingTabs state={mockStateStore} onViewChange={onViewChange} />);
+    r(() => <PaperTradingTabs state={mockStateStore} onViewChange={onViewChange} />);
 
     expect(screen.getByText("(1)")).toBeInTheDocument();
   });
 
   it("onChange calls onViewChange with selected tab value", async () => {
-    const user = userEvent.setup();
     const onViewChange = vi.fn();
 
-    r(<PaperTradingTabs state={mockStateStore} onViewChange={onViewChange} />);
+    r(() => <PaperTradingTabs state={mockStateStore} onViewChange={onViewChange} />);
 
-    await user.click(screen.getByTestId("tab-settings"));
+    await fireEvent.click(screen.getByTestId("tab-settings"));
 
     expect(onViewChange).toHaveBeenCalledWith("settings");
   });
@@ -903,7 +850,7 @@ describe("PaperTradingTabs", () => {
   it("renders correct tab labels", () => {
     const onViewChange = vi.fn();
 
-    r(<PaperTradingTabs state={mockStateStore} onViewChange={onViewChange} />);
+    r(() => <PaperTradingTabs state={mockStateStore} onViewChange={onViewChange} />);
 
     expect(screen.getByText("Positions")).toBeInTheDocument();
     expect(screen.getByText("Trade History")).toBeInTheDocument();
@@ -923,41 +870,38 @@ describe("PaperTradingHelpers integration", () => {
   });
 
   it("full filter flow: changing date picker triggers handleFilterFromDate", async () => {
-      const user = userEvent.setup();
     mockStateStore.filterFromDate = null;
     mockStateStore.filterToDate = null;
     mockStateStore.trades = [mockTrade({ symbol: "RELIANCE" })];
 
-    r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
+    r(() => <HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
     const fromPicker = screen.getByTestId("filter-from-date");
-    await user.clear(fromPicker); await user.type(fromPicker, "2026-04-01");
+    fireEvent.change(fromPicker, { target: { value: "2026-04-01" } });
 
     expect(mockFilters.handleFilterFromDate).toHaveBeenLastCalledWith("2026-04-01");
   });
 
   it("changing symbol select triggers handleFilterSymbol", async () => {
-    const user = userEvent.setup();
     mockStateStore.trades = [mockTrade({ symbol: "RELIANCE" })];
 
-    r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
+    r(() => <HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
-    await user.selectOptions(
+    fireEvent.input(
       within(screen.getByTestId("filter-symbol")).getByRole("combobox"),
-      "RELIANCE",
+      { target: { value: "RELIANCE" } },
     );
 
     expect(mockFilters.handleFilterSymbol).toHaveBeenCalledWith("RELIANCE");
   });
 
   it("clicking refresh button in LiveFilters triggers handleRefresh", async () => {
-    const user = userEvent.setup();
     mockStateStore.botRunning = false;
     const bots = [mockBot()];
 
-    r(<LiveFilters activeBotId={null} bots={bots} state={mockStateStore} actions={mockActions} />);
+    r(() => <LiveFilters activeBotId={null} bots={bots} state={mockStateStore} actions={mockActions} />);
 
-    await user.click(screen.getByTestId("refresh-btn"));
+    await fireEvent.click(screen.getByTestId("refresh-btn"));
 
     expect(mockActions.handleRefresh).toHaveBeenCalled();
   });
@@ -987,7 +931,6 @@ describe("PaperTradingHelpers integration", () => {
   });
 
   it("FiltersBar correctly renders HistoryFilters with all subcomponents", async () => {
-    const user = userEvent.setup();
     mockStateStore.currentView = "history";
     mockStateStore.trades = [mockTrade({ symbol: "RELIANCE" }), mockTrade({ symbol: "TCS" })];
 
@@ -1004,7 +947,7 @@ describe("PaperTradingHelpers integration", () => {
     expect(screen.getByTestId("filter-from-date")).toBeInTheDocument();
     expect(screen.getByTestId("filter-to-date")).toBeInTheDocument();
     expect(screen.getByTestId("filter-symbol")).toBeInTheDocument();
-    await user.click(within(screen.getByTestId("filter-symbol")).getByRole("combobox"));
+    await fireEvent.click(within(screen.getByTestId("filter-symbol")).getByRole("combobox"));
     expect(await screen.findByRole("option", { name: "All" })).toBeInTheDocument();
     expect(await screen.findByRole("option", { name: "RELIANCE" })).toBeInTheDocument();
     expect(await screen.findByRole("option", { name: "TCS" })).toBeInTheDocument();
@@ -1021,22 +964,18 @@ describe("Edge cases", () => {
 
   describe("activeBotId null vs non-null", () => {
     it("usePaperViewActions uses refreshLiveData when activeBotId is null", async () => {
-      const { result } = renderHook(() => usePaperViewActions(null));
+      const { result } = renderHook(() => usePaperViewActions(() => null));
 
-      await act(async () => {
-        await result.current.handleRefresh();
-      });
+      await result.handleRefresh();
 
       const { refreshLiveData } = await import("../../api/paperTrading");
       expect(refreshLiveData).toHaveBeenCalled();
     });
 
     it("usePaperViewActions uses refreshBotLiveData when activeBotId is set", async () => {
-      const { result } = renderHook(() => usePaperViewActions("bot-1"));
+      const { result } = renderHook(() => usePaperViewActions(() => "bot-1"));
 
-      await act(async () => {
-        await result.current.handleRefresh();
-      });
+      await result.handleRefresh();
 
       const { refreshBotLiveData } = await import("../../api/paperTrading");
       expect(refreshBotLiveData).toHaveBeenCalledWith("bot-1");
@@ -1096,7 +1035,7 @@ describe("Edge cases", () => {
     it("HistoryFilters renders with empty trades", () => {
       mockStateStore.trades = [];
 
-      r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
+      r(() => <HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
       expect(screen.getByTestId("filter-symbol")).toBeInTheDocument();
     });
@@ -1104,12 +1043,11 @@ describe("Edge cases", () => {
 
   describe("trades empty for symbol options", () => {
     it("HistoryFilters shows only 'All' option when no trades", async () => {
-      const user = userEvent.setup();
       mockStateStore.trades = [];
 
-      r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
+      r(() => <HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
-      await user.click(within(screen.getByTestId("filter-symbol")).getByRole("combobox"));
+      await fireEvent.click(within(screen.getByTestId("filter-symbol")).getByRole("combobox"));
       expect(await screen.findByRole("option", { name: "All" })).toBeInTheDocument();
       expect(screen.queryAllByRole("option")).toHaveLength(1);
     });
@@ -1121,11 +1059,9 @@ describe("Edge cases", () => {
       mockStateStore.filterToDate = null;
       mockStateStore.currentView = "live";
 
-      const { result } = renderHook(() => usePaperViewActions(null));
+      const { result } = renderHook(() => usePaperViewActions(() => null));
 
-      await act(async () => {
-        await result.current.handleViewChange("history");
-      });
+      await result.handleViewChange("history");
 
       const { setFilterFromDate, setFilterToDate } = await import("../../state/paperTrading");
       expect(setFilterFromDate).toHaveBeenCalled();
@@ -1137,11 +1073,9 @@ describe("Edge cases", () => {
       mockStateStore.filterToDate = null;
       mockStateStore.currentView = "live";
 
-      const { result } = renderHook(() => usePaperViewActions(null));
+      const { result } = renderHook(() => usePaperViewActions(() => null));
 
-      await act(async () => {
-        await result.current.handleViewChange("history");
-      });
+      await result.handleViewChange("history");
 
       const { refreshHistoryData } = await import("../../api/paperTrading");
       expect(refreshHistoryData).toHaveBeenCalledWith(null, "2026-04-01", null);
@@ -1152,11 +1086,9 @@ describe("Edge cases", () => {
       mockStateStore.filterToDate = "2026-04-27";
       mockStateStore.currentView = "live";
 
-      const { result } = renderHook(() => usePaperViewActions(null));
+      const { result } = renderHook(() => usePaperViewActions(() => null));
 
-      await act(async () => {
-        await result.current.handleViewChange("history");
-      });
+      await result.handleViewChange("history");
 
       const { refreshHistoryData } = await import("../../api/paperTrading");
       expect(refreshHistoryData).toHaveBeenCalledWith(null, null, "2026-04-27");

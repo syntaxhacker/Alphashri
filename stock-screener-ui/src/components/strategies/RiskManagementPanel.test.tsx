@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { Tabs } from "@/ui";
@@ -14,13 +14,13 @@ afterEach(() => {
 });
 
 function renderInTabs(isIntraday = true) {
-  return render(
+  return render(() => (
     <UIProvider>
       <Tabs value="risk">
         <RiskManagementPanel initialValues={DEFAULT_VALUES} isIntraday={isIntraday} />
       </Tabs>
-    </UIProvider>,
-  );
+    </UIProvider>
+  ));
 }
 
 describe("RiskManagementPanel", () => {

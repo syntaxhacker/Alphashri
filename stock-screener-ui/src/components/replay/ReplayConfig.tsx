@@ -1,5 +1,6 @@
+import {  } from "solid-js";
 import { useState, useEffect, useMemo } from "react";
-import { Group, Box, Text, Select, Button, Switch, Alert, MultiSelect, Tooltip, ActionIcon, Badge, Modal, TextInput, Stack } from "@/ui";
+import { Text, Select, Button, Switch, Alert, MultiSelect, Tooltip, ActionIcon, Badge, Modal, TextInput } from "@/ui";
 import { useDebouncedValue } from "@/ui";
 import { IconPlayerPlay, IconPlayerStop, IconAlertTriangle, IconX, IconDeviceFloppy, IconFolderOpen, IconTrash } from "@tabler/icons-react";
 import { ScreenerSymbolPicker } from "./ScreenerSymbolPicker";
@@ -10,7 +11,7 @@ import type { BotConfig } from "../../types/bots";
 import type { ReplayConfig as ReplayConfigType, ReplaySavedConfig } from "../../types/replay";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { TradingDatePicker } from "../common/TradingDatePicker";
-import {
+import { import { Group, Box, Stack } from "../paper-trading/primitives";
   getHolidayState,
   subscribeToHolidays,
   loadHolidays,

@@ -1,11 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
-import type { ReactElement } from "react";
 import type { ScreenerDashboardResponse, ScreenerDashboardRow } from "../../types/screenerDashboard";
+import { createSignal, type JSX } from "solid-js";
 
 const mockFetchScreenerDashboard = vi.fn();
 
@@ -15,7 +14,7 @@ vi.mock("../../api/screenerDashboard", () => ({
 
 import { DashboardView } from "./DashboardView";
 
-const renderWithProvider = (ui: ReactElement) => render(<UIProvider>{ui}</UIProvider>);
+const renderWithProvider = (ui: JSX.Element) => render(() => <UIProvider>{ui}</UIProvider>);
 
 function row(overrides: Partial<ScreenerDashboardRow> = {}): ScreenerDashboardRow {
   return {
@@ -145,34 +144,29 @@ describe("DashboardView", () => {
   });
 
   it("calls onOpenSymbol when a row is clicked", async () => {
-    const user = userEvent.setup();
     const onOpenSymbol = vi.fn();
     renderWithProvider(<DashboardView universe="nifty500" onOpenSymbol={onOpenSymbol} />);
     const rowEl = await screen.findByTestId("dashboard-row-gainers-INDIAGLYCO");
-    await user.click(rowEl);
+    fireEvent.click(rowEl);
     expect(onOpenSymbol).toHaveBeenCalledWith("INDIAGLYCO");
   });
 
   it("calls onOpenScan with the panel id when Open scan is clicked", async () => {
-    const user = userEvent.setup();
     const onOpenScan = vi.fn();
     renderWithProvider(<DashboardView universe="nifty500" onOpenScan={onOpenScan} />);
     await screen.findByTestId("dashboard-card-gainers");
-    await user.click(screen.getByTestId("dashboard-open-scan-gainers"));
+    fireEvent.click(screen.getByTestId("dashboard-open-scan-gainers"));
     expect(onOpenScan).toHaveBeenCalledWith("gainers");
-    await user.click(screen.getByTestId("dashboard-open-scan-volume_surge"));
+    fireEvent.click(screen.getByTestId("dashboard-open-scan-volume_surge"));
     expect(onOpenScan).toHaveBeenCalledWith("volume_surge");
   });
 
   it("re-fetches when the universe changes", async () => {
-    const { rerender } = renderWithProvider(<DashboardView universe="nifty500" />);
+    const [universe, setUniverse] = createSignal("nifty500");
+    render(() => <DashboardView universe={universe()} />);
     await screen.findByTestId("dashboard-card-gainers");
     expect(mockFetchScreenerDashboard).toHaveBeenCalledTimes(1);
-    rerender(
-      <UIProvider>
-        <DashboardView universe="nifty200" />
-      </UIProvider>,
-    );
+    setUniverse("nifty200");
     await waitFor(() => {
       expect(mockFetchScreenerDashboard).toHaveBeenCalledWith(
         "nifty200",
@@ -183,11 +177,10 @@ describe("DashboardView", () => {
   });
 
   it("re-fetches when Refresh is clicked", async () => {
-    const user = userEvent.setup();
     renderWithProvider(<DashboardView universe="nifty500" />);
     await screen.findByTestId("dashboard-card-gainers");
     expect(mockFetchScreenerDashboard).toHaveBeenCalledTimes(1);
-    await user.click(screen.getByTestId("dashboard-refresh"));
+    fireEvent.click(screen.getByTestId("dashboard-refresh"));
     await waitFor(() => {
       expect(mockFetchScreenerDashboard).toHaveBeenCalledTimes(2);
     });
@@ -297,7 +290,6 @@ describe("DashboardView round-2", () => {
   }
 
   it("merges gainers+losers into one card with a segmented toggle", async () => {
-    const user = userEvent.setup();
     mockFetchScreenerDashboard.mockResolvedValue(twoSidedPayload());
     renderWithProvider(<DashboardView universe="nifty500" />);
     expect(await screen.findByTestId("dashboard-card-gainers_losers")).toBeInTheDocument();
@@ -306,7 +298,7 @@ describe("DashboardView round-2", () => {
     // gainers shown by default
     expect(screen.getByTestId("dashboard-row-gainers-GAIN1")).toBeInTheDocument();
     expect(screen.queryByTestId("dashboard-row-losers-LOSE1")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Losers" }));
+    fireEvent.click(screen.getByRole("button", { name: "Losers" }));
     expect(screen.getByTestId("dashboard-row-losers-LOSE1")).toBeInTheDocument();
     expect(screen.queryByTestId("dashboard-row-gainers-GAIN1")).not.toBeInTheDocument();
   });
@@ -318,22 +310,20 @@ describe("DashboardView round-2", () => {
   });
 
   it("merges 52w high+low into one card with a toggle", async () => {
-    const user = userEvent.setup();
     mockFetchScreenerDashboard.mockResolvedValue(twoSidedPayload());
     renderWithProvider(<DashboardView universe="nifty500" />);
     expect(await screen.findByTestId("dashboard-card-near_52w_high_low")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-row-near_52w_high-HIGH1")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "52W low" }));
+    fireEvent.click(screen.getByRole("button", { name: "52W low" }));
     expect(screen.getByTestId("dashboard-row-near_52w_low-LOW1")).toBeInTheDocument();
     expect(screen.queryByTestId("dashboard-row-near_52w_high-HIGH1")).not.toBeInTheDocument();
   });
 
   it("show more refetches with a larger limit and toggles to show less", async () => {
-    const user = userEvent.setup();
     renderWithProvider(<DashboardView universe="nifty500" />);
     const more = await screen.findByTestId("dashboard-show-more-gainers");
     expect(more).toHaveTextContent("Show more");
-    await user.click(more);
+    fireEvent.click(more);
     await waitFor(() => {
       expect(mockFetchScreenerDashboard).toHaveBeenLastCalledWith(
         "nifty500",
@@ -342,7 +332,7 @@ describe("DashboardView round-2", () => {
       );
     });
     expect(screen.getByTestId("dashboard-show-more-gainers")).toHaveTextContent("Show less");
-    await user.click(screen.getByTestId("dashboard-show-more-gainers"));
+    fireEvent.click(screen.getByTestId("dashboard-show-more-gainers"));
     await waitFor(() => {
       expect(mockFetchScreenerDashboard).toHaveBeenLastCalledWith(
         "nifty500",
@@ -352,7 +342,6 @@ describe("DashboardView round-2", () => {
   });
 
   it("sort menu reorders rows client-side", async () => {
-    const user = userEvent.setup();
     const base = payload();
     mockFetchScreenerDashboard.mockResolvedValue({
       ...base,
@@ -383,37 +372,35 @@ describe("DashboardView round-2", () => {
         el.getAttribute("data-symbol"),
       );
     expect(symbols()[0]).toBe("AAA");
-    await user.click(screen.getByTestId("dashboard-sort-gainers"));
-    await user.click(await screen.findByTestId("dashboard-sort-gainers-change"));
+    fireEvent.click(screen.getByTestId("dashboard-sort-gainers"));
+    fireEvent.click(await screen.findByTestId("dashboard-sort-gainers-change"));
     await waitFor(() => {
       expect(symbols()[0]).toBe("BBB");
     });
   });
 
   it("search filters rows across cards", async () => {
-    const user = userEvent.setup();
     renderWithProvider(<DashboardView universe="nifty500" />);
     await screen.findByTestId("dashboard-row-gainers-INDIAGLYCO");
     const search = screen.getByTestId("dashboard-search");
-    await user.type(search, "reliance");
+    fireEvent.input(search, { target: { value: "reliance" } });
     await waitFor(() => {
       expect(screen.queryByTestId("dashboard-row-gainers-INDIAGLYCO")).not.toBeInTheDocument();
     });
     expect(screen.getByTestId("dashboard-row-gainers-RELIANCE")).toBeInTheDocument();
-    await user.clear(search);
-    await user.type(search, "no-such-symbol-xyz");
+    fireEvent.input(search, { target: { value: "" } });
+    fireEvent.input(search, { target: { value: "no-such-symbol-xyz" } });
     await waitFor(() => {
       expect(screen.getByTestId("dashboard-card-empty-gainers")).toBeInTheDocument();
     });
   });
 
   it("customize menu hides a panel and persists it", async () => {
-    const user = userEvent.setup();
     renderWithProvider(<DashboardView universe="nifty500" />);
     await screen.findByTestId("dashboard-card-gainers");
     expect(screen.getByTestId("dashboard-search")).toBeInTheDocument();
-    await user.click(screen.getByTestId("dashboard-customize-button"));
-    await user.click(await screen.findByTestId("dashboard-customize-gainers"));
+    fireEvent.click(screen.getByTestId("dashboard-customize-button"));
+    fireEvent.click(await screen.findByTestId("dashboard-customize-gainers"));
     await waitFor(() => {
       expect(screen.queryByTestId("dashboard-card-gainers")).not.toBeInTheDocument();
     });
@@ -425,7 +412,6 @@ describe("DashboardView round-2", () => {
   });
 
   it("row expand shows extra fields without calling onOpenSymbol", async () => {
-    const user = userEvent.setup();
     const onOpenSymbol = vi.fn();
     const base = payload();
     mockFetchScreenerDashboard.mockResolvedValue({
@@ -448,7 +434,7 @@ describe("DashboardView round-2", () => {
     });
     renderWithProvider(<DashboardView universe="nifty500" onOpenSymbol={onOpenSymbol} />);
     const expand = await screen.findByTestId("dashboard-row-expand-gainers-INDIAGLYCO");
-    await user.click(expand);
+    fireEvent.click(expand);
     const detail = await screen.findByTestId("dashboard-row-detail-gainers-INDIAGLYCO");
     expect(detail).toHaveTextContent("62.4");
     expect(detail).toHaveTextContent("₹410.00");
@@ -457,13 +443,12 @@ describe("DashboardView round-2", () => {
   });
 
   it("stale snapshot shows cached age and refresh bypasses it", async () => {
-    const user = userEvent.setup();
     const base = payload();
     mockFetchScreenerDashboard.mockResolvedValue({ ...base, cached: true, age_sec: 42 });
     renderWithProvider(<DashboardView universe="nifty500" />);
     const stale = await screen.findByTestId("dashboard-stale");
     expect(stale).toHaveTextContent("(cached 42s)");
-    await user.click(screen.getByTestId("dashboard-refresh"));
+    fireEvent.click(screen.getByTestId("dashboard-refresh"));
     await waitFor(() => {
       expect(mockFetchScreenerDashboard).toHaveBeenLastCalledWith(
         "nifty500",
@@ -474,12 +459,11 @@ describe("DashboardView round-2", () => {
   });
 
   it("liquidity chip toggles min market-cap and refetches", async () => {
-    const user = userEvent.setup();
     renderWithProvider(<DashboardView universe="nifty500" />);
     await screen.findByTestId("dashboard-card-gainers");
     const chip = screen.getByTestId("dashboard-liquidity-chip");
     expect(chip).toHaveTextContent("₹500 Cr+");
-    await user.click(chip);
+    fireEvent.click(chip);
     await waitFor(() => {
       expect(mockFetchScreenerDashboard).toHaveBeenLastCalledWith(
         "nifty500",
@@ -487,7 +471,7 @@ describe("DashboardView round-2", () => {
         expect.objectContaining({ minMarketCapCr: 0 }),
       );
     });
-    await user.click(screen.getByTestId("dashboard-liquidity-chip"));
+    fireEvent.click(screen.getByTestId("dashboard-liquidity-chip"));
     await waitFor(() => {
       expect(mockFetchScreenerDashboard).toHaveBeenLastCalledWith(
         "nifty500",

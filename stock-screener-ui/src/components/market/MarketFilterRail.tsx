@@ -1,3 +1,4 @@
+import {  } from "solid-js";
 import {
   Box,
   Checkbox,
@@ -9,7 +10,7 @@ import {
   ActionIcon,
   Tooltip,
 } from "@/ui";
-import { IconChevronLeft, IconFilter } from "@tabler/icons-react";
+import { IconChevronLeft, IconFilter } from "../common/Icons";
 import {
   CAP_TIERS,
   CAP_TIER_LABELS,

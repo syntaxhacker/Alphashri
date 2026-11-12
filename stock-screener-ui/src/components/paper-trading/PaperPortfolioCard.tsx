@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { Show } from "solid-js";
 import { Text } from "@/ui";
 import { formatNumber, formatSignedPnl, getPnLTextColor } from "../../utils/ui-helpers";
 
@@ -15,31 +15,34 @@ interface PaperPortfolioCardProps {
   portfolio: Portfolio | null;
 }
 
-export const PaperPortfolioCard = memo(function PaperPortfolioCard({ portfolio }: PaperPortfolioCardProps) {
-  if (!portfolio) {
-    return (
-      <Text c="dimmed" size="xs" data-testid="portfolio-card">
-        Loading...
-      </Text>
-    );
-  }
-
-  const pnlColor = getPnLTextColor(portfolio.day_pnl);
+export function PaperPortfolioCard(props: PaperPortfolioCardProps) {
+  const pnlColor = () => props.portfolio ? getPnLTextColor(props.portfolio.day_pnl) : "dimmed";
 
   return (
-    <div className="flex items-center gap-2 px-2 py-1 flex-wrap" data-testid="portfolio-card" id="portfolio-card">
-      <Text size="xs" c="dimmed">
-        Val ₹{formatNumber(portfolio.total_value)}
-      </Text>
-      <Text size="xs" c="dimmed">
-        Cash ₹{formatNumber(portfolio.cash)}
-      </Text>
-      <Text size="xs" c="dimmed">
-        Mrgn ₹{formatNumber(portfolio.margin_used)}
-      </Text>
-      <Text size="xs" c={pnlColor} fw={500}>
-        {formatSignedPnl(portfolio.day_pnl)}
-      </Text>
-    </div>
+    <Show
+      when={props.portfolio}
+      fallback={
+        <Text c="dimmed" size="xs" data-testid="portfolio-card">
+          Loading...
+        </Text>
+      }
+    >
+      {(portfolio) => (
+        <div class="flex items-center gap-2 px-2 py-1 flex-wrap" data-testid="portfolio-card" id="portfolio-card">
+          <Text size="xs" c="dimmed">
+            Val <span class="font-mono tabular-nums">₹{formatNumber(portfolio().total_value)}</span>
+          </Text>
+          <Text size="xs" c="dimmed">
+            Cash <span class="font-mono tabular-nums">₹{formatNumber(portfolio().cash)}</span>
+          </Text>
+          <Text size="xs" c="dimmed">
+            Mrgn <span class="font-mono tabular-nums">₹{formatNumber(portfolio().margin_used)}</span>
+          </Text>
+          <Text size="xs" c={pnlColor()} fw={500} className="font-mono tabular-nums">
+            {formatSignedPnl(portfolio().day_pnl)}
+          </Text>
+        </div>
+      )}
+    </Show>
   );
-});
+}

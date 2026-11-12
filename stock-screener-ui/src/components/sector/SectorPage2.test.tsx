@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
+import { screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { SectorPage } from "./SectorPage2";
 import type { SectorItem } from "../../types/sector";

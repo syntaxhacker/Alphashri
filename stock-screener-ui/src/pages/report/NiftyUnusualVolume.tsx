@@ -152,7 +152,7 @@ function unusualCell(value: string) {
         display: "block",
         overflow: "hidden",
         "text-overflow": "ellipsis",
-        fontVariantNumeric: "tabular-nums",
+        "font-variant-numeric": "tabular-nums",
       }}
     >
       <Text size="xs" span c="default">
@@ -199,7 +199,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
               "justify-content": "flex-end",
               gap: 4,
               overflow: "hidden",
-              fontVariantNumeric: "tabular-nums",
+              "font-variant-numeric": "tabular-nums",
             }}
           >
             <Text size="xs" span fw={700}>{formatNumberIN(row.strike)}</Text>
@@ -448,8 +448,8 @@ function NiftyUnusualVolumeInner({
           className="whitespace-nowrap overflow-hidden truncate tabular-nums min-w-0 px-[6px] py-[2px] border-t border-b"
           style={{
             "background-color": "#0A0A0A",
-            borderTop: "1px solid #1A1A1A",
-            borderBottom: "1px solid #1A1A1A",
+            "border-top": "1px solid #1A1A1A",
+            "border-bottom": "1px solid #1A1A1A",
           }}
         >
           <Text size="xs" span c="dimmed">

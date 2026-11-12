@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
-import { createElement } from "react";
+
 import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { MarketAlertRow } from "@/components/notifications/MarketAlertCard";
@@ -1060,14 +1060,12 @@ describe("strike-wall events", () => {
   test("renders through MarketAlertRow with the right severity rail", () => {
     const testAlert = burstToAlert(wall(TEST_EVENT));
     const rejectAlert = burstToAlert(wall(REJECT));
-    render(
-      createElement(
-        UIProvider,
-        null,
-        createElement(MarketAlertRow, { alert: testAlert }),
-        createElement(MarketAlertRow, { alert: rejectAlert }),
-      ),
-    );
+    render(() => (
+      <UIProvider>
+        <MarketAlertRow alert={testAlert} />
+        <MarketAlertRow alert={rejectAlert} />
+      </UIProvider>
+    ));
     const rows = screen.getAllByTestId("market-alert-oi_burst");
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveAttribute("data-severity", "watch");

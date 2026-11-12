@@ -1,10 +1,9 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render as rtlRender, screen, cleanup, waitFor, within } from "@testing-library/react";
-import type { ReactElement } from "react";
-import { MemoryRouter } from "react-router-dom";
+import { render as rtlRender, screen, cleanup, waitFor, within } from "@solidjs/testing-library";
+import type { JSX } from "solid-js";
+import { MemoryRouter } from "@solidjs/router";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { ScreenerPage, mapDashboardPanelToScreener, DEFAULT_DASHBOARD_UNIVERSE } from "./ScreenerPage";
 import { UIProvider } from "@/ui";
 import { fetchMarketSnapshot } from "../../api/marketScreener";
@@ -13,13 +12,10 @@ import { fetchMarketSnapshot } from "../../api/marketScreener";
 // MemoryRouter; under a full-suite run the 5s default is not enough.
 vi.setConfig({ testTimeout: 20_000 });
 
-const render = (ui: ReactElement, options?: any) => {
-  const { initialRoute, ...rtlOptions } = options ?? {};
-  return rtlRender(
-    <MemoryRouter initialEntries={[initialRoute ?? "/?tab=screener"]}>{ui}</MemoryRouter>,
-    rtlOptions,
-  );
-};
+const render = (ui: JSX.Element, options?: { initialRoute?: string }) =>
+  rtlRender(() => (
+    <MemoryRouter initialEntries={[options?.initialRoute ?? "/?tab=screener"]}>{ui}</MemoryRouter>
+  ));
 
 // Mock child components to isolate ScreenerPage tests
 vi.mock("./ScreenerNav", () => ({
@@ -205,27 +201,25 @@ vi.mock("../../api/events", () => ({
 }));
 
 vi.mock("../events/EventsPanel", async () => {
-  const React = await import("react");
+  const { onMount } = await import("solid-js");
   return {
     EventsPanel: () => {
-      // eslint-disable-next-line react-hooks/rules-of-hooks
-      React.useEffect(() => {
+      onMount(() => {
         void fetchEventsSpy({ market: "us" });
         void fetchAnomaliesSpy("2026-11-09");
-      }, []);
+      });
       return <div data-testid="events-panel" />;
     },
   };
 });
 
 vi.mock("../value/ValuePanel", async () => {
-  const React = await import("react");
+  const { onMount } = await import("solid-js");
   return {
     ValuePanel: () => {
-      // eslint-disable-next-line react-hooks/rules-of-hooks
-      React.useEffect(() => {
+      onMount(() => {
         void valueScanSpy({ market: "india", limit: 100, sort: "score" });
-      }, []);
+      });
       return <div data-testid="value-panel" />;
     },
   };
@@ -275,14 +269,13 @@ const marketSnapshot = {
 const dashboardMounts = vi.hoisted(() => ({ count: 0 }));
 
 vi.mock("./DashboardView", async () => {
-  const React = await import("react");
+  const { onMount } = await import("solid-js");
   const panels = ["near_52w", "new_highs", "gap_up", "gainers", "most_active", "unknown_xyz"];
   return {
     DashboardView: (props: any) => {
-      // eslint-disable-next-line react-hooks/rules-of-hooks
-      React.useEffect(() => {
+      onMount(() => {
         dashboardMounts.count += 1;
-      }, []);
+      });
       return (
         <div data-testid="dashboard-view" data-universe={props.universe}>
           <button data-testid="dashboard-open-symbol" onClick={() => props.onOpenSymbol?.("RELIANCE")}>
@@ -360,21 +353,21 @@ describe("ScreenerPage", () => {
   });
 
   it("displays loading state", async () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} isLoading={true} approachingStocks={[]} touchedStocks={[]} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(await screen.findByTestId("screener-loading")).toBeInTheDocument();
   });
 
   it("displays error state with retry button", async () => {
     const errorMsg = "Failed to fetch data";
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} error={errorMsg} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(await screen.findByTestId("screener-error-container")).toBeInTheDocument();
     expect(screen.getByText("Screener failed to load")).toBeInTheDocument();
     expect(screen.getByText(errorMsg)).toBeInTheDocument();
@@ -382,136 +375,132 @@ describe("ScreenerPage", () => {
   });
 
   it("calls onRefresh when retry button clicked", async () => {
-      const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} error="Error occurred" />
-      </UIProvider>,
-    );
-    await user.click(await screen.findByTestId("screener-retry-btn"));
+      </UIProvider>
+    ));
+    fireEvent.click(await screen.findByTestId("screener-retry-btn"));
     expect(defaultProps.onRefresh).toHaveBeenCalledTimes(1);
   });
 
   it("displays empty state when no stocks", async () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} approachingStocks={[]} touchedStocks={[]} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(await screen.findByTestId("screener-empty")).toBeInTheDocument();
   });
 
   it("displays approaching stocks section when data exists", async () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(await screen.findByTestId("screener-approaching-section")).toBeInTheDocument();
     expect(screen.getByText(`Approaching (${mockApproachingStocks.length})`)).toBeInTheDocument();
   });
 
   it("displays touched stocks section when data exists", async () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(await screen.findByTestId("screener-touched-section")).toBeInTheDocument();
     expect(screen.getByText(`Touched (${mockTouchedStocks.length})`)).toBeInTheDocument();
   });
 
   it("renders table view by default", async () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     // Both approaching and touched sections render tables
     expect(await screen.findByTestId("screener-table-approaching")).toBeInTheDocument();
     expect(await screen.findByTestId("screener-table-touched")).toBeInTheDocument();
   });
 
   it("switches to heatmap view when view mode changes", async () => {
-      const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-    );
-    await user.click(screen.getByTestId("view-heatmap"));
+      </UIProvider>
+    ));
+    fireEvent.click(screen.getByTestId("view-heatmap"));
     // Both approaching and touched sections render heatmaps
     expect(await screen.findByTestId("screener-heatmap-approaching")).toBeInTheDocument();
     expect(await screen.findByTestId("screener-heatmap-touched")).toBeInTheDocument();
   });
 
   it("switches back to table view", async () => {
-      const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     // Switch to heatmap first
-    await user.click(screen.getByTestId("view-heatmap"));
+    fireEvent.click(screen.getByTestId("view-heatmap"));
     expect(await screen.findByTestId("screener-heatmap-approaching")).toBeInTheDocument();
     expect(await screen.findByTestId("screener-heatmap-touched")).toBeInTheDocument();
 
     // Switch back to table
-    await user.click(screen.getByTestId("view-table"));
+    fireEvent.click(screen.getByTestId("view-table"));
     expect(await screen.findByTestId("screener-table-approaching")).toBeInTheDocument();
     expect(await screen.findByTestId("screener-table-touched")).toBeInTheDocument();
   });
 
   it("renders screener navigation with options", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     // unified toolbar replaces left rail nav with dropdown — no screener-nav
     expect(screen.queryByTestId("screener-nav")).not.toBeInTheDocument();
     expect(screen.getByTestId("screener-select")).toBeInTheDocument();
   });
 
   it("calls onScreenerChange when screener select changes", async () => {
-      const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-    );
-    await user.selectOptions(within(screen.getByTestId("screener-select")).getByRole("combobox"), "new-highs");
+      </UIProvider>
+    ));
+    fireEvent.input(within(screen.getByTestId("screener-select")).getByRole("combobox"), { target: { value: "new-highs" } });
     expect(defaultProps.onScreenerChange).toHaveBeenCalledWith("new-highs");
   });
 
   it("renders header with correct status", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const header = screen.getByTestId("screener-header");
     expect(header).toHaveAttribute("data-status", "3 stocks");
   });
 
   it("disables controls when loading", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} isLoading={true} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     // Header controls should be disabled - check via props
     const header = screen.getByTestId("screener-header");
     expect(header).toHaveAttribute("data-loading", "true");
   });
 
   it("keeps controls enabled during background refresh when results are present", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} isLoading={true} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("screener-header")).toHaveAttribute(
       "data-disable-controls",
       "false",
@@ -519,76 +508,72 @@ describe("ScreenerPage", () => {
   });
 
   it("calls onRefresh when refresh button clicked", async () => {
-      const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-    );
-    await user.click(screen.getByTestId("refresh-btn"));
+      </UIProvider>
+    ));
+    fireEvent.click(screen.getByTestId("refresh-btn"));
     expect(defaultProps.onRefresh).toHaveBeenCalledTimes(1);
   });
 
   it("calls onAutoRefreshChange when auto-refresh value changes", async () => {
-      const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const input = screen.getByTestId("auto-refresh-input");
-    await user.clear(input); await user.type(input, "120");
+    fireEvent.input(input, { target: { value: "" } }); fireEvent.input(input, { target: { value: "120" } });
     expect(defaultProps.onAutoRefreshChange).toHaveBeenCalled();
   });
 
   it("calls onProviderChange when provider changes", async () => {
-      const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const select = screen.getByTestId("provider-select");
-    await user.selectOptions(select, "indmoney");
+    fireEvent.input(select, { target: { value: "indmoney" } });
     expect(defaultProps.onProviderChange).toHaveBeenCalledWith("indmoney");
   });
 
   it("calls onModeChange when mode changes", async () => {
-      const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const select = screen.getByTestId("mode-select");
-    await user.selectOptions(select, "historical");
+    fireEvent.input(select, { target: { value: "historical" } });
     expect(defaultProps.onModeChange).toHaveBeenCalledWith("historical");
   });
 
   it("handles zero approaching stocks", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} approachingStocks={[]} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.queryByTestId("screener-approaching-section")).not.toBeInTheDocument();
   });
 
   it("handles zero touched stocks", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} touchedStocks={[]} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.queryByTestId("screener-touched-section")).not.toBeInTheDocument();
   });
 
   it("renders the groups performance panel beside the screener table", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("group-performance-panel")).toBeInTheDocument();
     expect(screen.getByTestId("screener-page")).toBeInTheDocument();
     expect(screen.getByTestId("screener-content")).toBeInTheDocument();
@@ -596,7 +581,7 @@ describe("ScreenerPage", () => {
   });
 
   it("renders the Dashboard tab by default", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
@@ -616,8 +601,7 @@ describe("ScreenerPage", () => {
   });
 
   it("switches from dashboard to screener and back", async () => {
-    const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
@@ -625,18 +609,17 @@ describe("ScreenerPage", () => {
     );
     expect(screen.getByTestId("dashboard-view")).toBeVisible();
 
-    await user.click(screen.getByTestId("tab-screener"));
+    fireEvent.click(screen.getByTestId("tab-screener"));
     expect(await screen.findByTestId("screener-table-approaching")).toBeVisible();
     expect(screen.getByTestId("screener-select")).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("tab-dashboard"));
+    fireEvent.click(screen.getByTestId("tab-dashboard"));
     expect(screen.getByTestId("dashboard-view")).toBeVisible();
     expect(screen.queryByTestId("screener-table-approaching")).not.toBeVisible();
   });
 
   it("does not fetch the market snapshot until the Market tab is opened", async () => {
-    const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
@@ -644,7 +627,7 @@ describe("ScreenerPage", () => {
     );
     expect(mockFetchMarketSnapshot).not.toHaveBeenCalled();
     expect(screen.queryByTestId("market-screener")).not.toBeInTheDocument();
-    await user.click(screen.getByTestId("tab-market"));
+    fireEvent.click(screen.getByTestId("tab-market"));
     await waitFor(() => expect(mockFetchMarketSnapshot).toHaveBeenCalledTimes(1), {
       timeout: 10_000,
     });
@@ -653,7 +636,7 @@ describe("ScreenerPage", () => {
   });
 
   it("does not mount the dashboard or screener panels on the Market tab", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
@@ -667,8 +650,7 @@ describe("ScreenerPage", () => {
   });
 
   it("does not fetch value scan or events endpoints on Dashboard or Market tabs", async () => {
-    const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
@@ -683,7 +665,7 @@ describe("ScreenerPage", () => {
     expect(screen.queryByTestId("value-panel")).not.toBeInTheDocument();
     expect(screen.queryByTestId("events-panel")).not.toBeInTheDocument();
 
-    await user.click(screen.getByTestId("tab-market"));
+    fireEvent.click(screen.getByTestId("tab-market"));
     await waitFor(() => expect(mockFetchMarketSnapshot).toHaveBeenCalledTimes(1), {
       timeout: 10_000,
     });
@@ -695,8 +677,7 @@ describe("ScreenerPage", () => {
   });
 
   it("fetches the value scan only when the Deep Value tab is opened, and remounts on re-entry", async () => {
-    const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
@@ -704,22 +685,21 @@ describe("ScreenerPage", () => {
     );
     expect(valueScanSpy).not.toHaveBeenCalled();
 
-    await user.click(screen.getByTestId("tab-deepvalue"));
+    fireEvent.click(screen.getByTestId("tab-deepvalue"));
     await waitFor(() => expect(valueScanSpy).toHaveBeenCalledTimes(1), { timeout: 10_000 });
     expect(await screen.findByTestId("value-panel", undefined, { timeout: 10_000 })).toBeInTheDocument();
     expect(fetchEventsSpy).not.toHaveBeenCalled();
     expect(fetchAnomaliesSpy).not.toHaveBeenCalled();
 
     // Switching away unmounts; coming back remounts and refetches
-    await user.click(screen.getByTestId("tab-dashboard"));
+    fireEvent.click(screen.getByTestId("tab-dashboard"));
     expect(screen.queryByTestId("value-panel")).not.toBeInTheDocument();
-    await user.click(screen.getByTestId("tab-deepvalue"));
+    fireEvent.click(screen.getByTestId("tab-deepvalue"));
     await waitFor(() => expect(valueScanSpy).toHaveBeenCalledTimes(2), { timeout: 10_000 });
   });
 
   it("fetches the events endpoints only when the Events tab is opened, and remounts on re-entry", async () => {
-    const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
@@ -728,7 +708,7 @@ describe("ScreenerPage", () => {
     expect(fetchEventsSpy).not.toHaveBeenCalled();
     expect(fetchAnomaliesSpy).not.toHaveBeenCalled();
 
-    await user.click(screen.getByTestId("tab-events"));
+    fireEvent.click(screen.getByTestId("tab-events"));
     await waitFor(() => {
       expect(fetchEventsSpy).toHaveBeenCalledTimes(1);
       expect(fetchAnomaliesSpy).toHaveBeenCalledTimes(1);
@@ -737,9 +717,9 @@ describe("ScreenerPage", () => {
     expect(valueScanSpy).not.toHaveBeenCalled();
 
     // Switching away unmounts; coming back remounts and refetches
-    await user.click(screen.getByTestId("tab-dashboard"));
+    fireEvent.click(screen.getByTestId("tab-dashboard"));
     expect(screen.queryByTestId("events-panel")).not.toBeInTheDocument();
-    await user.click(screen.getByTestId("tab-events"));
+    fireEvent.click(screen.getByTestId("tab-events"));
     await waitFor(() => {
       expect(fetchEventsSpy).toHaveBeenCalledTimes(2);
       expect(fetchAnomaliesSpy).toHaveBeenCalledTimes(2);
@@ -747,26 +727,25 @@ describe("ScreenerPage", () => {
   });
 
   it("keeps correlation and config tabs working alongside dashboard", async () => {
-    const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
       { initialRoute: "/" },
     );
-    await user.click(screen.getByTestId("tab-correlation"));
+    fireEvent.click(screen.getByTestId("tab-correlation"));
     await waitFor(
       () => expect(screen.queryByTestId("dashboard-view")).not.toBeVisible(),
       { timeout: 10_000 },
     );
     expect(await screen.findByTestId("correlation-tab", undefined, { timeout: 10_000 })).toBeInTheDocument();
-    await user.click(screen.getByTestId("tab-config"));
+    fireEvent.click(screen.getByTestId("tab-config"));
     await waitFor(
       () => expect(screen.queryByTestId("dashboard-view")).not.toBeVisible(),
       { timeout: 10_000 },
     );
     expect(await screen.findByTestId("screener-config-view", undefined, { timeout: 10_000 })).toBeInTheDocument();
-    await user.click(screen.getByTestId("tab-dashboard"));
+    fireEvent.click(screen.getByTestId("tab-dashboard"));
     await waitFor(
       () => expect(screen.getByTestId("dashboard-view")).toBeVisible(),
       { timeout: 10_000 },
@@ -787,9 +766,8 @@ describe("ScreenerPage", () => {
   });
 
   it("onOpenScan for near_52w switches profile and opens the Screener tab", async () => {
-    const user = userEvent.setup();
     const onScreenerChange = vi.fn();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage
           {...defaultProps}
@@ -804,55 +782,51 @@ describe("ScreenerPage", () => {
       </UIProvider>,
       { initialRoute: "/" },
     );
-    await user.click(screen.getByTestId("dashboard-open-scan-near_52w"));
+    fireEvent.click(screen.getByTestId("dashboard-open-scan-near_52w"));
     expect(onScreenerChange).toHaveBeenCalledWith("52w_high");
     expect(await screen.findByTestId("screener-table-approaching")).toBeVisible();
   });
 
   it("onOpenScan for gainers opens the Screener tab without changing profile", async () => {
-    const user = userEvent.setup();
     const onScreenerChange = vi.fn();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} onScreenerChange={onScreenerChange} universe="nifty500" />
       </UIProvider>,
       { initialRoute: "/" },
     );
-    await user.click(screen.getByTestId("dashboard-open-scan-gainers"));
+    fireEvent.click(screen.getByTestId("dashboard-open-scan-gainers"));
     expect(onScreenerChange).not.toHaveBeenCalled();
     expect(await screen.findByTestId("screener-table-approaching")).toBeVisible();
   });
 
   it("dashboard refresh remounts the DashboardView", async () => {
-    const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} universe="nifty500" />
       </UIProvider>,
       { initialRoute: "/" },
     );
     expect(dashboardMounts.count).toBe(1);
-    await user.click(screen.getByTestId("dashboard-refresh"));
+    fireEvent.click(screen.getByTestId("dashboard-refresh"));
     expect(dashboardMounts.count).toBe(2);
     expect(screen.getByTestId("dashboard-view")).toHaveAttribute("data-universe", "nifty500");
   });
 
   it("dashboard universe selector calls onUniverseChange", async () => {
-    const user = userEvent.setup();
     const onUniverseChange = vi.fn();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} universe="nifty50" onUniverseChange={onUniverseChange} />
       </UIProvider>,
       { initialRoute: "/" },
     );
-    await user.selectOptions(within(screen.getByTestId("dashboard-universe-select")).getByRole("combobox"), "nifty500");
+    fireEvent.input(within(screen.getByTestId("dashboard-universe-select")).getByRole("combobox"), { target: { value: "nifty500" } });
     expect(onUniverseChange).toHaveBeenCalledWith("nifty500");
   });
 
   it("last close toggle flips its pressed state", async () => {
-    const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
@@ -860,20 +834,19 @@ describe("ScreenerPage", () => {
     );
     const toggle = screen.getByTestId("dashboard-last-close-toggle");
     expect(toggle).not.toBeChecked();
-    await user.click(toggle);
+    fireEvent.click(toggle);
     expect(toggle).toBeChecked();
   });
 
   it("dashboard symbol click forwards to onSymbolClick", async () => {
-    const user = userEvent.setup();
     const onSymbolClick = vi.fn();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} onSymbolClick={onSymbolClick} />
       </UIProvider>,
       { initialRoute: "/" },
     );
-    await user.click(screen.getByTestId("dashboard-open-symbol"));
+    fireEvent.click(screen.getByTestId("dashboard-open-symbol"));
     expect(onSymbolClick).toHaveBeenCalledWith("RELIANCE");
   });
 });

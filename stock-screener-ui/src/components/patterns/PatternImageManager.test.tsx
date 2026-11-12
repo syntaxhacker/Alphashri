@@ -1,9 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { UIProvider } from "@/ui";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 import { PatternImageManager } from "./PatternImageManager";
 
@@ -14,8 +12,9 @@ vi.mock("@/api/patternImages", () => ({
 }));
 
 vi.mock("@/ui", async (importOriginal) => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
   const actual = await importOriginal<typeof import("@/ui")>();
-  return { ...actual, showSuccess: vi.fn(), showError: vi.fn() };
+  return mockSolidUi(actual, { showSuccess: vi.fn(), showError: vi.fn() });
 });
 
 import {
@@ -28,12 +27,6 @@ const mockedFetch = vi.mocked(fetchPatternImages);
 const mockedUpload = vi.mocked(uploadPatternImage);
 const mockedDelete = vi.mocked(deletePatternImage);
 
-function r(ui: ReactElement) {
-  return render(ui, {
-    wrapper: ({ children }: { children: ReactNode }) => <UIProvider>{children}</UIProvider>,
-  });
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
   setupBrowserMocks();
@@ -45,7 +38,7 @@ describe("PatternImageManager", () => {
   test("renders one card per pattern (19) with placeholders until images exist", async () => {
     mockedFetch.mockResolvedValue({});
 
-    r(<PatternImageManager />);
+    render(() => <PatternImageManager />);
 
     const cards = await screen.findAllByTestId(/^pattern-image-card-/);
     expect(cards).toHaveLength(19);
@@ -61,7 +54,7 @@ describe("PatternImageManager", () => {
       url: "/api/chart-patterns/image/falling_wedge",
     });
 
-    r(<PatternImageManager />);
+    render(() => <PatternImageManager />);
 
     const input = await screen.findByTestId("pattern-image-upload-falling_wedge");
     const file = new File(["pixels"], "wedge.png", { type: "image/png" });
@@ -75,7 +68,7 @@ describe("PatternImageManager", () => {
 
   test("delete is disabled when no image exists", async () => {
     mockedFetch.mockResolvedValue({});
-    r(<PatternImageManager />);
+    render(() => <PatternImageManager />);
 
     const del = await screen.findByTestId("pattern-image-delete-falling_wedge");
     expect(del).toBeDisabled();
@@ -87,7 +80,7 @@ describe("PatternImageManager", () => {
       .mockResolvedValue({});
     mockedDelete.mockResolvedValue(undefined);
 
-    r(<PatternImageManager />);
+    render(() => <PatternImageManager />);
 
     const del = await screen.findByTestId("pattern-image-delete-falling_wedge");
     expect(del).toBeEnabled();
@@ -103,7 +96,7 @@ describe("PatternImageManager", () => {
     mockedFetch.mockResolvedValue({});
     mockedUpload.mockRejectedValue(new Error("unsupported image type"));
 
-    r(<PatternImageManager />);
+    render(() => <PatternImageManager />);
 
     const input = await screen.findByTestId("pattern-image-upload-falling_wedge");
     fireEvent.change(input, {
@@ -117,14 +110,14 @@ describe("PatternImageManager", () => {
 
   test("shows a load error when the images request fails", async () => {
     mockedFetch.mockRejectedValue(new Error("boom"));
-    r(<PatternImageManager />);
+    render(() => <PatternImageManager />);
 
     expect(await screen.findByTestId("pattern-image-manager-error")).toHaveTextContent("boom");
   });
 
   test("lists uploaded images as <img> with Replace, others with Upload", async () => {
     mockedFetch.mockResolvedValue({ falling_wedge: "/img/wedge.png" });
-    r(<PatternImageManager />);
+    render(() => <PatternImageManager />);
 
     await screen.findByTestId("pattern-image-falling_wedge");
     const withImage = within(screen.getByTestId("pattern-image-card-falling_wedge"));
@@ -145,7 +138,7 @@ describe("PatternImageManager", () => {
     mockedFetch.mockResolvedValue({ falling_wedge: "/img/wedge.png" });
     mockedDelete.mockRejectedValue(new Error("delete boom"));
 
-    r(<PatternImageManager />);
+    render(() => <PatternImageManager />);
 
     const del = await screen.findByTestId("pattern-image-delete-falling_wedge");
     expect(del).toBeEnabled();
@@ -165,7 +158,7 @@ describe("PatternImageManager", () => {
       .mockResolvedValueOnce({});
     mockedDelete.mockResolvedValue(undefined);
 
-    r(<PatternImageManager />);
+    render(() => <PatternImageManager />);
 
     fireEvent.click(await screen.findByTestId("pattern-image-delete-falling_wedge"));
 

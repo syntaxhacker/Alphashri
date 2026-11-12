@@ -1,23 +1,27 @@
-import { render, type RenderResult } from "@solidjs/testing-library";
+import { render } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
-import { Router } from "@solidjs/router";
+import { createMemoryHistory, MemoryRouter } from "@solidjs/router";
 import type { JSX } from "solid-js";
 
-function TestWrapper({ children }: { children: JSX.Element }) {
-  return <UIProvider>{children}</UIProvider>;
+function TestWrapper(props: { children: JSX.Element; initialRoute?: string }) {
+  const history = createMemoryHistory();
+  history.set({ value: props.initialRoute ?? "/", replace: true, scroll: false });
+  return (
+    <MemoryRouter history={history}>
+      <UIProvider>{props.children}</UIProvider>
+    </MemoryRouter>
+  );
 }
 
-export function renderWithProviders(ui: JSX.Element, options?: { initialRoute?: string; user?: unknown }): RenderResult {
+export function renderWithProviders(
+  ui: () => JSX.Element,
+  options?: { initialRoute?: string; user?: unknown },
+): ReturnType<typeof render> {
+  return render(ui, {
+    wrapper: (props) => <TestWrapper initialRoute={options?.initialRoute}>{props.children}</TestWrapper>,
+  });
+}
+
+export function renderWithRouter(ui: () => JSX.Element): ReturnType<typeof render> {
   return render(ui, { wrapper: TestWrapper });
-}
-
-export function renderWithRouter(ui: JSX.Element): RenderResult {
-  function RouterWrapper({ children }: { children: JSX.Element }) {
-    return (
-      <Router>
-        <UIProvider>{children}</UIProvider>
-      </Router>
-    );
-  }
-  return render(ui, { wrapper: RouterWrapper });
 }

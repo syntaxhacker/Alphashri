@@ -1,4 +1,4 @@
-import { createMemo, createUniqueId, createEffect, For, Show, splitProps } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, createUniqueId, splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UISelectProps } from "../types";
 

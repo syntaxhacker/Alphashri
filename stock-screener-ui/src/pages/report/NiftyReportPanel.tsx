@@ -180,7 +180,7 @@ const EMPTY_WALL_HISTORY: WallSnapshot[] = [];
  */
 const DECISION_CELL_CLASS =
   "flex flex-col justify-center flex-[1_1_0] gap-[1px] min-w-[92px] md:min-w-[96px] px-1 py-0.5 border-l first:border-l-0";
-const DECISION_CELL_STYLE: CSSProperties = { borderLeft: `1px solid ${palette.TERM_BORDER}` };
+const DECISION_CELL_STYLE: CSSProperties = { "border-left": `1px solid ${palette.TERM_BORDER}` };
 
 const DECISION_LABEL_STYLE: CSSProperties = {
   "font-size": REPORT_FONT.xs - 1,
@@ -193,8 +193,8 @@ const DECISION_VALUE_STYLE: CSSProperties = {
   "font-size": REPORT_FONT.sm,
   "font-weight": REPORT_FONT_WEIGHT.bold,
   "line-height": REPORT_LINE_HEIGHT.tight,
-  fontFamily: palette.MONO,
-  fontVariantNumeric: "tabular-nums",
+  "font-family": palette.MONO,
+  "font-variant-numeric": "tabular-nums",
   "white-space": "nowrap",
   overflow: "hidden",
   "text-overflow": "ellipsis",
@@ -203,7 +203,7 @@ const DECISION_VALUE_STYLE: CSSProperties = {
 /** Secondary context cell (PCR / max pain) — same rows, quieter type. */
 const CONTEXT_CELL_CLASS =
   "flex flex-col justify-center flex-[1_1_0] gap-[1px] min-w-[64px] px-1 py-0.5 border-l";
-const CONTEXT_CELL_STYLE: CSSProperties = { borderLeft: `1px solid ${palette.TERM_BORDER}` };
+const CONTEXT_CELL_STYLE: CSSProperties = { "border-left": `1px solid ${palette.TERM_BORDER}` };
 
 const CONTEXT_LABEL_STYLE: CSSProperties = {
   "font-size": REPORT_FONT.xs - 1,
@@ -216,8 +216,8 @@ const CONTEXT_VALUE_STYLE: CSSProperties = {
   "font-size": REPORT_FONT.sm,
   "font-weight": REPORT_FONT_WEIGHT.bold,
   "line-height": REPORT_LINE_HEIGHT.snug,
-  fontFamily: palette.MONO,
-  fontVariantNumeric: "tabular-nums",
+  "font-family": palette.MONO,
+  "font-variant-numeric": "tabular-nums",
   "white-space": "nowrap",
 };
 
@@ -318,7 +318,7 @@ function DecisionChip({
         span
         size="xs"
         fw={700}
-        style={{ "font-size": 9, color: tone ?? palette.TEXT, fontVariantNumeric: "tabular-nums" }}
+        style={{ "font-size": 9, color: tone ?? palette.TEXT, "font-variant-numeric": "tabular-nums" }}
       >
         {value}
       </Text>
@@ -516,8 +516,8 @@ function oiChangeBarCell(
         "align-items": "flex-end",
         gap: "2px",
         overflow: "hidden",
-        fontFamily: palette.MONO,
-        fontVariantNumeric: "tabular-nums",
+        "font-family": palette.MONO,
+        "font-variant-numeric": "tabular-nums",
       }}
     >
       <Text size="xs" span fw={500} style={{ color: legHue }}>
@@ -575,8 +575,8 @@ function legChangeCell(leg: NiftyStrike["ce"], legHue: string) {
         overflow: "hidden",
         "text-overflow": "ellipsis",
         "white-space": "nowrap",
-        fontFamily: palette.MONO,
-        fontVariantNumeric: "tabular-nums",
+        "font-family": palette.MONO,
+        "font-variant-numeric": "tabular-nums",
       }}
     >
       <Text size="xs" span fw={500} style={{ color: tone }}>
@@ -791,7 +791,7 @@ export function getNiftyOiColumns(
             "justify-content": "flex-end",
             gap: "4px",
             overflow: "hidden",
-            fontVariantNumeric: "tabular-nums",
+            "font-variant-numeric": "tabular-nums",
           }}
         >
           {isCW ? wallTag(strike, spot, true, palette.TERM_CE) : null}
@@ -3307,7 +3307,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             >
               <span
                 aria-hidden
-                style={{ width: "3px", alignSelf: "stretch", "margin-top": "6px", "margin-bottom": "6px", "border-radius": "1px", "background-color": planTone, "flex-shrink": 0 }}
+                style={{ width: "3px", "align-self": "stretch", "margin-top": "6px", "margin-bottom": "6px", "border-radius": "1px", "background-color": planTone, "flex-shrink": 0 }}
               />
               <Box
                 data-testid="nifty-plan-headline"
@@ -3322,9 +3322,9 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                   "font-size": "12px",
                   "font-weight": 700,
                   "letter-spacing": "0.02em",
-                  fontFamily: palette.MONO,
+                  "font-family": palette.MONO,
                   color: planTone,
-                  fontVariantNumeric: "tabular-nums",
+                  "font-variant-numeric": "tabular-nums",
                 }}
               >
                 {planSummary.headline}
@@ -3337,7 +3337,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                   "font-size": "9px",
                   "font-weight": 700,
                   color: palette.TEXT_MUTED,
-                  fontVariantNumeric: "tabular-nums",
+                  "font-variant-numeric": "tabular-nums",
                   "white-space": "nowrap",
                   "flex-shrink": 0,
                   opacity: 0.8,
@@ -3375,7 +3375,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                       "font-size": "9px",
                       "font-weight": 800,
                       "letter-spacing": "0.03em",
-                      fontFamily: palette.MONO,
+                      "font-family": palette.MONO,
                       "white-space": "nowrap",
                     }}
                   >
@@ -3765,7 +3765,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               className="flex items-center gap-1.5 px-2 min-h-[28px] shrink-0 rounded-[4px] font-mono tabular-nums"
               style={{
                 border: `1px solid ${palette.WARNING}`,
-                borderLeft: `3px solid ${palette.WARNING}`,
+                "border-left": `3px solid ${palette.WARNING}`,
                 "background-color": hexToRgba(palette.WARNING, 0.08),
               }}
             >
@@ -3804,7 +3804,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               className="flex items-center gap-1.5 px-2 min-h-[28px] shrink-0 rounded-[4px] font-mono tabular-nums"
               style={{
                 border: `1px solid ${blast.bias === "bull" ? palette.POSITIVE : blast.bias === "bear" ? palette.NEGATIVE : palette.WARNING}`,
-                borderLeft: `3px solid ${blast.bias === "bull" ? palette.POSITIVE : blast.bias === "bear" ? palette.NEGATIVE : palette.WARNING}`,
+                "border-left": `3px solid ${blast.bias === "bull" ? palette.POSITIVE : blast.bias === "bear" ? palette.NEGATIVE : palette.WARNING}`,
                 "background-color": hexToRgba(
                   blast.bias === "bull" ? palette.POSITIVE : blast.bias === "bear" ? palette.NEGATIVE : palette.WARNING,
                   0.08,
@@ -3861,7 +3861,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                     className="flex items-center gap-1 px-2 min-h-[28px] rounded-[4px] cursor-pointer tabular-nums"
                     style={{
                       border: `1px solid ${accent}`,
-                      borderLeft: `3px solid ${accent}`,
+                      "border-left": `3px solid ${accent}`,
                       "background-color": hexToRgba(accent, 0.08),
                     }}
                   >
@@ -3871,7 +3871,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                         color: palette.TEXT_MUTED,
                         "font-size": "10px",
                         "font-weight": 700,
-                        fontFamily: palette.MONO,
+                        "font-family": palette.MONO,
                         "flex-shrink": 0,
                       }}
                       title={`Fired ${new Date(a.ts).toLocaleString("en-IN", { hour12: false, timeZone: "Asia/Kolkata" })}`}
@@ -3894,7 +3894,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                         "font-size": "12px",
                         "font-weight": 700,
                         "letter-spacing": "0.02em",
-                        fontFamily: palette.MONO,
+                        "font-family": palette.MONO,
                         color: accent,
                       }}
                     >
@@ -3922,7 +3922,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                           "font-size": "9.5px",
                           "font-weight": 800,
                           "letter-spacing": "0.04em",
-                          fontFamily: palette.MONO,
+                          "font-family": palette.MONO,
                           "white-space": "nowrap",
                         }}
                       >

@@ -47,9 +47,9 @@ function MoverItem({
         fw={700}
         style={{
           "font-size": VALUE_FONT,
-          fontVariantNumeric: "tabular-nums",
+          "font-variant-numeric": "tabular-nums",
           color,
-          fontFamily: palette.MONO,
+          "font-family": palette.MONO,
         }}
       >
         {arrow}
@@ -60,9 +60,9 @@ function MoverItem({
         fw={700}
         style={{
           "font-size": VALUE_FONT,
-          fontVariantNumeric: "tabular-nums",
+          "font-variant-numeric": "tabular-nums",
           color,
-          fontFamily: palette.MONO,
+          "font-family": palette.MONO,
         }}
       >
         {row.symbol}
@@ -73,9 +73,9 @@ function MoverItem({
         fw={700}
         style={{
           "font-size": VALUE_FONT,
-          fontVariantNumeric: "tabular-nums",
+          "font-variant-numeric": "tabular-nums",
           color,
-          fontFamily: palette.MONO,
+          "font-family": palette.MONO,
         }}
       >
         {signed}{row.change_pct.toFixed(2)}%

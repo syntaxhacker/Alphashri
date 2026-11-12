@@ -1,3 +1,4 @@
+import { lazy } from "solid-js";
 import { useCallback, useEffect, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Alert, Box, Button, Select, Skeleton, Text, ToolbarRow } from "@/ui";

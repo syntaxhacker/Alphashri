@@ -1,5 +1,6 @@
+import {  } from "solid-js";
 import { useMemo, useState, forwardRef, useImperativeHandle, useRef } from "react";
-import { Box, Group, Text, Badge, Button, Switch, useColorScheme } from "@/ui";
+import { Text, Badge, Button, Switch, useColorScheme } from "@/ui";
 import * as palette from "@/ui/palette";
 import type {
   ReplayCandle,
@@ -13,6 +14,7 @@ import type {
 import { TradingChart } from "../chart/TradingChart";
 import type { TradingChartHandle } from "../chart/TradingChart";
 import { normalizeReplay } from "../../utils/chart/normalizeReplay";
+import { Box, Group } from "../paper-trading/primitives";
 
 const TF_PRESETS = [
   { label: "1m", minutes: 1 },

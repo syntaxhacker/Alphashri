@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { createElement } from "react";
+
 import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, screen } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import { buildFlowEvents, clockLabel, groupFlowRuns, summarizeFlowRuns, type FlowTapeRow } from "./niftyFlowStrip";
 import {
   FLOW_BEAR,
@@ -344,7 +344,7 @@ describe("NiftyFlowStrip render", () => {
       base({ t: hm(1), call_doi: 3_000_000 }),
       base({ t: hm(2), call_doi: 3_000_000, max_pain: 25800 }),
     ];
-    r(createElement(NiftyFlowStrip, { rows: rows }));
+    r(<NiftyFlowStrip {...{ rows: rows }} />);
     const ticks = screen.getAllByTestId("nifty-flow-tick");
     expect(ticks).toHaveLength(2);
     expect(ticks[0]).toHaveAttribute("data-kind", "burst");
@@ -368,7 +368,7 @@ describe("NiftyFlowStrip render", () => {
 
   test("hover titles carry time and label", () => {
     const rows = [base({ t: hm(0) }), base({ t: hm(1), put_doi: 2_500_000 })];
-    r(createElement(NiftyFlowStrip, { rows: rows }));
+    r(<NiftyFlowStrip {...{ rows: rows }} />);
     const tick = screen.getByTestId("nifty-flow-tick");
     expect(tick.getAttribute("title")).toContain(hm(1));
   });
@@ -378,7 +378,7 @@ describe("NiftyFlowStrip render", () => {
     for (let i = 1; i <= 20; i++) {
       rows.push(base({ t: hm(i), max_pain: 25700 + i * 50 }));
     }
-    r(createElement(NiftyFlowStrip, { rows: rows }));
+    r(<NiftyFlowStrip {...{ rows: rows }} />);
     expect(screen.getAllByTestId("nifty-flow-tick")).toHaveLength(20);
     expect(screen.getAllByTestId("nifty-flow-label").length).toBeLessThanOrEqual(12);
   });
@@ -390,7 +390,7 @@ describe("NiftyFlowStrip render", () => {
       base({ t: hm(2), put_doi: 5_800_000 }),
       base({ t: hm(3), put_doi: 3_700_000 }),
     ];
-    r(createElement(NiftyFlowStrip, { rows: rows }));
+    r(<NiftyFlowStrip {...{ rows: rows }} />);
     const labels = screen.getAllByTestId("nifty-flow-label");
     expect(labels).toHaveLength(1);
     expect(labels[0]).toHaveTextContent("Put unwind −6.30M over 3m (peak −2.10M)");
@@ -418,7 +418,7 @@ describe("NiftyFlowStrip render", () => {
       base({ t: hm(9), put_doi: 4_060_000, call_doi: 7_640_000 }),
       base({ t: hm(10), put_doi: 4_060_000, call_doi: 9_820_000 }),
     ];
-    r(createElement(NiftyFlowStrip, { rows: rows }));
+    r(<NiftyFlowStrip {...{ rows: rows }} />);
     const labels = screen.getAllByTestId("nifty-flow-label");
     expect(labels).toHaveLength(2);
     expect(labels[0]).toHaveTextContent("Put unwind −15.94M over 6m (peak −2.93M)");
@@ -437,14 +437,14 @@ describe("NiftyFlowStrip render", () => {
     for (let i = 1; i <= 5; i++) {
       rows.push(base({ t: hm(i), max_pain: 25700 + i * 50 }));
     }
-    r(createElement(NiftyFlowStrip, { rows: rows, maxLabels: 2 }));
+    r(<NiftyFlowStrip {...{ rows: rows, maxLabels: 2 }} />);
     expect(screen.getAllByTestId("nifty-flow-label")).toHaveLength(2);
     expect(screen.getByTestId("nifty-flowstrip-more")).toHaveTextContent("+3 earlier");
   });
 
   test("renders the colour legend above the ticks", () => {
     const rows = [base({ t: hm(0) }), base({ t: hm(1), call_doi: 3_000_000 })];
-    r(createElement(NiftyFlowStrip, { rows: rows }));
+    r(<NiftyFlowStrip {...{ rows: rows }} />);
     const legend = screen.getByTestId("nifty-flowstrip-legend");
     const lane = screen.getByTestId("nifty-flowstrip-lane");
     expect(legend).toHaveTextContent("FLOW");
@@ -457,7 +457,7 @@ describe("NiftyFlowStrip render", () => {
 
   test("legend swatches are solid colour marks, not glyphs", () => {
     const rows = [base({ t: hm(0) }), base({ t: hm(1), call_doi: 3_000_000 })];
-    r(createElement(NiftyFlowStrip, { rows: rows }));
+    r(<NiftyFlowStrip {...{ rows: rows }} />);
     const bull = screen.getByTestId("nifty-flowstrip-legend-bull-swatch");
     const bear = screen.getByTestId("nifty-flowstrip-legend-bear-swatch");
     const struct = screen.getByTestId("nifty-flowstrip-legend-struct-swatch");
@@ -473,7 +473,7 @@ describe("NiftyFlowStrip render", () => {
   });
 
   test("empty tape renders the muted state", () => {
-    r(createElement(NiftyFlowStrip, { rows: [base({ t: hm(0) }), base({ t: hm(1) })] }));
+    r(<NiftyFlowStrip {...{ rows: [base({ t: hm(0) }), base({ t: hm(1) })] }} />);
     expect(screen.getByTestId("nifty-flowstrip-empty")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-flowstrip-empty-text")).toHaveTextContent("no flow events");
   });

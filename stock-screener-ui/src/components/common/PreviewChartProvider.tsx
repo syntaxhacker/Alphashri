@@ -1,12 +1,4 @@
-import {
-  Show,
-  createContext,
-  createEffect,
-  createSignal,
-  onCleanup,
-  useContext,
-  type JSX,
-} from "solid-js";
+import { Show, createContext, createEffect, createSignal, onCleanup, type JSX, useContext } from "solid-js";
 import { createStore } from "solid-js/store";
 import { useNavigate } from "@solidjs/router";
 import {
@@ -20,7 +12,7 @@ import {
   Box,
   Portal,
 } from "@/ui";
-import { IconArrowsMaximize } from "@tabler/icons-react";
+import { IconArrowsMaximize } from "./Icons";
 import { fetchChartPreview, type ChartPreviewData } from "../../api/chartPreview";
 import { buildChartOption } from "../chart/chartRenderer";
 import { loadEcharts } from "../../utils/loadEcharts";

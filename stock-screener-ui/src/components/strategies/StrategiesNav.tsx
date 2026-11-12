@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
+import type { JSX } from "solid-js";
 import { ToolbarRow, SegmentedControl } from "@/ui";
-import type { StrategiesNavProps } from "./types";
+import type { StrategiesNavProps, StrategyView } from "./types";
 import { CompactPanel } from "../common/compact";
 
 const VIEW_OPTIONS = [
@@ -8,25 +8,20 @@ const VIEW_OPTIONS = [
   { value: "performance", label: "Performance" },
 ] as const;
 
-export function StrategiesNav({
-  activeView,
-  onChange,
-  children,
-}: StrategiesNavProps & { children?: ReactNode }) {
+export function StrategiesNav(props: StrategiesNavProps & { children?: JSX.Element }) {
   return (
     <CompactPanel
-      className="strategies-nav"
+      className="strategies-nav flex-1 min-h-0 flex flex-col"
       id="strategies-nav"
       testId="strategies-nav"
       title="Strategies"
       description="Manage templates, variations, and performance in one place"
       scrollable
-      className="flex-1 min-h-0 flex flex-col"
     >
       <ToolbarRow gap={8} wrap={false}>
         <SegmentedControl
-          value={activeView}
-          onChange={onChange}
+          value={props.activeView}
+          onChange={(value) => props.onChange(value as StrategyView)}
           size="sm"
           data-testid="strategies-nav-tabs"
           className="strategies-nav-tabs"
@@ -36,7 +31,7 @@ export function StrategiesNav({
           }))}
         />
       </ToolbarRow>
-      <div style={{ "margin-top": 8, flex: 1, "min-height": 0 }}>{children}</div>
+      <div style={{ "margin-top": "8px", flex: 1, "min-height": 0 }}>{props.children}</div>
     </CompactPanel>
   );
 }

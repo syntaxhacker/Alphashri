@@ -1,26 +1,26 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import type { SimStrategyResult } from "@/types/reportSim";
 import type { StrategyView } from "./simView";
 import { SimPayoff } from "./SimPayoff";
 
 const setChartOptionMock = vi.fn().mockResolvedValue(undefined);
 
-vi.mock("@/hooks/useECharts", () => ({
-  useECharts: () => ({
-    chartRef: { current: document.createElement("div") },
-    chartInstance: { current: null },
+vi.mock("../echartsSolid", () => ({
+  createECharts: () => ({
+    ref: () => {},
     setChartOption: setChartOptionMock,
   }),
 }));
 
-import { useECharts } from "@/hooks/useECharts";
+import { createECharts } from "../echartsSolid";
 
 // Captures the same mock the factory installs; vi.mocked types it for the
 // toHaveBeenCalled assertions below.
-const setChartOption = vi.mocked(useECharts().setChartOption);
+const setChartOption = vi.mocked(createECharts().setChartOption);
 
 function strategy(): SimStrategyResult {
   return {
@@ -97,7 +97,7 @@ describe("SimPayoff", () => {
   });
 
   test("draws the expiry payoff chart", () => {
-    render(<SimPayoff strategy={strategy()} view={view()} spot={25000} />);
+    render(() => <SimPayoff strategy={strategy()} view={view()} spot={25000} />);
     expect(setChartOption).toHaveBeenCalledTimes(1);
 
     const option = setChartOption.mock.lastCall?.[0] as {
@@ -111,22 +111,15 @@ describe("SimPayoff", () => {
   });
 
   test("redraws the mark when the playhead moves", () => {
-    const { rerender } = render(
-      <SimPayoff strategy={strategy()} view={view()} spot={25000} />,
-    );
+    const [viewSig, setViewSig] = createSignal(view());
+    render(() => <SimPayoff strategy={strategy()} view={viewSig()} spot={25000} />);
     expect(setChartOption).toHaveBeenCalledTimes(1);
 
-    rerender(
-      <SimPayoff
-        strategy={strategy()}
-        view={view({
-          equity: [{ t: "2026-11-09T11:00:00+05:30", pnl: 2222 }],
-          unrealized: 2222,
-          total: 2222,
-        })}
-        spot={25000}
-      />,
-    );
+    setViewSig(view({
+      equity: [{ t: "2026-11-09T11:00:00+05:30", pnl: 2222 }],
+      unrealized: 2222,
+      total: 2222,
+    }));
     expect(setChartOption).toHaveBeenCalledTimes(2);
 
     const option = setChartOption.mock.lastCall?.[0] as {
@@ -149,7 +142,7 @@ describe("SimPayoff", () => {
   });
 
   test("shows the plan, not the entry structure, before the fill", () => {
-    render(
+    render(() => (
       <SimPayoff
         strategy={strategy()}
         view={view({
@@ -162,8 +155,8 @@ describe("SimPayoff", () => {
         planLegs={[{ action: "SELL", opt: "CE", strike: "ATM+2", lots: 1 }]}
         entryTime="09:35"
         spot={25000}
-      />,
-    );
+      />
+    ));
 
     expect(screen.getByTestId("sim-payoff-not-entered")).toBeInTheDocument();
     expect(screen.queryByTestId("sim-payoff-debit")).toBeNull();
@@ -175,7 +168,7 @@ describe("SimPayoff", () => {
   });
 
   test("shows the empty state until the desk runs", () => {
-    render(<SimPayoff strategy={null} view={undefined} spot={25000} />);
+    render(() => <SimPayoff strategy={null} view={undefined} spot={25000} />);
     expect(screen.getByTestId("sim-payoff-empty")).toBeInTheDocument();
     expect(
       screen.getByText("Run the desk to see the expiry payoff"),

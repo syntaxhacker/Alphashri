@@ -1,4 +1,4 @@
-import { splitProps } from "solid-js";
+import { Show, splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
 import type { UIAlertProps } from "../types";

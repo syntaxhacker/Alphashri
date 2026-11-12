@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { MemoryRouter, Route } from "@solidjs/router";
 import ChartView from "../../pages/chart/ChartView";
 import {
   MOCK_CHART_DATA,

@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, cleanup, within, fireEvent } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { createSignal } from "solid-js";
+import { render, screen, waitFor, cleanup, within, fireEvent } from "@solidjs/testing-library";
 import { EditableNumberCell } from "./EditableNumberCell";
 
 afterEach(() => {
@@ -17,21 +17,24 @@ beforeEach(() => {
   mockOnUpdate.mockResolvedValue(undefined);
 });
 
-function renderCell(props: Partial<Parameters<typeof EditableNumberCell>[0]> = {}) {
-  return render(
+function renderCell(partial: Partial<Parameters<typeof EditableNumberCell>[0]> = {}) {
+  const { value, ...rest } = partial;
+  const [valueSig, setValue] = createSignal(value ?? 1.5);
+  const utils = render(() => (
     <EditableNumberCell
-      value={1.5}
+      value={valueSig()}
       field="sl_pct"
       strategyId={1}
       onUpdate={mockOnUpdate}
-      {...props}
-    />,
-  );
+      {...rest}
+    />
+  ));
+  return { ...utils, setValue };
 }
 
 function getInput(testId: string) {
   const outer = screen.getByTestId(testId);
-  // NumberInput renders TextField with input role spinbutton inside
+  // NumberInput renders a native input with role spinbutton inside
   return within(outer).getByRole("spinbutton") as HTMLInputElement;
 }
 
@@ -42,11 +45,10 @@ describe("EditableNumberCell", () => {
   });
 
   it("calls onUpdate on blur when value changes", async () => {
-      const user = userEvent.setup();
     renderCell();
     const input = getInput("editable-sl_pct-1");
-    await user.clear(input); await user.type(input, "2");
-    await user.tab() // blur input;
+    fireEvent.input(input, { target: { value: "2" } });
+    fireEvent.blur(input);
 
     await waitFor(() => {
       expect(mockOnUpdate).toHaveBeenCalledWith(1, "sl_pct", 2.0);
@@ -54,33 +56,30 @@ describe("EditableNumberCell", () => {
   });
 
   it("does not call onUpdate on blur when value is unchanged", async () => {
-      const user = userEvent.setup();
     renderCell();
     const input = getInput("editable-sl_pct-1");
-    await user.click(input);
-    await user.tab() // blur input;
+    fireEvent.click(input);
+    fireEvent.blur(input);
 
     expect(mockOnUpdate).not.toHaveBeenCalled();
   });
 
   it("does not call onUpdate on blur when value is invalid", async () => {
-      const user = userEvent.setup();
     renderCell();
     const input = getInput("editable-sl_pct-1");
-    await user.clear(input);
-    await user.tab() // blur input;
+    fireEvent.input(input, { target: { value: "" } });
+    fireEvent.blur(input);
 
     expect(mockOnUpdate).not.toHaveBeenCalled();
   });
 
   it("reverts value on update failure", async () => {
-      const user = userEvent.setup();
     mockOnUpdate.mockRejectedValue(new Error("fail"));
 
     renderCell();
     const input = getInput("editable-sl_pct-1");
-    await user.clear(input); await user.type(input, "2");
-    await user.tab() // blur input;
+    fireEvent.input(input, { target: { value: "2" } });
+    fireEvent.blur(input);
 
     await waitFor(() => {
       expect(mockOnUpdate).toHaveBeenCalled();
@@ -89,11 +88,10 @@ describe("EditableNumberCell", () => {
   });
 
   it("calls onUpdate on Enter key", async () => {
-      const user = userEvent.setup();
     renderCell();
     const input = getInput("editable-sl_pct-1");
-    await user.clear(input); await user.type(input, "2");
-    await user.keyboard("{Enter}");
+    fireEvent.input(input, { target: { value: "2" } });
+    fireEvent.keyDown(input, { key: "Enter" });
     fireEvent.blur(input);
 
     await waitFor(() => {
@@ -102,38 +100,34 @@ describe("EditableNumberCell", () => {
   });
 
   it("reverts value on Escape key without saving", async () => {
-      const user = userEvent.setup();
     renderCell();
     const input = getInput("editable-sl_pct-1");
-    await user.clear(input); await user.type(input, "2");
-    await user.keyboard("{Escape}");
+    fireEvent.input(input, { target: { value: "2" } });
+    fireEvent.keyDown(input, { key: "Escape" });
 
     expect(mockOnUpdate).not.toHaveBeenCalled();
     expect(getInput("editable-sl_pct-1")).toHaveValue(1.5);
   });
 
   it("stops propagation on key events", async () => {
-      const user = userEvent.setup();
     const onDivKeyDown = vi.fn();
-    render(
+    render(() => (
       <div onKeyDown={onDivKeyDown}>
         <EditableNumberCell value={1.5} field="sl_pct" strategyId={1} onUpdate={mockOnUpdate} />
-      </div>,
-    );
+      </div>
+    ));
 
     const input = getInput("editable-sl_pct-1");
-    await user.click(input);
-    await user.keyboard("{Enter}");
+    fireEvent.keyDown(input, { key: "Enter" });
 
     expect(onDivKeyDown).not.toHaveBeenCalled();
   });
 
   it("handles integer fields (max_positions)", async () => {
-      const user = userEvent.setup();
     renderCell({ value: 5, field: "max_positions", step: 1, decimalScale: 0, min: 1, max: 20 });
     const input = getInput("editable-max_positions-1");
-    await user.clear(input); await user.type(input, "8");
-    await user.tab() // blur input;
+    fireEvent.input(input, { target: { value: "8" } });
+    fireEvent.blur(input);
 
     await waitFor(() => {
       expect(mockOnUpdate).toHaveBeenCalledWith(1, "max_positions", 8);
@@ -141,23 +135,18 @@ describe("EditableNumberCell", () => {
   });
 
   it("syncs with external value changes", () => {
-    const { rerender } = renderCell();
-    rerender(
-      <EditableNumberCell value={2.5} field="sl_pct" strategyId={1} onUpdate={mockOnUpdate} />,
-    );
+    const { setValue } = renderCell();
+    setValue(2.5);
 
     expect(getInput("editable-sl_pct-1")).toHaveValue(2.5);
   });
 
   it("does not sync external value while user is editing dirty value", async () => {
-      const user = userEvent.setup();
-    const { rerender } = renderCell();
+    const { setValue } = renderCell();
     const input = getInput("editable-sl_pct-1");
-    await user.clear(input); await user.type(input, "2");
+    fireEvent.input(input, { target: { value: "2" } });
 
-    rerender(
-      <EditableNumberCell value={3.0} field="sl_pct" strategyId={1} onUpdate={mockOnUpdate} />,
-    );
+    setValue(3.0);
 
     expect(getInput("editable-sl_pct-1")).toHaveValue(2);
   });

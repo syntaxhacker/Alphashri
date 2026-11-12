@@ -1,9 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, fireEvent, cleanup, waitFor, within } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import { TestWrapper } from "../../test/test-utils";
 import type { StrategyConfig } from "../../types/strategies";
 import type { PaperTradingState } from "../../types/paperTrading";
 
@@ -210,12 +208,12 @@ describe("PaperSettings", () => {
 
   describe("SettingsLoadingState", () => {
     it("renders Card with data-testid='settings-panel'", () => {
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       expect(screen.getByTestId("settings-panel")).toBeInTheDocument();
     });
 
     it("shows Loader and 'Loading configuration...' text", () => {
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       expect(screen.getByText("Loading configuration...")).toBeInTheDocument();
     });
   });
@@ -228,7 +226,7 @@ describe("PaperSettings", () => {
     });
 
     it("renders Alert with data-testid='settings-error' showing error message", () => {
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       const alert = screen.getByTestId("settings-error");
       expect(alert).toBeInTheDocument();
       expect(alert).toHaveTextContent("Error");
@@ -236,12 +234,12 @@ describe("PaperSettings", () => {
     });
 
     it("retry button data-testid='retry-button' is visible", () => {
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       expect(screen.getByTestId("retry-button")).toBeInTheDocument();
     });
 
     it("clicking retry calls fetchStrategyConfig", () => {
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       const retryButton = screen.getByTestId("retry-button");
       retryButton.click();
       expect(fetchStrategyConfig).toHaveBeenCalled();
@@ -253,7 +251,7 @@ describe("PaperSettings", () => {
       getPaperTradingState.mockImplementation(() =>
         createMockState({ configLoading: true, strategyConfig: null }),
       );
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       expect(screen.getByTestId("settings-panel")).toBeInTheDocument();
       expect(screen.getByText("Loading configuration...")).toBeInTheDocument();
     });
@@ -262,14 +260,14 @@ describe("PaperSettings", () => {
       getPaperTradingState.mockImplementation(() =>
         createMockState({ configError: "Load failed", strategyConfig: null }),
       );
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       expect(screen.getByTestId("settings-error")).toBeInTheDocument();
       expect(screen.getByText("Load failed")).toBeInTheDocument();
     });
 
     it("shows SettingsLoadingState when !strategyConfig (initial state)", () => {
       getPaperTradingState.mockImplementation(() => createMockState({ strategyConfig: null }));
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       expect(screen.getByTestId("settings-panel")).toBeInTheDocument();
       expect(screen.getByText("Loading configuration...")).toBeInTheDocument();
     });
@@ -283,7 +281,7 @@ describe("PaperSettings", () => {
     });
 
     it("shows strategy name and type in header", async () => {
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       await waitFor(() => {
         // Strategy name appears in its own text node
         expect(screen.getByText(/ORB Strategy/)).toBeInTheDocument();
@@ -294,7 +292,7 @@ describe("PaperSettings", () => {
       getPaperTradingState.mockImplementation(() =>
         createMockState({ strategyConfig: mockConfig, configDirty: true, configLoading: false }),
       );
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       expect(screen.getByText("Unsaved Changes")).toBeInTheDocument();
     });
 
@@ -302,28 +300,27 @@ describe("PaperSettings", () => {
       getPaperTradingState.mockImplementation(() =>
         createMockState({ strategyConfig: mockConfig, configDirty: false, configLoading: false }),
       );
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       expect(screen.queryByText("Unsaved Changes")).not.toBeInTheDocument();
     });
 
     it("strategy selector with options marks default with '(Default)'", async () => {
-      const user = userEvent.setup();
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       await waitFor(() => {
         expect(screen.getByTestId("strategy-selector")).toBeInTheDocument();
       });
       // Options render in the dropdown Menu (portal) once opened
-      await user.click(within(screen.getByTestId("strategy-selector")).getByRole("combobox"));
+      await fireEvent.click(within(screen.getByTestId("strategy-selector")).getByRole("combobox"));
       expect(await screen.findByRole("option", { name: "ORB Strategy (Default)" })).toBeInTheDocument();
     });
 
     it("manage button is visible", () => {
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       expect(screen.getByTestId("manage-strategies-button")).toBeInTheDocument();
     });
 
     it("shows all four section headers", () => {
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       expect(screen.getByTestId("orb-section-header")).toBeInTheDocument();
       expect(screen.getByText("ORB Settings")).toBeInTheDocument();
       expect(screen.getByTestId("risk-section-header")).toBeInTheDocument();
@@ -335,7 +332,7 @@ describe("PaperSettings", () => {
     });
 
     it("SettingsActions at bottom with correct loading/dirty props", () => {
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       expect(screen.getByTestId("save-settings-button")).toBeInTheDocument();
       expect(screen.getByTestId("reset-settings-button")).toBeInTheDocument();
     });
@@ -363,7 +360,7 @@ describe("PaperSettings", () => {
           configLoading: true,
         }),
       );
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       // disabled state lives on the combobox inside the FormControl wrapper
       // (jest-dom toBeDisabled ignores aria-disabled on divs -> assert directly)
       const select = within(screen.getByTestId("strategy-selector")).getByRole("combobox");
@@ -374,7 +371,7 @@ describe("PaperSettings", () => {
       getPaperTradingState.mockImplementation(() =>
         createMockState({ strategyConfig: mockConfig, configLoading: true }),
       );
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       const select = within(screen.getByTestId("strategy-selector")).getByRole("combobox");
       expect(select).toBeDisabled();
     });
@@ -384,15 +381,14 @@ describe("PaperSettings", () => {
       getPaperTradingState.mockImplementation(() =>
         createMockState({ strategyConfig: mockConfig, configLoading: false }),
       );
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       // Wait for strategies to load so select is enabled
       const combo = within(screen.getByTestId("strategy-selector")).getByRole("combobox");
       await waitFor(() => {
         expect(combo).not.toBeDisabled();
         expect(combo.querySelectorAll("option").length).toBeGreaterThan(1);
       });
-      const user = userEvent.setup();
-      await user.selectOptions(combo, "2");
+      await fireEvent.input(combo, "2");
       expect(fetchStrategyConfig).toHaveBeenCalledWith(2);
     });
   });
@@ -402,7 +398,7 @@ describe("PaperSettings", () => {
       getPaperTradingState.mockImplementation(() =>
         createMockState({ strategyConfig: mockConfig, configError: "Failed to save settings" }),
       );
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       expect(screen.getByText("Failed to save settings")).toBeInTheDocument();
     });
 
@@ -410,7 +406,7 @@ describe("PaperSettings", () => {
       getPaperTradingState.mockImplementation(() =>
         createMockState({ strategyConfig: mockConfig, configError: "Some error occurred" }),
       );
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       const alert = screen.getByText("Some error occurred").closest('[role="alert"]');
       expect(alert).toBeInTheDocument();
       expect(screen.getByRole("alert")).toHaveTextContent("Some error occurred");
@@ -419,12 +415,12 @@ describe("PaperSettings", () => {
 
   describe("usePaperSettingsData integration", () => {
     it("on mount, calls listStrategies(false)", () => {
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       expect(listStrategies).toHaveBeenCalledWith(false);
     });
 
     it("finds default strategy and calls fetchStrategyConfig", async () => {
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       await waitFor(() => {
         expect(fetchStrategyConfig).toHaveBeenCalledWith(1);
       });
@@ -434,7 +430,7 @@ describe("PaperSettings", () => {
       const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       listStrategies.mockRejectedValue(new Error("Network error"));
       getPaperTradingState.mockImplementation(() => createMockState());
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       await waitFor(() => {
         expect(consoleSpy).toHaveBeenCalledWith("Failed to load strategies:", expect.any(Error));
       });
@@ -446,7 +442,7 @@ describe("PaperSettings", () => {
     it("empty strategies array", async () => {
       listStrategies.mockResolvedValue({ strategies: [], count: 0 });
       getPaperTradingState.mockImplementation(() => createMockState());
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       await waitFor(() => {
         expect(listStrategies).toHaveBeenCalled();
       });
@@ -459,7 +455,7 @@ describe("PaperSettings", () => {
       ];
       listStrategies.mockResolvedValue({ strategies: strategiesNoDefault, count: 2 });
       getPaperTradingState.mockImplementation(() => createMockState());
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       await waitFor(() => {
         expect(fetchStrategyConfig).not.toHaveBeenCalled();
       });
@@ -476,7 +472,7 @@ describe("PaperSettings", () => {
         strategies: [strategyNoDesc, mockStrategy2],
         count: 2,
       });
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       expect(screen.getByText(/ORB Strategy/)).toBeInTheDocument();
       // The description paragraph (size="xs" with dimmed color) should NOT be rendered
       // when strategyConfig.description is null. Exclude section headers and the
@@ -507,7 +503,7 @@ describe("PaperSettings", () => {
           configLoading: false,
         }),
       );
-      render(<PaperSettings />, { wrapper: TestWrapper });
+      render(() => <PaperSettings />);
       expect(screen.getByText("Something went wrong")).toBeInTheDocument();
       expect(screen.getByTestId("settings-panel")).toBeInTheDocument();
     });

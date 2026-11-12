@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "@solidjs/router";
 import { OptionsPage } from "@/components/options/OptionsPage";
 import { MOCK_OPTION_CHAIN, MOCK_SPOT_NIFTY } from "@/stories/fixtures";
 

@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test } from "vitest";
-import { createElement as h } from "react";
-import { cleanup, render, screen, within } from "@testing-library/react";
+
+import { render, screen, cleanup, within } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import {
   bucketLabel,
@@ -39,11 +39,11 @@ function leg(ceLtp: number, peLtp: number, ceOi: number, peOi: number): number[]
 }
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
-  return h(UIProvider, null, children);
+  return <UIProvider>children</UIProvider>;
 }
 
 function renderMigration(props: { rows: WallMigrationRow[]; bucketMin?: number }) {
-  return render(h(TestWrapper, null, h(NiftyWallMigration, props)));
+  return render(() => <TestWrapper>h(NiftyWallMigration, props)</TestWrapper>);
 }
 
 describe("parseClockMinutes", () => {

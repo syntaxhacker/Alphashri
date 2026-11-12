@@ -114,7 +114,7 @@ export function NiftyDeskGuide({ open: openProp, onOpenChange }: NiftyDeskGuideP
               className={`min-w-0 ${i % 3 !== 0 ? "min-[900px]:border-l min-[900px]:border-l-[var(--term-border)] min-[900px]:pl-2" : ""}`}
               style={{
                 "padding-top": "8px",
-                borderTop: `1px solid ${palette.TERM_BORDER}`,
+                "border-top": `1px solid ${palette.TERM_BORDER}`,
               }}
             >
               <div

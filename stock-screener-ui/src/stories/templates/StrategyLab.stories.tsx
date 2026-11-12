@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useEffect } from "react";
+import { createEffect, onCleanup } from "solid-js";
 import { BacktestPage } from "@/components/backtest/BacktestPage";
 import { MOCK_BACKTEST_RESULTS } from "../fixtures";
 import { setResults, setStrategies, setVariations, resetBacktestState } from "@/state/backtest";

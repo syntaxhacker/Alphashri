@@ -67,7 +67,7 @@ function tapeCell(
           : {}),
         overflow: "hidden",
         "text-overflow": "ellipsis",
-        fontVariantNumeric: "tabular-nums",
+        "font-variant-numeric": "tabular-nums",
         ...(tint ? { background: tint } : {}),
       }}
     >
@@ -168,7 +168,7 @@ export function getNiftyTapeColumns(
               "justify-content": "flex-end",
               gap: "4px",
               overflow: "hidden",
-              fontVariantNumeric: "tabular-nums",
+              "font-variant-numeric": "tabular-nums",
             }}
           >
             <Text span fw={REPORT_FONT_WEIGHT.bold} c={TAPE_SPOT} style={{ "font-size": REPORT_FONT.sm }}>

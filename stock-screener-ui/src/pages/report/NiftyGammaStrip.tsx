@@ -75,7 +75,7 @@ function Field({
           color: palette.TEXT,
           "font-size": 10.5,
           "font-weight": 700,
-          fontVariantNumeric: "tabular-nums",
+          "font-variant-numeric": "tabular-nums",
           "white-space": "nowrap",
         }}
       >
@@ -193,8 +193,8 @@ export function NiftyGammaStrip({
           border: `1px solid ${palette.TERM_BORDER}`,
           "border-radius": 4,
           "background-color": palette.TERM_HEADER,
-          fontFamily: palette.MONO,
-          fontVariantNumeric: "tabular-nums",
+          "font-family": palette.MONO,
+          "font-variant-numeric": "tabular-nums",
         }}
       >
         <Box

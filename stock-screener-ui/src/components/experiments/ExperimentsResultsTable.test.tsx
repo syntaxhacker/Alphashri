@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, within } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { ExperimentsResultsTable } from "./ExperimentsResultsTable";
@@ -21,7 +20,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function Wrapper({ children }: { children: React.ReactNode }) {
+function Wrapper({ children }: { children: JSX.Element }) {
   return <UIProvider>{children}</UIProvider>;
 }
 
@@ -106,7 +105,7 @@ describe("ExperimentsResultsTable", () => {
   });
 
   it("renders empty state when no results", () => {
-    render(<ExperimentsResultsTable />, { wrapper: Wrapper });
+    render(() => (<ExperimentsResultsTable />), { wrapper: Wrapper });
     expect(screen.getByTestId("experiments-results-empty")).toBeInTheDocument();
   });
 
@@ -117,7 +116,7 @@ describe("ExperimentsResultsTable", () => {
         makeRun({ run: 2, status: "discard", description: "Wide SL" }),
       ],
     });
-    render(<ExperimentsResultsTable />, { wrapper: Wrapper });
+    render(() => (<ExperimentsResultsTable />), { wrapper: Wrapper });
     expect(screen.getByTestId("experiments-run-row-1")).toBeInTheDocument();
     expect(screen.getByTestId("experiments-run-row-2")).toBeInTheDocument();
     expect(screen.getByTestId("experiments-status-1")).toHaveTextContent(
@@ -134,7 +133,7 @@ describe("ExperimentsResultsTable", () => {
     currentState = makeState({
       results: [makeRun({ description: "" })],
     });
-    render(<ExperimentsResultsTable />, { wrapper: Wrapper });
+    render(() => (<ExperimentsResultsTable />), { wrapper: Wrapper });
     expect(screen.getByText(/sl_pct=1/)).toBeInTheDocument();
   });
 
@@ -144,7 +143,7 @@ describe("ExperimentsResultsTable", () => {
       metrics: makeMetrics({ profit_factor: 2.4 }),
     });
     currentState = makeState({ results: [makeRun(), best] });
-    render(<ExperimentsResultsTable />, { wrapper: Wrapper });
+    render(() => (<ExperimentsResultsTable />), { wrapper: Wrapper });
     expect(screen.getByTestId("experiments-run-row-2")).toBeInTheDocument();
     expect(screen.getByTestId("experiments-run-row-1")).toBeInTheDocument();
     // best PF is 2.4, check that row with PF 2.4 is rendered
@@ -156,7 +155,7 @@ describe("ExperimentsResultsTable", () => {
       results: [makeRun(), makeRun({ run: 2 })],
       selectedRun: makeRun({ run: 2 }),
     });
-    render(<ExperimentsResultsTable />, { wrapper: Wrapper });
+    render(() => (<ExperimentsResultsTable />), { wrapper: Wrapper });
     expect(screen.getByTestId("experiments-run-row-2")).toBeInTheDocument();
     expect(screen.getByTestId("experiments-run-row-1")).toBeInTheDocument();
   });
@@ -168,7 +167,7 @@ describe("ExperimentsResultsTable", () => {
         makeRun({ run: 2, metrics: makeMetrics({ total_trades: 42 }) }),
       ],
     });
-    render(<ExperimentsResultsTable />, { wrapper: Wrapper });
+    render(() => (<ExperimentsResultsTable />), { wrapper: Wrapper });
     expect(screen.getByTestId("experiments-low-sample-1")).toHaveTextContent(
       "⚠ Low sample",
     );
@@ -178,14 +177,13 @@ describe("ExperimentsResultsTable", () => {
   });
 
   it("expands a run to show per-symbol rows", async () => {
-    const user = userEvent.setup();
-    currentState = makeState({ results: [makeRun()] });
-    render(<ExperimentsResultsTable />, { wrapper: Wrapper });
+        currentState = makeState({ results: [makeRun()] });
+    render(() => (<ExperimentsResultsTable />), { wrapper: Wrapper });
     expect(
       screen.queryByTestId("experiments-symbol-row-1-TCS"),
     ).not.toBeInTheDocument();
 
-    await user.click(screen.getByTestId("experiments-expand-1"));
+    await fireEvent.click(screen.getByTestId("experiments-expand-1"));
 
     expect(
       screen.getByTestId("experiments-symbol-row-1-TCS"),
@@ -201,32 +199,30 @@ describe("ExperimentsResultsTable", () => {
   });
 
   it("expanding does not select the run", async () => {
-    const user = userEvent.setup();
-    currentState = makeState({ results: [makeRun()] });
-    render(<ExperimentsResultsTable />, { wrapper: Wrapper });
-    await user.click(screen.getByTestId("experiments-expand-1"));
+        currentState = makeState({ results: [makeRun()] });
+    render(() => (<ExperimentsResultsTable />), { wrapper: Wrapper });
+    await fireEvent.click(screen.getByTestId("experiments-expand-1"));
     const { selectRun } = await import("../../state/experiments");
     expect(selectRun).not.toHaveBeenCalled();
   });
 
   it("filters runs by symbol via the symbol filter", async () => {
-    const user = userEvent.setup();
-    const run1 = makeRun({ run: 1, symbols: ["TCS", "RELIANCE"] });
+        const run1 = makeRun({ run: 1, symbols: ["TCS", "RELIANCE"] });
     const run2 = makeRun({
       run: 2,
       symbols: ["INFY"],
       description: "INFY only",
     });
     currentState = makeState({ results: [run1, run2] });
-    render(<ExperimentsResultsTable />, { wrapper: Wrapper });
+    render(() => (<ExperimentsResultsTable />), { wrapper: Wrapper });
 
     expect(screen.getByTestId("experiments-run-row-1")).toBeInTheDocument();
     expect(screen.getByTestId("experiments-run-row-2")).toBeInTheDocument();
 
     const combo = within(screen.getByTestId("experiments-symbol-filter")).getByRole("combobox");
-    await user.click(combo);
+    await fireEvent.click(combo);
     const option = await screen.findByRole("option", { name: "TCS" });
-    await user.click(option);
+    await fireEvent.click(option);
 
     expect(screen.getByTestId("experiments-run-row-1")).toBeInTheDocument();
     expect(
@@ -235,18 +231,17 @@ describe("ExperimentsResultsTable", () => {
   });
 
   it("filters per-symbol rows by the selected symbol", async () => {
-    const user = userEvent.setup();
-    currentState = makeState({ results: [makeRun()] });
-    render(<ExperimentsResultsTable />, { wrapper: Wrapper });
-    await user.click(screen.getByTestId("experiments-expand-1"));
+        currentState = makeState({ results: [makeRun()] });
+    render(() => (<ExperimentsResultsTable />), { wrapper: Wrapper });
+    await fireEvent.click(screen.getByTestId("experiments-expand-1"));
     expect(
       screen.getByTestId("experiments-symbol-row-1-RELIANCE"),
     ).toBeInTheDocument();
 
     const combo = within(screen.getByTestId("experiments-symbol-filter")).getByRole("combobox");
-    await user.click(combo);
+    await fireEvent.click(combo);
     const option = await screen.findByRole("option", { name: "TCS" });
-    await user.click(option);
+    await fireEvent.click(option);
 
     expect(
       screen.getByTestId("experiments-symbol-row-1-TCS"),
@@ -257,39 +252,37 @@ describe("ExperimentsResultsTable", () => {
   });
 
   it("calls selectRun when a row is clicked", async () => {
-    const user = userEvent.setup();
-    const run1 = makeRun({ run: 1 });
+        const run1 = makeRun({ run: 1 });
     currentState = makeState({ results: [run1, makeRun({ run: 2 })] });
-    render(<ExperimentsResultsTable />, { wrapper: Wrapper });
+    render(() => (<ExperimentsResultsTable />), { wrapper: Wrapper });
 
-    await user.click(screen.getByTestId("experiments-run-row-1"));
+    await fireEvent.click(screen.getByTestId("experiments-run-row-1"));
     const { selectRun } = await import("../../state/experiments");
     expect(selectRun).toHaveBeenCalledWith(run1);
   });
 
   it("sorts by a column and toggles direction", async () => {
-    const user = userEvent.setup();
-    currentState = makeState({
+        currentState = makeState({
       results: [
         makeRun({ run: 1, metrics: makeMetrics({ net_pnl: 15000 }) }),
         makeRun({ run: 2, metrics: makeMetrics({ net_pnl: 40000 }) }),
         makeRun({ run: 3, metrics: makeMetrics({ net_pnl: 8000 }) }),
       ],
     });
-    render(<ExperimentsResultsTable />, { wrapper: Wrapper });
+    render(() => (<ExperimentsResultsTable />), { wrapper: Wrapper });
 
-    await user.click(screen.getByTestId("experiments-sort-net_pnl"));
+    await fireEvent.click(screen.getByTestId("experiments-sort-net_pnl"));
     const rows = screen.getAllByTestId(/experiments-run-row-/);
     expect(rows[0].textContent).toContain("2");
 
-    await user.click(screen.getByTestId("experiments-sort-net_pnl"));
+    await fireEvent.click(screen.getByTestId("experiments-sort-net_pnl"));
     const rowsAsc = screen.getAllByTestId(/experiments-run-row-/);
     expect(rowsAsc[0].textContent).toContain("3");
   });
 
   it("renders TP/SL/EOD and formatted net P&L", () => {
     currentState = makeState({ results: [makeRun()] });
-    render(<ExperimentsResultsTable />, { wrapper: Wrapper });
+    render(() => (<ExperimentsResultsTable />), { wrapper: Wrapper });
     expect(screen.getByText("5/12/3")).toBeInTheDocument();
     expect(screen.getByText("+₹15.0K")).toBeInTheDocument();
   });

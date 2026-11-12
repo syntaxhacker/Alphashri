@@ -3,7 +3,7 @@
 // trade window. Reuses the NT TradingViewChart (lightweight-charts).
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as palette from "@/ui/palette";
-import { Badge, Card, Stack, Text } from "@/ui";
+import { Badge, Text } from "@/ui";
 import { TradingViewChart } from "../chart/TradingViewChart";
 import type { MarkLineData } from "../../utils/chart/types";
 import type { SymbolChartData, ChartTrade } from "../../types/backtest";
@@ -18,6 +18,7 @@ import {
 } from "../../config/colors";
 import { mapTrades } from "./BacktestChart";
 import { DEFAULT_TRADE_FILTERS, canonicalSide, filterTrades, type TradeFilters } from "./tradeFilters";
+import { Card, Stack } from "../paper-trading/primitives";
 
 // Times are naive IST strings; parse them explicitly as +05:30 so the browser's
 // local timezone never shifts them.

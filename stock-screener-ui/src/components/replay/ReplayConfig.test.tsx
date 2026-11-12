@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 import { ReplayConfigBar } from "./ReplayConfig";
@@ -181,7 +180,6 @@ describe("ReplayConfig", () => {
 
   it("Run button calls startReplay", async () => {
     const startReplay = vi.fn();
-    const user = userEvent.setup();
     render(
       <UIProvider>
         <ReplayConfigBar
@@ -194,13 +192,12 @@ describe("ReplayConfig", () => {
         />
       </UIProvider>,
     );
-    await user.click(screen.getByTestId("replay-run-btn"));
+    await fireEvent.click(screen.getByTestId("replay-run-btn"));
     expect(startReplay).toHaveBeenCalledTimes(1);
   });
 
   it("Stop button calls stopReplay", async () => {
     const stopReplay = vi.fn();
-    const user = userEvent.setup();
     render(
       <UIProvider>
         <ReplayConfigBar
@@ -213,7 +210,7 @@ describe("ReplayConfig", () => {
         />
       </UIProvider>,
     );
-    await user.click(screen.getByTestId("replay-stop-btn"));
+    await fireEvent.click(screen.getByTestId("replay-stop-btn"));
     expect(stopReplay).toHaveBeenCalledTimes(1);
   });
 
@@ -235,7 +232,6 @@ describe("ReplayConfig", () => {
 
   it("Reset button calls reset", async () => {
     const reset = vi.fn();
-    const user = userEvent.setup();
     render(
       <UIProvider>
         <ReplayConfigBar
@@ -248,7 +244,7 @@ describe("ReplayConfig", () => {
         />
       </UIProvider>,
     );
-    await user.click(screen.getByTestId("replay-reset-btn"));
+    await fireEvent.click(screen.getByTestId("replay-reset-btn"));
     expect(reset).toHaveBeenCalledTimes(1);
   });
 });

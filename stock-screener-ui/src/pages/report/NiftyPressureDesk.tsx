@@ -451,11 +451,11 @@ function Detail({ label, value, color }: { label: string; value: string; color?:
       <div
         className="font-mono text-[12px] font-semibold tabular-nums whitespace-nowrap"
         style={{
-          fontFamily: MONO,
+          "font-family": MONO,
           "font-size": REPORT_FONT.sm,
           "font-weight": REPORT_FONT_WEIGHT.semibold,
           color: color ?? palette.TEXT,
-          fontVariantNumeric: "tabular-nums",
+          "font-variant-numeric": "tabular-nums",
           "white-space": "nowrap",
         }}
       >
@@ -552,8 +552,8 @@ function WallList({ walls, selectedKey, spot, onSelect }: WallListProps) {
           display: "grid",
           "grid-template-columns": "minmax(0,1fr) 50px 46px 58px",
           "column-gap": 0.75,
-          borderBottom: `1px solid ${BORDER}`,
-          fontFamily: MONO,
+          "border-bottom": `1px solid ${BORDER}`,
+          "font-family": MONO,
           "font-size": `${REPORT_FONT.micro}px`,
           "font-weight": String(REPORT_FONT_WEIGHT.extrabold),
           "letter-spacing": REPORT_LETTER_SPACING.wide,
@@ -596,7 +596,7 @@ function WallList({ walls, selectedKey, spot, onSelect }: WallListProps) {
                     "align-items": "center",
                     "min-height": 28,
                     px: 0.5,
-                    borderLeft: borderLeft as any,
+                    "border-left": borderLeft as any,
                     backgroundColor,
                   }}
                 >
@@ -605,7 +605,7 @@ function WallList({ walls, selectedKey, spot, onSelect }: WallListProps) {
                     <div
                       className={`font-mono text-[11px] text-fin-text whitespace-nowrap overflow-hidden overflow-ellipsis ${selected ? "font-bold" : "font-medium"}`}
                       style={{
-                        fontFamily: MONO,
+                        "font-family": MONO,
                         "font-size": REPORT_FONT.xs,
                         "font-weight": selected ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.medium,
                         color: palette.TEXT,
@@ -621,7 +621,7 @@ function WallList({ walls, selectedKey, spot, onSelect }: WallListProps) {
                   <div
                     className="font-mono text-[11px] text-right"
                     style={{
-                      fontFamily: MONO,
+                      "font-family": MONO,
                       "font-size": REPORT_FONT.xs,
                       "text-align": "right",
                       color: wall.oiPct != null && wall.oiPct < 0 ? palette.WARNING : MUTED,
@@ -882,7 +882,7 @@ export function NiftyPressureDesk({ open, onClose, walls }: NiftyPressureDeskPro
                 <WallList walls={allWalls} selectedKey={selected.key} spot={walls.spot} onSelect={setSelectedKey} />
               </Box>
             </Box>
-            <div className="mt-2 pt-[6px] border-t border-fin-border min-w-0" style={{ borderTop: `1px solid ${BORDER}`, "min-width": 0 }}>
+            <div className="mt-2 pt-[6px] border-t border-fin-border min-w-0" style={{ "border-top": `1px solid ${BORDER}`, "min-width": 0 }}>
               <div className="flex items-baseline justify-between gap-2 mb-1">
                 <div className="mb-1.5" style={{ ...panelTitleStyles() }}>Current minute · full values</div>
                 <div className="font-mono text-[10px] text-fin-text-muted">% vs 5 / 15 / 30m</div>

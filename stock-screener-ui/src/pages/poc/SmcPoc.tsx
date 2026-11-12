@@ -1,4 +1,5 @@
 // SmcPoc — trendline + rectangle overlay POC (thin composition over replay/tick).
+import {  } from "solid-js";
 import { useMemo, useState } from "react";
 import { Box, Stack, Text, Switch, Chip, Card } from "@/ui";
 import * as palette from "@/ui/palette";

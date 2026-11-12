@@ -1,3 +1,4 @@
+import { For, Show, createMemo } from "solid-js";
 import { Box, Stack, Text, Group, Badge, useColorScheme } from "@/ui";
 import type { SectorItem } from "../../types/sector";
 import { formatPercentage } from "../../utils/ui-helpers";
@@ -41,58 +42,56 @@ function getSectorColor(avgChange: number): string {
 }
 
 function getTileSpan(index: number) {
-  if (index === 0) return { col: "span 2", row: "span 2", "min-height": 212 };
-  if (index < 3) return { col: "span 1", row: "span 1", "min-height": 102 };
-  if (index < 7) return { col: "span 1", row: "span 1", "min-height": 84 };
-  return { col: "span 1", row: "span 1", "min-height": 72 };
+  if (index === 0) return { col: "span 2", row: "span 2", minHeight: 212 };
+  if (index < 3) return { col: "span 1", row: "span 1", minHeight: 102 };
+  if (index < 7) return { col: "span 1", row: "span 1", minHeight: 84 };
+  return { col: "span 1", row: "span 1", minHeight: 72 };
 }
 
-function TreemapTile({
-  sector,
-  index,
-  span,
-  isDark,
-}: {
+function TreemapTile(props: {
   sector: ReturnType<typeof buildTreemapData>[number] & { itemStyle: { color: string } };
   index: number;
-  span: ReturnType<typeof getTileSpan>;
+  span: { col: string; row: string; minHeight: number };
   isDark: boolean;
 }) {
+  const sector = () => props.sector;
+  const index = () => props.index;
+
   return (
     <Box
       style={{
-        "grid-column": span.col,
-        "grid-row": span.row,
-        "min-height": span.minHeight,
-        background: sector.itemStyle.color,
+        "grid-column": props.span.col,
+        "grid-row": props.span.row,
+        "min-height": `${props.span.minHeight}px`,
+        background: sector().itemStyle.color,
         color: "#ffffff",
-        padding: index === 0 ? "16px" : "12px",
+        padding: index() === 0 ? "16px" : "12px",
         display: "flex",
         "flex-direction": "column",
         "justify-content": "space-between",
-        "box-shadow": isDark
+        "box-shadow": props.isDark
           ? `inset 0 1px 0 ${withAlpha(CREAM, 0.04)}`
           : `inset 0 1px 0 ${withAlpha(CREAM, 0.16)}`,
       }}
     >
       <Stack gap={4}>
-        <Text fw={800} size={index === 0 ? "lg" : "sm"} lh={1.1}>
-          {sector.name}
+        <Text fw={800} size={index() === 0 ? "lg" : "sm"} lh={1.1}>
+          {sector().name}
         </Text>
-        <Text fw={700} size={index === 0 ? "md" : "sm"} opacity={0.95}>
-          {formatPercentage(sector.avgChange)}
+        <Text fw={700} size={index() === 0 ? "md" : "sm"} opacity={0.95} className="font-mono tabular-nums">
+          {formatPercentage(sector().avgChange)}
         </Text>
       </Stack>
       <Group justify="space-between" align="flex-end" gap="xs" wrap="nowrap">
         <Stack gap={2}>
-          <Text size="xs" opacity={0.75}>
-            Stocks {sector.stockCount}
+          <Text size="xs" opacity={0.75} className="font-mono tabular-nums">
+            Stocks {sector().stockCount}
           </Text>
-          <Text size="xs" opacity={0.75}>
-            {sector.advances} / {sector.declines}
+          <Text size="xs" opacity={0.75} className="font-mono tabular-nums">
+            {sector().advances} / {sector().declines}
           </Text>
         </Stack>
-        {index < 6 ? (
+        <Show when={index() < 6}>
           <Badge
             size="xs"
             variant="filled"
@@ -102,44 +101,45 @@ function TreemapTile({
               color: "#ffffff",
             }}
           >
-            #{index + 1}
+            #{index() + 1}
           </Badge>
-        ) : null}
+        </Show>
       </Group>
     </Box>
   );
 }
 
-export function SectorTreemap({ sectors }: { sectors: SectorItem[] }) {
-  const { colorScheme } = useColorScheme();
-  const isDark = colorScheme === "dark";
+export function SectorTreemap(props: { sectors: SectorItem[] }) {
+  const { isDark } = useColorScheme();
 
-  const rawTreemapData = buildTreemapData(sectors);
-  const treemapData = rawTreemapData.map((sector) => ({
-    ...sector,
-    itemStyle: { color: getSectorColor(sector.avgChange), gapWidth: 0 },
-  }));
+  const treemapData = createMemo(() =>
+    buildTreemapData(props.sectors).map((sector) => ({
+      ...sector,
+      itemStyle: { color: getSectorColor(sector.avgChange), gapWidth: 0 },
+    })),
+  );
 
   return (
     <Box
       style={{
         display: "grid",
         "grid-template-columns": "repeat(4, minmax(0, 1fr))",
-        gridAutoRows: "minmax(72px, auto)",
+        "grid-auto-rows": "minmax(72px, auto)",
         gap: "8px",
         height: "100%",
-        "min-height": 320,
+        "min-height": "320px",
       }}
     >
-      {treemapData.map((sector, index) => (
-        <TreemapTile
-          key={sector.name}
-          sector={sector}
-          index={index}
-          span={getTileSpan(index)}
-          isDark={isDark}
-        />
-      ))}
+      <For each={treemapData()}>
+        {(sector, index) => (
+          <TreemapTile
+            sector={sector}
+            index={index()}
+            span={getTileSpan(index())}
+            isDark={isDark()}
+          />
+        )}
+      </For>
     </Box>
   );
 }

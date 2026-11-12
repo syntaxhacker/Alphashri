@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
+import type { JSX } from "solid-js";
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { BacktestSummary, resolveTotals, formatCosts, formatWinRate } from "./BacktestSummary";
 import "@testing-library/jest-dom/vitest";
@@ -10,7 +11,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function Wrapper({ children }: { children: React.ReactNode }) {
+function Wrapper({ children }: { children: JSX.Element }) {
   return <UIProvider>{children}</UIProvider>;
 }
 
@@ -101,38 +102,38 @@ describe("BacktestSummary", () => {
   };
 
   it("renders nothing when totals is null", () => {
-    render(<BacktestSummary totals={null} />, { wrapper: Wrapper });
+    render(() => <BacktestSummary totals={null} />, { wrapper: Wrapper });
     expect(screen.queryByTestId("results-summary")).not.toBeInTheDocument();
   });
 
   it("renders nothing when totals is undefined", () => {
-    render(<BacktestSummary totals={undefined} />, { wrapper: Wrapper });
+    render(() => <BacktestSummary totals={undefined} />, { wrapper: Wrapper });
     expect(screen.queryByTestId("results-summary")).not.toBeInTheDocument();
   });
 
   it("displays net P&L with correct formatting", () => {
-    render(<BacktestSummary totals={mockTotals} />, { wrapper: Wrapper });
+    render(() => <BacktestSummary totals={mockTotals} />, { wrapper: Wrapper });
     expect(screen.getByTestId("summary-net-pnl")).toHaveTextContent("+₹15.0K");
   });
 
   it("displays costs correctly", () => {
-    render(<BacktestSummary totals={mockTotals} />, { wrapper: Wrapper });
+    render(() => <BacktestSummary totals={mockTotals} />, { wrapper: Wrapper });
     expect(screen.getByTestId("summary-costs")).toHaveTextContent("₹2.5K");
   });
 
   it("displays win rate correctly", () => {
-    render(<BacktestSummary totals={mockTotals} />, { wrapper: Wrapper });
+    render(() => <BacktestSummary totals={mockTotals} />, { wrapper: Wrapper });
     expect(screen.getByTestId("summary-wr")).toHaveTextContent("66%");
   });
 
   it("displays trades count correctly", () => {
-    render(<BacktestSummary totals={mockTotals} />, { wrapper: Wrapper });
+    render(() => <BacktestSummary totals={mockTotals} />, { wrapper: Wrapper });
     expect(screen.getByTestId("summary-trades")).toHaveTextContent("42");
   });
 
   it("handles negative net P&L", () => {
     const negativeTotals = { ...mockTotals, net_pnl: -5000 };
-    render(<BacktestSummary totals={negativeTotals} />, { wrapper: Wrapper });
+    render(() => <BacktestSummary totals={negativeTotals} />, { wrapper: Wrapper });
     // formatPnl returns "+₹5.0K" for positive and "₹-5.0K" for negative
     expect(screen.getByTestId("summary-net-pnl")).toHaveTextContent("₹-5.0K");
   });
@@ -144,13 +145,13 @@ describe("BacktestSummary", () => {
       win_rate: 0,
       trades: 0,
     };
-    render(<BacktestSummary totals={zeroTotals} />, { wrapper: Wrapper });
+    render(() => <BacktestSummary totals={zeroTotals} />, { wrapper: Wrapper });
     expect(screen.getByTestId("summary-net-pnl")).toBeInTheDocument();
     expect(screen.getByTestId("summary-trades")).toHaveTextContent("0");
   });
 
   it("has proper labels for each stat", () => {
-    render(<BacktestSummary totals={mockTotals} />, { wrapper: Wrapper });
+    render(() => <BacktestSummary totals={mockTotals} />, { wrapper: Wrapper });
     expect(screen.getByText("Net PnL")).toBeInTheDocument();
     expect(screen.getByText("Costs")).toBeInTheDocument();
     expect(screen.getByText("WR")).toBeInTheDocument();

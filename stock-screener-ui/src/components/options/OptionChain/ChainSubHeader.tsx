@@ -1,14 +1,15 @@
 import { Box } from "@/ui";
 import { getStyles } from "./chainStyles";
+import type { CSSProperties } from "solid-js";
 
 interface ChainSubHeaderProps {
   styles: ReturnType<typeof getStyles>;
 }
 
-export function ChainSubHeader({ styles }: ChainSubHeaderProps) {
+export function ChainSubHeader(props: ChainSubHeaderProps) {
   // TABLE_CHECKLIST rule: numeric columns right, strike/badge center.
-  const numericHeader: React.CSSProperties = {
-    ...styles.subHeaderCell,
+  const numericHeader: CSSProperties = {
+    ...props.styles.subHeaderCell,
     display: "flex",
     "align-items": "center",
     "justify-content": "flex-end",
@@ -16,8 +17,8 @@ export function ChainSubHeader({ styles }: ChainSubHeaderProps) {
     gap: 8,
     padding: 8,
   };
-  const strikeHeader: React.CSSProperties = {
-    ...styles.subHeaderCell,
+  const strikeHeader: CSSProperties = {
+    ...props.styles.subHeaderCell,
     display: "flex",
     "align-items": "center",
     "justify-content": "center",
@@ -28,7 +29,7 @@ export function ChainSubHeader({ styles }: ChainSubHeaderProps) {
   return (
     <Box
       className="chain-table-subheader"
-      style={{ ...styles.subHeader, display: "grid", gap: 8, padding: 8 } as React.CSSProperties}
+      style={{ ...props.styles.subHeader, display: "grid", gap: 8, padding: 8 } as CSSProperties}
       data-testid="options-chain-table-subheader"
     >
       <Box style={numericHeader}>OI</Box>

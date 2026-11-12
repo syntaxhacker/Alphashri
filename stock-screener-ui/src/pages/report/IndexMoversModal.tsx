@@ -56,9 +56,9 @@ function MoversTable({
           fw={600}
           style={{
             "font-size": REPORT_FONT.xs,
-            fontVariantNumeric: "tabular-nums",
+            "font-variant-numeric": "tabular-nums",
             color: palette.TEXT_MUTED,
-            fontFamily: palette.MONO,
+            "font-family": palette.MONO,
           }}
         >
           {info.getValue()}
@@ -77,8 +77,8 @@ function MoversTable({
           fw={700}
           style={{
             "font-size": REPORT_FONT.sm,
-            fontVariantNumeric: "tabular-nums",
-            fontFamily: palette.MONO,
+            "font-variant-numeric": "tabular-nums",
+            "font-family": palette.MONO,
           }}
         >
           {info.getValue()}
@@ -97,8 +97,8 @@ function MoversTable({
           fw={600}
           style={{
             "font-size": REPORT_FONT.sm,
-            fontVariantNumeric: "tabular-nums",
-            fontFamily: palette.MONO,
+            "font-variant-numeric": "tabular-nums",
+            "font-family": palette.MONO,
           }}
         >
           {formatNumberIN(info.getValue() as number)}
@@ -120,8 +120,8 @@ function MoversTable({
             fw={700}
             style={{
               "font-size": REPORT_FONT.sm,
-              fontVariantNumeric: "tabular-nums",
-              fontFamily: palette.MONO,
+              "font-variant-numeric": "tabular-nums",
+              "font-family": palette.MONO,
               color: isGainer ? GAINER_COLOR : LOSER_COLOR,
             }}
           >
@@ -145,8 +145,8 @@ function MoversTable({
               c="dimmed"
               style={{
                 "font-size": REPORT_FONT.sm,
-                fontVariantNumeric: "tabular-nums",
-                fontFamily: palette.MONO,
+                "font-variant-numeric": "tabular-nums",
+                "font-family": palette.MONO,
               }}
             >
               —
@@ -161,8 +161,8 @@ function MoversTable({
             fw={600}
             style={{
               "font-size": REPORT_FONT.sm,
-              fontVariantNumeric: "tabular-nums",
-              fontFamily: palette.MONO,
+              "font-variant-numeric": "tabular-nums",
+              "font-family": palette.MONO,
               color: isGainer ? GAINER_COLOR : LOSER_COLOR,
             }}
           >
@@ -183,8 +183,8 @@ function MoversTable({
           c="dimmed"
           style={{
             "font-size": REPORT_FONT.xs,
-            fontVariantNumeric: "tabular-nums",
-            fontFamily: palette.MONO,
+            "font-variant-numeric": "tabular-nums",
+            "font-family": palette.MONO,
           }}
         >
           {formatNumberIN(info.getValue() as number)}

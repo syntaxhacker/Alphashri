@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { Stack, Button, Title } from "@/ui";
 import { TableLoadingState } from "./TableLoadingState";
 import { TableEmptyState } from "./TableEmptyState";
-import { IconDatabaseOff } from "@tabler/icons-react";
+import { IconDatabaseOff } from "./Icons";
 
 const meta: Meta<typeof TableLoadingState> = {
   title: "Composites/Table States",

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createEffect, createSignal, onCleanup } from "solid-js";
 import { detectPatterns } from "@/api/chartPatterns";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import type { ChartTimeframe } from "./NiftyChartPanel";
@@ -24,31 +24,28 @@ export type PatternScanState =
 export const PATTERN_LOOKBACK_BARS = 150;
 
 export interface NiftyPatternScan {
-  state: PatternScanState;
+  state: () => PatternScanState;
   scan: (tf: ChartTimeframe) => void;
   reset: () => void;
 }
 
 export function useNiftyPatternScan(): NiftyPatternScan {
-  const [state, setState] = useState<PatternScanState>({ status: "idle" });
-  const aliveRef = useRef(true);
+  const [state, setState] = createSignal<PatternScanState>({ status: "idle" });
+  let alive = true;
 
-  useEffect(() => {
-    aliveRef.current = true;
-    return () => {
-      aliveRef.current = false;
-    };
-  }, []);
+  onCleanup(() => {
+    alive = false;
+  });
 
-  const scan = useCallback((tf: ChartTimeframe) => {
+  const scan = (tf: ChartTimeframe) => {
     setState({ status: "loading", tf });
     void (async () => {
       try {
         const res = await detectPatterns("NIFTY", tf, PATTERN_LOOKBACK_BARS);
-        if (!aliveRef.current) return;
+        if (!alive) return;
         setState({ status: "ready", tf, hits: res.hits, at: Date.now() });
       } catch (err) {
-        if (!aliveRef.current) return;
+        if (!alive) return;
         setState({
           status: "error",
           tf,
@@ -56,9 +53,9 @@ export function useNiftyPatternScan(): NiftyPatternScan {
         });
       }
     })();
-  }, []);
+  };
 
-  const reset = useCallback(() => setState({ status: "idle" }), []);
+  const reset = () => setState({ status: "idle" });
 
   return { state, scan, reset };
 }

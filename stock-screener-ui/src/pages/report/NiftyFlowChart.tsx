@@ -178,7 +178,7 @@ const NiftyFlowChartInner = function NiftyFlowChart({ series, height = 64, showA
       <span
         data-testid="nifty-flowchart-last"
         title={`${points[points.length - 1].t} · flow ${series.points[points.length - 1].net.toFixed(2)}`}
-        style={{ position: "absolute", right: 0, top: "2px", "font-size": "9px", "font-weight": 800, fontFamily: palette.MONO, color: palette.PRIMARY, "white-space": "nowrap" }}
+        style={{ position: "absolute", right: 0, top: "2px", "font-size": "9px", "font-weight": 800, "font-family": palette.MONO, color: palette.PRIMARY, "white-space": "nowrap" }}
       >
         {fmtFlow(points[points.length - 1].net)}
       </span>
@@ -191,7 +191,7 @@ const NiftyFlowChartInner = function NiftyFlowChart({ series, height = 64, showA
             "padding-left": "4px", "padding-right": "4px", "padding-top": "1px", "padding-bottom": "1px",
             "background-color": palette.TERM_HEADER,
             border: `1px solid ${palette.TERM_BORDER}`, "border-radius": "3px",
-            "font-size": "9px", fontFamily: palette.MONO, color: palette.TEXT, "white-space": "nowrap", "pointer-events": "none",
+            "font-size": "9px", "font-family": palette.MONO, color: palette.TEXT, "white-space": "nowrap", "pointer-events": "none",
           }}
         >
           {hoverPoint.t} · flow {fmtFlow(hoverPoint.net)} · {hoverPoint.regime ?? "—"} book Γ
@@ -203,7 +203,7 @@ const NiftyFlowChartInner = function NiftyFlowChart({ series, height = 64, showA
             const pct = (xOf(i) / VB_W) * 100;
             const tr = pct > 92 ? "translateX(-100%)" : pct < 2 ? "none" : "translateX(-50%)";
             return (
-              <span key={`${t}-${i}`} style={{ position: "absolute", left: `${pct}%`, transform: tr, "font-size": "8px", "line-height": "12px", color: palette.TEXT_MUTED, fontFamily: palette.MONO, "white-space": "nowrap" }}>
+              <span key={`${t}-${i}`} style={{ position: "absolute", left: `${pct}%`, transform: tr, "font-size": "8px", "line-height": "12px", color: palette.TEXT_MUTED, "font-family": palette.MONO, "white-space": "nowrap" }}>
                 {t}
               </span>
             );

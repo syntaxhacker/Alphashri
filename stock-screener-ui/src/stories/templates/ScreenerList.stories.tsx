@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "@solidjs/router";
 import { ScreenerContainer } from "@/pages/screener/ScreenerContainer";
 import { MOCK_SECTOR_STOCKS } from "../fixtures";
 import type { Stock } from "@/types";

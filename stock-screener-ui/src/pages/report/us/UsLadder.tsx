@@ -53,7 +53,7 @@ export function UsLadder({ row }: { row: UsRow }) {
               className="flex items-center px-1 hover:bg-white/[0.04]"
               style={{
                 height: ROW_H,
-                borderLeft: r.isPutWall ? `2px solid ${NEGATIVE}` : "2px solid transparent",
+                "border-left": r.isPutWall ? `2px solid ${NEGATIVE}` : "2px solid transparent",
                 borderRight: r.isCallWall ? `2px solid ${POSITIVE}` : "2px solid transparent",
                 "background-color": r.isSpot
                   ? "rgba(88,166,255,0.16)"

@@ -1,16 +1,14 @@
-import { useEffect } from "react";
+import { For, Show, createEffect, createMemo, onCleanup, onMount } from "solid-js";
 import { Alert, Badge, Box, Stack, Text, ToolbarRow } from "@/ui";
-import { IconAlertCircle } from "@tabler/icons-react";
-import { useStoreSubscription } from "../../hooks/useStoreSubscription";
+import { IconAlertCircle } from "../common/Icons";
 import {
   fetchSessions,
   fetchStrategies,
-  getExperimentState,
   selectSession,
   startPolling,
   stopPolling,
-  subscribe,
 } from "../../state/experiments";
+import { useExperimentState } from "./useExperimentState";
 import { ExperimentsConfig } from "./ExperimentsConfig";
 import { ExperimentsProgress } from "./ExperimentsProgress";
 import { ExperimentsResultsTable } from "./ExperimentsResultsTable";
@@ -51,20 +49,21 @@ const paneHeaderSx = {
 } as const;
 
 export function ExperimentsPage() {
-  useStoreSubscription(subscribe);
-  const state = getExperimentState();
+  const state = useExperimentState();
+  const activeSession = createMemo(() => state().activeSession);
 
-  useEffect(() => {
+  onMount(() => {
     void fetchStrategies();
     void fetchSessions();
-  }, []);
+  });
 
-  useEffect(() => {
-    if (state.activeSession) {
-      startPolling(state.activeSession);
+  createEffect(() => {
+    const active = activeSession();
+    if (active) {
+      startPolling(active);
     }
-    return () => stopPolling();
-  }, [state.activeSession]);
+    onCleanup(() => stopPolling());
+  });
 
   return (
     <Box
@@ -82,17 +81,17 @@ export function ExperimentsPage() {
             Experiments
           </Text>
           <Text size="xs" c="dimmed">
-            {state.sessions.length} {state.sessions.length === 1 ? "session" : "sessions"}
+            {state().sessions.length} {state().sessions.length === 1 ? "session" : "sessions"}
           </Text>
         </Box>
-        {state.activeSession && (
+        <Show when={state().activeSession}>
           <Badge size="xs" variant="light" color="primary">
-            {state.activeSession}
+            {state().activeSession}
           </Badge>
-        )}
+        </Show>
       </ToolbarRow>
 
-      {state.error && (
+      <Show when={state().error}>
         <Alert
           data-testid="experiments-error"
           icon={<IconAlertCircle size={16} />}
@@ -102,9 +101,9 @@ export function ExperimentsPage() {
           withCloseButton
           style={{ flex: "0 0 auto" }}
         >
-          {state.error}
+          {state().error}
         </Alert>
-      )}
+      </Show>
 
       <Box
         className="shrink-0 overflow-auto border border-fin-border rounded-fin"
@@ -139,30 +138,32 @@ export function ExperimentsPage() {
             </Text>
             <div className="flex-1" />
             <Text size="xs" c="dimmed">
-              {state.sessions.length}
+              {state().sessions.length}
             </Text>
           </Box>
           <Box flex={1} className="min-h-0 overflow-auto p-1" style={{ flex: 1, "min-height": 0, overflow: "auto", padding: 4 }}>
-            {state.sessions.length === 0 ? (
-              <Box className="flex items-center justify-center p-2" style={{ display: "flex", "align-items": "center", "justify-content": "center", padding: 8 }}>
-                <Text size="sm" c="dimmed">
-                  No sessions yet
-                </Text>
-              </Box>
-            ) : (
+            <Show
+              when={state().sessions.length > 0}
+              fallback={
+                <Box className="flex items-center justify-center p-2" style={{ display: "flex", "align-items": "center", "justify-content": "center", padding: 8 }}>
+                  <Text size="sm" c="dimmed">
+                    No sessions yet
+                  </Text>
+                </Box>
+              }
+            >
               <Stack gap={0.5} align="stretch">
-                {state.sessions.map((session) => {
-                  const active = session.session === state.activeSession;
+                <For each={state().sessions}>{(session) => {
+                  const active = () => session.session === state().activeSession;
                   return (
                     <Box
-                      key={session.session}
                       data-testid={`experiments-session-${session.session}`}
                       onClick={() => void selectSession(session.session)}
-                      className={active ? "bg-fin-primary/15" : "hover:bg-fin-surface-alt"}
+                      className={active() ? "bg-fin-primary/15" : "hover:bg-fin-surface-alt"}
                       style={{
                         cursor: "pointer",
                         "border-radius": 8,
-                        ...(active && { "background-color": "rgba(88, 166, 255, 0.15)" }),
+                        ...(active() ? { "background-color": "rgba(88, 166, 255, 0.15)" } : {}),
                         "padding-left": 8,
                         "padding-right": 8,
                         "padding-top": 6,
@@ -197,9 +198,9 @@ export function ExperimentsPage() {
                       </Box>
                     </Box>
                   );
-                })}
+                }}</For>
               </Stack>
-            )}
+            </Show>
           </Box>
         </Box>
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js";
 import {
   Modal,
   Stack,
@@ -13,8 +13,7 @@ import {
   Text,
   MultiSelect,
 } from "@/ui";
-import { useDebouncedValue } from "@/ui";
-import { IconInfoCircle, IconAlertTriangle } from "@tabler/icons-react";
+import { IconInfoCircle, IconAlertTriangle } from "../common/Icons";
 import type { StrategyFormProps, StrategyFormData } from "./types";
 import { DEFAULT_VALUES, getInitialValues } from "./strategyDefaults";
 import { OrbParamsPanel } from "./OrbParamsPanel";
@@ -58,61 +57,67 @@ function getNumVal(formData: FormData, key: string, fallback: number): number {
   return v ? Number(v) : fallback;
 }
 
-export function StrategyForm({
-  mode,
-  strategy,
-  template,
-  opened,
-  onClose,
-  onSubmit,
-  isBotRunning,
-}: StrategyFormProps) {
-  const initialValues = useMemo(
-    () => getInitialValues({ mode, strategy, template }),
-    [mode, strategy, template],
-  );
-  const [currentStrategyType, setCurrentStrategyType] = useState(initialValues.strategy_type);
-  const [selectedProfiles, setSelectedProfiles] = useState<string[]>(
-    initialValues.screener_profiles || [],
-  );
-  const [customWatchlist, setCustomWatchlist] = useState<string[]>(
-    initialValues.custom_watchlist || [],
-  );
-  const [symbolSearch, setSymbolSearch] = useState("");
-  const [debouncedSearch] = useDebouncedValue(symbolSearch, 300);
-  const [symbolOptions, setSymbolOptions] = useState<{ value: string; label: string }[]>([]);
+function tabFor(strategyType: string): string {
+  if (strategyType === "ORB") return "orb";
+  if (strategyType === "SR_BREAKOUT") return "sr";
+  if (strategyType === "EMA_CROSS") return "ema";
+  return "52w";
+}
 
-  useEffect(() => {
-    if (debouncedSearch.trim().length < 1) return;
-    searchSymbols(debouncedSearch, 20).then((results) => {
-      setSymbolOptions(results.map((r) => ({ value: r.symbol, label: `${r.symbol} — ${r.name}` })));
-    }).catch(() => {});
-  }, [debouncedSearch]);
+export function StrategyForm(props: StrategyFormProps) {
+  const initialValues = createMemo(() =>
+    getInitialValues({ mode: props.mode, strategy: props.strategy, template: props.template }),
+  );
+  const [currentStrategyType, setCurrentStrategyType] = createSignal(initialValues().strategy_type);
+  const [selectedProfiles, setSelectedProfiles] = createSignal<string[]>(
+    initialValues().screener_profiles || [],
+  );
+  const [customWatchlist, setCustomWatchlist] = createSignal<string[]>(
+    initialValues().custom_watchlist || [],
+  );
+  const [symbolSearch, setSymbolSearch] = createSignal("");
+  const [debouncedSearch, setDebouncedSearch] = createSignal("");
+  const [symbolOptions, setSymbolOptions] = createSignal<{ value: string; label: string }[]>([]);
+  const [activeTab, setActiveTab] = createSignal(tabFor(initialValues().strategy_type));
 
-  useEffect(() => {
-    const newType = initialValues.strategy_type;
-    setCurrentStrategyType(newType);
-    setSelectedProfiles(initialValues.screener_profiles || []);
-    setCustomWatchlist(initialValues.custom_watchlist || []);
-    setActiveTab(
-      newType === "ORB"
-        ? "orb"
-        : newType === "SR_BREAKOUT"
-          ? "sr"
-          : newType === "EMA_CROSS"
-            ? "ema"
-            : "52w",
-    );
-  }, [initialValues.strategy_type, initialValues.screener_profiles, initialValues.custom_watchlist]);
-  const isIntraday = INTRADAY_TYPES.includes(currentStrategyType);
-  const isSwing = SWING_TYPES.includes(currentStrategyType);
-  const isOrb = currentStrategyType === "ORB";
-  const isSrBreakout = currentStrategyType === "SR_BREAKOUT";
-  const isEmaCross = currentStrategyType === "EMA_CROSS";
-  const is52wChaser = currentStrategyType === "52W_CHASER";
+  // Debounce the search text locally — the shared useDebouncedValue hook is
+  // value-based, not reactive, under Solid.
+  createEffect(() => {
+    const q = symbolSearch();
+    const timer = setTimeout(() => setDebouncedSearch(q), 300);
+    onCleanup(() => clearTimeout(timer));
+  });
 
-  const defaultTab = isOrb ? "orb" : isSrBreakout ? "sr" : isEmaCross ? "ema" : "52w";
-  const [activeTab, setActiveTab] = useState(defaultTab);
+  createEffect(() => {
+    const q = debouncedSearch().trim();
+    if (q.length < 1) return;
+    let cancelled = false;
+    searchSymbols(q, 20)
+      .then((results) => {
+        if (cancelled) return;
+        setSymbolOptions(results.map((r) => ({ value: r.symbol, label: `${r.symbol} — ${r.name}` })));
+      })
+      .catch(() => {});
+    onCleanup(() => {
+      cancelled = true;
+    });
+  });
+
+  // Adopt a new strategy/template load wholesale: type, tabs, profiles, watchlist.
+  createEffect(() => {
+    const iv = initialValues();
+    setCurrentStrategyType(iv.strategy_type);
+    setSelectedProfiles(iv.screener_profiles || []);
+    setCustomWatchlist(iv.custom_watchlist || []);
+    setActiveTab(tabFor(iv.strategy_type));
+  });
+
+  const isIntraday = createMemo(() => INTRADAY_TYPES.includes(currentStrategyType()));
+  const isSwing = createMemo(() => SWING_TYPES.includes(currentStrategyType()));
+  const isOrb = createMemo(() => currentStrategyType() === "ORB");
+  const isSrBreakout = createMemo(() => currentStrategyType() === "SR_BREAKOUT");
+  const isEmaCross = createMemo(() => currentStrategyType() === "EMA_CROSS");
+  const is52wChaser = createMemo(() => currentStrategyType() === "52W_CHASER");
 
   const handleSubmit = () => {
     const form = document.querySelector("[data-strategy-form]") as HTMLFormElement;
@@ -123,7 +128,7 @@ export function StrategyForm({
       name: formData.get("name") as string,
       strategy_type: formData.get("strategy_type") as string,
       parent_id:
-        template?.id || (formData.get("parent_id") ? Number(formData.get("parent_id")) : undefined),
+        props.template?.id || (formData.get("parent_id") ? Number(formData.get("parent_id")) : undefined),
       description: (formData.get("description") as string) || undefined,
       or_minutes: getNumVal(formData, "or_minutes", DEFAULT_VALUES.or_minutes),
       sl_pct: getNumVal(formData, "sl_pct", DEFAULT_VALUES.sl_pct),
@@ -173,8 +178,8 @@ export function StrategyForm({
         (form.querySelector("[name='enable_shorts']") as HTMLInputElement)?.checked ?? false,
       eod_exit_hour: getNumVal(formData, "eod_exit_hour", DEFAULT_VALUES.eod_exit_hour),
       eod_exit_minute: getNumVal(formData, "eod_exit_minute", DEFAULT_VALUES.eod_exit_minute),
-      screener_profiles: selectedProfiles.length > 0 ? selectedProfiles : undefined,
-      custom_watchlist: customWatchlist.length > 0 ? customWatchlist : undefined,
+      screener_profiles: selectedProfiles().length > 0 ? selectedProfiles() : undefined,
+      custom_watchlist: customWatchlist().length > 0 ? customWatchlist() : undefined,
     };
 
     const enableTrailingEl = form.querySelector(
@@ -190,16 +195,16 @@ export function StrategyForm({
       return;
     }
 
-    onSubmit(data);
+    props.onSubmit(data);
   };
 
   return (
     <Modal
       className="strategy-form-modal"
       id="strategy-form-modal"
-      opened={opened}
-      onClose={onClose}
-      title={<Title order={4}>{mode === "create" ? "Create Strategy" : "Edit Strategy"}</Title>}
+      opened={props.opened}
+      onClose={props.onClose}
+      title={<Title order={4}>{props.mode === "create" ? "Create Strategy" : "Edit Strategy"}</Title>}
       size="lg"
       data-testid="strategy-form-modal"
     >
@@ -214,7 +219,7 @@ export function StrategyForm({
         }}
       >
         <Stack gap="sm" className="strategy-form-content">
-          {mode === "edit" && isBotRunning && (
+          <Show when={props.mode === "edit" && props.isBotRunning}>
             <Alert
               icon={<IconAlertTriangle size={16} />}
               color="warning"
@@ -223,24 +228,26 @@ export function StrategyForm({
             >
               <Text size="sm">Bot restart required for changes to take effect</Text>
             </Alert>
-          )}
+          </Show>
 
-          {template && (
-            <Alert
-              icon={<IconInfoCircle size={16} />}
-              color="primary"
-              variant="light"
-              className="strategy-form-template-info"
-              data-testid="strategy-form-template-info"
-            >
-              <Text size="sm">
-                Creating strategy from template{" "}
-                <Text fw={500} span>
-                  {template.name}
+          <Show when={props.template}>
+            {(template) => (
+              <Alert
+                icon={<IconInfoCircle size={16} />}
+                color="primary"
+                variant="light"
+                className="strategy-form-template-info"
+                data-testid="strategy-form-template-info"
+              >
+                <Text size="sm">
+                  Creating strategy from template{" "}
+                  <Text fw={500} span>
+                    {template().name}
+                  </Text>
                 </Text>
-              </Text>
-            </Alert>
-          )}
+              </Alert>
+            )}
+          </Show>
 
           <Box className="flex items-center gap-2 p-2">
             <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Strategy Name</Text>
@@ -249,7 +256,7 @@ export function StrategyForm({
                 size="sm"
                 name="name"
                 placeholder="My Custom Strategy"
-                defaultValue={initialValues.name}
+                defaultValue={initialValues().name}
                 required
                 data-testid="strategy-name-input"
               />
@@ -263,20 +270,12 @@ export function StrategyForm({
                 size="sm"
                 name="strategy_type"
                 data={STRATEGY_TYPES}
-                defaultValue={initialValues.strategy_type}
-                disabled={mode === "edit"}
+                defaultValue={initialValues().strategy_type}
+                disabled={props.mode === "edit"}
                 onChange={(val) => {
                   if (val) {
                     setCurrentStrategyType(val);
-                    setActiveTab(
-                      val === "ORB"
-                        ? "orb"
-                        : val === "SR_BREAKOUT"
-                          ? "sr"
-                          : val === "EMA_CROSS"
-                            ? "ema"
-                            : "52w",
-                    );
+                    setActiveTab(tabFor(val));
                   }
                 }}
                 required
@@ -292,7 +291,7 @@ export function StrategyForm({
                 size="sm"
                 name="description"
                 placeholder="Optional description"
-                defaultValue={initialValues.description}
+                defaultValue={initialValues().description}
                 data-testid="strategy-description-input"
               />
             </Box>
@@ -305,7 +304,7 @@ export function StrategyForm({
                 size="sm"
                 placeholder="Select screener profiles"
                 data={SCREENER_PROFILE_OPTIONS}
-                value={selectedProfiles}
+                value={selectedProfiles()}
                 onChange={setSelectedProfiles}
                 clearable
                 searchable
@@ -321,11 +320,11 @@ export function StrategyForm({
                 size="sm"
                 placeholder="Search and add specific stocks"
                 description="Always watched alongside screener results"
-                data={symbolOptions}
-                value={customWatchlist}
+                data={symbolOptions()}
+                value={customWatchlist()}
                 onChange={setCustomWatchlist}
-                searchValue={symbolSearch}
-                onSearchChange={setSymbolSearch}
+                searchValue={symbolSearch()}
+                onSearchChange={(v) => setSymbolSearch(v)}
                 searchable
                 clearable
                 data-testid="strategy-custom-watchlist"
@@ -334,33 +333,32 @@ export function StrategyForm({
           </Box>
 
           <Tabs
-            value={activeTab}
-            onChange={setActiveTab}
-            className="strategy-form-tabs"
+            value={activeTab()}
+            onChange={(v) => v && setActiveTab(v)}
+            className="strategy-form-tabs flex flex-col items-center"
             data-testid="strategy-form-tabs"
-            className="flex flex-col items-center"
           >
             <Tabs.List className="strategy-form-tabs-list flex items-center justify-center gap-2 p-2" data-testid="strategy-form-tabs-list">
-              {isOrb && (
+              <Show when={isOrb()}>
                 <Tabs.Tab value="orb" data-testid="strategy-tab-orb">
                   ORB Params
                 </Tabs.Tab>
-              )}
-              {isSrBreakout && (
+              </Show>
+              <Show when={isSrBreakout()}>
                 <Tabs.Tab value="sr" data-testid="strategy-tab-sr">
                   S/R Breakout
                 </Tabs.Tab>
-              )}
-              {isEmaCross && (
+              </Show>
+              <Show when={isEmaCross()}>
                 <Tabs.Tab value="ema" data-testid="strategy-tab-ema">
                   EMA Params
                 </Tabs.Tab>
-              )}
-              {isSwing && (
+              </Show>
+              <Show when={isSwing()}>
                 <Tabs.Tab value="52w" data-testid="strategy-tab-52w">
                   52W Params
                 </Tabs.Tab>
-              )}
+              </Show>
               <Tabs.Tab value="risk" data-testid="strategy-tab-risk">
                 Sizing
               </Tabs.Tab>
@@ -369,20 +367,24 @@ export function StrategyForm({
               </Tabs.Tab>
             </Tabs.List>
 
-            {isOrb && <OrbParamsPanel initialValues={initialValues} isSwing={isSwing} />}
-            {isSrBreakout && (
-              <SrBreakoutParamsPanel initialValues={initialValues} isSwing={isSwing} />
-            )}
-            {isEmaCross && <EmaParamsPanel initialValues={initialValues} isSwing={isSwing} />}
-            {isSwing && (
+            <Show when={isOrb()}>
+              <OrbParamsPanel initialValues={initialValues()} isSwing={isSwing()} />
+            </Show>
+            <Show when={isSrBreakout()}>
+              <SrBreakoutParamsPanel initialValues={initialValues()} isSwing={isSwing()} />
+            </Show>
+            <Show when={isEmaCross()}>
+              <EmaParamsPanel initialValues={initialValues()} isSwing={isSwing()} />
+            </Show>
+            <Show when={isSwing()}>
               <SwingParamsPanel
-                initialValues={initialValues}
-                isSwing={isSwing}
-                is52wChaser={is52wChaser}
+                initialValues={initialValues()}
+                isSwing={isSwing()}
+                is52wChaser={is52wChaser()}
               />
-            )}
-            <RiskManagementPanel initialValues={initialValues} isIntraday={isIntraday} />
-            <RunnerPanel initialValues={initialValues} isOrb={isOrb} />
+            </Show>
+            <RiskManagementPanel initialValues={initialValues()} isIntraday={isIntraday()} />
+            <RunnerPanel initialValues={initialValues()} isOrb={isOrb()} />
           </Tabs>
 
           <Group
@@ -399,7 +401,7 @@ export function StrategyForm({
                 variant="subtle"
                 color="secondary"
                 size="sm"
-                onClick={onClose}
+                onClick={props.onClose}
                 data-testid="strategy-cancel-btn"
               >
                 Cancel
@@ -416,7 +418,7 @@ export function StrategyForm({
                   handleSubmit();
                 }}
               >
-                {mode === "create" ? "Create" : "Save"}
+                {props.mode === "create" ? "Create" : "Save"}
               </Button>
             </Group>
           </Group>

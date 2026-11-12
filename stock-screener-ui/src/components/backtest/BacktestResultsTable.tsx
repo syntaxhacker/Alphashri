@@ -1,9 +1,10 @@
 import { useMemo } from "react";
-import { Box, Text, Group } from "@/ui";
+import { Text } from "@/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { BacktestResult } from "../../types/backtest";
 import { getPnLTextColor, getWinRateColor, formatPnl } from "../../utils/ui-helpers";
-import { TanStackTable } from "../common/TanStackTable";
+import { TanStackTable } from "../paper-trading/TanStackTable";
+import { Box, Group } from "../paper-trading/primitives";
 
 interface BacktestResultsTableProps {
   results: BacktestResult[];

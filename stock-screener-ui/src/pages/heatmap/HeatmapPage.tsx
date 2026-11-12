@@ -1,7 +1,6 @@
-import { useState, useMemo } from "react";
+import { createSignal, createMemo, onMount, Show } from "solid-js";
 import { Box, Text, Select, TextInput, LoadingOverlay, Badge, ToolbarRow } from "@/ui";
-import { useAsyncData } from "../../hooks/useAsyncData";
-import { fetchHeatmapData, fetchHeatmapSectors, type SectorInfo } from "../../api/heatmap";
+import { fetchHeatmapData, fetchHeatmapSectors, type HeatmapResponse, type HeatmapStock, type SectorInfo } from "../../api/heatmap";
 import { METRICS, getMetricValue, getMetricColor, getMetricTextColor } from "./heatmapUtils";
 import { HeatmapTreemap } from "./HeatmapTreemap";
 import { ScatterView } from "./ScatterView";
@@ -22,67 +21,80 @@ const VIEWS = [
 ];
 
 export function HeatmapPage() {
-  const [view, setView] = useState("treemap");
-  const [sectorFilter, setSectorFilter] = useState<string | null>(null);
-  const [searchFilter, setSearchFilter] = useState("");
-  const [metric, setMetric] = useState<string>("market_cap");
-  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
-  const [scatterMetricX, setScatterMetricX] = useState<string>("pe_ratio");
-  const [scatterMetricY, setScatterMetricY] = useState<string>("roe");
+  const [view, setView] = createSignal("treemap");
+  const [sectorFilter, setSectorFilter] = createSignal<string | null>(null);
+  const [searchFilter, setSearchFilter] = createSignal("");
+  const [metric, setMetric] = createSignal<string>("market_cap");
+  const [sortDir, setSortDir] = createSignal<"desc" | "asc">("desc");
+  const [scatterMetricX, setScatterMetricX] = createSignal<string>("pe_ratio");
+  const [scatterMetricY, setScatterMetricY] = createSignal<string>("roe");
 
-  const { data: heatmapData, loading: heatmapLoading, error: heatmapError } = useAsyncData({
-    fetchFn: () => fetchHeatmapData(undefined, undefined, undefined, 500),
-    autoFetch: true
+  const [heatmapData, setHeatmapData] = createSignal<HeatmapResponse | null>(null);
+  const [heatmapLoading, setHeatmapLoading] = createSignal(true);
+  const [heatmapError, setHeatmapError] = createSignal<string | null>(null);
+  const [sectorsData, setSectorsData] = createSignal<{ sectors: SectorInfo[] } | null>(null);
+
+  onMount(() => {
+    fetchHeatmapData(undefined, undefined, undefined, 500)
+      .then((d) => setHeatmapData(d))
+      .catch((err) => setHeatmapError(err instanceof Error ? err.message : "Failed to load"))
+      .finally(() => setHeatmapLoading(false));
+    fetchHeatmapSectors()
+      .then((d) => setSectorsData(d))
+      .catch(() => {
+        // Sector filter is best-effort: the page still works without it.
+      });
   });
 
-  const { data: sectorsData } = useAsyncData({
-    fetchFn: () => fetchHeatmapSectors(),
-    autoFetch: true
+  const filteredStocks = createMemo<HeatmapStock[]>(() => {
+    const stocks = heatmapData()?.stocks ?? [];
+    let filtered = stocks;
+    if (sectorFilter()) {
+      const sector = sectorFilter();
+      filtered = filtered.filter((s) => s.sector === sector);
+    }
+    if (searchFilter()) {
+      const lower = searchFilter().toLowerCase();
+      filtered = filtered.filter(
+        (s) => s.symbol.toLowerCase().includes(lower) || s.name.toLowerCase().includes(lower),
+      );
+    }
+    const dir = sortDir();
+    return [...filtered].sort((a, b) => {
+      const va = getMetricValue(a, metric());
+      const vb = getMetricValue(b, metric());
+      return dir === "desc" ? vb - va : va - vb;
+    });
   });
 
-  const stocks = heatmapData?.stocks || [];
+  const activeMetric = createMemo(() => METRICS.find((m) => m.value === metric()) || METRICS[0]);
 
-  let filtered = stocks;
-
-  if (sectorFilter) {
-    filtered = filtered.filter(s => s.sector === sectorFilter);
-  }
-
-  if (searchFilter) {
-    const lower = searchFilter.toLowerCase();
-    filtered = filtered.filter(
-      (s) => s.symbol.toLowerCase().includes(lower) || s.name.toLowerCase().includes(lower)
-    );
-  }
-
-  const activeMetric = METRICS.find((m) => m.value === metric) || METRICS[0];
-
-  const filteredStocks = [...filtered].sort((a, b) => {
-    const va = getMetricValue(a, metric);
-    const vb = getMetricValue(b, metric);
-    return sortDir === "desc" ? vb - va : va - vb;
+  const metricMin = createMemo(() => {
+    const values = filteredStocks().map((s) => getMetricValue(s, metric()));
+    return values.length ? Math.min(...values) : 0;
+  });
+  const metricMax = createMemo(() => {
+    const values = filteredStocks().map((s) => getMetricValue(s, metric()));
+    return values.length ? Math.max(...values) : 1;
   });
 
-  const metricValues = filteredStocks.map((s) => getMetricValue(s, metric));
-  const metricMin = metricValues.length ? Math.min(...metricValues) : 0;
-  const metricMax = metricValues.length ? Math.max(...metricValues) : 1;
-
-  const sectorOptions = useMemo(() => {
-    if (!sectorsData?.sectors) return [];
-    return sectorsData.sectors.map((s: SectorInfo) => ({
+  const sectorOptions = createMemo(() => {
+    const sectors = sectorsData()?.sectors;
+    if (!sectors) return [];
+    return sectors.map((s: SectorInfo) => ({
       value: s.name,
       label: `${s.name} (${s.count})`,
     }));
-  }, [sectorsData]);
+  });
 
   const metricOptions = METRICS.map((m) => ({ value: m.value, label: m.label }));
 
-  const isTableView = view === "list" || view === "top10";
-  const isChartView = view === "treemap";
-  const isScatterView = view === "scatter";
-  const isDistView = view === "distribution";
-  const isSectorView = view === "sectors";
-  const isTop10View = view === "top10";
+  const isTableView = () => view() === "list" || view() === "top10";
+  const isChartView = () => view() === "treemap";
+  const isScatterView = () => view() === "scatter";
+  const isDistView = () => view() === "distribution";
+  const isSectorView = () => view() === "sectors";
+  const isTop10View = () => view() === "top10";
 
   return (
     <Box
@@ -95,8 +107,8 @@ export function HeatmapPage() {
         data-testid="heatmap-toolbar"
       >
         <Text data-testid="heatmap-title" fw={700} size="sm">NSE 500</Text>
-        <Badge data-testid="heatmap-badge" variant="light" color={heatmapData?.cached ? "success" : "primary"}>
-          {heatmapData?.cached ? "Cached" : "Live"}
+        <Badge data-testid="heatmap-badge" variant="light" color={heatmapData()?.cached ? "success" : "primary"}>
+          {heatmapData()?.cached ? "Cached" : "Live"}
         </Badge>
         <Select
           data-testid="heatmap-sector-filter"
@@ -104,9 +116,9 @@ export function HeatmapPage() {
           w={180}
           placeholder="Filter by sector"
           clearable
-          value={sectorFilter}
+          value={sectorFilter()}
           onChange={setSectorFilter}
-          data={sectorOptions}
+          data={sectorOptions()}
           searchable
           aria-label="Sector filter"
         />
@@ -115,28 +127,28 @@ export function HeatmapPage() {
           size="xs"
           w={140}
           placeholder="Search symbol..."
-          value={searchFilter}
+          value={searchFilter()}
           onChange={(val) => setSearchFilter(val)}
           aria-label="Search symbol"
         />
-        {!isScatterView && (
+        <Show when={!isScatterView()}>
           <Select
             data-testid="heatmap-metric"
             size="xs"
             w={130}
             label="Metric"
-            value={metric}
+            value={metric()}
             onChange={(v) => setMetric(v || "market_cap")}
             data={metricOptions}
             aria-label="Metric"
           />
-        )}
+        </Show>
         <Select
           data-testid="heatmap-view"
           size="xs"
           w={130}
           label="View"
-          value={view}
+          value={view()}
           onChange={(v) => setView(v || "treemap")}
           data={VIEWS}
           aria-label="View"
@@ -150,91 +162,91 @@ export function HeatmapPage() {
           onClick={() => setSortDir((d) => (d === "desc" ? "asc" : "desc"))}
           title="Toggle sort direction"
         >
-          {filteredStocks.length} stocks {sortDir === "desc" ? "↓" : "↑"}
+          {filteredStocks().length} stocks {sortDir() === "desc" ? "↓" : "↑"}
         </Text>
       </ToolbarRow>
 
       <Box className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-        <LoadingOverlay visible={heatmapLoading} />
-        {heatmapError && (
+        <LoadingOverlay visible={heatmapLoading()} />
+        <Show when={heatmapError()}>
           <Box className="flex h-[200px] w-full items-center justify-center">
-            <Text data-testid="heatmap-error" c="error">Error: {heatmapError.message || "Failed to load"}</Text>
+            <Text data-testid="heatmap-error" c="error">Error: {heatmapError()}</Text>
           </Box>
-        )}
-        {!heatmapLoading && !heatmapError && filteredStocks.length === 0 && (
+        </Show>
+        <Show when={!heatmapLoading() && !heatmapError() && filteredStocks().length === 0}>
           <Box className="flex h-[200px] w-full items-center justify-center">
             <Text size="sm" c="dimmed">No stocks match the current filters.</Text>
           </Box>
-        )}
-        {!heatmapLoading && isChartView && filteredStocks.length > 0 && (
+        </Show>
+        <Show when={!heatmapLoading() && isChartView() && filteredStocks().length > 0}>
           <HeatmapTreemap
-            stocks={filteredStocks}
-            metric={metric}
+            stocks={filteredStocks()}
+            metric={metric()}
             showLegend={false}
             testId="heatmap-page-treemap"
           />
-        )}
-        {isTableView && (
+        </Show>
+        <Show when={isTableView()}>
           <HeatmapListView
-            stocks={filteredStocks}
-            metric={metric}
-            activeMetric={activeMetric}
-            metricMin={metricMin}
-            metricMax={metricMax}
+            stocks={filteredStocks()}
+            metric={metric()}
+            activeMetric={activeMetric()}
+            metricMin={metricMin()}
+            metricMax={metricMax()}
           />
-        )}
-        {!heatmapLoading && isScatterView && (
+        </Show>
+        <Show when={!heatmapLoading() && isScatterView()}>
           <ScatterView
-            stocks={filteredStocks}
-            metricX={scatterMetricX}
-            metricY={scatterMetricY}
+            stocks={filteredStocks()}
+            metricX={scatterMetricX()}
+            metricY={scatterMetricY()}
             onMetricXChange={setScatterMetricX}
             onMetricYChange={setScatterMetricY}
             getMetricValue={getMetricValue}
             getMetricColor={getMetricColor}
             METRICS={METRICS}
           />
-        )}
-        {!heatmapLoading && isDistView && (
+        </Show>
+        <Show when={!heatmapLoading() && isDistView()}>
           <DistributionView
-            stocks={filteredStocks}
-            metric={metric}
+            stocks={filteredStocks()}
+            metric={metric()}
             getMetricValue={getMetricValue}
             getMetricColor={getMetricColor}
             METRICS={METRICS}
           />
-        )}
-        {!heatmapLoading && isSectorView && (
+        </Show>
+        <Show when={!heatmapLoading() && isSectorView()}>
           <SectorBarView
-            stocks={filteredStocks}
-            metric={metric}
+            stocks={filteredStocks()}
+            metric={metric()}
             getMetricValue={getMetricValue}
             getMetricColor={getMetricColor}
             METRICS={METRICS}
           />
-        )}
-        {!heatmapLoading && isTop10View && (
+        </Show>
+        <Show when={!heatmapLoading() && isTop10View()}>
           <TopBottomView
-            stocks={filteredStocks}
-            metric={metric}
+            stocks={filteredStocks()}
+            metric={metric()}
             getMetricValue={getMetricValue}
             getMetricColor={getMetricColor}
             getMetricTextColor={getMetricTextColor}
             METRICS={METRICS}
           />
-        )}
+        </Show>
       </Box>
 
       <Box
         data-testid="heatmap-legend"
         className="flex h-8 min-h-8 flex-shrink-0 items-center gap-4 overflow-hidden border-t border-fin-border px-4"
       >
-        <Text size="xs" fw={600} data-testid="heatmap-legend-label">{activeMetric.label}</Text>
-        <Box className="h-3 w-3 flex-shrink-0 rounded-[2px]" style={{ "background-color": getMetricColor(metricMin, metricMin, metricMax) }} />
-        <Text size="xs" data-testid="heatmap-legend-min">{activeMetric.fmt(metricMin)}</Text>
+        <Text size="xs" fw={600} data-testid="heatmap-legend-label">{activeMetric().label}</Text>
+        <Box className="h-3 w-3 flex-shrink-0 rounded-[2px]" style={{ "background-color": getMetricColor(metricMin(), metricMin(), metricMax()) }} />
+        <Text size="xs" data-testid="heatmap-legend-min">{activeMetric().fmt(metricMin())}</Text>
         <Box className="h-2 max-w-[120px] flex-1 rounded-[4px]" style={{ background: `linear-gradient(to right, ${SECTOR_STRONG_GREEN}, ${SECTOR_GREEN}, ${SECTOR_NEUTRAL}, ${SECTOR_RED}, ${SECTOR_STRONG_RED})` }} />
-        <Box className="h-3 w-3 flex-shrink-0 rounded-[2px]" style={{ "background-color": getMetricColor(metricMax, metricMin, metricMax) }} />
-        <Text size="xs" data-testid="heatmap-legend-max">{activeMetric.fmt(metricMax)}</Text>
+        <Box className="h-3 w-3 flex-shrink-0 rounded-[2px]" style={{ "background-color": getMetricColor(metricMax(), metricMin(), metricMax()) }} />
+        <Text size="xs" data-testid="heatmap-legend-max">{activeMetric().fmt(metricMax())}</Text>
       </Box>
     </Box>
   );

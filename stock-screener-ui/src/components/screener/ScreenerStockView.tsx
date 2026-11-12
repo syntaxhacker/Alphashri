@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { Show } from "solid-js";
 import { ScreenerTable } from "./ScreenerTable";
 import { ScreenerHeatmapView } from "./ScreenerHeatmapView";
 import type { Stock, ColumnDef } from "../../types";
@@ -16,39 +16,29 @@ interface ScreenerStockViewProps {
   activeScreener: string;
 }
 
-export const ScreenerStockView = memo(function ScreenerStockView({
-  stocks,
-  columns,
-  touchedSymbols,
-  badgeLabel,
-  scoreFormula,
-  onSymbolClick,
-  onSymbolHover,
-  viewMode,
-  section,
-  activeScreener,
-}: ScreenerStockViewProps) {
-  if (viewMode === "heatmap") {
-    return (
-      <ScreenerHeatmapView
-        stocks={stocks}
-        activeScreener={activeScreener}
-        onSymbolClick={onSymbolClick}
-        testId={`screener-heatmap-${section}`}
-      />
-    );
-  }
-
+export function ScreenerStockView(props: ScreenerStockViewProps) {
   return (
-    <ScreenerTable
-      stocks={stocks}
-      columns={columns}
-      touchedSymbols={touchedSymbols}
-      badgeLabel={badgeLabel}
-      scoreFormula={scoreFormula}
-      onSymbolClick={onSymbolClick}
-      onSymbolHover={onSymbolHover}
-      testId={`screener-table-${section}`}
-    />
+    <Show
+      when={props.viewMode === "heatmap"}
+      fallback={
+        <ScreenerTable
+          stocks={props.stocks}
+          columns={props.columns}
+          touchedSymbols={props.touchedSymbols}
+          badgeLabel={props.badgeLabel}
+          scoreFormula={props.scoreFormula}
+          onSymbolClick={props.onSymbolClick}
+          onSymbolHover={props.onSymbolHover}
+          testId={`screener-table-${props.section}`}
+        />
+      }
+    >
+      <ScreenerHeatmapView
+        stocks={props.stocks}
+        activeScreener={props.activeScreener}
+        onSymbolClick={props.onSymbolClick}
+        testId={`screener-heatmap-${props.section}`}
+      />
+    </Show>
   );
-});
+}

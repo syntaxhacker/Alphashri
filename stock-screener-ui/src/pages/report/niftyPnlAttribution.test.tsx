@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, afterEach } from "vitest";
-import { createElement as h } from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import {
   attributeNiftyPnl,
@@ -15,7 +15,7 @@ import { NiftyPnlAttribution } from "./NiftyPnlAttribution";
 afterEach(cleanup);
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
-  return h(UIProvider, null, children);
+  return <UIProvider>children</UIProvider>;
 }
 
 const LONG_CE: NiftyPnlPosition = {
@@ -118,12 +118,7 @@ describe("formatPnlSigned", () => {
 
 describe("NiftyPnlAttribution render", () => {
   test("stacked bars per leg with legend and signed total", () => {
-    render(
-      h(
-        TestWrapper,
-        null,
-        h(NiftyPnlAttribution, { positions: [LONG_CE], greeks: GREEKS, spot: 25100 }),
-      ),
+    render(() => <TestWrapper>h(NiftyPnlAttribution, { positions: [LONG_CE], greeks: GREEKS, spot: 25100 }),</TestWrapper>,
     );
     expect(screen.getByTestId("nifty-pnl-bar-25000-CE-long")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-pnl-seg-25000-CE-long-delta")).toHaveAttribute("data-sign", "gain");
@@ -136,23 +131,13 @@ describe("NiftyPnlAttribution render", () => {
   });
 
   test("no positions renders the muted empty state", () => {
-    render(
-      h(
-        TestWrapper,
-        null,
-        h(NiftyPnlAttribution, { positions: [], greeks: GREEKS, spot: 25100 }),
-      ),
+    render(() => <TestWrapper>h(NiftyPnlAttribution, { positions: [], greeks: GREEKS, spot: 25100 }),</TestWrapper>,
     );
     expect(screen.getByTestId("nifty-pnl-empty")).toHaveTextContent("No open positions");
   });
 
   test("no greeks renders the muted empty state", () => {
-    render(
-      h(
-        TestWrapper,
-        null,
-        h(NiftyPnlAttribution, { positions: [LONG_CE], greeks: [], spot: 25100 }),
-      ),
+    render(() => <TestWrapper>h(NiftyPnlAttribution, { positions: [LONG_CE], greeks: [], spot: 25100 }),</TestWrapper>,
     );
     expect(screen.getByTestId("nifty-pnl-empty")).toHaveTextContent("No open positions");
   });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { createSignal, createEffect, Show } from "solid-js";
 import { Box, Text } from "@/ui";
 import { SCALE_BLUE, SCALE_CYAN, SCALE_GREEN, SCALE_ORANGE, SCALE_PINK, SCALE_VIOLET, TEXT } from "@/ui/palette";
 
@@ -34,44 +34,51 @@ function tintFor(symbol: string): string {
   return AVATAR_TINTS[hash % AVATAR_TINTS.length];
 }
 
-export function SymbolAvatar({ symbol, name, logo, size = 20 }: SymbolAvatarProps) {
-  const [failed, setFailed] = useState(false);
+export function SymbolAvatar(props: SymbolAvatarProps) {
+  const [failed, setFailed] = createSignal(false);
 
-  useEffect(() => {
+  // Reset the failure latch whenever the logo or symbol changes.
+  createEffect(() => {
+    void props.logo;
+    void props.symbol;
     setFailed(false);
-  }, [logo, symbol]);
+  });
 
-  const showImg = logo != null && logo !== "" && !failed;
+  const showImg = () => props.logo != null && props.logo !== "" && !failed();
+  const size = () => props.size ?? 20;
 
   return (
     <Box
       data-testid="symbol-avatar"
-      data-symbol={symbol}
-      data-fallback={showImg ? undefined : "initials"}
-      title={name || symbol}
+      data-symbol={props.symbol}
+      data-fallback={showImg() ? undefined : "initials"}
+      title={props.name || props.symbol}
       className="inline-flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full"
       style={{
-        width: size,
-        height: size,
-        "min-width": size,
-        "min-height": size,
-        "background-color": showImg ? "var(--color-fin-surface-alt)" : tintFor(symbol),
+        width: `${size()}px`,
+        height: `${size()}px`,
+        "min-width": `${size()}px`,
+        "min-height": `${size()}px`,
+        "background-color": showImg() ? "var(--color-fin-surface-alt)" : tintFor(props.symbol),
       }}
     >
-      {showImg ? (
+      <Show
+        when={showImg()}
+        fallback={
+          <Text size="xs" span fw={700} style={{ "font-size": `${size() * 0.45}px`, color: TEXT, "line-height": 1 }}>
+            {initialsFor(props.symbol)}
+          </Text>
+        }
+      >
         <img
-          src={logo as string}
-          alt={symbol}
-          width={size}
-          height={size}
+          src={props.logo as string}
+          alt={props.symbol}
+          width={size()}
+          height={size()}
           onError={() => setFailed(true)}
-          style={{ width: size, height: size, "object-fit": "contain", display: "block" }}
+          style={{ width: `${size()}px`, height: `${size()}px`, "object-fit": "contain", display: "block" }}
         />
-      ) : (
-        <Text size="xs" span fw={700} style={{ "font-size": size * 0.45, color: TEXT, "line-height": 1 }}>
-          {initialsFor(symbol)}
-        </Text>
-      )}
+      </Show>
     </Box>
   );
 }

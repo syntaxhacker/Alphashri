@@ -1,3 +1,4 @@
+import { Show } from "solid-js";
 import { Stack, Box, Text, NumberInput, Switch, Tabs } from "@/ui";
 import type { StrategyFormData } from "./types";
 import { SlTpRow } from "./SlTpRow";
@@ -8,7 +9,7 @@ interface SwingParamsPanelProps {
   is52wChaser: boolean;
 }
 
-export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingParamsPanelProps) {
+export function SwingParamsPanel(props: SwingParamsPanelProps) {
   return (
     <Tabs.Panel value="52w" keepMounted className="strategy-form-tab-panel" data-testid="strategy-panel-52w">
       <Stack spacing={1} gap="sm" mt="sm" className="p-2">
@@ -18,7 +19,7 @@ export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingP
             <NumberInput
               size="sm"
               name="entry_threshold_pct"
-              defaultValue={initialValues.entry_threshold_pct}
+              defaultValue={props.initialValues.entry_threshold_pct}
               min={0.5}
               max={10}
               step={0.5}
@@ -29,9 +30,9 @@ export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingP
           </Box>
         </Box>
         <SlTpRow
-          slDefault={initialValues.sl_pct}
-          tpDefault={initialValues.tp_pct}
-          isSwing={isSwing}
+          slDefault={props.initialValues.sl_pct}
+          tpDefault={props.initialValues.tp_pct}
+          isSwing={props.isSwing}
         />
         <Box className="flex items-center gap-2 p-2">
           <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Trailing Stop %</Text>
@@ -39,7 +40,7 @@ export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingP
             <NumberInput
               size="sm"
               name="trailing_stop_pct"
-              defaultValue={initialValues.trailing_stop_pct}
+              defaultValue={props.initialValues.trailing_stop_pct}
               min={0.1}
               max={10}
               step={0.1}
@@ -54,7 +55,7 @@ export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingP
             <NumberInput
               size="sm"
               name="max_holding_days"
-              defaultValue={initialValues.max_holding_days}
+              defaultValue={props.initialValues.max_holding_days}
               min={1}
               max={90}
               suffix=" days"
@@ -68,7 +69,7 @@ export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingP
             <NumberInput
               size="sm"
               name="cooldown_days"
-              defaultValue={initialValues.cooldown_days}
+              defaultValue={props.initialValues.cooldown_days}
               min={1}
               max={90}
               suffix=" days"
@@ -76,15 +77,14 @@ export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingP
             />
           </Box>
         </Box>
-        {is52wChaser && (
-          <>
+        <Show when={props.is52wChaser}>
             <Box className="flex items-center gap-2 p-2">
               <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Enable Trailing Stop</Text>
               <Box className="flex-1 flex items-center">
                 <Switch
                   label=""
                   name="enable_trailing_stop"
-                  defaultChecked={initialValues.enable_trailing_stop}
+                  defaultChecked={props.initialValues.enable_trailing_stop}
                   data-testid="strategy-enable-trailing-input"
                 />
               </Box>
@@ -95,7 +95,7 @@ export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingP
                 <Switch
                   label="ADX/RSI/Volume/MA"
                   name="enable_filters"
-                  defaultChecked={initialValues.enable_filters}
+                  defaultChecked={props.initialValues.enable_filters}
                   data-testid="strategy-enable-filters-input"
                 />
               </Box>
@@ -106,7 +106,7 @@ export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingP
                 <NumberInput
                   size="sm"
                   name="trailing_activation_pct"
-                  defaultValue={initialValues.trailing_activation_pct}
+                  defaultValue={props.initialValues.trailing_activation_pct}
                   min={0.1}
                   max={10}
                   step={0.1}
@@ -115,8 +115,7 @@ export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingP
                 />
               </Box>
             </Box>
-          </>
-        )}
+        </Show>
       </Stack>
     </Tabs.Panel>
   );

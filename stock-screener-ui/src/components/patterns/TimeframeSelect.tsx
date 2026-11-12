@@ -1,6 +1,6 @@
-import { useMemo } from "react";
+import { createMemo, For } from "solid-js";
 import { Box, Button, Checkbox, Menu, MenuDropdown, MenuTarget, Text } from "@/ui";
-import { IconChevronDown } from "@tabler/icons-react";
+import { IconChevronDown } from "@/patterns/icons";
 import type { TFSpec } from "@/types/chartPatterns";
 import { DEFAULT_TIMEFRAME } from "@/state/chartPatterns";
 
@@ -29,21 +29,22 @@ export interface TimeframeSelectProps {
   onChange: (value: string[]) => void;
 }
 
-export function TimeframeSelect({ timeframes, value, onChange }: TimeframeSelectProps) {
-  const source = timeframes.length > 0 ? timeframes : FALLBACK_TIMEFRAMES;
-  const selected = value && value.length > 0 ? value : [DEFAULT_TIMEFRAME];
-  const ids = useMemo(() => source.map((tf) => tf.id), [source]);
-  const ordered = ids.filter((id) => selected.includes(id));
-  const labels = useMemo(() => new Map(source.map((tf) => [tf.id, tf.label || tf.id])), [source]);
-  const summary =
-    ordered.length <= 2
-      ? ordered.map((id) => labels.get(id) ?? id).join(",")
-      : String(ordered.length);
+export function TimeframeSelect(props: TimeframeSelectProps) {
+  const source = () => (props.timeframes.length > 0 ? props.timeframes : FALLBACK_TIMEFRAMES);
+  const selected = () => (props.value && props.value.length > 0 ? props.value : [DEFAULT_TIMEFRAME]);
+  const ids = createMemo(() => source().map((tf) => tf.id));
+  const ordered = () => ids().filter((id) => selected().includes(id));
+  const labels = createMemo(() => new Map(source().map((tf) => [tf.id, tf.label || tf.id])));
+  const summary = () =>
+    ordered().length <= 2
+      ? ordered().map((id) => labels().get(id) ?? id).join(",")
+      : String(ordered().length);
 
   const toggle = (id: string) => {
-    const next = selected.includes(id) ? selected.filter((item) => item !== id) : [...selected, id];
+    const current = selected();
+    const next = current.includes(id) ? current.filter((item) => item !== id) : [...current, id];
     if (next.length === 0) return;
-    onChange(ids.filter((item) => next.includes(item)));
+    props.onChange(ids().filter((item) => next.includes(item)));
   };
 
   return (
@@ -65,30 +66,31 @@ export function TimeframeSelect({ timeframes, value, onChange }: TimeframeSelect
             "font-weight": 600,
           }}
         >
-          {`Timeframe · ${summary}`}
+          {`Timeframe · ${summary()}`}
         </Button>
       </MenuTarget>
       <MenuDropdown data-testid="patterns-timeframe-dropdown">
         <Box className="max-h-[320px] min-w-[170px] overflow-y-auto py-[2px]">
-          {source.map((tf) => {
-            const checked = selected.includes(tf.id);
-            return (
-              <Box
-                key={tf.id}
-                data-testid={`patterns-timeframe-option-${tf.id}`}
-                onClick={() => toggle(tf.id)}
-                className="flex cursor-pointer items-center gap-1 px-1 py-[2px] transition-colors hover:bg-fin-surface-alt"
-              >
-                <Checkbox
-                  size="xs"
-                  checked={checked}
-                  onChange={() => toggle(tf.id)}
-                  onClick={(event) => event.stopPropagation()}
-                />
-                <Text size="xs">{tf.label || tf.id}</Text>
-              </Box>
-            );
-          })}
+          <For each={source()}>
+            {(tf) => {
+              const checked = () => selected().includes(tf.id);
+              return (
+                <Box
+                  data-testid={`patterns-timeframe-option-${tf.id}`}
+                  onClick={() => toggle(tf.id)}
+                  className="flex cursor-pointer items-center gap-1 px-1 py-[2px] transition-colors hover:bg-fin-surface-alt"
+                >
+                  <Checkbox
+                    size="xs"
+                    checked={checked()}
+                    onChange={() => toggle(tf.id)}
+                    onClick={(event) => event.stopPropagation()}
+                  />
+                  <Text size="xs">{tf.label || tf.id}</Text>
+                </Box>
+              );
+            }}
+          </For>
         </Box>
       </MenuDropdown>
     </Menu>

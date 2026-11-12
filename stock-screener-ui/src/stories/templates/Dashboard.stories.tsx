@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useEffect } from "react";
+import { createEffect, onCleanup } from "solid-js";
 import { Box } from "@/ui";
 import { AggregatedDashboard } from "@/components/paper-trading/AggregatedDashboard";
 import { SectorPage } from "@/components/sector/SectorPage2";

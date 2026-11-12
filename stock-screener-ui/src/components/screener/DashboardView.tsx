@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { For, Show, Switch, Match, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import {
   ActionIcon,
   Badge,
@@ -14,7 +14,6 @@ import {
   Text,
   TextInput,
   ToolbarRow,
-  cn,
 } from "@/ui";
 import { fetchScreenerDashboard } from "../../api/screenerDashboard";
 import type {
@@ -190,9 +189,9 @@ function groupPanels(panels: ScreenerDashboardPanel[]): CardGroup[] {
   return groups;
 }
 
-function RowDetail({ row, panelId }: { row: ScreenerDashboardRow; panelId: string }) {
-  const high52w = dashboardRowHigh52w(row);
-  const mcap = dashboardRowMcapCr(row);
+function RowDetail(props: { row: ScreenerDashboardRow; panelId: string }) {
+  const high52w = dashboardRowHigh52w(props.row);
+  const mcap = dashboardRowMcapCr(props.row);
   const items: Array<{ label: string; value: string; testid: string }> = [
     {
       label: "52W high",
@@ -201,17 +200,17 @@ function RowDetail({ row, panelId }: { row: ScreenerDashboardRow; panelId: strin
     },
     {
       label: "ATR",
-      value: finiteOrNull(row.atr) != null ? formatCurrency(row.atr as number, 2) : "—",
+      value: finiteOrNull(props.row.atr) != null ? formatCurrency(props.row.atr as number, 2) : "—",
       testid: "atr",
     },
     {
       label: "RSI",
-      value: finiteOrNull(row.rsi) != null ? (row.rsi as number).toFixed(1) : "—",
+      value: finiteOrNull(props.row.rsi) != null ? (props.row.rsi as number).toFixed(1) : "—",
       testid: "rsi",
     },
     {
       label: "VWAP",
-      value: finiteOrNull(row.vwap) != null ? formatCurrency(row.vwap as number, 2) : "—",
+      value: finiteOrNull(props.row.vwap) != null ? formatCurrency(props.row.vwap as number, 2) : "—",
       testid: "vwap",
     },
     {
@@ -221,42 +220,37 @@ function RowDetail({ row, panelId }: { row: ScreenerDashboardRow; panelId: strin
     },
     {
       label: "Rel vol",
-      value: `${dashboardRowRelVol(row).toFixed(1)}x`,
+      value: `${dashboardRowRelVol(props.row).toFixed(1)}x`,
       testid: "relvol",
     },
   ];
   return (
     <Box
-      data-testid={`dashboard-row-detail-${panelId}-${row.symbol}`}
+      data-testid={`dashboard-row-detail-${props.panelId}-${props.row.symbol}`}
       className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-1 px-1 py-1 tabular-nums"
     >
-      {items.map((item) => (
-        <Box key={item.testid} className="min-w-0">
-          <Text size="xs" c="dimmed" span data-testid={`dashboard-row-detail-${panelId}-${row.symbol}-${item.testid}-label`}>
+      <For each={items}>
+        {(item) => (
+        <Box className="min-w-0">
+          <Text size="xs" c="dimmed" span data-testid={`dashboard-row-detail-${props.panelId}-${props.row.symbol}-${item.testid}-label`}>
             {item.label}
           </Text>
           <Text
             size="xs"
             span
-            data-testid={`dashboard-row-detail-${panelId}-${row.symbol}-${item.testid}`}
+            data-testid={`dashboard-row-detail-${props.panelId}-${props.row.symbol}-${item.testid}`}
             className="block tabular-nums"
           >
             {item.value}
           </Text>
         </Box>
-      ))}
+        )}
+      </For>
     </Box>
   );
 }
 
-function DashboardCard({
-  group,
-  query,
-  expanded,
-  onToggleExpanded,
-  onOpenSymbol,
-  onOpenScan,
-}: {
+function DashboardCard(props: {
   group: CardGroup;
   query: string;
   expanded: boolean;
@@ -264,32 +258,29 @@ function DashboardCard({
   onOpenSymbol?: (symbol: string) => void;
   onOpenScan?: (panelId: string) => void;
 }) {
-  const visiblePanels = group.panels;
-  const [selectedId, setSelectedId] = useState<string>(visiblePanels[0]?.id ?? "");
-  const [sort, setSort] = useState<SortKey>("default");
-  const [detailSymbol, setDetailSymbol] = useState<string | null>(null);
+  const visiblePanels = () => props.group.panels;
+  const [selectedId, setSelectedId] = createSignal<string>(visiblePanels()[0]?.id ?? "");
+  const [sort, setSort] = createSignal<SortKey>("default");
+  const [detailSymbol, setDetailSymbol] = createSignal<string | null>(null);
 
-  const activePanel =
-    visiblePanels.find((p) => p.id === selectedId) ?? visiblePanels[0];
-  useEffect(() => {
-    if (activePanel && selectedId !== activePanel.id && !visiblePanels.some((p) => p.id === selectedId)) {
-      setSelectedId(activePanel.id);
-    }
-  }, [activePanel, selectedId, visiblePanels]);
+  const activePanel = () =>
+    visiblePanels().find((p) => p.id === selectedId()) ?? visiblePanels()[0];
+  const isMerged = () => props.group.panels.length > 1;
+  const cardKey = () => props.group.key;
 
-  if (!activePanel) return null;
-  const isMerged = group.panels.length > 1;
-  const cardKey = group.key;
-
-  const filtered = (Array.isArray(activePanel.rows) ? activePanel.rows : []).filter((r) =>
-    matchesQuery(r, query),
-  );
-  const shown = sortDashboardRows(filtered, sort);
-  const canShowMore = activePanel.qualify > shown.length || expanded;
+  const shown = createMemo(() => {
+    const panel = activePanel();
+    if (!panel) return [];
+    const filtered = (Array.isArray(panel.rows) ? panel.rows : []).filter((r) =>
+      matchesQuery(r, props.query),
+    );
+    return sortDashboardRows(filtered, sort());
+  });
+  const canShowMore = () => (activePanel()?.qualify ?? 0) > shown().length || props.expanded;
 
   return (
     <CompactPanel
-      testId={`dashboard-card-${cardKey}`}
+      testId={`dashboard-card-${cardKey()}`}
       padded={false}
       flush
       style={{ "min-width": 0, "min-height": 0, display: "flex", "flex-direction": "column", overflow: "hidden" }}
@@ -301,22 +292,22 @@ function DashboardCard({
               fw={600}
               truncate
               span
-              title={group.title}
-              data-testid={`dashboard-card-title-${cardKey}`}
+              title={props.group.title}
+              data-testid={`dashboard-card-title-${cardKey()}`}
               className="min-w-0 flex-1"
             >
-              {group.title}
+              {props.group.title}
             </Text>
-            <Badge size="xs" data-testid={`dashboard-card-count-${cardKey}`}>
-              {shown.length}
+            <Badge size="xs" data-testid={`dashboard-card-count-${cardKey()}`}>
+              {shown().length}
             </Badge>
-            <Menu closeOnItemClick data-testid={`dashboard-sort-menu-${cardKey}`}>
+            <Menu closeOnItemClick data-testid={`dashboard-sort-menu-${cardKey()}`}>
               <MenuTarget>
                 <ActionIcon
                   size="xs"
                   variant="subtle"
-                  data-testid={`dashboard-sort-${cardKey}`}
-                  aria-label={`Sort ${group.title}`}
+                  data-testid={`dashboard-sort-${cardKey()}`}
+                  aria-label={`Sort ${props.group.title}`}
                 >
                   <Text size="xs" span fw={700}>
                     …
@@ -324,83 +315,87 @@ function DashboardCard({
                 </ActionIcon>
               </MenuTarget>
               <MenuDropdown>
-                {SORT_OPTIONS.map((opt) => (
-                  <MenuItem
-                    key={opt.value}
-                    data-testid={`dashboard-sort-${cardKey}-${opt.value}`}
-                    onClick={() => setSort(opt.value)}
-                  >
-                    {sort === opt.value ? `✓ ${opt.label}` : opt.label}
-                  </MenuItem>
-                ))}
+                <For each={SORT_OPTIONS}>
+                  {(opt) => (
+                    <MenuItem
+                      data-testid={`dashboard-sort-${cardKey()}-${opt.value}`}
+                      onClick={() => setSort(opt.value)}
+                    >
+                      {sort() === opt.value ? `✓ ${opt.label}` : opt.label}
+                    </MenuItem>
+                  )}
+                </For>
               </MenuDropdown>
             </Menu>
           </ToolbarRow>
-          {isMerged ? (
-            <SegmentedControl
-              size="xs"
-              value={activePanel.id}
-              onChange={(v) => {
-                setSelectedId(v);
-                setDetailSymbol(null);
-              }}
-              data={group.panels.map((p) => ({
-                value: p.id,
-                label:
-                  p.id === "losers"
-                    ? "Losers"
-                    : p.id === "near_52w_low"
-                      ? "52W low"
-                      : p.id === "near_52w_high" || p.id === "near_52w"
-                        ? "52W high"
-                        : p.id === "gainers"
-                          ? "Gainers"
-                          : p.title,
-              }))}
-              data-testid={`dashboard-toggle-${cardKey}`}
-            />
-          ) : null}
-          {activePanel.metric_label ? (
-            <Text size="xs" c="dimmed" span truncate title={activePanel.metric_label}>
-              {activePanel.metric_label}
+          <Show when={isMerged() && activePanel()}>
+            {(active) => (
+              <SegmentedControl
+                size="xs"
+                value={active().id}
+                onChange={(v) => {
+                  setSelectedId(v);
+                  setDetailSymbol(null);
+                }}
+                data={visiblePanels().map((p) => ({
+                  value: p.id,
+                  label:
+                    p.id === "losers"
+                      ? "Losers"
+                      : p.id === "near_52w_low"
+                        ? "52W low"
+                        : p.id === "near_52w_high" || p.id === "near_52w"
+                          ? "52W high"
+                          : p.id === "gainers"
+                            ? "Gainers"
+                            : p.title,
+                }))}
+                data-testid={`dashboard-toggle-${cardKey()}`}
+              />
+            )}
+          </Show>
+          <Show when={activePanel()?.metric_label}>
+            <Text size="xs" c="dimmed" span truncate title={activePanel()!.metric_label}>
+              {activePanel()!.metric_label}
             </Text>
-          ) : null}
+          </Show>
         </Box>
       }
     >
-      {shown.length === 0 ? (
-        <Box className="p-2" data-testid={`dashboard-card-empty-${cardKey}`}>
+      <Show when={shown().length > 0} fallback={
+        <Box className="p-2" data-testid={`dashboard-card-empty-${cardKey()}`}>
           <Text size="xs" c="dimmed">
             No stocks qualify
           </Text>
         </Box>
-      ) : (
-        <Box className="px-2" data-testid={`dashboard-card-rows-${cardKey}`}>
-          {shown.map((row, idx) => {
-            const isOpen = detailSymbol === row.symbol;
+      }>
+        <Box className="px-2" data-testid={`dashboard-card-rows-${cardKey()}`}>
+          <For each={shown()}>
+            {(row, idx) => {
+            const isOpen = () => detailSymbol() === row.symbol;
             return (
-              <Box key={`${activePanel.id}-${row.symbol}`}>
+              <Box>
                 <Box
-                  data-testid={`dashboard-row-${activePanel.id}-${row.symbol}`}
+                  data-testid={`dashboard-row-${activePanel()?.id}-${row.symbol}`}
                   data-symbol={row.symbol}
-                  {...symbolRowProps(onOpenSymbol, row.symbol)}
-                  className={cn(
-                    "flex min-w-0 items-center gap-2 py-0.5 tabular-nums",
-                    isOpen || idx < shown.length - 1 ? "border-b border-fin-border" : undefined,
-                    onOpenSymbol ? "hover:bg-fin-surface-alt" : undefined,
-                  )}
-                  style={{ cursor: symbolRowCursor(onOpenSymbol) }}
+                  {...symbolRowProps(props.onOpenSymbol, row.symbol)}
+                  class="flex min-w-0 items-center gap-2 py-0.5 tabular-nums"
+                  classList={{
+                    "border-b border-fin-border": isOpen() || idx() < shown().length - 1,
+                    "hover:bg-fin-surface-alt": !!props.onOpenSymbol,
+                  }}
+                  style={{ cursor: symbolRowCursor(props.onOpenSymbol) }}
                 >
                   <SymbolAvatar symbol={row.symbol} name={row.name} logo={row.logo} size={20} />
                   <Box className="flex min-w-0 flex-1 flex-col gap-0">
                     <Text size="xs" fw={700} truncate span title={row.symbol} lh={1.1}>
                       {row.symbol}
                     </Text>
-                    {row.sub_value || row.sub_label ? (
+                    <Show when={row.sub_value || row.sub_label}>
                       <Text size="xs" c="dimmed" truncate span title={row.sub_label} lh={1.1}>
                         {row.sub_value || row.sub_label}
                       </Text>
-                    ) : null}
+                    </Show>
                   </Box>
                   <Box
                     className="flex flex-shrink-0 flex-col items-end"
@@ -424,47 +419,50 @@ function DashboardCard({
                     size="xs"
                     variant="subtle"
                     style={{ width: 16, height: 16, "min-height": 16, padding: 0 }}
-                    data-testid={`dashboard-row-expand-${activePanel.id}-${row.symbol}`}
-                    aria-label={isOpen ? `Hide details for ${row.symbol}` : `Show details for ${row.symbol}`}
-                    aria-expanded={isOpen}
-                    onClick={(e) => {
+                    data-testid={`dashboard-row-expand-${activePanel()?.id}-${row.symbol}`}
+                    aria-label={isOpen() ? `Hide details for ${row.symbol}` : `Show details for ${row.symbol}`}
+                    aria-expanded={isOpen()}
+                    onClick={(e: MouseEvent) => {
                       e.stopPropagation();
-                      setDetailSymbol(isOpen ? null : row.symbol);
+                      setDetailSymbol(isOpen() ? null : row.symbol);
                     }}
                   >
                     <Text size="xs" span>
-                      {isOpen ? "▴" : "▾"}
+                      {isOpen() ? "▴" : "▾"}
                     </Text>
                   </ActionIcon>
                 </Box>
-                {isOpen ? <RowDetail row={row} panelId={activePanel.id} /> : null}
+                <Show when={isOpen()}>
+                  <RowDetail row={row} panelId={activePanel()!.id} />
+                </Show>
               </Box>
             );
-          })}
+            }}
+          </For>
         </Box>
-      )}
+      </Show>
       <Box className="mt-auto border-t border-fin-border">
         <ToolbarRow gap={4} wrap={false} clip>
           <Box className="min-w-0 flex-1 px-2 py-1.5">
             <Text size="xs" c="dimmed" truncate span>
-              {shown.length} of {activePanel.qualify} stocks qualify
+              {shown().length} of {activePanel()?.qualify ?? 0} stocks qualify
             </Text>
           </Box>
-          {canShowMore ? (
+          <Show when={canShowMore()}>
             <Button
               size="xs"
               variant="subtle"
-              onClick={onToggleExpanded}
-              data-testid={`dashboard-show-more-${cardKey}`}
+              onClick={props.onToggleExpanded}
+              data-testid={`dashboard-show-more-${cardKey()}`}
             >
-              {expanded ? "Show less" : "Show more"}
+              {props.expanded ? "Show less" : "Show more"}
             </Button>
-          ) : null}
+          </Show>
           <Button
             size="xs"
             variant="subtle"
-            onClick={onOpenScan ? () => onOpenScan(activePanel.id) : undefined}
-            data-testid={`dashboard-open-scan-${cardKey}`}
+            onClick={props.onOpenScan ? () => props.onOpenScan!(activePanel()!.id) : undefined}
+            data-testid={`dashboard-open-scan-${cardKey()}`}
           >
             Open scan
           </Button>
@@ -474,29 +472,30 @@ function DashboardCard({
   );
 }
 
-export function DashboardView({ universe = "nifty500", onOpenSymbol, onOpenScan }: DashboardViewProps) {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<ScreenerDashboardResponse | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [query, setQuery] = useState("");
-  const [expanded, setExpanded] = useState(false);
-  const [minMcapCr, setMinMcapCr] = useState<number>(DASHBOARD_DEFAULT_MIN_MCAP_CR);
-  const [hiddenPanels, setHiddenPanels] = useState<string[]>(loadHiddenPanels);
-  const bypassCacheRef = useRef(false);
+export function DashboardView(props: DashboardViewProps) {
+  const universe = () => props.universe ?? "nifty500";
+  const [loading, setLoading] = createSignal(true);
+  const [error, setError] = createSignal<string | null>(null);
+  const [data, setData] = createSignal<ScreenerDashboardResponse | null>(null);
+  const [refreshKey, setRefreshKey] = createSignal(0);
+  const [query, setQuery] = createSignal("");
+  const [expanded, setExpanded] = createSignal(false);
+  const [minMcapCr, setMinMcapCr] = createSignal<number>(DASHBOARD_DEFAULT_MIN_MCAP_CR);
+  const [hiddenPanels, setHiddenPanels] = createSignal<string[]>(loadHiddenPanels);
+  let bypassCache = false;
 
-  const limit = expanded ? DASHBOARD_MAX_LIMIT : 8;
+  const limit = () => (expanded() ? DASHBOARD_MAX_LIMIT : 8);
 
-  useEffect(() => {
+  createEffect(() => {
     try {
-      window.localStorage.setItem(HIDDEN_PANELS_STORAGE_KEY, JSON.stringify(hiddenPanels));
+      window.localStorage.setItem(HIDDEN_PANELS_STORAGE_KEY, JSON.stringify(hiddenPanels()));
     } catch {
       // storage unavailable — panel visibility just won't persist
     }
-  }, [hiddenPanels]);
+  });
 
   // ⌘K / Ctrl-K focuses the dashboard search.
-  useEffect(() => {
+  onMount(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         const input = document.querySelector(
@@ -509,28 +508,39 @@ export function DashboardView({ universe = "nifty500", onOpenSymbol, onOpenScan 
       }
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+    onCleanup(() => window.removeEventListener("keydown", onKey));
+  });
 
-  useEffect(() => {
+  createEffect(() => {
+    const currentUniverse = universe();
+    const currentRefreshKey = refreshKey();
+    const currentExpanded = expanded();
+    const currentMinMcapCr = minMcapCr();
+    const currentLimit = limit();
+    void currentRefreshKey;
+
     let cancelled = false;
     const controller = new AbortController();
+    onCleanup(() => {
+      cancelled = true;
+      controller.abort();
+    });
     setLoading(true);
     setError(null);
-    const bypass = bypassCacheRef.current;
-    bypassCacheRef.current = false;
+    const bypass = bypassCache;
+    bypassCache = false;
     // Keep the legacy 2-arg call shape for default fetches so older
     // backends (and existing call assertions) keep working; only send
     // round-2 params when they differ from the defaults.
     const needsOptions =
-      bypass || expanded || minMcapCr !== DASHBOARD_DEFAULT_MIN_MCAP_CR;
+      bypass || currentExpanded || currentMinMcapCr !== DASHBOARD_DEFAULT_MIN_MCAP_CR;
     const request = needsOptions
-      ? fetchScreenerDashboard(universe, controller.signal, {
-          limit,
-          minMarketCapCr: minMcapCr,
+      ? fetchScreenerDashboard(currentUniverse, controller.signal, {
+          limit: currentLimit,
+          minMarketCapCr: currentMinMcapCr,
           ...(bypass ? { refresh: true } : {}),
         })
-      : fetchScreenerDashboard(universe, controller.signal);
+      : fetchScreenerDashboard(currentUniverse, controller.signal);
     request
       .then((payload) => {
         if (cancelled) return;
@@ -544,80 +554,84 @@ export function DashboardView({ universe = "nifty500", onOpenSymbol, onOpenScan 
         setData(null);
         setLoading(false);
       });
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [universe, refreshKey, expanded, minMcapCr, limit]);
+  });
 
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = () => {
     // Ask the backend to bypass a cached snapshot when supported;
     // otherwise this is a plain refetch.
-    bypassCacheRef.current = true;
+    bypassCache = true;
     setRefreshKey((k) => k + 1);
-  }, []);
+  };
 
-  const handleToggleExpanded = useCallback(() => {
+  const handleToggleExpanded = () => {
     setExpanded((v) => !v);
-  }, []);
+  };
 
-  const handleTogglePanel = useCallback((panelId: string) => {
+  const handleTogglePanel = (panelId: string) => {
     setHiddenPanels((prev) =>
       prev.includes(panelId) ? prev.filter((id) => id !== panelId) : [...prev, panelId],
     );
-  }, []);
+  };
 
-  const sections = data?.sections ?? [];
+  const sections = () => data()?.sections ?? [];
 
-  const allPanelIds = useMemo(() => {
+  const allPanelIds = createMemo(() => {
     const ids: string[] = [];
-    for (const section of sections) {
+    for (const section of sections()) {
       for (const panel of section.panels) {
         if (!ids.includes(panel.id)) ids.push(panel.id);
       }
     }
     return ids;
-  }, [sections]);
+  });
 
-  const isStale =
-    data != null &&
-    (data.cached === true ||
-      (typeof data.age_sec === "number" && data.age_sec > 0));
+  const isStale = () => {
+    const d = data();
+    return (
+      d != null &&
+      (d.cached === true ||
+        (typeof d.age_sec === "number" && d.age_sec > 0))
+    );
+  };
 
   return (
     <Box
       data-testid="screener-dashboard"
-      data-universe={data?.universe ?? universe}
+      data-universe={data()?.universe ?? universe()}
       className="flex w-full min-w-0 flex-1 flex-col gap-2"
     >
       <ToolbarRow gap={8} wrap={false}>
         <Box className="min-w-0 flex-1">
-          {data ? (
-            <Text size="xs" c="dimmed" truncate span>
-              {data.universe} · {data.total} stocks · as of {formatTimeOnly(data.as_of)}
-              {isStale ? (
-                <Text
-                  size="xs"
-                  c="dimmed"
-                  span
-                  data-testid="dashboard-stale"
-                  title={
-                    typeof data.age_sec === "number"
-                      ? `Cached snapshot, ${data.age_sec}s old`
-                      : "Cached snapshot"
-                  }
-                >
-                  {" "}
-                  (cached
-                  {typeof data.age_sec === "number" ? ` ${data.age_sec}s` : ""})
-                </Text>
-              ) : null}
-            </Text>
-          ) : (
-            <Text size="xs" c="dimmed" truncate span>
-              {universe}
-            </Text>
-          )}
+          <Show
+            when={data()}
+            fallback={
+              <Text size="xs" c="dimmed" truncate span>
+                {universe()}
+              </Text>
+            }
+          >
+            {(current) => (
+              <Text size="xs" c="dimmed" truncate span>
+                {current().universe} · {current().total} stocks · as of {formatTimeOnly(current().as_of)}
+                <Show when={isStale()}>
+                  <Text
+                    size="xs"
+                    c="dimmed"
+                    span
+                    data-testid="dashboard-stale"
+                    title={
+                      typeof current().age_sec === "number"
+                        ? `Cached snapshot, ${current().age_sec}s old`
+                        : "Cached snapshot"
+                    }
+                  >
+                    {" "}(cached
+                    {typeof current().age_sec === "number" ? ` ${current().age_sec}s` : ""})
+                  </Text>
+                </Show>
+              </Text>
+            )}
+          </Show>
         </Box>
         <Button
           size="xs"
@@ -634,7 +648,7 @@ export function DashboardView({ universe = "nifty500", onOpenSymbol, onOpenScan 
           size="xs"
           w={200}
           placeholder="Search symbol (⌘K)"
-          value={query}
+          value={query()}
           onChange={setQuery}
           data-testid="dashboard-search"
           aria-label="Search dashboard rows"
@@ -646,24 +660,26 @@ export function DashboardView({ universe = "nifty500", onOpenSymbol, onOpenScan 
             </Button>
           </MenuTarget>
           <MenuDropdown>
-            {allPanelIds.length === 0 ? (
-              <MenuItem disabled>Panels load with data</MenuItem>
-            ) : (
-              allPanelIds.map((panelId) => (
-                <MenuItem
-                  key={panelId}
-                  data-testid={`dashboard-customize-${panelId}`}
-                  onClick={() => handleTogglePanel(panelId)}
-                >
-                  {hiddenPanels.includes(panelId) ? `○ ${panelId}` : `● ${panelId}`}
-                </MenuItem>
-              ))
-            )}
+            <Show
+              when={allPanelIds().length > 0}
+              fallback={<MenuItem disabled>Panels load with data</MenuItem>}
+            >
+              <For each={allPanelIds()}>
+                {(panelId) => (
+                  <MenuItem
+                    data-testid={`dashboard-customize-${panelId}`}
+                    onClick={() => handleTogglePanel(panelId)}
+                  >
+                    {hiddenPanels().includes(panelId) ? `○ ${panelId}` : `● ${panelId}`}
+                  </MenuItem>
+                )}
+              </For>
+            </Show>
           </MenuDropdown>
         </Menu>
         <Chip
           size="xs"
-          checked={minMcapCr === DASHBOARD_DEFAULT_MIN_MCAP_CR}
+          checked={minMcapCr() === DASHBOARD_DEFAULT_MIN_MCAP_CR}
           onChange={(next) =>
             setMinMcapCr(next ? DASHBOARD_DEFAULT_MIN_MCAP_CR : 0)
           }
@@ -673,74 +689,81 @@ export function DashboardView({ universe = "nifty500", onOpenSymbol, onOpenScan 
           ₹500 Cr+
         </Chip>
       </ToolbarRow>
-      {loading ? (
-        <Box
-          className="flex flex-col gap-2"
-          data-testid="dashboard-loading"
-        >
-          <Skeleton h={16} />
-          <Skeleton h={16} />
-          <Skeleton h={16} />
-          <Skeleton h={16} />
-        </Box>
-      ) : error ? (
-        <Box className="p-2" data-testid="dashboard-error">
-          <Text size="xs" c="error">
-            {error}
-          </Text>
-        </Box>
-      ) : sections.length === 0 ? (
-        <Box className="p-2" data-testid="dashboard-empty">
-          <Text size="xs" c="dimmed">
-            No dashboard data
-          </Text>
-        </Box>
-      ) : (
-        sections.map((section) => {
-          const groups = groupPanels(section.panels)
-            .map((group) => ({
-              ...group,
-              panels: group.panels.filter((p) => !hiddenPanels.includes(p.id)),
-            }))
-            .filter((group) => group.panels.length > 0);
-          if (groups.length === 0) return null;
-          const qualifyTotal = groups.reduce(
-            (m, g) => m + g.panels.reduce((n, p) => n + (p.qualify ?? 0), 0),
-            0,
-          );
-          return (
-            <Box
-              key={section.id}
-              data-testid={`dashboard-section-${section.id}`}
-              className="flex w-full min-w-0 flex-col gap-2"
-            >
-              <ToolbarRow gap={8} wrap={false}>
-                <Text size="sm" fw={700} span>
-                  {section.title}
-                </Text>
-                <Text size="xs" c="dimmed" span>
-                  {qualifyTotal} qualify
-                </Text>
-              </ToolbarRow>
-              <Box
-                className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4"
-              >
-                {groups.map((group) => (
-                  <DashboardCard
-                    key={group.key}
-                    group={group}
-                    query={query}
-                    expanded={expanded}
-                    onToggleExpanded={handleToggleExpanded}
-                    onOpenSymbol={onOpenSymbol}
-                    onOpenScan={onOpenScan}
-                  />
-                ))}
-              </Box>
-            </Box>
-          );
-        })
-      )}
+      <Switch>
+        <Match when={loading()}>
+          <Box
+            className="flex flex-col gap-2"
+            data-testid="dashboard-loading"
+          >
+            <Skeleton h={16} />
+            <Skeleton h={16} />
+            <Skeleton h={16} />
+            <Skeleton h={16} />
+          </Box>
+        </Match>
+        <Match when={error()}>
+          <Box className="p-2" data-testid="dashboard-error">
+            <Text size="xs" c="error">
+              {error()}
+            </Text>
+          </Box>
+        </Match>
+        <Match when={sections().length === 0}>
+          <Box className="p-2" data-testid="dashboard-empty">
+            <Text size="xs" c="dimmed">
+              No dashboard data
+            </Text>
+          </Box>
+        </Match>
+        <Match when={true}>
+          <For each={sections()}>
+            {(section) => {
+              const groups = groupPanels(section.panels)
+                .map((group) => ({
+                  ...group,
+                  panels: group.panels.filter((p) => !hiddenPanels().includes(p.id)),
+                }))
+                .filter((group) => group.panels.length > 0);
+              if (groups.length === 0) return null;
+              const qualifyTotal = groups.reduce(
+                (m, g) => m + g.panels.reduce((n, p) => n + (p.qualify ?? 0), 0),
+                0,
+              );
+              return (
+                <Box
+                  data-testid={`dashboard-section-${section.id}`}
+                  className="flex w-full min-w-0 flex-col gap-2"
+                >
+                  <ToolbarRow gap={8} wrap={false}>
+                    <Text size="sm" fw={700} span>
+                      {section.title}
+                    </Text>
+                    <Text size="xs" c="dimmed" span>
+                      {qualifyTotal} qualify
+                    </Text>
+                  </ToolbarRow>
+                  <Box
+                    className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4"
+                  >
+                    <For each={groups}>
+                      {(group) => (
+                        <DashboardCard
+                          group={group}
+                          query={query()}
+                          expanded={expanded()}
+                          onToggleExpanded={handleToggleExpanded}
+                          onOpenSymbol={props.onOpenSymbol}
+                          onOpenScan={props.onOpenScan}
+                        />
+                      )}
+                    </For>
+                  </Box>
+                </Box>
+              );
+            }}
+          </For>
+        </Match>
+      </Switch>
     </Box>
   );
 }

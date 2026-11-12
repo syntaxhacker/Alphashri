@@ -4,10 +4,11 @@ import { ReplayStats } from "./ReplayStats";
 import { ReplayMainView } from "./ReplayMainView";
 import { ReplayPositions } from "./ReplayPositions";
 import { ReplaySummaryPanel } from "./ReplaySummary";
-import { Box, Text, Title, ToolbarRow } from "@/ui";
+import { Text, Title, ToolbarRow } from "@/ui";
 import { useEffect, useRef } from "react";
 import * as palette from "@/ui/palette";
 import type { ReplayTrade } from "../../types/replay";
+import { Box } from "../paper-trading/primitives";
 
 function useAutoSelectTrade(
   state: ReturnType<typeof useReplayState>,

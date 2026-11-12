@@ -1,7 +1,7 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { AppShell } from "@/ui";
 import { NavbarNested } from "./NavbarNested";
-import { BrowserRouter } from "react-router-dom";
+import { Router } from "@solidjs/router";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 const meta: Meta<typeof NavbarNested> = {
@@ -11,11 +11,11 @@ const meta: Meta<typeof NavbarNested> = {
   parameters: { docs: { description: { component: "App sidebar navigation — collapsible grouped links for AppShell navbar. Use as the primary app navigation. When not: for top nav use Tabs or NavLink row." } } },
   decorators: [
     (Story) => (
-      <BrowserRouter>
+      <Router>
         <AppShell>
           <Story />
         </AppShell>
-      </BrowserRouter>
+      </Router>
     ),
   ],
   argTypes: {

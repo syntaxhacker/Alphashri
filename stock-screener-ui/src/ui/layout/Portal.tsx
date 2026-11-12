@@ -1,8 +1,19 @@
-import { createPortal } from "solid-js/web";
+import { Portal as SolidPortal } from "solid-js/web";
 import type { UIPortalProps } from "../types";
 
-export function Portal({ children, target }: UIPortalProps) {
-  const container = typeof target === "string" ? (typeof document !== "undefined" ? document.querySelector(target) : undefined) : (target as HTMLElement | undefined);
-  const targetEl = container ?? document.body;
-  return createPortal(<>{children}</>, targetEl);
+export function Portal(props: UIPortalProps) {
+  const container =
+    typeof props.target === "string"
+      ? typeof document !== "undefined"
+        ? document.querySelector(props.target)
+        : undefined
+      : props.target;
+
+  // `Portal` is a component in Solid, not a `createPortal` function — the
+  // mount node is resolved here and re-read if the caller changes it.
+  return (
+    <SolidPortal mount={container ?? document.body}>
+      {props.children}
+    </SolidPortal>
+  );
 }

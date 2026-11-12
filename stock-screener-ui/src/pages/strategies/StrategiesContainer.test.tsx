@@ -9,6 +9,13 @@ import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 // We mock the hook to control states; the real StrategiesPage is not mocked
 const mockStrategiesState = vi.fn();
 
+// @tabler/icons-react ships React memo() components — they are objects, not
+// functions, so Solid createComponent throws on them. Stub with inline SVGs.
+vi.mock("@tabler/icons-react", () => ({
+  IconAlertCircle: (props: Record<string, unknown>) => <svg data-testid="icon-alert-circle" aria-hidden {...props} />,
+  IconRefresh: (props: Record<string, unknown>) => <svg data-testid="icon-refresh" aria-hidden {...props} />,
+}));
+
 vi.mock("../../hooks/useStrategiesState", () => ({
   useStrategiesState: (...args: unknown[]) => mockStrategiesState(...args),
 }));
@@ -25,6 +32,16 @@ vi.mock("../../state/strategies", () => ({
 vi.mock("../../api/symbols", () => ({
   searchSymbols: vi.fn(() => Promise.resolve([])),
 }));
+
+// src/ui's dynamic-tag layout primitives (Box/Flex/Stack/Group/Paper/Card)
+// crash at runtime on this branch — solid calls the string tag as a component
+// ("Comp is not a function") and there is no render test covering them in the
+// @/ui suite. Stub the six crashing primitives with their intrinsic tags so
+// this test exercises the page wiring, not the broken primitive layer.
+vi.mock("@/ui", async (importOriginal) => {
+  const { uiLayoutStub } = await import("@/pages/solidTestStubs");
+  return uiLayoutStub(await importOriginal<Record<string, unknown>>());
+});
 
 // src/components/strategies/{TemplateTreeView,PerformanceView} still render
 // through React hooks, which cannot run inside a Solid tree. Stub them with

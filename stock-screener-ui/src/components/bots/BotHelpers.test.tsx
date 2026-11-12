@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import {
@@ -26,8 +26,8 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function renderWithProviders(ui: React.ReactElement) {
-  return render(<UIProvider>{ui}</UIProvider>);
+function renderWithProviders(ui: JSX.Element) {
+  return render(() => (<UIProvider>{ui}</UIProvider>));
 }
 
 const mockPortfolio: PortfolioSummary = {

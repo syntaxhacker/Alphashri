@@ -339,7 +339,7 @@ function Legend({
           height: block ? 6 : 0,
           "border-radius": block ? 1 : 0,
           "background-color": block ? color : "transparent",
-          borderTop: line || dashed ? `1px ${dashed ? "dashed" : "solid"} ${color}` : undefined,
+          "border-top": line || dashed ? `1px ${dashed ? "dashed" : "solid"} ${color}` : undefined,
           opacity: 0.9,
         }}
       />

@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
+import type { JSX } from "solid-js";
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { screen, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library";
 import { StrategyCard } from "./StrategyCard";
 import { mockPosition } from "./testFixtures";
 import { renderWithProviders } from "../../test-utils/renderWithProviders";
@@ -18,7 +18,7 @@ vi.mock("./PositionsHelpers", () => ({
 }));
 
 vi.mock("../common/compact", () => ({
-  CompactPanel: vi.fn(({ children, testId }: { children: React.ReactNode; testId?: string }) => (
+  CompactPanel: vi.fn(({ children, testId }: { children: JSX.Element; testId?: string }) => (
     <div data-testid={testId}>{children}</div>
   )),
 }));
@@ -46,7 +46,7 @@ describe("StrategyCard", () => {
   describe("Basic rendering", () => {
     test("renders strategy name and position count", () => {
       const positions = createPositions(3);
-      renderWithProviders(
+      render(() => 
         <StrategyCard {...defaultProps} positions={positions} />,
       );
       const card = screen.getByTestId("strategy-card-ORB Strategy");
@@ -57,7 +57,7 @@ describe("StrategyCard", () => {
 
     test("shows total P&L positive", () => {
       const positions = createPositions(2, { pnl: 5000 });
-      renderWithProviders(
+      render(() => 
         <StrategyCard {...defaultProps} positions={positions} />,
       );
       expect(screen.getByText((c) => c.includes("+") && c.includes("₹"))).toBeInTheDocument();
@@ -65,7 +65,7 @@ describe("StrategyCard", () => {
 
     test("shows total P&L negative", () => {
       const positions = createPositions(1, { pnl: -500 });
-      renderWithProviders(
+      render(() => 
         <StrategyCard {...defaultProps} positions={positions} />,
       );
       expect(screen.getByText((c) => c.includes("-") && c.includes("₹"))).toBeInTheDocument();
@@ -73,27 +73,26 @@ describe("StrategyCard", () => {
 
     test("renders close all button", () => {
       const positions = createPositions(2);
-      renderWithProviders(
+      render(() => 
         <StrategyCard {...defaultProps} positions={positions} />,
       );
       expect(screen.getByTestId("close-strategy-ORB Strategy")).toBeInTheDocument();
     });
 
     test("close all calls onCloseAll with stopPropagation", async () => {
-      const user = userEvent.setup();
       const onCloseAll = vi.fn();
       const positions = createPositions(2);
-      renderWithProviders(
+      render(() => 
         <StrategyCard {...defaultProps} positions={positions} onCloseAll={onCloseAll} />,
       );
-      await user.click(screen.getByTestId("close-strategy-ORB Strategy"));
+      await fireEvent.click(screen.getByTestId("close-strategy-ORB Strategy"));
       expect(onCloseAll).toHaveBeenCalledWith(positions);
     });
   });
 
   describe("Capacity bar", () => {
     test("capacity bar at 0% when no positions", () => {
-      renderWithProviders(
+      render(() => 
         <StrategyCard {...defaultProps} positions={[]} />,
       );
       const progress = screen.getByRole("progressbar");
@@ -103,7 +102,7 @@ describe("StrategyCard", () => {
 
     test("capacity bar at 50% when half full", () => {
       const positions = createPositions(5);
-      renderWithProviders(
+      render(() => 
         <StrategyCard {...defaultProps} positions={positions} maxCapacity={10} />,
       );
       const progress = screen.getByRole("progressbar");
@@ -112,7 +111,7 @@ describe("StrategyCard", () => {
 
     test("capacity bar at 100% (red color)", () => {
       const positions = createPositions(10);
-      renderWithProviders(
+      render(() => 
         <StrategyCard {...defaultProps} positions={positions} maxCapacity={10} />,
       );
       const progress = screen.getByRole("progressbar");
@@ -121,7 +120,7 @@ describe("StrategyCard", () => {
 
     test("capacity bar at >100% (clamped to 100, red)", () => {
       const positions = createPositions(15);
-      renderWithProviders(
+      render(() => 
         <StrategyCard {...defaultProps} positions={positions} maxCapacity={10} />,
       );
       const progress = screen.getByRole("progressbar");
@@ -132,14 +131,14 @@ describe("StrategyCard", () => {
   describe("Expand/collapse", () => {
     test("always renders PositionsTableBody", () => {
       const positions = createPositions(2);
-      renderWithProviders(
+      render(() => 
         <StrategyCard {...defaultProps} positions={positions} />,
       );
       expect(screen.getByTestId("positions-body")).toBeInTheDocument();
     });
 
     test("testId prop is passed to CompactPanel", () => {
-      renderWithProviders(
+      render(() => 
         <StrategyCard {...defaultProps} strategyName="Test Strat" />,
       );
       expect(screen.getByTestId("strategy-card-Test Strat")).toBeInTheDocument();
@@ -149,7 +148,7 @@ describe("StrategyCard", () => {
   describe("data integrity edge cases", () => {
     test("does not crash when positions contain NaN P&L", () => {
       const positions = createPositions(2, { pnl: NaN, pnl_pct: NaN });
-      renderWithProviders(
+      render(() => 
         <StrategyCard {...defaultProps} positions={positions} />,
       );
       expect(screen.getByText("ORB Strategy")).toBeInTheDocument();

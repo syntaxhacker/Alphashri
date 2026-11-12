@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
+import { For, createSignal } from "solid-js";
 import { Box, Paper, Stack, Button, Text, Chip, ActionIcon, Select, Tooltip, Tabs } from "@/ui";
 import { IconRefresh, IconTable, IconChartDots, IconSettings } from "@tabler/icons-react";
 import * as palette from "@/ui/palette";
@@ -45,7 +45,7 @@ function MockTable() {
           Score
         </Text>
       </Box>
-      {MOCK_ROWS.map((r) => (
+      <For each={MOCK_ROWS}>{(r) => (
         <Box
           key={r.symbol}
           className="flex gap-0 px-2 py-2 border-b border-[#30363D] last:border-b-0 h-7 items-center"
@@ -70,17 +70,17 @@ function MockTable() {
             {95 - MOCK_ROWS.indexOf(r) * 3}
           </Text>
         </Box>
-      ))}
+      )}</For>
     </Box>
   );
 }
 
 // ---- Option A : Unified Toolbar (recommended, minimal risk) ----
 function OptionA() {
-  const [tab, setTab] = useState(0);
-  const [screener, setScreener] = useState("trending");
-  const [provider, setProvider] = useState("upstox");
-  const [mode, setMode] = useState("intraday");
+  const [tab, setTab] = createSignal(0);
+  const [screener, setScreener] = createSignal("trending");
+  const [provider, setProvider] = createSignal("upstox");
+  const [mode, setMode] = createSignal("intraday");
   return (
     <Box className="flex flex-col gap-2 p-2 min-h-[420px]" style={{ "background-color": palette.BG }}>
       <Text className="text-[#8B949E] font-bold tracking-[0.5px] text-[11px]">
@@ -94,13 +94,13 @@ function OptionA() {
         <Box className="flex items-center gap-1.5 shrink-0">
           <Select
             size="xs"
-            value={screener}
+            value={screener()}
             onChange={(v) => setScreener(v ?? "trending")}
             label="Screener"
             data={SCREENER_OPTS}
             className="min-w-[140px] text-[12px] h-8"
           />
-          <Tabs value={String(tab)} onChange={(v) => setTab(Number(v ?? 0))} className="min-h-[32px]">
+          <Tabs value={String(tab())} onChange={(v) => setTab(Number(v ?? 0))} className="min-h-[32px]">
             <Tabs.List className="min-h-[32px]">
               <Tabs.Tab value="0" icon={<IconTable size={14} />} label="Screener" className="text-[12px] py-0 min-w-[90px]" />
               <Tabs.Tab value="1" icon={<IconChartDots size={14} />} label="Correlation" className="text-[12px] py-0 min-w-[90px]" />
@@ -128,7 +128,7 @@ function OptionA() {
           />
           <Select
             size="xs"
-            value={provider}
+            value={provider()}
             onChange={(v) => setProvider(v ?? "upstox")}
             label="Provider"
             data={[
@@ -140,7 +140,7 @@ function OptionA() {
           />
           <Select
             size="xs"
-            value={mode}
+            value={mode()}
             onChange={(v) => setMode(v ?? "intraday")}
             label="Mode"
             data={[

@@ -1,103 +1,200 @@
-import type { JSX } from "solid-js";
-
-interface IconProps {
+export interface IconProps {
   size?: number | string;
   className?: string;
   "data-testid"?: string;
   color?: string;
+  /** Overrides the default stroke width (tabler default is 2). */
+  stroke?: number;
 }
 
 /**
- * Inline SVG icons replacing @tabler/icons-react (the Solid build has no
- * React DOM, so React icon components cannot mount). Paths are simple,
- * tabler-like geometry; they're decorative only — no test asserts path data.
+ * Inline SVG icons generated from @tabler/icons (outline set, MIT).
+ * The Solid build has no React DOM, so @tabler/icons-react cannot mount —
+ * these render the same tabler path data as plain SVG.
  */
-export function Icon({ name, size = 16, className, "data-testid": testId, color }: IconProps & { name: string }) {
-  const d = ICON_PATHS[name];
+export function Icon(props: IconProps & { name: string }) {
+  const node = ICON_NODES[props.name];
   return (
     <svg
-      data-testid={testId ?? `icon-${name}`}
-      class={className}
-      width={size}
-      height={size}
+      data-testid={props["data-testid"] ?? `icon-${props.name}`}
+      class={props.className}
+      width={props.size ?? 16}
+      height={props.size ?? 16}
       viewBox="0 0 24 24"
       fill="none"
-      stroke={color ?? "currentColor"}
-      stroke-width="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      stroke={props.color ?? "currentColor"}
+      stroke-width={props.stroke ?? 2}
+      stroke-linecap="round"
+      stroke-linejoin="round"
     >
-      {d ? <path d={d} /> : null}
+      {node?.map(([tag, attrs]: [string, Record<string, string>]) => {
+        if (tag === "path") return <path d={attrs.d} />;
+        if (tag === "circle") return <circle cx={attrs.cx} cy={attrs.cy} r={attrs.r} />;
+        if (tag === "line") return <line x1={attrs.x1} y1={attrs.y1} x2={attrs.x2} y2={attrs.y2} />;
+        if (tag === "rect") return <rect x={attrs.x} y={attrs.y} width={attrs.width} height={attrs.height} rx={attrs.rx} />;
+        if (tag === "polyline") return <polyline points={attrs.points} />;
+        if (tag === "polygon") return <polygon points={attrs.points} />;
+        if (tag === "ellipse") return <ellipse cx={attrs.cx} cy={attrs.cy} rx={attrs.rx} ry={attrs.ry} />;
+        return null;
+      })}
     </svg>
   );
 }
 
-// Tabler-like geometry for the icons used across the terminal.
-const ICON_PATHS: Record<string, string> = {
-  Activity: "M16 12A3 3 0 1 0 12 9v0a3 3 0 0 0 3 3zM3.34 12A8.88 8.88 0 0 0 16.6 4c0 1.21-.15 2.39-.42 3.53M20.66 12a8.88 8.88 0 0 1-13.26 4c0-1.21.15-2.39.42-3.53",
-  AlertCircle: "M2 12C2 6.47 6.47 2 12 2s10 4.47 10 10-4.47 10-10 10S2 17.53 2 12Z",
-  AlertTriangle: "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z",
-  ArrowDown: "M12 9V15M19 12L12 19L5 12",
-  ArrowUp: "M12 15V9M5 12L12 5L19 12",
-  Bolt: "M13 2L6 14H7L11 4H12L13 2ZM7 22H14L10 8H9L7 22Z",
-  BookOpen: "M3 12L12 3L21 12L12 21L3 12Z",
-  BellRinging: "M10 17V11a3 3 0 0 1 6 0v6a2 2 0 0 0-2 2H6a2 2 0 0 0-2-2v-6M18 8a2 2 0 1 1-4 0V6a2 2 0 0 1 4 0Z",
-  ChevronDown: "M6 9L12 15L18 9",
-  ChevronRight: "M9 6L15 12L9 18",
-  ChevronUp: "M18 15L12 9L6 15",
-  ClipboardList: "M8 9V7a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M8 13V11a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M4 17V15a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2",
-  Database: "M2 12C2 9.24 4.24 7 7 7s5 2.24 5 5-2.24 5-5 5S2 14.76 2 12ZM20 12C20 9.24 22.24 7 19.24 7S15 9.24 15 12s2.24 5 4.24 5S22 14.76 22 12Z",
-  Dots: "M12 11L12 13M19 11L19 13M5 11L5 13",
-  Download: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10L12 15L17 10",
-  DeviceFloppy: "M5 21H19a2 2 0 0 0 2-2V11a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 0 0ZM9 7V5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M4 11V9a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2",
-  FilterOff: "M22 3H2L10 13L16 7H22ZM2 21H22L14 11L8 17H2Z",
-  FolderOpen: "M10 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2ZM2 15H4a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1H2Z",
-  History: "M12 12a3 3 0 1 0 3-3 3 3 0 0 0-3-3ZM3 15a9 9 0 1 0 9-9 9 9 0 0 0-9 9Z",
-  LayoutGrid: "M3 3H7V7H3ZM17 3H21V7H17ZM3 17H7V21H3ZM17 17H21V21H17Z",
-  PlayerPlay: "M8 5L19 12L8 19Z",
-  PlayerStop: "M8 5H16V19H8Z",
-  Refresh: "M1 4V2H4L22 14L19 22V20L7 12M23 20V22H20L2 10L5 2V4L17 10",
-  Settings: "M12.06 11.67L16 12.43V16L12.06 15.23L8 14.43V12L12.06 11.67ZM16.94 7.94L19.06 11L16.94 14.06L14.06 16.94L11 19.06L7.94 16.94L10.06 14L7.94 10.94L10.06 7.94L13 5.06L16.94 7.94ZM12 15A3 3 0 1 0 12 9A3 3 0 0 0 12 15Z",
-  Sparkles: "M16 9L13.2 13H16V16L13.2 19L16 23L19 23V16L21.8 13H19V9L16.8 5L16 9ZM11 1L8 1V8L5.2 12L8 16V15L11 11L8 7V1Z",
-  Table: "M3 3H21V5H3ZM3 10H21V12H3ZM3 17H21V19H3Z",
-  Target: "M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z",
-  Timeline: "M20 14V8M4 10L12 6M12 6L20 10M4 10V16M12 18L20 14M12 18L4 14M4 14V20M12 18V12",
-  Trade: "M20 4H12.4M4 20H11.6M16.4 20L20 16.4M7.6 4L4 7.6",
-  Wall: "M13 3V21M21 3V21M5 3V21",
-  X: "M18 6L6 18M6 6l12 12",
+const ICON_NODES: Record<string, Array<[string, Record<string, string>]>> = {
+  "activity": [["path",{"d":"M3 12h4l3 8l4 -16l3 8h4"}]],
+  "adjustments": [["path",{"d":"M4 10a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"}],["path",{"d":"M6 4v4"}],["path",{"d":"M6 12v8"}],["path",{"d":"M10 16a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"}],["path",{"d":"M12 4v10"}],["path",{"d":"M12 18v2"}],["path",{"d":"M16 7a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"}],["path",{"d":"M18 4v1"}],["path",{"d":"M18 9v11"}]],
+  "alert-circle": [["path",{"d":"M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"}],["path",{"d":"M12 8v4"}],["path",{"d":"M12 16h.01"}]],
+  "alert-triangle": [["path",{"d":"M12 9v4"}],["path",{"d":"M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0"}],["path",{"d":"M12 16h.01"}]],
+  "archive": [["path",{"d":"M3 6a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2"}],["path",{"d":"M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10"}],["path",{"d":"M10 12l4 0"}]],
+  "arrow-down": [["path",{"d":"M12 5l0 14"}],["path",{"d":"M18 13l-6 6"}],["path",{"d":"M6 13l6 6"}]],
+  "arrow-left": [["path",{"d":"M5 12l14 0"}],["path",{"d":"M5 12l6 6"}],["path",{"d":"M5 12l6 -6"}]],
+  "arrows-maximize": [["path",{"d":"M16 4l4 0l0 4"}],["path",{"d":"M14 10l6 -6"}],["path",{"d":"M8 20l-4 0l0 -4"}],["path",{"d":"M4 20l6 -6"}],["path",{"d":"M16 20l4 0l0 -4"}],["path",{"d":"M14 14l6 6"}],["path",{"d":"M8 4l-4 0l0 4"}],["path",{"d":"M4 4l6 6"}]],
+  "arrows-minimize": [["path",{"d":"M5 9l4 0l0 -4"}],["path",{"d":"M3 3l6 6"}],["path",{"d":"M5 15l4 0l0 4"}],["path",{"d":"M3 21l6 -6"}],["path",{"d":"M19 9l-4 0l0 -4"}],["path",{"d":"M15 9l6 -6"}],["path",{"d":"M19 15l-4 0l0 4"}],["path",{"d":"M15 15l6 6"}]],
+  "arrow-up": [["path",{"d":"M12 5l0 14"}],["path",{"d":"M18 11l-6 -6"}],["path",{"d":"M6 11l6 -6"}]],
+  "arrow-up-right": [["path",{"d":"M17 7l-10 10"}],["path",{"d":"M8 7l9 0l0 9"}]],
+  "bell": [["path",{"d":"M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6"}],["path",{"d":"M9 17v1a3 3 0 0 0 6 0v-1"}]],
+  "bell-ringing": [["path",{"d":"M10 5a2 2 0 0 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6"}],["path",{"d":"M9 17v1a3 3 0 0 0 6 0v-1"}],["path",{"d":"M21 6.727a11.05 11.05 0 0 0 -2.794 -3.727"}],["path",{"d":"M3 6.727a11.05 11.05 0 0 1 2.792 -3.727"}]],
+  "bolt": [["path",{"d":"M13 3l0 7l6 0l-8 11l0 -7l-6 0l8 -11"}]],
+  "book": [["path",{"d":"M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0"}],["path",{"d":"M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0"}],["path",{"d":"M3 6l0 13"}],["path",{"d":"M12 6l0 13"}],["path",{"d":"M21 6l0 13"}]],
+  "building-factory": [["path",{"d":"M4 21c1.147 -4.02 1.983 -8.027 2 -12h6c.017 3.973 .853 7.98 2 12"}],["path",{"d":"M12.5 13h4.5c.025 2.612 .894 5.296 2 8"}],["path",{"d":"M9 5a2.4 2.4 0 0 1 2 -1a2.4 2.4 0 0 1 2 1a2.4 2.4 0 0 0 2 1a2.4 2.4 0 0 0 2 -1a2.4 2.4 0 0 1 2 -1a2.4 2.4 0 0 1 2 1"}],["path",{"d":"M3 21l19 0"}]],
+  "bulb": [["path",{"d":"M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7"}],["path",{"d":"M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3"}],["path",{"d":"M9.7 17l4.6 0"}]],
+  "chart-area": [["path",{"d":"M4 19l16 0"}],["path",{"d":"M4 15l4 -6l4 2l4 -5l4 4l0 5l-16 0"}]],
+  "chart-bar": [["path",{"d":"M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -6"}],["path",{"d":"M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -10"}],["path",{"d":"M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -14"}],["path",{"d":"M4 20h14"}]],
+  "chart-candle": [["path",{"d":"M4 7a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v3a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -3"}],["path",{"d":"M6 4l0 2"}],["path",{"d":"M6 11l0 9"}],["path",{"d":"M10 15a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v3a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -3"}],["path",{"d":"M12 4l0 10"}],["path",{"d":"M12 19l0 1"}],["path",{"d":"M16 6a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -4"}],["path",{"d":"M18 4l0 1"}],["path",{"d":"M18 11l0 9"}]],
+  "chart-dots": [["path",{"d":"M3 3v18h18"}],["path",{"d":"M7 9a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"}],["path",{"d":"M17 7a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"}],["path",{"d":"M12 15a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"}],["path",{"d":"M10.16 10.62l2.34 2.88"}],["path",{"d":"M15.088 13.328l2.837 -4.586"}]],
+  "chart-line": [["path",{"d":"M4 19l16 0"}],["path",{"d":"M4 15l4 -6l4 2l4 -5l4 4"}]],
+  "check": [["path",{"d":"M5 12l5 5l10 -10"}]],
+  "chevron-down": [["path",{"d":"M6 9l6 6l6 -6"}]],
+  "chevron-left": [["path",{"d":"M15 6l-6 6l6 6"}]],
+  "chevron-right": [["path",{"d":"M9 6l6 6l-6 6"}]],
+  "chevron-up": [["path",{"d":"M6 15l6 -6l6 6"}]],
+  "clipboard-list": [["path",{"d":"M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2"}],["path",{"d":"M9 5a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2"}],["path",{"d":"M9 12l.01 0"}],["path",{"d":"M13 12l2 0"}],["path",{"d":"M9 16l.01 0"}],["path",{"d":"M13 16l2 0"}]],
+  "copy": [["path",{"d":"M7 9.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667l0 -8.666"}],["path",{"d":"M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1"}]],
+  "currency-dollar": [["path",{"d":"M16.7 8a3 3 0 0 0 -2.7 -2h-4a3 3 0 0 0 0 6h4a3 3 0 0 1 0 6h-4a3 3 0 0 1 -2.7 -2"}],["path",{"d":"M12 3v3m0 12v3"}]],
+  "database": [["path",{"d":"M4 6a8 3 0 1 0 16 0a8 3 0 1 0 -16 0"}],["path",{"d":"M4 6v6a8 3 0 0 0 16 0v-6"}],["path",{"d":"M4 12v6a8 3 0 0 0 16 0v-6"}]],
+  "database-off": [["path",{"d":"M12.983 8.978c3.955 -.182 7.017 -1.446 7.017 -2.978c0 -1.657 -3.582 -3 -8 -3c-1.661 0 -3.204 .19 -4.483 .515m-2.783 1.228c-.471 .382 -.734 .808 -.734 1.257c0 1.22 1.944 2.271 4.734 2.74"}],["path",{"d":"M4 6v6c0 1.657 3.582 3 8 3c.986 0 1.93 -.067 2.802 -.19m3.187 -.82c1.251 -.53 2.011 -1.228 2.011 -1.99v-6"}],["path",{"d":"M4 12v6c0 1.657 3.582 3 8 3c3.217 0 5.991 -.712 7.261 -1.74m.739 -3.26v-4"}],["path",{"d":"M3 3l18 18"}]],
+  "device-floppy": [["path",{"d":"M6 4h10l4 4v10a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2"}],["path",{"d":"M10 14a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"}],["path",{"d":"M14 4l0 4l-6 0l0 -4"}]],
+  "dots": [["path",{"d":"M4 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}],["path",{"d":"M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}],["path",{"d":"M18 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}]],
+  "download": [["path",{"d":"M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"}],["path",{"d":"M7 11l5 5l5 -5"}],["path",{"d":"M12 4l0 12"}]],
+  "edit": [["path",{"d":"M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1"}],["path",{"d":"M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415"}],["path",{"d":"M16 5l3 3"}]],
+  "external-link": [["path",{"d":"M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6"}],["path",{"d":"M11 13l9 -9"}],["path",{"d":"M15 4h5v5"}]],
+  "eye": [["path",{"d":"M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"}],["path",{"d":"M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6"}]],
+  "filter": [["path",{"d":"M4 4h16v2.172a2 2 0 0 1 -.586 1.414l-4.414 4.414v7l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227"}]],
+  "filter-off": [["path",{"d":"M8 4h12v2.172a2 2 0 0 1 -.586 1.414l-3.914 3.914m-.5 3.5v4l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227"}],["path",{"d":"M3 3l18 18"}]],
+  "flask": [["path",{"d":"M9 3l6 0"}],["path",{"d":"M10 9l4 0"}],["path",{"d":"M10 3v6l-4 11a.7 .7 0 0 0 .5 1h11a.7 .7 0 0 0 .5 -1l-4 -11v-6"}]],
+  "folder-open": [["path",{"d":"M5 19l2.757 -7.351a1 1 0 0 1 .936 -.649h12.307a1 1 0 0 1 .986 1.164l-.996 5.211a2 2 0 0 1 -1.964 1.625h-14.026a2 2 0 0 1 -2 -2v-11a2 2 0 0 1 2 -2h4l3 3h7a2 2 0 0 1 2 2v2"}]],
+  "history": [["path",{"d":"M12 8l0 4l2 2"}],["path",{"d":"M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"}]],
+  "info-circle": [["path",{"d":"M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"}],["path",{"d":"M12 9h.01"}],["path",{"d":"M11 12h1v4h1"}]],
+  "layout-grid": [["path",{"d":"M4 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4"}],["path",{"d":"M14 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4"}],["path",{"d":"M4 15a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4"}],["path",{"d":"M14 15a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4"}]],
+  "leaf": [["path",{"d":"M5 21c.5 -4.5 2.5 -8 7 -10"}],["path",{"d":"M9 18c6.218 0 10.5 -3.288 11 -12v-2h-4.014c-9 0 -11.986 4 -12 9c0 1 0 3 2 5h3l.014 0"}]],
+  "logout": [["path",{"d":"M14 8v-2a2 2 0 0 0 -2 -2h-7a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2 -2v-2"}],["path",{"d":"M9 12h12l-3 -3"}],["path",{"d":"M18 15l3 -3"}]],
+  "menu-2": [["path",{"d":"M4 6l16 0"}],["path",{"d":"M4 12l16 0"}],["path",{"d":"M4 18l16 0"}]],
+  "message": [["path",{"d":"M8 9h8"}],["path",{"d":"M8 13h6"}],["path",{"d":"M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3h12"}]],
+  "minus": [["path",{"d":"M5 12l14 0"}]],
+  "moon": [["path",{"d":"M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454l0 .008"}]],
+  "news": [["path",{"d":"M16 6h3a1 1 0 0 1 1 1v11a2 2 0 0 1 -4 0v-13a1 1 0 0 0 -1 -1h-10a1 1 0 0 0 -1 1v12a3 3 0 0 0 3 3h11"}],["path",{"d":"M8 8l4 0"}],["path",{"d":"M8 12l4 0"}],["path",{"d":"M8 16l4 0"}]],
+  "player-pause": [["path",{"d":"M6 6a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -12"}],["path",{"d":"M14 6a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -12"}]],
+  "player-play": [["path",{"d":"M7 4v16l13 -8l-13 -8"}]],
+  "player-stop": [["path",{"d":"M5 7a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2l0 -10"}]],
+  "plus": [["path",{"d":"M12 5l0 14"}],["path",{"d":"M5 12l14 0"}]],
+  "refresh": [["path",{"d":"M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"}],["path",{"d":"M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"}]],
+  "report-analytics": [["path",{"d":"M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2"}],["path",{"d":"M9 5a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2"}],["path",{"d":"M9 17v-5"}],["path",{"d":"M12 17v-1"}],["path",{"d":"M15 17v-3"}]],
+  "robot": [["path",{"d":"M6 6a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v4a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2l0 -4"}],["path",{"d":"M12 2v2"}],["path",{"d":"M9 12v9"}],["path",{"d":"M15 12v9"}],["path",{"d":"M5 16l4 -2"}],["path",{"d":"M15 14l4 2"}],["path",{"d":"M9 18h6"}],["path",{"d":"M10 8v.01"}],["path",{"d":"M14 8v.01"}]],
+  "rocket": [["path",{"d":"M4 13a8 8 0 0 1 7 7a6 6 0 0 0 3 -5a9 9 0 0 0 6 -8a3 3 0 0 0 -3 -3a9 9 0 0 0 -8 6a6 6 0 0 0 -5 3"}],["path",{"d":"M7 14a6 6 0 0 0 -3 6a6 6 0 0 0 6 -3"}],["path",{"d":"M14 9a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}]],
+  "rotate": [["path",{"d":"M19.95 11a8 8 0 1 0 -.5 4m.5 5v-5h-5"}]],
+  "search": [["path",{"d":"M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"}],["path",{"d":"M21 21l-6 -6"}]],
+  "send": [["path",{"d":"M10 14l11 -11"}],["path",{"d":"M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5"}]],
+  "settings": [["path",{"d":"M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065"}],["path",{"d":"M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"}]],
+  "shield": [["path",{"d":"M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"}]],
+  "sparkles": [["path",{"d":"M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m0 -12a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m-7 12a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6"}]],
+  "sun": [["path",{"d":"M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"}],["path",{"d":"M3 12h1m8 -9v1m8 8h1m-9 8v1m-6.4 -15.4l.7 .7m12.1 -.7l-.7 .7m0 11.4l.7 .7m-12.1 -.7l-.7 .7"}]],
+  "table": [["path",{"d":"M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14"}],["path",{"d":"M3 10h18"}],["path",{"d":"M10 3v18"}]],
+  "target": [["path",{"d":"M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}],["path",{"d":"M7 12a5 5 0 1 0 10 0a5 5 0 1 0 -10 0"}],["path",{"d":"M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"}]],
+  "timeline": [["path",{"d":"M4 16l6 -7l5 5l5 -6"}],["path",{"d":"M14 14a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}],["path",{"d":"M9 9a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}],["path",{"d":"M3 16a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}],["path",{"d":"M19 8a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}]],
+  "arrows-right-left": [["path",{"d":"M21 7l-18 0"}],["path",{"d":"M18 10l3 -3l-3 -3"}],["path",{"d":"M6 20l-3 -3l3 -3"}],["path",{"d":"M3 17l18 0"}]],
+  "trash": [["path",{"d":"M4 7l16 0"}],["path",{"d":"M10 11l0 6"}],["path",{"d":"M14 11l0 6"}],["path",{"d":"M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"}],["path",{"d":"M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"}]],
+  "trending-down": [["path",{"d":"M3 7l6 6l4 -4l8 8"}],["path",{"d":"M21 10l0 7l-7 0"}]],
+  "trending-up": [["path",{"d":"M3 17l6 -6l4 4l8 -8"}],["path",{"d":"M14 7l7 0l0 7"}]],
+  "user": [["path",{"d":"M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0"}],["path",{"d":"M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2"}]],
+  "wall": [["path",{"d":"M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12"}],["path",{"d":"M4 8h16"}],["path",{"d":"M20 12h-16"}],["path",{"d":"M4 16h16"}],["path",{"d":"M9 4v4"}],["path",{"d":"M14 8v4"}],["path",{"d":"M8 12v4"}],["path",{"d":"M16 12v4"}],["path",{"d":"M11 16v4"}]],
+  "x": [["path",{"d":"M18 6l-12 12"}],["path",{"d":"M6 6l12 12"}]],
 };
 
-// Named exports so existing import sites only change the module path.
-export const IconActivity = (props: IconProps) => <Icon name="Activity" {...props} />;
-export const IconAlertCircle = (props: IconProps) => <Icon name="AlertCircle" {...props} />;
-export const IconAlertTriangle = (props: IconProps) => <Icon name="AlertTriangle" {...props} />;
-export const IconArrowDown = (props: IconProps) => <Icon name="ArrowDown" {...props} />;
-export const IconArrowUp = (props: IconProps) => <Icon name="ArrowUp" {...props} />;
-export const IconBellRinging = (props: IconProps) => <Icon name="BellRinging" {...props} />;
-export const IconBolt = (props: IconProps) => <Icon name="Bolt" {...props} />;
-export const IconBookOpen = (props: IconProps) => <Icon name="BookOpen" {...props} />;
-export const IconChevronDown = (props: IconProps) => <Icon name="ChevronDown" {...props} />;
-export const IconChevronRight = (props: IconProps) => <Icon name="ChevronRight" {...props} />;
-export const IconChevronUp = (props: IconProps) => <Icon name="ChevronUp" {...props} />;
-export const IconChartDots = (props: IconProps) => <Icon name="Activity" {...props} />;
-export const IconClipboardList = (props: IconProps) => <Icon name="ClipboardList" {...props} />;
-export const IconDatabase = (props: IconProps) => <Icon name="Database" {...props} />;
-export const IconDatabaseOff = (props: IconProps) => <Icon name="Database" {...props} />;
-export const IconDeviceFloppy = (props: IconProps) => <Icon name="DeviceFloppy" {...props} />;
-export const IconDots = (props: IconProps) => <Icon name="Dots" {...props} />;
-export const IconDownload = (props: IconProps) => <Icon name="Download" {...props} />;
-export const IconFilterOff = (props: IconProps) => <Icon name="FilterOff" {...props} />;
-export const IconFolderOpen = (props: IconProps) => <Icon name="FolderOpen" {...props} />;
-export const IconHistory = (props: IconProps) => <Icon name="History" {...props} />;
-export const IconLayoutGrid = (props: IconProps) => <Icon name="LayoutGrid" {...props} />;
-export const IconPlayerPlay = (props: IconProps) => <Icon name="PlayerPlay" {...props} />;
-export const IconPlayerStop = (props: IconProps) => <Icon name="PlayerStop" {...props} />;
-export const IconRefresh = (props: IconProps) => <Icon name="Refresh" {...props} />;
-export const IconSettings = (props: IconProps) => <Icon name="Settings" {...props} />;
-export const IconSparkles = (props: IconProps) => <Icon name="Sparkles" {...props} />;
-export const IconTable = (props: IconProps) => <Icon name="Table" {...props} />;
-export const IconTarget = (props: IconProps) => <Icon name="Target" {...props} />;
-export const IconTimeline = (props: IconProps) => <Icon name="Timeline" {...props} />;
-export const IconTrade = (props: IconProps) => <Icon name="Trade" {...props} />;
-export const IconWall = (props: IconProps) => <Icon name="Wall" {...props} />;
-export const IconX = (props: IconProps) => <Icon name="X" {...props} />;
+export const IconActivity = (props: IconProps) => <Icon name="activity" {...props} />;
+export const IconAdjustments = (props: IconProps) => <Icon name="adjustments" {...props} />;
+export const IconAlertCircle = (props: IconProps) => <Icon name="alert-circle" {...props} />;
+export const IconAlertTriangle = (props: IconProps) => <Icon name="alert-triangle" {...props} />;
+export const IconArchive = (props: IconProps) => <Icon name="archive" {...props} />;
+export const IconArrowDown = (props: IconProps) => <Icon name="arrow-down" {...props} />;
+export const IconArrowLeft = (props: IconProps) => <Icon name="arrow-left" {...props} />;
+export const IconArrowsMaximize = (props: IconProps) => <Icon name="arrows-maximize" {...props} />;
+export const IconArrowsMinimize = (props: IconProps) => <Icon name="arrows-minimize" {...props} />;
+export const IconArrowUp = (props: IconProps) => <Icon name="arrow-up" {...props} />;
+export const IconArrowUpRight = (props: IconProps) => <Icon name="arrow-up-right" {...props} />;
+export const IconBell = (props: IconProps) => <Icon name="bell" {...props} />;
+export const IconBellRinging = (props: IconProps) => <Icon name="bell-ringing" {...props} />;
+export const IconBolt = (props: IconProps) => <Icon name="bolt" {...props} />;
+export const IconBookOpen = (props: IconProps) => <Icon name="book" {...props} />;
+export const IconBuildingFactory = (props: IconProps) => <Icon name="building-factory" {...props} />;
+export const IconBulb = (props: IconProps) => <Icon name="bulb" {...props} />;
+export const IconChartArea = (props: IconProps) => <Icon name="chart-area" {...props} />;
+export const IconChartBar = (props: IconProps) => <Icon name="chart-bar" {...props} />;
+export const IconChartCandle = (props: IconProps) => <Icon name="chart-candle" {...props} />;
+export const IconChartDots = (props: IconProps) => <Icon name="chart-dots" {...props} />;
+export const IconChartLine = (props: IconProps) => <Icon name="chart-line" {...props} />;
+export const IconCheck = (props: IconProps) => <Icon name="check" {...props} />;
+export const IconChevronDown = (props: IconProps) => <Icon name="chevron-down" {...props} />;
+export const IconChevronLeft = (props: IconProps) => <Icon name="chevron-left" {...props} />;
+export const IconChevronRight = (props: IconProps) => <Icon name="chevron-right" {...props} />;
+export const IconChevronUp = (props: IconProps) => <Icon name="chevron-up" {...props} />;
+export const IconClipboardList = (props: IconProps) => <Icon name="clipboard-list" {...props} />;
+export const IconCopy = (props: IconProps) => <Icon name="copy" {...props} />;
+export const IconCurrencyDollar = (props: IconProps) => <Icon name="currency-dollar" {...props} />;
+export const IconDatabase = (props: IconProps) => <Icon name="database" {...props} />;
+export const IconDatabaseOff = (props: IconProps) => <Icon name="database-off" {...props} />;
+export const IconDeviceFloppy = (props: IconProps) => <Icon name="device-floppy" {...props} />;
+export const IconDots = (props: IconProps) => <Icon name="dots" {...props} />;
+export const IconDownload = (props: IconProps) => <Icon name="download" {...props} />;
+export const IconEdit = (props: IconProps) => <Icon name="edit" {...props} />;
+export const IconExternalLink = (props: IconProps) => <Icon name="external-link" {...props} />;
+export const IconEye = (props: IconProps) => <Icon name="eye" {...props} />;
+export const IconFilter = (props: IconProps) => <Icon name="filter" {...props} />;
+export const IconFilterOff = (props: IconProps) => <Icon name="filter-off" {...props} />;
+export const IconFlask = (props: IconProps) => <Icon name="flask" {...props} />;
+export const IconFolderOpen = (props: IconProps) => <Icon name="folder-open" {...props} />;
+export const IconHistory = (props: IconProps) => <Icon name="history" {...props} />;
+export const IconInfoCircle = (props: IconProps) => <Icon name="info-circle" {...props} />;
+export const IconLayoutGrid = (props: IconProps) => <Icon name="layout-grid" {...props} />;
+export const IconLeaf = (props: IconProps) => <Icon name="leaf" {...props} />;
+export const IconLogout = (props: IconProps) => <Icon name="logout" {...props} />;
+export const IconMenu2 = (props: IconProps) => <Icon name="menu-2" {...props} />;
+export const IconMessage = (props: IconProps) => <Icon name="message" {...props} />;
+export const IconMinus = (props: IconProps) => <Icon name="minus" {...props} />;
+export const IconMoon = (props: IconProps) => <Icon name="moon" {...props} />;
+export const IconNews = (props: IconProps) => <Icon name="news" {...props} />;
+export const IconPlayerPause = (props: IconProps) => <Icon name="player-pause" {...props} />;
+export const IconPlayerPlay = (props: IconProps) => <Icon name="player-play" {...props} />;
+export const IconPlayerStop = (props: IconProps) => <Icon name="player-stop" {...props} />;
+export const IconPlus = (props: IconProps) => <Icon name="plus" {...props} />;
+export const IconRefresh = (props: IconProps) => <Icon name="refresh" {...props} />;
+export const IconReportAnalytics = (props: IconProps) => <Icon name="report-analytics" {...props} />;
+export const IconRobot = (props: IconProps) => <Icon name="robot" {...props} />;
+export const IconRocket = (props: IconProps) => <Icon name="rocket" {...props} />;
+export const IconRotate = (props: IconProps) => <Icon name="rotate" {...props} />;
+export const IconSearch = (props: IconProps) => <Icon name="search" {...props} />;
+export const IconSend = (props: IconProps) => <Icon name="send" {...props} />;
+export const IconSettings = (props: IconProps) => <Icon name="settings" {...props} />;
+export const IconShield = (props: IconProps) => <Icon name="shield" {...props} />;
+export const IconSparkles = (props: IconProps) => <Icon name="sparkles" {...props} />;
+export const IconSun = (props: IconProps) => <Icon name="sun" {...props} />;
+export const IconTable = (props: IconProps) => <Icon name="table" {...props} />;
+export const IconTarget = (props: IconProps) => <Icon name="target" {...props} />;
+export const IconTimeline = (props: IconProps) => <Icon name="timeline" {...props} />;
+export const IconTrade = (props: IconProps) => <Icon name="arrows-right-left" {...props} />;
+export const IconTrash = (props: IconProps) => <Icon name="trash" {...props} />;
+export const IconTrendingDown = (props: IconProps) => <Icon name="trending-down" {...props} />;
+export const IconTrendingUp = (props: IconProps) => <Icon name="trending-up" {...props} />;
+export const IconUser = (props: IconProps) => <Icon name="user" {...props} />;
+export const IconWall = (props: IconProps) => <Icon name="wall" {...props} />;
+export const IconX = (props: IconProps) => <Icon name="x" {...props} />;

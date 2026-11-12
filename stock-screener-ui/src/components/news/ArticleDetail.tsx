@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Box, Collapse, Divider, Skeleton, Stack, Text, Title, Tooltip, ActionIcon } from "@/ui";
-import { IconArrowUpRight, IconBulb, IconChartLine, IconChevronDown, IconChevronUp, IconExternalLink, IconNews, IconX } from "@tabler/icons-react";
+import { IconArrowUpRight, IconBulb, IconChartLine, IconChevronDown, IconChevronUp, IconExternalLink, IconNews, IconX } from "../common/Icons";
 import * as palette from "@/ui/palette";
 import type { ArticleResponse, NewsItem, NewsSymbol } from "./news-types";
 import { formatTimeAgo } from "../../utils/ui-helpers";

@@ -1,4 +1,4 @@
-import { IconBolt, IconRefresh } from "@tabler/icons-react";
+import { IconBolt, IconRefresh } from "../common/Icons";
 import { ActionIcon, Box, Skeleton, Select, Stack, Text, ToolbarRow, Tooltip } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { NewsItem } from "./news-types";

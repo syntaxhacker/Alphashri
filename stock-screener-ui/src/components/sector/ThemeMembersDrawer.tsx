@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { Text } from "@/ui";
 import { fetchThemeDetail } from "../../api/rotation";
 import { MembersDrawer } from "@/components/common/MembersDrawer";
@@ -11,55 +11,58 @@ export interface ThemeMembersDrawerProps {
   onClose: () => void;
 }
 
-export function ThemeMembersDrawer({ open, slug, name, onClose }: ThemeMembersDrawerProps) {
-  const [data, setData] = useState<ThemeDetailResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+export function ThemeMembersDrawer(props: ThemeMembersDrawerProps) {
+  const [data, setData] = createSignal<ThemeDetailResponse | null>(null);
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  const [query, setQuery] = createSignal("");
 
-  useEffect(() => {
+  createEffect(() => {
+    const open = props.open;
+    const slug = props.slug;
     if (!open || !slug) return;
     const controller = new AbortController();
+    onCleanup(() => controller.abort());
     setLoading(true);
     setError(null);
     setData(null);
     setQuery("");
     fetchThemeDetail(slug, controller.signal)
       .then((response) => {
-        if (!controller.signal.aborted) setData(response);
+        if (controller.signal.aborted) return;
+        setData(response);
       })
       .catch((err: unknown) => {
-        if (!controller.signal.aborted) {
-          setError(err instanceof Error ? err.message : "Failed to load theme members");
-        }
+        if (controller.signal.aborted) return;
+        setError(err instanceof Error ? err.message : "Failed to load theme members");
       })
       .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
+        if (controller.signal.aborted) return;
+        setLoading(false);
       });
-    return () => controller.abort();
-  }, [open, slug]);
+  });
 
-  const members = useMemo(() => {
-    const all = data?.constituents ?? [];
-    const term = query.trim().toUpperCase();
+  const members = createMemo(() => {
+    const all = data()?.constituents ?? [];
+    const term = query().trim().toUpperCase();
     return term ? all.filter((symbol) => symbol.toUpperCase().includes(term)) : all;
-  }, [data, query]);
+  });
 
-  const count = data?.theme.member_count ?? data?.constituents.length ?? 0;
-  const title = data?.theme.name ?? name;
-  const description = data?.theme.description ?? "";
+  const count = () => data()?.theme.member_count ?? data()?.constituents.length ?? 0;
+  const title = () => data()?.theme.name ?? props.name;
+  const description = () => data()?.theme.description ?? "";
 
   return (
     <MembersDrawer
-      open={open}
-      onClose={onClose}
-      title={title || "Theme members"}
-      subtitle={loading ? "Loading members…" : `${count} members${slug ? ` · ${slug}` : ""}`}
-      description={description}
-      symbols={members}
-      loading={loading}
-      error={error}
-      query={query}
+      open={props.open}
+      onClose={props.onClose}
+      title={title() || "Theme members"}
+      subtitle={loading() ? "Loading members…" : `${count()} members${props.slug ? ` · ${props.slug}` : ""}`}
+      description={description()}
+      symbols={members()}
+      loading={loading()}
+      error={error()}
+      query={query()}
       onQueryChange={setQuery}
       searchPlaceholder="Filter members…"
       closeLabel="Close theme members"
@@ -81,9 +84,9 @@ export function ThemeMembersDrawer({ open, slug, name, onClose }: ThemeMembersDr
         drawer: "theme-members-drawer",
         close: "theme-members-close",
         search: "theme-members-search",
-        row: (symbol) => `theme-member-${symbol}`,
-        tv: (symbol) => `theme-member-tv-${symbol}`,
-        chart: (symbol) => `theme-member-chart-${symbol}`,
+        row: (symbol: string) => `theme-member-${symbol}`,
+        tv: (symbol: string) => `theme-member-tv-${symbol}`,
+        chart: (symbol: string) => `theme-member-chart-${symbol}`,
       }}
       textSx={{
         title: { "font-size": 11 },
@@ -95,7 +98,7 @@ export function ThemeMembersDrawer({ open, slug, name, onClose }: ThemeMembersDr
       }}
       footerLeft={
         <Text c="dimmed" truncate className="text-[9.5px]">
-          {members.length === count ? `${count} listed` : `${members.length} of ${count}`}
+          {members().length === count() ? `${count()} listed` : `${members().length} of ${count()}`}
         </Text>
       }
       footerRight={

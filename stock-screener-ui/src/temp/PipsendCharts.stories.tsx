@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { Show, createEffect, createSignal, onCleanup } from "solid-js";
 import { Box, Paper, Button, Text, Chip, Tooltip, Divider, Stack } from "@/ui";
 import * as palette from "@/ui/palette";
 import oneDayReal from "./oneDayCandles.json";
@@ -63,33 +63,33 @@ function toolBtnClass(active: boolean, _accent: string) {
 }
 
 function PipsendChartInner() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<any>(null);
-  const seriesRef = useRef<any>(null);
-  const toolsRef = useRef<any[]>([]);
-  const [status, setStatus] = useState<"loading" | "ready" | "missing" | "error">("loading");
-  const [errMsg, setErrMsg] = useState<string>("");
-  const [activeTool, setActiveTool] = useState<"none" | "long" | "short" | "trend">("none");
-  const [lastAction, setLastAction] = useState<string>("No tool active — click Long / Short / Trend Line");
-  const [installed, setInstalled] = useState(false);
+  let containerRef: HTMLDivElement | undefined;
+  let chartRef: any;
+  let seriesRef: any;
+  let toolsRef: any[] = [];
+  const [status, setStatus] = createSignal<"loading" | "ready" | "missing" | "error">("loading");
+  const [errMsg, setErrMsg] = createSignal<string>("");
+  const [activeTool, setActiveTool] = createSignal<"none" | "long" | "short" | "trend">("none");
+  const [lastAction, setLastAction] = createSignal<string>("No tool active — click Long / Short / Trend Line");
+  const [installed, setInstalled] = createSignal(false);
 
   // cleanup chart on unmount / before re-init
-  const dispose = useCallback(() => {
+  const dispose = () => {
     try {
-      toolsRef.current.forEach((t) => {
+      toolsRef.forEach((t) => {
         try {
           t?.remove?.();
           t?.dispose?.();
         } catch {}
       });
-      toolsRef.current = [];
-      if (chartRef.current?.remove) (chartRef.current as any).remove();
+      toolsRef = [];
+      if (chartRef?.remove) chartRef.remove();
     } catch {}
-    chartRef.current = null;
-    seriesRef.current = null;
-  }, []);
+    chartRef = undefined;
+    seriesRef = undefined;
+  };
 
-  useEffect(() => {
+  createEffect(() => {
     let cancelled = false;
     async function init() {
       setStatus("loading");
@@ -112,14 +112,14 @@ function PipsendChartInner() {
         setErrMsg("createChart not exported — check @pipsend/charts version");
         return;
       }
-      if (!containerRef.current) return;
+      if (!containerRef) return;
 
       const { createChart, CandlestickSeries } = mod;
 
       // prefer new modular API
-      const chart = createChart(containerRef.current, {
-        width: containerRef.current.clientWidth,
-        height: containerRef.current.clientHeight,
+      const chart = createChart(containerRef, {
+        width: containerRef.clientWidth,
+        height: containerRef.clientHeight,
         layout: {
           background: { color: BG },
           textColor: TEXT,
@@ -143,7 +143,7 @@ function PipsendChartInner() {
         handleScale: true,
       });
 
-      chartRef.current = chart;
+      chartRef = chart;
       // CandlestickSeries is either mod.CandlestickSeries or string "Candlestick"
       const seriesKind = CandlestickSeries ?? "Candlestick";
       let series: any = null;
@@ -172,7 +172,7 @@ function PipsendChartInner() {
         setErrMsg("addSeries(Candlestick) failed");
         return;
       }
-      seriesRef.current = series;
+      seriesRef = series;
       series.setData(pipsendCandles);
 
       // volume pane — try Pipsend helper first, else native HistogramSeries
@@ -185,7 +185,7 @@ function PipsendChartInner() {
             colorDown: "rgba(248,81,73,0.45)",
           });
           // keep cleanup handle if returned
-          if (typeof cleanup === "function") toolsRef.current.push({ remove: cleanup });
+          if (typeof cleanup === "function") toolsRef.push({ remove: cleanup });
           volumeApplied = true;
         }
       } catch {}
@@ -254,7 +254,7 @@ function PipsendChartInner() {
           // allow drag — pipsend tools are draggable by default
           onDragEnd: (p: number) => setLastAction(`Position drag → ${p?.toFixed?.(2) ?? p}`),
         } as any);
-        if (h) toolsRef.current.push(h);
+        if (h) toolsRef.push(h);
       }
 
       // demo Trend Line across a small swing (09:45 → 10:15)
@@ -270,36 +270,36 @@ function PipsendChartInner() {
           point1: { time: t1, price: rawCandles[30].low },
           point2: { time: t2, price: rawCandles[60].high },
         } as any);
-        if (tl) toolsRef.current.push(tl);
+        if (tl) toolsRef.push(tl);
       }
 
       // resize observer — pipsend/lightweight needs explicit resize
       const ro = new ResizeObserver(() => {
-        if (!containerRef.current || !chartRef.current) return;
-        chartRef.current.applyOptions({
-          width: containerRef.current.clientWidth,
-          height: containerRef.current.clientHeight,
+        if (!containerRef || !chartRef) return;
+        chartRef.applyOptions({
+          width: containerRef.clientWidth,
+          height: containerRef.clientHeight,
         });
       });
-      ro.observe(containerRef.current);
+      ro.observe(containerRef);
 
       setInstalled(true);
       setStatus("ready");
       setLastAction("Demo Long + Trend Line added — drag handles on chart. Use toolbar to add more.");
 
-      return () => ro.disconnect();
+      onCleanup(() => ro.disconnect());
     }
 
     init();
-    return () => {
+    onCleanup(() => {
       cancelled = true;
       dispose();
-    };
-  }, [dispose]);
+    });
+  });
 
-  const handleLong = useCallback(async () => {
+  const handleLong = async () => {
     setActiveTool("long");
-    if (!chartRef.current || !seriesRef.current) {
+    if (!chartRef || !seriesRef) {
       setLastAction("Chart not ready yet");
       return;
     }
@@ -328,22 +328,22 @@ function PipsendChartInner() {
     };
     let h: any = null;
     try {
-      h = createPosition({ chart: chartRef.current, series: seriesRef.current }, opts);
+      h = createPosition({ chart: chartRef, series: seriesRef }, opts);
     } catch {
       try {
-        h = createPosition(seriesRef.current, chartRef.current, opts);
+        h = createPosition(seriesRef, chartRef, opts);
       } catch (e: any) {
         setLastAction(`Long failed: ${e?.message ?? String(e)}`);
         return;
       }
     }
-    if (h) toolsRef.current.push(h);
+    if (h) toolsRef.push(h);
     setLastAction(`Long added @ ${base.toFixed(2)} — drag entry/SL/TP`);
-  }, []);
+  };
 
-  const handleShort = useCallback(async () => {
+  const handleShort = async () => {
     setActiveTool("short");
-    if (!chartRef.current || !seriesRef.current) {
+    if (!chartRef || !seriesRef) {
       setLastAction("Chart not ready yet");
       return;
     }
@@ -371,22 +371,22 @@ function PipsendChartInner() {
     };
     let h: any = null;
     try {
-      h = createPosition({ chart: chartRef.current, series: seriesRef.current }, opts);
+      h = createPosition({ chart: chartRef, series: seriesRef }, opts);
     } catch {
       try {
-        h = createPosition(seriesRef.current, chartRef.current, opts);
+        h = createPosition(seriesRef, chartRef, opts);
       } catch (e: any) {
         setLastAction(`Short failed: ${e?.message ?? String(e)}`);
         return;
       }
     }
-    if (h) toolsRef.current.push(h);
+    if (h) toolsRef.push(h);
     setLastAction(`Short added @ ${base.toFixed(2)} — drag entry/SL/TP`);
-  }, []);
+  };
 
-  const handleTrendLine = useCallback(async () => {
+  const handleTrendLine = async () => {
     setActiveTool("trend");
-    if (!chartRef.current || !seriesRef.current) {
+    if (!chartRef || !seriesRef) {
       setLastAction("Chart not ready yet");
       return;
     }
@@ -405,33 +405,33 @@ function PipsendChartInner() {
     }
     let h: any = null;
     try {
-      h = fn({ chart: chartRef.current, series: seriesRef.current }, { interactive: true, extendRight: true, lineColor: TEXT_MUTED });
+      h = fn({ chart: chartRef, series: seriesRef }, { interactive: true, extendRight: true, lineColor: TEXT_MUTED });
     } catch {
       try {
-        h = fn(seriesRef.current, chartRef.current, { interactive: true });
+        h = fn(seriesRef, chartRef, { interactive: true });
       } catch (e: any) {
         setLastAction(`Trend Line failed: ${e?.message ?? String(e)}`);
         return;
       }
     }
-    if (h) toolsRef.current.push(h);
+    if (h) toolsRef.push(h);
     setLastAction("Trend Line active — click-drag two points on chart");
-  }, []);
+  };
 
-  const handleClear = useCallback(() => {
-    toolsRef.current.forEach((t) => {
+  const handleClear = () => {
+    toolsRef.forEach((t) => {
       try {
         t?.remove?.();
         t?.dispose?.();
       } catch {}
     });
-    toolsRef.current = [];
+    toolsRef = [];
     setActiveTool("none");
     setLastAction("Cleared — demo tools removed. Add Long/Short/Trend again.");
     // keep candlestick + volume
-  }, []);
+  };
 
-  const placeholder = status === "missing" || status === "error";
+  const placeholder = status() === "missing" || status() === "error";
 
   return (
     <Box className="h-[100vh] flex flex-col overflow-hidden" style={{ "background-color": BG }}>
@@ -455,13 +455,13 @@ function PipsendChartInner() {
         <Tooltip label="Add draggable Long Position (entry/SL/TP)">
           <Button
             size="xs"
-            variant={activeTool === "long" ? "filled" : "outline"}
+            variant={activeTool() === "long" ? "filled" : "outline"}
             onClick={handleLong}
-            className={toolBtnClass(activeTool === "long", TEXT)}
+            className={toolBtnClass(activeTool() === "long", TEXT)}
             style={{
-              "border-color": activeTool === "long" ? TEXT : BORDER,
-              "background-color": activeTool === "long" ? SURFACE_ALT : "transparent",
-              color: activeTool === "long" ? TEXT : TEXT_MUTED,
+              "border-color": activeTool() === "long" ? TEXT : BORDER,
+              "background-color": activeTool() === "long" ? SURFACE_ALT : "transparent",
+              color: activeTool() === "long" ? TEXT : TEXT_MUTED,
             }}
           >
             Long
@@ -470,13 +470,13 @@ function PipsendChartInner() {
         <Tooltip label="Add draggable Short Position">
           <Button
             size="xs"
-            variant={activeTool === "short" ? "filled" : "outline"}
+            variant={activeTool() === "short" ? "filled" : "outline"}
             onClick={handleShort}
-            className={toolBtnClass(activeTool === "short", POS)}
+            className={toolBtnClass(activeTool() === "short", POS)}
             style={{
-              "border-color": activeTool === "short" ? TEXT : BORDER,
-              "background-color": activeTool === "short" ? SURFACE_ALT : "transparent",
-              color: activeTool === "short" ? TEXT : TEXT_MUTED,
+              "border-color": activeTool() === "short" ? TEXT : BORDER,
+              "background-color": activeTool() === "short" ? SURFACE_ALT : "transparent",
+              color: activeTool() === "short" ? TEXT : TEXT_MUTED,
             }}
           >
             Short
@@ -485,13 +485,13 @@ function PipsendChartInner() {
         <Tooltip label="Add Trend Line (click two points, drag to adjust)">
           <Button
             size="xs"
-            variant={activeTool === "trend" ? "filled" : "outline"}
+            variant={activeTool() === "trend" ? "filled" : "outline"}
             onClick={handleTrendLine}
-            className={toolBtnClass(activeTool === "trend", TEXT)}
+            className={toolBtnClass(activeTool() === "trend", TEXT)}
             style={{
-              "border-color": activeTool === "trend" ? TEXT : BORDER,
-              "background-color": activeTool === "trend" ? SURFACE_ALT : "transparent",
-              color: activeTool === "trend" ? TEXT : TEXT_MUTED,
+              "border-color": activeTool() === "trend" ? TEXT : BORDER,
+              "background-color": activeTool() === "trend" ? SURFACE_ALT : "transparent",
+              color: activeTool() === "trend" ? TEXT : TEXT_MUTED,
             }}
           >
             Trend Line
@@ -509,12 +509,12 @@ function PipsendChartInner() {
         <Box className="flex-1" />
         <Chip
           size="xs"
-          label={installed ? "Pipsend ready" : status === "loading" ? "Loading…" : "Install required"}
+          label={installed() ? "Pipsend ready" : status() === "loading" ? "Loading…" : "Install required"}
           className="text-[10px] h-5 border border-[#30363D]"
           style={{
-            "background-color": installed ? "rgba(63,185,80,0.12)" : SURFACE_ALT,
-            color: installed ? POS : TEXT_MUTED,
-            "border-color": installed ? "rgba(63,185,80,0.35)" : BORDER,
+            "background-color": installed() ? "rgba(63,185,80,0.12)" : SURFACE_ALT,
+            color: installed() ? POS : TEXT_MUTED,
+            "border-color": installed() ? "rgba(63,185,80,0.35)" : BORDER,
           }}
         />
       </Paper>
@@ -525,7 +525,7 @@ function PipsendChartInner() {
         style={{ "background-color": SURFACE }}
       >
         <Text className="text-[10px] text-[#8B949E]" style={{ "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }}>
-          {lastAction}
+          {lastAction()}
         </Text>
         <Box className="flex-1" />
         <Text className="text-[10px] text-[#8B949E]">
@@ -539,10 +539,10 @@ function PipsendChartInner() {
           className="flex-1 min-h-0 flex flex-col overflow-hidden border border-[#30363D] rounded-sm bg-[#0D1117] relative"
         >
           {/* Canvas mount */}
-          <Box ref={containerRef} className="flex-1 min-h-[320px] w-full" />
+          <Box ref={(el) => (containerRef = el)} className="flex-1 min-h-[320px] w-full" />
 
           {/* Missing-install placeholder overlay — keeps story usable before `bun add` */}
-          {placeholder && (
+          <Show when={placeholder}>
             <Box
               className="absolute inset-0 flex items-center justify-center p-2"
               style={{ "background-color": "rgba(13,17,23,0.92)" }}
@@ -564,9 +564,9 @@ function PipsendChartInner() {
                   <span className="text-[#F0F6FC] font-mono"> createPositionTool / createTrendLineTool</span>.
                   Toolbar buttons create fresh tools; drag handles fire onDragEnd.
                 </Text>
-                {errMsg && (
+                {errMsg() && (
                   <Text className="text-[10px] text-[#F85149] font-mono" style={{ color: NEG }}>
-                    {errMsg}
+                    {errMsg()}
                   </Text>
                 )}
                 <Divider className="w-full border-[#30363D]" />
@@ -575,7 +575,7 @@ function PipsendChartInner() {
                 </Text>
               </Stack>
             </Box>
-          )}
+          </Show>
         </Paper>
 
         {/* Bottom meta — dense 20px rows */}

@@ -1,6 +1,6 @@
 import { Modal, Text, Badge, List, ListItem } from "@/ui";
 import { Box, Paper, Stack } from "@/ui";
-import { IconTarget } from "@tabler/icons-react";
+import { IconTarget } from "@/patterns/icons";
 import * as palette from "@/ui/palette";
 
 interface OptionChainGuideProps {
@@ -8,11 +8,11 @@ interface OptionChainGuideProps {
   onClose: () => void;
 }
 
-export function OptionChainGuide({ opened, onClose }: OptionChainGuideProps) {
+export function OptionChainGuide(props: OptionChainGuideProps) {
   return (
     <Modal
-      opened={opened}
-      onClose={onClose}
+      opened={props.opened}
+      onClose={props.onClose}
       title="How to Read the Option Chain"
       size="lg"
       centered

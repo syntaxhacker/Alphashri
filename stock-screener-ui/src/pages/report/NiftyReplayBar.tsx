@@ -201,7 +201,7 @@ export const NiftyReplayBar = memo(function NiftyReplayBar({
       className="flex items-center gap-4 whitespace-nowrap w-full max-w-full min-w-0 shrink-0 overflow-hidden"
       style={{
         height: "24px",
-        borderTop: `1px solid ${palette.TERM_BORDER}`,
+        "border-top": `1px solid ${palette.TERM_BORDER}`,
         "padding-left": "8px",
         "padding-right": "8px",
         "padding-top": 0,
@@ -231,7 +231,7 @@ export const NiftyReplayBar = memo(function NiftyReplayBar({
           value={replayIndex}
           onChange={(e) => onScrub(Number(e.target.value))}
           className="w-full"
-          style={{ height: "12px", accentColor: palette.PRIMARY }}
+          style={{ height: "12px", "accent-color": palette.PRIMARY }}
         />
       </Box>
       <Text
@@ -240,7 +240,7 @@ export const NiftyReplayBar = memo(function NiftyReplayBar({
         c="dimmed"
         fw={600}
         span
-        style={{ "flex-shrink": 0, fontVariantNumeric: "tabular-nums" }}
+        style={{ "flex-shrink": 0, "font-variant-numeric": "tabular-nums" }}
       >
         {replayTimeLabel(replay.snapshots[replayIndex]?.t ?? "")}
       </Text>
@@ -255,7 +255,7 @@ export const NiftyReplayBar = memo(function NiftyReplayBar({
             span
             fw={600}
             title={coverageTitle}
-            style={{ color: toneColor, "white-space": "nowrap", "flex-shrink": 0, fontVariantNumeric: "tabular-nums" }}
+            style={{ color: toneColor, "white-space": "nowrap", "flex-shrink": 0, "font-variant-numeric": "tabular-nums" }}
           >
             {coverage.pct}% · {coverage.recorded}/{coverage.sessionMinutes}
           </Text>
@@ -277,7 +277,7 @@ export const NiftyReplayBar = memo(function NiftyReplayBar({
         size="xs"
         span
         c="dimmed"
-        style={{ "flex-shrink": 0, fontVariantNumeric: "tabular-nums" }}
+        style={{ "flex-shrink": 0, "font-variant-numeric": "tabular-nums" }}
       >
         {replayIndex + 1}/{replay.snapshots.length}
       </Text>

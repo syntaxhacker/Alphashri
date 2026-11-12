@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import { ReplayTradeLog } from "./ReplayTradeLog";
 import type { ReplayTrade } from "../../types/replay";
@@ -192,7 +191,6 @@ describe("ReplayTradeLog", () => {
 
   it("calls onTradeClick when row clicked", async () => {
     const onTradeClick = vi.fn();
-    const user = userEvent.setup();
     const trades = [makeTrade(1)];
     render(
       <UIProvider>
@@ -206,13 +204,12 @@ describe("ReplayTradeLog", () => {
         />
       </UIProvider>,
     );
-    await user.click(screen.getByTestId("replay-trade-row-1"));
+    await fireEvent.click(screen.getByTestId("replay-trade-row-1"));
     expect(onTradeClick).toHaveBeenCalledWith(trades[0]);
   });
 
   it("strategy name as clickable Anchor that filters by strategy", async () => {
     const setStrategyFilter = vi.fn();
-    const user = userEvent.setup();
     const trades = [makeTrade(1)];
     render(
       <UIProvider>
@@ -226,7 +223,7 @@ describe("ReplayTradeLog", () => {
       </UIProvider>,
     );
     const link = screen.getByTestId("replay-trade-strategy-link-1");
-    await user.click(link);
+    await fireEvent.click(link);
     expect(setStrategyFilter).toHaveBeenCalledWith("ORB");
   });
 

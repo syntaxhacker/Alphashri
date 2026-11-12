@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import type { SimStrategySpec } from "@/types/reportSim";
 import { newStrategy } from "./simSpec";
 import { SimBuilder } from "./SimBuilder";
@@ -19,16 +19,17 @@ function renderBuilder(
   onChange = vi.fn(),
   errors: string[] = [],
 ) {
-  const view = render(
+  const [specSig, setSpecSig] = createSignal(strategy);
+  const view = render(() => (
     <SimBuilder
-      strategy={strategy}
+      strategy={specSig()}
       ladder={LADDER}
       spot={SPOT}
       errors={errors}
       onChange={onChange}
-    />,
-  );
-  return { ...view, onChange };
+    />
+  ));
+  return { ...view, onChange, setSpecSig };
 }
 
 /** NumberInput puts its testid on the FormControl, so reach the native input. */
@@ -47,33 +48,24 @@ describe("SimBuilder", () => {
     expect(screen.getByTestId("sim-structure")).toHaveTextContent("Single leg");
   });
 
-  test("adds a second leg and re-renders it", async () => {
-    const user = userEvent.setup();
+  test("adds a second leg and re-renders it", () => {
     const initial = spec();
-    const { rerender, onChange } = renderBuilder(initial);
+    const { setSpecSig, onChange } = renderBuilder(initial);
 
-    await user.click(screen.getByTestId("sim-add-leg"));
+    fireEvent.click(screen.getByTestId("sim-add-leg"));
 
     expect(onChange).toHaveBeenCalledTimes(1);
     const next = onChange.mock.calls[0][0] as SimStrategySpec;
     expect(next.legs).toHaveLength(2);
 
-    rerender(
-      <SimBuilder
-        strategy={next}
-        ladder={LADDER}
-        spot={SPOT}
-        errors={[]}
-        onChange={onChange}
-      />,
-    );
+    setSpecSig(next);
     expect(screen.getByTestId("sim-leg-1")).toBeInTheDocument();
   });
 
   test("edits lots through the number input", () => {
     const { onChange } = renderBuilder(spec());
 
-    fireEvent.change(numberField("sim-leg-0-lots"), {
+    fireEvent.input(numberField("sim-leg-0-lots"), {
       target: { value: "3" },
     });
 
@@ -84,7 +76,7 @@ describe("SimBuilder", () => {
   test("edits the execution row", () => {
     const { onChange } = renderBuilder(spec());
 
-    fireEvent.change(numberField("sim-sl"), { target: { value: "25" } });
+    fireEvent.input(numberField("sim-sl"), { target: { value: "25" } });
 
     const next = onChange.mock.calls.at(-1)?.[0] as SimStrategySpec;
     expect(next.exec.slPct).toBe(25);

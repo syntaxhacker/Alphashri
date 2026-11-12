@@ -600,12 +600,12 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
             "margin-top": "2px",
             "padding-left": "4px",
             "padding-right": "4px",
-            fontFamily: palette.MONO,
+            "font-family": palette.MONO,
             "font-size": "9px",
             "white-space": "nowrap",
             overflow: "hidden",
             color: palette.TEXT_MUTED,
-            borderTop: `1px solid ${palette.TERM_BORDER}`,
+            "border-top": `1px solid ${palette.TERM_BORDER}`,
           }}
         >
           <span style={{ "font-weight": 800, "letter-spacing": "0.08em" }}>

@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
-import { render, cleanup, act } from "@testing-library/react";
+import { createSignal } from "solid-js";
+import { render, cleanup } from "@solidjs/testing-library";
 
 const lwMocks = vi.hoisted(() => ({ series: [] as any[] }));
 
@@ -32,6 +33,7 @@ vi.mock("lightweight-charts", () => {
         setVisibleLogicalRange: vi.fn(),
         setVisibleRange: vi.fn(),
         timeToCoordinate: vi.fn(() => null),
+        height: vi.fn(() => 0),
       })),
     })),
     createSeriesMarkers: vi.fn(() => ({ setMarkers: vi.fn() })),
@@ -64,7 +66,7 @@ const CANDLES = [
 
 describe("TradingViewChart redraw loop", () => {
   test("default chart surface is pitch black with no grid lines", () => {
-    render(<TradingViewChart candles={CANDLES} />);
+    render(() => <TradingViewChart candles={CANDLES} />);
     const calls = vi.mocked(createChart).mock.calls;
     const opts = calls[calls.length - 1]?.[1] as any;
     expect(CHART_BG).toBe("#000000");
@@ -78,20 +80,16 @@ describe("TradingViewChart redraw loop", () => {
     const rafSpy = vi.spyOn(window, "requestAnimationFrame");
     const cancelSpy = vi.spyOn(window, "cancelAnimationFrame");
     try {
-      const { unmount } = render(<TradingViewChart candles={CANDLES} />);
+      const { unmount } = render(() => <TradingViewChart candles={CANDLES} />);
       expect(rafSpy).not.toHaveBeenCalled();
 
-      act(() => {
-        window.dispatchEvent(new Event("resize"));
-      });
+      window.dispatchEvent(new Event("resize"));
       expect(rafSpy).toHaveBeenCalledTimes(1);
       expect(cancelSpy).not.toHaveBeenCalled();
 
       // A second resize before the frame fires coalesces: the first frame
       // is cancelled instead of queueing a second one behind it.
-      act(() => {
-        window.dispatchEvent(new Event("resize"));
-      });
+      window.dispatchEvent(new Event("resize"));
       expect(rafSpy).toHaveBeenCalledTimes(2);
       expect(cancelSpy).toHaveBeenCalledTimes(1);
 
@@ -123,29 +121,46 @@ describe("mark-line overlay churn", () => {
     },
   ];
 
+  function renderReactive(initial: {
+    candles: typeof CANDLES;
+    markLines?: ReturnType<typeof levels>;
+    fitMarkLines?: boolean;
+    emaData?: any[];
+  }) {
+    const [candles, setCandles] = createSignal(initial.candles);
+    const [markLines, setMarkLines] = createSignal(initial.markLines ?? []);
+    const [emaData, setEmaData] = createSignal<any[] | undefined>(initial.emaData);
+    const utils = render(() => (
+      <TradingViewChart
+        candles={candles()}
+        fitMarkLines={initial.fitMarkLines}
+        markLines={markLines()}
+        emaData={emaData()}
+      />
+    ));
+    return { ...utils, setCandles, setMarkLines, setEmaData };
+  }
+
   test("identical overlay content across a poll re-render does not rebuild the price lines", () => {
     const start = lwMocks.series.length;
-    const { rerender } = render(
-      <TradingViewChart candles={CANDLES} fitMarkLines markLines={levels()} />,
-    );
+    const { setCandles, setMarkLines } = renderReactive({
+      candles: CANDLES,
+      markLines: levels(),
+      fitMarkLines: true,
+    });
     const candle = lwMocks.series[start];
     expect(candle.createPriceLine).toHaveBeenCalledTimes(2);
 
     // A poll hands over brand-new arrays with the same content: no rebuild.
-    rerender(
-      <TradingViewChart
-        candles={[...CANDLES]}
-        fitMarkLines
-        markLines={levels()}
-      />,
-    );
+    setCandles([...CANDLES]);
+    setMarkLines(levels());
     expect(candle.createPriceLine).toHaveBeenCalledTimes(2);
     expect(candle.removePriceLine).not.toHaveBeenCalled();
 
     // A level actually moving does rebuild the set.
     const moved = levels();
     moved[0] = { ...moved[0], yAxis: 25600 };
-    rerender(<TradingViewChart candles={[...CANDLES]} fitMarkLines markLines={moved} />);
+    setMarkLines(moved);
     expect(candle.removePriceLine).toHaveBeenCalledTimes(2);
     expect(candle.createPriceLine).toHaveBeenCalledTimes(4);
   });
@@ -156,11 +171,15 @@ describe("mark-line overlay churn", () => {
       { label: "EMA20", color: "#3b82f6", data: [1, 2] },
     ];
     const start = lwMocks.series.length;
-    const { rerender } = render(<TradingViewChart candles={CANDLES} emaData={ema()} />);
+    const { setCandles, setEmaData } = renderReactive({
+      candles: CANDLES,
+      emaData: ema(),
+    });
     // candle + volume + EMA9 + EMA20
     expect(lwMocks.series.length - start).toBe(4);
 
-    rerender(<TradingViewChart candles={[...CANDLES]} emaData={ema()} />);
+    setCandles([...CANDLES]);
+    setEmaData(ema());
     // Still four: the two line series were updated in place, not re-added.
     expect(lwMocks.series.length - start).toBe(4);
   });
@@ -171,38 +190,37 @@ describe("mark-line overlay churn", () => {
       { label: "EMA20", color: "#3b82f6", data: [25700, 25715] },
     ];
     const start = lwMocks.series.length;
-    const { rerender } = render(<TradingViewChart candles={CANDLES} emaData={ema()} />);
+    const { setCandles, setEmaData } = renderReactive({
+      candles: CANDLES,
+      emaData: ema(),
+    });
     const ema9 = lwMocks.series[start + 2];
     const ema20 = lwMocks.series[start + 3];
     expect(ema9.setData).toHaveBeenCalledTimes(1);
     expect(ema20.setData).toHaveBeenCalledTimes(1);
 
     // New array identities, identical content: no EMA setData again.
-    rerender(
-      <TradingViewChart
-        candles={CANDLES.map((c) => ({ ...c }))}
-        emaData={ema()}
-      />,
-    );
+    setCandles(CANDLES.map((c) => ({ ...c })));
+    setEmaData(ema());
     expect(ema9.setData).toHaveBeenCalledTimes(1);
     expect(ema20.setData).toHaveBeenCalledTimes(1);
 
     // A changed last EMA value re-pushes that series only.
     const bumped = ema();
     bumped[0] = { ...bumped[0], data: [25705, 25722] };
-    rerender(
-      <TradingViewChart
-        candles={CANDLES.map((c) => ({ ...c }))}
-        emaData={bumped}
-      />,
-    );
+    setCandles(CANDLES.map((c) => ({ ...c })));
+    setEmaData(bumped);
     expect(ema9.setData).toHaveBeenCalledTimes(2);
     expect(ema20.setData).toHaveBeenCalledTimes(1);
   });
 
   test("identical candle content across a poll does not re-push setData; changed candles do", () => {
     const start = lwMocks.series.length;
-    const { rerender } = render(<TradingViewChart candles={CANDLES} fitMarkLines markLines={levels()} />);
+    const { setCandles } = renderReactive({
+      candles: CANDLES,
+      markLines: levels(),
+      fitMarkLines: true,
+    });
     const candle = lwMocks.series[start];
     const volume = lwMocks.series[start + 1];
     expect(candle.setData).toHaveBeenCalledTimes(1);
@@ -215,13 +233,7 @@ describe("mark-line overlay churn", () => {
 
     // A poll hands over brand-new arrays with the same content: no setData,
     // no new autoscale closure.
-    rerender(
-      <TradingViewChart
-        candles={CANDLES.map((c) => ({ ...c }))}
-        fitMarkLines
-        markLines={levels()}
-      />,
-    );
+    setCandles(CANDLES.map((c) => ({ ...c })));
     expect(candle.setData).toHaveBeenCalledTimes(1);
     expect(volume.setData).toHaveBeenCalledTimes(1);
     expect(autoscaleCalls()).toBe(autoscaleAfterMount);
@@ -230,7 +242,7 @@ describe("mark-line overlay churn", () => {
     const ticked = CANDLES.map((c, i) =>
       i === CANDLES.length - 1 ? { ...c, close: c.close + 5 } : c,
     );
-    rerender(<TradingViewChart candles={ticked} fitMarkLines markLines={levels()} />);
+    setCandles(ticked);
     expect(candle.setData).toHaveBeenCalledTimes(2);
     expect(volume.setData).toHaveBeenCalledTimes(2);
     expect(autoscaleCalls()).toBe(autoscaleAfterMount + 1);
@@ -349,9 +361,7 @@ describe("fitMarkLines scale guard", () => {
 
   test("far levels are still drawn as price lines but do not extend the scale", () => {
     const start = lwMocks.series.length;
-    render(
-      <TradingViewChart candles={CANDLES} fitMarkLines markLines={lines()} />,
-    );
+    render(() => <TradingViewChart candles={CANDLES} fitMarkLines markLines={lines()} />);
     // Last mounted chart's candle series.
     const candle = lwMocks.series[start];
     // Both levels are drawn…
@@ -372,9 +382,7 @@ describe("fitMarkLines scale guard", () => {
 
   test("a tight engine range is floored back to the rendered window", () => {
     const start = lwMocks.series.length;
-    render(
-      <TradingViewChart candles={CANDLES} fitMarkLines markLines={lines()} />,
-    );
+    render(() => <TradingViewChart candles={CANDLES} fitMarkLines markLines={lines()} />);
     const candle = lwMocks.series[start];
     const applyCall = candle.applyOptions.mock.calls.find(
       ([opts]: any[]) => opts && "autoscaleInfoProvider" in opts,
@@ -395,26 +403,24 @@ describe("fitMarkLines scale guard", () => {
 
   test("far levels hide their gutter label + title (edge badges carry them); near keeps both", () => {
     const start = lwMocks.series.length;
-    render(
-      <TradingViewChart
-        candles={CANDLES}
-        fitMarkLines
-        markLines={[
-          {
-            yAxis: 22500,
-            includeInScale: false,
-            lineStyle: { color: "#f59e0b", type: "dotted", width: 1 },
-            label: { position: "insideEndTop", formatter: "GFUEL↓ 22500" },
-          },
-          {
-            yAxis: 22700,
-            includeInScale: true,
-            lineStyle: { color: "#16a34a", type: "solid", width: 1 },
-            label: { position: "insideEndTop", formatter: "GSUP 22700" },
-          },
-        ]}
-      />,
-    );
+    render(() => <TradingViewChart
+      candles={CANDLES}
+      fitMarkLines
+      markLines={[
+        {
+          yAxis: 22500,
+          includeInScale: false,
+          lineStyle: { color: "#f59e0b", type: "dotted", width: 1 },
+          label: { position: "insideEndTop", formatter: "GFUEL↓ 22500" },
+        },
+        {
+          yAxis: 22700,
+          includeInScale: true,
+          lineStyle: { color: "#16a34a", type: "solid", width: 1 },
+          label: { position: "insideEndTop", formatter: "GSUP 22700" },
+        },
+      ]}
+    />);
     const candle = lwMocks.series[start];
     const calls = candle.createPriceLine.mock.calls.map(([opts]: any[]) => opts);
     expect(calls).toHaveLength(2);

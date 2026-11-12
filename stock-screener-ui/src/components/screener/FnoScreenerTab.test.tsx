@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, waitFor, fireEvent } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, within, waitFor, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { FnoScreenerTab } from "./FnoScreenerTab";
 import { buildFnoScreenerUrl, type FnoScreenerParams } from "../../api/fnoScreener";
@@ -191,7 +190,7 @@ const baseResponse = {
   matched: 6,
 };
 
-const renderTab = () => render(<UIProvider><FnoScreenerTab /></UIProvider>);
+const renderTab = () => render(() => <UIProvider><FnoScreenerTab /></UIProvider>);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -246,8 +245,7 @@ describe("FnoScreenerTab", () => {
     expect(mockFetchFnoScreener).toHaveBeenCalledTimes(1);
     const firstSignal = mockFetchFnoScreener.mock.calls[0][1]?.signal as AbortSignal;
 
-    const user = userEvent.setup();
-    await user.click(screen.getByTestId("fno-preset-max_torque"));
+    fireEvent.click(screen.getByTestId("fno-preset-max_torque"));
 
     await waitFor(() => expect(mockFetchFnoScreener).toHaveBeenCalledTimes(2));
     const lastParams = mockFetchFnoScreener.mock.calls.at(-1)![0] as FnoScreenerParams;
@@ -263,8 +261,7 @@ describe("FnoScreenerTab", () => {
     renderTab();
     await waitFor(() => expect(screen.getByTestId("fno-row-RELIANCE")).toBeInTheDocument());
 
-    const user = userEvent.setup();
-    await user.selectOptions(within(screen.getByTestId("fno-expiry-select")).getByRole("combobox"), "2026-11-13");
+    fireEvent.input(within(screen.getByTestId("fno-expiry-select")).getByRole("combobox"), { target: { value: "2026-11-13" } });
 
     await waitFor(() => {
       const lastParams = mockFetchFnoScreener.mock.calls.at(-1)![0] as FnoScreenerParams;
@@ -276,10 +273,9 @@ describe("FnoScreenerTab", () => {
     renderTab();
     await waitFor(() => expect(screen.getByTestId("fno-row-RELIANCE")).toBeInTheDocument());
 
-    const user = userEvent.setup();
     const input = screen.getByPlaceholderText("Min POP") as HTMLInputElement;
-    await user.clear(input);
-    await user.type(input, "40");
+    fireEvent.input(input, { target: { value: "" } });
+    fireEvent.input(input, { target: { value: "40" } });
 
     await waitFor(() => {
       const lastParams = mockFetchFnoScreener.mock.calls.at(-1)![0] as FnoScreenerParams;
@@ -291,8 +287,7 @@ describe("FnoScreenerTab", () => {
     renderTab();
     await waitFor(() => expect(screen.getByTestId("fno-row-RELIANCE")).toBeInTheDocument());
 
-    const user = userEvent.setup();
-    await user.click(screen.getByTestId("fno-refresh"));
+    fireEvent.click(screen.getByTestId("fno-refresh"));
 
     await waitFor(() => expect(mockFetchFnoScreener).toHaveBeenCalledTimes(2));
     const lastParams = mockFetchFnoScreener.mock.calls.at(-1)![0] as FnoScreenerParams;
@@ -383,8 +378,7 @@ describe("FnoScreenerTab", () => {
     renderTab();
     await waitFor(() => expect(screen.getByTestId("fno-row-IRFC")).toBeInTheDocument());
 
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "All contracts" }));
+    fireEvent.click(screen.getByRole("button", { name: "All contracts" }));
 
     expect(screen.getAllByTestId("fno-row-IRFC")).toHaveLength(2);
     expect(screen.getByTestId("fno-row-count")).toHaveTextContent(/5 symbols \/ 6 contracts/);
@@ -396,11 +390,10 @@ describe("FnoScreenerTab", () => {
     renderTab();
     await waitFor(() => expect(screen.getByTestId("fno-row-IRFC")).toBeInTheDocument());
 
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "All contracts" }));
+    fireEvent.click(screen.getByRole("button", { name: "All contracts" }));
     await waitFor(() => expect(screen.getAllByTestId("fno-row-IRFC")).toHaveLength(2));
 
-    await user.click(screen.getByRole("button", { name: "Best per symbol" }));
+    fireEvent.click(screen.getByRole("button", { name: "Best per symbol" }));
     await waitFor(() => expect(screen.getAllByTestId("fno-row-IRFC")).toHaveLength(1));
     expect(screen.getByTestId("fno-row-count")).toHaveTextContent(/5 symbols \/ 6 contracts/);
   });

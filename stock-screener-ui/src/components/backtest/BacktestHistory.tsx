@@ -1,15 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import {
-  Group,
-  Text,
-  Button,
-  Badge,
-  ActionIcon,
-  Tooltip,
-  Card,
-  Stack,
-  Alert,
-} from "@/ui";
+import { Text, Button, Badge, ActionIcon, Tooltip, Alert } from "@/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   IconTrash,
@@ -31,9 +21,10 @@ import {
   setSelectedVariationId,
   getBacktestState,
 } from "../../state/backtest";
-import { TanStackTable } from "../common/TanStackTable";
+import { TanStackTable } from "../paper-trading/TanStackTable";
 import { InlineLoader, EmptyState } from "../common/states";
 import { getPnLTextColor } from "../../utils/ui-helpers";
+import { Group, Card, Stack } from "../paper-trading/primitives";
 
 interface BacktestHistoryProps {
   onLoad?: () => void;

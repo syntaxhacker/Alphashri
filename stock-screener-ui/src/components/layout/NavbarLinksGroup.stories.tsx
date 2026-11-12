@@ -1,8 +1,8 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { AppShell } from "@/ui";
 import { NavbarLinksGroup } from "./NavbarLinksGroup";
-import { BrowserRouter } from "react-router-dom";
-import { IconRocket, IconChartLine, IconTrendingUp, IconCurrencyDollar } from "@tabler/icons-react";
+import { Router } from "@solidjs/router";
+import { IconRocket, IconChartLine, IconTrendingUp, IconCurrencyDollar } from "../common/Icons";
 
 const meta: Meta<typeof NavbarLinksGroup> = {
   title: "Examples/App Layout/NavItem",
@@ -11,11 +11,11 @@ const meta: Meta<typeof NavbarLinksGroup> = {
   parameters: { docs: { description: { component: "Sidebar nav item — single link or collapsible group for AppShell navbar. Use inside NavbarNested/SideMenu. When not: for header nav use NavLink or Tabs." } } },
   decorators: [
     (Story) => (
-      <BrowserRouter>
+      <Router>
         <AppShell>
           <Story />
         </AppShell>
-      </BrowserRouter>
+      </Router>
     ),
   ],
   argTypes: {

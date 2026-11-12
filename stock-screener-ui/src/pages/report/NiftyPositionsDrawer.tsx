@@ -45,7 +45,7 @@ function toneFor(value: number | null): string {
 }
 
 const NUM = (v: number): ReactNode => (
-  <Text span size="xs" fw={500} style={{ fontFamily: palette.MONO }}>
+  <Text span size="xs" fw={500} style={{ "font-family": palette.MONO }}>
     {formatNumberIN(v)}
   </Text>
 );
@@ -89,7 +89,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     cell: (info) => {
       const strike = info.getValue() as number | null;
       return (
-        <Text span size="xs" style={{ fontFamily: palette.MONO }}>
+        <Text span size="xs" style={{ "font-family": palette.MONO }}>
           {strike === null ? "—" : formatNumberIN(strike)}
         </Text>
       );
@@ -127,7 +127,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     size: 72,
     meta: { align: "right" },
     cell: (info) => (
-      <Text span size="xs" style={{ fontFamily: palette.MONO }}>
+      <Text span size="xs" style={{ "font-family": palette.MONO }}>
         {formatRupees(Number(info.getValue()) || 0)}
       </Text>
     ),
@@ -138,7 +138,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     size: 72,
     meta: { align: "right" },
     cell: (info) => (
-      <Text span size="xs" style={{ fontFamily: palette.MONO }}>
+      <Text span size="xs" style={{ "font-family": palette.MONO }}>
         {formatRupees(Number(info.getValue()) || 0)}
       </Text>
     ),
@@ -151,7 +151,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     cell: (info) => {
       const pnl = Number(info.getValue()) || 0;
       return (
-        <Text span size="xs" fw={700} style={{ color: toneFor(pnl), fontFamily: palette.MONO }}>
+        <Text span size="xs" fw={700} style={{ color: toneFor(pnl), "font-family": palette.MONO }}>
           {signedRupees(pnl)}
         </Text>
       );
@@ -163,7 +163,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     size: 72,
     meta: { align: "right" },
     cell: (info) => (
-      <Text span size="xs" style={{ color: palette.NEGATIVE, fontFamily: palette.MONO }}>
+      <Text span size="xs" style={{ color: palette.NEGATIVE, "font-family": palette.MONO }}>
         {formatRupees(Number(info.getValue()) || 0)}
       </Text>
     ),
@@ -174,7 +174,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     size: 72,
     meta: { align: "right" },
     cell: (info) => (
-      <Text span size="xs" style={{ color: palette.POSITIVE, fontFamily: palette.MONO }}>
+      <Text span size="xs" style={{ color: palette.POSITIVE, "font-family": palette.MONO }}>
         {formatRupees(Number(info.getValue()) || 0)}
       </Text>
     ),
@@ -286,7 +286,7 @@ export function NiftyPositionsDrawerInner({
             >
               PAPER POSITIONS
             </Text>
-            <Text span size="xs" c="dimmed" style={{ fontVariantNumeric: "tabular-nums" }}>
+            <Text span size="xs" c="dimmed" style={{ "font-variant-numeric": "tabular-nums" }}>
               {count} open · net{" "}
               <span className="font-bold" style={{ color: pnlTone }}>
                 {formatSignedPnl(netPnl)}

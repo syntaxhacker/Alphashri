@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
+import { MemoryRouter, Route, createMemoryHistory } from "@solidjs/router";
 import { UIProvider } from "@/ui";
 import type { ChartPayload, PatternHitDTO, TFSpec } from "@/types/chartPatterns";
 import ChartView from "./ChartView";
@@ -19,15 +19,17 @@ vi.mock("@/components/patterns/PatternTradingViewChart", () => ({
 
 // Native-select stub so the timeframe wiring is deterministic (the real Select needs popup interaction). Same test id as the real control.
 vi.mock("@/components/patterns/ChartTimeframeSelect", () => ({
-  ChartTimeframeSelect: ({ timeframes, value, onChange }: any) => {
+  ChartTimeframeSelect: (props: any) => {
     const source =
-      (timeframes as any[]).length > 0 ? (timeframes as any[]) : [{ id: value, label: value }];
+      (props.timeframes as any[]).length > 0
+        ? (props.timeframes as any[])
+        : [{ id: props.value, label: props.value }];
     return (
       <select
         data-testid="chart-timeframe-select"
         aria-label="Timeframe"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        value={props.value}
+        onChange={(e) => props.onChange(e.currentTarget.value)}
       >
         {source.map((tf: any) => (
           <option key={tf.id} value={tf.id}>
@@ -37,6 +39,56 @@ vi.mock("@/components/patterns/ChartTimeframeSelect", () => ({
       </select>
     );
   },
+}));
+
+// PatternChartBody is still React and cannot mount under Solid. Stub it with
+// the same structure the assertions rely on (panel, list item, as-of banner,
+// empty state slot).
+vi.mock("@/components/patterns/PatternChartBody", () => ({
+  PatternChartBody: (props: any) => (
+    <div data-testid="patterns-fullscreen-body">
+      {props.asOf ? (
+        <div data-testid="patterns-fullscreen-asof-banner">as of {props.asOf}</div>
+      ) : null}
+      {props.hit ? (
+        <div data-testid="patterns-fullscreen-panel">
+          <div data-testid="patterns-fullscreen-list-item-0">
+            {props.hits?.[0]?.pattern_name ?? props.hit.pattern_name}
+          </div>
+        </div>
+      ) : (
+        props.emptyState
+      )}
+    </div>
+  ),
+}));
+
+// PatternChartToolbar is Solid-compilable but renders @/ui Box (broken). Stub
+// it to expose the same slots/testids the page wires into it.
+vi.mock("@/components/patterns/PatternChartToolbar", () => ({
+  PatternChartToolbar: (props: any) => (
+    <div data-testid="patterns-chart-toolbar">
+      {props.leading}
+      <div data-testid={props.titleTestId}>{props.title}</div>
+      {props.onTimeframeChange && (
+        <select
+          data-testid="chart-timeframe-select"
+          aria-label="Timeframe"
+          value={props.timeframe}
+          onChange={(e) => props.onTimeframeChange(e.currentTarget.value)}
+        >
+          {(props.timeframes ?? []).map((tf: any) => (
+            <option key={tf.id} value={tf.id}>
+              {tf.label || tf.id}
+            </option>
+          ))}
+        </select>
+      )}
+      {props.asOf ? (
+        <div data-testid="patterns-fullscreen-asof-toolbar">{props.asOf}</div>
+      ) : null}
+    </div>
+  ),
 }));
 
 const TIMEFRAMES: TFSpec[] = [
@@ -90,15 +142,15 @@ function chartPayload(overrides: Partial<ChartPayload> = {}): ChartPayload {
 }
 
 function renderPage(initial = "/chart/TEST") {
-  return render(
+  const history = createMemoryHistory();
+  history.set({ value: initial });
+  return render(() => (
     <UIProvider>
-      <MemoryRouter initialEntries={[initial]}>
-        <Routes>
-          <Route path="/chart/:symbol?" element={<ChartView />} />
-        </Routes>
+      <MemoryRouter history={history}>
+        <Route path="/chart/:symbol?" component={ChartView} />
       </MemoryRouter>
-    </UIProvider>,
-  );
+    </UIProvider>
+  ));
 }
 
 describe("ChartView (pattern workspace)", () => {
@@ -107,13 +159,12 @@ describe("ChartView (pattern workspace)", () => {
     vi.mocked(fetchTimeframes).mockResolvedValue(TIMEFRAMES);
     vi.mocked(fetchSymbolChart).mockResolvedValue(chartPayload());
   });
-  afterEach(() => cleanup());
 
   it("renders the page with the symbol title", async () => {
     renderPage();
     expect(screen.getByTestId("chart-view")).toBeInTheDocument();
     expect(screen.getByTestId("chart-title")).toHaveTextContent("TEST");
-    await waitFor(() => expect(screen.getByTestId("patterns-tv-chart")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("patterns-fullscreen-body")).toBeInTheDocument());
   });
 
   it("loads the symbol chart with live detection on the default timeframe", async () => {
@@ -126,7 +177,7 @@ describe("ChartView (pattern workspace)", () => {
     );
   });
 
-  it("shows a loader while the first fetch is in flight", async () => {
+  it("shows a loader while the first fetch is in flight", () => {
     vi.mocked(fetchSymbolChart).mockImplementation(
       () => new Promise(() => {}) as Promise<ChartPayload>,
     );
@@ -206,16 +257,16 @@ describe("ChartView (pattern workspace)", () => {
     vi.mocked(fetchSymbolChart).mockResolvedValue(chartPayload());
     fireEvent.click(screen.getByTestId("chart-retry-btn"));
 
-    await waitFor(() => expect(screen.getByTestId("patterns-tv-chart")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("patterns-fullscreen-body")).toBeInTheDocument());
   });
 
-  it("shows the missing-symbol state on /chart", async () => {
+  it("shows the missing-symbol state on /chart", () => {
     renderPage("/chart");
     expect(screen.getByTestId("chart-view-error")).toBeInTheDocument();
     expect(screen.getByText("Back to Screener")).toBeInTheDocument();
   });
 
-  it("keeps the back button in the page header", async () => {
+  it("keeps the back button in the page header", () => {
     renderPage();
     expect(screen.getByTestId("chart-back-btn")).toBeInTheDocument();
   });

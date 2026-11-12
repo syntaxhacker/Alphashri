@@ -93,7 +93,7 @@ export function DeskDock({
         className="sticky bottom-0 z-20 flex items-center gap-[2px] h-[26px] min-h-[26px] px-1 overflow-x-auto overflow-y-hidden"
         style={{
           "background-color": palette.TERM_HEADER,
-          borderTop: `1px solid ${palette.TERM_BORDER}`,
+          "border-top": `1px solid ${palette.TERM_BORDER}`,
         }}
       >
         {tabs.map((tab) => tabButton(tab, active === tab.key))}
@@ -122,7 +122,7 @@ export function DeskDock({
               "max-height": mobile ? "100%" : "55vh",
               "background-color": palette.TERM_BG,
               "background-image": "none",
-              borderTop: `1px solid ${palette.TERM_BORDER}`,
+              "border-top": `1px solid ${palette.TERM_BORDER}`,
               "box-shadow": "0 -8px 24px rgba(0,0,0,0.45)",
             }}
             onClick={(e) => e.stopPropagation()}

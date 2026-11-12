@@ -1,5 +1,5 @@
 import { Box, Group, Text, Badge, Collapse, Stack } from "@/ui";
-import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
+import { IconChevronDown, IconChevronRight } from "../common/Icons";
 import type { NewsItem } from "./news-types";
 import { NewsItemCard } from "./NewsItemCard";
 

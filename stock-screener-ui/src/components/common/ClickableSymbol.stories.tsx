@@ -1,7 +1,7 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Stack, Text } from "@/ui";
 import { ClickableSymbol } from "./ClickableSymbol";
-import { MemoryRouter } from "react-router-dom";
+import { Router } from "@solidjs/router";
 import { PreviewChartProvider } from "./PreviewChartProvider";
 
 const meta: Meta<typeof ClickableSymbol> = {
@@ -18,13 +18,13 @@ const meta: Meta<typeof ClickableSymbol> = {
   },
   decorators: [
     (Story) => (
-      <MemoryRouter>
+      <Router>
         <PreviewChartProvider>
           <Stack gap="sm" p="md">
             <Story />
           </Stack>
         </PreviewChartProvider>
-      </MemoryRouter>
+      </Router>
     ),
   ],
 };

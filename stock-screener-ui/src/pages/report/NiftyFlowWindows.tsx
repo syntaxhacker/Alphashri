@@ -44,7 +44,7 @@ function Cell({
         "padding-left": `${REPORT_PAD.md}px`,
         "padding-right": emphasis ? `${REPORT_PAD.sm}px` : 0,
         "background-color": emphasis ? palette.SURFACE_ALT : "transparent",
-        borderLeft: emphasis
+        "border-left": emphasis
           ? `2px solid ${TONE_COLOR[tone]}`
           : `1px solid ${palette.TERM_BORDER}`,
       }}
@@ -101,10 +101,10 @@ export const NiftyFlowWindows = memo(function NiftyFlowWindows({
         "min-height": `${REPORT_ROW.normal}px`,
         "padding-left": `${REPORT_PAD.md}px`,
         "padding-right": `${REPORT_PAD.md}px`,
-        borderTop: `1px solid ${palette.TERM_BORDER}`,
-        borderBottom: `1px solid ${palette.TERM_BORDER}`,
+        "border-top": `1px solid ${palette.TERM_BORDER}`,
+        "border-bottom": `1px solid ${palette.TERM_BORDER}`,
         "background-color": palette.TERM_HEADER,
-        fontFamily: palette.MONO,
+        "font-family": palette.MONO,
         "font-size": `${REPORT_FONT.xs}px`,
         "white-space": "nowrap",
         overflow: "hidden",

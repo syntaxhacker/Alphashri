@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { createSignal, Show } from "solid-js";
 import { Textarea, Group, Text, ActionIcon, Collapse, CopyButton } from "@/ui";
 import { IconCopy, IconCheck, IconChevronDown, IconChevronUp } from "@tabler/icons-react";
 import { CompactPanel } from "../common/compact";
@@ -8,21 +8,22 @@ interface TradingListProps {
   title?: string;
 }
 
-export function TradingList({ symbols, title = "Trading Symbols" }: TradingListProps) {
-  const [opened, setOpened] = useState(true);
-  const symbolsText = symbols.join(", ");
+export function TradingList(props: TradingListProps) {
+  const [opened, setOpened] = createSignal(true);
+  const title = () => props.title ?? "Trading Symbols";
+  const symbolsText = () => props.symbols.join(", ");
 
   return (
     <CompactPanel
       id="trading-list"
       testId="screener-trading-list"
-      title={title}
-      description={`${symbols.length} symbols`}
+      title={title()}
+      description={`${props.symbols.length} symbols`}
     >
       <Group
         justify="space-between"
         align="center"
-        mb={opened ? "xs" : 0}
+        mb={opened() ? "xs" : 0}
         data-testid="trading-list-header"
         className="flex w-full items-center justify-between gap-2"
       >
@@ -32,16 +33,18 @@ export function TradingList({ symbols, title = "Trading Symbols" }: TradingListP
             onClick={() => setOpened((o) => !o)}
             data-testid="trading-list-toggle"
           >
-            {opened ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+            <Show when={opened()} fallback={<IconChevronDown size={14} />}>
+              <IconChevronUp size={14} />
+            </Show>
           </ActionIcon>
           <Text fw={600} size="sm" data-testid="trading-list-title">
-            {title}
+            {title()}
           </Text>
           <Text size="xs" c="dimmed" data-testid="trading-list-count">
-            ({symbols.length} symbols)
+            ({props.symbols.length} symbols)
           </Text>
         </Group>
-        <CopyButton value={symbolsText}>
+        <CopyButton value={symbolsText()}>
           {({ copied, copy }) => (
             <ActionIcon
               variant="subtle"
@@ -54,9 +57,9 @@ export function TradingList({ symbols, title = "Trading Symbols" }: TradingListP
           )}
         </CopyButton>
       </Group>
-      <Collapse in={opened}>
+      <Collapse in={opened()}>
         <Textarea
-          value={symbolsText}
+          value={symbolsText()}
           readOnly
           autosize
           minRows={2}

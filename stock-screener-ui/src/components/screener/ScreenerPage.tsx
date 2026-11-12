@@ -1,5 +1,5 @@
-import { useState, useCallback, lazy, Suspense, useTransition, useEffect, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { For, Show, Suspense, createEffect, createMemo, createSignal, lazy, onCleanup, onMount } from "solid-js";
+import { useSearchParams } from "@solidjs/router";
 import { Box, Stack, Paper, Tabs, Text, Select, Skeleton, ActionIcon, Switch, Tooltip } from "@/ui";
 import { IconTable, IconChartDots, IconSettings, IconLayoutDashboard, IconRefresh, IconCoins, IconCalendarEvent, IconChartCandle, IconWorld } from "@tabler/icons-react";
 import * as state from "../../state";
@@ -127,147 +127,120 @@ export function mapDashboardPanelToScreener(
   }
 }
 
-function CompactAlerts({
-  activeScreener,
-  warning,
-}: {
+function firstParam(value: string | string[] | undefined): string | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return raw ?? null;
+}
+
+function CompactAlerts(props: {
   activeScreener: string;
   warning?: string | null;
 }) {
-  const lines: string[] = [];
-  if (activeScreener === "52w_high") {
-    lines.push("52W from Upstox daily; LTP live when broker connected.");
-  }
-  if (warning) {
-    lines.push(warning);
-  }
-  if (lines.length === 0) {
-    return null;
-  }
+  const lines = () => {
+    const out: string[] = [];
+    if (props.activeScreener === "52w_high") {
+      out.push("52W from Upstox daily; LTP live when broker connected.");
+    }
+    if (props.warning) {
+      out.push(props.warning);
+    }
+    return out;
+  };
+
   return (
-    <Box
-      px={2}
-      py={1}
-      className="flex-shrink-0"
-      data-testid="screener-52w-high-banner"
-    >
-      {lines.map((line) => (
-        <Text key={line} size="11px" c="dimmed" lineClamp={2}>
-          {line}
-        </Text>
-      ))}
-    </Box>
+    <Show when={lines().length > 0}>
+      <Box
+        px={2}
+        py={1}
+        className="flex-shrink-0"
+        data-testid="screener-52w-high-banner"
+      >
+        <For each={lines()}>
+          {(line) => (
+            <Text size="11px" c="dimmed" lineClamp={2}>
+              {line}
+            </Text>
+          )}
+        </For>
+      </Box>
+    </Show>
   );
 }
 
-export function ScreenerPage({
-  screenerOptions,
-  activeScreener,
-  onScreenerChange,
-  onConfigScreenerSelect,
-  status,
-  isLoading,
-  autoRefreshSeconds,
-  provider,
-  mode,
-  onRefresh,
-  onAutoRefreshChange,
-  onProviderChange,
-  onModeChange,
-  approachingStocks,
-  touchedStocks,
-  onSymbolClick,
-  onSymbolHover,
-  error,
-  warning,
-  universe: universeProp,
-  onUniverseChange,
-}: ScreenerPageProps) {
-  const [viewMode, setViewMode] = useState<"table" | "heatmap">("table");
+export function ScreenerPage(props: ScreenerPageProps) {
+  const [viewMode, setViewMode] = createSignal<"table" | "heatmap">("table");
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get("tab") || "dashboard";
-  const isValueTab = activeTab === "deepvalue";
-  const isEventsTab = activeTab === "events";
-  const isMarketTab = activeTab === "market";
-  const isFnoTab = activeTab === "fno";
-  const [isPending, startTransition] = useTransition();
-  const [internalUniverse, setInternalUniverse] = useState(DEFAULT_DASHBOARD_UNIVERSE);
-  const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
-  const [showLastClose, setShowLastClose] = useState(false);
-  const universe = universeProp ?? internalUniverse;
+  const activeTab = createMemo(() => firstParam(searchParams.tab) || "dashboard");
+  const isValueTab = () => activeTab() === "deepvalue";
+  const isEventsTab = () => activeTab() === "events";
+  const isMarketTab = () => activeTab() === "market";
+  const isFnoTab = () => activeTab() === "fno";
+  const [internalUniverse, setInternalUniverse] = createSignal(DEFAULT_DASHBOARD_UNIVERSE);
+  const [dashboardRefreshKey, setDashboardRefreshKey] = createSignal(0);
+  const [showLastClose, setShowLastClose] = createSignal(false);
+  const universe = () => props.universe ?? internalUniverse();
 
   // Mount the expensive dashboard/screener panels on first visit, then keep
   // them alive. Landing on ?tab=market must not pay the dashboard fetch or
   // the screener table's module/render cost.
-  const [visitedTabs, setVisitedTabs] = useState<ReadonlySet<string>>(
-    () => new Set([activeTab]),
+  const [visitedTabs, setVisitedTabs] = createSignal<ReadonlySet<string>>(
+    () => new Set([activeTab()]),
   );
-  useEffect(() => {
+  createEffect(() => {
+    const tab = activeTab();
     setVisitedTabs((prev) => {
-      if (prev.has(activeTab)) return prev;
+      if (prev.has(tab)) return prev;
       const next = new Set(prev);
-      next.add(activeTab);
+      next.add(tab);
       return next;
     });
-  }, [activeTab]);
-  const visited = useMemo(() => new Set(visitedTabs).add(activeTab), [visitedTabs, activeTab]);
+  });
+  const visited = createMemo(() => new Set(visitedTabs()).add(activeTab()));
 
   // Warm the Market chunk once the browser is idle after mount; hover/focus
   // on the tab does the same sooner. Never blocks the initial load.
-  useEffect(() => {
+  onMount(() => {
     const w = window as unknown as {
       requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
       cancelIdleCallback?: (id: number) => void;
     };
     if (typeof w.requestIdleCallback === "function") {
       const id = w.requestIdleCallback(prefetchMarketTab, { timeout: 2500 });
-      return () => w.cancelIdleCallback?.(id);
+      onCleanup(() => w.cancelIdleCallback?.(id));
+      return;
     }
     const id = window.setTimeout(prefetchMarketTab, 1500);
-    return () => window.clearTimeout(id);
-  }, []);
-  const handleUniverseChange = useCallback(
-    (u: string) => {
-      if (onUniverseChange) {
-        onUniverseChange(u);
-      } else {
-        setInternalUniverse(u);
-      }
-    },
-    [onUniverseChange],
-  );
+    onCleanup(() => window.clearTimeout(id));
+  });
 
-  const setActiveTab = (tab: string) => {
-    startTransition(() => {
-      setSearchParams(
-        (prev) => {
-          if (tab === "dashboard") {
-            prev.delete("tab");
-          } else {
-            prev.set("tab", tab);
-          }
-          return prev;
-        },
-        { replace: true },
-      );
-    });
+  const handleUniverseChange = (u: string) => {
+    if (props.onUniverseChange) {
+      props.onUniverseChange(u);
+    } else {
+      setInternalUniverse(u);
+    }
   };
 
-  const handleOpenScan = useCallback(
-    (panelId: string) => {
-      const target = mapDashboardPanelToScreener(
-        panelId,
-        screenerOptions.map((o) => o.id),
-      );
-      if (target && target !== activeScreener) {
-        onScreenerChange(target);
-      }
-      setActiveTab("screener");
-    },
-    [screenerOptions, activeScreener, onScreenerChange, setSearchParams],
-  );
+  const setActiveTab = (tab: string) => {
+    if (tab === "dashboard") {
+      setSearchParams({ tab: null }, { replace: true });
+    } else {
+      setSearchParams({ tab }, { replace: true });
+    }
+  };
 
-  const handleCompare = useCallback(() => {
+  const handleOpenScan = (panelId: string) => {
+    const target = mapDashboardPanelToScreener(
+      panelId,
+      props.screenerOptions.map((o) => o.id),
+    );
+    if (target && target !== props.activeScreener) {
+      props.onScreenerChange(target);
+    }
+    setActiveTab("screener");
+  };
+
+  const handleCompare = () => {
     const syms = state.selectedSymbols;
     if (syms.length < 2) return;
     setSymbols(syms);
@@ -280,11 +253,11 @@ export function ScreenerPage({
       { tab: "correlation", symbols: syms.join(","), timeframe: "daily", period: "90" },
       { replace: true },
     );
-  }, [setSearchParams]);
+  };
 
-  const hasSideFilters = screenerHasSideFilters(activeScreener);
-  const hasResults = approachingStocks.length + touchedStocks.length > 0;
-  const isDashboard = activeTab === "dashboard";
+  const hasSideFilters = () => screenerHasSideFilters(props.activeScreener);
+  const hasResults = () => props.approachingStocks.length + props.touchedStocks.length > 0;
+  const isDashboard = () => activeTab() === "dashboard";
 
   return (
     <Box gap={1} className="w-full min-h-0 flex flex-col">
@@ -296,9 +269,53 @@ export function ScreenerPage({
           className="flex items-center justify-between gap-4 px-3 h-[48px] min-h-[48px] max-h-[48px] flex-shrink-0 overflow-hidden flex-nowrap border border-fin-border"
         >
           <Box className="flex items-center gap-2 flex-shrink-0">
-            {isDashboard ? (
+            <Show when={isDashboard()} fallback={
+              <Show when={isValueTab()} fallback={
+                <Show when={isEventsTab()} fallback={
+                  <Show when={isMarketTab()} fallback={
+                    <Show when={isFnoTab()} fallback={
+                      <Select
+                        value={props.activeScreener}
+                        onChange={(v) => v && props.onScreenerChange(v)}
+                        data={props.screenerOptions.map((o) => ({ value: o.id, label: o.label }))}
+                        size="xs"
+                        w={148}
+                        data-testid="screener-select"
+                        comboboxProps={{ withinPortal: true }}
+                        aria-label="Screener"
+                      />
+                    }>
+                      <Text
+                        size="xs"
+                        fw={600}
+                        data-testid="fno-tab-label"
+                        className="w-[148px] flex-shrink-0 hidden md:block"
+                      >
+                        F&O Momentum
+                      </Text>
+                    </Show>
+                  }>
+                    <Text size="xs" fw={600} data-testid="market-tab-label" className="w-[148px] flex-shrink-0">
+                      Market
+                    </Text>
+                  </Show>
+                }>
+                  {/* Keeps the tab strip from jumping: the slot below it is a
+                      148px Select on the other tabs. The word "Events" is already
+                      the active tab two elements to the right, so this slot names
+                      the surface instead of repeating it. */}
+                  <Text size="xs" fw={600} data-testid="events-tab-label" className="w-[148px] flex-shrink-0">
+                    Event calendar
+                  </Text>
+                </Show>
+              }>
+                <Text size="xs" fw={600} data-testid="deep-value-tab-label">
+                  Deep Value
+                </Text>
+              </Show>
+            }>
               <Select
-                value={universe}
+                value={universe()}
                 onChange={(v) => v && handleUniverseChange(v)}
                 data={DASHBOARD_UNIVERSES.map((o) => ({ value: o.value, label: o.label }))}
                 size="xs"
@@ -307,45 +324,9 @@ export function ScreenerPage({
                 comboboxProps={{ withinPortal: true }}
                 aria-label="Market universe"
               />
-            ) : isValueTab ? (
-              <Text size="xs" fw={600} data-testid="deep-value-tab-label">
-                Deep Value
-              </Text>
-            ) : isEventsTab ? (
-              // Keeps the tab strip from jumping: the slot below it is a
-              // 148px Select on the other tabs. The word "Events" is already
-              // the active tab two elements to the right, so this slot names
-              // the surface instead of repeating it.
-              <Text size="xs" fw={600} data-testid="events-tab-label" className="w-[148px] flex-shrink-0">
-                Event calendar
-              </Text>
-            ) : isMarketTab ? (
-              <Text size="xs" fw={600} data-testid="market-tab-label" className="w-[148px] flex-shrink-0">
-                Market
-              </Text>
-            ) : isFnoTab ? (
-              <Text
-                size="xs"
-                fw={600}
-                data-testid="fno-tab-label"
-                className="w-[148px] flex-shrink-0 hidden md:block"
-              >
-                F&O Momentum
-              </Text>
-            ) : (
-              <Select
-                value={activeScreener}
-                onChange={(v) => v && onScreenerChange(v)}
-                data={screenerOptions.map((o) => ({ value: o.id, label: o.label }))}
-                size="xs"
-                w={148}
-                data-testid="screener-select"
-                comboboxProps={{ withinPortal: true }}
-                aria-label="Screener"
-              />
-            )}
+            </Show>
             <Tabs
-              value={activeTab}
+              value={activeTab()}
               onChange={(v) => {
                 if (v && v !== "screener") state.setSelectedSymbols([]);
                 if (v) setActiveTab(v);
@@ -381,20 +362,20 @@ export function ScreenerPage({
             </Tabs>
           </Box>
           <Box className="flex-1 px-2 flex justify-center overflow-hidden min-w-[80px]">
-            {isMarketTab ? null : (
-              <Text size="xs" c="dimmed" truncate className="text-[11px]" title={status} data-testid="screener-status">
-                {status}
+            <Show when={!isMarketTab()}>
+              <Text size="xs" c="dimmed" truncate className="text-[11px]" title={props.status} data-testid="screener-status">
+                {props.status}
               </Text>
-            )}
+            </Show>
           </Box>
           <Box className="flex-shrink-0 flex items-center flex-nowrap">
-            {isDashboard ? (
+            <Show when={isDashboard()}>
               <Box className="flex items-center gap-2 flex-shrink-0">
-                <Tooltip label={showLastClose ? "Showing last close (visual)" : "Show last close"}>
+                <Tooltip label={showLastClose() ? "Showing last close (visual)" : "Show last close"}>
                   <Switch
                     size="xs"
-                    checked={showLastClose}
-                    onChange={(e) => setShowLastClose(e.target.checked)}
+                    checked={showLastClose()}
+                    onChange={(e) => setShowLastClose(e.currentTarget.checked)}
                     label="Last close"
                     data-testid="dashboard-last-close-toggle"
                     aria-label="Last close"
@@ -412,23 +393,24 @@ export function ScreenerPage({
                   </ActionIcon>
                 </Tooltip>
               </Box>
-            ) : isValueTab ? null : isEventsTab ? null : isMarketTab ? null : isFnoTab ? null : (
+            </Show>
+            <Show when={!isDashboard() && !isValueTab() && !isEventsTab() && !isMarketTab() && !isFnoTab()}>
               <ScreenerHeader
-              status={status}
-              isLoading={isLoading}
-              autoRefreshSeconds={autoRefreshSeconds}
-              provider={provider}
-              mode={mode}
-              onRefresh={onRefresh}
-              onAutoRefreshChange={onAutoRefreshChange}
-              onProviderChange={onProviderChange}
-              onModeChange={onModeChange}
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-              hideStatus
-              disableControls={isLoading && !hasResults}
-            />
-            )}
+                status={props.status}
+                isLoading={props.isLoading}
+                autoRefreshSeconds={props.autoRefreshSeconds}
+                provider={props.provider}
+                mode={props.mode}
+                onRefresh={props.onRefresh}
+                onAutoRefreshChange={props.onAutoRefreshChange}
+                onProviderChange={props.onProviderChange}
+                onModeChange={props.onModeChange}
+                viewMode={viewMode()}
+                onViewModeChange={setViewMode}
+                hideStatus
+                disableControls={props.isLoading && !hasResults()}
+              />
+            </Show>
           </Box>
         </Paper>
         <Box
@@ -441,108 +423,120 @@ export function ScreenerPage({
           <Box
             data-testid="dashboard-panel"
             className="min-w-0 min-h-0 overflow-auto"
-            style={{ display: isDashboard ? "flex" : "none", flex: 1 }}
+            style={{ display: isDashboard() ? "flex" : "none", flex: 1 }}
           >
-            {visited.has("dashboard") ? (
-              <DashboardView
-                key={`dashboard-${dashboardRefreshKey}`}
-                universe={universe}
-                onOpenSymbol={onSymbolClick}
-                onOpenScan={handleOpenScan}
-              />
-            ) : null}
+            <Show when={visited().has("dashboard")}>
+              <Show when={dashboardRefreshKey()} keyed>
+                {(_key) => (
+                  <DashboardView
+                    universe={universe()}
+                    onOpenSymbol={props.onSymbolClick}
+                    onOpenScan={handleOpenScan}
+                  />
+                )}
+              </Show>
+            </Show>
           </Box>
           <Box
             flex={1}
             gap={1}
             className="min-w-0 min-h-0"
-            style={{ display: activeTab === "screener" ? "flex" : "none" }}
+            style={{ display: activeTab() === "screener" ? "flex" : "none" }}
           >
-            {visited.has("screener") ? (
-              <>
-                <GroupPerformancePanel />
-                <Paper
-                  radius={2}
-                  flex={1}
-                  className="min-w-0 min-h-0 flex flex-col overflow-hidden border border-fin-border"
-                  style={{ opacity: isPending ? 0.6 : 1 }}
-                >
-                  <CompactAlerts activeScreener={activeScreener} warning={warning} />
-                  {hasSideFilters && <ScreenerInlineFilters activeScreener={activeScreener} embedded />}
-                  <Box flex={1} className="min-h-0 overflow-hidden flex flex-col p-1 gap-1">
-                    <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
-                      <ScreenerContent
-                        approachingStocks={approachingStocks}
-                        touchedStocks={touchedStocks}
-                        isLoading={isLoading}
-                        error={error}
-                        onRefresh={onRefresh}
-                        onSymbolClick={onSymbolClick}
-                        onSymbolHover={onSymbolHover}
-                        activeScreener={activeScreener}
-                        viewMode={viewMode}
-                      />
-                    </Suspense>
-                    <SelectionBar onCompare={handleCompare} />
-                  </Box>
-                </Paper>
-              </>
-            ) : null}
+            <Show when={visited().has("screener")}>
+              <GroupPerformancePanel />
+              <Paper
+                radius={2}
+                flex={1}
+                className="min-w-0 min-h-0 flex flex-col overflow-hidden border border-fin-border"
+              >
+                <CompactAlerts activeScreener={props.activeScreener} warning={props.warning} />
+                <Show when={hasSideFilters()}>
+                  <ScreenerInlineFilters activeScreener={props.activeScreener} embedded />
+                </Show>
+                <Box flex={1} className="min-h-0 overflow-hidden flex flex-col p-1 gap-1">
+                  <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
+                    <ScreenerContent
+                      approachingStocks={props.approachingStocks}
+                      touchedStocks={props.touchedStocks}
+                      isLoading={props.isLoading}
+                      error={props.error}
+                      onRefresh={props.onRefresh}
+                      onSymbolClick={props.onSymbolClick}
+                      onSymbolHover={props.onSymbolHover}
+                      activeScreener={props.activeScreener}
+                      viewMode={viewMode()}
+                    />
+                  </Suspense>
+                  <SelectionBar onCompare={handleCompare} />
+                </Box>
+              </Paper>
+            </Show>
           </Box>
           <Box
             data-testid="deep-value-panel"
             className="min-w-0 min-h-0 overflow-auto"
-            style={{ display: isValueTab ? "flex" : "none", flex: 1 }}
+            style={{ display: isValueTab() ? "flex" : "none", flex: 1 }}
           >
             <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
-              {isValueTab ? <DeepValueTab /> : null}
+              <Show when={isValueTab()}>
+                <DeepValueTab />
+              </Show>
             </Suspense>
           </Box>
           <Box
             data-testid="events-tab-panel"
             className="min-w-0 min-h-0 overflow-auto"
-            style={{ display: isEventsTab ? "flex" : "none", flex: 1 }}
+            style={{ display: isEventsTab() ? "flex" : "none", flex: 1 }}
           >
             <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
-              {isEventsTab ? <EventsTab /> : null}
+              <Show when={isEventsTab()}>
+                <EventsTab />
+              </Show>
             </Suspense>
           </Box>
           <Box
             data-testid="fno-tab-panel"
             className="min-w-0 min-h-0"
-            style={{ display: isFnoTab ? "flex" : "none", flex: 1, overflow: "hidden" }}
+            style={{ display: isFnoTab() ? "flex" : "none", flex: 1, overflow: "hidden" }}
           >
             <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
               <ErrorBoundary label="Market screener">
-                {isFnoTab ? <FnoScreenerTab /> : null}
+                <Show when={isFnoTab()}>
+                  <FnoScreenerTab />
+                </Show>
               </ErrorBoundary>
             </Suspense>
           </Box>
           <Box
             data-testid="market-tab-panel"
             className="min-w-0 min-h-0 overflow-hidden"
-            style={{ display: isMarketTab ? "flex" : "none", flex: 1 }}
+            style={{ display: isMarketTab() ? "flex" : "none", flex: 1 }}
           >
             <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
               <ErrorBoundary label="Market screener">
-                {isMarketTab ? <MarketTab /> : null}
+                <Show when={isMarketTab()}>
+                  <MarketTab />
+                </Show>
               </ErrorBoundary>
             </Suspense>
           </Box>
           <Box
             className="min-w-0 min-h-0 overflow-auto"
-            style={{ display: activeTab === "correlation" || activeTab === "config" ? "flex" : "none", flex: 1 }}
+            style={{ display: activeTab() === "correlation" || activeTab() === "config" ? "flex" : "none", flex: 1 }}
           >
             <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
-              {activeTab === "config" ? (
+              <Show when={activeTab() === "config"} fallback={
+                <Show when={activeTab() === "correlation"}>
+                  <CorrelationTab />
+                </Show>
+              }>
                 <ScreenerConfigView
-                  screenerOptions={screenerOptions}
-                  activeScreener={activeScreener}
-                  onScreenerChange={onConfigScreenerSelect}
+                  screenerOptions={props.screenerOptions}
+                  activeScreener={props.activeScreener}
+                  onScreenerChange={props.onConfigScreenerSelect}
                 />
-              ) : activeTab === "correlation" ? (
-                <CorrelationTab />
-              ) : null}
+              </Show>
             </Suspense>
           </Box>
         </Box>

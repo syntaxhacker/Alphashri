@@ -1,8 +1,8 @@
 import { Box, Stack, Text } from "@/ui";
 import { Select } from "@/ui";
-import { useMemo } from "react";
-import ReactECharts from "echarts-for-react";
+import { createMemo } from "solid-js";
 import type { HeatmapStock } from "../../api/heatmap";
+import { EChart } from "./EChart";
 import {
   TOOLTIP_DARK_BG,
   TOOLTIP_LIGHT_BG,
@@ -38,77 +38,82 @@ interface ScatterViewProps {
 
 const PALETTE = [CREAM, TRADING_GREEN, TEXT_MUTED, TRADING_RED, SECTOR_GREEN, SECTOR_RED, BROWN, BROWN_DARK, SURFACE_ALT];
 
-export function ScatterView({ stocks, metricX, metricY, onMetricXChange, onMetricYChange, getMetricValue, METRICS }: ScatterViewProps) {
-  const isDark = document.documentElement.getAttribute('data-dark') === 'true';
-  const tooltipBg = isDark ? TOOLTIP_DARK_BG : TOOLTIP_LIGHT_BG;
-  const tooltipText = isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT;
-  const axisLineColor = isDark ? AXIS_DARK_LINE : AXIS_LIGHT_LINE;
-  const splitLineColor = isDark ? AXIS_DARK_SPLIT : AXIS_LIGHT_SPLIT;
+export function ScatterView(props: ScatterViewProps) {
+  const isDark = () => typeof document !== "undefined" && document.documentElement.getAttribute("data-dark") === "true";
+  const tooltipBg = () => (isDark() ? TOOLTIP_DARK_BG : TOOLTIP_LIGHT_BG);
+  const tooltipText = () => (isDark() ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT);
+  const axisLineColor = () => (isDark() ? AXIS_DARK_LINE : AXIS_LIGHT_LINE);
+  const splitLineColor = () => (isDark() ? AXIS_DARK_SPLIT : AXIS_LIGHT_SPLIT);
 
-  const { sectors, sectorColors } = useMemo(() => {
-    const unique = [...new Set(stocks.map(s => s.sector).filter(Boolean))];
+  const stocks = () => props.stocks;
+
+  const sectorInfo = createMemo(() => {
+    const unique = [...new Set(stocks().map((s) => s.sector).filter(Boolean))];
     const colors: Record<string, string> = {};
-    unique.forEach((s, i) => { colors[s] = PALETTE[i % PALETTE.length]; });
+    unique.forEach((s, i) => {
+      colors[s as string] = PALETTE[i % PALETTE.length];
+    });
     return { sectors: unique, sectorColors: colors };
-  }, [stocks]);
+  });
 
-  const metricXLabel = METRICS.find(m => m.value === metricX)?.label || metricX;
-  const metricYLabel = METRICS.find(m => m.value === metricY)?.label || metricY;
+  const metricXLabel = () => props.METRICS.find((m) => m.value === props.metricX)?.label || props.metricX;
+  const metricYLabel = () => props.METRICS.find((m) => m.value === props.metricY)?.label || props.metricY;
 
-  const option = useMemo(() => {
-    const series = sectors.map(sector => {
-      const sectorStocks = stocks.filter(s => s.sector === sector);
+  const option = createMemo(() => {
+    const info = sectorInfo();
+    const series = info.sectors.map((sector) => {
+      const sectorStocks = stocks().filter((s) => s.sector === sector);
       return {
         name: sector,
-        type: 'scatter',
-        data: sectorStocks.map(s => ({
-          value: [getMetricValue(s, metricX), getMetricValue(s, metricY)],
+        type: "scatter",
+        data: sectorStocks.map((s) => ({
+          value: [props.getMetricValue(s, props.metricX), props.getMetricValue(s, props.metricY)],
           symbol: s.symbol,
           sector: s.sector,
         })),
-        itemStyle: { color: sectorColors[sector] },
+        itemStyle: { color: info.sectorColors[sector as string] },
         emphasis: {
           label: {
             show: true,
-            formatter: (params: any) => params.data?.symbol || '',
-            position: 'top',
+            formatter: (params: any) => params.data?.symbol || "",
+            position: "top",
             "font-size": 11,
-            "font-weight": 'bold',
-            color: tooltipText,
+            "font-weight": "bold",
+            color: tooltipText(),
           },
         },
       };
     });
 
     return {
-      "background-color": 'transparent',
+      "background-color": "transparent",
       tooltip: {
-        trigger: 'item',
+        trigger: "item",
         formatter: (params: any) => {
           const d = params.data;
-          if (!d) return '';
-          const xVal = METRICS.find(m => m.value === metricX)?.fmt(d.value[0]) ?? d.value[0];
-          const yVal = METRICS.find(m => m.value === metricY)?.fmt(d.value[1]) ?? d.value[1];
+          if (!d) return "";
+          const xVal = props.METRICS.find((m) => m.value === props.metricX)?.fmt(d.value[0]) ?? d.value[0];
+          const yVal = props.METRICS.find((m) => m.value === props.metricY)?.fmt(d.value[1]) ?? d.value[1];
           return [
-            `<div style="font-weight:bold;font-size:14px;color:${tooltipText}">${d.symbol}</div>`,
-            `<div style="color:${tooltipText};font-size:12px;margin-top:4px">Sector: ${d.sector}</div>`,
+            `<div style="font-weight:bold;font-size:14px;color:${tooltipText()}">${d.symbol}</div>`,
+            `<div style="color:${tooltipText()};font-size:12px;margin-top:4px">Sector: ${d.sector}</div>`,
             `<div style="margin-top:8px">`,
-            `  <div style="color:${tooltipText}">${metricXLabel}: <b>${xVal}</b></div>`,
-            `  <div style="color:${tooltipText}">${metricYLabel}: <b>${yVal}</b></div>`,
+            `  <div style="color:${tooltipText()}">${metricXLabel()}: <b>${xVal}</b></div>`,
+            `  <div style="color:${tooltipText()}">${metricYLabel()}: <b>${yVal}</b></div>`,
             `</div>`,
-          ].join('\n');
+          ].join("\n");
         },
-        "background-color": tooltipBg,
-        "border-color": isDark ? TOOLTIP_DARK_BORDER : TOOLTIP_LIGHT_BORDER,
-        textStyle: { color: tooltipText },
+        "background-color": tooltipBg(),
+        "border-color": isDark() ? TOOLTIP_DARK_BORDER : TOOLTIP_LIGHT_BORDER,
+        textStyle: { color: tooltipText() },
       },
       legend: {
-        type: 'scroll',
-        orient: 'vertical',
+        type: "scroll",
+        orient: "vertical",
         right: 10,
         top: 40,
-        textStyle: { color: isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT, "font-size": 10 },
-        pageTextStyle: { color: isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT },
+        textStyle: { color: tooltipText(), "font-size": 10 },
+        pageTextStyle: { color: tooltipText() },
       },
       grid: {
         left: 50,
@@ -117,30 +122,30 @@ export function ScatterView({ stocks, metricX, metricY, onMetricXChange, onMetri
         top: 10,
       },
       xAxis: {
-        type: 'value',
-        name: metricXLabel,
-        nameLocation: 'center',
+        type: "value",
+        name: metricXLabel(),
+        nameLocation: "center",
         nameGap: 30,
-        nameTextStyle: { "font-size": 12, "font-weight": 'bold', color: isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT },
+        nameTextStyle: { "font-size": 12, "font-weight": "bold", color: tooltipText() },
         axisLabel: { show: false },
-        axisLine: { lineStyle: { color: axisLineColor } },
-        splitLine: { lineStyle: { color: splitLineColor } },
+        axisLine: { lineStyle: { color: axisLineColor() } },
+        splitLine: { lineStyle: { color: splitLineColor() } },
       },
       yAxis: {
-        type: 'value',
-        name: metricYLabel,
-        nameLocation: 'center',
+        type: "value",
+        name: metricYLabel(),
+        nameLocation: "center",
         nameGap: 40,
-        nameTextStyle: { "font-size": 12, "font-weight": 'bold', color: isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT },
+        nameTextStyle: { "font-size": 12, "font-weight": "bold", color: tooltipText() },
         axisLabel: { show: false },
-        axisLine: { lineStyle: { color: axisLineColor } },
-        splitLine: { lineStyle: { color: splitLineColor } },
+        axisLine: { lineStyle: { color: axisLineColor() } },
+        splitLine: { lineStyle: { color: splitLineColor() } },
       },
       series,
     };
-  }, [stocks, sectors, sectorColors, metricX, metricY, metricXLabel, metricYLabel, getMetricValue, isDark, tooltipBg, tooltipText]);
+  });
 
-  const metricOptions = METRICS.map(m => ({ value: m.value, label: m.label }));
+  const metricOptions = () => props.METRICS.map((m) => ({ value: m.value, label: m.label }));
 
   return (
     <Stack spacing={0} className="h-full flex-1 min-h-0 w-full overflow-hidden">
@@ -148,22 +153,22 @@ export function ScatterView({ stocks, metricX, metricY, onMetricXChange, onMetri
         <Text size="xs" c="dimmed">X Axis</Text>
         <Select
           size="small"
-          value={metricX}
-          onChange={(v) => onMetricXChange(v ?? metricX)}
-          data={metricOptions}
+          value={props.metricX}
+          onChange={(v) => props.onMetricXChange(v ?? props.metricX)}
+          data={metricOptions()}
           className="min-w-[140px]"
         />
         <Text size="xs" c="dimmed">Y Axis</Text>
         <Select
           size="small"
-          value={metricY}
-          onChange={(v) => onMetricYChange(v ?? metricY)}
-          data={metricOptions}
+          value={props.metricY}
+          onChange={(v) => props.onMetricYChange(v ?? props.metricY)}
+          data={metricOptions()}
           className="min-w-[140px]"
         />
       </Box>
       <Box className="flex-1 min-h-[320px] w-full flex p-2">
-        <ReactECharts option={option} style={{ height: "100%", width: "100%" }} opts={{ renderer: "canvas" }} />
+        <EChart option={option()} />
       </Box>
     </Stack>
   );

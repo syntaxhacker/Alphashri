@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, test } from "vitest";
 import { UIProvider } from "@/ui";
 import { Sparkline } from "./Sparkline";
 
-function r(jsx: React.ReactElement) {
+function r(jsx: JSX.Element) {
   return render(jsx, { wrapper: UIProvider });
 }
 

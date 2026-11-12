@@ -90,7 +90,7 @@ function StatBar({ walls }: { walls: WallsPayload }) {
               "line-height": REPORT_LINE_HEIGHT.snug,
               "font-weight": REPORT_FONT_WEIGHT.bold,
               color: cell.color ?? palette.TEXT_COLOR,
-              fontVariantNumeric: "tabular-nums",
+              "font-variant-numeric": "tabular-nums",
               "white-space": "nowrap",
               overflow: "hidden",
               "text-overflow": "ellipsis",
@@ -138,7 +138,7 @@ function LadderRow({
         "padding-top": `${REPORT_PAD.xs}px`,
         "padding-bottom": `${REPORT_PAD.xs}px`,
         "min-height": REPORT_ROW.walls,
-        borderLeft: row.tracked ? `2px solid ${color}` : "2px solid transparent",
+        "border-left": row.tracked ? `2px solid ${color}` : "2px solid transparent",
         "background-color": row.tracked ? palette.SURFACE_ALT : "transparent",
         transition: "background-color 180ms ease",
       }}
@@ -151,7 +151,7 @@ function LadderRow({
           "font-size": REPORT_FONT.sm,
           "font-weight": row.tracked || isBreak ? REPORT_FONT_WEIGHT.extrabold : REPORT_FONT_WEIGHT.medium,
           color: row.tracked ? color : isBreak ? palette.WARNING : palette.TEXT_COLOR,
-          fontVariantNumeric: "tabular-nums",
+          "font-variant-numeric": "tabular-nums",
           "white-space": "nowrap",
         }}
       >
@@ -171,7 +171,7 @@ function LadderRow({
         style={{
           "font-size": REPORT_FONT.sm,
           "text-align": "right",
-          fontVariantNumeric: "tabular-nums",
+          "font-variant-numeric": "tabular-nums",
           color: palette.TEXT_COLOR,
         }}
       >
@@ -183,7 +183,7 @@ function LadderRow({
         style={{
           "font-size": REPORT_FONT.sm,
           "text-align": "right",
-          fontVariantNumeric: "tabular-nums",
+          "font-variant-numeric": "tabular-nums",
           color: erosionColor(row.new_oi),
         }}
       >
@@ -225,7 +225,7 @@ function WallsLadder({ walls }: { walls: WallsPayload }) {
           <LadderRow key={`ladder-call-${row.strike}`} row={row} side="CALL" maxOi={maxOi} breakWall={breakWall} spot={walls.spot} />
         ))}
         <Box className="flex items-center gap-[8px]" style={{ "margin-top": `${REPORT_PAD.xs}px`, "margin-bottom": `${REPORT_PAD.xs}px`, "min-width": 0, display: "flex", "align-items": "center", gap: 1 }}>
-          <Box style={{ flex: 1, borderTop: `1px dashed ${palette.PRIMARY}` }} />
+          <Box style={{ flex: 1, "border-top": `1px dashed ${palette.PRIMARY}` }} />
           <Text
             size="xs"
             span
@@ -308,10 +308,10 @@ function WallsTable({ title, side, rows, spot }: { title: string; side: "CALL" |
         component="table"
         style={{
           width: "100%",
-          tableLayout: "fixed",
-          borderCollapse: "collapse",
+          "table-layout": "fixed",
+          "border-collapse": "collapse",
           "font-size": REPORT_FONT.sm,
-          fontVariantNumeric: "tabular-nums",
+          "font-variant-numeric": "tabular-nums",
         }}
       >
         <colgroup>
@@ -344,7 +344,7 @@ function WallsTable({ title, side, rows, spot }: { title: string; side: "CALL" |
                 style={{
                   background: row.tracked ? palette.SURFACE_ALT : "transparent",
                   "font-weight": row.tracked ? 700 : 400,
-                  borderTop: `1px solid ${palette.BORDER}`,
+                  "border-top": `1px solid ${palette.BORDER}`,
                   height: REPORT_ROW.walls,
                   transition: "background-color 180ms ease",
                 }}
@@ -540,10 +540,10 @@ function SequenceTable({ events }: { events: WallsEvent[] }) {
         component="table"
         style={{
           width: "100%",
-          tableLayout: "fixed",
-          borderCollapse: "collapse",
+          "table-layout": "fixed",
+          "border-collapse": "collapse",
           "font-size": REPORT_FONT.sm,
-          fontVariantNumeric: "tabular-nums",
+          "font-variant-numeric": "tabular-nums",
         }}
       >
         <colgroup>
@@ -575,7 +575,7 @@ function SequenceTable({ events }: { events: WallsEvent[] }) {
                 key={`${event.at}-${index}`}
                 style={{
                   background: isBreak ? palette.SURFACE_ALT : "transparent",
-                  borderTop: `1px solid ${palette.BORDER}`,
+                  "border-top": `1px solid ${palette.BORDER}`,
                   height: REPORT_ROW.walls,
                 }}
               >
@@ -873,7 +873,7 @@ function NiftyWallsExpandedBody({
               BREAK
             </Text>
             {primaryBreak ? (
-              <Box data-testid="walls-break" style={{ borderLeft: `3px solid ${palette.NEGATIVE}`, "padding-left": `${REPORT_PAD.md}px`, "padding-top": `${REPORT_PAD.xs}px`, "padding-bottom": `${REPORT_PAD.xs}px` }}>
+              <Box data-testid="walls-break" style={{ "border-left": `3px solid ${palette.NEGATIVE}`, "padding-left": `${REPORT_PAD.md}px`, "padding-top": `${REPORT_PAD.xs}px`, "padding-bottom": `${REPORT_PAD.xs}px` }}>
                 <Text
                   size="md"
                   span

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Show, createEffect, createMemo, createSignal, For, onCleanup } from "solid-js";
 import { IconRefresh } from "@tabler/icons-react";
 import {
   ActionIcon,
@@ -55,111 +55,114 @@ function screenerParams(
 }
 
 export function FnoScreenerTab() {
-  const [preset, setPreset] = useState<FnoScreenerPreset>("cheap_momentum");
-  const [expiry, setExpiry] = useState<string>("");
-  const [maxCost, setMaxCost] = useState<number | undefined>(undefined);
-  const [minPop, setMinPop] = useState<number | undefined>(undefined);
-  const [viewMode, setViewMode] = useState<"symbol" | "contract">("symbol");
-  const [data, setData] = useState<FnoScreenerResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const [preset, setPreset] = createSignal<FnoScreenerPreset>("cheap_momentum");
+  const [expiry, setExpiry] = createSignal<string>("");
+  const [maxCost, setMaxCost] = createSignal<number | undefined>(undefined);
+  const [minPop, setMinPop] = createSignal<number | undefined>(undefined);
+  const [viewMode, setViewMode] = createSignal<"symbol" | "contract">("symbol");
+  const [data, setData] = createSignal<FnoScreenerResponse | null>(null);
+  const [isLoading, setIsLoading] = createSignal(true);
+  const [error, setError] = createSignal<Error | null>(null);
+  let abortController: AbortController | null = null;
 
-  const fetchData = useCallback(
-    async (params: FnoScreenerParams) => {
-      abortRef.current?.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-      setIsLoading(true);
-      try {
-        const res = await fetchFnoScreener(params, { signal: controller.signal });
-        if (controller.signal.aborted) return;
-        setData(res);
-        setError(null);
-      } catch (e) {
-        if (controller.signal.aborted) return;
-        setError(e instanceof Error ? e : new Error(String(e)));
-      } finally {
-        if (!controller.signal.aborted) setIsLoading(false);
-      }
-    },
-    [],
-  );
+  const fetchData = async (params: FnoScreenerParams) => {
+    abortController?.abort();
+    const controller = new AbortController();
+    abortController = controller;
+    setIsLoading(true);
+    try {
+      const res = await fetchFnoScreener(params, { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      setData(res);
+      setError(null);
+    } catch (e) {
+      if (controller.signal.aborted) return;
+      setError(e instanceof Error ? e : new Error(String(e)));
+    } finally {
+      if (!controller.signal.aborted) setIsLoading(false);
+    }
+  };
 
   // Fetch on mount and whenever preset / expiry / max cost / min POP change.
   // Stale in-flight requests are aborted via the AbortController above.
-  useEffect(() => {
-    void fetchData(screenerParams(preset, expiry, maxCost, minPop));
-  }, [preset, expiry, maxCost, minPop, fetchData]);
+  createEffect(() => {
+    const p = preset();
+    const e = expiry();
+    const mc = maxCost();
+    const pop = minPop();
+    void fetchData(screenerParams(p, e, mc, pop));
+  });
 
-  useEffect(() => () => abortRef.current?.abort(), []);
+  onCleanup(() => abortController?.abort());
 
-  const handleRefresh = useCallback(() => {
-    void fetchData(screenerParams(preset, expiry, maxCost, minPop, true));
-  }, [preset, expiry, maxCost, minPop, fetchData]);
+  const handleRefresh = () => {
+    void fetchData(screenerParams(preset(), expiry(), maxCost(), minPop(), true));
+  };
 
-  const rows = data?.rows ?? [];
+  const rows = () => data()?.rows ?? [];
   // Symbol mode dedupes by symbol, keeping the first row per symbol (the
   // backend already sorts by the selected preset, so the first is the best
   // candidate). Contract mode shows every row. Both are pure derivations —
   // switching modes never refetches.
-  const displayRows = useMemo(() => {
-    if (viewMode === "contract") return rows;
+  const displayRows = createMemo(() => {
+    const allRows = rows();
+    if (viewMode() === "contract") return allRows;
     const seen = new Set<string>();
     const deduped: FnoScreenerRow[] = [];
-    for (const row of rows) {
+    for (const row of allRows) {
       if (seen.has(row.symbol)) continue;
       seen.add(row.symbol);
       deduped.push(row);
     }
     return deduped;
-  }, [rows, viewMode]);
-  const symbolCount = useMemo(
-    () => new Set(rows.map((row) => row.symbol)).size,
-    [rows],
-  );
-  const showLoading = isLoading && rows.length === 0;
-  const showError = error !== null && rows.length === 0;
-  const backendIssue =
-    data && data.errors.length > 0
-      ? data.errors[0]?.error || data.warnings[0] || "Upstream options data unavailable"
+  });
+  const symbolCount = createMemo(() => new Set(rows().map((row) => row.symbol)).size);
+  const showLoading = () => isLoading() && rows().length === 0;
+  const showError = () => error() !== null && rows().length === 0;
+  const backendIssue = createMemo(() => {
+    const d = data();
+    return d && d.errors.length > 0
+      ? d.errors[0]?.error || d.warnings[0] || "Upstream options data unavailable"
       : null;
-  const showEmpty =
-    !isLoading && error === null && rows.length === 0 && backendIssue === null;
+  });
+  const showEmpty = () =>
+    !isLoading() && error() === null && rows().length === 0 && backendIssue() === null;
 
-  const columns = useMemo(() => buildFnoColumns(), []);
+  const columns = createMemo(() => buildFnoColumns());
 
   return (
     <CompactPanel testId="fno-panel" scrollable>
       <Box className="flex h-full min-h-0 flex-col gap-1">
         <ToolbarRow gap={8} data-testid="fno-toolbar">
           <Text size="sm" fw={700} data-testid="fno-title">
-            F&O MOMENTUM
+            F&amp;O MOMENTUM
           </Text>
           <Box className="max-w-full min-w-0 flex-shrink-0 overflow-x-auto">
             <Tabs
-              value={preset}
+              value={preset()}
               onChange={(v) => v && setPreset(v as FnoScreenerPreset)}
               data-testid="fno-preset-tabs"
             >
               <TabsList>
-                {PRESET_OPTIONS.map(({ value, label }) => (
-                  <Tab key={value} value={value} data-testid={`fno-preset-${value}`}>
-                    {label}
-                  </Tab>
-                ))}
+                <For each={PRESET_OPTIONS}>
+                  {({ value, label }) => (
+                    <Tab value={value} data-testid={`fno-preset-${value}`}>
+                      {label}
+                    </Tab>
+                  )}
+                </For>
               </TabsList>
             </Tabs>
           </Box>
-          {data ? (
+          <Show when={data()}>
             <Box
               className="flex min-h-0 min-w-0 flex-[1_1_100%] flex-wrap items-center gap-x-16 gap-y-2 md:flex-1"
             >
               <Select
                 placeholder="Expiry"
-                value={expiry || undefined}
+                value={expiry() || undefined}
                 onChange={(v) => setExpiry(v ?? "")}
-                data={data.expiries.map((e) => ({
+                data={data()!.expiries.map((e) => ({
                   value: e.date,
                   label: `${e.date} (${e.days_to_expiry} DTE)`,
                 }))}
@@ -169,7 +172,7 @@ export function FnoScreenerTab() {
               />
               <Select
                 placeholder="Max cost"
-                value={maxCost ? String(maxCost) : undefined}
+                value={maxCost() ? String(maxCost()) : undefined}
                 onChange={(v: string | null) => setMaxCost(v ? Number(v) : undefined)}
                 data={MAX_COST_OPTIONS.map((c) => ({ value: String(c), label: `₹${c}` }))}
                 size="xs"
@@ -178,7 +181,7 @@ export function FnoScreenerTab() {
               />
               <NumberInput
                 placeholder="Min POP"
-                value={minPop ?? ""}
+                value={minPop() ?? ""}
                 onChange={(v: string | number) => setMinPop(typeof v === "number" ? v : undefined)}
                 min={0}
                 max={100}
@@ -189,7 +192,7 @@ export function FnoScreenerTab() {
               />
               <SegmentedControl
                 size="xs"
-                value={viewMode}
+                value={viewMode()}
                 onChange={(v) => setViewMode(v as "symbol" | "contract")}
                 data={[
                   { value: "symbol", label: "Best per symbol" },
@@ -198,77 +201,77 @@ export function FnoScreenerTab() {
                 data-testid="fno-view-mode"
               />
             </Box>
-          ) : null}
+          </Show>
           <Box
             className="flex min-h-0 min-w-0 flex-1 items-center justify-end gap-16"
           >
-            {data && (
+            <Show when={data()}>
               <>
                 <Text
                   size="xs"
                   c="dimmed"
                   data-testid="fno-as-of"
-                  className="hidden whitespace-nowrap md:block"
+                  className="hidden whitespace-nowrap md:block font-mono tabular-nums"
                 >
-                  as of {data.as_of.slice(11, 16)}
+                  as of {data()!.as_of.slice(11, 16)}
                 </Text>
                 <Text
                   size="xs"
                   c="dimmed"
                   data-testid="fno-row-count"
-                  className="whitespace-nowrap"
+                  className="whitespace-nowrap font-mono tabular-nums"
                 >
-                  {symbolCount} symbols / {rows.length} contracts
+                  {symbolCount()} symbols / {rows().length} contracts
                 </Text>
-                {data.stale && (
+                <Show when={data()!.stale}>
                   <Badge size="xs" color="warning" data-testid="fno-stale-badge">
                     STALE
                   </Badge>
-                )}
+                </Show>
                 <ActionIcon
                   size="sm"
                   onClick={handleRefresh}
-                  loading={isLoading}
+                  loading={isLoading()}
                   data-testid="fno-refresh"
                   aria-label="Refresh F&O screener"
                 >
                   <IconRefresh size={14} />
                 </ActionIcon>
               </>
-            )}
+            </Show>
           </Box>
         </ToolbarRow>
 
-        {showLoading && (
+        <Show when={showLoading()}>
           <Box
             data-testid="fno-loading"
             className="flex items-center justify-center gap-2 py-8"
           >
             <Loader size="sm" />
-            <Text size="sm" c="dimmed">Scanning F&O setups…</Text>
+            <Text size="sm" c="dimmed">Scanning F&amp;O setups…</Text>
           </Box>
-        )}
-        {showError && (
+        </Show>
+        <Show when={showError()}>
           <Alert color="error" data-testid="fno-error">
-            {`F&O screener failed: ${error?.message ?? "unknown error"}`}
+            {`F&O screener failed: ${error()?.message ?? "unknown error"}`}
           </Alert>
-        )}
-        {!showLoading && !showError && rows.length === 0 && backendIssue && (
+        </Show>
+        <Show when={!showLoading() && !showError() && rows().length === 0 && backendIssue()}>
           <Alert color="warning" data-testid="fno-upstream-warning">
-            {backendIssue}
+            {backendIssue()}
           </Alert>
-        )}
-        {showEmpty && (
+        </Show>
+        <Show when={showEmpty()}>
           <Box data-testid="fno-empty" className="py-8 text-center">
             <Text size="sm" c="dimmed">
-              No F&O matches for these filters — loosen max cost or min POP.
+              No F&amp;O matches for these filters — loosen max cost or min POP.
             </Text>
           </Box>
-        )}
-        {!showLoading && !showError && rows.length > 0 && (
+        </Show>
+        <Show when={!showLoading() && !showError() && rows().length > 0}>
           <TanStackTable<FnoScreenerRow>
-            data={displayRows}
-            columns={columns}
+            data={displayRows()}
+            columns={columns()}
             dataTestId="fno-table"
             loading={false}
             loadingMessage="Scanning F&O setups…"
@@ -285,7 +288,7 @@ export function FnoScreenerTab() {
             renderSubComponent={(row) => <FnoRowDetail row={row} />}
             bare
           />
-        )}
+        </Show>
       </Box>
     </CompactPanel>
   );
@@ -295,34 +298,35 @@ function money2(value: number): string {
   return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function FnoRowDetail({ row }: { row: FnoScreenerRow }) {
-  const maxLoss = row.cost_lot;
-  const legs = [{ strike: row.strike, optionType: "CE", action: "BUY", qty: 1, entry: row.premium }];
-  const rangePct = Math.max(12, Math.abs(row.strike / row.spot - 1) * 100 + 5);
+function FnoRowDetail(props: { row: FnoScreenerRow }) {
+  const row = () => props.row;
+  const maxLoss = () => row().cost_lot;
+  const legs = [{ strike: row().strike, optionType: "CE", action: "BUY", qty: 1, entry: row().premium }];
+  const rangePct = () => Math.max(12, Math.abs(row().strike / row().spot - 1) * 100 + 5);
   return (
     <Box
       className="flex w-full flex-col gap-1 p-2"
       data-testid="fno-row-detail"
     >
       <Text size="xs" c="dimmed" fw={700} className="text-[10px] uppercase tracking-[0.4px]">
-        {row.symbol} · {row.setup}
+        {row().symbol} · {row().setup}
       </Text>
       <CompactStatGrid cols={4} spacing={0.5}>
-        <CompactStat label="Premium" value={money2(row.premium)} data-testid="fno-detail-premium" />
-        <CompactStat label="Cost / lot" value={`₹${Math.round(row.cost_lot).toLocaleString("en-IN")}`} data-testid="fno-detail-cost" />
-        <CompactStat label="Breakeven" value={money2(row.breakeven)} data-testid="fno-detail-breakeven" />
-        <CompactStat label="Max loss" value={`₹${Math.round(maxLoss).toLocaleString("en-IN")}`} tone="error" data-testid="fno-detail-max-loss" />
-        <CompactStat label="POP" value={formatPercentage(row.pop)} data-testid="fno-detail-pop" />
-        <CompactStat label="1D%" value={formatPercentage(row.d1)} data-testid="fno-detail-d1" />
-        <CompactStat label="5D%" value={formatPercentage(row.d5)} data-testid="fno-detail-d5" />
-        <CompactStat label="+2% est." value={formatPercentage(row.move_2pct_est)} data-testid="fno-detail-move2" />
+        <CompactStat label="Premium" value={money2(row().premium)} data-testid="fno-detail-premium" />
+        <CompactStat label="Cost / lot" value={`₹${Math.round(row().cost_lot).toLocaleString("en-IN")}`} data-testid="fno-detail-cost" />
+        <CompactStat label="Breakeven" value={money2(row().breakeven)} data-testid="fno-detail-breakeven" />
+        <CompactStat label="Max loss" value={`₹${Math.round(maxLoss()).toLocaleString("en-IN")}`} tone="error" data-testid="fno-detail-max-loss" />
+        <CompactStat label="POP" value={formatPercentage(row().pop)} data-testid="fno-detail-pop" />
+        <CompactStat label="1D%" value={formatPercentage(row().d1)} data-testid="fno-detail-d1" />
+        <CompactStat label="5D%" value={formatPercentage(row().d5)} data-testid="fno-detail-d5" />
+        <CompactStat label="+2% est." value={formatPercentage(row().move_2pct_est)} data-testid="fno-detail-move2" />
       </CompactStatGrid>
       <PayoffChart
         legs={legs}
-        spot={row.spot}
+        spot={row().spot}
         height={180}
-        rangePct={rangePct}
-        data-testid={`fno-payoff-${row.symbol}`}
+        rangePct={rangePct()}
+        data-testid={`fno-payoff-${row().symbol}`}
       />
     </Box>
   );

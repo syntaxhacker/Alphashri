@@ -151,7 +151,7 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           style={{
             "font-size": 11,
             "line-height": 1.2,
-            fontVariantNumeric: "tabular-nums",
+            "font-variant-numeric": "tabular-nums",
             "white-space": "nowrap",
           }}
         >
@@ -166,7 +166,7 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           style={{
             "font-size": 9,
             "line-height": 1.2,
-            fontVariantNumeric: "tabular-nums",
+            "font-variant-numeric": "tabular-nums",
             "min-width": 0,
           }}
         >
@@ -181,7 +181,7 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
       data-testid="nifty-coil-gauge"
       title={`${state ?? "—"} — ${hint} · ${rvIv}`}
       className="flex flex-col justify-center min-w-0 overflow-hidden px-[12px] py-[6px]"
-      style={{ borderLeft: `1px solid ${palette.TERM_BORDER}` }}
+      style={{ "border-left": `1px solid ${palette.TERM_BORDER}` }}
     >
       <Box className="flex items-center gap-[6px] min-w-0">
         <Box
@@ -213,7 +213,7 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           style={{
             "font-size": 10,
             "line-height": 1.3,
-            fontVariantNumeric: "tabular-nums",
+            "font-variant-numeric": "tabular-nums",
             "white-space": "nowrap",
           }}
         >
@@ -239,7 +239,7 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
         style={{
           "font-size": 10,
           "line-height": 1.3,
-          fontVariantNumeric: "tabular-nums",
+          "font-variant-numeric": "tabular-nums",
         }}
       >
         {rvIv}

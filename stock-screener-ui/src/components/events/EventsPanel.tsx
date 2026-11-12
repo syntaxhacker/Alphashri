@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { For, Show, createEffect, createSignal } from "solid-js";
 import { Alert, Box, Text } from "@/ui";
-import { useEvents } from "../../hooks/useEvents";
+import { useEventsSolid } from "./useEventsSolid";
 import { isoDate } from "../../state/events";
 import { formatTimeOnly } from "../../utils/ui-helpers";
 import type { AnomalyDTO, EventDTO, EventsQuery } from "../../types/events";
@@ -46,20 +46,20 @@ function anomalyValue(anomaly: AnomalyDTO): string {
  * `useEvents`, so a second consumer always sees the same slice.
  */
 export function EventsPanel() {
-  const [query, setQuery] = useState<EventsQuery>(() => initialQuery());
-  const [selected, setSelected] = useState<EventDTO | null>(null);
+  const [query, setQuery] = createSignal<EventsQuery>(initialQuery());
+  const [selected, setSelected] = createSignal<EventDTO | null>(null);
   const { events, anomalies, isLoading, isRefreshing, error, lastUpdated, refresh, loadAnomalies } =
-    useEvents(query);
+    useEventsSolid(query);
 
-  useEffect(() => {
+  createEffect(() => {
     loadAnomalies(isoDate(new Date()));
-  }, [loadAnomalies]);
+  });
 
   const patchQuery = (patch: Partial<EventsQuery>): void => {
     setQuery((prev) => ({ ...prev, ...patch }));
   };
 
-  const shownAnomalies = anomalies?.anomalies.slice(0, MAX_ANOMALIES) ?? [];
+  const shownAnomalies = () => anomalies()?.anomalies.slice(0, MAX_ANOMALIES) ?? [];
 
   return (
     <CompactPanel
@@ -67,21 +67,21 @@ export function EventsPanel() {
       title="Corporate Events"
       description="Investor days, analyst days and other scheduled catalysts"
       action={
-        <Text size="xs" c="dimmed" data-testid="events-last-updated" title={lastUpdated ?? undefined}>
-          {lastUpdated ? `updated ${formatTimeOnly(lastUpdated)}` : "not loaded"}
+        <Text size="xs" c="dimmed" data-testid="events-last-updated" title={lastUpdated() ?? undefined}>
+          {lastUpdated() ? `updated ${formatTimeOnly(lastUpdated()!)}` : "not loaded"}
         </Text>
       }
       scrollable
     >
       <Box className="flex flex-col gap-0.5" style={{ "min-height": 0, height: "100%" }}>
         <EventsFilters
-          query={query}
+          query={query()}
           onChange={patchQuery}
           onRefresh={refresh}
-          isRefreshing={isRefreshing}
+          isRefreshing={isRefreshing()}
         />
 
-        {shownAnomalies.length > 0 && (
+        <Show when={shownAnomalies().length > 0}>
           <Box
             data-testid="events-anomalies"
             className="flex flex-col gap-0.5"
@@ -93,9 +93,8 @@ export function EventsPanel() {
               className="grid gap-0.5"
               style={{ "grid-template-columns": "repeat(auto-fill, minmax(140px, 1fr))" }}
             >
-              {shownAnomalies.map((anomaly) => (
+              <For each={shownAnomalies()}>{(anomaly) => (
                 <CompactStat
-                  key={`${anomaly.symbol}-${anomaly.ts}`}
                   dense
                   label={anomaly.symbol}
                   value={anomalyValue(anomaly)}
@@ -103,23 +102,23 @@ export function EventsPanel() {
                   hint={`vol ${anomaly.vol_ratio.toFixed(1)}x`}
                   data-testid={`events-anomaly-${anomaly.symbol}`}
                 />
-              ))}
+              )}</For>
             </Box>
           </Box>
-        )}
+        </Show>
 
-        {error && (
+        <Show when={error()}>
           <Alert color="error" data-testid="events-error">
-            {error.message}
+            {error()!.message}
           </Alert>
-        )}
+        </Show>
 
-        {!(error && events.length === 0) && (
-          <EventsTable events={events} isLoading={isLoading} onOpen={setSelected} />
-        )}
+        <Show when={!(error() && events().length === 0)}>
+          <EventsTable events={events()} isLoading={isLoading()} onOpen={setSelected} />
+        </Show>
       </Box>
 
-      <EventDetailDrawer event={selected} onClose={() => setSelected(null)} />
+      <EventDetailDrawer event={selected()} onClose={() => setSelected(null)} />
     </CompactPanel>
   );
 }

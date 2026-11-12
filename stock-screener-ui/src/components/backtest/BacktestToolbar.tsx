@@ -1,7 +1,8 @@
 // BacktestToolbar — always-visible control strip above the full-bleed chart.
 // Chart mode + Run/Reset live here; right-rail panels collapse from their own headers.
-import { Box, Button, Text } from "@/ui";
+import { Button, Text } from "@/ui";
 import { IconPlayerPlay, IconLayoutGrid } from "@/components/common/Icons";
+import { Box } from "../paper-trading/primitives";
 
 interface BacktestToolbarProps {
   strategyLabel: string;

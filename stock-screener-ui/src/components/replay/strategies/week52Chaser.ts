@@ -5,10 +5,11 @@
 // days, so the chart window is widened to ~3 days on either side of the trade.
 import { createElement } from "react";
 import { TZ_IST_LABEL } from "@/config/constants";
-import { Stack } from "@/ui";
+
 import { tradeStatChips } from "./shared";
 import type { ReplayTrade } from "../tick";
 import type { ReplayStrategyPlugin } from "../core/plugin";
+import { Stack } from "../../paper-trading/primitives";
 
 // Month-end trading sessions — recent venues to exercise multi-day swing trades.
 export const DATES = ["2026-08-28", "2026-07-31", "2026-06-30", "2026-05-29", "2026-04-30", "2026-03-31"];

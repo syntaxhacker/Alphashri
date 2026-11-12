@@ -1,10 +1,9 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
-import type { ReactElement } from "react";
+import type { JSX } from "solid-js";
 
 let mockSelectedSymbols: string[] = [];
 
@@ -68,8 +67,8 @@ vi.mock("../../hooks/useScreenerApi", () => ({
 
 import { ScreenerConfigView } from "./ScreenerConfigView";
 
-const renderWithProvider = (ui: ReactElement) =>
-  render(<UIProvider>{ui}</UIProvider>);
+const renderWithProvider = (ui: JSX.Element) =>
+  render(() => <UIProvider>{ui}</UIProvider>);
 
 const mockOptions = [
   {
@@ -114,26 +113,24 @@ describe("ScreenerConfigView", () => {
   });
 
   it("Clicking row calls onScreenerChange", async () => {
-      const user = userEvent.setup();
     const onChange = vi.fn();
     renderWithProvider(<ScreenerConfigView {...defaultProps} onScreenerChange={onChange} />);
-    await user.click(screen.getByTestId("screener-row-new-highs"));
+    fireEvent.click(screen.getByTestId("screener-row-new-highs"));
     expect(onChange).toHaveBeenCalledWith("new-highs");
   });
 
   describe("create modal", () => {
     it("Create calls createScreener API on submit", async () => {
-      const user = userEvent.setup();
       mockCreateScreener.mockResolvedValueOnce({ id: 99 });
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
-      await user.click(screen.getByTestId("create-screener-btn"));
+      fireEvent.click(screen.getByTestId("create-screener-btn"));
       await waitFor(() => {
         expect(screen.getByTestId("screener-name-input")).toBeInTheDocument();
       });
-      await user.clear(screen.getByTestId("screener-name-input")); await user.type(screen.getByTestId("screener-name-input"), "My Screener");
+      fireEvent.input(screen.getByTestId("screener-name-input"), { target: { value: "My Screener" } });
       const confirmBtn = screen.getByTestId("confirm-create-btn");
       expect(confirmBtn).not.toBeDisabled();
-      await user.click(confirmBtn);
+      fireEvent.click(confirmBtn);
       await waitFor(() => {
         expect(mockCreateScreener).toHaveBeenCalled();
       });
@@ -143,14 +140,13 @@ describe("ScreenerConfigView", () => {
 
   describe("edit modal", () => {
     it("Edit calls updateScreener API on submit", async () => {
-      const user = userEvent.setup();
       mockUpdateScreener.mockResolvedValueOnce({});
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
-      await user.click(screen.getByTestId("edit-screener-trending"));
+      fireEvent.click(screen.getByTestId("edit-screener-trending"));
       await waitFor(() => {
         expect(screen.getByTestId("confirm-create-btn")).toBeInTheDocument();
       });
-      await user.click(screen.getByTestId("confirm-create-btn"));
+      fireEvent.click(screen.getByTestId("confirm-create-btn"));
       await waitFor(() => {
         expect(mockUpdateScreener).toHaveBeenCalled();
       });
@@ -160,14 +156,13 @@ describe("ScreenerConfigView", () => {
 
   describe("delete modal", () => {
     it("Delete calls deleteScreener API on confirm", async () => {
-      const user = userEvent.setup();
       mockDeleteScreener.mockResolvedValueOnce({});
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
-      await user.click(screen.getByTestId("delete-screener-trending"));
+      fireEvent.click(screen.getByTestId("delete-screener-trending"));
       await waitFor(() => {
         expect(screen.getByText("Delete")).toBeInTheDocument();
       });
-      await user.click(screen.getByText("Delete"));
+      fireEvent.click(screen.getByText("Delete"));
       await waitFor(() => {
         expect(mockDeleteScreener).toHaveBeenCalled();
       });
@@ -175,17 +170,16 @@ describe("ScreenerConfigView", () => {
     });
 
     it("Deleting active screener navigates to trending", async () => {
-      const user = userEvent.setup();
       const onChange = vi.fn();
       renderWithProvider(
         <ScreenerConfigView {...defaultProps} onScreenerChange={onChange} />,
       );
       mockDeleteScreener.mockResolvedValueOnce({});
-      await user.click(screen.getByTestId("delete-screener-trending"));
+      fireEvent.click(screen.getByTestId("delete-screener-trending"));
       await waitFor(() => {
         expect(screen.getByText("Delete")).toBeInTheDocument();
       });
-      await user.click(screen.getByText("Delete"));
+      fireEvent.click(screen.getByText("Delete"));
       await waitFor(() => {
         expect(onChange).toHaveBeenCalledWith("trending");
       });
@@ -194,13 +188,12 @@ describe("ScreenerConfigView", () => {
 
   describe("cancel button", () => {
     it("Cancel button closes create modal", async () => {
-      const user = userEvent.setup();
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
-      await user.click(screen.getByTestId("create-screener-btn"));
+      fireEvent.click(screen.getByTestId("create-screener-btn"));
       await waitFor(() => {
         expect(screen.getByTestId("screener-name-input")).toBeInTheDocument();
       });
-      await user.click(screen.getByTestId("cancel-create-btn"));
+      fireEvent.click(screen.getByTestId("cancel-create-btn"));
       await waitFor(() => {
         expect(screen.queryByTestId("screener-name-input")).not.toBeInTheDocument();
       });
@@ -211,15 +204,15 @@ describe("ScreenerConfigView", () => {
     it("Preview refreshes on screener change with debounce", async () => {
       vi.useFakeTimers();
       const onChange = vi.fn();
-      const { rerender } = render(
+      const { rerender } = render(() => (
         <UIProvider>
           <ScreenerConfigView
             screenerOptions={defaultProps.screenerOptions}
             activeScreener="trending"
             onScreenerChange={onChange}
           />
-        </UIProvider>,
-      );
+        </UIProvider>
+      ));
 
       expect(mockRefreshPreview).not.toHaveBeenCalled();
 
@@ -229,15 +222,15 @@ describe("ScreenerConfigView", () => {
 
       mockRefreshPreview.mockClear();
 
-      rerender(
+      rerender(() => (
         <UIProvider>
           <ScreenerConfigView
             screenerOptions={defaultProps.screenerOptions}
             activeScreener="new-highs"
             onScreenerChange={onChange}
           />
-        </UIProvider>,
-      );
+        </UIProvider>
+      ));
 
       expect(mockRefreshPreview).not.toHaveBeenCalled();
 

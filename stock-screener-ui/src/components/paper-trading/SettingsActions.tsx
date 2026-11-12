@@ -1,5 +1,6 @@
-import { Button, Group } from "@/ui";
+import { Button } from "@/ui";
 import { IconRefresh, IconDeviceFloppy } from "@/components/common/Icons";
+import { Group } from "./primitives";
 
 interface SettingsActionsProps {
   loading: boolean;

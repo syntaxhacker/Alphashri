@@ -1,8 +1,13 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
-import { screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async (importOriginal) => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const actual = await importOriginal<typeof import("@/ui")>();
+  return mockSolidUi(actual);
+});
 import { ChainSummary } from "./ChainSummary";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
 
@@ -14,56 +19,47 @@ afterEach(() => {
 
 describe("ChainSummary component rendering", () => {
   it("renders PCR value", () => {
-    renderWithProviders(
-      <ChainSummary
+    render(() => <ChainSummary
         strikeMatrix={[]}
         spotPrice={24500}
         selectedExpiry="25MAY"
         summary={{ pcr: 1.5, max_pain: 24500, expected_move: null, total_ce_oi: 5000, total_pe_oi: 10000 }}
-      />,
-    );
+      />);
     expect(screen.getByText("1.50")).toBeInTheDocument();
   });
 
   it("renders PCR bias bullish when pcr > 1", () => {
-    renderWithProviders(
-      <ChainSummary
+    render(() => <ChainSummary
         strikeMatrix={[]}
         spotPrice={24500}
         selectedExpiry="25MAY"
         summary={{ pcr: 1.5, max_pain: 24500, expected_move: null, total_ce_oi: 5000, total_pe_oi: 10000 }}
-      />,
-    );
+      />);
     expect(screen.getByText("Bullish bias")).toBeInTheDocument();
   });
 
   it("renders PCR bias bearish when pcr < 1", () => {
-    renderWithProviders(
-      <ChainSummary
+    render(() => <ChainSummary
         strikeMatrix={[]}
         spotPrice={24500}
         selectedExpiry="25MAY"
         summary={{ pcr: 0.5, max_pain: 24500, expected_move: null, total_ce_oi: 10000, total_pe_oi: 5000 }}
-      />,
-    );
+      />);
     expect(screen.getByText("Bearish bias")).toBeInTheDocument();
   });
 
   it("renders Max Pain value", () => {
-    renderWithProviders(
-      <ChainSummary
+    render(() => <ChainSummary
         strikeMatrix={[]}
         spotPrice={24500}
         selectedExpiry="25MAY"
         summary={{ pcr: 1.0, max_pain: 24500, expected_move: null, total_ce_oi: 0, total_pe_oi: 0 }}
-      />,
-    );
+      />);
     expect(screen.getByText("24500")).toBeInTheDocument();
   });
 
   it("renders market range when expected move is available", () => {
-    renderWithProviders(
-      <ChainSummary
+    render(() => <ChainSummary
         strikeMatrix={[]}
         spotPrice={24500}
         selectedExpiry="25MAY"
@@ -74,8 +70,7 @@ describe("ChainSummary component rendering", () => {
           total_ce_oi: 0,
           total_pe_oi: 0,
         }}
-      />,
-    );
+      />);
     expect(screen.getByText("24000 - 25000")).toBeInTheDocument();
   });
 
@@ -85,21 +80,18 @@ describe("ChainSummary component rendering", () => {
       { strike: 24500, ce: { market_data: { oi: 5000 } }, pe: { market_data: { oi: 200 } } },
       { strike: 25000, ce: { market_data: { oi: 3000 } }, pe: { market_data: { oi: 800 } } },
     ];
-    renderWithProviders(
-      <ChainSummary
+    render(() => <ChainSummary
         strikeMatrix={strikeMatrix}
         spotPrice={24500}
         selectedExpiry="25MAY"
         summary={{ pcr: 1.0, max_pain: 24500, expected_move: null, total_ce_oi: 9000, total_pe_oi: 1500 }}
-      />,
-    );
+      />);
     expect(screen.getByText("RES 24500")).toBeInTheDocument();
     expect(screen.getByText("SUP 25000")).toBeInTheDocument();
   });
 
   it("renders data pending when no expected move", () => {
-    renderWithProviders(
-      <ChainSummary strikeMatrix={[]} spotPrice={24500} selectedExpiry="25MAY" />,
+    render(() => <ChainSummary strikeMatrix={[]} spotPrice={24500} selectedExpiry="25MAY" />,
     );
     expect(screen.getByText("Data pending")).toBeInTheDocument();
   });
@@ -108,27 +100,23 @@ describe("ChainSummary component rendering", () => {
       { strike: 24000, ce: { market_data: { oi: 1000 } }, pe: { market_data: { oi: 500 } } },
       { strike: 24500, ce: { market_data: { oi: 5000 } }, pe: { market_data: { oi: 200 } } },
     ];
-    renderWithProviders(
-      <ChainSummary
+    render(() => <ChainSummary
         strikeMatrix={strikeMatrix}
         spotPrice={24500}
         selectedExpiry="25MAY"
         summary={{ pcr: 0.5, max_pain: 24500, expected_move: null, total_ce_oi: 6000, total_pe_oi: 700 }}
-      />,
-    );
+      />);
     const pcrCard = screen.getByTestId("options-chain-summary-pcr");
     expect(pcrCard.querySelector("svg")).toBeInTheDocument();
   });
 
   it("compresses summary into one compact stat row", () => {
-    renderWithProviders(
-      <ChainSummary
+    render(() => <ChainSummary
         strikeMatrix={[]}
         spotPrice={24500}
         selectedExpiry="25MAY"
         summary={{ pcr: 1.0, max_pain: 24500, expected_move: null, total_ce_oi: 0, total_pe_oi: 0 }}
-      />,
-    );
+      />);
     const row = screen.getByTestId("chain-summary-compact-row");
     expect(row).toBeInTheDocument();
     // All three sections live inside the single row

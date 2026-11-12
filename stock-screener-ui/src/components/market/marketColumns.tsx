@@ -1,4 +1,5 @@
-import type { ColumnDef } from "@tanstack/react-table";
+import type { JSX } from "solid-js";
+import type { TableColumnDef as ColumnDef } from "../common/TanStackTable";
 import { Badge, Box, Text, Tooltip } from "@/ui";
 import { SymbolLink } from "../common/SymbolLink";
 import type { MarketRow } from "../../types/marketScreener";
@@ -91,7 +92,7 @@ export function buildMarketColumns(): ColumnDef<MarketRow>[] {
       header: "SYMBOL",
       size: 205,
       accessorFn: (r) => r.symbol,
-      meta: { align: "left" } as never,
+      meta: { align: "left" },
       cell: ({ row }) => {
         const r = row.original;
         return (
@@ -133,7 +134,7 @@ export function buildMarketColumns(): ColumnDef<MarketRow>[] {
       header: "NAME",
       size: 110,
       accessorFn: (r) => r.name,
-      meta: { align: "left" } as never,
+      meta: { align: "left" },
       cell: ({ row }) => {
         const r = row.original;
         return (
@@ -155,7 +156,7 @@ export function buildMarketColumns(): ColumnDef<MarketRow>[] {
       header: "SECTOR",
       size: 80,
       accessorFn: (r) => r.sector ?? "",
-      meta: { align: "left" } as never,
+      meta: { align: "left" },
       cell: ({ row }) => {
         const r = row.original;
         return r.sector ? (
@@ -172,7 +173,7 @@ export function buildMarketColumns(): ColumnDef<MarketRow>[] {
       header: "LTP",
       size: 70,
       accessorFn: (r) => r.close ?? 0,
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
         return r.close === null ? (
@@ -189,7 +190,7 @@ export function buildMarketColumns(): ColumnDef<MarketRow>[] {
       header: "DAY %",
       size: 60,
       accessorFn: (r) => r.change ?? 0,
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
         return r.change === null ? (
@@ -206,7 +207,7 @@ export function buildMarketColumns(): ColumnDef<MarketRow>[] {
       header: "1W %",
       size: 54,
       accessorFn: (r) => r.perfW ?? 0,
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
         return r.perfW === null ? (
@@ -223,7 +224,7 @@ export function buildMarketColumns(): ColumnDef<MarketRow>[] {
       header: "1M %",
       size: 54,
       accessorFn: (r) => r.perf1m ?? 0,
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
         return r.perf1m === null ? (
@@ -240,7 +241,7 @@ export function buildMarketColumns(): ColumnDef<MarketRow>[] {
       header: "52W",
       size: 62,
       accessorFn: (r) => r.pos52w ?? 0,
-      meta: { align: "center" } as never,
+      meta: { align: "center" },
       cell: ({ row }) => <Week52Bar row={row.original} />,
     },
     {
@@ -248,7 +249,7 @@ export function buildMarketColumns(): ColumnDef<MarketRow>[] {
       header: "RSI",
       size: 42,
       accessorFn: (r) => r.rsi ?? 0,
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
         return r.rsi === null ? (
@@ -265,7 +266,7 @@ export function buildMarketColumns(): ColumnDef<MarketRow>[] {
       header: "ADX",
       size: 42,
       accessorFn: (r) => r.adx ?? 0,
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
         return r.adx === null ? (
@@ -282,7 +283,7 @@ export function buildMarketColumns(): ColumnDef<MarketRow>[] {
       header: "RELVOL",
       size: 56,
       accessorFn: (r) => r.relativeVolume ?? 0,
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
         return r.relativeVolume === null ? (
@@ -299,7 +300,7 @@ export function buildMarketColumns(): ColumnDef<MarketRow>[] {
       header: "MCAP ₹Cr",
       size: 76,
       accessorFn: (r) => r.marketCapCr ?? 0,
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
         return r.marketCapCr === null ? (
@@ -316,7 +317,7 @@ export function buildMarketColumns(): ColumnDef<MarketRow>[] {
       header: "CAP",
       size: 52,
       accessorFn: (r) => r.capTier ?? "",
-      meta: { align: "center" } as never,
+      meta: { align: "center" },
       cell: ({ row }) => {
         const r = row.original;
         const tier = r.capTier;

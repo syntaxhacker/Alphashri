@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
-import { render, screen, within, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, within, cleanup, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import {
   ALERT_KIND_CODE,
@@ -34,7 +34,7 @@ function alert(overrides?: Partial<MarketAlert>): MarketAlert {
   };
 }
 
-function r(jsx: React.ReactElement) {
+function r(jsx: JSX.Element) {
   return render(jsx, { wrapper: UIProvider });
 }
 

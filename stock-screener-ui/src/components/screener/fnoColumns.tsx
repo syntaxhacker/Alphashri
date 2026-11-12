@@ -1,4 +1,4 @@
-import type { ColumnDef } from "@tanstack/react-table";
+import type { TableColumnDef } from "../common/TanStackTable";
 import { Badge, Box, Text, Tooltip } from "@/ui";
 import { SymbolLink } from "../common/SymbolLink";
 import type { FnoScreenerRow } from "../../api/fnoScreener";
@@ -59,17 +59,16 @@ function fix2(value: number | null | undefined): string {
   return value.toFixed(2);
 }
 
-export function buildFnoColumns(): ColumnDef<FnoScreenerRow>[] {
+export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
   return [
     {
       id: "expand",
       header: "",
-      meta: { align: "center" } as never,
+      meta: { align: "center" },
       enableSorting: false,
       size: 24,
-      cell: ({ cell }) => {
-        const row = cell.row;
-        const expanded = row.getIsExpanded();
+      cell: ({ row }) => {
+        const expanded = row.isExpanded();
         return (
           <Box
             component="button"
@@ -77,9 +76,9 @@ export function buildFnoColumns(): ColumnDef<FnoScreenerRow>[] {
             aria-expanded={expanded}
             aria-label={expanded ? "Collapse details" : "Expand details"}
             data-testid={`fno-expand-${row.original.symbol}`}
-            onClick={(e) => {
+            onClick={(e: MouseEvent) => {
               e.stopPropagation();
-              row.toggleExpanded();
+              row.toggle();
             }}
             className="inline-flex h-[20px] min-w-[24px] cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-[11px] leading-none text-inherit"
           >
@@ -91,11 +90,9 @@ export function buildFnoColumns(): ColumnDef<FnoScreenerRow>[] {
     {
       id: "symbol",
       accessorFn: (r) => r.symbol,
-      sortDescFirst: false,
       header: "SYMBOL",
       size: 124,
-      minSize: 124,
-      meta: { align: "left" } as never,
+      meta: { align: "left" },
       cell: ({ row }) => {
         const r = row.original;
         return (
@@ -114,11 +111,9 @@ export function buildFnoColumns(): ColumnDef<FnoScreenerRow>[] {
     {
       id: "setup",
       accessorFn: (r) => r.setup,
-      sortDescFirst: false,
       header: "SETUP",
       size: 120,
-      minSize: 120,
-      meta: { align: "center" } as never,
+      meta: { align: "center" },
       cell: ({ row }) => {
         const r = row.original;
         return (
@@ -138,10 +133,9 @@ export function buildFnoColumns(): ColumnDef<FnoScreenerRow>[] {
     {
       id: "call",
       accessorFn: (r) => r.call,
-      sortDescFirst: false,
       header: "CALL",
       size: 76,
-      meta: { align: "center" } as never,
+      meta: { align: "center" },
       cell: ({ row }) => (
         <Text size="xs" fw={600} data-testid={`fno-cell-call-${row.original.symbol}`}>
           {row.original.call}
@@ -151,9 +145,8 @@ export function buildFnoColumns(): ColumnDef<FnoScreenerRow>[] {
     {
       id: "spot",
       accessorFn: (r) => r.spot,
-      sortDescFirst: false,
       header: "SPOT",
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => (
         <Text size="xs" data-testid={`fno-cell-spot-${row.original.symbol}`}>
           {money2(row.original.spot)}
@@ -163,9 +156,8 @@ export function buildFnoColumns(): ColumnDef<FnoScreenerRow>[] {
     {
       id: "d1",
       accessorFn: (r) => r.d1,
-      sortDescFirst: false,
       header: "1D%",
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => (
         <Text size="xs" c={pctTone(row.original.d1)} data-testid={`fno-cell-d1-${row.original.symbol}`}>
           {pct(row.original.d1)}
@@ -175,9 +167,8 @@ export function buildFnoColumns(): ColumnDef<FnoScreenerRow>[] {
     {
       id: "d5",
       accessorFn: (r) => r.d5,
-      sortDescFirst: false,
       header: "5D%",
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => (
         <Text size="xs" c={pctTone(row.original.d5)} data-testid={`fno-cell-d5-${row.original.symbol}`}>
           {pct(row.original.d5)}
@@ -187,9 +178,8 @@ export function buildFnoColumns(): ColumnDef<FnoScreenerRow>[] {
     {
       id: "vol_ratio",
       accessorFn: (r) => r.vol_ratio,
-      sortDescFirst: false,
       header: "VOL×",
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => (
         <Text size="xs" data-testid={`fno-cell-vol-${row.original.symbol}`}>
           {fix2(row.original.vol_ratio)}×
@@ -199,9 +189,8 @@ export function buildFnoColumns(): ColumnDef<FnoScreenerRow>[] {
     {
       id: "otm_pct",
       accessorFn: (r) => r.otm_pct,
-      sortDescFirst: false,
       header: "OTM%",
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => (
         <Text size="xs" data-testid={`fno-cell-otm-${row.original.symbol}`}>
           {plainPct(row.original.otm_pct)}
@@ -211,9 +200,8 @@ export function buildFnoColumns(): ColumnDef<FnoScreenerRow>[] {
     {
       id: "premium",
       accessorFn: (r) => r.premium,
-      sortDescFirst: false,
       header: "PREMIUM",
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => (
         <Text size="xs" data-testid={`fno-cell-premium-${row.original.symbol}`}>
           {money2(row.original.premium)}
@@ -223,9 +211,8 @@ export function buildFnoColumns(): ColumnDef<FnoScreenerRow>[] {
     {
       id: "cost_lot",
       accessorFn: (r) => r.cost_lot,
-      sortDescFirst: false,
       header: "COST",
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => (
         <Text size="xs" data-testid={`fno-cell-cost-${row.original.symbol}`}>
           ₹{Math.round(row.original.cost_lot).toLocaleString("en-IN")}
@@ -235,9 +222,8 @@ export function buildFnoColumns(): ColumnDef<FnoScreenerRow>[] {
     {
       id: "pop",
       accessorFn: (r) => r.pop,
-      sortDescFirst: false,
       header: "POP%",
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => (
         <Text size="xs" data-testid={`fno-cell-pop-${row.original.symbol}`}>
           {plainPct(row.original.pop)}
@@ -247,9 +233,8 @@ export function buildFnoColumns(): ColumnDef<FnoScreenerRow>[] {
     {
       id: "delta",
       accessorFn: (r) => r.delta,
-      sortDescFirst: false,
       header: "DELTA",
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => (
         <Text size="xs" data-testid={`fno-cell-delta-${row.original.symbol}`}>
           {fix2(row.original.delta)}
@@ -259,9 +244,8 @@ export function buildFnoColumns(): ColumnDef<FnoScreenerRow>[] {
     {
       id: "gamma",
       accessorFn: (r) => r.gamma,
-      sortDescFirst: false,
       header: "GAMMA",
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => (
         <Text size="xs" data-testid={`fno-cell-gamma-${row.original.symbol}`}>
           {fix2(row.original.gamma)}
@@ -271,9 +255,8 @@ export function buildFnoColumns(): ColumnDef<FnoScreenerRow>[] {
     {
       id: "theta",
       accessorFn: (r) => r.theta,
-      sortDescFirst: false,
       header: "THETA",
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => (
         <Text size="xs" data-testid={`fno-cell-theta-${row.original.symbol}`}>
           {fix2(row.original.theta)}
@@ -283,9 +266,8 @@ export function buildFnoColumns(): ColumnDef<FnoScreenerRow>[] {
     {
       id: "vega",
       accessorFn: (r) => r.vega,
-      sortDescFirst: false,
       header: "VEGA",
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => (
         <Text size="xs" data-testid={`fno-cell-vega-${row.original.symbol}`}>
           {fix2(row.original.vega)}
@@ -295,9 +277,8 @@ export function buildFnoColumns(): ColumnDef<FnoScreenerRow>[] {
     {
       id: "iv",
       accessorFn: (r) => r.iv,
-      sortDescFirst: false,
       header: "IV%",
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => (
         <Text size="xs" data-testid={`fno-cell-iv-${row.original.symbol}`}>
           {plainPct(row.original.iv)}
@@ -307,9 +288,8 @@ export function buildFnoColumns(): ColumnDef<FnoScreenerRow>[] {
     {
       id: "oi",
       accessorFn: (r) => r.oi,
-      sortDescFirst: false,
       header: "OI",
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => (
         <Text size="xs" data-testid={`fno-cell-oi-${row.original.symbol}`}>
           {formatNumber(row.original.oi)}
@@ -319,9 +299,8 @@ export function buildFnoColumns(): ColumnDef<FnoScreenerRow>[] {
     {
       id: "spread_pct",
       accessorFn: (r) => r.spread_pct,
-      sortDescFirst: false,
       header: "SPREAD%",
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => (
         <Text size="xs" data-testid={`fno-cell-spread-${row.original.symbol}`}>
           {plainPct(row.original.spread_pct)}
@@ -331,9 +310,8 @@ export function buildFnoColumns(): ColumnDef<FnoScreenerRow>[] {
     {
       id: "move_2pct_est",
       accessorFn: (r) => r.move_2pct_est,
-      sortDescFirst: false,
       header: "+2% est.",
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => (
         <Text size="xs" data-testid={`fno-cell-move-${row.original.symbol}`}>
           {pct(row.original.move_2pct_est)}

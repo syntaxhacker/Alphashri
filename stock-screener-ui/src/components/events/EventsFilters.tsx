@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { createEffect, createSignal } from "solid-js";
 import { Box, Button, Select, Switch, TextInput, ToolbarRow } from "@/ui";
-import { IconRefresh } from "@tabler/icons-react";
+import { IconRefresh } from "../common/Icons";
 import { isoDate } from "../../state/events";
 import type { EventMarket, EventsQuery } from "../../types/events";
 import { ALPHA_EVENT_TYPES } from "./EventTypeBadge";
@@ -63,34 +63,35 @@ interface EventsFiltersProps {
  * Pure: every control only emits a `Partial<EventsQuery>` patch. Network work
  * (and the resulting loading flags) belongs to the store via `useEvents`.
  */
-export function EventsFilters({ query, onChange, onRefresh, isRefreshing }: EventsFiltersProps) {
-  const alphaOnly = query.types === ALPHA_EVENT_TYPES.join(",");
-  const windowValue = resolveWindowValue(query);
+export function EventsFilters(props: EventsFiltersProps) {
+  const query = () => props.query;
+  const alphaOnly = () => query().types === ALPHA_EVENT_TYPES.join(",");
+  const windowValue = () => resolveWindowValue(query());
 
   // Symbols are committed (trim + upper-case) on blur/Enter, so typing a list
   // does not fire a request per keystroke.
-  const [symbolDraft, setSymbolDraft] = useState(query.symbols ?? "");
-  useEffect(() => {
-    setSymbolDraft(query.symbols ?? "");
-  }, [query.symbols]);
+  const [symbolDraft, setSymbolDraft] = createSignal(query().symbols ?? "");
+  createEffect(() => {
+    setSymbolDraft(query().symbols ?? "");
+  });
 
   const commitSymbols = (): void => {
-    const normalized = symbolDraft
+    const normalized = symbolDraft()
       .split(",")
       .map((s) => s.trim().toUpperCase())
       .filter(Boolean)
       .join(",");
     setSymbolDraft(normalized);
-    if (normalized !== (query.symbols ?? "")) {
-      onChange({ symbols: normalized || undefined });
+    if (normalized !== (query().symbols ?? "")) {
+      props.onChange({ symbols: normalized || undefined });
     }
   };
 
   return (
     <ToolbarRow gap={8} data-testid="events-filters">
       <Select
-        value={query.market ?? "us"}
-        onChange={(value) => onChange({ market: (value ?? "us") as EventMarket })}
+        value={query().market ?? "us"}
+        onChange={(value) => props.onChange({ market: (value ?? "us") as EventMarket })}
         data={MARKET_OPTIONS}
         size="sm"
         w={140}
@@ -98,9 +99,9 @@ export function EventsFilters({ query, onChange, onRefresh, isRefreshing }: Even
         data-testid="events-market-select"
       />
       <Select
-        value={windowValue}
+        value={windowValue()}
         onChange={(value) =>
-          onChange(windowRange((value ?? "90") as EventWindowValue))
+          props.onChange(windowRange((value ?? "90") as EventWindowValue))
         }
         data={EVENT_WINDOWS.map((w) => ({ value: w.value, label: w.label }))}
         size="sm"
@@ -109,18 +110,19 @@ export function EventsFilters({ query, onChange, onRefresh, isRefreshing }: Even
         data-testid="events-window-select"
       />
       <Switch
-        checked={alphaOnly}
+        checked={alphaOnly()}
         onChange={(e) =>
-          onChange({ types: e.currentTarget.checked ? ALPHA_EVENT_TYPES.join(",") : undefined })
+          props.onChange({ types: (e.currentTarget as HTMLInputElement).checked ? ALPHA_EVENT_TYPES.join(",") : undefined })
         }
         label="Alpha only"
         size="sm"
         data-testid="events-alpha-only"
       />
-      <Box onBlur={commitSymbols} className="inline-flex">
+      <Box className="inline-flex">
         <TextInput
-          value={symbolDraft}
+          value={symbolDraft()}
           onChange={setSymbolDraft}
+          onBlur={commitSymbols}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
@@ -139,8 +141,8 @@ export function EventsFilters({ query, onChange, onRefresh, isRefreshing }: Even
         size="sm"
         variant="outline"
         leftSection={<IconRefresh size={14} />}
-        onClick={onRefresh}
-        loading={isRefreshing}
+        onClick={props.onRefresh}
+        loading={props.isRefreshing}
         data-testid="events-refresh"
       >
         Refresh

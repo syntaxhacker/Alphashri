@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor, act } from "@testing-library/react";
+import { render, screen, cleanup, waitFor } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import { AuthProvider, useAuth } from "./AuthProvider2";
 
@@ -47,12 +46,11 @@ function TestConsumer() {
 }
 
 function renderWithProvider() {
-  return render(
-    <UIProvider>
+  return render(() => (<UIProvider>
       <AuthProvider>
         <TestConsumer />
       </AuthProvider>
-    </UIProvider>,
+    </UIProvider>),
   );
 }
 
@@ -80,10 +78,9 @@ describe("AuthProvider2", () => {
 
   it("useAuth throws if used outside AuthProvider", () => {
     expect(() =>
-      render(
-        <UIProvider>
+      render(() => (<UIProvider>
           <TestConsumer />
-        </UIProvider>,
+        </UIProvider>),
       ),
     ).toThrow("useAuth must be used within an AuthProvider");
   });
@@ -96,19 +93,17 @@ describe("AuthProvider2", () => {
       token = auth.getAccessToken();
       return null;
     }
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <AuthProvider>
           <Consumer />
         </AuthProvider>
-      </UIProvider>,
+      </UIProvider>),
     );
     expect(token).toBe("test-token");
   });
 
   it("fetchWithAuth adds Authorization header when token exists", async () => {
-      const user = userEvent.setup();
-    localStorage.setItem(TOKEN_KEY, "test-token");
+          localStorage.setItem(TOKEN_KEY, "test-token");
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({ id: 1, email: "test@test.com" }),
@@ -126,15 +121,14 @@ describe("AuthProvider2", () => {
         </button>
       );
     }
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <AuthProvider>
           <Consumer />
         </AuthProvider>
-      </UIProvider>,
+      </UIProvider>),
     );
     await act(async () => {
-      await user.click(screen.getByText("Fetch"));
+      await fireEvent.click(screen.getByText("Fetch"));
     });
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalled();
@@ -145,8 +139,7 @@ describe("AuthProvider2", () => {
   });
 
   it("login calls /api/auth/login and stores tokens on success", async () => {
-      const user = userEvent.setup();
-    mockFetch
+          mockFetch
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
@@ -168,7 +161,7 @@ describe("AuthProvider2", () => {
     renderWithProvider();
 
     await act(async () => {
-      await user.click(screen.getByTestId("btn-login"));
+      await fireEvent.click(screen.getByTestId("btn-login"));
     });
 
     await waitFor(() => {
@@ -185,8 +178,7 @@ describe("AuthProvider2", () => {
   });
 
   it("login returns error on failure", async () => {
-      const user = userEvent.setup();
-    mockFetch.mockResolvedValueOnce({
+          mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 401,
       json: async () => ({ detail: "Invalid credentials" }),
@@ -194,7 +186,7 @@ describe("AuthProvider2", () => {
 
     renderWithProvider();
     await act(async () => {
-      await user.click(screen.getByTestId("btn-login"));
+      await fireEvent.click(screen.getByTestId("btn-login"));
     });
 
     await waitFor(() => {
@@ -203,8 +195,7 @@ describe("AuthProvider2", () => {
   });
 
   it("logout calls /api/auth/logout and clears stored tokens/user", async () => {
-      const user = userEvent.setup();
-    localStorage.setItem(TOKEN_KEY, "test-token");
+          localStorage.setItem(TOKEN_KEY, "test-token");
     localStorage.setItem(REFRESH_TOKEN_KEY, "test-refresh");
     localStorage.setItem(USER_KEY, JSON.stringify({ id: 1, email: "test@test.com" }));
 
@@ -213,7 +204,7 @@ describe("AuthProvider2", () => {
     renderWithProvider();
 
     await act(async () => {
-      await user.click(screen.getByTestId("btn-logout"));
+      await fireEvent.click(screen.getByTestId("btn-logout"));
     });
 
     expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
@@ -244,8 +235,7 @@ describe("AuthProvider2", () => {
   });
 
   it("clearError sets error state to null", async () => {
-      const user = userEvent.setup();
-    mockFetch.mockResolvedValueOnce({
+          mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 401,
       json: async () => ({ detail: "Some error" }),
@@ -254,7 +244,7 @@ describe("AuthProvider2", () => {
     renderWithProvider();
 
     await act(async () => {
-      await user.click(screen.getByTestId("btn-login"));
+      await fireEvent.click(screen.getByTestId("btn-login"));
     });
 
     await waitFor(() => {
@@ -262,7 +252,7 @@ describe("AuthProvider2", () => {
     });
 
     await act(async () => {
-      await user.click(screen.getByTestId("btn-clear-error"));
+      await fireEvent.click(screen.getByTestId("btn-clear-error"));
     });
 
     await waitFor(() => {

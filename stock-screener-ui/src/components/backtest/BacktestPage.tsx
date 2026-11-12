@@ -1,4 +1,4 @@
-import { Alert, Box, Text } from "@/ui";
+import { Alert, Text } from "@/ui";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
@@ -39,6 +39,7 @@ import {
 } from "../../api/backtest";
 import { chartTradesToTrades } from "../../api/chartBuilder";
 import { getHolidayState, subscribeToHolidays, loadHolidays } from "../../state/holidays";
+import { Box } from "../paper-trading/primitives";
 
 function sortResults(results: any[] | null, column: string, direction: "asc" | "desc") {
   if (!results) return [];

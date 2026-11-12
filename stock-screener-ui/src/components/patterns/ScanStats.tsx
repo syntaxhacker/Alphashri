@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Box, Divider, Text, ToolbarRow } from "@/ui";
 import type { JobDTO, PatternSummary } from "@/types/chartPatterns";
 import { formatAgeLong, formatNumberIN } from "@/utils/ui-helpers";
@@ -72,87 +72,91 @@ function buildCells(summary: PatternSummary | null, job?: JobDTO | null): StatCe
 }
 
 /** Dense inline stat strip (~28px): `LABEL value` pairs separated by dividers, no Card. */
-export function ScanStats({ summary, job = null, onSelect }: ScanStatsProps) {
+export function ScanStats(props: ScanStatsProps) {
   // `relativeAge` derives from `Date.now()`, so without a tick it freezes until
   // the next store update. Re-render every 60s to keep "x min ago" fresh.
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 60_000);
-    return () => clearInterval(id);
-  }, []);
-  const cells = buildCells(summary, job);
+  const [tick, setTick] = createSignal(0);
+  onMount(() => {
+    const id = window.setInterval(() => setTick((t) => t + 1), 60_000);
+    onCleanup(() => window.clearInterval(id));
+  });
+
+  const cells = createMemo(() => {
+    // Subscribe to the minute tick so `relativeAge` recomputes from Date.now().
+    tick();
+    return buildCells(props.summary, props.job);
+  });
   const clickable = (key: StatCell["key"]): boolean =>
-    !!onSelect && (key === "confirmed" || key === "bull_bear");
+    !!props.onSelect && (key === "confirmed" || key === "bull_bear");
+
   return (
     <Box
       data-testid="patterns-stats"
       className="flex min-h-[18px] items-center overflow-x-auto tabular-nums"
     >
       <ToolbarRow gap={0} wrap={false} style={{ "overflow-x": "auto" }}>
-        {cells.map((cell, index) => (
-          <Box key={cell.key} className="flex shrink-0 items-center">
-            {index > 0 ? (
-              <Divider orientation="vertical" style={{ height: 16 }} className="mx-3" />
-            ) : null}
-            <Box
-              data-testid={`patterns-stat-${cell.key}`}
-              title={
-                cell.key === "confirmed"
-                  ? "Click to filter: confirmed only"
-                  : cell.key === "bull_bear"
-                    ? "Click a number to filter by direction"
+        <For each={cells()}>
+          {(cell, index) => (
+            <Box className="flex shrink-0 items-center">
+              <Show when={index() > 0}>
+                <Divider orientation="vertical" style={{ height: 16 }} className="mx-3" />
+              </Show>
+              <Box
+                data-testid={`patterns-stat-${cell.key}`}
+                title={
+                  cell.key === "confirmed"
+                    ? "Click to filter: confirmed only"
+                    : cell.key === "bull_bear"
+                      ? "Click a number to filter by direction"
+                      : undefined
+                }
+                onClick={
+                  cell.key === "confirmed" && props.onSelect
+                    ? () => props.onSelect?.("confirmed")
                     : undefined
-              }
-              onClick={
-                cell.key === "confirmed" && onSelect
-                  ? () => onSelect("confirmed")
-                  : undefined
-              }
-              className={`flex min-w-0 items-baseline gap-1.5 whitespace-nowrap ${
-                clickable(cell.key)
-                  ? "cursor-pointer rounded-[4px] px-[2px] transition-colors hover:bg-fin-surface-alt"
-                  : ""
-              }`}
-            >
-              <Text size="xs" c="dimmed" style={{ "text-transform": "uppercase", "font-size": 10 }} fw={700} truncate>
-                {cell.label}
-              </Text>
-              <Text size="xs" fw={700} c={cell.tone ?? "default"} style={{ "font-size": 10 }} truncate>
-                {cell.key === "bull_bear" && onSelect ? (
-                  <>
-                    <Box
-                      component="span"
-                      role="button"
-                      data-testid="patterns-stat-bullish"
-                      className="hover:underline"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onSelect("bullish");
-                      }}
-                    >
-                      {num(summary?.bullish)}
-                    </Box>
-                    {" / "}
-                    <Box
-                      component="span"
-                      role="button"
-                      data-testid="patterns-stat-bearish"
-                      className="hover:underline"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onSelect("bearish");
-                      }}
-                    >
-                      {num(summary?.bearish)}
-                    </Box>
-                  </>
-                ) : (
-                  cell.value
-                )}
-              </Text>
+                }
+                className={`flex min-w-0 items-baseline gap-1.5 whitespace-nowrap ${
+                  clickable(cell.key)
+                    ? "cursor-pointer rounded-[4px] px-[2px] transition-colors hover:bg-fin-surface-alt"
+                    : ""
+                }`}
+              >
+                <Text size="xs" c="dimmed" style={{ "text-transform": "uppercase", "font-size": 10 }} fw={700} truncate>
+                  {cell.label}
+                </Text>
+                <Text size="xs" fw={700} c={cell.tone ?? "default"} style={{ "font-size": 10 }} truncate>
+                  <Show when={cell.key === "bull_bear" && props.onSelect} fallback={cell.value}>
+                    <>
+                      <span
+                        role="button"
+                        data-testid="patterns-stat-bullish"
+                        class="hover:underline"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          props.onSelect?.("bullish");
+                        }}
+                      >
+                        {num(props.summary?.bullish)}
+                      </span>
+                      {" / "}
+                      <span
+                        role="button"
+                        data-testid="patterns-stat-bearish"
+                        class="hover:underline"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          props.onSelect?.("bearish");
+                        }}
+                      >
+                        {num(props.summary?.bearish)}
+                      </span>
+                    </>
+                  </Show>
+                </Text>
+              </Box>
             </Box>
-          </Box>
-        ))}
+          )}
+        </For>
       </ToolbarRow>
     </Box>
   );

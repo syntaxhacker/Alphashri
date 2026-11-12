@@ -1,22 +1,12 @@
 import { useState } from "react";
-import {
-  Modal,
-  Stack,
-  Group,
-  Select,
-  Button,
-  Checkbox,
-  ScrollArea,
-  Text,
-  Badge,
-  Divider,
-} from "@/ui";
+import { Modal, Select, Button, Checkbox, ScrollArea, Text, Badge, Divider } from "@/ui";
 import { IconDatabase, IconPlus } from "@tabler/icons-react";
 import { fetchWithAuth } from "../../state/auth";
 import type { Stock } from "../../types";
 
 import { API_BASE } from "@/api/config";
 import * as palette from "@/ui/palette";
+import { Stack, Group } from "../paper-trading/primitives";
 
 const SCREENER_OPTIONS = [
   { value: "52w_high", label: "52W High" },

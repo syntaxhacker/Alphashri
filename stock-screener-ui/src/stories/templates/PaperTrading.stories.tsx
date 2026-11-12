@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useEffect } from "react";
-import { MemoryRouter } from "react-router-dom";
+import { createEffect, onCleanup } from "solid-js";
+import { MemoryRouter } from "@solidjs/router";
 import { Box } from "@/ui";
 import { PaperTradingView } from "@/components/paper-trading/PaperTradingView2";
 import { setPositions, setPortfolio, setSelectedSymbol, setChartData, setBotSnapshot, setAvailableBots, setPaperTradingView, resetPaperTradingState } from "@/state/paperTrading";

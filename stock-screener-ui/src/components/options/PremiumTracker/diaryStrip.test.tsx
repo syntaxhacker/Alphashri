@@ -1,11 +1,16 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, cleanup, fireEvent, within } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, within } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { DiaryStrip } from "./DiaryStrip";
 import { newPaperTrade, type PaperTrade } from "./paperTrades";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
+
+vi.mock("@/ui", async (importOriginal) => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const actual = await importOriginal<typeof import("@/ui")>();
+  return mockSolidUi(actual);
+});
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -40,7 +45,7 @@ describe("DiaryStrip", () => {
       makeTrade({ date: "2026-09-26", exit: 150 }),
       makeTrade({ date: today, exit: 80 }),
     ];
-    renderWithProviders(<DiaryStrip trades={trades} onSetExit={vi.fn()} onDelete={vi.fn()} />);
+    render(() => <DiaryStrip trades={trades} onSetExit={vi.fn()} onDelete={vi.fn()} onUpdateTrade={vi.fn()} />);
 
     expect(screen.getByTestId("diary-strip")).toBeInTheDocument();
     // Today is the default selected day
@@ -58,9 +63,9 @@ describe("DiaryStrip", () => {
   it("calls onSetExit with a number when Set is clicked", () => {
     const trade = makeTrade({ exit: null });
     const onSetExit = vi.fn();
-    renderWithProviders(<DiaryStrip trades={[trade]} onSetExit={onSetExit} onDelete={vi.fn()} />);
+    render(() => <DiaryStrip trades={[trade]} onSetExit={onSetExit} onDelete={vi.fn()} onUpdateTrade={vi.fn()} />);
 
-    fireEvent.change(
+    fireEvent.input(
       within(screen.getByTestId(`diary-exit-input-${trade.id}`)).getByRole("spinbutton"),
       { target: { value: "120" } },
     );
@@ -69,16 +74,16 @@ describe("DiaryStrip", () => {
   });
 
   it("saves the lesson to localStorage on blur", () => {
-    renderWithProviders(<DiaryStrip trades={[]} onSetExit={vi.fn()} onDelete={vi.fn()} />);
+    render(() => <DiaryStrip trades={[]} onSetExit={vi.fn()} onDelete={vi.fn()} onUpdateTrade={vi.fn()} />);
 
     const input = screen.getByTestId("diary-lesson");
-    fireEvent.change(input, { target: { value: "Cut losers fast" } });
-    fireEvent.focusOut(input);
+    fireEvent.input(input, { target: { value: "Cut losers fast" } });
+    fireEvent.blur(input);
     expect(localStorage.getItem(`premium-lesson-${today}`)).toBe(JSON.stringify("Cut losers fast"));
   });
 
   it("shows the empty message when the day has no fills", () => {
-    renderWithProviders(<DiaryStrip trades={[]} onSetExit={vi.fn()} onDelete={vi.fn()} />);
+    render(() => <DiaryStrip trades={[]} onSetExit={vi.fn()} onDelete={vi.fn()} onUpdateTrade={vi.fn()} />);
     expect(
       screen.getByText("No fills this day — paper trade from a strategy card above."),
     ).toBeInTheDocument();

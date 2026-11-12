@@ -1,15 +1,14 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
-import { render, screen, cleanup, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, within } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { ValueTable } from "./ValueTable";
 import { buildValueColumns } from "./valueColumns";
 import type { ValueRow } from "../../api/valueScan";
 
-function r(jsx: React.ReactElement) {
-  return render(<UIProvider>{jsx}</UIProvider>);
+function r(jsx: JSX.Element) {
+  return render(() => (<UIProvider>{jsx}</UIProvider>));
 }
 
 afterEach(cleanup);
@@ -92,11 +91,10 @@ describe("ValueTable", () => {
   });
 
   test("clicking a row calls onRowClick", async () => {
-    const user = userEvent.setup();
-    const onRowClick = vi.fn();
+        const onRowClick = vi.fn();
     const row = makeValueRow();
     r(<ValueTable rows={[row]} onRowClick={onRowClick} />);
-    await user.click(screen.getByTestId("value-row-RELIANCE"));
+    await fireEvent.click(screen.getByTestId("value-row-RELIANCE"));
     expect(onRowClick).toHaveBeenCalledTimes(1);
     expect(onRowClick).toHaveBeenCalledWith(row);
   });

@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
-import { Text, Badge, ActionIcon, Stack, Button, Select, SegmentedControl } from "@/ui";
+import { Text, Badge, ActionIcon, Button, Select, SegmentedControl } from "@/ui";
 import { IconX, IconArrowUp, IconArrowDown, IconDownload, IconFilterOff } from "@tabler/icons-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { Trade } from "../../types/backtest";
 import { formatDateTimeHuman, formatDuration, getPnLTextColor } from "../../utils/ui-helpers";
 import { TINT_LOSS_ROW } from "../../config/colors";
-import { TanStackTable } from "../common/TanStackTable";
+import { TanStackTable } from "../paper-trading/TanStackTable";
 import { DEFAULT_TRADE_FILTERS, filterTrades, tradeReason, type TradeFilters } from "./tradeFilters";
+import { Stack } from "../paper-trading/primitives";
 
 /** Safe net P&L % — guards against zero entry_price/quantity. */
 export function tradePnlPct(t: Trade): number {

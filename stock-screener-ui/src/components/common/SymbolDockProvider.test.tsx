@@ -1,9 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { act } from "react";
-import userEvent from "@testing-library/user-event";
 import { useContext } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { UIProvider } from "@/ui";
@@ -82,14 +81,13 @@ function DockHarness() {
 }
 
 function renderDock() {
-  return render(
-    <UIProvider>
+  return render(() => (<UIProvider>
       <MemoryRouter>
         <SymbolDockProvider>
           <DockHarness />
         </SymbolDockProvider>
       </MemoryRouter>
-    </UIProvider>,
+    </UIProvider>),
   );
 }
 
@@ -115,10 +113,9 @@ describe("SymbolDockProvider stale badge", () => {
 
   test("a stale-first payload shows the Cached badge", async () => {
     mockedFetchSymbolChart.mockResolvedValue(STALE_CHART);
-    const user = userEvent.setup();
-    renderDock();
+        renderDock();
 
-    await user.click(screen.getByTestId("open-ircon"));
+    await fireEvent.click(screen.getByTestId("open-ircon"));
 
     const badge = await screen.findByTestId("dock-stale");
     expect(badge).toHaveTextContent("Cached 2026-11-06");
@@ -129,14 +126,13 @@ describe("SymbolDockProvider stale badge", () => {
 
   test("a fresh payload hides the badge", async () => {
     mockedFetchSymbolChart.mockResolvedValue(STALE_CHART);
-    const user = userEvent.setup();
-    renderDock();
+        renderDock();
 
-    await user.click(screen.getByTestId("open-ircon"));
+    await fireEvent.click(screen.getByTestId("open-ircon"));
     expect(await screen.findByTestId("dock-stale")).toBeInTheDocument();
 
     mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
-    await user.click(screen.getByTestId("open-reliance"));
+    await fireEvent.click(screen.getByTestId("open-reliance"));
 
     await waitFor(() =>
       expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("RELIANCE"),
@@ -146,10 +142,9 @@ describe("SymbolDockProvider stale badge", () => {
 
   test("switching symbol resets the badge before the new frame arrives", async () => {
     mockedFetchSymbolChart.mockResolvedValue(STALE_CHART);
-    const user = userEvent.setup();
-    renderDock();
+        renderDock();
 
-    await user.click(screen.getByTestId("open-ircon"));
+    await fireEvent.click(screen.getByTestId("open-ircon"));
     expect(await screen.findByTestId("dock-stale")).toBeInTheDocument();
 
     // RELIANCE phase 1 hangs: the badge must disappear via the synchronous reset,
@@ -160,7 +155,7 @@ describe("SymbolDockProvider stale badge", () => {
     mockedFetchSymbolChart.mockImplementationOnce(
       () => new Promise((resolve) => { resolvePhase1 = resolve; }),
     );
-    await user.click(screen.getByTestId("open-reliance"));
+    await fireEvent.click(screen.getByTestId("open-reliance"));
 
     expect(screen.queryByTestId("dock-stale")).not.toBeInTheDocument();
 

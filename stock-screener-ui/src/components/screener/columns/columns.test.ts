@@ -1,6 +1,4 @@
 import { describe, expect, test } from "vitest";
-import React from "react";
-import { Tooltip, Text } from "@/ui";
 import { getMarketOpenGapColumns } from "./marketOpenGap";
 import { getTrendingColumns } from "./trending";
 import { getRsiReversalColumns } from "./rsiReversal";
@@ -201,20 +199,13 @@ describe("trending columns", () => {
     };
     const result = fmt(columns, "touched_52w", true, stockWithLastTouched);
 
-    // Result is a Tooltip element containing a Text element
+    // Result is a Solid Tooltip DOM node; its string label lands on the wrapper aria-label
     expect(result).toBeDefined();
-    const tooltip = result as React.ReactElement;
-    expect(tooltip.type).toBe(Tooltip);
-    expect(tooltip.props.label).toContain("Touched on");
-    expect(tooltip.props.label).toContain("2d ago");
-
-    // Check the Text child - its children may be an array due to JSX interpolation
-    const textChild = tooltip.props.children as React.ReactElement;
-    expect(textChild.type).toBe(Text);
-    const textChildren = textChild.props.children;
-    const text = Array.isArray(textChildren) ? textChildren.join("") : textChildren;
-    expect(text).toContain("Yes");
-    expect(text).toContain("2d ago");
+    const tooltip = result as HTMLElement;
+    expect(tooltip.getAttribute("aria-label")).toContain("Touched on");
+    expect(tooltip.getAttribute("aria-label")).toContain("2d ago");
+    expect(tooltip.textContent).toContain("Yes");
+    expect(tooltip.textContent).toContain("2d ago");
   });
 
   test("tv_price formats with rupee symbol", () => {

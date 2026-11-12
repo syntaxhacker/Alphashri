@@ -3,12 +3,13 @@
 // chart half of SmcPoc. Any future strategy reuses this with its own zones/trade.
 import { useEffect, useMemo, useRef } from "react";
 import { createSeriesMarkers, type Time } from "lightweight-charts";
-import { Box } from "@/ui";
+
 import * as palette from "@/ui/palette";
 import NtChart, { type NtChartApi } from "./NtChart";
 import OverlayCanvas, { type OverlayCoord } from "./OverlayCanvas";
 import { drawRiskReward, drawZones, tradeMarkers } from "./overlays";
 import type { Bar, ReplayTrade, ReplayTrend, ReplayZone } from "./types";
+import { Box } from "../../paper-trading/primitives";
 
 interface TickReplayChartProps {
   bars: Bar[];

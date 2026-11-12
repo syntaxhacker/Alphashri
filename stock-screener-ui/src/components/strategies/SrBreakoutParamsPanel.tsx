@@ -7,14 +7,14 @@ interface SrBreakoutParamsPanelProps {
   isSwing: boolean;
 }
 
-export function SrBreakoutParamsPanel({ initialValues, isSwing }: SrBreakoutParamsPanelProps) {
+export function SrBreakoutParamsPanel(props: SrBreakoutParamsPanelProps) {
   return (
     <Tabs.Panel value="sr" keepMounted className="strategy-form-tab-panel" data-testid="strategy-panel-sr">
       <Stack spacing={1} gap="sm" mt="sm" className="p-2">
         <SlTpRow
-          slDefault={initialValues.sl_pct}
-          tpDefault={initialValues.tp_pct}
-          isSwing={isSwing}
+          slDefault={props.initialValues.sl_pct}
+          tpDefault={props.initialValues.tp_pct}
+          isSwing={props.isSwing}
         />
         <Box className="flex items-center gap-2 p-2">
           <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Pivot Type</Text>
@@ -27,7 +27,7 @@ export function SrBreakoutParamsPanel({ initialValues, isSwing }: SrBreakoutPara
                 { value: "fibonacci", label: "Fibonacci" },
                 { value: "camarilla", label: "Camarilla" },
               ]}
-              defaultValue={initialValues.pivot_type}
+              defaultValue={props.initialValues.pivot_type}
               required
               data-testid="strategy-pivot-type-input"
             />
@@ -39,7 +39,7 @@ export function SrBreakoutParamsPanel({ initialValues, isSwing }: SrBreakoutPara
             <NumberInput
               size="sm"
               name="breakout_buffer_pct"
-              defaultValue={initialValues.breakout_buffer_pct}
+              defaultValue={props.initialValues.breakout_buffer_pct}
               min={0}
               max={1}
               step={0.05}

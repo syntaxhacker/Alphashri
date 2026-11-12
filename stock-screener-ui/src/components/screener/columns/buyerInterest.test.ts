@@ -18,7 +18,7 @@ describe("buyerInterest columns", () => {
     it("true with last_touched -> element", () => {
       const iso = new Date(Date.now() - 86400000).toISOString();
       const r: any = fmt("touched_52w")(true, { last_touched: iso });
-      expect(r.props.label).toContain("Touched on");
+      expect((r as HTMLElement).getAttribute("aria-label")).toContain("Touched on");
     });
   });
 

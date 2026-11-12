@@ -1,5 +1,5 @@
 import { Box, Card, Text, Button, Group, Stack, SimpleGrid, Badge, Tooltip } from "@/ui";
-import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
+import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "../common/Icons";
 import type { BotConfig, BotStatus, BotTrade } from "../../types/bots";
 import { loadBotStatus, loadBotTrades } from "../../state/bots";
 import { StatusBadge } from "../common/BadgeComponents";

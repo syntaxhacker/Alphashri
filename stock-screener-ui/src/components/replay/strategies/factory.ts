@@ -3,11 +3,12 @@
 // (normalize/envelope, chip panel, summary, trade explainer, chart fit padding) so a
 // new strategy is one config object, not another near-identical module.
 import { type ReactNode } from "react";
-import { Stack } from "@/ui";
+
 import { TZ_IST_LABEL } from "@/config/constants";
 import { tradeStatChips } from "./shared";
 import type { ReplayBundle, ReplayTrade } from "../tick";
 import type { ReplayParamSpec, ReplayStrategyPlugin, TimelineData } from "../core/plugin";
+import { Stack } from "../../paper-trading/primitives";
 
 const DAY_MIN = 1440;
 

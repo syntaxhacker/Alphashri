@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, within, fireEvent } from "@solidjs/testing-library";
 import { ReplayTradeTable, type RTrade } from "./ReplayTradeTable";
 
 vi.mock("@/components/common", () => ({
@@ -46,7 +45,7 @@ const openTrade: RTrade = {
 
 describe("ReplayTradeTable", () => {
   test("renders time/side/prices/pnl/R/exit columns for a closed trade", () => {
-    render(<ReplayTradeTable trades={[closedTrade]} clock={T0 + 7200} onSelectTime={() => {}} />);
+    render(() => <ReplayTradeTable trades={[closedTrade]} clock={T0 + 7200} onSelectTime={() => {}} />);
     const row = screen.getByTestId(`replay-trade-row-${T0}-LONG`);
     const q = within(row as HTMLElement);
     expect(q.getByText("LONG")).toBeInTheDocument();
@@ -60,7 +59,7 @@ describe("ReplayTradeTable", () => {
   });
 
   test("open trade shows ellipsis + OPEN chip, no pnl", () => {
-    render(<ReplayTradeTable trades={[openTrade]} clock={T0 + 7300} onSelectTime={() => {}} />);
+    render(() => <ReplayTradeTable trades={[openTrade]} clock={T0 + 7300} onSelectTime={() => {}} />);
     const row = screen.getByTestId(`replay-trade-row-${T0 + 7200}-SHORT`);
     const q = within(row as HTMLElement);
     expect(q.getByText("OPEN")).toBeInTheDocument();
@@ -68,7 +67,7 @@ describe("ReplayTradeTable", () => {
   });
 
   test("expanded detail shows entry/exit context grid", () => {
-    render(<ReplayTradeTable trades={[closedTrade]} clock={T0 + 7200} onSelectTime={() => {}} />);
+    render(() => <ReplayTradeTable trades={[closedTrade]} clock={T0 + 7200} onSelectTime={() => {}} />);
     const sub = screen.getByTestId("sub");
     const q = within(sub as HTMLElement);
     expect(q.getByText("ENTRY")).toBeInTheDocument();
@@ -77,15 +76,14 @@ describe("ReplayTradeTable", () => {
   });
 
   test("row click jumps the replay clock to entry time", async () => {
-    const user = userEvent.setup();
     const onSelectTime = vi.fn();
-    render(<ReplayTradeTable trades={[closedTrade]} clock={T0 + 7200} onSelectTime={onSelectTime} />);
-    await user.click(screen.getByTestId(`replay-trade-row-${T0}-LONG`));
+    render(() => <ReplayTradeTable trades={[closedTrade]} clock={T0 + 7200} onSelectTime={onSelectTime} />);
+    await fireEvent.click(screen.getByTestId(`replay-trade-row-${T0}-LONG`));
     expect(onSelectTime).toHaveBeenCalledWith(T0);
   });
 
   test("empty state prompts to press play", () => {
-    render(<ReplayTradeTable trades={[]} clock={0} onSelectTime={() => {}} />);
+    render(() => <ReplayTradeTable trades={[]} clock={0} onSelectTime={() => {}} />);
     expect(screen.getByText(/Press Play/)).toBeInTheDocument();
   });
 });

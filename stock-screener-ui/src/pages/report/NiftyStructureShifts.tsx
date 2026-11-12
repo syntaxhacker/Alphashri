@@ -125,7 +125,7 @@ function NiftyStructureShiftsInner({ structure }: NiftyStructureShiftsProps) {
                   data-testid="nifty-structure-row"
                   className="flex items-center gap-[8px] min-w-0 pl-1 pr-1 py-0 line-height-[1.2]"
                   style={{
-                    borderLeft: `3px solid ${accent}`,
+                    "border-left": `3px solid ${accent}`,
                     "background-color": palette.SURFACE_ALT,
                     "border-radius": 4,
                   }}

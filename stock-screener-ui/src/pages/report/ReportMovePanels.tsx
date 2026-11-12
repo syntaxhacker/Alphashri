@@ -1,6 +1,6 @@
-import { Badge, Box, Paper, Text } from "@/ui";
-import { SymbolAvatar } from "../../components/screener/SymbolAvatar";
-import { Sparkline } from "../../components/screener/Sparkline";
+import { For, Show } from "solid-js";
+import { Badge, Text } from "@/ui";
+import { LocalSymbolAvatar, LocalSparkline } from "./reportBits";
 import type { DailyMoveRow, DailyMovesPanelId } from "../../types/report";
 import { formatCurrency, formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
 import { symbolRowCursor, symbolRowProps } from "../../components/common/symbolRowProps";
@@ -17,36 +17,38 @@ const MOVE_PANELS: Array<{ id: DailyMovesPanelId; title: string }> = [
   { id: "turnover", title: "Turnover" },
 ];
 
-function MoveRow({ row, onOpenSymbol }: { row: DailyMoveRow; onOpenSymbol?: (symbol: string) => void }) {
+function MoveRow(props: { row: DailyMoveRow; onOpenSymbol?: (symbol: string) => void }) {
+  const row = () => props.row;
+  const onOpenSymbol = () => props.onOpenSymbol;
   return (
-    <Box
-      data-testid={`report-move-row-${row.symbol}`}
-      data-symbol={row.symbol}
-      {...symbolRowProps(onOpenSymbol, row.symbol)}
-      className={`flex items-center gap-2 min-w-0 py-1 border-b border-fin-border tabular-nums ${onOpenSymbol ? "hover:bg-fin-surface-alt" : ""}`}
-      style={{ cursor: symbolRowCursor(onOpenSymbol) }}
+    <div
+      data-testid={`report-move-row-${row().symbol}`}
+      data-symbol={row().symbol}
+      {...symbolRowProps(onOpenSymbol(), row().symbol)}
+      class={`flex items-center gap-2 min-w-0 py-1 border-b border-fin-border tabular-nums ${onOpenSymbol() ? "hover:bg-fin-surface-alt" : ""}`}
+      style={{ cursor: symbolRowCursor(onOpenSymbol()) }}
     >
-      <SymbolAvatar symbol={row.symbol} name={row.name} logo={row.logo} size={20} />
-      <Box className="flex-1 min-w-0 flex flex-col gap-0">
-        <Text size="xs" fw={700} truncate span title={row.symbol}>
-          {row.symbol}
+      <LocalSymbolAvatar symbol={row().symbol} name={row().name} logo={row().logo} size={20} />
+      <div class="flex-1 min-w-0 flex flex-col gap-0">
+        <Text size="xs" fw={700} truncate span title={row().symbol}>
+          {row().symbol}
         </Text>
-        {row.sub_value || row.sub_label ? (
-          <Text size="xs" c="dimmed" truncate span title={row.sub_label}>
-            {row.sub_value || row.sub_label}
+        <Show when={row().sub_value || row().sub_label}>
+          <Text size="xs" c="dimmed" truncate span title={row().sub_label}>
+            {row().sub_value || row().sub_label}
           </Text>
-        ) : null}
-      </Box>
-      <Box className="flex flex-col items-end shrink-0">
+        </Show>
+      </div>
+      <div class="flex flex-col items-end shrink-0">
         <Text size="xs" ta="right" span className="tabular-nums">
-          {formatCurrency(row.close, 2)}
+          {formatCurrency(row().close, 2)}
         </Text>
-        <Text size="xs" c={getPnLTextColor(row.change)} ta="right" span className="tabular-nums">
-          {formatPercentage(row.change)}
+        <Text size="xs" c={getPnLTextColor(row().change)} ta="right" span className="tabular-nums">
+          {formatPercentage(row().change)}
         </Text>
-      </Box>
-      <Sparkline data={row.spark ?? []} change={row.change} width={64} height={20} />
-    </Box>
+      </div>
+      <LocalSparkline data={row().spark ?? []} change={row().change} width={64} height={20} />
+    </div>
   );
 }
 
@@ -55,43 +57,47 @@ interface ReportMovePanelsProps {
   onOpenSymbol?: (symbol: string) => void;
 }
 
-export function ReportMovePanels({ moves, onOpenSymbol }: ReportMovePanelsProps) {
+export function ReportMovePanels(props: ReportMovePanelsProps) {
+  const moves = () => props.moves;
+  const onOpenSymbol = () => props.onOpenSymbol;
   return (
-    <Box
-      className="grid grid-cols-1 min-[600px]:grid-cols-2 min-[900px]:grid-cols-3 min-[1200px]:grid-cols-4 gap-2 min-w-0 w-full"
+    <div
+      class="grid grid-cols-1 min-[600px]:grid-cols-2 min-[900px]:grid-cols-3 min-[1200px]:grid-cols-4 gap-2 min-w-0 w-full"
     >
-      {MOVE_PANELS.map((panel) => {
-        const rows = moves?.[panel.id] ?? [];
-        return (
-          <Paper
-            key={panel.id}
+      <For each={MOVE_PANELS}>
+        {(panel) => {
+          const rows = () => moves()?.[panel.id] ?? [];
+          return (
+          <div
             data-testid={`report-moves-${panel.id}`}
             className="min-w-0 min-h-0 flex flex-col overflow-hidden border border-fin-border rounded-[2px] bg-fin-surface"
           >
-            <Box className="flex items-center gap-2 px-2 pt-2 min-w-0">
+            <div className="flex items-center gap-2 px-2 pt-2 min-w-0">
               <Text size="xs" fw={600} truncate span className="flex-1 min-w-0" data-testid={`report-moves-${panel.id}-title`}>
                 {panel.title}
               </Text>
               <Badge size="xs" data-testid={`report-moves-${panel.id}-count`}>
-                {rows.length}
+                {rows().length}
               </Badge>
-            </Box>
-            {rows.length === 0 ? (
-              <Box className="px-2 py-2" data-testid={`report-moves-${panel.id}-empty`}>
+            </div>
+            <Show
+              when={rows().length === 0}
+              fallback={
+                <div class="px-2" data-testid={`report-moves-${panel.id}-rows`}>
+                  <For each={rows()}>{(row) => <MoveRow row={row} onOpenSymbol={onOpenSymbol()} />}</For>
+                </div>
+              }
+            >
+              <div class="px-2 py-2" data-testid={`report-moves-${panel.id}-empty`}>
                 <Text size="xs" c="dimmed">
                   No stocks qualify
                 </Text>
-              </Box>
-            ) : (
-              <Box className="px-2" data-testid={`report-moves-${panel.id}-rows`}>
-                {rows.map((row) => (
-                  <MoveRow key={row.symbol} row={row} onOpenSymbol={onOpenSymbol} />
-                ))}
-              </Box>
-            )}
-          </Paper>
-        );
-      })}
-    </Box>
+              </div>
+            </Show>
+          </div>
+          );
+        }}
+      </For>
+    </div>
   );
 }

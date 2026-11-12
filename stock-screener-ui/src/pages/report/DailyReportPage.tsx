@@ -1,6 +1,6 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Badge, Box, Button, SegmentedControl, Select, Skeleton, Tab, Tabs, TabsList, TabsPanel, Text, TextInput, ToolbarRow, Tooltip } from "@/ui";
+import { createEffect, createMemo, createSignal, For, Show, onCleanup } from "solid-js";
+import { Alert, Badge, Button, SegmentedControl, Select, Skeleton, Text, TextInput, ToolbarRow, Tooltip } from "@/ui";
 import { fetchDailyReport, fetchReportBreakouts, fetchReportDelivery, fetchReportEvents, fetchReportFollowThrough, todayIST } from "../../api/report";
 import { fetchRegime } from "../../api/eventWatch";
 import type { RegimeResponse } from "../../types/eventWatch";
@@ -43,43 +43,48 @@ function shiftDate(dateStr: string, deltaDays: number): string {
   return base.toISOString().slice(0, 10);
 }
 
-export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSymbol }: DailyReportPageProps) {
-  const [date, setDate] = useState<string>(() => todayIST());
-  const [universe, setUniverse] = useState<string>(universeProp);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [daily, setDaily] = useState<DailyReportResponse | null>(null);
-  const [breakouts, setBreakouts] = useState<ReportBreakoutsResponse | null>(null);
-  const [followThrough, setFollowThrough] = useState<FollowThroughResponse | null>(null);
-  const [dailyLoading, setDailyLoading] = useState(true);
-  const [breakoutLoading, setBreakoutLoading] = useState(true);
-  const [followLoading, setFollowLoading] = useState(true);
-  const [deliveryLoading, setDeliveryLoading] = useState(true);
-  const [eventsLoading, setEventsLoading] = useState(true);
-  const [dailyError, setDailyError] = useState<string | null>(null);
-  const [breakoutError, setBreakoutError] = useState<string | null>(null);
-  const [followError, setFollowError] = useState<string | null>(null);
-  const [delivery, setDelivery] = useState<DeliveryResponse | null>(null);
-  const [deliveryError, setDeliveryError] = useState<string | null>(null);
-  const [events, setEvents] = useState<ReportEventsResponse | null>(null);
-  const [eventsError, setEventsError] = useState<string | null>(null);
-  const [regime, setRegime] = useState<RegimeResponse | null>(null);
-  const [copied, setCopied] = useState<"csv" | "symbols" | null>(null);
-  const [sparkRange, setSparkRange] = useState<"intraday" | "5d">("intraday");
-  const [tab, setTab] = useState<string>("breakouts");
-  const abortRef = useRef<AbortController | null>(null);
+export function DailyReportPage(props: DailyReportPageProps) {
+  const [date, setDate] = createSignal<string>(todayIST());
+  const [universe, setUniverse] = createSignal<string>(props.universe ?? "nifty500");
+  const [refreshKey, setRefreshKey] = createSignal(0);
+  const [daily, setDaily] = createSignal<DailyReportResponse | null>(null);
+  const [breakouts, setBreakouts] = createSignal<ReportBreakoutsResponse | null>(null);
+  const [followThrough, setFollowThrough] = createSignal<FollowThroughResponse | null>(null);
+  const [dailyLoading, setDailyLoading] = createSignal(true);
+  const [breakoutLoading, setBreakoutLoading] = createSignal(true);
+  const [followLoading, setFollowLoading] = createSignal(true);
+  const [deliveryLoading, setDeliveryLoading] = createSignal(true);
+  const [eventsLoading, setEventsLoading] = createSignal(true);
+  const [dailyError, setDailyError] = createSignal<string | null>(null);
+  const [breakoutError, setBreakoutError] = createSignal<string | null>(null);
+  const [followError, setFollowError] = createSignal<string | null>(null);
+  const [delivery, setDelivery] = createSignal<DeliveryResponse | null>(null);
+  const [deliveryError, setDeliveryError] = createSignal<string | null>(null);
+  const [events, setEvents] = createSignal<ReportEventsResponse | null>(null);
+  const [eventsError, setEventsError] = createSignal<string | null>(null);
+  const [regime, setRegime] = createSignal<RegimeResponse | null>(null);
+  const [copied, setCopied] = createSignal<"csv" | "symbols" | null>(null);
+  const [sparkRange, setSparkRange] = createSignal<"intraday" | "5d">("intraday");
+  const [tab, setTab] = createSignal<string>("breakouts");
+  let abortController: AbortController | null = null;
 
-  useEffect(() => {
-    setUniverse(universeProp);
-  }, [universeProp]);
+  // Universe prop is the initial value, not a controlled mirror of it — the
+  // Select owns the signal afterwards.
+  createEffect(() => {
+    const next = props.universe;
+    if (next) setUniverse(next);
+  });
 
   // The three sections load independently: a slow breakout scan must never
   // blank the (usually instant) market-moves section, and vice versa. Each
   // request gets its own timeout so a hung scan surfaces as a retryable
   // section error instead of an endless spinner.
-  useEffect(() => {
-    abortRef.current?.abort();
+  createEffect(() => {
+    // Track the scope; re-runs when date/universe/refreshKey change.
+    date(); universe(); refreshKey();
+    abortController?.abort();
     const controller = new AbortController();
-    abortRef.current = controller;
+    abortController = controller;
     let cancelled = false;
     const timers: Array<ReturnType<typeof setTimeout>> = [];
     const withTimeout = <T,>(p: Promise<T>, ms: number, label: string): Promise<T> =>
@@ -105,7 +110,7 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
     setBreakoutError(null);
     setFollowError(null);
     setDeliveryError(null);
-    withTimeout(fetchDailyReport(date, universe, controller.signal), REPORT_FETCH_TIMEOUT_MS, "Market moves")
+    withTimeout(fetchDailyReport(date(), universe(), controller.signal), REPORT_FETCH_TIMEOUT_MS, "Market moves")
       .then((payload) => {
         if (cancelled) return;
         setDaily(payload);
@@ -118,7 +123,7 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
         setDaily(null);
         setDailyLoading(false);
       });
-    withTimeout(fetchReportBreakouts(date, universe, controller.signal), REPORT_FETCH_TIMEOUT_MS, "Breakout scan")
+    withTimeout(fetchReportBreakouts(date(), universe(), controller.signal), REPORT_FETCH_TIMEOUT_MS, "Breakout scan")
       .then((payload) => {
         if (cancelled) return;
         setBreakouts(payload);
@@ -133,7 +138,7 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
       });
     // Delivery % (NSE bhavcopy) is date+universe scoped like the other
     // sections and loads independently; empty rows render as nothing.
-    withTimeout(fetchReportDelivery(date, universe, 15, controller.signal), REPORT_FETCH_TIMEOUT_MS, "Delivery")
+    withTimeout(fetchReportDelivery(date(), universe(), 15, controller.signal), REPORT_FETCH_TIMEOUT_MS, "Delivery")
       .then((payload) => {
         if (cancelled) return;
         setDelivery(payload);
@@ -148,8 +153,8 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
       });
     // Follow-through loads independently of the other two sections. The date
     // picker always holds a date, so this always fetches alongside them.
-    if (date) {
-      withTimeout(fetchReportFollowThrough(date, universe, controller.signal), REPORT_FETCH_TIMEOUT_MS, "Follow-through")
+    if (date()) {
+      withTimeout(fetchReportFollowThrough(date(), universe(), controller.signal), REPORT_FETCH_TIMEOUT_MS, "Follow-through")
         .then((payload) => {
           if (cancelled) return;
           setFollowThrough(payload);
@@ -166,25 +171,26 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
       setFollowThrough(null);
       setFollowLoading(false);
     }
-    return () => {
+    onCleanup(() => {
       cancelled = true;
       for (const t of timers) clearTimeout(t);
       controller.abort();
-    };
-  }, [date, universe, refreshKey]);
+    });
+  });
 
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = () => {
     setRefreshKey((k) => k + 1);
-  }, []);
+  };
 
-  const handleShiftDate = useCallback((deltaDays: number) => {
+  const handleShiftDate = (deltaDays: number) => {
     setDate((prev) => shiftDate(prev, deltaDays));
-  }, []);
+  };
 
   // Market regime (Nifty 50 vs 20DMA) loads independently of every other
   // section: it is date/universe-agnostic, fail-soft (chip omitted on
   // error), and refetched only on manual refresh.
-  useEffect(() => {
+  createEffect(() => {
+    refreshKey();
     let cancelled = false;
     fetchRegime()
       .then((payload) => {
@@ -195,34 +201,36 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
         if (cancelled) return;
         setRegime(null);
       });
-    return () => {
+    onCleanup(() => {
       cancelled = true;
-    };
-  }, [refreshKey]);
+    });
+  });
 
-  const breakoutCsvRows = useMemo(
-    () => [...(breakouts?.breakouts.rows ?? []), ...(breakouts?.breakdowns.rows ?? [])],
-    [breakouts],
+  const breakoutCsvRows = createMemo(
+    () => [...(breakouts()?.breakouts.rows ?? []), ...(breakouts()?.breakdowns.rows ?? [])],
   );
 
   // Events cover the symbols actually on screen (top movers + breakout
   // rows), capped: per-symbol yfinance fan-out can't cover 500 tickers.
-  const eventSymbols = useMemo(() => {
+  const eventSymbols = createMemo(() => {
     const out: string[] = [];
     const push = (s: string | undefined) => {
       const sym = (s ?? "").trim().toUpperCase();
       if (sym && !out.includes(sym) && out.length < 60) out.push(sym);
     };
-    for (const r of (daily?.moves?.gainers ?? []).slice(0, 10)) push(r.symbol);
-    for (const r of (daily?.moves?.losers ?? []).slice(0, 10)) push(r.symbol);
-    for (const r of breakoutCsvRows) push(r.symbol);
+    for (const r of (daily()?.moves?.gainers ?? []).slice(0, 10)) push(r.symbol);
+    for (const r of (daily()?.moves?.losers ?? []).slice(0, 10)) push(r.symbol);
+    for (const r of breakoutCsvRows()) push(r.symbol);
     return out;
-  }, [daily, breakoutCsvRows]);
+  });
 
   // Events load after the mover/breakout symbols are known; failures stay
   // inside the strip (fail-soft) and never touch the other sections.
-  useEffect(() => {
-    if (eventSymbols.length === 0) {
+  createEffect(() => {
+    const symbols = eventSymbols();
+    date();
+    refreshKey();
+    if (symbols.length === 0) {
       setEvents(null);
       setEventsError(null);
       setEventsLoading(false);
@@ -238,7 +246,7 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
         setEventsLoading(false);
       }
     }, REPORT_FETCH_TIMEOUT_MS);
-    fetchReportEvents(eventSymbols, date, shiftDate(date, 21))
+    fetchReportEvents(symbols, date(), shiftDate(date(), 21))
       .then((payload) => {
         if (cancelled) return;
         clearTimeout(timer);
@@ -252,15 +260,15 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
         setEvents(null);
         setEventsLoading(false);
       });
-    return () => {
+    onCleanup(() => {
       cancelled = true;
       clearTimeout(timer);
-    };
-  }, [eventSymbols, date, refreshKey]);
+    });
+  });
 
-  const handleCopyCsv = useCallback(async () => {
+  const handleCopyCsv = async () => {
     const csv = toCsv(
-      breakoutCsvRows.map((r) => ({
+      breakoutCsvRows().map((r) => ({
         symbol: r.symbol,
         name: r.name ?? "",
         type: r.type,
@@ -274,45 +282,57 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
     );
     const ok = await copyToClipboard(csv);
     setCopied(ok ? "csv" : null);
-  }, [breakoutCsvRows]);
+  };
 
-  const handleCopySymbols = useCallback(async () => {
-    const list = toSymbolList(breakoutCsvRows.map((r) => ({ symbol: r.symbol })));
+  const handleCopySymbols = async () => {
+    const list = toSymbolList(breakoutCsvRows().map((r) => ({ symbol: r.symbol })));
     const ok = await copyToClipboard(list);
     setCopied(ok ? "symbols" : null);
-  }, [breakoutCsvRows]);
+  };
 
-  const asOf = daily?.as_of ?? breakouts?.as_of ?? null;
-  const isCached = daily?.cached === true || breakouts?.cached === true;
-  const breadth = daily?.breadth ?? null;
-  const indexSnapshot = daily?.index ?? null;
-  const breadthTotal = breadth ? breadth.advances + breadth.declines + breadth.unchanged : 0;
-  const breadthShare = (n: number) => (breadthTotal > 0 ? `${(n / breadthTotal) * 100}%` : "0%");
+  const asOf = () => daily()?.as_of ?? breakouts()?.as_of ?? null;
+  const isCached = () => daily()?.cached === true || breakouts()?.cached === true;
+  const breadth = () => daily()?.breadth ?? null;
+  const indexSnapshot = () => daily()?.index ?? null;
+  const breadthTotal = () => {
+    const b = breadth();
+    return b ? b.advances + b.declines + b.unchanged : 0;
+  };
+  const breadthShare = (n: number) =>
+    breadthTotal() > 0 ? `${(n / breadthTotal()) * 100}%` : "0%";
 
   // Spark range toggle only appears when at least one breakout/breakdown row
   // carries daily closes; otherwise rows keep the single intraday spark.
-  const hasDailyCloses = useMemo(() => {
-    const rows = [...(breakouts?.breakouts.rows ?? []), ...(breakouts?.breakdowns.rows ?? [])];
+  const hasDailyCloses = createMemo(() => {
+    const rows = [...(breakouts()?.breakouts.rows ?? []), ...(breakouts()?.breakdowns.rows ?? [])];
     return rows.some((r) => Array.isArray(r.daily_closes) && r.daily_closes.length > 0);
-  }, [breakouts]);
+  });
 
   // Page-level states (kept for compatibility): loading only while both
   // sections are still pending; error only when both failed.
-  const loading = dailyLoading && breakoutLoading;
-  const error = dailyError != null && breakoutError != null ? dailyError : null;
+  const loading = () => dailyLoading() && breakoutLoading();
+  const error = () => (dailyError() != null && breakoutError() != null ? dailyError() : null);
 
-  const isEmpty =
-    !dailyLoading &&
-    !breakoutLoading &&
-    !dailyError &&
-    !breakoutError &&
-    (breakouts?.breakouts.count ?? 0) === 0 &&
-    (breakouts?.breakdowns.count ?? 0) === 0 &&
-    Object.values(daily?.moves ?? {}).every((rows) => (rows ?? []).length === 0);
+  const isEmpty = () =>
+    !dailyLoading() &&
+    !breakoutLoading() &&
+    !dailyError() &&
+    !breakoutError() &&
+    (breakouts()?.breakouts.count ?? 0) === 0 &&
+    (breakouts()?.breakdowns.count ?? 0) === 0 &&
+    Object.values(daily()?.moves ?? {}).every((rows) => (rows ?? []).length === 0);
+
+  const tabs: { value: string; label: string; testId: string }[] = [
+    { value: "scan", label: "Scan", testId: "report-tab-scan" },
+    { value: "breakouts", label: "Breakouts", testId: "report-tab-breakouts" },
+    { value: "moves", label: "Moves", testId: "report-tab-moves" },
+    { value: "followthrough", label: "Follow-through", testId: "report-tab-followthrough" },
+    { value: "events", label: "Events", testId: "report-tab-events" },
+  ];
 
   return (
-    <Box data-testid="daily-report" className="flex flex-col gap-1 min-w-0 w-full flex-1 tabular-nums">
-      <ToolbarRow gap={8} data-testid="daily-report-toolbar" style={{ "min-height": 36, position: "sticky", top: 0, "z-index": 10, "background-color": "var(--color-fin-surface)" }}>
+    <div data-testid="daily-report" class="flex flex-col gap-1 min-w-0 w-full flex-1 tabular-nums">
+      <ToolbarRow gap={8} data-testid="daily-report-toolbar" style={{ "min-height": "36px", position: "sticky", top: 0, "z-index": 10, "background-color": "var(--color-fin-surface)" }}>
         <Text size="sm" fw={700} span data-testid="report-title" className="whitespace-nowrap">
           Daily Report
         </Text>
@@ -320,7 +340,7 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
           size="xs"
           w={140}
           type="date"
-          value={date}
+          value={date()}
           onChange={setDate}
           data-testid="report-date"
           aria-label="Report date"
@@ -334,7 +354,7 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
         <Select
           size="xs"
           w={140}
-          value={universe}
+          value={universe()}
           onChange={(v) => {
             if (v) setUniverse(v);
           }}
@@ -345,32 +365,32 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
         <Button size="xs" variant="subtle" onClick={handleRefresh} data-testid="report-refresh" aria-label="Refresh report">
           Refresh
         </Button>
-        {regime?.above != null && regime.close != null ? (
+        <Show when={regime()?.above != null && regime()?.close != null}>
           <Tooltip
-            label={regime.rule ?? "regime_long_ok: longs only when Nifty 50 closes above its 20-day moving average"}
+            label={regime()!.rule ?? "regime_long_ok: longs only when Nifty 50 closes above its 20-day moving average"}
             position="bottom"
           >
             <Badge
               size="xs"
-              color={regime.above ? "success" : "error"}
+              color={regime()!.above ? "success" : "error"}
               data-testid="report-regime"
             >
-              Nifty {formatNumberIN(Math.round(regime.close))} · {regime.above ? "above 20DMA" : "below 20DMA"}
+              Nifty {formatNumberIN(Math.round(regime()!.close!))} · {regime()!.above ? "above 20DMA" : "below 20DMA"}
             </Badge>
           </Tooltip>
-        ) : null}
-        <Box className="flex-1 min-w-0" />
-        {asOf ? (
-          <Text size="xs" c="dimmed" truncate span data-testid="report-asof" title={isCached ? "Cached snapshot" : "Live snapshot"}>
-            as of {formatTimeOnly(asOf)}
-            {isCached ? (
+        </Show>
+        <div class="flex-1 min-w-0" />
+        <Show when={asOf()}>
+          <Text size="xs" c="dimmed" truncate span data-testid="report-asof" title={isCached() ? "Cached snapshot" : "Live snapshot"}>
+            as of {formatTimeOnly(asOf()!)}
+            <Show when={isCached()}>
               <Text size="xs" c="dimmed" span data-testid="report-cached">
                 {" "}
                 (cached)
               </Text>
-            ) : null}
+            </Show>
           </Text>
-        ) : null}
+        </Show>
         <Button
           size="xs"
           variant="subtle"
@@ -378,7 +398,7 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
           data-testid="report-copy-csv"
           aria-label="Copy breakouts as CSV"
         >
-          {copied === "csv" ? "Copied!" : "Copy CSV"}
+          {copied() === "csv" ? "Copied!" : "Copy CSV"}
         </Button>
         <Button
           size="xs"
@@ -387,253 +407,301 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
           data-testid="report-copy-symbols"
           aria-label="Copy breakout symbols"
         >
-          {copied === "symbols" ? "Copied!" : "Copy symbols"}
+          {copied() === "symbols" ? "Copied!" : "Copy symbols"}
         </Button>
       </ToolbarRow>
 
-      {loading ? (
-        <Box className="flex flex-col gap-1 w-full min-w-0" data-testid="report-loading">
-          <Skeleton h={16} />
-          <Skeleton h={16} />
-          <Skeleton h={16} />
-          <Skeleton h={16} />
-        </Box>
-      ) : error ? (
-        <Box data-testid="report-error">
-          <Alert color="error" data-testid="report-error-alert">
-            {error}
-          </Alert>
-        </Box>
-      ) : isEmpty ? (
-        <Box className="p-2 text-center w-full" data-testid="report-empty">
-          <Text size="xs" c="dimmed">
-            No unusual moves or breakouts for {date}
-          </Text>
-        </Box>
-      ) : (
-        <Tabs value={tab} onChange={(v) => { if (v) setTab(v); }} data-testid="report-tabs">
-          <Box className="overflow-x-auto min-w-0">
-            <TabsList data-testid="report-tabs-list">
-              <Tab value="scan" data-testid="report-tab-scan">
-                Scan
-              </Tab>
-              <Tab value="breakouts" data-testid="report-tab-breakouts">
-                Breakouts
-              </Tab>
-              <Tab value="moves" data-testid="report-tab-moves">
-                Moves
-              </Tab>
-              <Tab value="followthrough" data-testid="report-tab-followthrough">
-                Follow-through
-              </Tab>
-              <Tab value="events" data-testid="report-tab-events">
-                Events
-              </Tab>
-            </TabsList>
-          </Box>
-          <TabsPanel value="scan" keepMounted data-testid="report-tab-panel-scan" style={{ "padding-top": 4, "padding-bottom": 4 }}>
-            <Box className="flex flex-col gap-1 min-w-0">
-          {dailyLoading ? (
-            <Box className="flex flex-col gap-1 w-full min-w-0" data-testid="report-daily-loading">
-              <Skeleton h={16} />
-              <Skeleton h={16} />
-            </Box>
-          ) : dailyError ? (
-            <Box data-testid="report-daily-error">
-              <Alert color="error" data-testid="report-daily-error-alert">
-                {dailyError}
-              </Alert>
-            </Box>
-          ) : (
-            <>
-              {breadth ? (
-                <Box className="flex flex-col gap-1 min-w-0" data-testid="report-breadth-block">
-                  <ToolbarRow gap={8} wrap data-testid="report-breadth">
-                    {indexSnapshot ? (
-                      <BreadthStat
-                        label={indexSnapshot.name}
-                        value={formatPercentage(indexSnapshot.change)}
-                        testId="report-breadth-index"
-                        color={getPnLTextColor(indexSnapshot.change)}
-                      />
-                    ) : null}
-                    <BreadthStat label="Adv" value={String(breadth.advances)} testId="report-breadth-advances" color="success" />
-                    <BreadthStat label="Dec" value={String(breadth.declines)} testId="report-breadth-declines" color="error" />
-                    <BreadthStat label="Unch" value={String(breadth.unchanged)} testId="report-breadth-unchanged" color="dimmed" />
-                    <BreadthStat label="New highs" value={String(breadth.new_highs)} testId="report-breadth-new-highs" color="success" />
-                    <BreadthStat label="New lows" value={String(breadth.new_lows)} testId="report-breadth-new-lows" color="error" />
-                    <BreadthStat label="Avg" value={formatPercentage(breadth.avg_change)} testId="report-breadth-avg" />
-                    <BreadthStat label="Median" value={formatPercentage(breadth.median_change)} testId="report-breadth-median" />
-                    <BreadthStat label="Up vol" value={formatVolume(breadth.up_volume)} testId="report-breadth-up-volume" />
-                    <BreadthStat label="Down vol" value={formatVolume(breadth.down_volume)} testId="report-breadth-down-volume" />
-                  </ToolbarRow>
-                  {breadthTotal > 0 ? (
-                    <Box
-                      data-testid="report-breadth-bar"
-                      role="img"
-                      aria-label={`${breadth.advances} advances, ${breadth.declines} declines, ${breadth.unchanged} unchanged`}
-                      className="flex w-full h-[6px] rounded-[2px] overflow-hidden bg-fin-border"
-                    >
-                      <Box className="bg-fin-positive" style={{ width: breadthShare(breadth.advances) }} />
-                      <Box className="bg-fin-text-muted" style={{ width: breadthShare(breadth.unchanged) }} />
-                      <Box className="bg-fin-negative" style={{ width: breadthShare(breadth.declines) }} />
-                    </Box>
-                  ) : null}
-                </Box>
-              ) : null}
-              <Box
-                className="grid grid-cols-1 min-[1200px]:grid-cols-2 gap-1 min-w-0 items-start"
+      <Show
+        when={loading()}
+        fallback={
+          <Show
+            when={error()}
+            fallback={
+              <Show
+                when={isEmpty()}
+                fallback={
+                  <div class="flex flex-col gap-1 min-w-0 w-full" data-testid="report-tabs">
+                    <div class="overflow-x-auto min-w-0">
+                      <div class="flex flex-row items-center gap-1 rounded-fin border border-fin-border bg-fin-surface p-[2px]" role="tablist" data-testid="report-tabs-list">
+                        <For each={tabs}>
+                          {(t) => (
+                            <button
+                              type="button"
+                              role="tab"
+                              aria-selected={tab() === t.value}
+                              data-testid={t.testId}
+                              class={`px-2 h-7 text-[11px] leading-none rounded-sm border transition-colors duration-150 ${
+                                tab() === t.value
+                                  ? "bg-neutral-800 text-neutral-100 border-neutral-700"
+                                  : "text-neutral-400 border-transparent hover:text-neutral-200"
+                              }`}
+                              onClick={() => setTab(t.value)}
+                            >
+                              {t.label}
+                            </button>
+                          )}
+                        </For>
+                      </div>
+                    </div>
+                    <div hidden={tab() !== "scan"} data-testid="report-tab-panel-scan" style={{ "padding-top": "4px", "padding-bottom": "4px" }}>
+                      <div class="flex flex-col gap-1 min-w-0">
+                        <Show
+                          when={dailyLoading()}
+                          fallback={
+                            <Show
+                              when={dailyError()}
+                              fallback={
+                                <>
+                                  <Show when={breadth()}>
+                                    <div class="flex flex-col gap-1 min-w-0" data-testid="report-breadth-block">
+                                      <ToolbarRow gap={8} wrap data-testid="report-breadth">
+                                        <Show when={indexSnapshot()}>
+                                          <BreadthStat
+                                            label={indexSnapshot()!.name}
+                                            value={formatPercentage(indexSnapshot()!.change)}
+                                            testId="report-breadth-index"
+                                            color={getPnLTextColor(indexSnapshot()!.change)}
+                                          />
+                                        </Show>
+                                        <BreadthStat label="Adv" value={String(breadth()!.advances)} testId="report-breadth-advances" color="success" />
+                                        <BreadthStat label="Dec" value={String(breadth()!.declines)} testId="report-breadth-declines" color="error" />
+                                        <BreadthStat label="Unch" value={String(breadth()!.unchanged)} testId="report-breadth-unchanged" color="dimmed" />
+                                        <BreadthStat label="New highs" value={String(breadth()!.new_highs)} testId="report-breadth-new-highs" color="success" />
+                                        <BreadthStat label="New lows" value={String(breadth()!.new_lows)} testId="report-breadth-new-lows" color="error" />
+                                        <BreadthStat label="Avg" value={formatPercentage(breadth()!.avg_change)} testId="report-breadth-avg" />
+                                        <BreadthStat label="Median" value={formatPercentage(breadth()!.median_change)} testId="report-breadth-median" />
+                                        <BreadthStat label="Up vol" value={formatVolume(breadth()!.up_volume)} testId="report-breadth-up-volume" />
+                                        <BreadthStat label="Down vol" value={formatVolume(breadth()!.down_volume)} testId="report-breadth-down-volume" />
+                                      </ToolbarRow>
+                                      <Show when={breadthTotal() > 0}>
+                                        <div
+                                          data-testid="report-breadth-bar"
+                                          role="img"
+                                          aria-label={`${breadth()!.advances} advances, ${breadth()!.declines} declines, ${breadth()!.unchanged} unchanged`}
+                                          class="flex w-full h-[6px] rounded-[2px] overflow-hidden bg-fin-border"
+                                        >
+                                          <div class="bg-fin-positive" style={{ width: breadthShare(breadth()!.advances) }} />
+                                          <div class="bg-fin-text-muted" style={{ width: breadthShare(breadth()!.unchanged) }} />
+                                          <div class="bg-fin-negative" style={{ width: breadthShare(breadth()!.declines) }} />
+                                        </div>
+                                      </Show>
+                                    </div>
+                                  </Show>
+                                  <div
+                                    class="grid grid-cols-1 min-[1200px]:grid-cols-2 gap-1 min-w-0 items-start"
+                                  >
+                                    <LeaderStrip leaders={daily()?.sector_leaders} testId="report-sector-leaders" label="Sectors" />
+                                    <LeaderStrip leaders={daily()?.theme_leaders} testId="report-theme-leaders" label="Themes" />
+                                  </div>
+                                </>
+                              }
+                            >
+                              <div data-testid="report-daily-error">
+                                <Alert color="error" data-testid="report-daily-error-alert">
+                                  {dailyError()}
+                                </Alert>
+                              </div>
+                            </Show>
+                          }
+                        >
+                          <div class="flex flex-col gap-1 w-full min-w-0" data-testid="report-daily-loading">
+                            <Skeleton h={16} />
+                            <Skeleton h={16} />
+                          </div>
+                        </Show>
+                      </div>
+                    </div>
+                    <div hidden={tab() !== "moves"} data-testid="report-tab-panel-moves" style={{ "padding-top": "4px", "padding-bottom": "4px" }}>
+                      <div class="flex flex-col gap-1 min-w-0">
+                        <Show
+                          when={dailyLoading()}
+                          fallback={
+                            <Show
+                              when={dailyError()}
+                              fallback={
+                                <>
+                                  <ToolbarRow gap={8} wrap={false}>
+                                    <Text size="sm" fw={700} span data-testid="report-moves-title">
+                                      Unusual moves
+                                    </Text>
+                                  </ToolbarRow>
+                                  <ReportMovePanels moves={daily()?.moves ?? null} onOpenSymbol={props.onOpenSymbol} />
+                                </>
+                              }
+                            >
+                              <div data-testid="report-moves-error">
+                                <Alert color="error" data-testid="report-moves-error-alert">
+                                  {dailyError()}
+                                </Alert>
+                              </div>
+                            </Show>
+                          }
+                        >
+                          <div class="flex flex-col gap-1 w-full min-w-0" data-testid="report-moves-loading">
+                            <Skeleton h={16} />
+                            <Skeleton h={16} />
+                          </div>
+                        </Show>
+                      </div>
+                    </div>
+                    <div hidden={tab() !== "breakouts"} data-testid="report-tab-panel-breakouts" style={{ "padding-top": "4px", "padding-bottom": "4px" }}>
+                      <div class="flex flex-col gap-1 min-w-0">
+                        <Show
+                          when={breakoutLoading()}
+                          fallback={
+                            <Show
+                              when={breakoutError()}
+                              fallback={
+                                <>
+                                  <div class="flex items-center gap-2" data-testid="report-breakouts-meta">
+                                    <Badge size="xs" data-testid="report-breakouts-scanned">
+                                      {breakouts()?.scanned ?? 0} scanned
+                                    </Badge>
+                                    <Text size="xs" c="dimmed" span>
+                                      {breakouts()?.universe ?? universe()} · {breakouts()?.date ?? date()}
+                                    </Text>
+                                    <Show when={hasDailyCloses()}>
+                                      <SegmentedControl
+                                        size="xs"
+                                        value={sparkRange()}
+                                        onChange={(v) => setSparkRange(v === "5d" ? "5d" : "intraday")}
+                                        data={[
+                                          { value: "intraday", label: "Intraday" },
+                                          { value: "5d", label: "5D" },
+                                        ]}
+                                        data-testid="report-spark-range"
+                                      />
+                                    </Show>
+                                  </div>
+                                  {/* Full-width stacked tables: nine columns per side do not fit in
+                                      a half-width cell, and each table grew its own horizontal
+                                      scrollbar. Stacking keeps one reading column and no inner
+                                      horizontal scroll. */}
+                                  <div
+                                    class="grid grid-cols-1 gap-1 items-start min-w-0 w-full"
+                                  >
+                                    <ReportBreakoutTable
+                                      title="Breakouts TODAY"
+                                      side={breakouts()?.breakouts ?? null}
+                                      direction="up"
+                                      testId="report-breakouts-table"
+                                      onOpenSymbol={props.onOpenSymbol}
+                                      emptyMessage="No breakouts today"
+                                      sparkRange={sparkRange()}
+                                    />
+                                    <ReportBreakoutTable
+                                      title="Breakdowns TODAY"
+                                      side={breakouts()?.breakdowns ?? null}
+                                      direction="down"
+                                      testId="report-breakdowns-table"
+                                      onOpenSymbol={props.onOpenSymbol}
+                                      emptyMessage="No breakdowns today"
+                                      sparkRange={sparkRange()}
+                                    />
+                                  </div>
+                                </>
+                              }
+                            >
+                              <div data-testid="report-breakouts-error">
+                                <Alert color="error" data-testid="report-breakouts-error-alert">
+                                  {breakoutError()}
+                                </Alert>
+                              </div>
+                            </Show>
+                          }
+                        >
+                          <div class="flex flex-col gap-1 w-full min-w-0" data-testid="report-breakouts-loading">
+                            <Skeleton h={16} />
+                            <Skeleton h={16} />
+                          </div>
+                        </Show>
+                      </div>
+                    </div>
+                    <div hidden={tab() !== "followthrough"} data-testid="report-tab-panel-followthrough" style={{ "padding-top": "4px", "padding-bottom": "4px" }}>
+                      <div class="flex flex-col gap-1 min-w-0">
+                        <ReportDeliveryStrip data={delivery()} loading={deliveryLoading()} error={deliveryError()} onOpenSymbol={props.onOpenSymbol} />
+                        <Show
+                          when={followLoading()}
+                          fallback={
+                            <Show
+                              when={followError()}
+                              fallback={
+                                <div data-testid="report-followthrough" class="grid grid-cols-1 min-[1200px]:grid-cols-2 gap-1 items-start min-w-0">
+                                  <ReportFollowThroughTable
+                                    title="Breakout follow-through"
+                                    side={followThrough()?.breakouts ?? null}
+                                    testId="report-followthrough-breakouts"
+                                    onOpenSymbol={props.onOpenSymbol}
+                                    emptyMessage="No breakout follow-through"
+                                    emptyNote={
+                                      followThrough()?.date
+                                        ? `No breakouts on ${followThrough()!.date} to follow`
+                                        : undefined
+                                    }
+                                  />
+                                  <ReportFollowThroughTable
+                                    title="Breakdown follow-through"
+                                    side={followThrough()?.breakdowns ?? null}
+                                    testId="report-followthrough-breakdowns"
+                                    onOpenSymbol={props.onOpenSymbol}
+                                    emptyMessage="No breakdown follow-through"
+                                    emptyNote={
+                                      followThrough()?.date
+                                        ? `No breakdowns on ${followThrough()!.date} to follow`
+                                        : undefined
+                                    }
+                                  />
+                                </div>
+                              }
+                            >
+                              <div data-testid="report-followthrough-error">
+                                <Alert color="error" data-testid="report-followthrough-error-alert">
+                                  {followError()}
+                                </Alert>
+                              </div>
+                            </Show>
+                          }
+                        >
+                          <div class="flex flex-col gap-1 w-full min-w-0" data-testid="report-followthrough-loading">
+                            <Skeleton h={16} />
+                            <Skeleton h={16} />
+                          </div>
+                        </Show>
+                      </div>
+                    </div>
+                    <div hidden={tab() !== "events"} data-testid="report-tab-panel-events" style={{ "padding-top": "4px", "padding-bottom": "4px" }}>
+                      <div class="flex flex-col gap-1 min-w-0">
+                        <EventWatch universe={universe()} daily={daily()} onOpenSymbol={props.onOpenSymbol} />
+                        <ReportEventsStrip data={events()} loading={eventsLoading()} error={eventsError()} onOpenSymbol={props.onOpenSymbol} />
+                      </div>
+                    </div>
+                  </div>
+                }
               >
-                <LeaderStrip leaders={daily?.sector_leaders} testId="report-sector-leaders" label="Sectors" />
-                <LeaderStrip leaders={daily?.theme_leaders} testId="report-theme-leaders" label="Themes" />
-              </Box>
-            </>
-          )}
-            </Box>
-          </TabsPanel>
-          <TabsPanel value="moves" keepMounted data-testid="report-tab-panel-moves" style={{ "padding-top": 4, "padding-bottom": 4 }}>
-            <Box className="flex flex-col gap-1 min-w-0">
-              {dailyLoading ? (
-                <Box className="flex flex-col gap-1 w-full min-w-0" data-testid="report-moves-loading">
-                  <Skeleton h={16} />
-                  <Skeleton h={16} />
-                </Box>
-              ) : dailyError ? (
-                <Box data-testid="report-moves-error">
-                  <Alert color="error" data-testid="report-moves-error-alert">
-                    {dailyError}
-                  </Alert>
-                </Box>
-              ) : (
-                <>
-                  <ToolbarRow gap={8} wrap={false}>
-                    <Text size="sm" fw={700} span data-testid="report-moves-title">
-                      Unusual moves
-                    </Text>
-                  </ToolbarRow>
-                  <ReportMovePanels moves={daily?.moves ?? null} onOpenSymbol={onOpenSymbol} />
-                </>
-              )}
-            </Box>
-          </TabsPanel>
-          <TabsPanel value="breakouts" keepMounted data-testid="report-tab-panel-breakouts" style={{ "padding-top": 4, "padding-bottom": 4 }}>
-            <Box className="flex flex-col gap-1 min-w-0">
-          {breakoutLoading ? (
-            <Box className="flex flex-col gap-1 w-full min-w-0" data-testid="report-breakouts-loading">
-              <Skeleton h={16} />
-              <Skeleton h={16} />
-            </Box>
-          ) : breakoutError ? (
-            <Box data-testid="report-breakouts-error">
-              <Alert color="error" data-testid="report-breakouts-error-alert">
-                {breakoutError}
-              </Alert>
-            </Box>
-          ) : (
-            <>
-          <Box className="flex items-center gap-2" data-testid="report-breakouts-meta">
-            <Badge size="xs" data-testid="report-breakouts-scanned">
-              {breakouts?.scanned ?? 0} scanned
-            </Badge>
-            <Text size="xs" c="dimmed" span>
-              {breakouts?.universe ?? universe} · {breakouts?.date ?? date}
-            </Text>
-            {hasDailyCloses ? (
-              <SegmentedControl
-                size="xs"
-                value={sparkRange}
-                onChange={(v) => setSparkRange(v === "5d" ? "5d" : "intraday")}
-                data={[
-                  { value: "intraday", label: "Intraday" },
-                  { value: "5d", label: "5D" },
-                ]}
-                data-testid="report-spark-range"
-              />
-            ) : null}
-          </Box>
-          {/* Full-width stacked tables: nine columns per side do not fit in
-              a half-width cell, and each table grew its own horizontal
-              scrollbar. Stacking keeps one reading column and no inner
-              horizontal scroll. */}
-          <Box
-            className="grid grid-cols-1 gap-1 items-start min-w-0 w-full"
+                <div class="p-2 text-center w-full" data-testid="report-empty">
+                  <Text size="xs" c="dimmed">
+                    No unusual moves or breakouts for {date()}
+                  </Text>
+                </div>
+              </Show>
+            }
           >
-          <ReportBreakoutTable
-            title="Breakouts TODAY"
-            side={breakouts?.breakouts ?? null}
-            direction="up"
-            testId="report-breakouts-table"
-            onOpenSymbol={onOpenSymbol}
-            emptyMessage="No breakouts today"
-            sparkRange={sparkRange}
-          />
-          <ReportBreakoutTable
-            title="Breakdowns TODAY"
-            side={breakouts?.breakdowns ?? null}
-            direction="down"
-            testId="report-breakdowns-table"
-            onOpenSymbol={onOpenSymbol}
-            emptyMessage="No breakdowns today"
-            sparkRange={sparkRange}
-          />
-          </Box>
-            </>
-          )}
-            </Box>
-          </TabsPanel>
-          <TabsPanel value="followthrough" keepMounted data-testid="report-tab-panel-followthrough" style={{ "padding-top": 4, "padding-bottom": 4 }}>
-            <Box className="flex flex-col gap-1 min-w-0">
-          <ReportDeliveryStrip data={delivery} loading={deliveryLoading} error={deliveryError} onOpenSymbol={onOpenSymbol} />
-          {followLoading ? (
-            <Box className="flex flex-col gap-1 w-full min-w-0" data-testid="report-followthrough-loading">
-              <Skeleton h={16} />
-              <Skeleton h={16} />
-            </Box>
-          ) : followError ? (
-            <Box data-testid="report-followthrough-error">
-              <Alert color="error" data-testid="report-followthrough-error-alert">
-                {followError}
+            <div data-testid="report-error">
+              <Alert color="error" data-testid="report-error-alert">
+                {error()}
               </Alert>
-            </Box>
-          ) : (
-            <Box data-testid="report-followthrough" className="grid grid-cols-1 min-[1200px]:grid-cols-2 gap-1 items-start min-w-0">
-              <ReportFollowThroughTable
-                title="Breakout follow-through"
-                side={followThrough?.breakouts ?? null}
-                testId="report-followthrough-breakouts"
-                onOpenSymbol={onOpenSymbol}
-                emptyMessage="No breakout follow-through"
-                emptyNote={
-                  followThrough?.date
-                    ? `No breakouts on ${followThrough.date} to follow`
-                    : undefined
-                }
-              />
-              <ReportFollowThroughTable
-                title="Breakdown follow-through"
-                side={followThrough?.breakdowns ?? null}
-                testId="report-followthrough-breakdowns"
-                onOpenSymbol={onOpenSymbol}
-                emptyMessage="No breakdown follow-through"
-                emptyNote={
-                  followThrough?.date
-                    ? `No breakdowns on ${followThrough.date} to follow`
-                    : undefined
-                }
-              />
-            </Box>
-          )}
-            </Box>
-          </TabsPanel>
-          <TabsPanel value="events" keepMounted data-testid="report-tab-panel-events" style={{ "padding-top": 4, "padding-bottom": 4 }}>
-            <Box className="flex flex-col gap-1 min-w-0">
-              <EventWatch universe={universe} daily={daily} onOpenSymbol={onOpenSymbol} />
-              <ReportEventsStrip data={events} loading={eventsLoading} error={eventsError} onOpenSymbol={onOpenSymbol} />
-            </Box>
-          </TabsPanel>
-        </Tabs>
-      )}
-    </Box>
+            </div>
+          </Show>
+        }
+      >
+        <div class="flex flex-col gap-1 w-full min-w-0" data-testid="report-loading">
+          <Skeleton h={16} />
+          <Skeleton h={16} />
+          <Skeleton h={16} />
+          <Skeleton h={16} />
+        </div>
+      </Show>
+    </div>
   );
 }
 

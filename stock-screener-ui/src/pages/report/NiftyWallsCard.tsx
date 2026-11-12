@@ -135,7 +135,7 @@ function WallPlaceholderRow({ side }: { side: "CALL" | "PUT" }) {
         "padding-bottom": `${REPORT_PAD.xs}px`,
         "padding-left": `${REPORT_PAD.sm}px`,
         "min-height": REPORT_ROW.walls,
-        borderLeft: "2px solid transparent",
+        "border-left": "2px solid transparent",
       }}
     >
       <Box className="flex flex-col gap-[4px] min-w-0" style={{ "padding-left": `${REPORT_PAD.xs}px` }}>
@@ -146,7 +146,7 @@ function WallPlaceholderRow({ side }: { side: "CALL" | "PUT" }) {
             "font-size": REPORT_FONT.sm,
             "line-height": REPORT_LINE_HEIGHT.snug,
             color: palette.TEXT_MUTED,
-            fontVariantNumeric: "tabular-nums",
+            "font-variant-numeric": "tabular-nums",
           }}
         >
           —
@@ -173,7 +173,7 @@ function WallPlaceholderRow({ side }: { side: "CALL" | "PUT" }) {
             "line-height": REPORT_LINE_HEIGHT.snug,
             "text-align": "right",
             color: palette.TEXT_MUTED,
-            fontVariantNumeric: "tabular-nums",
+            "font-variant-numeric": "tabular-nums",
           }}
         >
           —
@@ -200,7 +200,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
         className="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] border-b border-solid pb-[4px] mb-[4px]"
         style={{
           "column-gap": `${REPORT_PAD.xs}px`,
-          borderBottom: `1px solid ${palette.BORDER}`,
+          "border-bottom": `1px solid ${palette.BORDER}`,
           "padding-bottom": `${REPORT_PAD.xs}px`,
           "margin-bottom": `${REPORT_PAD.xs}px`,
         }}
@@ -267,7 +267,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
               "padding-bottom": `${REPORT_PAD.xs}px`,
               "padding-left": `${REPORT_PAD.sm}px`,
               "min-height": REPORT_ROW.walls,
-              borderLeft: border,
+              "border-left": border,
               "background-color": (nearest || tracked) ? palette.SURFACE_ALT : "transparent",
               transition: "background-color 180ms ease",
             }}
@@ -283,7 +283,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                     "line-height": REPORT_LINE_HEIGHT.snug,
                     "font-weight": tracked ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.medium,
                     color: tracked ? color : palette.TEXT_COLOR,
-                    fontVariantNumeric: "tabular-nums",
+                    "font-variant-numeric": "tabular-nums",
                     "white-space": "nowrap",
                     overflow: "hidden",
                     "text-overflow": "ellipsis",
@@ -340,7 +340,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
               style={{
                 position: "relative",
                 "min-width": 0,
-                alignSelf: "stretch",
+                "align-self": "stretch",
                 display: "flex",
                 "align-items": "center",
                 "justify-content": "flex-end",
@@ -374,7 +374,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                   "font-size": REPORT_FONT.sm,
                   "line-height": REPORT_LINE_HEIGHT.snug,
                   "text-align": "right",
-                  fontVariantNumeric: "tabular-nums",
+                  "font-variant-numeric": "tabular-nums",
                   color: palette.TEXT_COLOR,
                 }}
               >
@@ -389,7 +389,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                 "font-size": REPORT_FONT.sm,
                 "line-height": REPORT_LINE_HEIGHT.snug,
                 "text-align": "right",
-                fontVariantNumeric: "tabular-nums",
+                "font-variant-numeric": "tabular-nums",
                 color: erosionColor(row.new_oi),
                 "background-color": newOiTint(row.new_oi, rows),
                 "border-radius": `${REPORT_RADIUS.sm}px`,
@@ -409,7 +409,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                 "line-height": REPORT_LINE_HEIGHT.snug,
                 "text-align": "right",
                 color: cellColor,
-                fontVariantNumeric: "tabular-nums",
+                "font-variant-numeric": "tabular-nums",
               }}
             >
               {fmtPct(row.erosion_5m)}
@@ -423,7 +423,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                 "line-height": REPORT_LINE_HEIGHT.snug,
                 "text-align": "right",
                 color: cellColor,
-                fontVariantNumeric: "tabular-nums",
+                "font-variant-numeric": "tabular-nums",
               }}
             >
               {fmtPct(row.erosion_30m)}
@@ -436,7 +436,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                 "line-height": REPORT_LINE_HEIGHT.snug,
                 "text-align": "right",
                 color: palette.TEXT_MUTED,
-                fontVariantNumeric: "tabular-nums",
+                "font-variant-numeric": "tabular-nums",
               }}
             >
               {dist(row.distance_pct)}
@@ -495,7 +495,7 @@ function SequenceLine({ events }: { events: WallsEvent[] }) {
               style={{
                 "font-size": REPORT_FONT.micro,
                 color: isBreak ? palette.NEGATIVE : palette.TEXT_MUTED,
-                fontVariantNumeric: "tabular-nums",
+                "font-variant-numeric": "tabular-nums",
               }}
             >
               {event.at.slice(11, 16)}
@@ -616,7 +616,7 @@ function WallsLevelsBlock({ levels }: { levels?: ReactNode }) {
   return (
     <Box
       style={{
-        borderTop: `1px solid ${palette.BORDER}`,
+        "border-top": `1px solid ${palette.BORDER}`,
         "padding-top": `${REPORT_PAD.sm}px`,
         "min-width": 0,
       }}
@@ -689,7 +689,7 @@ function WallsSkeleton({ emptyText }: { emptyText: string }) {
         style={{
           "min-height": WALLS_RESERVED_H,
           "min-width": 0,
-          borderLeft: `1px solid ${palette.BORDER}`,
+          "border-left": `1px solid ${palette.BORDER}`,
           "padding-left": `${REPORT_PAD.sm}px`,
           display: "flex",
           "flex-direction": "column",
@@ -864,7 +864,7 @@ export function NiftyWallsCardInner({
           </Button>
         </Stack>
       }
-      style={{ borderTop: "none" }}
+      style={{ "border-top": "none" }}
     >
       <Box
         className="grid items-start"
@@ -986,7 +986,7 @@ export function NiftyWallsCardInner({
                 data-testid="nifty-walls-alert"
                 data-wall-anim=""
                 style={{
-                  borderLeft: `3px solid ${palette.NEGATIVE}`,
+                  "border-left": `3px solid ${palette.NEGATIVE}`,
                   "background-color": palette.SURFACE_ALT,
                   "padding-left": `${REPORT_PAD.sm}px`,
                   "padding-top": `${REPORT_PAD.xs}px`,
@@ -1041,7 +1041,7 @@ export function NiftyWallsCardInner({
                 </Text>
               </Box>
             ) : breakEvent ? (
-              <Box style={{ "padding-left": `${REPORT_PAD.sm}px`, borderLeft: `2px solid ${palette.NEGATIVE}`, display: "flex", "flex-direction": "column", gap: `${REPORT_PAD.xs}px` }}>
+              <Box style={{ "padding-left": `${REPORT_PAD.sm}px`, "border-left": `2px solid ${palette.NEGATIVE}`, display: "flex", "flex-direction": "column", gap: `${REPORT_PAD.xs}px` }}>
                 <Stack direction="row" spacing={1} className="items-center flex-wrap" style={{ "align-items": "center", "flex-wrap": "wrap", "row-gap": `${REPORT_PAD.xs}px` }}>
                   <Text
                     size="xs"
@@ -1065,7 +1065,7 @@ export function NiftyWallsCardInner({
                       "font-size": REPORT_FONT.xs,
                       "font-weight": REPORT_FONT_WEIGHT.extrabold,
                       color: palette.NEGATIVE,
-                      fontVariantNumeric: "tabular-nums",
+                      "font-variant-numeric": "tabular-nums",
                     }}
                   >
                     {breakEvent.at.slice(11, 19)} · {fmtNum(breakEvent.wall)}
@@ -1105,7 +1105,7 @@ export function NiftyWallsCardInner({
                         "font-size": REPORT_FONT.xs,
                         "font-weight": REPORT_FONT_WEIGHT.bold,
                         color: palette.WARNING,
-                        fontVariantNumeric: "tabular-nums",
+                        "font-variant-numeric": "tabular-nums",
                       }}
                     >
                       {lastBreak.at.slice(11, 19)} · {fmtNum(lastBreak.wall)}
@@ -1139,7 +1139,7 @@ export function NiftyWallsCardInner({
             <SequenceLine events={events} />
           </Box>
 
-          <Box style={{ "min-width": 0, borderLeft: `1px solid ${palette.BORDER}`, "padding-left": `${REPORT_PAD.sm}px` }}>
+          <Box style={{ "min-width": 0, "border-left": `1px solid ${palette.BORDER}`, "padding-left": `${REPORT_PAD.sm}px` }}>
             <Text
               size="xs"
               span

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { Tabs } from "@/ui";
@@ -14,13 +14,13 @@ afterEach(() => {
 });
 
 function renderInTabs(isOrb = true) {
-  return render(
+  return render(() => (
     <UIProvider>
       <Tabs value="runner">
         <RunnerPanel initialValues={DEFAULT_VALUES} isOrb={isOrb} />
       </Tabs>
-    </UIProvider>,
-  );
+    </UIProvider>
+  ));
 }
 
 describe("RunnerPanel", () => {

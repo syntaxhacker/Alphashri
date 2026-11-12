@@ -230,7 +230,7 @@ export function NiftySqueezeRadarInner({
         border: `1px solid ${palette.TERM_BORDER}`,
         "border-radius": 4,
         "background-color": palette.TERM_HEADER,
-        fontFamily: palette.MONO,
+        "font-family": palette.MONO,
       }}
     >
       {/* Row 1: title, stage, wall, proximity */}

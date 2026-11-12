@@ -1,9 +1,10 @@
 import { createEffect, createSignal } from "solid-js";
-import { Box, Group, MultiSelect, Tooltip, Badge, ActionIcon, useDebouncedValue } from "@/ui";
+import { MultiSelect, Tooltip, Badge, ActionIcon, useDebouncedValue } from "@/ui";
 import { IconX, IconChevronDown, IconChevronUp } from "@/components/common/Icons";
 import * as palette from "@/ui/palette";
 import { searchSymbols } from "../../api/symbols";
 import { For } from "solid-js";
+import { Box, Group } from "../paper-trading/primitives";
 
 const MAX_VISIBLE_CHIPS = 5;
 

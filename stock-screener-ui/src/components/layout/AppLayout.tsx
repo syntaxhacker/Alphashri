@@ -1,51 +1,52 @@
-import { useLocation } from "react-router-dom";
-import { useCallback, useEffect, useState } from "react";
+import { Show, createEffect, createSignal, onCleanup, type JSX } from "solid-js";
+import { useLocation } from "@solidjs/router";
 import { useDisclosure } from "@/ui/hooks";
 import { Box, Divider, ActionIcon } from "@/ui";
 import * as palette from "@/ui/palette";
 import { useMediaQuery } from "@/ui/hooks";
-import { IconMenu2 } from "@tabler/icons-react";
+import { IconMenu2 } from "../common/Icons";
 import { NavbarNested } from "./NavbarNested";
 import { SidebarHeader } from "./SidebarHeader";
 import { NotificationsPanel, useSurgeAlertTotal } from "../notifications/NotificationsPanel";
 
 interface AppLayoutProps {
-  children: React.ReactNode;
+  children?: JSX.Element;
 }
 
 const MD_BREAKPOINT = "(min-width: 900px)";
 
-export function AppLayout({ children }: AppLayoutProps) {
+export function AppLayout(props: AppLayoutProps) {
   const location = useLocation();
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure();
   const [desktopCollapsed, { toggle: toggleDesktop }] = useDisclosure(false);
   // Only one navigation tree is mounted at a time: the hidden permanent drawer
   // used to keep all 19 links (and the news poller) alive on phones.
   const isDesktop = useMediaQuery(MD_BREAKPOINT, undefined, { noSsr: true });
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [notifRefreshKey, setNotifRefreshKey] = useState(0);
+  const [notifOpen, setNotifOpen] = createSignal(false);
+  const [notifRefreshKey, setNotifRefreshKey] = createSignal(0);
+  // Read-through accessor: the surge total refetches when the key bumps.
   const surgeTotal = useSurgeAlertTotal(notifRefreshKey);
-  const navWidth = desktopCollapsed ? 64 : 200;
+  const navWidth = () => (desktopCollapsed() ? 64 : 200);
 
   // The desk dock drawer is portaled to <body>, outside #app-shell; publish the
   // nav width on the root so the bottom sheet aligns with the main column.
-  useEffect(() => {
-    document.documentElement.style.setProperty("--app-nav-width", `${navWidth}px`);
-    return () => {
+  createEffect(() => {
+    document.documentElement.style.setProperty("--app-nav-width", `${navWidth()}px`);
+    onCleanup(() => {
       document.documentElement.style.removeProperty("--app-nav-width");
-    };
-  }, [navWidth]);
+    });
+  });
 
-  const handleNotifOpen = useCallback(() => setNotifOpen(true), []);
-  const handleNotifClose = useCallback(() => {
+  const handleNotifOpen = () => setNotifOpen(true);
+  const handleNotifClose = () => {
     setNotifOpen(false);
     setNotifRefreshKey((key) => key + 1);
-  }, []);
+  };
 
-  const drawerContent = (
+  const drawerContent = () => (
     <NavbarNested
       activePath={location.pathname}
-      collapsed={desktopCollapsed}
+      collapsed={desktopCollapsed()}
       onMobileNavigate={closeMobile}
     />
   );
@@ -65,7 +66,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         data-testid="app-mobile-nav-toggle"
         className="rounded-fin border border-fin-border shadow-sm"
         style={{
-          display: isDesktop ? "none" : "inline-flex",
+          display: isDesktop() ? "none" : "inline-flex",
           position: "fixed",
           top: 8,
           left: 8,
@@ -80,12 +81,12 @@ export function AppLayout({ children }: AppLayoutProps) {
         <IconMenu2 size={18} />
       </ActionIcon>
 
-      <NotificationsPanel opened={notifOpen} onClose={handleNotifClose} />
+      <NotificationsPanel opened={notifOpen()} onClose={handleNotifClose} />
 
-      {!isDesktop ? (
+      <Show when={!isDesktop()}>
         <div
           style={{
-            display: mobileOpened ? "block" : "none",
+            display: mobileOpened() ? "block" : "none",
             position: "fixed",
             top: 0,
             left: 0,
@@ -97,22 +98,22 @@ export function AppLayout({ children }: AppLayoutProps) {
         >
           <SidebarHeader
             mobile
-            surgeTotal={surgeTotal}
+            surgeTotal={surgeTotal()}
             onToggleCollapse={toggleDesktop}
             onOpenNotifications={handleNotifOpen}
           />
           <Divider />
-          {drawerContent}
+          {drawerContent()}
         </div>
-      ) : null}
+      </Show>
 
-      {isDesktop ? (
+      <Show when={isDesktop()}>
         <div
           id="app-navbar"
           data-testid="app-navbar"
           style={{
             display: "block",
-            width: navWidth,
+            width: navWidth(),
             "flex-shrink": 0,
             transition: "width 0.2s ease-in-out",
             overflow: "hidden",
@@ -120,14 +121,14 @@ export function AppLayout({ children }: AppLayoutProps) {
         >
           <SidebarHeader
             rail={desktopCollapsed}
-            surgeTotal={surgeTotal}
+            surgeTotal={surgeTotal()}
             onToggleCollapse={toggleDesktop}
             onOpenNotifications={handleNotifOpen}
           />
           <Divider />
-          {drawerContent}
+          {drawerContent()}
         </div>
-      ) : null}
+      </Show>
 
       <Box
         component="main"
@@ -156,7 +157,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             margin: 0,
           }}
         >
-          {children}
+          {props.children}
         </Box>
       </Box>
     </Box>

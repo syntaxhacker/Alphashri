@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "@solidjs/router";
 import NewsPage from "@/pages/NewsPage";
 
 const meta: Meta<typeof NewsPage> = {

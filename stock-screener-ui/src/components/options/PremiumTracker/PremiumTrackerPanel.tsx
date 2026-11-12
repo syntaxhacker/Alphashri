@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { onMount, createEffect, createMemo, createSignal, Show, For } from "solid-js";
 import { Box, Stack } from "@/ui";
 import { Alert, Badge, Button, Divider, Loader, Text, ToolbarRow } from "@/ui";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../../common/compact";
@@ -47,34 +47,37 @@ function fmt(value: number | null, suffix = "", digits = 2): string {
   return `${value.toFixed(digits)}${suffix}`;
 }
 
-function LegBlock({ leg }: { leg: PremiumLeg }) {
+function LegBlock(props: { leg: PremiumLeg }) {
+  const leg = () => props.leg;
   return (
-    <Box data-testid={`premium-leg-${leg.underlying}`} w="100%">
-      <ToolbarRow gap={8} data-testid={`premium-leg-header-${leg.underlying}`}>
+    <Box data-testid={`premium-leg-${leg().underlying}`} w="100%">
+      <ToolbarRow gap={8} data-testid={`premium-leg-header-${leg().underlying}`}>
         <Text size="md" fw={700}>
-          {leg.underlying}
+          {leg().underlying}
         </Text>
-        <Badge color={verdictColor(leg.verdict)} size="xs" data-testid={`premium-verdict-${leg.underlying}`}>
-          {leg.verdict}
+        <Badge color={verdictColor(leg().verdict)} size="xs" data-testid={`premium-verdict-${leg().underlying}`}>
+          {leg().verdict}
         </Badge>
-        {leg.error ? (
+        <Show when={leg().error} fallback={
           <Text size="xs" className="text-fin-text-muted">
-            {leg.error}
+            Spot {fmt(leg().spot ?? null, "", 0)} · ATM {fmt(leg().atm_strike ?? null, "", 0)} · DTE {leg().dte_days ?? "—"}
           </Text>
-        ) : (
-          <Text size="xs" className="text-fin-text-muted">
-            Spot {fmt(leg.spot, "", 0)} · ATM {fmt(leg.atm_strike, "", 0)} · DTE {leg.dte_days ?? "—"}
-          </Text>
-        )}
+        }>
+          {(err) => (
+            <Text size="xs" className="text-fin-text-muted">
+              {err()}
+            </Text>
+          )}
+        </Show>
       </ToolbarRow>
-      {!leg.error && (
+      <Show when={!leg().error}>
         <CompactStatGrid>
-          <CompactStat label="Straddle" value={`${fmt(leg.straddle_pct, "%")}`} hint={`₹${fmt(leg.straddle_price, "", 0)}`} valueSize="md" />
-          <CompactStat label="IV / HV" value={`${fmt(leg.iv_hv_ratio, "x")}`} hint={`IV ${fmt(leg.ce_iv_pct, "%", 1)} / HV ${fmt(leg.hv20_ann_pct, "%", 1)}`} valueSize="md" />
-          <CompactStat label="HV daily" value={`${fmt(leg.hv20_daily_pct, "%")}`} hint="20-day realized" valueSize="md" />
-          <CompactStat label="Avg range" value={`${fmt(leg.avg_range20_pct, "%")}`} hint="20-day H-L" valueSize="md" />
+          <CompactStat label="Straddle" value={`${fmt(leg().straddle_pct ?? null, "%")}`} hint={`₹${fmt(leg().straddle_price ?? null, "", 0)}`} valueSize="md" />
+          <CompactStat label="IV / HV" value={`${fmt(leg().iv_hv_ratio ?? null, "x")}`} hint={`IV ${fmt(leg().ce_iv_pct ?? null, "%", 1)} / HV ${fmt(leg().hv20_ann_pct ?? null, "%", 1)}`} valueSize="md" />
+          <CompactStat label="HV daily" value={`${fmt(leg().hv20_daily_pct ?? null, "%")}`} hint="20-day realized" valueSize="md" />
+          <CompactStat label="Avg range" value={`${fmt(leg().avg_range20_pct ?? null, "%")}`} hint="20-day H-L" valueSize="md" />
         </CompactStatGrid>
-      )}
+      </Show>
     </Box>
   );
 }
@@ -99,17 +102,17 @@ const CHECKS = [
   "Costly + chop = sell spreads. Cheap + morning range = buy ATM, exit same day.",
 ];
 
-export function PremiumTrackerPanel({ strikeMatrix = [], selectedUnderlying = "NIFTY" }: PremiumTrackerPanelProps) {
-  const [legs, setLegs] = useState<PremiumLeg[]>([]);
-  const [asOf, setAsOf] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [trades, setTrades] = useState<PaperTrade[]>(() => loadPaperTrades());
-  const [setups, setSetups] = useState<PaperSetup[]>(() => loadSetups());
-  const [buyUnderlying, setBuyUnderlying] = useState<"NIFTY" | "BANKNIFTY">("NIFTY");
-  const [sellUnderlying, setSellUnderlying] = useState<"NIFTY" | "BANKNIFTY">("NIFTY");
+export function PremiumTrackerPanel(props: PremiumTrackerPanelProps) {
+  const [legs, setLegs] = createSignal<PremiumLeg[]>([]);
+  const [asOf, setAsOf] = createSignal<string | null>(null);
+  const [loading, setLoading] = createSignal(true);
+  const [error, setError] = createSignal<string | null>(null);
+  const [trades, setTrades] = createSignal<PaperTrade[]>(loadPaperTrades());
+  const [setups, setSetups] = createSignal<PaperSetup[]>(loadSetups());
+  const [buyUnderlying, setBuyUnderlying] = createSignal<"NIFTY" | "BANKNIFTY">("NIFTY");
+  const [sellUnderlying, setSellUnderlying] = createSignal<"NIFTY" | "BANKNIFTY">("NIFTY");
 
-  const refresh = useCallback(async () => {
+  const refresh = async () => {
     setLoading(true);
     setError(null);
     try {
@@ -121,62 +124,52 @@ export function PremiumTrackerPanel({ strikeMatrix = [], selectedUnderlying = "N
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  onMount(() => {
+    void refresh();
+  });
 
-  useEffect(() => {
-    savePaperTrades(trades);
-  }, [trades]);
+  createEffect(() => {
+    savePaperTrades(trades());
+  });
 
-  useEffect(() => {
-    saveSetups(setups);
-  }, [setups]);
+  createEffect(() => {
+    saveSetups(setups());
+  });
 
-  const spotOf = useCallback(
-    (u: "NIFTY" | "BANKNIFTY"): number | null => {
-      const leg = legs.find((l) => l.underlying === u);
-      return leg?.spot ?? null;
-    },
-    [legs],
-  );
+  const spotOf = (u: "NIFTY" | "BANKNIFTY"): number | null => {
+    const leg = legs().find((l) => l.underlying === u);
+    return leg?.spot ?? null;
+  };
 
-  const ltpOf = useCallback(
-    (u: "NIFTY" | "BANKNIFTY", strike: number, optionType: "CE" | "PE"): number | null => {
-      if (u !== selectedUnderlying) return null;
-      const row = strikeMatrix.find((r) => r.strike === strike);
-      const contract = optionType === "CE" ? row?.ce : row?.pe;
-      const ltp = contract?.market_data?.ltp;
-      return typeof ltp === "number" ? ltp : null;
-    },
-    [strikeMatrix, selectedUnderlying],
-  );
+  const ltpOf = (u: "NIFTY" | "BANKNIFTY", strike: number, optionType: "CE" | "PE"): number | null => {
+    if (u !== (props.selectedUnderlying ?? "NIFTY")) return null;
+    const row = (props.strikeMatrix ?? []).find((r) => r.strike === strike);
+    const contract = optionType === "CE" ? row?.ce : row?.pe;
+    const ltp = contract?.market_data?.ltp;
+    return typeof ltp === "number" ? ltp : null;
+  };
 
-  const glowSide = useMemo(() => {
-    const sell = legs.some((l) => l.verdict === "EXPENSIVE");
-    const buy = legs.some((l) => l.verdict === "CHEAP");
+  const glowSide = createMemo(() => {
+    const sell = legs().some((l) => l.verdict === "EXPENSIVE");
+    const buy = legs().some((l) => l.verdict === "CHEAP");
     return { buy, sell };
-  }, [legs]);
+  });
 
-  const addSetup = useCallback((setup: PaperSetup) => {
-    setSetups((prev) => [...prev, setup]);
-  }, []);
+  const addSetup = (setup: PaperSetup) => setSetups((prev) => [...prev, setup]);
 
-  const updateLeg = useCallback((setupId: string, legId: string, patch: Partial<SetupLeg>) => {
+  const updateLeg = (setupId: string, legId: string, patch: Partial<SetupLeg>) => {
     setSetups((prev) =>
       prev.map((s) =>
         s.id === setupId ? { ...s, legs: s.legs.map((l) => (l.legId === legId ? { ...l, ...patch } : l)) } : s,
       ),
     );
-  }, []);
+  };
 
-  const deleteSetup = useCallback((setupId: string) => {
-    setSetups((prev) => prev.filter((s) => s.id !== setupId));
-  }, []);
+  const deleteSetup = (setupId: string) => setSetups((prev) => prev.filter((s) => s.id !== setupId));
 
-  const paperFill = useCallback((setup: PaperSetup, info: { conviction: Conviction; plan: string }) => {
+  const paperFill = (setup: PaperSetup, info: { conviction: Conviction; plan: string }) => {
     const today = new Date().toISOString().slice(0, 10);
     const fills = setup.legs.map((leg) =>
       newPaperTrade({
@@ -192,60 +185,63 @@ export function PremiumTrackerPanel({ strikeMatrix = [], selectedUnderlying = "N
       }),
     );
     setTrades((prev) => [...prev, ...fills]);
-  }, []);
+  };
 
-  const setExit = useCallback((id: string, exitValue: number) => {
+  const setExit = (id: string, exitValue: number) => {
     setTrades((prev) => updateTrade(prev, id, { exit: exitValue }));
-  }, []);
+  };
 
-  const deleteTrade = useCallback((id: string) => {
-    setTrades((prev) => prev.filter((t) => t.id !== id));
-  }, []);
+  const deleteTrade = (id: string) => setTrades((prev) => prev.filter((t) => t.id !== id));
 
-  const updateTradeFields = useCallback((id: string, patch: Partial<Omit<PaperTrade, "id">>) => {
+  const updateTradeFields = (id: string, patch: Partial<Omit<PaperTrade, "id">>) => {
     setTrades((prev) => updateTrade(prev, id, patch));
-  }, []);
+  };
 
   return (
     <Stack spacing={1} w="100%" data-testid="premium-tracker-panel">
       <CompactPanel
         title="Premium Tracker"
-        description={asOf ? `Snapshot ${formatSnapshotTime(asOf)}` : "Cheap vs expensive + paper setups"}
+        description={asOf() ? `Snapshot ${formatSnapshotTime(asOf())}` : "Cheap vs expensive + paper setups"}
         testId="premium-snapshot-panel"
         action={
-          <Button size="sm" onClick={refresh} data-testid="premium-refresh">
+          <Button size="sm" onClick={() => void refresh()} data-testid="premium-refresh">
             Refresh
           </Button>
         }
       >
-        {loading && (
+        <Show when={loading()}>
           <ToolbarRow data-testid="premium-loading">
             <Loader size="sm" />
             <Text size="sm" className="text-fin-text-muted">Loading premium snapshot...</Text>
           </ToolbarRow>
-        )}
-        {error && (
-          <Alert color="error" data-testid="premium-error">{error}</Alert>
-        )}
-        {!loading && !error && legs.length === 0 && (
-          <Text size="sm" className="text-fin-text-muted" data-testid="premium-empty">No snapshot data.</Text>
-        )}
-        {!loading && !error && legs.length > 0 && (
-          <Box className="flex flex-wrap gap-[8px]">
-            {legs.map((leg) => (
-              <Box key={leg.underlying} className="w-full sm:w-1/2">
-                <LegBlock leg={leg} />
-              </Box>
-            ))}
-          </Box>
-        )}
+        </Show>
+        <Show when={!loading() && error()}>
+          <Alert color="error" data-testid="premium-error">{error()}</Alert>
+        </Show>
+        <Show when={!loading() && !error()}>
+          <Show when={legs().length === 0} fallback={
+            <Box className="flex flex-wrap gap-[8px]">
+              <For each={legs()}>
+                {(leg) => (
+                  <Box className="w-full sm:w-1/2">
+                    <LegBlock leg={leg} />
+                  </Box>
+                )}
+              </For>
+            </Box>
+          }>
+            <Text size="sm" className="text-fin-text-muted" data-testid="premium-empty">No snapshot data.</Text>
+          </Show>
+        </Show>
         <Divider data-testid="premium-checks-divider" />
-        <ul style={{ margin: 0, "padding-left": 16, width: "100%" }} data-testid="premium-checks">
-          {CHECKS.map((check) => (
-            <li key={check}>
-              <Text size="xs" className="text-fin-text-muted">{check}</Text>
-            </li>
-          ))}
+        <ul style={{ margin: 0, "padding-left": "16px", width: "100%" }} data-testid="premium-checks">
+          <For each={CHECKS}>
+            {(check) => (
+              <li>
+                <Text size="xs" className="text-fin-text-muted">{check}</Text>
+              </li>
+            )}
+          </For>
         </ul>
       </CompactPanel>
 
@@ -258,9 +254,9 @@ export function PremiumTrackerPanel({ strikeMatrix = [], selectedUnderlying = "N
           side="BUY"
           title="BUYING strategies"
           hint="Long premium — max loss is the debit you pay"
-          glow={glowSide.buy}
-          setups={setups}
-          underlying={buyUnderlying}
+          glow={glowSide().buy}
+          setups={setups()}
+          underlying={buyUnderlying()}
           onUnderlyingChange={setBuyUnderlying}
           spotOf={spotOf}
           ltpOf={ltpOf}
@@ -274,9 +270,9 @@ export function PremiumTrackerPanel({ strikeMatrix = [], selectedUnderlying = "N
           side="SELL"
           title="SELLING strategies"
           hint="Short premium, always hedged — never naked"
-          glow={glowSide.sell}
-          setups={setups}
-          underlying={sellUnderlying}
+          glow={glowSide().sell}
+          setups={setups()}
+          underlying={sellUnderlying()}
           onUnderlyingChange={setSellUnderlying}
           spotOf={spotOf}
           ltpOf={ltpOf}
@@ -293,7 +289,7 @@ export function PremiumTrackerPanel({ strikeMatrix = [], selectedUnderlying = "N
         testId="premium-diary-panel"
       >
         <DiaryStrip
-          trades={trades}
+          trades={trades()}
           onSetExit={setExit}
           onDelete={deleteTrade}
           onUpdateTrade={updateTradeFields}

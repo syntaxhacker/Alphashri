@@ -1,6 +1,11 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import {
+  For,
+  Show,
+  createEffect,
+  createSignal,
+  onCleanup,
+} from "solid-js";
+import { Markdown } from "./Markdown";
 import {
   ActionIcon,
   Box,
@@ -16,23 +21,8 @@ import {
   Collapse,
   NavLink,
   Divider,
-  Code,
-  Title,
-  Anchor,
 } from "@/ui";
-import {
-  IconMessage,
-  IconSend,
-  IconX,
-  IconRobot,
-  IconUser,
-  IconHistory,
-  IconTrash,
-  IconPlus,
-  IconSearch,
-  IconArrowsMaximize,
-  IconArrowsMinimize,
-} from "@tabler/icons-react";
+import { IconMessage, IconSend, IconX, IconRobot, IconUser, IconHistory, IconTrash, IconPlus, IconSearch, IconArrowsMaximize, IconArrowsMinimize } from "./Icons";
 import { BLACK } from "../../config/colors";
 import {
   checkTradingAgentsHealth,
@@ -72,106 +62,46 @@ function withAlpha(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-const mdComponents = {
-  h1: ({ children }: any) => (
-    <Title order={1} size="lg" mt="xs" mb={2}>
-      {children}
-    </Title>
-  ),
-  h2: ({ children }: any) => (
-    <Title order={2} size="md" mt="xs" mb={2}>
-      {children}
-    </Title>
-  ),
-  h3: ({ children }: any) => (
-    <Title order={3} size="sm" mt="xs" mb={2}>
-      {children}
-    </Title>
-  ),
-  p: ({ children }: any) => (
-    <Text size="sm" mb={2} style={{ "line-height": 1.5 }}>
-      {children}
-    </Text>
-  ),
-  code: ({ children }: any) => <Code style={{ "font-size": 11 }}>{children}</Code>,
-  a: ({ href, children }: any) => (
-    <Anchor href={href} size="sm">
-      {children}
-    </Anchor>
-  ),
-  ul: ({ children }: any) => (
-    <Box component="ul" ml="md" mb={2}>
-      {children}
-    </Box>
-  ),
-  ol: ({ children }: any) => (
-    <Box component="ol" ml="md" mb={2}>
-      {children}
-    </Box>
-  ),
-  li: ({ children }: any) => (
-    <Text component="li" size="sm" mb={1}>
-      {children}
-    </Text>
-  ),
-  strong: ({ children }: any) => (
-    <Text component="strong" fw={700}>
-      {children}
-    </Text>
-  ),
-  table: ({ children }: any) => (
-    <Box
-      component="table"
-      style={{ width: "100%", borderCollapse: "collapse", "font-size": 11, "margin-bottom": 4 }}
-    >
-      {children}
-    </Box>
-  ),
-  th: ({ children }: any) => (
-    <Box component="th" className="p-4 font-semibold">
-      {children}
-    </Box>
-  ),
-  td: ({ children }: any) => (
-    <Box component="td" className="p-4">
-      {children}
-    </Box>
-  ),
-};
 
 export function ChatPopup() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [agentProgress, setAgentProgress] = useState<AgentProgress[]>([]);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConvo, setActiveConvo] = useState<string | null>(null);
-  const [showHistory, setShowHistory] = useState(false);
-  const [expanded, setExpanded] = useState(false);
-  const [toolCalls, setToolCalls] = useState<
+  const [isOpen, setIsOpen] = createSignal(false);
+  const [messages, setMessages] = createSignal<Message[]>([]);
+  const [input, setInput] = createSignal("");
+  const [isLoading, setIsLoading] = createSignal(false);
+  const [isAvailable, setIsAvailable] = createSignal<boolean | null>(null);
+  const [progress, setProgress] = createSignal(0);
+  const [agentProgress, setAgentProgress] = createSignal<AgentProgress[]>([]);
+  const [conversations, setConversations] = createSignal<Conversation[]>([]);
+  const [activeConvo, setActiveConvo] = createSignal<string | null>(null);
+  const [showHistory, setShowHistory] = createSignal(false);
+  const [expanded, setExpanded] = createSignal(false);
+  const [toolCalls, setToolCalls] = createSignal<
     Array<{ tool: string; agent: string; args?: unknown }>
   >([]);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  let messagesEndRef: HTMLDivElement | undefined;
+  let abortController: AbortController | null = null;
 
-  useEffect(() => {
-    if (isOpen && isAvailable === null) {
+  createEffect(() => {
+    if (isOpen() && isAvailable() === null) {
       checkTradingAgentsHealth()
         .then((health) => {
           setIsAvailable(health.tradingagents_available);
-          if (health.tradingagents_available) loadConversations();
+          if (health.tradingagents_available) void loadConversations();
         })
         .catch(() => setIsAvailable(false));
     }
-  }, [isOpen]);
+  });
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  createEffect(() => {
+    // Track message appends so the conversation auto-scrolls to the bottom.
+    messages();
+    messagesEndRef?.scrollIntoView({ behavior: "smooth" });
+  });
+
+  onCleanup(() => {
+    abortController?.abort();
+  });
 
   const loadConversations = async () => {
     try {
@@ -205,35 +135,36 @@ export function ChatPopup() {
     } catch {}
   };
 
-  const handleDeleteConversation = async (convoId: string, e: React.MouseEvent) => {
+  const handleDeleteConversation = async (convoId: string, e: MouseEvent) => {
     e.stopPropagation();
     try {
       await deleteConversation(convoId);
       setConversations((prev) => prev.filter((c) => c.id !== convoId));
-      if (activeConvo === convoId) {
+      if (activeConvo() === convoId) {
         setActiveConvo(null);
         setMessages([]);
       }
     } catch {}
   };
 
-  const addLocalMessage = useCallback(
-    (role: "user" | "assistant", content: string, analysis?: Message["analysis"]) => {
-      const newMessage: Message = {
-        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        role,
-        content,
-        timestamp: new Date(),
-        analysis,
-      };
-      setMessages((prev) => [...prev, newMessage]);
-      return newMessage;
-    },
-    [],
-  );
+  const addLocalMessage = (
+    role: "user" | "assistant",
+    content: string,
+    analysis?: Message["analysis"],
+  ) => {
+    const newMessage: Message = {
+      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      role,
+      content,
+      timestamp: new Date(),
+      analysis,
+    };
+    setMessages((prev) => [...prev, newMessage]);
+    return newMessage;
+  };
 
   const saveMessage = async (role: string, content: string, tickerVal?: string) => {
-    let convoId = activeConvo;
+    let convoId = activeConvo();
     if (!convoId) {
       const convo = await createConversation();
       convoId = convo.id;
@@ -244,9 +175,9 @@ export function ChatPopup() {
   };
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input().trim() || isLoading()) return;
 
-    const userMessage = input.trim();
+    const userMessage = input().trim();
     setInput("");
 
     addLocalMessage("user", userMessage);
@@ -274,7 +205,7 @@ export function ChatPopup() {
         ]);
         addLocalMessage("assistant", resp.response);
 
-        abortControllerRef.current = new AbortController();
+        abortController = new AbortController();
         console.log("Starting stream for", extractedTicker);
         const generator = streamStockAnalysis(extractedTicker, {
           analysts: ["market", "news", "fundamentals"],
@@ -342,10 +273,10 @@ export function ChatPopup() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      void handleSend();
     }
   };
 
@@ -370,24 +301,24 @@ export function ChatPopup() {
         }}
         data-testid="chat-popup-toggle"
       >
-        {isOpen ? <IconX size={24} /> : <IconMessage size={24} />}
+        {isOpen() ? <IconX size={24} /> : <IconMessage size={24} />}
       </ActionIcon>
 
-      <Collapse in={isOpen}>
+      <Collapse in={isOpen()}>
         <Paper
           shadow="lg"
           style={{
             position: "fixed",
-            bottom: expanded ? 10 : 90,
-            right: expanded ? 10 : 20,
-            width: expanded ? "calc(100vw - 280px)" : 400,
-            "max-width": expanded ? 900 : 400,
-            height: expanded ? "calc(100vh - 20px)" : 520,
+            bottom: expanded() ? 10 : 90,
+            right: expanded() ? 10 : 20,
+            width: expanded() ? "calc(100vw - 280px)" : 400,
+            "max-width": expanded() ? 900 : 400,
+            height: expanded() ? "calc(100vh - 20px)" : 520,
             "z-index": 1000,
             display: "flex",
             "flex-direction": "column",
             transition: "all 0.2s ease",
-            resize: expanded ? "none" : "both",
+            resize: expanded() ? "none" : "both",
             overflow: "auto",
             "min-width": 320,
             "min-height": 400,
@@ -403,38 +334,34 @@ export function ChatPopup() {
                 </Text>
               </Group>
               <Group gap={4}>
-                {isAvailable && (
-                  <>
-                    <ActionIcon variant="subtle" size="sm" onClick={() => setExpanded((p) => !p)} data-testid="chat-expand-btn">
-                      {expanded ? (
-                        <IconArrowsMinimize size={16} />
-                      ) : (
-                        <IconArrowsMaximize size={16} />
-                      )}
-                    </ActionIcon>
-                    <ActionIcon
-                      variant="subtle"
-                      size="sm"
-                      data-testid="chat-history-btn"
-                      onClick={() => {
-                        setShowHistory((p) => !p);
-                        loadConversations();
-                      }}
-                    >
-                      <IconHistory size={16} />
-                    </ActionIcon>
-                  </>
-                )}
-                {isAvailable === false && (
+                <Show when={isAvailable()}>
+                  <ActionIcon variant="subtle" size="sm" onClick={() => setExpanded((p) => !p)} data-testid="chat-expand-btn">
+                    <Show when={expanded()} fallback={<IconArrowsMaximize size={16} />}>
+                      <IconArrowsMinimize size={16} />
+                    </Show>
+                  </ActionIcon>
+                  <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    data-testid="chat-history-btn"
+                    onClick={() => {
+                      setShowHistory((p) => !p);
+                      void loadConversations();
+                    }}
+                  >
+                    <IconHistory size={16} />
+                  </ActionIcon>
+                </Show>
+                <Show when={isAvailable() === false}>
                   <Badge size="xs" color="error">
                     Unavailable
                   </Badge>
-                )}
+                </Show>
               </Group>
             </Group>
           </Box>
 
-          <Collapse in={showHistory}>
+          <Collapse in={showHistory()}>
             <Box className="max-h-[180px] overflow-y-auto">
               <Group p="xs" justify="space-between">
                 <Text size="xs" fw={600}>
@@ -444,14 +371,14 @@ export function ChatPopup() {
                   <IconPlus size={14} />
                 </ActionIcon>
               </Group>
-              {conversations.length === 0 ? (
+              <Show when={conversations().length === 0}>
                 <Text size="xs" c="dimmed" ta="center" py="sm">
                   No saved conversations
                 </Text>
-              ) : (
-                conversations.map((c) => (
+              </Show>
+              <Show when={conversations().length > 0}>
+                <For each={conversations()}>{(c) => (
                   <NavLink
-                    key={c.id}
                     label={
                       <Group justify="space-between">
                         <Text size="xs" lineClamp={1}>
@@ -468,30 +395,30 @@ export function ChatPopup() {
                         </ActionIcon>
                       </Group>
                     }
-                    active={activeConvo === c.id}
-                    onClick={() => switchConversation(c.id)}
+                    active={activeConvo() === c.id}
+                    onClick={() => void switchConversation(c.id)}
                     style={{ padding: "4px 8px" }}
                   />
-                ))
-              )}
+                )}</For>
+              </Show>
               <Divider />
             </Box>
           </Collapse>
 
-          {isLoading && (
+          <Show when={isLoading()}>
             <Box px="sm" pt="xs">
               <Group gap="xs" mb={4}>
                 <Text size="xs" c="dimmed">
                   Analyzing...
                 </Text>
                 <Text size="xs" fw={600}>
-                  {progress}%
+                  {progress()}%
                 </Text>
               </Group>
-              <Progress value={progress} size="sm" animated />
+              <Progress value={progress()} size="sm" animated />
               <Stack gap={2} mt={4}>
-                {agentProgress.map((agent) => (
-                  <Group key={agent.agent} gap={4}>
+                <For each={agentProgress()}>{(agent) => (
+                  <Group gap={4}>
                     <Box
                       className={`h-2 w-2 rounded-full ${
                         agent.status === "completed"
@@ -505,17 +432,17 @@ export function ChatPopup() {
                       {agent.agent}
                     </Text>
                   </Group>
-                ))}
+                )}</For>
               </Stack>
-              {toolCalls.length > 0 && (
+              <Show when={toolCalls().length > 0}>
                 <Box mt={4}>
                   <Text size="xs" fw={600} c="dimmed" mb={2}>
                     Tool Calls
                   </Text>
                   <ScrollArea style={{ "max-height": 100 }}>
                     <Stack gap={2}>
-                      {toolCalls.map((tc, i) => (
-                        <Group key={`${tc.tool}-${tc.agent}-${i}`} gap={4}>
+                      <For each={toolCalls()}>{(tc, i) => (
+                        <Group gap={4}>
                           <IconSearch size={10} />
                           <Text size="xs" c="dimmed" lineClamp={1}>
                             {tc.tool}
@@ -524,16 +451,16 @@ export function ChatPopup() {
                             {tc.agent}
                           </Text>
                         </Group>
-                      ))}
+                      )}</For>
                     </Stack>
                   </ScrollArea>
                 </Box>
-              )}
+              </Show>
             </Box>
-          )}
+          </Show>
 
           <ScrollArea style={{ flex: 1 }} p="sm">
-            {messages.length === 0 ? (
+            <Show when={messages().length > 0} fallback={(
               <Stack gap={4} align="center" py="xl">
                 <Text size="sm" c="dimmed" ta="center" component="div">
                   Ask me to analyze a stock!
@@ -542,11 +469,10 @@ export function ChatPopup() {
                   Try: &quot;Analyze NVDA&quot; or &quot;NVDA report&quot;
                 </Text>
               </Stack>
-            ) : (
+            )}>
               <Stack gap="sm">
-                {messages.map((msg) => (
+                <For each={messages()}>{(msg) => (
                   <Box
-                    key={msg.id}
                     style={{
                       display: "flex",
                       "justify-content": msg.role === "user" ? "flex-end" : "flex-start",
@@ -558,83 +484,79 @@ export function ChatPopup() {
                       className={msg.role === "user" ? "max-w-[85%] bg-fin-primary/12" : "max-w-[85%]"}
                     >
                       <Group gap={4} mb={4}>
-                        {msg.role === "user" ? <IconUser size={14} /> : <IconRobot size={14} />}
+                        <Show when={msg.role === "user"} fallback={<IconRobot size={14} />}>
+                          <IconUser size={14} />
+                        </Show>
                         <Text size="xs" c="dimmed">
                           {msg.role === "user" ? "You" : "Assistant"}
                         </Text>
                       </Group>
-                      <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]}>
-                        {msg.content}
-                      </ReactMarkdown>
-                      {msg.analysis && (
+                      <Markdown content={msg.content} />
+                      <Show when={msg.analysis}>
+                        {(analysis) => (
                         <Stack gap={4} mt="xs">
                           <Group gap={4}>
                             <Badge size="xs" color="primary">
-                              {msg.analysis.ticker}
+                              {analysis().ticker}
                             </Badge>
                             <Badge
                               size="xs"
                               color={
-                                msg.analysis.decision === "BUY"
+                                analysis().decision === "BUY"
                                   ? "success"
-                                  : msg.analysis.decision === "SELL"
+                                  : analysis().decision === "SELL"
                                     ? "error"
                                     : "warning"
                               }
                             >
-                              {msg.analysis.decision}
+                              {analysis().decision}
                             </Badge>
                           </Group>
-                          {msg.analysis.reports && Object.keys(msg.analysis.reports).length > 0 && (
+                          <Show when={analysis().reports && Object.keys(analysis().reports!).length > 0}>
                             <Stack gap={2}>
-                              {Object.entries(msg.analysis.reports).map(([section, content]) => (
-                                  <Paper
-                                    key={section}
-                                    p={4}
-                                    className="bg-fin-surface"
-                                  >
+                              <For each={Object.entries(analysis().reports ?? {})}>{([section, content]) => (
+                                <Paper
+                                  p={4}
+                                  className="bg-fin-surface"
+                                >
                                   <Text size="xs" fw={600} tt="capitalize">
                                     {section.replace(/_/g, " ")}
                                   </Text>
                                   <ScrollArea style={{ "max-height": 200 }} type="hover">
-                                    <ReactMarkdown
-                                      components={mdComponents}
-                                      remarkPlugins={[remarkGfm]}
-                                    >
-                                      {String(content)}
-                                    </ReactMarkdown>
+                                    <Markdown content={String(content)} />
                                   </ScrollArea>
                                 </Paper>
-                              ))}
+                              )}</For>
                             </Stack>
-                          )}
+                          </Show>
                         </Stack>
-                      )}
+                        )}
+                      </Show>
                     </Paper>
                   </Box>
-                ))}
-                {isLoading && (
+                )}</For>
+                <Show when={isLoading()}>
                   <Group gap="xs" p="xs">
                     <Loader size="xs" />
                     <Text size="xs" c="dimmed">
                       Processing...
                     </Text>
                   </Group>
-                )}
-                <div ref={messagesEndRef} />
+                </Show>
+                <div ref={(el) => (messagesEndRef = el)} />
               </Stack>
-            )}
+            </Show>
           </ScrollArea>
 
           <Box p="sm">
             <Group gap="xs">
               <TextInput
                 size="sm"
-                placeholder={isLoading ? "Analyzing..." : "Type a message..."}
-                value={input}
+                placeholder={isLoading() ? "Analyzing..." : "Type a message..."}
+                value={input()}
                 onChange={(value) => setInput(value)}
                 onKeyDown={handleKeyDown}
-                disabled={isLoading || isAvailable === false}
+                disabled={isLoading() || isAvailable() === false}
                 style={{ flex: 1 }}
                 data-testid="chat-input"
               />
@@ -643,7 +565,7 @@ export function ChatPopup() {
                 variant="filled"
                 color="primary"
                 onClick={handleSend}
-                disabled={!input.trim() || isLoading || isAvailable === false}
+                disabled={!input().trim() || isLoading() || isAvailable() === false}
                 data-testid="chat-send-button"
               >
                 <IconSend size={16} />

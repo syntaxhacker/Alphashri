@@ -1,11 +1,15 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, cleanup, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { PremiumTrackerPanel } from "./PremiumTrackerPanel";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
+
+vi.mock("@/ui", async (importOriginal) => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const actual = await importOriginal<typeof import("@/ui")>();
+  return mockSolidUi(actual);
+});
 
 vi.mock("../../../api/premiumTracker", () => ({
   fetchPremiumTracker: vi.fn(),
@@ -59,7 +63,7 @@ afterEach(() => {
 
 describe("PremiumTrackerPanel v2", () => {
   it("renders snapshot, both strategy rows, and diary", async () => {
-    renderWithProviders(<PremiumTrackerPanel strikeMatrix={matrix} selectedUnderlying="NIFTY" />);
+    render(() => <PremiumTrackerPanel strikeMatrix={matrix} selectedUnderlying="NIFTY" />);
     expect(await screen.findByTestId("premium-leg-NIFTY")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-row-BUY")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-row-SELL")).toBeInTheDocument();
@@ -67,23 +71,23 @@ describe("PremiumTrackerPanel v2", () => {
   });
 
   it("adds a setup and paper-fills it into the diary", async () => {
-    const { container } = renderWithProviders(
-      <PremiumTrackerPanel strikeMatrix={matrix} selectedUnderlying="NIFTY" />,
-    );
+    const { container } = render(() => (
+      <PremiumTrackerPanel strikeMatrix={matrix} selectedUnderlying="NIFTY" />
+    ));
     await screen.findByTestId("strategy-row-BUY");
-    await userEvent.click(screen.getByTestId("strategy-row-add-BUY"));
+    fireEvent.click(screen.getByTestId("strategy-row-add-BUY"));
     await waitFor(() => {
       expect(container.querySelector("[data-testid^='setup-card-']")).toBeInTheDocument();
     });
     const fillBtn = container.querySelector("[data-testid^='setup-fill-']");
     expect(fillBtn).toBeInTheDocument();
-    await userEvent.click(fillBtn as Element);
+    fireEvent.click(fillBtn as Element);
     expect(await screen.findByText("No closed trades yet")).toBeInTheDocument();
   });
 
   it("shows an error when the snapshot fails", async () => {
     vi.mocked(fetchPremiumTracker).mockRejectedValueOnce(new Error("no token"));
-    renderWithProviders(<PremiumTrackerPanel />);
+    render(() => <PremiumTrackerPanel />);
     expect(await screen.findByTestId("premium-error")).toHaveTextContent("no token");
   });
 });

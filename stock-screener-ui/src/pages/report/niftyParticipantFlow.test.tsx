@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test } from "vitest";
-import { createElement as h } from "react";
-import { cleanup, render, screen, within } from "@testing-library/react";
+
+import { render, screen, cleanup, within } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import {
   buildParticipantFlow,
@@ -31,11 +31,11 @@ function row(t: string, chain?: Record<string, number[]>): ParticipantFlowRow {
 }
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
-  return h(UIProvider, null, children);
+  return <UIProvider>children</UIProvider>;
 }
 
 function renderFlow(props: { rows: ParticipantFlowRow[]; bucketMin?: number }) {
-  return render(h(TestWrapper, null, h(NiftyParticipantFlow, props)));
+  return render(() => <TestWrapper>h(NiftyParticipantFlow, props)</TestWrapper>);
 }
 
 describe("classifyParticipantFlow — the 4 cases", () => {

@@ -47,7 +47,7 @@ describe("trending columns", () => {
       const iso = new Date(Date.now() - 86400000).toISOString();
       const r: any = fmt("touched_52w")(true, { last_touched: iso });
       expect(r).toBeDefined();
-      expect(r.props).toBeDefined();
+      expect((r as HTMLElement).getAttribute("aria-label")).toContain("Touched on");
     });
   });
 

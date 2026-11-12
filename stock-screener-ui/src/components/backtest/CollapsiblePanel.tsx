@@ -1,7 +1,10 @@
+import { Show } from "solid-js";
+import type { JSX } from "solid-js";
 // CollapsiblePanel — dense panel for the backtest right rail.
-import { Badge, Box, Divider, Stack, Text } from "@/ui";
+import { Badge, Divider, Text } from "@/ui";
 import { IconChevronDown, IconChevronRight } from "@/components/common/Icons";
 import type { BacktestPanelId } from "./useBacktestLayout";
+import { Box, Stack } from "../paper-trading/primitives";
 
 interface CollapsiblePanelProps {
   id: BacktestPanelId;

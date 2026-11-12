@@ -139,7 +139,7 @@ function LevelInline({
           "min-width": 0,
           "flex-shrink": 0,
           "white-space": "nowrap",
-          fontFamily: palette.MONO,
+          "font-family": palette.MONO,
           "font-size": REPORT_FONT.sm,
           "font-weight": 800,
           "line-height": 1,
@@ -197,7 +197,7 @@ function IndexRow({
         <Text size="xs" fw={800} style={{ "font-size": REPORT_FONT.xs, "letter-spacing": 0.3, "line-height": 1 }}>
           {label}
         </Text>
-        <Text size="xs" c="dimmed" style={{ fontFamily: palette.MONO, "font-size": REPORT_FONT.xs, "line-height": 1 }}>
+        <Text size="xs" c="dimmed" style={{ "font-family": palette.MONO, "font-size": REPORT_FONT.xs, "line-height": 1 }}>
           {formatNumberIN(Math.round(spot))}
         </Text>
       </div>

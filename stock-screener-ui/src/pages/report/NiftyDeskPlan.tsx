@@ -137,7 +137,7 @@ function InlineStats({ side, noTrade }: { side: DeskSide; noTrade: boolean }) {
             gap: "4px",
             ...(index > 0 && {
               "padding-left": "8px",
-              borderLeft: `1px solid ${palette.TERM_BORDER}`,
+              "border-left": `1px solid ${palette.TERM_BORDER}`,
             }),
           }}
         >
@@ -155,7 +155,7 @@ function InlineStats({ side, noTrade }: { side: DeskSide; noTrade: boolean }) {
             size="xs"
             fw={800}
             span
-            style={{ "font-size": 12, "line-height": 1.3, fontVariantNumeric: "tabular-nums" }}
+            style={{ "font-size": 12, "line-height": 1.3, "font-variant-numeric": "tabular-nums" }}
           >
             {stat.value}
           </Text>
@@ -190,7 +190,7 @@ function DeskSideColumn({
         style={{
           gap: "8px",
           "padding-bottom": "4px",
-          borderBottom: `1px solid ${palette.TERM_BORDER}`,
+          "border-bottom": `1px solid ${palette.TERM_BORDER}`,
         }}
       >
         <Text
@@ -266,7 +266,7 @@ function DeskSideColumn({
           <ol
             data-testid={`desk-reasons-${side.side}`}
             className="flex flex-col min-w-0"
-            style={{ listStyle: "none", margin: 0, padding: 0, gap: "4px" }}
+            style={{ "list-style": "none", margin: 0, padding: 0, gap: "4px" }}
           >
             {side.reasons.map((reason, index) => (
               <Box
@@ -281,7 +281,7 @@ function DeskSideColumn({
                   size="xs"
                   fw={700}
                   c="dimmed"
-                  style={{ "font-size": 10, "line-height": 1.4, "min-width": 12, fontVariantNumeric: "tabular-nums" }}
+                  style={{ "font-size": 10, "line-height": 1.4, "min-width": 12, "font-variant-numeric": "tabular-nums" }}
                 >
                   {index + 1}.
                 </Text>
@@ -368,7 +368,7 @@ function NiftyDeskPlanInner({ report }: NiftyDeskPlanProps) {
             // internally when both reason lists run long.
             "max-height": "320px",
             "overflow-y": "auto",
-            scrollbarGutter: "stable",
+            "scrollbar-gutter": "stable",
           }}
         >
           {noTrade && (
@@ -379,7 +379,7 @@ function NiftyDeskPlanInner({ report }: NiftyDeskPlanProps) {
                 gap: "6px",
                 "padding-bottom": "4px",
                 "margin-bottom": "4px",
-                borderBottom: `1px solid ${palette.TERM_BORDER}`,
+                "border-bottom": `1px solid ${palette.TERM_BORDER}`,
               }}
             >
               <Text size="xs" fw={700} c="dimmed" lh={1.3} style={{ "font-size": "10px" }}>

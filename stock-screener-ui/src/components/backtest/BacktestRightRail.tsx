@@ -1,8 +1,10 @@
+import type { JSX } from "solid-js";
 // BacktestRightRail — fixed right column holding the collapsible panels.
 // Width resizes on the DOM node during the gesture (rAF) and commits on release.
-import { Box } from "@/ui";
+
 import * as palette from "@/ui/palette";
 import { RAIL_MAX_WIDTH, RAIL_MIN_WIDTH } from "./useBacktestLayout";
+import { Box } from "../paper-trading/primitives";
 
 interface BacktestRightRailProps {
   width: number;

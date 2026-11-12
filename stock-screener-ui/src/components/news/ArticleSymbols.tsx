@@ -1,5 +1,5 @@
 import { Box, Badge, Group, Text, Tooltip } from "@/ui";
-import { IconChartLine } from "@tabler/icons-react";
+import { IconChartLine } from "../common/Icons";
 import type { NewsSymbol } from "./news-types";
 
 export function ArticleSymbols({

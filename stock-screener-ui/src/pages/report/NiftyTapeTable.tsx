@@ -348,7 +348,7 @@ function NiftyTapeTableInner({
           style={{
             "column-gap": "12px",
             "row-gap": `${REPORT_PAD.xs / 8}px`,
-            fontVariantNumeric: "tabular-nums",
+            "font-variant-numeric": "tabular-nums",
           }}
         >
           <Box data-testid="nifty-tape-pcr" className="flex items-baseline" style={{ gap: "4px" }}>
@@ -389,7 +389,7 @@ function NiftyTapeTableInner({
               data-testid="nifty-tape-updated"
               c="dimmed"
               span
-              style={{ fontVariantNumeric: "tabular-nums", "font-size": `${REPORT_FONT.xs - 1}px` }}
+              style={{ "font-variant-numeric": "tabular-nums", "font-size": `${REPORT_FONT.xs - 1}px` }}
             >
               upd {formatIstClock(updatedAtMs)}
               {nextUpdateAtMs !== null ? ` · next ${formatIstClock(nextUpdateAtMs)}` : ""}

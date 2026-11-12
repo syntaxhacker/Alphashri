@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider, Tabs } from "@/ui";
 import { OrbParamsPanel } from "./OrbParamsPanel";
@@ -13,13 +13,13 @@ afterEach(() => {
 });
 
 function renderInTabs(initialValues = DEFAULT_VALUES, isSwing = false) {
-  return render(
+  return render(() => (
     <UIProvider>
       <Tabs value="orb">
         <OrbParamsPanel initialValues={initialValues} isSwing={isSwing} />
       </Tabs>
-    </UIProvider>,
-  );
+    </UIProvider>
+  ));
 }
 
 describe("OrbParamsPanel", () => {

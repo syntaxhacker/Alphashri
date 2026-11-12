@@ -1,9 +1,9 @@
-import { Suspense, lazy, useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { createSignal, createEffect, onCleanup, lazy, Suspense } from "solid-js";
+import { useSearchParams } from "@solidjs/router";
 import { Center, Loader } from "@/ui";
 import { fetchTimeframes } from "@/api/chartPatterns";
 import type { TFSpec } from "@/types/chartPatterns";
-import { usePatternFullscreen } from "@/hooks/usePatternFullscreen";
+import { usePatternFullscreen } from "./usePatternFullscreenSolid";
 import { PatternFullscreenView } from "@/components/patterns/PatternFullscreenView";
 
 const DailyReportPage = lazy(() => import("./DailyReportPage"));
@@ -18,8 +18,9 @@ const FALLBACK_TIMEFRAMES: TFSpec[] = [{ id: "1D", label: "1D" } as TFSpec];
  */
 export function ReportContainer() {
   const [searchParams] = useSearchParams();
-  const universe = searchParams.get("universe") ?? "nifty500";
-  const [timeframes, setTimeframes] = useState<TFSpec[]>(FALLBACK_TIMEFRAMES);
+  const raw = searchParams.universe;
+  const universe = (Array.isArray(raw) ? raw[0] : raw) ?? "nifty500";
+  const [timeframes, setTimeframes] = createSignal<TFSpec[]>(FALLBACK_TIMEFRAMES);
   const {
     fullscreen,
     openFromSymbol,
@@ -29,7 +30,7 @@ export function ReportContainer() {
     closeFullscreen,
   } = usePatternFullscreen({ timeframe: "1D" });
 
-  useEffect(() => {
+  createEffect(() => {
     let active = true;
     fetchTimeframes()
       .then((list) => {
@@ -38,10 +39,10 @@ export function ReportContainer() {
       .catch(() => {
         /* non-fatal: keep the 1D fallback */
       });
-    return () => {
+    onCleanup(() => {
       active = false;
-    };
-  }, []);
+    });
+  });
 
   return (
     <Suspense
@@ -53,20 +54,20 @@ export function ReportContainer() {
     >
       <DailyReportPage universe={universe} onOpenSymbol={openFromSymbol} />
       <PatternFullscreenView
-        opened={!!fullscreen}
+        opened={!!fullscreen()}
         onClose={closeFullscreen}
-        hit={fullscreen?.hit ?? null}
-        hits={fullscreen?.hits ?? []}
+        hit={fullscreen()?.hit ?? null}
+        hits={fullscreen()?.hits ?? []}
         onSelectHit={selectFullscreenHit}
-        candles={fullscreen?.candles ?? []}
+        candles={fullscreen()?.candles ?? []}
         overlays={[]}
-        trendLines={fullscreen?.trendLines ?? []}
-        timeframe={fullscreen?.timeframe}
-        timeframes={timeframes}
+        trendLines={fullscreen()?.trendLines ?? []}
+        timeframe={fullscreen()?.timeframe}
+        timeframes={timeframes()}
         onTimeframeChange={changeFullscreenTimeframe}
-        loading={fullscreen?.loading ?? false}
-        asOf={fullscreen?.asOf ?? null}
-        fromDate={fullscreen?.fromDate ?? null}
+        loading={fullscreen()?.loading ?? false}
+        asOf={fullscreen()?.asOf ?? null}
+        fromDate={fullscreen()?.fromDate ?? null}
         onAsOfChange={changeFullscreenAsOf}
       />
     </Suspense>

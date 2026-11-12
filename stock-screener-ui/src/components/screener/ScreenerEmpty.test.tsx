@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { ScreenerEmpty } from "./ScreenerEmpty";
 import { UIProvider } from "@/ui";
@@ -15,11 +15,11 @@ describe("ScreenerEmpty", () => {
   });
 
   it("renders with custom message", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerEmpty message="No stocks match your criteria" />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByText("No stocks match your criteria")).toBeInTheDocument();
   });
 });

@@ -1,7 +1,7 @@
 import { For, Show, type CSSProperties, type JSX } from "solid-js";
 import { ActionIcon, Alert, Box, Loader, Text, TextInput, ToolbarRow } from "@/ui";
 import { Portal } from "@/ui/layout/Portal";
-import { IconChartLine, IconX } from "@tabler/icons-react";
+import { IconChartLine, IconX } from "./Icons";
 import { SymbolTvLink } from "@/components/patterns/SymbolTvLink";
 import * as palette from "@/ui/palette";
 

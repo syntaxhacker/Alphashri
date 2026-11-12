@@ -1,7 +1,8 @@
-import type { ColumnDef } from "@tanstack/react-table";
+import type { JSX } from "solid-js";
+import type { TableColumnDef as ColumnDef } from "../common/TanStackTable";
 import { ActionIcon, Box, Text, Tooltip } from "@/ui";
 import { TEXT_MUTED, WARNING } from "@/ui/palette";
-import { IconChevronRight } from "@tabler/icons-react";
+import { IconChevronRight } from "../common/Icons";
 import type { EventDTO } from "../../types/events";
 import { SymbolLink } from "../common/SymbolLink";
 import { EventTypeBadge } from "./EventTypeBadge";
@@ -57,7 +58,7 @@ export function buildEventColumns(onOpen: (event: EventDTO) => void): ColumnDef<
       id: "symbol",
       header: "SYMBOL",
       accessorFn: (row) => row.symbol,
-      meta: { align: "left" } as never,
+      meta: { align: "left" },
       cell: ({ row }) => {
         const event = row.original;
         return (
@@ -75,7 +76,7 @@ export function buildEventColumns(onOpen: (event: EventDTO) => void): ColumnDef<
       id: "event_type",
       header: "TYPE",
       accessorFn: (row) => row.event_type,
-      meta: { align: "center" } as never,
+      meta: { align: "center" },
       cell: ({ row }) => (
         <EventTypeBadge type={row.original.event_type} isAlpha={row.original.is_alpha} />
       ),
@@ -84,7 +85,7 @@ export function buildEventColumns(onOpen: (event: EventDTO) => void): ColumnDef<
       id: "title",
       header: "EVENT",
       accessorFn: (row) => row.title,
-      meta: { align: "left" } as never,
+      meta: { align: "left" },
       cell: ({ row }) => {
         const event = row.original;
         return (
@@ -102,7 +103,7 @@ export function buildEventColumns(onOpen: (event: EventDTO) => void): ColumnDef<
       id: "event_date",
       header: "DATE",
       accessorFn: (row) => row.event_date,
-      meta: { align: "center" } as never,
+      meta: { align: "center" },
       cell: ({ row }) => {
         const event = row.original;
         return (
@@ -116,7 +117,7 @@ export function buildEventColumns(onOpen: (event: EventDTO) => void): ColumnDef<
       id: "days_until",
       header: "IN",
       accessorFn: (row) => row.days_until,
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => {
         const event = row.original;
         const days = event.days_until;
@@ -136,7 +137,7 @@ export function buildEventColumns(onOpen: (event: EventDTO) => void): ColumnDef<
       id: "announced_at",
       header: "ANNOUNCED",
       accessorFn: (row) => row.announced_at ?? "",
-      meta: { align: "center" } as never,
+      meta: { align: "center" },
       cell: ({ row }) => {
         const event = row.original;
         return (
@@ -154,7 +155,7 @@ export function buildEventColumns(onOpen: (event: EventDTO) => void): ColumnDef<
       id: "source",
       header: "SOURCE",
       accessorFn: (row) => row.source,
-      meta: { align: "center" } as never,
+      meta: { align: "center" },
       cell: ({ row }) => {
         const event = row.original;
         return (
@@ -174,7 +175,7 @@ export function buildEventColumns(onOpen: (event: EventDTO) => void): ColumnDef<
       id: "actions",
       header: "",
       enableSorting: false,
-      meta: { align: "center" } as never,
+      meta: { align: "center" },
       cell: ({ row }) => {
         const event = row.original;
         return (

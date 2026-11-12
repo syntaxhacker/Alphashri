@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, test, vi, beforeAll } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import { forwardRef } from "react";
 import { UIProvider } from "@/ui";
 import type { SymbolChartData } from "../../types/backtest";
@@ -60,7 +59,7 @@ function makeChartData(): SymbolChartData {
 
 describe("BacktestTradeCharts", () => {
   test("renders one row per trade with its own chart", () => {
-    render(<BacktestTradeCharts chartData={makeChartData()} />, { wrapper: UIProvider });
+    render(() => <BacktestTradeCharts chartData={makeChartData()} />, { wrapper: UIProvider });
     expect(screen.getByTestId("trade-charts")).toBeInTheDocument();
     expect(screen.getAllByTestId("tv")).toHaveLength(1);
     cleanup();
@@ -68,7 +67,7 @@ describe("BacktestTradeCharts", () => {
 
   test("empty state when no trades", () => {
     const data = { ...makeChartData(), trades: [] } as unknown as SymbolChartData;
-    render(<BacktestTradeCharts chartData={data} />, { wrapper: UIProvider });
+    render(() => <BacktestTradeCharts chartData={data} />, { wrapper: UIProvider });
     expect(screen.queryByTestId("trade-charts")).toBeNull();
     expect(screen.getByText("No trades to show.")).toBeInTheDocument();
     cleanup();
@@ -160,7 +159,7 @@ describe("BacktestTradeCharts", () => {
     // per-row symbol chip
     expect(screen.getAllByText("NETWEB").length).toBeGreaterThanOrEqual(2);
 
-    await userEvent.click(screen.getByTestId("trade-symbol-tab-SBILIFE"));
+    await fireEvent.click(screen.getByTestId("trade-symbol-tab-SBILIFE"));
     expect(onSelect).toHaveBeenCalledWith("SBILIFE");
     cleanup();
   });

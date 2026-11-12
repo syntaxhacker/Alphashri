@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, act } from "@testing-library/react";
+import { render, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import { createRef } from "react";
 import { UIProvider } from "@/ui";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
@@ -25,29 +24,8 @@ vi.mock("../../utils/chart/buildChartOption", () => ({
   buildChartOption: (...args: any[]) => mockBuildChartOption(...args),
 }));
 
-vi.mock("../../hooks/useECharts", () => ({
-  useECharts: vi.fn((opts: any) => {
-    // Simulate real hook: expose chartRef, chartInstance, setChartOption
-    const chartRef = { current: document.createElement("div") };
-    const chartInstance = { current: mockChartInstance };
-    // Wire onChartClick if provided
-    if (opts.onChartClick) {
-      (chartInstance.current as any)._onClick = opts.onChartClick;
-    }
-    return {
-      chartRef,
-      chartInstance,
-      setChartOption: mockSetChartOption,
-    };
-  }),
-}));
-
-vi.mock("../../hooks/useChartZoom", () => ({
-  useChartZoom: vi.fn(() => ({
-    allTimesRef: { current: [] },
-    zoomToTradeByTime: vi.fn(),
-    zoomToTradeByIndex: vi.fn(),
-  })),
+vi.mock("../../utils/loadEcharts", () => ({
+  loadEcharts: vi.fn(async () => (window as any).echarts),
 }));
 
 import { TradingChart } from "./TradingChart";
@@ -83,103 +61,103 @@ const baseInput: any = {
 };
 
 describe("TradingChart", () => {
-  it("renders without crashing and forwards Box ref container", () => {
-    const { container } = render(
+  it("renders without crashing and mounts the chart container", () => {
+    const { container } = render(() => (
       <UIProvider>
         <TradingChart input={baseInput} />
-      </UIProvider>,
-    );
-    // Should render Box container (not Loader) when not loading and candles exist
+      </UIProvider>
+    ));
+    // Should render the container div (not Loader) when not loading and candles exist
     expect(container.innerHTML.length).toBeGreaterThan(0);
-    expect(screen.queryByTestId("loader")).not.toBeInTheDocument();
   });
 
   it("renders without echarts crash when window.echarts is undefined (lazy import path)", async () => {
     delete (window as any).echarts;
-    // Dynamic import path inside useEffect should not throw
+    // Dynamic import path inside onMount should not throw
     expect(() =>
-      render(
+      render(() => (
         <UIProvider>
           <TradingChart input={baseInput} />
-        </UIProvider>,
-      ),
+        </UIProvider>
+      )),
     ).not.toThrow();
-    // Allow useEffect to run
-    await act(async () => {
-      await Promise.resolve();
-    });
+    // Allow the async loadEcharts path to settle
+    await Promise.resolve();
   });
 
-  it("shows Loader when isLoading is true and does not call setChartOption", () => {
-    const { container } = render(
+  it("shows Loader when isLoading is true and does not call buildChartOption", () => {
+    const { container } = render(() => (
       <UIProvider>
         <TradingChart input={baseInput} isLoading />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(container.querySelector('[role="progressbar"]') || container.textContent).toBeTruthy();
     expect(mockBuildChartOption).not.toHaveBeenCalled();
     expect(mockSetChartOption).not.toHaveBeenCalled();
   });
 
-  it("does not call setChartOption when candles are empty (no crash)", () => {
+  it("does not call setChartOption when candles are empty (no crash)", async () => {
     const emptyInput = { ...baseInput, candles: [] };
-    render(
+    render(() => (
       <UIProvider>
         <TradingChart input={emptyInput} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
+    await Promise.resolve();
     expect(mockSetChartOption).not.toHaveBeenCalled();
     expect(mockBuildChartOption).not.toHaveBeenCalled();
   });
 
   it("calls buildChartOption and setChartOption with input when candles present", async () => {
-    render(
+    render(() => (
       <UIProvider>
         <TradingChart input={baseInput} />
-      </UIProvider>,
-    );
-    // useEffect triggers buildChartOption
-    await act(async () => {
-      await Promise.resolve();
-    });
+      </UIProvider>
+    ));
+    // createEffect + async loadEcharts both flush on microtasks
+    await Promise.resolve();
+    await Promise.resolve();
     expect(mockBuildChartOption).toHaveBeenCalledWith(baseInput);
-    expect(mockSetChartOption).toHaveBeenCalledWith({ mocked: true, input: baseInput });
+    expect(mockSetChartOption).toHaveBeenCalledWith({ mocked: true, input: baseInput }, true);
   });
 
-  it("forwards imperative handle with chartInstance and zoom methods", () => {
-    const ref = createRef<TradingChartHandle>();
-    render(
+  it("forwards imperative handle with chartInstance and zoom methods", async () => {
+    let handle: TradingChartHandle | undefined;
+    render(() => (
       <UIProvider>
-        <TradingChart input={baseInput} ref={ref} />
-      </UIProvider>,
-    );
-    expect(ref.current).toBeDefined();
-    expect(ref.current?.chartInstance).toBeDefined();
-    expect(typeof ref.current?.zoomToTradeByTime).toBe("function");
-    expect(typeof ref.current?.zoomToTradeByIndex).toBe("function");
+        <TradingChart input={baseInput} ref={(h) => (handle = h)} />
+      </UIProvider>
+    ));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(handle).toBeDefined();
+    expect(typeof handle?.chartInstance).toBe("function");
+    expect(handle?.chartInstance()).toBeDefined();
+    expect(typeof handle?.zoomToTradeByTime).toBe("function");
+    expect(typeof handle?.zoomToTradeByIndex).toBe("function");
   });
 
   it("handles trade click only for scatter series with trade_id", async () => {
     const onTradeClick = vi.fn();
-    await import("../../hooks/useECharts");
-    // The mocked useECharts captures onChartClick in mockChartInstance._onClick
-    render(
+    render(() => (
       <UIProvider>
         <TradingChart input={baseInput} onTradeClick={onTradeClick} />
-      </UIProvider>,
-    );
-    // Retrieve the onChartClick handler passed to useECharts
-    const captured = (mockChartInstance as any)._onClick;
-    expect(captured).toBeDefined();
+      </UIProvider>
+    ));
+    // Chart creation registers the click handler inside the async path
+    await Promise.resolve();
+    await Promise.resolve();
+    const clickHandler = mockOn.mock.calls.find(([evt]) => evt === "click")?.[1];
+    expect(clickHandler).toBeDefined();
     // Valid scatter click
-    captured({ componentType: "series", seriesType: "scatter", data: { trade_id: 42 } });
+    clickHandler({ componentType: "series", seriesType: "scatter", data: { trade_id: 42 } });
     expect(onTradeClick).toHaveBeenCalledWith(42);
     // Non-scatter should not trigger
     onTradeClick.mockClear();
-    captured({ componentType: "series", seriesType: "candlestick", data: { trade_id: 99 } });
+    clickHandler({ componentType: "series", seriesType: "candlestick", data: { trade_id: 99 } });
     expect(onTradeClick).not.toHaveBeenCalled();
     // Scatter without trade_id should not trigger
-    captured({ componentType: "series", seriesType: "scatter", data: {} });
+    clickHandler({ componentType: "series", seriesType: "scatter", data: {} });
     expect(onTradeClick).not.toHaveBeenCalled();
   });
 
@@ -192,16 +170,15 @@ describe("TradingChart", () => {
         { ...baseInput.candles[0], time: "09:45:00", time_str: undefined },
       ],
     };
-    render(
+    render(() => (
       <UIProvider>
         <TradingChart input={inputWithTimeStr} />
-      </UIProvider>,
-    );
-    await act(async () => {
-      await Promise.resolve();
-    });
+      </UIProvider>
+    ));
+    await Promise.resolve();
+    await Promise.resolve();
     expect(mockBuildChartOption).toHaveBeenCalledWith(inputWithTimeStr);
-    expect(mockSetChartOption).toHaveBeenCalledWith({ mocked: true, input: inputWithTimeStr });
+    expect(mockSetChartOption).toHaveBeenCalledWith({ mocked: true, input: inputWithTimeStr }, true);
   });
 
   it("handles candle time without T separator (space or plain)", async () => {
@@ -209,15 +186,14 @@ describe("TradingChart", () => {
       ...baseInput,
       candles: [{ time: "2025-01-15 10:15:00", open: 100, high: 110, low: 95, close: 105, volume: 1000 }],
     };
-    render(
+    render(() => (
       <UIProvider>
         <TradingChart input={input} />
-      </UIProvider>,
-    );
-    await act(async () => {
-      await Promise.resolve();
-    });
+      </UIProvider>
+    ));
+    await Promise.resolve();
+    await Promise.resolve();
     expect(mockBuildChartOption).toHaveBeenCalledWith(input);
-    expect(mockSetChartOption).toHaveBeenCalledWith({ mocked: true, input: input });
+    expect(mockSetChartOption).toHaveBeenCalledWith({ mocked: true, input: input }, true);
   });
 });

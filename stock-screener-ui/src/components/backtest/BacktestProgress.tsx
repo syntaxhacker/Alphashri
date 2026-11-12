@@ -1,5 +1,6 @@
 // BacktestProgress — stock loading UI shown while a backtest run is in flight.
-import { Loader, Progress, Stack, Text } from "@/ui";
+import { Loader, Progress, Text } from "@/ui";
+import { Stack } from "../paper-trading/primitives";
 
 interface BacktestProgressProps {
   progress: {

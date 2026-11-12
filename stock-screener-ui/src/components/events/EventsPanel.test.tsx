@@ -3,8 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { cleanup, render, screen } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { isoDate } from "../../state/events";
 import type { AnomaliesResponse, EventDTO } from "../../types/events";
@@ -92,8 +91,8 @@ function makeResult(overrides: Partial<UseEventsResult> = {}): UseEventsResult {
   };
 }
 
-function r(jsx: React.ReactElement) {
-  return render(<UIProvider>{jsx}</UIProvider>);
+function r(jsx: JSX.Element) {
+  return render(() => (<UIProvider>{jsx}</UIProvider>));
 }
 
 beforeEach(() => {
@@ -157,10 +156,9 @@ describe("EventsPanel", () => {
   });
 
   test("clicking a row opens the detail drawer", async () => {
-    const user = userEvent.setup();
-    r(<EventsPanel />);
+        r(<EventsPanel />);
     expect(screen.queryByTestId("event-detail-drawer")).not.toBeInTheDocument();
-    await user.click(screen.getByTestId("event-row-evt-1"));
+    await fireEvent.click(screen.getByTestId("event-row-evt-1"));
     expect(screen.getByTestId("event-detail-drawer")).toBeInTheDocument();
     expect(screen.getByTestId("event-detail-title")).toHaveTextContent("Apple Investor Day");
   });

@@ -1,10 +1,12 @@
 // @vitest-environment happy-dom
+import type { JSX } from "solid-js";
 import { describe, it, expect, vi, beforeEach, afterEach, test } from "vitest";
-import {render, screen, cleanup, within, fireEvent} from "@testing-library/react";
+import {render, screen, cleanup, within, fireEvent} from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { RunnerSettingsSection } from "./RunnerSettingsSection";
 import type { StrategyConfig } from "../../types/strategies";
-import { TestWrapper } from "../../test/test-utils";
+
+const TestWrapper = (props: { children?: JSX.Element }) => <>{props.children}</>;
 
 describe("RunnerSettingsSection", () => {
   const mockOnChange = vi.fn();
@@ -84,8 +86,7 @@ describe("RunnerSettingsSection", () => {
     });
 
     it("renders the header with correct text and styling", () => {
-      render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
-        wrapper: TestWrapper,
+      render(() => <RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
       });
       const header = screen.getByText("Runner Configuration");
       expect(header).toBeInTheDocument();
@@ -95,24 +96,21 @@ describe("RunnerSettingsSection", () => {
     });
 
     it("renders Cooldown NumberInput with correct label and testid", () => {
-      render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
-        wrapper: TestWrapper,
+      render(() => <RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
       });
       expect(screen.getByLabelText("Cooldown (min)")).toBeInTheDocument();
       expect(screen.getByTestId("config-cooldown")).toBeInTheDocument();
     });
 
     it("renders Max Distance NumberInput with correct label and testid", () => {
-      render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
-        wrapper: TestWrapper,
+      render(() => <RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
       });
       expect(screen.getByLabelText("Max Distance from OR %")).toBeInTheDocument();
       expect(screen.getByTestId("config-max-distance")).toBeInTheDocument();
     });
 
     it("renders correct labels and descriptions for both inputs", () => {
-      render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
-        wrapper: TestWrapper,
+      render(() => <RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
       });
       expect(screen.getByLabelText("Cooldown (min)")).toBeInTheDocument();
       expect(screen.getByText("Cooldown between trades")).toBeInTheDocument();
@@ -121,16 +119,14 @@ describe("RunnerSettingsSection", () => {
     });
 
     it("renders both inputs with data-testids", () => {
-      render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
-        wrapper: TestWrapper,
+      render(() => <RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
       });
       expect(screen.getByTestId("config-cooldown")).toBeInTheDocument();
       expect(screen.getByTestId("config-max-distance")).toBeInTheDocument();
     });
 
     it("displays initial values from config", () => {
-      render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
-        wrapper: TestWrapper,
+      render(() => <RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
       });
       const cooldownInput = within(screen.getByTestId("config-cooldown")).getByRole("spinbutton");
       const maxDistanceInput = within(screen.getByTestId("config-max-distance")).getByRole("spinbutton");
@@ -141,40 +137,36 @@ describe("RunnerSettingsSection", () => {
 
   describe("onChange behavior", () => {
     it("calls onChange with correct key and value when cooldown changes", async () => {
-      render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
-        wrapper: TestWrapper,
+      render(() => <RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
       });
       const cooldownInput = within(screen.getByTestId("config-cooldown")).getByRole("spinbutton");
-      fireEvent.change(cooldownInput, { target: { value: "30" } });
+      fireEvent.input(cooldownInput, { target: { value: "30" } });
       expect(mockOnChange).toHaveBeenCalledWith("cooldown_minutes", 30);
     });
 
     it("calls onChange with correct key and value when max_distance changes", async () => {
-      render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
-        wrapper: TestWrapper,
+      render(() => <RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
       });
       const maxDistanceInput = within(screen.getByTestId("config-max-distance")).getByRole("spinbutton");
-      fireEvent.change(maxDistanceInput, { target: { value: "2.5" } });
+      fireEvent.input(maxDistanceInput, { target: { value: "2.5" } });
       expect(mockOnChange).toHaveBeenCalledWith("max_distance_from_or_pct", 2.5);
     });
 
     it("converts cooldown value to number", async () => {
-      render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
-        wrapper: TestWrapper,
+      render(() => <RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
       });
       const cooldownInput = within(screen.getByTestId("config-cooldown")).getByRole("spinbutton");
-      fireEvent.change(cooldownInput, { target: { value: "45" } });
+      fireEvent.input(cooldownInput, { target: { value: "45" } });
       expect(mockOnChange).toHaveBeenCalledWith("cooldown_minutes", 45);
       // Verify it's a number not a string
       expect(typeof mockOnChange.mock.calls[0][1]).toBe("number");
     });
 
     it("converts max_distance value to number including decimals", async () => {
-      render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
-        wrapper: TestWrapper,
+      render(() => <RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
       });
       const maxDistanceInput = within(screen.getByTestId("config-max-distance")).getByRole("spinbutton");
-      fireEvent.change(maxDistanceInput, { target: { value: "1.75" } });
+      fireEvent.input(maxDistanceInput, { target: { value: "1.75" } });
       expect(mockOnChange).toHaveBeenCalledWith("max_distance_from_or_pct", 1.75);
       expect(typeof mockOnChange.mock.calls[0][1]).toBe("number");
     });
@@ -230,11 +222,10 @@ describe("RunnerSettingsSection", () => {
     });
 
     it("accepts fractional max_distance values like 0.5", async () => {
-      render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
-        wrapper: TestWrapper,
+      render(() => <RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
       });
       const maxDistanceInput = within(screen.getByTestId("config-max-distance")).getByRole("spinbutton");
-      fireEvent.change(maxDistanceInput, { target: { value: "0.5" } });
+      fireEvent.input(maxDistanceInput, { target: { value: "0.5" } });
       expect(mockOnChange).toHaveBeenCalledWith("max_distance_from_or_pct", 0.5);
     });
 
@@ -242,19 +233,17 @@ describe("RunnerSettingsSection", () => {
       ["1.5", 1.5],
       ["3.75", 3.75],
     ])("accepts fractional max_distance values like %s", async (inputVal, expected) => {
-      render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
-        wrapper: TestWrapper,
+      render(() => <RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
       });
       const maxDistanceInput = within(screen.getByTestId("config-max-distance")).getByRole("spinbutton");
-      fireEvent.change(maxDistanceInput, { target: { value: String(inputVal) } });
+      fireEvent.input(maxDistanceInput, { target: { value: String(inputVal) } });
       expect(mockOnChange).toHaveBeenCalledWith("max_distance_from_or_pct", expected);
     });
   });
 
   describe("component structure validation", () => {
     it("renders both inputs within Grid columns", () => {
-      render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
-        wrapper: TestWrapper,
+      render(() => <RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
       });
       // Both inputs should be present
       expect(screen.getByTestId("config-cooldown")).toBeInTheDocument();

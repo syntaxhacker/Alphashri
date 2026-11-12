@@ -1,9 +1,10 @@
-import { Text, Badge, Group, Box } from "@/ui";
+import { Text, Badge } from "@/ui";
 import type { ColumnDef } from "@tanstack/react-table";
-import { TanStackTable } from "../common/TanStackTable";
+import { TanStackTable } from "../paper-trading/TanStackTable";
 import { SideBadge } from "../common/BadgeComponents";
 import { formatTimeOnly } from "../../utils/ui-helpers";
 import type { ReplayOpenPosition } from "../../types/replay";
+import { Group, Box } from "../paper-trading/primitives";
 
 interface ReplayPositionsProps {
   positions: ReplayOpenPosition[];

@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, act, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import { BrowserRouter } from "react-router-dom";
 import { UIProvider } from "@/ui";
 import { PreviewChartProvider, usePreviewChart } from "./PreviewChartProvider";
@@ -48,7 +47,7 @@ function TestConsumer() {
     <div data-testid="consumer">
       <button
         data-testid="btn-hover"
-        onClick={(e) => showPreviewChart(e as unknown as React.MouseEvent, "TEST")}
+        onClick={(e) => showPreviewChart(e as unknown as MouseEvent, "TEST")}
       >
         Hover
       </button>
@@ -66,14 +65,13 @@ function TestConsumer() {
 }
 
 function renderWithProvider() {
-  return render(
-    <BrowserRouter>
+  return render(() => (<BrowserRouter>
       <UIProvider>
         <PreviewChartProvider>
           <TestConsumer />
         </PreviewChartProvider>
       </UIProvider>
-    </BrowserRouter>,
+    </BrowserRouter>),
   );
 }
 
@@ -96,10 +94,9 @@ function getButtons() {
 
 describe("PreviewChartProvider", () => {
   it("shows hover preview after debounce", async () => {
-      const user = userEvent.setup();
-    renderWithProvider();
+          renderWithProvider();
     const { hover } = getButtons();
-    await user.click(hover);
+    await fireEvent.click(hover);
 
     await act(async () => {
       await new Promise((r) => setTimeout(r, 400));
@@ -109,24 +106,22 @@ describe("PreviewChartProvider", () => {
   });
 
   it("hides hover preview on hide", async () => {
-      const user = userEvent.setup();
-    renderWithProvider();
+          renderWithProvider();
     const { hover, hide } = getButtons();
-    await user.click(hover);
+    await fireEvent.click(hover);
     await act(async () => {
       await new Promise((r) => setTimeout(r, 400));
     });
 
-    await user.click(hide);
+    await fireEvent.click(hide);
 
     expect(document.querySelector('[data-testid="preview-chart-hover"]')).toBeNull();
   });
 
   it("shows expanded panel on toggle", async () => {
-      const user = userEvent.setup();
-    renderWithProvider();
+          renderWithProvider();
     const { expand } = getButtons();
-    await user.click(expand);
+    await fireEvent.click(expand);
 
     await act(async () => {
       await new Promise((r) => setTimeout(r, 100));
@@ -136,30 +131,28 @@ describe("PreviewChartProvider", () => {
   });
 
   it("collapses expanded panel on collapse", async () => {
-      const user = userEvent.setup();
-    renderWithProvider();
+          renderWithProvider();
     const { expand, collapse } = getButtons();
-    await user.click(expand);
+    await fireEvent.click(expand);
     await act(async () => {
       await new Promise((r) => setTimeout(r, 100));
     });
 
-    await user.click(collapse);
+    await fireEvent.click(collapse);
 
     expect(document.querySelector('[data-testid="preview-chart-expanded"]')).toBeNull();
   });
 
   it("collapses when same symbol toggled again", async () => {
-      const user = userEvent.setup();
-    renderWithProvider();
+          renderWithProvider();
     const { expand } = getButtons();
-    await user.click(expand);
+    await fireEvent.click(expand);
     await act(async () => {
       await new Promise((r) => setTimeout(r, 100));
     });
     expect(document.querySelector('[data-testid="preview-chart-expanded"]')).toBeInTheDocument();
 
-    await user.click(expand);
+    await fireEvent.click(expand);
     await act(async () => {
       await new Promise((r) => setTimeout(r, 100));
     });

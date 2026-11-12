@@ -3,21 +3,22 @@
  */
 
 import { UIProvider } from "@/ui";
-import { render, RenderResult } from "@testing-library/react";
+import { render } from "@solidjs/testing-library";
+import type { JSX } from "solid-js";
 
 /**
  * Standard wrapper for tests that need the local `@/ui` provider context
  */
-export function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
+export function TestWrapper(props: { children: JSX.Element }) {
+  return <UIProvider>{props.children}</UIProvider>;
 }
 
 /**
  * Render helper that automatically wraps with UIProvider
  */
 export function renderWithProviders(
-  ui: React.ReactElement,
+  ui: () => JSX.Element,
   options?: Parameters<typeof render>[1],
-): RenderResult {
+): ReturnType<typeof render> {
   return render(ui, { wrapper: TestWrapper, ...options });
 }

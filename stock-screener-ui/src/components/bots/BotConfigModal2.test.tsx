@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, waitFor } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { BotConfigModal } from "./BotConfigModal2";
@@ -156,8 +155,8 @@ const mockStrategies: AvailableStrategy[] = [
 // @/ui TextInput puts data-testid directly on the native input.
 const nameTextbox = () => screen.getByTestId("bot-name-input");
 
-function renderWithProviders(ui: React.ReactElement) {
-  return render(<UIProvider>{ui}</UIProvider>);
+function renderWithProviders(ui: JSX.Element) {
+  return render(() => (<UIProvider>{ui}</UIProvider>));
 }
 
 describe("BotConfigModal", () => {
@@ -230,19 +229,17 @@ describe("BotConfigModal", () => {
   });
 
   it("add strategy button adds a new row", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<BotConfigModal {...defaultProps} />);
-    await user.click(screen.getByTestId("add-strategy-btn"));
+        renderWithProviders(<BotConfigModal {...defaultProps} />);
+    await fireEvent.click(screen.getByTestId("add-strategy-btn"));
     expect(screen.getAllByTestId("strategy-allocation-row")).toHaveLength(1);
   });
 
   it("remove strategy button removes a row", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<BotConfigModal {...defaultProps} bot={mockBot} />);
-    await user.click(screen.getByTestId("add-strategy-btn"));
+        renderWithProviders(<BotConfigModal {...defaultProps} bot={mockBot} />);
+    await fireEvent.click(screen.getByTestId("add-strategy-btn"));
     expect(screen.getAllByTestId("strategy-allocation-row")).toHaveLength(2);
     const removeBtn = screen.getByTestId("remove-strategy-btn-new-100");
-    await user.click(removeBtn);
+    await fireEvent.click(removeBtn);
     expect(screen.getAllByTestId("strategy-allocation-row")).toHaveLength(1);
   });
 
@@ -252,33 +249,30 @@ describe("BotConfigModal", () => {
   });
 
   it("cancel button closes the modal", async () => {
-    const user = userEvent.setup();
-    const onClose = vi.fn();
+        const onClose = vi.fn();
     renderWithProviders(<BotConfigModal {...defaultProps} onClose={onClose} />);
-    await user.click(screen.getByTestId("cancel-bot-config-btn"));
+    await fireEvent.click(screen.getByTestId("cancel-bot-config-btn"));
     expect(onClose).toHaveBeenCalled();
   });
 
   it("submit calls createBotAction for new bot", async () => {
-    const user = userEvent.setup();
-    const onClose = vi.fn();
+        const onClose = vi.fn();
     renderWithProviders(
       <BotConfigModal {...defaultProps} onClose={onClose} />,
     );
-    await user.type(nameTextbox(), "New Bot");
-    await user.click(screen.getByTestId("save-bot-config-btn"));
+    await fireEvent.input(nameTextbox(), { target: { value: "New Bot" } });
+    await fireEvent.click(screen.getByTestId("save-bot-config-btn"));
     await waitFor(() => {
       expect(mockCreateBotAction).toHaveBeenCalled();
     });
   });
 
   it("submit calls updateBotAction for existing bot", async () => {
-    const user = userEvent.setup();
-    const onClose = vi.fn();
+        const onClose = vi.fn();
     renderWithProviders(
       <BotConfigModal {...defaultProps} bot={mockBot} onClose={onClose} />,
     );
-    await user.click(screen.getByTestId("save-bot-config-btn"));
+    await fireEvent.click(screen.getByTestId("save-bot-config-btn"));
     await waitFor(() => {
       expect(mockUpdateBotAction).toHaveBeenCalled();
     });

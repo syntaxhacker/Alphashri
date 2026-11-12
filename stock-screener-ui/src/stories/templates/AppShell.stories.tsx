@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "@solidjs/router";
 import { Text, Paper } from "@/ui";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AuthProvider } from "@/components/auth/AuthProvider2";

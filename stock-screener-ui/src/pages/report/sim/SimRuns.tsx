@@ -1,10 +1,8 @@
-import { useEffect, useMemo, type CSSProperties } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
-import { Box } from "@/ui";
+import { createEffect, createMemo, Show, type CSSProperties } from "solid-js";
 import { Text } from "@/ui";
-import { TanStackTable } from "@/components/common/TanStackTable";
+import { TanStackTable, type TableColumnDef } from "@/components/common/TanStackTable";
 import { CompactStat, CompactStatGrid } from "@/components/common/compact";
-import { useECharts } from "@/hooks/useECharts";
+import { createECharts } from "../echartsSolid";
 import * as palette from "@/ui/palette";
 import { formatNumberIN, formatPercentage } from "@/utils/ui-helpers";
 import type { SimStrategyResult, SimTrade } from "@/types/reportSim";
@@ -32,19 +30,23 @@ function structureText(trade: SimTrade): string {
 
 function Num({ value, color }: { value: string; color?: string }) {
   return (
-    <Text span size="xs" style={{ fontFamily: palette.MONO, color }}>
+    <Text span size="xs" style={{ "font-family": palette.MONO, color }}>
       {value}
     </Text>
   );
 }
 
-export function SimRuns({ strategy, view, asOf }: SimRunsProps) {
-  const { chartRef, setChartOption } = useECharts({ isDark: true });
-  const equity = view?.equity ?? [];
+export function SimRuns(props: SimRunsProps) {
+  const strategy = () => props.strategy;
+  const view = () => props.view;
+  const asOf = () => props.asOf;
+  const chart = createECharts();
+  const equity = createMemo(() => view()?.equity ?? []);
 
-  useEffect(() => {
-    if (equity.length === 0) return;
-    void setChartOption({
+  createEffect(() => {
+    const points = equity();
+    if (points.length === 0) return;
+    void chart.setChartOption({
       animation: false,
       "background-color": "transparent",
       tooltip: {
@@ -59,7 +61,7 @@ export function SimRuns({ strategy, view, asOf }: SimRunsProps) {
       grid: { left: 8, right: 8, top: 10, bottom: 18, containLabel: true },
       xAxis: {
         type: "category",
-        data: equity.map((point) => fmtTime(point.t)),
+        data: points.map((point) => fmtTime(point.t)),
         axisLabel: { color: palette.CHART_MUTED, "font-size": 9, hideOverlap: true },
         axisLine: { lineStyle: { color: palette.AXIS_LINE } },
       },
@@ -77,7 +79,7 @@ export function SimRuns({ strategy, view, asOf }: SimRunsProps) {
           lineStyle: { color: palette.PRIMARY, width: 2 },
           itemStyle: { color: palette.PRIMARY },
           areaStyle: { color: palette.ORB_AREA },
-          data: equity.map((point) => point.pnl),
+          data: points.map((point) => point.pnl),
           markLine: {
             symbol: "none",
             data: [{ yAxis: 0, lineStyle: { color: palette.CHART_MUTED, type: "dashed" } }],
@@ -85,31 +87,31 @@ export function SimRuns({ strategy, view, asOf }: SimRunsProps) {
         },
       ],
     });
-  }, [equity]);
+  });
 
-  const columns = useMemo<ColumnDef<SimTrade>[]>(() => {
-    const columnsDef: ColumnDef<SimTrade>[] = [
+  const columns = createMemo<TableColumnDef<SimTrade>[]>(() => {
+    const columnsDef: TableColumnDef<SimTrade>[] = [
       {
         header: "Entry",
         accessorKey: "entryTime",
         size: 64,
         meta: { align: "left" },
-        cell: (info) => <Num value={fmtTime(String(info.getValue() ?? ""))} />,
+        cell: ({ row }) => <Num value={fmtTime(String(row.original.entryTime ?? ""))} />,
       },
       {
         header: "Exit",
         accessorKey: "exitTime",
         size: 64,
         meta: { align: "left" },
-        cell: (info) => {
-          const trade = info.row.original;
-          const open = isOpenTrade(trade, asOf) || !trade.exitTime;
+        cell: ({ row }) => {
+          const trade = row.original;
+          const open = isOpenTrade(trade, asOf()) || !trade.exitTime;
           return (
             <Text
               span
               size="xs"
               fw={open ? 700 : 400}
-              style={{ fontFamily: palette.MONO, color: open ? palette.TERM_FLIP : palette.TEXT }}
+              style={{ "font-family": palette.MONO, color: open ? palette.TERM_FLIP : palette.TEXT }}
             >
               {open ? "OPEN" : fmtTime(trade.exitTime)}
             </Text>
@@ -121,9 +123,9 @@ export function SimRuns({ strategy, view, asOf }: SimRunsProps) {
         id: "structure",
         size: 168,
         meta: { align: "left" },
-        cell: (info) => (
-          <Text span size="xs" style={{ "min-width": 0 }} title={structureText(info.row.original)}>
-            {structureText(info.row.original)}
+        cell: ({ row }) => (
+          <Text span size="xs" style={{ "min-width": 0 }} title={structureText(row.original)}>
+            {structureText(row.original)}
           </Text>
         ),
       },
@@ -132,29 +134,29 @@ export function SimRuns({ strategy, view, asOf }: SimRunsProps) {
         accessorKey: "lots",
         size: 46,
         meta: { align: "right" },
-        cell: (info) => <Num value={formatNumberIN(Number(info.getValue()) || 0)} />,
+        cell: ({ row }) => <Num value={formatNumberIN(Number(row.original.lots) || 0)} />,
       },
       {
         header: "Entry ₹",
         accessorKey: "entryPremium",
         size: 76,
         meta: { align: "right" },
-        cell: (info) => <Num value={fmtInr(Number(info.getValue()))} />,
+        cell: ({ row }) => <Num value={fmtInr(Number(row.original.entryPremium))} />,
       },
       {
         header: "Exit ₹",
         accessorKey: "exitPremium",
         size: 76,
         meta: { align: "right" },
-        cell: (info) => <Num value={fmtInr(Number(info.getValue()))} />,
+        cell: ({ row }) => <Num value={fmtInr(Number(row.original.entryPremium))} />,
       },
       {
         header: "Gross",
         accessorKey: "grossPnl",
         size: 84,
         meta: { align: "right" },
-        cell: (info) => {
-          const value = Number(info.getValue()) || 0;
+        cell: ({ row }) => {
+          const value = Number(row.original.grossPnl) || 0;
           return <Num value={fmtSignedInr(value)} color={toneColor(value)} />;
         },
       },
@@ -163,15 +165,15 @@ export function SimRuns({ strategy, view, asOf }: SimRunsProps) {
         accessorKey: "costs",
         size: 70,
         meta: { align: "right" },
-        cell: (info) => <Num value={fmtInr(Number(info.getValue()))} />,
+        cell: ({ row }) => <Num value={fmtInr(Number(row.original.entryPremium))} />,
       },
       {
         header: "Net",
         accessorKey: "netPnl",
         size: 86,
         meta: { align: "right" },
-        cell: (info) => {
-          const value = Number(info.getValue()) || 0;
+        cell: ({ row }) => {
+          const value = Number(row.original.netPnl) || 0;
           return <Num value={fmtSignedInr(value)} color={toneColor(value)} />;
         },
       },
@@ -180,15 +182,15 @@ export function SimRuns({ strategy, view, asOf }: SimRunsProps) {
         accessorKey: "points",
         size: 72,
         meta: { align: "right" },
-        cell: (info) => <Num value={fmtPoints(Number(info.getValue()))} />,
+        cell: ({ row }) => <Num value={fmtPoints(Number(row.original.points))} />,
       },
       {
         header: "Reason",
         accessorKey: "exitReason",
         size: 96,
         meta: { align: "center" },
-        cell: (info) => {
-          const reason = String(info.getValue() ?? "");
+        cell: ({ row }) => {
+          const reason = String(row.original.exitReason ?? "");
           return (
             <Text span size="xs" c="dimmed" style={{ "white-space": "normal" }}>
               {reason || "—"}
@@ -201,28 +203,28 @@ export function SimRuns({ strategy, view, asOf }: SimRunsProps) {
         accessorKey: "holdMin",
         size: 54,
         meta: { align: "right" },
-        cell: (info) => {
-          const value = Number(info.getValue());
+        cell: ({ row }) => {
+          const value = Number(row.original.holdMin);
           return <Num value={Number.isFinite(value) ? `${Math.round(value)}m` : "—"} />;
         },
       },
     ];
     return columnsDef;
-  }, [asOf]);
+  });
 
-  const trades = view?.trades ?? [];
-  const stats = view?.stats ?? strategy?.stats;
+  const trades = () => view()?.trades ?? [];
+  const stats = () => view()?.stats ?? strategy()?.stats;
 
   return (
     <div data-testid="sim-runs" className="flex flex-col gap-1 min-w-0">
       <CompactStatGrid cols={5} spacing={4}>
-        <CompactStat dense label="Trades" value={Number.isFinite(stats?.trades) ? String(stats?.trades) : "—"} />
+        <CompactStat dense label="Trades" value={Number.isFinite(stats()?.trades) ? String(stats()?.trades) : "—"} />
         <CompactStat
           dense
           label="Win rate"
           value={
-            Number.isFinite(stats?.winRate)
-              ? formatPercentage(stats!.winRate, 2, false)
+            Number.isFinite(stats()?.winRate)
+              ? formatPercentage(stats()!.winRate, 2, false)
               : "—"
           }
         />
@@ -230,43 +232,46 @@ export function SimRuns({ strategy, view, asOf }: SimRunsProps) {
           dense
           label="PF"
           value={
-            stats && Number.isFinite(stats.profitFactor) ? stats.profitFactor.toFixed(2) : "—"
+            stats() && Number.isFinite(stats()!.profitFactor) ? stats()!.profitFactor.toFixed(2) : "—"
           }
         />
         <CompactStat
           dense
           label="Avg hold"
           value={
-            stats && Number.isFinite(stats.avgHoldMin)
-              ? `${Math.round(stats.avgHoldMin)}m`
+            stats() && Number.isFinite(stats()!.avgHoldMin)
+              ? `${Math.round(stats()!.avgHoldMin)}m`
               : "—"
           }
         />
-        <CompactStat dense label="Max DD" value={fmtInr(stats?.maxDrawdown)} tone="negative" />
+        <CompactStat dense label="Max DD" value={fmtInr(stats()?.maxDrawdown)} tone="negative" />
       </CompactStatGrid>
 
       <div
         className="border border-fin-border rounded-fin min-w-0 overflow-hidden"
       >
-        {equity.length === 0 ? (
-          <div className="flex items-center justify-center h-[120px]">
+        <Show
+          when={equity().length === 0}
+          fallback={
+            <div ref={chart.ref} data-testid="sim-equity-chart" class="h-[180px] w-full" />
+          }
+        >
+          <div class="flex items-center justify-center h-[120px]">
             <Text size="xs" c="dimmed">
               No equity curve yet — run the desk
             </Text>
           </div>
-        ) : (
-          <div ref={chartRef} data-testid="sim-equity-chart" className="h-[180px] w-full" />
-        )}
+        </Show>
       </div>
 
       {/* The TanStackTable shared component renders its own bordered paper
         container; theme it to the desk surface via descendant selectors. */}
-      <Box
-        className="min-w-0 [&_.paper-tanstack-container]:[background:var(--desk-bg)]! [&_.paper-tanstack-container]:[border:none]! [&_.paper-tanstack-scroll]:[background:var(--desk-bg)]! [&_.paper-tanstack-table]:[background:var(--desk-bg)]! [&_.sim-row-win_.paper-tanstack-cell]:[background:var(--tint-pos)]! [&_.sim-row-loss_.paper-tanstack-cell]:[background:var(--tint-neg)]!"
+      <div
+        class="min-w-0 [&_.paper-tanstack-container]:[background:var(--desk-bg)]! [&_.paper-tanstack-container]:[border:none]! [&_.paper-tanstack-scroll]:[background:var(--desk-bg)]! [&_.paper-tanstack-table]:[background:var(--desk-bg)]! [&_.sim-row-win_.paper-tanstack-cell]:[background:var(--tint-pos)]! [&_.sim-row-loss_.paper-tanstack-cell]:[background:var(--tint-neg)]!"
         style={{ "--desk-bg": palette.TERM_BG, "--tint-pos": palette.TINT_POSITIVE, "--tint-neg": palette.TINT_NEGATIVE } as CSSProperties}
       >
         <TanStackTable<SimTrade>
-          data={trades}
+          data={trades()}
           columns={columns}
           dataTestId="sim-trades-table"
           emptyMessage="No trades — run the desk"
@@ -276,7 +281,7 @@ export function SimRuns({ strategy, view, asOf }: SimRunsProps) {
           minTableWidth={980}
           getRowClassName={(trade) => (trade.netPnl >= 0 ? "sim-row-win" : "sim-row-loss")}
         />
-      </Box>
+      </div>
     </div>
   );
 }

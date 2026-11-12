@@ -2,9 +2,10 @@
 // clock/trade summary + loading/error chips). Strategy-specific parameter controls are
 // injected via `children` so this core component stays strategy-agnostic.
 import type { ReactNode } from "react";
-import { Stack, Box, Button, Select, Text, Chip } from "@/ui";
+import { Button, Select, Text, Chip } from "@/ui";
 import { fmtClock } from "../format";
 import * as palette from "@/ui/palette";
+import { Stack, Box } from "../../paper-trading/primitives";
 
 export const SPEEDS = [1, 5, 15, 60, 300];
 

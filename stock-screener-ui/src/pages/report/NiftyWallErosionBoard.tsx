@@ -170,7 +170,7 @@ function ErosionRow({
       title={fuelPartsTooltip(row)}
       className="flex items-center flex-nowrap min-w-0 shrink-0 overflow-hidden h-[24px]"
       style={{
-        borderTop: `1px solid ${palette.BORDER}`,
+        "border-top": `1px solid ${palette.BORDER}`,
         height: ROW_H,
       }}
     >

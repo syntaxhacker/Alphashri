@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { Box, Paper, Button, ActionIcon, Text, Chip, Tooltip } from "@/ui";
 import { IconPlayerPlay, IconPlayerPause } from "@tabler/icons-react";
 import * as palette from "@/ui/palette";
@@ -45,11 +45,11 @@ const baseCandles: ReplayCandle[] = (oneDayReal as any[]).map((c: any) => ({
 })) as ReplayCandle[];
 
 function ChartCompareInner() {
-  const chartRef = useRef<ReplayChartHandle>(null);
-  const [currentIdx, setCurrentIdx] = useState(120);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [speed, setSpeed] = useState(400);
-  const [trades, setTrades] = useState<ReplayTrade[]>([
+  let chartRef: ReplayChartHandle | undefined;
+  const [currentIdx, setCurrentIdx] = createSignal(120);
+  const [isPlaying, setIsPlaying] = createSignal(false);
+  const [speed, setSpeed] = createSignal(400);
+  const [trades, setTrades] = createSignal<ReplayTrade[]>([
     {
       id: 1,
       symbol: "RELIANCE",
@@ -65,16 +65,16 @@ function ChartCompareInner() {
       strategy: "ORB",
     } as any,
   ]);
-  const [activeTool, setActiveTool] = useState<"none" | "long" | "short" | "trend">("none");
-  const [trendOn, setTrendOn] = useState(false);
+  const [activeTool, setActiveTool] = createSignal<"none" | "long" | "short" | "trend">("none");
+  const [trendOn, setTrendOn] = createSignal(false);
 
-  const visibleCandles = useMemo(() => baseCandles.slice(0, Math.max(10, Math.min(currentIdx, baseCandles.length))), [currentIdx]);
-  const visibleBySymbol = useMemo(() => ({ RELIANCE: visibleCandles }), [visibleCandles]);
-  const currentCandle = visibleCandles[visibleCandles.length - 1];
+  const visibleCandles = createMemo(() => baseCandles.slice(0, Math.max(10, Math.min(currentIdx(), baseCandles.length))));
+  const visibleBySymbol = createMemo(() => ({ RELIANCE: visibleCandles() }));
+  const currentCandle = () => visibleCandles()[visibleCandles().length - 1];
 
   // sync play
-  useEffect(() => {
-    if (!isPlaying) return;
+  createEffect(() => {
+    if (!isPlaying()) return;
     const id = window.setInterval(() => {
       setCurrentIdx((v) => {
         if (v >= baseCandles.length) {
@@ -83,18 +83,18 @@ function ChartCompareInner() {
         }
         return v + 1;
       });
-    }, speed);
-    return () => window.clearInterval(id);
-  }, [isPlaying, speed]);
+    }, speed());
+    onCleanup(() => window.clearInterval(id));
+  });
 
   const handlePlayPause = () => {
-    if (currentIdx >= baseCandles.length) setCurrentIdx(60);
+    if (currentIdx() >= baseCandles.length) setCurrentIdx(60);
     setIsPlaying((v) => !v);
   };
 
   const addTrade = (side: "BUY" | "SELL") => {
-    const price = currentCandle?.close ?? baseCandles[0].close;
-    const time = currentCandle?.time ?? baseCandles[0].time;
+    const price = currentCandle()?.close ?? baseCandles[0].close;
+    const time = currentCandle()?.time ?? baseCandles[0].time;
     const id = Date.now();
     const tr: any = {
       id,
@@ -153,14 +153,14 @@ function ChartCompareInner() {
         <Tooltip label="Add Long marker at current candle">
           <Button
             size="xs"
-            variant={activeTool === "long" ? "filled" : "outline"}
+            variant={activeTool() === "long" ? "filled" : "outline"}
             color="positive"
             onClick={() => addTrade("BUY")}
-            className={btnClass(activeTool === "long", "#3FB950")}
+            className={btnClass(activeTool() === "long", "#3FB950")}
             style={{
-              "border-color": activeTool === "long" ? POS : BORDER,
-              "background-color": activeTool === "long" ? SURFACE_ALT : "transparent",
-              color: activeTool === "long" ? POS : TEXT_MUTED,
+              "border-color": activeTool() === "long" ? POS : BORDER,
+              "background-color": activeTool() === "long" ? SURFACE_ALT : "transparent",
+              color: activeTool() === "long" ? POS : TEXT_MUTED,
               "min-width": 52,
             }}
           >
@@ -170,14 +170,14 @@ function ChartCompareInner() {
         <Tooltip label="Add Short marker at current candle">
           <Button
             size="xs"
-            variant={activeTool === "short" ? "filled" : "outline"}
+            variant={activeTool() === "short" ? "filled" : "outline"}
             color="negative"
             onClick={() => addTrade("SELL")}
-            className={btnClass(activeTool === "short", "#F85149")}
+            className={btnClass(activeTool() === "short", "#F85149")}
             style={{
-              "border-color": activeTool === "short" ? NEG : BORDER,
-              "background-color": activeTool === "short" ? SURFACE_ALT : "transparent",
-              color: activeTool === "short" ? NEG : TEXT_MUTED,
+              "border-color": activeTool() === "short" ? NEG : BORDER,
+              "background-color": activeTool() === "short" ? SURFACE_ALT : "transparent",
+              color: activeTool() === "short" ? NEG : TEXT_MUTED,
               "min-width": 56,
             }}
           >
@@ -187,10 +187,10 @@ function ChartCompareInner() {
         <Tooltip label="Toggle Trend line (visual on both panes)">
           <Button
             size="xs"
-            variant={trendOn ? "filled" : "outline"}
+            variant={trendOn() ? "filled" : "outline"}
             color="primary"
             onClick={handleTrend}
-            className={btnClass(trendOn, "#58A6FF")}
+            className={btnClass(trendOn(), "#58A6FF")}
             style={{ "min-width": 56 }}
           >
             Trend
@@ -208,48 +208,48 @@ function ChartCompareInner() {
 
         <div className="w-[1px] h-[18px] bg-[#30363D] mx-1.5" />
 
-        <Tooltip label={isPlaying ? "Pause" : "Play"}>
+        <Tooltip label={isPlaying() ? "Pause" : "Play"}>
           <ActionIcon
             size="sm"
             onClick={handlePlayPause}
             className="border border-[#30363D] bg-[#21262D] text-[#F0F6FC] w-6 h-6"
           >
-            {isPlaying ? <IconPlayerPause size={14} /> : <IconPlayerPlay size={14} />}
+            <Show when={isPlaying()} fallback={<IconPlayerPlay size={14} />}><IconPlayerPause size={14} /></Show>
           </ActionIcon>
         </Tooltip>
         <Text className="text-[10px] text-[#8B949E] min-w-[72px]">
-          {visibleCandles.length} / {baseCandles.length}
+          {visibleCandles().length} / {baseCandles.length}
         </Text>
         <input
           type="range"
           min={10}
           max={baseCandles.length}
-          value={currentIdx}
+          value={currentIdx()}
           onChange={(e) => setCurrentIdx(Number(e.target.value))}
           className="flex-1 max-w-[420px] accent-[#8B949E] h-1.5 bg-transparent cursor-pointer"
           style={{ color: TEXT_MUTED }}
         />
         <div className="flex gap-1 ml-1">
-          {[800, 400, 200].map((s) => (
+          <For each={[800, 400, 200]}>{(s) => (
             <Button
               key={s}
               size="xs"
-              variant={speed === s ? "filled" : "outline"}
+              variant={speed() === s ? "filled" : "outline"}
               color="secondary"
               onClick={() => setSpeed(s)}
               className={`text-[10px] h-5 min-w-[32px] px-0 border rounded-none ${
-                speed === s
+                speed() === s
                   ? "bg-[#21262D] text-[#F0F6FC] border-[#F0F6FC]"
                   : "bg-transparent text-[#8B949E] border-[#30363D]"
               }`}
             >
               {s === 800 ? "1x" : s === 400 ? "2x" : "4x"}
             </Button>
-          ))}
+          )}</For>
         </div>
 
         <Box className="flex-1" />
-        <Chip size="xs" label={`${trades.length} markers`} className="text-[10px] h-5 text-[#8B949E] border border-[#30363D]" style={{ "background-color": SURFACE_ALT }} />
+        <Chip size="xs" label={`${trades().length} markers`} className="text-[10px] h-5 text-[#8B949E] border border-[#30363D]" style={{ "background-color": SURFACE_ALT }} />
       </Paper>
 
       {/* Info bar — 20px dense */}
@@ -258,7 +258,7 @@ function ChartCompareInner() {
         style={{ "background-color": SURFACE }}
       >
         <Text className="text-[10px] text-[#8B949E]" style={{ "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }}>
-          {currentCandle ? `O ${currentCandle.open} H ${currentCandle.high} L ${currentCandle.low} C ${currentCandle.close} V ${currentCandle.volume}` : "—"} · {trendOn ? "Trend on" : "Trend off"} · Long/Short adds BUY/SELL markers to both panes
+          {currentCandle() ? `O ${currentCandle()!.open} H ${currentCandle()!.high} L ${currentCandle()!.low} C ${currentCandle()!.close} V ${currentCandle()!.volume}` : "—"} · {trendOn() ? "Trend on" : "Trend off"} · Long/Short adds BUY/SELL markers to both panes
         </Text>
         <Box className="flex-1" />
         <Text className="text-[10px] text-[#8B949E]">
@@ -281,13 +281,13 @@ function ChartCompareInner() {
             </Text>
             <Chip size="xs" label="ReplayChart" className="text-[10px] h-4 border border-[#30363D]" style={{ "background-color": BG, color: TEXT_MUTED }} />
             <Box className="flex-1" />
-            <Text className="text-[10px] text-[#8B949E]">{visibleCandles.length} candles</Text>
+            <Text className="text-[10px] text-[#8B949E]">{visibleCandles().length} candles</Text>
           </Box>
           <Box className="flex-1 min-h-0 flex flex-col overflow-hidden">
             <ReplayChart
-              ref={chartRef}
-              candlesBySymbol={visibleBySymbol as any}
-              trades={trades as any}
+              ref={(value) => (chartRef = value)}
+              candlesBySymbol={visibleBySymbol() as any}
+              trades={trades() as any}
               orLevels={[]}
               pivotLevels={[]}
               high52wLevels={[]}
@@ -298,13 +298,13 @@ function ChartCompareInner() {
               setChartOptions={() => {}}
               highlightedTradeId={null}
             />
-            {trendOn && (
+            <Show when={trendOn()}>
               <Box className="px-1 py-[12px] border-t border-[#30363D] shrink-0" style={{ "background-color": SURFACE_ALT }}>
                 <Text className="text-[10px] text-[#8B949E]">
-                  Trend: {visibleCandles[20]?.close?.toFixed(2) ?? "—"} → {currentCandle?.close?.toFixed(2) ?? "—"} (draw on TV pane with Trend button inside chart)
+                  Trend: {visibleCandles()[20]?.close?.toFixed(2) ?? "—"} → {currentCandle()?.close?.toFixed(2) ?? "—"} (draw on TV pane with Trend button inside chart)
                 </Text>
               </Box>
-            )}
+            </Show>
           </Box>
         </Paper>
 
@@ -324,7 +324,7 @@ function ChartCompareInner() {
             <Text className="text-[10px] text-[#8B949E]">markers + tools</Text>
           </Box>
           <Box className="flex-1 min-h-0 flex flex-col overflow-hidden">
-            <TradingViewChart candles={visibleCandles} trades={trades as any} highlightedTradeId={null} height={420} />
+            <TradingViewChart candles={visibleCandles()} trades={trades() as any} highlightedTradeId={null} height={420} />
           </Box>
         </Paper>
       </Box>

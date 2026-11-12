@@ -78,7 +78,7 @@ export function buildChartOption(options: ChartRenderOptions): any {
   const bgColor = isDark ? CHART_BG : CHART_LIGHT_BG;
   const textColor = isDark ? CHART_TEXT : CHART_LIGHT_TEXT;
   const mutedColor = isDark ? CHART_MUTED : CHART_LIGHT_MUTED;
-  const ["border-color"] = isDark ? CHART_BORDER : CHART_LIGHT_BORDER;
+  const borderColor = isDark ? CHART_BORDER : CHART_LIGHT_BORDER;
   const splitLineColor = isDark ? CHART_SPLIT : CHART_LIGHT_SPLIT;
   const tooltipBg = isDark ? CHART_OVERLAY : CHART_LIGHT_OVERLAY;
   const dataZoomBg = isDark ? CHART_DATAZOOM_BG : CHART_LIGHT_DATAZOOM_BG;
@@ -99,7 +99,7 @@ export function buildChartOption(options: ChartRenderOptions): any {
 
   // Base configuration
   const chartOption: any = {
-    "background-color": bgColor,
+    backgroundColor: bgColor,
     animation: !isSmall,
     tooltip: {
       trigger: "axis",

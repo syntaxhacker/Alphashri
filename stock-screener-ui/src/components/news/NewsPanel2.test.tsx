@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, waitFor } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { BrowserRouter } from "react-router-dom";
@@ -16,7 +15,7 @@ global.fetch = mockFetch;
 // Mock useNewsWebSocket
 vi.mock("../../state/newsWebSocket", () => ({
   useNewsWebSocket: vi.fn(),
-  NewsWebSocketProvider: ({ children }: { children: React.ReactNode }) => children,
+  NewsWebSocketProvider: ({ children }: { children: JSX.Element }) => children,
 }));
 
 // Mock news API
@@ -129,12 +128,11 @@ describe("NewsPanel2", () => {
   });
 
   const renderComponent = () =>
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <BrowserRouter>
           <NewsPanel2 />
         </BrowserRouter>
-      </UIProvider>,
+      </UIProvider>),
     );
 
   it("renders the NEWS toggle as an icon-only button", () => {
@@ -149,10 +147,9 @@ describe("NewsPanel2", () => {
   });
 
   it("opens the panel when toggle button is clicked", async () => {
-    const user = userEvent.setup();
-    renderComponent();
+        renderComponent();
     const toggleBtn = screen.getByTestId("news-toggle-btn");
-    await user.click(toggleBtn);
+    await fireEvent.click(toggleBtn);
 
     await waitFor(() => {
       expect(screen.getByTestId("news-panel")).toHaveClass("open");
@@ -160,9 +157,8 @@ describe("NewsPanel2", () => {
   });
 
   it("shows overlay when panel is open", async () => {
-    const user = userEvent.setup();
-    renderComponent();
-    await user.click(screen.getByTestId("news-toggle-btn"));
+        renderComponent();
+    await fireEvent.click(screen.getByTestId("news-toggle-btn"));
 
     await waitFor(() => {
       expect(screen.getByTestId("news-overlay")).toBeInTheDocument();
@@ -170,16 +166,15 @@ describe("NewsPanel2", () => {
   });
 
   it("closes panel when overlay is clicked", async () => {
-    const user = userEvent.setup();
-    renderComponent();
-    await user.click(screen.getByTestId("news-toggle-btn"));
+        renderComponent();
+    await fireEvent.click(screen.getByTestId("news-toggle-btn"));
 
     await waitFor(() => {
       expect(screen.getByTestId("news-panel")).toHaveClass("open");
     });
 
     const overlay = screen.getByTestId("news-overlay");
-    await user.click(overlay);
+    await fireEvent.click(overlay);
 
     await waitFor(() => {
       expect(screen.getByTestId("news-panel")).not.toHaveClass("open");
@@ -187,9 +182,8 @@ describe("NewsPanel2", () => {
   });
 
   it("loads and displays news items", async () => {
-    const user = userEvent.setup();
-    renderComponent();
-    await user.click(screen.getByTestId("news-toggle-btn"));
+        renderComponent();
+    await fireEvent.click(screen.getByTestId("news-toggle-btn"));
 
     await waitFor(() => {
       expect(fetchNews).toHaveBeenCalled();
@@ -202,15 +196,14 @@ describe("NewsPanel2", () => {
   });
 
   it("opens article reader when news item is clicked", async () => {
-    const user = userEvent.setup();
-    renderComponent();
-    await user.click(screen.getByTestId("news-toggle-btn"));
+        renderComponent();
+    await fireEvent.click(screen.getByTestId("news-toggle-btn"));
 
     await waitFor(() => {
       expect(screen.getByText("Test News 1")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Test News 1"));
+    await fireEvent.click(screen.getByText("Test News 1"));
 
     await waitFor(() => {
       expect(fetchArticle).toHaveBeenCalledWith("https://example.com/1");
@@ -218,13 +211,12 @@ describe("NewsPanel2", () => {
   });
 
   it("retries a failed article load from the reader", async () => {
-    const user = userEvent.setup();
-    (fetchArticle as any).mockRejectedValueOnce(new Error("Network error"));
+        (fetchArticle as any).mockRejectedValueOnce(new Error("Network error"));
     renderComponent();
-    await user.click(screen.getByTestId("news-toggle-btn"));
+    await fireEvent.click(screen.getByTestId("news-toggle-btn"));
 
-    await user.click(await screen.findByText("Test News 1"));
-    await user.click(await screen.findByTestId("news-article-retry-btn"));
+    await fireEvent.click(await screen.findByText("Test News 1"));
+    await fireEvent.click(await screen.findByTestId("news-article-retry-btn"));
 
     await waitFor(() => {
       expect(fetchArticle).toHaveBeenCalledTimes(2);
@@ -232,9 +224,8 @@ describe("NewsPanel2", () => {
   });
 
   it("handles source filtering", async () => {
-    const user = userEvent.setup();
-    renderComponent();
-    await user.click(screen.getByTestId("news-toggle-btn"));
+        renderComponent();
+    await fireEvent.click(screen.getByTestId("news-toggle-btn"));
 
     await waitFor(() => {
       expect(fetchNews).toHaveBeenCalledWith(undefined, 50);
@@ -242,10 +233,9 @@ describe("NewsPanel2", () => {
   });
 
   it("shows error state when fetch fails", async () => {
-    const user = userEvent.setup();
-    (fetchNews as any).mockRejectedValue(new Error("Network error"));
+        (fetchNews as any).mockRejectedValue(new Error("Network error"));
     renderComponent();
-    await user.click(screen.getByTestId("news-toggle-btn"));
+    await fireEvent.click(screen.getByTestId("news-toggle-btn"));
 
     await waitFor(() => {
       expect(screen.getByTestId("news-error")).toBeInTheDocument();
@@ -253,10 +243,9 @@ describe("NewsPanel2", () => {
   });
 
   it("shows empty state when no news available", async () => {
-    const user = userEvent.setup();
-    (fetchNews as any).mockResolvedValue([]);
+        (fetchNews as any).mockResolvedValue([]);
     renderComponent();
-    await user.click(screen.getByTestId("news-toggle-btn"));
+    await fireEvent.click(screen.getByTestId("news-toggle-btn"));
 
     await waitFor(() => {
       expect(screen.getByTestId("news-empty")).toBeInTheDocument();
@@ -265,22 +254,21 @@ describe("NewsPanel2", () => {
   });
 
   it("handles back navigation from article view", async () => {
-    const user = userEvent.setup();
-    renderComponent();
-    await user.click(screen.getByTestId("news-toggle-btn"));
+        renderComponent();
+    await fireEvent.click(screen.getByTestId("news-toggle-btn"));
 
     await waitFor(() => {
       expect(screen.getByText("Test News 1")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Test News 1"));
+    await fireEvent.click(screen.getByText("Test News 1"));
 
     await waitFor(() => {
       expect(screen.getByTestId("news-article-view")).toBeInTheDocument();
     });
 
     const backButton = screen.getByTestId("news-article-back-btn");
-    await user.click(backButton);
+    await fireEvent.click(backButton);
 
     await waitFor(() => {
       expect(screen.queryByTestId("news-article-view")).not.toBeInTheDocument();

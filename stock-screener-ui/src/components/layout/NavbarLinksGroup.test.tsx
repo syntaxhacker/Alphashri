@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { NavbarLinksGroup } from "./NavbarLinksGroup";
 import { UIProvider } from "@/ui";
@@ -37,10 +36,9 @@ describe("NavbarLinksGroup", () => {
   };
 
   it("renders with active state data attribute", () => {
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <NavbarLinksGroup {...defaultProps} active={true} />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     const navItem = screen.getByTestId("nav-screener");
@@ -48,10 +46,9 @@ describe("NavbarLinksGroup", () => {
   });
 
   it("renders without data-active when inactive", () => {
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <NavbarLinksGroup {...defaultProps} active={false} />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     const navItem = screen.getByTestId("nav-screener");
@@ -59,10 +56,9 @@ describe("NavbarLinksGroup", () => {
   });
 
   it("renders icon component", () => {
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <NavbarLinksGroup {...defaultProps} />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     expect(screen.getByText("MockIcon")).toBeInTheDocument();
@@ -71,27 +67,25 @@ describe("NavbarLinksGroup", () => {
   it("calls navigate and onNavigate when clicked", async () => {
     const onNavigate = vi.fn();
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <NavbarLinksGroup {...defaultProps} onNavigate={onNavigate} />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     // Get the navigate function returned by the mocked useNavigate hook
     const navigateFn = (useNavigate as any).mock.results[0]?.value;
 
     const button = screen.getByTestId("nav-screener");
-    await user.click(button);
+    await fireEvent.click(button);
 
     expect(navigateFn).toHaveBeenCalledWith("/");
     expect(onNavigate).toHaveBeenCalled();
   });
 
   it("renders with correct id based on label", () => {
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <NavbarLinksGroup {...defaultProps} />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     const navItem = screen.getByTestId("nav-screener");
@@ -100,10 +94,9 @@ describe("NavbarLinksGroup", () => {
 
   it("handles special label transformations for Paper Trading", () => {
     const props = { ...defaultProps, label: "Paper Trading" };
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <NavbarLinksGroup {...props} />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     expect(screen.getByTestId("nav-paper")).toBeInTheDocument();
@@ -111,20 +104,18 @@ describe("NavbarLinksGroup", () => {
 
   it("handles Sector Analysis transformation", () => {
     const props = { ...defaultProps, label: "Sector Analysis" };
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <NavbarLinksGroup {...props} />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     expect(screen.getByTestId("nav-sector")).toBeInTheDocument();
   });
 
   it("renders tooltip wrapper when collapsed", () => {
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <NavbarLinksGroup {...defaultProps} collapsed={true} />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     const navItem = screen.getByTestId("nav-screener");

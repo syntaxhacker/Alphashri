@@ -1,12 +1,13 @@
 import { createMemo, createSignal, Index, Show, onCleanup } from "solid-js";
-import { Badge, Text, Tooltip, Button, Stack } from "@/ui";
+import { Badge, Text, Tooltip, Button } from "@/ui";
 import { getPaperTradingState, subscribe, setSelectedSymbol, setSelectedTradeId } from "../../state/paperTrading";
 import type { PaperPosition } from "../../types/paperTrading";
-import { useStoreSnapshot } from "../../hooks/useStoreSubscription";
+import { useStoreSnapshot } from "./storeSnapshot";
 import { closeAllPositions, closePaperPosition, refreshBotLiveData, refreshLiveData, fetchPaperChart } from "../../api/paperTrading";
 import dayjs from "dayjs";
 import { StrategyCard } from "./StrategyCard";
 import { groupPositionsByStrategy } from "./PositionsHelpers";
+import { Stack } from "./primitives";
 
 function EmptyPositions() {
   return (

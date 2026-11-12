@@ -1,9 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test } from "vitest";
-import { render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { render, screen, within, fireEvent } from "@solidjs/testing-library";
+import { MemoryRouter, Route, Routes, useLocation } from "@solidjs/router";
 import StrategySwitcher from "./StrategySwitcher";
 
 function LocationProbe() {
@@ -25,14 +24,13 @@ const renderAt = (path: string) =>
 
 describe("StrategySwitcher", () => {
   test("renders the current strategy and navigates to the chosen one", async () => {
-    const user = userEvent.setup();
     renderAt("/poc/replay/vwap-orb");
 
     const select = screen.getByLabelText("Strategy");
     expect(select).toBeInTheDocument();
 
     expect(within(select).getByRole("option", { name: "VWAP + ORB" })).toBeInTheDocument();
-    await user.selectOptions(select, "smc-ifvg");
+    await fireEvent.input(select, "smc-ifvg");
 
     expect(screen.getByTestId("loc").textContent).toBe("/poc/replay/smc-ifvg");
   });

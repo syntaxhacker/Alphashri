@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Show, createEffect, createMemo, createSignal } from "solid-js";
 import { HeatmapTreemap } from "../../pages/heatmap/HeatmapTreemap";
 import type { Stock } from "../../types";
 import {
@@ -15,46 +15,29 @@ interface Props {
 }
 
 /** NSE heatmap page treemap, fed with screener result rows. */
-export function ScreenerHeatmapView({
-  stocks,
-  activeScreener,
-  onSymbolClick,
-  testId = "screener-heatmap",
-}: Props) {
-  const [metric, setMetric] = useState(() => defaultScreenerHeatmapMetric(activeScreener));
+export function ScreenerHeatmapView(props: Props) {
+  const [metric, setMetric] = createSignal(defaultScreenerHeatmapMetric(props.activeScreener));
 
-  useEffect(() => {
-    setMetric(defaultScreenerHeatmapMetric(activeScreener));
-  }, [activeScreener]);
+  createEffect(() => {
+    setMetric(defaultScreenerHeatmapMetric(props.activeScreener));
+  });
 
-  const rows = useMemo(() => stocksToHeatmapRows(stocks), [stocks]);
-  const handleSymbolClick = useCallback(
-    (symbol: string) => {
-      onSymbolClick(symbol);
-    },
-    [onSymbolClick],
-  );
-
-  if (rows.length === 0) {
-    return null;
-  }
-
-  const chartHeight = useMemo(
-    () => Math.max(320, Math.min(560, 40 + rows.length * 14)),
-    [rows.length],
-  );
+  const rows = createMemo(() => stocksToHeatmapRows(props.stocks));
+  const chartHeight = createMemo(() => Math.max(320, Math.min(560, 40 + rows().length * 14)));
 
   return (
-    <HeatmapTreemap
-      stocks={rows}
-      metrics={SCREENER_HEATMAP_METRICS}
-      metric={metric}
-      onMetricChange={setMetric}
-      showMetricSelect
-      showLegend
-      chartHeight={chartHeight}
-      onSymbolClick={handleSymbolClick}
-      testId={testId}
-    />
+    <Show when={rows().length > 0}>
+      <HeatmapTreemap
+        stocks={rows()}
+        metrics={SCREENER_HEATMAP_METRICS}
+        metric={metric()}
+        onMetricChange={setMetric}
+        showMetricSelect
+        showLegend
+        chartHeight={chartHeight()}
+        onSymbolClick={(symbol: string) => props.onSymbolClick(symbol)}
+        testId={props.testId ?? "screener-heatmap"}
+      />
+    </Show>
   );
 }

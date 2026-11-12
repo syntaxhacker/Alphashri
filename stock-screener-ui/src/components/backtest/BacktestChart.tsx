@@ -1,4 +1,4 @@
-import { createEffect, createMemo } from "solid-js";
+import { createEffect, createMemo, onCleanup } from "solid-js";
 import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { SymbolChartData, ChartTrade } from "../../types/backtest";
@@ -223,17 +223,17 @@ export function BacktestChart({
 
   createEffect(() => {
     if (chartRef) chartHandles.set(symbol, chartRef);
-    return () => {
+    onCleanup(() => {
       chartHandles.delete(symbol);
-    };
+    });
   });
 
   const input = createMemo(() => {
     if (!chartData) return null;
     return normalizeBacktest(chartData, true, holidays, highlightedTradeId);
-  }, [chartData, holidays, highlightedTradeId]);
+  });
 
-  const trades = createMemo(() => (chartData ? mapTrades(chartData) : []), [chartData]);
+  const trades = createMemo(() => (chartData ? mapTrades(chartData) : []));
   const markLines = createMemo(() => {
     if (!chartData) return [];
     // Force solid lines (the shared normalizer emits dashed/dotted).
@@ -242,9 +242,9 @@ export function BacktestChart({
       lineStyle: { ...ml.lineStyle, type: "solid" },
     }));
     return [...forced, ...buildLevelLines(chartData)];
-  }, [chartData, input]);
-  const candles = createMemo(
-    () => (input()?.candles ?? []).map((c) => ({
+  });
+  const candles = createMemo(() =>
+    (input()?.candles ?? []).map((c) => ({
       time: c.time,
       open: c.open,
       high: c.high,
@@ -252,7 +252,6 @@ export function BacktestChart({
       close: c.close,
       volume: c.volume,
     })),
-    [input],
   );
 
   // zoom preset (All / 30D / 7D / 1D)
@@ -267,7 +266,7 @@ export function BacktestChart({
         chartRef?.zoomToIndexRange(startIdx, total - 1, total);
       }
     }, 150);
-    return () => clearTimeout(timer);
+    onCleanup(() => clearTimeout(timer));
   });
 
   if (isLoading) {

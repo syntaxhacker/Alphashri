@@ -1,13 +1,14 @@
-import { useEffect, useState } from "react";
-import { Box, Flex, Text, Paper, SimpleGrid, Loader, Center, SegmentedControl, Group } from "@/ui";
-import { useStoreSubscription } from "../../hooks/useStoreSubscription";
+import { createSignal, createEffect, Show } from "solid-js";
+import { Text, Loader, Center, SegmentedControl } from "@/ui";
+import { useStoreSnapshot } from "./storeSnapshot";
 import { getPaperTradingState, subscribe } from "../../state/paperTrading";
 import { fetchAnalytics } from "../../api/paperTrading";
-import { CompactStat, CompactStatGrid } from "../common/compact";
+import { CompactStat } from "../common/compact";
+import { EChartSolid } from "./EChartSolid";
 import type { AnalyticsData, DailyPnLPoint, EquityCurvePoint } from "../../types/paperTrading";
 import { PERF_POSITIVE, PERF_NEGATIVE, POSITIVE, NEGATIVE, TEXT_MUTED, PRIMARY, INFO } from "../../config/colors";
 import { withAlpha } from "../../utils/color";
-import ReactECharts from "echarts-for-react";
+import { Box, Flex, Paper, Group } from "./primitives";
 
 const splitLine = { lineStyle: { color: withAlpha(TEXT_MUTED, 0.12) } };
 
@@ -34,247 +35,237 @@ function chartOption({
 const currencyFmt = (v: number) => `₹${v.toFixed(2)}`;
 const pctFmt = (v: number) => `${v.toFixed(2)}%`;
 
-function EquityCurveChart({ data }: { data: EquityCurvePoint[] }) {
-  const isPositive = data.length > 0 && data[data.length - 1].cumulative_pnl >= 0;
-  const lineColor = isPositive ? PERF_POSITIVE : PERF_NEGATIVE;
-  return (
-    <ReactECharts
-      style={{ height: 140 }}
-      option={chartOption({
-        xData: data.map((d) => d.date.slice(5)),
-        yFormatter: "₹{value}",
-        tooltipFormatter: currencyFmt,
-        series: [
-          {
-            type: "line",
-            data: data.map((d) => d.cumulative_pnl),
-            smooth: true,
-            lineStyle: { color: lineColor, width: 2 },
-            areaStyle: {
-              color: {
-                type: "linear",
-                x: 0, y: 0, x2: 0, y2: 1,
-                colorStops: [
-                  { offset: 0, color: withAlpha(isPositive ? PERF_POSITIVE : PERF_NEGATIVE, 0.3) },
-                  { offset: 1, color: withAlpha(isPositive ? PERF_POSITIVE : PERF_NEGATIVE, 0.02) },
-                ],
-              },
-            },
-            showSymbol: false,
-          },
-        ],
-      })}
-    />
-  );
-}
-
-function DailyPnLChart({ data }: { data: DailyPnLPoint[] }) {
-  return (
-    <ReactECharts
-      style={{ height: 140 }}
-      option={chartOption({
-        xData: data.map((d) => d.date.slice(5)),
-        yFormatter: "₹{value}",
-        tooltipFormatter: currencyFmt,
-        series: [
-          {
-            type: "bar",
-            data: data.map((d) => ({
-              value: d.net_pnl,
-              itemStyle: {
-                color: d.net_pnl >= 0 ? POSITIVE : NEGATIVE,
-                "border-radius": [2, 2, 0, 0],
-              },
-            })),
-            barMaxWidth: 20,
-          },
-          {
-            type: "line",
-            data: [],
-            markLine: {
-              silent: true,
-              symbol: "none",
-              lineStyle: { color: withAlpha(TEXT_MUTED, 0.3), type: "dashed", width: 1 },
-              data: [{ yAxis: 0 }],
-              label: { show: false },
+function EquityCurveChart(props: { data: EquityCurvePoint[] }) {
+  const option = () => {
+    const isPositive = props.data.length > 0 && props.data[props.data.length - 1].cumulative_pnl >= 0;
+    const lineColor = isPositive ? PERF_POSITIVE : PERF_NEGATIVE;
+    return chartOption({
+      xData: props.data.map((d) => d.date.slice(5)),
+      yFormatter: "₹{value}",
+      tooltipFormatter: currencyFmt,
+      series: [
+        {
+          type: "line",
+          data: props.data.map((d) => d.cumulative_pnl),
+          smooth: true,
+          lineStyle: { color: lineColor, width: 2 },
+          areaStyle: {
+            color: {
+              type: "linear",
+              x: 0, y: 0, x2: 0, y2: 1,
+              colorStops: [
+                { offset: 0, color: withAlpha(isPositive ? PERF_POSITIVE : PERF_NEGATIVE, 0.3) },
+                { offset: 1, color: withAlpha(isPositive ? PERF_POSITIVE : PERF_NEGATIVE, 0.02) },
+              ],
             },
           },
-        ],
-      })}
-    />
-  );
+          showSymbol: false,
+        },
+      ],
+    });
+  };
+  return <EChartSolid option={option} style={{ height: "140px" }} data-testid="equity-curve-chart" />;
 }
 
-function DrawdownChart({ data }: { data: any[] }) {
-  return (
-    <ReactECharts
-      style={{ height: 120 }}
-      option={chartOption({
-        xData: data.map((d) => d.date.slice(5)),
-        yFormatter: "{value}%",
-        tooltipFormatter: pctFmt,
-        series: [
-          {
-            type: "line",
-            data: data.map((d) => d.drawdown_pct),
-            smooth: true,
-            lineStyle: { color: NEGATIVE, width: 2 },
-            areaStyle: {
-              color: {
-                type: "linear",
-                x: 0, y: 0, x2: 0, y2: 1,
-                colorStops: [
-                  { offset: 0, color: withAlpha(NEGATIVE, 0.25) },
-                  { offset: 1, color: withAlpha(NEGATIVE, 0.02) },
-                ],
-              },
-            },
-            showSymbol: false,
+function DailyPnLChart(props: { data: DailyPnLPoint[] }) {
+  const option = () => chartOption({
+    xData: props.data.map((d) => d.date.slice(5)),
+    yFormatter: "₹{value}",
+    tooltipFormatter: currencyFmt,
+    series: [
+      {
+        type: "bar",
+        data: props.data.map((d) => ({
+          value: d.net_pnl,
+          itemStyle: {
+            color: d.net_pnl >= 0 ? POSITIVE : NEGATIVE,
+            "border-radius": [2, 2, 0, 0],
           },
-        ],
-      })}
-    />
-  );
+        })),
+        barMaxWidth: 20,
+      },
+      {
+        type: "line",
+        data: [],
+        markLine: {
+          silent: true,
+          symbol: "none",
+          lineStyle: { color: withAlpha(TEXT_MUTED, 0.3), type: "dashed", width: 1 },
+          data: [{ yAxis: 0 }],
+          label: { show: false },
+        },
+      },
+    ],
+  });
+  return <EChartSolid option={option} style={{ height: "140px" }} data-testid="daily-pnl-chart" />;
 }
 
-function MonthlyChart({ data }: { data: any[] }) {
-  return (
-    <ReactECharts
-      style={{ height: 120 }}
-      option={chartOption({
-        xData: data.map((d) => d.month),
-        yFormatter: "₹{value}",
-        tooltipFormatter: currencyFmt,
-        series: [
-          {
-            type: "bar",
-            data: data.map((d) => ({
-              value: d.pnl,
-              itemStyle: {
-                color: d.pnl >= 0 ? POSITIVE : NEGATIVE,
-                "border-radius": [2, 2, 0, 0],
-              },
-            })),
-            barMaxWidth: 24,
+function DrawdownChart(props: { data: any[] }) {
+  const option = () => chartOption({
+    xData: props.data.map((d) => d.date.slice(5)),
+    yFormatter: "{value}%",
+    tooltipFormatter: pctFmt,
+    series: [
+      {
+        type: "line",
+        data: props.data.map((d) => d.drawdown_pct),
+        smooth: true,
+        lineStyle: { color: NEGATIVE, width: 2 },
+        areaStyle: {
+          color: {
+            type: "linear",
+            x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: withAlpha(NEGATIVE, 0.25) },
+              { offset: 1, color: withAlpha(NEGATIVE, 0.02) },
+            ],
           },
-          {
-            type: "line",
-            data: [],
-            markLine: {
-              silent: true,
-              symbol: "none",
-              lineStyle: { color: withAlpha(TEXT_MUTED, 0.3), type: "dashed", width: 1 },
-              data: [{ yAxis: 0 }],
-              label: { show: false },
-            },
-          },
-        ],
-      })}
-    />
-  );
+        },
+        showSymbol: false,
+      },
+    ],
+  });
+  return <EChartSolid option={option} style={{ height: "120px" }} data-testid="drawdown-chart" />;
 }
 
-function SummaryCards({ summary }: { summary: AnalyticsData["summary"] }) {
-  const tone = (condition: boolean, yes: string, no: string) => (condition ? yes : no);
-  const base = { p: 4 as const, valueSize: "xs" as const, labelSize: "xs" as const };
+function MonthlyChart(props: { data: any[] }) {
+  const option = () => chartOption({
+    xData: props.data.map((d) => d.month),
+    yFormatter: "₹{value}",
+    tooltipFormatter: currencyFmt,
+    series: [
+      {
+        type: "bar",
+        data: props.data.map((d) => ({
+          value: d.pnl,
+          itemStyle: {
+            color: d.pnl >= 0 ? POSITIVE : NEGATIVE,
+            "border-radius": [2, 2, 0, 0],
+          },
+        })),
+        barMaxWidth: 24,
+      },
+      {
+        type: "line",
+        data: [],
+        markLine: {
+          silent: true,
+          symbol: "none",
+          lineStyle: { color: withAlpha(TEXT_MUTED, 0.3), type: "dashed", width: 1 },
+          data: [{ yAxis: 0 }],
+          label: { show: false },
+        },
+      },
+    ],
+  });
+  return <EChartSolid option={option} style={{ height: "120px" }} data-testid="monthly-pnl-chart" />;
+}
+
+function SummaryCards(props: { summary: AnalyticsData["summary"] }) {
+  const s = () => props.summary;
   return (
-    <CompactStatGrid cols={8} spacing={4}>
-      <CompactStat label="Total" value={`₹${summary.final_pnl.toFixed(0)}`} tone={tone(summary.final_pnl >= 0, "success.main", "error.main")} {...base} />
-      <CompactStat label="Win Rate" value={`${summary.win_rate.toFixed(1)}%`} tone="success.main" {...base} />
-      <CompactStat label="PF" value={summary.profit_factor === Infinity ? "∞" : summary.profit_factor.toFixed(2)} tone={tone(summary.profit_factor >= 1, "success.main", "error.main")} {...base} />
-      <CompactStat label="Trades" value={summary.total_trades.toString()} {...base} />
-      <CompactStat label="Max DD" value={`${summary.max_drawdown_pct.toFixed(1)}%`} tone="error.main" {...base} />
-      <CompactStat label="Avg Win" value={`₹${summary.avg_win.toFixed(0)}`} tone="success.main" {...base} />
-      <CompactStat label="Avg Loss" value={`₹${summary.avg_loss.toFixed(0)}`} tone="error.main" {...base} />
-      <CompactStat label="Costs" value={`₹${summary.total_costs.toFixed(0)}`} tone="text.secondary" {...base} />
-    </CompactStatGrid>
+    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-1">
+      <CompactStat label="Total" value={`₹${s().final_pnl.toFixed(0)}`} tone={s().final_pnl >= 0 ? "success" : "error"} valueSize="xs" labelSize="xs" />
+      <CompactStat label="Win Rate" value={`${s().win_rate.toFixed(1)}%`} tone="success" valueSize="xs" labelSize="xs" />
+      <CompactStat label="PF" value={s().profit_factor === Infinity ? "∞" : s().profit_factor.toFixed(2)} tone={s().profit_factor >= 1 ? "success" : "error"} valueSize="xs" labelSize="xs" />
+      <CompactStat label="Trades" value={s().total_trades.toString()} valueSize="xs" labelSize="xs" />
+      <CompactStat label="Max DD" value={`${s().max_drawdown_pct.toFixed(1)}%`} tone="error" valueSize="xs" labelSize="xs" />
+      <CompactStat label="Avg Win" value={`₹${s().avg_win.toFixed(0)}`} tone="success" valueSize="xs" labelSize="xs" />
+      <CompactStat label="Avg Loss" value={`₹${s().avg_loss.toFixed(0)}`} tone="error" valueSize="xs" labelSize="xs" />
+      <CompactStat label="Costs" value={`₹${s().total_costs.toFixed(0)}`} tone="dimmed" valueSize="xs" labelSize="xs" />
+    </div>
   );
 }
 
 export function PerformanceAnalytics() {
-  useStoreSubscription(subscribe);
-  const state = getPaperTradingState();
-  const [daysBack, setDaysBack] = useState(30);
+  const state = useStoreSnapshot(subscribe, getPaperTradingState);
+  const [daysBack, setDaysBack] = createSignal(30);
 
-  useEffect(() => {
-    fetchAnalytics(daysBack);
-  }, [daysBack]);
-
-  if (state.analyticsLoading) {
-    return (
-      <Center h={400}>
-        <Loader />
-      </Center>
-    );
-  }
-
-  if (!state.analyticsData) {
-    return (
-      <Center h={200}>
-        <Text c="dimmed">No analytics data available yet.</Text>
-      </Center>
-    );
-  }
-
-  const { summary, daily_pnl, equity_curve, drawdown, monthly_pnl } = state.analyticsData;
+  createEffect(() => {
+    fetchAnalytics(daysBack());
+  });
 
   return (
-    <Flex direction="column" gap="xs">
-      <Flex justify="space-between" align="center">
-        <Group gap="xs">
-            <Box w={4} h={20} style={{ "border-radius": 2, "background-color": INFO }} />
-            <Text fw={700} size="lg">Performance Analytics</Text>
-        </Group>
-        <SegmentedControl
-          size="xs"
-          color="info"
-          value={daysBack.toString()}
-          onChange={(v) => setDaysBack(Number(v))}
-          data={[
-            { label: "7d", value: "7" },
-            { label: "30d", value: "30" },
-            { label: "90d", value: "90" },
-          ]}
-        />
-      </Flex>
+    <Show
+      when={!state().analyticsLoading}
+      fallback={
+        <Center h={400}>
+          <Loader />
+        </Center>
+      }
+    >
+      <Show
+        when={state().analyticsData}
+        fallback={
+          <Center h={200}>
+            <Text c="dimmed">No analytics data available yet.</Text>
+          </Center>
+        }
+      >
+        {(data) => {
+          const summary = () => data().summary;
+          const dailyPnl = () => data().daily_pnl;
+          const equityCurve = () => data().equity_curve;
+          const drawdown = () => data().drawdown;
+          const monthlyPnl = () => data().monthly_pnl;
+          return (
+            <Flex direction="column" gap="xs">
+              <Flex justify="space-between" align="center">
+                <Group gap="xs">
+                  <Box w={4} h={20} style={{ "border-radius": 2, "background-color": INFO }} />
+                  <Text fw={700} size="lg">Performance Analytics</Text>
+                </Group>
+                <SegmentedControl
+                  size="xs"
+                  color="info"
+                  value={daysBack().toString()}
+                  onChange={(v) => setDaysBack(Number(v))}
+                  data={[
+                    { label: "7d", value: "7" },
+                    { label: "30d", value: "30" },
+                    { label: "90d", value: "90" },
+                  ]}
+                />
+              </Flex>
 
-      <Paper p="xs" radius="md">
-        <SummaryCards summary={summary} />
-      </Paper>
+              <Paper p="xs" radius="md">
+                <SummaryCards summary={summary()} />
+              </Paper>
 
-      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
-        <Paper p="xs" radius="md">
-          <Group gap="xs" mb={2}>
-            <Box w={4} h={14} style={{ "border-radius": 2, "background-color": PRIMARY }} />
-            <Text fw={600} size="xs">Equity Curve</Text>
-          </Group>
-          <EquityCurveChart data={equity_curve} />
-        </Paper>
-        <Paper p="xs" radius="md">
-          <Group gap="xs" mb={2}>
-            <Box w={4} h={14} style={{ "border-radius": 2, "background-color": TEXT_MUTED }} />
-            <Text fw={600} size="xs">Daily P&L</Text>
-          </Group>
-          <DailyPnLChart data={daily_pnl} />
-        </Paper>
-      </SimpleGrid>
-
-      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
-        <Paper p="xs" radius="md">
-          <Group gap="xs" mb={2}>
-            <Box w={4} h={14} style={{ "border-radius": 2, "background-color": NEGATIVE }} />
-            <Text fw={600} size="xs">Drawdown</Text>
-          </Group>
-          <DrawdownChart data={drawdown} />
-        </Paper>
-        <Paper p="xs" radius="md">
-          <Group gap="xs" mb={2}>
-            <Box w={4} h={14} style={{ "border-radius": 2, "background-color": INFO }} />
-            <Text fw={600} size="xs">Monthly P&L</Text>
-          </Group>
-          <MonthlyChart data={monthly_pnl} />
-        </Paper>
-      </SimpleGrid>
-    </Flex>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <Paper p="xs" radius="md">
+                  <Group gap="xs" mb={2}>
+                    <Box w={4} h={14} style={{ "border-radius": 2, "background-color": PRIMARY }} />
+                    <Text fw={600} size="xs">Equity Curve</Text>
+                  </Group>
+                  <EquityCurveChart data={equityCurve()} />
+                </Paper>
+                <Paper p="xs" radius="md">
+                  <Group gap="xs" mb={2}>
+                    <Box w={4} h={14} style={{ "border-radius": 2, "background-color": TEXT_MUTED }} />
+                    <Text fw={600} size="xs">Daily P&L</Text>
+                  </Group>
+                  <DailyPnLChart data={dailyPnl()} />
+                </Paper>
+                <Paper p="xs" radius="md">
+                  <Group gap="xs" mb={2}>
+                    <Box w={4} h={14} style={{ "border-radius": 2, "background-color": NEGATIVE }} />
+                    <Text fw={600} size="xs">Drawdown</Text>
+                  </Group>
+                  <DrawdownChart data={drawdown()} />
+                </Paper>
+                <Paper p="xs" radius="md">
+                  <Group gap="xs" mb={2}>
+                    <Box w={4} h={14} style={{ "border-radius": 2, "background-color": INFO }} />
+                    <Text fw={600} size="xs">Monthly P&L</Text>
+                  </Group>
+                  <MonthlyChart data={monthlyPnl()} />
+                </Paper>
+              </div>
+            </Flex>
+          );
+        }}
+      </Show>
+    </Show>
   );
 }

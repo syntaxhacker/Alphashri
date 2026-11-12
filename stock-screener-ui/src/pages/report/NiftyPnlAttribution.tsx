@@ -176,7 +176,7 @@ function NiftyPnlAttributionInner({
 
         <Box
           className="flex items-center justify-between gap-[8px] min-w-0"
-          style={{ borderTop: `1px solid ${palette.TERM_BORDER}`, "padding-top": 4 }}
+          style={{ "border-top": `1px solid ${palette.TERM_BORDER}`, "padding-top": 4 }}
         >
           <Box
             data-testid={`${testId}-legend`}
@@ -219,7 +219,7 @@ function NiftyPnlAttributionInner({
             span
             fw={700}
             c={total > 0 ? palette.POSITIVE : total < 0 ? palette.NEGATIVE : palette.TEXT_MUTED}
-            style={{ fontVariantNumeric: "tabular-nums", "white-space": "nowrap" }}
+            style={{ "font-variant-numeric": "tabular-nums", "white-space": "nowrap" }}
           >
             {formatPnlSigned(total)}
           </Text>

@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, waitFor } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { MemoryRouter, useSearchParams } from "react-router-dom";
 import { UIProvider } from "@/ui";
@@ -78,11 +77,10 @@ const baseState = (): BotsState =>
     editingBot: null,
   }) as BotsState;
 
-function renderWithProviders(ui: React.ReactElement, initialEntries: string[] = ["/bots"]) {
-  return render(
-    <MemoryRouter initialEntries={initialEntries}>
+function renderWithProviders(ui: JSX.Element, initialEntries: string[] = ["/bots"]) {
+  return render(() => (<MemoryRouter initialEntries={initialEntries}>
       <UIProvider>{ui}</UIProvider>
-    </MemoryRouter>,
+    </MemoryRouter>),
   );
 }
 
@@ -204,24 +202,22 @@ describe("BotsPage", () => {
   });
 
   it("switches to Status view when View Status button is clicked", async () => {
-    const user = userEvent.setup();
-    const state = baseState();
+        const state = baseState();
     state.bots = [createBot()];
     mockGetBotsState.mockReturnValue(state);
     renderWithProviders(<BotsPage />);
-    await user.click(screen.getByTestId("view-bot-status-btn-bot-1"));
+    await fireEvent.click(screen.getByTestId("view-bot-status-btn-bot-1"));
     expect(mockSelectBot).toHaveBeenCalled();
     expect(mockSetCurrentView).toHaveBeenCalledWith("status");
     expect(mockLoadBotTrades).toHaveBeenCalledWith("bot-1");
   });
 
   it("loads status once (no polling) when viewing status of a running bot", async () => {
-    const user = userEvent.setup();
-    const state = baseState();
+        const state = baseState();
     state.bots = [createBot({ running: true, pid: 12345 })];
     mockGetBotsState.mockReturnValue(state);
     renderWithProviders(<BotsPage />);
-    await user.click(screen.getByTestId("view-bot-status-btn-bot-1"));
+    await fireEvent.click(screen.getByTestId("view-bot-status-btn-bot-1"));
     expect(mockSelectBot).toHaveBeenCalled();
     expect(mockSetCurrentView).toHaveBeenCalledWith("status");
     expect(mockLoadBotStatus).toHaveBeenCalledWith("bot-1");
@@ -238,53 +234,48 @@ describe("BotsPage", () => {
   });
 
   it("calls startBotAction on Start", async () => {
-    const user = userEvent.setup();
-    const state = baseState();
+        const state = baseState();
     state.bots = [createBot()];
     mockGetBotsState.mockReturnValue(state);
     renderWithProviders(<BotsPage />);
-    await user.click(screen.getByTestId("start-bot-btn-bot-1"));
+    await fireEvent.click(screen.getByTestId("start-bot-btn-bot-1"));
     expect(mockStartBotAction).toHaveBeenCalledWith("bot-1", false);
   });
 
   it("calls stopBotAction on Stop", async () => {
-    const user = userEvent.setup();
-    const state = baseState();
+        const state = baseState();
     state.bots = [createBot({ running: true, pid: 12345 })];
     mockGetBotsState.mockReturnValue(state);
     renderWithProviders(<BotsPage />);
-    await user.click(screen.getByTestId("stop-bot-btn-bot-1"));
+    await fireEvent.click(screen.getByTestId("stop-bot-btn-bot-1"));
     expect(mockStopBotAction).toHaveBeenCalledWith("bot-1");
   });
 
   it("deletes bot with confirmation dialog", async () => {
-    const user = userEvent.setup();
-    window.confirm = vi.fn().mockReturnValue(true);
+        window.confirm = vi.fn().mockReturnValue(true);
     const state = baseState();
     state.bots = [createBot()];
     mockGetBotsState.mockReturnValue(state);
     renderWithProviders(<BotsPage />);
-    await user.click(screen.getByTestId("delete-bot-btn-bot-1"));
+    await fireEvent.click(screen.getByTestId("delete-bot-btn-bot-1"));
     expect(window.confirm).toHaveBeenCalledWith("Are you sure you want to delete this bot?");
     expect(mockDeleteBotAction).toHaveBeenCalledWith("bot-1");
   });
 
   it("does not delete bot when confirmation is cancelled", async () => {
-    const user = userEvent.setup();
-    window.confirm = vi.fn().mockReturnValue(false);
+        window.confirm = vi.fn().mockReturnValue(false);
     const state = baseState();
     state.bots = [createBot()];
     mockGetBotsState.mockReturnValue(state);
     renderWithProviders(<BotsPage />);
-    await user.click(screen.getByTestId("delete-bot-btn-bot-1"));
+    await fireEvent.click(screen.getByTestId("delete-bot-btn-bot-1"));
     expect(window.confirm).toHaveBeenCalled();
     expect(mockDeleteBotAction).not.toHaveBeenCalled();
   });
 
   it("opens create modal when New Bot button is clicked", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<BotsPage />);
-    await user.click(screen.getByText("New Bot"));
+        renderWithProviders(<BotsPage />);
+    await fireEvent.click(screen.getByText("New Bot"));
     expect(mockOpenCreateModal).toHaveBeenCalled();
   });
 
@@ -310,14 +301,13 @@ describe("BotsPage", () => {
   });
 
   it("switches views without polling", async () => {
-    const user = userEvent.setup();
-    const state = baseState();
+        const state = baseState();
     state.bots = [createBot()];
     state.selectedBot = createBot();
     mockGetBotsState.mockReturnValue(state);
     renderWithProviders(<BotsPage />);
     const statusTab = screen.getByTestId("bots-tab-status");
-    await user.click(statusTab);
+    await fireEvent.click(statusTab);
     expect(mockSetCurrentView).toHaveBeenCalledWith("status");
   });
 
@@ -335,20 +325,18 @@ describe("BotsPage", () => {
 
   it("writes current view to the URL when no ?tab= present", () => {
     mockGetBotsState.mockReturnValue(baseState());
-    render(
-      <MemoryRouter initialEntries={["/bots"]}>
+    render(() => (<MemoryRouter initialEntries={["/bots"]}>
         <UIProvider>
           <BotsPage />
           <SearchProbe />
         </UIProvider>
-      </MemoryRouter>,
+      </MemoryRouter>),
     );
     expect(screen.getByTestId("search-probe")).toHaveTextContent("tab=list");
   });
 
   it("updates ?tab= when switching tabs", async () => {
-    const user = userEvent.setup();
-    mockGetBotsState.mockReturnValue(baseState());
+        mockGetBotsState.mockReturnValue(baseState());
     const makeTree = () => (
       <MemoryRouter initialEntries={["/bots"]}>
         <UIProvider>
@@ -358,7 +346,7 @@ describe("BotsPage", () => {
       </MemoryRouter>
     );
     const { rerender } = render(makeTree());
-    await user.click(screen.getByTestId("bots-tab-performance"));
+    await fireEvent.click(screen.getByTestId("bots-tab-performance"));
     expect(mockSetCurrentView).toHaveBeenCalledWith("performance");
     // emulate the store update with a FRESH tree so React re-renders
     // (re-rendering the identical element object bails out and reads nothing new)
@@ -370,14 +358,13 @@ describe("BotsPage", () => {
   });
 
   it("calls clearError when error dismiss is clicked", async () => {
-    const user = userEvent.setup();
-    const state = baseState();
+        const state = baseState();
     state.error = "Test error";
     mockGetBotsState.mockReturnValue(state);
     renderWithProviders(<BotsPage />);
     const closeBtn = screen.getByTestId("bots-error").querySelector('[aria-label="Close"]');
     if (closeBtn) {
-      await user.click(closeBtn);
+      await fireEvent.click(closeBtn);
       expect(mockClearError).toHaveBeenCalled();
     }
   });

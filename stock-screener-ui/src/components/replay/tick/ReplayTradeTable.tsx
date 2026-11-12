@@ -1,12 +1,14 @@
 import { memo, useMemo } from "react";
-import { Box, Text, Chip } from "@/ui";
+import { Text, Chip } from "@/ui";
 import type { ColumnDef } from "@tanstack/react-table";
-import { TanStackTable, SideBadge, ExitReasonBadge } from "@/components/common";
+import { TanStackTable } from "../../paper-trading/TanStackTable";
+import { SideBadge, ExitReasonBadge } from "@/components/common";
 import { formatDuration, getPnLTextColor } from "@/utils/ui-helpers";
 import { TZ_IST } from "@/config/constants";
 import * as palette from "@/ui/palette";
 import { IconChevronRight, IconChevronDown } from "@tabler/icons-react";
 import type { ReplayTrade } from "./types";
+import { Box } from "../../paper-trading/primitives";
 
 export type RTrade = ReplayTrade;
 

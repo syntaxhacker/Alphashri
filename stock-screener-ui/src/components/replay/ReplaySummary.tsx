@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { TanStackTable } from "../common/TanStackTable";
+import { TanStackTable } from "../paper-trading/TanStackTable";
 import { CompactPanel } from "../common/compact";
 import { getPnLTextColor } from "../../utils/ui-helpers";
 import * as palette from "@/ui/palette";

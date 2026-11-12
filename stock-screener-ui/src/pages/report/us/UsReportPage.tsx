@@ -230,7 +230,7 @@ export function UsReportPage() {
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => us.setCursor(Number(e.target.value))}
                 data-testid="us-seek"
                 className="flex-1 h-3 cursor-pointer appearance-none bg-transparent [&::-webkit-slider-runnable-track]:h-[2px] [&::-webkit-slider-runnable-track]:bg-[var(--color-fin-border)] [&::-webkit-slider-runnable-track]:rounded-[1px] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:-mt-[3px] [&::-webkit-slider-thumb]:bg-[var(--us-thumb)]"
-                style={{ accentColor: INFO, "--us-thumb": INFO } as CSSProperties}
+                style={{ "accent-color": INFO, "--us-thumb": INFO } as CSSProperties}
               />
               <Box className="w-16">
                 <Select

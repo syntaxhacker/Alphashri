@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, test, beforeEach } from "vitest";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook } from "@solidjs/testing-library";
 import { useBacktestLayout, RAIL_MIN_WIDTH } from "./useBacktestLayout";
 
 describe("useBacktestLayout", () => {

@@ -1,6 +1,6 @@
 import { Show, splitProps, type JSX, type CSSProperties } from "solid-js";
 import { ActionIcon, Box, CopyButton, Text, Tooltip, cn } from "@/ui";
-import { IconChartCandle, IconCheck, IconCopy, IconExternalLink } from "@tabler/icons-react";
+import { IconChartCandle, IconCheck, IconCopy, IconExternalLink } from "./Icons";
 import { tradingViewSymbol } from "@/config/tvSymbols";
 import { useSymbolDock } from "./symbolDockContext";
 

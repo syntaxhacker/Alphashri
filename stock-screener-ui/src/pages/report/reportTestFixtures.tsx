@@ -6,8 +6,8 @@
 // niftyFlowStrip.test, useNiftyOiAlerts.test, niftyFlowRead.test,
 // niftyChartData.test, niftyOiHeatmap.test.
 
-import { act, render } from "@testing-library/react";
-import { createElement, type ReactElement, type ReactNode } from "react";
+import { render } from "@solidjs/testing-library";
+import type { JSX } from "solid-js";
 import { test, vi } from "vitest";
 import type { ChainTuple } from "./chainTuple";
 import { UIProvider } from "@/ui";
@@ -18,12 +18,12 @@ import type { SpotPoint, TapeSpotPoint } from "./niftyChartData";
 // ---------------- Shared UI test harness ----------------
 
 /** UIProvider wrapper so report component tests render with the fin theme. */
-export function TestWrapper({ children }: { children: ReactNode }) {
-  return createElement(UIProvider, null, children);
+export function TestWrapper(props: { children?: JSX.Element }) {
+  return <UIProvider>{props.children}</UIProvider>;
 }
 
 /** render() bound to TestWrapper. */
-export function r(jsx: ReactElement) {
+export function r(jsx: () => JSX.Element) {
   return render(jsx, { wrapper: TestWrapper });
 }
 
@@ -80,15 +80,11 @@ export function expectSingleReconnect(render: () => void): void {
       render();
       expect(MockWebSocket.instances).toHaveLength(1);
       const ws = MockWebSocket.instances[0];
-      act(() => {
-        ws.onerror?.({} as never);
-        ws.onclose?.({} as never);
-      });
+      ws.onerror?.({} as never);
+      ws.onclose?.({} as never);
       // First backoff is 2s; the overwritten duplicate would fire at 4s and
       // open a third socket — advancing past both must still leave exactly 2.
-      act(() => {
-        vi.advanceTimersByTime(10_000);
-      });
+      vi.advanceTimersByTime(10_000);
       expect(MockWebSocket.instances).toHaveLength(2);
     } finally {
       vi.useRealTimers();

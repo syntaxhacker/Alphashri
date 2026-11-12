@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { ActionIcon, Badge, Button, Group, Stack, Text } from "@/ui";
-import { IconRefresh, IconSearch, IconSparkles } from "@tabler/icons-react";
+import { IconRefresh, IconSearch, IconSparkles } from "./Icons";
 import { CompactPage, CompactPanel, CompactStat, CompactStatGrid } from "./compact";
 
 const meta: Meta<typeof CompactPanel> = {

@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, fireEvent, cleanup, screen, waitFor, within } from "@solidjs/testing-library";
 import { renderWithProviders } from "../../test-utils/renderWithProviders";
 import { AggregatedDashboard } from "./AggregatedDashboard";
 import * as paperTradingState from "../../state/paperTrading";
@@ -147,7 +146,7 @@ describe("AggregatedDashboard", () => {
 });
 
   it("loads all bots 30D analytics by default", async () => {
-    renderWithProviders(<AggregatedDashboard />);
+    render(() => <AggregatedDashboard />);
     await waitFor(() => {
       expect(fetchDashboardAnalytics).toHaveBeenCalledWith({
         preset: "30D",
@@ -159,13 +158,13 @@ describe("AggregatedDashboard", () => {
   });
 
   it("shows empty state when no dashboard data is available", () => {
-    renderWithProviders(<AggregatedDashboard />);
+    render(() => <AggregatedDashboard />);
     expect(screen.getByText("No closed trades found for this period.")).toBeInTheDocument();
   });
 
   it("renders summary, bot rankings, strategy rows, winners, and losers", () => {
     paperTradingState.setDashboardAnalyticsData(mockDashboardData());
-    renderWithProviders(<AggregatedDashboard />);
+    render(() => <AggregatedDashboard />);
 
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
     expect(screen.getAllByText("Net P&L").length).toBeGreaterThan(0);
@@ -179,14 +178,13 @@ describe("AggregatedDashboard", () => {
   });
 
   it("uses available bots in the bot filter and fetches selected bot analytics", async () => {
-    const user = userEvent.setup();
     paperTradingState.setAvailableBots([
       { id: "bot-1", name: "ORB Bot", strategies: [], is_active: true, live_trading: false },
     ]);
-    renderWithProviders(<AggregatedDashboard />);
+    render(() => <AggregatedDashboard />);
 
     const botFilter = within(screen.getByTestId("dashboard-bot-filter")).getByRole("combobox");
-    await user.selectOptions(botFilter, "bot-1");
+    await fireEvent.input(botFilter, "bot-1");
 
     await waitFor(() => {
       expect(fetchDashboardAnalytics).toHaveBeenLastCalledWith({

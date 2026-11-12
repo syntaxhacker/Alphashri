@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { Show, createEffect, For, createMemo, createSignal, onCleanup } from "solid-js";
 import { Stack, Button, CopyButton } from "@/ui";
 import { IconCopy, IconCheck } from "@tabler/icons-react";
 import { ScreenerEmpty } from "./ScreenerEmpty";
@@ -6,7 +6,7 @@ import { ScreenerLoading } from "./ScreenerLoading";
 import { ScreenerErrorPanel } from "./ScreenerErrorPanel";
 import { ScreenerSection } from "./ScreenerSection";
 import { getColumnsForScreener } from "./columns";
-import * as state from "../../state";
+import { subscribe, profileMetaById } from "../../state";
 import type { Stock } from "../../types";
 
 function approachRank(stock: Stock): number {
@@ -15,17 +15,17 @@ function approachRank(stock: Stock): number {
   return 1;
 }
 
-function CopySymbolsAction({ stocks, testId }: { stocks: Stock[]; testId: string }) {
-  const value = stocks.map((s) => s.symbol).join(",");
+function CopySymbolsAction(props: { stocks: Stock[]; testId: string }) {
+  const value = () => props.stocks.map((s) => s.symbol).join(",");
   return (
-    <CopyButton value={value}>
+    <CopyButton value={value()}>
       {({ copied, copy }) => (
         <Button
           size="xs"
           variant="subtle"
           color={copied ? "success" : "secondary"}
           onClick={copy}
-          data-testid={testId}
+          data-testid={props.testId}
         >
           {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
           {copied ? "Copied" : "TV symbols"}
@@ -57,79 +57,94 @@ interface Props {
   viewMode: "table" | "heatmap";
 }
 
-export const ScreenerContent = memo(function ScreenerContent({
-  approachingStocks,
-  touchedStocks,
-  isLoading,
-  error,
-  onRefresh,
-  onSymbolClick,
-  onSymbolHover,
-  activeScreener,
-  viewMode,
-}: Props) {
-  const meta = state.profileMetaById[activeScreener];
+// src/hooks/useStoreSubscription.ts's useStoreSnapshot misses its createMemo
+// import, so the snapshot is inlined here with the same semantics.
+function useStateSnapshot() {
+  const [tick, setTick] = createSignal(0);
+  createEffect(() => {
+    const unsubscribe = subscribe(() => setTick((n) => n + 1));
+    onCleanup(unsubscribe);
+  });
+  return createMemo(() => {
+    tick();
+    return { profileMetaById };
+  });
+}
 
-  const scoreFormula = meta?.score_formula || "";
+export function ScreenerContent(props: Props) {
+  const store = useStateSnapshot();
+  const meta = () => store().profileMetaById[props.activeScreener];
+  const scoreFormula = () => meta()?.score_formula || "";
 
-  const sections: SectionConfig[] = useMemo(() => {
-    const sl = meta?.section_labels;
-    const sd = meta?.section_descriptions;
+  const sections = createMemo<SectionConfig[]>(() => {
+    const m = meta();
+    const sl = m?.section_labels;
+    const sd = m?.section_descriptions;
     const result: SectionConfig[] = [];
 
-    if (approachingStocks.length > 0) {
+    if (props.approachingStocks.length > 0) {
       // Fresh approaches first, then unknown, then retests (stable within groups).
-      const ordered = [...approachingStocks].sort((a, b) => approachRank(a) - approachRank(b));
+      const ordered = [...props.approachingStocks].sort((a, b) => approachRank(a) - approachRank(b));
       result.push({
         key: "approaching",
         stocks: ordered,
-        label: `${(sl?.primary || "Primary")} (${approachingStocks.length})`,
+        label: `${(sl?.primary || "Primary")} (${props.approachingStocks.length})`,
         description: sd?.primary || "",
-        columns: getColumnsForScreener(activeScreener, "approaching"),
+        columns: getColumnsForScreener(props.activeScreener, "approaching"),
         touchedSymbols: new Set<string>(),
         copyTestId: "copy-approaching-symbols",
       });
     }
-    if (touchedStocks.length > 0) {
+    if (props.touchedStocks.length > 0) {
       result.push({
         key: "touched",
-        stocks: touchedStocks,
-        label: `${(sl?.secondary || "Secondary")} (${touchedStocks.length})`,
+        stocks: props.touchedStocks,
+        label: `${(sl?.secondary || "Secondary")} (${props.touchedStocks.length})`,
         description: sd?.secondary || "",
-        columns: getColumnsForScreener(activeScreener, "touched"),
-        touchedSymbols: new Set(touchedStocks.map((stock) => stock.symbol)),
+        columns: getColumnsForScreener(props.activeScreener, "touched"),
+        touchedSymbols: new Set(props.touchedStocks.map((stock) => stock.symbol)),
         copyTestId: "copy-touched-symbols",
       });
     }
     return result;
-  }, [approachingStocks, touchedStocks, meta, activeScreener]);
+  });
 
-  const hasResults = sections.length > 0;
-  if (isLoading && !hasResults) return <ScreenerLoading />;
-  if (error) return <ScreenerErrorPanel error={error} onRefresh={onRefresh} />;
-  if (!hasResults) return <ScreenerEmpty />;
+  const hasResults = () => sections().length > 0;
+  const showLoading = () => props.isLoading && !hasResults();
+  const showError = () => !!props.error && !showLoading();
+  const showEmpty = () => !showLoading() && !showError() && !hasResults();
 
   return (
-    <Stack gap={1} w="100%" p={0} className="flex min-h-0 items-stretch">
-      {sections.map((section) => (
-          <ScreenerSection
-            key={section.key}
-            title={section.label}
-            description={section.description}
-            testId={`screener-${section.key}-section`}
-            stocks={section.stocks}
-            columns={section.columns}
-            badgeLabel={undefined}
-            scoreFormula={scoreFormula}
-            action={<CopySymbolsAction stocks={section.stocks} testId={section.copyTestId} />}
-            touchedSymbols={section.touchedSymbols}
-            onSymbolClick={onSymbolClick}
-            onSymbolHover={onSymbolHover}
-            viewMode={viewMode}
-            section={section.key}
-            activeScreener={activeScreener}
-          />
-        ))}
-    </Stack>
+    <Show when={!showLoading()} fallback={<ScreenerLoading />}>
+      <Show when={!showError()} fallback={<ScreenerErrorPanel error={props.error ?? ""} onRefresh={props.onRefresh} />}>
+        <Show
+          when={!showEmpty()}
+          fallback={<ScreenerEmpty />}
+        >
+          <Stack gap={1} w="100%" p={0} className="flex min-h-0 items-stretch">
+            <For each={sections()}>
+              {(section) => (
+                <ScreenerSection
+                  title={section.label}
+                  description={section.description}
+                  testId={`screener-${section.key}-section`}
+                  stocks={section.stocks}
+                  columns={section.columns}
+                  badgeLabel={undefined}
+                  scoreFormula={scoreFormula()}
+                  action={<CopySymbolsAction stocks={section.stocks} testId={section.copyTestId} />}
+                  touchedSymbols={section.touchedSymbols}
+                  onSymbolClick={props.onSymbolClick}
+                  onSymbolHover={props.onSymbolHover}
+                  viewMode={props.viewMode}
+                  section={section.key}
+                  activeScreener={props.activeScreener}
+                />
+              )}
+            </For>
+          </Stack>
+        </Show>
+      </Show>
+    </Show>
   );
-});
+}

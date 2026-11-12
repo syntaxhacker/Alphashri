@@ -14,7 +14,7 @@
  *    with a clear message — the guard must never silently pass.
  */
 import { describe, it, expect } from "vitest";
-import { render, cleanup } from "@testing-library/react";
+import { render, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { IntervalMoversTable } from "../sector/IntervalMoversTable";
@@ -29,9 +29,9 @@ import { PerformanceView } from "../strategies/PerformanceView";
 import type { MetricConfig } from "../../pages/heatmap/heatmapUtils";
 import type { HeatmapStock } from "../../api/heatmap";
 
-function wrap(ui: React.ReactNode) {
+function wrap(ui: JSX.Element) {
   cleanup();
-  return render(<UIProvider>{ui}</UIProvider>);
+  return render(() => (<UIProvider>{ui}</UIProvider>));
 }
 
 /** Inline style first (reliable in happy-dom), computed style as fallback.

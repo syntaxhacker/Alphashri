@@ -1,7 +1,7 @@
-import { type ReactNode } from "react";
-import { render, type RenderResult } from "@testing-library/react";
+import { render } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
-import { MemoryRouter } from "react-router-dom";
+import { createMemoryHistory, MemoryRouter } from "@solidjs/router";
+import type { JSX } from "solid-js";
 import { vi } from "vitest";
 import { AuthProvider, type User } from "../components/auth/AuthProvider2";
 
@@ -15,8 +15,10 @@ export function setMockUser(user: User | null) {
 }
 
 // Mock the useAuth hook
-vi.mock("../components/auth/AuthProvider2", () => {
-  const actual = vi.importActual("../components/auth/AuthProvider2");
+vi.mock("../components/auth/AuthProvider2", async () => {
+  const actual = await vi.importActual<typeof import("../components/auth/AuthProvider2")>(
+    "../components/auth/AuthProvider2",
+  );
   return {
     ...actual,
     useAuth: vi.fn(() => ({
@@ -36,40 +38,42 @@ vi.mock("../components/auth/AuthProvider2", () => {
       }),
       clearError: vi.fn(),
     })),
-    AuthProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+    AuthProvider: (props: { children: JSX.Element }) => <>{props.children}</>,
   };
 });
 
 interface TestWrapperProps {
-  children: ReactNode;
+  children: JSX.Element;
   initialRoute?: string;
   user?: User | null;
   initialState?: Record<string, unknown>;
 }
 
-export function TestWrapper({ children, initialRoute = "/", user = null }: TestWrapperProps) {
-  setMockUser(user);
+export function TestWrapper(props: TestWrapperProps) {
+  setMockUser(props.user ?? null);
+  const history = createMemoryHistory();
+  history.set({ value: props.initialRoute ?? "/", replace: true, scroll: false });
 
   return (
-    <MemoryRouter initialEntries={[initialRoute]}>
+    <MemoryRouter history={history}>
       <UIProvider>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>{props.children}</AuthProvider>
       </UIProvider>
     </MemoryRouter>
   );
 }
 
 export function renderWithProviders(
-  ui: ReactNode,
+  ui: () => JSX.Element,
   options?: {
     initialRoute?: string;
     user?: User | null;
   },
-): RenderResult {
+): ReturnType<typeof render> {
   return render(ui, {
-    wrapper: ({ children }) => (
+    wrapper: (props) => (
       <TestWrapper initialRoute={options?.initialRoute} user={options?.user}>
-        {children}
+        {props.children}
       </TestWrapper>
     ),
   });

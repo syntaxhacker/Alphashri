@@ -1,18 +1,18 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { createElement, type ReactElement } from "react";
+
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { buildOiHeatmap, type ChainTuple, type HeatmapTapeRow } from "./niftyOiHeatmap";
 import { NiftyOiHeatmap } from "./NiftyOiHeatmap";
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
-  return createElement(UIProvider, null, children);
+  return <UIProvider>children</UIProvider>;
 }
 
 function r(jsx: ReactElement) {
-  return render(jsx, { wrapper: TestWrapper });
+  return render(() => jsx, { wrapper: TestWrapper });
 }
 
 afterEach(() => {
@@ -47,13 +47,13 @@ const twoBuckets = [
 
 function renderHeatmap(props: Partial<React.ComponentProps<typeof NiftyOiHeatmap>> = {}) {
   return r(
-    createElement(NiftyOiHeatmap, {
+    <NiftyOiHeatmap {...{
       rows: twoBuckets,
       bucketMin: 5,
       widthPts: 500,
       startTime: iso(0),
       ...props,
-    }),
+    }} />,
   );
 }
 
@@ -129,7 +129,7 @@ describe("ResizeObserver lifecycle", () => {
     };
     const view = r(createElement(NiftyOiHeatmap, props));
     // A fresh rows array (new identity) simulates a poll tick.
-    view.rerender(createElement(NiftyOiHeatmap, { ...props, rows: [...twoBuckets] }));
+    view.rerender(() => <NiftyOiHeatmap {...{ ...props, rows: [...twoBuckets] }} />);
     expect(ro.constructed()).toBe(1);
     view.unmount();
     expect(ro.disconnect).toHaveBeenCalledTimes(1);
@@ -149,12 +149,12 @@ describe("padded leading bucket", () => {
     expect(model.buckets.slice(0, 3).every((b) => b.spot === null)).toBe(true);
 
     r(
-      createElement(NiftyOiHeatmap, {
+      <NiftyOiHeatmap {...{
         rows: lateRows,
         bucketMin: 5,
         widthPts: 500,
         startTime: iso(0),
-      }),
+      }} />,
     );
 
     expect(screen.queryByTestId("nifty-heatmap-empty")).not.toBeInTheDocument();
@@ -167,12 +167,12 @@ describe("padded leading bucket", () => {
 
   test("padded buckets are excluded from the spot line but not from the axis", () => {
     r(
-      createElement(NiftyOiHeatmap, {
+      <NiftyOiHeatmap {...{
         rows: lateRows,
         bucketMin: 5,
         widthPts: 500,
         startTime: iso(0),
-      }),
+      }} />,
     );
     const points = (screen.getByTestId("nifty-heatmap-spotline").getAttribute("points") ?? "")
       .trim()

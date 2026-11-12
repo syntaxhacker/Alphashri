@@ -1,9 +1,7 @@
-import { useMemo, useState } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
-import { Badge, Box, Chip, Text, ToolbarRow } from "@/ui";
-import { TanStackTable } from "@/components/common/TanStackTable";
-import { SymbolAvatar } from "../../components/screener/SymbolAvatar";
-import { Sparkline } from "../../components/screener/Sparkline";
+import { createMemo, createSignal, For, Show } from "solid-js";
+import { Badge, Chip, Text, ToolbarRow } from "@/ui";
+import { TanStackTable, type TableColumnDef } from "@/components/common/TanStackTable";
+import { LocalSymbolAvatar, LocalSparkline } from "./reportBits";
 import type { BreakoutRow, BreakoutSide } from "../../types/report";
 import { formatCurrency, formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
 
@@ -60,27 +58,25 @@ function normalizeDailyCloses(closes: number[] | undefined): number[] {
   return vals.map((c) => (c - lo) / span);
 }
 
-export function ReportBreakoutTable({
-  title,
-  side,
-  direction,
-  testId,
-  onOpenSymbol,
-  emptyMessage = "No breakouts today",
-  sparkRange = "intraday",
-}: ReportBreakoutTableProps) {
-  const [typeFilter, setTypeFilter] = useState<string>("all");
+export function ReportBreakoutTable(props: ReportBreakoutTableProps) {
+  const side = () => props.side;
+  const testId = () => props.testId;
+  const emptyMessage = () => props.emptyMessage ?? "No breakouts today";
+  const sparkRange = () => props.sparkRange ?? "intraday";
+  const direction = () => props.direction;
+  const [typeFilter, setTypeFilter] = createSignal<string>("all");
 
-  const rows = useMemo(() => {
-    const all = side?.rows ?? [];
+  const rows = createMemo(() => {
+    const all = side()?.rows ?? [];
     const sorted = [...all].sort((a, b) => b.pct_above - a.pct_above);
-    if (typeFilter === "all") return sorted;
-    return sorted.filter((r) => r.type === typeFilter);
-  }, [side, typeFilter]);
+    const filter = typeFilter();
+    if (filter === "all") return sorted;
+    return sorted.filter((r) => r.type === filter);
+  });
 
-  const byType = side?.by_type ?? {};
+  const byType = () => side()?.by_type ?? {};
 
-  const columns = useMemo<ColumnDef<BreakoutRow>[]>(
+  const columns = createMemo<TableColumnDef<BreakoutRow>[]>(
     () => [
       {
         id: "symbol",
@@ -90,19 +86,19 @@ export function ReportBreakoutTable({
         cell: ({ row }) => {
           const r = row.original;
           return (
-            <Box className="flex items-center gap-2 min-w-0">
-              <SymbolAvatar symbol={r.symbol} name={r.name} size={20} />
-              <Box className="min-w-0 flex flex-col">
+            <div class="flex items-center gap-2 min-w-0">
+              <LocalSymbolAvatar symbol={r.symbol} name={r.name} size={20} />
+              <div class="min-w-0 flex flex-col">
                 <Text size="xs" fw={700} truncate span>
                   {r.symbol}
                 </Text>
-                {r.name ? (
+                <Show when={r.name}>
                   <Text size="xs" c="dimmed" truncate span>
                     {r.name}
                   </Text>
-                ) : null}
-              </Box>
-            </Box>
+                </Show>
+              </div>
+            </div>
           );
         },
       },
@@ -112,7 +108,7 @@ export function ReportBreakoutTable({
         accessorKey: "type",
         meta: { align: "center" },
         cell: ({ row }) => (
-          <Badge size="xs" color={typeColor(row.original.type, direction)}>
+          <Badge size="xs" color={typeColor(row.original.type, direction())}>
             {typeLabel(row.original.type)}
           </Badge>
         ),
@@ -145,7 +141,7 @@ export function ReportBreakoutTable({
         accessorKey: "pct_above",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <Text size="xs" c={direction === "up" ? "success" : "error"} span className="tabular-nums">
+          <Text size="xs" c={direction() === "up" ? "success" : "error"} span className="tabular-nums">
             {formatPercentage(row.original.pct_above)}
           </Text>
         ),
@@ -209,60 +205,60 @@ export function ReportBreakoutTable({
         cell: ({ row }) => {
           const r = row.original;
           const data =
-            sparkRange === "5d" && Array.isArray(r.daily_closes) && r.daily_closes.length > 0
+            sparkRange() === "5d" && Array.isArray(r.daily_closes) && r.daily_closes.length > 0
               ? normalizeDailyCloses(r.daily_closes)
               : (r.spark ?? []);
-          return <Sparkline data={data} change={r.change} width={64} height={20} />;
+          return <LocalSparkline data={data} change={r.change} width={64} height={20} />;
         },
       },
     ],
-    [direction, sparkRange],
   );
 
-  const filterKeys = ["all", ...Object.keys(byType)];
+  const filterKeys = () => ["all", ...Object.keys(byType())];
 
   return (
-    <Box data-testid={`${testId}-section`} className="flex flex-col gap-2 min-w-0">
+    <div data-testid={`${testId()}-section`} class="flex flex-col gap-2 min-w-0">
       <ToolbarRow gap={8} wrap={false}>
-        <Text size="sm" fw={700} span data-testid={`${testId}-title`}>
-          {title}
+        <Text size="sm" fw={700} span data-testid={`${testId()}-title`}>
+          {props.title}
         </Text>
-        <Badge size="xs" data-testid={`${testId}-count`}>
-          {side?.count ?? 0}
+        <Badge size="xs" data-testid={`${testId()}-count`}>
+          {side()?.count ?? 0}
         </Badge>
-        <Box className="flex-1 min-w-0" />
+        <div class="flex-1 min-w-0" />
       </ToolbarRow>
-      <ToolbarRow gap={4} wrap data-testid={`${testId}-filters`}>
-        {filterKeys.map((key) => (
-          <Chip
-            key={key}
-            size="xs"
-            checked={typeFilter === key}
-            onChange={() => setTypeFilter(key)}
-            data-testid={`${testId}-filter-${key}`}
-          >
-            {key === "all" ? `All (${side?.count ?? 0})` : `${typeLabel(key)} (${byType[key] ?? 0})`}
-          </Chip>
-        ))}
+      <ToolbarRow gap={4} wrap data-testid={`${testId()}-filters`}>
+        <For each={filterKeys()}>
+          {(key) => (
+            <Chip
+              size="xs"
+              checked={typeFilter() === key}
+              onChange={() => setTypeFilter(key)}
+              data-testid={`${testId()}-filter-${key}`}
+            >
+              {key === "all" ? `All (${side()?.count ?? 0})` : `${typeLabel(key)} (${byType()[key] ?? 0})`}
+            </Chip>
+          )}
+        </For>
       </ToolbarRow>
       {/* Bare table in a single bordered wrapper: the shared container's
           minHeight floor leaves ~100px of dead space under small result sets. */}
-      <Box
-        className="min-w-0 w-full overflow-hidden border border-fin-border rounded-[1px] bg-fin-surface"
+      <div
+        class="min-w-0 w-full overflow-hidden border border-fin-border rounded-[1px] bg-fin-surface"
       >
         <TanStackTable
-          data={rows}
-          columns={columns}
-          dataTestId={testId}
-          emptyMessage={emptyMessage}
+          data={rows()}
+          columns={columns()}
+          dataTestId={testId()}
+          emptyMessage={emptyMessage()}
           stickyHeader
           bare
           dense
           initialState={{ sorting: [{ id: "pct_above", desc: true }] }}
-          onRowClick={onOpenSymbol ? (row) => onOpenSymbol(row.symbol) : undefined}
-          getRowTestId={(row) => `${testId}-row-${row.symbol}`}
+          onRowClick={props.onOpenSymbol ? (row) => props.onOpenSymbol!(row.symbol) : undefined}
+          getRowTestId={(row) => `${testId()}-row-${row.symbol}`}
         />
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }

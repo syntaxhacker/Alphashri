@@ -1,5 +1,5 @@
-import { createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import { Text, Flex, Tooltip, ActionIcon, Box, Stack, SimpleGrid, Textarea, Button, Loader } from "@/ui";
+import { For, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { Text, Tooltip, ActionIcon, SimpleGrid, Textarea, Button, Loader } from "@/ui";
 import { IconChevronRight, IconChevronDown } from "@/components/common/Icons";
 import dayjs from "dayjs";
 import { ClickableSymbolSolid } from "./ClickableSymbolSolid";
@@ -11,7 +11,7 @@ import {
   updatePositionNotesAction,
 } from "../../state/paperTrading";
 import type { PaperPosition, PaperScanItem } from "../../types/paperTrading";
-import { TanStackTable, type TableColumnDef } from "../common/TanStackTable";
+import { TanStackTable, type TableColumnDef } from "./TanStackTable";
 import {
   formatSignedPnl,
   formatPercentage,
@@ -21,6 +21,7 @@ import {
 } from "../../utils/ui-helpers";
 import { POSITIVE, NEGATIVE, WARNING, BG, BORDER } from "@/ui/palette";
 import { withAlpha } from "../../utils/color";
+import { Flex, Box, Stack } from "./primitives";
 
 export function nearBreakoutPct(item: PaperScanItem): number {
   const price = item.price;

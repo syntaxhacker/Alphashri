@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { ScreenerLoading } from "./ScreenerLoading";
 import { UIProvider } from "@/ui";
@@ -15,11 +15,11 @@ describe("ScreenerLoading", () => {
   });
 
   it("renders with default message", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerLoading />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("screener-loading")).toBeInTheDocument();
     expect(screen.getByText("Loading screener")).toBeInTheDocument();
   });

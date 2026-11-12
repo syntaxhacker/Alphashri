@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { Button, Text } from "@/ui";
 import { fetchIndexMembers } from "@/api/chartPatterns";
 import { MembersDrawer } from "@/components/common/MembersDrawer";
@@ -11,18 +11,15 @@ export interface IndexMembersDrawerProps {
   onScanMembers?: (symbols: string[]) => void;
 }
 
-export function IndexMembersDrawer({
-  open,
-  indexId,
-  onClose,
-  onScanMembers,
-}: IndexMembersDrawerProps) {
-  const [data, setData] = useState<IndexMembersResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+export function IndexMembersDrawer(props: IndexMembersDrawerProps) {
+  const [data, setData] = createSignal<IndexMembersResponse | null>(null);
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  const [query, setQuery] = createSignal("");
 
-  useEffect(() => {
+  createEffect(() => {
+    const open = props.open;
+    const indexId = props.indexId;
     if (!open || !indexId) return;
     let active = true;
     setLoading(true);
@@ -39,31 +36,31 @@ export function IndexMembersDrawer({
       .finally(() => {
         if (active) setLoading(false);
       });
-    return () => {
+    onCleanup(() => {
       active = false;
-    };
-  }, [open, indexId]);
+    });
+  });
 
-  const symbols = useMemo(() => {
-    const all = data?.symbols ?? [];
-    const term = query.trim().toUpperCase();
+  const symbols = createMemo(() => {
+    const all = data()?.symbols ?? [];
+    const term = query().trim().toUpperCase();
     return term ? all.filter((symbol) => symbol.includes(term)) : all;
-  }, [data, query]);
+  });
 
-  const count = data?.count ?? 0;
-  const scanDisabled = symbols.length === 0 || !onScanMembers;
+  const count = () => data()?.count ?? 0;
+  const scanDisabled = () => symbols().length === 0 || !props.onScanMembers;
 
   return (
     <MembersDrawer
-      open={open}
-      onClose={onClose}
+      open={props.open}
+      onClose={props.onClose}
       title="Index members"
-      subtitle={data ? `${data.label} · ${count} stocks` : (indexId ?? "—")}
-      symbols={symbols}
-      loading={loading}
-      error={error}
-      emptyNote={data ? (data.note ?? "No members available") : "No members available"}
-      query={query}
+      subtitle={data() ? `${data()!.label} · ${count()} stocks` : (props.indexId ?? "—")}
+      symbols={symbols()}
+      loading={loading()}
+      error={error()}
+      emptyNote={data() ? (data()!.note ?? "No members available") : "No members available"}
+      query={query()}
       onQueryChange={setQuery}
       searchPlaceholder="Filter symbols…"
       closeLabel="Close index members"
@@ -96,7 +93,7 @@ export function IndexMembersDrawer({
       }}
       footerLeft={
         <Text size="xs" c="dimmed" truncate>
-          {symbols.length === count ? `${count} listed` : `${symbols.length} of ${count}`}
+          {symbols().length === count() ? `${count()} listed` : `${symbols().length} of ${count()}`}
         </Text>
       }
       footerRight={
@@ -104,15 +101,15 @@ export function IndexMembersDrawer({
           size="xs"
           variant="filled"
           onClick={() => {
-            if (!scanDisabled) {
-              onScanMembers?.(symbols);
-              onClose();
+            if (!scanDisabled()) {
+              props.onScanMembers?.(symbols());
+              props.onClose();
             }
           }}
-          disabled={scanDisabled}
+          disabled={scanDisabled()}
           data-testid="index-members-scan"
         >
-          {`Scan members (${symbols.length})`}
+          {`Scan members (${symbols().length})`}
         </Button>
       }
     />

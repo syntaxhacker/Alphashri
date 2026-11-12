@@ -1,10 +1,22 @@
-import { memo, useCallback, useMemo, useState } from "react";
+import { For, Show, createMemo, createSignal, type JSX } from "solid-js";
 import { usePolling } from "@/hooks/usePolling";
 import { Box, Text, Skeleton } from "@/ui";
 import * as palette from "@/ui/palette";
-import { useMarketTickerEnabled } from "../../hooks/useMarketTickerEnabled";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { subscribeToHolidays, isMarketClosedToday, getHolidayState } from "../../state/holidays";
+
+// Inlined from hooks/useMarketTickerEnabled (still on React); same v2 storage
+// key and on-by-default behaviour so existing profiles keep their setting.
+const TICKER_ENABLED_KEY = "alphashri_show_market_ticker_v2";
+
+function readTickerEnabled(): boolean {
+  try {
+    const stored = localStorage.getItem(TICKER_ENABLED_KEY);
+    return stored ? (JSON.parse(stored) as boolean) : true;
+  } catch {
+    return true;
+  }
+}
 
 export interface MarketTickerItem {
   symbol: string;
@@ -86,21 +98,20 @@ interface TickerItemProps {
   item: MarketTickerItem;
 }
 
-function TickerItem({ symbol, item }: TickerItemProps) {
-  const label = getTickerLabel(symbol);
-  const price = Number(item.price ?? 0);
-  const change = Number(item.change ?? 0);
-  const changePercent = Number(item.change_percent ?? 0);
-  const isPositive = change >= 0;
-  const tone = isPositive ? palette.POSITIVE : palette.NEGATIVE;
-  const testId = symbol.replace(/[\^=]/g, "").toLowerCase();
+function TickerItem(props: TickerItemProps) {
+  const label = () => getTickerLabel(props.symbol);
+  const price = () => Number(props.item.price ?? 0);
+  const change = () => Number(props.item.change ?? 0);
+  const changePercent = () => Number(props.item.change_percent ?? 0);
+  const isPositive = () => change() >= 0;
+  const tone = () => (isPositive() ? palette.POSITIVE : palette.NEGATIVE);
+  const testId = () => props.symbol.replace(/[\^=]/g, "").toLowerCase();
 
   return (
     <Box
-      key={symbol}
       style={TICKER_GRID}
       className="market-ticker-item"
-      data-testid={`ticker-${testId}`}
+      data-testid={`ticker-${testId()}`}
     >
       <Text
         size="sm"
@@ -108,12 +119,12 @@ function TickerItem({ symbol, item }: TickerItemProps) {
         c="dimmed"
         style={{ "font-size": 9.5, "line-height": 1.1, "white-space": "nowrap" }}
       >
-        {label}
+        {label()}
       </Text>
       <Text
         size="sm"
         fw={700}
-        data-testid={`ticker-price-${testId}`}
+        data-testid={`ticker-price-${testId()}`}
         style={{
           "font-size": 11,
           "line-height": 1.1,
@@ -123,7 +134,7 @@ function TickerItem({ symbol, item }: TickerItemProps) {
           "white-space": "nowrap",
         }}
       >
-        {price.toLocaleString("en-IN", {
+        {price().toLocaleString("en-IN", {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         })}
@@ -133,13 +144,13 @@ function TickerItem({ symbol, item }: TickerItemProps) {
           the numerals. */}
       <Box
         component="span"
-        data-testid={`ticker-change-${testId}`}
-        title={`${change >= 0 ? "+" : ""}${change.toFixed(2)} (${changePercent.toFixed(2)}%)`}
+        data-testid={`ticker-change-${testId()}`}
+        title={`${change() >= 0 ? "+" : ""}${change().toFixed(2)} (${changePercent().toFixed(2)}%)`}
         className="flex items-center justify-end gap-[2px] min-w-0 overflow-hidden whitespace-nowrap font-mono"
-        style={{ color: tone, fontVariantNumeric: "tabular-nums" }}
+        style={{ color: tone(), fontVariantNumeric: "tabular-nums" }}
       >
         <Box component="span" aria-hidden className="text-[9px] leading-none">
-          {isPositive ? "▲" : "▼"}
+          {isPositive() ? "▲" : "▼"}
         </Box>
         <Text
           size="sm"
@@ -148,13 +159,13 @@ function TickerItem({ symbol, item }: TickerItemProps) {
           style={{
             "font-size": 9.5,
             "line-height": 1.1,
-            color: tone,
+            color: tone(),
             fontVariantNumeric: "tabular-nums",
             "white-space": "nowrap",
           }}
         >
-          {isPositive ? "+" : ""}
-          {change.toFixed(2)} ({changePercent.toFixed(2)}%)
+          {isPositive() ? "+" : ""}
+          {change().toFixed(2)} ({changePercent().toFixed(2)}%)
         </Text>
       </Box>
     </Box>
@@ -162,19 +173,17 @@ function TickerItem({ symbol, item }: TickerItemProps) {
 }
 
 interface TickerContainerProps {
-  children: React.ReactNode;
-  background: string;
+  children?: JSX.Element;
   title?: string;
 }
 
-function TickerContainer({ children, background, title }: TickerContainerProps) {
+function TickerContainer(props: TickerContainerProps) {
   return (
     <Box
-      bg={background}
       data-testid="market-ticker"
       id="market-ticker"
       className="market-ticker"
-      title={title}
+      title={props.title}
       px="sm"
       style={{
         display: "flex",
@@ -187,15 +196,14 @@ function TickerContainer({ children, background, title }: TickerContainerProps) 
         "min-width": 0,
       }}
     >
-      {children}
+      {props.children}
     </Box>
   );
 }
 
-function TickerLoadingState({ background }: { background: string }) {
+function TickerLoadingState() {
   return (
     <Box
-      bg={background}
       data-testid="market-ticker"
       id="market-ticker"
       className="market-ticker market-ticker-loading"
@@ -208,17 +216,14 @@ function TickerLoadingState({ background }: { background: string }) {
         overflow: "hidden",
       }}
     >
-      {[1, 2, 3, 4, 5, 6].map((i) => (
-        <Skeleton key={i} w={88} h={14} />
-      ))}
+      <For each={[1, 2, 3, 4, 5, 6]}>{(i) => <Skeleton w={88} h={14} />}</For>
     </Box>
   );
 }
 
-function TickerErrorState({ background }: { background: string }) {
+function TickerErrorState() {
   return (
     <Box
-      bg={background}
       data-testid="market-ticker"
       id="market-ticker"
       className="market-ticker market-ticker-error"
@@ -245,7 +250,7 @@ function TickerStatus({ label, detail }: { label: string; detail?: string | null
         style={{ "background-color": palette.TEXT_MUTED }}
       />
       <Text size="sm" fw={600} c="dimmed" style={{ "font-size": 9.5, "line-height": 1.2 }}>{label}</Text>
-      {detail ? (
+      <Show when={detail}>
         <Text
           size="sm"
           c="dimmed"
@@ -254,7 +259,7 @@ function TickerStatus({ label, detail }: { label: string; detail?: string | null
         >
           · {detail}
         </Text>
-      ) : null}
+      </Show>
     </Box>
   );
 }
@@ -280,22 +285,23 @@ function useMarketState() {
  * the only place that said whether the exchange was open; removing that bar
  * must not remove the information, so the dot + label lives next to the brand.
  */
-export const MarketStatus = memo(function MarketStatus({ compact = false }: { compact?: boolean }) {
+export function MarketStatus(props: { compact?: boolean }) {
+  const compact = () => props.compact ?? false;
   const { closed, holiday } = useMarketState();
-  const label = closed ? "Market closed" : "Market live";
-  const detail = closed ? holiday?.description : null;
-  const title = detail ? `${label} · ${detail}` : label;
+  const label = () => (closed ? "Market closed" : "Market live");
+  const detail = () => (closed ? holiday?.description : null);
+  const title = () => (detail() ? `${label()} · ${detail()}` : label());
 
   return (
     <Box
       data-testid="app-market-status"
-      title={title}
+      title={title()}
       className="flex items-center min-w-0 overflow-hidden"
       style={{
-        "justify-content": compact ? "center" : "flex-start",
-        gap: compact ? 0 : 6,
-        "padding-left": compact ? 0 : 2,
-        "padding-right": compact ? 0 : 2,
+        "justify-content": compact() ? "center" : "flex-start",
+        gap: compact() ? 0 : 6,
+        "padding-left": compact() ? 0 : 2,
+        "padding-right": compact() ? 0 : 2,
       }}
     >
       <Box
@@ -309,26 +315,24 @@ export const MarketStatus = memo(function MarketStatus({ compact = false }: { co
           "background-color": closed ? palette.TEXT_MUTED : palette.POSITIVE,
         }}
       />
-      {!compact ? (
-        <>
-          <Text size="sm" fw={600} c="dimmed" style={{ "font-size": 9.5, "line-height": 1.2, "white-space": "nowrap" }}>
-            {label}
+      <Show when={!compact()}>
+        <Text size="sm" fw={600} c="dimmed" style={{ "font-size": 9.5, "line-height": 1.2, "white-space": "nowrap" }}>
+          {label()}
+        </Text>
+        <Show when={detail()}>
+          <Text
+            size="sm"
+            c="dimmed"
+            style={{ "font-size": 9.5, "line-height": 1.2 }}
+            className="opacity-75 min-w-0 overflow-hidden truncate"
+          >
+            · {detail()}
           </Text>
-          {detail ? (
-            <Text
-              size="sm"
-              c="dimmed"
-              style={{ "font-size": 9.5, "line-height": 1.2 }}
-              className="opacity-75 min-w-0 overflow-hidden truncate"
-            >
-              · {detail}
-            </Text>
-          ) : null}
-        </>
-      ) : null}
+        </Show>
+      </Show>
     </Box>
   );
-});
+}
 
 interface MarketTickerProps {
   /**
@@ -339,16 +343,19 @@ interface MarketTickerProps {
   variant?: "full" | "tape";
 }
 
-export const MarketTicker = memo(function MarketTicker({ variant = "full" }: MarketTickerProps) {
-  const [enabled] = useMarketTickerEnabled();
-  const [data, setData] = useState<MarketTickerData | null>(null);
+export function MarketTicker(props: MarketTickerProps) {
+  const variant = () => props.variant ?? "full";
+  const [enabled] = createSignal(readTickerEnabled());
+  const [data, setData] = createSignal<MarketTickerData | null>(null);
   const { closed, holiday } = useMarketState();
-  const tickers = data?.tickers;
   // Ordering is derived from the fetched payload only: tooltip/hover renders
   // must not re-sort the tape.
-  const sortedSymbols = useMemo(() => (tickers ? sortTickersByPriority(tickers) : []), [tickers]);
+  const sortedSymbols = createMemo(() => {
+    const t = data()?.tickers;
+    return t ? sortTickersByPriority(t) : [];
+  });
 
-  const fetchTicker = useCallback(async () => {
+  const fetchTicker = async () => {
     if (isMarketClosedToday()) return;
     try {
       const response = await fetch(MARKET_TICKER_API, { priority: "low" });
@@ -360,41 +367,48 @@ export const MarketTicker = memo(function MarketTicker({ variant = "full" }: Mar
     } catch (error) {
       setData(createErrorState(error));
     }
-  }, []);
+  };
 
   usePolling(fetchTicker, POLL_INTERVAL_MS, {
-    enabled: enabled && !closed,
+    enabled: enabled() && !closed,
     immediate: true,
     skipIfRunning: false,
   });
 
-  if (!enabled) {
-    return null;
-  }
-
-  // A closed exchange has no tape to poll: state the reason instead of
-  // leaving skeletons (or a blank flex row) sitting in the header.
-  if (closed) {
-    if (variant === "tape") return null;
-    return <TickerStatus label="Market closed" detail={holiday?.description} />;
-  }
-
-  if (!data || data.loading) {
-    return <TickerLoadingState background="background.paper" />;
-  }
-
-  if (data.error) {
-    return <TickerErrorState background="background.paper" />;
-  }
-
-  const lastUpdated = formatLastUpdated(data.last_updated);
-  const rows = tickers ?? {};
-
   return (
-    <TickerContainer background="background.paper" title={`Updated: ${lastUpdated}`}>
-      {sortedSymbols.map((symbol) => (
-        <TickerItem key={symbol} symbol={symbol} item={rows[symbol]} />
-      ))}
-    </TickerContainer>
+    <Show when={enabled()}>
+      {/* A closed exchange has no tape to poll: state the reason instead of
+          leaving skeletons (or a blank flex row) sitting in the header. */}
+      <Show
+        when={!closed}
+        fallback={
+          <Show when={variant() !== "tape"}>
+            <TickerStatus label="Market closed" detail={holiday?.description} />
+          </Show>
+        }
+      >
+        <Show
+          when={data()}
+          fallback={<TickerLoadingState />}
+        >
+          {(d) => (
+            <Show
+              when={!d().loading && !d().error}
+              fallback={
+                <Show when={d().error} fallback={<TickerLoadingState />}>
+                  <TickerErrorState />
+                </Show>
+              }
+            >
+              <TickerContainer title={`Updated: ${formatLastUpdated(d().last_updated)}`}>
+                <For each={sortedSymbols()}>{(symbol) => (
+                  <TickerItem symbol={symbol} item={d().tickers[symbol]} />
+                )}</For>
+              </TickerContainer>
+            </Show>
+          )}
+        </Show>
+      </Show>
+    </Show>
   );
-});
+}

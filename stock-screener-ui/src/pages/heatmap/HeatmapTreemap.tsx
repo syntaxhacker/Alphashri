@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useRef } from "react";
+import { createMemo, onMount, onCleanup, createEffect, Show } from "solid-js";
 import { Box, Stack, Text } from "@/ui";
 import { Select } from "@/ui";
-import ReactECharts from "echarts-for-react";
+import * as echarts from "echarts";
 import type { HeatmapStock } from "../../api/heatmap";
 import {
   BG,
@@ -54,75 +54,83 @@ export interface HeatmapTreemapProps {
   testId?: string;
 }
 
-export function HeatmapTreemap({
-  stocks,
-  metric,
-  onMetricChange,
-  metrics = METRICS,
-  showMetricSelect = false,
-  showLegend = true,
-  chartHeight = 320,
-  onSymbolClick,
-  testId = "heatmap-treemap",
-}: HeatmapTreemapProps) {
+export function HeatmapTreemap(props: HeatmapTreemapProps) {
   const isDark = typeof document !== "undefined" ? document.documentElement.getAttribute("data-dark") === "true" : false;
-  const chartRef = useRef<ReactECharts>(null);
+  let chartEl: HTMLDivElement | undefined;
+  let chart: echarts.ECharts | null = null;
 
-  const activeMetric = resolveStockMetric(metrics, metric);
-  const metricKey = activeMetric.value;
+  const metrics = () => props.metrics ?? METRICS;
+  const showLegend = () => props.showLegend ?? true;
+  const activeMetric = createMemo(() => resolveStockMetric(metrics(), props.metric));
+  const metricKey = () => activeMetric().value;
 
-  const { min: metricMin, max: metricMax } = useMemo(
-    () => getStockMetricRange(stocks, metricKey),
-    [stocks, metricKey],
-  );
-  const handleChartClick = useCallback(
-    (params: { name?: string }) => {
-      if (params?.name) onSymbolClick?.(params.name);
-    },
-    [onSymbolClick],
+  const metricRange = createMemo(() => getStockMetricRange(props.stocks, metricKey()));
+  const metricMin = () => metricRange().min;
+  const metricMax = () => metricRange().max;
+
+  const chartOption = createMemo(() =>
+    buildStockTreemapOption(props.stocks, metricKey(), metrics(), isDark, HEATMAP_TREEMAP_STYLE),
   );
 
-  const chartOption = useMemo(
-    () => buildStockTreemapOption(stocks, metricKey, metrics, isDark, HEATMAP_TREEMAP_STYLE),
-    [stocks, metricKey, metrics, isDark],
-  );
+  const handleChartClick = (params: { name?: string }) => {
+    if (params?.name) props.onSymbolClick?.(params.name);
+  };
+
+  onMount(() => {
+    if (!chartEl) return;
+    chart = echarts.init(chartEl, undefined, { renderer: "canvas" });
+    chart.setOption(chartOption());
+    if (props.onSymbolClick) {
+      chart.on("click", handleChartClick);
+    }
+    const resize = () => chart?.resize();
+    window.addEventListener("resize", resize);
+    onCleanup(() => window.removeEventListener("resize", resize));
+  });
+
+  createEffect(() => {
+    const option = chartOption();
+    chart?.setOption(option, { notMerge: true });
+  });
+
+  onCleanup(() => {
+    chart?.dispose();
+    chart = null;
+  });
 
   return (
-    <Box data-testid={testId} className="flex flex-col gap-0 flex-1 min-h-0 w-full overflow-hidden">
+    <Box data-testid={props.testId ?? "heatmap-treemap"} className="flex flex-col gap-0 flex-1 min-h-0 w-full overflow-hidden">
       <Stack spacing={0} className="w-full flex-1 min-h-0">
-        {showMetricSelect && onMetricChange && (
+        <Show when={props.showMetricSelect && props.onMetricChange}>
           <Box className="flex items-center gap-2 px-2 h-10 flex-shrink-0 border-b border-fin-border">
             <Text size="xs" c="dimmed">Color by</Text>
             <Select
               size="small"
-              value={metricKey}
-              onChange={(v) => onMetricChange(v ?? metrics[0].value)}
-              data={metrics.map((m) => ({ value: m.value, label: m.label }))}
+              value={metricKey()}
+              onChange={(v) => props.onMetricChange?.(v ?? metrics()[0].value)}
+              data={metrics().map((m) => ({ value: m.value, label: m.label }))}
               className="min-w-[140px]"
-              data-testid={`${testId}-metric`}
+              data-testid={`${props.testId ?? "heatmap-treemap"}-metric`}
             />
-            <Text size="xs" c="dimmed">{stocks.length} stocks</Text>
+            <Text size="xs" c="dimmed">{props.stocks.length} stocks</Text>
           </Box>
-        )}
-        <Box className={`flex-1 min-h-[${typeof chartHeight === "number" ? chartHeight : 320}px] w-full flex p-2`}>
-          <ReactECharts
-            ref={chartRef}
-            option={chartOption}
-            style={{ height: "100%", width: "100%" }}
-            opts={{ renderer: "canvas" }}
-            onEvents={onSymbolClick ? { click: handleChartClick } : undefined}
-          />
+        </Show>
+        <Box
+          className="flex-1 w-full flex p-2"
+          style={{ "min-height": `${typeof props.chartHeight === "number" ? props.chartHeight : 320}px` }}
+        >
+          <div ref={(el) => (chartEl = el)} style={{ height: "100%", width: "100%" }} />
         </Box>
-        {showLegend && stocks.length > 0 && (
+        <Show when={showLegend() && props.stocks.length > 0}>
           <Box className="flex items-center gap-2 px-2 h-8 flex-shrink-0 border-t border-fin-border">
-            <Text size="xs" fw={600}>{activeMetric.label}</Text>
-            <Box className="size-3 rounded" style={{ width: 12, height: 12, "background-color": getHeatmapMetricColor(metricKey, metricMin, metricMin, metricMax), "border-radius": "2px" }} />
-            <Text size="xs">{activeMetric.fmt(metricMin)}</Text>
-            <Box className="flex-1 max-w-[120px] h-[8px] rounded-[4px]" style={{ background: isSignedHeatmapMetric(metricKey) ? `linear-gradient(to right, ${SECTOR_STRONG_RED}, ${SECTOR_NEUTRAL}, ${SECTOR_GREEN})` : `linear-gradient(to right, ${SECTOR_STRONG_GREEN}, ${SECTOR_GREEN}, ${SECTOR_NEUTRAL}, ${SECTOR_RED}, ${SECTOR_STRONG_RED})` }} />
-            <Box className="size-3 rounded" style={{ width: 12, height: 12, "background-color": getHeatmapMetricColor(metricKey, metricMax, metricMin, metricMax), "border-radius": "2px" }} />
-            <Text size="xs">{activeMetric.fmt(metricMax)}</Text>
+            <Text size="xs" fw={600}>{activeMetric().label}</Text>
+            <Box className="size-3 rounded" style={{ width: 12, height: 12, "background-color": getHeatmapMetricColor(metricKey(), metricMin(), metricMin(), metricMax()), "border-radius": "2px" }} />
+            <Text size="xs">{activeMetric().fmt(metricMin())}</Text>
+            <Box className="flex-1 max-w-[120px] h-[8px] rounded-[4px]" style={{ background: isSignedHeatmapMetric(metricKey()) ? `linear-gradient(to right, ${SECTOR_STRONG_RED}, ${SECTOR_NEUTRAL}, ${SECTOR_GREEN})` : `linear-gradient(to right, ${SECTOR_STRONG_GREEN}, ${SECTOR_GREEN}, ${SECTOR_NEUTRAL}, ${SECTOR_RED}, ${SECTOR_STRONG_RED})` }} />
+            <Box className="size-3 rounded" style={{ width: 12, height: 12, "background-color": getHeatmapMetricColor(metricKey(), metricMax(), metricMin(), metricMax()), "border-radius": "2px" }} />
+            <Text size="xs">{activeMetric().fmt(metricMax())}</Text>
           </Box>
-        )}
+        </Show>
       </Stack>
     </Box>
   );

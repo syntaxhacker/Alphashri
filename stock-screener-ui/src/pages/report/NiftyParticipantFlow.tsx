@@ -202,7 +202,7 @@ function NiftyParticipantFlowInner({ rows, bucketMin = 30 }: NiftyParticipantFlo
               className="flex flex-col gap-[2px] min-w-0"
             >
               <Box className="flex items-baseline gap-[8px] min-w-0">
-                <Text size="xs" span fw={700} style={{ fontVariantNumeric: "tabular-nums" }}>
+                <Text size="xs" span fw={700} style={{ "font-variant-numeric": "tabular-nums" }}>
                   {b.label}
                 </Text>
                 <Text
@@ -210,7 +210,7 @@ function NiftyParticipantFlowInner({ rows, bucketMin = 30 }: NiftyParticipantFlo
                   size="xs"
                   span
                   fw={700}
-                  style={{ color: flowTone(b.net), fontVariantNumeric: "tabular-nums" }}
+                  style={{ color: flowTone(b.net), "font-variant-numeric": "tabular-nums" }}
                 >
                   {formatFlowRupees(b.net)}
                 </Text>

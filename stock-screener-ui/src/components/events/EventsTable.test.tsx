@@ -1,15 +1,14 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { cleanup, render, screen, within } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import type { EventDTO } from "../../types/events";
 import { EventsTable } from "./EventsTable";
 import { buildEventColumns } from "./eventsColumns";
 
-function r(jsx: React.ReactElement) {
-  return render(<UIProvider>{jsx}</UIProvider>);
+function r(jsx: JSX.Element) {
+  return render(() => (<UIProvider>{jsx}</UIProvider>));
 }
 
 afterEach(cleanup);
@@ -95,19 +94,17 @@ describe("EventsTable", () => {
   });
 
   test("clicking a row opens that event", async () => {
-    const user = userEvent.setup();
-    const onOpen = vi.fn();
+        const onOpen = vi.fn();
     r(<EventsTable events={FIXTURE} isLoading={false} onOpen={onOpen} />);
-    await user.click(screen.getByTestId("event-row-evt-soon"));
+    await fireEvent.click(screen.getByTestId("event-row-evt-soon"));
     expect(onOpen).toHaveBeenCalledTimes(1);
     expect(onOpen).toHaveBeenCalledWith(FIXTURE[1]);
   });
 
   test("the trailing action opens the event without double-firing", async () => {
-    const user = userEvent.setup();
-    const onOpen = vi.fn();
+        const onOpen = vi.fn();
     r(<EventsTable events={FIXTURE} isLoading={false} onOpen={onOpen} />);
-    await user.click(screen.getByTestId("event-open-evt-past"));
+    await fireEvent.click(screen.getByTestId("event-open-evt-past"));
     expect(onOpen).toHaveBeenCalledTimes(1);
     expect(onOpen).toHaveBeenCalledWith(FIXTURE[2]);
   });
