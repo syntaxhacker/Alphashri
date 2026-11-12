@@ -1,4 +1,4 @@
-import { Show, createContext, createEffect, createSignal, onCleanup, type JSX, useContext } from "solid-js";
+import { Show, createContext, createEffect, onCleanup, type JSX, useContext } from "solid-js";
 import { createStore } from "solid-js/store";
 import { useNavigate } from "@solidjs/router";
 import {

@@ -1,4 +1,3 @@
-import type { JSX } from "solid-js";
 import type { TableColumnDef as ColumnDef } from "../common/TanStackTable";
 import { ActionIcon, Box, Text, Tooltip } from "@/ui";
 import { TEXT_MUTED, WARNING } from "@/ui/palette";

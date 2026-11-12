@@ -311,14 +311,14 @@ function DecisionChip({
       className="min-w-0 h-[20px] px-1 py-0 gap-[3px] rounded-[4px] whitespace-nowrap border-l"
       style={{ border: `1px solid ${palette.TERM_BORDER}` }}
     >
-      <Text span size="xs" fw={700} c="dimmed" style={{ "font-size": 8, "letter-spacing": "0.05em" }}>
+      <Text span size="xs" fw={700} c="dimmed" style={{ "font-size": "8px", "letter-spacing": "0.05em" }}>
         {label}
       </Text>
       <Text
         span
         size="xs"
         fw={700}
-        style={{ "font-size": 9, color: tone ?? palette.TEXT, "font-variant-numeric": "tabular-nums" }}
+        style={{ "font-size": "9px", color: tone ?? palette.TEXT, "font-variant-numeric": "tabular-nums" }}
       >
         {value}
       </Text>
@@ -3399,7 +3399,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   const deskTabs: DeskDockTab[] = [
     { key: "flow", label: "FLOW", summary: flowSummary, content: flowDockContent },
     { key: "setup", label: "SETUP", summary: setupSummary, content: setupDockContent },
-    { key: "alerts", label: "ALERTS", summary: alertsSummary, content: alertsDockContent, badge: criticalCount, height: 340 },
+    { key: "alerts", label: "ALERTS", summary: alertsSummary, content: alertsDockContent, badge: criticalCount, "height": "340px" },
     { key: "market", label: "MARKET", summary: marketSummary, content: marketDockContent },
   ];
 
@@ -4362,7 +4362,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                   variant={sideTab === "chain" ? "filled" : "subtle"}
                   aria-pressed={sideTab === "chain"}
                   onClick={() => setSideTab("chain")}
-                  style={{ height: 18, "min-width": 0, "padding-left": 4.8, "padding-right": 4.8, "padding-top": 0, "padding-bottom": 0, "font-size": 8, "font-weight": 800, "letter-spacing": 0.4 }}
+                  style={{ "height": "18px", "min-width": 0, "padding-left": "4.8px", "padding-right": "4.8px", "padding-top": 0, "padding-bottom": 0, "font-size": "8px", "font-weight": 800, "letter-spacing": "0.4px" }}
                 >
                   CHAIN
                 </Button>
@@ -4372,7 +4372,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                   variant={sideTab === "heatmap" ? "filled" : "subtle"}
                   aria-pressed={sideTab === "heatmap"}
                   onClick={() => setSideTab("heatmap")}
-                  style={{ height: 18, "min-width": 0, "padding-left": 4.8, "padding-right": 4.8, "padding-top": 0, "padding-bottom": 0, "font-size": 8, "font-weight": 800, "letter-spacing": 0.4 }}
+                  style={{ "height": "18px", "min-width": 0, "padding-left": "4.8px", "padding-right": "4.8px", "padding-top": 0, "padding-bottom": 0, "font-size": "8px", "font-weight": 800, "letter-spacing": "0.4px" }}
                 >
                   HEATMAP
                 </Button>
@@ -4413,7 +4413,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                       aria-pressed={heatMetric === m}
                       title={m === "oi" ? "Colour by OI change" : m === "volume" ? "Colour by traded volume" : "Colour by premium change"}
                       onClick={() => setHeatMetric(m)}
-                      style={{ "min-width": 26, "padding-left": 3, "padding-right": 3, "padding-top": 0, "padding-bottom": 0, "font-size": 8.5, "line-height": 1.4 }}
+                      style={{ "min-width": "26px", "padding-left": "3px", "padding-right": "3px", "padding-top": 0, "padding-bottom": 0, "font-size": "8.5px", "line-height": 1.4 }}
                     >
                       {m === "oi" ? "OI" : m === "volume" ? "VOL" : "PREM"}
                     </Button>
@@ -4482,7 +4482,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                 className="absolute top-0.5 right-0.5 p-[2px] rounded-none hover:text-fin-text!"
                 style={{ color: palette.TEXT_MUTED, "background-color": palette.TERM_HEADER }}
               >
-                <Text span size="xs" fw={700} style={{ "font-size": 12, "line-height": 1 }}>
+                <Text span size="xs" fw={700} style={{ "font-size": "12px", "line-height": 1 }}>
                   ⤢
                 </Text>
               </ActionIcon>
@@ -4509,7 +4509,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                 className="absolute top-0.5 right-0.5 p-[2px] rounded-none hover:text-fin-text!"
                 style={{ color: palette.TEXT_MUTED, "background-color": palette.TERM_HEADER }}
               >
-                <Text span size="xs" fw={700} style={{ "font-size": 12, "line-height": 1 }}>
+                <Text span size="xs" fw={700} style={{ "font-size": "12px", "line-height": 1 }}>
                   ⤢
                 </Text>
               </ActionIcon>
@@ -4877,7 +4877,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                     variant={chartTf === tf ? "filled" : "subtle"}
                     aria-pressed={chartTf === tf}
                     onClick={() => handleChartTf(tf)}
-                    style={{ "min-width": 34, "padding-left": 6, "padding-right": 6, "padding-top": 0, "padding-bottom": 0, "font-size": 10, "line-height": 1.6 }}
+                    style={{ "min-width": "34px", "padding-left": "6px", "padding-right": "6px", "padding-top": 0, "padding-bottom": 0, "font-size": "10px", "line-height": 1.6 }}
                   >
                     {tf}
                   </Button>

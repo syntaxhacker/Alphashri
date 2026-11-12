@@ -1,10 +1,15 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import type { PatternHitDTO, PatternSummary } from "@/types/chartPatterns";
+import { For, Show } from "solid-js";
+import type { JSX } from "solid-js";
+vi.mock("@tabler/icons-react", () => ({
+  IconAdjustmentsHorizontal: (props: Record<string, unknown>) => <svg data-testid="icon-adjustments" aria-hidden {...props} />,
+  IconDotsVertical: (props: Record<string, unknown>) => <svg data-testid="icon-dots" aria-hidden {...props} />,
+}));
 import { PatternsPage, type PatternsPageProps } from "./PatternsPage";
 
 vi.mock("@/hooks/useECharts", () => ({
@@ -41,39 +46,36 @@ vi.mock("@/api/patternImages", () => ({
 }));
 
 vi.mock("@/components/patterns/PatternGrid", () => ({
-  PatternGrid: ({ hits }: any) => (
+  PatternGrid: (props: any) => (
     <div data-testid="patterns-grid">
-      {(hits as any[]).map((hit: any) => (
-        <div key={hit.id}>{hit.symbol}</div>
-      ))}
+      <For each={props.hits as any[]}>{(hit: any) => <div>{hit.symbol}</div>}</For>
     </div>
   ),
 }));
 
 // Dense list stub so the page default (list view) renders deterministically.
 vi.mock("@/components/patterns/PatternListView", () => ({
-  PatternListView: ({ hits }: any) => (
+  PatternListView: (props: any) => (
     <div data-testid="patterns-list">
-      {(hits as any[]).map((hit: any) => (
-        <div key={hit.id}>{hit.symbol}</div>
-      ))}
+      <For each={props.hits as any[]}>{(hit: any) => <div>{hit.symbol}</div>}</For>
     </div>
   ),
 }));
 
 vi.mock("@/components/patterns/PatternFullscreenView", () => ({
-  PatternFullscreenView: ({ opened, onClose, hit, candles }: any) => {
-    if (!opened) return null;
-    return (
+  PatternFullscreenView: (props: any) => (
+    <Show when={props.opened}>
       <div data-testid="patterns-fullscreen-modal">
-        <div>{hit?.pattern_name ?? "watch-symbol"}</div>
-        {(candles?.length ?? 0) === 0 ? <div>No chart data</div> : null}
-        <button type="button" onClick={onClose}>
+        <div>{props.hit?.pattern_name ?? "watch-symbol"}</div>
+        <Show when={(props.candles?.length ?? 0) === 0}>
+          <div>No chart data</div>
+        </Show>
+        <button type="button" onClick={props.onClose}>
           Close
         </button>
       </div>
-    );
-  },
+    </Show>
+  ),
 }));
 
 function makeHit(overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
@@ -191,8 +193,8 @@ function watchPayload() {
   };
 }
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
+function r(jsx: JSX.Element) {
+  return render(() => <UIProvider>{jsx}</UIProvider>);
 }
 
 describe("PatternsPage watch tab", () => {
@@ -235,7 +237,7 @@ describe("PatternsPage watch tab", () => {
 
   test("clicking the Watch tab renders the WatchView", async () => {
     r(<PatternsPage {...makeProps()} />);
-    await userEvent.click(screen.getByTestId("patterns-tab-watch"));
+    fireEvent.click(screen.getByTestId("patterns-tab-watch"));
     await waitFor(() => expect(screen.getByTestId("watch-view")).toBeInTheDocument());
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
     expect(fetchWatch).toHaveBeenCalledWith(
@@ -257,7 +259,7 @@ describe("PatternsPage watch tab", () => {
   test("controlled tab change calls setTab", async () => {
     const setTab = vi.fn();
     r(<PatternsPage {...makeProps({ tab: "watch", setTab })} />);
-    await userEvent.click(screen.getByTestId("patterns-tab-scan"));
+    fireEvent.click(screen.getByTestId("patterns-tab-scan"));
     expect(setTab).toHaveBeenCalledWith("scan");
   });
 
@@ -265,7 +267,7 @@ describe("PatternsPage watch tab", () => {
     r(<PatternsPage {...makeProps({ tab: "watch" })} />);
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
 
-    await userEvent.click(screen.getByTestId("watch-row-RELIANCE"));
+    fireEvent.click(screen.getByTestId("watch-row-RELIANCE"));
     await waitFor(() =>
       expect(fetchSymbolChart).toHaveBeenCalledWith(
         "RELIANCE",
@@ -292,7 +294,7 @@ describe("PatternsPage watch tab", () => {
     try {
       r(<PatternsPage {...makeProps({ tab: "watch" })} />);
       await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
-      await userEvent.click(screen.getByTestId("watch-row-RELIANCE"));
+      fireEvent.click(screen.getByTestId("watch-row-RELIANCE"));
       expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
       expect(screen.queryByTestId("patterns-chart-dock")).not.toBeInTheDocument();
     } finally {

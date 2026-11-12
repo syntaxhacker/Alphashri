@@ -2,7 +2,6 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { useDisclosure } from "@/ui/hooks";
-import type { JSX } from "solid-js";
 
 afterEach(cleanup);
 

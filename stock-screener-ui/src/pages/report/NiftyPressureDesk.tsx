@@ -434,7 +434,7 @@ function WallHistory(props: HistoryProps) {
         </text>
       </svg>
       <div class="mt-[2px] font-mono text-[10px] text-fin-text-muted">
-        30m path · <span style={{ color: palette.TEXT }}>{pathRead(wall.row)}</span>
+        30m path · <span style={{ color: palette.TEXT }}>{pathRead(props.wall.row)}</span>
       </div>
     </div>
   );

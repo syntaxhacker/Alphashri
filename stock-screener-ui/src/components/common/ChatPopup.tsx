@@ -206,16 +206,12 @@ export function ChatPopup() {
         addLocalMessage("assistant", resp.response);
 
         abortController = new AbortController();
-        console.log("Starting stream for", extractedTicker);
         const generator = streamStockAnalysis(extractedTicker, {
           analysts: ["market", "news", "fundamentals"],
           llm_provider: "deepseek",
         });
 
-        let eventCount = 0;
         for await (const event of generator) {
-          eventCount++;
-          if (eventCount === 1) console.log("First event received:", event.event);
           if (event.event === "tool_call") {
             const data = event.data as { tool?: string; agent?: string; args?: unknown };
             setToolCalls((prev) => [
@@ -252,7 +248,6 @@ export function ChatPopup() {
             addLocalMessage("assistant", `❌ Error: ${data.error || "Unknown error"}`);
           }
         }
-        console.log(`Stream ended after ${eventCount} events`);
         setIsLoading(false);
       } else {
         const msg = addLocalMessage("assistant", resp.response);
@@ -441,7 +436,7 @@ export function ChatPopup() {
                   </Text>
                   <ScrollArea style={{ "max-height": "100px" }}>
                     <Stack gap={2}>
-                      <For each={toolCalls()}>{(tc, i) => (
+                      <For each={toolCalls()}>{(tc) => (
                         <Group gap={4}>
                           <IconSearch size={10} />
                           <Text size="xs" c="dimmed" lineClamp={1}>

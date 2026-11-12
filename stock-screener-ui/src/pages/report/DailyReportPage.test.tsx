@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor, within } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, within } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { DailyReportPage } from "./DailyReportPage";
@@ -152,11 +152,11 @@ function mockOk() {
 }
 
 function renderPage(props?: { universe?: string; onOpenSymbol?: (s: string) => void }) {
-  return render(
+  return render(() => (
     <UIProvider>
       <DailyReportPage {...props} />
-    </UIProvider>,
-  );
+    </UIProvider>
+  ));
 }
 
 beforeEach(() => {

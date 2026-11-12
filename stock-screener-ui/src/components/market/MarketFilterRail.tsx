@@ -1,4 +1,4 @@
-import { For, Show, splitProps } from "solid-js";
+import { For, Show } from "solid-js";
 import {
   Box,
   Checkbox,

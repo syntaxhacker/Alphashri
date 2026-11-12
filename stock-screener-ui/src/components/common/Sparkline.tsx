@@ -1,4 +1,4 @@
-import { Show, createMemo, type JSX } from "solid-js";
+import { Show, createMemo } from "solid-js";
 
 /**
  * Tiny inline sparkline for a per-minute series (max pain drift, PCR drift).

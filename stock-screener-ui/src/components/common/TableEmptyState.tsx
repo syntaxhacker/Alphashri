@@ -19,10 +19,10 @@ interface TableEmptyStateProps {
  *   action={<Button>Run Backtest</Button>}
  * />
  */
-export function TableEmptyState({ message, icon, action }: TableEmptyStateProps) {
+export function TableEmptyState(props: TableEmptyStateProps) {
   return (
-    <EmptyCompact data-testid="table-empty-state" icon={icon} title={message}>
-      {action}
+    <EmptyCompact data-testid="table-empty-state" icon={props.icon} title={props.message}>
+      {props.action}
     </EmptyCompact>
   );
 }

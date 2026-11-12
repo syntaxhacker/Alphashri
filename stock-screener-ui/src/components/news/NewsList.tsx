@@ -1,3 +1,4 @@
+import { createMemo, Show, For } from "solid-js";
 import { IconBolt, IconRefresh } from "../common/Icons";
 import { ActionIcon, Box, Skeleton, Select, Stack, Text, ToolbarRow, Tooltip } from "@/ui";
 import * as palette from "@/ui/palette";
@@ -24,29 +25,23 @@ interface NewsListProps {
   toggleSourceExpanded: (source: string) => void;
 }
 
-export function NewsList({
-  loading,
-  error,
-  selectedSource,
-  selectedSourceName,
-  sourceData,
-  selectedArticle,
-  onSourceChange,
-  onRefresh,
-  onArticleClick,
-  groupedNewsItems,
-  sourceNames,
-  expandedSources,
-  toggleSourceExpanded,
-}: NewsListProps) {
-  const hasGroups = Object.keys(groupedNewsItems ?? {}).length > 0;
-  const activeSourceName = selectedSource === "all" ? "all" : selectedSourceName ?? selectedSource;
-  const normalizedActiveSource = normalizeSource(activeSourceName);
-  const visibleSourceNames = sourceNames.filter(
-    (source) => activeSourceName === "all" || normalizeSource(source) === normalizedActiveSource,
+export function NewsList(props: NewsListProps) {
+  const isLoading = () => props.loading;
+  const sourceData = () => props.sourceData ?? [];
+  const activeSourceName = () =>
+    props.selectedSource === "all" ? "all" : (props.selectedSourceName ?? props.selectedSource);
+  const visibleSourceNames = createMemo(() => {
+    const normalized = normalizeSource(activeSourceName());
+    return props.sourceNames.filter(
+      (source) => activeSourceName() === "all" || normalizeSource(source) === normalized,
+    );
+  });
+  const newsItems = createMemo(() =>
+    visibleSourceNames().flatMap((source) => props.groupedNewsItems[source] ?? []),
   );
-  const newsItems = visibleSourceNames.flatMap((source) => groupedNewsItems[source] ?? []);
-  const storyLabel = `${newsItems.length} ${newsItems.length === 1 ? "story" : "stories"}`;
+  const storyLabel = () =>
+    `${newsItems().length} ${newsItems().length === 1 ? "story" : "stories"}`;
+  const showInitialLoader = () => isLoading() && Object.keys(props.groupedNewsItems ?? {}).length === 0;
 
   return (
     <Box
@@ -100,7 +95,7 @@ export function NewsList({
                 className="block mt-2 [font-variant-numeric:tabular-nums]"
                 style={{ display: "block", "margin-top": "2px", "font-variant-numeric": "tabular-nums" }}
               >
-                {storyLabel} across {visibleSourceNames.length} {visibleSourceNames.length === 1 ? "source" : "sources"}
+                {storyLabel()} across {visibleSourceNames().length} {visibleSourceNames().length === 1 ? "source" : "sources"}
               </Text>
             </Box>
             <Box style={{ flex: 1, "min-width": "0px", display: "none" }} />
@@ -108,9 +103,9 @@ export function NewsList({
               <Select
                 aria-label="Source"
                 size="sm"
-                value={selectedSource}
-                onChange={(value) => value && onSourceChange(value)}
-                data={sourceData ?? []}
+                value={props.selectedSource}
+                onChange={(value) => value && props.onSourceChange(value)}
+                data={sourceData()}
                 style={{ width: "100%" }}
                 data-testid="source-selector"
               />
@@ -119,9 +114,9 @@ export function NewsList({
               <ActionIcon
                 variant="light"
                 size="sm"
-                onClick={onRefresh}
-                loading={loading}
-                disabled={loading}
+                onClick={() => props.onRefresh()}
+                loading={isLoading()}
+                disabled={isLoading()}
                 aria-label="Refresh news feed"
                 data-testid="news-feed-refresh-btn"
                 style={{ flex: "0 0 auto" }}
@@ -133,46 +128,49 @@ export function NewsList({
         </Box>
       </Box>
 
-      {loading && !hasGroups ? (
+      <Show
+        when={showInitialLoader()}
+        fallback={
+          <Box className="flex-1 min-h-0 overflow-auto">
+            <NewsListContent
+              loading={false}
+              error={props.error}
+              newsItems={newsItems()}
+              selectedSource={activeSourceName()}
+              selectedArticleId={props.selectedArticle?.id ?? null}
+              itemTestId="news-list-item"
+              sourceNames={props.sourceNames}
+              groupedNewsItems={props.groupedNewsItems}
+              expandedSources={props.expandedSources}
+              readIds={new Set()}
+              onToggleSource={props.toggleSourceExpanded}
+              onArticleClick={props.onArticleClick}
+              variant="desk"
+              renderItemMeta={(item) =>
+                item.sentiment || item.impact_score !== undefined ? (
+                  <Box
+                    component="span"
+                    className="flex items-center gap-3 min-w-0"
+                    style={{ display: "flex", "align-items": "center", gap: "6px", "min-width": "0px" }}
+                  >
+                    {item.sentiment ? <SentimentBadge sentiment={item.sentiment} /> : null}
+                    {item.impact_score !== undefined ? <ImpactScore score={item.impact_score} compact /> : null}
+                  </Box>
+                ) : null
+              }
+            />
+          </Box>
+        }
+      >
         <Stack className="gap-2" style={{ padding: "12px" }} data-testid="news-loader">
-          {[0, 1, 2, 3].map((row) => (
-            <Skeleton key={row} h={64} className="rounded" />
-          ))}
+          <For each={[0, 1, 2, 3]}>{() => (
+            <Skeleton h={64} className="rounded" />
+          )}</For>
           <Text size="sm" c="dimmed">
             Loading market headlines…
           </Text>
         </Stack>
-      ) : (
-        <Box className="flex-1 min-h-0 overflow-auto">
-          <NewsListContent
-            loading={false}
-            error={error}
-            newsItems={newsItems}
-            selectedSource={activeSourceName}
-            selectedArticleId={selectedArticle?.id ?? null}
-            itemTestId="news-list-item"
-            sourceNames={sourceNames}
-            groupedNewsItems={groupedNewsItems}
-            expandedSources={expandedSources}
-            readIds={new Set()}
-            onToggleSource={toggleSourceExpanded}
-            onArticleClick={onArticleClick}
-            variant="desk"
-            renderItemMeta={(item) =>
-              item.sentiment || item.impact_score !== undefined ? (
-                <Box
-                  component="span"
-                  className="flex items-center gap-3 min-w-0"
-                  style={{ display: "flex", "align-items": "center", gap: "6px", "min-width": "0px" }}
-                >
-                  {item.sentiment && <SentimentBadge sentiment={item.sentiment} />}
-                  {item.impact_score !== undefined && <ImpactScore score={item.impact_score} compact />}
-                </Box>
-              ) : null
-            }
-          />
-        </Box>
-      )}
+      </Show>
     </Box>
   );
 }

@@ -156,10 +156,10 @@ function LadderRow({
         }}
       >
         {fmtNum(row.strike)}
-        <span style={{ "font-size": REPORT_FONT.micro, "margin-left": 2, color: palette.TEXT_MUTED }}>{tag}</span>
-        {isBreak ? <span style={{ "font-size": REPORT_FONT.micro, "margin-left": 2, color: palette.NEGATIVE }}>BRK</span> : null}
+        <span style={{ "font-size": REPORT_FONT.micro, "margin-left": "2px", color: palette.TEXT_MUTED }}>{tag}</span>
+        {isBreak ? <span style={{ "font-size": REPORT_FONT.micro, "margin-left": "2px", color: palette.NEGATIVE }}>BRK</span> : null}
       </Text>
-      <Box style={{ height: 8, "background-color": palette.SURFACE, position: "relative", "border-radius": "2px", overflow: "hidden" }}>
+      <Box style={{ "height": "8px", "background-color": palette.SURFACE, position: "relative", "border-radius": "2px", overflow: "hidden" }}>
         <Box style={{ position: "absolute", inset: 0, width: `${totalPct}%`, display: "flex", transition: "width 280ms cubic-bezier(.22,1,.36,1)" }}>
           <Box style={{ width: `${oldPct}%`, "background-color": alpha(color, 0.22) }} />
           <Box style={{ width: `${newPct}%`, "background-color": color }} />
@@ -224,7 +224,7 @@ function WallsLadder({ walls }: { walls: WallsPayload }) {
         {calls.map((row) => (
           <LadderRow key={`ladder-call-${row.strike}`} row={row} side="CALL" maxOi={maxOi} breakWall={breakWall} spot={walls.spot} />
         ))}
-        <Box className="flex items-center gap-[8px]" style={{ "margin-top": `${REPORT_PAD.xs}px`, "margin-bottom": `${REPORT_PAD.xs}px`, "min-width": 0, display: "flex", "align-items": "center", gap: 1 }}>
+        <Box className="flex items-center gap-[8px]" style={{ "margin-top": `${REPORT_PAD.xs}px`, "margin-bottom": `${REPORT_PAD.xs}px`, "min-width": 0, display: "flex", "align-items": "center", "gap": "1px" }}>
           <Box style={{ flex: 1, "border-top": `1px dashed ${palette.PRIMARY}` }} />
           <Text
             size="xs"
@@ -263,7 +263,7 @@ function ErosionBar({ value }: { value: number | null | undefined }) {
   if (value == null) return null;
   const width = Math.min(100, Math.abs(value) * 500);
   return (
-    <Box style={{ width: "100%", height: 4, "background-color": palette.SURFACE, overflow: "hidden" }}>
+    <Box style={{ width: "100%", "height": "4px", "background-color": palette.SURFACE, overflow: "hidden" }}>
       <Box
         style={{
           width: `${width}%`,
@@ -359,12 +359,12 @@ function WallsTable({ title, side, rows, spot }: { title: string; side: "CALL" |
                   }}
                 >
                   {fmtNum(row.strike)}
-                  <span style={{ "font-size": REPORT_FONT.micro, "margin-left": 3, color: palette.TEXT_MUTED }}>{tag}</span>
+                  <span style={{ "font-size": REPORT_FONT.micro, "margin-left": "3px", color: palette.TEXT_MUTED }}>{tag}</span>
                   {row.tracked ? (
-                    <span style={{ "font-size": REPORT_FONT.micro, "margin-left": 3, color: palette.TEXT_MUTED }}>TRACKED</span>
+                    <span style={{ "font-size": REPORT_FONT.micro, "margin-left": "3px", color: palette.TEXT_MUTED }}>TRACKED</span>
                   ) : null}
                   {leader?.strike === row.strike ? (
-                    <span style={{ "font-size": REPORT_FONT.micro, "margin-left": 3, color: palette.WARNING }}>MOST ERODED</span>
+                    <span style={{ "font-size": REPORT_FONT.micro, "margin-left": "3px", color: palette.WARNING }}>MOST ERODED</span>
                   ) : null}
                 </td>
                 <td
@@ -376,10 +376,10 @@ function WallsTable({ title, side, rows, spot }: { title: string; side: "CALL" |
                     aria-hidden
                     style={{
                       position: "absolute",
-                      left: 4,
-                      right: 4,
-                      bottom: 1,
-                      height: 2,
+                      "left": "4px",
+                      "right": "4px",
+                      "bottom": "1px",
+                      "height": "2px",
                       background: palette.SURFACE,
                       overflow: "hidden",
                     }}
@@ -448,7 +448,7 @@ function HistoryChart({ walls }: { walls: WallsPayload }) {
           {first?.t?.slice(11, 16)} → {last?.t?.slice(11, 16)}
         </Text>
       </Stack>
-      <Box style={{ display: "grid", "grid-template-columns": "1fr 1fr", gap: 1.5 }}>
+      <Box style={{ display: "grid", "grid-template-columns": "1fr 1fr", "gap": "1.5px" }}>
         <Box className="min-w-0">
           <Stack direction="row" className="items-center justify-between" style={{ "align-items": "center", "justify-content": "space-between" }}>
             <Text size="xs" span style={{ color: palette.TEXT_MUTED }}>call OI · 30m Δ</Text>
@@ -465,7 +465,7 @@ function HistoryChart({ walls }: { walls: WallsPayload }) {
               {fmtPct(walls.tracked_call_erosion_30m)}
             </Text>
           </Stack>
-          <Box style={{ "& svg": { width: "100%", height: 44 } }}>
+          <Box style={{ "& svg": { width: "100%", "height": "44px" } }}>
             <Sparkline values={callValues} width={560} height={44} color={palette.NEGATIVE} testId="walls-call-spark" animate />
           </Box>
         </Box>
@@ -485,7 +485,7 @@ function HistoryChart({ walls }: { walls: WallsPayload }) {
               {fmtPct(walls.tracked_put_build_30m)}
             </Text>
           </Stack>
-          <Box style={{ "& svg": { width: "100%", height: 44 } }}>
+          <Box style={{ "& svg": { width: "100%", "height": "44px" } }}>
             <Sparkline values={putValues} width={560} height={44} color={palette.POSITIVE} testId="walls-put-spark" animate />
           </Box>
         </Box>
@@ -506,7 +506,7 @@ function HistoryChart({ walls }: { walls: WallsPayload }) {
             {fmtNum(walls.max_pain_drift)}
           </Text>
         </Stack>
-        <Box style={{ "& svg": { width: "100%", height: 24 } }}>
+        <Box style={{ "& svg": { width: "100%", "height": "24px" } }}>
           <Sparkline values={mpValues} width={1160} height={24} color={palette.PRIMARY} testId="walls-maxpain-spark" animate />
         </Box>
       </Box>
@@ -693,7 +693,7 @@ function NiftyWallsExpandedBody({
       autoHeight
       max-height="92vh"
       title={
-        <Stack direction="row" spacing={1} className="flex-wrap" style={{ "flex-wrap": "wrap", "row-gap": 4, "align-items": "center" }}>
+        <Stack direction="row" spacing={1} className="flex-wrap" style={{ "flex-wrap": "wrap", "row-gap": "4px", "align-items": "center" }}>
           <Text
             size="lg"
             span
@@ -711,7 +711,7 @@ function NiftyWallsExpandedBody({
             variant="outline"
             color={stateColor}
             style={{
-              height: 20,
+              "height": "20px",
               "font-size": REPORT_FONT.xs,
               "font-weight": REPORT_FONT_WEIGHT.extrabold,
               color: stateColor,
@@ -789,7 +789,7 @@ function NiftyWallsExpandedBody({
           <>
             <WallsLadder walls={walls} />
 
-            <Box style={{ display: "grid", "grid-template-columns": { xs: "1fr", md: "1fr 1fr" }, gap: 1 }}>
+            <Box style={{ display: "grid", "grid-template-columns": { xs: "1fr", md: "1fr 1fr" }, "gap": "1px" }}>
               <WallsTable title="CALL WALLS" side="CALL" rows={walls.calls} spot={walls.spot} />
               <WallsTable title="PUT WALLS" side="PUT" rows={walls.puts} spot={walls.spot} />
             </Box>
@@ -804,7 +804,7 @@ function NiftyWallsExpandedBody({
 
         <Divider style={{ "border-color": palette.BORDER }} />
 
-        <Box style={{ display: "grid", "grid-template-columns": { xs: "1fr", md: "1.4fr 1fr" }, gap: 1 }}>
+        <Box style={{ display: "grid", "grid-template-columns": { xs: "1fr", md: "1.4fr 1fr" }, "gap": "1px" }}>
           <Box>
             <Text
               size="xs"
@@ -835,7 +835,7 @@ function NiftyWallsExpandedBody({
                   ? "0-DTE: the walls sit at the spot. A break needs the call wall to erode, the put floor to build, and max pain to drift — the 14:25 gamma leg, not the 14:04 touch."
                   : "Non-expiry: wall erosion is positioning. The violent 0-DTE gamma/pin does not apply; watch the wall as a level, not a pin.")}
             </Text>
-            <Stack direction="row" spacing={0.5} className="flex-wrap" style={{ "flex-wrap": "wrap", "row-gap": 4, "margin-top": `${REPORT_PAD.md}px` }}>
+            <Stack direction="row" spacing={0.5} className="flex-wrap" style={{ "flex-wrap": "wrap", "row-gap": "4px", "margin-top": `${REPORT_PAD.md}px` }}>
               {walls.reasons.map((reason) => (
                 <Badge
                   key={reason}
@@ -844,7 +844,7 @@ function NiftyWallsExpandedBody({
                   color="default"
                   className="min-w-0"
                   style={{
-                    height: 19,
+                    "height": "19px",
                     "font-size": REPORT_FONT.xs,
                     color: palette.TEXT_MUTED,
                     "background-color": palette.SURFACE_ALT,

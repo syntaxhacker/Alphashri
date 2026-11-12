@@ -67,14 +67,16 @@ export interface UsePatternFullscreenArgs {
   /**
    * Scope identity (typically `universe|timeframe`). When it changes after
    * mount the open chart is closed: it belongs to the previous scope.
+   * Pass a function to keep it reactive — it is read inside a createEffect.
    */
-  scopeKey?: string | null;
+  scopeKey?: string | null | (() => string | null);
   /**
    * Resolution identity (typically the last completed scan timestamp). When it
    * changes after mount and a *stored* hit is open, the hit is re-fetched so a
    * rescan that replaced/deleted the row cannot leave a stale panel.
+   * Pass a function to keep it reactive — it is read inside a createEffect.
    */
-  resolutionKey?: string | null;
+  resolutionKey?: string | null | (() => string | null);
 }
 
 /** Full hit identity — distinguishes two instances on the same symbol/timeframe. */
@@ -99,8 +101,11 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
   // fetch overwrite the newer selection.
   let chartRequest = 0;
   // Previous scope/resolution keys: the first render only seeds these.
-  let prevScopeKey: string | null = args.scopeKey ?? null;
-  let prevResolutionKey: string | null = args.resolutionKey ?? null;
+  const readScopeKey = () => (typeof args.scopeKey === "function" ? args.scopeKey() : args.scopeKey ?? null);
+  const readResolutionKey = () =>
+    typeof args.resolutionKey === "function" ? args.resolutionKey() : args.resolutionKey ?? null;
+  let prevScopeKey: string | null = readScopeKey();
+  let prevResolutionKey: string | null = readResolutionKey();
   // Symbol-chart response cache (`symbol|tf|l` = candles, `symbol|tf|p` = patterns).
   const symbolChartCache = new Map<string, { chart: SymbolChartPayload; ts: number }>();
 
@@ -137,8 +142,9 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
       dataAsOf: null,
     });
 
-    const fullHit = stored
-      ? fetchPatternHit(hit.id as number).catch(() => hit)
+    const fullHitStored = hit.id != null ? hit.id : null;
+    const fullHit = stored && fullHitStored != null
+      ? Promise.resolve(fetchPatternHit(fullHitStored)).catch(() => hit)
       : Promise.resolve(hit);
     const chartPromise = fetchSymbolChart(hit.symbol, hit.timeframe, {
       detectPatterns: !stored,
@@ -437,8 +443,8 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
   // Scope / resolution watchers. One effect so a scope change (which closes
   // the chart) supersedes a same-commit resolution change.
   createEffect(() => {
-    const nextScope = args.scopeKey ?? null;
-    const nextResolution = args.resolutionKey ?? null;
+    const nextScope = readScopeKey();
+    const nextResolution = readResolutionKey();
     const scopeChanged = prevScopeKey !== nextScope;
     const resolutionChanged = prevResolutionKey !== nextResolution;
     prevScopeKey = nextScope;

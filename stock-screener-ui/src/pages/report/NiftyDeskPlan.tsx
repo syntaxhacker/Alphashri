@@ -51,7 +51,7 @@ function SectionLabel(props: { children: JSX.Element; color: string; testId?: st
       span
       style={{
         "color": props.color,
-        "font-size": 9,
+        "font-size": "9px",
         "line-height": 1.2,
         "letter-spacing": "0.1em",
         "text-transform": "uppercase",
@@ -137,7 +137,7 @@ function InlineStats(props: { side: DeskSide; noTrade: boolean }) {
             fw={700}
             c="dimmed"
             span
-            style={{ "font-size": 9, "line-height": 1.2, "letter-spacing": "0.06em", "text-transform": "uppercase" }}
+            style={{ "font-size": "9px", "line-height": 1.2, "letter-spacing": "0.06em", "text-transform": "uppercase" }}
           >
             {stat.label}
           </Text>
@@ -146,7 +146,7 @@ function InlineStats(props: { side: DeskSide; noTrade: boolean }) {
             size="xs"
             fw={800}
             span
-            style={{ "font-size": 12, "line-height": 1.3, "font-variant-numeric": "tabular-nums" }}
+            style={{ "font-size": "12px", "line-height": 1.3, "font-variant-numeric": "tabular-nums" }}
           >
             {stat.value}
           </Text>
@@ -185,7 +185,7 @@ function DeskSideColumn(props: { side: DeskSide; label: string; noTrade: boolean
           span
           size="xs"
           fw={800}
-          style={{ color: accent, "font-size": 11, "line-height": 1.2, "letter-spacing": "0.08em" }}
+          style={{ color: accent, "font-size": "11px", "line-height": 1.2, "letter-spacing": "0.08em" }}
         >
           {label}
         </Text>
@@ -205,7 +205,7 @@ function DeskSideColumn(props: { side: DeskSide; label: string; noTrade: boolean
           size="xs"
           fw={700}
           lh={1.3}
-          style={{ "font-size": 11 }}
+          style={{ "font-size": "11px" }}
         >
           {side().action}
         </Text>
@@ -214,7 +214,7 @@ function DeskSideColumn(props: { side: DeskSide; label: string; noTrade: boolean
           size="xs"
           c="dimmed"
           lh={1.35}
-          style={{ "font-size": 10 }}
+          style={{ "font-size": "10px" }}
         >
           {noTrade() ? NO_TRADE : trigger()}
         </Text>
@@ -236,10 +236,10 @@ function DeskSideColumn(props: { side: DeskSide; label: string; noTrade: boolean
             class="flex items-start min-w-0"
             style={{ gap: "6px" }}
           >
-            <Text span size="xs" fw={800} style={{ color: palette.WARNING, "font-size": 10, "line-height": 1.35 }}>
+            <Text span size="xs" fw={800} style={{ color: palette.WARNING, "font-size": "10px", "line-height": 1.35 }}>
               ×
             </Text>
-            <Text size="xs" c="dimmed" lh={1.35} style={{ "font-size": 10 }}>
+            <Text size="xs" c="dimmed" lh={1.35} style={{ "font-size": "10px" }}>
               {line}
             </Text>
           </div>
@@ -269,7 +269,7 @@ function DeskSideColumn(props: { side: DeskSide; label: string; noTrade: boolean
                   size="xs"
                   fw={700}
                   c="dimmed"
-                  style={{ "font-size": 10, "line-height": 1.4, "min-width": 12, "font-variant-numeric": "tabular-nums" }}
+                  style={{ "font-size": "10px", "line-height": 1.4, "min-width": "12px", "font-variant-numeric": "tabular-nums" }}
                 >
                   {index() + 1}.
                 </Text>
@@ -290,7 +290,7 @@ function DeskSideColumn(props: { side: DeskSide; label: string; noTrade: boolean
                     fw={800}
                     style={{
                       color: TAG_COLORS[reason.tag],
-                      "font-size": 8,
+                      "font-size": "8px",
                       "line-height": 1.5,
                       "letter-spacing": "0.06em",
                       "text-transform": "uppercase",
@@ -299,7 +299,7 @@ function DeskSideColumn(props: { side: DeskSide; label: string; noTrade: boolean
                     {reason.tag}
                   </Text>
                 </div>
-                <Text size="xs" c="dimmed" lh={1.4} style={{ "font-size": 10 }}>
+                <Text size="xs" c="dimmed" lh={1.4} style={{ "font-size": "10px" }}>
                   {reason.text}
                 </Text>
               </li>

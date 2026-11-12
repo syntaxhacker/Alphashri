@@ -208,10 +208,10 @@ export function PatternsPage(props: PatternsPageProps) {
     computeTrendlines: computeTrendlines(),
     // Universe/timeframe identity only — filter edits (search, direction…)
     // must not close the open chart. A scope change does.
-    scopeKey: `${universe()}|${timeframe()}`,
+    scopeKey: () => `${universe()}|${timeframe()}`,
     // Exactly one re-resolution per completed scan: the timestamp changes
     // once when the job finishes, not once per rendered item.
-    resolutionKey: summary()?.last_scan_at ?? job()?.finished_at ?? null,
+    resolutionKey: () => summary()?.last_scan_at ?? job()?.finished_at ?? null,
   });
 
   // Docked chart inspector: at >=lg a click opens the chart beside the
@@ -902,7 +902,7 @@ export function PatternsPage(props: PatternsPageProps) {
               <>
                 <Loader size="lg" />
                 <Text size="sm" c="dimmed">
-                  Loading results()…
+                  Loading results…
                 </Text>
               </>
             )}
@@ -1009,7 +1009,7 @@ export function PatternsPage(props: PatternsPageProps) {
                   onSelect={openChartHitStable}
                   onExpand={openFromCard}
                   onShowMembers={changeMembers}
-                  trendlinesView={effectiveTrendlinesView}
+                  trendlinesView={effectiveTrendlinesView()}
                   activeHit={fullscreen()?.hit ?? null}
                   onSymbolPreview={requestSymbolPreviewStable}
                   onSymbolPreviewEnd={endSymbolPreviewStable}

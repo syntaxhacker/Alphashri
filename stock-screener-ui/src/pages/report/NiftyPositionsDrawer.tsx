@@ -262,11 +262,11 @@ export function NiftyPositionsDrawer(props: NiftyPositionsDrawerProps) {
             aria-hidden="true"
             class="shrink-0"
             style={{
-              width: 5,
-              height: 5,
+              "width": "5px",
+              "height": "5px",
               "border-radius": "50%",
               "background-color": pnlTone(),
-              "margin-right": 4,
+              "margin-right": "4px",
             }}
           />
         </Show>
@@ -292,7 +292,7 @@ export function NiftyPositionsDrawer(props: NiftyPositionsDrawerProps) {
               span
               size="xs"
               fw={700}
-              style={{ "font-size": 10, "letter-spacing": "0.08em", color: palette.TEXT_MUTED }}
+              style={{ "font-size": "10px", "letter-spacing": "0.08em", color: palette.TEXT_MUTED }}
             >
               PAPER POSITIONS
             </Text>
@@ -313,7 +313,7 @@ export function NiftyPositionsDrawer(props: NiftyPositionsDrawerProps) {
             <GreekStat testId="nifty-book-theta" label="Net Θ" value={greeks().theta} />
             <GreekStat testId="nifty-book-vega" label="Net V" value={greeks().vega} />
           </div>
-          <Text size="xs" c="dimmed" style={{ "font-size": 9 }}>
+          <Text size="xs" c="dimmed" style={{ "font-size": "9px" }}>
             Book greeks = Σ chain greek × signed qty · {greeks().legs} leg
             {greeks().legs === 1 ? "" : "s"} matched · missing legs skipped
           </Text>

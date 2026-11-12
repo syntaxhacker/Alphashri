@@ -134,7 +134,7 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           span
           truncate
           style={{
-            "font-size": 11,
+            "font-size": "11px",
             "line-height": 1.2,
             "letter-spacing": "0.04em",
             "min-width": 0,
@@ -149,7 +149,7 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           c="dimmed"
           span
           style={{
-            "font-size": 11,
+            "font-size": "11px",
             "line-height": 1.2,
             "font-variant-numeric": "tabular-nums",
             "white-space": "nowrap",
@@ -164,7 +164,7 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           span
           truncate
           style={{
-            "font-size": 9,
+            "font-size": "9px",
             "line-height": 1.2,
             "font-variant-numeric": "tabular-nums",
             "min-width": 0,
@@ -197,7 +197,7 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           span
           truncate
           style={{
-            "font-size": 11,
+            "font-size": "11px",
             "line-height": 1.3,
             "letter-spacing": "0.04em",
           }}
@@ -211,7 +211,7 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           c="dimmed"
           span
           style={{
-            "font-size": 10,
+            "font-size": "10px",
             "line-height": 1.3,
             "font-variant-numeric": "tabular-nums",
             "white-space": "nowrap",
@@ -226,7 +226,7 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
         c="dimmed"
         span
         truncate
-        style={{ "font-size": 10, "line-height": 1.3 }}
+        style={{ "font-size": "10px", "line-height": 1.3 }}
       >
         {hint}
       </Text>
@@ -237,7 +237,7 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
         span
         truncate
         style={{
-          "font-size": 10,
+          "font-size": "10px",
           "line-height": 1.3,
           "font-variant-numeric": "tabular-nums",
         }}

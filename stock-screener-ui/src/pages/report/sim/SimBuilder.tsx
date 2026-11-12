@@ -65,7 +65,7 @@ function Ctx(props: { label: string; value: JSX.Element; hint?: JSX.Element }) {
         span
         size="xs"
         style={{
-          "font-size": 9,
+          "font-size": "9px",
           "letter-spacing": "0.06em",
           "text-transform": "uppercase",
           color: palette.TEXT_MUTED,
@@ -243,7 +243,7 @@ export function SimBuilder(props: SimBuilderProps) {
                     size="xs"
                     data-testid={`sim-leg-${index()}-resolved`}
                     style={{
-                      "font-size": 9,
+                      "font-size": "9px",
                       color: preview() === null ? palette.NEGATIVE : palette.TEXT_MUTED,
                     }}
                   >

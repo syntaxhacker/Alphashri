@@ -41,28 +41,22 @@ const MUTED_EVENT_TYPES = new Set<EventType>(["earnings", "dividend", "split"]);
  * muted, and guidance gets the warning tone because a guidance change resets
  * the earnings model. `size="xs"` + `nowrap` keeps rows dense.
  */
-export function EventTypeBadge({
-  type,
-  isAlpha,
-}: {
-  type: EventType;
-  isAlpha?: boolean;
-}) {
-  const alpha = isAlpha ?? ALPHA_EVENT_TYPES.includes(type);
-  const isGuidance = type === "guidance";
-  const muted = MUTED_EVENT_TYPES.has(type);
+export function EventTypeBadge(props: { type: EventType; isAlpha?: boolean }) {
+  const alpha = () => props.isAlpha ?? ALPHA_EVENT_TYPES.includes(props.type);
+  const isGuidance = () => props.type === "guidance";
+  const muted = () => MUTED_EVENT_TYPES.has(props.type);
 
-  const color = isGuidance ? "warning" : alpha ? "primary" : muted ? "default" : "secondary";
-  const variant = isGuidance || alpha ? "filled" : "light";
+  const color = () => (isGuidance() ? "warning" : alpha() ? "primary" : muted() ? "default" : "secondary");
+  const variant = () => (isGuidance() || alpha() ? "filled" : "light");
 
   return (
     <Badge
       size="xs"
-      color={color}
-      variant={variant}
+      color={color()}
+      variant={variant()}
       style={{ "white-space": "nowrap" }}
     >
-      {EVENT_TYPE_LABELS[type] ?? "Other"}
+      {EVENT_TYPE_LABELS[props.type] ?? "Other"}
     </Badge>
   );
 }

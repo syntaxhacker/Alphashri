@@ -1,4 +1,4 @@
-import { Show, createSignal, type JSX } from "solid-js";
+import { Show, createSignal } from "solid-js";
 import { useAuth } from "./AuthProvider2";
 import {
   Flex,

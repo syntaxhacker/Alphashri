@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { createMemo, createSignal, For, Show } from "solid-js";
 import { alpha } from "@/ui/alpha";
 import type { WallsEvent, WallsMap as WallsMapData } from "@/api/reportNifty";
 import * as palette from "@/ui/palette";
@@ -74,13 +74,13 @@ function Legend({
   dashed?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-[3px]">
+    <div class="flex items-center gap-[3px]">
       {line ? (
-        <span className="w-[11px]" style={{ "border-top": `1px ${dashed ? "dashed" : "solid"} ${color}` }} />
+        <span class="w-[11px]" style={{ "border-top": `1px ${dashed ? "dashed" : "solid"} ${color}` }} />
       ) : (
-        <span className="w-2 h-2 rounded-[1px]" style={{ "background-color": color }} />
+        <span class="w-2 h-2 rounded-[1px]" style={{ "background-color": color }} />
       )}
-      <div className="text-[7.5px] leading-1 text-fin-text-muted">{label}</div>
+      <div class="text-[7.5px] leading-1 text-fin-text-muted">{label}</div>
     </div>
   );
 }
@@ -100,30 +100,22 @@ function AxisLabels({
   const indexes = [...new Set([0, Math.floor(last / 4), Math.floor(last / 2), Math.floor((last * 3) / 4), last])];
   return (
     <>
-      {indexes.map((index) => (
+      <For each={indexes}>{(index) => (
         <text
-          key={`axis-${xOffset}-${index}`}
           x={xOffset + index * cellW + cellW / 2}
           y={HEADER_H + rowsH + 11}
-          textAnchor="middle"
+          text-anchor="middle"
           font-size={7.5}
           fill={palette.TEXT_MUTED}
         >
           {timeLabel(times[index])}
         </text>
-      ))}
+      )}</For>
     </>
   );
 }
 
-export function WallsMapChart({
-  map,
-  events = [],
-  callWall,
-  putWall,
-  maxPain,
-  regime,
-}: {
+export function WallsMapChart(props: {
   map: WallsMapData;
   events?: WallsEvent[];
   callWall?: number | null;
@@ -131,88 +123,95 @@ export function WallsMapChart({
   maxPain?: number | null;
   regime?: "LONG" | "SHORT" | null;
 }) {
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const [pinnedTime, setPinnedTime] = useState<string | null>(null);
-  const [horizon, setHorizon] = useState<"window" | "session">("window");
-  const [measure, setMeasure] = useState<"pct" | "oi">("pct");
-  const svgRef = useRef<SVGSVGElement | null>(null);
+  const events = () => props.events ?? [];
+  const [hoverIndex, setHoverIndex] = createSignal<number | null>(null);
+  const [pinnedTime, setPinnedTime] = createSignal<string | null>(null);
+  const [horizon, setHorizon] = createSignal<"window" | "session">("window");
+  const [measure, setMeasure] = createSignal<"pct" | "oi">("pct");
+  let svgRef: SVGSVGElement | undefined;
 
-  const strikes = map.strikes;
-  const times = map.times;
-  if (strikes.length === 0 || times.length === 0) return null;
-
-  const cellW = PLOT_W / times.length;
-  const rowsH = strikes.length * ROW_H;
-  const height = HEADER_H + rowsH + AXIS_H;
-  const lastIndex = times.length - 1;
-  const safeHover = hoverIndex != null && hoverIndex >= 0 && hoverIndex < times.length ? hoverIndex : null;
-  const pinnedIndex = pinnedTime ? times.indexOf(pinnedTime) : -1;
-  const activeIndex = safeHover ?? (pinnedIndex >= 0 ? pinnedIndex : lastIndex);
-  const isLive = activeIndex === lastIndex && safeHover == null && pinnedTime == null;
-  const activeTime = times[activeIndex];
-  const activeSpot = map.spot[activeIndex];
-  const activeMaxPain = map.max_pain[activeIndex];
-  const activeFlip = map.flip[activeIndex];
-  const activeX = activeIndex * cellW + cellW / 2;
-  const activeCall = (row: number) => map.call_oi?.[row]?.[activeIndex] ?? map.call_now[row] ?? 0;
-  const activePut = (row: number) => map.put_oi?.[row]?.[activeIndex] ?? map.put_now[row] ?? 0;
-  const maxOi = Math.max(
-    1,
-    ...(map.call_oi ?? map.call_now).flat(),
-    ...(map.put_oi ?? map.put_now).flat(),
-  );
+  const strikes = () => props.map.strikes;
+  const times = () => props.map.times;
+  const cellW = () => PLOT_W / Math.max(1, times().length);
+  const rowsH = () => strikes().length * ROW_H;
+  const height = () => HEADER_H + rowsH() + AXIS_H;
+  const lastIndex = () => times().length - 1;
+  const safeHover = () => {
+    const h = hoverIndex();
+    return h != null && h >= 0 && h < times().length ? h : null;
+  };
+  const pinnedIndex = () => (pinnedTime() ? times().indexOf(pinnedTime()!) : -1);
+  const activeIndex = () => safeHover() ?? (pinnedIndex() >= 0 ? pinnedIndex() : lastIndex());
+  const isLive = () => activeIndex() === lastIndex() && safeHover() == null && pinnedTime() == null;
+  const activeTime = () => times()[activeIndex()];
+  const activeSpot = () => props.map.spot[activeIndex()];
+  const activeMaxPain = () => props.map.max_pain[activeIndex()];
+  const activeFlip = () => props.map.flip[activeIndex()];
+  const activeX = () => activeIndex() * cellW() + cellW() / 2;
+  const activeCall = (row: number) => (props.map as typeof props.map).call_oi?.[row]?.[activeIndex()] ?? props.map.call_now[row] ?? 0;
+  const activePut = (row: number) => props.map.put_oi?.[row]?.[activeIndex()] ?? props.map.put_now[row] ?? 0;
+  const maxOi = () =>
+    Math.max(
+      1,
+      ...(props.map.call_oi ?? props.map.call_now).flat(),
+      ...(props.map.put_oi ?? props.map.put_now).flat(),
+    );
 
   const callBase = (row: number) =>
-    horizon === "session" ? map.call_open?.[row] ?? 0 : map.call_oi?.[row]?.[0] ?? 0;
+    horizon() === "session" ? props.map.call_open?.[row] ?? 0 : props.map.call_oi?.[row]?.[0] ?? 0;
   const putBase = (row: number) =>
-    horizon === "session" ? map.put_open?.[row] ?? 0 : map.put_oi?.[row]?.[0] ?? 0;
+    horizon() === "session" ? props.map.put_open?.[row] ?? 0 : props.map.put_oi?.[row]?.[0] ?? 0;
   const callDelta = (row: number, column: number) =>
-    horizon === "session"
-      ? map.call_delta_open?.[row]?.[column] ?? map.call_delta[row]?.[column]
-      : map.call_delta[row]?.[column];
+    horizon() === "session"
+      ? props.map.call_delta_open?.[row]?.[column] ?? props.map.call_delta[row]?.[column]
+      : props.map.call_delta[row]?.[column];
   const putDelta = (row: number, column: number) =>
-    horizon === "session"
-      ? map.put_delta_open?.[row]?.[column] ?? map.put_delta[row]?.[column]
-      : map.put_delta[row]?.[column];
-  const callOiAt = (row: number, column: number) => map.call_oi?.[row]?.[column] ?? map.call_now[row] ?? 0;
-  const putOiAt = (row: number, column: number) => map.put_oi?.[row]?.[column] ?? map.put_now[row] ?? 0;
-  const maxAbsChange = (() => {
+    horizon() === "session"
+      ? props.map.put_delta_open?.[row]?.[column] ?? props.map.put_delta[row]?.[column]
+      : props.map.put_delta[row]?.[column];
+  const callOiAt = (row: number, column: number) => props.map.call_oi?.[row]?.[column] ?? props.map.call_now[row] ?? 0;
+  const putOiAt = (row: number, column: number) => props.map.put_oi?.[row]?.[column] ?? props.map.put_now[row] ?? 0;
+  const maxAbsChange = () => {
     let max = 0;
-    strikes.forEach((_, row) => {
-      times.forEach((_, column) => {
+    strikes().forEach((_, row) => {
+      times().forEach((_, column) => {
         const callChange = Math.abs(callOiAt(row, column) - callBase(row));
         const putChange = Math.abs(putOiAt(row, column) - putBase(row));
         max = Math.max(max, callChange, putChange);
       });
     });
     return max;
-  })();
+  };
   const cellFill = (side: "call" | "put", row: number, column: number) => {
-    if (measure === "pct") {
+    if (measure() === "pct") {
       return deltaFill(side === "call" ? callDelta(row, column) : putDelta(row, column));
     }
     const oi = side === "call" ? callOiAt(row, column) : putOiAt(row, column);
     const base = side === "call" ? callBase(row) : putBase(row);
-    return oiFill(oi - base, maxAbsChange);
+    return oiFill(oi - base, maxAbsChange());
   };
   const cellTitle = (side: "call" | "put", strike: number, row: number, column: number, time: string) => {
     const delta = side === "call" ? callDelta(row, column) : putDelta(row, column);
-    if (measure === "pct") return `${timeLabel(time)} · ${fmtNum(strike)} ${side} Δ ${fmtPct(delta)}`;
+    if (measure() === "pct") return `${timeLabel(time)} · ${fmtNum(strike)} ${side} Δ ${fmtPct(delta)}`;
     const oi = side === "call" ? callOiAt(row, column) : putOiAt(row, column);
     const base = side === "call" ? callBase(row) : putBase(row);
     return `${timeLabel(time)} · ${fmtNum(strike)} ${side} Δ ${fmtSignedOI(oi - base)} (${fmtPct(delta)})`;
   };
 
-  const hasFlip = map.flip.some((value) => value != null && Number.isFinite(value));
-  const firstMinute = times[0]?.slice(0, 16) ?? "";
-  const lastMinute = times[lastIndex]?.slice(0, 16) ?? "";
-  const mapEvents = events.filter((event) => {
-    const minute = event.at.slice(0, 16);
-    return minute >= firstMinute && minute <= lastMinute;
+  const hasFlip = () => props.map.flip.some((value) => value != null && Number.isFinite(value));
+  const firstMinute = () => times()[0]?.slice(0, 16) ?? "";
+  const lastMinute = () => times()[lastIndex()]?.slice(0, 16) ?? "";
+  const mapEvents = createMemo(() => {
+    const first = firstMinute();
+    const last = lastMinute();
+    return events().filter((event) => {
+      const minute = event.at.slice(0, 16);
+      return minute >= first && minute <= last;
+    });
   });
 
   const columnFromClientX = (clientX: number): number | null => {
-    const svg = svgRef.current;
+    const svg = svgRef;
     if (!svg) return null;
     const rect = svg.getBoundingClientRect();
     if (rect.width <= 0) return null;
@@ -221,15 +220,15 @@ export function WallsMapChart({
     if (x >= 0 && x <= PLOT_W) local = x;
     else if (x >= PUT_PLOT_X && x <= PUT_PLOT_X + PLOT_W) local = x - PUT_PLOT_X;
     if (local == null) return null;
-    return Math.max(0, Math.min(times.length - 1, Math.floor(local / cellW)));
+    return Math.max(0, Math.min(times().length - 1, Math.floor(local / cellW())));
   };
 
-  const handleKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
+  const handleKeyDown = (event: KeyboardEvent) => {
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();
       const step = event.key === "ArrowLeft" ? -1 : 1;
-      const next = Math.max(0, Math.min(times.length - 1, activeIndex + step));
-      if (pinnedTime != null) setPinnedTime(times[next]);
+      const next = Math.max(0, Math.min(times().length - 1, activeIndex() + step));
+      if (pinnedTime() != null) setPinnedTime(times()[next]);
       else setHoverIndex(next);
     } else if (event.key === "Escape") {
       setPinnedTime(null);
@@ -248,7 +247,7 @@ export function WallsMapChart({
     values.forEach((value, index) => {
       if (value != null && Number.isFinite(value)) lastFinite = value;
       if (lastFinite == null) return;
-      points.push(`${xOffset + index * cellW + cellW / 2},${strikeY(lastFinite, strikes)}`);
+      points.push(`${xOffset + index * cellW() + cellW() / 2},${strikeY(lastFinite, strikes())}`);
     });
     return points.join(" ");
   };
@@ -260,12 +259,12 @@ export function WallsMapChart({
     values.forEach((value, index) => {
       if (value != null && Number.isFinite(value)) lastFinite = value;
       if (lastFinite == null) return;
-      const x = xOffset + index * cellW + cellW / 2;
-      const y = strikeY(lastFinite, strikes);
+      const x = xOffset + index * cellW() + cellW() / 2;
+      const y = strikeY(lastFinite, strikes());
       if (prevY == null) {
         points.push(`${x},${y}`);
       } else {
-        const stepX = xOffset + (index - 0.5) * cellW + cellW / 2;
+        const stepX = xOffset + (index - 0.5) * cellW() + cellW() / 2;
         points.push(`${stepX},${prevY}`, `${stepX},${y}`, `${x},${y}`);
       }
       prevY = y;
@@ -273,13 +272,15 @@ export function WallsMapChart({
     return points.join(" ");
   };
 
+  if (strikes().length === 0 || times().length === 0) return null;
+
   const toggleButton = (testId: string, pressed: boolean, label: string, onClick: () => void) => (
     <button
       type="button"
       data-testid={testId}
       aria-pressed={pressed}
       onClick={onClick}
-      className="inline-flex items-center justify-center min-w-0 rounded-sm text-[7.5px] font-bold leading-[1.4] whitespace-nowrap"
+      class="inline-flex items-center justify-center min-w-0 rounded-sm text-[7.5px] font-bold leading-[1.4] whitespace-nowrap"
       style={{
         padding: "1px 4px",
         color: pressed ? palette.TEXT_COLOR : palette.TEXT_MUTED,
@@ -298,195 +299,196 @@ export function WallsMapChart({
       role="group"
       aria-label="Wall map. Use left and right arrows to inspect minutes."
       onKeyDown={handleKeyDown}
-      className="min-w-0 outline-none focus-visible:outline-1 focus-visible:outline-fin-primary"
+      class="min-w-0 outline-none focus-visible:outline-1 focus-visible:outline-fin-primary"
     >
       <div
-        className="flex items-center justify-between flex-wrap mb-[3px] row-gap-[2px]"
+        class="flex items-center justify-between flex-wrap mb-[3px] row-gap-[2px]"
       >
-        <div className="flex items-baseline gap-1.5 min-w-0 flex-wrap row-gap-[1px]">
-          <div className="text-[9px] font-bold tracking-[0.5em] text-fin-text">WALL MAP</div>
-          <div data-testid="walls-map-horizon-label" className="text-[8px] text-fin-text-muted">
-            Δ vs {horizon === "session" ? "open" : timeLabel(times[0])} · {times.length}m · {strikes.length} strikes
+        <div class="flex items-baseline gap-1.5 min-w-0 flex-wrap row-gap-[1px]">
+          <div class="text-[9px] font-bold tracking-[0.5em] text-fin-text">WALL MAP</div>
+          <div data-testid="walls-map-horizon-label" class="text-[8px] text-fin-text-muted">
+            Δ vs {horizon() === "session" ? "open" : timeLabel(times()[0])} · {times().length}m · {strikes().length} strikes
           </div>
           <div
             data-testid="walls-map-active-time"
-            className="text-[8px] font-bold"
-            style={{ color: isLive ? palette.POSITIVE : palette.WARNING }}
+            class="text-[8px] font-bold"
+            style={{ color: isLive() ? palette.POSITIVE : palette.WARNING }}
           >
-            {isLive ? "LIVE" : pinnedTime ? "PINNED" : "PREVIEW"} · {timeLabel(activeTime)}
+            {isLive() ? "LIVE" : pinnedTime() ? "PINNED" : "PREVIEW"} · {timeLabel(activeTime())}
           </div>
-          <div className="text-[8px] text-fin-text-muted">
-            spot {fmtNum(activeSpot)} · MP {fmtNum(activeMaxPain)} · FLIP {activeFlip != null ? fmtNum(activeFlip) : "—"}
+          <div class="text-[8px] text-fin-text-muted">
+            spot {fmtNum(activeSpot())} · MP {fmtNum(activeMaxPain())} · FLIP {activeFlip() != null ? fmtNum(activeFlip()!) : "—"}
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap row-gap-[2px]">
-          {regime ? (
-            <span
-              data-testid="walls-map-regime"
-              className="px-1 py-[1px] border rounded-sm text-[8px] font-bold leading-[1.4]"
-              style={{
-                "border-color": regime === "SHORT" ? palette.NEGATIVE : palette.POSITIVE,
-                color: regime === "SHORT" ? palette.NEGATIVE : palette.POSITIVE,
-              }}
-            >
-              {regime} Γ
-            </span>
-          ) : null}
+        <div class="flex items-center gap-2 flex-wrap row-gap-[2px]">
+          <Show when={props.regime}>
+            {(regime) => (
+              <span
+                data-testid="walls-map-regime"
+                class="px-1 py-[1px] border rounded-sm text-[8px] font-bold leading-[1.4]"
+                style={{
+                  "border-color": regime() === "SHORT" ? palette.NEGATIVE : palette.POSITIVE,
+                  color: regime() === "SHORT" ? palette.NEGATIVE : palette.POSITIVE,
+                }}
+              >
+                {regime()} Γ
+              </span>
+            )}
+          </Show>
           <Legend color={palette.NEGATIVE} label="erosion" />
           <Legend color={palette.POSITIVE} label="build" />
           <Legend color={palette.TEXT_COLOR} label="spot" line />
           <Legend color={palette.WARNING} label="max pain" line dashed />
-          {hasFlip ? <Legend color={palette.PRIMARY} label="flip" line dashed /> : null}
+          <Show when={hasFlip()}><Legend color={palette.PRIMARY} label="flip" line dashed /></Show>
           <Legend color={palette.NEGATIVE} label="top call" line />
           <Legend color={palette.POSITIVE} label="top put" line />
-          {!isLive ? (
+          <Show when={!isLive()}>
             <button
               type="button"
-              size="small"
               data-testid="walls-map-live"
               onClick={clearInspect}
-              className="inline-flex items-center justify-center min-w-0 rounded-sm text-[8px] font-bold leading-[1.4] whitespace-nowrap"
+              class="inline-flex items-center justify-center min-w-0 rounded-sm text-[8px] font-bold leading-[1.4] whitespace-nowrap"
               style={{
                 padding: "1px 5px",
                 color: palette.PRIMARY,
                 border: `1px solid ${palette.PRIMARY}`,
-                "border-radius": 4,
+                "border-radius": "4px",
               }}
             >
               LIVE
             </button>
-          ) : null}
+          </Show>
         </div>
       </div>
 
-      <div className="flex items-center flex-wrap mb-[3px] gap-1 row-gap-[2px]">
-        <div className="text-[7px] font-bold tracking-[0.5em] text-fin-text-muted">COLOR</div>
-        {(["window", "session"] as const).map((mode) => (
-          toggleButton(`walls-map-horizon-${mode}`, horizon === mode, mode === "window" ? "60m" : "SESSION", () => setHorizon(mode))
-        ))}
-        <div className="text-[7px] font-bold tracking-[0.5em] text-fin-text-muted ml-[8px]">MEASURE</div>
-        {(["pct", "oi"] as const).map((mode) => (
-          toggleButton(`walls-map-measure-${mode}`, measure === mode, mode === "pct" ? "%" : "OI", () => setMeasure(mode))
-        ))}
-        <div className="text-[7px] text-fin-text-muted ml-[8px]">bars: muted = open · bright = new</div>
+      <div class="flex items-center flex-wrap mb-[3px] gap-1 row-gap-[2px]">
+        <div class="text-[7px] font-bold tracking-[0.5em] text-fin-text-muted">COLOR</div>
+        <For each={["window", "session"] as const}>{(mode) =>
+          toggleButton(`walls-map-horizon-${mode}`, horizon() === mode, mode === "window" ? "60m" : "SESSION", () => setHorizon(mode))
+        }</For>
+        <div class="text-[7px] font-bold tracking-[0.5em] text-fin-text-muted ml-[8px]">MEASURE</div>
+        <For each={["pct", "oi"] as const}>{(mode) =>
+          toggleButton(`walls-map-measure-${mode}`, measure() === mode, mode === "pct" ? "%" : "OI", () => setMeasure(mode))
+        }</For>
+        <div class="text-[7px] text-fin-text-muted ml-[8px]">bars: muted = open · bright = new</div>
       </div>
 
       <svg
-        ref={svgRef}
-        viewBox={`0 0 ${TOTAL_W} ${height}`}
+        ref={(el) => (svgRef = el)}
+        viewBox={`0 0 ${TOTAL_W} ${height()}`}
         width="100%"
         role="img"
         aria-label="Call and put open-interest change by strike and time"
         style={{ display: "block", height: "auto", overflow: "visible", cursor: "crosshair" }}
-        onMouseMove={(event) => setHoverIndex(columnFromClientX(event.clientX))}
+        onMouseMove={(event) => {
+          const x = columnFromClientX(event.clientX);
+          setHoverIndex(x);
+        }}
         onMouseLeave={() => setHoverIndex(null)}
         onClick={(event) => {
           const column = columnFromClientX(event.clientX);
-          if (column != null) setPinnedTime(times[column]);
+          if (column != null) setPinnedTime(times()[column]);
         }}
       >
         {/* panel headers + current-OI columns */}
         <text x={4} y={9} font-size={8} font-weight={800} fill={palette.NEGATIVE}>
           CALLS · OI Δ
         </text>
-        <text x={PLOT_W + NOW_W / 2} y={9} textAnchor="middle" font-size={7.5} fill={palette.TEXT_MUTED}>
-          {isLive ? "NOW" : timeLabel(activeTime)}
+        <text x={PLOT_W + NOW_W / 2} y={9} text-anchor="middle" font-size={7.5} fill={palette.TEXT_MUTED}>
+          {isLive() ? "NOW" : timeLabel(activeTime())}
         </text>
-        <text x={PUT_NOW_X + NOW_W / 2} y={9} textAnchor="middle" font-size={7.5} fill={palette.TEXT_MUTED}>
-          {isLive ? "NOW" : timeLabel(activeTime)}
+        <text x={PUT_NOW_X + NOW_W / 2} y={9} text-anchor="middle" font-size={7.5} fill={palette.TEXT_MUTED}>
+          {isLive() ? "NOW" : timeLabel(activeTime())}
         </text>
         <text x={PUT_PLOT_X + 4} y={9} font-size={8} font-weight={800} fill={palette.POSITIVE}>
           PUTS · OI Δ
         </text>
 
-        <rect x={PLOT_W} y={HEADER_H} width={NOW_W} height={rowsH} fill={palette.SURFACE_ALT} />
-        <rect x={PANEL_W} y={HEADER_H} width={CENTER_W} height={rowsH} fill={palette.SURFACE_ALT} />
-        <rect x={PUT_NOW_X} y={HEADER_H} width={NOW_W} height={rowsH} fill={palette.SURFACE_ALT} />
+        <rect x={PLOT_W} y={HEADER_H} width={NOW_W} height={rowsH()} fill={palette.SURFACE_ALT} />
+        <rect x={PANEL_W} y={HEADER_H} width={CENTER_W} height={rowsH()} fill={palette.SURFACE_ALT} />
+        <rect x={PUT_NOW_X} y={HEADER_H} width={NOW_W} height={rowsH()} fill={palette.SURFACE_ALT} />
 
         {/* heatmap cells */}
         <g data-testid="walls-map-calls">
-          {strikes.map((strike, row) =>
-            times.map((time, column) => {
+          <For each={strikes()}>{(strike, row) => (
+            <For each={times()}>{(time, column) => {
               return (
                 <rect
-                  key={`call-${strike}-${column}`}
-                  x={column * cellW}
-                  y={HEADER_H + row * ROW_H}
-                  width={Math.max(0.6, cellW - 0.35)}
+                  x={column() * cellW()}
+                  y={HEADER_H + row() * ROW_H}
+                  width={Math.max(0.6, cellW() - 0.35)}
                   height={ROW_H - 1}
                   rx={0.5}
-                  fill={cellFill("call", row, column)}
+                  fill={cellFill("call", row(), column())}
                 >
-                  <title>{cellTitle("call", strike, row, column, time)}</title>
+                  <title>{cellTitle("call", strike, row(), column(), time)}</title>
                 </rect>
               );
-            }),
-          )}
+            }}</For>
+          )}</For>
         </g>
         <g data-testid="walls-map-puts">
-          {strikes.map((strike, row) =>
-            times.map((time, column) => {
+          <For each={strikes()}>{(strike, row) => (
+            <For each={times()}>{(time, column) => {
               return (
                 <rect
-                  key={`put-${strike}-${column}`}
-                  x={PUT_PLOT_X + column * cellW}
-                  y={HEADER_H + row * ROW_H}
-                  width={Math.max(0.6, cellW - 0.35)}
+                  x={PUT_PLOT_X + column() * cellW()}
+                  y={HEADER_H + row() * ROW_H}
+                  width={Math.max(0.6, cellW() - 0.35)}
                   height={ROW_H - 1}
                   rx={0.5}
-                  fill={cellFill("put", row, column)}
+                  fill={cellFill("put", row(), column())}
                 >
-                  <title>{cellTitle("put", strike, row, column, time)}</title>
+                  <title>{cellTitle("put", strike, row(), column(), time)}</title>
                 </rect>
               );
-            }),
-          )}
+            }}</For>
+          )}</For>
         </g>
 
         {/* max pain ± half a strike gap: the pin zone */}
-        {map.pin_band ? (
+        {props.map.pin_band ? (
           <g data-testid="walls-map-pin-band" pointer-events="none">
-            {[0, PUT_PLOT_X].map((offset) => {
-              const high = map.pin_band!.high.map(
-                (value, index) => `${offset + index * cellW + cellW / 2},${strikeY(value, strikes)}`,
+            <For each={[0, PUT_PLOT_X]}>{(offset) => {
+              const high = props.map.pin_band!.high.map(
+                (value, index) => `${offset + index * cellW() + cellW() / 2},${strikeY(value, strikes())}`,
               );
-              const low = map.pin_band!.low
-                .map((value, index) => `${offset + index * cellW + cellW / 2},${strikeY(value, strikes)}`)
+              const low = props.map.pin_band!.low
+                .map((value, index) => `${offset + index * cellW() + cellW() / 2},${strikeY(value, strikes())}`)
                 .reverse();
               return (
                 <polygon
-                  key={`pin-band-${offset}`}
                   points={[...high, ...low].join(" ")}
                   fill={alpha(palette.WARNING, 0.12)}
                 />
               );
-            })}
-            <polyline points={path(map.pin_band.high, 0)} fill="none" stroke={palette.WARNING} stroke-width={0.7} strokeDasharray="2 3" opacity={0.45} />
-            <polyline points={path(map.pin_band.low, 0)} fill="none" stroke={palette.WARNING} stroke-width={0.7} strokeDasharray="2 3" opacity={0.45} />
-            <polyline points={path(map.pin_band.high, PUT_PLOT_X)} fill="none" stroke={palette.WARNING} stroke-width={0.7} strokeDasharray="2 3" opacity={0.45} />
-            <polyline points={path(map.pin_band.low, PUT_PLOT_X)} fill="none" stroke={palette.WARNING} stroke-width={0.7} strokeDasharray="2 3" opacity={0.45} />
+            }}</For>
+            <polyline points={path(props.map.pin_band.high, 0)} fill="none" stroke={palette.WARNING} stroke-width={0.7} stroke-dasharray="2 3" opacity={0.45} />
+            <polyline points={path(props.map.pin_band.low, 0)} fill="none" stroke={palette.WARNING} stroke-width={0.7} stroke-dasharray="2 3" opacity={0.45} />
+            <polyline points={path(props.map.pin_band.high, PUT_PLOT_X)} fill="none" stroke={palette.WARNING} stroke-width={0.7} stroke-dasharray="2 3" opacity={0.45} />
+            <polyline points={path(props.map.pin_band.low, PUT_PLOT_X)} fill="none" stroke={palette.WARNING} stroke-width={0.7} stroke-dasharray="2 3" opacity={0.45} />
           </g>
         ) : null}
 
         {/* current OI bars, flanking the strike column */}
-        {strikes.map((strike, row) => {
-          const callValue = activeCall(row);
+        <For each={strikes()}>{(strike, row) => {
+          const callValue = activeCall(row());
           const putValue = activePut(row);
-          const callOpenValue = Math.max(0, map.call_open?.[row] ?? 0);
-          const putOpenValue = Math.max(0, map.put_open?.[row] ?? 0);
+          const callOpenValue = Math.max(0, props.map.call_open?.[row()] ?? 0);
+          const putOpenValue = Math.max(0, props.map.put_open?.[row()] ?? 0);
           const callOld = Math.min(Math.max(0, callValue), callOpenValue);
           const putOld = Math.min(Math.max(0, putValue), putOpenValue);
           const callNew = Math.max(0, Math.max(0, callValue) - callOpenValue);
           const putNew = Math.max(0, Math.max(0, putValue) - putOpenValue);
-          const callX = PLOT_W + NOW_W - 2 - (Math.max(0, callValue) / maxOi) * (NOW_W - 4);
+          const callX = PLOT_W + NOW_W - 2 - (Math.max(0, callValue) / maxOi()) * (NOW_W - 4);
           const putX = PUT_NOW_X + 2;
-          const callOldW = (callOld / maxOi) * (NOW_W - 4);
-          const callNewW = (callNew / maxOi) * (NOW_W - 4);
-          const putOldW = (putOld / maxOi) * (NOW_W - 4);
-          const putNewW = (putNew / maxOi) * (NOW_W - 4);
-          const y = HEADER_H + row * ROW_H + 4;
+          const callOldW = (callOld / maxOi()) * (NOW_W - 4);
+          const callNewW = (callNew / maxOi()) * (NOW_W - 4);
+          const putOldW = (putOld / maxOi()) * (NOW_W - 4);
+          const putNewW = (putNew / maxOi()) * (NOW_W - 4);
+          const y = HEADER_H + row() * ROW_H + 4;
           return (
-            <g key={`now-${strike}`}>
+            <g>
               <rect x={callX} y={y} width={callOldW} height={ROW_H - 8} fill={palette.NEGATIVE} opacity={0.35}>
                 <title>{`${timeLabel(activeTime)} · ${fmtNum(strike)} call open OI ${fmtOI(callOpenValue)}`}</title>
               </rect>
@@ -501,36 +503,34 @@ export function WallsMapChart({
               </rect>
             </g>
           );
-        })}
+        }}</For>
 
         {/* spot / max pain / flip paths over both panels */}
         <g pointer-events="none">
-          <polyline points={path(map.spot, 0)} fill="none" stroke={palette.TEXT_COLOR} stroke-width={1.2} strokeLinejoin="round" />
-          <polyline points={path(map.spot, PUT_PLOT_X)} fill="none" stroke={palette.TEXT_COLOR} stroke-width={1.2} strokeLinejoin="round" />
-          <polyline points={path(map.max_pain, 0)} fill="none" stroke={palette.WARNING} stroke-width={1} strokeDasharray="4 3" opacity={0.9} />
-          <polyline points={path(map.max_pain, PUT_PLOT_X)} fill="none" stroke={palette.WARNING} stroke-width={1} strokeDasharray="4 3" opacity={0.9} />
-          {hasFlip ? (
-            <>
-              <polyline points={path(map.flip, 0)} fill="none" stroke={palette.PRIMARY} stroke-width={1} strokeDasharray="2 3" opacity={0.8} />
-              <polyline points={path(map.flip, PUT_PLOT_X)} fill="none" stroke={palette.PRIMARY} stroke-width={1} strokeDasharray="2 3" opacity={0.8} />
-            </>
-          ) : null}
-          {map.top_call?.some((value) => value != null) ? (
-            <polyline points={stepPath(map.top_call, 0)} fill="none" stroke={palette.NEGATIVE} stroke-width={1.6} strokeLinejoin="miter" opacity={0.75} />
-          ) : null}
-          {map.top_put?.some((value) => value != null) ? (
-            <polyline points={stepPath(map.top_put, PUT_PLOT_X)} fill="none" stroke={palette.POSITIVE} stroke-width={1.6} strokeLinejoin="miter" opacity={0.75} />
-          ) : null}
+          <polyline points={path(props.map.spot, 0)} fill="none" stroke={palette.TEXT_COLOR} stroke-width={1.2} stroke-linejoin="round" />
+          <polyline points={path(props.map.spot, PUT_PLOT_X)} fill="none" stroke={palette.TEXT_COLOR} stroke-width={1.2} stroke-linejoin="round" />
+          <polyline points={path(props.map.max_pain, 0)} fill="none" stroke={palette.WARNING} stroke-width={1} stroke-dasharray="4 3" opacity={0.9} />
+          <polyline points={path(props.map.max_pain, PUT_PLOT_X)} fill="none" stroke={palette.WARNING} stroke-width={1} stroke-dasharray="4 3" opacity={0.9} />
+          <Show when={hasFlip()}>
+            <polyline points={path(props.map.flip, 0)} fill="none" stroke={palette.PRIMARY} stroke-width={1} stroke-dasharray="2 3" opacity={0.8} />
+            <polyline points={path(props.map.flip, PUT_PLOT_X)} fill="none" stroke={palette.PRIMARY} stroke-width={1} stroke-dasharray="2 3" opacity={0.8} />
+          </Show>
+          <Show when={props.map.top_call?.some((value) => value != null)}>
+            <polyline points={stepPath(props.map.top_call!, 0)} fill="none" stroke={palette.NEGATIVE} stroke-width={1.6} stroke-linejoin="miter" opacity={0.75} />
+          </Show>
+          <Show when={props.map.top_put?.some((value) => value != null)}>
+            <polyline points={stepPath(props.map.top_put!, PUT_PLOT_X)} fill="none" stroke={palette.POSITIVE} stroke-width={1.6} stroke-linejoin="miter" opacity={0.75} />
+          </Show>
         </g>
 
         {/* event markers (touch / break) */}
-        {mapEvents.map((event, index) => {
-          const column = timeIndex(times, event.at);
-          const x = column * cellW + cellW / 2;
-          const y = strikeY(event.spot, strikes);
+        <For each={mapEvents()}>{(event) => {
+          const column = timeIndex(times(), event.at);
+          const x = column * cellW() + cellW() / 2;
+          const y = strikeY(event.spot, strikes());
           const isBreak = event.kind === "BREAK";
           return (
-            <g key={`event-${event.at}-${index}`} pointer-events="none">
+            <g pointer-events="none">
               <line x1={x} x2={x} y1={HEADER_H} y2={HEADER_H + rowsH} stroke={isBreak ? palette.NEGATIVE : palette.WARNING} stroke-width={1} opacity={0.16} />
               <line x1={PUT_PLOT_X + x} x2={PUT_PLOT_X + x} y1={HEADER_H} y2={HEADER_H + rowsH} stroke={isBreak ? palette.NEGATIVE : palette.WARNING} stroke-width={1} opacity={0.16} />
               <circle cx={x} cy={y} r={isBreak ? 2.8 : 2} fill={isBreak ? palette.NEGATIVE : palette.WARNING}>
@@ -539,11 +539,11 @@ export function WallsMapChart({
               <circle cx={PUT_PLOT_X + x} cy={y} r={isBreak ? 2.8 : 2} fill={isBreak ? palette.NEGATIVE : palette.WARNING} opacity={0.8}>
                 <title>{`${timeLabel(event.at)} ${event.kind} ${fmtNum(event.wall)}`}</title>
               </circle>
-              {isBreak ? (
+              <Show when={isBreak}>
                 <text
                   x={x}
                   y={HEADER_H + 8}
-                  textAnchor="middle"
+                  text-anchor="middle"
                   font-size={7}
                   font-weight={800}
                   fill={palette.NEGATIVE}
@@ -551,44 +551,41 @@ export function WallsMapChart({
                 >
                   BREAK {fmtNum(event.wall)}
                 </text>
-              ) : null}
+              </Show>
             </g>
           );
-        })}
+        }}</For>
 
         {/* crosshair + active dots */}
-        {!isLive ? (
+        <Show when={!isLive()}>
           <g pointer-events="none">
-            <line x1={activeX} x2={activeX} y1={HEADER_H} y2={HEADER_H + rowsH} stroke={palette.TEXT_COLOR} stroke-width={1} opacity={0.5} />
-            <line x1={PUT_PLOT_X + activeX} x2={PUT_PLOT_X + activeX} y1={HEADER_H} y2={HEADER_H + rowsH} stroke={palette.TEXT_COLOR} stroke-width={1} opacity={0.5} />
+            <line x1={activeX()} x2={activeX()} y1={HEADER_H} y2={HEADER_H + rowsH()} stroke={palette.TEXT_COLOR} stroke-width={1} opacity={0.5} />
+            <line x1={PUT_PLOT_X + activeX()} x2={PUT_PLOT_X + activeX()} y1={HEADER_H} y2={HEADER_H + rowsH()} stroke={palette.TEXT_COLOR} stroke-width={1} opacity={0.5} />
           </g>
-        ) : null}
-        <circle cx={activeX} cy={strikeY(activeSpot, strikes)} r={2.2} fill={palette.TEXT_COLOR} />
-        <circle cx={PUT_PLOT_X + activeX} cy={strikeY(activeSpot, strikes)} r={2.2} fill={palette.TEXT_COLOR} />
-        <circle cx={activeX} cy={strikeY(activeMaxPain, strikes)} r={1.8} fill={palette.WARNING} />
-        <circle cx={PUT_PLOT_X + activeX} cy={strikeY(activeMaxPain, strikes)} r={1.8} fill={palette.WARNING} />
-        {activeFlip != null && Number.isFinite(activeFlip) ? (
-          <>
-            <circle cx={activeX} cy={strikeY(activeFlip, strikes)} r={1.6} fill={palette.PRIMARY} />
-            <circle cx={PUT_PLOT_X + activeX} cy={strikeY(activeFlip, strikes)} r={1.6} fill={palette.PRIMARY} />
-          </>
-        ) : null}
+        </Show>
+        <circle cx={activeX()} cy={strikeY(activeSpot(), strikes())} r={2.2} fill={palette.TEXT_COLOR} />
+        <circle cx={PUT_PLOT_X + activeX()} cy={strikeY(activeSpot(), strikes())} r={2.2} fill={palette.TEXT_COLOR} />
+        <circle cx={activeX()} cy={strikeY(activeMaxPain(), strikes())} r={1.8} fill={palette.WARNING} />
+        <circle cx={PUT_PLOT_X + activeX()} cy={strikeY(activeMaxPain(), strikes())} r={1.8} fill={palette.WARNING} />
+        <Show when={activeFlip() != null && Number.isFinite(activeFlip()!)}>
+          <circle cx={activeX()} cy={strikeY(activeFlip()!, strikes())} r={1.6} fill={palette.PRIMARY} />
+          <circle cx={PUT_PLOT_X + activeX()} cy={strikeY(activeFlip()!, strikes())} r={1.6} fill={palette.PRIMARY} />
+        </Show>
 
         {/* strike labels with wall tags */}
-        {strikes.map((strike, row) => {
-          const isCallWall = callWall != null && strike === callWall;
-          const isPutWall = putWall != null && strike === putWall;
-          const isMaxPain = maxPain != null && strike === maxPain;
-          const ws = wallSide(strike, activeSpot);
+        <For each={strikes()}>{(strike, row) => {
+          const isCallWall = props.callWall != null && strike === props.callWall;
+          const isPutWall = props.putWall != null && strike === props.putWall;
+          const isMaxPain = props.maxPain != null && strike === props.maxPain;
+          const ws = wallSide(strike, activeSpot());
           const tag = isCallWall ? wallCode(true, ws, false) : isPutWall ? wallCode(false, ws, false) : isMaxPain ? "MP" : "";
           const tagColor = isCallWall ? palette.NEGATIVE : isPutWall ? palette.POSITIVE : palette.WARNING;
-          const y = HEADER_H + row * ROW_H + ROW_H / 2 + 3;
+          const y = HEADER_H + row() * ROW_H + ROW_H / 2 + 3;
           return (
             <text
-              key={`strike-${strike}`}
               x={PANEL_W + CENTER_W / 2}
               y={y}
-              textAnchor="middle"
+              text-anchor="middle"
               font-size={9}
               font-weight={tag ? 800 : 500}
               fill={tag ? tagColor : palette.TEXT_COLOR}
@@ -598,12 +595,12 @@ export function WallsMapChart({
               {tag ? <tspan dx={2} font-size={6.5} fill={tagColor}>{tag}</tspan> : null}
             </text>
           );
-        })}
+        }}</For>
 
         {/* time axis */}
         <g>
-          <AxisLabels times={times} cellW={cellW} xOffset={0} rowsH={rowsH} />
-          <AxisLabels times={times} cellW={cellW} xOffset={PUT_PLOT_X} rowsH={rowsH} />
+          <AxisLabels times={times()} cellW={cellW()} xOffset={0} rowsH={rowsH()} />
+          <AxisLabels times={times()} cellW={cellW()} xOffset={PUT_PLOT_X} rowsH={rowsH()} />
         </g>
       </svg>
     </div>

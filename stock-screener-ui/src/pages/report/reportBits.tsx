@@ -148,6 +148,10 @@ export function LocalSparkline(props: { data: number[]; change?: number; width?:
 export function LocalCompactPanel(props: {
   title: string;
   testId?: string;
+  /** Header-right slot (e.g. an action badge). */
+  action?: JSX.Element;
+  /** Drop the body's default padding. */
+  flush?: boolean;
   style?: JSX.CSSProperties;
   children: JSX.Element;
 }) {
@@ -161,8 +165,9 @@ export function LocalCompactPanel(props: {
         <span class="text-[10px] font-bold uppercase tracking-[0.07em] text-fin-text-secondary">
           {props.title}
         </span>
+        <Show when={props.action}>{props.action}</Show>
       </div>
-      <div class="flex flex-col gap-1 p-[6px]">{props.children}</div>
+      <div class={props.flush ? "flex flex-col" : "flex flex-col gap-1 p-[6px]"}>{props.children}</div>
     </div>
   );
 }

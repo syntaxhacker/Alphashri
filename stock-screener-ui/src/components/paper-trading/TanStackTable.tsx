@@ -218,9 +218,9 @@ export function TanStackTable<T>(props: Props<T>) {
   const tableStyle: CSSProperties = {
     width: "100%",
     "table-layout": hasSizedColumns() ? "fixed" : "auto",
-    minWidth: props.minTableWidth ?? Math.max(640, colCount() * 96),
+    "min-width": props.minTableWidth ?? Math.max(640, colCount() * 96),
     borderCollapse: "collapse",
-    backgroundColor: palette.SURFACE,
+    "background-color": palette.SURFACE,
     ...props.style,
   };
 
@@ -241,7 +241,7 @@ export function TanStackTable<T>(props: Props<T>) {
   });
 
   const rowStyleBase = (row: T): CSSProperties => ({
-    cursor: props.onRowClick ? "pointer" : undefined,
+    "cursor": props.onRowClick ? "pointer" : undefined,
     ...props.getRowStyle?.(row),
   });
 
@@ -249,16 +249,16 @@ export function TanStackTable<T>(props: Props<T>) {
     const { align } = getColumnMeta(col);
     const s: CSSProperties = {
       padding: width === 0 ? "0" : cellPad(),
-      fontSize: cellFontSize(),
-      lineHeight: 1.2,
-      fontVariantNumeric: "tabular-nums",
-      whiteSpace: "nowrap",
+      "font-size": cellFontSize(),
+      "line-height": 1.2,
+      "font-variant-numeric": "tabular-nums",
+      "white-space": "nowrap",
       height: rowEstimated(),
-      borderBottom: `1px solid ${palette.BORDER}`,
-      backgroundColor: palette.SURFACE,
+      "border-bottom": `1px solid ${palette.BORDER}`,
+      "background-color": palette.SURFACE,
       width: width !== undefined ? width : undefined,
-      display: width === 0 ? "none" : undefined,
-      textAlign: align ?? (numericColumnIds().has(col.id) ? "right" : "left"),
+      "display": width === 0 ? "none" : undefined,
+      "text-align": align ?? (numericColumnIds().has(col.id) ? "right" : "left"),
     };
     if (width !== undefined) {
       s.overflow = "hidden";
@@ -279,21 +279,21 @@ export function TanStackTable<T>(props: Props<T>) {
     const headerStyle: CSSProperties = {
       padding: width === 0 ? "0" : cellPad(),
       height: headerHeight(),
-      fontSize: cellFontSize(),
-      lineHeight: 1.2,
-      fontWeight: 600,
-      fontVariantNumeric: "tabular-nums",
-      whiteSpace: "nowrap",
-      userSelect: "none",
+      "font-size": cellFontSize(),
+      "line-height": 1.2,
+      "font-weight": 600,
+      "font-variant-numeric": "tabular-nums",
+      "white-space": "nowrap",
+      "user-select": "none",
       color: palette.TEXT_MUTED,
-      borderBottom: `1px solid ${palette.BORDER}`,
+      "border-bottom": `1px solid ${palette.BORDER}`,
       width: width !== undefined ? width : undefined,
-      display: width === 0 ? "none" : undefined,
-      textAlign: getColumnMeta(col).align ?? (numericColumnIds().has(col.id) ? "right" : "left"),
-      cursor: col.enableSorting !== false && props.enableSorting ? "pointer" : "default",
-      position: props.stickyHeader ? "sticky" : undefined,
-      top: props.stickyHeader ? 0 : undefined,
-      zIndex: props.stickyHeader ? 1 : undefined,
+      "display": width === 0 ? "none" : undefined,
+      "text-align": getColumnMeta(col).align ?? (numericColumnIds().has(col.id) ? "right" : "left"),
+      "cursor": col.enableSorting !== false && props.enableSorting ? "pointer" : "default",
+      "position": props.stickyHeader ? "sticky" : undefined,
+      "top": props.stickyHeader ? 0 : undefined,
+      "z-index": props.stickyHeader ? 1 : undefined,
     };
     const h = col.header;
     const content = typeof h === "function" ? h({ column: col }) : h != null ? <span>{h}</span> : <span>{col.id}</span>;
@@ -316,7 +316,7 @@ export function TanStackTable<T>(props: Props<T>) {
     if (!props.getRowCanExpand?.(row) || !expanded || !props.renderSubComponent) return null;
     return (
       <tr className="paper-tanstack-expanded-row">
-        <td colSpan={colCount()} style={{ padding: 0, "border-top": `1px solid ${palette.BORDER}`, "border-bottom": `1px solid ${palette.BORDER}`, background: palette.BG }}>
+        <td colSpan={colCount()} style={{ padding: 0, "border-top": `1px solid ${palette.BORDER}`, "border-bottom": `1px solid ${palette.BORDER}`, "background": palette.BG }}>
           {props.renderSubComponent(row)}
         </td>
       </tr>
@@ -383,7 +383,7 @@ export function TanStackTable<T>(props: Props<T>) {
   const tableScroll = (
     <ScrollArea
       className="paper-tanstack-scroll"
-      style={{ flex: 1, "min-height": 0, overflow: "auto", display: "flex", "flex-direction": "column", "background-color": palette.SURFACE }}
+      style={{ flex: 1, "min-height": 0, "overflow": "auto", "display": "flex", "flex-direction": "column", "background-color": palette.SURFACE }}
     >
       <Box
         component="table"
@@ -424,7 +424,7 @@ export function TanStackTable<T>(props: Props<T>) {
                     <tr
                       data-testid={props.getGroupRowTestId?.(item.value)}
                       onClick={() => toggleGroup(item.value)}
-                      style={{ cursor: "pointer" }}
+                      style={{ "cursor": "pointer" }}
                       className="paper-tanstack-group-row"
                     >
                       <Box component="td" colSpan={colCount()} style={{ padding: 0, border: "none" }}>
@@ -450,14 +450,14 @@ export function TanStackTable<T>(props: Props<T>) {
   if (props.bare) return tableScroll;
 
   const containerStyle: CSSProperties = {
-    display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
-    borderRadius: 8,
+    "display": "flex",
+    "flex-direction": "column",
+    "overflow": "hidden",
+    "border-radius": 8,
     border: `1px solid ${palette.BORDER}`,
-    backgroundColor: palette.SURFACE,
-    maxHeight: props.fillContainer ? undefined : "65vh",
-    minHeight: props.fillContainer ? 0 : 200,
+    "background-color": palette.SURFACE,
+    "max-height": props.fillContainer ? undefined : "65vh",
+    "min-height": props.fillContainer ? 0 : 200,
     flex: props.fillContainer ? 1 : undefined,
     height: props.fillContainer ? "100%" : undefined,
   };

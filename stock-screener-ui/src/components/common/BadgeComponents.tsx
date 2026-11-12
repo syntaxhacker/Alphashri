@@ -65,10 +65,10 @@ export function ExitReasonBadge(props: ExitReasonBadgeProps) {
   );
 }
 
-export function TradingModeBadge({ liveTrading, size = "sm" }: { liveTrading: boolean; size?: "sm" | "md" | "lg" }) {
+export function TradingModeBadge(props: { liveTrading: boolean; size?: "sm" | "md" | "lg" }) {
   return (
-    <Badge color={liveTrading ? "error" : "success"} variant="filled" size={size}>
-      {liveTrading ? "LIVE" : "PAPER"}
+    <Badge color={props.liveTrading ? "error" : "success"} variant="filled" size={props.size ?? "sm"}>
+      {props.liveTrading ? "LIVE" : "PAPER"}
     </Badge>
   );
 }

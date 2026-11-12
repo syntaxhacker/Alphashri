@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
+import type { JSX } from "solid-js";
 import type { WallsPayload, WallsRow } from "@/api/reportNifty";
 import { NiftyPressureDesk } from "./NiftyPressureDesk";
 
@@ -81,7 +82,7 @@ afterEach(cleanup);
 
 describe("NiftyPressureDesk", () => {
   it("renders the phase plane, selected read and the accessible table", () => {
-    render(<NiftyPressureDesk open walls={walls} onClose={vi.fn()} />);
+    render(() => <NiftyPressureDesk open walls={walls} onClose={vi.fn()} />);
 
     expect(screen.getByText("PRESSURE DESK")).toBeInTheDocument();
     expect(screen.getByTestId("pressure-plane-CALL-25000")).toBeInTheDocument();
@@ -95,7 +96,7 @@ describe("NiftyPressureDesk", () => {
   });
 
   it("switches the read and table selection when a wall row is clicked", () => {
-    render(<NiftyPressureDesk open walls={walls} onClose={vi.fn()} />);
+    render(() => <NiftyPressureDesk open walls={walls} onClose={vi.fn()} />);
 
     fireEvent.click(screen.getByTestId("pressure-row-PUT-24000"));
 
@@ -106,14 +107,14 @@ describe("NiftyPressureDesk", () => {
 
   it("closes through the panel shell", () => {
     const onClose = vi.fn();
-    render(<NiftyPressureDesk open walls={walls} onClose={onClose} />);
+    render(() => <NiftyPressureDesk open walls={walls} onClose={onClose} />);
 
     fireEvent.click(screen.getByTestId("panel-modal-close"));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("shows the empty state when the replay has no walls payload", () => {
-    render(<NiftyPressureDesk open walls={null} onClose={vi.fn()} />);
+    render(() => <NiftyPressureDesk open walls={null} onClose={vi.fn()} />);
 
     expect(screen.getByTestId("pressure-desk-empty")).toHaveTextContent(
       "No walls tape at this replay time.",

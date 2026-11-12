@@ -105,7 +105,7 @@ export function NiftyPnlAttribution(props: NiftyPnlAttributionProps) {
                 style={{
                   "background-color": palette.TERM_BG,
                   "border": `1px solid ${palette.TERM_BORDER}`,
-                  "border-radius": 4,
+                  "border-radius": "4px",
                   "overflow": "hidden",
                 }}
               >
@@ -176,7 +176,7 @@ export function NiftyPnlAttribution(props: NiftyPnlAttributionProps) {
 
         <div
           class="flex items-center justify-between gap-[8px] min-w-0"
-          style={{ "border-top": `1px solid ${palette.TERM_BORDER}`, "padding-top": 4 }}
+          style={{ "border-top": `1px solid ${palette.TERM_BORDER}`, "padding-top": "4px" }}
         >
           <div
             data-testid={`${testId()}-legend`}

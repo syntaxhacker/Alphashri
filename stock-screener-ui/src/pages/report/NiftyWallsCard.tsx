@@ -310,7 +310,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                     {view.arrow}
                   </Text>
                 )}
-                <span style={{ "font-size": REPORT_FONT.micro, "margin-left": 3, color: palette.TEXT_MUTED }}>
+                <span style={{ "font-size": REPORT_FONT.micro, "margin-left": "3px", color: palette.TEXT_MUTED }}>
                   {wallCode(side === "CALL", wallSide(row.strike, spot), false)}
                 </span>
               </Box>
@@ -352,7 +352,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  height: 2,
+                  "height": "2px",
                   "background-color": palette.SURFACE,
                   overflow: "hidden",
                 }}
@@ -559,7 +559,7 @@ function MiniHistory({ walls }: { walls: WallsPayload }) {
           {fmtPct(walls.tracked_call_erosion_30m)}
         </Text>
       </Stack>
-      <Box style={{ "& svg": { width: "100%", height: 18, "max-width": 420 } }}>
+      <Box style={{ "& svg": { width: "100%", "height": "18px", "max-width": "420px" } }}>
         <Sparkline values={callValues} width={420} height={18} color={palette.NEGATIVE} testId="walls-card-call-spark" animate responsive />
       </Box>
       <Stack direction="row" className="items-center justify-between" style={{ "align-items": "center", "justify-content": "space-between" }}>
@@ -577,7 +577,7 @@ function MiniHistory({ walls }: { walls: WallsPayload }) {
           {fmtPct(walls.tracked_put_build_30m)}
         </Text>
       </Stack>
-      <Box style={{ "& svg": { width: "100%", height: 18, "max-width": 420 } }}>
+      <Box style={{ "& svg": { width: "100%", "height": "18px", "max-width": "420px" } }}>
         <Sparkline values={putValues} width={420} height={18} color={palette.POSITIVE} testId="walls-card-put-spark" animate responsive />
       </Box>
     </Box>
@@ -884,7 +884,7 @@ export function NiftyWallsCardInner({
               color={stateColor}
               className="min-w-0"
               style={{
-                height: 18,
+                "height": "18px",
                 "font-size": REPORT_FONT.xs,
                 "font-weight": REPORT_FONT_WEIGHT.extrabold,
                 "letter-spacing": REPORT_LETTER_SPACING.wide,
@@ -930,7 +930,7 @@ export function NiftyWallsCardInner({
                 color="warning"
                 className="min-w-0"
                 style={{
-                  height: 17,
+                  "height": "17px",
                   "font-size": REPORT_FONT.xs,
                   color: palette.WARNING,
                   "background-color": "transparent",

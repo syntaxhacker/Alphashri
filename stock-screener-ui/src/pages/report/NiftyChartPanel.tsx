@@ -489,7 +489,7 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
               onClick={() => scanPatterns(chartTf)}
               disabled={patternScan.status === "loading"}
               title={`Run the chart-pattern detector on ${symbol} ${chartTf}`}
-              style={{ "min-width": 0, "padding-left": 6, "padding-right": 6, "padding-top": 0, "padding-bottom": 0, height: 20, "font-size": 9, "font-weight": 800, "letter-spacing": "0.06em" }}
+              style={{ "min-width": 0, "padding-left": "6px", "padding-right": "6px", "padding-top": 0, "padding-bottom": 0, "height": "20px", "font-size": "9px", "font-weight": 800, "letter-spacing": "0.06em" }}
             >
               {patternScan.status === "loading" ? "…" : "PATTERNS"}
             </Button>

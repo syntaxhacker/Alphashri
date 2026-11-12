@@ -63,7 +63,7 @@ export function UsReportPage() {
       class="flex flex-col h-full min-h-0 gap-1 p-[6px] overflow-hidden tabular-nums"
     >
       {/* ---- controls ---- */}
-      <ToolbarRow gap={6} data-testid="us-toolbar" style={{ "min-height": 26 }}>
+      <ToolbarRow gap={6} data-testid="us-toolbar" style={{ "min-height": "26px" }}>
         <Text size="xs" fw={800} span className="tracking-[0.8px] text-[11px]">
           US FUTURES
         </Text>
@@ -78,7 +78,7 @@ export function UsReportPage() {
               title={r.enabled ? r.id : "coming later"}
               onClick={() => r.enabled && setRoot(r.id)}
               data-testid={`us-root-${r.id}`}
-              style={{ "min-width": 34, height: 22, "padding-left": 6, "padding-right": 6, "font-size": 10 }}
+              style={{ "min-width": "34px", "height": "22px", "padding-left": "6px", "padding-right": "6px", "font-size": "10px" }}
             >
               {r.id}
             </Button>
@@ -94,7 +94,7 @@ export function UsReportPage() {
               variant={mode() === m ? "filled" : "subtle"}
               onClick={() => setMode(m)}
               data-testid={`us-mode-${m}`}
-              style={{ "min-width": 42, height: 22, "padding-left": 6, "padding-right": 6, "font-size": 10, "text-transform": "uppercase" }}
+              style={{ "min-width": "42px", "height": "22px", "padding-left": "6px", "padding-right": "6px", "font-size": "10px", "text-transform": "uppercase" }}
             >
               {m}
             </Button>
@@ -110,7 +110,7 @@ export function UsReportPage() {
               variant={tf() === v ? "filled" : "subtle"}
               onClick={() => setTf(v)}
               data-testid={`us-tf-${v}`}
-              style={{ "min-width": 26, height: 22, "padding-left": 4, "padding-right": 4, "font-size": 10 }}
+              style={{ "min-width": "26px", "height": "22px", "padding-left": "4px", "padding-right": "4px", "font-size": "10px" }}
             >
               {v}m
             </Button>
@@ -143,7 +143,7 @@ export function UsReportPage() {
         <Text size="xs" c="dimmed" span className="text-[9px]">
           {us.status()?.market_open ? "RTH" : "CLOSED"} {fmtTime(us.status()?.now_et)} ET
         </Text>
-        <Button size="xs" variant="subtle" onClick={us.refresh} data-testid="us-refresh" style={{ height: 22, "font-size": 10 }}>
+        <Button size="xs" variant="subtle" onClick={us.refresh} data-testid="us-refresh" style={{ "height": "22px", "font-size": "10px" }}>
           REFRESH
         </Button>
       </ToolbarRow>
@@ -205,7 +205,7 @@ export function UsReportPage() {
                 variant="subtle"
                 onClick={() => us.setCursor(0)}
                 disabled={!us.frames().length}
-                style={{ "min-width": 24, height: 20, "padding-left": 4, "padding-right": 4, "font-size": 10 }}
+                style={{ "min-width": "24px", "height": "20px", "padding-left": "4px", "padding-right": "4px", "font-size": "10px" }}
                 aria-label="Jump to first frame"
               >
                 |&lt;
@@ -216,7 +216,7 @@ export function UsReportPage() {
                 onClick={us.togglePlay}
                 disabled={us.frames().length < 2}
                 data-testid="us-play"
-                style={{ "min-width": 28, height: 20, "padding-left": 4, "padding-right": 4, "font-size": 10 }}
+                style={{ "min-width": "28px", "height": "20px", "padding-left": "4px", "padding-right": "4px", "font-size": "10px" }}
               >
                 {us.playing() ? "||" : ">"}
               </Button>
@@ -225,7 +225,7 @@ export function UsReportPage() {
                 variant="subtle"
                 onClick={() => us.setCursor(us.frames().length - 1)}
                 disabled={!us.frames().length}
-                style={{ "min-width": 24, height: 20, "padding-left": 4, "padding-right": 4, "font-size": 10 }}
+                style={{ "min-width": "24px", "height": "20px", "padding-left": "4px", "padding-right": "4px", "font-size": "10px" }}
                 aria-label="Jump to last frame"
               >
                 &gt;|

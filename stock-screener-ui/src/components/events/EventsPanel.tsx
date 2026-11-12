@@ -30,7 +30,7 @@ function initialQuery(now: Date = new Date()): EventsQuery {
 function anomalyTone(retPct: number): string {
   if (retPct > 0) return "success";
   if (retPct < 0) return "error";
-  return "text.primary";
+  return "default";
 }
 
 function anomalyValue(anomaly: AnomalyDTO): string {

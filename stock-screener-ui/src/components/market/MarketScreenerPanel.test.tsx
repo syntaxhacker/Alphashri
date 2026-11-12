@@ -199,7 +199,9 @@ describe("MarketScreenerPanel — non-blocking filters", () => {
 
     expect(screen.getByTestId("market-grid")).toBeInTheDocument();
     expect(screen.getByTestId("market-result-count")).toHaveTextContent("496 / 496");
-    expect(screen.queryByTestId("market-filter-count")).toBeNull();
+    // Zero active filters: the Indicator wrapper stays mounted (committed
+    // @/ui contract), but the dot is absent.
+    expect(screen.getByTestId("market-filter-count").querySelector(".absolute")).toBeNull();
 
     const sma200 = screen.getByTestId("market-filter-above-sma200");
     fireEvent.click(sma200);
@@ -212,7 +214,9 @@ describe("MarketScreenerPanel — non-blocking filters", () => {
     // the end of `act`, so this harness cannot observe the pre-commit frame —
     // commit timing is asserted in the browser, not here.)
     expect(screen.getByTestId("market-filter-chip-sma200")).toBeInTheDocument();
-    expect(screen.getByTestId("market-filter-count")).toHaveTextContent("1");
+    const badge = screen.getByTestId("market-filter-count");
+    expect(badge.querySelector(".absolute")).not.toBeNull();
+    expect(badge).toHaveTextContent("1");
     // Alternating close=100/50 vs sma200=70 → even indices pass → 248 match.
     expect(screen.getByTestId("market-result-count")).toHaveTextContent("248 / 496");
     expect(screen.getByTestId("market-grid")).toBeInTheDocument();

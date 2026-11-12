@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal, type JSX } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import {
   Modal,
   TextInput,

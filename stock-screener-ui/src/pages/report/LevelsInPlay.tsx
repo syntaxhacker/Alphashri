@@ -1,7 +1,7 @@
-import { Box } from "@/ui";
+import { Show } from "solid-js";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
-import { CompactPanel } from "@/components/common/compact";
+import { LocalCompactPanel } from "./reportBits";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import type { NiftyReport, NiftySensex, NiftyWall } from "@/types/niftyReport";
 import { REPORT_FONT } from "./reportTokens";
@@ -103,7 +103,7 @@ function LevelInline({
     return (
       <span
         data-testid={testId}
-        className="text-[11px] leading-none whitespace-nowrap"
+        class="text-[11px] leading-none whitespace-nowrap"
         style={{ color: palette.TEXT_MUTED, "font-size": REPORT_FONT.xs }}
       >
         {side} —
@@ -114,29 +114,29 @@ function LevelInline({
   return (
     <span
       data-testid={testId}
-      className="flex items-baseline gap-1 shrink-0 whitespace-nowrap"
+      class="flex items-baseline gap-1 shrink-0 whitespace-nowrap"
       style={{
-        "min-width": 0,
+        "min-width": "0px",
         "flex-shrink": 0,
       }}
     >
-      <span className="font-black text-[11px] leading-none" style={{ color: tone, "font-size": REPORT_FONT.xs, "font-weight": 800 }}>
+      <span class="font-black text-[11px] leading-none" style={{ color: tone, "font-size": REPORT_FONT.xs, "font-weight": 800 }}>
         {side}
       </span>
       <span
-        className="font-mono text-[12px] font-bold leading-none"
+        class="font-mono text-[12px] font-bold leading-none"
         style={{ color: palette.TEXT, "font-size": REPORT_FONT.sm, "font-weight": 700 }}
       >
         {formatNumberIN(Math.round(level.strike))}
       </span>
       <span
         data-testid={`levels-dist-${rowLabel}-${side}`}
-        className="inline-flex items-center shrink-0"
+        class="inline-flex items-center shrink-0"
         style={{
           display: "inline-flex",
           "align-items": "center",
-          height: 14,
-          "min-width": 0,
+          height: "14px",
+          "min-width": "0px",
           "flex-shrink": 0,
           "white-space": "nowrap",
           "font-family": palette.MONO,
@@ -153,18 +153,18 @@ function LevelInline({
         {dist}
       </span>
       <span
-        className="text-[11px] font-bold leading-none"
+        class="text-[11px] font-bold leading-none"
         style={{
           "font-size": REPORT_FONT.xs,
           "font-weight": 800,
-          "letter-spacing": 0.2,
+          "letter-spacing": "0.2px",
           "line-height": 1,
           color: level.tag === "AT" ? palette.NEGATIVE : level.tag === "NEAR" ? tone : palette.TEXT_MUTED,
         }}
       >
         {level.tag}
       </span>
-      <span className="font-mono text-[11px] leading-none" style={{ color: palette.TEXT_MUTED, "font-size": REPORT_FONT.xs }}>
+      <span class="font-mono text-[11px] leading-none" style={{ color: palette.TEXT_MUTED, "font-size": REPORT_FONT.xs }}>
         {level.oi >= 1e6 ? `${(level.oi / 1e6).toFixed(1)}M` : `${Math.round(level.oi / 1e3)}k`}
       </span>
     </span>
@@ -185,16 +185,16 @@ function IndexRow({
   // `columnGap` is breakpoint-responsive (xs/sm) and the first row drops its
   // top border — both are expressible as Tailwind variants.
   return (
-    <Box
+    <div
       data-testid={`levels-row-${label}`}
-      className="flex flex-wrap items-center justify-start gap-x-[6px] sm:gap-x-2 gap-y-px py-0 min-w-0 border-t border-fin-border first-of-type:border-t-0"
+      class="flex flex-wrap items-center justify-start gap-x-[6px] sm:gap-x-2 gap-y-px py-0 min-w-0 border-t border-fin-border first-of-type:border-t-0"
     >
       <div
         data-testid={`levels-label-${label}`}
-        className="flex items-baseline gap-[3px] shrink-0"
-        style={{ "min-width": 84 }}
+        class="flex items-baseline gap-[3px] shrink-0"
+        style={{ "min-width": "84px" }}
       >
-        <Text size="xs" fw={800} style={{ "font-size": REPORT_FONT.xs, "letter-spacing": 0.3, "line-height": 1 }}>
+        <Text size="xs" fw={800} style={{ "font-size": REPORT_FONT.xs, "letter-spacing": "0.3px", "line-height": 1 }}>
           {label}
         </Text>
         <Text size="xs" c="dimmed" style={{ "font-family": palette.MONO, "font-size": REPORT_FONT.xs, "line-height": 1 }}>
@@ -204,12 +204,12 @@ function IndexRow({
       <LevelInline side="CE" level={read.call} rowLabel={label} />
       <LevelInline side="PE" level={read.put} rowLabel={label} />
       <span
-        className="font-mono text-[11px] leading-none whitespace-nowrap shrink-0"
+        class="font-mono text-[11px] leading-none whitespace-nowrap shrink-0"
         style={{ color: palette.TEXT_MUTED, "font-size": REPORT_FONT.xs }}
       >
         MP {maxPain > 0 ? formatNumberIN(Math.round(maxPain)) : "—"}
       </span>
-    </Box>
+    </div>
   );
 }
 
@@ -221,31 +221,30 @@ interface LevelsInPlayProps {
 /** Just the dense rows — CE beside PE, one row per index, no panel/title/badge.
  *  Meant to be passed as `levels` to `NiftyWallsCard` (NIFTY) or rendered
  *  standalone where there is no walls card (SENSEX focus). */
-export function LevelsInPlayContent({ report, sensex }: LevelsInPlayProps) {
-  if (!report && !sensex) return null;
-  const nifty = report ? readIndex(report.spot, report.walls, report.wallsNear) : null;
-  const sensexRead = sensex ? readIndex(sensex.spot, sensex.walls, sensex.wallsNear) : null;
+export function LevelsInPlayContent(props: LevelsInPlayProps) {
+  const nifty = () => (props.report ? readIndex(props.report.spot, props.report.walls, props.report.wallsNear) : null);
+  const sensexRead = () => (props.sensex ? readIndex(props.sensex.spot, props.sensex.walls, props.sensex.wallsNear) : null);
 
   return (
-    <div className="min-w-0">
-      {report ? (
-        <IndexRow label="NIFTY" spot={report.spot} maxPain={report.maxPain} read={nifty ?? { call: null, put: null }} />
-      ) : null}
-      {sensex ? (
-        <IndexRow label="SENSEX" spot={sensex.spot} maxPain={sensex.maxPain} read={sensexRead ?? { call: null, put: null }} />
-      ) : null}
+    <div class="min-w-0">
+      <Show when={props.report}>{(report) => (
+        <IndexRow label="NIFTY" spot={report().spot} maxPain={report().maxPain} read={nifty() ?? { call: null, put: null }} />
+      )}</Show>
+      <Show when={props.sensex}>{(sensex) => (
+        <IndexRow label="SENSEX" spot={sensex().spot} maxPain={sensex().maxPain} read={sensexRead() ?? { call: null, put: null }} />
+      )}</Show>
     </div>
   );
 }
 
-export function LevelsInPlay({ report, sensex }: LevelsInPlayProps) {
-  if (!report && !sensex) return null;
-  const nifty = report ? readIndex(report.spot, report.walls, report.wallsNear) : null;
-  const sensexRead = sensex ? readIndex(sensex.spot, sensex.walls, sensex.wallsNear) : null;
-  const badge = confluenceLabel(nifty, sensexRead);
+export function LevelsInPlay(props: LevelsInPlayProps) {
+  const nifty = () => (props.report ? readIndex(props.report.spot, props.report.walls, props.report.wallsNear) : null);
+  const sensexRead = () => (props.sensex ? readIndex(props.sensex.spot, props.sensex.walls, props.sensex.wallsNear) : null);
+  const badge = () => confluenceLabel(nifty(), sensexRead());
 
   return (
-    <CompactPanel
+    <Show when={props.report || props.sensex}>
+    <LocalCompactPanel
       title="Levels"
       testId="levels-in-play"
       flush
@@ -256,15 +255,16 @@ export function LevelsInPlay({ report, sensex }: LevelsInPlayProps) {
           data-testid="levels-badge"
           style={{
             "font-size": REPORT_FONT.xs,
-            "letter-spacing": 0.35,
-            color: badge === "DUAL RESISTANCE" ? palette.NEGATIVE : badge === "DUAL SUPPORT" ? palette.POSITIVE : palette.TEXT_MUTED,
+            "letter-spacing": "0.35px",
+            color: badge() === "DUAL RESISTANCE" ? palette.NEGATIVE : badge() === "DUAL SUPPORT" ? palette.POSITIVE : palette.TEXT_MUTED,
           }}
         >
-          {badge}
+          {badge()}
         </Text>
       }
     >
-      <LevelsInPlayContent report={report} sensex={sensex} />
-    </CompactPanel>
+      <LevelsInPlayContent report={props.report} sensex={props.sensex} />
+    </LocalCompactPanel>
+    </Show>
   );
 }

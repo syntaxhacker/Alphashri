@@ -114,11 +114,11 @@ export function SimPayoff(props: SimPayoffProps) {
       .filter((value) => value >= lo && value <= hi)
       .map((value) => ({
         xAxis: value,
-        lineStyle: { color: palette.CHART_AVG_ENTRY, type: "dashed", width: 1 },
+        lineStyle: { color: palette.CHART_AVG_ENTRY, type: "dashed", "width": "1px" },
         label: {
           formatter: axisSpot(value),
           position: "insideEndTop",
-          "font-size": 12,
+          "font-size": "12px",
           color: palette.CHART_AVG_ENTRY,
         },
       }));
@@ -132,12 +132,12 @@ export function SimPayoff(props: SimPayoffProps) {
         coord: [spot(), expiryAtSpot],
         symbol: "circle",
         symbolSize: 10,
-        itemStyle: { color: palette.TERM_SPOT, "border-color": palette.TERM_BG, "border-width": 2 },
+        itemStyle: { color: palette.TERM_SPOT, "border-color": palette.TERM_BG, "border-width": "2px" },
         label: {
           formatter: `expiry ${fmtSignedInr(expiryAtSpot)}`,
           position: "right",
           distance: 6,
-          "font-size": 12,
+          "font-size": "12px",
           color: palette.TEXT,
           "background-color": palette.TERM_BG,
           padding: [2, 4],
@@ -159,7 +159,7 @@ export function SimPayoff(props: SimPayoffProps) {
       "background-color": "transparent",
       tooltip: {
         trigger: "axis",
-        textStyle: { "font-size": 12 },
+        textStyle: { "font-size": "12px" },
         axisPointer: { type: "line", lineStyle: { color: palette.CHART_MUTED } },
         formatter: (params: unknown) => {
           const rows = Array.isArray(params) ? params : [params];
@@ -171,7 +171,7 @@ export function SimPayoff(props: SimPayoffProps) {
           return `Spot ${Number(value[0]).toFixed(1)}<br/>P&amp;L ${fmtSignedInr(Number(value[1]))}`;
         },
       },
-      grid: { left: 10, right: 18, top: 22, bottom: 26, containLabel: true },
+      grid: { "left": "10px", "right": "18px", "top": "22px", "bottom": "26px", containLabel: true },
       xAxis: {
         type: "value",
         min: lo,
@@ -179,7 +179,7 @@ export function SimPayoff(props: SimPayoffProps) {
         splitNumber: 5,
         axisLabel: {
           color: palette.CHART_MUTED,
-          "font-size": 12,
+          "font-size": "12px",
           formatter: axisSpot,
           hideOverlap: true,
         },
@@ -192,7 +192,7 @@ export function SimPayoff(props: SimPayoffProps) {
         splitNumber: 4,
         axisLabel: {
           color: palette.CHART_MUTED,
-          "font-size": 12,
+          "font-size": "12px",
           formatter: axisInr,
           hideOverlap: true,
         },
@@ -219,7 +219,7 @@ export function SimPayoff(props: SimPayoffProps) {
           name: "payoff",
           showSymbol: false,
           z: 3,
-          lineStyle: { color: palette.PRIMARY, width: 2 },
+          lineStyle: { color: palette.PRIMARY, "width": "2px" },
           itemStyle: { color: palette.PRIMARY },
           data: line,
           markLine: {
@@ -228,28 +228,28 @@ export function SimPayoff(props: SimPayoffProps) {
             data: [
               {
                 yAxis: 0,
-                lineStyle: { color: palette.CHART_MUTED, type: "dashed", width: 1 },
+                lineStyle: { color: palette.CHART_MUTED, type: "dashed", "width": "1px" },
               },
               {
                 xAxis: spot(),
-                lineStyle: { color: palette.TERM_SPOT, type: "dotted", width: 1 },
+                lineStyle: { color: palette.TERM_SPOT, type: "dotted", "width": "1px" },
                 label: {
                   formatter: "SPOT",
                   position: "insideEndBottom",
-                  "font-size": 12,
+                  "font-size": "12px",
                   color: palette.TERM_SPOT,
                 },
               },
               {
                 yAxis: mark(),
-                lineStyle: { color: toneColor(mark), type: "dotted", width: 1 },
+                lineStyle: { color: toneColor(mark), type: "dotted", "width": "1px" },
                 label: {
                   formatter:
                     "MARK " +
                     fmtSignedInr(mark()) +
                     (markTime() ? " @ " + fmtTime(markTime()!) : ""),
                   position: "insideStartTop",
-                  "font-size": 12,
+                  "font-size": "12px",
                   color: toneColor(mark()),
                 },
               },
@@ -266,7 +266,7 @@ export function SimPayoff(props: SimPayoffProps) {
             itemStyle: {
               color: toneColor(mark()),
               "border-color": palette.TERM_BG,
-              "border-width": 2,
+              "border-width": "2px",
             },
             data: [[spot(), mark()]],
             label: {
@@ -275,7 +275,7 @@ export function SimPayoff(props: SimPayoffProps) {
                 fmtSignedInr(mark()) +
                 (markTime() ? " @ " + fmtTime(markTime()!) : ""),
               position: "bottom",
-              "font-size": 12,
+              "font-size": "12px",
               "background-color": palette.TERM_BG,
               padding: [2, 4],
             },

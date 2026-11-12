@@ -56,7 +56,7 @@ export function DeskDock(props: {
       aria-pressed={selected}
       onClick={() => toggle(tab.key)}
       class={`flex items-center gap-1 min-w-0 shrink-0 h-[20px] px-1.5 py-0 rounded-sm whitespace-nowrap ${selected ? "bg-fin-primary text-fin-bg" : "bg-fin-surface-alt text-fin-text"}`}
-      style={{ "font-size": 8.5, "font-weight": 800, "letter-spacing": 0.5 }}
+      style={{ "font-size": "8.5px", "font-weight": 800, "letter-spacing": "0.5px" }}
     >
       <span class="font-black text-[8.5px] tracking-[0.5em]">{tab.label}</span>
       <Show when={tab.summary != null}>
@@ -69,7 +69,7 @@ export function DeskDock(props: {
             padding: "1px 3px",
             "background-color": palette.NEGATIVE,
             color: "#fff",
-            "font-size": 7.5,
+            "font-size": "7.5px",
             "font-weight": 800,
             "line-height": 1,
           }}
@@ -133,7 +133,7 @@ export function DeskDock(props: {
                     type="button"
                     class={`flex items-center gap-1 min-w-0 shrink-0 h-[20px] px-1.5 py-0 rounded-sm whitespace-nowrap ${active === tab.key ? "bg-fin-primary text-fin-bg" : "bg-fin-surface-alt text-fin-text"}`}
                     onClick={() => props.onActiveChange(tab.key)}
-                    style={{ "font-size": 8.5, "font-weight": 800, "letter-spacing": 0.4 }}
+                    style={{ "font-size": "8.5px", "font-weight": 800, "letter-spacing": "0.4px" }}
                   >
                     {tab.label}
                   </button>

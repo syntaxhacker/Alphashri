@@ -216,7 +216,7 @@ function TickerLoadingState() {
         overflow: "hidden",
       }}
     >
-      <For each={[1, 2, 3, 4, 5, 6]}>{(i) => <Skeleton w={88} h={14} visible />}</For>
+      <For each={[1, 2, 3, 4, 5, 6]}>{() => <Skeleton w={88} h={14} visible />}</For>
     </Box>
   );
 }
@@ -237,7 +237,7 @@ function TickerErrorState() {
   );
 }
 
-function TickerStatus({ label, detail }: { label: string; detail?: string | null }) {
+function TickerStatus(props: { label: string; detail?: string | null }) {
   return (
     <Box
       data-testid="market-ticker-status"
@@ -249,15 +249,15 @@ function TickerStatus({ label, detail }: { label: string; detail?: string | null
         className="size-6 rounded-full flex-shrink-0"
         style={{ "background-color": palette.TEXT_MUTED }}
       />
-      <Text size="sm" fw={600} c="dimmed" style={{ "font-size": "9.5px", "line-height": "1.2" }}>{label}</Text>
-      <Show when={detail}>
+      <Text size="sm" fw={600} c="dimmed" style={{ "font-size": "9.5px", "line-height": "1.2" }}>{props.label}</Text>
+      <Show when={props.detail}>
         <Text
           size="sm"
           c="dimmed"
           style={{ "font-size": "9.5px", "line-height": "1.2" }}
           className="opacity-75 min-w-0 overflow-hidden truncate"
         >
-          · {detail}
+          · {props.detail}
         </Text>
       </Show>
     </Box>

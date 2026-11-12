@@ -58,17 +58,17 @@ export function SimRuns(props: SimRunsProps) {
           return `${value.axisValue ?? ""}<br/>P&amp;L ${fmtSignedInr(Number(value.value))}`;
         },
       },
-      grid: { left: 8, right: 8, top: 10, bottom: 18, containLabel: true },
+      grid: { "left": "8px", "right": "8px", "top": "10px", "bottom": "18px", containLabel: true },
       xAxis: {
         type: "category",
         data: points.map((point) => fmtTime(point.t)),
-        axisLabel: { color: palette.CHART_MUTED, "font-size": 9, hideOverlap: true },
+        axisLabel: { color: palette.CHART_MUTED, "font-size": "9px", hideOverlap: true },
         axisLine: { lineStyle: { color: palette.AXIS_LINE } },
       },
       yAxis: {
         type: "value",
         scale: true,
-        axisLabel: { color: palette.CHART_MUTED, "font-size": 9 },
+        axisLabel: { color: palette.CHART_MUTED, "font-size": "9px" },
         axisLine: { lineStyle: { color: palette.AXIS_LINE } },
         splitLine: { lineStyle: { color: palette.AXIS_SPLIT } },
       },
@@ -76,7 +76,7 @@ export function SimRuns(props: SimRunsProps) {
         {
           type: "line",
           showSymbol: false,
-          lineStyle: { color: palette.PRIMARY, width: 2 },
+          lineStyle: { color: palette.PRIMARY, "width": "2px" },
           itemStyle: { color: palette.PRIMARY },
           areaStyle: { color: palette.ORB_AREA },
           data: points.map((point) => point.pnl),

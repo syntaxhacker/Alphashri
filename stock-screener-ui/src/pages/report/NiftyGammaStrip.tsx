@@ -52,7 +52,7 @@ function Field(props: { testId: string; label: string; value: string; title: str
     >
       <span
         class="text-[9px] tracking-[0.04em]"
-        style={{ "color": palette.TEXT_MUTED, "font-size": 9, "letter-spacing": "0.04em" }}
+        style={{ "color": palette.TEXT_MUTED, "font-size": "9px", "letter-spacing": "0.04em" }}
       >
         {props.label}
       </span>
@@ -60,7 +60,7 @@ function Field(props: { testId: string; label: string; value: string; title: str
         class="text-[10.5px] font-bold tabular-nums whitespace-nowrap"
         style={{
           "color": palette.TEXT,
-          "font-size": 10.5,
+          "font-size": "10.5px",
           "font-weight": 700,
           "font-variant-numeric": "tabular-nums",
           "white-space": "nowrap",
@@ -174,7 +174,7 @@ export function NiftyGammaStrip(props: NiftyGammaStripProps) {
         <span
           title="Net dealer gamma across the book (₹ Cr per point)"
           class="text-[10.5px] font-bold shrink-0"
-          style={{ "color": tone(), "font-size": 10.5, "font-weight": 700, "flex-shrink": 0 }}
+          style={{ "color": tone(), "font-size": "10.5px", "font-weight": 700, "flex-shrink": 0 }}
         >
           Γ {netText()}
         </span>
@@ -188,7 +188,7 @@ export function NiftyGammaStrip(props: NiftyGammaStripProps) {
                 : "Gamma regime flat"
           }
           class="text-[10.5px] font-bold shrink-0"
-          style={{ "color": tone(), "font-size": 10.5, "font-weight": 700, "flex-shrink": 0 }}
+          style={{ "color": tone(), "font-size": "10.5px", "font-weight": 700, "flex-shrink": 0 }}
         >
           {regimeLabel()}
         </span>
@@ -224,7 +224,7 @@ export function NiftyGammaStrip(props: NiftyGammaStripProps) {
         <span
           aria-hidden
           class="ml-auto text-[10px] shrink-0"
-          style={{ "color": palette.TEXT_MUTED, "font-size": 10, "flex-shrink": 0 }}
+          style={{ "color": palette.TEXT_MUTED, "font-size": "10px", "flex-shrink": 0 }}
         >
           ▸
         </span>

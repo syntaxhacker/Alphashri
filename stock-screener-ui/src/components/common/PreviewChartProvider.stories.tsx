@@ -1,4 +1,3 @@
-import { Portal } from "solid-js";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Box, Group, Stack, Text, Title } from "@/ui";
 import { Router } from "@solidjs/router";

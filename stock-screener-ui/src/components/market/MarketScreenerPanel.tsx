@@ -486,7 +486,7 @@ export function MarketScreenerPanel() {
               data-testid="market-skeleton"
               className="flex-1 border border-fin-border rounded-sm bg-fin-surface p-2 flex flex-col gap-2"
             >
-              <For each={Array.from({ length: 12 }, (_, i) => i)}>{(i) => <Skeleton h={24} visible />}</For>
+              <For each={Array.from({ length: 12 }, (_, i) => i)}>{() => <Skeleton h={24} visible />}</For>
             </Paper>
           </Show>
         </Box>

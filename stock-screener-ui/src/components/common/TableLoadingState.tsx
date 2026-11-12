@@ -16,10 +16,15 @@ interface TableLoadingStateProps {
  * <TableLoadingState message="Loading positions..." />
  * <TableLoadingState showSpinner={false} message="Fetching data..." />
  */
-export function TableLoadingState({ message = "Loading...", showSpinner = true, children }: TableLoadingStateProps) {
+export function TableLoadingState(props: TableLoadingStateProps) {
   return (
-    <InlineLoader data-testid="table-loading-state" size="sm" message={message} showSpinner={showSpinner}>
-      {children}
+    <InlineLoader
+      data-testid="table-loading-state"
+      size="sm"
+      message={props.message ?? "Loading..."}
+      showSpinner={props.showSpinner ?? true}
+    >
+      {props.children}
     </InlineLoader>
   );
 }

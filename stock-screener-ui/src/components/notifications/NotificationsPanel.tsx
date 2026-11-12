@@ -1,4 +1,4 @@
-import { Show, For, createEffect, createSignal, onCleanup, type JSX } from "solid-js";
+import { Show, For, createEffect, createSignal, onCleanup } from "solid-js";
 import {
   Modal, Stack, Text, Badge, Group, Button, Paper,
   ScrollArea, Loader, Center,

@@ -1,4 +1,4 @@
-import { For, Show, type CSSProperties, type JSX } from "solid-js";
+import { Show, type CSSProperties, type JSX } from "solid-js";
 import { ActionIcon, Anchor, Badge, Box, Divider, Text, ToolbarRow } from "@/ui";
 import { Portal } from "@/ui/layout/Portal";
 import { IconExternalLink, IconX } from "../common/Icons";

@@ -1,4 +1,4 @@
-import type { JSX } from "solid-js";
+import { Show } from "solid-js";
 import type { TableColumnDef as ColumnDef } from "../common/TanStackTable";
 import { Badge, Box, Text, Tooltip } from "@/ui";
 import { SymbolLink } from "../common/SymbolLink";
@@ -60,28 +60,30 @@ const CAP_TIER_COLOR: Record<string, "primary" | "info" | "warning" | "default">
 };
 
 /** Horizontal 52-week position bar (0–100), coloured by proximity to the high. */
-function Week52Bar({ row }: { row: MarketRow }) {
-  const pos = row.pos52w;
-  if (pos === null) return <>{dash(row.symbol, "week52")}</>;
-  const clamped = Math.max(0, Math.min(100, pos));
-  const title =
-    row.high52w !== null && row.low52w !== null
-      ? `52W range ₹${row.low52w.toLocaleString("en-IN")}–₹${row.high52w.toLocaleString("en-IN")} · at ${clamped.toFixed(0)}%`
-      : `52W position ${clamped.toFixed(0)}%`;
+function Week52Bar(props: { row: MarketRow }) {
+  const pos = () => props.row.pos52w;
+  const title = () => {
+    if (props.row.high52w !== null && props.row.low52w !== null) {
+      return `52W range ₹${props.row.low52w.toLocaleString("en-IN")}–₹${props.row.high52w.toLocaleString("en-IN")} · at ${Math.max(0, Math.min(100, pos()!)).toFixed(0)}%`;
+    }
+    return `52W position ${Math.max(0, Math.min(100, pos()!)).toFixed(0)}%`;
+  };
   return (
-    <Tooltip label={title}>
-      <Box
-        role="img"
-        aria-label={title}
-        data-testid={`market-52w-${row.symbol}`}
-        className={WEEK52_TRACK_CLASS}
-      >
+    <Show when={pos() !== null} fallback={<>{dash(props.row.symbol, "week52")}</>}>
+      <Tooltip label={title()}>
         <Box
-          className={WEEK52_FILL_CLASS}
-          style={{ width: `${clamped}%` }}
-        />
-      </Box>
-    </Tooltip>
+          role="img"
+          aria-label={title()}
+          data-testid={`market-52w-${props.row.symbol}`}
+          className={WEEK52_TRACK_CLASS}
+        >
+          <Box
+            className={WEEK52_FILL_CLASS}
+            style={{ width: `${Math.max(0, Math.min(100, pos()!))}%` }}
+          />
+        </Box>
+      </Tooltip>
+    </Show>
   );
 }
 

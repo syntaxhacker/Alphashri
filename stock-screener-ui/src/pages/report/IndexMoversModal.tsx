@@ -304,7 +304,7 @@ export function IndexMoversModal(props: IndexMoversModalProps) {
           class="flex items-center justify-center min-h-[120px] text-fin-text-muted"
         >
           <Loader size="xs" color={palette.PRIMARY} />
-          <Text span size="xs" c="dimmed" style={{ "margin-left": 8 }}>
+          <Text span size="xs" c="dimmed" style={{ "margin-left": "8px" }}>
             loading movers…
           </Text>
         </div>

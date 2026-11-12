@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@solidjs/testing-library";
 
 import type { WallsPayload } from "@/api/reportNifty";
 import { NiftyWallErosionBoard } from "./NiftyWallErosionBoard";
@@ -86,7 +86,7 @@ afterEach(() => {
 
 describe("NiftyWallErosionBoard", () => {
   it("renders both cards with erosion, fuel, flow and header context", () => {
-    render(<NiftyWallErosionBoard walls={makeWalls()} />);
+    render(() =>     <NiftyWallErosionBoard walls={makeWalls()} />);
 
     const board = screen.getByTestId("wall-erosion-board");
     expect(board).toBeInTheDocument();
@@ -110,7 +110,7 @@ describe("NiftyWallErosionBoard", () => {
   });
 
   it("shows BUILDING and no PRE-BLAST on the put card", () => {
-    render(<NiftyWallErosionBoard walls={makeWalls()} />);
+    render(() =>     <NiftyWallErosionBoard walls={makeWalls()} />);
 
     const put = screen.getByTestId("wall-erosion-put");
     expect(within(put).getByText("BUILDING")).toBeInTheDocument();
@@ -121,14 +121,12 @@ describe("NiftyWallErosionBoard", () => {
   });
 
   it("prefers the asOf prop over walls.freshness.last_t", () => {
-    render(
-      <NiftyWallErosionBoard walls={makeWalls()} asOf="2026-11-10T15:05:00+05:30" />,
-    );
+    render(() => (    <NiftyWallErosionBoard walls={makeWalls()} asOf="2026-11-10T15:05:00+05:30" />));
     expect(screen.getByText(/as of 15:05/)).toBeInTheDocument();
   });
 
   it("keeps the same two-row shape when walls is null", () => {
-    render(<NiftyWallErosionBoard walls={null} />);
+    render(() =>     <NiftyWallErosionBoard walls={null} />);
 
     const board = screen.getByTestId("wall-erosion-board");
     expect(board).toBeInTheDocument();
@@ -159,7 +157,7 @@ describe("NiftyWallErosionBoard", () => {
       regime: null,
       flip: null,
     });
-    render(<NiftyWallErosionBoard walls={walls} />);
+    render(() =>     <NiftyWallErosionBoard walls={walls} />);
 
     const call = screen.getByTestId("wall-erosion-call");
     expect(within(call).getByText(/25,100/)).toBeInTheDocument();
@@ -182,7 +180,7 @@ describe("NiftyWallErosionBoard", () => {
       status: "BREACHED",
       time_to_break_min: null,
     };
-    render(<NiftyWallErosionBoard walls={walls} />);
+    render(() =>     <NiftyWallErosionBoard walls={walls} />);
 
     const call = screen.getByTestId("wall-erosion-call");
     expect(within(call).getByText("spot crossed")).toBeInTheDocument();
@@ -190,7 +188,7 @@ describe("NiftyWallErosionBoard", () => {
   });
 
   it("renders exactly two rows and no skeleton for a full payload", () => {
-    render(<NiftyWallErosionBoard walls={makeWalls()} />);
+    render(() =>     <NiftyWallErosionBoard walls={makeWalls()} />);
 
     const body = screen.getByTestId("wall-erosion-body");
     const rows = within(body).getAllByTestId("wall-erosion-row");
@@ -203,14 +201,14 @@ describe("NiftyWallErosionBoard", () => {
   });
 
   it("pins the body to a fixed two-row layout in both states", () => {
-    const { unmount } = render(<NiftyWallErosionBoard walls={null} />);
+    const { unmount } = render(() =>     <NiftyWallErosionBoard walls={null} />);
     const emptyBody = screen.getByTestId("wall-erosion-body");
     expect(emptyBody.getAttribute("data-layout")).toBe("fixed");
     expect(emptyBody.getAttribute("data-rows")).toBe("2");
     expect(within(emptyBody).getAllByTestId("wall-erosion-row")).toHaveLength(2);
     unmount();
 
-    render(<NiftyWallErosionBoard walls={makeWalls()} />);
+    render(() =>     <NiftyWallErosionBoard walls={makeWalls()} />);
     const fullBody = screen.getByTestId("wall-erosion-body");
     expect(fullBody.getAttribute("data-layout")).toBe("fixed");
     expect(fullBody.getAttribute("data-rows")).toBe("2");

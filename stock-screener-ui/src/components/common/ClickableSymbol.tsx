@@ -1,4 +1,4 @@
-import { onCleanup, splitProps } from "solid-js";
+import { onCleanup } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { usePreviewChart } from "./PreviewChartProvider";
 import { SymbolLink } from "./SymbolLink";

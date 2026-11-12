@@ -86,7 +86,6 @@ interface Props<T> {
 }
 
 const ROW_ESTIMATED = 23;
-const GROUP_ROW_ESTIMATE = 36;
 
 function getColumnWidth<T>(column: TableColumnDef<T>): number | undefined {
   const size = column.size;
@@ -264,7 +263,7 @@ export function TanStackTable<T>(props: Props<T>) {
     }
   }
 
-  const rowStyleBase = (row: T, index: number): CSSProperties => ({
+  const rowStyleBase = (row: T): CSSProperties => ({
     "cursor": props.onRowClick ? "pointer" : undefined,
     ...props.getRowStyle?.(row),
   });
@@ -356,7 +355,7 @@ export function TanStackTable<T>(props: Props<T>) {
     return (
       <>
         <tr
-          style={{ ...rowStyleBase(row, index) }}
+          style={{ ...rowStyleBase(row) }}
           onClick={() => props.onRowClick?.(row)}
           onKeyDown={props.onRowClick ? (event: KeyboardEvent) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); props.onRowClick!(row); } } : undefined}
           tabIndex={props.onRowClick ? 0 : undefined}

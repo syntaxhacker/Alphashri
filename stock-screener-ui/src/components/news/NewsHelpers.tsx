@@ -86,7 +86,7 @@ function ArticleBody(props: {
       <Match when={props.content?.description}>
         {(description) => (
           <Stack gap="sm">
-            <For each={String(description()).split("\n\n")}>{(para, idx) => (
+            <For each={String(description()).split("\n\n")}>{(para) => (
               <Text size="sm">
                 {para}
               </Text>
@@ -113,7 +113,6 @@ export function ArticleView(props: {
   onSymbolClick: (s: NewsSymbol) => void;
   onRetryArticle?: () => void;
 }) {
-  const article = () => props.article;
   return (
     <Stack gap={0} h="100%" className="news-article-view" data-testid="news-article-view">
       <Group
@@ -431,7 +430,7 @@ export function NewsListContent(props: {
       <Match when={props.loading && props.newsItems.length === 0}>
         <Box style={{ padding: "16px" }} data-testid="news-loading">
           <Stack className="gap-2">
-            <For each={[0, 1, 2]}>{(row) => (
+            <For each={[0, 1, 2]}>{() => (
               <Skeleton h={64} radius="sm" visible />
             )}</For>
             <Text size="sm" c="dimmed" className="flex items-center gap-4">

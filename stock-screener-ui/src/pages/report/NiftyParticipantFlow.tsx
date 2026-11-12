@@ -69,7 +69,7 @@ function LegBar(props: {
         span
         fw={700}
         c="dimmed"
-        style={{ width: 22, "flex-shrink": 0, "font-size": 10 }}
+        style={{ "width": "22px", "flex-shrink": 0, "font-size": "10px" }}
       >
         {props.leg.toUpperCase()}
       </Text>

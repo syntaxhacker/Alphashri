@@ -1,7 +1,6 @@
-import { Show, createEffect, createMemo, createSignal, onCleanup, onMount, type JSX } from "solid-js";
+import { Show, createEffect, createMemo, createSignal, onMount, type JSX } from "solid-js";
 import { usePolling } from "@/hooks/usePolling";
 import { useNavigate } from "@solidjs/router";
-import { For } from "solid-js";
 import { Box, Button, Divider, Indicator, Overlay, ScrollArea, Stack } from "@/ui";
 import { IconNews } from "../common/Icons";
 import type { NewsItem, NewsSource, ArticleResponse, NewsSymbol } from "./news-types";

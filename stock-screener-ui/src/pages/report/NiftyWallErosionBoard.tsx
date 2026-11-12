@@ -1,7 +1,8 @@
-import { Box, Text } from "@/ui";
+import { Show } from "solid-js";
+import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { WallsPayload, WallsRow } from "@/api/reportNifty";
-import { CompactPanel } from "@/components/common/compact";
+import { LocalCompactPanel } from "./reportBits";
 import { Sparkline } from "@/components/common/Sparkline";
 import {
   fuelTone,
@@ -122,9 +123,8 @@ function Stat({
   hideBelowMd?: boolean;
 }) {
   return (
-    <Box
-      component="span"
-      className="inline-flex items-baseline gap-[2px] min-w-0 shrink-0"
+    <div
+      class="inline-flex items-baseline gap-[2px] min-w-0 shrink-0"
       style={{ display: hideBelowMd ? "none" : "inline-flex" }}
     >
       <Text size="xs" c="dimmed" lh={1.1} style={{ "font-size": REPORT_FONT.micro }}>
@@ -139,7 +139,7 @@ function Stat({
       >
         {value}
       </Text>
-    </Box>
+    </div>
   );
 }
 
@@ -164,11 +164,11 @@ function ErosionRow({
   const hasTtb = ttb != null && Number.isFinite(ttb);
 
   return (
-    <Box
+    <div
       data-testid="wall-erosion-row"
       data-side={side}
       title={fuelPartsTooltip(row)}
-      className="flex items-center flex-nowrap min-w-0 shrink-0 overflow-hidden h-[24px]"
+      class="flex items-center flex-nowrap min-w-0 shrink-0 overflow-hidden h-[24px]"
       style={{
         "border-top": `1px solid ${palette.BORDER}`,
         height: ROW_H,
@@ -177,14 +177,14 @@ function ErosionRow({
       {/* `display: contents` keeps the side wrapper out of the flex layout, so
           the row children stay direct flex items while the side testid still
           scopes the row's content. */}
-      <Box component="span" data-testid={testId} className="contents">
+      <span data-testid={testId} class="contents">
         <Text
           size="xs"
           fw={800}
           lh={1.1}
           className="tabular-nums whitespace-nowrap shrink-0"
           style={{
-            width: 108,
+            "width": "108px",
             "flex-shrink": 0,
             color: sideColor,
             "white-space": "nowrap",
@@ -192,9 +192,8 @@ function ErosionRow({
         >
           {side} {view.strikeText} {view.arrow}
         </Text>
-        <Box
-          component="span"
-          className="inline-flex items-center justify-center shrink-0 whitespace-nowrap"
+        <span
+          class="inline-flex items-center justify-center shrink-0 whitespace-nowrap"
           style={{
             padding: "4px 2px",
             border: `1px solid ${statusColor}`,
@@ -207,7 +206,7 @@ function ErosionRow({
           }}
         >
           {view.statusText}
-        </Box>
+        </span>
         <Text
           size="xs"
           fw={700}
@@ -237,7 +236,7 @@ function ErosionRow({
             "max-width": FLOW_MAX_W,
             overflow: "hidden",
             "text-overflow": "ellipsis",
-            "min-width": 0,
+            "min-width": "0px",
             "flex-shrink": 1,
           }}
         >
@@ -258,11 +257,11 @@ function ErosionRow({
         >
           {preBlast ? `PRE-BLAST ${view.fuelScore}` : `FUEL ${view.fuelScore}`}
         </Text>
-        <Box
-          className="ml-auto flex items-center justify-end"
+        <div
+          class="ml-auto flex items-center justify-end"
           style={{
             width: RIGHT_GROUP_W,
-            "min-width": 0,
+            "min-width": "0px",
             "flex-shrink": 0,
             overflow: "hidden",
             display: "flex",
@@ -270,8 +269,20 @@ function ErosionRow({
             "justify-content": "flex-end",
           }}
         >
-          {view.breached ? (
-            <>
+          <Show
+            when={view.breached}
+            fallback={
+            <Text
+              size="xs"
+              c="dimmed"
+              lh={1.1}
+              className="tabular-nums whitespace-nowrap shrink-0 min-w-0 overflow-hidden truncate"
+              style={{ "min-width": "0px", "flex-shrink": 1 }}
+            >
+              {hasTtb ? `${fmtTimeToBreak(ttb)} to break` : "—"}
+            </Text>
+            }
+          >
               <Text
                 size="xs"
                 fw={900}
@@ -286,24 +297,13 @@ function ErosionRow({
                 c="dimmed"
                 lh={1.1}
                 className="min-w-0 overflow-hidden truncate whitespace-nowrap shrink-0"
-                style={{ "font-size": REPORT_FONT.micro, "min-width": 0, "flex-shrink": 1 }}
+                style={{ "font-size": REPORT_FONT.micro, "min-width": "0px", "flex-shrink": 1 }}
               >
                 spot crossed
               </Text>
-            </>
-          ) : (
-            <Text
-              size="xs"
-              c="dimmed"
-              lh={1.1}
-              className="tabular-nums whitespace-nowrap shrink-0 min-w-0 overflow-hidden truncate"
-              style={{ "min-width": 0, "flex-shrink": 1 }}
-            >
-              {hasTtb ? `${fmtTimeToBreak(ttb)} to break` : "—"}
-            </Text>
-          )}
-          <Box
-            className="flex items-center justify-end overflow-hidden shrink-0"
+          </Show>
+          <div
+            class="flex items-center justify-end overflow-hidden shrink-0"
             style={{
               width: SPARK_W,
               height: SPARK_H,
@@ -322,10 +322,10 @@ function ErosionRow({
               testId={`${testId}-spark`}
               responsive
             />
-          </Box>
-        </Box>
-      </Box>
-    </Box>
+          </div>
+        </div>
+      </span>
+    </div>
   );
 }
 
@@ -343,11 +343,11 @@ export function NiftyWallErosionBoard({
   const regimeColor = regime === "SHORT" ? palette.NEGATIVE : palette.POSITIVE;
 
   return (
-    <CompactPanel
+    <LocalCompactPanel
       title="WALL EROSION"
       testId="wall-erosion-board"
       action={
-        <Box className="flex items-center gap-[4px] min-w-0 flex-nowrap justify-end overflow-hidden">
+        <div class="flex items-center gap-[4px] min-w-0 flex-nowrap justify-end overflow-hidden">
           <Text
             size="xs"
             fw={800}
@@ -365,11 +365,10 @@ export function NiftyWallErosionBoard({
           >
             as of {asOfText}
           </Text>
-          <Box
-            component="span"
+          <span
             data-testid={regime ? "wall-erosion-regime" : undefined}
             aria-hidden={regime ? undefined : true}
-            className="inline-flex items-center justify-center shrink-0"
+            class="inline-flex items-center justify-center shrink-0"
             style={{
               width: REGIME_SLOT_W,
               height: REGIME_SLOT_H,
@@ -390,7 +389,7 @@ export function NiftyWallErosionBoard({
             }}
           >
             {regime ? `${regime} Γ` : ""}
-          </Box>
+          </span>
           <Text
             size="xs"
             c="dimmed"
@@ -408,27 +407,26 @@ export function NiftyWallErosionBoard({
           >
             {hasFlip ? `flip ${fmtNum(flip)}` : ""}
           </Text>
-        </Box>
+        </div>
       }
     >
-      <Box
+      <div
         data-testid="wall-erosion-body"
         data-layout="fixed"
         data-rows="2"
         aria-busy={walls ? undefined : "true"}
         title="OI erosion + volume + premium flow. PRE-BLAST = short gamma and the wall is being consumed."
-        className="relative flex flex-col min-w-0 overflow-hidden"
+        class="relative flex flex-col min-w-0 overflow-hidden"
         style={{
-          height: ROW_H * 2 + 2,
-          "min-height": ROW_H * 2 + 2,
+          height: `${ROW_H * 2 + 2}px`,
+          "min-height": `${ROW_H * 2 + 2}px`,
         }}
       >
         {/* Zero-size marker: the strip keeps its shape while the payload loads. */}
         {!walls ? (
-          <Box
-            component="span"
+          <span
             data-testid="wall-erosion-skeleton"
-            className="absolute overflow-hidden"
+            class="absolute overflow-hidden"
             style={{
               width: 0,
               height: 0,
@@ -448,7 +446,7 @@ export function NiftyWallErosionBoard({
           regime={regime}
           testId="wall-erosion-put"
         />
-      </Box>
-    </CompactPanel>
+      </div>
+    </LocalCompactPanel>
   );
 }

@@ -1,4 +1,5 @@
 import type { JSX } from "solid-js";
+import { For } from "solid-js";
 import type { TableColumnDef as ColumnDef } from "../common/TanStackTable";
 import { Box, Badge, Text } from "@/ui";
 import type { ValueRow } from "../../api/valueScan";
@@ -255,11 +256,13 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
             className="flex flex-nowrap justify-center gap-1 overflow-hidden"
             data-testid={`value-flags-${r.symbol}`}
           >
-            {r.flags.slice(0, 3).map((f) => (
-              <Badge key={f} size="xs" color="secondary">
-                {f.replace(/_/g, " ")}
-              </Badge>
-            ))}
+            <For each={r.flags.slice(0, 3)}>
+              {(f) => (
+                <Badge size="xs" color="secondary">
+                  {f.replace(/_/g, " ")}
+                </Badge>
+              )}
+            </For>
           </Box>
         );
       },
