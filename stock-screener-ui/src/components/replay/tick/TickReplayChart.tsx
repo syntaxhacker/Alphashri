@@ -1,15 +1,14 @@
 // TickReplayChart — composed single-trade replay: NtChart + markers + SL/TP lines +
 // zones/trends + RR box. Replaces the inline SingleChart in SmcTrades and the
 // chart half of SmcPoc. Any future strategy reuses this with its own zones/trade.
-import { useEffect, useMemo, useRef } from "react";
+import { createEffect, createMemo, onCleanup } from "solid-js";
 import { createSeriesMarkers, type Time } from "lightweight-charts";
-
+import { Box } from "../../paper-trading/primitives";
 import * as palette from "@/ui/palette";
 import NtChart, { type NtChartApi } from "./NtChart";
 import OverlayCanvas, { type OverlayCoord } from "./OverlayCanvas";
 import { drawRiskReward, drawZones, tradeMarkers } from "./overlays";
 import type { Bar, ReplayTrade, ReplayTrend, ReplayZone } from "./types";
-import { Box } from "../../paper-trading/primitives";
 
 interface TickReplayChartProps {
   bars: Bar[];
@@ -23,21 +22,23 @@ interface TickReplayChartProps {
 }
 
 const MARKER_COLOR: Record<string, string> = {
-  entryLong: palette.MARKER_ENTRY,
-  entryShort: palette.MARKER_SL,
-  exitTp: palette.MARKER_TP,
-  exitSl: palette.MARKER_SL,
-  exitBe: palette.TEXT_MUTED,
-  exitTrail: palette.MARKER_EOD,
+  "entry-long": palette.MARKER_ENTRY,
+  "entry-short": palette.MARKER_SL,
+  "exit-tp": palette.MARKER_TP,
+  "exit-sl": palette.MARKER_SL,
+  "exit-be": palette.TEXT_MUTED,
+  "exit-trail": palette.MARKER_EOD,
 };
 
-export default function TickReplayChart({
-  bars, trade = null, zones = [], trends = [], height = 300, fitPaddingBeforeMin = 120, fitPaddingAfterMin = 60, id = "tick-replay-chart",
-}: TickReplayChartProps) {
-  const apiRef = useRef<NtChartApi>(null);
+export default function TickReplayChart(props: TickReplayChartProps) {
+  const apiRef: { current: NtChartApi | undefined } = { current: undefined };
 
   // markers + price lines per trade
-  useEffect(() => {
+  createEffect(() => {
+    const trade = props.trade;
+    const bars = props.bars;
+    const fitPaddingBeforeMin = props.fitPaddingBeforeMin ?? 120;
+    const fitPaddingAfterMin = props.fitPaddingAfterMin ?? 60;
     const api = apiRef.current;
     if (!api || !trade) return;
     const chart = api.getChart();
@@ -75,26 +76,26 @@ export default function TickReplayChart({
     } else {
       chart.timeScale().fitContent();
     }
-    return () => {
+    onCleanup(() => {
       createSeriesMarkers(series as any, []);
       const removable = series as unknown as { removePriceLine?: (l: unknown) => void };
       if (typeof removable.removePriceLine === "function") {
         for (const l of lines) removable.removePriceLine(l);
       }
-    };
-  }, [bars, trade, fitPaddingBeforeMin, fitPaddingAfterMin]);
+    });
+  });
 
-  const draw = useMemo(() => {
+  const draw = createMemo(() => {
     return (ctx: CanvasRenderingContext2D, coord: OverlayCoord) => {
-      if (zones.length || trends.length) drawZones(ctx, coord, zones, trends);
-      if (trade) drawRiskReward(ctx, coord, trade);
+      if (props.zones?.length || props.trends?.length) drawZones(ctx, coord, props.zones ?? [], props.trends ?? []);
+      if (props.trade) drawRiskReward(ctx, coord, props.trade);
     };
-  }, [zones, trends, trade]);
+  });
 
   return (
-    <Box w="100%" h={height} pos="relative" data-testid="tick-replay-chart" id={id}>
-      <NtChart ref={apiRef} bars={bars} height={height} />
-      <OverlayCanvas chartApi={apiRef} height={height} draw={draw} />
+    <Box w="100%" h={props.height} pos="relative" data-testid="tick-replay-chart" id={props.id ?? "tick-replay-chart"}>
+      <NtChart ref={(a) => { apiRef.current = a; }} bars={props.bars} height={props.height} />
+      <OverlayCanvas chartApi={apiRef} height={props.height} draw={draw()} />
     </Box>
   );
 }

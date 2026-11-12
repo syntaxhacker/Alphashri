@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { parseIstTimestampMs } from "./niftyDataFreshness";
@@ -27,39 +27,34 @@ interface NiftyDataFreshnessProps {
 /**
  * Small header status: `DATA 42s` while current, `STALE` in warning colour when
  * the tape is more than two minutes behind during market hours, or `CLOSED`
- * outside market hours. Isolated behind `React.memo` and owning its own 1s clock
- * so the rest of the header never re-renders to tick a badge.
+ * outside market hours. Owns its own 1s clock so the rest of the header never
+ * re-renders to tick a badge.
  */
-export const NiftyDataFreshness = memo(function NiftyDataFreshness({
-  report,
-  tape,
-  bursts,
-  marketOpen,
-  sessionDate,
-}: NiftyDataFreshnessProps) {
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  useEffect(() => {
+export function NiftyDataFreshness(props: NiftyDataFreshnessProps) {
+  const [nowMs, setNowMs] = createSignal(Date.now());
+
+  createEffect(() => {
     const id = setInterval(() => setNowMs(Date.now()), 1_000);
-    return () => clearInterval(id);
-  }, []);
+    onCleanup(() => clearInterval(id));
+  });
 
   // Compute the newest backend timestamp from report/tape/bursts
-  const lastBackendMs = useMemo(() => {
+  const lastBackendMs = createMemo(() => {
     const effectiveSessionDate =
-      sessionDate ?? report?.market?.session_date ?? tape?.date ?? null;
+      props.sessionDate ?? props.report?.market?.session_date ?? props.tape?.date ?? null;
 
     const reportTs =
-      parseIstTimestampMs(report?.market?.as_of, effectiveSessionDate) ??
-      parseIstTimestampMs(report?.fetchedAt, effectiveSessionDate);
+      parseIstTimestampMs(props.report?.market?.as_of, effectiveSessionDate) ??
+      parseIstTimestampMs(props.report?.fetchedAt, effectiveSessionDate);
 
     let tapeTs: number | null = null;
-    for (const row of tape?.rows ?? []) {
+    for (const row of props.tape?.rows ?? []) {
       const ts = parseIstTimestampMs(row?.t, effectiveSessionDate);
       if (ts !== null && (tapeTs === null || ts > tapeTs)) tapeTs = ts;
     }
 
     let burstTs: number | null = null;
-    for (const b of bursts ?? []) {
+    for (const b of props.bursts ?? []) {
       const ts = parseIstTimestampMs(b?.t, effectiveSessionDate);
       if (ts !== null && (burstTs === null || ts > burstTs)) burstTs = ts;
     }
@@ -69,29 +64,31 @@ export const NiftyDataFreshness = memo(function NiftyDataFreshness({
       (v): v is number => v !== null && Number.isFinite(v),
     );
     return candidates.length > 0 ? Math.max(...candidates) : null;
-  }, [report, tape, bursts, sessionDate]);
+  });
 
-  const freshness = computeNiftyFreshness({
-    nowMs,
-    lastBackendMs,
-    marketOpen,
-    bursts,
-  } satisfies NiftyFreshnessInput);
+  const freshness = createMemo(() =>
+    computeNiftyFreshness({
+      nowMs: nowMs(),
+      lastBackendMs: lastBackendMs(),
+      marketOpen: props.marketOpen,
+      bursts: props.bursts,
+    } satisfies NiftyFreshnessInput),
+  );
 
   return (
     <span
       data-testid="nifty-data-freshness"
-      data-state={freshness.isStale ? "stale" : "fresh"}
-      title={freshness.detail}
-      className="inline-flex items-center shrink-0 whitespace-nowrap border rounded-full px-2 py-[2px] text-[11px]"
+      data-state={freshness().isStale ? "stale" : "fresh"}
+      title={freshness().detail}
+      class="inline-flex items-center shrink-0 whitespace-nowrap border rounded-full px-2 py-[2px] text-[11px]"
       style={{
-        borderColor: freshness.isStale ? palette.WARNING : palette.TERM_BORDER,
-        color: freshness.isStale ? palette.WARNING : palette.TEXT_MUTED,
+        "border-color": freshness().isStale ? palette.WARNING : palette.TERM_BORDER,
+        "color": freshness().isStale ? palette.WARNING : palette.TEXT_MUTED,
       }}
     >
-      <Text size="xs" fw={freshness.isStale ? 700 : 600} c={freshness.isStale ? "warning" : "dimmed"} span>
-        {freshness.label}
+      <Text size="xs" fw={freshness().isStale ? 700 : 600} c={freshness().isStale ? "warning" : "dimmed"} span>
+        {freshness().label}
       </Text>
     </span>
   );
-});
+}

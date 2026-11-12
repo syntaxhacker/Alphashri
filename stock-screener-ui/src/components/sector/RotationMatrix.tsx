@@ -43,7 +43,7 @@ export function RotationMatrix(props: RotationMatrixProps) {
         return (
           <Box
             className="flex items-center justify-end min-h-[14px] px-[2px] rounded-[0.5px]"
-            style={{ backgroundColor: heatBackground(value) }}
+            style={{ "background-color": heatBackground(value) }}
           >
             <Text
               c={getPnLTextColor(value)}
@@ -77,12 +77,12 @@ export function RotationMatrix(props: RotationMatrixProps) {
           row.id === props.selectedId
             ? {
                 background: "rgba(88, 166, 255, 0.12)",
-                boxShadow: "inset 2px 0 0 var(--color-fin-primary)",
+                "box-shadow": "inset 2px 0 0 var(--color-fin-primary)",
               }
             : undefined
         }
         getRowAttributes={(row) => ({
-          dataActive: row.id === props.selectedId ? "true" : undefined,
+          "data-active": row.id === props.selectedId ? "true" : undefined,
         })}
       />
     </Box>

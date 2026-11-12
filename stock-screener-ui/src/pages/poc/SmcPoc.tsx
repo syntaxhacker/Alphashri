@@ -1,52 +1,75 @@
 // SmcPoc — trendline + rectangle overlay POC (thin composition over replay/tick).
-import {  } from "solid-js";
-import { useMemo, useState } from "react";
+import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js";
 import { Box, Stack, Text, Switch, Chip, Card } from "@/ui";
 import * as palette from "@/ui/palette";
 import {
-  TickReplayChart, genMockBars, useTickReplayFeed,
+  TickReplayChart, genMockBars,
   type Bar, type ReplayTrend, type ReplayZone,
 } from "@/components/replay/tick";
 
 export default function SmcPoc() {
-  const [source, setSource] = useState<"mock" | "nq">("nq");
-  const [showRect, setShowRect] = useState(true);
-  const [showTrend, setShowTrend] = useState(true);
+  const [source, setSource] = createSignal<"mock" | "nq">("nq");
+  const [showRect, setShowRect] = createSignal(true);
+  const [showTrend, setShowTrend] = createSignal(true);
 
-  const { bars, loading } = useTickReplayFeed(async () => {
-    if (source !== "nq") return { bars: genMockBars(260), trades: [] };
-    const j = await fetch("/api/poc/nq?period=5d&interval=15m").then((r) => r.json());
-    if (Array.isArray(j.bars) && j.bars.length > 10) {
-      const cleaned: Bar[] = j.bars.map((b: Bar) => ({
-        time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0,
-      }));
-      return { bars: cleaned, trades: [] };
-    }
-    return { bars: genMockBars(260), trades: [] };
-  }, [source]);
+  const [feed, setFeed] = createSignal<{ bars: Bar[]; loading: boolean }>({ bars: [], loading: true });
 
-  const zones: ReplayZone[] = useMemo(() => {
-    if (!showRect || bars.length < 80) return [];
-    const a = bars[20];
-    const b = bars[60];
-    const c = bars[140];
-    const d = bars[180];
-    if (!a || !b || !c || !d) return [];
+  createEffect(() => {
+    const src = source();
+    let live = true;
+    setFeed({ bars: [], loading: true });
+
+    const load = async (): Promise<{ bars: Bar[] }> => {
+      if (src !== "nq") return { bars: genMockBars(260) };
+      try {
+        const j = await fetch("/api/poc/nq?period=5d&interval=15m").then((r) => r.json());
+        if (Array.isArray(j.bars) && j.bars.length > 10) {
+          return {
+            bars: j.bars.map((b: Bar) => ({
+              time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0,
+            })),
+          };
+        }
+      } catch {
+        // fall through to the mock feed
+      }
+      return { bars: genMockBars(260) };
+    };
+
+    load()
+      .then(({ bars }) => {
+        if (live) setFeed({ bars, loading: false });
+      })
+      .catch(() => {
+        if (live) setFeed({ bars: [], loading: false });
+      });
+
+    onCleanup(() => {
+      live = false;
+    });
+  });
+
+  const bars = () => feed().bars;
+  const loading = () => feed().loading;
+
+  const zones = createMemo<ReplayZone[]>(() => {
+    if (!showRect() || bars().length < 80) return [];
+    const b = bars();
+    const a = b[20], c = b[140], d = b[180];
+    if (!a || !c || !d || !b[60]) return [];
     return [
-      { kind: "supply", t1: a.time, t2: b.time, top: Math.max(...bars.slice(20, 61).map((x) => x.high)), bottom: Math.min(...bars.slice(20, 61).map((x) => x.low)), label: "SUPPLY" },
-      { kind: "demand", t1: c.time, t2: d.time, top: Math.max(...bars.slice(140, 181).map((x) => x.high)), bottom: Math.min(...bars.slice(140, 181).map((x) => x.low)), label: "DEMAND" },
+      { kind: "supply", t1: a.time, t2: b[60].time, top: Math.max(...b.slice(20, 61).map((x) => x.high)), bottom: Math.min(...b.slice(20, 61).map((x) => x.low)), label: "SUPPLY" },
+      { kind: "demand", t1: c.time, t2: d.time, top: Math.max(...b.slice(140, 181).map((x) => x.high)), bottom: Math.min(...b.slice(140, 181).map((x) => x.low)), label: "DEMAND" },
     ];
-  }, [bars, showRect]);
+  });
 
-  const trends: ReplayTrend[] = useMemo(() => {
-    if (!showTrend || bars.length < 70) return [];
-    const p1 = bars[10];
-    const p2 = bars[65];
+  const trends = createMemo<ReplayTrend[]>(() => {
+    if (!showTrend() || bars().length < 70) return [];
+    const b = bars();
+    const p1 = b[10], p2 = b[65];
     if (!p1 || !p2) return [];
     return [{ t1: p1.time, p1: p1.low, t2: p2.time, p2: p2.high }];
-  }, [bars, showTrend]);
-
-;
+  });
 
   return (
     <Box
@@ -59,23 +82,25 @@ export default function SmcPoc() {
           POC — Trendline + Rectangle
         </Text>
         <Text size="xs" style={{ color: "#9CA3AF" }}>
-          {source === "nq" ? "NQ=F 15m" : "Mock 1m"} ·
+          {source() === "nq" ? "NQ=F 15m" : "Mock 1m"} ·
           <span style={{ color: "#A78BFA" }}>rect</span>{" "}
           <span style={{ color: palette.NT_TREND }}>trend</span>
         </Text>
-        <Chip size="sm" label={`${bars.length} bars`} style={{ backgroundColor: "#1F2937", color: "#9CA3AF", height: 20 }} />
-        {loading && <Chip size="sm" label="loading…" style={{ backgroundColor: "#1F2937", color: "#58A6FF", height: 20 }} />}
+        <Chip size="sm" label={`${bars().length} bars`} style={{ backgroundColor: "#1F2937", color: "#9CA3AF", height: 20 }} />
+        <Show when={loading()}>
+          <Chip size="sm" label="loading…" style={{ backgroundColor: "#1F2937", color: "#58A6FF", height: 20 }} />
+        </Show>
         <Box className="flex-1" />
         <span className="flex items-center gap-2" style={{ fontSize: 12, color: "#E5E7EB" }}>
-          <Switch size="sm" checked={source === "nq"} onChange={(e) => setSource(e.currentTarget.checked ? "nq" : "mock")} color="primary" />
+          <Switch size="sm" checked={source() === "nq"} onChange={(e) => setSource(e.currentTarget.checked ? "nq" : "mock")} color="primary" />
           Real NQ
         </span>
         <span className="flex items-center gap-2" style={{ fontSize: 12, color: "#A78BFA" }}>
-          <Switch size="sm" checked={showRect} onChange={(e) => setShowRect(e.currentTarget.checked)} color="info" />
+          <Switch size="sm" checked={showRect()} onChange={(e) => setShowRect(e.currentTarget.checked)} color="info" />
           Rect
         </span>
         <span className="flex items-center gap-2" style={{ fontSize: 12, color: palette.NT_TREND }}>
-          <Switch size="sm" checked={showTrend} onChange={(e) => setShowTrend(e.currentTarget.checked)} color="primary" />
+          <Switch size="sm" checked={showTrend()} onChange={(e) => setShowTrend(e.currentTarget.checked)} color="primary" />
           Trend
         </span>
       </Stack>
@@ -86,7 +111,7 @@ export default function SmcPoc() {
       >
         <Box className="flex-1 min-h-0 p-0 relative flex" style={{ paddingBottom: 0 }}>
           <Box className="absolute inset-0" data-testid="smc-chart">
-            <TickReplayChart bars={bars} zones={zones} trends={trends} height={600} />
+            <TickReplayChart bars={bars()} zones={zones()} trends={trends()} height={600} />
           </Box>
         </Box>
       </Card>

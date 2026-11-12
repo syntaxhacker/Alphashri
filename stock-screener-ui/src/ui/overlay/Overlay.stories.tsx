@@ -16,10 +16,10 @@ const panelStyle = {
   width: "100%",
   height: 160,
   position: "relative" as const,
-  borderRadius: "8px",
+  "border-radius": "8px",
   display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
+  "align-items": "center",
+  "justify-content": "center",
 };
 
 export const Default: Story = {

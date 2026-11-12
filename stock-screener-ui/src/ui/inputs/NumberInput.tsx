@@ -96,8 +96,7 @@ export function NumberInput(props: any) {
         <input
           id={resolvedId}
           type="number"
-          value={isControlledInput ? known.value : undefined}
-          defaultValue={isControlledInput ? undefined : known.defaultValue}
+          value={isControlledInput ? known.value : known.defaultValue}
           onInput={(e) => known.onChange?.(coerceNumberInput(e.currentTarget.value))}
           placeholder={known.placeholder}
           name={known.name}

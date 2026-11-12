@@ -14,7 +14,7 @@ type Story = StoryObj<typeof Text>;
 
 export const SizeVariants: Story = {
   render: () => (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ display: "flex", "flex-direction": "column", gap: 8 }}>
       {(["xs", "sm", "md", "lg", "xl"] as const).map((size) => (
         <Text key={size} size={size}>
           size=&quot;{size}&quot;
@@ -75,7 +75,7 @@ export const Alignment: Story = {
 
 export const ColorVariants: Story = {
   render: () => (
-    <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+    <div style={{ display: "flex", gap: 16, "flex-wrap": "wrap" }}>
       <Text c="info">teal</Text>
       <Text c="success">green</Text>
       <Text c="error">red</Text>
@@ -108,13 +108,13 @@ export const Truncation: Story = {
     <Stack gap="md">
       <div>
         <Title order={6}>truncate (single line)</Title>
-        <Text truncate="end" style={{ maxWidth: 220 }}>
+        <Text truncate="end" style={{ "max-width": 220 }}>
           This is a very long line of text that will be truncated with an ellipsis at the end.
         </Text>
       </div>
       <div>
         <Title order={6}>lineClamp (multi-line)</Title>
-        <Text lineClamp={2} style={{ maxWidth: 300 }}>
+        <Text lineClamp={2} style={{ "max-width": 300 }}>
           News headlines and article summaries often span multiple lines. lineClamp limits them
           to a fixed number of rows while keeping the full text accessible. This paragraph is
           long enough to be clamped at two lines in this container width.

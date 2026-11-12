@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
-import { Button, Text } from "@/ui";
+import { Text } from "@/ui";
 import { fetchIndexMembers } from "@/api/chartPatterns";
 import { MembersDrawer } from "@/components/common/MembersDrawer";
 import type { IndexMembersResponse } from "@/types/chartPatterns";
@@ -97,9 +97,8 @@ export function IndexMembersDrawer(props: IndexMembersDrawerProps) {
         </Text>
       }
       footerRight={
-        <Button
-          size="xs"
-          variant="filled"
+        <button
+          type="button"
           onClick={() => {
             if (!scanDisabled()) {
               props.onScanMembers?.(symbols());
@@ -108,9 +107,10 @@ export function IndexMembersDrawer(props: IndexMembersDrawerProps) {
           }}
           disabled={scanDisabled()}
           data-testid="index-members-scan"
+          className="inline-flex h-6 items-center rounded-fin bg-fin-primary px-2 text-xs font-semibold text-fin-bg transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {`Scan members (${symbols().length})`}
-        </Button>
+        </button>
       }
     />
   );

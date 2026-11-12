@@ -2,29 +2,11 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
 import { render, screen, within, cleanup, fireEvent } from "@solidjs/testing-library";
-import { For } from "solid-js";
 import { PositioningHeader } from "./PositioningHeader";
 
-vi.mock("@/ui", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/ui")>();
-  return {
-    ...actual,
-    Select: (p: any) => (
-      <select
-        data-testid={p["data-testid"]}
-        value={p.value ?? ""}
-        onChange={(e) => p.onChange?.(e.currentTarget.value === "" ? null : e.currentTarget.value)}
-      >
-        <For each={p.data ?? []}>
-          {(opt: any) => {
-            const v = typeof opt === "string" ? opt : opt.value;
-            const label = typeof opt === "string" ? opt : opt.label;
-            return <option value={v}>{label}</option>;
-          }}
-        </For>
-      </select>
-    ),
-  };
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
 });
 
 afterEach(() => {

@@ -112,17 +112,17 @@ describe("ExitReasonBadge", () => {
 describe("StatusBadge", () => {
   it("renders Running when running=true", () => {
     render(() => (<StatusBadge running={true} />));
-    expect(screen.getByText("Running")).toBeInTheDocument();
+    expect(screen.getByText("RUNNING")).toBeInTheDocument();
   });
 
   it("renders Stopped when running=false", () => {
     render(() => (<StatusBadge running={false} />));
-    expect(screen.getByText("Stopped")).toBeInTheDocument();
+    expect(screen.getByText("STOPPED")).toBeInTheDocument();
   });
 
   it("renders Unknown when statusUnknown", () => {
     render(() => (<StatusBadge running={false} statusUnknown data-testid="unknown" />));
-    expect(screen.getByText("Unknown (Redis unavailable)")).toBeInTheDocument();
+    expect(screen.getByText("UNKNOWN")).toBeInTheDocument();
   });
 });
 

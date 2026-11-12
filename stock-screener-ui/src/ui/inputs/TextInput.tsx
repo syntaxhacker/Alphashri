@@ -42,8 +42,7 @@ export function TextInput(props: UITextInputProps) {
         <input
           id={resolvedId}
           type={props.type ?? "text"}
-          value={isControlled ? props.value : undefined}
-          defaultValue={isControlled ? undefined : props.defaultValue}
+          value={isControlled ? props.value : props.defaultValue}
           onInput={(e) => props.onChange?.(e.currentTarget.value)}
           onKeyDown={(e) => props.onKeyDown?.(e)}
           onFocus={(e) => props.onFocus?.(e)}

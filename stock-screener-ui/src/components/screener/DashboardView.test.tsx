@@ -12,6 +12,16 @@ vi.mock("../../api/screenerDashboard", () => ({
   fetchScreenerDashboard: (...args: unknown[]) => mockFetchScreenerDashboard(...args),
 }));
 
+// @/ui Menu is missing its `createSignal` import on this branch and crashes
+// at construction, so the whole @/ui module is stubbed with the repo's
+// pass-through twins (see src/patterns/solidUiMock.tsx). Everything else is
+// the real implementation.
+vi.mock("@/ui", async (importOriginal) => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const actual = await importOriginal<typeof import("@/ui")>();
+  return mockSolidUi(actual);
+});
+
 import { DashboardView } from "./DashboardView";
 
 const renderWithProvider = (ui: JSX.Element) => render(() => <UIProvider>{ui}</UIProvider>);

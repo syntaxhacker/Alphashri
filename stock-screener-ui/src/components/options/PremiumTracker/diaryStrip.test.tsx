@@ -6,10 +6,9 @@ import { DiaryStrip } from "./DiaryStrip";
 import { newPaperTrade, type PaperTrade } from "./paperTrades";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
 
-vi.mock("@/ui", async (importOriginal) => {
+vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/patterns/solidUiMock");
-  const actual = await importOriginal<typeof import("@/ui")>();
-  return mockSolidUi(actual);
+  return mockSolidUi();
 });
 
 const today = new Date().toISOString().slice(0, 10);

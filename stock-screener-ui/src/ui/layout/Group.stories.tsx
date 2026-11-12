@@ -12,7 +12,7 @@ export default meta;
 type Story = StoryObj<typeof Group>;
 
 const items = ["A", "B", "C", "D"].map((label) => (
-  <div key={label} style={{ background: "#80b5ff", padding: 12, borderRadius: 6 }}>
+  <div key={label} style={{ background: "#80b5ff", padding: 12, "border-radius": 6 }}>
     {label}
   </div>
 ));

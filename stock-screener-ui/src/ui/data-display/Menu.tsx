@@ -256,7 +256,7 @@ export function MenuDropdown(props: UIMenuDropdownProps) {
         )}
         style={{
           ...posStyle(),
-          boxShadow: shadow() ?? DEFAULT_SHADOW,
+          "box-shadow": shadow() ?? DEFAULT_SHADOW,
           ...(known.style as Record<string, string | undefined>),
         }}
         data-testid={known["data-testid"]}

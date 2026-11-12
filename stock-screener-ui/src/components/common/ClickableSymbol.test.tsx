@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
-import { BrowserRouter } from "react-router-dom";
+import { Router } from "@solidjs/router";
 import { ClickableSymbol } from "./ClickableSymbol";
 
 const mocks = vi.hoisted(() => ({
@@ -12,8 +12,8 @@ const mocks = vi.hoisted(() => ({
   hidePreviewChart: vi.fn(),
 }));
 
-vi.mock("react-router-dom", async () => {
-  const actual = await vi.importActual("react-router-dom");
+vi.mock("@solidjs/router", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   return { ...actual, useNavigate: () => mocks.navigate };
 });
 
@@ -25,12 +25,13 @@ vi.mock("./PreviewChartProvider", () => ({
 }));
 
 function renderComponent(props: Record<string, any> = {}) {
-  return render(() => (<BrowserRouter>
+  return render(() => (
+    <Router root={() => (
       <UIProvider>
         <ClickableSymbol symbol="RELIANCE" {...props} />
       </UIProvider>
-    </BrowserRouter>),
-  );
+    )} />
+  ));
 }
 
 describe("ClickableSymbol", () => {

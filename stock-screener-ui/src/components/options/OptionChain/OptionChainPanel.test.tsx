@@ -7,10 +7,9 @@ import { OptionChainPanel } from "./OptionChainPanel";
 import { CHAIN_POLL_INTERVAL_MS } from "../../../hooks/useChainLivePolling";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
 
-vi.mock("@/ui", async (importOriginal) => {
+vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/patterns/solidUiMock");
-  const actual = await importOriginal<typeof import("@/ui")>();
-  return mockSolidUi(actual);
+  return mockSolidUi();
 });
 
 vi.mock("./OptionChainTable", () => ({

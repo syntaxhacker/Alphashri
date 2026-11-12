@@ -60,16 +60,16 @@ function TreemapTile(props: {
   return (
     <Box
       style={{
-        gridColumn: props.span.col,
-        gridRow: props.span.row,
-        minHeight: `${props.span.minHeight}px`,
+        "grid-column": props.span.col,
+        "grid-row": props.span.row,
+        "min-height": `${props.span.minHeight}px`,
         background: sector().itemStyle.color,
         color: "#ffffff",
         padding: index() === 0 ? "16px" : "12px",
         display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        boxShadow: props.isDark
+        "flex-direction": "column",
+        "justify-content": "space-between",
+        "box-shadow": props.isDark
           ? `inset 0 1px 0 ${withAlpha(CREAM, 0.04)}`
           : `inset 0 1px 0 ${withAlpha(CREAM, 0.16)}`,
       }}
@@ -97,7 +97,7 @@ function TreemapTile(props: {
             variant="filled"
             color="secondary"
             style={{
-              backgroundColor: withAlpha(BLACK, 0.28),
+              "background-color": withAlpha(BLACK, 0.28),
               color: "#ffffff",
             }}
           >
@@ -123,11 +123,11 @@ export function SectorTreemap(props: { sectors: SectorItem[] }) {
     <Box
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-        gridAutoRows: "minmax(72px, auto)",
+        "grid-template-columns": "repeat(4, minmax(0, 1fr))",
+        "grid-auto-rows": "minmax(72px, auto)",
         gap: "8px",
         height: "100%",
-        minHeight: "320px",
+        "min-height": "320px",
       }}
     >
       <For each={treemapData()}>

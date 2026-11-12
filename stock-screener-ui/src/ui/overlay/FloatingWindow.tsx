@@ -12,7 +12,7 @@ export interface FloatingWindowProps {
   title: string;
   icon?: JSX.Element;
   geometry: FloatingWindowGeometry;
-  zIndex: number;
+  "z-index": number;
   minimized?: boolean;
   minWidth?: number;
   minHeight?: number;

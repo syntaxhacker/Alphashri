@@ -6,10 +6,9 @@ import { DEFAULT_PATTERN_FILTERS } from "@/state/chartPatterns";
 import type { PatternDef, PatternFilters } from "@/types/chartPatterns";
 import { AppliedFilters, buildAppliedFilterChips } from "./AppliedFilters";
 
-vi.mock("@/ui", async (importOriginal) => {
+vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/patterns/solidUiMock");
-  const actual = await importOriginal<typeof import("@/ui")>();
-  return mockSolidUi(actual);
+  return mockSolidUi();
 });
 
 const PATTERNS: PatternDef[] = [

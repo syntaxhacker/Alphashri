@@ -99,8 +99,7 @@ export function PasswordInput(props: UIPasswordInputProps) {
         <input
           id={resolvedId}
           type={visible ? "text" : "password"}
-          value={isControlledInput ? known.value : undefined}
-          defaultValue={isControlledInput ? undefined : known.defaultValue}
+          value={isControlledInput ? known.value : known.defaultValue}
           onInput={(e) => known.onChange?.(e.currentTarget.value)}
           placeholder={known.placeholder}
           required={known.required}

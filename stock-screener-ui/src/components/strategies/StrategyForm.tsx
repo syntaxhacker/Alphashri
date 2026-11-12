@@ -256,7 +256,7 @@ export function StrategyForm(props: StrategyFormProps) {
                 size="sm"
                 name="name"
                 placeholder="My Custom Strategy"
-                defaultValue={initialValues().name}
+                value={initialValues().name}
                 required
                 data-testid="strategy-name-input"
               />
@@ -270,7 +270,7 @@ export function StrategyForm(props: StrategyFormProps) {
                 size="sm"
                 name="strategy_type"
                 data={STRATEGY_TYPES}
-                defaultValue={initialValues().strategy_type}
+                value={initialValues().strategy_type}
                 disabled={props.mode === "edit"}
                 onChange={(val) => {
                   if (val) {
@@ -291,7 +291,7 @@ export function StrategyForm(props: StrategyFormProps) {
                 size="sm"
                 name="description"
                 placeholder="Optional description"
-                defaultValue={initialValues().description}
+                value={initialValues().description}
                 data-testid="strategy-description-input"
               />
             </Box>

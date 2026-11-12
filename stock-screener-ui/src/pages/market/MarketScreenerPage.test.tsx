@@ -280,7 +280,9 @@ describe("MarketScreenerPage", () => {
     const combobox = screen.getByTestId("market-universe-select").querySelector('[role="combobox"]') as HTMLInputElement;
     fireEvent.focus(combobox);
     fireEvent.mouseDown(await screen.findByRole("option", { name: "F&O" }));
-    expect(mockUseMarketSnapshot).toHaveBeenLastCalledWith("nse_fo");
+    const call = mockUseMarketSnapshot.mock.calls.at(-1)?.[0];
+    expect(typeof call).toBe("function");
+    expect((call as unknown as () => string)()).toBe("nse_fo");
   });
 
   test("delayed update mode shows the Delayed badge, not Live", () => {

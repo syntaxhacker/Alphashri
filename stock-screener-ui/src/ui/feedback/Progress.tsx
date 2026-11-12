@@ -78,7 +78,7 @@ export function Progress(props: UIProgressProps) {
         aria-valuemax={100}
         aria-valuenow={v}
         className={cn("flex w-full shrink-0 overflow-hidden", known.className)}
-        style={{ height: h, borderRadius: br, backgroundColor: palette.BORDER, ...known.style }}
+        style={{ height: h, "border-radius": br, "background-color": palette.BORDER, ...known.style }}
       >
         <For each={sectionsValue}>{(section) => {
           const scol = resolveColor(section.color);
@@ -89,10 +89,10 @@ export function Progress(props: UIProgressProps) {
               style={{
                 width: `${width}%`,
                 height: "100%",
-                backgroundColor: scol,
-                borderRadius: 0,
+                "background-color": scol,
+                "border-radius": 0,
                 ...(transition ? { transition } : {}),
-                ...(known.striped ? { backgroundImage: STRIPE } : {}),
+                ...(known.striped ? { "background-image": STRIPE } : {}),
               }}
             >
               {(known.label || section.label) && (
@@ -120,15 +120,15 @@ export function Progress(props: UIProgressProps) {
     >
       <div
         className="w-full shrink-0"
-        style={{ height: h, borderRadius: br, backgroundColor: palette.BORDER, ...(known.striped ? { backgroundImage: STRIPE } : {}) }}
+        style={{ height: h, "border-radius": br, "background-color": palette.BORDER, ...(known.striped ? { "background-image": STRIPE } : {}) }}
       />
       <div
         className="shrink-0"
         style={{
           height: h,
-          borderRadius: br,
-          backgroundColor: col,
-          ...(known.striped ? { backgroundImage: STRIPE } : {}),
+          "border-radius": br,
+          "background-color": col,
+          ...(known.striped ? { "background-image": STRIPE } : {}),
           ...(known.animated && known.striped ? { backgroundSize: "16px 16px" } : {}),
           ...(transition ? { transition } : {}),
         }}

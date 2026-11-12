@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { createEffect, createSignal, createMemo, onMount, onCleanup, Show } from "solid-js";
+import { useNavigate } from "@solidjs/router";
 import {
   Alert,
   Box,
@@ -103,71 +103,68 @@ function nearestStrike(strikes: number[], spot: number | null | undefined): numb
 }
 
 export function OrderFlowPage() {
-  const [symbolInput, setSymbolInput] = useState("RELIANCE");
-  const [activeSymbol, setActiveSymbol] = useState("RELIANCE");
-  const [tickInput, setTickInput] = useState("0.05");
-  const [activeTick, setActiveTick] = useState("0.05");
-  const [reloadKey, setReloadKey] = useState(0);
-  const [brokerConnected, setBrokerConnected] = useState<boolean | null>(null);
-  const [broker, setBroker] = useState<string>(DEFAULT_BROKER);
+  const [symbolInput, setSymbolInput] = createSignal("RELIANCE");
+  const [activeSymbol, setActiveSymbol] = createSignal("RELIANCE");
+  const [tickInput, setTickInput] = createSignal("0.05");
+  const [activeTick, setActiveTick] = createSignal("0.05");
+  const [reloadKey, setReloadKey] = createSignal(0);
+  const [brokerConnected, setBrokerConnected] = createSignal<boolean | null>(null);
+  const [broker, setBroker] = createSignal<string>(DEFAULT_BROKER);
   // The Upstox OAuth gate only applies when Upstox is the selected feed.
-  const needsUpstox = broker === "upstox";
-  const [authError, setAuthError] = useState<AuthError | null>(null);
+  const needsUpstox = () => broker() === "upstox";
+  const [authError, setAuthError] = createSignal<AuthError | null>(null);
   const navigate = useNavigate();
-  const [view, setView] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(VIEW_ITEMS.map((item) => [item.key, true])),
+  const [view, setView] = createSignal<Record<string, boolean>>(
+    () => Object.fromEntries(VIEW_ITEMS.map((item) => [item.key, true])),
   );
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  let iframeRef: HTMLIFrameElement | undefined;
 
-  const pushView = useCallback((key: string, value: boolean) => {
-    iframeRef.current?.contentWindow?.postMessage({ type: "ofm-view", key, value }, "*");
-  }, []);
-  const syncView = useCallback(() => {
-    VIEW_ITEMS.forEach((item) => pushView(item.key, view[item.key]));
-  }, [pushView, view]);
-  const toggleView = useCallback(
-    (key: string, value: boolean) => {
-      setView((v) => ({ ...v, [key]: value }));
-      pushView(key, value);
-    },
-    [pushView],
-  );
+  const pushView = (key: string, value: boolean) => {
+    iframeRef?.contentWindow?.postMessage({ type: "ofm-view", key, value }, "*");
+  };
+  const syncView = () => {
+    VIEW_ITEMS.forEach((item) => pushView(item.key, view()[item.key]));
+  };
+  const toggleView = (key: string, value: boolean) => {
+    setView((v) => ({ ...v, [key]: value }));
+    pushView(key, value);
+  };
 
-  const [mode, setMode] = useState<Mode>("manual");
+  const [mode, setMode] = createSignal<Mode>("manual");
   // Replay: the stored journals to choose from, and the chosen one.
-  const [journalFiles, setJournalFiles] = useState<JournalFile[]>([]);
-  const [replayDay, setReplayDay] = useState<string | null>(null);
-  const [replayFile, setReplayFile] = useState<string | null>(null);
+  const [journalFiles, setJournalFiles] = createSignal<JournalFile[]>([]);
+  const [replayDay, setReplayDay] = createSignal<string | null>(null);
+  const [replayFile, setReplayFile] = createSignal<string | null>(null);
   // `replayDraft` is what the inputs hold; `replayRange` is what was actually
   // applied. Keeping them apart stops the iframe navigating on every keystroke,
   // which fired loads for half-typed times ("1", "15") that the API rejects.
-  const [replayDraft, setReplayDraft] = useState<{ from: string; to: string }>({ from: "", to: "" });
-  const [replayRange, setReplayRange] = useState<{ from: string; to: string }>({ from: "", to: "" });
-  const [replayError, setReplayError] = useState<string | null>(null);
-  const [journalError, setJournalError] = useState<string | null>(null);
-  const [underlyings, setUnderlyings] = useState<Underlying[]>([]);
-  const [underlying, setUnderlying] = useState<string | null>(null);
-  const [expiries, setExpiries] = useState<Expiry[]>([]);
-  const [expiry, setExpiry] = useState<string | null>(null);
-  const [chain, setChain] = useState<OptionChainResponse | null>(null);
-  const [strike, setStrike] = useState<number | null>(null);
-  const [optionType, setOptionType] = useState<OptionType>("CE");
-  const [loadingCount, setLoadingCount] = useState(0);
-  const [optionsError, setOptionsError] = useState<string | null>(null);
+  const [replayDraft, setReplayDraft] = createSignal<{ from: string; to: string }>({ from: "", to: "" });
+  const [replayRange, setReplayRange] = createSignal<{ from: string; to: string }>({ from: "", to: "" });
+  const [replayError, setReplayError] = createSignal<string | null>(null);
+  const [journalError, setJournalError] = createSignal<string | null>(null);
+  const [underlyings, setUnderlyings] = createSignal<Underlying[]>([]);
+  const [underlying, setUnderlying] = createSignal<string | null>(null);
+  const [expiries, setExpiries] = createSignal<Expiry[]>([]);
+  const [expiry, setExpiry] = createSignal<string | null>(null);
+  const [chain, setChain] = createSignal<OptionChainResponse | null>(null);
+  const [strike, setStrike] = createSignal<number | null>(null);
+  const [optionType, setOptionType] = createSignal<OptionType>("CE");
+  const [loadingCount, setLoadingCount] = createSignal(0);
+  const [optionsError, setOptionsError] = createSignal<string | null>(null);
 
-  const bridgeUrl = useMemo(resolveBridgeWsUrl, []);
-  const optionsLoading = loadingCount > 0;
+  const bridgeUrl = resolveBridgeWsUrl();
+  const optionsLoading = () => loadingCount() > 0;
 
-  const beginLoad = useCallback(() => {
+  const beginLoad = () => {
     setLoadingCount((n) => n + 1);
     setOptionsError(null);
-  }, []);
+  };
 
-  const endLoad = useCallback(() => {
+  const endLoad = () => {
     setLoadingCount((n) => (n > 0 ? n - 1 : 0));
-  }, []);
+  };
 
-  useEffect(() => {
+  onMount(() => {
     let alive = true;
     getBrokerStatus()
       .then((status) => {
@@ -176,31 +173,32 @@ export function OrderFlowPage() {
       .catch(() => {
         if (alive) setBrokerConnected(false);
       });
-    return () => {
+    onCleanup(() => {
       alive = false;
-    };
-  }, []);
+    });
+  });
 
   // The embedded visualizer reports broker rejections (expired/revoked session)
   // so we can offer a route to the broker settings instead of leaving a blank
   // chart with a status code in the log.
-  useEffect(() => {
+  createEffect(() => {
+    const currentBroker = broker();
     const onMessage = (event: MessageEvent) => {
       const data = event.data as { type?: string; broker?: string; message?: string } | null;
       if (!data || data.type !== AUTH_ERROR_MESSAGE) return;
       setAuthError({
-        broker: data.broker || broker,
+        broker: data.broker || currentBroker,
         message: typeof data.message === "string" ? data.message : "",
       });
     };
     window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [broker]);
+    onCleanup(() => window.removeEventListener("message", onMessage));
+  });
 
   // Fetch the stored-file list lazily, only when Replay is opened — the live
   // modes never touch the journal.
-  useEffect(() => {
-    if (mode !== "replay" || journalFiles.length > 0) return;
+  createEffect(() => {
+    if (mode() !== "replay" || journalFiles().length > 0) return;
     let alive = true;
     listJournalFiles()
       .then((files) => {
@@ -215,29 +213,27 @@ export function OrderFlowPage() {
       .catch((err) => {
         if (alive) setJournalError(err instanceof Error ? err.message : "Failed to list journals");
       });
-    return () => {
+    onCleanup(() => {
       alive = false;
-    };
-  }, [mode, journalFiles.length]);
+    });
+  });
 
-  const replayDays = useMemo(
-    () => Array.from(new Set(journalFiles.map((f) => f.day))).sort().reverse(),
-    [journalFiles],
+  const replayDays = createMemo(() =>
+    Array.from(new Set(journalFiles().map((f) => f.day))).sort().reverse(),
   );
-  const replayFilesForDay = useMemo(
-    () => journalFiles.filter((f) => !replayDay || f.day === replayDay),
-    [journalFiles, replayDay],
+  const replayFilesForDay = createMemo(() =>
+    journalFiles().filter((f) => !replayDay() || f.day === replayDay()),
   );
 
-  const refreshBrokerStatus = useCallback(() => {
+  const refreshBrokerStatus = () => {
     setBrokerConnected(null);
     getBrokerStatus()
       .then((status) => setBrokerConnected(status.connected))
       .catch(() => setBrokerConnected(false));
-  }, []);
+  };
 
-  useEffect(() => {
-    if (mode !== "options" || underlyings.length > 0) return;
+  createEffect(() => {
+    if (mode() !== "options" || underlyings().length > 0) return;
     let alive = true;
     beginLoad();
     getUnderlyings()
@@ -252,24 +248,25 @@ export function OrderFlowPage() {
       .finally(() => {
         if (alive) endLoad();
       });
-    return () => {
+    onCleanup(() => {
       alive = false;
-    };
-  }, [mode, underlyings.length, beginLoad, endLoad]);
+    });
+  });
 
-  const chooseUnderlying = useCallback((value: string | null) => {
+  const chooseUnderlying = (value: string | null) => {
     setUnderlying(value);
     setExpiries([]);
     setExpiry(null);
     setChain(null);
     setStrike(null);
-  }, []);
+  };
 
-  useEffect(() => {
-    if (!underlying) return;
+  createEffect(() => {
+    const target = underlying();
+    if (!target) return;
     let alive = true;
     beginLoad();
-    getExpiries(underlying)
+    getExpiries(target)
       .then((data) => {
         if (!alive) return;
         setExpiries(data);
@@ -281,16 +278,18 @@ export function OrderFlowPage() {
       .finally(() => {
         if (alive) endLoad();
       });
-    return () => {
+    onCleanup(() => {
       alive = false;
-    };
-  }, [underlying, beginLoad, endLoad]);
+    });
+  });
 
-  useEffect(() => {
-    if (!underlying || !expiry) return;
+  createEffect(() => {
+    const targetUnderlying = underlying();
+    const targetExpiry = expiry();
+    if (!targetUnderlying || !targetExpiry) return;
     let alive = true;
     beginLoad();
-    getOptionChain(underlying, expiry)
+    getOptionChain(targetUnderlying, targetExpiry)
       .then((data) => {
         if (!alive) return;
         setChain(data);
@@ -302,19 +301,20 @@ export function OrderFlowPage() {
       .finally(() => {
         if (alive) endLoad();
       });
-    return () => {
+    onCleanup(() => {
       alive = false;
-    };
-  }, [underlying, expiry, beginLoad, endLoad]);
+    });
+  });
 
-  const selectedContract = useMemo(() => {
-    if (!chain || strike == null) return null;
-    const row = chain.chain.find((entry) => entry.strike === strike);
+  const selectedContract = createMemo(() => {
+    const currentChain = chain();
+    if (!currentChain || strike() == null) return null;
+    const row = currentChain.chain.find((entry) => entry.strike === strike());
     if (!row) return null;
-    return optionType === "CE" ? row.ce : row.pe;
-  }, [chain, strike, optionType]);
+    return optionType() === "CE" ? row.ce : row.pe;
+  });
 
-  const connectWith = useCallback((symbol: string, tick: string) => {
+  const connectWith = (symbol: string, tick: string) => {
     const nextSymbol = symbol.trim().toUpperCase();
     if (!nextSymbol) return;
     const nextTick = tick.trim() || "0.05";
@@ -323,30 +323,34 @@ export function OrderFlowPage() {
     setActiveSymbol(nextSymbol);
     setActiveTick(nextTick);
     setReloadKey((k) => k + 1);
-  }, []);
+  };
 
-  const connect = useCallback(() => {
-    connectWith(symbolInput, tickInput);
-  }, [symbolInput, tickInput, connectWith]);
+  const connect = () => {
+    connectWith(symbolInput(), tickInput());
+  };
 
-  const useContract = useCallback(async () => {
-    if (!selectedContract) return;
-    const tick = String(selectedContract.tick_size ?? 0.05);
+  const useContract = async () => {
+    const contract = selectedContract();
+    if (!contract) return;
+    const tick = String(contract.tick_size ?? 0.05);
     // The Upstox instrument key streams as-is on the Upstox feed, but the
     // Fyers feeds can never resolve it — resolve the Fyers-native contract
     // symbol first so "Use contract" never connects a dead feed.
-    if (broker !== "fyers" && broker !== "fyers_tbt") {
-      connectWith(selectedContract.instrument_key, tick);
+    if (broker() !== "fyers" && broker() !== "fyers_tbt") {
+      connectWith(contract.instrument_key, tick);
       return;
     }
-    if (!underlying || !expiry || strike == null) {
+    if (!underlying() || !expiry() || strike() == null) {
       setOptionsError("Pick an underlying, expiry and strike first.");
       return;
     }
-    const leg = `${underlying} ${strike} ${optionType} @ ${expiry}`;
+    const targetUnderlying = underlying()!;
+    const targetExpiry = expiry()!;
+    const targetStrike = strike()!;
+    const leg = `${targetUnderlying} ${targetStrike} ${optionType()} @ ${targetExpiry}`;
     beginLoad();
     try {
-      const resolved = await getFyersSymbol(underlying, expiry, strike, optionType);
+      const resolved = await getFyersSymbol(targetUnderlying, targetExpiry, targetStrike, optionType());
       connectWith(resolved.symbol, tick);
     } catch {
       setOptionsError(
@@ -355,29 +359,25 @@ export function OrderFlowPage() {
     } finally {
       endLoad();
     }
-  }, [selectedContract, connectWith, broker, underlying, expiry, strike, optionType, beginLoad, endLoad]);
+  };
 
-  const underlyingOptions = useMemo(
-    () => underlyings.map((item) => ({ value: item.symbol, label: item.name || item.symbol })),
-    [underlyings],
+  const underlyingOptions = createMemo(() =>
+    underlyings().map((item) => ({ value: item.symbol, label: item.name || item.symbol })),
   );
-  const expiryOptions = useMemo(
-    () => expiries.map((item) => ({ value: item.date, label: item.date })),
-    [expiries],
+  const expiryOptions = createMemo(() =>
+    expiries().map((item) => ({ value: item.date, label: item.date })),
   );
-  const strikeOptions = useMemo(
-    () => (chain ? chain.chain.map((row) => ({ value: String(row.strike), label: String(row.strike) })) : []),
-    [chain],
+  const strikeOptions = createMemo(() =>
+    chain() ? chain()!.chain.map((row) => ({ value: String(row.strike), label: String(row.strike) })) : [],
   );
 
-  const activeJournal = useMemo(
-    () => journalFiles.find((f) => f.file === replayFile) ?? null,
-    [journalFiles, replayFile],
+  const activeJournal = createMemo(
+    () => journalFiles().find((f) => f.file === replayFile()) ?? null,
   );
 
   // Accept 9:5, 09:05, 0905, 09.05 — reject anything else loudly instead of
   // sending the API a value it answers with a bare 400.
-  const applyReplayRange = useCallback(() => {
+  const applyReplayRange = () => {
     const norm = (raw: string): string | null => {
       const text = raw.trim();
       if (!text) return "";
@@ -398,8 +398,8 @@ export function OrderFlowPage() {
       return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
     };
 
-    const from = norm(replayDraft.from);
-    const to = norm(replayDraft.to);
+    const from = norm(replayDraft().from);
+    const to = norm(replayDraft().to);
     if (from === null || to === null) {
       setReplayError("Times must be HH:MM (e.g. 09:15).");
       return;
@@ -409,40 +409,38 @@ export function OrderFlowPage() {
       return;
     }
     setReplayError(null);
-    setReplayRange({ from, to });
+    setReplayRange({ from: from ?? "", to: to ?? "" });
     setReloadKey((k) => k + 1);
-  }, [replayDraft]);
+  };
 
-  const src = useMemo(() => {
+  const src = createMemo(() => {
+    const currentMode = mode();
+    const journal = activeJournal();
     // Replay is a separate branch in the visualiser: it opens no socket, so
     // autoconnect must never be set here.
-    if (mode === "replay" && activeJournal) {
+    if (currentMode === "replay" && journal) {
+      const range = replayRange();
       const params = new URLSearchParams({
         ws: bridgeUrl,
         replay: "1",
-        symbol: activeJournal.symbol,
-        day: activeJournal.day,
-        broker: activeJournal.broker,
+        symbol: journal.symbol,
+        day: journal.day,
+        broker: journal.broker,
       });
-      if (replayRange.from) params.set("start", replayRange.from);
-      if (replayRange.to) params.set("end", replayRange.to);
+      if (range.from) params.set("start", range.from);
+      if (range.to) params.set("end", range.to);
       return `/orderflow/index.html?${params.toString()}`;
     }
     const params = new URLSearchParams({
       ws: bridgeUrl,
-      symbol: activeSymbol,
-      tick: activeTick,
+      symbol: activeSymbol(),
+      tick: activeTick(),
       // Only the Upstox feed depends on the OAuth session; adapters carry their own token.
-      autoconnect: needsUpstox && !brokerConnected ? "0" : "1",
+      autoconnect: needsUpstox() && !brokerConnected() ? "0" : "1",
     });
-    params.set("broker", broker);
+    params.set("broker", broker());
     return `/orderflow/index.html?${params.toString()}`;
-    // reloadKey forces the iframe to remount on reconnect
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    bridgeUrl, activeSymbol, activeTick, brokerConnected, broker, needsUpstox,
-    reloadKey, mode, activeJournal, replayRange,
-  ]);
+  });
 
   return (
     <Box className="flex flex-1 min-h-0 flex-col" data-testid="orderflow-page">
@@ -461,7 +459,7 @@ export function OrderFlowPage() {
             { value: "options", label: "Options" },
             { value: "replay", label: "Replay" },
           ]}
-          value={mode}
+          value={mode()}
           onChange={(value) => setMode(value as Mode)}
           data-testid="orderflow-mode"
         />
@@ -478,8 +476,8 @@ export function OrderFlowPage() {
                   key={item.key}
                   size="sm"
                   label={item.label}
-                  checked={view[item.key]}
-                  onChange={(e) => toggleView(item.key, (e.target as HTMLInputElement).checked)}
+                  checked={view()[item.key]}
+                  onChange={(e) => toggleView(item.key, e.currentTarget.checked)}
                   data-testid={`orderflow-view-${item.key}`}
                 />
               ))}
@@ -490,20 +488,20 @@ export function OrderFlowPage() {
           size="sm"
           w={170}
           data={[...BROKER_OPTIONS]}
-          value={broker}
+          value={broker()}
           onChange={(value) => setBroker(value ?? DEFAULT_BROKER)}
           data-testid="orderflow-broker"
         />
-        {mode === "manual" && (
+        <Show when={mode() === "manual"}>
           <>
             <TextInput
               size="sm"
               w={180}
               placeholder="Symbol (e.g. RELIANCE)"
-              value={symbolInput}
+              value={symbolInput()}
               onChange={setSymbolInput}
               onKeyDown={(e) => {
-                if ((e as React.KeyboardEvent).key === "Enter") connect();
+                if (e.key === "Enter") connect();
               }}
               data-testid="orderflow-symbol"
             />
@@ -511,7 +509,7 @@ export function OrderFlowPage() {
               size="sm"
               w={110}
               placeholder="Tick"
-              value={tickInput}
+              value={tickInput()}
               onChange={setTickInput}
               data-testid="orderflow-tick"
             />
@@ -519,13 +517,13 @@ export function OrderFlowPage() {
               Connect
             </Button>
           </>
-        )}
+        </Show>
         <Text size="xs" c="dimmed" data-testid="orderflow-broker-note">
-          {BROKER_NOTES[broker] ?? BROKER_NOTES[DEFAULT_BROKER]}
+          {BROKER_NOTES[broker()] ?? BROKER_NOTES[DEFAULT_BROKER]}
         </Text>
       </ToolbarRow>
 
-      {mode === "replay" && (
+      <Show when={mode() === "replay"}>
         <ToolbarRow
           gap={8}
           style={{ padding: "8px 16px", borderBottom: "1px solid var(--color-fin-border)" }}
@@ -535,8 +533,8 @@ export function OrderFlowPage() {
             size="sm"
             w={130}
             label="Day"
-            data={replayDays.map((d) => ({ value: d, label: d }))}
-            value={replayDay}
+            data={replayDays().map((d) => ({ value: d, label: d }))}
+            value={replayDay()}
             onChange={(value) => {
               setReplayDay(value);
               const first = journalFiles.find((f) => f.day === value);
@@ -548,11 +546,11 @@ export function OrderFlowPage() {
             size="sm"
             w={230}
             label="File"
-            data={replayFilesForDay.map((f) => ({
+            data={replayFilesForDay().map((f) => ({
               value: f.file,
               label: `${f.symbol} · ${f.broker} · ${(f.bytes / 1048576).toFixed(1)} MB`,
             }))}
-            value={replayFile}
+            value={replayFile()}
             onChange={setReplayFile}
             data-testid="orderflow-replay-file"
           />
@@ -561,7 +559,7 @@ export function OrderFlowPage() {
             w={90}
             label="From"
             placeholder="09:15"
-            value={replayDraft.from}
+            value={replayDraft().from}
             onChange={(v) => setReplayDraft((r) => ({ ...r, from: v }))}
             data-testid="orderflow-replay-from"
           />
@@ -570,7 +568,7 @@ export function OrderFlowPage() {
             w={90}
             label="To"
             placeholder="15:15"
-            value={replayDraft.to}
+            value={replayDraft().to}
             onChange={(v) => setReplayDraft((r) => ({ ...r, to: v }))}
             data-testid="orderflow-replay-to"
           />
@@ -578,23 +576,23 @@ export function OrderFlowPage() {
             size="sm"
             variant="filled"
             onClick={applyReplayRange}
-            disabled={!replayFile}
+            disabled={!replayFile()}
             data-testid="orderflow-replay-load"
           >
             Load
           </Button>
-          {(journalError || replayError) && (
+          <Show when={journalError() || replayError()}>
             <Text size="xs" c="red" data-testid="orderflow-replay-error">
-              {journalError ?? replayError}
+              {journalError() ?? replayError()}
             </Text>
-          )}
+          </Show>
           <Text size="xs" c="dimmed">
             Loads stored data only — no live stream is opened.
           </Text>
         </ToolbarRow>
-      )}
+      </Show>
 
-      {mode === "options" && (
+      <Show when={mode() === "options"}>
         <ToolbarRow
           gap={8}
           style={{ padding: "8px 16px", borderBottom: "1px solid var(--color-fin-border)" }}
@@ -604,8 +602,8 @@ export function OrderFlowPage() {
             size="sm"
             w={180}
             placeholder="Underlying"
-            data={underlyingOptions}
-            value={underlying}
+            data={underlyingOptions()}
+            value={underlying()}
             onChange={chooseUnderlying}
             data-testid="orderflow-underlying"
           />
@@ -613,8 +611,8 @@ export function OrderFlowPage() {
             size="sm"
             w={150}
             placeholder="Expiry"
-            data={expiryOptions}
-            value={expiry}
+            data={expiryOptions()}
+            value={expiry()}
             onChange={setExpiry}
             data-testid="orderflow-expiry"
           />
@@ -622,8 +620,8 @@ export function OrderFlowPage() {
             size="sm"
             w={130}
             placeholder="Strike"
-            data={strikeOptions}
-            value={strike == null ? null : String(strike)}
+            data={strikeOptions()}
+            value={strike() == null ? null : String(strike())}
             onChange={(value) => setStrike(value == null ? null : Number(value))}
             data-testid="orderflow-strike"
           />
@@ -633,32 +631,34 @@ export function OrderFlowPage() {
               { value: "CE", label: "CE" },
               { value: "PE", label: "PE" },
             ]}
-            value={optionType}
+            value={optionType()}
             onChange={(value) => setOptionType(value as OptionType)}
             data-testid="orderflow-option-type"
           />
           <Button
             size="sm"
             variant="filled"
-            disabled={!selectedContract}
+            disabled={!selectedContract()}
             onClick={useContract}
             data-testid="orderflow-use-contract"
           >
             Use contract
           </Button>
-          {optionsLoading && <Loader size="xs" data-testid="orderflow-options-loading" />}
+          <Show when={optionsLoading()}>
+            <Loader size="xs" data-testid="orderflow-options-loading" />
+          </Show>
         </ToolbarRow>
-      )}
+      </Show>
 
-      {mode === "options" && optionsError && (
+      <Show when={mode() === "options" && optionsError()}>
         <Box className="px-4 pt-2">
           <Alert color="error" variant="light" data-testid="orderflow-options-error">
-            {optionsError}
+            {optionsError()}
           </Alert>
         </Box>
-      )}
+      </Show>
 
-      {needsUpstox && brokerConnected === false && (
+      <Show when={needsUpstox() && brokerConnected() === false}>
         <Box className="px-4 pt-2" data-testid="orderflow-broker-warning">
           <Alert color="warning" variant="light">
             <Group gap={8} align="center" wrap="wrap">
@@ -672,37 +672,43 @@ export function OrderFlowPage() {
             </Group>
           </Alert>
         </Box>
-      )}
+      </Show>
 
       <Box className="relative flex-1 min-h-0">
-        {needsUpstox && brokerConnected === null ? (
-          <Center>
-            <Loader size="sm" />
-          </Center>
-        ) : (
-          <iframe
-            key={reloadKey}
-            ref={iframeRef}
-            onLoad={syncView}
-            title="Order Flow Map"
-            src={src}
-            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" }}
-            data-testid="orderflow-iframe"
-          />
-        )}
+        <Show
+          when={!needsUpstox() || brokerConnected() !== null}
+          fallback={
+            <Center>
+              <Loader size="sm" />
+            </Center>
+          }
+        >
+          <Show when={reloadKey() + 1} keyed>
+            {(_) => (
+              <iframe
+                ref={(el) => (iframeRef = el)}
+                onLoad={syncView}
+                title="Order Flow Map"
+                src={src()}
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" }}
+                data-testid="orderflow-iframe"
+              />
+            )}
+          </Show>
+        </Show>
       </Box>
 
       <Modal
-        opened={authError !== null}
+        opened={authError() !== null}
         onClose={() => setAuthError(null)}
-        title={`${BROKER_LABELS[authError?.broker ?? broker] ?? authError?.broker ?? "Broker"} session expired`}
+        title={`${BROKER_LABELS[authError()?.broker ?? broker()] ?? authError()?.broker ?? "Broker"} session expired`}
         size="sm"
         centered
         data-testid="orderflow-auth-error-modal"
       >
         <Stack spacing={1}>
           <Text size="sm">
-            <b>{BROKER_LABELS[authError?.broker ?? broker] ?? authError?.broker}</b> rejected the live
+            <b>{BROKER_LABELS[authError()?.broker ?? broker()] ?? authError()?.broker}</b> rejected the live
             order-flow feed because the session token is no longer valid. Broker sessions expire
             daily and must be re-authenticated.
           </Text>
@@ -710,11 +716,11 @@ export function OrderFlowPage() {
             Reconnect the broker, then retry — the feed subscribes with the fresh session, so no
             restart is needed for this tab.
           </Text>
-          {authError?.message && (
+          <Show when={authError()?.message}>
             <Text size="xs" c="dimmed" data-testid="orderflow-auth-error-detail">
-              {authError.message}
+              {authError()?.message}
             </Text>
-          )}
+          </Show>
           <Group gap={8} align="center">
             <Button
               size="sm"

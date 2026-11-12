@@ -13,7 +13,7 @@ type Story = StoryObj<typeof Paper>;
 
 export const ShadowVariants: Story = {
   render: () => (
-    <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "center" }}>
+    <div style={{ display: "flex", gap: 24, "flex-wrap": "wrap", "align-items": "center" }}>
       {(["xs", "sm", "md", "lg", "xl"] as const).map((shadow) => (
         <Paper key={shadow} shadow={shadow} p="md" radius="md">
           shadow=&quot;{shadow}&quot;
@@ -25,7 +25,7 @@ export const ShadowVariants: Story = {
 
 export const RadiusVariants: Story = {
   render: () => (
-    <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "center" }}>
+    <div style={{ display: "flex", gap: 24, "flex-wrap": "wrap", "align-items": "center" }}>
       {(["xs", "sm", "md", "lg", "xl"] as const).map((radius) => (
         <Paper key={radius} radius={radius} p="md">
           radius=&quot;{radius}&quot;

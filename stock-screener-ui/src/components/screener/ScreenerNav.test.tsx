@@ -86,26 +86,21 @@ describe("ScreenerNav", () => {
   });
 
   it("changes active screener when different option selected", async () => {
-    let activeScreener = "trending";
+    const { createSignal } = await import("solid-js");
+    const [activeScreener, setActiveScreener] = createSignal("trending");
     const handleChange = (id: string) => {
-      activeScreener = id;
+      setActiveScreener(id);
     };
 
-    const { rerender } = render(() => (
+    render(() => (
       <UIProvider>
-        <ScreenerNav options={mockOptions} activeScreener={activeScreener} onChange={handleChange} />
+        <ScreenerNav options={mockOptions} activeScreener={activeScreener()} onChange={handleChange} />
       </UIProvider>
     ));
 
     expect(screen.getByTestId("screener-nav-option-trending")).toHaveAttribute("data-active", "true");
 
     fireEvent.click(screen.getByTestId("screener-nav-option-rsi_reversal"));
-
-    rerender(() => (
-      <UIProvider>
-        <ScreenerNav options={mockOptions} activeScreener={activeScreener} onChange={handleChange} />
-      </UIProvider>
-    ));
 
     expect(screen.getByTestId("screener-nav-option-rsi_reversal")).toHaveAttribute("data-active", "true");
   });

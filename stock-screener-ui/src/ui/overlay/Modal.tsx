@@ -48,6 +48,9 @@ export function Modal(props: ModalProps) {
     "tabIndex",
   ]);
 
+  // The testid travels with the dialog, so the close button can derive its own.
+  const testId = known["data-testid"];
+
   let dialogRef: HTMLDivElement | undefined;
 
   createEffect(() => {
@@ -85,7 +88,7 @@ export function Modal(props: ModalProps) {
   };
 
   const overlayStyle: Record<string, string | undefined> = {
-    backgroundColor: known.overlayProps?.color ?? undefined,
+    "background-color": known.overlayProps?.color ?? undefined,
     opacity: known.overlayProps?.opacity != null ? known.overlayProps.opacity : undefined,
     backdropFilter:
       known.overlayProps?.blur != null
@@ -94,7 +97,7 @@ export function Modal(props: ModalProps) {
   };
 
   const panelStyle: Record<string, string | undefined> = {
-    ...(maxWidthStyle ? { maxWidth: maxWidthStyle } : {}),
+    ...(maxWidthStyle ? { "max-width": maxWidthStyle } : {}),
     ...(known.fullScreen
       ? { position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }
       : {}),

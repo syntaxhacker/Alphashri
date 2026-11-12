@@ -2,10 +2,9 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test } from "vitest";
 import { cleanup, render, screen } from "@solidjs/testing-library";
-vi.mock("@/ui", async (importOriginal) => {
+vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/patterns/solidUiMock");
-  const actual = await importOriginal<typeof import("@/ui")>();
-  return mockSolidUi(actual);
+  return mockSolidUi();
 });
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { KeyPointLegend } from "./KeyPointLegend";

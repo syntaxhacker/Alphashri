@@ -1,8 +1,9 @@
 // ReplayChartHost — owns the lightweight-charts instance + incremental paint loop for
 // the tick-replay POC. Chart mechanics extracted from pages/poc/TickReplay so future
 // strategies can reuse the host; the page drives it through the imperative `paint(now)`.
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
+import { createEffect, onCleanup } from "solid-js";
 import { createChart, ColorType, CandlestickSeries, LineSeries, createSeriesMarkers, type IChartApi, type Time } from "lightweight-charts";
+import type { JSX } from "solid-js";
 import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import { TZ_IST } from "@/config/constants";
@@ -29,46 +30,52 @@ interface ReplayChartHostProps {
   height?: number;
   /** bar duration in seconds (60 intraday, 86400 daily). Defaults to 60. */
   barSeconds?: number;
-  /** React clock (4fps) — used only to repaint on manual pan/zoom while paused */
+  /** clock (4fps) — used only to repaint on manual pan/zoom while paused */
   clock: number;
   /** controlled playing state — gates auto-follow + range-change repaints */
   playing: boolean;
+  /** imperative handle for the parent (paint / fitContent) */
+  ref?: ReplayChartHandle | ((h: ReplayChartHandle) => void);
 }
 
-const ReplayChartHost = forwardRef<ReplayChartHandle, ReplayChartHostProps>(function ReplayChartHost(
-  { bars, subs, vwap, levels, trades, height = 420, barSeconds = 60, clock, playing }, ref,
-) {
-  const boxRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<any>(null);
-  const vwapRef = useRef<any>(null);
-  const orLinesRef = useRef<{ h: unknown; l: unknown } | null>(null);
-  const markersRef = useRef<{ setMarkers: (m: unknown[]) => void } | null>(null);
-  const rrBoxRef = useRef<HTMLCanvasElement | null>(null);
-  const rrWRef = useRef(0); // last canvas css width (resize only on change)
-  const paintRef = useRef<(now: number) => void>(() => {});
-  const playingRef = useRef(false);
-  const clockRef = useRef(0);
-  const paintScheduledRef = useRef(false);
+export default function ReplayChartHost(props: ReplayChartHostProps) {
+  let boxRef: HTMLDivElement | undefined;
+  let chartRef: IChartApi | null = null;
+  let seriesRef: any = null;
+  let vwapRef: any = null;
+  let orLinesRef: { h: unknown; l: unknown } | null = null;
+  let markersRef: { setMarkers: (m: unknown[]) => void } | null = null;
+  let rrBoxRef: HTMLCanvasElement | null = null;
+  let rrWRef = 0; // last canvas css width (resize only on change)
+  let paintRef: (now: number) => void = () => {};
+  let playingRef = props.playing;
+  let clockRefVal = props.clock;
+  let paintScheduled = false;
   // incremental paint cursors (reset per data set / on scrub-back)
-  const progRef = useRef({ n: 0, v: 0, mkey: "", subPtr: 0, lastNow: 0 });
+  const progRef = { n: 0, v: 0, mkey: "", subPtr: 0, lastNow: 0 };
 
-  useEffect(() => { playingRef.current = playing; }, [playing]);
-  useEffect(() => { clockRef.current = clock; }, [clock]);
+  createEffect(() => { playingRef = props.playing; });
+  createEffect(() => { clockRefVal = props.clock; });
 
-  useImperativeHandle(ref, () => ({
-    paint: (now: number) => paintRef.current(now),
-    fitContent: () => chartRef.current?.timeScale().fitContent(),
-  }), []);
+  const handle: ReplayChartHandle = {
+    paint: (now: number) => paintRef(now),
+    fitContent: () => chartRef?.timeScale().fitContent(),
+  };
+  if (typeof props.ref === "function") props.ref(handle);
+  else if (props.ref) props.ref = handle;
 
   // chart setup (once per data set)
-  useEffect(() => {
-    if (!boxRef.current || !bars.length) return;
+  createEffect(() => {
+    const bars = props.bars;
+    const subs = props.subs;
+    const vwap = props.vwap;
+    const height = props.height ?? 420;
+    if (!boxRef || !bars.length) return;
     const tickState: { lastDay: string } = { lastDay: "" };
-    const chart = createChart(boxRef.current, {
+    const chart = createChart(boxRef, {
       layout: { background: { type: ColorType.Solid, color: palette.NT_BG }, textColor: "#E5E7EB" },
       grid: { vertLines: { color: palette.NT_GRID }, horzLines: { color: palette.NT_GRID } },
-      width: boxRef.current.clientWidth,
+      width: boxRef.clientWidth,
       height,
       timeScale: {
         borderColor: palette.NT_GRID, timeVisible: true, secondsVisible: true, rightOffset: 4,
@@ -87,78 +94,85 @@ const ReplayChartHost = forwardRef<ReplayChartHandle, ReplayChartHostProps>(func
         locale: "en-IN",
       },
     });
-    chartRef.current = chart;
+    chartRef = chart;
     const cs = chart.addSeries(CandlestickSeries, { upColor: palette.NT_CANDLE_BULL, downColor: palette.NT_CANDLE_BEAR, borderVisible: false });
     const vs = chart.addSeries(LineSeries, { color: "#F0B90B", lineWidth: 1, priceLineVisible: false, lastValueVisible: true });
-    seriesRef.current = cs;
-    vwapRef.current = vs;
+    seriesRef = cs;
+    vwapRef = vs;
     cs.setData([]);
     vs.setData([]);
     try {
-      markersRef.current = createSeriesMarkers(cs as any, []);
+      markersRef = createSeriesMarkers(cs as any, []);
     } catch {
-      markersRef.current = null; // test env without full chart impl
+      markersRef = null; // test env without full chart impl
     }
-    orLinesRef.current = null;
-    rrWRef.current = 0;
-    progRef.current = { n: 0, v: 0, mkey: "", subPtr: 0, lastNow: 0 };
+    orLinesRef = null;
+    rrWRef = 0;
+    progRef.n = 0; progRef.v = 0; progRef.mkey = ""; progRef.subPtr = 0; progRef.lastNow = 0;
     // TV-style R:R overlay (zIndex above LWC panes)
     const rr = document.createElement("canvas");
     rr.style.position = "absolute";
     rr.style.inset = "0";
-    rr.style["pointer-events"] = "none";
-    rr.style["z-index"] = "10";
-    boxRef.current.style.position = "relative";
-    boxRef.current.appendChild(rr);
-    rrBoxRef.current = rr;
+    rr.style.pointerEvents = "none";
+    rr.style.zIndex = "10";
+    boxRef.style.position = "relative";
+    boxRef.appendChild(rr);
+    rrBoxRef = rr;
     const ro = new ResizeObserver(() => {
-      chart.applyOptions({ width: boxRef.current!.clientWidth });
-      requestAnimationFrame(() => paintRef.current?.(clockRef.current));
+      if (!boxRef) return;
+      chart.applyOptions({ width: boxRef.clientWidth });
+      requestAnimationFrame(() => paintRef?.(clockRefVal));
     });
-    ro.observe(boxRef.current);
+    ro.observe(boxRef);
     const onVis = () => {
       // Break the onVis -> paint -> scroll -> onVis feedback loop: while playing the
       // RAF loop already paints at 10fps, so a range-change repaint is only needed
       // when paused (keeps the R:R overlay aligned after a manual pan/zoom).
-      if (playingRef.current) return;
-      if (paintScheduledRef.current) return;
-      paintScheduledRef.current = true;
+      if (playingRef) return;
+      if (paintScheduled) return;
+      paintScheduled = true;
       requestAnimationFrame(() => {
-        paintScheduledRef.current = false;
-        paintRef.current?.(clockRef.current);
+        paintScheduled = false;
+        paintRef?.(clockRefVal);
       });
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(onVis);
-    return () => {
+    onCleanup(() => {
       ro.disconnect();
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(onVis);
-      try { (cs as any).detachPrimitive?.(markersRef.current); } catch { /* already gone */ }
-      markersRef.current = null;
+      try { (cs as any).detachPrimitive?.(markersRef); } catch { /* already gone */ }
+      markersRef = null;
       rr.remove();
-      rrBoxRef.current = null;
+      rrBoxRef = null;
       chart.remove();
-      chartRef.current = null;
-    };
-    // rebuild whenever the fetched data identity changes (bars/subs/vwap arrive together)
-  }, [bars, subs, vwap, height]);
+      chartRef = null;
+    });
+  });
 
   // paint: completed 1m bars + live-forming bar built from 5s subs
-  const paint = useCallback((now: number) => {
-    const cs = seriesRef.current, vs = vwapRef.current, chart = chartRef.current;
+  const paint = (now: number) => {
+    const cs = seriesRef, vs = vwapRef, chart = chartRef;
     if (!cs || now <= 0) return;
+    const bars = props.bars;
+    const subs = props.subs;
+    const vwap = props.vwap;
+    const levels = props.levels;
+    const trades = props.trades;
+    const barSeconds = props.barSeconds ?? 60;
+    const height = props.height ?? 420;
     // OR levels appear only once the opening-range window has completed (no future leak);
     // scrubbing back before or_end removes them again.
-    const orLines = orLinesRef.current;
+    const orLines = orLinesRef;
     if (!orLines && levels.or_end > 0 && now >= levels.or_end) {
       const h = (cs as any).createPriceLine({ price: levels.or_high, color: palette.NT_TREND, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "OR-H" });
       const l = (cs as any).createPriceLine({ price: levels.or_low, color: palette.NT_TREND, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "OR-L" });
-      orLinesRef.current = { h, l };
+      orLinesRef = { h, l };
     } else if (orLines && levels.or_end > 0 && now < levels.or_end) {
       try { (cs as any).removePriceLine?.(orLines.h); } catch { /* already gone */ }
       try { (cs as any).removePriceLine?.(orLines.l); } catch { /* already gone */ }
-      orLinesRef.current = null;
+      orLinesRef = null;
     }
-    const pg = progRef.current;
+    const pg = progRef;
     const C = bars;
     const V = vwap;
     if (now < pg.lastNow) {
@@ -203,7 +217,7 @@ const ReplayChartHost = forwardRef<ReplayChartHandle, ReplayChartHostProps>(func
     if (mkey !== pg.mkey) {
       pg.mkey = mkey;
       const exitColor = (r: string) => r === "TP" ? palette.MARKER_TP : r === "EOD" ? "#9CA3AF" : palette.MARKER_SL;
-      markersRef.current?.setMarkers(shown.flatMap(t => {
+      markersRef?.setMarkers(shown.flatMap(t => {
         const isLong = t.side === "LONG";
         const m: any[] = [{
           time: t.time as Time, position: isLong ? "belowBar" : "aboveBar",
@@ -222,15 +236,15 @@ const ReplayChartHost = forwardRef<ReplayChartHandle, ReplayChartHostProps>(func
       }));
     }
     // R:R boxes for revealed trades (exit edge grows live until the trade closes)
-    const rrBox = rrBoxRef.current;
-    const container = boxRef.current;
+    const rrBox = rrBoxRef;
+    const container = boxRef;
     if (rrBox && container) {
       const rect = container.getBoundingClientRect();
       const H = height;
       const dpr = window.devicePixelRatio || 1;
       const wpx = Math.max(Math.round(rect.width), 1);
-      if (rrWRef.current !== wpx) { // resize canvas only when the container changes
-        rrWRef.current = wpx;
+      if (rrWRef !== wpx) { // resize canvas only when the container changes
+        rrWRef = wpx;
         rrBox.width = wpx * dpr;
         rrBox.height = H * dpr;
         rrBox.style.width = `${rect.width}px`;
@@ -292,15 +306,13 @@ const ReplayChartHost = forwardRef<ReplayChartHandle, ReplayChartHostProps>(func
     }
     // auto-follow only while playing AND the user is near the right edge (never yank a manual pan)
     const visRange = chart.timeScale().getVisibleLogicalRange?.();
-    if (playingRef.current && (!visRange || visRange.to == null || visRange.to > pg.n - 12)) {
+    if (playingRef && (!visRange || visRange.to == null || visRange.to > pg.n - 12)) {
       chart.timeScale().scrollToPosition(6, false);
     }
-  }, [bars, subs, vwap, levels, trades, height, barSeconds]);
-  paintRef.current = paint;
+  };
+  paintRef = paint;
 
   return (
-    <div ref={boxRef} className="w-full" style={{ height }} data-testid="replay-chart-host" />
+    <div ref={boxRef} class="w-full" style={{ height: `${props.height ?? 420}px` }} data-testid="replay-chart-host" />
   );
-});
-
-export default ReplayChartHost;
+}

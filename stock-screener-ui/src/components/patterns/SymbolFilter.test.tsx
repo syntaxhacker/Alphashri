@@ -9,10 +9,9 @@ vi.mock("@/api/symbols", () => ({
   searchSymbols: (...args: unknown[]) => searchSymbols(...args),
 }));
 
-vi.mock("@/ui", async (importOriginal) => {
+vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/patterns/solidUiMock");
-  const actual = await importOriginal<typeof import("@/ui")>();
-  return mockSolidUi(actual);
+  return mockSolidUi();
 });
 
 import { SymbolFilter } from "./SymbolFilter";

@@ -11,10 +11,9 @@ vi.mock("@/api/patternImages", () => ({
   deletePatternImage: vi.fn(),
 }));
 
-vi.mock("@/ui", async (importOriginal) => {
+vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/patterns/solidUiMock");
-  const actual = await importOriginal<typeof import("@/ui")>();
-  return mockSolidUi(actual, { showSuccess: vi.fn(), showError: vi.fn() });
+  return mockSolidUi({ showSuccess: vi.fn(), showError: vi.fn() });
 });
 
 import {

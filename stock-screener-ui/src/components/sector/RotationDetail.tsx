@@ -73,7 +73,7 @@ export function RotationDetail(props: RotationDetailProps) {
             {(s_) => (
               <Box
                 className="h-1.5 w-1.5 shrink-0 rounded-full"
-                style={{ backgroundColor: s_().color }}
+                style={{ "background-color": s_().color }}
               />
             )}
           </Show>
@@ -136,7 +136,7 @@ export function RotationDetail(props: RotationDetailProps) {
                     >
                       <Box
                         className="w-3 rounded-t-[2px] opacity-90"
-                        style={{ height: `${height}px`, backgroundColor: value >= 0 ? POSITIVE : NEGATIVE }}
+                        style={{ height: `${height}px`, "background-color": value >= 0 ? POSITIVE : NEGATIVE }}
                       />
                     </Box>
                     <Text className="text-[8px] leading-none" style={{ color: TEXT_MUTED }}>{p}</Text>
@@ -165,7 +165,7 @@ export function RotationDetail(props: RotationDetailProps) {
                 size="xs"
                 leftSection={<IconUsers size={12} />}
                 onClick={() => props.onOpenMembers(row()!)}
-                style={{ minHeight: "20px", paddingInline: "6px", fontSize: "10px" }}
+                style={{ "min-height": "20px", "padding-inline": "6px", "font-size": "10px" }}
               >
                 Members
               </Button>

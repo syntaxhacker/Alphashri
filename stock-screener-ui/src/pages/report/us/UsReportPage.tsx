@@ -1,5 +1,4 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
-import type { JSX } from "solid-js";
 
 import { Button, Select, Text, ToolbarRow } from "@/ui";
 import { INFO, NEGATIVE, POSITIVE, SCALE_DARK, WARNING } from "@/ui/palette";
@@ -61,19 +60,20 @@ export function UsReportPage() {
   return (
     <div
       data-testid="us-report"
-      className="flex flex-col h-full min-h-0 gap-1 p-[6px] overflow-hidden tabular-nums"
+      class="flex flex-col h-full min-h-0 gap-1 p-[6px] overflow-hidden tabular-nums"
     >
       {/* ---- controls ---- */}
       <ToolbarRow gap={6} data-testid="us-toolbar" style={{ minHeight: 26 }}>
         <Text size="xs" fw={800} span className="tracking-[0.8px] text-[11px]">
           US FUTURES
         </Text>
-        <div className="flex gap-0.5">
-          {ROOTS.map((r) => (
+        <div class="flex gap-0.5">
+          <For each={ROOTS}>
+            {(r) => (
             <Button
               key={r.id}
               size="xs"
-              variant={root === r.id ? "filled" : "subtle"}
+              variant={root() === r.id ? "filled" : "subtle"}
               disabled={!r.enabled}
               title={r.enabled ? r.id : "coming later"}
               onClick={() => r.enabled && setRoot(r.id)}
@@ -82,61 +82,66 @@ export function UsReportPage() {
             >
               {r.id}
             </Button>
-          ))}
+            )}
+          </For>
         </div>
-        <div className="flex gap-0.5">
-          {(["live", "eod"] as UsMode[]).map((m) => (
+        <div class="flex gap-0.5">
+          <For each={["live", "eod"] as UsMode[]}>
+            {(m) => (
             <Button
               key={m}
               size="xs"
-              variant={mode === m ? "filled" : "subtle"}
+              variant={mode() === m ? "filled" : "subtle"}
               onClick={() => setMode(m)}
               data-testid={`us-mode-${m}`}
               style={{ minWidth: 42, height: 22, paddingLeft: 6, paddingRight: 6, fontSize: 10, textTransform: "uppercase" }}
             >
               {m}
             </Button>
-          ))}
+            )}
+          </For>
         </div>
-        <div className="flex gap-0.5">
-          {[1, 5, 15].map((v) => (
+        <div class="flex gap-0.5">
+          <For each={[1, 5, 15]}>
+            {(v) => (
             <Button
               key={v}
               size="xs"
-              variant={tf === v ? "filled" : "subtle"}
+              variant={tf() === v ? "filled" : "subtle"}
               onClick={() => setTf(v)}
               data-testid={`us-tf-${v}`}
               style={{ minWidth: 26, height: 22, paddingLeft: 4, paddingRight: 4, fontSize: 10 }}
             >
               {v}m
             </Button>
-          ))}
+            )}
+          </For>
         </div>
-        {mode === "eod" && (
+        <Show when={mode() === "eod"}>
           <Select
             size="xs"
             w={118}
-            value={us.date || null}
+            value={us.date() || null}
             onChange={(v) => v && us.setDate(v)}
-            data={us.dates.map((d) => ({ value: d, label: d }))}
+            data={us.dates().map((d) => ({ value: d, label: d }))}
             placeholder="date"
             data-testid="us-date"
           />
-        )}
-        <div className="flex-1" />
+        </Show>
+        <div class="flex-1" />
         <Text size="xs" span className="font-mono text-[10px]">
-          {row ? `${row.contract} · ${row.series} · exp ${row.expiry}` : "—"}
+          {row() ? `${row()!.contract} · ${row()!.series} · exp ${row()!.expiry}` : "—"}
         </Text>
         <div
-          className="w-1.5 h-1.5 rounded-full"
+          class="w-1.5 h-1.5 rounded-full"
           style={{
-            backgroundColor: us.status?.market_open ? POSITIVE : SCALE_DARK[3],
-            boxShadow: us.status?.market_open ? `0 0 6px ${POSITIVE}` : "none",
+            backgroundColor: us.status()?.market_open ? POSITIVE : SCALE_DARK[3],
+            boxShadow: us.status()?.market_open ? `0 0 6px ${POSITIVE}` : "none",
           }}
           data-testid="us-session-dot"
         />
         <Text size="xs" c="dimmed" span className="text-[9px]">
-          {us.status?.market_open ? "RTH" : "CLOSED"} {fmtTime(us.status?.now_et)} ET
+          {us.status()?.market_open ? "RTH" : "CLOSED"} {fmtTime(us.status()?.now_et)} ET
         </Text>
         <Button size="xs" variant="subtle" onClick={us.refresh} data-testid="us-refresh" style={{ height: 22, fontSize: 10 }}>
           REFRESH
@@ -146,60 +151,60 @@ export function UsReportPage() {
       {/* ---- stats strip ---- */}
       <div
         data-testid="us-stats"
-        className="flex items-center gap-[10px] flex-wrap px-1 py-[2px] border-t border-b border-fin-border"
+        class="flex items-center gap-[10px] flex-wrap px-1 py-[2px] border-t border-b border-fin-border"
       >
-        <Stat label="SPOT" value={row ? fmtNum(row.spot) : "—"} color={INFO} testId="us-spot" />
-        <Stat label="CHG" value={row ? fmtPct(row.change_pct) : "—"} color={chgColor} testId="us-change" />
-        <Stat label="PCR" value={row ? fmtNum(row.pcr_oi) : "—"} testId="us-pcr" />
-        <Stat label="MAX PAIN" value={row ? fmtInt(row.max_pain) : "—"} color={WARNING} testId="us-max-pain" />
-        <Stat label="PUT WALL" value={row ? fmtInt(row.put_wall) : "—"} color={NEGATIVE} testId="us-put-wall" />
-        <Stat label="CALL WALL" value={row ? fmtInt(row.call_wall) : "—"} color={POSITIVE} testId="us-call-wall" />
-        <Stat label="EXP MOVE" value={row?.exp_move_pct != null ? `±${fmtNum(row.exp_move_pct)}%` : "—"} testId="us-exp-move" />
-        <Stat label="GEX" value={row?.net_gex ? `${row.net_gex >= 0 ? "+" : ""}${fmtNum(row.net_gex, 0)}m` : "–"} />
-        <Stat label="VOL" value={fmtCompact(row?.volume)} testId="us-vol" />
-        <Stat label="MIN" value={mode === "eod" ? `${us.cursor + 1}/${us.frames.length}` : String(us.status?.iterations ?? "—")} />
-        {us.error && (
+        <Stat label="SPOT" value={row() ? fmtNum(row()!.spot) : "—"} color={INFO} testId="us-spot" />
+        <Stat label="CHG" value={row() ? fmtPct(row()!.change_pct) : "—"} color={chgColor()} testId="us-change" />
+        <Stat label="PCR" value={row() ? fmtNum(row()!.pcr_oi) : "—"} testId="us-pcr" />
+        <Stat label="MAX PAIN" value={row() ? fmtInt(row()!.max_pain) : "—"} color={WARNING} testId="us-max-pain" />
+        <Stat label="PUT WALL" value={row() ? fmtInt(row()!.put_wall) : "—"} color={NEGATIVE} testId="us-put-wall" />
+        <Stat label="CALL WALL" value={row() ? fmtInt(row()!.call_wall) : "—"} color={POSITIVE} testId="us-call-wall" />
+        <Stat label="EXP MOVE" value={row()?.exp_move_pct != null ? `±${fmtNum(row()!.exp_move_pct!)}%` : "—"} testId="us-exp-move" />
+        <Stat label="GEX" value={row()?.net_gex ? `${row()!.net_gex! >= 0 ? "+" : ""}${fmtNum(row()!.net_gex!, 0)}m` : "–"} />
+        <Stat label="VOL" value={fmtCompact(row()?.volume)} testId="us-vol" />
+        <Stat label="MIN" value={mode() === "eod" ? `${us.cursor() + 1}/${us.frames().length}` : String(us.status()?.iterations ?? "—")} />
+        <Show when={us.error()}>
           <Text size="xs" span className="text-[9px]" style={{ color: NEGATIVE }}>
-            {us.error}
+            {us.error()}
           </Text>
-        )}
+        </Show>
       </div>
 
       {/* ---- EOD settled strip ---- */}
-      {mode === "eod" && us.eod && (
+      <Show when={mode() === "eod" && us.eod()}>
         <div
           data-testid="us-eod"
-          className="flex items-center gap-[10px] flex-wrap px-1 py-[1px] border-b border-fin-border"
+          class="flex items-center gap-[10px] flex-wrap px-1 py-[1px] border-b border-fin-border"
           style={{ backgroundColor: "rgba(88,166,255,0.04)" }}
         >
-          <Stat label="OPEN" value={fmtInt(us.eod.open)} />
-          <Stat label="HIGH" value={fmtInt(us.eod.high)} color={POSITIVE} />
-          <Stat label="LOW" value={fmtInt(us.eod.low)} color={NEGATIVE} />
-          <Stat label="CLOSE" value={fmtInt(us.eod.close)} />
-          <Stat label="WALL MIGR" value={String(us.eod.wall_migrations)} />
-          <Stat label="PAIN HITS" value={String(us.eod.max_pain_touches)} color={WARNING} />
-          <Stat label="MIN" value={`${us.eod.minutes}`} />
-          <Stat label="LAST TAPE" value={fmtTime(us.eod.last_t)} />
+          <Stat label="OPEN" value={fmtInt(us.eod()!.open)} />
+          <Stat label="HIGH" value={fmtInt(us.eod()!.high)} color={POSITIVE} />
+          <Stat label="LOW" value={fmtInt(us.eod()!.low)} color={NEGATIVE} />
+          <Stat label="CLOSE" value={fmtInt(us.eod()!.close)} />
+          <Stat label="WALL MIGR" value={String(us.eod()!.wall_migrations)} />
+          <Stat label="PAIN HITS" value={String(us.eod()!.max_pain_touches)} color={WARNING} />
+          <Stat label="MIN" value={`${us.eod()!.minutes}`} />
+          <Stat label="LAST TAPE" value={fmtTime(us.eod()!.last_t)} />
         </div>
-      )}
+      </Show>
 
       {/* ---- ladder + chart ---- */}
-      <div className="flex gap-1 flex-1 min-h-0">
-        <div className="w-[400px] min-w-[340px] flex flex-col">
-          {row ? <UsLadder row={row} /> : null}
+      <div class="flex gap-1 flex-1 min-h-0">
+        <div class="w-[400px] min-w-[340px] flex flex-col">
+          <Show when={row()}><UsLadder row={row()!} /></Show>
         </div>
-        <div className="flex-1 min-w-0 flex flex-col gap-1">
-          <UsChart frames={us.frames} cursor={us.cursor} bucket={tf} />
-          {mode === "eod" && (
+        <div class="flex-1 min-w-0 flex flex-col gap-1">
+          <UsChart frames={us.frames()} cursor={us.cursor()} bucket={tf()} />
+          <Show when={mode() === "eod"}>
             <div
               data-testid="us-playback"
-              className="flex items-center gap-1 h-[26px] px-1 border border-fin-border"
+              class="flex items-center gap-1 h-[26px] px-1 border border-fin-border"
             >
               <Button
                 size="xs"
                 variant="subtle"
                 onClick={() => us.setCursor(0)}
-                disabled={!us.frames.length}
+                disabled={!us.frames().length}
                 style={{ minWidth: 24, height: 20, paddingLeft: 4, paddingRight: 4, fontSize: 10 }}
                 aria-label="Jump to first frame"
               >
@@ -207,19 +212,19 @@ export function UsReportPage() {
               </Button>
               <Button
                 size="xs"
-                variant={us.playing ? "filled" : "subtle"}
+                variant={us.playing() ? "filled" : "subtle"}
                 onClick={us.togglePlay}
-                disabled={us.frames.length < 2}
+                disabled={us.frames().length < 2}
                 data-testid="us-play"
                 style={{ minWidth: 28, height: 20, paddingLeft: 4, paddingRight: 4, fontSize: 10 }}
               >
-                {us.playing ? "||" : ">"}
+                {us.playing() ? "||" : ">"}
               </Button>
               <Button
                 size="xs"
                 variant="subtle"
-                onClick={() => us.setCursor(us.frames.length - 1)}
-                disabled={!us.frames.length}
+                onClick={() => us.setCursor(us.frames().length - 1)}
+                disabled={!us.frames().length}
                 style={{ minWidth: 24, height: 20, paddingLeft: 4, paddingRight: 4, fontSize: 10 }}
                 aria-label="Jump to last frame"
               >
@@ -228,37 +233,37 @@ export function UsReportPage() {
               <input
                 type="range"
                 min={0}
-                max={Math.max(0, us.frames.length - 1)}
-                value={Math.min(us.cursor, Math.max(0, us.frames.length - 1))}
+                max={Math.max(0, us.frames().length - 1)}
+                value={Math.min(us.cursor(), Math.max(0, us.frames().length - 1))}
                 onInput={(e) => us.setCursor(Number(e.currentTarget.value))}
                 data-testid="us-seek"
-                className="flex-1 h-3 cursor-pointer appearance-none bg-transparent [&::-webkit-slider-runnable-track]:h-[2px] [&::-webkit-slider-runnable-track]:bg-[var(--color-fin-border)] [&::-webkit-slider-runnable-track]:rounded-[1px] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:-mt-[3px] [&::-webkit-slider-thumb]:bg-[var(--us-thumb)]"
-                style={{ accentColor: INFO, "--us-thumb": INFO } as CSSProperties}
+                class="flex-1 h-3 cursor-pointer appearance-none bg-transparent [&::-webkit-slider-runnable-track]:h-[2px] [&::-webkit-slider-runnable-track]:bg-[var(--color-fin-border)] [&::-webkit-slider-runnable-track]:rounded-[1px] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:-mt-[3px] [&::-webkit-slider-thumb]:bg-[var(--us-thumb)]"
+                style={{ "accent-color": INFO, "--us-thumb": INFO }}
               />
-              <div className="w-16">
+              <div class="w-16">
                 <Select
                   size="xs"
-                  value={String(us.speed)}
+                  value={String(us.speed())}
                   onChange={(v) => v && us.setSpeed(Number(v))}
                   data={SPEEDS}
                   data-testid="us-speed"
                 />
               </div>
               <Text size="xs" span className="font-mono text-[10px] min-w-[92px] text-right">
-                {row ? `${fmtTime(row.t)} · ${fmtInt(row.spot)}` : "—"}
+                {row() ? `${fmtTime(row()!.t)} · ${fmtInt(row()!.spot)}` : "—"}
               </Text>
             </div>
-          )}
+          </Show>
         </div>
       </div>
 
       {/* ---- strikes strip ---- */}
       <div
         data-testid="us-strikes"
-        className="h-[118px] border border-fin-border flex flex-col font-mono text-[10px] leading-[14px] overflow-hidden"
+        class="h-[118px] border border-fin-border flex flex-col font-mono text-[10px] leading-[14px] overflow-hidden"
       >
         <div
-          className="grid grid-cols-[70px_70px_70px_70px_70px_70px_1fr] px-1 text-fin-text-muted border-b border-fin-border text-[9px] tracking-[0.4px]"
+          class="grid grid-cols-[70px_70px_70px_70px_70px_70px_1fr] px-1 text-fin-text-muted border-b border-fin-border text-[9px] tracking-[0.4px]"
         >
           <span>STRIKE</span>
           <span style={{ textAlign: "right" }}>CALL OI</span>
@@ -268,14 +273,15 @@ export function UsReportPage() {
           <span style={{ textAlign: "right" }}>NET OI</span>
           <span style={{ textAlign: "right" }}>GEX $m</span>
         </div>
-        <div className="flex-1 overflow-auto">
-          {topStrikes.map((s) => {
+        <div class="flex-1 overflow-auto">
+          <For each={topStrikes()}>
+            {(s) => {
             const net = s.c_oi - s.p_oi;
             return (
               <div
                 key={s.k}
                 data-testid={`us-strike-${s.k}`}
-                className="grid grid-cols-[70px_70px_70px_70px_70px_70px_1fr] px-1"
+                class="grid grid-cols-[70px_70px_70px_70px_70px_70px_1fr] px-1"
                 style={{ backgroundColor: s.k === row?.put_wall || s.k === row?.call_wall ? "rgba(255,255,255,0.04)" : "transparent" }}
               >
                 <span style={{ fontWeight: s.k === row?.max_pain ? 800 : 500, color: s.k === row?.max_pain ? WARNING : undefined }}>
@@ -289,7 +295,8 @@ export function UsReportPage() {
                 <span style={{ textAlign: "right", color: s.g ? (s.g >= 0 ? POSITIVE : NEGATIVE) : undefined }}>{s.g ? fmtNum(s.g, 1) : "–"}</span>
               </div>
             );
-          })}
+            }}
+          </For>
         </div>
       </div>
     </div>

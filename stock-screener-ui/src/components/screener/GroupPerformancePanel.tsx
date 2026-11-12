@@ -207,7 +207,7 @@ export function GroupPerformancePanel(props: GroupPerformancePanelProps) {
                               className="h-full rounded-sm"
                               style={{
                                 width: `${pct}%`,
-                                backgroundColor: positive ? "var(--color-fin-positive)" : "var(--color-fin-negative)",
+                                "background-color": positive ? "var(--color-fin-positive)" : "var(--color-fin-negative)",
                               }}
                             />
                           </Box>

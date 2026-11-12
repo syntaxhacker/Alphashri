@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { render, screen } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { NiftyDataFreshness } from "./NiftyDataFreshness";
 import type { NiftyBurst } from "@/types/niftyReport";
@@ -28,7 +28,7 @@ function makeBurst(type: NiftyBurst["type"]): NiftyBurst {
 }
 
 function renderFreshness(tapeSecondsAgo: number, marketOpen = true, bursts?: NiftyBurst[] | null) {
-  return render(
+  return render(() => (
     <UIProvider>
       <NiftyDataFreshness
         report={null}
@@ -37,11 +37,10 @@ function renderFreshness(tapeSecondsAgo: number, marketOpen = true, bursts?: Nif
         marketOpen={marketOpen}
         sessionDate="2026-11-03"
       />
-    </UIProvider>,
-  );
+    </UIProvider>
+  ));
 }
 
-afterEach(() => cleanup());
 
 describe("NiftyDataFreshness", () => {
   test("fresh tape renders a DATA age badge", () => {
@@ -80,7 +79,7 @@ describe("NiftyDataFreshness", () => {
   });
 
   test("missing timestamp during market hours shows DATA —", () => {
-    render(
+    render(() => (
       <UIProvider>
         <NiftyDataFreshness
           report={null}
@@ -89,8 +88,8 @@ describe("NiftyDataFreshness", () => {
           marketOpen={true}
           sessionDate="2026-11-03"
         />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const badge = screen.getByTestId("nifty-data-freshness");
     expect(badge).toHaveAttribute("data-state", "fresh");
     expect(badge).toHaveTextContent("DATA —");

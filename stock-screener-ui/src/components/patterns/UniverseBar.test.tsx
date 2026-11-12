@@ -1,11 +1,14 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { UIProvider } from "@/ui";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import type { JobDTO, Universe } from "@/types/chartPatterns";
 import { UniverseBar, type UniverseBarProps } from "./UniverseBar";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 
 const UNIVERSES: Universe[] = [
   { id: "universe", label: "Universe scan", count: 9700 },
@@ -27,16 +30,12 @@ function makeProps(overrides: Partial<UniverseBarProps> = {}): UniverseBarProps 
   };
 }
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
-
 describe("UniverseBar", () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => cleanup());
 
   test("renders a pill per universe", () => {
-    r(<UniverseBar {...makeProps()} />);
+    render(() => <UniverseBar {...makeProps()} />);
     expect(screen.getByTestId("patterns-universe-bar")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-universe-universe")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-universe-nifty50")).toBeInTheDocument();
@@ -45,27 +44,27 @@ describe("UniverseBar", () => {
 
   test("selecting a universe pill calls setUniverse", async () => {
     const props = makeProps();
-    r(<UniverseBar {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-universe-nifty500"));
+    render(() => <UniverseBar {...props} />);
+    fireEvent.click(screen.getByTestId("patterns-universe-nifty500"));
     expect(props.setUniverse).toHaveBeenCalledWith("nifty500");
   });
 
   test("scan again triggers scan and disables while scanning", async () => {
     const props = makeProps({ scanning: true });
-    r(<UniverseBar {...props} />);
+    render(() => <UniverseBar {...props} />);
     const button = screen.getByTestId("patterns-scan-again");
     expect(button).toBeDisabled();
   });
 
   test("shows the error status line", () => {
-    r(<UniverseBar {...makeProps({ error: "Queue is full" })} />);
+    render(() => <UniverseBar {...makeProps({ error: "Queue is full" })} />);
     expect(screen.getByTestId("patterns-status-line")).toHaveTextContent("Queue is full");
   });
 
   test("renders the custom pill and selects the custom scope", async () => {
     const props = makeProps({ customUniverse: "custom" });
-    r(<UniverseBar {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-universe-custom"));
+    render(() => <UniverseBar {...props} />);
+    fireEvent.click(screen.getByTestId("patterns-universe-custom"));
     expect(props.setUniverse).toHaveBeenCalledWith("custom");
   });
 
@@ -88,7 +87,7 @@ describe("UniverseBar", () => {
   });
 
   test("labels the scan action Scan again for a universe scope", () => {
-    r(<UniverseBar {...makeProps({ universe: "nifty50" })} />);
+    render(() => <UniverseBar {...makeProps({ universe: "nifty50" })} />);
     expect(screen.getByTestId("patterns-scan-again")).toHaveTextContent("Scan again");
     expect(screen.getByTestId("patterns-scan-again")).toBeEnabled();
   });
@@ -105,13 +104,13 @@ describe("UniverseBar", () => {
 
   test("clicking scan calls the scan handler", async () => {
     const props = makeProps();
-    r(<UniverseBar {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-scan-again"));
+    render(() => <UniverseBar {...props} />);
+    fireEvent.click(screen.getByTestId("patterns-scan-again"));
     expect(props.scan).toHaveBeenCalledTimes(1);
   });
 
   test("renders no status line when there is no error", () => {
-    r(<UniverseBar {...makeProps({ error: null })} />);
+    render(() => <UniverseBar {...makeProps({ error: null })} />);
     expect(screen.queryByTestId("patterns-status-line")).not.toBeInTheDocument();
   });
 
@@ -131,7 +130,7 @@ describe("UniverseBar", () => {
       data_through: null,
       error: null,
     };
-    r(<UniverseBar {...makeProps({ job: running, scanning: true })} />);
+    render(() => <UniverseBar {...makeProps({ job: running, scanning: true })} />);
     expect(screen.getByTestId("patterns-job-status-wrap")).toHaveAttribute("data-visible", "true");
   });
 
@@ -151,7 +150,7 @@ describe("UniverseBar", () => {
       data_through: "2026-09-30",
       error: null,
     };
-    r(<UniverseBar {...makeProps({ job: completed })} />);
+    render(() => <UniverseBar {...makeProps({ job: completed })} />);
     expect(screen.getByTestId("patterns-job-status-wrap")).toHaveAttribute("data-visible", "false");
   });
 });

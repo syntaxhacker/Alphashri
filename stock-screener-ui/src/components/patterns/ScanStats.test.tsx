@@ -5,10 +5,9 @@ import { cleanup, render, screen, within } from "@solidjs/testing-library";
 import type { JobDTO, PatternSummary } from "@/types/chartPatterns";
 import { ScanStats } from "./ScanStats";
 
-vi.mock("@/ui", async (importOriginal) => {
+vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/patterns/solidUiMock");
-  const actual = await importOriginal<typeof import("@/ui")>();
-  return mockSolidUi(actual);
+  return mockSolidUi();
 });
 
 const SUMMARY: PatternSummary = {

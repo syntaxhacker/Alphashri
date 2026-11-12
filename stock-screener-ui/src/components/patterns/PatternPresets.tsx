@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { ActionIcon, Box, Button, Chip, Select, Text, TextInput, Tooltip } from "@/ui";
-import { IconX, IconBookmarkPlus } from "@tabler/icons-react";
+import { createMemo, createSignal, For, Show } from "solid-js";
+import { Box, Chip, Select, Text, TextInput, Tooltip } from "@/ui";
+import { IconX, IconBookmarkPlus } from "@/patterns/icons";
 import { BUILTIN_PRESETS, type PatternPreset } from "@/config/patternCatalog";
 import type { PatternFilters } from "@/types/chartPatterns";
 
@@ -39,14 +39,17 @@ function newPresetId(): string {
   return `preset_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
+const ICON_BUTTON_CLASS =
+  "inline-flex size-6 items-center justify-center rounded border-0 bg-transparent p-0 text-fin-text-muted transition-colors hover:bg-fin-surface-alt hover:text-fin-text disabled:cursor-not-allowed disabled:opacity-50";
+
 /**
  * Compact PRESETS control for the filter rail: built-in preset chips, plus the
  * ability to save the current filters and re-apply/delete them later.
  */
-export function PatternPresets({ filters, applyFilters }: PatternPresetsProps) {
-  const [saved, setSaved] = useState<PatternPreset[]>(() => readSavedPresets());
-  const [naming, setNaming] = useState(false);
-  const [name, setName] = useState("");
+export function PatternPresets(props: PatternPresetsProps) {
+  const [saved, setSaved] = createSignal<PatternPreset[]>(readSavedPresets());
+  const [naming, setNaming] = createSignal(false);
+  const [name, setName] = createSignal("");
 
   const persist = (next: PatternPreset[]): void => {
     setSaved(next);
@@ -54,29 +57,43 @@ export function PatternPresets({ filters, applyFilters }: PatternPresetsProps) {
   };
 
   const apply = (patch: Partial<PatternFilters>): void => {
-    applyFilters({ ...patch });
+    props.applyFilters({ ...patch });
   };
 
   const handleSave = (): void => {
-    const trimmed = name.trim();
+    const trimmed = name().trim();
     if (!trimmed) return;
     // Deep-clone so later filter-rail edits can't mutate the saved snapshot.
-    const snapshot = JSON.parse(JSON.stringify(filters)) as PatternFilters;
+    const snapshot = JSON.parse(JSON.stringify(props.filters)) as PatternFilters;
     const preset: PatternPreset = { id: newPresetId(), name: trimmed, filters: snapshot };
-    persist([...saved, preset]);
+    persist([...saved(), preset]);
     setName("");
     setNaming(false);
   };
 
   const handleDelete = (id: string): void => {
-    persist(saved.filter((preset) => preset.id !== id));
+    persist(saved().filter((preset) => preset.id !== id));
   };
 
   const handleSelect = (value: string | null): void => {
     if (!value) return;
-    const found = saved.find((preset) => preset.id === value);
+    const found = saved().find((preset) => preset.id === value);
     if (found) apply(found.filters);
   };
+
+  const selectData = createMemo(() => [
+    ...BUILTIN_PRESETS.map((preset) => ({
+      value: `builtin:${preset.id}`,
+      label: preset.name,
+    })),
+    ...saved().map((preset) => ({ value: `saved:${preset.id}`, label: preset.name })),
+  ]);
+
+  const savedSelectData = createMemo(() =>
+    saved().map((preset) => ({ value: preset.id, label: preset.name })),
+  );
+
+  const nameIsEmpty = () => name().trim().length === 0;
 
   return (
     <Box
@@ -85,13 +102,7 @@ export function PatternPresets({ filters, applyFilters }: PatternPresetsProps) {
     >
       <Box data-testid="patterns-preset-select">
         <Select
-          data={[
-            ...BUILTIN_PRESETS.map((preset) => ({
-              value: `builtin:${preset.id}`,
-              label: preset.name,
-            })),
-            ...saved.map((preset) => ({ value: `saved:${preset.id}`, label: preset.name })),
-          ]}
+          data={selectData()}
           value=""
           onChange={(value) => {
             if (!value) return;
@@ -108,20 +119,19 @@ export function PatternPresets({ filters, applyFilters }: PatternPresetsProps) {
         />
       </Box>
 
-      {saved.length > 0 && (
-        <>
-          <Select
-            data={saved.map((preset) => ({ value: preset.id, label: preset.name }))}
-            value=""
-            onChange={(value) => handleSelect(value as string | null)}
-            size="sm"
-            placeholder="Saved presets"
-            data-testid="patterns-preset-saved"
-          />
-          <Box className="flex flex-wrap gap-1" data-testid="patterns-preset-saved-list">
-            {saved.map((preset) => (
+      <Show when={saved().length > 0}>
+        <Select
+          data={savedSelectData()}
+          value=""
+          onChange={(value) => handleSelect(value as string | null)}
+          size="sm"
+          placeholder="Saved presets"
+          data-testid="patterns-preset-saved"
+        />
+        <Box className="flex flex-wrap gap-1" data-testid="patterns-preset-saved-list">
+          <For each={saved()}>
+            {(preset) => (
               <Box
-                key={preset.id}
                 className="inline-flex min-w-0 items-center gap-0.5"
               >
                 <Chip
@@ -133,77 +143,69 @@ export function PatternPresets({ filters, applyFilters }: PatternPresetsProps) {
                   {preset.name}
                 </Chip>
                 <Tooltip label={`Delete ${preset.name}`}>
-                  <ActionIcon
-                    size="xs"
-                    variant="subtle"
-                    color="error"
+                  <button
+                    type="button"
                     aria-label={`Delete ${preset.name}`}
                     onClick={() => handleDelete(preset.id)}
                     data-testid={`patterns-preset-delete-${preset.id}`}
+                    className={`${ICON_BUTTON_CLASS} text-fin-negative`}
                   >
                     <IconX size={12} />
-                  </ActionIcon>
+                  </button>
                 </Tooltip>
               </Box>
-            ))}
-          </Box>
-        </>
-      )}
+            )}
+          </For>
+        </Box>
+      </Show>
 
-      {naming ? (
+      <Show when={naming()} fallback={
+        <Tooltip label="Save current filters as a preset">
+          <button
+            type="button"
+            aria-label="Save current filters as a preset"
+            onClick={() => setNaming(true)}
+            data-testid="patterns-preset-save"
+            className={`${ICON_BUTTON_CLASS} size-7 self-start`}
+          >
+            <IconBookmarkPlus size={15} />
+          </button>
+        </Tooltip>
+      }>
         <Box className="flex min-w-0 flex-col gap-1">
           <Box className="flex min-w-0 items-center gap-1">
             <label
               htmlFor="patterns-preset-name-input"
-              style={{
-                position: "absolute",
-                width: 1,
-                height: 1,
-                overflow: "hidden",
-                clip: "rect(0 0 0 0)",
-                whiteSpace: "nowrap",
-              }}
+              className="absolute h-px w-px overflow-hidden whitespace-nowrap border-0 p-0 [clip:rect(0_0_0_0)]"
             >
               Preset name
             </label>
             <TextInput
               id="patterns-preset-name-input"
-              value={name}
+              value={name()}
               onChange={setName}
               size="sm"
               placeholder="Preset name"
               data-testid="patterns-preset-name"
               w={140}
             />
-            <Button
-              size="xs"
+            <button
+              type="button"
               onClick={handleSave}
-              disabled={name.trim().length === 0}
+              disabled={nameIsEmpty()}
               data-testid="patterns-preset-name-save"
+              className="inline-flex h-7 items-center rounded-fin bg-fin-primary px-2 text-xs font-semibold text-fin-bg transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Save
-            </Button>
+            </button>
           </Box>
-          {name.trim().length === 0 ? (
+          <Show when={nameIsEmpty()}>
             <Text size="xs" c="dimmed" data-testid="patterns-preset-name-hint">
               Enter a name to save this preset.
             </Text>
-          ) : null}
+          </Show>
         </Box>
-      ) : (
-        <Tooltip label="Save current filters as a preset">
-          <ActionIcon
-            size="sm"
-            variant="subtle"
-            aria-label="Save current filters as a preset"
-            onClick={() => setNaming(true)}
-            data-testid="patterns-preset-save"
-            className="self-start"
-          >
-            <IconBookmarkPlus size={15} />
-          </ActionIcon>
-        </Tooltip>
-      )}
+      </Show>
     </Box>
   );
 }

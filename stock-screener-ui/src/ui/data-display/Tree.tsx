@@ -27,9 +27,10 @@ type TreeNodeProps = {
   renderNode?: UITreeProps["renderNode"];
 };
 
-function TreeNode({ node, level, expandedSet, onToggle, onNodeClick, renderNode }: TreeNodeProps) {
+function TreeNode({ node, level, levelOffset, expandedSet, onToggle, onNodeClick, renderNode }: TreeNodeProps) {
   const hasChildren = !!(node.children && node.children.length > 0);
   const expanded = createMemo(() => expandedSet().has(node.value));
+  const paddingLeft = level * levelOffset;
 
   const handleClick = () => {
     onNodeClick?.(node);
@@ -108,14 +109,13 @@ export function Tree(props: UITreeProps) {
     const t = known.tree;
     if (!t) return undefined;
     if (t.expandedState) return Object.keys(t.expandedState).filter((k) => (t.expandedState as any)[k]);
-    return t.expanded;
+    return typeof t.expanded === "function" ? (t.expanded as () => string[])() : t.expanded;
   });
 
   const isControlled = createMemo(() => known.expanded !== undefined || treeExpanded() !== undefined);
   const controlled = createMemo(() => known.expanded ?? treeExpanded());
 
-  const internal = createSignal<string[]>(controlled() ?? []);
-  const [internalValue, setInternal] = internal;
+  const [internalValue, setInternal] = createSignal<string[]>(controlled() ?? []);
   const expandedArray = createMemo(() => (isControlled() ? (controlled() as string[]) : internalValue()));
   const expandedSet = createMemo(() => new Set(expandedArray()));
 

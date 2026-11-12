@@ -37,13 +37,13 @@ export function Overlay({
       style={{
         position: fixed ? "fixed" : "absolute",
         inset: 0,
-        zIndex: zIndex ?? undefined,
-        backgroundColor: color ?? DEFAULT_BG,
+        "z-index": zIndex ?? undefined,
+        "background-color": color ?? DEFAULT_BG,
         opacity: opacity != null ? opacity : undefined,
         backdropFilter,
         display: center ? "flex" : undefined,
-        alignItems: center ? "center" : undefined,
-        justifyContent: center ? "center" : undefined,
+        "align-items": center ? "center" : undefined,
+        "justify-content": center ? "center" : undefined,
         ...style,
       }}
       onClick={onClick}
@@ -55,7 +55,7 @@ export function Overlay({
         <div
           style={{
             display: center ? "flex" : "block",
-            ...(center ? { alignItems: "center", justifyContent: "center" } : {}),
+            ...(center ? { "align-items": "center", "justify-content": "center" } : {}),
           }}
         >
           {children}

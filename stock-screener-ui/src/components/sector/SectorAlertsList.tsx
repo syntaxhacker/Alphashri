@@ -34,7 +34,7 @@ export function SectorAlertsList(props: { alerts: SectorAlert[] }) {
                   {alert.sector}
                 </Text>
                 <Box className="inline-flex items-center gap-1">
-                  <Box className="size-[5px] rounded-full shrink-0" style={{ backgroundColor: color }} />
+                  <Box className="size-[5px] rounded-full shrink-0" style={{ "background-color": color }} />
                   <Text className="text-[9.5px] font-bold whitespace-nowrap font-mono tabular-nums" style={{ color }}>
                     {alert.direction} ({formatPercentage(alert.delta, 2, false)})
                   </Text>

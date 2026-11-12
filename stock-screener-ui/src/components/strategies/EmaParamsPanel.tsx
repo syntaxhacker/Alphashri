@@ -17,7 +17,7 @@ export function EmaParamsPanel(props: EmaParamsPanelProps) {
             <NumberInput
               size="sm"
               name="ema_fast_period"
-              defaultValue={props.initialValues.ema_fast_period}
+              value={props.initialValues.ema_fast_period}
               min={3}
               max={50}
               required
@@ -31,7 +31,7 @@ export function EmaParamsPanel(props: EmaParamsPanelProps) {
             <NumberInput
               size="sm"
               name="ema_slow_period"
-              defaultValue={props.initialValues.ema_slow_period}
+              value={props.initialValues.ema_slow_period}
               min={10}
               max={200}
               required

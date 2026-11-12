@@ -6,10 +6,9 @@ import { PayoffChart } from "./PayoffChart";
 import { curveSpots } from "./payoff";
 import type { PayoffLeg } from "./payoff";
 
-vi.mock("@/ui", async (importOriginal) => {
+vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/patterns/solidUiMock");
-  const actual = await importOriginal<typeof import("@/ui")>();
-  return mockSolidUi(actual);
+  return mockSolidUi();
 });
 
 const mocks = vi.hoisted(() => ({

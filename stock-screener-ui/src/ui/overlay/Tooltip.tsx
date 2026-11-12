@@ -138,7 +138,7 @@ export function Tooltip(props: TooltipProps) {
             known.color ? "text-white" : undefined,
             known.multiline ? "max-w-[220px] whitespace-normal" : "whitespace-nowrap",
           )}
-          style={{ backgroundColor: known.color ?? undefined }}
+          style={{ "background-color": known.color ?? undefined }}
         >
           {known.label}
           {known.withArrow && (

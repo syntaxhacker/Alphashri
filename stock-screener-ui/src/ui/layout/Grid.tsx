@@ -28,8 +28,8 @@ export function GridCol(props: UIGridColProps & Record<string, unknown>) {
       className={cn(known.className)}
       style={{
         ...(known.style as Record<string, unknown> | undefined),
-        ...(size != null ? { flexBasis: pct, maxWidth: pct } : {}),
-        ...(known.offset != null ? { marginLeft: `${(Number(known.offset) / 12) * 100}%` } : {}),
+        ...(size != null ? { "flex-basis": pct, "max-width": pct } : {}),
+        ...(known.offset != null ? { "margin-left": `${(Number(known.offset) / 12) * 100}%` } : {}),
         ...(known.order != null ? { order: known.order } : {}),
       }}
       data-testid={known["data-testid"]}

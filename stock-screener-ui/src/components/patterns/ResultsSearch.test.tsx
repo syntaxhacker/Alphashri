@@ -6,10 +6,9 @@ import { createSignal } from "solid-js";
 import type { PatternFilters } from "@/types/chartPatterns";
 import { ResultsSearch } from "./ResultsSearch";
 
-vi.mock("@/ui", async (importOriginal) => {
+vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/patterns/solidUiMock");
-  const actual = await importOriginal<typeof import("@/ui")>();
-  return mockSolidUi(actual);
+  return mockSolidUi();
 });
 
 type FiltersFixture = PatternFilters & { q?: string };

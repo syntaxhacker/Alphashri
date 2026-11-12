@@ -2,12 +2,100 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
-import { act } from "react";
-import { useContext } from "react";
-import { MemoryRouter } from "react-router-dom";
+import { createSignal, useContext } from "solid-js";
+import { Router } from "@solidjs/router";
 import { UIProvider } from "@/ui";
 import { SymbolDockProvider } from "./SymbolDockProvider";
 import { SymbolDockContext } from "./symbolDockContext";
+
+// usePatternFullscreen is still on React; the dock tests exercise the dock
+// against a faithful Solid port of the hook's two-phase state machine.
+vi.mock("@/hooks/usePatternFullscreen", async () => {
+  const { fetchSymbolChart } = await vi.importMock<typeof import("../../api/chartPatterns")>(
+    "../../api/chartPatterns",
+  );
+  const [fullscreen, setFullscreen] = createSignal<Record<string, unknown> | null>(null);
+  let token = 0;
+  let detectMode = true;
+
+  const staleFields = (chart: { stale?: boolean; as_of?: string | null }) =>
+    chart.stale === true
+      ? { stale: true, dataAsOf: chart.as_of ?? null }
+      : { stale: false, dataAsOf: null };
+
+  const run = (
+    symbol: string,
+    timeframe: string | undefined,
+    pinned: boolean,
+    detectPatterns: boolean = true,
+  ) => {
+    const tf = timeframe ?? "1D";
+    const myToken = ++token;
+    detectMode = detectPatterns;
+    setFullscreen({
+      symbol,
+      hit: null,
+      hits: [],
+      timeframe: tf,
+      candles: [],
+      overlays: [],
+      trendLines: [],
+      loading: true,
+      detectPatterns,
+      asOf: null,
+      fromDate: null,
+      pinned,
+      patternsLoading: undefined,
+      stale: false,
+      dataAsOf: null,
+    });
+    fetchSymbolChart(symbol, tf, { detectPatterns: false })
+        .then((chart: any) => {
+          if (myToken !== token) return;
+          setFullscreen((prev: any) =>
+            prev && prev.symbol === symbol && prev.timeframe === tf
+              ? { ...prev, ...staleFields(chart), candles: chart.candles ?? [], trendLines: chart.trend_lines ?? [], loading: false }
+              : prev,
+          );
+          if (!detectMode) return;
+          fetchSymbolChart(symbol, tf, { detectPatterns: true })
+            .then((chart2: any) => {
+              if (myToken !== token) return;
+              setFullscreen((prev: any) =>
+                prev && prev.symbol === symbol && prev.timeframe === tf
+                  ? { ...prev, ...staleFields(chart2), hit: null, hits: [], trendLines: chart2.trend_lines ?? [], patternsLoading: false }
+                  : prev,
+              );
+            })
+            .catch(() => {
+              if (myToken !== token) return;
+              setFullscreen((prev: any) =>
+                prev && prev.symbol === symbol && prev.timeframe === tf ? { ...prev, patternsLoading: false } : prev,
+              );
+            });
+        })
+        .catch(() => {
+          if (myToken !== token) return;
+          setFullscreen((prev: any) =>
+            prev && prev.symbol === symbol && prev.timeframe === tf ? { ...prev, loading: false } : prev,
+          );
+        });
+  };
+
+  return {
+    __resetFullscreen: () => setFullscreen(null),
+    usePatternFullscreen: () => ({
+      fullscreen,
+      openFromSymbol: (symbol: string) => run(symbol, undefined, true, true),
+      previewFromSymbol: (symbol: string) => run(symbol, undefined, false, true),
+      changeFullscreenTimeframe: () => undefined,
+      pinFullscreen: () =>
+        setFullscreen((prev: any) => (prev ? { ...prev, pinned: true } : prev)),
+      closeFullscreen: () => setFullscreen(null),
+      selectFullscreenHit: () => undefined,
+    }),
+  };
+});
 
 vi.mock("../../api/chartPatterns", () => ({
   fetchSymbolChart: vi.fn(),
@@ -15,13 +103,14 @@ vi.mock("../../api/chartPatterns", () => ({
 }));
 
 vi.mock("@/components/patterns/PatternFullscreenView", () => ({
-  PatternFullscreenView: ({ symbol, loading }: { symbol: string | null; loading?: boolean }) => (
-    <div data-testid="patterns-chart-dock" data-loading={String(Boolean(loading))}>
-      {symbol}
+  PatternFullscreenView: (props: { symbol: string | null; loading?: boolean }) => (
+    <div data-testid="patterns-chart-dock" data-loading={String(Boolean(props.loading))}>
+      {props.symbol}
     </div>
   ),
 }));
 
+import { __resetFullscreen } from "@/hooks/usePatternFullscreen";
 import { fetchSymbolChart } from "../../api/chartPatterns";
 
 const mockedFetchSymbolChart = vi.mocked(fetchSymbolChart);
@@ -81,18 +170,14 @@ function DockHarness() {
 }
 
 function renderDock() {
-  return render(() => (<UIProvider>
-      <MemoryRouter>
-        <SymbolDockProvider>
-          <DockHarness />
-        </SymbolDockProvider>
-      </MemoryRouter>
-    </UIProvider>),
-  );
+  return render(() => (
+    <Router root={() => <UIProvider><SymbolDockProvider><DockHarness /></SymbolDockProvider></UIProvider>} />
+  ));
 }
 
 describe("SymbolDockProvider stale badge", () => {
   beforeEach(() => {
+    __resetFullscreen();
     vi.stubGlobal("matchMedia", (query: string) => ({
       matches: query.includes("1200px"),
       media: query,
@@ -159,15 +244,14 @@ describe("SymbolDockProvider stale badge", () => {
 
     expect(screen.queryByTestId("dock-stale")).not.toBeInTheDocument();
 
-    await act(async () => {
-      resolvePhase1(FRESH_CHART);
-    });
+    resolvePhase1(FRESH_CHART);
   });
 
 });
 
 describe("preview → endPreview race (A then B)", () => {
   beforeEach(() => {
+    __resetFullscreen();
     vi.stubGlobal("matchMedia", (query: string) => ({
       matches: query.includes("1200px"),
       media: query,
@@ -195,41 +279,26 @@ describe("preview → endPreview race (A then B)", () => {
     const previewA = screen.getByTestId("preview-ircon");
     const previewB = screen.getByTestId("preview-reliance");
 
-    const enter = (el: HTMLElement) =>
-      act(() => {
-        fireEvent.mouseOver(el, { relatedTarget: null });
-      });
-    const leave = (el: HTMLElement) =>
-      act(() => {
-        fireEvent.mouseOut(el, { relatedTarget: null });
-      });
+    const enter = (el: HTMLElement) => fireEvent.mouseEnter(el, { relatedTarget: null });
+    const leave = (el: HTMLElement) => fireEvent.mouseLeave(el, { relatedTarget: null });
 
     // Enter A → 300 ms debounce → A preview opens
     enter(previewA);
     expect(screen.queryByTestId("symbol-dock")).not.toBeInTheDocument();
 
-    act(() => {
-      vi.advanceTimersByTime(300);
-    });
-    await act(async () => {});
-    expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("IRCON");
+    vi.advanceTimersByTime(300);
+    await waitFor(() => expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("IRCON"));
 
     // Leave A → close timer scheduled (800 ms); enter B → it must be cancelled
     leave(previewA);
     enter(previewB);
 
-    act(() => {
-      vi.advanceTimersByTime(300);
-    });
-    await act(async () => {});
-    expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("RELIANCE");
+    vi.advanceTimersByTime(300);
+    await waitFor(() => expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("RELIANCE"));
 
     // Advance past the old close timer → dock still shows B, not closed, not A
-    act(() => {
-      vi.advanceTimersByTime(800);
-    });
-    await act(async () => {});
-    expect(screen.getByTestId("symbol-dock")).toBeInTheDocument();
+    vi.advanceTimersByTime(800);
+    await waitFor(() => expect(screen.getByTestId("symbol-dock")).toBeInTheDocument());
     expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("RELIANCE");
     expect(screen.getByTestId("patterns-chart-dock")).not.toHaveTextContent("IRCON");
   });

@@ -1,13 +1,15 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
-import { useState, type ReactNode } from "react";
-import { ActionIcon, Box, Button, Divider, Modal, Text, Textarea, Tooltip } from "@/ui";
+import { createMemo, createSignal, For, Show } from "solid-js";
+import type { JSX } from "solid-js";
+import { Box, Divider, Text, Textarea, Tooltip } from "@/ui";
 import { cn } from "@/ui/cn";
 import {
   IconAlertTriangle,
   IconClipboardText,
   IconPencil,
   IconPlayerPlay,
-} from "@tabler/icons-react";
+  IconX,
+} from "@/patterns/icons";
 import type { JobDTO, Universe } from "@/types/chartPatterns";
 import { JobStatus } from "./JobStatus";
 import { parseSymbolList } from "./parseSymbolList";
@@ -26,11 +28,21 @@ export interface UniverseBarProps {
   queuePosition: number | null;
   error: string | null;
   /** Right-side controls rendered in the same toolbar row (timeframe, filters…). */
-  actions?: ReactNode;
+  actions?: JSX.Element;
   /** Scan-status controls rendered next to the scan button (cache, force re-run…). */
-  scanActions?: ReactNode;
+  scanActions?: JSX.Element;
   /** Apply a pasted symbol list (switches to the custom universe). */
   onPasteSymbols?: (symbols: string[]) => void;
+}
+
+/** Inline spinner matching the shared Button's loading affordance. */
+function Spinner() {
+  return (
+    <span
+      className="inline-block size-3 animate-spin rounded-full border-2 border-fin-text border-t-transparent"
+      aria-hidden="true"
+    />
+  );
 }
 
 /**
@@ -42,42 +54,31 @@ export interface UniverseBarProps {
  * its right-hand status / scan cluster never drifts. The whole bar is sticky
  * (`top: 0`) with a divider so content scrolling underneath stays legible.
  */
-export function UniverseBar({
-  universes,
-  universe,
-  setUniverse,
-  customUniverse = "custom",
-  customSymbolCount = 0,
-  scan,
-  scanning,
-  job,
-  queuePosition,
-  error,
-  actions,
-  scanActions,
-  onPasteSymbols,
-}: UniverseBarProps) {
-  const [pasteOpen, setPasteOpen] = useState(false);
-  const [pasteText, setPasteText] = useState("");
-  const parsed = parseSymbolList(pasteText);
+export function UniverseBar(props: UniverseBarProps) {
+  const [pasteOpen, setPasteOpen] = createSignal(false);
+  const [pasteText, setPasteText] = createSignal("");
+  const parsed = createMemo(() => parseSymbolList(pasteText()));
+  const customUniverse = () => props.customUniverse ?? "custom";
+  const customSymbolCount = () => props.customSymbolCount ?? 0;
+
   const applyPaste = () => {
-    if (!parsed.length) return;
-    onPasteSymbols?.(parsed);
+    if (!parsed().length) return;
+    props.onPasteSymbols?.(parsed());
     setPasteOpen(false);
     setPasteText("");
   };
+
   // Idle and completed scans are already summarised by the stat strip above
   // ("LAST SCAN …", "LAST CANDLE …"); the inline status is only worth its
   // ~200px while a scan is queued/running or has failed. It stays mounted
   // (display:none) so the `patterns-job-status` contract is preserved.
   const liveStatuses = new Set(["queued", "running", "failed", "cancelled"]);
-  const showStatus = scanning || (job != null && liveStatuses.has(job.status));
-  const customActive = universe === customUniverse;
-  const customCount = customSymbolCount ?? 0;
-  const scanDisabled = scanning || (customActive && customCount === 0);
-  const scanLabel =
-    customActive && customCount > 0
-      ? `Scan ${customCount} symbol${customCount === 1 ? "" : "s"}`
+  const showStatus = () => props.scanning || (props.job != null && liveStatuses.has(props.job.status));
+  const customActive = () => props.universe === customUniverse();
+  const scanDisabled = () => props.scanning || (customActive() && customSymbolCount() === 0);
+  const scanLabel = () =>
+    customActive() && customSymbolCount() > 0
+      ? `Scan ${customSymbolCount()} symbol${customSymbolCount() === 1 ? "" : "s"}`
       : "Scan again";
 
   return (
@@ -101,165 +102,188 @@ export function UniverseBar({
           aria-label="Scan scope"
           className="inline-flex min-w-0 flex-wrap items-stretch gap-0.5 gap-y-[2px] rounded-xl border border-fin-border bg-fin-surface-alt p-0.5"
         >
-          {universes.map((u) => {
-            const active = universe === u.id;
-            return (
-              <button
-                key={u.id}
-                type="button"
-                onClick={() => setUniverse(u.id)}
-                aria-pressed={active}
-                title={u.count > 0 ? `${u.label} · ${formatNumberIN(u.count)} symbols` : u.label}
-                data-testid={`patterns-universe-${u.id}`}
-                className={cn(
-                  "inline-flex cursor-pointer appearance-none items-baseline gap-1 whitespace-nowrap rounded-fin border-0 px-1.5 py-[3px] font-[inherit] text-[11px] leading-[1.25] transition-colors",
-                  "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary",
-                  active
-                    ? "bg-fin-primary/12 font-semibold text-fin-primary shadow-[inset_0_0_0_1px_var(--color-fin-primary)]"
-                    : "font-medium text-fin-text-muted hover:bg-fin-surface hover:text-fin-text",
-                )}
-              >
-                {u.label}
-                {u.count > 0 ? (
-                  <span
-                    className={cn(
-                      "text-[9.5px] font-medium tabular-nums",
-                      active ? "text-fin-primary opacity-90" : "text-fin-text-muted",
-                    )}
-                  >
-                    {formatNumberIN(u.count)}
-                  </span>
-                ) : null}
-              </button>
-            );
-          })}
+          <For each={props.universes}>
+            {(u) => {
+              const active = () => props.universe === u.id;
+              return (
+                <button
+                  type="button"
+                  onClick={() => props.setUniverse(u.id)}
+                  aria-pressed={active()}
+                  title={u.count > 0 ? `${u.label} · ${formatNumberIN(u.count)} symbols` : u.label}
+                  data-testid={`patterns-universe-${u.id}`}
+                  className={cn(
+                    "inline-flex cursor-pointer appearance-none items-baseline gap-1 whitespace-nowrap rounded-fin border-0 px-1.5 py-[3px] font-[inherit] text-[11px] leading-[1.25] transition-colors",
+                    "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary",
+                    active()
+                      ? "bg-fin-primary/12 font-semibold text-fin-primary shadow-[inset_0_0_0_1px_var(--color-fin-primary)]"
+                      : "font-medium text-fin-text-muted hover:bg-fin-surface hover:text-fin-text",
+                  )}
+                >
+                  {u.label}
+                  <Show when={u.count > 0}>
+                    <span
+                      className={cn(
+                        "text-[9.5px] font-medium tabular-nums",
+                        active() ? "text-fin-primary opacity-90" : "text-fin-text-muted",
+                      )}
+                    >
+                      {formatNumberIN(u.count)}
+                    </span>
+                  </Show>
+                </button>
+              );
+            }}
+          </For>
 
           <Divider orientation="vertical" className="my-0.5" />
 
           <button
             type="button"
-            onClick={() => setUniverse(customUniverse)}
-            aria-pressed={customActive}
+            onClick={() => props.setUniverse(customUniverse())}
+            aria-pressed={customActive()}
             data-testid="patterns-universe-custom"
             className={cn(
               "inline-flex cursor-pointer appearance-none items-center gap-1 whitespace-nowrap rounded-fin border-0 px-1.5 py-[3px] font-[inherit] text-[11px] leading-[1.25] transition-colors",
               "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary",
-              customActive
+              customActive()
                 ? "bg-fin-primary/12 font-semibold text-fin-primary shadow-[inset_0_0_0_1px_var(--color-fin-primary)]"
                 : "font-medium text-fin-text-muted hover:bg-fin-surface hover:text-fin-text",
             )}
           >
             <IconPencil size={11} />
             Custom
-            {customCount > 0 ? (
+            <Show when={customSymbolCount() > 0}>
               <span
                 className={cn(
                   "text-[9.5px] font-medium tabular-nums",
-                  customActive ? "text-fin-primary" : "text-fin-text-muted",
+                  customActive() ? "text-fin-primary" : "text-fin-text-muted",
                 )}
               >
-                {formatNumberIN(customCount)}
+                {formatNumberIN(customSymbolCount())}
               </span>
-            ) : null}
+            </Show>
           </button>
         </Box>
 
-        {onPasteSymbols ? (
+        <Show when={props.onPasteSymbols}>
           <Tooltip label="Paste a comma or newline separated symbol list">
-            <ActionIcon
-              size="xs"
-              variant="outline"
+            <button
+              type="button"
               aria-label="Paste symbols"
               onClick={() => setPasteOpen(true)}
               data-testid="patterns-paste-symbols"
-              className="shrink-0"
+              className="inline-flex size-6 shrink-0 items-center justify-center rounded border border-fin-border bg-transparent text-fin-text-muted transition-colors hover:bg-fin-surface-alt hover:text-fin-text"
             >
               <IconClipboardText size={14} />
-            </ActionIcon>
+            </button>
           </Tooltip>
-        ) : null}
+        </Show>
 
         <Box
           className="ml-auto flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-1.5"
         >
           <Box
             data-testid="patterns-job-status-wrap"
-            data-visible={showStatus ? "true" : "false"}
-            className={cn("min-w-0", showStatus ? "flex" : "hidden")}
+            data-visible={showStatus() ? "true" : "false"}
+            className={cn("min-w-0", showStatus() ? "flex" : "hidden")}
           >
-            <JobStatus job={job} queuePosition={queuePosition} scanning={scanning} />
+            <JobStatus job={props.job} queuePosition={props.queuePosition} scanning={props.scanning} />
           </Box>
-          {scanActions}
-          <Button
-            size="xs"
-            variant="filled"
-            onClick={scan}
-            loading={scanning}
-            disabled={scanDisabled}
-            leftSection={scanning ? undefined : <IconPlayerPlay size={13} />}
+          {props.scanActions}
+          <button
+            type="button"
+            onClick={() => props.scan()}
+            disabled={scanDisabled()}
             data-testid="patterns-scan-again"
-            className="min-w-[96px] whitespace-nowrap"
+            className="inline-flex h-6 min-w-[96px] items-center justify-center gap-1 whitespace-nowrap rounded-fin border-0 bg-fin-primary px-2 text-xs font-semibold text-fin-bg transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {scanLabel}
-          </Button>
+            <Show when={props.scanning} fallback={<IconPlayerPlay size={13} />}>
+              <Spinner />
+            </Show>
+            {scanLabel()}
+          </button>
         </Box>
       </Box>
 
-      {actions ? (
+      <Show when={props.actions}>
         <Box
           className="mt-1 flex min-w-0 flex-col gap-0.5 border-t border-fin-border pt-1"
         >
-          {actions}
+          {props.actions}
         </Box>
-      ) : null}
+      </Show>
 
-      {error ? (
+      <Show when={props.error}>
         <Box
           role="alert"
           className="mt-1.5 flex items-center gap-1 rounded-fin border-l-[3px] border-fin-negative bg-fin-surface-alt px-1.5 py-[3px] text-fin-negative"
         >
           <IconAlertTriangle size={13} />
           <Text size="xs" c="error" data-testid="patterns-status-line">
-            {error}
+            {props.error}
           </Text>
         </Box>
-      ) : null}
+      </Show>
 
-      <Modal
-        opened={pasteOpen}
-        onClose={() => setPasteOpen(false)}
-        title="Paste symbols"
-        size="sm"
-      >
-        <Box className="flex flex-col gap-2">
-          <Text size="xs" c="dimmed">
-            Comma, space or newline separated. Duplicates are removed.
-          </Text>
-          <Textarea
-            value={pasteText}
-            onChange={setPasteText}
-            placeholder="ASIANPAINT, CIPLA, LT, NTPC…"
-            minRows={5}
-            autosize
-            autoFocus
-            data-testid="patterns-paste-symbols-input"
-          />
-          <Box className="flex justify-end gap-2">
-            <Button size="xs" variant="light" onClick={() => setPasteOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              size="xs"
-              variant="filled"
-              onClick={applyPaste}
-              disabled={!parsed.length}
-              data-testid="patterns-paste-symbols-apply"
-            >
-              Use {parsed.length || ""} symbol{parsed.length === 1 ? "" : "s"}
-            </Button>
-          </Box>
-        </Box>
-      </Modal>
+      <Show when={pasteOpen()}>
+        <div
+          data-testid="patterns-paste-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Paste symbols"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setPasteOpen(false);
+          }}
+        >
+          <div className="flex w-full max-w-md flex-col gap-2 rounded-fin border border-fin-border bg-fin-surface p-3 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <Text size="sm" fw={600}>
+                Paste symbols
+              </Text>
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={() => setPasteOpen(false)}
+                className="inline-flex size-6 items-center justify-center rounded text-fin-text-muted hover:bg-fin-surface-alt"
+              >
+                <IconX size={14} />
+              </button>
+            </div>
+            <Text size="xs" c="dimmed">
+              Comma, space or newline separated. Duplicates are removed.
+            </Text>
+            <Textarea
+              value={pasteText()}
+              onChange={setPasteText}
+              placeholder="ASIANPAINT, CIPLA, LT, NTPC…"
+              minRows={5}
+              autosize
+              autofocus
+              data-testid="patterns-paste-symbols-input"
+            />
+            <Box className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPasteOpen(false)}
+                className="inline-flex h-6 items-center rounded-fin px-2 text-xs text-fin-text transition-colors hover:bg-fin-surface-alt"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={applyPaste}
+                disabled={parsed().length === 0}
+                data-testid="patterns-paste-symbols-apply"
+                className="inline-flex h-6 items-center rounded-fin bg-fin-primary px-2 text-xs font-semibold text-fin-bg transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Use {parsed().length || ""} symbol{parsed().length === 1 ? "" : "s"}
+              </button>
+            </Box>
+          </div>
+        </div>
+      </Show>
     </Box>
   );
 }

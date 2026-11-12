@@ -94,7 +94,7 @@ export function RingProgress(props: UIRingProgressProps) {
       <Show when={known.label != null}>
         <div
           className="absolute inset-0 flex items-center justify-center pointer-events-none select-none"
-          style={{ fontSize: Math.max(10, size * 0.25), fontWeight: 600, color: palette.TEXT }}
+          style={{ "font-size": Math.max(10, size * 0.25), "font-weight": 600, color: palette.TEXT }}
         >
           {known.label}
         </div>

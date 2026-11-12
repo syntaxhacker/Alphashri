@@ -1,9 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { render, screen, waitFor, within, fireEvent } from "@solidjs/testing-library";
+import { MemoryRouter, Route, createMemoryHistory } from "@solidjs/router";
 import { OrderFlowPage } from "./OrderFlowPage";
 import { getBrokerStatus } from "@/api/brokers";
 import { getExpiries, getFyersSymbol, getOptionChain, getUnderlyings } from "@/api/upstoxOptions";
@@ -25,6 +24,24 @@ vi.mock("@/api/upstoxOptions", () => ({
   getOptionChain: vi.fn(),
   getFyersSymbol: vi.fn(),
 }));
+
+// @/ui's dynamic-tag layout primitives crash at runtime on this branch;
+// stub them with intrinsic elements (see src/pages/solidTestStubs.tsx).
+// @/ui's Popover is also broken on this branch (`uncontrolledOpen()` calls a
+// createSignal TUPLE — "uncontrolledOpen is not a function"), so stub it with
+// a bare pass-through; no test here opens the View dropdown.
+vi.mock("@/ui", async (importOriginal) => {
+  const { uiLayoutStub } = await import("@/pages/solidTestStubs");
+  const actual = await importOriginal<Record<string, unknown>>();
+  const stubbed = await uiLayoutStub(actual);
+  const passthrough = (props: any) => <div>{props.children}</div>;
+  return {
+    ...stubbed,
+    Popover: (props: any) => <div data-testid="orderflow-view-popover">{props.children}</div>,
+    PopoverTarget: passthrough,
+    PopoverDropdown: passthrough,
+  };
+});
 
 const mockStatus = vi.mocked(getBrokerStatus);
 const mockUnderlyings = vi.mocked(getUnderlyings);
@@ -80,14 +97,14 @@ async function iframeParams(): Promise<URLSearchParams> {
 
 /** useNavigate() needs a Router, so every render goes through one. */
 function renderPage(initialEntry = "/orderflow") {
-  return render(
-    <MemoryRouter initialEntries={[initialEntry]}>
-      <Routes>
-        <Route path="/orderflow" element={<OrderFlowPage />} />
-        <Route path="/settings" element={<div data-testid="settings-route" />} />
-      </Routes>
-    </MemoryRouter>,
-  );
+  const history = createMemoryHistory();
+  history.set({ value: initialEntry, replace: true });
+  return render(() => (
+    <MemoryRouter history={history}>
+      <Route path="/orderflow" component={OrderFlowPage} />
+      <Route path="/settings" component={() => <div data-testid="settings-route" />} />
+    </MemoryRouter>
+  ));
 }
 
 function postAuthError(broker = "fyers_tbt", message = "Fyers TBT session expired (403 Forbidden).") {
@@ -97,9 +114,7 @@ function postAuthError(broker = "fyers_tbt", message = "Fyers TBT session expire
 }
 
 async function switchToOptions() {
-  const user = userEvent.setup();
-  await user.click(within(screen.getByTestId("orderflow-mode")).getByRole("button", { name: "Options" }));
-  return user;
+  fireEvent.click(within(screen.getByTestId("orderflow-mode")).getByRole("button", { name: "Options" }));
 }
 
 describe("OrderFlowPage", () => {
@@ -116,13 +131,11 @@ describe("OrderFlowPage", () => {
   });
 
   test("connect reloads the iframe with the entered symbol", async () => {
-    const user = userEvent.setup();
     renderPage();
     await screen.findByTestId("orderflow-iframe");
 
-    await user.clear(screen.getByTestId("orderflow-symbol"));
-    await user.type(screen.getByTestId("orderflow-symbol"), "tcs");
-    await user.click(screen.getByTestId("orderflow-connect"));
+    fireEvent.input(screen.getByTestId("orderflow-symbol"), { target: { value: "tcs" } });
+    fireEvent.click(screen.getByTestId("orderflow-connect"));
 
     expect((await iframeParams()).get("symbol")).toBe("TCS");
   });
@@ -139,11 +152,10 @@ describe("OrderFlowPage", () => {
 
   test("disables autoconnect and offers broker connect for the Upstox feed when disconnected", async () => {
     mockStatus.mockResolvedValue({ connected: false, broker: "upstox", expires_in_hours: null, expires_at: null });
-    const user = userEvent.setup();
     renderPage();
     await screen.findByTestId("orderflow-iframe");
 
-    await user.selectOptions(within(screen.getByTestId("orderflow-broker")).getByRole("combobox"), "upstox");
+    fireEvent.input(within(screen.getByTestId("orderflow-broker")).getByRole("combobox"), { target: { value: "upstox" } });
 
     expect(await screen.findByTestId("orderflow-broker-warning")).toBeInTheDocument();
     expect(screen.getByTestId("orderflow-connect-broker")).toBeInTheDocument();
@@ -168,16 +180,16 @@ describe("OrderFlowPage", () => {
     renderPage();
     await screen.findByTestId("orderflow-iframe");
 
-    const user = await switchToOptions();
+    await switchToOptions();
     await waitFor(() =>
       expect(within(screen.getByTestId("orderflow-strike")).getByText("105")).toBeInTheDocument(),
     );
 
     // The Upstox feed streams the Upstox instrument key verbatim.
-    await user.selectOptions(within(screen.getByTestId("orderflow-broker")).getByRole("combobox"), "upstox");
+    fireEvent.input(within(screen.getByTestId("orderflow-broker")).getByRole("combobox"), { target: { value: "upstox" } });
 
-    await user.click(within(screen.getByTestId("orderflow-option-type")).getByRole("button", { name: "PE" }));
-    await user.click(screen.getByTestId("orderflow-use-contract"));
+    fireEvent.click(within(screen.getByTestId("orderflow-option-type")).getByRole("button", { name: "PE" }));
+    fireEvent.click(screen.getByTestId("orderflow-use-contract"));
 
     const params = await iframeParams();
     expect(params.get("symbol")).toBe("NSE_FO|PE|105");
@@ -212,24 +224,22 @@ describe("OrderFlowPage auth failures", () => {
   });
 
   test("routes to the settings page from the modal", async () => {
-    const user = userEvent.setup();
     renderPage();
     await screen.findByTestId("orderflow-iframe");
 
     postAuthError();
-    await user.click(await screen.findByTestId("orderflow-auth-error-settings"));
+    fireEvent.click(await screen.findByTestId("orderflow-auth-error-settings"));
 
     expect(await screen.findByTestId("settings-route")).toBeInTheDocument();
   });
 
   test("modal can be dismissed without navigating", async () => {
-    const user = userEvent.setup();
     renderPage();
     await screen.findByTestId("orderflow-iframe");
 
     postAuthError();
     await screen.findByTestId("orderflow-auth-error-modal");
-    await user.click(screen.getByTestId("orderflow-auth-error-retry"));
+    fireEvent.click(screen.getByTestId("orderflow-auth-error-retry"));
 
     await waitFor(() =>
       expect(screen.queryByTestId("orderflow-auth-error-modal")).not.toBeInTheDocument(),
@@ -265,12 +275,10 @@ describe("OrderFlowPage replay mode", () => {
       { file: "RELIANCE_2026-09-17.jsonl", day: "2026-09-17", symbol: "RELIANCE", broker: "fyers_tbt", bytes: 55 * 1048576, modified: 1 },
       { file: "fyers_tbt_TCS_2026-09-16.jsonl", day: "2026-09-16", symbol: "TCS", broker: "fyers_tbt", bytes: 8 * 1048576, modified: 2 },
     ]);
-
-    const user = userEvent.setup();
     renderPage();
     await screen.findByTestId("orderflow-iframe");
 
-    await user.click(within(screen.getByTestId("orderflow-mode")).getByRole("button", { name: "Replay" }));
+    fireEvent.click(within(screen.getByTestId("orderflow-mode")).getByRole("button", { name: "Replay" }));
     await screen.findByTestId("orderflow-replay-row");
 
     // newest day first, and the newest file is selected by default
@@ -287,24 +295,22 @@ describe("OrderFlowPage replay mode", () => {
     mockJournalFiles.mockResolvedValue([
       { file: "RELIANCE_2026-09-17.jsonl", day: "2026-09-17", symbol: "RELIANCE", broker: "fyers_tbt", bytes: 1, modified: 1 },
     ]);
-
-    const user = userEvent.setup();
     renderPage();
     await screen.findByTestId("orderflow-iframe");
-    await user.click(within(screen.getByTestId("orderflow-mode")).getByRole("button", { name: "Replay" }));
+    fireEvent.click(within(screen.getByTestId("orderflow-mode")).getByRole("button", { name: "Replay" }));
     await screen.findByTestId("orderflow-replay-row");
 
     // Regression: these inputs used to sit in the iframe-src dependencies, so
     // every keystroke navigated the iframe and fired a load for a half-typed
     // time ("1", "15") that the API rejects.
-    await user.type(screen.getByTestId("orderflow-replay-from"), "09:15");
-    await user.type(screen.getByTestId("orderflow-replay-to"), "15:15");
+    fireEvent.input(screen.getByTestId("orderflow-replay-from"), { target: { value: "09:15" } });
+    fireEvent.input(screen.getByTestId("orderflow-replay-to"), { target: { value: "15:15" } });
 
     let params = await iframeParams();
     expect(params.get("start")).toBeNull();
     expect(params.get("end")).toBeNull();
 
-    await user.click(screen.getByTestId("orderflow-replay-load"));
+    fireEvent.click(screen.getByTestId("orderflow-replay-load"));
 
     await waitFor(async () => {
       params = await iframeParams();
@@ -317,21 +323,19 @@ describe("OrderFlowPage replay mode", () => {
     mockJournalFiles.mockResolvedValue([
       { file: "RELIANCE_2026-09-17.jsonl", day: "2026-09-17", symbol: "RELIANCE", broker: "fyers_tbt", bytes: 1, modified: 1 },
     ]);
-    const user = userEvent.setup();
     renderPage();
     await screen.findByTestId("orderflow-iframe");
-    await user.click(within(screen.getByTestId("orderflow-mode")).getByRole("button", { name: "Replay" }));
+    fireEvent.click(within(screen.getByTestId("orderflow-mode")).getByRole("button", { name: "Replay" }));
     await screen.findByTestId("orderflow-replay-row");
 
-    await user.type(screen.getByTestId("orderflow-replay-from"), "915");     // -> 09:15
-    await user.type(screen.getByTestId("orderflow-replay-to"), "9.5");       // -> 09:05
+    fireEvent.input(screen.getByTestId("orderflow-replay-from"), { target: { value: "915" } });     // -> 09:15
+    fireEvent.input(screen.getByTestId("orderflow-replay-to"), { target: { value: "9.5" } });       // -> 09:05
     // 9.5 is earlier than 09:15, so this is a range error, not a load
-    await user.click(screen.getByTestId("orderflow-replay-load"));
+    fireEvent.click(screen.getByTestId("orderflow-replay-load"));
     expect(await screen.findByTestId("orderflow-replay-error")).toHaveTextContent("earlier than To");
 
-    await user.clear(screen.getByTestId("orderflow-replay-to"));
-    await user.type(screen.getByTestId("orderflow-replay-to"), "1505");      // -> 15:05
-    await user.click(screen.getByTestId("orderflow-replay-load"));
+    fireEvent.input(screen.getByTestId("orderflow-replay-to"), { target: { value: "1505" } });      // -> 15:05
+    fireEvent.click(screen.getByTestId("orderflow-replay-load"));
 
     await waitFor(async () => {
       const params = await iframeParams();
@@ -344,14 +348,13 @@ describe("OrderFlowPage replay mode", () => {
     mockJournalFiles.mockResolvedValue([
       { file: "RELIANCE_2026-09-17.jsonl", day: "2026-09-17", symbol: "RELIANCE", broker: "fyers_tbt", bytes: 1, modified: 1 },
     ]);
-    const user = userEvent.setup();
     renderPage();
     await screen.findByTestId("orderflow-iframe");
-    await user.click(within(screen.getByTestId("orderflow-mode")).getByRole("button", { name: "Replay" }));
+    fireEvent.click(within(screen.getByTestId("orderflow-mode")).getByRole("button", { name: "Replay" }));
     await screen.findByTestId("orderflow-replay-row");
 
-    await user.type(screen.getByTestId("orderflow-replay-from"), "abc");
-    await user.click(screen.getByTestId("orderflow-replay-load"));
+    fireEvent.input(screen.getByTestId("orderflow-replay-from"), { target: { value: "abc" } });
+    fireEvent.click(screen.getByTestId("orderflow-replay-load"));
 
     expect(await screen.findByTestId("orderflow-replay-error")).toHaveTextContent("must be HH:MM");
     const params = await iframeParams();
@@ -360,11 +363,10 @@ describe("OrderFlowPage replay mode", () => {
 
   test("surfaces a journal listing failure", async () => {
     mockJournalFiles.mockRejectedValue(new Error("journal listing failed"));
-    const user = userEvent.setup();
     renderPage();
     await screen.findByTestId("orderflow-iframe");
 
-    await user.click(within(screen.getByTestId("orderflow-mode")).getByRole("button", { name: "Replay" }));
+    fireEvent.click(within(screen.getByTestId("orderflow-mode")).getByRole("button", { name: "Replay" }));
     expect(await screen.findByTestId("orderflow-replay-error")).toHaveTextContent("journal listing failed");
   });
 

@@ -45,8 +45,8 @@ export function Loader(props: UILoaderProps) {
         height: dim,
         color: col,
         display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
+        "align-items": "center",
+        "justify-content": "center",
         ...known.style,
       }}
     >

@@ -257,7 +257,7 @@ export function SectorHeatmapView(props: SectorHeatmapViewProps) {
         </Show>
       </Box>
       <Box className="flex min-h-0 w-full flex-1" data-testid="sector-heatmap-chart">
-        <div ref={(el) => (chartEl = el)} class="h-full w-full" style={{ minWidth: 0 }} />
+        <div ref={(el) => (chartEl = el)} class="h-full w-full" style={{ "min-width": 0 }} />
       </Box>
     </Box>
   );

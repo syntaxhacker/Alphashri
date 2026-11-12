@@ -131,8 +131,7 @@ export function Select(props: UISelectProps) {
       <select
         id={inputId}
         name={known.name as string | undefined}
-        value={isControlled ? String(known.value ?? "") : undefined}
-        defaultValue={isControlled ? undefined : known.defaultValue != null ? String(known.defaultValue) : undefined}
+        value={isControlled ? String(known.value ?? "") : known.defaultValue != null ? String(known.defaultValue) : undefined}
         onInput={handleChange}
         disabled={known.disabled}
         required={known.required}

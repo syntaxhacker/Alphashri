@@ -108,8 +108,8 @@ export function Badge(props: UIBadgeProps) {
         known.className
       )}
       style={{
-        borderRadius: br,
-        backgroundColor: bg,
+        "border-radius": br,
+        "background-color": bg,
         border: borderColor ? `1px solid ${borderColor}` : undefined,
         color: textColor,
         ...known.style,

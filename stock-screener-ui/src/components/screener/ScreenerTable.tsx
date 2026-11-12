@@ -106,7 +106,7 @@ export function ScreenerTable(props: ScreenerTableProps) {
                         variant="subtle"
                         color={copied ? "info" : "secondary"}
                         size="xs"
-                        style={{ width: 16, height: 16, minHeight: 16, padding: 0 }}
+                        style={{ width: 16, height: 16, "min-height": 16, padding: 0 }}
                         onClick={(e: MouseEvent) => { e.stopPropagation(); copy(); }}
                         data-testid="copy-all-symbols-btn"
                       >
@@ -176,7 +176,7 @@ export function ScreenerTable(props: ScreenerTableProps) {
                       variant="subtle"
                       color={copied ? "info" : "secondary"}
                       size="xs"
-                      style={{ width: 16, height: 16, minHeight: 16, padding: 0 }}
+                      style={{ width: 16, height: 16, "min-height": 16, padding: 0 }}
                       onClick={(e: MouseEvent) => { e.stopPropagation(); copy(); }}
                       data-testid={`copy-symbol-btn-${stock.symbol}`}
                     >

@@ -3,11 +3,12 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, render, screen, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
+import type { JSX } from "solid-js";
 import { SymbolLink } from "./SymbolLink";
 import { SymbolDockContext } from "./symbolDockContext";
 
 function r(jsx: JSX.Element) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
+  return render(() => <UIProvider>{jsx}</UIProvider>);
 }
 
 describe("SymbolLink", () => {
@@ -72,7 +73,7 @@ describe("SymbolLink", () => {
       />,
     );
     await fireEvent.mouseEnter(screen.getByTestId("sym-tv-wrap"));
-    expect(onPreview).toHaveBeenCalledWith("SBIN");
+    expect(onPreview).toHaveBeenCalledWith("SBIN", expect.any(MouseEvent));
     await fireEvent.mouseLeave(screen.getByTestId("sym-tv-wrap"));
     expect(onPreviewEnd).toHaveBeenCalledWith("SBIN");
   });

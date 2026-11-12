@@ -6,12 +6,13 @@ interface SideBadgeProps {
   "data-testid"?: string;
 }
 
-export function SideBadge({ side, dataTestid: testId }: SideBadgeProps) {
-  const isBuy = side.toUpperCase() === "BUY" || side.toUpperCase() === "LONG";
-  const arrow = side.toUpperCase() === "BUY" ? "▲" : side.toUpperCase() === "SELL" ? "▼" : "";
+export function SideBadge(props: SideBadgeProps) {
+  const side = () => props.side;
+  const isBuy = () => side().toUpperCase() === "BUY" || side().toUpperCase() === "LONG";
+  const arrow = () => (side().toUpperCase() === "BUY" ? "▲" : side().toUpperCase() === "SELL" ? "▼" : "");
   return (
-    <Badge color={isBuy ? "success" : "error"} variant="filled" size="sm" data-testid={testId}>
-      {arrow} {side.toUpperCase()}
+    <Badge color={isBuy() ? "success" : "error"} variant="filled" size="sm" data-testid={props["data-testid"]}>
+      {arrow()} {side().toUpperCase()}
     </Badge>
   );
 }
@@ -22,43 +23,43 @@ interface ExitReasonBadgeProps {
   "data-testid"?: string;
 }
 
-export function ExitReasonBadge({
-  reason,
-  size = "sm",
-  dataTestid: testId,
-}: ExitReasonBadgeProps) {
+export function ExitReasonBadge(props: ExitReasonBadgeProps) {
+  const reason = () => props.reason;
+  const size = () => props.size ?? "sm";
   let color: string = "secondary";
-  const r = (reason || "").toLowerCase().trim();
-  if (r === "tp" || r === "target") color = "success";
-  else if (r === "sl" || r === "stop_loss" || r.includes("stop loss")) color = "error";
-  else if (r === "trailing_stop" || r === "trailing stop" || r.includes("trailing")) color = "warning";
-  else if (r === "force_close" || r === "force close" || r === "forceclose") color = "secondary";
-  else if (r === "max_holding" || r === "max holding" || r.includes("max holding")) color = "warning";
-  else if (r === "new_52w_high" || r === "new 52w" || r.includes("52w")) color = "info";
-  else if (r === "eod" || r === "manual_close" || r === "manual") color = "secondary";
-  else if (r.startsWith("stop loss hit") || r.startsWith("take profit")) color = r.includes("stop") ? "error" : "success";
+  const r = () => (reason() || "").toLowerCase().trim();
+  const ladder = r();
+  if (ladder === "tp" || ladder === "target") color = "success";
+  else if (ladder === "sl" || ladder === "stop_loss" || ladder.includes("stop loss")) color = "error";
+  else if (ladder === "trailing_stop" || ladder === "trailing stop" || ladder.includes("trailing")) color = "warning";
+  else if (ladder === "force_close" || ladder === "force close" || ladder === "forceclose") color = "secondary";
+  else if (ladder === "max_holding" || ladder === "max holding" || ladder.includes("max holding")) color = "warning";
+  else if (ladder === "new_52w_high" || ladder === "new 52w" || ladder.includes("52w")) color = "info";
+  else if (ladder === "eod" || ladder === "manual_close" || ladder === "manual") color = "secondary";
+  else if (ladder.startsWith("stop loss hit") || ladder.startsWith("take profit")) color = ladder.includes("stop") ? "error" : "success";
 
+  const rr = r();
   const label =
-    r === "tp"
+    rr === "tp"
       ? "TP"
-      : r === "sl"
+      : rr === "sl"
         ? "SL"
-        : r === "stop_loss"
+        : rr === "stop_loss"
           ? "SL"
-          : r === "target"
+          : rr === "target"
             ? "Target"
-            : r === "trailing_stop" || r === "trailing stop"
+            : rr === "trailing_stop" || rr === "trailing stop"
               ? "Trail"
-              : r === "force_close" || r === "force close"
+              : rr === "force_close" || rr === "force close"
                 ? "Force"
-                : r === "max_holding" || r === "max holding"
+                : rr === "max_holding" || rr === "max holding"
                   ? "Max Hold"
-                  : r === "new_52w_high"
+                  : rr === "new_52w_high"
                     ? "52W High"
-                    : reason;
+                    : reason();
 
   return (
-    <Badge color={color} variant="filled" size={size} data-testid={testId}>
+    <Badge color={color} variant="filled" size={size()} data-testid={props["data-testid"]}>
       {label}
     </Badge>
   );
@@ -80,16 +81,18 @@ interface StatusBadgeProps {
   "data-testid"?: string;
 }
 
-export function StatusBadge({ running, pid, statusUnknown, size = "sm", dataTestid: testId }: StatusBadgeProps) {
+export function StatusBadge(props: StatusBadgeProps) {
+  const running = () => props.running;
+  const statusUnknown = () => props.statusUnknown;
   return (
     <Badge
-      color={running ? "success" : statusUnknown ? "warning" : "error"}
+      color={running() ? "success" : statusUnknown() ? "warning" : "error"}
       variant="filled"
-      size={size}
-      data-testid={testId}
+      size={props.size ?? "sm"}
+      data-testid={props["data-testid"]}
     >
-      {running ? "RUNNING" : statusUnknown ? "UNKNOWN" : "STOPPED"}
-      {pid != null ? ` #${pid}` : null}
+      {running() ? "RUNNING" : statusUnknown() ? "UNKNOWN" : "STOPPED"}
+      {props.pid != null ? ` #${props.pid}` : null}
     </Badge>
   );
 }

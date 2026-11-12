@@ -49,7 +49,6 @@ export function ScreenerNav(props: ScreenerNavProps) {
           active() ? "bg-fin-surface-alt" : "",
         )}
         onClick={() => props.onChange(option.id)}
-        aria-label={option.description}
       >
         <ScreenerNavLabel option={option} />
       </button>

@@ -1,6 +1,6 @@
-import { useRef, useEffect, useMemo, useCallback, useState } from "react";
+import { createSignal, createMemo, createEffect } from "solid-js";
 import { Text, Select, ScrollArea, Badge, Anchor } from "@/ui";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { TableColumnDef } from "../paper-trading/TanStackTable";
 import {
   getPnLTextColor,
   formatTimeOnly,
@@ -47,183 +47,171 @@ function formatHoldDuration(entryTime: string, exitTime: string): string {
   }
 }
 
-export function ReplayTradeLog({
-  trades,
-  strategyFilter,
-  setStrategyFilter,
-  isRunning,
-  highlightedTradeId,
-  onTradeClick,
-}: ReplayTradeLogProps) {
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const [symbolFilter, setSymbolFilter] = useState("ALL");
+export function ReplayTradeLog(props: ReplayTradeLogProps) {
+  let bottomRef: HTMLDivElement | undefined;
+  const [symbolFilter, setSymbolFilter] = createSignal("ALL");
 
-  const strategyOptions = useMemo(() => {
-    const names = new Set(trades.map((t) => t.strategy));
+  const strategyOptions = createMemo(() => {
+    const names = new Set(props.trades.map((t) => t.strategy));
     return [
       { value: "ALL", label: "All Strategies" },
       ...Array.from(names).sort().map((name) => ({ value: name, label: name })),
     ];
-  }, [trades]);
+  });
 
-  const symbolOptions = useMemo(() => {
-    const symbols = new Set(trades.map((t) => t.symbol));
+  const symbolOptions = createMemo(() => {
+    const symbols = new Set(props.trades.map((t) => t.symbol));
     return [
       { value: "ALL", label: "All Symbols" },
       ...Array.from(symbols).sort().map((s) => ({ value: s, label: s })),
     ];
-  }, [trades]);
+  });
 
-  const filteredTrades = useMemo(() => {
+  const filteredTrades = createMemo(() => {
     let result =
-      strategyFilter === "ALL" ? trades : trades.filter((t) => t.strategy === strategyFilter);
-    if (symbolFilter !== "ALL") {
-      result = result.filter((t) => t.symbol === symbolFilter);
+      props.strategyFilter === "ALL" ? props.trades : props.trades.filter((t) => t.strategy === props.strategyFilter);
+    if (symbolFilter() !== "ALL") {
+      result = result.filter((t) => t.symbol === symbolFilter());
     }
     return result;
-  }, [trades, strategyFilter, symbolFilter]);
+  });
 
-  useEffect(() => {
-    if (isRunning && bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+  createEffect(() => {
+    const running = props.isRunning;
+    const count = filteredTrades().length;
+    void count;
+    if (running && bottomRef) {
+      bottomRef.scrollIntoView({ behavior: "smooth", block: "end" });
     }
-  }, [filteredTrades.length, isRunning]);
+  });
 
-  const handleRowClick = useCallback(
-    (trade: ReplayTrade) => {
-      if (onTradeClick) {
-        onTradeClick(trade);
-      }
+  const handleRowClick = (trade: ReplayTrade) => {
+    props.onTradeClick?.(trade);
+  };
+
+  const columns = createMemo<TableColumnDef<ReplayTrade>[]>(() => [
+    {
+      id: "index",
+      header: "#",
+      meta: { align: "right" },
+      enableSorting: false,
+      cell: ({ row }) => <Text size="xs" c="dimmed">{row.index + 1}</Text>,
     },
-    [onTradeClick],
-  );
-
-  const columns = useMemo<ColumnDef<ReplayTrade>[]>(
-    () => [
-      {
-        id: "index",
-        header: "#",
-        meta: { align: "right" },
-        enableSorting: false,
-        cell: ({ row }) => <Text size="xs" c="dimmed">{row.index + 1}</Text>,
-      },
-      {
-        id: "symbol",
-        header: "Symbol",
-        accessorKey: "symbol",
-        meta: { align: "left" },
-        cell: ({ row }) => <Text size="xs" fw={500}>{row.original.symbol}</Text>,
-      },
-      {
-        id: "side",
-        header: "Side",
-        accessorKey: "side",
-        meta: { align: "center" },
-        cell: ({ row }) => <SideBadge side={row.original.side} size="xs" />,
-      },
-      {
-        id: "quantity",
-        header: "Qty",
-        accessorKey: "quantity",
-        meta: { align: "right" },
-        enableSorting: false,
-        cell: ({ row }) => <Text size="xs" ta="center">{row.original.quantity}</Text>,
-      },
-      {
-        id: "entry_time",
-        header: "Entry Time",
-        accessorKey: "entry_time",
-        meta: { align: "left" },
-        cell: ({ row }) => <Text size="xs">{formatTimeOnly(row.original.entry_time)}</Text>,
-      },
-      {
-        id: "exit_time",
-        header: "Exit Time",
-        accessorKey: "exit_time",
-        meta: { align: "left" },
-        cell: ({ row }) => <Text size="xs">{row.original.exit_time ? formatTimeOnly(row.original.exit_time) : "-"}</Text>,
-      },
-      {
-        id: "hold",
-        header: "Hold",
-        meta: { align: "right" },
-        enableSorting: false,
-        cell: ({ row }) => (
-          <Text size="xs" c="dimmed">
-            {formatHoldDuration(row.original.entry_time, row.original.exit_time)}
-          </Text>
-        ),
-      },
-      {
-        id: "entry_price",
-        header: "Entry Price",
-        accessorKey: "entry_price",
-        meta: { align: "right" },
-        enableSorting: false,
-        cell: ({ row }) => <Text size="xs" ta="right">{row.original.entry_price.toFixed(2)}</Text>,
-      },
-      {
-        id: "exit_price",
-        header: "Exit Price",
-        accessorKey: "exit_price",
-        meta: { align: "right" },
-        enableSorting: false,
-        cell: ({ row }) => <Text size="xs" ta="right">{row.original.exit_price.toFixed(2)}</Text>,
-      },
-      {
-        id: "pnl",
-        header: "P&L",
-        accessorKey: "pnl",
-        meta: { align: "right" },
-        cell: ({ row }) => (
-          <Text size="xs" fw={500} c={getPnLTextColor(row.original.pnl)} ta="right">
-            {row.original.pnl >= 0 ? "+" : ""}
-            {row.original.pnl.toFixed(2)}
-          </Text>
-        ),
-      },
-      {
-        id: "net_pnl",
-        header: "Net",
-        accessorKey: "net_pnl",
-        meta: { align: "right" },
-        cell: ({ row }) => (
-          <Text size="xs" fw={500} c={getPnLTextColor(row.original.net_pnl)} ta="right">
-            {row.original.net_pnl >= 0 ? "+" : ""}
-            {row.original.net_pnl.toFixed(2)}
-          </Text>
-        ),
-      },
-      {
-        id: "strategy",
-        header: "Strategy",
-        meta: { align: "left" },
-        enableSorting: false,
-        cell: ({ row }) => (
-          <Anchor
-            component="button"
-            size="xs"
-            onClick={() => setStrategyFilter(row.original.strategy)}
-            data-testid={`replay-trade-strategy-link-${row.original.id}`}
-          >
-            {row.original.strategy}
-          </Anchor>
-        ),
-      },
-      {
-        id: "exit_reason",
-        header: "Reason",
-        meta: { align: "center" },
-        enableSorting: false,
-        cell: ({ row }) => (
-          <Badge size="xs" color={getExitBadgeColor(row.original.exit_reason)} variant="filled">
-            {row.original.exit_reason}
-          </Badge>
-        ),
-      },
-    ],
-    [setStrategyFilter],
-  );
+    {
+      id: "symbol",
+      header: "Symbol",
+      accessorKey: "symbol",
+      meta: { align: "left" },
+      cell: ({ row }) => <Text size="xs" fw={500}>{row.original.symbol}</Text>,
+    },
+    {
+      id: "side",
+      header: "Side",
+      accessorKey: "side",
+      meta: { align: "center" },
+      cell: ({ row }) => <SideBadge side={row.original.side} size="xs" />,
+    },
+    {
+      id: "quantity",
+      header: "Qty",
+      accessorKey: "quantity",
+      meta: { align: "right" },
+      enableSorting: false,
+      cell: ({ row }) => <Text size="xs" ta="center" className="font-mono tabular-nums">{row.original.quantity}</Text>,
+    },
+    {
+      id: "entry_time",
+      header: "Entry Time",
+      accessorKey: "entry_time",
+      meta: { align: "left" },
+      cell: ({ row }) => <Text size="xs" className="font-mono tabular-nums">{formatTimeOnly(row.original.entry_time)}</Text>,
+    },
+    {
+      id: "exit_time",
+      header: "Exit Time",
+      accessorKey: "exit_time",
+      meta: { align: "left" },
+      cell: ({ row }) => <Text size="xs" className="font-mono tabular-nums">{row.original.exit_time ? formatTimeOnly(row.original.exit_time) : "-"}</Text>,
+    },
+    {
+      id: "hold",
+      header: "Hold",
+      meta: { align: "right" },
+      enableSorting: false,
+      cell: ({ row }) => (
+        <Text size="xs" c="dimmed" className="font-mono tabular-nums">
+          {formatHoldDuration(row.original.entry_time, row.original.exit_time)}
+        </Text>
+      ),
+    },
+    {
+      id: "entry_price",
+      header: "Entry Price",
+      accessorKey: "entry_price",
+      meta: { align: "right" },
+      enableSorting: false,
+      cell: ({ row }) => <Text size="xs" ta="right" className="font-mono tabular-nums">{row.original.entry_price.toFixed(2)}</Text>,
+    },
+    {
+      id: "exit_price",
+      header: "Exit Price",
+      accessorKey: "exit_price",
+      meta: { align: "right" },
+      enableSorting: false,
+      cell: ({ row }) => <Text size="xs" ta="right" className="font-mono tabular-nums">{row.original.exit_price.toFixed(2)}</Text>,
+    },
+    {
+      id: "pnl",
+      header: "P&L",
+      accessorKey: "pnl",
+      meta: { align: "right" },
+      cell: ({ row }) => (
+        <Text size="xs" fw={500} c={getPnLTextColor(row.original.pnl)} ta="right" className="font-mono tabular-nums">
+          {row.original.pnl >= 0 ? "+" : ""}
+          {row.original.pnl.toFixed(2)}
+        </Text>
+      ),
+    },
+    {
+      id: "net_pnl",
+      header: "Net",
+      accessorKey: "net_pnl",
+      meta: { align: "right" },
+      cell: ({ row }) => (
+        <Text size="xs" fw={500} c={getPnLTextColor(row.original.net_pnl)} ta="right" className="font-mono tabular-nums">
+          {row.original.net_pnl >= 0 ? "+" : ""}
+          {row.original.net_pnl.toFixed(2)}
+        </Text>
+      ),
+    },
+    {
+      id: "strategy",
+      header: "Strategy",
+      meta: { align: "left" },
+      enableSorting: false,
+      cell: ({ row }) => (
+        <Anchor
+          component="button"
+          size="xs"
+          onClick={() => props.setStrategyFilter(row.original.strategy)}
+          data-testid={`replay-trade-strategy-link-${row.original.id}`}
+        >
+          {row.original.strategy}
+        </Anchor>
+      ),
+    },
+    {
+      id: "exit_reason",
+      header: "Reason",
+      meta: { align: "center" },
+      enableSorting: false,
+      cell: ({ row }) => (
+        <Badge size="xs" color={getExitBadgeColor(row.original.exit_reason)} variant="filled">
+          {row.original.exit_reason}
+        </Badge>
+      ),
+    },
+  ]);
 
   return (
     <Box
@@ -235,46 +223,46 @@ export function ReplayTradeLog({
         <Select
           size="xs"
           w={160}
-          data={strategyOptions}
-          value={strategyFilter}
-          onChange={(v) => setStrategyFilter(v ?? "ALL")}
+          data={strategyOptions()}
+          value={props.strategyFilter}
+          onChange={(v) => props.setStrategyFilter(v ?? "ALL")}
           allowDeselect={false}
           data-testid="replay-trade-log-strategy-filter"
         />
         <Select
           size="xs"
           w={130}
-          data={symbolOptions}
-          value={symbolFilter}
+          data={symbolOptions()}
+          value={symbolFilter()}
           onChange={(v) => setSymbolFilter(v ?? "ALL")}
           allowDeselect={false}
           data-testid="replay-trade-log-symbol-filter"
         />
-        <Text size="xs" c="dimmed">
-          {filteredTrades.length} trade{filteredTrades.length !== 1 ? "s" : ""}
+        <Text size="xs" c="dimmed" className="font-mono tabular-nums">
+          {filteredTrades().length} trade{filteredTrades().length !== 1 ? "s" : ""}
         </Text>
       </Group>
 
       <ScrollArea style={{ flex: 1 }} h="100%">
         <TanStackTable<ReplayTrade>
-          data={filteredTrades}
-          columns={columns}
+          data={filteredTrades()}
+          columns={columns()}
           dataTestId="replay-trade-log-table"
           emptyMessage="No trades yet"
           getRowStyle={(row) => ({
-            cursor: onTradeClick ? "pointer" : undefined,
+            cursor: props.onTradeClick ? "pointer" : undefined,
             backgroundColor:
-              highlightedTradeId === row.id
+              props.highlightedTradeId === row.id
                 ? alpha(palette.PRIMARY, 0.10)
                 : undefined,
           })}
           getRowClassName={(row) =>
-            highlightedTradeId === row.id ? "trade-row-highlighted" : ""
+            props.highlightedTradeId === row.id ? "trade-row-highlighted" : ""
           }
           getRowTestId={(row) => `replay-trade-row-${row.id}`}
           stickyHeader
           dense
-          onRowClick={onTradeClick ? handleRowClick : undefined}
+          onRowClick={props.onTradeClick ? handleRowClick : undefined}
         />
         <div ref={bottomRef} />
       </ScrollArea>

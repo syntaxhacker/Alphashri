@@ -223,9 +223,9 @@ export function RotationTab(props: { market: "india" | "america" }) {
         className="overflow-x-auto overflow-y-hidden"
         style={{
           padding: "0 10px",
-          minHeight: 34,
+          "min-height": 34,
           height: 34,
-          borderBottom: "1px solid var(--color-fin-border)",
+          "border-bottom": "1px solid var(--color-fin-border)",
           flexShrink: 0,
         }}
       >
@@ -328,7 +328,7 @@ export function RotationTab(props: { market: "india" | "america" }) {
             <Box className="flex items-center gap-1">
               <Box
                 className="size-[6px] rounded-full shrink-0"
-                style={{ backgroundColor: regimeTone(regimeAcc().label) }}
+                style={{ "background-color": regimeTone(regimeAcc().label) }}
               />
               <Text
                 fw={700}
@@ -345,7 +345,7 @@ export function RotationTab(props: { market: "india" | "america" }) {
                   <Box className="flex items-center gap-1">
                     <Box
                       className="size-[5px] rounded-full shrink-0"
-                      style={{ backgroundColor: ROTATION_STATUS_COLORS_PANEL[status] }}
+                      style={{ "background-color": ROTATION_STATUS_COLORS_PANEL[status] }}
                     />
                     <Text c="dimmed" className="text-[9.5px] font-bold tracking-[0.3px]">
                       {ROTATION_STATUS_LABELS[status].short}

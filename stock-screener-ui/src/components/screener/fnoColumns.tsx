@@ -122,7 +122,7 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
               size="xs"
               color={setupTone(r.setup)}
               data-testid={`fno-cell-setup-${r.symbol}`}
-              style={{ whiteSpace: "nowrap", fontSize: 9 }}
+              style={{ "white-space": "nowrap", "font-size": 9 }}
             >
               {setupShort(r.setup)}
             </Badge>

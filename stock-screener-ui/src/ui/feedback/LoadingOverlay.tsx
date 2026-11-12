@@ -45,14 +45,14 @@ export function LoadingOverlay(props: UILoadingOverlayProps) {
         id={known.id}
         className={cn("inset-0 z-10 flex items-center justify-center", known.overlayProps?.fixed ? "fixed" : "absolute", known.className)}
         style={{
-          zIndex: known.zIndex,
-          backgroundColor: resolveColor(known.overlayProps?.color),
+          "z-index": known.zIndex,
+          "background-color": resolveColor(known.overlayProps?.color),
           opacity: known.overlayProps?.opacity,
           backdropFilter:
             known.overlayProps?.blur != null
               ? `blur(${typeof known.overlayProps.blur === "number" ? `${known.overlayProps.blur}px` : known.overlayProps.blur})`
               : undefined,
-          borderRadius: "inherit",
+          "border-radius": "inherit",
           ...known.style,
         }}
         {...rest}

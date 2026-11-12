@@ -60,19 +60,17 @@ describe("ScreenerStockView", () => {
     expect(screen.queryByTestId("screener-heatmap-approaching")).not.toBeInTheDocument();
   });
 
-  it("passes data-testid with section suffix for both views", () => {
-    const { rerender } = render(() => (
+  it("passes data-testid with section suffix for both views", async () => {
+    const { createSignal } = await import("solid-js");
+    const [viewMode, setViewMode] = createSignal<"table" | "heatmap">("table");
+    render(() => (
       <UIProvider>
-        <ScreenerStockView {...defaultProps} viewMode="table" section="touched" />
+        <ScreenerStockView {...defaultProps} viewMode={viewMode()} section="touched" />
       </UIProvider>
     ));
     expect(screen.getByTestId("screener-table-touched")).toBeInTheDocument();
 
-    rerender(() => (
-      <UIProvider>
-        <ScreenerStockView {...defaultProps} viewMode="heatmap" section="touched" />
-      </UIProvider>
-    ));
+    setViewMode("heatmap");
     expect(screen.getByTestId("screener-heatmap-touched")).toBeInTheDocument();
   });
 });

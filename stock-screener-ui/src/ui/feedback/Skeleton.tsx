@@ -41,7 +41,7 @@ export function Skeleton(props: UISkeletonProps) {
         known.circle ? "rounded-full" : br ? undefined : "rounded-fin",
         known.className,
       )}
-      style={{ height: hh, width: ww, borderRadius: br, backgroundColor: palette.BORDER, ...known.style }}
+      style={{ height: hh, width: ww, "border-radius": br, "background-color": palette.BORDER, ...known.style }}
     >
       {known.children}
     </div>

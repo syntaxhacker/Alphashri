@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
-import { BrowserRouter } from "react-router-dom";
+import { Router } from "@solidjs/router";
 import { UIProvider } from "@/ui";
 import { PreviewChartProvider, usePreviewChart } from "./PreviewChartProvider";
 
@@ -65,14 +65,17 @@ function TestConsumer() {
 }
 
 function renderWithProvider() {
-  return render(() => (<BrowserRouter>
-      <UIProvider>
-        <PreviewChartProvider>
-          <TestConsumer />
-        </PreviewChartProvider>
-      </UIProvider>
-    </BrowserRouter>),
-  );
+  return render(() => (
+    <Router
+      root={() => (
+        <UIProvider>
+          <PreviewChartProvider>
+            <TestConsumer />
+          </PreviewChartProvider>
+        </UIProvider>
+      )}
+    />
+  ));
 }
 
 function getButtons() {
@@ -98,9 +101,7 @@ describe("PreviewChartProvider", () => {
     const { hover } = getButtons();
     await fireEvent.click(hover);
 
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 400));
-    });
+    await new Promise((r) => setTimeout(r, 400));
 
     expect(document.querySelector('[data-testid="preview-chart-hover"]')).toBeInTheDocument();
   });
@@ -109,9 +110,7 @@ describe("PreviewChartProvider", () => {
           renderWithProvider();
     const { hover, hide } = getButtons();
     await fireEvent.click(hover);
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 400));
-    });
+    await new Promise((r) => setTimeout(r, 400));
 
     await fireEvent.click(hide);
 
@@ -123,9 +122,7 @@ describe("PreviewChartProvider", () => {
     const { expand } = getButtons();
     await fireEvent.click(expand);
 
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 100));
-    });
+    await new Promise((r) => setTimeout(r, 100));
 
     expect(document.querySelector('[data-testid="preview-chart-expanded"]')).toBeInTheDocument();
   });
@@ -134,9 +131,7 @@ describe("PreviewChartProvider", () => {
           renderWithProvider();
     const { expand, collapse } = getButtons();
     await fireEvent.click(expand);
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 100));
-    });
+    await new Promise((r) => setTimeout(r, 100));
 
     await fireEvent.click(collapse);
 
@@ -147,15 +142,11 @@ describe("PreviewChartProvider", () => {
           renderWithProvider();
     const { expand } = getButtons();
     await fireEvent.click(expand);
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 100));
-    });
+    await new Promise((r) => setTimeout(r, 100));
     expect(document.querySelector('[data-testid="preview-chart-expanded"]')).toBeInTheDocument();
 
     await fireEvent.click(expand);
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 100));
-    });
+    await new Promise((r) => setTimeout(r, 100));
     expect(document.querySelector('[data-testid="preview-chart-expanded"]')).toBeNull();
   });
 });

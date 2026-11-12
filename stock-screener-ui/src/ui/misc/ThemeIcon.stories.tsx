@@ -25,7 +25,7 @@ export const Variants: Story = {
       <ThemeIcon variant="filled"><IconCheck size={16} /></ThemeIcon>
       <ThemeIcon variant="light" color="info"><IconCheck size={16} /></ThemeIcon>
       <ThemeIcon variant="outline" color="primary"><IconCheck size={16} /></ThemeIcon>
-      <ThemeIcon variant="default"><span style={{ fontSize: 12 }}>A</span></ThemeIcon>
+      <ThemeIcon variant="default"><span style={{ "font-size": 12 }}>A</span></ThemeIcon>
     </Group>
   ),
 };
@@ -70,6 +70,6 @@ export const LetterChild: Story = {
     size: "lg",
     radius: "xl",
     color: "grape",
-    children: <strong style={{ fontSize: 16 }}>α</strong>,
+    children: <strong style={{ "font-size": 16 }}>α</strong>,
   },
 };
