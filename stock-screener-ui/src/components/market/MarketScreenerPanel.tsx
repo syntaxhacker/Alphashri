@@ -496,7 +496,7 @@ export function MarketScreenerPanel() {
         <Box
           data-testid="market-filter-drawer"
           className="fixed inset-0 z-50 flex"
-          style={{ zIndex: 1050 }}
+          style={{ "z-index": 1050 }}
           onClick={() => setDrawerOpen(false)}
         >
           <Box

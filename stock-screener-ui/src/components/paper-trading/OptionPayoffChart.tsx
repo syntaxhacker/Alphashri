@@ -193,7 +193,7 @@ function Stat(props: { label: string; value: string; tone?: "pos" | "neg" }) {
   const color = () => props.tone === "pos" ? POSITIVE : props.tone === "neg" ? NEGATIVE : undefined;
   return (
     <div class="flex flex-col min-w-0">
-      <Text size="xs" c="dimmed" className="uppercase" style={{ fontSize: 9, letterSpacing: 0.5 }}>
+      <Text size="xs" c="dimmed" className="uppercase" style={{ "font-size": 9, "letter-spacing": 0.5 }}>
         {props.label}
       </Text>
       <Text
@@ -245,7 +245,7 @@ export function OptionPayoffCard(props: { trade: PaperTrade }) {
                 >
                   {open() ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
                 </ActionIcon>
-                <Text size="xs" fw={700} className="uppercase" style={{ letterSpacing: 0.7 }} c="dimmed">
+                <Text size="xs" fw={700} className="uppercase" style={{ "letter-spacing": 0.7 }} c="dimmed">
                   Payoff @ expiry
                 </Text>
                 <Badge size="xs" variant="filled" color={isShort() ? "error" : "success"}>

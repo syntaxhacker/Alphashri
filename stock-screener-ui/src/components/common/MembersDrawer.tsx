@@ -233,15 +233,15 @@ export function MembersDrawer(props: MembersDrawerProps) {
                           <div
                             data-testid={props.ids.row(symbol)}
                             className={rowClasses()}
-                            style={{ borderRadius: radius() }}
+                            style={{ "border-radius": radius() }}
                           >
                             <Box
                               className="min-w-0 flex-1"
                               style={{
-                                paddingLeft: 4,
-                                paddingRight: 4,
-                                paddingTop: pad(props.symbolPy ?? 0.5),
-                                paddingBottom: pad(props.symbolPy ?? 0.5),
+                                "padding-left": "4px",
+                                "padding-right": "4px",
+                                "padding-top": pad(props.symbolPy ?? 0.5),
+                                "padding-bottom": pad(props.symbolPy ?? 0.5),
                               }}
                             >
                               <SymbolTvLink
@@ -259,11 +259,11 @@ export function MembersDrawer(props: MembersDrawerProps) {
                               data-testid={props.ids.chart(symbol)}
                               style={{
                                 display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                width: 22,
-                                height: 22,
-                                flexShrink: 0,
+                                "align-items": "center",
+                                "justify-content": "center",
+                                width: "22px",
+                                height: "22px",
+                                "flex-shrink": 0,
                                 color: palette.TEXT_MUTED,
                               }}
                             >
@@ -291,11 +291,11 @@ export function MembersDrawer(props: MembersDrawerProps) {
               wrap={false}
               className="border-t border-fin-border"
               style={{
-                paddingLeft: pad(contentPx()),
-                paddingRight: pad(contentPx()),
-                paddingTop: pad(footerPy()),
-                paddingBottom: pad(footerPy()),
-                backgroundColor: palette.TERM_HEADER,
+                "padding-left": pad(contentPx()),
+                "padding-right": pad(contentPx()),
+                "padding-top": pad(footerPy()),
+                "padding-bottom": pad(footerPy()),
+                "background-color": palette.TERM_HEADER,
               }}
             >
               {props.footerLeft}

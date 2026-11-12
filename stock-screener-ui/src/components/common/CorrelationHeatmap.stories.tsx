@@ -42,7 +42,7 @@ type Story = StoryObj<typeof CorrelationHeatmap>;
 
 export const Default: Story = {
   render: () => (
-    <div style={{ maxWidth: 640 }}>
+    <div style={{ "max-width": "640px" }}>
       <CorrelationHeatmap matrix={matrix4x4} symbols={symbols} />
     </div>
   ),
@@ -50,7 +50,7 @@ export const Default: Story = {
 
 export const Loading: Story = {
   render: () => (
-    <div style={{ maxWidth: 640, minHeight: 300 }}>
+    <div style={{ "max-width": "640px", "min-height": "300px" }}>
       <CorrelationHeatmap matrix={matrix4x4} symbols={symbols} isLoading />
     </div>
   ),
@@ -58,7 +58,7 @@ export const Loading: Story = {
 
 export const NoData: Story = {
   render: () => (
-    <div style={{ maxWidth: 640, minHeight: 300 }}>
+    <div style={{ "max-width": "640px", "min-height": "300px" }}>
       <CorrelationHeatmap matrix={[]} symbols={[]} />
     </div>
   ),

@@ -95,7 +95,7 @@ function BotsPageTabs(props: {
   };
   const state = useBotsState();
   return (
-    <ToolbarRow gap={8} wrap={false} id="bots-tabs" data-testid="bots-tabs" style={{ flex: "0 0 auto", height: 40, padding: "0 16px", borderBottom: "1px solid var(--color-fin-border)" }}>
+    <ToolbarRow gap={8} wrap={false} id="bots-tabs" data-testid="bots-tabs" style={{ flex: "0 0 auto", height: "40px", padding: "0 16px", "border-bottom": "1px solid var(--color-fin-border)" }}>
       <Tabs
         value={props.currentView}
         onChange={(v) => v && props.onViewChange(v as BotsView)}
@@ -151,7 +151,7 @@ function BotsTable(props: {
               w={8}
               h={8}
               className="rounded-full"
-              style={{ backgroundColor: getBotIndicatorColor(row.original.running) }}
+              style={{ "background-color": getBotIndicatorColor(row.original.running) }}
             />
             <Text fw={500} ta="left">{row.original.name}</Text>
             <Show when={row.original.live_trading}>
@@ -237,7 +237,7 @@ function BotsTable(props: {
       }
     >
       <Box id="bots-list-card" data-testid="bots-list-card" className="overflow-hidden rounded border border-fin-border bg-fin-surface">
-        <ToolbarRow gap={8} wrap={false} style={{ padding: "8px 12px", borderBottom: "1px solid var(--color-fin-border)" }}>
+        <ToolbarRow gap={8} wrap={false} style={{ padding: "8px 12px", "border-bottom": "1px solid var(--color-fin-border)" }}>
           <Box w={4} h={20} className="rounded-sm bg-fin-positive" />
           <Text size="sm" fw={600}>Configured Bots</Text>
           <Badge size="sm" variant="light" color="info">{state().bots.length}</Badge>
@@ -374,9 +374,9 @@ export function BotsPage() {
 
   return (
     <Box className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-fin-bg" data-testid="bots-view">
-      <ToolbarRow gap={8} wrap={false} style={{ flex: "0 0 auto", height: palette.FIN_HEADER_H, padding: `0 ${palette.FIN_OUTER_PAD}px`, borderBottom: "1px solid var(--color-fin-border)" }}>
+      <ToolbarRow gap={8} wrap={false} style={{ flex: "0 0 auto", height: palette.FIN_HEADER_H, padding: `0 ${palette.FIN_OUTER_PAD}px`, "border-bottom": "1px solid var(--color-fin-border)" }}>
         <Text size="lg" fw={600}>Bots</Text>
-        <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <Text size="sm" c="dimmed" style={{ "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }}>
           Manage bot configurations, live status, and execution controls.
         </Text>
         <Box className="flex-1" />

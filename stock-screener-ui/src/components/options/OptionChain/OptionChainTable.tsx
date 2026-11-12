@@ -74,7 +74,6 @@ function OptionColumn(props: {
   const strike = () => props.rowStrike;
 
   const m = createMemo(() => props.contract?.market_data);
-  const g = createMemo(() => props.contract?.option_greeks);
 
   const ltpNow = () => m()?.ltp ?? 0;
   const oiNow = () => m()?.oi ?? 0;

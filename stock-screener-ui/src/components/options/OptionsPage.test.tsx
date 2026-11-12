@@ -1,10 +1,9 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
+import { cleanup, render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { OptionsPage } from "./OptionsPage";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
 
 vi.mock("./OptionChain/OptionChainPanel", () => ({
   OptionChainPanel: () => <div data-testid="options-chain-panel">Chain Panel</div>,

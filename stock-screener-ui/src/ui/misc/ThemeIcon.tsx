@@ -50,6 +50,7 @@ export function ThemeIcon(props: UIThemeIconProps) {
 
   const { main, dark } = resolveColor(known.color as string);
   const px = toPx(known.size);
+  const borderRadius = _radiusValue(known.radius);
 
   const baseSize = px != null ? { width: px, height: px, "font-size": `${Number(px.replace("px", "")) * 0.5}px` } : { width: "36px", height: "36px", "font-size": "18px" };
 
@@ -78,8 +79,8 @@ export function ThemeIcon(props: UIThemeIconProps) {
 
   return (
     <span
-      className={cn("inline-flex items-center justify-center shrink-0", isFilled ? "text-white" : "", `rounded-[${borderRadius}]`, known.className)}
-      style={{ ...baseSize, borderRadius, backgroundColor, color: isFilled ? undefined : colorValue, ...known.style }}
+      className={cn("inline-flex items-center justify-center shrink-0", isFilled ? "text-white" : "", known.className)}
+      style={{ ...baseSize, "border-radius": borderRadius, backgroundColor, color: isFilled ? undefined : colorValue, ...known.style }}
       id={known.id}
       data-testid={known["data-testid"]}
     >

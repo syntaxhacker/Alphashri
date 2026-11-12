@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
-import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
+import { cleanup, render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 
 vi.mock("@/ui", async () => {
@@ -33,17 +32,15 @@ describe("OptionChainHeader", () => {
 
   it("displays available underlyings as select options", async () => {
     render(() => <OptionChainHeader {...defaultProps} />);
-    await user.click(within(screen.getByTestId("underlying-select")).getByRole("combobox"));
-    expect(await screen.findByRole("option", { name: "NIFTY" })).toBeInTheDocument();
-    expect(await screen.findByRole("option", { name: "BANKNIFTY" })).toBeInTheDocument();
-    expect(await screen.findByRole("option", { name: "FINNIFTY" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "NIFTY" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "BANKNIFTY" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "FINNIFTY" })).toBeInTheDocument();
   });
 
   it("displays available expiries as select options", async () => {
     render(() => <OptionChainHeader {...defaultProps} />);
-    await user.click(within(screen.getByTestId("expiry-select")).getByRole("combobox"));
-    expect(await screen.findByRole("option", { name: "25MAY" })).toBeInTheDocument();
-    expect(await screen.findByRole("option", { name: "01JUN" })).toBeInTheDocument();
-    expect(await screen.findByRole("option", { name: "08JUN" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "25MAY" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "01JUN" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "08JUN" })).toBeInTheDocument();
   });
 });

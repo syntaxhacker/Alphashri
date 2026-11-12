@@ -65,7 +65,7 @@ export const EmptyWithEmoji: Story = {
 
 export const EmptyCompactStandalone: Story = {
   render: () => (
-    <div style={{ padding: 16 }}>
+    <div style={{ padding: "16px" }}>
       <EmptyCompact title="Empty Panel" description="This panel has no content yet." />
     </div>
   ),

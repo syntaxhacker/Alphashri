@@ -11,9 +11,9 @@ vi.mock("../../paper-trading/TanStackTable", () => ({
         <div>{emptyMessage}</div>
       ) : (
         data.map((row: RTrade, i: number) => (
-          <div key={i} data-testid={getRowTestId?.(row, i)} onClick={() => onRowClick?.(row)}>
+          <div data-testid={getRowTestId?.(row, i)} onClick={() => onRowClick?.(row)}>
             {columns.map((c: any) => (
-              <span key={c.id} data-testid={`cell-${c.id}`}>
+              <span data-testid={`cell-${c.id}`}>
                 {c.cell?.({ row: { original: row, index: i, isExpanded: () => false, toggle: () => {} } })}
               </span>
             ))}
@@ -29,48 +29,6 @@ vi.mock("../../paper-trading/TanStackTable", () => ({
 }));
 
 vi.mock("@/components/common", () => ({
-  TanStackTable: ({ data, columns, renderSubComponent, getRowCanExpand, getRowTestId, onRowClick, emptyMessage }: any) => (
-    <div data-testid="mock-table">
-      {data.length === 0 ? (
-        <div>{emptyMessage}</div>
-      ) : (
-        data.map((row: RTrade, i: number) => (
-          <div key={i} data-testid={getRowTestId?.(row, i)} onClick={() => onRowClick?.(row)}>
-            {columns.map((c: any) => (
-              <span key={c.id} data-testid={`cell-${c.id}`}>
-                {c.cell?.({ row: { original: row, index: i, isExpanded: () => false, toggle: () => {} } })}
-              </span>
-            ))}
-          </div>
-        ))
-      )}
-      {renderSubComponent && data.length > 0 && (
-        <div data-testid="sub">{renderSubComponent(data[0])}</div>
-      )}
-      {String(!!getRowCanExpand)}
-    </div>
-  ),
-  TanStackTable: ({ data, columns, renderSubComponent, getRowCanExpand, getRowTestId, onRowClick, emptyMessage }: any) => (
-    <div data-testid="mock-table">
-      {data.length === 0 ? (
-        <div>{emptyMessage}</div>
-      ) : (
-        data.map((row: RTrade, i: number) => (
-          <div key={i} data-testid={getRowTestId?.(row, i)} onClick={() => onRowClick?.(row)}>
-            {columns.map((c: any) => (
-              <span key={c.id} data-testid={`cell-${c.id}`}>
-                {c.cell?.({ row: { original: row, index: i, isExpanded: () => false, toggle: () => {} } })}
-              </span>
-            ))}
-          </div>
-        ))
-      )}
-      {renderSubComponent && data.length > 0 && (
-        <div data-testid="sub">{renderSubComponent(data[0])}</div>
-      )}
-      {String(!!getRowCanExpand)}
-    </div>
-  ),
   SideBadge: ({ side }: any) => <span>{side}</span>,
   ExitReasonBadge: ({ reason }: any) => <span>{reason}</span>,
 }));

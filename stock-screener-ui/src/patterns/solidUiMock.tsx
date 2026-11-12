@@ -72,42 +72,60 @@ const FORWARDED = [
   "rowspan",
 ] as const;
 
+// Solid props are lazy getters — evaluate them only when the DOM spread does.
+// Reading them eagerly here would snapshot values at creation time and break
+// fine-grained updates (e.g. <Index>-recycled table rows).
+const copyDescriptors = (target: Record<string, any>, source: Record<string, any> | undefined, predicate: (key: string) => boolean) => {
+  if (!source) return;
+  for (const [key, desc] of Object.entries(Object.getOwnPropertyDescriptors(source))) {
+    if (predicate(key)) Object.defineProperty(target, key, desc);
+  }
+};
+
 function attrs(props: DivProps) {
   const [local, rest] = splitProps(props, [...FORWARDED] as unknown as string[]);
-  const extra = Object.fromEntries(
-    Object.entries(rest).filter(([k]) => k.startsWith("data-") || k.startsWith("aria-")),
-  );
+  const extra: Record<string, any> = {};
+  copyDescriptors(extra, rest, (k) => k.startsWith("data-") || k.startsWith("aria-"));
   return { local, extra };
 }
 
+const SHAPE_KEYS = [
+  "id",
+  "data-testid",
+  "role",
+  "aria-label",
+  "aria-expanded",
+  "aria-controls",
+  "aria-pressed",
+  "aria-hidden",
+  "aria-busy",
+  "style",
+  "tabIndex",
+  "title",
+  "onClick",
+  "onMouseEnter",
+  "onMouseLeave",
+  "onKeyDown",
+  "onInput",
+  "onChange",
+  "onBlur",
+  "onFocus",
+  "onSubmit",
+  "onKeyUp",
+] as const;
+
 function shape(props: DivProps) {
   const { local, extra } = attrs(props);
-  return {
-    id: local.id,
-    "data-testid": local["data-testid"],
-    role: local.role,
-    class: local.className ?? local.class,
-    classList: local.classList,
-    style: local.style,
-    tabIndex: local.tabIndex,
-    title: local.title,
-    onClick: local.onClick,
-    onMouseEnter: local.onMouseEnter,
-    onMouseLeave: local.onMouseLeave,
-    onKeyDown: local.onKeyDown,
-    onInput: local.onInput,
-    onChange: local.onChange,
-    onBlur: local.onBlur,
-    onFocus: local.onFocus,
-    onSubmit: local.onSubmit,
-    onKeyUp: local.onKeyUp,
-    "aria-expanded": local["aria-expanded"],
-    "aria-controls": local["aria-controls"],
-    "aria-pressed": local["aria-pressed"],
-    "aria-hidden": local["aria-hidden"],
-    "aria-busy": local["aria-busy"],
-    ...extra,
-  };
+  const s: Record<string, any> = {};
+  copyDescriptors(s, local, (key) => (SHAPE_KEYS as readonly string[]).includes(key));
+  // className (Mantine idiom) wins over class; both must keep their getters.
+  const clsDesc =
+    Object.getOwnPropertyDescriptor(local, "className") ??
+    Object.getOwnPropertyDescriptor(local, "class");
+  if (clsDesc) Object.defineProperty(s, "class", clsDesc);
+  copyDescriptors(s, local, (key) => key === "classList");
+  Object.assign(s, extra);
+  return s;
 }
 
 function StubDiv(props: DivProps) {
@@ -183,7 +201,7 @@ function StubArticle(props: DivProps) {
 function StubText(props: DivProps & { size?: string; fw?: number | string; truncate?: boolean | string }) {
   const { local, extra } = attrs(props);
   return (
-    <span {...shape(props)} classList={{ "truncate": Boolean(local.truncate), ...(local.classList ?? {}) }} {...extra}>
+    <span {...shape(props)} classList={{ "truncate": Boolean(local.truncate), ...local.classList }} {...extra}>
       {local.children}
     </span>
   );
@@ -810,7 +828,7 @@ function StubDivider(props: DivProps & { orientation?: string }) {
 function StubCollapse(props: DivProps & { in?: boolean }) {
   const s = shape(props);
   return (
-    <div {...s} aria-hidden={!props.in || undefined} style={{ overflow: "hidden", height: props.in ? "auto" : 0, ...(props.style ?? {}) }}>
+    <div {...s} aria-hidden={!props.in || undefined} style={{ overflow: "hidden", height: props.in ? "auto" : 0, ...props.style }}>
       {props.children}
     </div>
   );
@@ -819,12 +837,12 @@ function StubCollapse(props: DivProps & { in?: boolean }) {
 function StubSimpleGrid(props: DivProps & { cols?: number }) {
   const s = shape(props);
   const cols = props.cols ?? 3;
-  return <div {...s} style={{ display: "grid", "grid-template-columns": `repeat(${cols}, minmax(0, 1fr))`, gap: "8px", ...(props.style ?? {}) }}>{props.children}</div>;
+  return <div {...s} style={{ display: "grid", "grid-template-columns": `repeat(${cols}, minmax(0, 1fr))`, gap: "8px", ...props.style }}>{props.children}</div>;
 }
 
 function StubScrollArea(props: DivProps) {
   const s = shape(props);
-  return <div {...s} style={{ overflow: "auto", ...(props.style ?? {}) }}>{props.children}</div>;
+  return <div {...s} style={{ overflow: "auto", ...props.style }}>{props.children}</div>;
 }
 
 const TabsCtx = createContext<{ value: () => string; select: (v: string) => void }>({
@@ -1022,11 +1040,6 @@ function ThemeIcon(props: DivProps) {
   );
 }
 
-function Overlay(props: DivProps & { onClick?: (e: any) => void }) {
-  const s = shape(props);
-  return <div {...s} onClick={props.onClick}>{props.children}</div>;
-}
-
 function Popover(props: DivProps) {
   return <div {...shape(props)}>{props.children}</div>;
 }
@@ -1068,10 +1081,6 @@ function AppShellSection(props: DivProps) {
   return <section {...shape(props)}>{props.children}</section>;
 }
 
-function AvatarStub(props: DivProps) {
-  return <span {...shape(props)}>{props.children}</span>;
-}
-
 function Accordion(props: DivProps) {
   return <div {...shape(props)}>{props.children}</div>;
 }
@@ -1096,18 +1105,6 @@ function Tree(props: DivProps) {
 function DatePicker(props: DivProps & { value?: string }) {
   const s = shape(props);
   return <input {...s} type="date" value={props.value} />;
-}
-
-function Indicator(props: DivProps & { count?: number; disabled?: boolean; color?: string; position?: string; label?: JSX.Element; size?: number }) {
-  return <span {...shape(props)}>{props.children}</span>;
-}
-
-function LoadingOverlay(props: DivProps & { visible?: boolean; zIndex?: number }) {
-  return <Show when={props.visible}><div {...shape(props)}>{props.children}</div></Show>;
-}
-
-function PasswordInput(props: DivProps & { value?: string; onChange?: (value: string) => void; label?: JSX.Element }) {
-  return <StubTextInput {...props} type="password" />;
 }
 
 /** Test-only `@/ui` surface. `extra` lets a test override single components. */

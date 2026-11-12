@@ -1,4 +1,4 @@
-import { createMemo, createSignal, Index, Show, onCleanup } from "solid-js";
+import { createMemo, createSignal, Index, Show } from "solid-js";
 import { Badge, Text, Tooltip, Button, Stack } from "@/ui";
 import { getPaperTradingState, subscribe, setSelectedSymbol, setSelectedTradeId } from "../../state/paperTrading";
 import type { PaperPosition } from "../../types/paperTrading";

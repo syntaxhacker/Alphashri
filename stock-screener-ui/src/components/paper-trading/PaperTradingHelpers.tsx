@@ -1,4 +1,4 @@
-import { createMemo, Show, Switch, Match, type JSX } from "solid-js";
+import { createMemo, Show, Switch, Match } from "solid-js";
 import dayjs from "dayjs";
 import { Text, Select, Flex, Group } from "@/ui";
 import { Tabs } from "@/ui";

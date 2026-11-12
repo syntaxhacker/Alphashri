@@ -144,16 +144,16 @@ export default function SymbolAutocomplete(props: SymbolAutocompleteProps) {
           style={{
             position: "absolute",
             top: "100%",
-            left: 0,
-            right: 0,
-            backgroundColor: palette.SURFACE,
+            left: "0px",
+            right: "0px",
+            "background-color": palette.SURFACE,
             border: `1px solid ${palette.BORDER}`,
-            borderTop: "none",
-            borderRadius: "0 0 4px 4px",
-            boxShadow: `0 4px 12px ${withAlpha(palette.BG, 0.3)}`,
-            zIndex: 50,
-            maxHeight: 240,
-            overflowY: "auto",
+            "border-top": "none",
+            "border-radius": "0 0 4px 4px",
+            "box-shadow": `0 4px 12px ${withAlpha(palette.BG, 0.3)}`,
+            "z-index": 50,
+            "max-height": "240px",
+            "overflow-y": "auto",
           }}
         >
           <For each={options()}>{(option, index) => (
@@ -162,19 +162,19 @@ export default function SymbolAutocomplete(props: SymbolAutocompleteProps) {
               style={{
                 padding: "6px 8px",
                 cursor: "pointer",
-                borderBottom: `1px solid ${palette.BORDER}`,
+                "border-bottom": `1px solid ${palette.BORDER}`,
                 display: "flex",
-                alignItems: "center",
-                gap: 8,
-                backgroundColor: highlightedIndex() === index() ? palette.SCALE_GRAY[6] : "inherit",
+                "align-items": "center",
+                gap: "8px",
+                "background-color": highlightedIndex() === index() ? palette.SCALE_GRAY[6] : "inherit",
                 color: palette.TEXT,
               }}
               onMouseEnter={() => setHighlightedIndex(index())}
               onClick={() => handleSelect(option)}
             >
-              <span style={{ fontWeight: 600 }}>{labelOf(option)}</span>
+              <span style={{ "font-weight": 600 }}>{labelOf(option)}</span>
               <Show when={nameOf(option)}>
-                <span style={{ color: palette.TEXT_MUTED, marginLeft: 8, fontSize: 12 }}>{nameOf(option)}</span>
+                <span style={{ color: palette.TEXT_MUTED, "margin-left": "8px", "font-size": "12px" }}>{nameOf(option)}</span>
               </Show>
             </div>
           )}</For>

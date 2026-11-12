@@ -174,7 +174,7 @@ describe("NiftyStructureShifts render", () => {
           shift({ t: "2026-10-14T11:30:00+05:30", kind: "wall_move", detail: "call wall moved" }),
           shift({ t: "2026-10-14T13:06:00+05:30", kind: "wall_flip", detail: "support flipped" }),
         ]}
-        </NiftyStructureShifts>
+        />
       </TestWrapper>
     ));
     const rows = screen.getAllByTestId("nifty-structure-row");
@@ -195,7 +195,7 @@ describe("NiftyStructureShifts render", () => {
           shift({ severity: "watch" }),
           shift({ severity: "alert" }),
         ]}
-        </NiftyStructureShifts>
+        />
       </TestWrapper>
     ));
     expect(screen.getByTestId("nifty-structure-summary")).toHaveTextContent(
@@ -208,7 +208,7 @@ describe("NiftyStructureShifts render", () => {
       <TestWrapper>
         <NiftyStructureShifts
           structure={[shift({ kind: "mystery_shift", severity: "unknown" })]}
-        </NiftyStructureShifts>
+        />
       </TestWrapper>
     ));
     expect(screen.getAllByTestId("nifty-structure-row")).toHaveLength(1);
@@ -241,7 +241,7 @@ describe("NiftyStructureShifts render", () => {
           shift({ severity: "watch", t: "2026-10-14T09:20:00+05:30" }),
           shift({ severity: "critical", t: "2026-10-14T13:06:00+05:30" }),
         ]}
-        </NiftyStructureShifts>
+        />
       </TestWrapper>
     ));
     const rows = screen.getAllByTestId("nifty-structure-row");
@@ -261,7 +261,7 @@ describe("NiftyStructureShifts render", () => {
             detail: "22,700 support became resistance",
           }),
         ]}
-        </NiftyStructureShifts>
+        />
       </TestWrapper>
     ));
     const rows = screen.getAllByTestId("nifty-structure-row");

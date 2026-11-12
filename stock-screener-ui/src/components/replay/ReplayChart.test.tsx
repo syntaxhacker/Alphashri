@@ -6,7 +6,6 @@ import { UIProvider } from "@/ui";
 import { ReplayChart } from "./ReplayChart";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 import { aggregateCandles } from "./ReplayChart";
-import { createRef } from "react";
 import type { ReplayChartHandle } from "./ReplayChart";
 
 vi.mock("../chart/TradingChart", () => ({
@@ -226,7 +225,7 @@ describe("ReplayChart", () => {
   });
 
   it("setTimeframe imperative handle is callable", () => {
-    const ref = createRef<ReplayChartHandle>();
+    const ref = { current: null as ReplayChartHandle | null };
     const props = {
       ...baseProps,
       candlesBySymbol: {

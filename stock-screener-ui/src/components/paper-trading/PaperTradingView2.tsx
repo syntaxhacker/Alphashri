@@ -17,7 +17,7 @@ import {
   listBots,
 } from "../../api/paperTrading";
 import { fetchBotSummaries } from "../../api/botControlApi";
-import type { BotInfo, BotSummary } from "../../types/paperTrading";
+import type { BotSummary } from "../../types/paperTrading";
 import {
   PaperPositionsTable,
   PaperPortfolioCard,

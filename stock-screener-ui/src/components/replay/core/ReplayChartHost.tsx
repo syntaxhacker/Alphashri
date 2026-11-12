@@ -3,7 +3,6 @@
 // strategies can reuse the host; the page drives it through the imperative `paint(now)`.
 import { createEffect, onCleanup } from "solid-js";
 import { createChart, ColorType, CandlestickSeries, LineSeries, createSeriesMarkers, type IChartApi, type Time } from "lightweight-charts";
-import type { JSX } from "solid-js";
 import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import { TZ_IST } from "@/config/constants";
@@ -67,8 +66,6 @@ export default function ReplayChartHost(props: ReplayChartHostProps) {
   // chart setup (once per data set)
   createEffect(() => {
     const bars = props.bars;
-    const subs = props.subs;
-    const vwap = props.vwap;
     const height = props.height ?? 420;
     if (!boxRef || !bars.length) return;
     const tickState: { lastDay: string } = { lastDay: "" };
@@ -313,6 +310,6 @@ export default function ReplayChartHost(props: ReplayChartHostProps) {
   paintRef = paint;
 
   return (
-    <div ref={boxRef} class="w-full" style={{ height: `${props.height ?? 420}px` }} data-testid="replay-chart-host" />
+    <div ref={(el) => { boxRef = el; }} class="w-full" style={{ height: `${props.height ?? 420}px` }} data-testid="replay-chart-host" />
   );
 }

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, test } from "vitest";
 
 import { render, screen, cleanup, within } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
+import type { JSX } from "solid-js";
 import {
   bucketLabel,
   bucketStartMinutes,
@@ -38,12 +39,12 @@ function leg(ceLtp: number, peLtp: number, ceOi: number, peOi: number): number[]
   return [ceLtp, peLtp, ceOi, peOi, 0, 0];
 }
 
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>children</UIProvider>;
+function TestWrapper(props: { children?: JSX.Element }) {
+  return <UIProvider>{props.children}</UIProvider>;
 }
 
 function renderMigration(props: { rows: WallMigrationRow[]; bucketMin?: number }) {
-  return render(() => <TestWrapper>h(NiftyWallMigration, props)</TestWrapper>);
+  return render(() => <TestWrapper><NiftyWallMigration {...props} /></TestWrapper>);
 }
 
 describe("parseClockMinutes", () => {

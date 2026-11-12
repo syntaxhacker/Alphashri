@@ -326,7 +326,7 @@ function HoverPreview(props: HoverPreviewProps) {
       top={adjustedY()}
       w={320}
       h={200}
-      style={{ zIndex: 9999, pointerEvents: "none", overflow: "hidden" }}
+      style={{ "z-index": 9999, "pointer-events": "none", overflow: "hidden" }}
       data-testid="preview-chart-hover"
     >
       <Group gap={6} px="xs" py={4}>
@@ -342,7 +342,7 @@ function HoverPreview(props: HoverPreviewProps) {
           <Box
             pos="absolute"
             inset={0}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+            style={{ display: "flex", "align-items": "center", "justify-content": "center" }}
           >
             <Loader size="sm" />
           </Box>
@@ -351,7 +351,7 @@ function HoverPreview(props: HoverPreviewProps) {
           <Box
             pos="absolute"
             inset={0}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+            style={{ display: "flex", "align-items": "center", "justify-content": "center" }}
           >
             <Text size="xs" c="dimmed">
               No data
@@ -359,7 +359,7 @@ function HoverPreview(props: HoverPreviewProps) {
           </Box>
         </Show>
         <Show when={!props.loading && (props.data?.candles.length ?? 0) > 0}>
-          <div className="echarts-container" style={{ width: 320, height: 160, minHeight: 160 }} />
+          <div className="echarts-container" style={{ width: "320px", height: "160px", "min-height": "160px" }} />
         </Show>
       </Box>
     </Paper>
@@ -441,10 +441,10 @@ function ExpandedPanel(props: ExpandedPanelProps) {
       w={650}
       h={480}
       style={{
-        zIndex: 10000,
+        "z-index": 10000,
         transform: "translate(-50%, -50%)",
         display: "flex",
-        flexDirection: "column",
+        "flex-direction": "column",
       }}
       data-testid="preview-chart-expanded"
     >
@@ -474,7 +474,7 @@ function ExpandedPanel(props: ExpandedPanelProps) {
 
       <Box
         ref={(el: HTMLDivElement) => (containerRef = el)}
-        style={{ flex: 1, padding: 8, minHeight: 0, position: "relative" }}
+        style={{ flex: 1, padding: "8px", "min-height": "0px", position: "relative" }}
       >
         <Show when={props.loading}>
           <Box
@@ -482,8 +482,8 @@ function ExpandedPanel(props: ExpandedPanelProps) {
             inset={0}
             style={{
               display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              "align-items": "center",
+              "justify-content": "center",
             }}
           >
             <Loader />
@@ -495,8 +495,8 @@ function ExpandedPanel(props: ExpandedPanelProps) {
             inset={0}
             style={{
               display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              "align-items": "center",
+              "justify-content": "center",
             }}
           >
             <Text c="dimmed">No data available</Text>
@@ -505,7 +505,7 @@ function ExpandedPanel(props: ExpandedPanelProps) {
         <Show when={!props.loading && (props.data?.candles.length ?? 0) > 0}>
           <div
             className="echarts-container"
-            style={{ width: "100%", height: "100%", minHeight: 0 }}
+            style={{ width: "100%", height: "100%", "min-height": "0px" }}
           />
         </Show>
       </Box>

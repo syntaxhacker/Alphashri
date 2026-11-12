@@ -101,7 +101,7 @@ function EquityChart(props: { data: PaperDashboardAnalyticsData }) {
       }],
     );
   };
-  return <EChartSolid option={option} style={{ height: `${CHART_HERO}px`, minHeight: `${CHART_HERO}px` }} data-testid="equity-curve-chart" />;
+  return <EChartSolid option={option} style={{ height: `${CHART_HERO}px`, "min-height": `${CHART_HERO}px` }} data-testid="equity-curve-chart" />;
 }
 
 function DailyPnlChart(props: { data: PaperDashboardAnalyticsData }) {
@@ -126,7 +126,7 @@ function DailyPnlChart(props: { data: PaperDashboardAnalyticsData }) {
       },
     }],
   );
-  return <EChartSolid option={option} style={{ height: `${CHART_ROW}px`, minHeight: `${CHART_ROW}px` }} data-testid="daily-pnl-chart" />;
+  return <EChartSolid option={option} style={{ height: `${CHART_ROW}px`, "min-height": `${CHART_ROW}px` }} data-testid="daily-pnl-chart" />;
 }
 
 function DrawdownChart(props: { data: PaperDashboardAnalyticsData }) {
@@ -151,7 +151,7 @@ function DrawdownChart(props: { data: PaperDashboardAnalyticsData }) {
     }],
     "{value}%",
   );
-  return <EChartSolid option={option} style={{ height: `${CHART_ROW}px`, minHeight: `${CHART_ROW}px` }} data-testid="drawdown-chart" />;
+  return <EChartSolid option={option} style={{ height: `${CHART_ROW}px`, "min-height": `${CHART_ROW}px` }} data-testid="drawdown-chart" />;
 }
 
 function BotComparisonChart(props: { data: PaperDashboardAnalyticsData }) {
@@ -175,7 +175,7 @@ function BotComparisonChart(props: { data: PaperDashboardAnalyticsData }) {
       }],
     };
   };
-  return <EChartSolid option={option} style={{ height: `${CHART_ROW}px`, minHeight: `${CHART_ROW}px` }} data-testid="bot-comparison-chart" />;
+  return <EChartSolid option={option} style={{ height: `${CHART_ROW}px`, "min-height": `${CHART_ROW}px` }} data-testid="bot-comparison-chart" />;
 }
 
 function ExitReasonChart(props: { data: PaperDashboardAnalyticsData }) {
@@ -200,7 +200,7 @@ function ExitReasonChart(props: { data: PaperDashboardAnalyticsData }) {
       },
     }],
   });
-  return <EChartSolid option={option} style={{ height: `${CHART_ROW}px`, minHeight: `${CHART_ROW}px` }} data-testid="exit-reason-chart" />;
+  return <EChartSolid option={option} style={{ height: `${CHART_ROW}px`, "min-height": `${CHART_ROW}px` }} data-testid="exit-reason-chart" />;
 }
 
 function PnlValue(props: { value: number }) {
@@ -240,7 +240,7 @@ function BotRankingPanel(props: { bots: PaperDashboardBotRanking[] }) {
       accessorKey: "bot_name",
       meta: { align: "left" },
       cell: ({ row }) => (
-        <Stack gap={0} style={{ minWidth: 0 }}>
+        <Stack gap={0} style={{ "min-width": 0 }}>
           <Text size="sm" fw={700} truncate>{row.original.bot_name}</Text>
           <Text size="xs" c="dimmed">{row.original.total_trades} trades · {pct(row.original.win_rate)} win</Text>
         </Stack>

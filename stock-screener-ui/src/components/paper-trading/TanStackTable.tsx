@@ -86,7 +86,6 @@ interface Props<T> {
 }
 
 const ROW_ESTIMATED = 23;
-const GROUP_ROW_ESTIMATE = 36;
 
 function getColumnWidth<T>(column: TableColumnDef<T>): number | undefined {
   const size = column.size;
@@ -241,7 +240,7 @@ export function TanStackTable<T>(props: Props<T>) {
     return ids;
   });
 
-  const rowStyleBase = (row: T, index: number): CSSProperties => ({
+  const rowStyleBase = (row: T): CSSProperties => ({
     cursor: props.onRowClick ? "pointer" : undefined,
     ...props.getRowStyle?.(row),
   });
@@ -301,7 +300,6 @@ export function TanStackTable<T>(props: Props<T>) {
     return (
       <Box
         component="th"
-        key={col.id}
         className="paper-tanstack-header-cell"
         id={`paper-tanstack-header-${String(col.id)}`}
         style={headerStyle}
@@ -317,8 +315,8 @@ export function TanStackTable<T>(props: Props<T>) {
     const expanded = isRowExpanded(row, index);
     if (!props.getRowCanExpand?.(row) || !expanded || !props.renderSubComponent) return null;
     return (
-      <tr key={`${rowKey(row, index)}-expanded`} className="paper-tanstack-expanded-row">
-        <td colSpan={colCount()} style={{ padding: 0, borderTop: `1px solid ${palette.BORDER}`, borderBottom: `1px solid ${palette.BORDER}`, background: palette.BG }}>
+      <tr className="paper-tanstack-expanded-row">
+        <td colSpan={colCount()} style={{ padding: 0, "border-top": `1px solid ${palette.BORDER}`, "border-bottom": `1px solid ${palette.BORDER}`, background: palette.BG }}>
           {props.renderSubComponent(row)}
         </td>
       </tr>
@@ -331,8 +329,7 @@ export function TanStackTable<T>(props: Props<T>) {
     return (
       <>
         <tr
-          key={`row-${k}`}
-          style={{ ...rowStyleBase(row, index) }}
+          style={{ ...rowStyleBase(row) }}
           onClick={() => props.onRowClick?.(row)}
           onKeyDown={props.onRowClick ? (event: KeyboardEvent) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); props.onRowClick!(row); } } : undefined}
           tabIndex={props.onRowClick ? 0 : undefined}
@@ -349,7 +346,6 @@ export function TanStackTable<T>(props: Props<T>) {
             return (
               <Box
                 component="td"
-                key={col.id}
                 className={`paper-tanstack-cell ${alignClass(col)}`}
                 id={`paper-tanstack-cell-${String(col.id)}-${k}`}
                 style={cellStyle(col, width)}
@@ -387,7 +383,7 @@ export function TanStackTable<T>(props: Props<T>) {
   const tableScroll = (
     <ScrollArea
       className="paper-tanstack-scroll"
-      style={{ flex: 1, minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column", backgroundColor: palette.SURFACE }}
+      style={{ flex: 1, "min-height": 0, overflow: "auto", display: "flex", "flex-direction": "column", "background-color": palette.SURFACE }}
     >
       <Box
         component="table"
@@ -426,7 +422,6 @@ export function TanStackTable<T>(props: Props<T>) {
                 return (
                   <>
                     <tr
-                      key={`group-${groupKey(item.value)}`}
                       data-testid={props.getGroupRowTestId?.(item.value)}
                       onClick={() => toggleGroup(item.value)}
                       style={{ cursor: "pointer" }}

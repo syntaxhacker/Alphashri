@@ -1,4 +1,4 @@
-import { Show, Switch, Match } from "solid-js";
+import { Switch, Match } from "solid-js";
 import { Text, Badge, Alert, ToolbarRow } from "@/ui";
 import { Box } from "@/ui";
 import type { TableColumnDef } from "../../common/TanStackTable";

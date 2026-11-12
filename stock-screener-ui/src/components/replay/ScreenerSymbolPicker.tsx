@@ -220,7 +220,7 @@ export function ScreenerSymbolPicker(props: ScreenerSymbolPickerProps) {
                         px="xs"
                         py={3}
                         className="cursor-pointer hover:bg-fin-surface-alt"
-                        style={{ borderRadius: "1px", "background-color": idx() % 2 === 1 ? palette.BG : undefined }}
+                        style={{ "border-radius": "1px", "background-color": idx() % 2 === 1 ? palette.BG : undefined }}
                       >
                         <Checkbox
                           size="xs"
@@ -228,17 +228,17 @@ export function ScreenerSymbolPicker(props: ScreenerSymbolPickerProps) {
                           onChange={() => toggleStock(stock.symbol)}
                           data-testid={`stock-check-${stock.symbol}`}
                         />
-                        <Text size="xs" fw={500} style={{ fontFamily: "monospace", width: "88px" }}>
+                        <Text size="xs" fw={500} style={{ "font-family": "monospace", width: "88px" }}>
                           {stock.symbol}
                         </Text>
-                        <Text size="xs" ta="right" style={{ fontFamily: "monospace", width: "82px" }}>
+                        <Text size="xs" ta="right" style={{ "font-family": "monospace", width: "82px" }}>
                           {formatPrice(price)}
                         </Text>
-                        <Text size="xs" ta="right" c={pctColor(pct)} style={{ fontFamily: "monospace", width: "65px" }}>
+                        <Text size="xs" ta="right" c={pctColor(pct)} style={{ "font-family": "monospace", width: "65px" }}>
                           {pct >= 0 ? "+" : ""}{pct.toFixed(1)}%
                         </Text>
                         <Show when={stock.touched_52w}>
-                          <Text size="xs" ta="center" c="primary" style={{ fontFamily: "monospace", width: "72px" }}>
+                          <Text size="xs" ta="center" c="primary" style={{ "font-family": "monospace", width: "72px" }}>
                             {formatTouchDate(stock)}
                           </Text>
                         </Show>

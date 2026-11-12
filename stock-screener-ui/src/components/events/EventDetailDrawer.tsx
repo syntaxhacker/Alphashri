@@ -124,7 +124,7 @@ export function EventDetailDrawer(props: EventDetailDrawerProps) {
               </ActionIcon>
             </ToolbarRow>
 
-            <Box style={{ flex: 1, "min-height": "0px", "overflow-y": "auto", padding: 16, display: "flex", "flex-direction": "column", gap: 8 }}>
+            <Box style={{ flex: 1, "min-height": "0px", "overflow-y": "auto", padding: "16px", display: "flex", "flex-direction": "column", gap: "8px" }}>
               <ToolbarRow gap={8} wrap={false}>
                 <EventTypeBadge type={event().event_type} isAlpha={event().is_alpha} />
                 <Badge size="xs" color="secondary" data-testid="event-detail-source">

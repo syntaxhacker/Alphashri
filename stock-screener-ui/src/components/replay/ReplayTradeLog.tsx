@@ -214,7 +214,7 @@ export function ReplayTradeLog(props: ReplayTradeLogProps) {
   return (
     <Box
       data-testid="replay-trade-log"
-      style={{ display: "flex", flexDirection: "column", height: "100%" }}
+      style={{ display: "flex", "flex-direction": "column", height: "100%" }}
     >
       <Group gap="sm" align="center" mb="xs" style={{ flex: "0 0 auto" }}>
         <Text size="xs" fw={500}>Trade Log</Text>
@@ -262,7 +262,7 @@ export function ReplayTradeLog(props: ReplayTradeLogProps) {
           dense
           onRowClick={props.onTradeClick ? handleRowClick : undefined}
         />
-        <div ref={bottomRef} />
+        <div ref={(el) => { bottomRef = el; }} />
       </ScrollArea>
     </Box>
   );

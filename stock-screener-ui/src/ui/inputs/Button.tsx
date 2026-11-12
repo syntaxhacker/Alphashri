@@ -112,13 +112,14 @@ export function Button(props: UIButtonProps) {
         known.fullWidth && "w-full",
         known.className,
       )}
-      style={{ ...(typeof known.radius === "number" ? { "border-radius": known.radius } : {}), ...known.style }}
+      style={{ ...(typeof known.radius === "number" ? { "border-radius": `${known.radius}px` } : {}), ...known.style }}
       disabled={disabledOrLoading()}
       data-loading={known.loading || undefined}
       aria-busy={known.loading || undefined}
       onClick={(e) => known.onClick?.(e)}
       onMouseEnter={(e) => known.onMouseEnter?.(e)}
       onMouseLeave={(e) => known.onMouseLeave?.(e)}
+      {..._rest}
     >
       {known.leftSection || known.loading ? (
         <span className="flex-shrink-0 mr-2">{known.leftSection ?? <Spinner />}</span>

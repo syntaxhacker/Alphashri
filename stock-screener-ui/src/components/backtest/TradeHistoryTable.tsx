@@ -1,4 +1,4 @@
-import { createSignal, createMemo, For, Show } from "solid-js";
+import { createSignal, createMemo, Show } from "solid-js";
 import { Text, Badge, ActionIcon, Button, Select, SegmentedControl, Stack } from "@/ui";
 import { IconX, IconArrowUp, IconArrowDown, IconDownload, IconFilterOff } from "@/components/common/Icons";
 import type { TableColumnDef } from "../paper-trading/TanStackTable";
@@ -237,9 +237,9 @@ export function TradeHistoryTable(props: TradeHistoryTableProps) {
         cell: ({ row }) => {
           const side = (row.original as any).side || "LONG";
           return <div class="flex items-center justify-center">{side === "LONG" ? (
-            <Text size="xs" c="success" ta="center"><IconArrowUp size={12} style={{ marginRight: 2 }} />LONG</Text>
+            <Text size="xs" c="success" ta="center"><IconArrowUp size={12} style={{ "margin-right": 2 }} />LONG</Text>
           ) : (
-            <Text size="xs" c="error" ta="center"><IconArrowDown size={12} style={{ marginRight: 2 }} />SHORT</Text>
+            <Text size="xs" c="error" ta="center"><IconArrowDown size={12} style={{ "margin-right": 2 }} />SHORT</Text>
           )}</div>;
         },
       },
@@ -348,7 +348,7 @@ export function TradeHistoryTable(props: TradeHistoryTableProps) {
         className="trade-history-panel min-h-0 overflow-hidden p-0"
         data-testid="trade-history-panel"
         h="100%"
-        style={{ minHeight: 0, gap: 0 }}
+        style={{ "min-height": 0, gap: 0 }}
       >
         <Stack
           direction="row"
@@ -357,9 +357,9 @@ export function TradeHistoryTable(props: TradeHistoryTableProps) {
           px={1}
           py="3px"
           data-testid="trade-history-header"
-          style={{ flex: "0 0 auto", borderBottom: "1px solid #30363D" }}
+          style={{ flex: "0 0 auto", "border-bottom": "1px solid #30363D" }}
         >
-          <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap", fontWeight: 600 }}>
+          <Text size="xs" c="dimmed" style={{ "white-space": "nowrap", "font-weight": 600 }}>
             {props.symbol} Trades ({props.trades.length})
           </Text>
           <div class="flex-1" />
@@ -378,17 +378,17 @@ export function TradeHistoryTable(props: TradeHistoryTableProps) {
           px={1}
           py="5px"
           data-testid="trade-history-summary"
-          style={{ flex: "0 0 auto", borderBottom: "1px solid #30363D" }}
+          style={{ flex: "0 0 auto", "border-bottom": "1px solid #30363D" }}
         >
           <Stack direction="row" spacing={0.5} align="baseline">
             <Text size="xs" c="dimmed">P&L</Text>
-            <Text size="sm" fw={700} c={getPnLTextColor(totalPnl())} data-testid="trade-summary-pnl" style={{ fontVariantNumeric: "tabular-nums" }} className="font-mono">
+            <Text size="sm" fw={700} c={getPnLTextColor(totalPnl())} data-testid="trade-summary-pnl" style={{ "font-variant-numeric": "tabular-nums" }} className="font-mono">
               {`₹${totalPnl().toFixed(0)}`}
             </Text>
           </Stack>
           <Stack direction="row" spacing={0.5} align="baseline">
             <Text size="xs" c="dimmed">WR</Text>
-            <Text size="sm" fw={700} data-testid="trade-summary-wr" style={{ fontVariantNumeric: "tabular-nums" }} className="font-mono">{winRate()}%</Text>
+            <Text size="sm" fw={700} data-testid="trade-summary-wr" style={{ "font-variant-numeric": "tabular-nums" }} className="font-mono">{winRate()}%</Text>
           </Stack>
           <Text size="xs" c="dimmed" data-testid="trade-summary-wins" className="font-mono tabular-nums">Wins: {wins()}/{filteredTrades().length}</Text>
         </Stack>
@@ -401,7 +401,7 @@ export function TradeHistoryTable(props: TradeHistoryTableProps) {
           py="4px"
           data-testid="trade-history-filters"
           className="flex-wrap"
-          style={{ flex: "0 0 auto", borderBottom: "1px solid #30363D", rowGap: "4px" }}
+          style={{ flex: "0 0 auto", "border-bottom": "1px solid #30363D", "row-gap": "4px" }}
         >
           <SegmentedControl
             size="xs"
@@ -435,7 +435,7 @@ export function TradeHistoryTable(props: TradeHistoryTableProps) {
               data-testid="filter-reason"
             />
           </div>
-          <Text size="xs" c="dimmed" data-testid="filter-count" style={{ fontVariantNumeric: "tabular-nums" }} className="font-mono">
+          <Text size="xs" c="dimmed" data-testid="filter-count" style={{ "font-variant-numeric": "tabular-nums" }} className="font-mono">
             {filteredTrades().length}/{props.trades.length}
           </Text>
           <Show when={filtersActive()}>

@@ -65,7 +65,7 @@ function ParamControl(props: { spec: ReplayParamSpec; value: unknown; onChange: 
   }
   if (spec.type === "bool") {
     return (
-      <Box style={{ display: "flex", alignItems: "center", gap: "4px", color: palette.TEXT_MUTED, fontSize: "12px" }}>
+      <Box style={{ display: "flex", "align-items": "center", gap: "4px", color: palette.TEXT_MUTED, "font-size": "12px" }}>
         <Checkbox
           size="sm"
           label={spec.label}
@@ -238,11 +238,11 @@ export default function ReplayShell(props: { plugin: ReplayStrategyPlugin; heade
   return (
     <Box p="sm" w="100%" data-testid={plugin().mode === "timeline" ? "tick-replay" : "replay-strategy"}>
       <Stack direction="row" gap="sm" mb="xs" align="center" wrap>
-        <Text fw={600} style={{ fontSize: "1.125rem", color: "#E5E7EB" }}>{plugin().label}</Text>
+        <Text fw={600} style={{ "font-size": "1.125rem", color: "#E5E7EB" }}>{plugin().label}</Text>
         {props.headerExtra}
       </Stack>
       <Show when={plugin().subtitle || plugin().summary}>
-        <Text size="xs" style={{ color: "#9CA3AF", display: "block", marginBottom: "8px" }}>
+        <Text size="xs" style={{ color: "#9CA3AF", display: "block", "margin-bottom": "8px" }}>
           {plugin().subtitle}{plugin().summary?.(bundle() ?? EMPTY_BUNDLE, raw())}
         </Text>
       </Show>
@@ -252,14 +252,14 @@ export default function ReplayShell(props: { plugin: ReplayStrategyPlugin; heade
             size="xs"
             variant="subtle"
             onClick={() => setDate(d)}
-            style={{ backgroundColor: d === date() ? "#2563EB" : "#1F2937", color: "#E5E7EB", cursor: "pointer", fontWeight: d === date() ? 700 : 400, borderRadius: "4px" }}
+            style={{ "background-color": d === date() ? "#2563EB" : "#1F2937", color: "#E5E7EB", cursor: "pointer", "font-weight": d === date() ? 700 : 400, "border-radius": "4px" }}
           >
             {d}
           </Button>
         )}</For>
       </Stack>
       <Show when={showRunHint()}>
-        <Text size="xs" style={{ color: palette.TEXT_MUTED, display: "block", marginBottom: "8px" }}>
+        <Text size="xs" style={{ color: palette.TEXT_MUTED, display: "block", "margin-bottom": "8px" }}>
           Choose a symbol / date, then press Run
         </Text>
       </Show>
@@ -275,13 +275,13 @@ export default function ReplayShell(props: { plugin: ReplayStrategyPlugin; heade
             )}
             <Stack direction="row" gap="sm" mb="sm" align="center" wrap>
               {paramControls()}
-              {!plugin().panel && <Button size="xs" variant="subtle" disabled style={{ backgroundColor: "#1F2937", color: palette.POSITIVE, borderRadius: "4px" }}>{trades().length} trades</Button>}
-              {loading() && <Button size="xs" variant="subtle" disabled style={{ backgroundColor: "#1F2937", color: palette.PRIMARY, borderRadius: "4px" }}>loading ticks…</Button>}
-              {bundle()?.error && <Button size="xs" variant="subtle" disabled style={{ backgroundColor: "#3B1D1D", color: "#F87171", borderRadius: "4px" }}>{bundle()?.error}</Button>}
+              {!plugin().panel && <Button size="xs" variant="subtle" disabled style={{ "background-color": "#1F2937", color: palette.POSITIVE, "border-radius": "4px" }}>{trades().length} trades</Button>}
+              {loading() && <Button size="xs" variant="subtle" disabled style={{ "background-color": "#1F2937", color: palette.PRIMARY, "border-radius": "4px" }}>loading ticks…</Button>}
+              {bundle()?.error && <Button size="xs" variant="subtle" disabled style={{ "background-color": "#3B1D1D", color: "#F87171", "border-radius": "4px" }}>{bundle()?.error}</Button>}
             </Stack>
             {plugin().panel?.(bundle() ?? EMPTY_BUNDLE, raw())}
             {!loading() && trades().length === 0 && (
-              <Box p="sm" style={{ color: palette.TEXT_MUTED, fontSize: "12px" }}>No trades in this view.</Box>
+              <Box p="sm" style={{ color: palette.TEXT_MUTED, "font-size": "12px" }}>No trades in this view.</Box>
             )}
             <For each={trades()}>{(tr, i) => (
               <TradeReplayCard
@@ -318,7 +318,7 @@ export default function ReplayShell(props: { plugin: ReplayStrategyPlugin; heade
           {runButton()}
           {paramControls()}
         </ReplayControls>
-        <Card bg={palette.NT_BG} style={{ border: `1px solid ${palette.NT_GRID}`, overflow: "hidden", marginBottom: "16px" }}>
+        <Card bg={palette.NT_BG} style={{ border: `1px solid ${palette.NT_GRID}`, overflow: "hidden", "margin-bottom": "16px" }}>
           <ReplayChartHost
             ref={(h) => (hostRef = h)}
             bars={candles()}
@@ -333,11 +333,11 @@ export default function ReplayShell(props: { plugin: ReplayStrategyPlugin; heade
           />
         </Card>
         <Card bg={palette.NT_BG} style={{ border: `1px solid ${palette.NT_GRID}`, overflow: "hidden" }}>
-          <Box p="sm" style={{ backgroundColor: "#111", borderBottom: `1px solid ${palette.NT_GRID}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Box p="sm" style={{ "background-color": "#111", "border-bottom": `1px solid ${palette.NT_GRID}`, display: "flex", "justify-content": "space-between", "align-items": "center" }}>
             <Text size="xs" fw={700} style={{ color: palette.PRIMARY }}>
               Trades — {closed().length} closed · net {net() > 0 ? "+" : ""}{net().toFixed(1)} pts
             </Text>
-            <Button size="xs" variant="subtle" disabled style={{ backgroundColor: "#1F2937", color: "#9CA3AF", borderRadius: "4px" }}>
+            <Button size="xs" variant="subtle" disabled style={{ "background-color": "#1F2937", color: "#9CA3AF", "border-radius": "4px" }}>
               {revealed().length - closed().length} open
             </Button>
           </Box>

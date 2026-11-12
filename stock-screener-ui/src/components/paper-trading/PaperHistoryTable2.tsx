@@ -103,7 +103,7 @@ function HistoryFilters(props: {
                 ]}
                 value={props.state().filterBot || ""}
                 onChange={(v) => setFilterBot(v)}
-                style={{ width: "160px", borderRadius: "1px" }}
+                style={{ width: "160px", "border-radius": "1px" }}
                 size="xs"
                 data-testid="bot-filter-select"
               />
@@ -117,7 +117,7 @@ function HistoryFilters(props: {
                 ]}
                 value={props.state().filterStrategy != null ? String(props.state().filterStrategy!) : ""}
                 onChange={(v) => setFilterStrategy(v ? Number(v) : null)}
-                style={{ width: "160px", borderRadius: "1px" }}
+                style={{ width: "160px", "border-radius": "1px" }}
                 size="xs"
                 data-testid="strategy-filter-select"
               />
@@ -173,7 +173,7 @@ function DaySummary(props: {
   return (
     <div class="paper-day-summary flex items-center justify-between px-1.5 py-0.5 gap-1 flex-nowrap" id={`paper-day-summary-${props.date}`} data-testid={`day-header-${props.date}`}>
       <div class="paper-day-summary-left flex items-center gap-2 flex-nowrap">
-        <Text className="paper-day-summary-toggle" size="xs" c="dimmed" style={{ lineHeight: 1 }}>
+        <Text className="paper-day-summary-toggle" size="xs" c="dimmed" style={{ "line-height": 1 }}>
           {props.expanded ? "▾" : "▸"}
         </Text>
         <Text className="paper-day-summary-date uppercase font-mono tabular-nums" size="xs" fw={700}>
@@ -181,7 +181,7 @@ function DaySummary(props: {
         </Text>
       </div>
       <div class="paper-day-summary-right flex items-center gap-2 flex-nowrap">
-        <Text className="paper-day-summary-pnl font-mono tabular-nums" size="xs" c={pnlColor()} fw={700} style={{ textAlign: "right" }}>
+        <Text className="paper-day-summary-pnl font-mono tabular-nums" size="xs" c={pnlColor()} fw={700} style={{ "text-align": "right" }}>
           {formatSignedPnl(dayPnl())}
         </Text>
         <Badge className="paper-day-summary-wins" color={wins() > 0 ? "success" : "secondary"} variant="filled" size="xs">
@@ -220,7 +220,7 @@ function TradeStats(props: { trade: PaperTrade }) {
   return (
     <div class="paper-trade-stats grid grid-cols-1 md:grid-cols-2 gap-1 w-full" id={`paper-trade-stats-${props.trade.trade_id}`}>
       <div class="paper-trade-stats-entry p-1 border-0 rounded-none bg-transparent min-w-0 w-full" id={`paper-trade-stats-entry-${props.trade.trade_id}`}>
-        <Text className="paper-trade-stats-entry-title uppercase pb-1 mb-0.5 border-b border-fin-border" id={`paper-trade-stats-entry-title-${props.trade.trade_id}`} size="xs" fw={700} c="dimmed" style={{ letterSpacing: 0.6 }}>
+        <Text className="paper-trade-stats-entry-title uppercase pb-1 mb-0.5 border-b border-fin-border" id={`paper-trade-stats-entry-title-${props.trade.trade_id}`} size="xs" fw={700} c="dimmed" style={{ "letter-spacing": 0.6 }}>
           Entry
         </Text>
         <For each={entryContext()}>{(item) => (
@@ -231,7 +231,7 @@ function TradeStats(props: { trade: PaperTrade }) {
         )}</For>
       </div>
       <div class="paper-trade-stats-exit p-1 border-0 rounded-none bg-transparent min-w-0 w-full" id={`paper-trade-stats-exit-${props.trade.trade_id}`}>
-        <Text className="paper-trade-stats-exit-title uppercase pb-1 mb-0.5 border-b border-fin-border" id={`paper-trade-stats-exit-title-${props.trade.trade_id}`} size="xs" fw={700} c="dimmed" style={{ letterSpacing: 0.6 }}>
+        <Text className="paper-trade-stats-exit-title uppercase pb-1 mb-0.5 border-b border-fin-border" id={`paper-trade-stats-exit-title-${props.trade.trade_id}`} size="xs" fw={700} c="dimmed" style={{ "letter-spacing": 0.6 }}>
           Exit
         </Text>
         <For each={exitContext()}>{(item) => (
@@ -274,7 +274,7 @@ function TradeNotesEditor(props: { trade: PaperTrade }) {
     <div class="paper-trade-notes-editor p-1.5 border border-fin-border rounded-[1px] bg-fin-surface" id={`paper-trade-notes-${props.trade.trade_id}`}>
       <Stack className="paper-trade-notes-stack gap-2">
         <div class="paper-trade-notes-reason-row flex items-center justify-between gap-2 py-1 border-b border-fin-border" id={`paper-trade-notes-reason-row-${props.trade.trade_id}`}>
-          <Text className="paper-trade-notes-label uppercase shrink-0" size="xs" c="dimmed" fw={600} style={{ letterSpacing: 0.5 }}>
+          <Text className="paper-trade-notes-label uppercase shrink-0" size="xs" c="dimmed" fw={600} style={{ "letter-spacing": 0.5 }}>
             Reason
           </Text>
           <Text className="paper-trade-notes-reason whitespace-pre-wrap leading-[1.5] text-right flex-1" id={`paper-trade-notes-reason-${props.trade.trade_id}`} size="xs" data-testid={`trade-reason-${props.trade.trade_id}`}>
@@ -282,7 +282,7 @@ function TradeNotesEditor(props: { trade: PaperTrade }) {
           </Text>
         </div>
         <div class="paper-trade-notes-input-group flex flex-col gap-2" id={`paper-trade-notes-input-group-${props.trade.trade_id}`}>
-          <Text className="paper-trade-notes-notes-label uppercase shrink-0" size="xs" c="dimmed" fw={600} style={{ letterSpacing: 0.5 }}>
+          <Text className="paper-trade-notes-notes-label uppercase shrink-0" size="xs" c="dimmed" fw={600} style={{ "letter-spacing": 0.5 }}>
             Notes
           </Text>
           <div class="paper-trade-notes-input-row flex items-center gap-2">

@@ -6,7 +6,7 @@ vi.mock("@/ui", async () => {
   return mockSolidUi();
 });
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within, waitFor } from "@solidjs/testing-library";
+import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
 import type { ChartCandle, PatternHitDTO, TrendLine, Trendline } from "@/types/chartPatterns";
 import { BOUNDARY_COLORS, buildPatternChartOption } from "./patternChartOption";

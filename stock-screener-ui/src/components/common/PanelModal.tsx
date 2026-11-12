@@ -157,12 +157,12 @@ export function PanelModal(props: PanelModalProps) {
           data-compact={compact() ? "true" : undefined}
           style={{
             position: "fixed",
-            inset: 0,
-            zIndex: 50,
+            inset: "0px",
+            "z-index": 50,
             display: "flex",
-            justifyContent: isDrawer() ? "flex-end" : "center",
-            alignItems: isDrawer() ? "stretch" : "center",
-            padding: isDrawer() ? 0 : 16,
+            "justify-content": isDrawer() ? "flex-end" : "center",
+            "align-items": isDrawer() ? "stretch" : "center",
+            padding: isDrawer() ? 0 : "16px",
             ...backdropStyle,
           }}
           onClick={handleBackdropClick}
@@ -190,10 +190,10 @@ export function PanelModal(props: PanelModalProps) {
                     size="xs"
                     fw={700}
                     style={{
-                      fontSize: 10,
-                      lineHeight: 1.2,
-                      letterSpacing: "0.08em",
-                      textTransform: "uppercase",
+                      "font-size": "10px",
+                      "line-height": 1.2,
+                      "letter-spacing": "0.08em",
+                      "text-transform": "uppercase",
                       color: palette.TEXT_MUTED,
                     }}
                   >

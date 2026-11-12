@@ -62,7 +62,7 @@ type Story = StoryObj<typeof TanStackTable<User>>;
 
 export const Basic: Story = {
   render: () => (
-    <div style={{ height: 420 }}>
+    <div style={{ height: "420px" }}>
       <TanStackTable data={users} columns={columns} />
     </div>
   ),
@@ -70,7 +70,7 @@ export const Basic: Story = {
 
 export const Sortable: Story = {
   render: () => (
-    <div style={{ height: 420 }}>
+    <div style={{ height: "420px" }}>
       <TanStackTable
         data={users}
         columns={columns}
@@ -82,7 +82,7 @@ export const Sortable: Story = {
 
 export const WithRowClick: Story = {
   render: () => (
-    <div style={{ height: 420 }}>
+    <div style={{ height: "420px" }}>
       <TanStackTable
         data={users}
         columns={columns}
@@ -94,7 +94,7 @@ export const WithRowClick: Story = {
 
 export const EmptyState: Story = {
   render: () => (
-    <div style={{ height: 300 }}>
+    <div style={{ height: "300px" }}>
       <TanStackTable
         data={[]}
         columns={columns}
@@ -108,7 +108,7 @@ export const EmptyState: Story = {
 
 export const LoadingState: Story = {
   render: () => (
-    <div style={{ height: 300 }}>
+    <div style={{ height: "300px" }}>
       <TanStackTable
         data={[]}
         columns={columns}
@@ -122,7 +122,7 @@ export const LoadingState: Story = {
 export const WindowedTable: Story = {
   render: () => (
     <Group gap="xs" p="md">
-      <div style={{ height: 400, width: "100%" }}>
+      <div style={{ height: "400px", width: "100%" }}>
         <TanStackTable data={makeRows(500)} columns={columns} rowWindowSize={30} />
       </div>
       <Text size="xs" c="dimmed">

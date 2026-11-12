@@ -168,10 +168,6 @@ const mockStrategies: AvailableStrategy[] = [
 // @/ui TextInput puts data-testid directly on the native input.
 const nameTextbox = () => screen.getByTestId("bot-name-input");
 
-function renderWithProviders(ui: JSX.Element) {
-  return render(() => (<UIProvider>{ui}</UIProvider>));
-}
-
 describe("BotConfigModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -1,27 +1,28 @@
 import { render } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
-import { createMemoryHistory, MemoryRouter } from "@solidjs/router";
 import type { JSX } from "solid-js";
 
-function TestWrapper(props: { children: JSX.Element; initialRoute?: string }) {
-  const history = createMemoryHistory();
-  history.set({ value: props.initialRoute ?? "/", replace: true, scroll: false });
-  return (
-    <MemoryRouter history={history}>
-      <UIProvider>{props.children}</UIProvider>
-    </MemoryRouter>
-  );
-}
-
+/**
+ * Mount a component under the app's providers.
+ *
+ * No router here on purpose. In `@solidjs/router` v1 the router only renders
+ * `<Route>` definitions — arbitrary JSX children produce zero routes, so a
+ * router wrapper rendered an empty tree for every consumer. Components that
+ * need navigation should either declare their routes or mock
+ * `useNavigate`/`useSearchParams` (the pattern the converted suites use), which
+ * also keeps them hermetic from route-table changes.
+ */
 export function renderWithProviders(
   ui: () => JSX.Element,
-  options?: { initialRoute?: string; user?: unknown },
+  _options?: { initialRoute?: string; user?: unknown },
 ): ReturnType<typeof render> {
   return render(ui, {
-    wrapper: (props) => <TestWrapper initialRoute={options?.initialRoute}>{props.children}</TestWrapper>,
+    wrapper: (props) => <UIProvider>{props.children}</UIProvider>,
   });
 }
 
 export function renderWithRouter(ui: () => JSX.Element): ReturnType<typeof render> {
-  return render(ui, { wrapper: TestWrapper });
+  return render(ui, {
+    wrapper: (props) => <UIProvider>{props.children}</UIProvider>,
+  });
 }

@@ -6,7 +6,7 @@ vi.mock("@/ui", async () => {
   return mockSolidUi();
 });
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { within, cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { PatternFullscreenView } from "./PatternFullscreenView";
 

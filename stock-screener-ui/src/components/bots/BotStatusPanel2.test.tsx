@@ -12,7 +12,7 @@ vi.mock("../../state/bots", () => ({
 }));
 
 vi.mock("../../state/holidays", () => ({
-  subscribeToHolidays: vi.fn(),
+  subscribeToHolidays: vi.fn(() => () => {}),
   isMarketClosedToday: vi.fn().mockReturnValue(false),
 }));
 
@@ -106,10 +106,6 @@ const mockTrade: BotTrade = {
   is_test: false,
   is_test_data: false,
 };
-
-function renderWithProviders(ui: JSX.Element) {
-  return render(() => (<UIProvider>{ui}</UIProvider>));
-}
 
 describe("BotStatusPanel", () => {
   beforeEach(() => {

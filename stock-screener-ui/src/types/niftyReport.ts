@@ -436,7 +436,7 @@ export interface NiftyReplay {
   count: number;
   interval_sec: number;
   snapshots: NiftyReplayFrame[];
-  /** Skipped-minute counts by reason (``{chain-failed: 41, timeout: 12}``).
+  /** Skipped-minute counts by reason (``{"chain-failed": 41, timeout: 12}``).
    *  Absent for days recorded before the gap journal existed. */
   gap_reasons?: Record<string, number>;
 }

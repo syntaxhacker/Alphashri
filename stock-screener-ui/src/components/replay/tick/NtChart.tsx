@@ -105,7 +105,7 @@ export default function NtChart(props: NtChartProps) {
 
   return (
     <div
-      ref={containerRef}
+      ref={(el) => { containerRef = el; }}
       class="w-full"
       style={{ height: `${props.height ?? 300}px` }}
       data-testid={props.testid ?? "nt-chart"}

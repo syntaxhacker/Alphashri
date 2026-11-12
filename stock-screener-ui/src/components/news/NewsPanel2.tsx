@@ -202,7 +202,7 @@ function NewsPanelToggle(props: {
         aria-label="News"
         title={`Open news panel${props.unreadCount > 0 ? ` — ${props.unreadCount} unread` : ""}`}
         leftSection={<IconNews size={18} />}
-        style={{ minWidth: 32, width: 32, height: 32, padding: 0 }}
+        style={{ "min-width": "32px", width: "32px", height: "32px", padding: "0px" }}
       />
     </Indicator>
   );
@@ -214,7 +214,7 @@ function NewsPanelOverlay(props: { onClose: () => void }) {
       color="secondary"
       backgroundOpacity={0.5}
       onClick={props.onClose}
-      z-index={100}
+      zIndex={100}
       data-testid="news-overlay"
       className="news-overlay"
     />
@@ -310,7 +310,7 @@ function NewsPanelContainer(props: { isOpen: boolean; children?: JSX.Element }) 
       className={`news-panel fixed top-0 z-[200] flex h-screen w-[400px] max-w-[100vw] flex-col border-l border-fin-border bg-fin-surface ${props.isOpen ? "open" : ""}`}
       id="news-panel"
       style={{
-        right: props.isOpen ? 0 : -400,
+        right: props.isOpen ? 0 : "-400px",
         transition: "right 0.3s ease",
       }}
       data-testid="news-panel"

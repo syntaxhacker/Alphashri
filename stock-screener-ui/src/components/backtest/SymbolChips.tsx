@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, For, Show, onCleanup } from "solid-js";
+import { createEffect, createSignal, For, Show, onCleanup } from "solid-js";
 import { MultiSelect, Tooltip, Badge, ActionIcon, Box, Group } from "@/ui";
 import { IconX, IconChevronDown, IconChevronUp } from "@/components/common/Icons";
 import * as palette from "@/ui/palette";
@@ -94,7 +94,7 @@ export function SymbolChips(props: {
                 variant="outline"
                 size="sm"
                 className="symbol-chip"
-                style={{ color: palette.TEXT, borderColor: palette.BORDER }}
+                style={{ color: palette.TEXT, "border-color": palette.BORDER }}
                 rightSection={
                   <button
                     type="button"

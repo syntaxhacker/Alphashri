@@ -96,7 +96,7 @@ function SolidTradingChart(props: { input: ChartInput | null }) {
     }
   });
 
-  return <div ref={chartEl} class="flex-1 min-h-0 w-full" data-testid="paper-trading-chart-canvas" />;
+  return <div ref={(el) => { chartEl = el; }} class="flex-1 min-h-0 w-full" data-testid="paper-trading-chart-canvas" />;
 }
 
 function PositionInfo(props: { position: PaperPosition }) {
@@ -139,7 +139,7 @@ function ChartLegend(props: { orbLabel?: string; hasWeek52: boolean; hasTrades: 
       <Flex className="paper-chart-legend py-2 px-2" gap="xs" justify="center" align="center" wrap="wrap" data-testid="chart-legend" id="chart-legend">
         <For each={items()}>{(item) => (
           <Flex className="paper-chart-legend-item gap-2" id={`paper-chart-legend-${item.label.toLowerCase().replace(/\s+/g, "-")}`} align="center">
-            <div class="paper-chart-legend-swatch w-2 h-2 shrink-0" style={{ borderRadius: item.shape === "circle" ? "50%" : "2px", backgroundColor: item.color }} />
+            <div class="paper-chart-legend-swatch w-2 h-2 shrink-0" style={{ "border-radius": item.shape === "circle" ? "50%" : "2px", "background-color": item.color }} />
             <Text className="paper-chart-legend-label" size="xs" c="dimmed">{item.label}</Text>
           </Flex>
         )}</For>
@@ -277,7 +277,7 @@ function ChartHeader(props: { state: ReturnType<typeof getPaperTradingState> }) 
         value={props.state.chartTimeframe}
         onChange={handleTimeframeChange}
         data={fromDate() ? TIMEFRAME_OPTIONS : TIMEFRAME_OPTIONS.filter((tf) => tf.value !== "12hour" && tf.value !== "1day")}
-        style={{ width: "84px", minWidth: "84px", flex: "0 0 auto" }}
+        style={{ width: "84px", "min-width": "84px", flex: "0 0 auto" }}
       />
 
       <DatePicker
@@ -328,7 +328,7 @@ function ChartHeader(props: { state: ReturnType<typeof getPaperTradingState> }) 
         <PopoverDropdown p="xs">
           <Stack className="gap-2">
             <Group gap="xs">
-              <div class="w-[3px] h-[14px] shrink-0" style={{ borderRadius: 2, backgroundColor: PRIMARY }} />
+              <div class="w-[3px] h-[14px] shrink-0" style={{ "border-radius": 2, "background-color": PRIMARY }} />
               <Text size="xs" fw={600}>Range</Text>
             </Group>
             <Group className="gap-2">
@@ -347,7 +347,7 @@ function ChartHeader(props: { state: ReturnType<typeof getPaperTradingState> }) 
             <Divider className="my-2" />
 
             <Group gap="xs">
-              <div class="w-[3px] h-[14px] shrink-0" style={{ borderRadius: 2, backgroundColor: PRIMARY }} />
+              <div class="w-[3px] h-[14px] shrink-0" style={{ "border-radius": 2, "background-color": PRIMARY }} />
               <Text size="xs" fw={600}>Overlays</Text>
             </Group>
             <Group className="gap-2">

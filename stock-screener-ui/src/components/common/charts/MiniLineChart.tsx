@@ -195,7 +195,7 @@ export function MiniLineChart(props: MiniLineChartProps) {
     <Box
       data-testid={props.testId}
       className="flex items-center justify-center"
-      style={{ minHeight: height() }}
+      style={{ "min-height": height() }}
     >
       <Text size="xs" c="dimmed" span>
         {emptyMessage()}

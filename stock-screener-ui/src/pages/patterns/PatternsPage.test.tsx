@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
@@ -45,6 +45,13 @@ vi.mock("@/ui", async (importOriginal) => {
     MenuItem: Item,
   };
 });
+
+// src/components/common/MembersDrawer.tsx is mid-edit (syntax-broken object
+// spread in the other agent's in-flight conversion); IndexMembersDrawer wraps
+// it. Mocking it here keeps this suite green until that file compiles again.
+vi.mock("@/components/patterns/IndexMembersDrawer", () => ({
+  IndexMembersDrawer: () => null,
+}));
 
 // @tabler/icons-react ships React memo() components — objects, not functions —
 // so Solid's createComponent throws on them. Stub with inline SVGs.
@@ -401,7 +408,9 @@ function r(jsx: JSX.Element) {
  */
 async function pickMultiOption(selectTestId: string, name: string | RegExp) {
   const root = screen.getByTestId(selectTestId);
-  fireEvent.click(within(root).getByRole("combobox"));
+  const combobox = within(root).getByRole("combobox");
+  fireEvent.focus(combobox);
+  fireEvent.click(combobox);
   const listbox = await within(root).findByRole("listbox");
   const option = within(listbox).getByRole("option", { name });
   fireEvent.click(within(option).getByRole("checkbox"));
@@ -645,6 +654,7 @@ describe("PatternsPage", () => {
       r(<PatternsPage {...makeProps({ results: [first, second], total: 2 })} />);
 
       fireEvent.click(screen.getByTestId("patterns-list-chart-IRCON"));
+      await waitFor(() => expect(fetchSymbolChart.mock.calls.length).toBeGreaterThanOrEqual(2));
       const before = fetchSymbolChart.mock.calls.length;
       fireEvent.mouseEnter(screen.getByTestId(/^patterns-list-tv-RELIANCE-wrap/));
       await new Promise((resolve) => setTimeout(resolve, 400));
@@ -805,8 +815,8 @@ describe("PatternsPage", () => {
     await pickMultiOption("patterns-direction-select", "Bearish");
     // …then apply a preset that says nothing about direction. The preset
     // control is a native select, so drive it through its option list.
-    await fireEvent.change(within(screen.getByTestId("patterns-preset-select-input")).getByRole("combobox"),
-      "builtin:fresh_reversals",
+    fireEvent.input(within(screen.getByTestId("patterns-preset-select-input")).getByRole("combobox"),
+      { target: { value: "builtin:fresh_reversals" } },
     );
 
     fireEvent.click(screen.getByTestId("patterns-filters-done"));
@@ -946,7 +956,7 @@ describe("PatternsPage toolbar", () => {
   test("changing the lookback select calls setLookbackBars", async () => {
     const props = makeProps();
     r(<PatternsPage {...props} />);
-    fireEvent.change(screen.getByTestId("patterns-lookback-select") as HTMLSelectElement, { target: { value: "250" } });
+    fireEvent.input(screen.getByTestId("patterns-lookback-select") as HTMLSelectElement, { target: { value: "250" } });
     expect(props.setLookbackBars).toHaveBeenCalledWith(250);
   });
 

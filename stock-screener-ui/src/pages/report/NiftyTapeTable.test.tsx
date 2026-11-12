@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, afterEach, vi } from "vitest";
-import { render, screen, within, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, within, cleanup, fireEvent } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
+import type { JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import {
   NiftyTapeTable,
@@ -25,12 +27,10 @@ import {
 } from "./NiftyTapeTable";
 import type { NiftyTape, NiftyTapeRow } from "@/types/niftyReport";
 
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
-}
+vi.mock("@/components/common/states", () => ({ InlineLoader: () => null }));
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: TestWrapper });
+function r(ui: () => JSX.Element) {
+  return render(() => <UIProvider>{ui()}</UIProvider>);
 }
 
 function tapeRow(overrides?: Partial<NiftyTapeRow>): NiftyTapeRow {
@@ -254,21 +254,21 @@ describe("spot deltas + session roll-up", () => {
   });
 
   test("Spot cell shows a tick arrow when a prior minute exists", () => {
-    r(
+    r(() => (
       <NiftyTapeTable
         rows={[
           tapeRow({ t: "09:15", spot: 22500 }),
           tapeRow({ t: "09:16", spot: 22510 }),
         ]}
-      />,
-    );
+      />
+    ));
     const table = screen.getByTestId("nifty-tape-table");
     expect(within(table).getByText("▲")).toBeInTheDocument();
     expect(within(table).getByText("22,510")).toBeInTheDocument();
   });
 
   test("session footer renders spot range, max prints, net sum + heat legend", () => {
-    r(<NiftyTapeTable rows={[tapeRow({ t: "09:15" }), tapeRow({ t: "09:16" })]} />);
+    r(() => <NiftyTapeTable rows={[tapeRow({ t: "09:15" }), tapeRow({ t: "09:16" })]} />);
     const head = screen.getByTestId("nifty-tape-head");
     expect(within(head).getByText(/SPOT [\d.,]+–[\d.,]+/)).toBeInTheDocument();
     expect(within(head).getByText(/MAX ΔOI/)).toBeInTheDocument();
@@ -277,15 +277,15 @@ describe("spot deltas + session roll-up", () => {
   });
 
   test("order toggle flips the first row between newest and oldest", () => {
-    r(
+    r(() => (
       <NiftyTapeTable
         rows={[
           tapeRow({ t: "09:15" }),
           tapeRow({ t: "09:16" }),
           tapeRow({ t: "09:17" }),
         ]}
-      />,
-    );
+      />
+    ));
     const table = screen.getByTestId("nifty-tape-table");
     const times = () => within(table).getAllByTestId("nifty-tape-time").map((el) => el.textContent);
     expect(times()[0]).toBe("09:17");
@@ -320,39 +320,36 @@ describe("live change detection", () => {
   });
 
   test("live mode shows the pulsing LIVE dot; EOD hides it", () => {
-    const { rerender } = r(<NiftyTapeTable rows={[tapeRow({ t: "09:15" })]} live />);
+    const [live, setLive] = createSignal(true);
+    r(() => <NiftyTapeTable rows={[tapeRow({ t: "09:15" })]} live={live()} />);
     expect(screen.getByTestId("nifty-tape-live")).toHaveTextContent("LIVE");
-    rerender(<NiftyTapeTable rows={[tapeRow({ t: "09:15" })]} />);
+    setLive(false);
     expect(screen.queryByTestId("nifty-tape-live")).not.toBeInTheDocument();
   });
 
   test("a newly arrived minute flashes; a revised existing minute flashes its cells", () => {
-    const { rerender, container } = r(
-      <NiftyTapeTable rows={[tapeRow({ t: "09:15", call_doi: 100 })]} />,
-    );
+    const [rows, setRows] = createSignal([tapeRow({ t: "09:15", call_doi: 100 })]);
+    const { container } = r(() => <NiftyTapeTable rows={rows()} />);
     // same minute, revised value → cell flash only
-    rerender(<NiftyTapeTable rows={[tapeRow({ t: "09:15", call_doi: 999 })]} />);
+    setRows([tapeRow({ t: "09:15", call_doi: 999 })]);
     expect(container.querySelectorAll(".tape-cell-flash").length).toBeGreaterThan(0);
     // brand-new minute → row flash on the newest row
-    rerender(
-      <NiftyTapeTable
-        rows={[tapeRow({ t: "09:15", call_doi: 999 }), tapeRow({ t: "09:16", call_doi: 500 })]}
-      />,
-    );
-    const rows = within(screen.getByTestId("nifty-tape-table")).getAllByTestId("nifty-tape-row");
-    expect(rows[0].className).toContain("tape-flash");
+    setRows([tapeRow({ t: "09:15", call_doi: 999 }), tapeRow({ t: "09:16", call_doi: 500 })]);
+    const rowEls = within(screen.getByTestId("nifty-tape-table")).getAllByTestId("nifty-tape-row");
+    expect(rowEls[0].className).toContain("tape-flash");
   });
 
   test("an unchanged snapshot schedules no clear timer and lights no flash", () => {
     vi.useFakeTimers();
     try {
       const first = [tapeRow({ t: "09:15", call_doi: 100 })];
-      const { rerender, container } = r(<NiftyTapeTable rows={first} />);
+      const [rows, setRows] = createSignal(first);
+      const { container } = r(() => <NiftyTapeTable rows={rows()} />);
       // A brand-new minute on the NEXT snapshot is the row flash; here the
       // re-pushed snapshot carries identical values under new identities.
       const again = [{ ...first[0] }];
       const timersAfterMount = vi.getTimerCount();
-      rerender(<NiftyTapeTable rows={again} />);
+      setRows(again);
       // No moved cells → no setChanged, no restarted 1.6s timer: an idle
       // tick costs the diff effect alone, not a second full render cycle.
       expect(vi.getTimerCount()).toBe(timersAfterMount);
@@ -366,11 +363,11 @@ describe("live change detection", () => {
 
 describe("NiftyTapeTable", () => {
   test("renders latest minute first", () => {
-    r(
+    r(() => (
       <NiftyTapeTable
         rows={[tapeRow({ t: "09:15" }), tapeRow({ t: "09:17" }), tapeRow({ t: "09:16" })]}
-      />,
-    );
+      />
+    ));
     const table = screen.getByTestId("nifty-tape-table");
     expect(table).toBeInTheDocument();
     const rows = within(table).getAllByTestId("nifty-tape-row");
@@ -380,11 +377,11 @@ describe("NiftyTapeTable", () => {
   });
 
   test("newest minute carries the tape-latest class, older rows do not", () => {
-    r(
+    r(() => (
       <NiftyTapeTable
         rows={[tapeRow({ t: "09:15" }), tapeRow({ t: "09:17" }), tapeRow({ t: "09:16" })]}
-      />,
-    );
+      />
+    ));
     const rows = within(screen.getByTestId("nifty-tape-table")).getAllByTestId("nifty-tape-row");
     expect(rows[0].className).toContain("tape-latest");
     expect(rows[1].className).not.toContain("tape-latest");
@@ -392,14 +389,14 @@ describe("NiftyTapeTable", () => {
   });
 
   test("Call ΔOI fill strength scales with magnitude", () => {
-    r(
+    r(() => (
       <NiftyTapeTable
         rows={[
           tapeRow({ t: "09:16", call_doi: 5_530_000 }),
           tapeRow({ t: "09:15", call_doi: 553_000 }),
         ]}
-      />,
-    );
+      />
+    ));
     const table = screen.getByTestId("nifty-tape-table");
     const alpha = (el: HTMLElement | null) =>
       Number((el?.style.background ?? "").match(/,\s*([0-9.]+)\)/)?.[1] ?? 0);
@@ -410,7 +407,7 @@ describe("NiftyTapeTable", () => {
   });
 
   test("compact values render with M/K formatting", () => {
-    r(<NiftyTapeTable rows={[tapeRow({ t: "09:15" })]} />);
+    r(() => <NiftyTapeTable rows={[tapeRow({ t: "09:15" })]} />);
     const table = screen.getByTestId("nifty-tape-table");
     expect(within(table).getByText("+170.16M")).toBeInTheDocument();
     expect(within(table).getByText("+5.53M")).toBeInTheDocument();
@@ -418,20 +415,20 @@ describe("NiftyTapeTable", () => {
   });
 
   test("null spot_flip renders em dash", () => {
-    r(<NiftyTapeTable rows={[tapeRow({ t: "09:15", spot_flip: null })]} />);
+    r(() => <NiftyTapeTable rows={[tapeRow({ t: "09:15", spot_flip: null })]} />);
     const table = screen.getByTestId("nifty-tape-table");
     expect(within(table).getByText("—")).toBeInTheDocument();
   });
 
   test("Net cells carry a terminal brown tint, Spot-flip tints blue/brown by sign", () => {
-    r(
+    r(() => (
       <NiftyTapeTable
         rows={[
           tapeRow({ t: "09:16", spot_flip: 12 }),
           tapeRow({ t: "09:15", spot_flip: -8 }),
         ]}
-      />,
-    );
+      />
+    ));
     const table = screen.getByTestId("nifty-tape-table");
     // Net column: solid terminal brown on every row
     const netCells = within(table).getAllByText("+170.16M");
@@ -449,11 +446,11 @@ describe("NiftyTapeTable", () => {
   });
 
   test("Net header states put−call, matching the column's sign convention", () => {
-    r(
+    r(() => (
       <NiftyTapeTable
         rows={[tapeRow({ t: "09:15", net: 10 }), tapeRow({ t: "09:16", net: -20 })]}
-      />,
-    );
+      />
+    ));
     const table = screen.getByTestId("nifty-tape-table");
     expect(within(table).getByText("put−call")).toBeInTheDocument();
     expect(within(table).getByText(/spot−flip/i)).toBeInTheDocument();
@@ -463,14 +460,14 @@ describe("NiftyTapeTable", () => {
   });
 
   test("header strip shows PCR OI, ΔOI since baseline, max pain, flip, walls + caption", () => {
-    r(
+    r(() => (
       <NiftyTapeTable
         rows={[
           tapeRow({ t: "09:15", pcr_oi: 1.1, pcr_doi: 0.05 }),
           tapeRow({ t: "09:16", pcr_oi: 1.15, pcr_doi: 0.08 }),
         ]}
-      />,
-    );
+      />
+    ));
     const head = screen.getByTestId("nifty-tape-head");
     expect(head).toBeInTheDocument();
     expect(within(head).getByTestId("nifty-tape-head-pcr-oi")).toHaveTextContent("1.15");
@@ -523,12 +520,12 @@ describe("NiftyTapeTable", () => {
         tapeRow({ t: "2026-10-13T12:04:00+05:30", pcr_oi: 1.1, pcr_doi: 0.05 }),
         tapeRow({ t: "2026-10-13T12:05:00+05:30", pcr_oi: 1.15, pcr_doi: 0.08 }),
       ];
-      r(
+      r(() => (
         <NiftyTapeTable
           rows={rows}
           tape={tapeWith("2026-10-13T12:04:00+05:30", rows)}
-        />,
-      );
+        />
+      ));
       const head = screen.getByTestId("nifty-tape-head");
       expect(within(head).getByTestId("nifty-tape-head-pcr-doi")).toHaveTextContent("PCR ΔOI since 12:04");
       expect(within(head).getByTestId("nifty-tape-head-pcr-doi")).toHaveTextContent("+0.03");
@@ -539,7 +536,7 @@ describe("NiftyTapeTable", () => {
 
 describe("tape burst spine", () => {
   test("burst minutes carry the side-specific spine class", () => {
-    r(
+    r(() => (
       <NiftyTapeTable
         rows={[tapeRow({ t: "09:15" }), tapeRow({ t: "09:16" }), tapeRow({ t: "09:17" })]}
         bursts={
@@ -548,8 +545,8 @@ describe("tape burst spine", () => {
             ["09:16", "put"],
           ])
         }
-      />,
-    );
+      />
+    ));
     const table = screen.getByTestId("nifty-tape-table");
     const rows = within(table).getAllByTestId("nifty-tape-row");
     const byTime = new Map(
@@ -563,12 +560,12 @@ describe("tape burst spine", () => {
   });
 
   test("the newest burst minute carries both tape-latest and the burst class", () => {
-    r(
+    r(() => (
       <NiftyTapeTable
         rows={[tapeRow({ t: "09:15" }), tapeRow({ t: "09:16" })]}
         bursts={new Map([["09:16", "call"]])}
-      />,
-    );
+      />
+    ));
     const rows = within(screen.getByTestId("nifty-tape-table")).getAllByTestId("nifty-tape-row");
     // newest-first → row 0 is 09:16, the newest AND a burst minute
     expect(rows[0].className).toContain("tape-latest");
@@ -576,12 +573,12 @@ describe("tape burst spine", () => {
   });
 
   test("a row absent from the bursts map gets no burst class", () => {
-    r(
+    r(() => (
       <NiftyTapeTable
         rows={[tapeRow({ t: "09:15" }), tapeRow({ t: "09:16" })]}
         bursts={new Map([["09:15", "call"]])}
-      />,
-    );
+      />
+    ));
     const rows = within(screen.getByTestId("nifty-tape-table")).getAllByTestId("nifty-tape-row");
     // newest-first → 09:16 (absent) is row 0, 09:15 (call burst) is row 1
     expect(rows[0].className).not.toContain("tape-burst");
@@ -589,7 +586,7 @@ describe("tape burst spine", () => {
   });
 
   test("heat legend renders the burst-minute key", () => {
-    r(<NiftyTapeTable rows={[tapeRow({ t: "09:15" })]} />);
+    r(() => <NiftyTapeTable rows={[tapeRow({ t: "09:15" })]} />);
     const legend = screen.getByTestId("nifty-tape-heat-legend");
     expect(within(legend).getByTestId("nifty-tape-burst-legend")).toHaveTextContent("burst minute");
   });
@@ -606,23 +603,24 @@ describe("last / next update stamps", () => {
   });
 
   test("the tape header shows upd + next when a refresh time is supplied", () => {
-    r(
+    r(() => (
       <NiftyTapeTable
         rows={[tapeRow({ t: "09:15" })]}
         updatedAtMs={T}
         nextUpdateAtMs={N}
-      />,
-    );
+      />
+    ));
     const el = screen.getByTestId("nifty-tape-updated");
     expect(el).toHaveTextContent("upd 12:03:15");
     expect(el).toHaveTextContent("next 12:03:45");
   });
 
   test("no stamp without a refresh time, and next is optional", () => {
-    const { rerender } = r(<NiftyTapeTable rows={[tapeRow({ t: "09:15" })]} />);
+    const [updatedAtMs, setUpdatedAtMs] = createSignal<number | undefined>(undefined);
+    r(() => <NiftyTapeTable rows={[tapeRow({ t: "09:15" })]} updatedAtMs={updatedAtMs()} />);
     expect(screen.queryByTestId("nifty-tape-updated")).not.toBeInTheDocument();
 
-    rerender(<NiftyTapeTable rows={[tapeRow({ t: "09:15" })]} updatedAtMs={T} />);
+    setUpdatedAtMs(T);
     const el = screen.getByTestId("nifty-tape-updated");
     expect(el).toHaveTextContent("upd 12:03:15");
     expect(el).not.toHaveTextContent("next");

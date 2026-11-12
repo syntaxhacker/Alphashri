@@ -136,13 +136,13 @@ export function ReplayChart(props: ReplayChartProps) {
           alignItems="center"
           justifyContent="center"
           bg={palette.SURFACE}
-          style={{ display: "flex", borderRadius: "2px" }}
+          style={{ display: "flex", "border-radius": "2px" }}
         >
           <Text c="dimmed">Run a replay to see chart</Text>
         </Box>
       }
     >
-      <Box data-testid="replay-chart" h="100%" style={{ display: "flex", flexDirection: "column" }}>
+      <Box data-testid="replay-chart" h="100%" style={{ display: "flex", "flex-direction": "column" }}>
         <Group gap="xs" align="center" pb={4} px="sm" style={{ flex: "0 0 auto" }}>
           <For each={symbols()}>{(sym) => (
             <Badge
@@ -183,7 +183,7 @@ export function ReplayChart(props: ReplayChartProps) {
           <Switch
             size="xs"
             label="Markers"
-            defaultChecked
+            checked
             disabled
             data-testid="replay-show-markers"
           />

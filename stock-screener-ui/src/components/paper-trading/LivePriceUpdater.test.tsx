@@ -37,7 +37,7 @@ let currentState: any = { positions: [] };
 const mockFetch = vi.fn(async () => ({ ok: true }) as Response);
 
 function notifyLivePrices(prices: Record<string, any>) {
-  for (const [symbol, price] of Object.entries(prices)) {
+  for (const price of Object.values(prices)) {
     for (const handler of frameHandlers) {
       handler({ event: "price", data: JSON.stringify(price) });
     }

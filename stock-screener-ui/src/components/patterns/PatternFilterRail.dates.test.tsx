@@ -59,7 +59,7 @@ describe("PatternFilterRail formed-between dates", () => {
   test("typing a From value writes from_date", () => {
     const props = makeProps();
     render(() => <PatternFilterRail {...props} />);
-    fireEvent.change(screen.getByTestId("patterns-filter-from-date"), {
+    fireEvent.input(screen.getByTestId("patterns-filter-from-date"), {
       target: { value: "2026-06-01T09:15" },
     });
     expect(props.setFilter).toHaveBeenCalledWith("from_date", "2026-06-01T09:15");
@@ -68,7 +68,7 @@ describe("PatternFilterRail formed-between dates", () => {
   test("typing a To value writes to_date", () => {
     const props = makeProps();
     render(() => <PatternFilterRail {...props} />);
-    fireEvent.change(screen.getByTestId("patterns-filter-to-date"), {
+    fireEvent.input(screen.getByTestId("patterns-filter-to-date"), {
       target: { value: "2026-09-30T14:30" },
     });
     expect(props.setFilter).toHaveBeenCalledWith("to_date", "2026-09-30T14:30");
@@ -79,11 +79,11 @@ describe("PatternFilterRail formed-between dates", () => {
       filters: filtersWith({ from_date: "2026-06-01T09:15", to_date: "2026-09-30T14:30" }),
     });
     render(() => <PatternFilterRail {...props} />);
-    fireEvent.change(screen.getByTestId("patterns-filter-from-date"), {
+    fireEvent.input(screen.getByTestId("patterns-filter-from-date"), {
       target: { value: "" },
     });
     expect(props.setFilter).toHaveBeenCalledWith("from_date", null);
-    fireEvent.change(screen.getByTestId("patterns-filter-to-date"), {
+    fireEvent.input(screen.getByTestId("patterns-filter-to-date"), {
       target: { value: "" },
     });
     expect(props.setFilter).toHaveBeenCalledWith("to_date", null);

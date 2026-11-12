@@ -26,7 +26,7 @@ export function ChartErrorBoundary(props: ChartErrorBoundaryProps) {
           <Box
             data-testid="chart-error"
             className="flex items-center justify-center"
-            style={{ minHeight: 120, padding: 8 }}
+            style={{ "min-height": "120px", padding: "8px" }}
           >
             <Text size="xs" c="dimmed" span>
               {props.label ?? "Chart"} unavailable

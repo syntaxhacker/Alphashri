@@ -3,8 +3,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
-import { BrowserRouter } from "react-router-dom";
+import { MemoryRouter, createMemoryHistory } from "@solidjs/router";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
+import type { JSX } from "solid-js";
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -15,7 +16,7 @@ global.fetch = mockFetch;
 // Mock useNewsWebSocket
 vi.mock("../../state/newsWebSocket", () => ({
   useNewsWebSocket: vi.fn(),
-  NewsWebSocketProvider: ({ children }: { children: JSX.Element }) => children,
+  NewsWebSocketProvider: (props: { children: JSX.Element }) => <>{props.children}</>,
 }));
 
 // Mock news API
@@ -44,9 +45,9 @@ vi.mock("./NewsLocalStorage", () => ({
 // Mock useNewsSourceGroups
 vi.mock("./useNewsSourceGroups", () => ({
   useNewsSourceGroups: vi.fn(() => ({
-    groupedNewsItems: {},
-    sourceNames: [],
-    expandedSources: new Set(),
+    groupedNewsItems: () => ({}),
+    sourceNames: () => [],
+    expandedSources: () => new Set(),
     toggleSourceExpanded: vi.fn(),
   })),
   getSourceOptions: vi.fn(() => []),
@@ -92,9 +93,9 @@ function setupNewsGroups(items: typeof mockNewsItems) {
     {} as Record<string, typeof mockNewsItems>,
   );
   (useNewsSourceGroups as any).mockReturnValue({
-    groupedNewsItems: grouped,
-    sourceNames: Object.keys(grouped),
-    expandedSources: new Set(Object.keys(grouped)),
+    groupedNewsItems: () => grouped,
+    sourceNames: () => Object.keys(grouped),
+    expandedSources: () => new Set(Object.keys(grouped)),
     toggleSourceExpanded: vi.fn(),
   });
 }
@@ -105,9 +106,9 @@ describe("NewsPanel2", () => {
     setupBrowserMocks();
 
     (useNewsWebSocket as any).mockReturnValue({
-      connected: true,
-      newsItems: [],
-      hasNewArticles: false,
+      connected: () => true,
+      newsItems: () => [],
+      hasNewArticles: () => false,
       clearNewArticlesFlag: vi.fn(),
       addNewsItems: vi.fn(),
     });
@@ -127,13 +128,20 @@ describe("NewsPanel2", () => {
     cleanup();
   });
 
-  const renderComponent = () =>
-    render(() => (<UIProvider>
-        <BrowserRouter>
-          <NewsPanel2 />
-        </BrowserRouter>
-      </UIProvider>),
-    );
+  const renderComponent = () => {
+    const history = createMemoryHistory();
+    history.set({ value: "/", replace: true, scroll: false });
+    return render(() => (
+      <MemoryRouter
+        history={history}
+        root={() => (
+          <UIProvider>
+            <NewsPanel2 />
+          </UIProvider>
+        )}
+      />
+    ));
+  };
 
   it("renders the NEWS toggle as an icon-only button", () => {
     renderComponent();

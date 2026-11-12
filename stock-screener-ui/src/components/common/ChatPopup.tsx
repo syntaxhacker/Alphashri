@@ -294,10 +294,10 @@ export function ChatPopup() {
         onClick={toggleChat}
         style={{
           position: "fixed",
-          bottom: 20,
-          right: 20,
-          zIndex: 1000,
-          boxShadow: `0 4px 12px ${withAlpha(BLACK, 0.15)}`,
+          bottom: "20px",
+          right: "20px",
+          "z-index": 1000,
+          "box-shadow": `0 4px 12px ${withAlpha(BLACK, 0.15)}`,
         }}
         data-testid="chat-popup-toggle"
       >
@@ -309,19 +309,19 @@ export function ChatPopup() {
           shadow="lg"
           style={{
             position: "fixed",
-            bottom: expanded() ? 10 : 90,
-            right: expanded() ? 10 : 20,
-            width: expanded() ? "calc(100vw - 280px)" : 400,
-            maxWidth: expanded() ? 900 : 400,
-            height: expanded() ? "calc(100vh - 20px)" : 520,
-            zIndex: 1000,
+            bottom: expanded() ? "10px" : "90px",
+            right: expanded() ? "10px" : "20px",
+            width: expanded() ? "calc(100vw - 280px)" : "400px",
+            "max-width": expanded() ? "900px" : "400px",
+            height: expanded() ? "calc(100vh - 20px)" : "520px",
+            "z-index": 1000,
             display: "flex",
-            flexDirection: "column",
+            "flex-direction": "column",
             transition: "all 0.2s ease",
             resize: expanded() ? "none" : "both",
             overflow: "auto",
-            minWidth: 320,
-            minHeight: 400,
+            "min-width": "320px",
+            "min-height": "400px",
           }}
           data-testid="chat-popup-window"
         >
@@ -439,7 +439,7 @@ export function ChatPopup() {
                   <Text size="xs" fw={600} c="dimmed" mb={2}>
                     Tool Calls
                   </Text>
-                  <ScrollArea style={{ maxHeight: 100 }}>
+                  <ScrollArea style={{ "max-height": "100px" }}>
                     <Stack gap={2}>
                       <For each={toolCalls()}>{(tc, i) => (
                         <Group gap={4}>
@@ -475,7 +475,7 @@ export function ChatPopup() {
                   <Box
                     style={{
                       display: "flex",
-                      justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
+                      "justify-content": msg.role === "user" ? "flex-end" : "flex-start",
                     }}
                   >
                     <Paper
@@ -522,7 +522,7 @@ export function ChatPopup() {
                                   <Text size="xs" fw={600} tt="capitalize">
                                     {section.replace(/_/g, " ")}
                                   </Text>
-                                  <ScrollArea style={{ maxHeight: 200 }} type="hover">
+                                  <ScrollArea style={{ "max-height": "200px" }} type="hover">
                                     <Markdown content={String(content)} />
                                   </ScrollArea>
                                 </Paper>

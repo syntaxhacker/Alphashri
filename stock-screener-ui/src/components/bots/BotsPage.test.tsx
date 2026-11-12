@@ -225,7 +225,7 @@ describe("BotsPage", () => {
     state.bots = [createBot({ running: true, pid: 12345 })];
     mockGetBotsState.mockReturnValue(state);
     renderWithProviders(() => <BotsPage />);
-    expect(screen.getByText(/Running/)).toBeInTheDocument();
+    expect(screen.getByTestId("bot-status-bot-1")).toHaveTextContent("RUNNING");
   });
 
   it("disables status tab when no bot is selected", () => {
@@ -359,10 +359,12 @@ describe("BotsPage", () => {
     expect(mockSetCurrentView).toHaveBeenCalledWith("list");
   });
 
-  it("writes current view to the URL when no ?tab= present", () => {
+  it("writes current view to the URL when no ?tab= present", async () => {
     mockGetBotsState.mockReturnValue(baseState());
     renderWithProbe("/bots");
-    expect(screen.getByTestId("search-probe")).toHaveTextContent("tab=list");
+    await waitFor(() => {
+      expect(screen.getByTestId("search-probe")).toHaveTextContent("tab=list");
+    });
   });
 
   it("updates ?tab= when switching tabs", async () => {

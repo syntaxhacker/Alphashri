@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
 import { Alert, Badge, Box, Loader, NumberInput, Select, Switch, Text, TextInput, ToolbarRow, Tooltip } from "@/ui";
 import { TanStackTable } from "@/components/common/TanStackTable";
@@ -471,9 +471,6 @@ export function WatchView(props: WatchViewProps) {
   const universe = () => props.universe;
   const timeframe = () => props.timeframe;
   const minBaseDays = () => props.minBaseDays ?? null;
-  const onOpenSymbol = () => props.onOpenSymbol;
-  const onSymbolPreview = () => props.onSymbolPreview;
-  const onSymbolPreviewEnd = () => props.onSymbolPreviewEnd;
 
   const [setups, setSetups] = createSignal<WatchSetup[]>([]);
   const [setup, setSetup] = createSignal("breakout");

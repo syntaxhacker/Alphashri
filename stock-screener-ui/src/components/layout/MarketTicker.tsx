@@ -128,7 +128,7 @@ function TickerItem(props: TickerItemProps) {
         style={{
           "font-size": "11px",
           "line-height": "1.1",
-          fontFamily: palette.MONO,
+          "font-family": palette.MONO,
           "font-variant-numeric": "tabular-nums",
           "text-align": "right",
           "white-space": "nowrap",
@@ -188,11 +188,11 @@ function TickerContainer(props: TickerContainerProps) {
       style={{
         display: "flex",
         "align-items": "center",
-        gap: 10,
-        height: 22,
+        gap: "10px",
+        height: "22px",
         "overflow-x": "auto",
         "overflow-y": "hidden",
-        flexWrap: "nowrap",
+        "flex-wrap": "nowrap",
         "min-width": "0px",
       }}
     >
@@ -211,8 +211,8 @@ function TickerLoadingState() {
       style={{
         display: "flex",
         "align-items": "center",
-        gap: 10,
-        height: 22,
+        gap: "10px",
+        height: "22px",
         overflow: "hidden",
       }}
     >
@@ -228,7 +228,7 @@ function TickerErrorState() {
       id="market-ticker"
       className="market-ticker market-ticker-error"
       px="sm"
-      style={{ display: "flex", "align-items": "center", height: 22 }}
+      style={{ display: "flex", "align-items": "center", height: "22px" }}
     >
       <Text size="sm" c="dimmed" style={{ "font-size": "9.5px", "line-height": "1.2" }}>
         Market data unavailable
@@ -299,17 +299,17 @@ export function MarketStatus(props: { compact?: boolean }) {
       className="flex items-center min-w-0 overflow-hidden"
       style={{
         "justify-content": compact() ? "center" : "flex-start",
-        gap: compact() ? 0 : 6,
-        "padding-left": compact() ? 0 : 2,
-        "padding-right": compact() ? 0 : 2,
+        gap: compact() ? 0 : "6px",
+        "padding-left": compact() ? 0 : "2px",
+        "padding-right": compact() ? 0 : "2px",
       }}
     >
       <Box
         aria-hidden
         data-testid="app-market-status-dot"
         style={{
-          width: 6,
-          height: 6,
+          width: "6px",
+          height: "6px",
           "border-radius": "50%",
           "flex-shrink": "0",
           "background-color": closed ? palette.TEXT_MUTED : palette.POSITIVE,

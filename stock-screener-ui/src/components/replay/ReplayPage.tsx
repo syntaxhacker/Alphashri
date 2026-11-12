@@ -9,7 +9,6 @@ import { Text, Title, ToolbarRow, Box } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { ReplayTrade } from "../../types/replay";
 type ReplayStateHandle = ReturnType<typeof useReplayState>;
-type ReplayState = ReturnType<ReplayStateHandle["state"]>;
 type ChartRef = { zoomToTrade: (entryTime: string, exitTime: string) => void } | null;
 
 function ReplayPageContent(
@@ -27,22 +26,22 @@ function ReplayPageContent(
       w="100%"
       h="100%"
       mih={0}
-      style={{ display: "flex", flexDirection: "column", overflow: "hidden", "background-color": palette.BG }}
+      style={{ display: "flex", "flex-direction": "column", overflow: "hidden", "background-color": palette.BG }}
       data-testid="replay-page"
     >
       <ToolbarRow
         gap={8}
         wrap={false}
-        style={{ flex: "0 0 auto", height: "36px", padding: `0 ${palette.FIN_OUTER_PAD}px`, borderBottom: `1px solid ${palette.BORDER}` }}
+        style={{ flex: "0 0 auto", height: "36px", padding: `0 ${palette.FIN_OUTER_PAD}px`, "border-bottom": `1px solid ${palette.BORDER}` }}
       >
         <Title order={2} size="h4">
           Replay Trading Day
         </Title>
-        <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <Text size="sm" c="dimmed" style={{ "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }}>
           Simulate paper trading using historical candles
         </Text>
       </ToolbarRow>
-      <Box flex="0 0 auto" px="sm" py="xs" style={{ borderBottom: `1px solid ${palette.BORDER}` }}>
+      <Box flex="0 0 auto" px="sm" py="xs" style={{ "border-bottom": `1px solid ${palette.BORDER}` }}>
         <ReplayConfigBar
           config={state().config}
           isRunning={state().isRunning}
@@ -54,7 +53,7 @@ function ReplayPageContent(
           error={state().error}
         />
       </Box>
-      <Box flex="0 0 auto" px="sm" py="xs" style={{ borderBottom: `1px solid ${palette.BORDER}` }}>
+      <Box flex="0 0 auto" px="sm" py="xs" style={{ "border-bottom": `1px solid ${palette.BORDER}` }}>
         <ReplayStats
           trades={state().trades}
           summary={state().summary}
@@ -64,11 +63,11 @@ function ReplayPageContent(
         />
       </Box>
       <Show when={state().openPositions.length > 0}>
-        <Box flex="0 0 auto" px="sm" py="xs" style={{ borderBottom: `1px solid ${palette.BORDER}`, overflow: "auto", "max-height": "180px" }}>
+        <Box flex="0 0 auto" px="sm" py="xs" style={{ "border-bottom": `1px solid ${palette.BORDER}`, overflow: "auto", "max-height": "180px" }}>
           <ReplayPositions positions={state().openPositions} />
         </Box>
       </Show>
-      <Box flex="1" mih={0} miw={0} px="sm" py="xs" style={{ overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <Box flex="1" mih={0} miw={0} px="sm" py="xs" style={{ overflow: "hidden", display: "flex", "flex-direction": "column" }}>
         <ReplayMainView
           candlesBySymbol={state().candlesBySymbol}
           trades={state().trades}
@@ -97,7 +96,7 @@ function ReplayPageContent(
       </Box>
       <Show when={state().summary}>
         {(summary) => (
-          <Box flex="0 0 auto" px="sm" py="xs" style={{ borderTop: `1px solid ${palette.BORDER}`, overflow: "auto", "max-height": "180px" }}>
+          <Box flex="0 0 auto" px="sm" py="xs" style={{ "border-top": `1px solid ${palette.BORDER}`, overflow: "auto", "max-height": "180px" }}>
             <ReplaySummaryPanel summary={summary()} />
           </Box>
         )}

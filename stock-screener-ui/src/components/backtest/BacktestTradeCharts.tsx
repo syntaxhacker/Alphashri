@@ -204,8 +204,8 @@ function TradeChartRow(props: {
       style={{
         border: `1px solid ${palette.BORDER}`,
         "background-color": palette.NT_BG,
-        contentVisibility: "auto",
-        containIntrinsicSize: "auto 371px",
+        "content-visibility": "auto",
+        "contain-intrinsic-size": "auto 371px",
       }}
     >
       <Stack
@@ -214,36 +214,36 @@ function TradeChartRow(props: {
         spacing={1}
         px={1}
         py="4px"
-        style={{ borderBottom: `1px solid ${palette.BORDER}` }}
+        style={{ "border-bottom": `1px solid ${palette.BORDER}` }}
       >
-        <Badge size="xs" style={{ height: "16px", fontSize: "10px", "background-color": palette.SURFACE_ALT, color: palette.TEXT }}>
+        <Badge size="xs" style={{ height: "16px", "font-size": "10px", "background-color": palette.SURFACE_ALT, color: palette.TEXT }}>
           {`#${props.number}`}
         </Badge>
         <Badge
           size="xs"
           data-testid={`trade-symbol-${props.index}`}
-          style={{ height: "16px", fontSize: "10px", fontWeight: 700, "background-color": palette.PRIMARY, color: palette.NT_BG }}
+          style={{ height: "16px", "font-size": "10px", "font-weight": 700, "background-color": palette.PRIMARY, color: palette.NT_BG }}
         >
           {props.symbol}
         </Badge>
         <Badge
           size="xs"
-          style={{ height: "16px", fontSize: "10px", fontWeight: 700 }}
+          style={{ height: "16px", "font-size": "10px", "font-weight": 700 }}
           color={canonicalSide(props.trade.side) === "SHORT" ? "negative" : "positive"}
           variant="filled"
         >
           {canonicalSide(props.trade.side)}
         </Badge>
-        <Text size="xs" c="muted" style={{ whiteSpace: "nowrap" }}>
+        <Text size="xs" c="dimmed" style={{ "white-space": "nowrap" }}>
           {fmt(props.trade.entry_time)} → {fmt(props.trade.exit_time)}
         </Text>
         <div class="flex-1" />
-        <Text size="xs" c="muted">{props.trade.exit_reason}</Text>
-        <Text size="xs" fw={700} c={pnlColor()} style={{ fontVariantNumeric: "tabular-nums" }} className="font-mono">
+        <Text size="xs" c="dimmed">{props.trade.exit_reason}</Text>
+        <Text size="xs" fw={700} c={pnlColor()} style={{ "font-variant-numeric": "tabular-nums" }} className="font-mono">
           {(props.trade.pnl ?? 0) >= 0 ? "+" : ""}{(props.trade.pnl ?? 0).toFixed(0)}
         </Text>
       </Stack>
-      <div ref={containerRef} class="h-[340px] min-h-[340px] flex-shrink-0 flex" style={{ height: "340px", minHeight: "340px" }}>
+      <div ref={(el) => { containerRef = el; }} class="h-[340px] min-h-[340px] flex-shrink-0 flex" style={{ height: "340px", "min-height": "340px" }}>
         <Show
           when={inView()}
           fallback={<div class="flex-1" style={{ "background-color": palette.NT_BG }} />}
@@ -313,7 +313,7 @@ export function BacktestTradeCharts(props: {
           top: 0,
           "z-index": 2,
           flex: "0 0 auto",
-          borderBottom: `1px solid ${palette.BORDER}`,
+          "border-bottom": `1px solid ${palette.BORDER}`,
           "background-color": palette.SURFACE,
         }}
       >
@@ -326,8 +326,8 @@ export function BacktestTradeCharts(props: {
             color={s === (props.selectedSymbol ?? symbol()) ? "primary" : "secondary"}
             style={{
               height: "18px",
-              fontSize: "10px",
-              fontWeight: 700,
+              "font-size": "10px",
+              "font-weight": 700,
               cursor: props.onSymbolSelect ? "pointer" : "default",
             }}
           >
@@ -335,9 +335,9 @@ export function BacktestTradeCharts(props: {
           </Badge>
         )}</For>
         <div class="flex-1" />
-        <Text size="xs" c="muted" style={{ whiteSpace: "nowrap" }}>
+        <Text size="xs" c="dimmed" style={{ "white-space": "nowrap" }}>
           {trades().length}/{allTrades().length} trades · net{" "}
-          <span style={{ color: netPnl() >= 0 ? palette.POSITIVE : palette.NEGATIVE, fontWeight: 700 }} className="font-mono tabular-nums">
+          <span style={{ color: netPnl() >= 0 ? palette.POSITIVE : palette.NEGATIVE, "font-weight": 700 }} className="font-mono tabular-nums">
             {netPnl() >= 0 ? "+" : ""}₹{netPnl().toFixed(0)}
           </span>
         </Text>
@@ -347,7 +347,7 @@ export function BacktestTradeCharts(props: {
         when={props.chartData && allTrades().length > 0}
         fallback={
           <div class="flex-1 flex items-center justify-center">
-            <Text size="xs" c="muted">No trades to show.</Text>
+            <Text size="xs" c="dimmed">No trades to show.</Text>
           </div>
         }
       >
@@ -355,7 +355,7 @@ export function BacktestTradeCharts(props: {
           when={trades().length > 0}
           fallback={
             <div class="flex-1 flex items-center justify-center">
-              <Text size="xs" c="muted">No trades match the current filters.</Text>
+              <Text size="xs" c="dimmed">No trades match the current filters.</Text>
             </div>
           }
         >

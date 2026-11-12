@@ -15,7 +15,7 @@ export function NewsItemCard({
     <Card
       padding="xs"
       className={`news-item-card ${isUnread ? "unread" : ""}`}
-      style={{ borderLeft: isUnread ? "3px solid var(--color-fin-primary)" : undefined }}
+      style={{ "border-left": isUnread ? "3px solid var(--color-fin-primary)" : undefined }}
       onClick={(e) => {
         e.stopPropagation();
         onClick(item);

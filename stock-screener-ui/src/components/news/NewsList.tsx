@@ -59,36 +59,36 @@ export function NewsList({
         className="sticky top-0 z-20 bg-fin-surface border-b border-fin-border"
         style={{
           position: "sticky",
-          top: 0,
-          zIndex: 2,
-          backgroundColor: palette.SURFACE,
-          borderBottom: `1px solid ${palette.BORDER}`,
+          top: "0px",
+          "z-index": 2,
+          "background-color": palette.SURFACE,
+          "border-bottom": `1px solid ${palette.BORDER}`,
         }}
       >
-        <Box style={{ paddingLeft: 12, paddingRight: 12, paddingTop: 10, paddingBottom: 6 }}>
+        <Box style={{ "padding-left": "12px", "padding-right": "12px", "padding-top": "10px", "padding-bottom": "6px" }}>
           <ToolbarRow gap={8}>
-            <Box style={{ minWidth: 0, flex: "0 0 auto", width: "100%" }}>
-              <Box className="flex items-center gap-3" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
+            <Box style={{ "min-width": "0px", flex: "0 0 auto", width: "100%" }}>
+              <Box className="flex items-center gap-3" style={{ display: "flex", "align-items": "center", gap: "6px" }}>
+                <Text size="sm" fw={700} style={{ "line-height": 1.2 }}>
                   Market feed
                 </Text>
                 <Box
                   className="flex items-center gap-2 rounded-fin"
                   style={{
                     display: "flex",
-                    alignItems: "center",
-                    gap: 4,
+                    "align-items": "center",
+                    gap: "4px",
                     color: palette.POSITIVE,
-                    paddingLeft: 6,
-                    paddingRight: 6,
-                    paddingTop: 2,
-                    paddingBottom: 2,
-                    borderRadius: 8,
-                    backgroundColor: "#121212",
+                    "padding-left": "6px",
+                    "padding-right": "6px",
+                    "padding-top": "2px",
+                    "padding-bottom": "2px",
+                    "border-radius": "8px",
+                    "background-color": "#121212",
                   }}
                 >
                   <IconBolt size={12} aria-hidden="true" />
-                  <Text size="xs" fw={700} style={{ lineHeight: 1 }}>
+                  <Text size="xs" fw={700} style={{ "line-height": 1 }}>
                     Live
                   </Text>
                 </Box>
@@ -98,13 +98,13 @@ export function NewsList({
                 c="dimmed"
                 data-testid="news-story-count"
                 className="block mt-2 [font-variant-numeric:tabular-nums]"
-                style={{ display: "block", marginTop: 2, fontVariantNumeric: "tabular-nums" }}
+                style={{ display: "block", "margin-top": "2px", "font-variant-numeric": "tabular-nums" }}
               >
                 {storyLabel} across {visibleSourceNames.length} {visibleSourceNames.length === 1 ? "source" : "sources"}
               </Text>
             </Box>
-            <Box style={{ flex: 1, minWidth: 0, display: "none" }} />
-            <Box style={{ width: "auto", flex: 1, maxWidth: "100%" }}>
+            <Box style={{ flex: 1, "min-width": "0px", display: "none" }} />
+            <Box style={{ width: "auto", flex: 1, "max-width": "100%" }}>
               <Select
                 aria-label="Source"
                 size="sm"
@@ -134,7 +134,7 @@ export function NewsList({
       </Box>
 
       {loading && !hasGroups ? (
-        <Stack className="gap-2" style={{ padding: 12 }} data-testid="news-loader">
+        <Stack className="gap-2" style={{ padding: "12px" }} data-testid="news-loader">
           {[0, 1, 2, 3].map((row) => (
             <Skeleton key={row} h={64} className="rounded" />
           ))}
@@ -163,7 +163,7 @@ export function NewsList({
                 <Box
                   component="span"
                   className="flex items-center gap-3 min-w-0"
-                  style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}
+                  style={{ display: "flex", "align-items": "center", gap: "6px", "min-width": "0px" }}
                 >
                   {item.sentiment && <SentimentBadge sentiment={item.sentiment} />}
                   {item.impact_score !== undefined && <ImpactScore score={item.impact_score} compact />}

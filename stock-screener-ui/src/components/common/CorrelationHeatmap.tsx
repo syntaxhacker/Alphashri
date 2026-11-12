@@ -191,14 +191,14 @@ export function CorrelationHeatmap(props: CorrelationHeatmapProps) {
   const minHeight = () => (hasData() ? Math.max(300, props.symbols.length * 40 + 120) : 300);
 
   return (
-    <Box pos="relative" style={{ minHeight: `${minHeight()}px` }}>
+    <Box pos="relative" style={{ "min-height": `${minHeight()}px` }}>
       <Box
         data-testid={props.testId}
         ref={(el: HTMLDivElement) => (chartDiv = el)}
-        style={{ minHeight: `${minHeight()}px`, opacity: hasData() ? 1 : 0, width: "100%" }}
+        style={{ "min-height": `${minHeight()}px`, opacity: hasData() ? 1 : 0, width: "100%" }}
       />
       <Show when={props.isLoading}>
-        <Flex pos="absolute" top={0} right={0} bottom={0} left={0} justify="center" align="center" style={{ zIndex: 1 }}>
+        <Flex pos="absolute" top={0} right={0} bottom={0} left={0} justify="center" align="center" style={{ "z-index": 1 }}>
           <Stack align="center" gap="xs">
             <Loader size="sm" />
             <Text size="sm" c="dimmed">

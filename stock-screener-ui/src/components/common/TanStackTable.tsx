@@ -341,7 +341,7 @@ export function TanStackTable<T>(props: Props<T>) {
     if (!props.getRowCanExpand?.(row) || !expanded || !props.renderSubComponent) return null;
     return (
       <tr className="paper-tanstack-expanded-row">
-        <td colSpan={colCount} style={{ padding: 0, "border-top": `1px solid ${palette.BORDER}`, "border-bottom": `1px solid ${palette.BORDER}`, background: palette.BG }}>
+        <td colSpan={colCount} style={{ padding: "0px", "border-top": `1px solid ${palette.BORDER}`, "border-bottom": `1px solid ${palette.BORDER}`, background: palette.BG }}>
           {props.renderSubComponent(row)}
         </td>
       </tr>
@@ -448,7 +448,7 @@ export function TanStackTable<T>(props: Props<T>) {
                             style={{ cursor: "pointer" }}
                             className="paper-tanstack-group-row"
                           >
-                            <Box component="td" colSpan={colCount} style={{ padding: 0, border: "none" }}>
+                            <Box component="td" colSpan={colCount} style={{ padding: "0px", border: "none" }}>
                               {props.renderGroupHeader?.({
                                 value: item.value,
                                 rows: item.rows,

@@ -32,7 +32,7 @@ export function ArticleSymbols({
               data-testid={`news-symbol-${symbol.code}`}
             >
               {symbol.name || symbol.code}
-              {symbol.instrument_key && <IconChartLine size={12} style={{ marginLeft: 4 }} />}
+              {symbol.instrument_key && <IconChartLine size={12} style={{ "margin-left": "4px" }} />}
             </Badge>
           </Tooltip>
         ))}

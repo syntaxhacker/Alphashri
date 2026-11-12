@@ -34,9 +34,9 @@ interface ReplayMainViewProps {
 
 export function ReplayMainView(props: ReplayMainViewProps) {
   return (
-    <Box style={{ flex: 1, minHeight: 0, minWidth: 0, height: "100%" }} data-testid="replay-main-view">
+    <Box style={{ flex: 1, "min-height": 0, "min-width": 0, height: "100%" }} data-testid="replay-main-view">
       <Flex gap="sm" h="100%">
-        <Box style={{ flex: "0 0 60%", minHeight: 0 }}>
+        <Box style={{ flex: "0 0 60%", "min-height": 0 }}>
           <ReplayChart
             ref={props.chartRef}
             candlesBySymbol={props.candlesBySymbol}
@@ -53,7 +53,7 @@ export function ReplayMainView(props: ReplayMainViewProps) {
             onTradeClick={props.onTradeClick}
           />
         </Box>
-        <Box style={{ flex: "1 1 40%", minHeight: 0, display: "flex", flexDirection: "column" }}>
+        <Box style={{ flex: "1 1 40%", "min-height": 0, display: "flex", "flex-direction": "column" }}>
           <ReplayTradeLog
             trades={props.trades}
             strategyFilter={props.strategyFilter ?? "ALL"}

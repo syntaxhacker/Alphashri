@@ -23,7 +23,7 @@ vi.mock("../../state/holidays", () => ({
 }));
 
 function notifyHolidays() {
-  for (const cb of [...holidayListeners]) cb();
+  for (const cb of holidayListeners) cb();
 }
 
 const runningBot: BotSummary = {

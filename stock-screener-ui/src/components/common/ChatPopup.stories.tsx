@@ -15,7 +15,7 @@ type Story = StoryObj<typeof ChatPopup>;
 
 export const Default: Story = {
   render: () => (
-    <Box style={{ height: 560, position: "relative" }}>
+    <Box style={{ height: "560px", position: "relative" }}>
       <ChatPopup />
       <Box p="md">
         <Text size="sm" c="dimmed">
@@ -28,7 +28,7 @@ export const Default: Story = {
 
 export const Expanded: Story = {
   render: () => (
-    <Box style={{ height: 560, position: "relative" }}>
+    <Box style={{ height: "560px", position: "relative" }}>
       <ChatPopup />
     </Box>
   ),
@@ -42,13 +42,13 @@ export const Expanded: Story = {
 
 export const WithHistory: Story = {
   render: () => (
-    <Stack gap="xs" p="md" style={{ height: 560 }}>
+    <Stack gap="xs" p="md" style={{ height: "560px" }}>
       <Title order={5}>WithHistory — mocked conversations</Title>
       <Text size="xs" c="dimmed">
         Conversations would appear in the history drawer (clock icon). Mocked via
-        <Code style={{ fontSize: 11 }}> listConversations → getMessages</Code>.
+        <Code style={{ "font-size": "11px" }}> listConversations → getMessages</Code>.
       </Text>
-      <Box style={{ flex: 1, position: "relative", borderRadius: 8 }}>
+      <Box style={{ flex: 1, position: "relative", "border-radius": "8px" }}>
         <ChatPopup />
         <Stack gap={4} p="sm">
           <Text size="xs" fw={600}>Mock history (not wired to API in Storybook):</Text>
@@ -57,20 +57,20 @@ export const WithHistory: Story = {
           <Text size="xs">• INFY — SELL — 2026-04-08</Text>
         </Stack>
       </Box>
-      <Code style={{ fontSize: 11 }}>{`import { ChatPopup } from "./ChatPopup";\n<ChatPopup /> // app singleton, no props`}</Code>
+      <Code style={{ "font-size": "11px" }}>{`import { ChatPopup } from "./ChatPopup";\n<ChatPopup /> // app singleton, no props`}</Code>
     </Stack>
   ),
 };
 
 export const Streaming: Story = {
   render: () => (
-    <Stack gap="xs" p="md" style={{ height: 560 }}>
+    <Stack gap="xs" p="md" style={{ height: "560px" }}>
       <Title order={5}>Streaming — SSE analysis</Title>
       <Text size="xs" c="dimmed">
-        When chat detects a ticker (e.g. “Analyze RELIANCE”), <Code style={{ fontSize: 11 }}>streamStockAnalysis</Code> streams
-        <Code style={{ fontSize: 11 }}> progress / tool_call / complete</Code> events. Rendered via react-markdown.
+        When chat detects a ticker (e.g. “Analyze RELIANCE”), <Code style={{ "font-size": "11px" }}>streamStockAnalysis</Code> streams
+        <Code style={{ "font-size": "11px" }}> progress / tool_call / complete</Code> events. Rendered via react-markdown.
       </Text>
-      <Box style={{ flex: 1, position: "relative", borderRadius: 8 }}>
+      <Box style={{ flex: 1, position: "relative", "border-radius": "8px" }}>
         <ChatPopup />
         <Box p="sm">
           <Text size="xs">Send “Analyze RELIANCE” to trigger streaming (mocked in docs).</Text>

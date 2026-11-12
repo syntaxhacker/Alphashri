@@ -104,7 +104,7 @@ export function LiveSpotChart(props: { underlying: string }) {
               </Text>
               <style>
                 {`
-                  @keyframes dash { to { stroke-dashoffset: 0; } }
+                  @keyframes dash { to { "stroke-dashoffset": 0; } }
                   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
                 `}
               </style>

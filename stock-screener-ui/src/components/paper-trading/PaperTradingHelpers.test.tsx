@@ -130,7 +130,7 @@ vi.mock("./BotSelector", () => ({
       <div>
         <div data-testid="bot-card-strip">
           {bots.map((b: any) => (
-            <div key={b.id} data-testid={`bot-card-${b.id}`}>
+            <div data-testid={`bot-card-${b.id}`}>
               {b.name}
             </div>
           ))}

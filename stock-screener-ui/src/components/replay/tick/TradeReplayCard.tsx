@@ -35,7 +35,7 @@ export default function TradeReplayCard(props: TradeReplayCardProps) {
   return (
     <Card
       bg={palette.NT_BG}
-      style={{ border: `1px solid ${palette.NT_GRID}`, marginBottom: "16px", overflow: "hidden" }}
+      style={{ border: `1px solid ${palette.NT_GRID}`, "margin-bottom": "16px", overflow: "hidden" }}
       data-testid="trade-replay-card"
       id={`trade-replay-card-${props.index}`}
     >
@@ -45,29 +45,29 @@ export default function TradeReplayCard(props: TradeReplayCardProps) {
       >
         <Stack
           flex="0 0 280px"
-          style={{ padding: "12px", "background-color": palette.SURFACE, borderRight: `1px solid ${palette.BORDER}`, gap: "8px" }}
+          style={{ padding: "12px", "background-color": palette.SURFACE, "border-right": `1px solid ${palette.BORDER}`, gap: "8px" }}
           gap="xs"
         >
           <Stack direction="row" align="center" justify="space-between" gap="xs">
             <Stack direction="row" align="center" gap="xs">
-              <Chip size="xs" color={props.trade.side === "LONG" ? "success" : "error"} style={{ height: "18px", fontSize: "10px", fontWeight: 700 }}>{props.trade.side}</Chip>
+              <Chip size="xs" color={props.trade.side === "LONG" ? "success" : "error"} style={{ height: "18px", "font-size": "10px", "font-weight": 700 }}>{props.trade.side}</Chip>
               <Show when={props.trade.stack}>
-                <Chip size="xs" style={{ height: "18px", fontSize: "9px", "background-color": "#1F2937", color: stackColor(props.trade.stack), border: `1px solid ${stackColor(props.trade.stack)}` }}>{stackLabel(props.trade.stack)}</Chip>
+                <Chip size="xs" style={{ height: "18px", "font-size": "9px", "background-color": "#1F2937", color: stackColor(props.trade.stack), border: `1px solid ${stackColor(props.trade.stack)}` }}>{stackLabel(props.trade.stack)}</Chip>
               </Show>
-              <Text size="xs" fw={600} style={{ color: palette.TEXT, fontSize: "10px" }}>
+              <Text size="xs" fw={600} style={{ color: palette.TEXT, "font-size": "10px" }}>
                 #{props.index + 1} {kindLabel(props.trade.kind)}
               </Text>
             </Stack>
-            <Chip size="xs" color={resultColor(props.trade.result)} style={{ height: "18px", fontSize: "9px" }}>{props.trade.result}</Chip>
+            <Chip size="xs" color={resultColor(props.trade.result)} style={{ height: "18px", "font-size": "9px" }}>{props.trade.result}</Chip>
           </Stack>
           <Stack gap="xs">
-            <Text size="xs" fw={600} style={{ color: palette.TEXT, fontSize: "10px" }}>
+            <Text size="xs" fw={600} style={{ color: palette.TEXT, "font-size": "10px" }}>
               {props.timeLabel(props.trade.time)} → {props.timeLabel(props.trade.exit_time)}
             </Text>
-            <Text size="xs" style={{ color: palette.TEXT_MUTED, fontSize: "9px" }}>
+            <Text size="xs" style={{ color: palette.TEXT_MUTED, "font-size": "9px" }}>
               Entry {props.trade.entry.toFixed(2)} · SL {props.trade.sl.toFixed(2)}{props.trade.tp != null ? ` · TP ${props.trade.tp.toFixed(2)}` : " · trail"}
             </Text>
-            <Text size="xs" fw={600} style={{ color: props.trade.pnl > 0 ? palette.POSITIVE : palette.NEGATIVE, fontSize: "9px" }}>
+            <Text size="xs" fw={600} style={{ color: props.trade.pnl > 0 ? palette.POSITIVE : palette.NEGATIVE, "font-size": "9px" }}>
               RR {props.trade.rr >= 0 ? "+" : ""}{props.trade.rr.toFixed(2)}R · {props.trade.pnl > 0 ? "+" : ""}{props.trade.pnl.toFixed(2)} pts ({Math.max(1, Math.round((props.trade.exit_time - props.trade.time) / 60))}m)
             </Text>
           </Stack>
@@ -80,13 +80,13 @@ export default function TradeReplayCard(props: TradeReplayCardProps) {
                 border: `1px solid ${palette.BORDER}`,
               }}
             >
-              <Text size="xs" style={{ color: palette.TEXT_MUTED, display: "block", fontSize: "9px", lineHeight: 1.6 }}>
+              <Text size="xs" style={{ color: palette.TEXT_MUTED, display: "block", "font-size": "9px", "line-height": 1.6 }}>
                 {props.explainer!(props.trade)}
               </Text>
             </Box>
           </Show>
         </Stack>
-        <Box style={{ flex: "1", minHeight: `${chartHeight()}px`, display: "flex", "align-items": "stretch" }}>
+        <Box style={{ flex: "1", "min-height": `${chartHeight()}px`, display: "flex", "align-items": "stretch" }}>
           <TickReplayChart bars={props.bars} trade={props.trade} zones={props.zones} trends={props.trends} height={chartHeight()} id={`tick-replay-chart-${props.index}`} fitPaddingBeforeMin={props.fitPaddingBeforeMin} fitPaddingAfterMin={props.fitPaddingAfterMin} />
         </Box>
       </Box>

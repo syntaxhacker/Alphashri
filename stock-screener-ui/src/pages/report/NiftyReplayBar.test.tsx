@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
-import { render, screen, within, cleanup, fireEvent } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, within, cleanup, fireEvent } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
+import type { JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import {
   NiftyReplayBar,
@@ -19,12 +20,8 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function Wrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
-}
-
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: Wrapper });
+function r(ui: () => JSX.Element) {
+  return render(() => <UIProvider>{ui()}</UIProvider>);
 }
 
 /** Three recorded minutes with distinct spots so scrubbing is observable. */
@@ -57,7 +54,7 @@ function renderBar(overrides?: Partial<Parameters<typeof NiftyReplayBar>[0]>) {
     onTogglePlay: vi.fn(),
     ...overrides,
   };
-  const view = r(<NiftyReplayBar {...props} />);
+  const view = r(() => <NiftyReplayBar {...props} />);
   return { ...view, props, bar: screen.getByTestId("nifty-replay-bar") };
 }
 
@@ -82,10 +79,9 @@ describe("NiftyReplayBar", () => {
     expect(bar).toHaveStyle({ height: "24px" });
   });
 
-  test("play button label follows `playing` and fires onTogglePlay", async () => {
-    const user = userEvent.setup();
+  test("play button label follows `playing` and fires onTogglePlay", () => {
     const { props, bar } = renderBar();
-    await user.click(within(bar).getByTestId("nifty-replay-play"));
+    fireEvent.click(within(bar).getByTestId("nifty-replay-play"));
     expect(props.onTogglePlay).toHaveBeenCalledTimes(1);
     cleanup();
     const paused = renderBar({ playing: true });
@@ -124,7 +120,7 @@ describe("NiftyReplayBar", () => {
   test("names the recorder's skip reasons when the gap journal exists", () => {
     cleanup();
     const reasons = toReplayReasons({ chainFailed: 41, timeout: 12 });
-    r(
+    r(() => (
       <NiftyReplayBar
         replay={replayFixture()}
         replayIndex={0}
@@ -134,8 +130,8 @@ describe("NiftyReplayBar", () => {
         holes={0}
         onScrub={vi.fn()}
         onTogglePlay={vi.fn()}
-      />,
-    );
+      />
+    ));
     const el = screen.getByTestId("nifty-replay-reasons");
     // Counts are tooltip-only (the 24px bar shows `time · %`).
     expect(el).toHaveAttribute("title", expect.stringContaining("chain fetch failed ×41"));
@@ -150,40 +146,28 @@ describe("NiftyReplayBar", () => {
     expect(el).toHaveAttribute("title", expect.stringContaining("reason not logged"));
   });
 
-  test("memo: identical props keep the segment DOM nodes across re-renders", () => {
+  test("stable strip: changing replayIndex leaves the coverage strip DOM untouched", () => {
     const replay = replayFixture();
     const coverage = computeReplayCoverage(replay.snapshots);
     const reasons = toReplayReasons(replay.gap_reasons);
     const holes = countReplayHoles(buildReplaySegments(replay, coverage));
-    const onScrub = vi.fn();
-    const onTogglePlay = vi.fn();
-    const { rerender } = r(
+    const [idx, setIdx] = createSignal(0);
+    r(() => (
       <NiftyReplayBar
         replay={replay}
-        replayIndex={0}
+        replayIndex={idx()}
         playing={false}
         coverage={coverage}
         reasons={reasons}
         holes={holes}
-        onScrub={onScrub}
-        onTogglePlay={onTogglePlay}
-      />,
-    );
+        onScrub={vi.fn()}
+        onTogglePlay={vi.fn()}
+      />
+    ));
     const strip = screen.getByTestId("nifty-replay-coverage-strip");
     const firstChild = strip.firstElementChild;
-    rerender(
-      <NiftyReplayBar
-        replay={replay}
-        replayIndex={0}
-        playing={false}
-        coverage={coverage}
-        reasons={reasons}
-        holes={holes}
-        onScrub={onScrub}
-        onTogglePlay={onTogglePlay}
-      />,
-    );
-    // React.memo bailed out — the strip and its segment boxes are untouched.
+    setIdx(2);
+    // Solid swaps in the new time/counter text without rebuilding the strip.
     expect(screen.getByTestId("nifty-replay-coverage-strip")).toBe(strip);
     expect(screen.getByTestId("nifty-replay-coverage-strip").firstElementChild).toBe(firstChild);
   });
@@ -197,7 +181,7 @@ describe("replay helpers", () => {
 
   test("toReplayReasons sorts by count and labels known reasons", () => {
     expect(toReplayReasons(undefined)).toEqual([]);
-    expect(toReplayReasons({ timeout: 1, chainFailed: 5 })).toEqual([
+    expect(toReplayReasons({ timeout: 1, "chain-failed": 5 })).toEqual([
       { reason: "chain-failed", n: 5, label: "chain fetch failed" },
       { reason: "timeout", n: 1, label: "tick timed out" },
     ]);

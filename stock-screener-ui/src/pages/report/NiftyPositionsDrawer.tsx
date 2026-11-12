@@ -1,10 +1,9 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode, CSSProperties } from "react";
-import { Box } from "@/ui";
-import type { ColumnDef } from "@tanstack/react-table";
+import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js";
+import type { JSX } from "solid-js";
 import { Button, Text } from "@/ui";
+import type { TableColumnDef } from "@/components/common/TanStackTable";
 import * as palette from "@/ui/palette";
-import { PanelModal } from "@/components/common/PanelModal";
+import { LocalPanelModal } from "./LocalPanelModal";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { formatSignedPnl, formatNumberIN } from "@/utils/ui-helpers";
 import type { PaperPosition } from "@/types/paperTrading";
@@ -44,31 +43,33 @@ function toneFor(value: number | null): string {
   return value > 0 ? palette.POSITIVE : palette.NEGATIVE;
 }
 
-const NUM = (v: number): ReactNode => (
-  <Text span size="xs" fw={500} style={{ fontFamily: palette.MONO }}>
+const NUM = (v: number): JSX.Element => (
+  <Text span size="xs" fw={500} style={{ "font-family": palette.MONO }}>
     {formatNumberIN(v)}
   </Text>
 );
 
-const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
+const POSITION_COLUMNS: TableColumnDef<PositionRow>[] = [
   {
+    id: "symbol",
     header: "Symbol",
     accessorKey: "symbol",
     size: 120,
     meta: { align: "left" },
     cell: (info) => (
-      <Text span size="xs" fw={700} title={String(info.getValue() ?? "")} style={{ minWidth: 0 }}>
-        {String(info.getValue() ?? "—")}
+      <Text span size="xs" fw={700} title={String(rowCell(info.row.original, "symbol") ?? "")} style={{ "min-width": "0" }}>
+        {String(rowCell(info.row.original, "symbol") ?? "—")}
       </Text>
     ),
   },
   {
+    id: "opt",
     header: "Opt",
     accessorKey: "opt",
     size: 46,
     meta: { align: "center" },
     cell: (info) => {
-      const opt = info.getValue() as PositionRow["opt"];
+      const opt = rowCell(info.row.original, "opt") as PositionRow["opt"];
       return (
         <Text
           span
@@ -82,12 +83,13 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     },
   },
   {
+    id: "strike",
     header: "Strike",
     accessorKey: "strike",
     size: 74,
     meta: { align: "right" },
     cell: (info) => {
-      const strike = info.getValue() as number | null;
+      const strike = rowCell(info.row.original, "strike") as number | null;
       return (
         <Text span size="xs" style={{ fontFamily: palette.MONO }}>
           {strike === null ? "—" : formatNumberIN(strike)}
@@ -96,12 +98,13 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     },
   },
   {
+    id: "side",
     header: "Side",
     accessorKey: "side",
     size: 52,
     meta: { align: "center" },
     cell: (info) => {
-      const side = String(info.getValue() ?? "");
+      const side = String(rowCell(info.row.original, "side") ?? "");
       return (
         <Text
           span
@@ -115,24 +118,27 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     },
   },
   {
+    id: "qty",
     header: "Qty",
     accessorKey: "qty",
     size: 58,
     meta: { align: "right" },
-    cell: (info) => NUM(Number(info.getValue()) || 0),
+    cell: (info) => NUM(Number(rowCell(info.row.original, "qty")) || 0),
   },
   {
+    id: "entry",
     header: "Entry",
     accessorKey: "entry",
     size: 72,
     meta: { align: "right" },
     cell: (info) => (
       <Text span size="xs" style={{ fontFamily: palette.MONO }}>
-        {formatRupees(Number(info.getValue()) || 0)}
+        {formatRupees(Number(rowCell(info.row.original, "entry")) || 0)}
       </Text>
     ),
   },
   {
+    id: "mark",
     header: "Mark",
     accessorKey: "mark",
     size: 72,
@@ -144,6 +150,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     ),
   },
   {
+    id: "pnl",
     header: "P&L",
     accessorKey: "pnl",
     size: 86,
@@ -158,6 +165,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     },
   },
   {
+    id: "stop",
     header: "Stop",
     accessorKey: "stop",
     size: 72,
@@ -169,6 +177,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     ),
   },
   {
+    id: "target",
     header: "Target",
     accessorKey: "target",
     size: 72,

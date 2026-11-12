@@ -33,13 +33,12 @@ import {
 } from "../../config/colors";
 
 export function PortfolioSummaryCard(props: { portfolio: PortfolioSummary }) {
-  const pnlColor = () => getPnLTextColor(props.props.portfolio.total_pnl);
-  const pnlBg = () => (props.props.portfolio.total_pnl >= 0 ? TINT_POSITIVE : TINT_NEGATIVE);
-  const isGreen = () => props.props.portfolio.total_pnl >= 0;
+  const pnlColor = () => getPnLTextColor(props.portfolio.total_pnl);
+  const pnlBg = () => (props.portfolio.total_pnl >= 0 ? TINT_POSITIVE : TINT_NEGATIVE);
+  const isGreen = () => props.portfolio.total_pnl >= 0;
 
   return (
     <Card
-      elevation={1}
       padding="md"
       radius="md"
       data-testid="portfolio-summary"
@@ -48,7 +47,7 @@ export function PortfolioSummaryCard(props: { portfolio: PortfolioSummary }) {
       <Box className="flex items-center justify-between gap-2 p-2">
         <Box className="flex items-center justify-center"><Text fw={600} size="sm" ta="center">Portfolio Summary</Text></Box>
         <Box className="flex items-center justify-center">
-          <Badge color={isGreen ? "success" : "error"} variant="light" size="sm">
+          <Badge color={isGreen() ? "success" : "error"} variant="light" size="sm">
             {isGreen() ? "PROFIT" : "LOSS"}
           </Badge>
         </Box>
@@ -66,14 +65,14 @@ export function PortfolioSummaryCard(props: { portfolio: PortfolioSummary }) {
           <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Positions</Text>
           <Text fw={600} className="flex flex-1 items-center justify-end text-right">{props.portfolio.total_positions}</Text>
         </Box>
-        <Box className="flex w-full items-center justify-between gap-2 rounded p-2" style={{ backgroundColor: pnlBg() }}>
+        <Box className="flex w-full items-center justify-between gap-2 rounded p-2" style={{ "background-color": pnlBg() }}>
           <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Total P&L</Text>
           <Box className="flex flex-1 items-center justify-end">
             <Text fw={600} c={pnlColor()} ta="center">
               {formatSignedPnl(props.portfolio.total_pnl)}
               <Text span size="sm" ml={4}>
-                ({props.props.portfolio.total_pnl_pct >= 0 ? "+" : ""}
-                {props.props.portfolio.total_pnl_pct.toFixed(2)}%)
+                ({props.portfolio.total_pnl_pct >= 0 ? "+" : ""}
+                {props.portfolio.total_pnl_pct.toFixed(2)}%)
               </Text>
             </Text>
           </Box>
@@ -93,13 +92,12 @@ export function StrategyStatusCard(props: {
 
   return (
     <Card
-      elevation={1}
       padding="sm"
       radius="md"
       data-testid="strategy-card"
       className="p-2"
     >
-      <Box className="flex items-center justify-between gap-2 p-2" mb={1}>
+      <Box className="flex items-center justify-between gap-2 p-2">
         <Box className="flex items-center justify-center">
           <Text fw={600} size="sm" ta="center">{props.strategy.strategy_name}</Text>
         </Box>
@@ -205,7 +203,7 @@ export function PositionsTable(props: { positions: BotPosition[] }) {
         const p = row.original;
         const pnlColor = getPnLTextColor(p.unrealized_pnl);
         return (
-          <Text c={pnlColor()} fw={600} ta="right">
+          <Text c={pnlColor} fw={600} ta="right">
             {formatSignedPnl(p.unrealized_pnl)}
             <Text span size="sm" ml={4}>
               ({p.unrealized_pnl_pct >= 0 ? "+" : ""}
@@ -235,8 +233,8 @@ export function PositionsTable(props: { positions: BotPosition[] }) {
 
   return (
     <Show when={props.positions.length > 0}>
-      <Card elevation={1} padding="md" radius="md" data-testid="bot-positions" className="p-2">
-        <Box className="flex items-center justify-between gap-2 p-2" mb="sm">
+      <Card padding="md" radius="md" data-testid="bot-positions" className="p-2">
+        <Box className="flex items-center justify-between gap-2 p-2">
           <Box className="flex items-center justify-center"><Text fw={600} ta="center">Open Positions</Text></Box>
           <Box className="flex items-center justify-center">
             <Badge color="primary" variant="light" size="sm">
@@ -319,7 +317,7 @@ export function TradesTable(props: { trades: BotTrade[]; onRefresh: () => void }
         const t = row.original;
         const pnlColor = getPnLTextColor(t.pnl);
         return (
-          <Text c={pnlColor()} fw={600} ta="right">
+          <Text c={pnlColor} fw={600} ta="right">
             {formatSignedPnl(t.pnl)}
             <Text span size="sm" ml={4}>
               ({t.pnl_pct >= 0 ? "+" : ""}
@@ -360,8 +358,8 @@ export function TradesTable(props: { trades: BotTrade[]; onRefresh: () => void }
     <Show
       when={props.trades.length > 0}
       fallback={
-        <Card elevation={1} padding="md" radius="md" data-testid="bot-trades" className="p-2">
-          <Box className="flex items-center justify-center p-2" mb="sm">
+        <Card padding="md" radius="md" data-testid="bot-trades" className="p-2">
+          <Box className="flex items-center justify-center p-2">
             <Text fw={600} ta="center">
               Trade History
             </Text>
@@ -374,8 +372,8 @@ export function TradesTable(props: { trades: BotTrade[]; onRefresh: () => void }
         </Card>
       }
     >
-      <Card elevation={1} padding="md" radius="md" data-testid="bot-trades" className="p-2">
-        <Box className="flex items-center justify-between gap-2 p-2" mb="sm">
+      <Card padding="md" radius="md" data-testid="bot-trades" className="p-2">
+        <Box className="flex items-center justify-between gap-2 p-2">
           <Box className="flex items-center justify-center"><Text fw={600} ta="center">Trade History ({props.trades.length})</Text></Box>
           <Box className="flex items-center justify-center gap-2">
             <Badge
@@ -497,7 +495,7 @@ interface BotSummaryCellProps {
 export function BotSummaryCell(props: BotSummaryCellProps) {
   return (
     <Stack gap={0.5}>
-      <Text size="xs" c="text.secondary">{props.bot.strategies.length} strategies</Text>
+      <Text size="xs" c="dimmed">{props.bot.strategies.length} strategies</Text>
       <Group gap={0.5} wrap="wrap" align="center">
         <For each={props.bot.strategies}>{(s) => (
           <Badge size="xs" variant="light" color={s.enable_shorts ? "info" : "success"}>

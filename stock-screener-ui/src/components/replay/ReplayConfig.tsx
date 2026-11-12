@@ -152,7 +152,7 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
     <Box>
       <Group gap="sm" wrap="wrap" align="flex-start" data-testid="replay-config">
         <Box>
-          <Text size="xs" fw={500} style={{ marginBottom: "8px" }}>
+          <Text size="xs" fw={500} style={{ "margin-bottom": "8px" }}>
             Bot
           </Text>
           <Select
@@ -171,7 +171,7 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
 
         <Group gap="xs" align="flex-start">
           <Box data-testid="replay-date-from">
-            <Text size="xs" fw={500} style={{ marginBottom: "8px" }}>
+            <Text size="xs" fw={500} style={{ "margin-bottom": "8px" }}>
               From
             </Text>
             <TradingDatePicker
@@ -184,7 +184,7 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
             {props.config.date && <span style={{ display: "none" }}>{formatDisplayDate(props.config.date)}</span>}
           </Box>
           <Box data-testid="replay-date-to">
-            <Text size="xs" fw={500} style={{ marginBottom: "8px" }}>
+            <Text size="xs" fw={500} style={{ "margin-bottom": "8px" }}>
               To
             </Text>
             <TradingDatePicker
@@ -199,7 +199,7 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
         </Group>
 
         <Box>
-          <Text size="xs" fw={500} style={{ marginBottom: "8px" }}>
+          <Text size="xs" fw={500} style={{ "margin-bottom": "8px" }}>
             Symbols
           </Text>
           <Group gap={4} align="center">
@@ -243,7 +243,7 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
                 <Badge
                   variant="outline"
                   size="sm"
-                  style={{ marginRight: "8px", marginBottom: "8px" }}
+                  style={{ "margin-right": "8px", "margin-bottom": "8px" }}
                   rightSection={
                     <IconX
                       size={10}
@@ -262,7 +262,7 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
         </Box>
 
         <Box>
-          <Text size="xs" fw={500} style={{ marginBottom: "8px" }}>
+          <Text size="xs" fw={500} style={{ "margin-bottom": "8px" }}>
             Refresh Cache
           </Text>
           <Switch
@@ -274,7 +274,7 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
         </Box>
 
         <Box>
-          <Text size="xs" fw={500} style={{ marginBottom: "8px" }}>
+          <Text size="xs" fw={500} style={{ "margin-bottom": "8px" }}>
             &nbsp;
           </Text>
           <Group gap="xs" align="center">

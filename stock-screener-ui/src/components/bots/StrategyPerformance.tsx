@@ -118,7 +118,7 @@ export function StrategyPerformance() {
     <Paper elevation={1} p="sm" radius="sm">
       <Box className="flex items-center justify-between gap-2 p-2" mb="sm">
         <Box className="flex items-center gap-2">
-          <Box w={4} h={24} style={{ borderRadius: 2, backgroundColor: palette.INFO }} />
+          <Box w={4} h={24} style={{ "border-radius": "2px", "background-color": palette.INFO }} />
           <Title order={4} ta="center">Strategy Performance</Title>
           <Badge size="sm" variant="light" color="info">last {d().days} days</Badge>
         </Box>
@@ -133,8 +133,8 @@ export function StrategyPerformance() {
         mt="sm"
         radius="sm"
         style={{
-          backgroundColor: alpha(d().total_net_pnl >= 0 ? palette.POSITIVE : palette.NEGATIVE, 0.16),
-          borderLeft: `4px solid ${d().total_net_pnl >= 0 ? palette.POSITIVE : palette.NEGATIVE}`,
+          "background-color": alpha(d().total_net_pnl >= 0 ? palette.POSITIVE : palette.NEGATIVE, 0.16),
+          "border-left": `4px solid ${d().total_net_pnl >= 0 ? palette.POSITIVE : palette.NEGATIVE}`,
         }}
       >
         <Box className="flex items-center justify-between gap-2 p-2">

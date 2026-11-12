@@ -285,7 +285,7 @@ export function WatchlistScan2(props: WatchlistScan2Props) {
           </Group>
         </Group>
 
-        <ToolbarRow gap={32} style={{ paddingLeft: "4px", paddingRight: "4px" }}>
+        <ToolbarRow gap={32} style={{ "padding-left": "4px", "padding-right": "4px" }}>
           <SegmentedControl
             size="xs"
             value={statusFilter()}

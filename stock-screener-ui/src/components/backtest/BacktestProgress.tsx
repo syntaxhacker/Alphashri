@@ -26,7 +26,7 @@ export function BacktestProgress({ progress }: BacktestProgressProps) {
         <Loader size="lg" data-testid="progress-spinner" />
         <Text size="xs" fw={600}>Running...</Text>
         <div className="flex-1" />
-        <Text size="xs" c="muted" data-testid="progress-counter" style={{ fontVariantNumeric: "tabular-nums" }}>
+        <Text size="xs" c="dimmed" data-testid="progress-counter" style={{ "font-variant-numeric": "tabular-nums" }}>
           {progress.current}/{progress.total}
         </Text>
       </Stack>
@@ -35,9 +35,9 @@ export function BacktestProgress({ progress }: BacktestProgressProps) {
         value={Math.max(0, Math.min(100, percent))}
         data-testid="progress-fill"
         size="md"
-        style={{ height: 6, borderRadius: 3 }}
+        style={{ height: 6, "border-radius": 3 }}
       />
-      <Text size="xs" c="muted" ta="center" data-testid="progress-message">
+      <Text size="xs" c="dimmed" ta="center" data-testid="progress-message">
         {progress.message}
       </Text>
     </Stack>

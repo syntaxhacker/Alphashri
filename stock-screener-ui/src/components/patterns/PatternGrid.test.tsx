@@ -10,14 +10,6 @@ import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { PatternGrid } from "./PatternGrid";
 
-vi.mock("@/hooks/useECharts", () => ({
-  useECharts: () => ({
-    chartRef: { current: null },
-    chartInstance: { current: null },
-    setChartOption: vi.fn(),
-  }),
-}));
-
 vi.mock("./PatternMiniChart", () => ({
   PatternMiniChart: ({ trendlinesView }: { trendlinesView?: string }) => (
     <div data-testid="mini-stub" data-trendlines-view={trendlinesView ?? "both"} />

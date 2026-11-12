@@ -507,7 +507,6 @@ describe("WatchlistScan2", () => {
       r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const searchInput = screen.getByPlaceholderText("Search symbol");
       await fireEvent.input(searchInput, { target: { value: "ZZZZ" } });
-      console.log("bottom:", document.body.innerHTML.slice(-900));
       expect(screen.getByText("1 skipped")).toBeInTheDocument();
     });
 

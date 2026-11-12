@@ -57,7 +57,7 @@ export default function ReplayControls(props: ReplayControlsProps) {
           onInput={(e) => props.onJump(Number(e.currentTarget.value))}
           aria-label="replay position"
           class="w-full"
-          style={{ accentColor: palette.PRIMARY }}
+          style={{ "accent-color": palette.PRIMARY }}
         />
       </Box>
       <Text size="xs" className="font-mono tabular-nums" style={{ color: "#E5E7EB" }}>

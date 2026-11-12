@@ -333,7 +333,7 @@ export function ExperimentsResultsTable() {
           getRowCanExpand={() => true}
           renderSubComponent={(run) => (
             <Box p={0.5}>
-              <Text size="xs" fw={600} c="dimmed" style={{ marginBottom: 4 }}>
+              <Text size="xs" fw={600} c="dimmed" style={{ "margin-bottom": "4px" }}>
                 Per-symbol breakdown
               </Text>
               <PerSymbolTable run={run} symbolFilter={symbolFilter} />

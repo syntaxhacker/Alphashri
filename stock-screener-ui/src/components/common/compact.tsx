@@ -54,7 +54,7 @@ export function CompactPage({
       {(title || description || actions) && (
         <Box
           className="flex items-center justify-between w-full gap-2"
-          style={{ display: "flex", "align-items": "center", "justify-content": "space-between", width: "100%", gap: 8 }}
+          style={{ display: "flex", "align-items": "center", "justify-content": "space-between", width: "100%", gap: "8px" }}
         >
           <Stack spacing="sm" className="flex flex-start">
             {title ? (typeof title === "string" ? <Title order={2} size="h4">{title}</Title> : title) : null}
@@ -118,7 +118,7 @@ export function CompactPanel({
         data-compact-card-content=""
         className="flex flex-col"
         style={{
-          padding: flush ? 0 : pad * 8,
+          padding: flush ? 0 : `${pad * 8}px`,
           ...(scrollable && { flex: 1, "min-height": "0px", display: "flex", "flex-direction": "column", overflow: "hidden" }),
         }}
       >
@@ -130,10 +130,10 @@ export function CompactPanel({
               display: "flex",
               "align-items": "center",
               "justify-content": "space-between",
-              gap: 4,
-              paddingLeft: 8,
-              paddingRight: 8,
-              paddingBottom: 0,
+              gap: "4px",
+              "padding-left": "8px",
+              "padding-right": "8px",
+              "padding-bottom": "0px",
               width: "100%",
               "border-bottom": `1px solid ${palette.BORDER}`,
             }}
@@ -211,12 +211,12 @@ export function CompactStat({
         className="flex flex-col items-center justify-center text-center gap-1"
         style={{
           padding: padPx,
-          paddingBottom: padPx,
+          "padding-bottom": padPx,
           display: "flex",
           "flex-direction": "column",
           "align-items": "center",
           "justify-content": "center",
-          gap: 4,
+          gap: "4px",
           "text-align": "center",
         }}
       >
@@ -238,7 +238,7 @@ export function CompactStat({
               </Text>
             </Box>
           ) : (
-            <Box className="flex items-center justify-center w-full" style={{ marginTop: 4 }}>
+            <Box className="flex items-center justify-center w-full" style={{ "margin-top": "4px" }}>
               {hint}
             </Box>
           )
@@ -265,7 +265,7 @@ export function CompactStatGrid({
         "align-items": center ? "center" : "stretch",
         display: "flex",
         width: "100%",
-        padding: 4,
+        padding: "4px",
       }}
       className="flex w-full p-2"
     >
@@ -275,7 +275,7 @@ export function CompactStatGrid({
           "justify-content": center ? "center" : "flex-start",
           "align-items": center ? "center" : "stretch",
           width: "100%",
-          gap: 4,
+          gap: "4px",
         }}
         {...props}
       >

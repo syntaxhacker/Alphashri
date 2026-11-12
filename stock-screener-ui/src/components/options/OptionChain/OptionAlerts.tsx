@@ -68,7 +68,7 @@ export function OptionAlerts(props: OptionAlertsProps) {
       });
     });
 
-    return list.sort((a, b) => (a.type === "SQUEEZE" ? -1 : 1)).slice(0, 5);
+    return list.sort((a) => (a.type === "SQUEEZE" ? -1 : 1)).slice(0, 5);
   });
 
   return (

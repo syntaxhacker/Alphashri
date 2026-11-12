@@ -1,6 +1,6 @@
 import { Alert, Text, Box } from "@/ui";
 import { IconAlertCircle } from "@/components/common/Icons";
-import { createMemo, createSignal, createEffect, For, Show } from "solid-js";
+import { createMemo, createSignal, createEffect, Show } from "solid-js";
 import { useStoreSnapshot } from "../paper-trading/storeSnapshot";
 import { useBacktestQueryParams } from "./useBacktestQueryParams";
 import { BacktestConfig, BacktestProgress, TradeHistoryTable } from ".";
@@ -216,7 +216,7 @@ export function BacktestPage() {
   return (
     <Box
       className="relative h-full min-h-0 flex flex-col overflow-hidden"
-      style={{ position: "relative", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", margin: 0, padding: 0 }}
+      style={{ position: "relative", height: "100%", "min-height": 0, display: "flex", "flex-direction": "column", overflow: "hidden", margin: 0, padding: 0 }}
       data-testid="backtest-view"
       id="backtest-main"
     >
@@ -232,13 +232,13 @@ export function BacktestPage() {
         onReset={layout.reset}
       />
 
-      <Box className="relative flex-1 min-h-0 min-w-0 flex" style={{ position: "relative", flex: 1, minHeight: 0, minWidth: 0, display: "flex" }}>
+      <Box className="relative flex-1 min-h-0 min-w-0 flex" style={{ position: "relative", flex: 1, "min-height": 0, "min-width": 0, display: "flex" }}>
         {/* Full-bleed chart */}
-        <Box className="relative flex-1 min-w-0 min-h-0" style={{ position: "relative", flex: 1, minWidth: 0, minHeight: 0 }}>
+        <Box className="relative flex-1 min-w-0 min-h-0" style={{ position: "relative", flex: 1, "min-width": 0, "min-height": 0 }}>
           <Show
             when={hasResults()}
             fallback={
-              <Box className="h-full flex items-center justify-center" style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#000000" }}>
+              <Box className="h-full flex items-center justify-center" style={{ height: "100%", display: "flex", "align-items": "center", "justify-content": "center", "background-color": "#000000" }}>
                 <Text c="dimmed" size="sm">
                   {state().isRunning ? "Running backtest…" : "Open Config, pick symbols and press Run to see the chart."}
                 </Text>
@@ -278,14 +278,14 @@ export function BacktestPage() {
           </Show>
 
           <Show when={state().isRunning}>
-            <Box style={{ position: "absolute", top: "8px", left: "50%", transform: "translateX(-50%)", zIndex: 5 }}>
+            <Box style={{ position: "absolute", top: "8px", left: "50%", transform: "translateX(-50%)", "z-index": 5 }}>
               <BacktestProgress progress={{ current: state().progress.current, total: state().progress.total, message: state().progress.message }} />
             </Box>
           </Show>
 
           <Show when={state().error}>
             {(message) => (
-              <Box style={{ position: "absolute", top: "8px", left: "50%", transform: "translateX(-50%)", zIndex: 6, maxWidth: "560px" }}>
+              <Box style={{ position: "absolute", top: "8px", left: "50%", transform: "translateX(-50%)", "z-index": 6, "max-width": "560px" }}>
                 <Alert
                   icon={<IconAlertCircle size={16} />}
                   title="Error"

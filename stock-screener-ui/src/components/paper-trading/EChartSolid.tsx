@@ -58,7 +58,7 @@ export function EChartSolid(props: {
 
   return (
     <div
-      ref={chartEl}
+      ref={(el) => { chartEl = el; }}
       class={props.class ?? "w-full"}
       style={props.style}
       data-testid={props["data-testid"]}

@@ -1,4 +1,4 @@
-import { For, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { Text, Tooltip, ActionIcon, SimpleGrid, Textarea, Button, Loader, Flex, Box, Stack } from "@/ui";
 import { IconChevronRight, IconChevronDown } from "@/components/common/Icons";
 import dayjs from "dayjs";
@@ -488,7 +488,7 @@ export function PositionsTableBody(props: {
       columns={columns()}
       getRowCanExpand={() => true}
       renderSubComponent={(pos) => (
-        <Box className="paper-position-expanded p-1" id={`paper-position-expanded-${pos.order_id || pos.symbol}`} style={{ backgroundColor: BG, borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
+        <Box className="paper-position-expanded p-1" id={`paper-position-expanded-${pos.order_id || pos.symbol}`} style={{ "background-color": BG, "border-top": `1px solid ${BORDER}`, "border-bottom": `1px solid ${BORDER}` }}>
           <PositionDetail pos={pos} />
         </Box>
       )}

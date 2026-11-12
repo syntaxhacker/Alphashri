@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import type { WatchPayload, WatchRow } from "@/types/chartPatterns";
 import { WatchView, WATCH_SLOW_HINT_MS, universeLabel } from "./WatchView";
 

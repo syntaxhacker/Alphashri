@@ -1,5 +1,5 @@
-import { memo, useMemo } from "react";
-import { Box, Button, Text } from "@/ui";
+import { createMemo, For, Show } from "solid-js";
+import { Button, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { NiftyReplay } from "@/types/niftyReport";
 import type { ReplayCoverage } from "./niftyReplayCoverage";
@@ -18,13 +18,19 @@ export function replayTimeLabel(t: string): string {
   return m ? m[1] : t;
 }
 
-/** Human labels for the recorder's skip reasons (the gap journal). */
+/** Human labels for the recorder's skip reasons (the gap journal). Keys are
+ *  kebab-case as journalled by the backend; camelCase aliases cover journals
+ *  written by older builds. */
 const REPLAY_REASON_LABEL: Record<string, string> = {
+  "chain-failed": "chain fetch failed",
+  "spot-rejected": "spot rejected",
+  "empty-chain": "empty chain",
+  "loop-error": "loop error",
   chainFailed: "chain fetch failed",
-  timeout: "tick timed out",
   spotRejected: "spot rejected",
   emptyChain: "empty chain",
   loopError: "loop error",
+  timeout: "tick timed out",
 };
 
 export interface ReplayReason {
@@ -86,36 +92,32 @@ export function countReplayHoles(segments: ReplaySegment[]): number {
 }
 
 /** The coverage strip: ~250-380 inline segment boxes. Memoised on the segment
- *  list so unrelated parent renders never rebuild the boxes. */
-const ReplayCoverageStrip = memo(function ReplayCoverageStrip({
-  segments,
-  title,
-}: {
+ *  list so unrelated parent updates never rebuild the boxes. */
+function ReplayCoverageStrip(props: {
   segments: ReplaySegment[];
   title: string | undefined;
 }) {
   return (
-    <Box
+    <div
       data-testid="nifty-replay-coverage-strip"
-      title={title}
-      className="flex overflow-hidden rounded-[0.75px]"
-      style={{ height: "6px", backgroundColor: palette.TERM_BORDER }}
+      title={props.title}
+      class="flex overflow-hidden rounded-[0.75px]"
+      style={{ height: "6px", "background-color": palette.TERM_BORDER }}
     >
-      {segments.map((s) => (
-        <Box
-          key={s.key}
-          className="min-w-0"
+      <For each={props.segments}>{(s) => (
+        <div
+          class="min-w-0"
           style={{
-            flexGrow: s.minutes,
-            flexBasis: 0,
-            backgroundColor: s.missing ? palette.NEGATIVE : palette.PRIMARY,
+            "flex-grow": String(s.minutes),
+            "flex-basis": "0",
+            "background-color": s.missing ? palette.NEGATIVE : palette.PRIMARY,
             opacity: s.missing ? 0.45 : 0.9,
           }}
         />
-      ))}
-    </Box>
+      )}</For>
+    </div>
   );
-});
+}
 
 interface NiftyReplayBarProps {
   replay: NiftyReplay;
@@ -129,177 +131,179 @@ interface NiftyReplayBarProps {
 }
 
 /**
- * EOD minute replay bar, isolated behind `React.memo`. All props are stable
- * across unrelated parent renders (`coverage`/`reasons`/`holes` are memoised
- * in the parent; callbacks are `useCallback`), so tick/stream pushes never
- * rebuild the ~250-380 segment boxes.
+ * EOD minute replay bar. All props are stable across unrelated parent
+ * updates, so tick/stream pushes never rebuild the ~250-380 segment boxes.
  */
-export const NiftyReplayBar = memo(function NiftyReplayBar({
-  replay,
-  replayIndex,
-  playing,
-  coverage,
-  reasons,
-  holes,
-  onScrub,
-  onTogglePlay,
-}: NiftyReplayBarProps) {
-  const segments = useMemo(
-    () => buildReplaySegments(replay, coverage),
-    [replay, coverage],
-  );
+export function NiftyReplayBar(props: NiftyReplayBarProps) {
+  const replay = () => props.replay;
+  const replayIndex = () => props.replayIndex;
+  const segments = createMemo(() => buildReplaySegments(replay(), props.coverage));
 
-  const stripTitle = coverage
-    ? `Recorded ${coverage.recorded}/${coverage.sessionMinutes} min` +
-      ` · ${coverage.missing} min missing` +
-      (coverage.largestGap
-        ? ` · largest gap ${coverage.largestGap.minutes} min` +
-          ` (${minuteLabel(coverage.largestGap.start)}–${minuteLabel(
-            coverage.largestGap.end,
-          )})`
-        : "")
-    : undefined;
+  const stripTitle = () => {
+    const coverage = props.coverage;
+    return coverage
+      ? `Recorded ${coverage.recorded}/${coverage.sessionMinutes} min` +
+        ` · ${coverage.missing} min missing` +
+        (coverage.largestGap
+          ? ` · largest gap ${coverage.largestGap.minutes} min` +
+            ` (${minuteLabel(coverage.largestGap.start)}–${minuteLabel(
+              coverage.largestGap.end,
+            )})`
+          : "")
+      : undefined;
+  };
 
-  const tone = coverage ? coverageTone(coverage.pct) : "bad";
-  const toneColor =
-    tone === "good"
+  const toneColor = () => {
+    const coverage = props.coverage;
+    const tone = coverage ? coverageTone(coverage.pct) : "bad";
+    return tone === "good"
       ? palette.POSITIVE
       : tone === "warn"
         ? palette.WARNING
         : palette.NEGATIVE;
+  };
 
-  const coverageTitle = coverage
-    ? `${coverage.missing} of ${coverage.sessionMinutes} session minutes are missing` +
-      (reasons.length > 0
-        ? ` — ${reasons.map((r) => `${r.label} ×${r.n}`).join(", ")}`
-        : "")
-    : undefined;
+  const coverageTitle = () => {
+    const coverage = props.coverage;
+    return coverage
+      ? `${coverage.missing} of ${coverage.sessionMinutes} session minutes are missing` +
+        (props.reasons.length > 0
+          ? ` — ${props.reasons.map((r) => `${r.label} ×${r.n}`).join(", ")}`
+          : "")
+      : undefined;
+  };
 
-  const reasonsTitle =
-    reasons.length > 0
-      ? `Why minutes are missing — the recorder's own skip reasons: ${reasons
+  const reasonsTitle = () =>
+    props.reasons.length > 0
+      ? `Why minutes are missing — the recorder's own skip reasons: ${props.reasons
           .map((r) => `${r.label} ×${r.n}`)
           .join(" · ")}`
-      : `In-session holes are ticks that produced no row — ${holes} in-session hole${holes === 1 ? "" : "s"}, reason not logged.`;
+      : `In-session holes are ticks that produced no row — ${props.holes} in-session hole${props.holes === 1 ? "" : "s"}, reason not logged.`;
 
   // Meta is `time · %` only: the cumulative hole/error counts live in the
   // tooltips (bar, coverage badge, reasons glyph), never in the bar itself.
-  const reasonCounts = reasons.map((r) => `${r.label} ×${r.n}`).join(" · ");
-  const barTitle = [
-    coverage
-      ? `Recorded ${coverage.recorded}/${coverage.sessionMinutes} min · ${coverage.missing} min missing`
-      : null,
-    reasonCounts || (holes > 0 ? `${holes} in-session hole${holes === 1 ? "" : "s"}` : null),
-  ]
-    .filter(Boolean)
-    .join(" — ");
+  const barTitle = () => {
+    const coverage = props.coverage;
+    const reasonCounts = props.reasons.map((r) => `${r.label} ×${r.n}`).join(" · ");
+    return [
+      coverage
+        ? `Recorded ${coverage.recorded}/${coverage.sessionMinutes} min · ${coverage.missing} min missing`
+        : null,
+      reasonCounts || (props.holes > 0 ? `${props.holes} in-session hole${props.holes === 1 ? "" : "s"}` : null),
+    ]
+      .filter(Boolean)
+      .join(" — ");
+  };
+
+  const currentFrame = () => replay().snapshots[replayIndex()];
 
   return (
-    <Box
+    <div
       data-testid="nifty-replay-bar"
-      title={barTitle || undefined}
-      className="flex items-center gap-4 whitespace-nowrap w-full max-w-full min-w-0 shrink-0 overflow-hidden"
+      title={barTitle() || undefined}
+      class="flex items-center gap-4 whitespace-nowrap w-full max-w-full min-w-0 shrink-0 overflow-hidden"
       style={{
         height: "24px",
-        borderTop: `1px solid ${palette.TERM_BORDER}`,
-        paddingLeft: "8px",
-        paddingRight: "8px",
-        paddingTop: 0,
-        paddingBottom: 0,
+        "border-top": `1px solid ${palette.TERM_BORDER}`,
+        "padding-left": "8px",
+        "padding-right": "8px",
+        "padding-top": "0",
+        "padding-bottom": "0",
       }}
     >
       <Button
         data-testid="nifty-replay-play"
         size="xs"
         variant="outline"
-        onClick={onTogglePlay}
+        onClick={props.onTogglePlay}
       >
-        {playing ? "Pause" : "Play"}
+        {props.playing ? "Pause" : "Play"}
       </Button>
       {/* Timeline: recorded minutes in blue, holes in red, so the size
           and position of every gap is visible before playback jumps it. */}
-      <Box className="flex flex-col" style={{ flex: 1, minWidth: "160px", gap: "3px" }}>
-        <ReplayCoverageStrip segments={segments} title={stripTitle} />
-        <Box
-          component="input"
+      <div class="flex flex-col" style={{ flex: "1", "min-width": "160px", gap: "3px" }}>
+        <ReplayCoverageStrip segments={segments()} title={stripTitle()} />
+        <input
           type="range"
           data-testid="nifty-replay-slider"
           aria-label="Replay minute"
           min={0}
-          max={replay.snapshots.length - 1}
+          max={replay().snapshots.length - 1}
           step={1}
-          value={replayIndex}
-          onChange={(e) => onScrub(Number(e.target.value))}
-          className="w-full"
-          style={{ height: "12px", accentColor: palette.PRIMARY }}
+          value={replayIndex()}
+          onChange={(e) => props.onScrub(Number(e.currentTarget.value))}
+          class="w-full"
+          style={{ height: "12px", "accent-color": palette.PRIMARY }}
         />
-      </Box>
+      </div>
       <Text
         data-testid="nifty-replay-time"
         size="xs"
         c="dimmed"
         fw={600}
         span
-        style={{ flexShrink: 0, fontVariantNumeric: "tabular-nums" }}
+        style={{ "flex-shrink": "0", "font-variant-numeric": "tabular-nums" }}
       >
-        {replayTimeLabel(replay.snapshots[replayIndex]?.t ?? "")}
+        {replayTimeLabel(currentFrame()?.t ?? "")}
       </Text>
-      {coverage && (
-        <>
-          <Text size="xs" span c="dimmed" style={{ flexShrink: 0 }} aria-hidden>
-            ·
-          </Text>
-          <Text
-            data-testid="nifty-replay-coverage"
-            size="xs"
-            span
-            fw={600}
-            title={coverageTitle}
-            style={{ color: toneColor, whiteSpace: "nowrap", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}
-          >
-            {coverage.pct}% · {coverage.recorded}/{coverage.sessionMinutes}
-          </Text>
-        </>
-      )}
-      {coverage && (coverage.stepMissing[replayIndex] ?? 0) > 0 && (
+      <Show when={props.coverage}>
+        {(coverage) => (
+          <>
+            <Text size="xs" span c="dimmed" style={{ "flex-shrink": "0" }} aria-hidden="true">
+              ·
+            </Text>
+            <Text
+              data-testid="nifty-replay-coverage"
+              size="xs"
+              span
+              fw={600}
+              title={coverageTitle()}
+              style={{ color: toneColor(), "white-space": "nowrap", "flex-shrink": "0", "font-variant-numeric": "tabular-nums" }}
+            >
+              {coverage().pct}% · {coverage().recorded}/{coverage().sessionMinutes}
+            </Text>
+          </>
+        )}
+      </Show>
+      <Show when={props.coverage && (props.coverage.stepMissing[replayIndex()] ?? 0) > 0}>
         <Text
           data-testid="nifty-replay-gap"
           size="xs"
           span
-          title={`${coverage.stepMissing[replayIndex]} minutes skipped before this frame`}
-          style={{ color: palette.WARNING, whiteSpace: "nowrap", flexShrink: 0 }}
+          title={`${props.coverage!.stepMissing[replayIndex()]} minutes skipped before this frame`}
+          style={{ color: palette.WARNING, "white-space": "nowrap", "flex-shrink": "0" }}
         >
-          +{coverage.stepMissing[replayIndex]}m
+          +{props.coverage!.stepMissing[replayIndex()]}m
         </Text>
-      )}
+      </Show>
       <Text
         data-testid="nifty-replay-count"
         size="xs"
         span
         c="dimmed"
-        style={{ flexShrink: 0, fontVariantNumeric: "tabular-nums" }}
+        style={{ "flex-shrink": "0", "font-variant-numeric": "tabular-nums" }}
       >
-        {replayIndex + 1}/{replay.snapshots.length}
+        {replayIndex() + 1}/{replay().snapshots.length}
       </Text>
-      {(reasons.length > 0 || holes > 0) && (
+      <Show when={props.reasons.length > 0 || props.holes > 0}>
         <Text
           data-testid="nifty-replay-reasons"
           size="xs"
           span
           c="dimmed"
-          title={reasonsTitle}
-          aria-label={reasonsTitle}
+          title={reasonsTitle()}
+          aria-label={reasonsTitle()}
           style={{
-            whiteSpace: "nowrap",
-            flexShrink: 0,
+            "white-space": "nowrap",
+            "flex-shrink": "0",
             cursor: "help",
-            fontSize: "9px",
+            "font-size": "9px",
             opacity: 0.72,
           }}
         >
           ⓘ
         </Text>
-      )}
-    </Box>
+      </Show>
+    </div>
   );
-});
+}
