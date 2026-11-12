@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { MemoryRouter, Route, createMemoryHistory } from "@solidjs/router";
@@ -56,7 +56,6 @@ vi.mock("./PatternsPage", () => ({
 import {
   getChartPatternsState,
   loadCatalog,
-  selectTimeframe,
   selectTimeframes,
 } from "@/state/chartPatterns";
 import { PatternsContainer } from "./PatternsContainer";

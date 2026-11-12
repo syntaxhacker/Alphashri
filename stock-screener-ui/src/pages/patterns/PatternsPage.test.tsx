@@ -38,7 +38,6 @@ vi.mock("@/ui", async (importOriginal) => {
       Target: passthrough,
       Dropdown: passthrough,
       Item,
-      ItemProps: (props: any) => null,
       Divider: () => <hr />,
       Label: (props: any) => <span>{props.children}</span>,
     },
@@ -412,15 +411,6 @@ function r(jsx: JSX.Element) {
  * Pick an option in a local MultiSelect. The listbox opens on combobox focus,
  * and the option toggles through its checkbox (clicking the bare `li` is inert).
  */
-async function pickMultiOption(selectTestId: string, name: string | RegExp) {
-  const root = screen.getByTestId(selectTestId);
-  const combobox = within(root).getByRole("combobox");
-  fireEvent.focus(combobox);
-  fireEvent.click(combobox);
-  const listbox = await within(root).findByRole("listbox");
-  const option = within(listbox).getByRole("option", { name });
-  fireEvent.click(within(option).getByRole("checkbox"));
-}
 
 describe("PatternsPage", () => {
   beforeEach(() => {

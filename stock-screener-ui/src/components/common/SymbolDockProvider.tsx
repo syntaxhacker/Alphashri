@@ -2,7 +2,7 @@ import { lazy, Show, Suspense, createEffect, onCleanup, type JSX } from "solid-j
 import { createStore, produce } from "solid-js/store";
 import { Box, Loader, Text, Badge, Tooltip, useMediaQuery } from "@/ui";
 import { useNavigate } from "@solidjs/router";
-import { usePatternFullscreen } from "@/hooks/usePatternFullscreen";
+import { usePatternFullscreen } from "@/pages/report/usePatternFullscreenSolid";
 import { FALLBACK_TIMEFRAMES } from "@/components/patterns/TimeframeSelect";
 import { SymbolDockContext, type SymbolDockApi } from "./symbolDockContext";
 import { ErrorBoundary } from "./ErrorBoundary";

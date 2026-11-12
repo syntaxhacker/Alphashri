@@ -15,12 +15,12 @@ export function EChart(props: {
   style?: JSX.CSSProperties;
   "data-testid"?: string;
 }) {
-  let el: HTMLDivElement | undefined;
+  let chartEl: HTMLDivElement | undefined;
   let chart: echarts.ECharts | null = null;
 
   onMount(() => {
-    if (!el) return;
-    chart = echarts.init(el, undefined, { renderer: "canvas" });
+    if (!chartEl) return;
+    chart = echarts.init(chartEl, undefined, { renderer: "canvas" });
     chart.setOption(props.option as echarts.EChartsCoreOption);
     const resize = () => chart?.resize();
     window.addEventListener("resize", resize);
@@ -48,7 +48,7 @@ export function EChart(props: {
 
   return (
     <div
-      ref={(el) => (el = el)}
+      ref={(node) => (chartEl = node)}
       class={props.class}
       style={{ ...props.style, height: props.style?.height ?? "100%", width: props.style?.width ?? "100%" }}
       data-testid={props["data-testid"]}

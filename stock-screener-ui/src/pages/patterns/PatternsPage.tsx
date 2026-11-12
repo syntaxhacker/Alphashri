@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, mergeProps, onCleanup, onMount, Show, For } from "solid-js";
+import { createEffect, createMemo, createSignal, mergeProps } from "solid-js";
 import { ActionIcon, Alert, Box, Button, Chip, Divider, Loader, LoadingOverlay, Menu, MenuDropdown, MenuItem, MenuTarget, Modal, SegmentedControl, Select, Switch, Tabs, Text, ToolbarRow, Tooltip, useMediaQuery } from "@/ui";
 import { IconAdjustmentsHorizontal, IconDotsVertical } from "@tabler/icons-react";
 import type {
@@ -181,10 +181,6 @@ export function PatternsPage(props: PatternsPageProps) {
   const forceRefresh = props.forceRefresh;
   const scanReplay = props.scanReplay;
   const replayAsOf = () => props.replayAsOf ?? null;
-  const setTab = props.setTab;
-  const setView = props.setView;
-  const setIndexGroup = props.setIndexGroup;
-  const setMembers = props.setMembers;
   // Fullscreen pattern chart, shared with the Daily Report page: identical
   // open/timeframe/as-of/select behaviour via `usePatternFullscreen`.
   // Top-level compute toggle off: draw no standalone trendlines anywhere,
@@ -294,7 +290,7 @@ export function PatternsPage(props: PatternsPageProps) {
       else setInternalMembers(indexId);
     };
   const tfSelection = createMemo(() => (selectedTimeframes().length > 0 ? selectedTimeframes() : [timeframe()]));
-  const { data: matrixData, loading: matrixLoading, error: matrixError, reload: matrixReload } =
+  const { data: matrixData, loading: matrixLoading, error: matrixError } =
     usePatternMatrix(
       () => universe(),
       () => view() === "matrix",
@@ -364,7 +360,7 @@ export function PatternsPage(props: PatternsPageProps) {
       familyCounts[hit.family] = (familyCounts[hit.family] ?? 0) + 1;
     }
     return {
-      ...(summary() ?? {}),
+      ...(summary() as Record<string, unknown> | undefined),
       patterns: filteredLatest().length,
       in_view: filteredLatest().length,
       confirmed,

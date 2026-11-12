@@ -1,4 +1,4 @@
-import { createEffect, createSignal, createMemo, onMount, onCleanup } from "solid-js";
+import { createEffect, createSignal, onMount, onCleanup } from "solid-js";
 import { useLocation, useSearchParams } from "@solidjs/router";
 import {
   subscribe,

@@ -1,9 +1,9 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
-import { memo, useMemo, useState } from "react";
-import { Box, ActionIcon, Button, SegmentedControl, Text } from "@/ui";
+import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
+import { ActionIcon, Button, SegmentedControl, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { TradingViewChart } from "@/components/chart/TradingViewChart";
-import { CompactPanel } from "@/components/common/compact";
+import { LocalCompactPanel } from "./reportBits";
 import { EmptyCompact } from "@/components/common/states";
 import { NiftyDepthMap } from "./NiftyDepthMap";
 import { useNiftyPatternScan } from "./useNiftyPatternScan";
@@ -112,19 +112,20 @@ interface LevelLegendProps {
   spot?: number;
 }
 
-export function LevelLegend({ live, gex, spot }: LevelLegendProps) {
-  const sides = gex ? gexSideLevels(gex, spot ?? NaN) : null;
+export function LevelLegend(props: LevelLegendProps) {
+  const live = () => props.live;
+  const sides = () => (props.gex ? gexSideLevels(props.gex, props.spot ?? NaN) : null);
   // A present block filters to drawable levels; callers that only pass `live`
   // keep the legacy "show every code" behaviour.
-  const show = {
-    flip: !gex || gex.zeroCross != null,
-    support: !gex || sides?.below?.kind === "support",
-    resistance: !gex || sides?.above?.kind === "resistance",
+  const show = () => ({
+    flip: !props.gex || props.gex.zeroCross != null,
+    support: !props.gex || sides()?.below?.kind === "support",
+    resistance: !props.gex || sides()?.above?.kind === "resistance",
     fuel:
-      !gex ||
-      sides?.below?.kind === "fuel" ||
-      sides?.above?.kind === "fuel",
-  };
+      !props.gex ||
+      sides()?.below?.kind === "fuel" ||
+      sides()?.above?.kind === "fuel",
+  });
   const items: { code: string; color: string; meaning: string; zone?: boolean }[] = [
     { code: "CW", color: palette.NEGATIVE, meaning: "max-OI call wall above spot · resistance", zone: true },
     { code: "CW↓", color: palette.NEGATIVE, meaning: "call wall below spot · broken resistance / support", zone: true },
@@ -134,23 +135,23 @@ export function LevelLegend({ live, gex, spot }: LevelLegendProps) {
     { code: "PW (ABOVE)", color: palette.POSITIVE, meaning: "put wall above spot (no put below) · broken support", zone: true },
     { code: "MP", color: palette.PRIMARY, meaning: "max pain · expiry magnet", zone: true },
   ];
-  if (live) {
-    if (show.flip) {
+  if (live()) {
+    if (show().flip) {
       items.push(
         { code: "FLIP", color: palette.WARNING, meaning: "gamma flip · dealers switch sides here" },
       );
     }
-    if (show.support) {
+    if (show().support) {
       items.push(
         { code: "GSUP", color: palette.POSITIVE, meaning: "gamma support · pin magnet below spot" },
       );
     }
-    if (show.resistance) {
+    if (show().resistance) {
       items.push(
         { code: "GRES", color: palette.NEGATIVE, meaning: "gamma resistance · pin magnet above spot" },
       );
     }
-    if (show.fuel) {
+    if (show().fuel) {
       items.push(
         { code: "GFUEL", color: palette.WARNING, meaning: "gamma fuel · moves accelerate on that side" },
       );
@@ -159,21 +160,20 @@ export function LevelLegend({ live, gex, spot }: LevelLegendProps) {
   return (
     // Single dense wrapped row: tight gaps + minimal top pad so the legend
     // costs one ~16px row instead of two. Fonts/symbols untouched.
-    <Box
+    <div
       data-testid="nifty-level-legend"
-      className="flex flex-wrap"
+      class="flex flex-wrap"
       style={{ "column-gap": "8px", "row-gap": "4px", "padding-top": "4px" }}
     >
-      {items.map((it) => (
-        <Box
-          key={it.code}
-          className="flex items-center"
+      <For each={items}>{(it) => (
+        <div
+          class="flex items-center"
           style={{ gap: "8px", "white-space": "nowrap" }}
         >
-          <Box
+          <div
             style={{
-              width: it.zone ? 12 : 8,
-              height: it.zone ? 8 : 8,
+              width: it.zone ? "12px" : "8px",
+              height: "8px",
               "border-radius": it.zone ? 1 : "50%",
               "background-color": it.zone ? hexToRgba(it.color, 0.18) : it.color,
               border: it.zone ? `1px solid ${it.color}` : "none",
@@ -186,9 +186,9 @@ export function LevelLegend({ live, gex, spot }: LevelLegendProps) {
           <Text size="xs" c="dimmed" span>
             {it.meaning}
           </Text>
-        </Box>
-      ))}
-    </Box>
+        </div>
+      )}</For>
+    </div>
   );
 }
 
@@ -241,54 +241,48 @@ interface NiftyChartPanelProps {
  * (`report`, `mode`, `view`) are all stable across those toggles and nothing
  * tick-driven is passed in.
  */
-export const NiftyChartPanel = memo(function NiftyChartPanel({
-  report,
-  mode,
-  view,
-  symbol = "NIFTY",
-  asOf,
-  onExpand,
-  timeframe,
-  onTimeframeChange,
-  initialSize = "fill",
-  onSizeChange,
-  fillContainer = false,
-  bursts,
-  tape,
-  spotPoints = null,
-  flipAt = null,
-  maxWalls = null,
-}: NiftyChartPanelProps) {
-  const [chartSize, setChartSize] = useState<ChartSize>(initialSize);
+export function NiftyChartPanel(props: NiftyChartPanelProps) {
+  const report = () => props.report;
+  const mode = () => props.mode;
+  const view = () => props.view;
+  const symbol = () => props.symbol ?? "NIFTY";
+  const asOf = () => props.asOf;
+  const fillContainer = () => props.fillContainer ?? false;
+  const bursts = () => props.bursts ?? null;
+  const tape = () => props.tape ?? null;
+  const spotPoints = () => props.spotPoints ?? null;
+  const flipAt = () => props.flipAt ?? null;
+  const maxWalls = () => props.maxWalls ?? null;
+
+  const [chartSize, setChartSize] = createSignal<ChartSize>(props.initialSize ?? "fill");
   /** `null` = fill the panel (autoSize); a number = fixed preset. */
-  const chartHeight =
-    chartSize === "fill" ? null : CHART_HEIGHTS[chartSize];
+  const chartHeight = () =>
+    chartSize() === "fill" ? null : CHART_HEIGHTS[chartSize()];
   const handleSizeChange = (v: string) => {
     const next = v as ChartSize;
     setChartSize(next);
-    onSizeChange?.(next);
+    props.onSizeChange?.(next);
   };
   /** Chart bar timeframe: 1m native; 5m/15m resampled client-side. */
-  const [internalTf, setInternalTf] = useState<ChartTimeframe>("1m");
-  const chartTf = timeframe ?? internalTf;
+  const [internalTf, setInternalTf] = createSignal<ChartTimeframe>("1m");
+  const chartTf = () => props.timeframe ?? internalTf();
   const { state: patternScan, scan: scanPatterns } = useNiftyPatternScan();
   // Default ON: a scan that returns a pattern should draw it. The chip toggles.
-  const [drawPattern, setDrawPattern] = useState(true);
+  const [drawPattern, setDrawPattern] = createSignal(true);
   const handleTfChange = (v: string) => {
     const next = v as ChartTimeframe;
-    if (onTimeframeChange) onTimeframeChange(next);
+    if (props.onTimeframeChange) props.onTimeframeChange(next);
     else setInternalTf(next);
   };
 
   // Lazy depth mount: switching views used to cold-mount ECharts (~380ms),
   // so the depth subtree is not created until first selected. Afterwards
   // both views stay mounted and visibility toggles via `display: none`,
-  // making Chart<->Depth switches instant. (Render-time adjust — the
-  // React-endorsed pattern for syncing state to a prop change.)
-  const [depthEverShown, setDepthEverShown] = useState(false);
-  if (view === "depth" && !depthEverShown) {
-    setDepthEverShown(true);
-  }
+  // making Chart<->Depth switches instant.
+  const [depthEverShown, setDepthEverShown] = createSignal(false);
+  createEffect(() => {
+    if (view() === "depth") setDepthEverShown(true);
+  });
 
   /**
    * Keep the lightweight-charts engine mounted once it has plotted a bar.
@@ -297,27 +291,22 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
    * rebuilding every canvas, series and price line on the next poll. The empty
    * state is still shown; the chart is just hidden instead of torn down.
    */
-  const [candlesEverShown, setCandlesEverShown] = useState(false);
+  const [candlesEverShown, setCandlesEverShown] = createSignal(false);
 
-  const linesReport = useMemo(
-    () => (maxWalls ? { ...report, walls: maxWalls } : report),
-    [report, maxWalls],
-  );
-  const markLines = useMemo(
-    () =>
-      buildMarkLines(
-        linesReport,
-        mode === "live" && !!report.gex,
-        labelGapPctFor(linesReport, chartHeight ?? FILL_LABEL_HEIGHT),
-      ),
-    [linesReport, report.gex, mode, chartSize],
+  const linesReport = createMemo(() => (maxWalls() ? { ...report(), walls: maxWalls()! } : report()));
+  const markLines = createMemo(() =>
+    buildMarkLines(
+      linesReport(),
+      mode() === "live" && !!report().gex,
+      labelGapPctFor(linesReport(), chartHeight() ?? FILL_LABEL_HEIGHT),
+    ),
   );
 
   /** The chart's session date. A live generic report can carry a candle
    *  series from the previous completed session (the first cold fetch) while
    *  the tape already belongs to today; mixing them drew two days with an
    *  overnight jump. Everything below is scoped to this date. */
-  const sessionDate = sessionDateOf(report);
+  const sessionDate = () => sessionDateOf(report());
 
   // Generic underlyings (SENSEX/RELIANCE) have no candle endpoint today: the
   // fast options-live payload and `?candles=1` both return an empty intraday
@@ -325,44 +314,39 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
   // snapshots a minute give true OHLC (open = first spot, close = last,
   // high/low the extremes) with real wicks. The 1-minute tape is the
   // last-resort fallback — its bars span open→close only (no wicks).
-  const spotCandles = useMemo(
-    () => candlesFromSpotPoints(spotPoints ?? [], sessionDate),
-    [spotPoints, sessionDate],
-  );
-  const tapeCandles = useMemo(
-    () => candlesFromTape(tape?.rows ?? [], sessionDate),
-    [tape, sessionDate],
-  );
+  const spotCandles = createMemo(() => candlesFromSpotPoints(spotPoints() ?? [], sessionDate()));
+  const tapeCandles = createMemo(() => candlesFromTape(tape()?.rows ?? [], sessionDate()));
 
   /** 1-minute intraday candles when present, else the 15-min EOD candles —
    *  each resampled to the selected timeframe (1m passes through). */
-  const chartCandles = useMemo(() => {
-    const base = pickFreshestCandles(report, spotCandles, tapeCandles, sessionDate);
+  const chartCandles = createMemo(() => {
+    const base = pickFreshestCandles(report(), spotCandles(), tapeCandles(), sessionDate());
     // The REST snapshot carries the whole day. On replay, stop at the
     // playhead so the chart cannot show candles from the future.
-    const clipped = clipToAsOf(base, asOf);
+    const clipped = clipToAsOf(base, asOf());
     // Repair poisoned bars and re-fill dropped minutes from the tape BEFORE
     // resampling: a 0.00 close or a five-minute hole otherwise blows up the
     // price scale / prints a fake jump. The tape is session-scoped too, so a
     // previous day's tape can never be appended to today's base.
     const filled = fillCandleGaps(clipped, {
-      tape: (tape?.rows ?? []).filter((row) => isOnSession(row.t, sessionDate)),
+      tape: (tape()?.rows ?? []).filter((row) => isOnSession(row.t, sessionDate())),
     });
-    return resampleCandles(filled, CHART_TF_MINUTES[chartTf]);
-  }, [report, chartTf, asOf, tape, spotCandles, tapeCandles, sessionDate]);
-
-  if (chartCandles.length > 0 && !candlesEverShown) setCandlesEverShown(true);
+    return resampleCandles(filled, CHART_TF_MINUTES[chartTf()]);
+  });
+  createEffect(() => {
+    if (chartCandles().length > 0) setCandlesEverShown(true);
+  });
 
   /** EMA9 (warning) + EMA20 (primary), recomputed on the displayed candles so
    *  the overlays always match the selected timeframe. The backend `emas`
    *  block is intentionally ignored here (it is fixed to the 1-minute grid). */
-  const emaData = useMemo(() => {
-    const closes = chartCandles.map((c) => c.close);
+  const emaData = createMemo(() => {
+    const closes = chartCandles().map((c) => c.close);
     return [
       { label: "EMA9", color: palette.WARNING, data: emaSeries(closes, 9) },
       { label: "EMA20", color: palette.PRIMARY, data: emaSeries(closes, 20) },
     ];
-  }, [chartCandles]);
+  });
 
   /**
    * Detected-pattern overlay (trendlines + breakout/target/stop).
@@ -370,56 +354,58 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
    * Only when the scan matches the DISPLAYED timeframe: a 15m pattern drawn on
    * 1m bars is a lie. Switching TF hides the overlay until the next scan.
    */
-  const patternOverlay = useMemo(() => {
-    if (!drawPattern || patternScan.status !== "ready" || patternScan.tf !== chartTf) return null;
-    const hit = patternScan.hits[0];
+  const patternOverlay = createMemo(() => {
+    if (!drawPattern() || patternScan().status !== "ready" || patternScan().tf !== chartTf()) return null;
+    const hit = patternScan().hits[0];
     if (!hit) return null;
-    return buildPatternOverlay(hit, chartCandles);
-  }, [drawPattern, patternScan, chartTf, chartCandles]);
+    return buildPatternOverlay(hit, chartCandles());
+  });
 
-  const chartEmaData = useMemo(
-    () => (patternOverlay ? [...emaData, ...patternOverlay.lines] : emaData),
-    [emaData, patternOverlay],
-  );
+  const chartEmaData = createMemo(() => {
+    const overlay = patternOverlay();
+    return overlay ? [...emaData(), ...overlay.lines] : emaData();
+  });
   // The bursts feed always carries the whole session, while an EOD replay is
   // clipped at the playhead. Without this guard a 15:29 break is drawn (and
   // its wall/target lines added) while the replay clock still reads 09:17 —
   // look-ahead that makes the chart lie about what was knowable at the time.
-  const wallOverlay = useMemo(() => {
-    if (!asOf) return wallEventOverlay(bursts);
-    const cutoff = Date.parse(asOf);
-    if (!Number.isFinite(cutoff)) return wallEventOverlay(bursts);
-    const scoped = (bursts ?? []).filter((burst) => {
+  const wallOverlay = createMemo(() => {
+    const rawAsOf = asOf();
+    if (!rawAsOf) return wallEventOverlay(bursts());
+    const cutoff = Date.parse(rawAsOf);
+    if (!Number.isFinite(cutoff)) return wallEventOverlay(bursts());
+    const scoped = (bursts() ?? []).filter((burst) => {
       if (!burst.t) return true;
       const t = Date.parse(burst.t);
       return !Number.isFinite(t) || t <= cutoff;
     });
     return wallEventOverlay(scoped);
-  }, [bursts, asOf]);
-  const chartMarkLines = useMemo(
-    () => [...markLines, ...(patternOverlay?.markLines ?? []), ...wallOverlay.markLines],
-    [markLines, patternOverlay, wallOverlay],
-  );
+  });
+  const chartMarkLines = createMemo(() => [
+    ...markLines(),
+    ...(patternOverlay()?.markLines ?? []),
+    ...wallOverlay().markLines,
+  ]);
 
   /** Bars whose close sits on the report's max pain (tolerance derived from strike step). */
-  const mpTouches = useMemo(
-    () =>
-      maxPainTouches(
-        chartCandles.map((c) => ({ value: c.close, maxPain: report.maxPain, time: c.time })),
-        report,
-      ),
-    [chartCandles, report.maxPain, report.strikes],
+  const mpTouches = createMemo(() =>
+    maxPainTouches(
+      chartCandles().map((c) => ({ value: c.close, maxPain: report().maxPain, time: c.time })),
+      report(),
+    ),
   );
   /** Flow-flip marker: the candle at/before the flip stamp, drawn as a small
    *  amber dot on its close with no text (lightweight-charts has no vertical
    *  price-line primitive; a marker is the least invasive overlay). */
-  const flipMarker = useMemo(() => {
-    if (!flipAt || chartCandles.length === 0) return [];
-    const flipMs = Date.parse(flipAt);
+  const flipMarker = createMemo(() => {
+    const rawFlipAt = flipAt();
+    const candles = chartCandles();
+    if (!rawFlipAt || candles.length === 0) return [];
+    const flipMs = Date.parse(rawFlipAt);
     if (!Number.isFinite(flipMs)) return [];
-    let best = chartCandles[0];
+    let best = candles[0];
     let bestMs = Number.NEGATIVE_INFINITY;
-    for (const candle of chartCandles) {
+    for (const candle of candles) {
       const ms = Date.parse(candle.time);
       if (!Number.isFinite(ms) || ms > flipMs) continue;
       if (ms >= bestMs) {
@@ -437,23 +423,20 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
         size: 2,
       },
     ];
-  }, [flipAt, chartCandles]);
+  });
 
-  const touchMarkers = useMemo(
-    () => [
-      ...mpTouches.map((t) => ({ time: t.point.time, value: t.value })),
-      ...wallOverlay.markers,
-      ...flipMarker,
-    ],
-    [mpTouches, wallOverlay, flipMarker],
-  );
+  const touchMarkers = createMemo(() => [
+    ...mpTouches().map((t) => ({ time: t.point.time, value: t.value })),
+    ...wallOverlay().markers,
+    ...flipMarker(),
+  ]);
 
   return (
-    <CompactPanel
+    <LocalCompactPanel
       title={
         <span style={{ display: "inline-flex", "align-items": "center", gap: "6px" }}>
-          {view === "depth" ? `${symbol} depth map` : `${symbol} chart`}
-          {wallOverlay.markers.length > 0 ? (
+          {view() === "depth" ? `${symbol()} depth map` : `${symbol()} chart`}
+          <Show when={wallOverlay().markers.length > 0}>
             <Text
               data-testid="nifty-chart-event-badge"
               style={{
@@ -464,20 +447,20 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
                 color: palette.WARNING,
               }}
             >
-              {wallOverlay.markers.length} event{wallOverlay.markers.length === 1 ? "" : "s"}
+              {wallOverlay().markers.length} event{wallOverlay().markers.length === 1 ? "" : "s"}
             </Text>
-          ) : null}
+          </Show>
         </span>
       }
       testId="nifty-chart-panel"
-      className="[&_[data-compact-card-content]]:flex-1 [&_[data-compact-card-content]]:min-h-0"
-      style={{ "min-width": 0, "min-height": 0, height: "100%", overflow: "hidden", display: "flex", "flex-direction": "column" }}
+      class="[&_[data-compact-card-content]]:flex-1 [&_[data-compact-card-content]]:min-h-0"
+      style={{ "min-width": "0px", "min-height": "0px", height: "100%", overflow: "hidden", display: "flex", "flex-direction": "column" }}
       action={
-        view === "chart" ? (
-          <Box className="flex items-center" style={{ gap: "4px" }}>
+        view() === "chart" ? (
+          <div class="flex items-center" style={{ gap: "4px" }}>
             <SegmentedControl
               data-testid="nifty-tf-toggle"
-              value={chartTf}
+              value={chartTf()}
               onChange={handleTfChange}
               data={CHART_TF_OPTIONS}
               size="xs"
@@ -486,35 +469,35 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
               data-testid="nifty-patterns-scan"
               size="xs"
               variant="subtle"
-              onClick={() => scanPatterns(chartTf)}
-              disabled={patternScan.status === "loading"}
-              title={`Run the chart-pattern detector on ${symbol} ${chartTf}`}
-              style={{ "min-width": 0, "padding-left": "6px", "padding-right": "6px", "padding-top": 0, "padding-bottom": 0, "height": "20px", "font-size": "9px", "font-weight": 800, "letter-spacing": "0.06em" }}
+              onClick={() => scanPatterns(chartTf())}
+              disabled={patternScan().status === "loading"}
+              title={`Run the chart-pattern detector on ${symbol()} ${chartTf()}`}
+              style={{ "min-width": "0px", "padding-left": "6px", "padding-right": "6px", "padding-top": "0px", "padding-bottom": "0px", "height": "20px", "font-size": "9px", "font-weight": 800, "letter-spacing": "0.06em" }}
             >
-              {patternScan.status === "loading" ? "…" : "PATTERNS"}
+              {patternScan().status === "loading" ? "…" : "PATTERNS"}
             </Button>
             <SegmentedControl
               data-testid="nifty-chart-size"
-              value={chartSize}
+              value={chartSize()}
               onChange={handleSizeChange}
               data={CHART_SIZE_OPTIONS}
               size="xs"
             />
-            {onExpand ? (
+            <Show when={props.onExpand}>
               <ActionIcon
                 data-testid="nifty-chart-expand"
                 aria-label="Expand chart fullscreen"
                 title="Fullscreen (F)"
                 size={20}
-                onClick={onExpand}
+                onClick={props.onExpand}
                 style={{ padding: "1px", color: palette.TEXT_MUTED }}
               >
                 <Text span size="xs" fw={700} style={{ "font-size": "13px", "line-height": 1 }}>
                   ⤢
                 </Text>
               </ActionIcon>
-            ) : null}
-          </Box>
+            </Show>
+          </div>
         ) : undefined
       }
     >
@@ -524,59 +507,59 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
         * either chart engine. The depth subtree mounts lazily on first
         * selection via `depthEverShown` above.
         */}
-      <Box
+      <div
         data-testid="nifty-chart-view"
-        className="flex flex-col"
+        class="flex flex-col"
         style={{
-          display: view === "chart" ? "flex" : "none",
-          flex: view === "chart" ? 1 : undefined,
-          "min-height": 0,
+          display: view() === "chart" ? "flex" : "none",
+          flex: view() === "chart" ? "1" : undefined,
+          "min-height": "0px",
         }}
       >
-        {chartCandles.length === 0 ? (
+        <Show when={chartCandles().length === 0}>
           <EmptyCompact
             data-testid="nifty-chart-empty"
             title="No intraday candles"
             description="Showing option-chain levels only."
           />
-        ) : null}
-        {chartCandles.length > 0 || candlesEverShown ? (
-          <Box
+        </Show>
+        <Show when={chartCandles().length > 0 || candlesEverShown()}>
+          <div
             data-testid="nifty-chart-wrap"
-            data-fill={chartHeight == null ? "1" : undefined}
-            data-mp-touches={mpTouches.length}
-            data-flip-marker={flipMarker.length > 0 ? "1" : "0"}
-            className="w-full max-w-full min-w-0 shrink-0 overflow-hidden"
+            data-fill={chartHeight() == null ? "1" : undefined}
+            data-mp-touches={mpTouches().length}
+            data-flip-marker={flipMarker().length > 0 ? "1" : "0"}
+            class="w-full max-w-full min-w-0 shrink-0 overflow-hidden"
             style={{
-              ...(chartHeight == null ? undefined : { height: chartHeight }),
-              display: chartCandles.length > 0 ? "flex" : "none",
-              flex: chartHeight == null ? 1 : undefined,
-              "min-width": 0,
-              "min-height": 0,
+              ...(chartHeight() == null ? undefined : { height: `${chartHeight()}px` }),
+              display: chartCandles().length > 0 ? "flex" : "none",
+              flex: chartHeight() == null ? "1" : undefined,
+              "min-width": "0px",
+              "min-height": "0px",
               "flex-shrink": 0,
-              ...(chartHeight == null && !fillContainer ? { "max-height": FILL_MAX_HEIGHT, "min-height": FILL_MIN_HEIGHT } : {}),
+              ...(chartHeight() == null && !fillContainer() ? { "max-height": `${FILL_MAX_HEIGHT}px`, "min-height": `${FILL_MIN_HEIGHT}px` } : {}),
             }}
           >
             <TradingViewChart
-              candles={chartCandles}
-              markLines={chartMarkLines}
-              emaData={chartEmaData}
-              touchMarkers={touchMarkers}
-              {...(chartHeight != null ? { height: chartHeight } : {})}
+              candles={chartCandles()}
+              markLines={chartMarkLines()}
+              emaData={chartEmaData()}
+              touchMarkers={touchMarkers()}
+              {...(chartHeight() != null ? { height: chartHeight()! } : {})}
               fitMarkLines
             />
-          </Box>
-        ) : null}
-      </Box>
-      {patternScan.status !== "idle" && view === "chart" ? (
-        <Box
+          </div>
+        </Show>
+      </div>
+      <Show when={patternScan().status !== "idle" && view() === "chart"}>
+        <div
           data-testid="nifty-patterns-strip"
-          data-status={patternScan.status}
+          data-status={patternScan().status}
           title={
-            patternScan.status === "ready"
-              ? patternScan.hits.length
+            patternScan().status === "ready"
+              ? patternScan().hits.length
                 ? (() => {
-                    const h = patternScan.hits[0];
+                    const h = patternScan().hits[0];
                     const lvl = (v?: number | null) =>
                       typeof v === "number" && Number.isFinite(v)
                         ? formatNumberIN(Math.round(v))
@@ -588,9 +571,9 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
                     } · BRK ${lvl(h.breakout_level)} · TGT ${lvl(h.target)} · SL ${lvl(h.stop)}`;
                   })()
                 : "No pattern in the scanned window"
-              : patternScan.status === "error"
-                ? patternScan.message
-                : `Scanning ${symbol} ${patternScan.tf}…`
+              : patternScan().status === "error"
+                ? patternScan().message
+                : `Scanning ${symbol} ${patternScan().tf}…`
           }
           className="flex items-center"
           style={{
@@ -609,76 +592,76 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
           }}
         >
           <span style={{ "font-weight": 800, "letter-spacing": "0.08em" }}>
-            PATTERNS {patternScan.tf}
+            PATTERNS {patternScan().tf}
           </span>
-          {patternScan.status === "loading" ? (
+          {patternScan().status === "loading" ? (
             <span>scanning…</span>
-          ) : patternScan.status === "error" ? (
-            <span style={{ color: palette.NEGATIVE }}>{patternScan.message}</span>
-          ) : patternScan.hits.length === 0 ? (
+          ) : patternScan().status === "error" ? (
+            <span style={{ color: palette.NEGATIVE }}>{patternScan().message}</span>
+          ) : patternScan().hits.length === 0 ? (
             <span>no pattern</span>
           ) : (
             <>
               <span
-                data-testid={`nifty-pattern-${patternScan.hits[0].pattern_id}`}
+                data-testid={`nifty-pattern-${patternScan().hits[0].pattern_id}`}
                 style={{
                   color:
-                    patternScan.hits[0].direction === "bullish"
+                    patternScan().hits[0].direction === "bullish"
                       ? palette.POSITIVE
-                      : patternScan.hits[0].direction === "bearish"
+                      : patternScan().hits[0].direction === "bearish"
                         ? palette.NEGATIVE
                         : palette.TEXT,
                   "font-weight": 700,
                 }}
               >
-                {patternScan.hits[0].pattern_name}
-                {patternScan.hits[0].direction === "bullish"
+                {patternScan().hits[0].pattern_name}
+                {patternScan().hits[0].direction === "bullish"
                   ? " ↑"
-                  : patternScan.hits[0].direction === "bearish"
+                  : patternScan().hits[0].direction === "bearish"
                     ? " ↓"
                     : " ·"}{" "}
-                {Math.round(patternScan.hits[0].confidence)}%
+                {Math.round(patternScan().hits[0].confidence)}%
               </span>
               <span style={{ opacity: 0.8 }}>
-                {patternScan.hits[0].status}
+                {patternScan().hits[0].status}
               </span>
             </>
           )}
           <span
             data-testid="nifty-patterns-draw"
-            data-on={drawPattern ? "1" : "0"}
+            data-on={drawPattern() ? "1" : "0"}
             role="button"
-            aria-pressed={drawPattern}
+            aria-pressed={drawPattern()}
             onClick={() => setDrawPattern((v) => !v)}
             title={
-              patternScan.tf === chartTf
-                ? `${drawPattern ? "Hide" : "Show"} the pattern on the chart`
-                : `Pattern was scanned on ${patternScan.tf}; rescan on ${chartTf} to draw it here`
+              patternScan().tf === chartTf()
+                ? `${drawPattern() ? "Hide" : "Show"} the pattern on the chart`
+                : `Pattern was scanned on ${patternScan().tf}; rescan on ${chartTf()} to draw it here`
             }
             style={{
               "margin-left": "auto",
               cursor: "pointer",
               "font-weight": 800,
               "letter-spacing": "0.06em",
-              color: drawPattern ? palette.PRIMARY : palette.TEXT_MUTED,
-              opacity: patternScan.tf === chartTf ? 1 : 0.5,
+              color: drawPattern() ? palette.PRIMARY : palette.TEXT_MUTED,
+              opacity: patternScan().tf === chartTf() ? 1 : 0.5,
             }}
           >
-            {drawPattern ? "DRAW ON" : "DRAW OFF"}
+            {drawPattern() ? "DRAW ON" : "DRAW OFF"}
           </span>
-        </Box>
-      ) : null}
-      {depthEverShown ? (
-        <Box
+        </div>
+      </Show>
+      <Show when={depthEverShown()}>
+        <div
           data-testid="nifty-depth-view"
-          style={{ display: view === "depth" ? "block" : "none" }}
+          style={{ display: view() === "depth" ? "block" : "none" }}
         >
-          <NiftyDepthMap report={report} active={view === "depth"} />
-        </Box>
-      ) : null}
+          <NiftyDepthMap report={report()} active={view() === "depth"} />
+        </div>
+      </Show>
       {/* The level legend lives on the chart gutter now (dense layout):
           rendering it here cost a full row above the fold. `LevelLegend`
           stays exported for callers/tests that need the decoded key. */}
-    </CompactPanel>
+    </LocalCompactPanel>
   );
-});
+}

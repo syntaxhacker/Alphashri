@@ -32,7 +32,6 @@ vi.mock("@/ui", async (importOriginal) => {
       Target: passthrough,
       Dropdown: passthrough,
       Item,
-      ItemProps: (props: any) => null,
       Divider: () => <hr />,
       Label: (props: any) => <span>{props.children}</span>,
     },

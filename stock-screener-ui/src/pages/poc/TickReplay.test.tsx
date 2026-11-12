@@ -193,7 +193,9 @@ describe("TickReplay", () => {
     render(() => <TickReplay />);
 
     await screen.findByText(/Trades —/);
-    fireEvent.change(screen.getByLabelText("OR TF"), { target: { value: "30" } });
+    const select = screen.getByLabelText("OR TF") as HTMLSelectElement;
+    select.value = "30";
+    select.dispatchEvent(new Event("input", { bubbles: true }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(

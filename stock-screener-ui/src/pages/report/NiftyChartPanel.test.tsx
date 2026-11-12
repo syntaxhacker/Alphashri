@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
-import { render, screen, within, cleanup } from "@testing-library/react";
+import { render, screen, within, cleanup } from "@solidjs/testing-library";
+import { createSignal, onMount } from "solid-js";
+import type { JSX } from "solid-js";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
@@ -19,32 +21,32 @@ import {
 import type { NiftyGex, NiftyReport } from "@/types/niftyReport";
 
 vi.mock("@/components/chart/TradingViewChart", async () => {
-  const React = await import("react");
+  const { onMount } = await import("solid-js");
   return {
-    TradingViewChart: ({ candles, markLines, emaData, fitMarkLines, touchMarkers }: {
+    TradingViewChart: (props: {
       candles?: { open: number; high: number; low: number; close: number }[];
       markLines?: { label: { formatter: string } }[];
       emaData?: unknown[];
       fitMarkLines?: boolean;
       touchMarkers?: { time: string; value: number }[];
     }) => {
-      React.useEffect(() => {
+      onMount(() => {
         panelMocks.tvMounts += 1;
-      }, []);
-      const first = candles?.[0];
+      });
+      const first = () => props.candles?.[0];
       return (
         <div
           data-testid="tradingview-chart"
-          data-candles={candles?.length ?? 0}
-          data-first-open={first?.open}
-          data-first-high={first?.high}
-          data-first-low={first?.low}
-          data-first-close={first?.close}
-          data-marklines={markLines?.length ?? 0}
-          data-markline-labels={(markLines ?? []).map((l) => l.label.formatter).join("|")}
-          data-emas={emaData?.length ?? 0}
-          data-fit-marklines={fitMarkLines ? "1" : "0"}
-          data-touch-markers={touchMarkers?.length ?? 0}
+          data-candles={props.candles?.length ?? 0}
+          data-first-open={first()?.open}
+          data-first-high={first()?.high}
+          data-first-low={first()?.low}
+          data-first-close={first()?.close}
+          data-marklines={props.markLines?.length ?? 0}
+          data-markline-labels={(props.markLines ?? []).map((l) => l.label.formatter).join("|")}
+          data-emas={props.emaData?.length ?? 0}
+          data-fit-marklines={props.fitMarkLines ? "1" : "0"}
+          data-touch-markers={props.touchMarkers?.length ?? 0}
         />
       );
     },
@@ -53,17 +55,16 @@ vi.mock("@/components/chart/TradingViewChart", async () => {
 
 const panelMocks = vi.hoisted(() => ({ tvMounts: 0, depthMounts: 0 }));
 
-// forwardRef: NiftyDepthMap passes a ref for its manual resize/setOption
-// driver (React 19 would tolerate a plain mock, but the ref would be lost).
-vi.mock("echarts-for-react", async () => {
-  const React = await import("react");
-  const MockDepthChart = React.forwardRef(function MockDepthChart() {
-    React.useEffect(() => {
+// DepthChart mock: counts mounts; renders a stand-in with the same testid.
+vi.mock("./DepthChart", async () => {
+  const { onMount } = await import("solid-js");
+  const MockDepthChart = () => {
+    onMount(() => {
       panelMocks.depthMounts += 1;
-    }, []);
+    });
     return <div data-testid="nifty-depth-echarts" />;
-  });
-  return { default: MockDepthChart };
+  };
+  return { DepthChart: MockDepthChart };
 });
 
 afterEach(() => {
@@ -73,12 +74,8 @@ afterEach(() => {
   panelMocks.depthMounts = 0;
 });
 
-function Wrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
-}
-
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: Wrapper });
+function r(ui: () => JSX.Element) {
+  return render(() => <UIProvider>{ui()}</UIProvider>);
 }
 
 function mockReport(overrides?: Record<string, unknown>): NiftyReport {
@@ -132,17 +129,12 @@ function depthReport() {
 
 describe("NiftyChartPanel", () => {
   test("flipAt draws a no-text marker on the candle close at that time", () => {
-    const { rerender } = r(
-      <NiftyChartPanel
-        report={mockReport({ candles: candles3() })}
-        mode="live"
-        view="chart"
-        flipAt="2026-10-12T09:16:00"
-      />,
-    );
+    const [report, setReport] = createSignal(mockReport({ candles: candles3() }));
+    const [flipAt, setFlipAt] = createSignal("2026-10-12T09:16:00");
+    r(() => <NiftyChartPanel report={report()} mode="live" view="chart" flipAt={flipAt()} />);
     expect(screen.getByTestId("nifty-chart-wrap")).toHaveAttribute("data-flip-marker", "1");
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "1");
-    rerender(<NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
+    setFlipAt(undefined as unknown as string);
     expect(screen.getByTestId("nifty-chart-wrap")).toHaveAttribute("data-flip-marker", "0");
   });
 
@@ -246,13 +238,10 @@ describe("NiftyChartPanel", () => {
   });
 
   test("depth view keeps the chart mounted but hidden; toggles stay hidden", async () => {
-    const user = userEvent.setup();
-    const { rerender } = r(
-      <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />,
-    );
-    rerender(
-      <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="depth" />,
-    );
+    const [view, setView] = createSignal<"chart" | "depth">("chart");
+    const [report] = createSignal(mockReport({ candles: candles3() }));
+    r(() => <NiftyChartPanel report={report()} mode="live" view={view()} />);
+    setView("depth");
     expect(await screen.findByTestId("nifty-depthmap")).toBeInTheDocument();
     // Both views stay mounted now (instant switching): the chart wrapper is
     // display:none instead of unmounted.
@@ -266,37 +255,36 @@ describe("NiftyChartPanel", () => {
   });
 
   test("lazy depth mount: no depth subtree until first depth view", () => {
-    const { rerender } = r(
-      <NiftyChartPanel report={depthReport()} mode="live" view="chart" />,
-    );
+    const [view, setView] = createSignal<"chart" | "depth">("chart");
+    const [report] = createSignal(depthReport());
+    r(() => <NiftyChartPanel report={report()} mode="live" view={view()} />);
     expect(screen.getByTestId("tradingview-chart")).toBeInTheDocument();
     expect(screen.queryByTestId("nifty-depth-view")).not.toBeInTheDocument();
     expect(screen.queryByTestId("nifty-depthmap")).not.toBeInTheDocument();
     expect(panelMocks.depthMounts).toBe(0);
 
-    rerender(<NiftyChartPanel report={depthReport()} mode="live" view="depth" />);
+    setView("depth");
     expect(screen.getByTestId("nifty-depthmap")).toBeInTheDocument();
     expect(panelMocks.depthMounts).toBe(1);
   });
 
   test("Chart→Depth→Chart→Depth mounts ECharts once and never remounts the chart", () => {
-    const report = depthReport();
-    const { rerender } = r(
-      <NiftyChartPanel report={report} mode="live" view="chart" />,
-    );
+    const [view, setView] = createSignal<"chart" | "depth">("chart");
+    const [report] = createSignal(depthReport());
+    r(() => <NiftyChartPanel report={report()} mode="live" view={view()} />);
     expect(panelMocks.tvMounts).toBe(1);
     expect(panelMocks.depthMounts).toBe(0);
 
-    rerender(<NiftyChartPanel report={report} mode="live" view="depth" />);
+    setView("depth");
     expect(panelMocks.depthMounts).toBe(1);
     expect(screen.getByTestId("nifty-chart-view")).toHaveStyle({ display: "none" });
     expect(screen.getByTestId("nifty-depth-view")).not.toHaveStyle({ display: "none" });
 
-    rerender(<NiftyChartPanel report={report} mode="live" view="chart" />);
+    setView("chart");
     expect(screen.getByTestId("nifty-chart-view")).not.toHaveStyle({ display: "none" });
     expect(screen.getByTestId("nifty-depth-view")).toHaveStyle({ display: "none" });
 
-    rerender(<NiftyChartPanel report={report} mode="live" view="depth" />);
+    setView("depth");
     // Still exactly one mount each — switching only flips visibility.
     expect(panelMocks.depthMounts).toBe(1);
     expect(panelMocks.tvMounts).toBe(1);
@@ -311,22 +299,19 @@ describe("NiftyChartPanel", () => {
   });
 
   test("a poll with no candles hides the chart instead of unmounting it", () => {
-    const { rerender } = r(
-      <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />,
-    );
+    const [report, setReport] = createSignal(mockReport({ candles: candles3() }));
+    r(() => <NiftyChartPanel report={report()} mode="live" view="chart" />);
     expect(panelMocks.tvMounts).toBe(1);
 
     // Transient empty poll (feed hiccup / replay boundary): the empty state
     // shows, but the engine stays mounted so the next poll does not rebuild
     // every canvas, series and price line from scratch.
-    rerender(<NiftyChartPanel report={mockReport()} mode="live" view="chart" />);
+    setReport(mockReport());
     expect(screen.getByTestId("nifty-chart-empty")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-chart-wrap")).toBeInTheDocument();
     expect(panelMocks.tvMounts).toBe(1);
 
-    rerender(
-      <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />,
-    );
+    setReport(mockReport({ candles: candles3() }));
     expect(screen.queryByTestId("nifty-chart-empty")).not.toBeInTheDocument();
     expect(panelMocks.tvMounts).toBe(1);
   });
@@ -402,27 +387,20 @@ describe("NiftyChartPanel", () => {
       { id: "rej", side: "call", type: "rejection", t: "2026-10-12T09:16:30", strike: 25800, spot: 25760, target: 25700 },
       { id: "brk", side: "call", type: "break", t: "2026-10-12T15:29:00", strike: 25900, spot: 25910 },
     ];
-    const { rerender } = r(
-      <NiftyChartPanel
-        report={report}
+    const [report, setReport] = createSignal(mockReport());
+    r(() => <NiftyChartPanel report={report()}
         mode="eod"
         view="chart"
         asOf="2026-10-12T09:17:00"
         bursts={bursts}
-      />,
-    );
+      />);
     // Only the 09:16 rejection is knowable; the 15:29 break must not appear.
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "1");
 
-    rerender(
-      <NiftyChartPanel
-        report={report}
-        mode="eod"
-        view="chart"
-        asOf="2026-10-12T15:30:00"
-        bursts={bursts}
-      />,
-    );
+    setReport(mockReport({ candles: candles3() }));
+    const [asOf] = createSignal("2026-10-12T15:30:00");
+    const [burstsSignal] = createSignal(bursts);
+    setReport(report);
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "2");
   });
 
@@ -641,14 +619,14 @@ describe("NiftyChartPanel", () => {
     expect(labels).not.toContain("CW 25,000");
   });
 
-  test("memo: same report reference keeps the wrap DOM node across parent re-renders", () => {
-    const report = mockReport({ candles: candles3() });
-    const { rerender } = r(<NiftyChartPanel report={report} mode="live" view="chart" />);
+  test("stable props keep the wrap DOM node across unrelated parent updates", () => {
+    const [tick, setTick] = createSignal(0);
+    const [report] = createSignal(mockReport({ candles: candles3() }));
+    r(() => <NiftyChartPanel report={report()} mode="live" view="chart" data-tick={tick()} />);
     const wrap = screen.getByTestId("nifty-chart-wrap");
-    rerender(
-      <NiftyChartPanel report={report} mode="live" view="chart" />,
-    );
-    // React.memo bailed out — the identical DOM node survived the re-render.
+    setTick(1);
+    // Solid updates are fine-grained: the same wrap node survives an
+    // unrelated parent-driven update.
     expect(screen.getByTestId("nifty-chart-wrap")).toBe(wrap);
     expect(screen.queryByTestId("nifty-level-legend")).not.toBeInTheDocument();
   });

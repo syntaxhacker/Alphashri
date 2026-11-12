@@ -146,19 +146,20 @@ export function LocalSparkline(props: { data: number[]; change?: number; width?:
 
 
 export function LocalCompactPanel(props: {
-  title: string;
+  title?: JSX.Element | string;
   testId?: string;
   /** Header-right slot (e.g. an action badge). */
   action?: JSX.Element;
   /** Drop the body's default padding. */
   flush?: boolean;
   style?: JSX.CSSProperties;
+  class?: string;
   children: JSX.Element;
 }) {
   return (
     <div
       data-testid={props.testId}
-      class="flex flex-col border border-fin-border rounded-[8px] overflow-hidden font-mono"
+      class={`flex flex-col border border-fin-border rounded-[8px] overflow-hidden font-mono${props.class ? ` ${props.class}` : ""}`}
       style={props.style}
     >
       <div class="flex items-center justify-between gap-2 px-2 py-1 border-b border-fin-border bg-fin-surface shrink-0">

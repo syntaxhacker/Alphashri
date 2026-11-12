@@ -490,16 +490,16 @@ export function WallsMapChart(props: {
           return (
             <g>
               <rect x={callX} y={y} width={callOldW} height={ROW_H - 8} fill={palette.NEGATIVE} opacity={0.35}>
-                <title>{`${timeLabel(activeTime)} · ${fmtNum(strike)} call open OI ${fmtOI(callOpenValue)}`}</title>
+                <title>{`${timeLabel(activeTime())} · ${fmtNum(strike)} call open OI ${fmtOI(callOpenValue)}`}</title>
               </rect>
               <rect x={callX + callOldW} y={y} width={callNewW} height={ROW_H - 8} fill={palette.NEGATIVE} opacity={0.95}>
-                <title>{`${timeLabel(activeTime)} · ${fmtNum(strike)} call OI ${fmtOI(callValue)} · new ${fmtSignedOI(callValue - callOpenValue)} since open`}</title>
+                <title>{`${timeLabel(activeTime())} · ${fmtNum(strike)} call OI ${fmtOI(callValue)} · new ${fmtSignedOI(callValue - callOpenValue)} since open`}</title>
               </rect>
               <rect x={putX} y={y} width={putOldW} height={ROW_H - 8} fill={palette.POSITIVE} opacity={0.35}>
-                <title>{`${timeLabel(activeTime)} · ${fmtNum(strike)} put open OI ${fmtOI(putOpenValue)}`}</title>
+                <title>{`${timeLabel(activeTime())} · ${fmtNum(strike)} put open OI ${fmtOI(putOpenValue)}`}</title>
               </rect>
               <rect x={putX + putOldW} y={y} width={putNewW} height={ROW_H - 8} fill={palette.POSITIVE} opacity={0.95}>
-                <title>{`${timeLabel(activeTime)} · ${fmtNum(strike)} put OI ${fmtOI(putValue)} · new ${fmtSignedOI(putValue - putOpenValue)} since open`}</title>
+                <title>{`${timeLabel(activeTime())} · ${fmtNum(strike)} put OI ${fmtOI(putValue)} · new ${fmtSignedOI(putValue - putOpenValue)} since open`}</title>
               </rect>
             </g>
           );
@@ -531,8 +531,8 @@ export function WallsMapChart(props: {
           const isBreak = event.kind === "BREAK";
           return (
             <g pointer-events="none">
-              <line x1={x} x2={x} y1={HEADER_H} y2={HEADER_H + rowsH} stroke={isBreak ? palette.NEGATIVE : palette.WARNING} stroke-width={1} opacity={0.16} />
-              <line x1={PUT_PLOT_X + x} x2={PUT_PLOT_X + x} y1={HEADER_H} y2={HEADER_H + rowsH} stroke={isBreak ? palette.NEGATIVE : palette.WARNING} stroke-width={1} opacity={0.16} />
+              <line x1={x} x2={x} y1={HEADER_H} y2={HEADER_H + rowsH()} stroke={isBreak ? palette.NEGATIVE : palette.WARNING} stroke-width={1} opacity={0.16} />
+              <line x1={PUT_PLOT_X + x} x2={PUT_PLOT_X + x} y1={HEADER_H} y2={HEADER_H + rowsH()} stroke={isBreak ? palette.NEGATIVE : palette.WARNING} stroke-width={1} opacity={0.16} />
               <circle cx={x} cy={y} r={isBreak ? 2.8 : 2} fill={isBreak ? palette.NEGATIVE : palette.WARNING}>
                 <title>{`${timeLabel(event.at)} ${event.kind} ${fmtNum(event.wall)}`}</title>
               </circle>

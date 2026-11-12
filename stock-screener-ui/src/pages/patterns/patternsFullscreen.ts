@@ -269,7 +269,7 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
       );
     };
 
-    const applyCandlesError = (err: unknown) => {
+    const applyCandlesError = (_err: unknown) => {
       if (chartRequest !== token) return;
       console.warn("[chart-dock] failed", { symbol, timeframe: tf, ms: Math.round(performance.now() - startedAt) });
       setFullscreen((prev) =>
