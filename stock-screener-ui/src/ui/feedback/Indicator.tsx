@@ -43,7 +43,18 @@ export function Indicator(props: UIIndicatorProps) {
     "id",
   ]);
 
-  if (known.disabled) return <>{known.children}</>;
+  if (known.disabled) {
+    return (
+      <span
+        data-testid={known["data-testid"]}
+        id={known.id}
+        className={cn("relative inline-block shrink-0", known.className)}
+        style={known.style}
+      >
+        {known.children}
+      </span>
+    );
+  }
 
   const col = resolveColor(known.color);
   const dotSize = known.size ?? 8;
@@ -64,18 +75,18 @@ export function Indicator(props: UIIndicatorProps) {
           ...anchor,
           width: dotSize,
           height: dotSize,
-          backgroundColor: col,
+          "background-color": col,
           transform,
           ...(known.label != null
-            ? { color: palette.BG, fontSize: Math.max(6, dotSize * 0.5), fontWeight: 600 }
+            ? { color: palette.BG, "font-size": Math.max(6, dotSize * 0.5), "font-weight": 600 }
             : {}),
         }}
       >
-        {known.label != null ? <span style={{ position: "relative", zIndex: 1 }}>{known.label}</span> : null}
+        {known.label != null ? <span style={{ position: "relative", "z-index": 1 }}>{known.label}</span> : null}
         {known.processing && (
           <span
             className="animate-ping border shrink-0 absolute inset-0 rounded-full"
-            style={{ borderColor: col, opacity: 0.5, animationDuration: "1.2s" }}
+            style={{ "border-color": col, opacity: 0.5, animationDuration: "1.2s" }}
           />
         )}
       </span>

@@ -7,8 +7,8 @@ import type { ReplayTrade } from "./types";
 
 const ctxStub = () => ({
   save: vi.fn(), restore: vi.fn(), fillRect: vi.fn(), strokeRect: vi.fn(),
-  beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(),
-  setLineDash: vi.fn(), fillText: vi.fn(), arc: vi.fn(), fill: vi.fn(),
+  beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), "stroke": vi.fn(),
+  setLineDash: vi.fn(), fillText: vi.fn(), arc: vi.fn(), "fill": vi.fn(),
   clearRect: vi.fn(), setTransform: vi.fn(),
   canvas: {},
 }) as unknown as CanvasRenderingContext2D;

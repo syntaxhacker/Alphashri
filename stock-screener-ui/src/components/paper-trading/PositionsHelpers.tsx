@@ -486,7 +486,7 @@ export function PositionsTableBody({
       columns={columns}
       getRowCanExpand={() => true}
       renderSubComponent={(pos) => (
-        <Box className="paper-position-expanded p-1" id={`paper-position-expanded-${pos.order_id || pos.symbol}`} style={{ backgroundColor: BG, borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
+        <Box className="paper-position-expanded p-1" id={`paper-position-expanded-${pos.order_id || pos.symbol}`} style={{ "background-color": BG, borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
           <PositionDetail pos={pos} />
         </Box>
       )}

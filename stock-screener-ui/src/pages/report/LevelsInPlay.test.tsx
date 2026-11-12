@@ -136,11 +136,11 @@ describe("LevelsInPlay", () => {
 
     // happy-dom can't measure overlap; assert the style contract instead:
     // label group never shrinks below the widest "SENSEX 80,636" run.
-    expect(screen.getByTestId("levels-label-NIFTY")).toHaveStyle({ minWidth: "84px" });
-    expect(screen.getByTestId("levels-label-SENSEX")).toHaveStyle({ minWidth: "84px" });
+    expect(screen.getByTestId("levels-label-NIFTY")).toHaveStyle({ "min-width": "84px" });
+    expect(screen.getByTestId("levels-label-SENSEX")).toHaveStyle({ "min-width": "84px" });
 
     const chip = screen.getByTestId("levels-dist-NIFTY-CE");
-    expect(chip).toHaveStyle({ height: "14px", display: "inline-flex", lineHeight: "1" });
+    expect(chip).toHaveStyle({ height: "14px", display: "inline-flex", "line-height": "1" });
   });
 });
 

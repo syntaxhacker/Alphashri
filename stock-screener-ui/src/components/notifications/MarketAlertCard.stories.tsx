@@ -168,7 +168,7 @@ export const Log: Story = {
   name: "Log (viewport)",
   args: {
     alerts: LOG_ROWS,
-    fill: false,
+    "fill": false,
     height: 484,
   },
   render: (args) => (
@@ -179,7 +179,7 @@ export const Log: Story = {
 };
 
 export const Empty: Story = {
-  args: { alerts: [], fill: false, height: 120 },
+  args: { alerts: [], "fill": false, height: 120 },
   render: (args) => (
     <Stage>
       <Box className="w-[620px] max-w-full">

@@ -24,12 +24,12 @@ export const SelectedPositionBar = memo(function SelectedPositionBar({ position,
   const bgTint = position.pnl >= 0 ? alpha(palette.POSITIVE, 0.06) : alpha(palette.NEGATIVE, 0.06);
 
   return (
-    <div className="paper-selected-bar flex items-center justify-between flex-wrap gap-2 px-2 py-1 border-t border-fin-border rounded-b-fin" id={`paper-selected-bar-${position.symbol}`} style={{ backgroundColor: bgTint }}>
+    <div className="paper-selected-bar flex items-center justify-between flex-wrap gap-2 px-2 py-1 border-t border-fin-border rounded-b-fin" id={`paper-selected-bar-${position.symbol}`} style={{ "background-color": bgTint }}>
       <div className="paper-selected-bar-main flex items-center gap-4 flex-wrap">
         <Text className="paper-selected-bar-symbol" id={`paper-selected-bar-symbol-${position.symbol}`} size="sm" fw={600}>
           {position.symbol}
         </Text>
-        <div className="paper-selected-bar-side flex items-center px-2 py-1 rounded-[1px]" style={{ backgroundColor: alpha(position.side === "BUY" ? palette.POSITIVE : palette.NEGATIVE, 0.08) }}>
+        <div className="paper-selected-bar-side flex items-center px-2 py-1 rounded-[1px]" style={{ "background-color": alpha(position.side === "BUY" ? palette.POSITIVE : palette.NEGATIVE, 0.08) }}>
           <Text className="paper-selected-bar-side-text" size="xs" fw={600} c={sideColor}>
             {position.side}
           </Text>
@@ -43,7 +43,7 @@ export const SelectedPositionBar = memo(function SelectedPositionBar({ position,
           <Text className="paper-selected-bar-label" size="xs" c="dimmed">Curr</Text>
           <Text className="paper-selected-bar-value" size="xs" fw={500}>₹{position.current_price.toFixed(2)}</Text>
         </div>
-        <div className="paper-selected-bar-pnl flex items-center px-2 py-1 rounded-[1px]" style={{ backgroundColor: alpha(position.pnl >= 0 ? palette.POSITIVE : palette.NEGATIVE, 0.1) }}>
+        <div className="paper-selected-bar-pnl flex items-center px-2 py-1 rounded-[1px]" style={{ "background-color": alpha(position.pnl >= 0 ? palette.POSITIVE : palette.NEGATIVE, 0.1) }}>
           <Text className="paper-selected-bar-pnl-text" size="xs" c={getPnLTextColor(position.pnl)} fw={700}>
             {position.pnl >= 0 ? "+" : ""}₹{formatNumber(position.pnl)} ({position.pnl_pct.toFixed(2)}%)
           </Text>

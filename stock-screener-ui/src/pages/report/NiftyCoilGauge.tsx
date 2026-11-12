@@ -124,7 +124,7 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
         <Box
           aria-hidden
           className="w-[6px] h-[6px] rounded-full shrink-0"
-          style={{ backgroundColor: accent }}
+          style={{ "background-color": accent }}
         />
         <Text
           data-testid="nifty-coil-state"
@@ -134,10 +134,10 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           span
           truncate
           style={{
-            fontSize: 11,
-            lineHeight: 1.2,
-            letterSpacing: "0.04em",
-            minWidth: 0,
+            "font-size": 11,
+            "line-height": 1.2,
+            "letter-spacing": "0.04em",
+            "min-width": 0,
           }}
         >
           {state ?? "—"}
@@ -149,10 +149,10 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           c="dimmed"
           span
           style={{
-            fontSize: 11,
-            lineHeight: 1.2,
+            "font-size": 11,
+            "line-height": 1.2,
             fontVariantNumeric: "tabular-nums",
-            whiteSpace: "nowrap",
+            "white-space": "nowrap",
           }}
         >
           {ratioText}
@@ -164,10 +164,10 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           span
           truncate
           style={{
-            fontSize: 9,
-            lineHeight: 1.2,
+            "font-size": 9,
+            "line-height": 1.2,
             fontVariantNumeric: "tabular-nums",
-            minWidth: 0,
+            "min-width": 0,
           }}
         >
           {rvIv}
@@ -187,7 +187,7 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
         <Box
           aria-hidden
           className="w-[6px] h-[6px] rounded-full shrink-0"
-          style={{ backgroundColor: accent }}
+          style={{ "background-color": accent }}
         />
         <Text
           data-testid="nifty-coil-state"
@@ -197,9 +197,9 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           span
           truncate
           style={{
-            fontSize: 11,
-            lineHeight: 1.3,
-            letterSpacing: "0.04em",
+            "font-size": 11,
+            "line-height": 1.3,
+            "letter-spacing": "0.04em",
           }}
         >
           {state ?? "—"}
@@ -211,10 +211,10 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           c="dimmed"
           span
           style={{
-            fontSize: 10,
-            lineHeight: 1.3,
+            "font-size": 10,
+            "line-height": 1.3,
             fontVariantNumeric: "tabular-nums",
-            whiteSpace: "nowrap",
+            "white-space": "nowrap",
           }}
         >
           {ratioText}
@@ -226,7 +226,7 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
         c="dimmed"
         span
         truncate
-        style={{ fontSize: 10, lineHeight: 1.3 }}
+        style={{ "font-size": 10, "line-height": 1.3 }}
       >
         {hint}
       </Text>
@@ -237,8 +237,8 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
         span
         truncate
         style={{
-          fontSize: 10,
-          lineHeight: 1.3,
+          "font-size": 10,
+          "line-height": 1.3,
           fontVariantNumeric: "tabular-nums",
         }}
       >

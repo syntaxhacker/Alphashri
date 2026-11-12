@@ -170,7 +170,7 @@ function LegRow({
         prefix="₹"
         w={110}
       />
-      <Box style={{ minWidth: 72, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+      <Box style={{ "min-width": 72, display: "flex", "align-items": "center", "justify-content": "flex-end" }}>
         <Text size="xs" className="text-fin-text-muted" style={{ fontVariantNumeric: "tabular-nums" }}>
           {liveLTP == null ? "—" : liveLTP.toFixed(2)}
         </Text>
@@ -189,7 +189,7 @@ function LegRow({
         variant="subtle"
         onClick={() => onRemove(leg.legId)}
         title="Remove leg"
-        style={{ padding: "2px", marginLeft: "-4px" }}
+        style={{ padding: "2px", "margin-left": "-4px" }}
       >
         ×
       </Button>
@@ -398,12 +398,12 @@ export function SimulatorPanel({
     <Box data-testid="simulator-panel" className="flex flex-col h-full min-h-0">
       {/* Header */}
       <Box className="p-[8px] flex flex-col gap-[4px]" style={{ borderBottom: `1px solid ${palette.BORDER}` }}>
-        <ToolbarRow gap={8} justify="space-between" style={{ alignItems: "baseline" }}>
+        <ToolbarRow gap={8} justify="space-between" style={{ "align-items": "baseline" }}>
           <Box className="flex flex-col min-w-0" gap={0}>
             <Text size="sm" fw={700} className="text-fin-primary" tt="uppercase">
               SIMULATOR
             </Text>
-            <ToolbarRow gap={6} style={{ marginTop: 2 }}>
+            <ToolbarRow gap={6} style={{ "margin-top": 2 }}>
               {onUnderlyingChange ? (
                 <SymbolAutocomplete
                   value={selectedUnderlying}
@@ -434,7 +434,7 @@ export function SimulatorPanel({
               )}
             </ToolbarRow>
             {isMobile ? (
-              <Text size="xs" className="text-fin-text-muted" style={{ marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
+              <Text size="xs" className="text-fin-text-muted" style={{ "margin-top": 2, fontVariantNumeric: "tabular-nums" }}>
                 {loading ? "Loading · " : ""}
                 Spot {liveSpot == null ? "—" : liveSpot.toLocaleString()} · ATM {atm || "—"} · DTE{" "}
                 {dte == null ? "—" : `${dte} days`}
@@ -447,7 +447,7 @@ export function SimulatorPanel({
                 <Badge
                   size="xs"
                   variant="outline"
-                  style={{ color: palette.PRIMARY, borderColor: palette.BORDER }}
+                  style={{ color: palette.PRIMARY, "border-color": palette.BORDER }}
                 >
                   Loading live chain
                 </Badge>
@@ -455,21 +455,21 @@ export function SimulatorPanel({
               <Badge
                 size="xs"
                 variant="outline"
-                style={{ color: palette.TEXT_MUTED, borderColor: palette.BORDER }}
+                style={{ color: palette.TEXT_MUTED, "border-color": palette.BORDER }}
               >
                 Spot {liveSpot == null ? "—" : liveSpot.toLocaleString()}
               </Badge>
               <Badge
                 size="xs"
                 variant="outline"
-                style={{ color: palette.TEXT_MUTED, borderColor: palette.BORDER }}
+                style={{ color: palette.TEXT_MUTED, "border-color": palette.BORDER }}
               >
                 ATM {atm || "—"}
               </Badge>
               <Badge
                 size="xs"
                 variant="outline"
-                style={{ color: palette.TEXT_MUTED, borderColor: palette.BORDER }}
+                style={{ color: palette.TEXT_MUTED, "border-color": palette.BORDER }}
               >
                 DTE {dte == null ? "—" : `${dte} days`}
               </Badge>
@@ -480,7 +480,7 @@ export function SimulatorPanel({
           Build a multi-leg option strategy and view its payoff at expiry.
         </Text>
         {error ? (
-          <Text size="xs" className="text-fin-negative" title={error} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <Text size="xs" className="text-fin-negative" title={error} style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
             {error}
           </Text>
         ) : null}
@@ -491,9 +491,9 @@ export function SimulatorPanel({
         ) : null}
       </Box>
 
-      <Box className="flex min-h-0 gap-[8px]" style={{ flex: 1, flexDirection: isMobile ? "column" : "row" }}>
+      <Box className="flex min-h-0 gap-[8px]" style={{ flex: 1, "flex-direction": isMobile ? "column" : "row" }}>
         {/* Left rail: strategy templates */}
-        <Box className="w-full md:w-[280px] flex flex-col gap-[8px] min-w-0" style={{ minWidth: 0 }}>
+        <Box className="w-full md:w-[280px] flex flex-col gap-[8px] min-w-0" style={{ "min-width": 0 }}>
           <CompactPanel title="Templates" testId="simulator-template-panel" padded>
             {[
               { group: "BUY", templates: BUY_STRATEGIES },
@@ -532,15 +532,15 @@ export function SimulatorPanel({
         </Box>
 
         {/* Right builder */}
-        <Box className="flex flex-col gap-[8px] min-w-0" style={{ flex: 1, minWidth: 0 }}>
+        <Box className="flex flex-col gap-[8px] min-w-0" style={{ flex: 1, "min-width": 0 }}>
           <CompactPanel title="Leg builder" testId="simulator-builder-panel" padded>
-            <ToolbarRow gap={6} style={{ borderBottom: `1px solid ${palette.BORDER}`, backgroundColor: palette.SURFACE_ALT, marginBottom: 4 }}>
+            <ToolbarRow gap={6} style={{ borderBottom: `1px solid ${palette.BORDER}`, "background-color": palette.SURFACE_ALT, "margin-bottom": 4 }}>
               <Box miw={92}><Text size="xs" className="text-fin-text-muted">Action</Text></Box>
               <Box miw={74}><Text size="xs" className="text-fin-text-muted">Type</Text></Box>
               <Box miw={100}><Text size="xs" className="text-fin-text-muted">Strike</Text></Box>
               <Box miw={70}><Text size="xs" className="text-fin-text-muted">Qty</Text></Box>
-              <Box style={{ flex: 1, minWidth: 0, padding: "2px 8px" }}><Text size="xs" className="text-fin-text-muted" ta="right">Entry</Text></Box>
-              <Box style={{ minWidth: 72, display: "flex", justifyContent: "flex-end" }}><Text size="xs" className="text-fin-text-muted">LTP</Text></Box>
+              <Box style={{ flex: 1, "min-width": 0, padding: "2px 8px" }}><Text size="xs" className="text-fin-text-muted" ta="right">Entry</Text></Box>
+              <Box style={{ "min-width": 72, display: "flex", "justify-content": "flex-end" }}><Text size="xs" className="text-fin-text-muted">LTP</Text></Box>
               <Box style={{ width: 26 }} />
             </ToolbarRow>
             {legs.length === 0 ? (
@@ -562,7 +562,7 @@ export function SimulatorPanel({
                 />
               ))
             )}
-            <ToolbarRow gap={8} style={{ marginTop: 8, flexWrap: "wrap" }}>
+            <ToolbarRow gap={8} style={{ "margin-top": 8, "flex-wrap": "wrap" }}>
               <Button
                 data-testid="simulator-add-leg"
                 size="sm"
@@ -571,7 +571,7 @@ export function SimulatorPanel({
                 + Add leg
               </Button>
             </ToolbarRow>
-            <ToolbarRow gap={8} style={{ marginTop: 4, flexWrap: "wrap" }}>
+            <ToolbarRow gap={8} style={{ "margin-top": 4, "flex-wrap": "wrap" }}>
               <Button data-testid="simulator-reset" variant="outline" size="sm" onClick={reset}>
                 Reset
               </Button>
@@ -603,7 +603,7 @@ export function SimulatorPanel({
               rangePct={rangePct}
               data-testid="simulator-payoff"
             />
-            <ToolbarRow gap={10} style={{ marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <ToolbarRow gap={10} style={{ "margin-top": 8, "flex-wrap": "wrap", "align-items": "center" }}>
               {statCells.map((cell, i) => (
                 <Fragment key={cell.label}>
                   <Box className="flex flex-col gap-0 min-w-0">
@@ -618,27 +618,27 @@ export function SimulatorPanel({
                 </Fragment>
               ))}
             </ToolbarRow>
-            <Box style={{ border: `1px solid ${palette.BORDER}`, borderRadius: 1, overflow: "hidden", marginTop: 8 }}>
-              <ToolbarRow gap={0} style={{ borderBottom: `1px solid ${palette.BORDER}`, backgroundColor: palette.SURFACE_ALT }}>
-                <Box style={{ flex: 1, minWidth: 0, padding: "2px 8px" }}><Text size="xs" className="text-fin-text-muted">Spot move</Text></Box>
-                <Box style={{ flex: 1, minWidth: 0, padding: "2px 8px" }}><Text size="xs" className="text-fin-text-muted" ta="right">Spot</Text></Box>
-                <Box style={{ flex: 1, minWidth: 0, padding: "2px 8px" }}><Text size="xs" className="text-fin-text-muted">P&L at expiry</Text></Box>
+            <Box style={{ border: `1px solid ${palette.BORDER}`, "border-radius": 1, overflow: "hidden", "margin-top": 8 }}>
+              <ToolbarRow gap={0} style={{ borderBottom: `1px solid ${palette.BORDER}`, "background-color": palette.SURFACE_ALT }}>
+                <Box style={{ flex: 1, "min-width": 0, padding: "2px 8px" }}><Text size="xs" className="text-fin-text-muted">Spot move</Text></Box>
+                <Box style={{ flex: 1, "min-width": 0, padding: "2px 8px" }}><Text size="xs" className="text-fin-text-muted" ta="right">Spot</Text></Box>
+                <Box style={{ flex: 1, "min-width": 0, padding: "2px 8px" }}><Text size="xs" className="text-fin-text-muted">P&L at expiry</Text></Box>
               </ToolbarRow>
               <Box data-testid="simulator-scenario-table">
                 {scenario.map((row) => (
                   <ToolbarRow
                     key={row.label}
                     gap={0}
-                    style={{ borderBottom: `1px solid ${palette.BORDER}`, alignItems: "center" }}
+                    style={{ borderBottom: `1px solid ${palette.BORDER}`, "align-items": "center" }}
                     data-testid="simulator-scenario-row"
                   >
-                    <Box style={{ flex: 1, minWidth: 0, padding: "2px 8px" }}><Text size="xs">{row.label}</Text></Box>
-                    <Box style={{ flex: 1, minWidth: 0, padding: "2px 8px" }}>
+                    <Box style={{ flex: 1, "min-width": 0, padding: "2px 8px" }}><Text size="xs">{row.label}</Text></Box>
+                    <Box style={{ flex: 1, "min-width": 0, padding: "2px 8px" }}>
                       <Text size="xs" ta="right" style={{ fontVariantNumeric: "tabular-nums" }}>
                         {row.spot == null ? "—" : row.spot.toLocaleString()}
                       </Text>
                     </Box>
-                    <Box style={{ flex: 1, minWidth: 0, padding: "2px 8px" }}>
+                    <Box style={{ flex: 1, "min-width": 0, padding: "2px 8px" }}>
                       <Text
                         size="xs"
                         ta="right"

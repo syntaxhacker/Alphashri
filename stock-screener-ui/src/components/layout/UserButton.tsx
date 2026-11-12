@@ -44,7 +44,7 @@ export function UserButton({ collapsed }: { collapsed?: boolean }) {
             <Avatar radius="xl" alt={user.displayName} data-testid="user-avatar" />
 
             {!collapsed && (
-              <Box flex={1} data-testid="user-info" style={{ minWidth: 0 }}>
+              <Box flex={1} data-testid="user-info" style={{ "min-width": 0 }}>
                 <Text size="xs" fw={500} truncate data-testid="user-display-name">
                   {user.displayName}
                 </Text>

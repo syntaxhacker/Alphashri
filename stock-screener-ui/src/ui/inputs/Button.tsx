@@ -112,7 +112,7 @@ export function Button(props: UIButtonProps) {
         known.fullWidth && "w-full",
         known.className,
       )}
-      style={{ ...(typeof known.radius === "number" ? { borderRadius: known.radius } : {}), ...known.style }}
+      style={{ ...(typeof known.radius === "number" ? { "border-radius": known.radius } : {}), ...known.style }}
       disabled={disabledOrLoading}
       data-loading={known.loading || undefined}
       aria-busy={known.loading || undefined}

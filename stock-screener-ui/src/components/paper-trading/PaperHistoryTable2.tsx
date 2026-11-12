@@ -120,7 +120,7 @@ function HistoryFilters({
                 ]}
                 value={state.filterBot || ""}
                 onChange={(v) => setFilterBot(v)}
-                style={{ width: 160, borderRadius: 1 }}
+                style={{ width: 160, "border-radius": 1 }}
                 size="xs"
                 data-testid="bot-filter-select"
               />
@@ -134,7 +134,7 @@ function HistoryFilters({
                 ]}
                 value={state.filterStrategy != null ? String(state.filterStrategy) : ""}
                 onChange={(v) => setFilterStrategy(v ? Number(v) : null)}
-                style={{ width: 160, borderRadius: 1 }}
+                style={{ width: 160, "border-radius": 1 }}
                 size="xs"
                 data-testid="strategy-filter-select"
               />
@@ -194,7 +194,7 @@ const DaySummary = memo(function DaySummary({
   return (
     <div className="paper-day-summary flex items-center justify-between px-1.5 py-0.5 gap-1 flex-nowrap" id={`paper-day-summary-${date}`} data-testid={`day-header-${date}`}>
       <div className="paper-day-summary-left flex items-center gap-2 flex-nowrap">
-        <Text className="paper-day-summary-toggle" size="xs" c="dimmed" style={{ lineHeight: 1 }}>
+        <Text className="paper-day-summary-toggle" size="xs" c="dimmed" style={{ "line-height": 1 }}>
           {expanded ? "▾" : "▸"}
         </Text>
         <Text className="paper-day-summary-date uppercase" size="xs" fw={700} >
@@ -202,7 +202,7 @@ const DaySummary = memo(function DaySummary({
         </Text>
       </div>
       <div className="paper-day-summary-right flex items-center gap-2 flex-nowrap">
-        <Text className="paper-day-summary-pnl" size="xs" c={pnlColor} fw={700} style={{ textAlign: "right" }}>
+        <Text className="paper-day-summary-pnl" size="xs" c={pnlColor} fw={700} style={{ "text-align": "right" }}>
           {formatSignedPnl(dayPnl)}
         </Text>
         <Badge className="paper-day-summary-wins" color={wins > 0 ? "success" : "secondary"} variant="filled" size="xs">
@@ -241,7 +241,7 @@ const TradeStats = memo(function TradeStats({ trade }: { trade: PaperTrade }) {
   return (
     <div className="paper-trade-stats grid grid-cols-1 md:grid-cols-2 gap-1 w-full" id={`paper-trade-stats-${trade.trade_id}`}>
       <div className="paper-trade-stats-entry p-1 border-0 rounded-none bg-transparent min-w-0 w-full" id={`paper-trade-stats-entry-${trade.trade_id}`}>
-        <Text className="paper-trade-stats-entry-title uppercase pb-1 mb-0.5 border-b border-fin-border" id={`paper-trade-stats-entry-title-${trade.trade_id}`} size="xs" fw={700} c="dimmed" style={{ letterSpacing: 0.6 }}>
+        <Text className="paper-trade-stats-entry-title uppercase pb-1 mb-0.5 border-b border-fin-border" id={`paper-trade-stats-entry-title-${trade.trade_id}`} size="xs" fw={700} c="dimmed" style={{ "letter-spacing": 0.6 }}>
           Entry
         </Text>
         {entryContext.map((item) => (
@@ -252,7 +252,7 @@ const TradeStats = memo(function TradeStats({ trade }: { trade: PaperTrade }) {
         ))}
       </div>
       <div className="paper-trade-stats-exit p-1 border-0 rounded-none bg-transparent min-w-0 w-full" id={`paper-trade-stats-exit-${trade.trade_id}`}>
-        <Text className="paper-trade-stats-exit-title uppercase pb-1 mb-0.5 border-b border-fin-border" id={`paper-trade-stats-exit-title-${trade.trade_id}`} size="xs" fw={700} c="dimmed" style={{ letterSpacing: 0.6 }}>
+        <Text className="paper-trade-stats-exit-title uppercase pb-1 mb-0.5 border-b border-fin-border" id={`paper-trade-stats-exit-title-${trade.trade_id}`} size="xs" fw={700} c="dimmed" style={{ "letter-spacing": 0.6 }}>
           Exit
         </Text>
         {exitContext.map((item) => (
@@ -285,7 +285,7 @@ const TradeNotesEditor = memo(function TradeNotesEditor({ trade }: { trade: Pape
     <div className="paper-trade-notes-editor p-1.5 border border-fin-border rounded-[1px] bg-fin-surface" id={`paper-trade-notes-${trade.trade_id}`}>
       <Stack className="paper-trade-notes-stack gap-2">
         <div className="paper-trade-notes-reason-row flex items-center justify-between gap-2 py-1 border-b border-fin-border" id={`paper-trade-notes-reason-row-${trade.trade_id}`}>
-          <Text className="paper-trade-notes-label uppercase shrink-0" size="xs" c="dimmed" fw={600}  style={{ letterSpacing: 0.5 }}>
+          <Text className="paper-trade-notes-label uppercase shrink-0" size="xs" c="dimmed" fw={600}  style={{ "letter-spacing": 0.5 }}>
             Reason
           </Text>
           <Text className="paper-trade-notes-reason whitespace-pre-wrap leading-[1.5] text-right flex-1" id={`paper-trade-notes-reason-${trade.trade_id}`} size="xs"  data-testid={`trade-reason-${trade.trade_id}`}>
@@ -293,7 +293,7 @@ const TradeNotesEditor = memo(function TradeNotesEditor({ trade }: { trade: Pape
           </Text>
         </div>
         <div className="paper-trade-notes-input-group flex flex-col gap-2" id={`paper-trade-notes-input-group-${trade.trade_id}`}>
-          <Text className="paper-trade-notes-notes-label uppercase shrink-0" size="xs" c="dimmed" fw={600}  style={{ letterSpacing: 0.5 }}>
+          <Text className="paper-trade-notes-notes-label uppercase shrink-0" size="xs" c="dimmed" fw={600}  style={{ "letter-spacing": 0.5 }}>
             Notes
           </Text>
           <div className="paper-trade-notes-input-row flex items-center gap-2">
@@ -587,7 +587,7 @@ function HistoryList({
 }) {
   return (
     <div className="paper-history-list flex-1 min-h-0 flex flex-col overflow-hidden relative" id="history-list">
-      <LoadingOverlay visible={state.isLoading} zIndex={5} overlayProps={{ radius: "sm", blur: 1 }} className="paper-history-loading-overlay" />
+      <LoadingOverlay visible={state.isLoading} z-index={5} overlayProps={{ radius: "sm", blur: 1 }} className="paper-history-loading-overlay" />
       {filteredTrades.length === 0 && !state.isLoading ? (
         <div className="paper-history-empty flex flex-col items-center justify-center gap-2 py-16 flex-1 min-h-[200px] text-center" id="paper-history-empty">
           <Text className="paper-history-empty-text" size="xs" fw={500} c="dimmed">

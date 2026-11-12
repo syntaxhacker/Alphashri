@@ -77,7 +77,7 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
           <ThemeIcon color="warning" variant="light">
             <IconBellRinging size={18} />
           </ThemeIcon>
-          <Text fw={800} size="sm" style={{ letterSpacing: "0.5px" }}>
+          <Text fw={800} size="sm" style={{ "letter-spacing": "0.5px" }}>
             LIVE SMART MONEY ALERTS
           </Text>
         </Box>
@@ -101,7 +101,7 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
                 <Badge size="sm" color={alert.intensity === "Critical" ? "error" : "primary"}>{alert.intensity}</Badge>
               </Box>
             }>
-              <Text size="sm" className="text-fin-text-muted" style={{ marginTop: 32 }}>
+              <Text size="sm" className="text-fin-text-muted" style={{ "margin-top": 32 }}>
                 {alert.description}
               </Text>
             </TimelineItem>
@@ -112,7 +112,7 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
       <Box
         className="alerts-profit-tip"
         data-testid="options-alerts-profit-tip"
-        style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${palette.BORDER}` }}
+        style={{ "margin-top": 8, "padding-top": 8, borderTop: `1px solid ${palette.BORDER}` }}
       >
         <Text size="sm" fw={600} className="text-fin-primary">
           💡 HOW TO PROFIT: When a "Squeeze" alert appears near the spot price, consider a quick bullish trade. When a "Wall" appears, expect the price to reverse from that strike.

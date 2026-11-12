@@ -103,7 +103,7 @@ function FlowLegend() {
             data-testid={`nifty-flowstrip-legend-${item.id}-swatch`}
             aria-hidden
             className="inline-block shrink-0 w-2 h-2 rounded-[1px]"
-            style={{ backgroundColor: item.color }}
+            style={{ "background-color": item.color }}
           />
           <Box component="span">{item.text}</Box>
         </Box>
@@ -195,7 +195,7 @@ function NiftyFlowStripInner({ rows, burstThreshold, maxLabels = FLOW_MAX_LABELS
             data-side={e.side}
             title={`${clockLabel(e.t)} · ${e.label}`}
             className="absolute top-[10px] w-[3px] h-[15px] -translate-x-1/2 rounded-[1px]"
-            style={{ left: leftPct(e.t), backgroundColor: tickColor(e.side) }}
+            style={{ left: leftPct(e.t), "background-color": tickColor(e.side) }}
           />
         ))}
       </Box>

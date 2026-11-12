@@ -16,10 +16,10 @@ const panelStyle = {
   width: "100%",
   height: 160,
   position: "relative" as const,
-  borderRadius: "8px",
+  "border-radius": "8px",
   display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
+  "align-items": "center",
+  "justify-content": "center",
 };
 
 export const Default: Story = {
@@ -28,7 +28,7 @@ export const Default: Story = {
       <Title order={5}>Dark overlay at 0.6 opacity</Title>
       <Box style={panelStyle}>
         <Text size="sm">Content beneath the overlay</Text>
-        <Overlay opacity={0.6} color="common.black" zIndex={5} />
+        <Overlay opacity={0.6} color="common.black" z-index={5} />
       </Box>
     </Stack>
   ),
@@ -46,7 +46,7 @@ export const OpacityScale: Story = {
         ].map(({ opacity, label }) => (
           <Box key={label} style={{ ...panelStyle, height: 120 }}>
             <Button size="compact-sm" variant="light">{label}</Button>
-            <Overlay opacity={opacity} color="common.black" zIndex={5} />
+            <Overlay opacity={opacity} color="common.black" z-index={5} />
           </Box>
         ))}
       </Group>
@@ -60,7 +60,7 @@ export const BlurAndCenteredContent: Story = {
       <Title order={5}>Blur + centered children</Title>
       <Box style={panelStyle}>
         <Text size="sm">Sensitive data behind blur</Text>
-        <Overlay blur={4} center zIndex={5}>
+        <Overlay blur={4} center z-index={5}>
           <Text size="sm" c="white" fw={600}>Hidden until enabled</Text>
         </Overlay>
       </Box>

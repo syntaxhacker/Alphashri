@@ -88,7 +88,7 @@ export function NiftyDeskGuide({ open: openProp, onOpenChange }: NiftyDeskGuideP
         aria-label="Desk guide"
         title="Desk guide"
         onClick={() => setOpen(true)}
-        style={{ minWidth: 0, paddingLeft: "4px", paddingRight: "4px" }}
+        style={{ "min-width": 0, "padding-left": "4px", "padding-right": "4px" }}
       >
         <IconHelpCircle size={14} />
       </Button>
@@ -98,7 +98,7 @@ export function NiftyDeskGuide({ open: openProp, onOpenChange }: NiftyDeskGuideP
         title="Desk guide — read this once"
         onClose={() => setOpen(false)}
         autoHeight
-        maxWidth={1040}
+        max-width={1040}
       >
         <Box
           data-testid="nifty-help-modal"
@@ -113,24 +113,24 @@ export function NiftyDeskGuide({ open: openProp, onOpenChange }: NiftyDeskGuideP
               data-testid={`nifty-help-entry-${entry.term.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`}
               className={`min-w-0 ${i % 3 !== 0 ? "min-[900px]:border-l min-[900px]:border-l-[var(--term-border)] min-[900px]:pl-2" : ""}`}
               style={{
-                paddingTop: "8px",
+                "padding-top": "8px",
                 borderTop: `1px solid ${palette.TERM_BORDER}`,
               }}
             >
               <div
                 style={{
-                  fontSize: "10px",
-                  fontWeight: 700,
-                  lineHeight: 1.2,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
+                  "font-size": "10px",
+                  "font-weight": 700,
+                  "line-height": 1.2,
+                  "letter-spacing": "0.08em",
+                  "text-transform": "uppercase",
                   color: palette.TEXT_MUTED,
-                  marginBottom: "3px",
+                  "margin-bottom": "3px",
                 }}
               >
                 {entry.term}
               </div>
-              <div style={{ fontSize: "11px", lineHeight: 1.35, color: palette.TEXT }}>
+              <div style={{ "font-size": "11px", "line-height": 1.35, color: palette.TEXT }}>
                 {entry.text}
               </div>
             </Box>

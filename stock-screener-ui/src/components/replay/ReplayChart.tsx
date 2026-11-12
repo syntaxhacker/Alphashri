@@ -163,10 +163,10 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
       <Box
         data-testid="replay-chart-empty"
         h="100%"
-        alignItems="center"
-        justifyContent="center"
+        align-items="center"
+        justify-content="center"
         bg={palette.SURFACE}
-        style={{ display: "flex", borderRadius: "2px" }}
+        style={{ display: "flex", "border-radius": "2px" }}
       >
         <Text c="dimmed">Run a replay to see chart</Text>
       </Box>
@@ -174,7 +174,7 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
   }
 
   return (
-    <Box data-testid="replay-chart" h="100%" style={{ display: "flex", flexDirection: "column" }}>
+    <Box data-testid="replay-chart" h="100%" style={{ display: "flex", "flex-direction": "column" }}>
       <Group gap="xs" align="center" pb={4} px="sm" style={{ flex: "0 0 auto" }}>
         {symbols.map((sym) => (
           <Badge

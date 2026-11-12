@@ -187,7 +187,7 @@ export function MiniLineChart({
       <Box
         data-testid={testId}
         className="flex items-center justify-center"
-        style={{ minHeight: height }}
+        style={{ "min-height": height }}
       >
         <Text size="xs" c="dimmed" span>
           {emptyMessage}
@@ -230,7 +230,7 @@ export function MiniLineChart({
             y2={zeroY}
             stroke={palette.TEXT_MUTED}
             strokeDasharray="3 3"
-            strokeWidth={1}
+            stroke-width={1}
           />
         )}
         {markers.map((m) => {
@@ -244,7 +244,7 @@ export function MiniLineChart({
               y2={PAD_T + innerH}
               stroke={m.color}
               strokeDasharray="2 3"
-              strokeWidth={1}
+              stroke-width={1}
             />
           );
         })}
@@ -259,7 +259,7 @@ export function MiniLineChart({
             d={p.line}
             fill="none"
             stroke={p.color}
-            strokeWidth={1.6}
+            stroke-width={1.6}
             vectorEffect="non-scaling-stroke"
           />
         ))}
@@ -270,7 +270,7 @@ export function MiniLineChart({
             y1={PAD_T}
             y2={PAD_T + innerH}
             stroke={palette.TEXT_MUTED}
-            strokeWidth={1}
+            stroke-width={1}
           />
         )}
       </svg>

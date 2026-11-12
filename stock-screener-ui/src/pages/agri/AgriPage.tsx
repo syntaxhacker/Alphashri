@@ -105,22 +105,22 @@ export function AgriPage() {
     const dates = series.map((p) => p.date);
     const values = series.map((p) => p.modal);
     return {
-      backgroundColor: "transparent",
+      "background-color": "transparent",
       tooltip: {
         trigger: "axis",
-        backgroundColor: isDark ? "rgba(20,20,20,0.85)" : "#fff",
+        "background-color": isDark ? "rgba(20,20,20,0.85)" : "#fff",
         textStyle: { color: isDark ? "#F0F6FC" : "#000" },
       },
       grid: { left: 60, right: 40, top: 40, bottom: 60 },
       xAxis: {
         type: "category",
         data: dates,
-        axisLabel: { fontSize: 10, color: isDark ? "#8B949E" : "#6E7681" },
+        axisLabel: { "font-size": 10, color: isDark ? "#8B949E" : "#6E7681" },
         axisLine: { lineStyle: { color: isDark ? "#30363D" : "#D1D5DB" } },
       },
       yAxis: {
         type: "value",
-        axisLabel: { fontSize: 10, color: isDark ? "#8B949E" : "#6E7681", formatter: "₹{value}" },
+        axisLabel: { "font-size": 10, color: isDark ? "#8B949E" : "#6E7681", formatter: "₹{value}" },
         axisLine: { lineStyle: { color: isDark ? "#30363D" : "#D1D5DB" } },
         splitLine: { lineStyle: { color: isDark ? "#161B22" : "#E5E7EB", type: "dashed" } },
       },
@@ -168,7 +168,7 @@ export function AgriPage() {
         className="min-h-0"
       >
         <Box className="flex shrink-0 items-center gap-2">
-          <Text size="xs" c="dimmed" style={{ textTransform: "uppercase", fontSize: 10 }} fw={700}>
+          <Text size="xs" c="dimmed" style={{ "text-transform": "uppercase", "font-size": 10 }} fw={700}>
             Commodity
           </Text>
           <Select
@@ -219,14 +219,14 @@ export function AgriPage() {
             {chg7d == null ? "—" : `${pct(chg7d)} 1w`}
           </Text>
         </Box>
-        <Divider orientation="vertical" style={{ height: 32, marginLeft: 8, marginRight: 8 }} />
+        <Divider orientation="vertical" style={{ height: 32, "margin-left": 8, "margin-right": 8 }} />
         <Box className="min-w-0">
           <Text size="xs" c="dimmed">1 month</Text>
           <Text size="sm" fw={600} c={statColor(chg30d)} data-testid="agri-stat-chg30d">
             {pct(chg30d)}
           </Text>
         </Box>
-        <Divider orientation="vertical" style={{ height: 32, marginLeft: 8, marginRight: 8 }} />
+        <Divider orientation="vertical" style={{ height: 32, "margin-left": 8, "margin-right": 8 }} />
         <Box className="min-w-0">
           <Text size="xs" c="dimmed">6 months</Text>
           <Text size="sm" fw={600} c={statColor(chg180d)} data-testid="agri-stat-chg180d">

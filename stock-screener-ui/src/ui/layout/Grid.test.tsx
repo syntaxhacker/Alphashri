@@ -17,7 +17,7 @@ describe("Grid", () => {
 
   it("applies gutter as gap", () => {
     render(() => <Grid data-testid="grid" gutter="md" />);
-    expect(screen.getByTestId("grid")).toHaveStyle("gap: 8px");
+    expect(screen.getByTestId("grid")).toHaveStyle("gap: 16px");
   });
 
   it("Grid.Col applies span as flex-basis / max-width percent", () => {

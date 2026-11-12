@@ -73,7 +73,7 @@ function Section({
     return (
       <Box className="flex min-w-0 flex-col gap-0.5">
         <Box className="flex items-center gap-1">
-          <Text size="xs" c="dimmed" style={{ fontSize: 10, lineHeight: 1.2 }}>
+          <Text size="xs" c="dimmed" style={{ "font-size": 10, "line-height": 1.2 }}>
             {title}
           </Text>
           {info}
@@ -87,7 +87,7 @@ function Section({
       <Box
         className="flex items-center gap-1 border-b border-fin-border pb-0.5"
       >
-        <Text size="xs" fw={700} style={{ textTransform: "uppercase", letterSpacing: 0.4 }} c="dimmed">
+        <Text size="xs" fw={700} style={{ "text-transform": "uppercase", "letter-spacing": 0.4 }} c="dimmed">
           {title}
         </Text>
         {info}
@@ -128,7 +128,7 @@ function InfoTip({
       <Text
         size="xs"
         c="dimmed"
-        style={{ cursor: "help", userSelect: "none", lineHeight: 1 }}
+        style={{ cursor: "help", "user-select": "none", "line-height": 1 }}
         data-testid={testId}
       >
         ⓘ
@@ -306,7 +306,7 @@ export function PatternFilterRail({
           <Text
             size="xs"
             c={count > 0 ? "text.secondary" : "dimmed"}
-            style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", paddingLeft: 3 }}
+            style={{ fontVariantNumeric: "tabular-nums", "white-space": "nowrap", "padding-left": 3 }}
           >
             {` (${count})`}
           </Text>
@@ -432,7 +432,7 @@ export function PatternFilterRail({
               className="flex flex-col gap-0.5"
               data-testid={`patterns-filter-family-group-${family.id}`}
             >
-              <Text size="xs" c="dimmed" fw={600} style={{ fontSize: 10 }}>
+              <Text size="xs" c="dimmed" fw={600} style={{ "font-size": 10 }}>
                 {family.label}
               </Text>
               <Box

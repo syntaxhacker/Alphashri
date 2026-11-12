@@ -37,7 +37,7 @@ function ArticleSymbols({
   if (!symbols || symbols.length === 0) return null;
   return (
     <Box data-testid="news-article-symbols">
-      <Text size="sm" c="dimmed" style={{ marginBottom: 4 }}>
+      <Text size="sm" c="dimmed" style={{ "margin-bottom": 4 }}>
         Stocks mentioned:
       </Text>
       <Group gap="xs" align="center">
@@ -58,7 +58,7 @@ function ArticleSymbols({
               style={{ cursor: "pointer" }}
             >
               {symbol.name || symbol.code}
-              {symbol.instrument_key && <IconChartLine size={12} style={{ marginLeft: 4 }} />}
+              {symbol.instrument_key && <IconChartLine size={12} style={{ "margin-left": 4 }} />}
             </Badge>
           </Tooltip>
         ))}
@@ -135,7 +135,7 @@ export function ArticleView({
         justify="space-between"
         align="center"
         className="news-article-header"
-        style={{ borderBottom: `1px solid ${/* divider */ "" }`, borderBottomColor: "" }}
+        style={{ borderBottom: `1px solid ${/* divider */ "" }`, "border-bottom-color": "" }}
       >
         <Button
           variant="subtle"
@@ -223,32 +223,32 @@ export function NewsItemCard({
       }}
       className={`news-item-card ${isUnread ? "unread" : ""} flex items-start gap-4 cursor-pointer`}
       style={{
-        alignItems: "flex-start",
+        "align-items": "flex-start",
         gap: 8,
         ...(isDesk
           ? {
-              minHeight: 64,
-              paddingLeft: 12,
-              paddingRight: 12,
-              paddingTop: 8,
-              paddingBottom: 8,
-              borderRadius: 0,
+              "min-height": 64,
+              "padding-left": 12,
+              "padding-right": 12,
+              "padding-top": 8,
+              "padding-bottom": 8,
+              "border-radius": 0,
               borderLeft: `3px solid ${selected ? palette.PRIMARY : "transparent"}`,
-              transitionProperty: "background-color, border-color, transform",
+              "transition-property": "background-color, border-color, transform",
               transitionDuration: "120ms",
             }
-          : { paddingTop: 8, paddingBottom: 8 }),
+          : { "padding-top": 8, "padding-bottom": 8 }),
       }}
       aria-label={item.headline}
       aria-current={selected ? "true" : undefined}
       data-testid={testId}
     >
-      <Box className="shrink-0" style={{ marginTop: 4, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <Box className="shrink-0" style={{ "margin-top": 4, display: "flex", "align-items": "center", "justify-content": "center" }}>
         {isUnread ? (
-          <Box style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: palette.PRIMARY }} />
+          <Box style={{ width: 8, height: 8, "border-radius": "50%", "background-color": palette.PRIMARY }} />
         ) : null}
       </Box>
-      <Box style={{ minWidth: 0 }}>
+      <Box style={{ "min-width": 0 }}>
         <Text
           size="sm"
           fw={isUnread ? 600 : 400}
@@ -256,20 +256,20 @@ export function NewsItemCard({
           style={{
             display: isDesk ? "-webkit-box" : undefined,
             WebkitBoxOrient: isDesk ? "vertical" : undefined,
-            WebkitLineClamp: isDesk ? 2 : undefined,
+            "webkit-line-clamp": isDesk ? 2 : undefined,
             overflow: isDesk ? "hidden" : undefined,
-            lineHeight: isDesk ? 1.35 : undefined,
-            paddingRight: isDesk ? 4 : undefined,
-            whiteSpace: isDesk ? "nowrap" : undefined,
+            "line-height": isDesk ? 1.35 : undefined,
+            "padding-right": isDesk ? 4 : undefined,
+            "white-space": isDesk ? "nowrap" : undefined,
           }}
         >
           {item.headline}
         </Text>
-        <Box className="flex items-center justify-between gap-4 min-h-[18px]" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minHeight: 18 }}>
-          <Box component="span" style={{ minWidth: 0 }}>
+        <Box className="flex items-center justify-between gap-4 min-h-[18px]" style={{ display: "flex", "align-items": "center", "justify-content": "space-between", gap: 8, "min-height": 18 }}>
+          <Box component="span" style={{ "min-width": 0 }}>
             {meta}
           </Box>
-          <Text size="xs" c="dimmed" className="news-item-meta" style={{ flex: "0 0 auto", fontVariantNumeric: "tabular-nums", marginTop: isDesk ? 4 : 0 }}>
+          <Text size="xs" c="dimmed" className="news-item-meta" style={{ flex: "0 0 auto", fontVariantNumeric: "tabular-nums", "margin-top": isDesk ? 4 : 0 }}>
             {formatTimeAgo(item.publishedAt)}
           </Text>
         </Box>
@@ -302,8 +302,8 @@ export function NewsSourceGroup({
   const isDesk = variant === "desk";
   return (
     <Box component={isDesk ? "section" : "div"} className="news-source-group list-none">
-      <Box role="button" tabIndex={0} onClick={onToggle} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } }} aria-expanded={isExpanded} data-testid={`news-source-group-${source}`} className="flex items-center gap-2 cursor-pointer" style={isDesk ? { position: "sticky", top: 0, zIndex: 1, minHeight: 36, paddingLeft: 12, paddingRight: 12, borderRadius: 0, borderTop: `1px solid ${palette.BORDER}`, backgroundColor: palette.BG, transitionProperty: "background-color", transitionDuration: "120ms" } : { borderRadius: 8 }}>
-        <Text size="sm" fw={700} style={{ textTransform: "uppercase" }}>
+      <Box role="button" tabIndex={0} onClick={onToggle} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } }} aria-expanded={isExpanded} data-testid={`news-source-group-${source}`} className="flex items-center gap-2 cursor-pointer" style={isDesk ? { position: "sticky", top: 0, "z-index": 1, "min-height": 36, "padding-left": 12, "padding-right": 12, "border-radius": 0, borderTop: `1px solid ${palette.BORDER}`, "background-color": palette.BG, "transition-property": "background-color", transitionDuration: "120ms" } : { "border-radius": 8 }}>
+        <Text size="sm" fw={700} style={{ "text-transform": "uppercase" }}>
           {source}
         </Text>
         <Text size="xs" c="dimmed">
@@ -314,7 +314,7 @@ export function NewsSourceGroup({
       </Box>
 
       <Collapse in={isExpanded}>
-        <Box style={isDesk ? { paddingTop: 0, paddingBottom: 0 } : { paddingTop: 4, paddingBottom: 4 }}>
+        <Box style={isDesk ? { "padding-top": 0, "padding-bottom": 0 } : { "padding-top": 4, "padding-bottom": 4 }}>
           {items.map((item) => {
             const isUnread = !readIds.has(item.id);
             if (renderItem) return <Fragment key={item.id}>{renderItem(item, isUnread)}</Fragment>;
@@ -467,9 +467,9 @@ export function NewsListContent({
   }
   if (newsItems.length === 0) {
     return (
-      <Box style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 32, paddingBottom: 32, textAlign: "center" }} data-testid="news-empty">
+      <Box style={{ "padding-left": 16, "padding-right": 16, "padding-top": 32, "padding-bottom": 32, "text-align": "center" }} data-testid="news-empty">
         <IconNews size={32} aria-hidden="true" />
-        <Text size="sm" fw={600} style={{ marginTop: 8 }}>
+        <Text size="sm" fw={600} style={{ "margin-top": 8 }}>
           No news available
         </Text>
         <Text size="sm" c="dimmed">
@@ -525,19 +525,19 @@ export function NewsListHeader({
 }) {
   return (
     <Box id="news-panel-header" data-testid="news-panel-header">
-      <ToolbarRow style={{ paddingLeft: 8, gap: 8 }}>
-        <Text size="sm" fw={700} style={{ textTransform: "uppercase" }}>
+      <ToolbarRow style={{ "padding-left": 8, gap: 8 }}>
+        <Text size="sm" fw={700} style={{ "text-transform": "uppercase" }}>
           News
         </Text>
         {wsConnected && (
           <Tooltip label="Live updates connected">
-            <Box style={{ color: palette.POSITIVE, fontSize: 8 }}>
-              <Box style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: palette.POSITIVE }} />
+            <Box style={{ color: palette.POSITIVE, "font-size": 8 }}>
+              <Box style={{ width: 8, height: 8, "border-radius": "50%", "background-color": palette.POSITIVE }} />
             </Box>
           </Tooltip>
         )}
         {isRefreshing && <Loader size="sm" />}
-        <Box style={{ flexGrow: 1 }} />
+        <Box style={{ "flex-grow": 1 }} />
         <ActionIcon
           size="small"
           aria-label="Close news panel"

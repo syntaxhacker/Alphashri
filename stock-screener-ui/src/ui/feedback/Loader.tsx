@@ -45,8 +45,8 @@ export function Loader(props: UILoaderProps) {
         height: dim,
         color: col,
         display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
+        "align-items": "center",
+        "justify-content": "center",
         ...known.style,
       }}
     >
@@ -58,7 +58,7 @@ export function Loader(props: UILoaderProps) {
           fill="none"
           aria-hidden="true"
         >
-          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" strokeLinecap="round" />
         </svg>
       )}>
         <Match when={known.type === "bars"}>

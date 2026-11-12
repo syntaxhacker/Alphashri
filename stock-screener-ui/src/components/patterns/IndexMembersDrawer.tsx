@@ -90,9 +90,9 @@ export function IndexMembersDrawer({
         chart: (symbol) => `index-member-chart-${symbol}`,
       }}
       textSx={{
-        title: { fontSize: "0.875rem" },
-        subtitle: { fontSize: "0.75rem" },
-        symbol: { fontSize: 11, lineHeight: 1.2 },
+        title: { "font-size": "0.875rem" },
+        subtitle: { "font-size": "0.75rem" },
+        symbol: { "font-size": 11, "line-height": 1.2 },
       }}
       footerLeft={
         <Text size="xs" c="dimmed" truncate>

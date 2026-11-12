@@ -80,7 +80,7 @@ export function ChainSummary({
     <Box className="flex justify-center w-full">
       <CompactStatGrid data-testid="chain-summary">
         <CompactPanel data-testid="chain-summary-compact-row">
-          <Box className="flex items-center justify-center flex-wrap" style={{ columnGap: 24, rowGap: 8, width: "100%" }}>
+          <Box className="flex items-center justify-center flex-wrap" style={{ "column-gap": 24, "row-gap": 8, width: "100%" }}>
             <Box className="flex items-center gap-[8px]" data-testid="options-chain-summary-pcr">
               <RingProgress
                 size={44}

@@ -46,7 +46,7 @@ export function SimRuns({ strategy, view, asOf }: SimRunsProps) {
     if (equity.length === 0) return;
     void setChartOption({
       animation: false,
-      backgroundColor: "transparent",
+      "background-color": "transparent",
       tooltip: {
         trigger: "axis",
         formatter: (params: unknown) => {
@@ -60,13 +60,13 @@ export function SimRuns({ strategy, view, asOf }: SimRunsProps) {
       xAxis: {
         type: "category",
         data: equity.map((point) => fmtTime(point.t)),
-        axisLabel: { color: palette.CHART_MUTED, fontSize: 9, hideOverlap: true },
+        axisLabel: { color: palette.CHART_MUTED, "font-size": 9, hideOverlap: true },
         axisLine: { lineStyle: { color: palette.AXIS_LINE } },
       },
       yAxis: {
         type: "value",
         scale: true,
-        axisLabel: { color: palette.CHART_MUTED, fontSize: 9 },
+        axisLabel: { color: palette.CHART_MUTED, "font-size": 9 },
         axisLine: { lineStyle: { color: palette.AXIS_LINE } },
         splitLine: { lineStyle: { color: palette.AXIS_SPLIT } },
       },
@@ -122,7 +122,7 @@ export function SimRuns({ strategy, view, asOf }: SimRunsProps) {
         size: 168,
         meta: { align: "left" },
         cell: (info) => (
-          <Text span size="xs" style={{ minWidth: 0 }} title={structureText(info.row.original)}>
+          <Text span size="xs" style={{ "min-width": 0 }} title={structureText(info.row.original)}>
             {structureText(info.row.original)}
           </Text>
         ),
@@ -190,7 +190,7 @@ export function SimRuns({ strategy, view, asOf }: SimRunsProps) {
         cell: (info) => {
           const reason = String(info.getValue() ?? "");
           return (
-            <Text span size="xs" c="dimmed" style={{ whiteSpace: "normal" }}>
+            <Text span size="xs" c="dimmed" style={{ "white-space": "normal" }}>
               {reason || "—"}
             </Text>
           );

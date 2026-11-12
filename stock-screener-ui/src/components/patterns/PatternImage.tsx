@@ -32,7 +32,7 @@ function PatternPlaceholder({ label, showLabel }: { label: string; showLabel: bo
           points="2,34 18,20 30,26 48,10 64,18 78,6 94,12"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2"
+          stroke-width="2"
           strokeLinejoin="round"
           strokeLinecap="round"
         />
@@ -42,7 +42,7 @@ function PatternPlaceholder({ label, showLabel }: { label: string; showLabel: bo
           x2="94"
           y2="38"
           stroke="var(--color-fin-border)"
-          strokeWidth="1"
+          stroke-width="1"
         />
       </Box>
       <Text

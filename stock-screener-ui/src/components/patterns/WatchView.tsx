@@ -845,7 +845,7 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
         </Text>
       ) : null}
 
-      <ToolbarRow gap={8} data-testid="watch-filters" style={{ flexWrap: "wrap", alignItems: "center" }}>
+      <ToolbarRow gap={8} data-testid="watch-filters" style={{ "flex-wrap": "wrap", "align-items": "center" }}>
         <TextInput
           placeholder="Search symbol…"
           value={search}

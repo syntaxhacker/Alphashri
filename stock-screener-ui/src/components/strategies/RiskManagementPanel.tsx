@@ -12,7 +12,7 @@ export function RiskManagementPanel({ initialValues, isIntraday }: RiskManagemen
     <Tabs.Panel value="risk" keepMounted className="strategy-form-tab-panel" data-testid="strategy-panel-risk">
       <Stack spacing={1} gap="sm" mt="sm" className="p-2">
         <Box className="flex items-center justify-center p-2">
-          <Text size="xs" c="dimmed" ta="center" style={{ lineHeight: 1.5 }}>
+          <Text size="xs" c="dimmed" ta="center" style={{ "line-height": 1.5 }}>
             These limits apply to the capital allocated to this strategy from the bot. Example: if bot
             allocates ₹5Lac to this strategy, a 1% risk = max loss ₹5,000 per trade.
           </Text>
@@ -118,7 +118,7 @@ export function RiskManagementPanel({ initialValues, isIntraday }: RiskManagemen
 
         <Box className="flex items-center justify-center gap-2 p-2" mt="sm">
           <Text size="xs" c="dimmed" fs="italic" ta="center">
-            <IconInfoCircle size={12} style={{ verticalAlign: "middle", marginRight: 4 }} />
+            <IconInfoCircle size={12} style={{ "vertical-align": "middle", "margin-right": 4 }} />
             Max Daily Loss % and Max Total Exposure % are configured at the bot level (Bot Settings).
           </Text>
         </Box>

@@ -22,12 +22,12 @@ export function ScreenerInlineFilters({ activeScreener, embedded = false }: { ac
           title={f.label}
           data-testid={`filter-chip-${f.key}`}
           style={{
-            fontSize: 11,
+            "font-size": 11,
             height: 24,
-            backgroundColor: palette.SURFACE_ALT,
+            "background-color": palette.SURFACE_ALT,
             color: palette.TEXT,
             border: `1px solid ${palette.BORDER}`,
-            borderRadius: 0,
+            "border-radius": 0,
           }}
         >
           {f.label || f.key}
@@ -40,7 +40,7 @@ export function ScreenerInlineFilters({ activeScreener, embedded = false }: { ac
         color="inherit"
         data-testid="apply-filters-btn"
         onClick={() => fetchData("upstox", "intraday", activeScreener, "manual")}
-        style={{ fontSize: 11, height: 24, textTransform: "none" }}
+        style={{ "font-size": 11, height: 24, "text-transform": "none" }}
       >
         Apply
       </Button>

@@ -39,7 +39,7 @@ export function StrategiesPage({
   const renderContent = () => {
     if (error) {
       return (
-        <Stack spacing={1} alignItems="stretch" mt="sm">
+        <Stack spacing={1} align-items="stretch" mt="sm">
           <CompactPanel
             testId="strategies-error"
             title={

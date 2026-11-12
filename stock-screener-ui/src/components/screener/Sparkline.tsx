@@ -56,7 +56,7 @@ export function Sparkline({ data, change = 0, width = 64, height = 20 }: Sparkli
           points={points}
           fill="none"
           stroke={positive ? "var(--color-fin-positive)" : "var(--color-fin-negative)"}
-          strokeWidth={1.5}
+          stroke-width={1.5}
           strokeLinecap="round"
           strokeLinejoin="round"
         />

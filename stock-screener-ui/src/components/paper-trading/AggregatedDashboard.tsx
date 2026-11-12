@@ -82,8 +82,8 @@ function chartBase(xData: string[], series: any[], yFormatter = "₹{value}") {
   return {
     grid: { left: 48, right: 12, top: 16, bottom: 24 },
     tooltip: { trigger: "axis" as const },
-    xAxis: { type: "category" as const, data: xData, axisLabel: { fontSize: 10 }, splitLine },
-    yAxis: { type: "value" as const, axisLabel: { fontSize: 10, formatter: yFormatter }, splitLine },
+    xAxis: { type: "category" as const, data: xData, axisLabel: { "font-size": 10 }, splitLine },
+    yAxis: { type: "value" as const, axisLabel: { "font-size": 10, formatter: yFormatter }, splitLine },
     series,
   };
 }
@@ -94,7 +94,7 @@ function EquityChart({ data }: { data: PaperDashboardAnalyticsData }) {
   const lineColor = isPositive ? PERF_POSITIVE : PERF_NEGATIVE;
   return (
     <ReactECharts
-      style={{ height: CHART_HERO, minHeight: CHART_HERO }}
+      style={{ height: CHART_HERO, "min-height": CHART_HERO }}
       option={chartBase(
         points.map((p) => p.date.slice(5)),
         [{
@@ -122,7 +122,7 @@ function EquityChart({ data }: { data: PaperDashboardAnalyticsData }) {
 function DailyPnlChart({ data }: { data: PaperDashboardAnalyticsData }) {
   return (
     <ReactECharts
-      style={{ height: CHART_ROW, minHeight: CHART_ROW }}
+      style={{ height: CHART_ROW, "min-height": CHART_ROW }}
       option={chartBase(
         data.daily_pnl.map((p) => p.date.slice(5)),
         [{
@@ -131,7 +131,7 @@ function DailyPnlChart({ data }: { data: PaperDashboardAnalyticsData }) {
             value: p.net_pnl,
             itemStyle: {
               color: p.net_pnl >= 0 ? POSITIVE : NEGATIVE,
-              borderRadius: [3, 3, 0, 0],
+              "border-radius": [3, 3, 0, 0],
             },
           })),
           barMaxWidth: 22,
@@ -151,7 +151,7 @@ function DailyPnlChart({ data }: { data: PaperDashboardAnalyticsData }) {
 function DrawdownChart({ data }: { data: PaperDashboardAnalyticsData }) {
   return (
     <ReactECharts
-      style={{ height: CHART_ROW, minHeight: CHART_ROW }}
+      style={{ height: CHART_ROW, "min-height": CHART_ROW }}
       option={chartBase(
         data.drawdown.map((p) => p.date.slice(5)),
         [{
@@ -181,19 +181,19 @@ function BotComparisonChart({ data }: { data: PaperDashboardAnalyticsData }) {
   const bots = data.bot_rankings.slice(0, 8);
   return (
     <ReactECharts
-      style={{ height: CHART_ROW, minHeight: CHART_ROW }}
+      style={{ height: CHART_ROW, "min-height": CHART_ROW }}
       option={{
         grid: { left: 88, right: 12, top: 12, bottom: 20 },
         tooltip: { trigger: "axis" as const },
-        xAxis: { type: "value" as const, axisLabel: { fontSize: 10, formatter: "₹{value}" }, splitLine },
-        yAxis: { type: "category" as const, data: bots.map((b) => b.bot_name), axisLabel: { fontSize: 10 }, splitLine },
+        xAxis: { type: "value" as const, axisLabel: { "font-size": 10, formatter: "₹{value}" }, splitLine },
+        yAxis: { type: "category" as const, data: bots.map((b) => b.bot_name), axisLabel: { "font-size": 10 }, splitLine },
         series: [{
           type: "bar",
           data: bots.map((b) => ({
             value: b.total_net_pnl,
             itemStyle: {
               color: b.total_net_pnl >= 0 ? POSITIVE : NEGATIVE,
-              borderRadius: [0, 3, 3, 0],
+              "border-radius": [0, 3, 3, 0],
             },
           })),
           barMaxWidth: 18,
@@ -206,7 +206,7 @@ function BotComparisonChart({ data }: { data: PaperDashboardAnalyticsData }) {
 function ExitReasonChart({ data }: { data: PaperDashboardAnalyticsData }) {
   return (
     <ReactECharts
-      style={{ height: CHART_ROW, minHeight: CHART_ROW }}
+      style={{ height: CHART_ROW, "min-height": CHART_ROW }}
       option={{
         tooltip: { trigger: "item" as const },
         series: [{
@@ -215,9 +215,9 @@ function ExitReasonChart({ data }: { data: PaperDashboardAnalyticsData }) {
           data: data.exit_reasons.map((r, i) => ({
             name: r.reason,
             value: r.count,
-            itemStyle: { color: exitColor(r.reason, i), borderColor: withAlpha(BLACK, 0.1), borderWidth: 1 },
+            itemStyle: { color: exitColor(r.reason, i), "border-color": withAlpha(BLACK, 0.1), borderWidth: 1 },
           })),
-          label: { fontSize: 10, formatter: "{b} {d}%" },
+          label: { "font-size": 10, formatter: "{b} {d}%" },
           emphasis: {
             scale: true,
             itemStyle: {
@@ -267,7 +267,7 @@ function BotRankingPanel({ bots }: { bots: PaperDashboardBotRanking[] }) {
       accessorKey: "bot_name",
       meta: { align: "left" },
       cell: ({ getValue, row }) => (
-        <Stack gap={0} style={{ minWidth: 0 }}>
+        <Stack gap={0} style={{ "min-width": 0 }}>
           <Text size="sm" fw={700} truncate>{getValue<string>()}</Text>
           <Text size="xs" c="dimmed">{row.original.total_trades} trades · {pct(row.original.win_rate)} win</Text>
         </Stack>

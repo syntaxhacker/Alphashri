@@ -285,12 +285,12 @@ export function AppliedFilters({ filters, patterns, setFilter, resetFilters }: A
 
   return (
     <Box data-testid="patterns-applied-filters" className="min-w-0">
-      <ToolbarRow gap={6} style={{ flexWrap: "wrap", rowGap: 3 }}>
+      <ToolbarRow gap={6} style={{ "flex-wrap": "wrap", "row-gap": 3 }}>
         <Text
           size="xs"
           c="dimmed"
           fw={700}
-          style={{ textTransform: "none", letterSpacing: 0.2 }}
+          style={{ "text-transform": "none", "letter-spacing": 0.2 }}
         >
           Active
         </Text>
@@ -303,7 +303,7 @@ export function AppliedFilters({ filters, patterns, setFilter, resetFilters }: A
               className="inline-flex min-w-0 items-center gap-[2px] pl-[2px]"
             >
               {multi ? (
-                <Text size="xs" c="dimmed" fw={600} style={{ whiteSpace: "nowrap" }}>
+                <Text size="xs" c="dimmed" fw={600} style={{ "white-space": "nowrap" }}>
                   {`${group.group}s`}
                 </Text>
               ) : null}

@@ -46,7 +46,7 @@ export function TopBottomView({ stocks, metric, getMetricValue, getMetricColor, 
         cell: (info) => {
           const val = info.getValue<string>();
           return (
-            <Box className="flex items-center justify-start"><Text size="xs" className="overflow-hidden text-ellipsis whitespace-nowrap" style={{ maxWidth: 160 }}>{val}</Text></Box>
+            <Box className="flex items-center justify-start"><Text size="xs" className="overflow-hidden text-ellipsis whitespace-nowrap" style={{ "max-width": 160 }}>{val}</Text></Box>
           );
         },
       },
@@ -61,7 +61,7 @@ export function TopBottomView({ stocks, metric, getMetricValue, getMetricColor, 
           const tc = getMetricTextColor(val, minAll, maxAll);
           return (
             <Box className="flex items-center justify-end">
-              <Box className="flex items-center justify-center px-1 rounded font-bold text-[11px]" style={{ backgroundColor: bg, color: tc }}>
+              <Box className="flex items-center justify-center px-1 rounded font-bold text-[11px]" style={{ "background-color": bg, color: tc }}>
                 {fmt(val)}
               </Box>
             </Box>
@@ -83,7 +83,7 @@ export function TopBottomView({ stocks, metric, getMetricValue, getMetricColor, 
         cell: (info) => {
           const val = info.getValue<string>();
           return (
-            <Box className="flex items-center justify-start"><Text size="xs" className="overflow-hidden text-ellipsis whitespace-nowrap" style={{ maxWidth: 120 }}>{val}</Text></Box>
+            <Box className="flex items-center justify-start"><Text size="xs" className="overflow-hidden text-ellipsis whitespace-nowrap" style={{ "max-width": 120 }}>{val}</Text></Box>
           );
         },
       },

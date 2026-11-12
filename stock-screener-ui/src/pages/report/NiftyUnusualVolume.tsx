@@ -134,7 +134,7 @@ function positioningText(sentiment: string, side: "CE" | "PE") {
       title={code ? `${label} (${side}) — ${sentimentNote(code, side)}` : label}
       data-testid={`nifty-unusual-sentiment-${side}`}
       className="block overflow-hidden truncate whitespace-nowrap shrink-0"
-      style={{ maxWidth: "100%", verticalAlign: "middle" }}
+      style={{ "max-width": "100%", "vertical-align": "middle" }}
     >
       <Text size="xs" fw={700} c={color} span truncate>
         {label}
@@ -151,7 +151,7 @@ function unusualCell(value: string) {
       style={{
         display: "block",
         overflow: "hidden",
-        textOverflow: "ellipsis",
+        "text-overflow": "ellipsis",
         fontVariantNumeric: "tabular-nums",
       }}
     >
@@ -186,7 +186,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
       meta: { align: "right" },
       // Strike and leg share one cell: the leg is just a suffix, and a separate
       // column cost 46px the narrow panel cannot spare (TanStackTable forces
-      // minWidth = visibleColumnCount x 96).
+      // ["min-width"] = visibleColumnCount x 96).
       cell: (info) => {
         const row = info.row.original as UnusualLegRow;
         const tone = row.leg === "CE" ? UNUSUAL_CE : UNUSUAL_PE;
@@ -195,8 +195,8 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
             className="flex items-baseline justify-end gap-[4px] overflow-hidden tabular-nums"
             style={{
               display: "flex",
-              alignItems: "baseline",
-              justifyContent: "flex-end",
+              "align-items": "baseline",
+              "justify-content": "flex-end",
               gap: 4,
               overflow: "hidden",
               fontVariantNumeric: "tabular-nums",
@@ -226,13 +226,13 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
           <Box className="flex items-center gap-[8px] min-w-0">
             <Box
               className="flex-1 h-[5px] rounded-0 min-w-0"
-              style={{ backgroundColor: hexToRgba(base, 0.12), borderRadius: 0 }}
+              style={{ "background-color": hexToRgba(base, 0.12), "border-radius": 0 }}
             >
               <Box
                 data-testid={`nifty-unusual-bar-${row.strike}-${row.leg}`}
                 data-ratio={ratio.toFixed(3)}
                 className="h-full rounded-0"
-                style={{ width: `${pct}%`, opacity: fillAlpha, backgroundColor: base }}
+                style={{ width: `${pct}%`, opacity: fillAlpha, "background-color": base }}
               />
             </Box>
             <Box className="w-[58px] shrink-0 text-right tabular-nums">
@@ -330,8 +330,8 @@ const UnusualFilterPill = memo(function UnusualFilterPill({
       onClick={onClick}
       className="rounded-full px-[8px] py-[2px] text-[11px] font-bold cursor-pointer whitespace-nowrap shrink-0 border border-solid"
       style={{
-        borderColor: active ? "#2FC0AC" : "#30363D",
-        backgroundColor: active ? "rgba(47, 192, 172, 0.18)" : "transparent",
+        "border-color": active ? "#2FC0AC" : "#30363D",
+        "background-color": active ? "rgba(47, 192, 172, 0.18)" : "transparent",
         color: active ? "#8AE6D4" : "#8B949E",
       }}
     >
@@ -395,7 +395,7 @@ function NiftyUnusualVolumeInner({
     <Box
       data-testid="nifty-unusual-panel"
       className="flex flex-col gap-[4px] min-w-0"
-      style={{ backgroundColor: UNUSUAL_TERM_BG }}
+      style={{ "background-color": UNUSUAL_TERM_BG }}
     >
       <Box className="flex items-center justify-between gap-[4px] px-[6px] pt-[2px]">
         <Text size="xs" fw={700} span>Unusual volume</Text>
@@ -408,7 +408,7 @@ function NiftyUnusualVolumeInner({
       {/* Single wrapping stat line (was two stacked rows): call/put vol +
           top share + rank caption + upd stamp all flow inline — one ~18px
           line at width instead of two blocks. Nothing removed. */}
-      <Box data-testid="nifty-unusual-head" style={{ backgroundColor: UNUSUAL_TERM_BG, paddingLeft: 6, paddingRight: 6 }}>
+      <Box data-testid="nifty-unusual-head" style={{ "background-color": UNUSUAL_TERM_BG, "padding-left": 6, "padding-right": 6 }}>
         <Box className="flex items-baseline flex-wrap gap-x-[10px] gap-y-0 tabular-nums">
           <Box className="flex items-baseline gap-[4px]">
             <Text size="xs" span c="dimmed" tt="uppercase" fw={600}>Call vol</Text>
@@ -433,7 +433,7 @@ function NiftyUnusualVolumeInner({
               span
               noWrap
               className="tabular-nums shrink-0"
-              style={{ flexShrink: 0 }}
+              style={{ "flex-shrink": 0 }}
             >
               upd {clock(updatedAtMs)}
               {nextUpdateAtMs !== null ? ` · next ${clock(nextUpdateAtMs)}` : ""}
@@ -447,7 +447,7 @@ function NiftyUnusualVolumeInner({
           title={focus}
           className="whitespace-nowrap overflow-hidden truncate tabular-nums min-w-0 px-[6px] py-[2px] border-t border-b"
           style={{
-            backgroundColor: "#0A0A0A",
+            "background-color": "#0A0A0A",
             borderTop: "1px solid #1A1A1A",
             borderBottom: "1px solid #1A1A1A",
           }}
@@ -460,7 +460,7 @@ function NiftyUnusualVolumeInner({
       <Box
         className="flex min-h-[120px] h-[150px] min-w-0 [&_.paper-tanstack-container]:[background:var(--desk-bg)]! [&_.paper-tanstack-scroll]:[background:var(--desk-bg)]! [&_.paper-tanstack-table]:[background:var(--desk-bg)]! [&_.paper-tanstack-cell]:[padding-top:2px]! [&_.paper-tanstack-cell]:[padding-bottom:2px]! [&_.paper-tanstack-cell]:[background:var(--desk-bg)]! [&_.paper-tanstack-cell]:[border-bottom:1px_solid_var(--desk-border)]! [&_.paper-tanstack-cell]:text-[12px]! [&_.paper-tanstack-header-cell]:[padding-top:2px]! [&_.paper-tanstack-header-cell]:[padding-bottom:2px]! [&_.paper-tanstack-header-cell]:[background:var(--desk-bg)]! [&_.paper-tanstack-header-cell]:[border-bottom:1px_solid_var(--desk-grid)]! [&_.paper-tanstack-header-cell]:[color:var(--desk-muted)]! [&_.paper-tanstack-header-cell]:text-[10px]! [&_.paper-tanstack-header-cell]:uppercase!"
         style={{
-          backgroundColor: UNUSUAL_TERM_BG,
+          "background-color": UNUSUAL_TERM_BG,
           "--desk-bg": UNUSUAL_TERM_BG,
           "--desk-border": UNUSUAL_TERM_BORDER,
           "--desk-grid": palette.NT_GRID,
@@ -476,7 +476,7 @@ function NiftyUnusualVolumeInner({
           getRowStyle={getRowStyle}
           getRowTestId={getUnusualRowTestId}
           dense
-          style={{ minWidth: 0 }}
+          style={{ "min-width": 0 }}
         />
       </Box>
     </Box>

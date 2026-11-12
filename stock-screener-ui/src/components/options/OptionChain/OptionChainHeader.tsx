@@ -20,7 +20,7 @@ export function OptionChainHeader({
       id="chain-header-controls"
       data-testid="options-chain-header-controls"
       className="flex items-center flex-wrap"
-      alignItems="center"
+      align-items="center"
       gap={1}
     >
       <Box className="flex items-center" flex="1 1 160px" maw={280} gap={1}>

@@ -53,7 +53,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <Box
       className="flex h-screen overflow-hidden bg-fin-bg"
-      style={{ display: "flex", height: "100vh", overflow: "hidden", backgroundColor: palette.BG }}
+      style={{ display: "flex", height: "100vh", overflow: "hidden", "background-color": palette.BG }}
       id="app-shell"
       data-testid="app-shell"
     >
@@ -69,12 +69,12 @@ export function AppLayout({ children }: AppLayoutProps) {
           position: "fixed",
           top: 8,
           left: 8,
-          zIndex: 1299,
+          "z-index": 1299,
           width: 36,
           height: 36,
-          backgroundColor: palette.SURFACE,
+          "background-color": palette.SURFACE,
           border: `1px solid ${palette.BORDER}`,
-          boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+          "box-shadow": "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
         }}
       >
         <IconMenu2 size={18} />
@@ -92,7 +92,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             bottom: 0,
             width: 220,
             boxSizing: "border-box",
-            zIndex: 1300,
+            "z-index": 1300,
           }}
         >
           <SidebarHeader
@@ -113,7 +113,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           style={{
             display: "block",
             width: navWidth,
-            flexShrink: 0,
+            "flex-shrink": 0,
             transition: "width 0.2s ease-in-out",
             overflow: "hidden",
           }}
@@ -133,13 +133,13 @@ export function AppLayout({ children }: AppLayoutProps) {
         component="main"
         className="flex-1 min-w-0 min-h-0 overflow-auto bg-fin-bg flex flex-col"
         style={{
-          flexGrow: 1,
-          minWidth: 0,
-          minHeight: 0,
+          "flex-grow": 1,
+          "min-width": 0,
+          "min-height": 0,
           overflow: "auto",
-          backgroundColor: palette.BG,
+          "background-color": palette.BG,
           display: "flex",
-          flexDirection: "column",
+          "flex-direction": "column",
         }}
         id="app-main"
         data-testid="app-main"
@@ -148,9 +148,9 @@ export function AppLayout({ children }: AppLayoutProps) {
           className="flex-1 min-h-0 flex flex-col w-full"
           style={{
             flex: 1,
-            minHeight: 0,
+            "min-height": 0,
             display: "flex",
-            flexDirection: "column",
+            "flex-direction": "column",
             width: "100%",
             padding: 0,
             margin: 0,

@@ -29,7 +29,7 @@ export function IntervalMoversTable({ movers }: { movers: InternalStockMover[] }
             key={label}
             c="dimmed"
             className="text-[9px] font-bold tracking-[0.3px]"
-            style={{ textAlign: index === 0 ? "left" : "right" }}
+            style={{ "text-align": index === 0 ? "left" : "right" }}
           >
             {label}
           </Text>

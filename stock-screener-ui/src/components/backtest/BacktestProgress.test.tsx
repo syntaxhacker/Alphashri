@@ -77,7 +77,7 @@ describe("BacktestProgress", () => {
 
   it("renders the progress bar reflecting current/total percent", () => {
     render(<BacktestProgress progress={defaultProgress} />, { wrapper: Wrapper });
-    const fill = screen.getByTestId("progress-fill");
+    const ["fill"] = screen.getByTestId("progress-fill");
     expect(fill).toBeInTheDocument();
     expect(fill).toHaveAttribute("aria-valuenow", "50");
   });

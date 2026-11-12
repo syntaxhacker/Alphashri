@@ -87,40 +87,40 @@ export function Text(props: UITextProps) {
     if (tone != null) {
       o.color = TONE_COLOR[tone] ?? (isLiteralColor(tone) ? tone : undefined);
     }
-    if (known.fw != null) o.fontWeight = known.fw;
-    if (known.ta != null) o.textAlign = known.ta;
-    if (known.lh != null) o.lineHeight = known.lh;
-    if (known.size != null) o.fontSize = resolveSize(known.size);
+    if (known.fw != null) o["font-weight"] = known.fw;
+    if (known.ta != null) o["text-align"] = known.ta;
+    if (known.lh != null) o["line-height"] = known.lh;
+    if (known.size != null) o["font-size"] = resolveSize(known.size);
     if (known.fs != null) o.fontStyle = known.fs;
     if (known.p != null) o.padding = sp(known.p);
-    if (known.px != null) { o.paddingLeft = sp(known.px); o.paddingRight = sp(known.px); }
-    if (known.py != null) { o.paddingTop = sp(known.py); o.paddingBottom = sp(known.py); }
-    if (known.pt != null) o.paddingTop = sp(known.pt);
-    if (known.pb != null) o.paddingBottom = sp(known.pb);
-    if (known.pl != null) o.paddingLeft = sp(known.pl);
-    if (known.pr != null) o.paddingRight = sp(known.pr);
+    if (known.px != null) { o["padding-left"] = sp(known.px); o["padding-right"] = sp(known.px); }
+    if (known.py != null) { o["padding-top"] = sp(known.py); o["padding-bottom"] = sp(known.py); }
+    if (known.pt != null) o["padding-top"] = sp(known.pt);
+    if (known.pb != null) o["padding-bottom"] = sp(known.pb);
+    if (known.pl != null) o["padding-left"] = sp(known.pl);
+    if (known.pr != null) o["padding-right"] = sp(known.pr);
     if (known.m != null) o.margin = sp(known.m);
-    if (known.mx != null) { o.marginLeft = sp(known.mx); o.marginRight = sp(known.mx); }
-    if (known.my != null) { o.marginTop = sp(known.my); o.marginBottom = sp(known.my); }
-    if (known.mt != null) o.marginTop = sp(known.mt);
-    if (known.mb != null) o.marginBottom = sp(known.mb);
-    if (known.ml != null) o.marginLeft = sp(known.ml);
-    if (known.mr != null) o.marginRight = sp(known.mr);
+    if (known.mx != null) { o["margin-left"] = sp(known.mx); o["margin-right"] = sp(known.mx); }
+    if (known.my != null) { o["margin-top"] = sp(known.my); o["margin-bottom"] = sp(known.my); }
+    if (known.mt != null) o["margin-top"] = sp(known.mt);
+    if (known.mb != null) o["margin-bottom"] = sp(known.mb);
+    if (known.ml != null) o["margin-left"] = sp(known.ml);
+    if (known.mr != null) o["margin-right"] = sp(known.mr);
     if (known.w != null) o.width = typeof known.w === "number" ? `${known.w}px` : known.w;
-    if (known.maw != null) o.maxWidth = typeof known.maw === "number" ? `${known.maw}px` : known.maw;
+    if (known.maw != null) o["max-width"] = typeof known.maw === "number" ? `${known.maw}px` : known.maw;
     if (known.opacity != null) o.opacity = known.opacity;
     if (known.truncate) {
       o.overflow = "hidden";
-      o.textOverflow = "ellipsis";
-      o.whiteSpace = "nowrap";
+      o["text-overflow"] = "ellipsis";
+      o["white-space"] = "nowrap";
       if (known.truncate === "start") {
         o.direction = "rtl";
-        o.textAlign = "left";
+        o["text-align"] = "left";
       }
     }
     if (known.lineClamp != null) {
       o.display = "-webkit-box";
-      o.WebkitLineClamp = known.lineClamp;
+      o["webkit-line-clamp"] = known.lineClamp;
       o.WebkitBoxOrient = "vertical";
       o.overflow = "hidden";
     }

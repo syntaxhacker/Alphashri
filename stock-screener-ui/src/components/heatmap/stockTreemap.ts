@@ -48,9 +48,9 @@ export function getStockMetricRange(
 }
 
 export interface StockTreemapLabelStyle {
-  fontSize: number;
-  fontWeight: number | "bold";
-  lineHeight: number;
+  "font-size": number;
+  "font-weight": number | "bold";
+  "line-height": number;
   textShadowColor?: string;
   textShadowBlur?: number;
   textBorderColor?: string;
@@ -114,13 +114,13 @@ export function buildStockTreemapOption(
   const tooltipBg = isDark ? TOOLTIP_DARK_BG : TOOLTIP_LIGHT_BG;
   const tooltipBorder = isDark ? TOOLTIP_DARK_BORDER : TOOLTIP_LIGHT_BORDER;
   const tooltipText = isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT;
-  const borderColor = isDark ? style.borderDark : style.borderLight;
+  const ["border-color"] = isDark ? style.borderDark : style.borderLight;
 
   return {
     tooltip: {
       trigger: "item" as const,
-      backgroundColor: tooltipBg,
-      borderColor: tooltipBorder,
+      "background-color": tooltipBg,
+      "border-color": tooltipBorder,
       textStyle: { color: tooltipText },
       formatter: (params: { data?: Record<string, unknown> }) => {
         const d = params.data;

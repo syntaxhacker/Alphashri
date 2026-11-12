@@ -163,7 +163,7 @@ export function buildTradeMarkers(
         value: [entryIdx, trade.entry_price],
         itemStyle: {
           color: isHighlighted ? CHART_AVG_ENTRY : entryConfig.color,
-          borderColor: MARKER_BORDER,
+          "border-color": MARKER_BORDER,
           borderWidth: isHighlighted ? 3 : 2,
         },
         symbol,
@@ -178,8 +178,8 @@ export function buildTradeMarkers(
                 formatter: `#${trade.id}`,
                 position: "top",
                 color: CHART_AVG_ENTRY,
-                fontWeight: "bold",
-                fontSize: 12,
+                "font-weight": "bold",
+                "font-size": 12,
               },
             }
           : {}),
@@ -218,7 +218,7 @@ export function buildTradeMarkers(
           symbolOffset: isSameCandle ? [0, 20] : [0, 0],
           itemStyle: {
             color: exitColor,
-            borderColor: MARKER_BORDER,
+            "border-color": MARKER_BORDER,
             borderWidth: isHighlighted ? 3 : 2,
           },
           trade,
@@ -230,8 +230,8 @@ export function buildTradeMarkers(
                   formatter: trade.exit_reason || "Exit",
                   position: "bottom",
                   color: CHART_AVG_ENTRY,
-                  fontWeight: "bold",
-                  fontSize: 11,
+                  "font-weight": "bold",
+                  "font-size": 11,
                 },
               }
             : {}),

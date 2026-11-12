@@ -231,7 +231,7 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
                         px="xs"
                         py={3}
                         className="cursor-pointer hover:bg-fin-surface-alt"
-                        style={{ borderRadius: "1px", backgroundColor: idx % 2 === 1 ? palette.BG : undefined }}
+                        style={{ "border-radius": "1px", "background-color": idx % 2 === 1 ? palette.BG : undefined }}
                       >
                         <Checkbox
                           size="xs"

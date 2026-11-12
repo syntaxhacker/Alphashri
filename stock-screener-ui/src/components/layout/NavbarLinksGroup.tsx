@@ -36,9 +36,9 @@ export function NavbarLinksGroup({
       title={label}
       className="flex items-center gap-2 rounded-fin px-3 py-3 min-w-0 cursor-pointer transition-colors"
       style={{
-        justifyContent: collapsed ? "center" : "flex-start",
+        "justify-content": collapsed ? "center" : "flex-start",
         ...(active
-          ? { backgroundColor: "#80B5FF", color: "#1A5CD6" }
+          ? { "background-color": "#80B5FF", color: "#1A5CD6" }
           : {}),
       }}
     >
@@ -46,7 +46,7 @@ export function NavbarLinksGroup({
         <Icon size={16} />
       </Box>
       {!collapsed && (
-        <Text size="sm" style={{ fontSize: "0.875rem", fontWeight: active ? 600 : 400 }}>
+        <Text size="sm" style={{ "font-size": "0.875rem", "font-weight": active ? 600 : 400 }}>
           {label}
         </Text>
       )}

@@ -68,7 +68,7 @@ export function ReplayScanControl({
           <Alert color="warning" data-testid={`${testIdPrefix}-warning`}>
             Replay scans are slower — they recompute history up to the as-of date.
           </Alert>
-          <ToolbarRow gap={8} align="center" style={{ flexWrap: "wrap" }}>
+          <ToolbarRow gap={8} align="center" style={{ "flex-wrap": "wrap" }}>
             <Box className="flex min-w-0 flex-col gap-1">
               <Text size="xs" c="dimmed">
                 As of

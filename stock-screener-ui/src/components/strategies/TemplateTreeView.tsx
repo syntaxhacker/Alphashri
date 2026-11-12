@@ -73,7 +73,7 @@ export function TemplateTreeView({
         ? strategies.filter((s) => s.parent_id != null && String(s.parent_id) === String(id))
         : [];
 
-      const colStyle: React.CSSProperties = { width: 70, flexShrink: 0 };
+      const colStyle: React.CSSProperties = { width: 70, "flex-shrink": 0 };
 
       return (
         <Group
@@ -81,13 +81,13 @@ export function TemplateTreeView({
           wrap="nowrap"
           align="center"
           {...elementProps}
-          style={{ ...(elementProps.style as React.CSSProperties), padding: "2px 0", display: "flex", alignItems: "center", gap: 8 }}
+          style={{ ...(elementProps.style as React.CSSProperties), padding: "2px 0", display: "flex", "align-items": "center", gap: 8 }}
         >
-          <Text size="sm" fw={isTemplate ? 600 : 400} c={isTemplate ? undefined : "dimmed"} style={{ width: 180, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center" }}>
+          <Text size="sm" fw={isTemplate ? 600 : 400} c={isTemplate ? undefined : "dimmed"} style={{ width: 180, "flex-shrink": 0, overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap", display: "flex", "align-items": "center" }}>
             {node.label as string}
           </Text>
 
-          <Text size="xs" c="text.secondary" style={{ width: 90, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <Text size="xs" c="text.secondary" style={{ width: 90, "flex-shrink": 0, overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
             {isTemplate ? config.strategy_type : ""}
           </Text>
 
@@ -128,7 +128,7 @@ export function TemplateTreeView({
             />
           </span>
 
-          <Group gap={2} style={{ flexShrink: 0, width: 90 }} wrap="nowrap">
+          <Group gap={2} style={{ "flex-shrink": 0, width: 90 }} wrap="nowrap">
             {isTemplate ? (
               <>
                 <Tooltip label="Edit template params" withinPortal>
@@ -239,25 +239,25 @@ export function TemplateTreeView({
         gap={1}
         align="center"
         className="items-center"
-        style={{ paddingTop: 8, paddingBottom: 0.5, paddingRight: 8, paddingLeft: 0 }}
+        style={{ "padding-top": 8, "padding-bottom": 0.5, "padding-right": 8, "padding-left": 0 }}
       >
-        <span style={{ width: 18, flexShrink: 0 }} />
-        <Text size="xs" c="dimmed" style={{ width: 180, display: "flex", alignItems: "center" }}>
+        <span style={{ width: 18, "flex-shrink": 0 }} />
+        <Text size="xs" c="dimmed" style={{ width: 180, display: "flex", "align-items": "center" }}>
           Name
         </Text>
-        <Text size="xs" c="dimmed" style={{ width: 90, display: "flex", alignItems: "center" }}>
+        <Text size="xs" c="dimmed" style={{ width: 90, display: "flex", "align-items": "center" }}>
           Type
         </Text>
-        <Text size="xs" c="dimmed" style={{ width: 70, display: "flex", alignItems: "center" }}>
+        <Text size="xs" c="dimmed" style={{ width: 70, display: "flex", "align-items": "center" }}>
           SL%
         </Text>
-        <Text size="xs" c="dimmed" style={{ width: 70, display: "flex", alignItems: "center" }}>
+        <Text size="xs" c="dimmed" style={{ width: 70, display: "flex", "align-items": "center" }}>
           TP%
         </Text>
-        <Text size="xs" c="dimmed" style={{ width: 60, display: "flex", alignItems: "center" }}>
+        <Text size="xs" c="dimmed" style={{ width: 60, display: "flex", "align-items": "center" }}>
           MaxPos
         </Text>
-        <Text size="xs" c="dimmed" style={{ width: 90, display: "flex", alignItems: "center" }}>
+        <Text size="xs" c="dimmed" style={{ width: 90, display: "flex", "align-items": "center" }}>
           Actions
         </Text>
       </Group>

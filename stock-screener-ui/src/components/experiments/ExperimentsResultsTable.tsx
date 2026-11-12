@@ -350,7 +350,7 @@ export function ExperimentsResultsTable() {
         getRowCanExpand={() => true}
         renderSubComponent={(run) => (
           <Box p={0.5}>
-            <Text size="xs" fw={600} c="dimmed" style={{ marginBottom: 4 }}>
+            <Text size="xs" fw={600} c="dimmed" style={{ "margin-bottom": 4 }}>
               Per-symbol breakdown
             </Text>
             <PerSymbolTable run={run} symbolFilter={symbolFilter} />
@@ -360,7 +360,7 @@ export function ExperimentsResultsTable() {
         getRowTestId={(run) => `experiments-run-row-${run.run}`}
         getRowStyle={(run) => ({
           cursor: "pointer",
-          backgroundColor:
+          "background-color":
             selectedRun?.run === run.run
               ? "primary.light"
               : bestRun?.run === run.run

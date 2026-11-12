@@ -41,10 +41,10 @@ function getSectorColor(avgChange: number): string {
 }
 
 function getTileSpan(index: number) {
-  if (index === 0) return { col: "span 2", row: "span 2", minHeight: 212 };
-  if (index < 3) return { col: "span 1", row: "span 1", minHeight: 102 };
-  if (index < 7) return { col: "span 1", row: "span 1", minHeight: 84 };
-  return { col: "span 1", row: "span 1", minHeight: 72 };
+  if (index === 0) return { col: "span 2", row: "span 2", "min-height": 212 };
+  if (index < 3) return { col: "span 1", row: "span 1", "min-height": 102 };
+  if (index < 7) return { col: "span 1", row: "span 1", "min-height": 84 };
+  return { col: "span 1", row: "span 1", "min-height": 72 };
 }
 
 function TreemapTile({
@@ -61,16 +61,16 @@ function TreemapTile({
   return (
     <Box
       style={{
-        gridColumn: span.col,
-        gridRow: span.row,
-        minHeight: span.minHeight,
+        "grid-column": span.col,
+        "grid-row": span.row,
+        "min-height": span.minHeight,
         background: sector.itemStyle.color,
         color: "#ffffff",
         padding: index === 0 ? "16px" : "12px",
         display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        boxShadow: isDark
+        "flex-direction": "column",
+        "justify-content": "space-between",
+        "box-shadow": isDark
           ? `inset 0 1px 0 ${withAlpha(CREAM, 0.04)}`
           : `inset 0 1px 0 ${withAlpha(CREAM, 0.16)}`,
       }}
@@ -98,7 +98,7 @@ function TreemapTile({
             variant="filled"
             color="secondary"
             style={{
-              backgroundColor: withAlpha(BLACK, 0.28),
+              "background-color": withAlpha(BLACK, 0.28),
               color: "#ffffff",
             }}
           >
@@ -124,11 +124,11 @@ export function SectorTreemap({ sectors }: { sectors: SectorItem[] }) {
     <Box
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+        "grid-template-columns": "repeat(4, minmax(0, 1fr))",
         gridAutoRows: "minmax(72px, auto)",
         gap: "8px",
         height: "100%",
-        minHeight: 320,
+        "min-height": 320,
       }}
     >
       {treemapData.map((sector, index) => (

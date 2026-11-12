@@ -30,7 +30,7 @@ const MOCK_ROWS = Array.from({ length: 8 }, (_, i) => ({
 
 function MockTable() {
   return (
-    <Box className="border border-[#30363D] rounded-sm overflow-hidden" style={{ backgroundColor: palette.SURFACE }}>
+    <Box className="border border-[#30363D] rounded-sm overflow-hidden" style={{ "background-color": palette.SURFACE }}>
       <Box className="flex gap-0 bg-[#21262D] px-2 py-2 border-b border-[#30363D]">
         <Text className="flex-1 font-semibold text-[11px]" style={{ color: palette.TEXT_MUTED }}>
           Symbol
@@ -50,8 +50,8 @@ function MockTable() {
           key={r.symbol}
           className="flex gap-0 px-2 py-2 border-b border-[#30363D] last:border-b-0 h-7 items-center"
           style={{
-            backgroundColor: palette.SURFACE,
-            "&:hover": { backgroundColor: palette.SURFACE_ALT },
+            "background-color": palette.SURFACE,
+            "&:hover": { "background-color": palette.SURFACE_ALT },
           }}
         >
           <Text className="flex-1 font-semibold text-[12px]" style={{ color: palette.TEXT }}>
@@ -82,14 +82,14 @@ function OptionA() {
   const [provider, setProvider] = useState("upstox");
   const [mode, setMode] = useState("intraday");
   return (
-    <Box className="flex flex-col gap-2 p-2 min-h-[420px]" style={{ backgroundColor: palette.BG }}>
+    <Box className="flex flex-col gap-2 p-2 min-h-[420px]" style={{ "background-color": palette.BG }}>
       <Text className="text-[#8B949E] font-bold tracking-[0.5px] text-[11px]">
         OPTION A — Unified 48px Toolbar (Recommended)
       </Text>
       {/* single Paper bar — 48px header, elevation 0 + 1px border, radius 8 */}
       <Paper
         className="flex items-center justify-between gap-2 px-2 h-12 min-h-[48px] max-h-[48px] border border-[#30363D] rounded-lg overflow-hidden flex-nowrap"
-        style={{ backgroundColor: palette.SURFACE }}
+        style={{ "background-color": palette.SURFACE }}
       >
         <Box className="flex items-center gap-1.5 shrink-0">
           <Select
@@ -109,7 +109,7 @@ function OptionA() {
           </Tabs>
         </Box>
         <Box className="flex-1 min-w-0 px-1 flex justify-center overflow-hidden">
-          <Text className="text-[11px]" style={{ color: palette.TEXT_MUTED, whiteSpace: "nowrap" }}>
+          <Text className="text-[11px]" style={{ color: palette.TEXT_MUTED, "white-space": "nowrap" }}>
             48 stocks • 2s • live
           </Text>
         </Box>
@@ -124,7 +124,7 @@ function OptionA() {
             defaultValue={60}
             className="w-[64px] text-[12px] px-2 py-1.5 text-[#F0F6FC] border border-[#30363D] rounded-sm"
             placeholder="60s"
-            style={{ backgroundColor: palette.SURFACE_ALT }}
+            style={{ "background-color": palette.SURFACE_ALT }}
           />
           <Select
             size="xs"
@@ -136,7 +136,7 @@ function OptionA() {
               { value: "indmoney", label: "IND" },
             ]}
             className="min-w-[96px] text-[12px] h-8 text-[#F0F6FC]"
-            style={{ backgroundColor: palette.SURFACE_ALT }}
+            style={{ "background-color": palette.SURFACE_ALT }}
           />
           <Select
             size="xs"
@@ -148,10 +148,10 @@ function OptionA() {
               { value: "historical", label: "5D" },
             ]}
             className="min-w-[96px] text-[12px] h-8 text-[#F0F6FC]"
-            style={{ backgroundColor: palette.SURFACE_ALT }}
+            style={{ "background-color": palette.SURFACE_ALT }}
           />
           <Box className="flex border border-[#30363D] rounded-sm overflow-hidden h-8">
-            <Button size="xs" variant="filled" color="secondary" className="text-[11px] rounded-none px-6 text-[#F0F6FC]" style={{ backgroundColor: palette.SURFACE_ALT }}>
+            <Button size="xs" variant="filled" color="secondary" className="text-[11px] rounded-none px-6 text-[#F0F6FC]" style={{ "background-color": palette.SURFACE_ALT }}>
               Tbl
             </Button>
             <Button size="xs" className="text-[11px] rounded-none px-6 text-[#8B949E]">
@@ -163,18 +163,18 @@ function OptionA() {
       {/* inline filter chips (only when screener has filters) */}
       <Paper
         className="flex items-center gap-2 px-3 py-2 border border-[#30363D] rounded-lg"
-        style={{ backgroundColor: palette.SURFACE }}
+        style={{ "background-color": palette.SURFACE }}
       >
         <Text className="text-[11px] text-[#8B949E] font-semibold">Filters:</Text>
-        <Chip size="xs" label="Min Vol 50k" className="text-[11px] h-6 text-[#F0F6FC] border border-[#30363D]" style={{ backgroundColor: palette.SURFACE_ALT }} />
-        <Chip size="xs" label="RSI 50-70" className="text-[11px] h-6 text-[#F0F6FC] border border-[#30363D]" style={{ backgroundColor: palette.SURFACE_ALT }} />
-        <Chip size="xs" label="Near 52W 3%" className="text-[11px] h-6 text-[#F0F6FC] border border-[#30363D]" style={{ backgroundColor: palette.SURFACE_ALT }} />
+        <Chip size="xs" label="Min Vol 50k" className="text-[11px] h-6 text-[#F0F6FC] border border-[#30363D]" style={{ "background-color": palette.SURFACE_ALT }} />
+        <Chip size="xs" label="RSI 50-70" className="text-[11px] h-6 text-[#F0F6FC] border border-[#30363D]" style={{ "background-color": palette.SURFACE_ALT }} />
+        <Chip size="xs" label="Near 52W 3%" className="text-[11px] h-6 text-[#F0F6FC] border border-[#30363D]" style={{ "background-color": palette.SURFACE_ALT }} />
         <Box className="flex-1" />
         <Button size="xs" variant="outline" color="secondary" className="text-[11px] h-6 border border-[#30363D] text-[#F0F6FC]">
           Apply
         </Button>
       </Paper>
-      <Paper className="p-1 border border-[#30363D] rounded-lg flex-1" style={{ backgroundColor: palette.SURFACE }}>
+      <Paper className="p-1 border border-[#30363D] rounded-lg flex-1" style={{ "background-color": palette.SURFACE }}>
         <MockTable />
       </Paper>
       <Text className="text-[#8B949E] text-[11px]">

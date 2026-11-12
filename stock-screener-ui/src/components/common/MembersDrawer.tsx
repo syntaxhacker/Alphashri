@@ -118,56 +118,56 @@ export function MembersDrawer({
     top: 0,
     right: 0,
     width,
-    maxWidth: "100%",
+    "max-width": "100%",
     height: "100%",
-    backgroundColor: palette.SURFACE,
+    "background-color": palette.SURFACE,
     borderLeft: `1px solid ${palette.BORDER}`,
     display: "flex",
-    flexDirection: "column",
-    minWidth: 0,
-    zIndex: 1300,
+    "flex-direction": "column",
+    "min-width": 0,
+    "z-index": 1300,
   };
 
   const headerStyle: React.CSSProperties = {
-    paddingLeft: pad(contentPx),
-    paddingRight: pad(contentPx),
-    paddingTop: pad(headerPy),
-    paddingBottom: pad(headerPy),
+    "padding-left": pad(contentPx),
+    "padding-right": pad(contentPx),
+    "padding-top": pad(headerPy),
+    "padding-bottom": pad(headerPy),
     borderBottom: `1px solid ${palette.BORDER}`,
   };
 
   const contentStyle: React.CSSProperties = {
-    paddingLeft: pad(contentPx),
-    paddingTop: 6,
-    paddingBottom: 6,
-    ...(searchStacked && { display: "flex", flexDirection: "column", gap: 6 }),
+    "padding-left": pad(contentPx),
+    "padding-top": 6,
+    "padding-bottom": 6,
+    ...(searchStacked && { display: "flex", "flex-direction": "column", gap: 6 }),
   };
 
   const errorStyle: React.CSSProperties = {
-    paddingLeft: pad(contentPx),
-    paddingBottom: 8,
+    "padding-left": pad(contentPx),
+    "padding-bottom": 8,
   };
 
   const bodyStyle: React.CSSProperties = {
     flex: 1,
-    minHeight: 0,
-    overflowY: "auto",
-    paddingLeft: pad(contentPx),
-    paddingRight: pad(contentPx),
-    paddingBottom: 8,
+    "min-height": 0,
+    "overflow-y": "auto",
+    "padding-left": pad(contentPx),
+    "padding-right": pad(contentPx),
+    "padding-bottom": 8,
   };
 
   const loaderStyle: React.CSSProperties = {
     display: "flex",
-    alignItems: "center",
+    "align-items": "center",
     gap: 6,
-    paddingTop: 16,
-    paddingLeft: pad(bodyPx),
+    "padding-top": 16,
+    "padding-left": pad(bodyPx),
   };
 
   const gridStyle: React.CSSProperties = {
     display: "grid",
-    gridTemplateColumns: `repeat(auto-fill, minmax(${gridMin}px, 1fr))`,
+    "grid-template-columns": `repeat(auto-fill, minmax(${gridMin}px, 1fr))`,
     gap: gridGap,
   };
 
@@ -256,15 +256,15 @@ export function MembersDrawer({
                   key={symbol}
                   data-testid={ids.row(symbol)}
                   className={rowClasses}
-                  style={{ borderRadius: radius }}
+                  style={{ "border-radius": radius }}
                 >
                   <Box
                     className="min-w-0 flex-1"
                     style={{
-                      paddingLeft: 4,
-                      paddingRight: 4,
-                      paddingTop: pad(symbolPy),
-                      paddingBottom: pad(symbolPy),
+                      "padding-left": 4,
+                      "padding-right": 4,
+                      "padding-top": pad(symbolPy),
+                      "padding-bottom": pad(symbolPy),
                     }}
                   >
                     <SymbolTvLink
@@ -282,11 +282,11 @@ export function MembersDrawer({
                     data-testid={ids.chart(symbol)}
                     style={{
                       display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
+                      "align-items": "center",
+                      "justify-content": "center",
                       width: 22,
                       height: 22,
-                      flexShrink: 0,
+                      "flex-shrink": 0,
                       color: palette.TEXT_MUTED,
                     }}
                   >
@@ -304,11 +304,11 @@ export function MembersDrawer({
           wrap={false}
           className="border-t border-fin-border"
           style={{
-            paddingLeft: pad(contentPx),
-            paddingRight: pad(contentPx),
-            paddingTop: pad(footerPy),
-            paddingBottom: pad(footerPy),
-            backgroundColor: palette.TERM_HEADER,
+            "padding-left": pad(contentPx),
+            "padding-right": pad(contentPx),
+            "padding-top": pad(footerPy),
+            "padding-bottom": pad(footerPy),
+            "background-color": palette.TERM_HEADER,
           }}
         >
           {footerLeft}

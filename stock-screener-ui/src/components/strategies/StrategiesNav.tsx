@@ -36,7 +36,7 @@ export function StrategiesNav({
           }))}
         />
       </ToolbarRow>
-      <div style={{ marginTop: 8, flex: 1, minHeight: 0 }}>{children}</div>
+      <div style={{ "margin-top": 8, flex: 1, "min-height": 0 }}>{children}</div>
     </CompactPanel>
   );
 }

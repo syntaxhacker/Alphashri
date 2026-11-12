@@ -10,18 +10,18 @@ export function ChainSubHeader({ styles }: ChainSubHeaderProps) {
   const numericHeader: React.CSSProperties = {
     ...styles.subHeaderCell,
     display: "flex",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    textAlign: "right",
+    "align-items": "center",
+    "justify-content": "flex-end",
+    "text-align": "right",
     gap: 8,
     padding: 8,
   };
   const strikeHeader: React.CSSProperties = {
     ...styles.subHeaderCell,
     display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    textAlign: "center",
+    "align-items": "center",
+    "justify-content": "center",
+    "text-align": "center",
     gap: 8,
     padding: 8,
   };

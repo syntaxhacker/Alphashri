@@ -18,13 +18,13 @@ export function tradeStatChips(bundle: ReplayBundle, extra?: ReactNode[]): React
       size: "small",
       key: "trades",
       children: `${trades.length} trades`,
-      style: { backgroundColor: "#1F2937", color: palette.POSITIVE },
+      style: { "background-color": "#1F2937", color: palette.POSITIVE },
     }),
     createElement(Chip, {
       size: "small",
       key: "wins",
       children: `win ${wins}/${trades.length}`,
-      style: { backgroundColor: "#1F2937", color: palette.TEXT_MUTED },
+      style: { "background-color": "#1F2937", color: palette.TEXT_MUTED },
     }),
     createElement(Chip, {
       size: "small",

@@ -76,7 +76,7 @@ const MarketGrid = memo(function MarketGrid({
   hasActiveFilters: boolean;
   onResetFilters: () => void;
   onRowClick: (row: MarketRow) => void;
-  getRowStyle: (row: MarketRow) => { backgroundColor: string } | undefined;
+  getRowStyle: (row: MarketRow) => { "background-color": string } | undefined;
   getRowTestId: (row: MarketRow) => string;
 }) {
   return (
@@ -263,7 +263,7 @@ export function MarketScreenerPanel() {
   const getRowStyle = useCallback(
     (row: MarketRow) =>
       row.symbol === selectedSymbol
-        ? { backgroundColor: "rgba(88, 166, 255, 0.12)" }
+        ? { "background-color": "rgba(88, 166, 255, 0.12)" }
         : undefined,
     [selectedSymbol],
   );
@@ -523,7 +523,7 @@ export function MarketScreenerPanel() {
         <Box
           data-testid="market-filter-drawer"
           className="fixed inset-0 z-50 flex"
-          style={{ zIndex: 1050 }}
+          style={{ "z-index": 1050 }}
           onClick={() => setDrawerOpen(false)}
         >
           <Box

@@ -46,14 +46,14 @@ export function BacktestRightRail({ width, onWidthChange, children }: BacktestRi
       style={{
         flex: "0 0 auto",
         width,
-        minWidth: RAIL_MIN_WIDTH,
-        maxWidth: RAIL_MAX_WIDTH,
+        "min-width": RAIL_MIN_WIDTH,
+        "max-width": RAIL_MAX_WIDTH,
         height: "100%",
-        minHeight: 0,
+        "min-height": 0,
         position: "relative",
         display: "flex",
-        flexDirection: "column",
-        backgroundColor: palette.NT_BG,
+        "flex-direction": "column",
+        "background-color": palette.NT_BG,
         borderLeft: `1px solid ${palette.BORDER}`,
         overflow: "hidden",
       }}
@@ -71,7 +71,7 @@ export function BacktestRightRail({ width, onWidthChange, children }: BacktestRi
           width: 6,
           cursor: "ew-resize",
           touchAction: "none",
-          zIndex: 3,
+          "z-index": 3,
         }}
       />
       {children}

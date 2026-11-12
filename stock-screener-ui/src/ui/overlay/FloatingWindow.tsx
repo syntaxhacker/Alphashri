@@ -12,7 +12,7 @@ export interface FloatingWindowProps {
   title: string;
   icon?: JSX.Element;
   geometry: FloatingWindowGeometry;
-  zIndex: number;
+  "z-index": number;
   minimized?: boolean;
   minWidth?: number;
   minHeight?: number;
@@ -76,9 +76,9 @@ export function FloatingWindow(props: FloatingWindowProps) {
     rootEl.style.width = `${g.width}px`;
     rootEl.style.height = `${g.height}px`;
     rootEl.style.transform = `translate3d(${g.x}px, ${g.y}px, 0)`;
-    rootEl.style.zIndex = String(known.zIndex);
+    rootEl.style["z-index"] = String(known.zIndex);
     rootEl.style.display = known.minimized ? "none" : "flex";
-    rootEl.style.flexDirection = "column";
+    rootEl.style["flex-direction"] = "column";
   });
 
   onCleanup(() => {

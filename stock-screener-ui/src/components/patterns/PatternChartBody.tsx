@@ -125,7 +125,7 @@ function FullscreenPanel({
 
       {hit.notes ? (
         <Box className="border-t border-fin-border pt-2">
-          <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
+          <Text size="xs" c="dimmed" style={{ "overflow-wrap": "anywhere" }}>
             {hit.notes}
           </Text>
         </Box>
@@ -241,7 +241,7 @@ export function PatternChartBody({
   trendlinesView = "both",
   asOf = null,
   emptyState,
-  fill = false,
+  ["fill"] = false,
   docked = false,
 }: PatternChartBodyProps) {
   const asOfLabel = typeof asOf === "string" && asOf !== "" ? asOf.replace("T", " ") : null;
@@ -277,7 +277,7 @@ export function PatternChartBody({
             docked ? "flex-[1_1_auto]" : "flex-[1_1_auto] lg:flex-[0_0_80%]"
           }`}
         >
-          <ToolbarRow justify="flex-start" gap={6} style={{ paddingBottom: 4 }}>
+          <ToolbarRow justify="flex-start" gap={6} style={{ "padding-bottom": 4 }}>
             <Text size="xs" c="dimmed">History</Text>
             <SegmentedControl
               size="xs"

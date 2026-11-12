@@ -56,7 +56,7 @@ export function TradeChart({ symbol, date, entryPrice, exitPrice, entryTime, exi
         const option = {
           tooltip: { trigger: "axis", axisPointer: { type: "cross" } },
           grid: { left: 50, right: 20, top: 40, bottom: 30 },
-          xAxis: { data: times, axisLabel: { rotate: 45, fontSize: 9 }, show: entryIdx >= 0 },
+          xAxis: { data: times, axisLabel: { rotate: 45, "font-size": 9 }, show: entryIdx >= 0 },
           yAxis: { scale: true, min: (value: any) => Math.min(value.min * 0.995, entryPrice * 0.99),
                    max: (value: any) => Math.max(value.max * 1.005, exitPrice * 1.01) },
           series: [{
@@ -86,7 +86,7 @@ export function TradeChart({ symbol, date, entryPrice, exitPrice, entryTime, exi
   }, [symbol, date, entryPrice, exitPrice, entryTime, exitTime, stopLoss, takeProfit]);
 
   return (
-    <Box style={{ width: "100%", height, minHeight: height }}>
+    <Box style={{ width: "100%", height, "min-height": height }}>
       <div ref={chartRef} style={{ width: "100%", height: "100%" }} />
     </Box>
   );

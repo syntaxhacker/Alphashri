@@ -65,11 +65,11 @@ const PressureBars = memo(function PressureBars({
       <defs>
         <pattern id="pf-sell-ce" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
           <rect width="3" height="3" fill={palette.TERM_CE} opacity={0.18} />
-          <line x1="0" y1="0" x2="0" y2="3" stroke={palette.TERM_CE} strokeWidth="1.4" opacity={0.95} />
+          <line x1="0" y1="0" x2="0" y2="3" stroke={palette.TERM_CE} stroke-width="1.4" opacity={0.95} />
         </pattern>
         <pattern id="pf-sell-pe" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
           <rect width="3" height="3" fill={palette.TERM_PE} opacity={0.18} />
-          <line x1="0" y1="0" x2="0" y2="3" stroke={palette.TERM_PE} strokeWidth="1.4" opacity={0.95} />
+          <line x1="0" y1="0" x2="0" y2="3" stroke={palette.TERM_PE} stroke-width="1.4" opacity={0.95} />
         </pattern>
       </defs>
       {/* 2× burst band */}
@@ -88,7 +88,7 @@ const PressureBars = memo(function PressureBars({
         y1={medianY}
         y2={medianY}
         stroke={palette.TEXT_MUTED}
-        strokeWidth={0.6}
+        stroke-width={0.6}
         strokeDasharray="3 3"
         opacity={0.55}
       />
@@ -99,7 +99,7 @@ const PressureBars = memo(function PressureBars({
         y1={ZERO}
         y2={ZERO}
         stroke={palette.TERM_BORDER}
-        strokeWidth={1}
+        stroke-width={1}
       />
       {points.map((p, i) => {
         const x = PAD_L + i * cellW;
@@ -139,7 +139,7 @@ const PressureBars = memo(function PressureBars({
                 height={Math.max(up, down)}
                 fill="none"
                 stroke={p.ratio >= PRESSURE_CLIMAX_RATIO ? palette.NEGATIVE : palette.WARNING}
-                strokeWidth={0.5}
+                stroke-width={0.5}
                 opacity={0.9}
               />
             ) : null}
@@ -247,7 +247,7 @@ const NiftyPressureLaneInner = function NiftyPressureLane({
             y1={2}
             y2={VB_H - 4}
             stroke={palette.TEXT}
-            strokeWidth={0.5}
+            stroke-width={0.5}
             opacity={0.85}
           />
         ) : null}
@@ -259,7 +259,7 @@ const NiftyPressureLaneInner = function NiftyPressureLane({
           height={VB_H - 4}
           fill="none"
           stroke={palette.TEXT}
-          strokeWidth={0.6}
+          stroke-width={0.6}
           opacity={0.8}
         />
       </svg>
@@ -278,7 +278,7 @@ const NiftyPressureLaneInner = function NiftyPressureLane({
           style={{
             left: `${hoverPct}%`,
             transform: readoutShift,
-            backgroundColor: palette.TERM_HEADER,
+            "background-color": palette.TERM_HEADER,
             border: `1px solid ${palette.TERM_BORDER}`,
             color: palette.TEXT,
           }}
@@ -321,15 +321,15 @@ const NiftyPressureLaneInner = function NiftyPressureLane({
             className="flex items-center gap-[10px] flex-wrap mt-[3px] text-[8.5px] font-mono text-fin-text-muted"
           >
             <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 rounded-[1px]" style={{ backgroundColor: palette.TERM_CE }} />
+              <span className="w-2 h-2 rounded-[1px]" style={{ "background-color": palette.TERM_CE }} />
               CE volume (up)
             </span>
             <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 rounded-[1px]" style={{ backgroundColor: palette.TERM_PE }} />
+              <span className="w-2 h-2 rounded-[1px]" style={{ "background-color": palette.TERM_PE }} />
               PE volume (down)
             </span>
             <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 rounded-[1px]" style={{ backgroundColor: palette.TEXT_MUTED, opacity: 0.35 }} />
+              <span className="w-2 h-2 rounded-[1px]" style={{ "background-color": palette.TEXT_MUTED, opacity: 0.35 }} />
               solid = buy
             </span>
             <span className="inline-flex items-center gap-1">
@@ -348,7 +348,7 @@ const NiftyPressureLaneInner = function NiftyPressureLane({
             <span className="inline-flex items-center gap-1">
               <span
                 className="w-2 h-2 rounded-[1px] border border-fin-warning"
-                style={{ backgroundColor: palette.WARNING, opacity: 0.25 }}
+                style={{ "background-color": palette.WARNING, opacity: 0.25 }}
               />
               ≥2× burst (4× climax)
             </span>

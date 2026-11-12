@@ -50,7 +50,7 @@ export default function SmcPoc() {
   return (
     <Box
       className="h-[calc(100vh-48px)] flex flex-col p-2 gap-2 max-w-none m-0"
-      style={{ backgroundColor: palette.NT_BG }}
+      style={{ "background-color": palette.NT_BG }}
       data-testid="smc-poc"
     >
       <Stack direction="row" spacing={1} className="flex-wrap items-center px-2">
@@ -62,28 +62,28 @@ export default function SmcPoc() {
           <span style={{ color: "#A78BFA" }}>rect</span>{" "}
           <span style={{ color: palette.NT_TREND }}>trend</span>
         </Text>
-        <Chip size="sm" label={`${bars.length} bars`} style={{ backgroundColor: "#1F2937", color: "#9CA3AF", height: 20 }} />
-        {loading && <Chip size="sm" label="loading…" style={{ backgroundColor: "#1F2937", color: "#58A6FF", height: 20 }} />}
+        <Chip size="sm" label={`${bars.length} bars`} style={{ "background-color": "#1F2937", color: "#9CA3AF", height: 20 }} />
+        {loading && <Chip size="sm" label="loading…" style={{ "background-color": "#1F2937", color: "#58A6FF", height: 20 }} />}
         <Box className="flex-1" />
-        <span className="flex items-center gap-2" style={{ fontSize: 12, color: "#E5E7EB" }}>
+        <span className="flex items-center gap-2" style={{ "font-size": 12, color: "#E5E7EB" }}>
           <Switch size="sm" checked={source === "nq"} onChange={(e) => setSource(e.currentTarget.checked ? "nq" : "mock")} color="primary" />
           Real NQ
         </span>
-        <span className="flex items-center gap-2" style={{ fontSize: 12, color: "#A78BFA" }}>
+        <span className="flex items-center gap-2" style={{ "font-size": 12, color: "#A78BFA" }}>
           <Switch size="sm" checked={showRect} onChange={(e) => setShowRect(e.currentTarget.checked)} color="info" />
           Rect
         </span>
-        <span className="flex items-center gap-2" style={{ fontSize: 12, color: palette.NT_TREND }}>
+        <span className="flex items-center gap-2" style={{ "font-size": 12, color: palette.NT_TREND }}>
           <Switch size="sm" checked={showTrend} onChange={(e) => setShowTrend(e.currentTarget.checked)} color="primary" />
           Trend
         </span>
       </Stack>
       <Card
         className="flex-1 min-h-0 flex flex-col"
-        style={{ backgroundColor: palette.NT_BG, border: `1px solid ${palette.NT_GRID}`, overflow: "hidden" }}
+        style={{ "background-color": palette.NT_BG, border: `1px solid ${palette.NT_GRID}`, overflow: "hidden" }}
         data-testid="smc-card"
       >
-        <Box className="flex-1 min-h-0 p-0 relative flex" style={{ paddingBottom: 0 }}>
+        <Box className="flex-1 min-h-0 p-0 relative flex" style={{ "padding-bottom": 0 }}>
           <Box className="absolute inset-0" data-testid="smc-chart">
             <TickReplayChart bars={bars} zones={zones} trends={trends} height={600} />
           </Box>

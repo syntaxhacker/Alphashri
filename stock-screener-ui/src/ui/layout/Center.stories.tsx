@@ -13,8 +13,8 @@ type Story = StoryObj<typeof Center>;
 
 export const BlockChild: Story = {
   render: () => (
-    <Center style={{ minHeight: 150, background: "#80b5ff" }}>
-      <div style={{ padding: 16, borderRadius: 8, background: "var(--color-fin-primary)", color: "white" }}>
+    <Center style={{ "min-height": 150, background: "#80b5ff" }}>
+      <div style={{ padding: 16, "border-radius": 8, background: "var(--color-fin-primary)", color: "white" }}>
         Block child, full-width centering
       </div>
     </Center>

@@ -154,7 +154,7 @@ export function RotationRrg({ rows, selectedId, onSelect }: RotationRrgProps) {
                       top: `${top}%`,
                       width: `${w}%`,
                       height: `${h}%`,
-                      backgroundColor: withAlpha(color, 0.055),
+                      "background-color": withAlpha(color, 0.055),
                     }}
                   >
                     <Box
@@ -248,7 +248,7 @@ export function RotationRrg({ rows, selectedId, onSelect }: RotationRrgProps) {
                         left: `${px}%`,
                         bottom: `${py}%`,
                         transform: "translate(-50%, 50%)",
-                        zIndex: selected ? 6 : 3,
+                        "z-index": selected ? 6 : 3,
                       }}
                     >
                       <Tooltip
@@ -288,8 +288,8 @@ export function RotationRrg({ rows, selectedId, onSelect }: RotationRrgProps) {
                             border: selected
                               ? `1.5px solid ${CREAM}`
                               : `1px solid ${withAlpha(color, 0.9)}`,
-                            backgroundColor: withAlpha(color, selected ? 1 : 0.9),
-                            boxShadow: selected
+                            "background-color": withAlpha(color, selected ? 1 : 0.9),
+                            "box-shadow": selected
                               ? `0 0 0 3px ${withAlpha(color, 0.25)}`
                               : "none",
                           }}
@@ -305,15 +305,15 @@ export function RotationRrg({ rows, selectedId, onSelect }: RotationRrgProps) {
                             ? { top: `calc(${100 - py}% + ${r + 5}px)` }
                             : { bottom: `calc(${py}% + ${r + 5}px)` }),
                           transform: anchor,
-                          zIndex: selected ? 5 : 2,
-                          backgroundColor: selected
+                          "z-index": selected ? 5 : 2,
+                          "background-color": selected
                             ? "background.paper"
                             : withAlpha("#000000", 0.38),
                         }}
                       >
                         <Text
                           className="text-[9.5px] leading-[1.2] whitespace-nowrap overflow-hidden text-ellipsis"
-                          style={{ fontWeight: selected ? 700 : 500, color: selected ? TEXT : TEXT_MUTED }}
+                          style={{ "font-weight": selected ? 700 : 500, color: selected ? TEXT : TEXT_MUTED }}
                         >
                           {shortName(row.name)}
                         </Text>
@@ -336,7 +336,7 @@ export function RotationRrg({ rows, selectedId, onSelect }: RotationRrgProps) {
         <Box className="flex items-center gap-2 min-w-0 overflow-hidden">
           {(["leading", "improving", "weakening", "lagging"] as RotationQuadrant[]).map((key) => (
             <Box key={key} className="inline-flex items-center gap-[3.2px]">
-              <Box className="size-[5px] rounded-full shrink-0" style={{ backgroundColor: QUADRANT_COLORS[key] }} />
+              <Box className="size-[5px] rounded-full shrink-0" style={{ "background-color": QUADRANT_COLORS[key] }} />
               <Text className="text-[8.5px] font-bold tracking-[0.3px] text-fin-text-muted">
                 {QUADRANT_LABELS[key]}
               </Text>

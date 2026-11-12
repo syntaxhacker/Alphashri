@@ -29,10 +29,10 @@ export function LookbackSelect({ value, onChange }: LookbackSelectProps) {
       }}
       w={122}
       size="xs"
-      leftSection={<Text size="xs" c="dimmed" style={{ fontSize: 10 }}>Bars</Text>}
+      leftSection={<Text size="xs" c="dimmed" style={{ "font-size": 10 }}>Bars</Text>}
       data-testid="patterns-lookback-select"
       title="Bars of history the detector reads before forming a pattern (Auto = preset default)"
-      style={{ flexShrink: 0 }}
+      style={{ "flex-shrink": 0 }}
     />
   );
 }

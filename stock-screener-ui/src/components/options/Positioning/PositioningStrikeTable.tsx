@@ -58,8 +58,8 @@ function CrCell({ cr, max }: { cr: number | null; max: number }) {
     <Box
       style={{
         display: "inline-block",
-        backgroundColor: bg,
-        borderRadius: 1,
+        "background-color": bg,
+        "border-radius": 1,
         padding: "8px 4px",
         fontVariantNumeric: "tabular-nums",
         color: cr < 0 ? NEGATIVE : POSITIVE,

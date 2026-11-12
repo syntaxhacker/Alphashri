@@ -170,7 +170,7 @@ export function buildChartOption(input: ChartInput): Record<string, unknown> {
       candleSeries.markLine = {
         symbol: ["none", "none"],
         data: liveMarkLines,
-        label: { color: "inherit", fontSize: 11, formatter: "{b}" },
+        label: { color: "inherit", "font-size": 11, formatter: "{b}" },
       };
     } else {
       candleSeries.markLine.data.push(...liveMarkLines);
@@ -206,22 +206,22 @@ export function buildChartOption(input: ChartInput): Record<string, unknown> {
   }
 
   return {
-    backgroundColor: colors.bgColor,
+    "background-color": colors.bgColor,
     animation: false,
     title: input.title
       ? {
           text: input.title,
           left: "center",
-          textStyle: { color: colors.textColor, fontSize: 14 },
+          textStyle: { color: colors.textColor, "font-size": 14 },
         }
       : undefined,
     tooltip: {
       trigger: "axis",
       axisPointer: { type: "cross", lineStyle: { color: CHART_CROSSHAIR } },
-      backgroundColor: tooltipBg,
-      borderColor: colors.borderColor,
+      "background-color": tooltipBg,
+      "border-color": colors.borderColor,
       borderWidth: 1,
-      textStyle: { color: colors.textColor, fontSize: theme.fontSizes?.sm ?? 12 },
+      textStyle: { color: colors.textColor, "font-size": theme.fontSizes?.sm ?? 12 },
       formatter: tooltip,
     },
     legend,

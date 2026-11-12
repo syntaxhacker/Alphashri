@@ -46,7 +46,7 @@ export function Timeline(props: UITimelineProps) {
   ]);
 
   const itemCount = createMemo(() => {
-    const c = known.children();
+    const c = known.children;
     return Array.isArray(c) ? c.length : c ? 1 : 0;
   });
 
@@ -63,20 +63,20 @@ export function Timeline(props: UITimelineProps) {
   const cls = cn(
     "ui-timeline",
     "relative flex flex-col",
-    known.align() === "right" ? "items-end" : "items-start",
-    known.className(),
+    known.align === "right" ? "items-end" : "items-start",
+    known.className,
   );
 
   return (
     <TimelineContext.Provider value={ctx}>
       <ol
-        id={known.id()}
+        id={known.id}
         className={cls}
-        style={known.style() as Record<string, string | undefined>}
-        data-testid={known["data-testid"]()}
+        style={known.style as Record<string, string | undefined>}
+        data-testid={known["data-testid"]}
         {...(rest as Record<string, unknown>)}
       >
-        {known.children()}
+        {known.children}
       </ol>
     </TimelineContext.Provider>
   );
@@ -99,11 +99,11 @@ export function TimelineItem(props: UITimelineItemProps) {
 
   const bs = createMemo(() => ctx.bulletSize() ?? 20);
   const lineW = createMemo(() => ctx.lineWidth() ?? 2);
-  const tone = createMemo(() => toneColor((known.color() as string) ?? (ctx.color() as string)));
+  const tone = createMemo(() => toneColor((known.color as string) ?? (ctx.color() as string)));
   const isRight = createMemo(() => ctx.align() === "right");
   const size = createMemo(() => (typeof bs() === "number" ? `${bs()}px` : String(bs() ?? 16)));
   const borderStyle = createMemo(() => {
-    const lv = known.lineVariant();
+    const lv = known.lineVariant;
     return lv === "dashed" ? "dashed" : lv === "dotted" ? "dotted" : "solid";
   });
 
@@ -111,7 +111,7 @@ export function TimelineItem(props: UITimelineItemProps) {
     cn(
       "ui-timeline-bullet",
       "flex shrink-0 items-center justify-center rounded-full font-mono text-[10px]",
-      known.bullet() ? `bg-fin-surface border-2 border-${tone()} text-${tone()}` : `bg-${tone()} text-white`,
+      known.bullet ? `bg-fin-surface border-2 border-${tone()} text-${tone()}` : `bg-${tone()} text-white`,
       `w-[${size()}] h-[${size()}]`,
     ),
   );
@@ -119,7 +119,7 @@ export function TimelineItem(props: UITimelineItemProps) {
     cn(
       "ui-timeline-line",
       "shrink-0 mt-[4px]",
-      borderStyle() === "solid" || !known.lineVariant()
+      borderStyle() === "solid" || !known.lineVariant
         ? `w-[${lineW()}px] bg-fin-border`
         : `w-[${lineW()}px] border-l-[${lineW()}px] border-l-${borderStyle()} border-l-fin-border bg-transparent`,
     ),
@@ -129,27 +129,27 @@ export function TimelineItem(props: UITimelineItemProps) {
       "ui-timeline-item",
       "flex gap-3 relative min-h-[56px]",
       isRight() ? "flex-row-reverse text-right" : "flex-row text-left",
-      known.className(),
+      known.className,
     ),
   );
 
   return (
     <li
-      id={known.id()}
+      id={known.id}
       className={itemCls()}
-      style={known.style() as Record<string, string | undefined>}
-      data-testid={known["data-testid"]()}
+      style={known.style as Record<string, string | undefined>}
+      data-testid={known["data-testid"]}
       {...(rest as Record<string, unknown>)}
     >
       <div className="flex flex-col items-center" style={{ width: size() }}>
-        <div className={bulletCls()}>{known.bullet()}</div>
+        <div className={bulletCls()}>{known.bullet}</div>
         <div className={lineCls()} />
       </div>
       <div className="flex-1 flex flex-col">
-        <Show when={known.title()}>
-          <h3 className="ui-timeline-title font-semibold text-[14px] mb-[2px]">{known.title()}</h3>
+        <Show when={known.title}>
+          <h3 className="ui-timeline-title font-semibold text-[14px] mb-[2px]">{known.title}</h3>
         </Show>
-        <div className="ui-timeline-body text-[13px] text-fin-text-muted">{known.children()}</div>
+        <div className="ui-timeline-body text-[13px] text-fin-text-muted">{known.children}</div>
       </div>
     </li>
   );

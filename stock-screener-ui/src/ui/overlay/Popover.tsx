@@ -243,7 +243,6 @@ export function PopoverDropdown(props: UIPopoverDropdownProps & { p?: number | s
 
   const padStyle = known.p != null ? { padding: paddingSize(known.p) } : undefined;
   const shadowClass = SHADOW_MAP[shadow() ?? ""] ?? "";
-  const boxShadow = shadow() && !(shadow() in SHADOW_MAP) ? shadow() : undefined;
 
   return (
     <Show when={open()}>

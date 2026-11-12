@@ -40,7 +40,7 @@ function ReplayPageContent(
       w="100%"
       h="100%"
       mih={0}
-      style={{ display: "flex", flexDirection: "column", overflow: "hidden", backgroundColor: palette.BG }}
+      style={{ display: "flex", "flex-direction": "column", overflow: "hidden", "background-color": palette.BG }}
       data-testid="replay-page"
     >
       <ToolbarRow
@@ -51,7 +51,7 @@ function ReplayPageContent(
         <Title order={2} size="h4">
           Replay Trading Day
         </Title>
-        <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <Text size="sm" c="dimmed" style={{ "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }}>
           Simulate paper trading using historical candles
         </Text>
       </ToolbarRow>
@@ -77,11 +77,11 @@ function ReplayPageContent(
         />
       </Box>
       {state.openPositions.length > 0 && (
-        <Box flex="0 0 auto" px="sm" py="xs" style={{ borderBottom: `1px solid ${palette.BORDER}`, overflow: "auto", maxHeight: 180 }}>
+        <Box flex="0 0 auto" px="sm" py="xs" style={{ borderBottom: `1px solid ${palette.BORDER}`, overflow: "auto", "max-height": 180 }}>
           <ReplayPositions positions={state.openPositions} />
         </Box>
       )}
-      <Box flex="1" mih={0} miw={0} px="sm" py="xs" style={{ overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <Box flex="1" mih={0} miw={0} px="sm" py="xs" style={{ overflow: "hidden", display: "flex", "flex-direction": "column" }}>
         <ReplayMainView
           candlesBySymbol={state.candlesBySymbol}
           trades={state.trades}
@@ -109,7 +109,7 @@ function ReplayPageContent(
         />
       </Box>
       {state.summary && (
-        <Box flex="0 0 auto" px="sm" py="xs" style={{ borderTop: `1px solid ${palette.BORDER}`, overflow: "auto", maxHeight: 180 }}>
+        <Box flex="0 0 auto" px="sm" py="xs" style={{ borderTop: `1px solid ${palette.BORDER}`, overflow: "auto", "max-height": 180 }}>
           <ReplaySummaryPanel summary={state.summary} />
         </Box>
       )}

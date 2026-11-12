@@ -218,7 +218,7 @@ function OptionColumn({
 
   const tooltipContent = (
     <Box p="xs">
-      <Group justify="space-between" style={{ marginBottom: 40 }}>
+      <Group justify="space-between" style={{ "margin-bottom": 40 }}>
         <Text size="sm" fw={700}>
           {contract.trading_symbol}
         </Text>
@@ -233,14 +233,14 @@ function OptionColumn({
       <Text size="sm" c={getPnLTextColor(oiChange)}>
         OI Change %: {oiChangePct.toFixed(2)}%
       </Text>
-        <Box style={{ marginTop: 40, paddingTop: 40 }}>
+        <Box style={{ "margin-top": 40, "padding-top": 40 }}>
         <Text size="sm">Delta: {delta.toFixed(3)}</Text>
         <Text size="sm">Theta: {(g?.theta ?? 0).toFixed(2)}</Text>
         <Text size="sm">Gamma: {(g?.gamma ?? 0).toFixed(5)}</Text>
         <Text size="sm">Vega: {(g?.vega ?? 0).toFixed(2)}</Text>
         <Text size="sm">IV: {iv.toFixed(2)}%</Text>
       </Box>
-      <Box style={{ marginTop: 40, paddingTop: 40 }}>
+      <Box style={{ "margin-top": 40, "padding-top": 40 }}>
         <Text size="sm">
           Bid: {m?.bid_price} | Ask: {m?.ask_price}
         </Text>
@@ -275,9 +275,9 @@ function OptionColumn({
         const cellStyle: CSSProperties = {
           ...(styles.cell as CSSProperties),
           position: "relative",
-          fontWeight: cell.fw,
+          "font-weight": cell.fw,
           background: cellPalette.background as string,
-          boxShadow: cellPalette.shadow,
+          "box-shadow": cellPalette.shadow,
           color: cell.c ? undefined : cellPalette.text,
         };
 
@@ -303,8 +303,8 @@ function OptionColumn({
                     [type === "CE" ? "right" : "left"]: 0,
                     width: `${oiBarPct}%`,
                     background: `linear-gradient(180deg, ${hexToRgba(cellPalette.accent, 0.22)} 0%, ${hexToRgba(cellPalette.accent, 0.08)} 100%)`,
-                    borderRadius: type === "CE" ? "999px 0 0 999px" : "0 999px 999px 0",
-                    zIndex: 0,
+                    "border-radius": type === "CE" ? "999px 0 0 999px" : "0 999px 999px 0",
+                    "z-index": 0,
                     transition: "width 0.35s ease",
                   }}
                 />
@@ -321,14 +321,14 @@ function OptionColumn({
                     [type === "CE" ? "right" : "left"]: 0,
                     width: `${volBarPct}%`,
                     background: `linear-gradient(180deg, ${hexToRgba(cellPalette.accent, 0.22)} 0%, ${hexToRgba(cellPalette.accent, 0.08)} 100%)`,
-                    borderRadius: type === "CE" ? "999px 0 0 999px" : "0 999px 999px 0",
-                    zIndex: 0,
+                    "border-radius": type === "CE" ? "999px 0 0 999px" : "0 999px 999px 0",
+                    "z-index": 0,
                     transition: "width 0.35s ease",
                   }}
                 />
               )}
 
-              <Stack gap={0} align="center" w="100%" style={{ zIndex: 1 }}>
+              <Stack gap={0} align="center" w="100%" style={{ "z-index": 1 }}>
                 <Group gap={4} wrap="nowrap" align="center" justify="center">
                   <Text
                     size="sm"
@@ -347,7 +347,7 @@ function OptionColumn({
                       variant="light"
                       color={cell.badge.color}
                       px={4}
-                      style={{ fontSize: "10px", height: 14 }}
+                      style={{ "font-size": "10px", height: 14 }}
                     >
                       {cell.badge.label}
                     </Badge>
@@ -355,7 +355,7 @@ function OptionColumn({
                 </Group>
 
                 {cell.isLTP && (
-                  <Box style={{ width: "72%", marginTop: 12 }}>
+                  <Box style={{ width: "72%", "margin-top": 12 }}>
                     <Progress
                       value={clamp(Math.abs(delta) * 100, 0, 100)}
                       size={3}
@@ -486,10 +486,10 @@ function OptionChainTableInner({
 
       <div
         ref={viewportRef}
-        style={{ flex: 1, minHeight: 0, overflow: "auto" }}
+        style={{ flex: 1, "min-height": 0, overflow: "auto" }}
         data-testid="options-chain-table-scrollarea"
       >
-        <Box style={{ minWidth: 800, paddingBottom: 152 } as CSSProperties}>
+        <Box style={{ "min-width": 800, "padding-bottom": 152 } as CSSProperties}>
           {visibleRows.map(({ strike, ce, pe, index }) => {
             const isATM = index === atmIndex && atmIndex >= 0;
             const isHovered = hoveredStrike === strike;
@@ -517,7 +517,7 @@ function OptionChainTableInner({
               background: `linear-gradient(90deg, ${rowCallBg} 0%, transparent 37%, ${isATM ? `rgba(240, 136, 62, ${0.12 + proximity * 0.12})` : "transparent"} 50%, transparent 63%, ${rowPutBg} 100%)`,
             };
             if (isHovered) {
-              rowStyle.boxShadow = `inset 0 0 0 1px rgba(240, 136, 62, 0.5), 0 6px 16px rgba(0, 0, 0, 0.08)`;
+              rowStyle["box-shadow"] = `inset 0 0 0 1px rgba(240, 136, 62, 0.5), 0 6px 16px rgba(0, 0, 0, 0.08)`;
             }
 
             return (
@@ -553,7 +553,7 @@ function OptionChainTableInner({
                     ...(isATM ? (styles.atmHighlight as CSSProperties) : {}),
                     ...(isHovered
                       ? {
-                          boxShadow: `inset 0 0 0 1px rgba(240, 136, 62, 0.45), 0 8px 22px rgba(0, 0, 0, 0.08)`,
+                          "box-shadow": `inset 0 0 0 1px rgba(240, 136, 62, 0.45), 0 8px 22px rgba(0, 0, 0, 0.08)`,
                         }
                       : undefined),
                   } as CSSProperties}
@@ -580,14 +580,14 @@ function OptionChainTableInner({
                       display: "flex",
                       width: "100%",
                       height: 4,
-                      borderRadius: 4,
+                      "border-radius": 4,
                       overflow: "hidden",
-                      marginTop: 8,
-                      backgroundColor: palette.BORDER,
+                      "margin-top": 8,
+                      "background-color": palette.BORDER,
                     }}
                   >
-                    <Box style={{ width: `${ceSharePct}%`, backgroundColor: palette.POSITIVE }} />
-                    <Box style={{ width: `${100 - ceSharePct}%`, backgroundColor: palette.NEGATIVE }} />
+                    <Box style={{ width: `${ceSharePct}%`, "background-color": palette.POSITIVE }} />
+                    <Box style={{ width: `${100 - ceSharePct}%`, "background-color": palette.NEGATIVE }} />
                   </Box>
                 </Box>
 

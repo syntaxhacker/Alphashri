@@ -62,13 +62,13 @@ const smcIfvg: ReplayStrategyPlugin = {
           size: "small",
           key: "momentum",
           children: `MOMENTUM ${netStack("inv") > 0 ? "+" : ""}${netStack("inv").toFixed(1)}`,
-          style: { backgroundColor: "#1F2937", color: palette.PRIMARY, border: `1px solid ${stackColor("inv")}` },
+          style: { "background-color": "#1F2937", color: palette.PRIMARY, border: `1px solid ${stackColor("inv")}` },
         }),
         createElement(Chip, {
           size: "small",
           key: "reversion",
           children: `REVERSION ${netStack("retest") > 0 ? "+" : ""}${netStack("retest").toFixed(1)}`,
-          style: { backgroundColor: "#1F2937", color: "#CE9BFC", border: `1px solid ${stackColor("retest")}` },
+          style: { "background-color": "#1F2937", color: "#CE9BFC", border: `1px solid ${stackColor("retest")}` },
         }),
       ]),
     );

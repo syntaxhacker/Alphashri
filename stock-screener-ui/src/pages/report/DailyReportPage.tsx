@@ -312,7 +312,7 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
 
   return (
     <Box data-testid="daily-report" className="flex flex-col gap-1 min-w-0 w-full flex-1 tabular-nums">
-      <ToolbarRow gap={8} data-testid="daily-report-toolbar" style={{ minHeight: 36, position: "sticky", top: 0, zIndex: 10, backgroundColor: "var(--color-fin-surface)" }}>
+      <ToolbarRow gap={8} data-testid="daily-report-toolbar" style={{ "min-height": 36, position: "sticky", top: 0, "z-index": 10, "background-color": "var(--color-fin-surface)" }}>
         <Text size="sm" fw={700} span data-testid="report-title" className="whitespace-nowrap">
           Daily Report
         </Text>
@@ -431,7 +431,7 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
               </Tab>
             </TabsList>
           </Box>
-          <TabsPanel value="scan" keepMounted data-testid="report-tab-panel-scan" style={{ paddingTop: 4, paddingBottom: 4 }}>
+          <TabsPanel value="scan" keepMounted data-testid="report-tab-panel-scan" style={{ "padding-top": 4, "padding-bottom": 4 }}>
             <Box className="flex flex-col gap-1 min-w-0">
           {dailyLoading ? (
             <Box className="flex flex-col gap-1 w-full min-w-0" data-testid="report-daily-loading">
@@ -491,7 +491,7 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
           )}
             </Box>
           </TabsPanel>
-          <TabsPanel value="moves" keepMounted data-testid="report-tab-panel-moves" style={{ paddingTop: 4, paddingBottom: 4 }}>
+          <TabsPanel value="moves" keepMounted data-testid="report-tab-panel-moves" style={{ "padding-top": 4, "padding-bottom": 4 }}>
             <Box className="flex flex-col gap-1 min-w-0">
               {dailyLoading ? (
                 <Box className="flex flex-col gap-1 w-full min-w-0" data-testid="report-moves-loading">
@@ -516,7 +516,7 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
               )}
             </Box>
           </TabsPanel>
-          <TabsPanel value="breakouts" keepMounted data-testid="report-tab-panel-breakouts" style={{ paddingTop: 4, paddingBottom: 4 }}>
+          <TabsPanel value="breakouts" keepMounted data-testid="report-tab-panel-breakouts" style={{ "padding-top": 4, "padding-bottom": 4 }}>
             <Box className="flex flex-col gap-1 min-w-0">
           {breakoutLoading ? (
             <Box className="flex flex-col gap-1 w-full min-w-0" data-testid="report-breakouts-loading">
@@ -581,7 +581,7 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
           )}
             </Box>
           </TabsPanel>
-          <TabsPanel value="followthrough" keepMounted data-testid="report-tab-panel-followthrough" style={{ paddingTop: 4, paddingBottom: 4 }}>
+          <TabsPanel value="followthrough" keepMounted data-testid="report-tab-panel-followthrough" style={{ "padding-top": 4, "padding-bottom": 4 }}>
             <Box className="flex flex-col gap-1 min-w-0">
           <ReportDeliveryStrip data={delivery} loading={deliveryLoading} error={deliveryError} onOpenSymbol={onOpenSymbol} />
           {followLoading ? (
@@ -625,7 +625,7 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
           )}
             </Box>
           </TabsPanel>
-          <TabsPanel value="events" keepMounted data-testid="report-tab-panel-events" style={{ paddingTop: 4, paddingBottom: 4 }}>
+          <TabsPanel value="events" keepMounted data-testid="report-tab-panel-events" style={{ "padding-top": 4, "padding-bottom": 4 }}>
             <Box className="flex flex-col gap-1 min-w-0">
               <EventWatch universe={universe} daily={daily} onOpenSymbol={onOpenSymbol} />
               <ReportEventsStrip data={events} loading={eventsLoading} error={eventsError} onOpenSymbol={onOpenSymbol} />

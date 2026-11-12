@@ -14,22 +14,22 @@ export const typeConfig = {
   success: {
     icon: "✓",
     color: palette.POSITIVE,
-    borderColor: palette.POSITIVE,
+    "border-color": palette.POSITIVE,
   },
   error: {
     icon: "✕",
     color: palette.NEGATIVE,
-    borderColor: palette.NEGATIVE,
+    "border-color": palette.NEGATIVE,
   },
   warning: {
     icon: "⚠",
     color: palette.WARNING,
-    borderColor: palette.WARNING,
+    "border-color": palette.WARNING,
   },
   info: {
     icon: "ℹ",
     color: palette.INFO,
-    borderColor: palette.INFO,
+    "border-color": palette.INFO,
   },
 };
 
@@ -57,14 +57,14 @@ export function NotificationItem({ notification, onDismiss }: NotificationItemPr
       style={{
         padding: "12px 16px",
         borderLeft: `3px solid ${config.borderColor}`,
-        borderRadius: 8,
-        boxShadow: `0 4px 12px ${withAlpha(palette.BG, 0.08)}`,
+        "border-radius": 8,
+        "box-shadow": `0 4px 12px ${withAlpha(palette.BG, 0.08)}`,
       }}
     >
-      <Box aria-hidden="true" style={{ lineHeight: 1.5, color: config.color }}>
+      <Box aria-hidden="true" style={{ "line-height": 1.5, color: config.color }}>
         {config.icon}
       </Box>
-      <Text size="sm" data-testid="notification-message" style={{ flex: 1, minWidth: 0 }}>
+      <Text size="sm" data-testid="notification-message" style={{ flex: 1, "min-width": 0 }}>
         {notification.message}
       </Text>
       <ActionIcon size="sm" onClick={() => onDismiss(notification.id)} aria-label="Dismiss notification" data-testid="notification-dismiss-btn" variant="transparent">

@@ -47,7 +47,7 @@ export function PayoffChart({
       ...bes.map((be) => ({
         xAxis: be,
         lineStyle: { color: CHART_AVG_ENTRY, type: "dotted" },
-        label: { formatter: String(be), fontSize: 10 },
+        label: { formatter: String(be), "font-size": 10 },
       })),
     ];
     const markPointData =
@@ -62,7 +62,7 @@ export function PayoffChart({
           ];
     void setChartOption({
       animation: false,
-      backgroundColor: "transparent",
+      "background-color": "transparent",
       tooltip: {
         trigger: "axis",
         formatter: (params: unknown) => {
@@ -97,8 +97,8 @@ export function PayoffChart({
           height,
           width: "100%",
           display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          "align-items": "center",
+          "justify-content": "center",
         }}
       >
         <Text size="sm" className="text-fin-text-muted">

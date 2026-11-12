@@ -52,19 +52,19 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
   }, [strikeMatrix]);
 
   const distributionOption = {
-    backgroundColor: "transparent",
+    "background-color": "transparent",
     tooltip: {
       trigger: "axis",
       axisPointer: { type: "shadow" },
-      backgroundColor: isDark ? CHART_DROPDOWN : palette.SURFACE,
+      "background-color": isDark ? CHART_DROPDOWN : palette.SURFACE,
       textStyle: {
         color: isDark ? palette.TEXT : palette.TEXT,
-        fontSize: 12,
+        "font-size": 12,
       },
     },
     legend: {
       data: ["Call OI Chg", "Put OI Chg"],
-      textStyle: { color: palette.TEXT_MUTED, fontSize: 12 },
+      textStyle: { color: palette.TEXT_MUTED, "font-size": 12 },
       bottom: 0,
     },
     grid: { top: 10, left: 60, right: 20, bottom: 40 },
@@ -72,7 +72,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
     yAxis: {
       type: "category",
       data: analysisData.chartData.map((d) => d.strike),
-      axisLabel: { color: palette.TEXT_MUTED, fontSize: 12, fontWeight: fontWeights.semibold },
+      axisLabel: { color: palette.TEXT_MUTED, "font-size": 12, "font-weight": fontWeights.semibold },
       axisLine: { show: false },
       axisTick: { show: false },
     },
@@ -84,7 +84,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
         label: { show: false },
         emphasis: { focus: "series" },
         data: analysisData.chartData.map((d) => -Math.abs(d.ceChange)),
-        itemStyle: { color: palette.POSITIVE, borderRadius: [2, 0, 0, 2] },
+        itemStyle: { color: palette.POSITIVE, "border-radius": [2, 0, 0, 2] },
       },
       {
         name: "Put OI Chg",
@@ -93,7 +93,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
         label: { show: false },
         emphasis: { focus: "series" },
         data: analysisData.chartData.map((d) => Math.abs(d.peChange)),
-        itemStyle: { color: palette.NEGATIVE, borderRadius: [0, 2, 2, 0] },
+        itemStyle: { color: palette.NEGATIVE, "border-radius": [0, 2, 2, 0] },
       },
     ],
   };
@@ -109,7 +109,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
           <Stack spacing={1} className="oi-analysis-left w-full">
             <IVSkewChart strikeMatrix={strikeMatrix} />
             <CompactPanel className="oi-spikes-panel" data-testid="options-oi-spikes-panel">
-              <Text size="xs" fw={800} c="primary" className="mb-2" style={{ letterSpacing: "0.5px" }}>
+              <Text size="xs" fw={800} c="primary" className="mb-2" style={{ "letter-spacing": "0.5px" }}>
                 🔥 INTENSITY (OI SPIKES)
               </Text>
               <Stack spacing={1} className="oi-spikes-list" data-testid="options-oi-spikes-list">
@@ -150,7 +150,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
         <div className="flex justify-center">
           <Stack spacing={1} className="oi-analysis-right w-full">
             <CompactPanel className="oi-distribution-panel" data-testid="options-oi-distribution-panel">
-              <Text size="xs" fw={800} c="primary" className="mb-2" style={{ letterSpacing: "0.5px" }}>
+              <Text size="xs" fw={800} c="primary" className="mb-2" style={{ "letter-spacing": "0.5px" }}>
                 📊 OI CHANGE DISTRIBUTION
               </Text>
               <ReactECharts
@@ -166,7 +166,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
                   <Text fw={800} size="sm">
                     MARKET CONTEXT
                   </Text>
-                  <Text size="sm" className="mt-1" style={{ lineHeight: 1.5 }}>
+                  <Text size="sm" className="mt-1" style={{ "line-height": 1.5 }}>
                     Aggressive position building seen at{" "}
                     <Text span fw={800} c="warning">
                       {analysisData.spikes[0]?.strike}

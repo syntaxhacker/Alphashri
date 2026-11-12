@@ -75,7 +75,7 @@ function LegBar({
         span
         fw={700}
         c="dimmed"
-        style={{ width: 22, flexShrink: 0, fontSize: 10 }}
+        style={{ width: 22, "flex-shrink": 0, "font-size": 10 }}
       >
         {leg.toUpperCase()}
       </Text>
@@ -83,14 +83,14 @@ function LegBar({
         data-testid={`nifty-participant-flow-bar-${leg}`}
         title={`${leg.toUpperCase()} writers ${formatFlowRupees(writers)} · buyers ${formatFlowRupees(buyers)} · cover ${formatFlowRupees(cover)}`}
         className="flex-1 min-w-0 h-[10px] rounded-[8px] overflow-hidden flex items-stretch"
-        style={{ backgroundColor: "rgba(139, 148, 158, 0.15)" }}
+        style={{ "background-color": "rgba(139, 148, 158, 0.15)" }}
       >
         {!empty && shares.writers > 0 ? (
           <span
             data-testid={`nifty-participant-flow-${leg}-writers`}
             data-pct={Math.round(shares.writers)}
             className="block"
-            style={{ width: `${shares.writers}%`, backgroundColor: palette.NEGATIVE }}
+            style={{ width: `${shares.writers}%`, "background-color": palette.NEGATIVE }}
           />
         ) : null}
         {!empty && shares.buyers > 0 ? (
@@ -98,7 +98,7 @@ function LegBar({
             data-testid={`nifty-participant-flow-${leg}-buyers`}
             data-pct={Math.round(shares.buyers)}
             className="block"
-            style={{ width: `${shares.buyers}%`, backgroundColor: palette.POSITIVE }}
+            style={{ width: `${shares.buyers}%`, "background-color": palette.POSITIVE }}
           />
         ) : null}
         {!empty && shares.cover > 0 ? (
@@ -106,7 +106,7 @@ function LegBar({
             data-testid={`nifty-participant-flow-${leg}-cover`}
             data-pct={Math.round(shares.cover)}
             className="block"
-            style={{ width: `${shares.cover}%`, backgroundColor: palette.TERM_GAMMA }}
+            style={{ width: `${shares.cover}%`, "background-color": palette.TERM_GAMMA }}
           />
         ) : null}
       </Box>
@@ -186,7 +186,7 @@ function NiftyParticipantFlowInner({ rows, bucketMin = 30 }: NiftyParticipantFlo
                 component="span"
                 aria-hidden
                 className="block w-[8px] h-[8px] rounded-[8px]"
-                style={{ backgroundColor: e.color }}
+                style={{ "background-color": e.color }}
               />
               <Text size="xs" span c="dimmed">
                 {e.name}

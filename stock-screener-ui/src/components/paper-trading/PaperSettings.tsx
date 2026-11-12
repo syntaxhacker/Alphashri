@@ -107,7 +107,7 @@ function SettingsSection({
 }) {
   return (
     <section className="p-2 rounded-[2px] bg-fin-surface border border-fin-border h-full flex flex-col">
-      <Text size="sm" fw={700} c="secondary" className="mb-3 uppercase" style={{ letterSpacing: "0.06em" }} data-testid={testId}>
+      <Text size="sm" fw={700} c="secondary" className="mb-3 uppercase" style={{ "letter-spacing": "0.06em" }} data-testid={testId}>
         {title}
       </Text>
       <div className="flex-1 min-h-0">{children}</div>
@@ -147,7 +147,7 @@ function SettingsContent({
 
         <div className="flex justify-between items-start gap-4 flex-wrap">
           <div className="min-w-0">
-            <Text fw={700} size="sm" style={{ lineHeight: 1.2 }}>
+            <Text fw={700} size="sm" style={{ "line-height": 1.2 }}>
               Strategy Configuration
             </Text>
             <Text size="xs" c="secondary">

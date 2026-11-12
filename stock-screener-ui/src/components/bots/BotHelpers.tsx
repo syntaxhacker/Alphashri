@@ -74,7 +74,7 @@ export function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummar
           <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Positions</Text>
           <Text fw={600} className="flex flex-1 items-center justify-end text-right">{portfolio.total_positions}</Text>
         </Box>
-        <Box className="flex w-full items-center justify-between gap-2 rounded p-2" style={{ backgroundColor: pnlBg }}>
+        <Box className="flex w-full items-center justify-between gap-2 rounded p-2" style={{ "background-color": pnlBg }}>
           <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Total P&L</Text>
           <Box className="flex flex-1 items-center justify-end">
             <Text fw={600} c={pnlColor} ta="center">
@@ -414,7 +414,7 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
         data={trades}
         columns={columns}
         dataTestId="bot-trades-table"
-        getRowStyle={(row) => row.is_test ? { backgroundColor: TINT_TEST_TRADE } : undefined}
+        getRowStyle={(row) => row.is_test ? { "background-color": TINT_TEST_TRADE } : undefined}
       />
     </Card>
   );

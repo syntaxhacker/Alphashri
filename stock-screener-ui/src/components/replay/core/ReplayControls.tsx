@@ -68,8 +68,8 @@ export default function ReplayControls({
       <Text size="xs" className="font-mono" style={{ color: "#E5E7EB" }}>
         {clock > 0 ? fmtClock(clock) : "--:--:--"} · {closedCount}/{revealedCount} closed · net {net > 0 ? "+" : ""}{net.toFixed(1)}
       </Text>
-      {loading && <Chip size="small" children="loading ticks…" style={{ backgroundColor: "#1F2937", color: palette.PRIMARY }} />}
-      {error && <Chip size="small" children={error} style={{ backgroundColor: "#3B1D1D", color: "#F87171" }} />}
+      {loading && <Chip size="small" children="loading ticks…" style={{ "background-color": "#1F2937", color: palette.PRIMARY }} />}
+      {error && <Chip size="small" children={error} style={{ "background-color": "#3B1D1D", color: "#F87171" }} />}
     </Stack>
   );
 }

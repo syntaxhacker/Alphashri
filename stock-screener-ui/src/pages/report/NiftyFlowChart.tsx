@@ -52,9 +52,9 @@ const GammaBars = memo(function GammaBars({ points, cellW, path, zeroY, flips }:
   return (
     <>
       {/* zero line */}
-      <line x1={PAD_L} x2={PAD_L + (VB_W - PAD_L - PAD_R)} y1={zeroY} y2={zeroY} stroke={palette.TERM_BORDER} strokeWidth={0.8} />
+      <line x1={PAD_L} x2={PAD_L + (VB_W - PAD_L - PAD_R)} y1={zeroY} y2={zeroY} stroke={palette.TERM_BORDER} stroke-width={0.8} />
       {/* cumulative flow */}
-      <path d={path} fill="none" stroke={palette.PRIMARY} strokeWidth={1.1} opacity={0.95} />
+      <path d={path} fill="none" stroke={palette.PRIMARY} stroke-width={1.1} opacity={0.95} />
       {/* gamma regime strip */}
       {points.map((p, i) => (
         <rect
@@ -80,7 +80,7 @@ const GammaBars = memo(function GammaBars({ points, cellW, path, zeroY, flips }:
             y1={GEX_TOP - 1}
             y2={GEX_TOP + GEX_H + 1}
             stroke={palette.TEXT}
-            strokeWidth={0.6}
+            stroke-width={0.6}
             opacity={0.8}
           />
         );
@@ -125,7 +125,7 @@ const NiftyFlowChartInner = function NiftyFlowChart({ series, height = 64, showA
   if (points.length === 0) {
     return (
       <Box data-testid="nifty-flowchart-empty" className="flex items-center justify-center" style={{ height }}>
-        <span style={{ fontSize: "9px", color: palette.TEXT_MUTED }}>no flow tape</span>
+        <span style={{ "font-size": "9px", color: palette.TEXT_MUTED }}>no flow tape</span>
       </Box>
     );
   }
@@ -154,7 +154,7 @@ const NiftyFlowChartInner = function NiftyFlowChart({ series, height = 64, showA
     <Box data-testid="nifty-flowchart" className="w-full min-w-0 relative">
       <span
         aria-hidden
-        style={{ position: "absolute", left: 0, top: 0, fontSize: "8px", letterSpacing: "0.06em", color: palette.TEXT_MUTED, pointerEvents: "none" }}
+        style={{ position: "absolute", left: 0, top: 0, "font-size": "8px", "letter-spacing": "0.06em", color: palette.TEXT_MUTED, "pointer-events": "none" }}
       >
         FLOW
       </span>
@@ -172,13 +172,13 @@ const NiftyFlowChartInner = function NiftyFlowChart({ series, height = 64, showA
       >
         <GammaBars points={points} cellW={cellW} path={path} zeroY={zeroY} flips={series.flips} />
         {hoverPoint ? (
-          <line x1={xOf(hover!)} x2={xOf(hover!)} y1={2} y2={FLOW_H} stroke={palette.TEXT} strokeWidth={0.5} opacity={0.85} />
+          <line x1={xOf(hover!)} x2={xOf(hover!)} y1={2} y2={FLOW_H} stroke={palette.TEXT} stroke-width={0.5} opacity={0.85} />
         ) : null}
       </svg>
       <span
         data-testid="nifty-flowchart-last"
         title={`${points[points.length - 1].t} · flow ${series.points[points.length - 1].net.toFixed(2)}`}
-        style={{ position: "absolute", right: 0, top: "2px", fontSize: "9px", fontWeight: 800, fontFamily: palette.MONO, color: palette.PRIMARY, whiteSpace: "nowrap" }}
+        style={{ position: "absolute", right: 0, top: "2px", "font-size": "9px", "font-weight": 800, fontFamily: palette.MONO, color: palette.PRIMARY, "white-space": "nowrap" }}
       >
         {fmtFlow(points[points.length - 1].net)}
       </span>
@@ -188,22 +188,22 @@ const NiftyFlowChartInner = function NiftyFlowChart({ series, height = 64, showA
           className="absolute z-2"
           style={{
             top: 0, left: `${hoverPct}%`, transform: shift,
-            paddingLeft: "4px", paddingRight: "4px", paddingTop: "1px", paddingBottom: "1px",
-            backgroundColor: palette.TERM_HEADER,
-            border: `1px solid ${palette.TERM_BORDER}`, borderRadius: "3px",
-            fontSize: "9px", fontFamily: palette.MONO, color: palette.TEXT, whiteSpace: "nowrap", pointerEvents: "none",
+            "padding-left": "4px", "padding-right": "4px", "padding-top": "1px", "padding-bottom": "1px",
+            "background-color": palette.TERM_HEADER,
+            border: `1px solid ${palette.TERM_BORDER}`, "border-radius": "3px",
+            "font-size": "9px", fontFamily: palette.MONO, color: palette.TEXT, "white-space": "nowrap", "pointer-events": "none",
           }}
         >
           {hoverPoint.t} · flow {fmtFlow(hoverPoint.net)} · {hoverPoint.regime ?? "—"} book Γ
         </Box>
       ) : null}
       {showAxis ? (
-        <Box data-testid="nifty-flowchart-axis" className="relative w-full" style={{ height: "12px", marginTop: "1px", pointerEvents: "none" }}>
+        <Box data-testid="nifty-flowchart-axis" className="relative w-full" style={{ height: "12px", "margin-top": "1px", "pointer-events": "none" }}>
           {axisTicks(points).map(({ i, t }) => {
             const pct = (xOf(i) / VB_W) * 100;
             const tr = pct > 92 ? "translateX(-100%)" : pct < 2 ? "none" : "translateX(-50%)";
             return (
-              <span key={`${t}-${i}`} style={{ position: "absolute", left: `${pct}%`, transform: tr, fontSize: "8px", lineHeight: "12px", color: palette.TEXT_MUTED, fontFamily: palette.MONO, whiteSpace: "nowrap" }}>
+              <span key={`${t}-${i}`} style={{ position: "absolute", left: `${pct}%`, transform: tr, "font-size": "8px", "line-height": "12px", color: palette.TEXT_MUTED, fontFamily: palette.MONO, "white-space": "nowrap" }}>
                 {t}
               </span>
             );

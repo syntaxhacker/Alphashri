@@ -47,7 +47,7 @@ export function SectorBetaChart({
     const betas = sectors.map((s) => s.beta_vs_index);
 
     setChartOption({
-      backgroundColor: "transparent",
+      "background-color": "transparent",
       tooltip: {
         trigger: "axis" as const,
         formatter: (p: any) => `${p.name}<br/>Beta: ${(p.value ?? 0).toFixed(3)}`,
@@ -56,7 +56,7 @@ export function SectorBetaChart({
       xAxis: {
         type: "category" as const,
         data: names,
-        axisLabel: { rotate: 45, fontSize: 10, color: colors.axisLabel },
+        axisLabel: { rotate: 45, "font-size": 10, color: colors.axisLabel },
         axisLine: { lineStyle: { color: colors.axisLine } },
       },
       yAxis: {
@@ -76,7 +76,7 @@ export function SectorBetaChart({
           label: {
             show: true,
             position: "top" as const,
-            fontSize: 10,
+            "font-size": 10,
             color: (p: any) => (p.value >= 1 || p.value <= 0 ? CREAM : BROWN_DARK),
             formatter: (p: any) => p.value.toFixed(2),
           },
@@ -85,7 +85,7 @@ export function SectorBetaChart({
       graphic: {
         type: "line",
         shape: { x1: 0, y1: "50%", x2: "100%", y2: "50%" },
-        style: { stroke: INDICATOR_LINE, lineDash: [4, 4], lineWidth: 1 },
+        style: { "stroke": INDICATOR_LINE, lineDash: [4, 4], lineWidth: 1 },
       },
     });
   }, [sectors, setChartOption]);
@@ -120,7 +120,7 @@ export function RotationTimeline({
     const barColors = changes.map((c) => (c > 0 ? SECTOR_STRONG_GREEN : c < 0 ? SECTOR_STRONG_RED : TEXT_MUTED));
 
     setChartOption({
-      backgroundColor: "transparent",
+      "background-color": "transparent",
       tooltip: {
         trigger: "axis" as const,
         formatter: (p: any) => `${p.name}<br/>Rank Change: ${p.value > 0 ? "+" : ""}${p.value}`,
@@ -129,7 +129,7 @@ export function RotationTimeline({
       xAxis: {
         type: "category" as const,
         data: names,
-        axisLabel: { rotate: 45, fontSize: 10, color: colors.axisLabel },
+        axisLabel: { rotate: 45, "font-size": 10, color: colors.axisLabel },
         axisLine: { lineStyle: { color: colors.axisLine } },
       },
       yAxis: {
@@ -147,7 +147,7 @@ export function RotationTimeline({
           label: {
             show: true,
             position: "top" as const,
-            fontSize: 10,
+            "font-size": 10,
             color: CREAM,
             formatter: (p: any) => (p.value > 0 ? `+${p.value}` : p.value.toString()),
           },

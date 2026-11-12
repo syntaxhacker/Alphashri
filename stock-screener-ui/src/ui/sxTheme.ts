@@ -30,7 +30,7 @@ export const sxTheme = {
       900: palette.SCALE_GRAY[9],
     },
   },
-  shape: { borderRadius: 8 },
+  shape: { "border-radius": 8 },
   spacing: (n: number) => `${n * 8}px`,
   breakpoints: {
     values: BREAKPOINTS,
@@ -39,7 +39,7 @@ export const sxTheme = {
   },
   typography: {
     fontFamily: palette.MONO,
-    fontSize: 12,
+    "font-size": 12,
     fontWeightRegular: 400,
     fontWeightMedium: 500,
     fontWeightBold: 700,

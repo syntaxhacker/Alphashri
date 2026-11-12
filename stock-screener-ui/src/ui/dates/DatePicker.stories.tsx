@@ -20,7 +20,7 @@ export const Default: Story = {
     return (
       <Stack gap="xs" w={280}>
         <DatePicker value={value()} onChange={setValue} placeholder="Pick a date" />
-        <span style={{ fontSize: "12px" }}>
+        <span style={{ "font-size": "12px" }}>
           Selected: {selectedLabel()}
         </span>
       </Stack>
@@ -52,7 +52,7 @@ export const WithValueFormat: Story = {
     return (
       <Stack gap="xs" w={280}>
         <DatePicker value={value()} onChange={setValue} valueFormat="DD MMM YYYY" clearable />
-        <span style={{ fontSize: "12px" }}>Formatted: {formatted()}</span>
+        <span style={{ "font-size": "12px" }}>Formatted: {formatted()}</span>
       </Stack>
     );
   },

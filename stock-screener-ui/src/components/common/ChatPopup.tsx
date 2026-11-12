@@ -89,11 +89,11 @@ const mdComponents = {
     </Title>
   ),
   p: ({ children }: any) => (
-    <Text size="sm" mb={2} style={{ lineHeight: 1.5 }}>
+    <Text size="sm" mb={2} style={{ "line-height": 1.5 }}>
       {children}
     </Text>
   ),
-  code: ({ children }: any) => <Code style={{ fontSize: 11 }}>{children}</Code>,
+  code: ({ children }: any) => <Code style={{ "font-size": 11 }}>{children}</Code>,
   a: ({ href, children }: any) => (
     <Anchor href={href} size="sm">
       {children}
@@ -122,7 +122,7 @@ const mdComponents = {
   table: ({ children }: any) => (
     <Box
       component="table"
-      style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, marginBottom: 4 }}
+      style={{ width: "100%", borderCollapse: "collapse", "font-size": 11, "margin-bottom": 4 }}
     >
       {children}
     </Box>
@@ -365,8 +365,8 @@ export function ChatPopup() {
           position: "fixed",
           bottom: 20,
           right: 20,
-          zIndex: 1000,
-          boxShadow: `0 4px 12px ${withAlpha(BLACK, 0.15)}`,
+          "z-index": 1000,
+          "box-shadow": `0 4px 12px ${withAlpha(BLACK, 0.15)}`,
         }}
         data-testid="chat-popup-toggle"
       >
@@ -381,16 +381,16 @@ export function ChatPopup() {
             bottom: expanded ? 10 : 90,
             right: expanded ? 10 : 20,
             width: expanded ? "calc(100vw - 280px)" : 400,
-            maxWidth: expanded ? 900 : 400,
+            "max-width": expanded ? 900 : 400,
             height: expanded ? "calc(100vh - 20px)" : 520,
-            zIndex: 1000,
+            "z-index": 1000,
             display: "flex",
-            flexDirection: "column",
+            "flex-direction": "column",
             transition: "all 0.2s ease",
             resize: expanded ? "none" : "both",
             overflow: "auto",
-            minWidth: 320,
-            minHeight: 400,
+            "min-width": 320,
+            "min-height": 400,
           }}
           data-testid="chat-popup-window"
         >
@@ -512,7 +512,7 @@ export function ChatPopup() {
                   <Text size="xs" fw={600} c="dimmed" mb={2}>
                     Tool Calls
                   </Text>
-                  <ScrollArea style={{ maxHeight: 100 }}>
+                  <ScrollArea style={{ "max-height": 100 }}>
                     <Stack gap={2}>
                       {toolCalls.map((tc, i) => (
                         <Group key={`${tc.tool}-${tc.agent}-${i}`} gap={4}>
@@ -549,7 +549,7 @@ export function ChatPopup() {
                     key={msg.id}
                     style={{
                       display: "flex",
-                      justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
+                      "justify-content": msg.role === "user" ? "flex-end" : "flex-start",
                     }}
                   >
                     <Paper
@@ -596,7 +596,7 @@ export function ChatPopup() {
                                   <Text size="xs" fw={600} tt="capitalize">
                                     {section.replace(/_/g, " ")}
                                   </Text>
-                                  <ScrollArea style={{ maxHeight: 200 }} type="hover">
+                                  <ScrollArea style={{ "max-height": 200 }} type="hover">
                                     <ReactMarkdown
                                       components={mdComponents}
                                       remarkPlugins={[remarkGfm]}

@@ -12,7 +12,7 @@ import {
 const STYLE: StockTreemapStyle = {
   borderDark: "#000",
   borderLight: "#fff",
-  label: { fontSize: 10, fontWeight: 600, lineHeight: 13 },
+  label: { "font-size": 10, "font-weight": 600, "line-height": 13 },
   changePositive: "#0a0",
   changeNegative: "#a00",
 };
@@ -35,7 +35,7 @@ const stock: HeatmapStock = {
 
 type Tile = { metricLabel?: string; metricValue?: string };
 type Option = {
-  series: Array<{ data: Tile[]; label: { fontSize: number }; levels: unknown[] }>;
+  series: Array<{ data: Tile[]; label: { "font-size": number }; levels: unknown[] }>;
 };
 
 describe("stockTreemap metric definitions", () => {

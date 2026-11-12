@@ -209,10 +209,10 @@ function NiftyWallMigrationInner({ rows, bucketMin = 15 }: NiftyWallMigrationPro
           aria-label="Call wall, put wall, max pain, ATM and spot over time"
           className="w-full h-[180px] block min-w-0"
         >
-          <text x={4} y={PAD_T + 8} fontSize={9} fill={palette.TEXT_MUTED}>
+          <text x={4} y={PAD_T + 8} font-size={9} fill={palette.TEXT_MUTED}>
             {formatWallStrike(hi)}
           </text>
-          <text x={4} y={SVG_H - PAD_B} fontSize={9} fill={palette.TEXT_MUTED}>
+          <text x={4} y={SVG_H - PAD_B} font-size={9} fill={palette.TEXT_MUTED}>
             {formatWallStrike(lo)}
           </text>
           {buckets.map((b, i) =>
@@ -221,7 +221,7 @@ function NiftyWallMigrationInner({ rows, bucketMin = 15 }: NiftyWallMigrationPro
                 key={b.label}
                 x={xs[i]}
                 y={SVG_H - 4}
-                fontSize={9}
+                font-size={9}
                 fill={palette.TEXT_MUTED}
                 textAnchor="middle"
               >
@@ -236,7 +236,7 @@ function NiftyWallMigrationInner({ rows, bucketMin = 15 }: NiftyWallMigrationPro
               d={stepPath(xs, s.values.map((v) => (v === null ? null : yOf(v))))}
               fill="none"
               stroke={s.color}
-              strokeWidth={s.width}
+              stroke-width={s.width}
               strokeDasharray={s.dash ?? undefined}
               strokeLinejoin="round"
             />
@@ -250,8 +250,8 @@ function NiftyWallMigrationInner({ rows, bucketMin = 15 }: NiftyWallMigrationPro
                 data-testid={`${s.testId}-label`}
                 x={SVG_W - 2}
                 y={Math.min(Math.max(yOf(v) + 3, PAD_T + 6), SVG_H - PAD_B)}
-                fontSize={10}
-                fontWeight={700}
+                font-size={10}
+                font-weight={700}
                 fill={s.color}
                 textAnchor="end"
               >

@@ -64,7 +64,7 @@ function Field({
       <Box
         component="span"
         className="text-[9px] tracking-[0.04em]"
-        style={{ color: palette.TEXT_MUTED, fontSize: 9, letterSpacing: "0.04em" }}
+        style={{ color: palette.TEXT_MUTED, "font-size": 9, "letter-spacing": "0.04em" }}
       >
         {label}
       </Box>
@@ -73,10 +73,10 @@ function Field({
         className="text-[10.5px] font-bold tabular-nums whitespace-nowrap"
         style={{
           color: palette.TEXT,
-          fontSize: 10.5,
-          fontWeight: 700,
+          "font-size": 10.5,
+          "font-weight": 700,
           fontVariantNumeric: "tabular-nums",
-          whiteSpace: "nowrap",
+          "white-space": "nowrap",
         }}
       >
         {value}
@@ -184,15 +184,15 @@ export function NiftyGammaStrip({
         className="flex items-center gap-[6px] h-[24px] min-h-[24px] shrink-0 px-2 cursor-pointer overflow-hidden whitespace-nowrap font-mono tabular-nums"
         style={{
           display: "flex",
-          alignItems: "center",
+          "align-items": "center",
           gap: 6,
           height: STRIP_HEIGHT,
-          minHeight: STRIP_HEIGHT,
-          flexShrink: 0,
+          "min-height": STRIP_HEIGHT,
+          "flex-shrink": 0,
           px: 8,
           border: `1px solid ${palette.TERM_BORDER}`,
-          borderRadius: 4,
-          backgroundColor: palette.TERM_HEADER,
+          "border-radius": 4,
+          "background-color": palette.TERM_HEADER,
           fontFamily: palette.MONO,
           fontVariantNumeric: "tabular-nums",
         }}
@@ -201,7 +201,7 @@ export function NiftyGammaStrip({
           component="span"
           title="Net dealer gamma across the book (₹ Cr per point)"
           className="text-[10.5px] font-bold shrink-0"
-          style={{ color: tone, fontSize: 10.5, fontWeight: 700, flexShrink: 0 }}
+          style={{ color: tone, "font-size": 10.5, "font-weight": 700, "flex-shrink": 0 }}
         >
           Γ {netText}
         </Box>
@@ -216,7 +216,7 @@ export function NiftyGammaStrip({
                 : "Gamma regime flat"
           }
           className="text-[10.5px] font-bold shrink-0"
-          style={{ color: tone, fontSize: 10.5, fontWeight: 700, flexShrink: 0 }}
+          style={{ color: tone, "font-size": 10.5, "font-weight": 700, "flex-shrink": 0 }}
         >
           {regimeLabel}
         </Box>
@@ -253,7 +253,7 @@ export function NiftyGammaStrip({
           component="span"
           aria-hidden
           className="ml-auto text-[10px] shrink-0"
-          style={{ color: palette.TEXT_MUTED, fontSize: 10, flexShrink: 0 }}
+          style={{ color: palette.TEXT_MUTED, "font-size": 10, "flex-shrink": 0 }}
         >
           ▸
         </Box>

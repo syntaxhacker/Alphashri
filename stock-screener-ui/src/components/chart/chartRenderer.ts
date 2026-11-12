@@ -78,7 +78,7 @@ export function buildChartOption(options: ChartRenderOptions): any {
   const bgColor = isDark ? CHART_BG : CHART_LIGHT_BG;
   const textColor = isDark ? CHART_TEXT : CHART_LIGHT_TEXT;
   const mutedColor = isDark ? CHART_MUTED : CHART_LIGHT_MUTED;
-  const borderColor = isDark ? CHART_BORDER : CHART_LIGHT_BORDER;
+  const ["border-color"] = isDark ? CHART_BORDER : CHART_LIGHT_BORDER;
   const splitLineColor = isDark ? CHART_SPLIT : CHART_LIGHT_SPLIT;
   const tooltipBg = isDark ? CHART_OVERLAY : CHART_LIGHT_OVERLAY;
   const dataZoomBg = isDark ? CHART_DATAZOOM_BG : CHART_LIGHT_DATAZOOM_BG;
@@ -99,15 +99,15 @@ export function buildChartOption(options: ChartRenderOptions): any {
 
   // Base configuration
   const chartOption: any = {
-    backgroundColor: bgColor,
+    "background-color": bgColor,
     animation: !isSmall,
     tooltip: {
       trigger: "axis",
       axisPointer: { type: "cross", lineStyle: { color: CHART_CROSSHAIR } },
-      backgroundColor: tooltipBg,
-      borderColor: borderColor,
+      "background-color": tooltipBg,
+      "border-color": borderColor,
       borderWidth: 1,
-      textStyle: { color: textColor, fontSize: isSmall ? fontSizes.sm : fontSizes.md },
+      textStyle: { color: textColor, "font-size": isSmall ? fontSizes.sm : fontSizes.md },
       formatter: (params: any) => formatTooltip(params, candles, isDark),
     },
     grid: {
@@ -126,7 +126,7 @@ export function buildChartOption(options: ChartRenderOptions): any {
         show: !isSmall,
         color: mutedColor,
         rotate: 45,
-        fontSize: fontSizes.sm,
+        "font-size": fontSizes.sm,
         formatter: (value: string) => formatTimeLabel(value),
       },
     },
@@ -137,7 +137,7 @@ export function buildChartOption(options: ChartRenderOptions): any {
       axisLine: { lineStyle: { color: borderColor } },
       axisLabel: {
         color: mutedColor,
-        fontSize: isSmall ? fontSizes.sm : fontSizes.sm,
+        "font-size": isSmall ? fontSizes.sm : fontSizes.sm,
         formatter: (value: number) => "₹" + value.toFixed(0),
       },
     },
@@ -150,7 +150,7 @@ export function buildChartOption(options: ChartRenderOptions): any {
         itemStyle: {
           color: BULLISH, // Bullish
           color0: BEARISH, // Bearish
-          borderColor: BULLISH,
+          "border-color": BULLISH,
           borderColor0: BEARISH,
         },
       },
@@ -233,7 +233,7 @@ export function buildChartOption(options: ChartRenderOptions): any {
     chartOption.title = {
       text: `${symbol}`,
       left: "center",
-      textStyle: { fontSize: isFull ? fontSizes.xl : fontSizes.lg, color: textColor },
+      textStyle: { "font-size": isFull ? fontSizes.xl : fontSizes.lg, color: textColor },
     };
   }
 
@@ -250,7 +250,7 @@ export function buildChartOption(options: ChartRenderOptions): any {
       itemWidth: 14,
       itemHeight: 10,
       itemGap: 8,
-      textStyle: { color: mutedColor, fontSize: fontSizes.sm },
+      textStyle: { color: mutedColor, "font-size": fontSizes.sm },
     };
   }
 
@@ -269,8 +269,8 @@ export function buildChartOption(options: ChartRenderOptions): any {
               start: 0,
               end: 100,
               bottom: 10,
-              borderColor: borderColor,
-              backgroundColor: dataZoomBg,
+              "border-color": borderColor,
+              "background-color": dataZoomBg,
               fillerColor: DATAZOOM_FILLER,
               handleStyle: { color: BULLISH },
               textStyle: { color: mutedColor },

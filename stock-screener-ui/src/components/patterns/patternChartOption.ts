@@ -147,21 +147,21 @@ export function buildPatternChartOption({
     if (hit.breakout_level) {
       markData.push({
         yAxis: hit.breakout_level,
-        label: { formatter: "Breakout", position: "insideEndTop", color: PRIMARY, fontSize: large ? 12 : 10 },
+        label: { formatter: "Breakout", position: "insideEndTop", color: PRIMARY, "font-size": large ? 12 : 10 },
         lineStyle: { color: PRIMARY, type: "dashed", width: 1 },
       });
     }
     if (hit.target) {
       markData.push({
         yAxis: hit.target,
-        label: { formatter: "Target", position: "insideEndTop", color: MARKER_TP, fontSize: large ? 12 : 10 },
+        label: { formatter: "Target", position: "insideEndTop", color: MARKER_TP, "font-size": large ? 12 : 10 },
         lineStyle: { color: MARKER_TP, type: "dashed", width: 1 },
       });
     }
     if (hit.stop) {
       markData.push({
         yAxis: hit.stop,
-        label: { formatter: "Stop", position: "insideEndBottom", color: MARKER_SL, fontSize: large ? 12 : 10 },
+        label: { formatter: "Stop", position: "insideEndBottom", color: MARKER_SL, "font-size": large ? 12 : 10 },
         lineStyle: { color: MARKER_SL, type: "dashed", width: 1 },
       });
     }
@@ -172,7 +172,7 @@ export function buildPatternChartOption({
       type: "candlestick",
       name: hit?.symbol ?? "Price",
       data: candles.map((c) => [c.o, c.c, c.l, c.h]),
-      itemStyle: { color: POSITIVE, color0: NEGATIVE, borderColor: POSITIVE, borderColor0: NEGATIVE },
+      itemStyle: { color: POSITIVE, color0: NEGATIVE, "border-color": POSITIVE, borderColor0: NEGATIVE },
       barMaxWidth: compact ? 5 : 12,
       silent: compact,
       z: 1,
@@ -266,12 +266,12 @@ export function buildPatternChartOption({
                 show: true,
                 formatter: seriesName,
                 color,
-                fontSize: large ? 12 : 10,
-                fontWeight: group.selected ? 600 : 400,
+                "font-size": large ? 12 : 10,
+                "font-weight": group.selected ? 600 : 400,
                 distance: 6,
                 padding: [2, 4],
-                borderRadius: 3,
-                backgroundColor: CHART_OVERLAY,
+                "border-radius": 3,
+                "background-color": CHART_OVERLAY,
               }
             : undefined,
         // Overlapping end labels (sibling instances close together) hide
@@ -316,12 +316,12 @@ export function buildPatternChartOption({
             show: true,
             formatter: `${name} · ${line.touches} touches`,
             color,
-            fontSize: large ? 12 : 10,
-            fontWeight: 600,
+            "font-size": large ? 12 : 10,
+            "font-weight": 600,
             distance: 6,
             padding: [2, 4],
-            borderRadius: 3,
-            backgroundColor: CHART_OVERLAY,
+            "border-radius": 3,
+            "background-color": CHART_OVERLAY,
           }
         : undefined,
       labelLayout: !compact ? { hideOverlap: true } : undefined,
@@ -380,7 +380,7 @@ export function buildPatternChartOption({
     }
   }
 
-  const fontSize = large ? 12 : 10;
+  const ["font-size"] = large ? 12 : 10;
 
   return {
     animation: false,
@@ -411,7 +411,7 @@ export function buildPatternChartOption({
     dataZoom: showZoom
       ? [
           { type: "inside", throttle: 50 },
-          { type: "slider", height: large ? 22 : 18, bottom: large ? 12 : 6, borderColor: CHART_SPLIT, textStyle: { color: CHART_MUTED, fontSize } },
+          { type: "slider", height: large ? 22 : 18, bottom: large ? 12 : 6, "border-color": CHART_SPLIT, textStyle: { color: CHART_MUTED, fontSize } },
         ]
       : undefined,
     xAxis: {

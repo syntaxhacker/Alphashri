@@ -70,11 +70,11 @@ export function AppShell(props: UIAppShellProps) {
       <main
         className="flex-1 min-w-0 min-h-0"
         style={{
-          marginLeft: navbarCollapsed || !known.navbar ? 0 : navbarWidth,
-          marginTop: headerCollapsed || !known.header ? 0 : headerHeight,
+          "margin-left": navbarCollapsed || !known.navbar ? 0 : navbarWidth,
+          "margin-top": headerCollapsed || !known.header ? 0 : headerHeight,
           padding: known.padding != null ? (typeof known.padding === "number" ? `${known.padding}px` : String(known.padding)) : 0,
-          minWidth: 0,
-          minHeight: 0,
+          "min-width": 0,
+          "min-height": 0,
         }}
         data-testid={known["data-testid"] ? `${known["data-testid"]}-main` : undefined}
       >

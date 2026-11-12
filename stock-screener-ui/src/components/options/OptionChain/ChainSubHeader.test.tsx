@@ -12,7 +12,7 @@ afterEach(() => {
 
 const mockStyles = {
   subHeader: { display: "flex" },
-  subHeaderCell: { flex: 1, textAlign: "center" as const, fontSize: "10px" },
+  subHeaderCell: { flex: 1, "text-align": "center" as const, "font-size": "10px" },
 };
 
 describe("ChainSubHeader", () => {

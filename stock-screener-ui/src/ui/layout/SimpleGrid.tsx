@@ -23,9 +23,9 @@ export function SimpleGrid(props: UISimpleGridProps & Record<string, unknown>) {
       className={cn(known.className)}
       style={{
         display: "grid",
-        gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))`,
+        "grid-template-columns": `repeat(${n}, minmax(0, 1fr))`,
         ...(known.spacing != null ? { gap: sp(known.spacing) } : {}),
-        ...(known.verticalSpacing != null ? { rowGap: sp(known.verticalSpacing) } : {}),
+        ...(known.verticalSpacing != null ? { "row-gap": sp(known.verticalSpacing) } : {}),
         ...(known.style as Record<string, unknown> | undefined),
       }}
       data-testid={known["data-testid"]}

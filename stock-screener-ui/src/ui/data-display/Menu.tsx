@@ -200,7 +200,7 @@ export function MenuTarget(props: UIMenuTargetProps) {
   const { setAnchorEl, anchorEl, open, onClose, trigger } = useMenuContext();
   const isHover = createMemo(() => trigger() === "hover" || trigger() === "click-hover");
 
-  const handleClick = (e: MouseEvent) => {
+  const handleClick = () => {
     const target = e.currentTarget as HTMLElement;
     if (open() && anchorEl() === target) {
       onClose();
@@ -234,8 +234,8 @@ export function MenuTarget(props: UIMenuTargetProps) {
 
 export function MenuDropdown(props: UIMenuDropdownProps) {
   const [known, rest] = splitProps(props, ["children", "className", "style", "id", "data-testid"]);
-  const { anchorEl, open, position, offset, shadow, withArrow, registerDropdownEl } = useMenuContext();
-  const [placeEl, setPlaceEl] = createSignal<HTMLElement | null>(null);
+  const { open, position, offset, shadow, withArrow } = useMenuContext();
+  const [, setPlaceEl] = createSignal<HTMLElement | null>(null);
 
   const posStyle = createMemo(() => {
     if (!anchorEl()) return {};
@@ -256,7 +256,7 @@ export function MenuDropdown(props: UIMenuDropdownProps) {
         )}
         style={{
           ...posStyle(),
-          boxShadow: shadow() ?? DEFAULT_SHADOW,
+          "box-shadow": shadow() ?? DEFAULT_SHADOW,
           ...(known.style as Record<string, string | undefined>),
         }}
         data-testid={known["data-testid"]}
@@ -302,7 +302,7 @@ export function MenuItem(props: UIMenuItemProps) {
     }
   });
 
-  const handleClick = (e: MouseEvent) => {
+  const handleClick = () => {
     if (known.disabled) return;
     known.onClick?.();
     if (closeOnItemClick) onClose();

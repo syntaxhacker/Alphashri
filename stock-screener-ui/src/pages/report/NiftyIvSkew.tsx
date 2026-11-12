@@ -318,10 +318,10 @@ function NiftyIvSkewInner({ strikes, spot = null }: NiftyIvSkewProps) {
       title="IV skew (price × σ)"
       testId="nifty-iv-skew-panel"
       style={{
-        backgroundColor: palette.TERM_BG,
+        "background-color": palette.TERM_BG,
         border: `1px solid ${palette.TERM_BORDER}`,
-        borderColor: palette.TERM_BORDER,
-        borderRadius: 8,
+        "border-color": palette.TERM_BORDER,
+        "border-radius": 8,
       }}
     >
       <Box className="flex flex-col gap-[4px] w-full min-w-0">
@@ -373,7 +373,7 @@ function NiftyIvSkewInner({ strikes, spot = null }: NiftyIvSkewProps) {
               <Box
                 aria-hidden
                 className="w-[6px] h-[6px] rounded-full shrink-0"
-                style={{ backgroundColor: k.color }}
+                style={{ "background-color": k.color }}
               />
               <Text size="xs" span c="dimmed">
                 {k.label}

@@ -316,7 +316,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
         className="flex-shrink-0 flex flex-col overflow-hidden border border-fin-border"
       >
         <Box className="flex items-center justify-between gap-2 px-3 py-2 h-[36px] flex-shrink-0 border-b border-fin-border bg-fin-surface-alt">
-          <Text fw={600} size="xs" data-testid="screener-configs-title" style={{ fontSize: 11, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>
+          <Text fw={600} size="xs" data-testid="screener-configs-title" style={{ "font-size": 11, "letter-spacing": 0.5, color: palette.TEXT_MUTED }}>
             CONFIGS
           </Text>
           <Button
@@ -335,7 +335,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
               setCreateModalOpen(true);
             }}
             data-testid="create-screener-btn"
-            style={{ fontSize: 11, height: 24, color: palette.TEXT }}
+            style={{ "font-size": 11, height: 24, color: palette.TEXT }}
           >
             + Create
           </Button>
@@ -355,7 +355,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
               >
                 <Box className="flex items-center justify-between gap-2 mb-1">
                   <Group gap={1} align="center">
-                    <Text size="xs" fw={500} style={{ fontSize: 12, color: palette.TEXT }}>
+                    <Text size="xs" fw={500} style={{ "font-size": 12, color: palette.TEXT }}>
                       {option.label}
                     </Text>
                     {option.id === activeScreener && (
@@ -373,7 +373,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                         openEditModal(option);
                       }}
                       data-testid={`edit-screener-${option.id}`}
-                      style={{ fontSize: 11, height: 22, padding: "0 6px", borderColor: palette.BORDER, color: palette.TEXT }}
+                      style={{ "font-size": 11, height: 22, padding: "0 6px", "border-color": palette.BORDER, color: palette.TEXT }}
                     >
                       Edit
                     </Button>
@@ -386,13 +386,13 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                         openDeleteConfirm(option.id);
                       }}
                       data-testid={`delete-screener-${option.id}`}
-                      style={{ fontSize: 11, height: 22, padding: "0 6px" }}
+                      style={{ "font-size": 11, height: 22, padding: "0 6px" }}
                     >
                       Del
                     </Button>
                   </Group>
                 </Box>
-                <Text size="xs" c="dimmed" lineClamp={1} style={{ fontSize: 11, color: palette.TEXT_MUTED }}>
+                <Text size="xs" c="dimmed" lineClamp={1} style={{ "font-size": 11, color: palette.TEXT_MUTED }}>
                   {option.id}
                 </Text>
               </Box>
@@ -430,13 +430,13 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                 })()}
               </>
             ) : (
-              <Text size="xs" c="dimmed" style={{ fontSize: 11, color: palette.TEXT_MUTED }}>
+              <Text size="xs" c="dimmed" style={{ "font-size": 11, color: palette.TEXT_MUTED }}>
                 Select a screener
               </Text>
             )}
           </Group>
           <Group gap={1} align="center" className="flex-shrink-0">
-            <Text fw={600} size="xs" data-testid="preview-count" style={{ fontSize: 11, color: palette.TEXT_MUTED }}>
+            <Text fw={600} size="xs" data-testid="preview-count" style={{ "font-size": 11, color: palette.TEXT_MUTED }}>
               PREVIEW ({stocks.length})
             </Text>
             <Button
@@ -445,7 +445,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
               onClick={() => loadPreview()}
               loading={previewLoading}
               data-testid="preview-refresh-btn"
-              style={{ height: 24, fontSize: 11 }}
+              style={{ height: 24, "font-size": 11 }}
             >
               ↻
             </Button>
@@ -455,7 +455,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
           <Box gap={2} bg={palette.BG} className="flex p-3 border-b border-fin-border max-h-[380px] overflow-auto" data-testid="inline-form">
             <Stack gap={1}>
               <Box className="flex items-center justify-between gap-2 mb-1">
-                <Text fw={600} size="xs" style={{ fontSize: 11, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>{editModalOpen ? "EDIT SCREENER" : "NEW SCREENER"}</Text>
+                <Text fw={600} size="xs" style={{ "font-size": 11, "letter-spacing": 0.5, color: palette.TEXT_MUTED }}>{editModalOpen ? "EDIT SCREENER" : "NEW SCREENER"}</Text>
                 <Button size="xs" variant="subtle" onClick={() => { setCreateModalOpen(false); setEditModalOpen(false); setEditingScreener(null); setForm(EMPTY_FORM); }} style={{ height: 22 }}>✕</Button>
               </Box>
               <ToolbarRow gap={8} wrap={false}>
@@ -466,7 +466,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                   <TextInput label="Description" placeholder="Brief description" value={form.description} onChange={(val) => setForm({ ...form, description: val })} size="xs" style={{ width: "100%" }} />
                 </Box>
               </ToolbarRow>
-              <Text size="xs" fw={600} style={{ fontSize: 11, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>Indicators</Text>
+              <Text size="xs" fw={600} style={{ "font-size": 11, "letter-spacing": 0.5, color: palette.TEXT_MUTED }}>Indicators</Text>
               <ToolbarRow gap={8}>
                 {["RSI", "ADX", "Volume", "52W Gap %", "Stochastic", "ATR", "MACD", "Momentum"].map((ind) => (
                   <Checkbox key={ind} label={ind} checked={form.indicators.includes(ind)} onChange={(checked) => handleIndicatorToggle(ind, checked)} size="xs" />
@@ -474,7 +474,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
               </ToolbarRow>
               {form.filters.length > 0 && (
                 <>
-                  <Text size="xs" fw={600} style={{ fontSize: 11, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>Filters</Text>
+                  <Text size="xs" fw={600} style={{ "font-size": 11, "letter-spacing": 0.5, color: palette.TEXT_MUTED }}>Filters</Text>
                   <ToolbarRow gap={8}>{form.filters.map(renderFilterInput)}</ToolbarRow>
                 </>
               )}
@@ -494,7 +494,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
           </Box>
         )}
         {deleteConfirmOpen && (
-          <Box className="p-3 border-b border-fin-border flex items-center justify-between gap-2" style={{ backgroundColor: withAlpha(palette.NEGATIVE, 0.08) }}>
+          <Box className="p-3 border-b border-fin-border flex items-center justify-between gap-2" style={{ "background-color": withAlpha(palette.NEGATIVE, 0.08) }}>
             <Text size="xs" style={{ color: palette.NEGATIVE }}>Are you sure you want to delete {deletingId}?</Text>
             <ToolbarRow gap={8}>
               <Button size="xs" variant="outline" onClick={() => { setDeleteConfirmOpen(false); setDeletingId(null); }}>Cancel</Button>

@@ -148,14 +148,14 @@ export default function SymbolAutocomplete({
             top: "100%",
             left: 0,
             right: 0,
-            backgroundColor: palette.SURFACE,
+            "background-color": palette.SURFACE,
             border: `1px solid ${palette.BORDER}`,
             borderTop: "none",
-            borderRadius: "0 0 4px 4px",
-            boxShadow: `0 4px 12px ${withAlpha(palette.BG, 0.3)}`,
-            zIndex: 50,
-            maxHeight: 240,
-            overflowY: "auto",
+            "border-radius": "0 0 4px 4px",
+            "box-shadow": `0 4px 12px ${withAlpha(palette.BG, 0.3)}`,
+            "z-index": 50,
+            "max-height": 240,
+            "overflow-y": "auto",
           }}
         >
           {options.map((option, index) => (
@@ -167,17 +167,17 @@ export default function SymbolAutocomplete({
                 cursor: "pointer",
                 borderBottom: `1px solid ${palette.BORDER}`,
                 display: "flex",
-                alignItems: "center",
+                "align-items": "center",
                 gap: 8,
-                backgroundColor: highlightedIndex.current === index ? palette.SCALE_GRAY[6] : "inherit",
+                "background-color": highlightedIndex.current === index ? palette.SCALE_GRAY[6] : "inherit",
                 color: palette.TEXT,
               }}
               onMouseEnter={() => (highlightedIndex.current = index)}
               onClick={() => handleSelect(option)}
             >
-              <span style={{ fontWeight: 600 }}>{labelOf(option)}</span>
+              <span style={{ "font-weight": 600 }}>{labelOf(option)}</span>
               {nameOf(option) ? (
-                <span style={{ color: palette.TEXT_MUTED, marginLeft: 8, fontSize: 12 }}>{nameOf(option)}</span>
+                <span style={{ color: palette.TEXT_MUTED, "margin-left": 8, "font-size": 12 }}>{nameOf(option)}</span>
               ) : null}
             </div>
           ))}

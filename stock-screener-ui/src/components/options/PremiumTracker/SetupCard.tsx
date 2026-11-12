@@ -61,12 +61,12 @@ export function SetupCard({ setup, spot, ltpOf, onUpdateLeg, onDeleteSetup, onPa
       data-testid={`setup-card-${setup.id}`}
       w={460}
       style={{
-        flexShrink: 0,
+        "flex-shrink": 0,
         border: `1px solid ${glow ? palette.WARNING : palette.BORDER}`,
-        borderRadius: 1,
+        "border-radius": 1,
         padding: 8,
         display: "flex",
-        flexDirection: "column",
+        "flex-direction": "column",
         gap: 8,
       }}
     >

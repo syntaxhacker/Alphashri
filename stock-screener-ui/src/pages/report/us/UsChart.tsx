@@ -79,7 +79,7 @@ export function UsChart({ frames, cursor, bucket = 1 }: Props) {
         aria-label="NQ candles against put wall, call wall and max pain"
       >
         {ticks.map((t, i) => (
-          <line key={i} x1={0} x2={g.width} y1={yFor(t)} y2={yFor(t)} stroke="rgba(255,255,255,0.05)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+          <line key={i} x1={0} x2={g.width} y1={yFor(t)} y2={yFor(t)} stroke="rgba(255,255,255,0.05)" stroke-width={1} vectorEffect="non-scaling-stroke" />
         ))}
 
         {inRange.map((w) => (
@@ -90,7 +90,7 @@ export function UsChart({ frames, cursor, bucket = 1 }: Props) {
             y1={yFor(w.v)}
             y2={yFor(w.v)}
             stroke={w.color}
-            strokeWidth={1}
+            stroke-width={1}
             strokeDasharray={w.label === "PAIN" ? "2 5" : "6 4"}
             vectorEffect="non-scaling-stroke"
             opacity={0.75}
@@ -105,7 +105,7 @@ export function UsChart({ frames, cursor, bucket = 1 }: Props) {
           const bottom = yFor(Math.min(b.o, b.c));
           return (
             <g key={b.t}>
-              <line x1={x} x2={x} y1={yFor(b.h)} y2={yFor(b.l)} stroke={color} strokeWidth={1} vectorEffect="non-scaling-stroke" opacity={0.95} />
+              <line x1={x} x2={x} y1={yFor(b.h)} y2={yFor(b.l)} stroke={color} stroke-width={1} vectorEffect="non-scaling-stroke" opacity={0.95} />
               <rect
                 x={x - bodyW / 2}
                 y={top}
@@ -118,8 +118,8 @@ export function UsChart({ frames, cursor, bucket = 1 }: Props) {
           );
         })}
 
-        <line x1={g.cursorX} x2={g.cursorX} y1={0} y2={H} stroke="rgba(240,246,252,0.4)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
-        <line x1={0} x2={g.width} y1={yFor(frame.spot)} y2={yFor(frame.spot)} stroke={INFO} strokeWidth={1} strokeDasharray="1 3" vectorEffect="non-scaling-stroke" opacity={0.6} />
+        <line x1={g.cursorX} x2={g.cursorX} y1={0} y2={H} stroke="rgba(240,246,252,0.4)" stroke-width={1} vectorEffect="non-scaling-stroke" />
+        <line x1={0} x2={g.width} y1={yFor(frame.spot)} y2={yFor(frame.spot)} stroke={INFO} stroke-width={1} strokeDasharray="1 3" vectorEffect="non-scaling-stroke" opacity={0.6} />
       </svg>
 
       {/* y-axis ticks */}
@@ -138,7 +138,7 @@ export function UsChart({ frames, cursor, bucket = 1 }: Props) {
         <Box
           key={w.label}
           className="absolute right-1 font-mono text-[9px] bg-black/65 px-1 leading-[11px] pointer-events-none"
-          style={{ top: `calc(${pctFor(w.v)}% - 6px)`, color: w.color, borderLeft: `2px solid ${w.color}`, zIndex: 2 + i }}
+          style={{ top: `calc(${pctFor(w.v)}% - 6px)`, color: w.color, borderLeft: `2px solid ${w.color}`, "z-index": 2 + i }}
         >
           {w.label} {fmtInt(w.v)}
         </Box>

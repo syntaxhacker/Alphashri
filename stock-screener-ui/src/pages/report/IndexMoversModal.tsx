@@ -55,7 +55,7 @@ function MoversTable({
           size="xs"
           fw={600}
           style={{
-            fontSize: REPORT_FONT.xs,
+            "font-size": REPORT_FONT.xs,
             fontVariantNumeric: "tabular-nums",
             color: palette.TEXT_MUTED,
             fontFamily: palette.MONO,
@@ -76,7 +76,7 @@ function MoversTable({
           size="xs"
           fw={700}
           style={{
-            fontSize: REPORT_FONT.sm,
+            "font-size": REPORT_FONT.sm,
             fontVariantNumeric: "tabular-nums",
             fontFamily: palette.MONO,
           }}
@@ -96,7 +96,7 @@ function MoversTable({
           size="xs"
           fw={600}
           style={{
-            fontSize: REPORT_FONT.sm,
+            "font-size": REPORT_FONT.sm,
             fontVariantNumeric: "tabular-nums",
             fontFamily: palette.MONO,
           }}
@@ -119,7 +119,7 @@ function MoversTable({
             size="xs"
             fw={700}
             style={{
-              fontSize: REPORT_FONT.sm,
+              "font-size": REPORT_FONT.sm,
               fontVariantNumeric: "tabular-nums",
               fontFamily: palette.MONO,
               color: isGainer ? GAINER_COLOR : LOSER_COLOR,
@@ -144,7 +144,7 @@ function MoversTable({
               size="xs"
               c="dimmed"
               style={{
-                fontSize: REPORT_FONT.sm,
+                "font-size": REPORT_FONT.sm,
                 fontVariantNumeric: "tabular-nums",
                 fontFamily: palette.MONO,
               }}
@@ -160,7 +160,7 @@ function MoversTable({
             size="xs"
             fw={600}
             style={{
-              fontSize: REPORT_FONT.sm,
+              "font-size": REPORT_FONT.sm,
               fontVariantNumeric: "tabular-nums",
               fontFamily: palette.MONO,
               color: isGainer ? GAINER_COLOR : LOSER_COLOR,
@@ -182,7 +182,7 @@ function MoversTable({
           size="xs"
           c="dimmed"
           style={{
-            fontSize: REPORT_FONT.xs,
+            "font-size": REPORT_FONT.xs,
             fontVariantNumeric: "tabular-nums",
             fontFamily: palette.MONO,
           }}
@@ -289,9 +289,9 @@ export const IndexMoversModal = memo(function IndexMoversModal({
       open={open}
       title={`MOVERS · ${index} ${index === "NIFTY" ? "50" : "30"}`}
       onClose={onClose}
-      maxWidth={720}
+      max-width={720}
       autoHeight
-      maxHeight="75vh"
+      max-height="75vh"
       actions={
         <div className="flex items-center gap-1">
           <SegmentedControl
@@ -322,7 +322,7 @@ export const IndexMoversModal = memo(function IndexMoversModal({
           className="flex items-center justify-center min-h-[120px] text-fin-text-muted"
         >
           <Loader size="xs" color={palette.PRIMARY} />
-          <Text span size="xs" c="dimmed" style={{ marginLeft: 8 }}>
+          <Text span size="xs" c="dimmed" style={{ "margin-left": 8 }}>
             loading movers…
           </Text>
         </div>

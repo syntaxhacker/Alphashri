@@ -11,7 +11,7 @@ function toPx(size: UIThemeIconProps["size"]): string | undefined {
   return m[size as string];
 }
 
-function radiusValue(radius: UIThemeIconProps["radius"]): string {
+function _radiusValue(radius: UIThemeIconProps["radius"]): string {
   if (radius == null) return "6px";
   if (typeof radius === "number") return `${radius}px`;
   if (radius === "xs") return "4px";
@@ -50,9 +50,8 @@ export function ThemeIcon(props: UIThemeIconProps) {
 
   const { main, dark } = resolveColor(known.color as string);
   const px = toPx(known.size);
-  const borderRadius = radiusValue(known.radius);
 
-  const baseSize = px != null ? { width: px, height: px, fontSize: `${Number(px.replace("px", "")) * 0.5}px` } : { width: "36px", height: "36px", fontSize: "18px" };
+  const baseSize = px != null ? { width: px, height: px, "font-size": `${Number(px.replace("px", "")) * 0.5}px` } : { width: "36px", height: "36px", "font-size": "18px" };
 
   let backgroundColor: string | undefined;
   let colorValue: string | undefined;

@@ -472,7 +472,7 @@ export function OrderFlowPage() {
             </Button>
           </PopoverTarget>
           <PopoverDropdown>
-            <Stack gap={2} style={{ padding: 8, minWidth: 220 }}>
+            <Stack gap={2} style={{ padding: 8, "min-width": 220 }}>
               {VIEW_ITEMS.map((item) => (
                 <Checkbox
                   key={item.key}

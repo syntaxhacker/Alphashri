@@ -339,7 +339,7 @@ function HoverPreview({ symbol, x, y, data, loading, chartRef }: HoverPreviewPro
       top={adjustedY}
       w={320}
       h={200}
-      style={{ zIndex: 9999, pointerEvents: "none", overflow: "hidden" }}
+      style={{ "z-index": 9999, "pointer-events": "none", overflow: "hidden" }}
       data-testid="preview-chart-hover"
     >
       <Group gap={6} px="xs" py={4}>
@@ -355,7 +355,7 @@ function HoverPreview({ symbol, x, y, data, loading, chartRef }: HoverPreviewPro
           <Box
             pos="absolute"
             inset={0}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+            style={{ display: "flex", "align-items": "center", "justify-content": "center" }}
           >
             <Loader size="sm" />
           </Box>
@@ -364,7 +364,7 @@ function HoverPreview({ symbol, x, y, data, loading, chartRef }: HoverPreviewPro
           <Box
             pos="absolute"
             inset={0}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+            style={{ display: "flex", "align-items": "center", "justify-content": "center" }}
           >
             <Text size="xs" c="dimmed">
               No data
@@ -372,7 +372,7 @@ function HoverPreview({ symbol, x, y, data, loading, chartRef }: HoverPreviewPro
           </Box>
         )}
         {!loading && (data?.candles.length ?? 0) > 0 && (
-          <div className="echarts-container" style={{ width: 320, height: 160, minHeight: 160 }} />
+          <div className="echarts-container" style={{ width: 320, height: 160, "min-height": 160 }} />
         )}
       </Box>
     </Paper>
@@ -463,10 +463,10 @@ function ExpandedPanel({
       w={650}
       h={480}
       style={{
-        zIndex: 10000,
+        "z-index": 10000,
         transform: "translate(-50%, -50%)",
         display: "flex",
-        flexDirection: "column",
+        "flex-direction": "column",
       }}
       data-testid="preview-chart-expanded"
     >
@@ -496,7 +496,7 @@ function ExpandedPanel({
 
       <Box
         ref={chartContainerRef}
-        style={{ flex: 1, padding: 8, minHeight: 0, position: "relative" }}
+        style={{ flex: 1, padding: 8, "min-height": 0, position: "relative" }}
       >
         {loading && (
           <Box
@@ -504,8 +504,8 @@ function ExpandedPanel({
             inset={0}
             style={{
               display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              "align-items": "center",
+              "justify-content": "center",
             }}
           >
             <Loader />
@@ -517,8 +517,8 @@ function ExpandedPanel({
             inset={0}
             style={{
               display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              "align-items": "center",
+              "justify-content": "center",
             }}
           >
             <Text c="dimmed">No data available</Text>
@@ -527,7 +527,7 @@ function ExpandedPanel({
         {!loading && (data?.candles.length ?? 0) > 0 && (
           <div
             className="echarts-container"
-            style={{ width: "100%", height: "100%", minHeight: 0 }}
+            style={{ width: "100%", height: "100%", "min-height": 0 }}
           />
         )}
       </Box>

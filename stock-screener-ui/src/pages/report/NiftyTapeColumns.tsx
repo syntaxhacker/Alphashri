@@ -66,12 +66,12 @@ function tapeCell(
             }
           : {}),
         overflow: "hidden",
-        textOverflow: "ellipsis",
+        "text-overflow": "ellipsis",
         fontVariantNumeric: "tabular-nums",
         ...(tint ? { background: tint } : {}),
       }}
     >
-      <Text span c={color ?? tone ?? "default"} fw={bold || tone ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.normal} style={{ fontSize: `${REPORT_FONT.xs}px` }}>
+      <Text span c={color ?? tone ?? "default"} fw={bold || tone ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.normal} style={{ "font-size": `${REPORT_FONT.xs}px` }}>
         {value}
       </Text>
     </span>
@@ -102,11 +102,11 @@ function tapeHeader(title: string, sub?: string, tip?: string) {
     <Box
       title={tip ? `${title} — ${tip}` : undefined}
       className="flex flex-col items-end"
-      style={{ lineHeight: REPORT_LINE_HEIGHT.tight }}
+      style={{ "line-height": REPORT_LINE_HEIGHT.tight }}
     >
-      <span style={{ fontSize: `${REPORT_FONT.xs}px`, fontWeight: REPORT_FONT_WEIGHT.semibold }}>{title}</span>
+      <span style={{ "font-size": `${REPORT_FONT.xs}px`, "font-weight": REPORT_FONT_WEIGHT.semibold }}>{title}</span>
       {sub ? (
-        <span style={{ fontSize: `${REPORT_FONT.micro}px`, fontWeight: REPORT_FONT_WEIGHT.normal, opacity: 0.65, whiteSpace: "nowrap" }}>
+        <span style={{ "font-size": `${REPORT_FONT.micro}px`, "font-weight": REPORT_FONT_WEIGHT.normal, opacity: 0.65, "white-space": "nowrap" }}>
           {sub}
         </span>
       ) : null}
@@ -164,18 +164,18 @@ export function getNiftyTapeColumns(
             className={fl(row.t, "spot") ? "tape-cell-flash" : undefined}
             style={{
               display: "flex",
-              alignItems: "baseline",
-              justifyContent: "flex-end",
+              "align-items": "baseline",
+              "justify-content": "flex-end",
               gap: "4px",
               overflow: "hidden",
               fontVariantNumeric: "tabular-nums",
             }}
           >
-            <Text span fw={REPORT_FONT_WEIGHT.bold} c={TAPE_SPOT} style={{ fontSize: REPORT_FONT.sm }}>
+            <Text span fw={REPORT_FONT_WEIGHT.bold} c={TAPE_SPOT} style={{ "font-size": REPORT_FONT.sm }}>
               {formatTapePrice(row.spot)}
             </Text>
             {arrow ? (
-              <Text span fw={REPORT_FONT_WEIGHT.bold} c={arrowColor} style={{ fontSize: REPORT_FONT.xs }}>
+              <Text span fw={REPORT_FONT_WEIGHT.bold} c={arrowColor} style={{ "font-size": REPORT_FONT.xs }}>
                 {arrow}
               </Text>
             ) : null}

@@ -4,19 +4,19 @@ import * as palette from "@/ui/palette";
 import type { OverlayCoord } from "./OverlayCanvas";
 import type { ReplayTrade, ReplayTrend, ReplayZone } from "./types";
 
-export const ZONE_STYLE: Record<ReplayZone["kind"], { fill: string; stroke: string }> = {
-  supply: { fill: "rgba(168,85,247,0.18)", stroke: palette.NT_TREND },
-  demand: { fill: "rgba(168,85,247,0.18)", stroke: palette.NT_TREND },
-  "fvg-bull": { fill: palette.NT_FVG_BULL_FILL, stroke: palette.NT_FVG_BULL_STROKE },
-  "fvg-bear": { fill: palette.NT_FVG_BEAR_FILL, stroke: palette.NT_FVG_BEAR_STROKE },
-  ifvg: { fill: palette.NT_IFVG_FILL, stroke: palette.NT_IFVG_STROKE },
-  lrl: { fill: "rgba(0,0,0,0)", stroke: palette.NT_TREND },
+export const ZONE_STYLE: Record<ReplayZone["kind"], { "fill": string; "stroke": string }> = {
+  supply: { "fill": "rgba(168,85,247,0.18)", "stroke": palette.NT_TREND },
+  demand: { "fill": "rgba(168,85,247,0.18)", "stroke": palette.NT_TREND },
+  "fvg-bull": { "fill": palette.NT_FVG_BULL_FILL, "stroke": palette.NT_FVG_BULL_STROKE },
+  "fvg-bear": { "fill": palette.NT_FVG_BEAR_FILL, "stroke": palette.NT_FVG_BEAR_STROKE },
+  ifvg: { "fill": palette.NT_IFVG_FILL, "stroke": palette.NT_IFVG_STROKE },
+  lrl: { "fill": "rgba(0,0,0,0)", "stroke": palette.NT_TREND },
 };
 
 export function drawZoneBox(
   ctx: CanvasRenderingContext2D, coord: OverlayCoord,
   t1: number, t2: number, top: number, bottom: number,
-  fill: string, stroke: string, label?: string,
+  "fill": string, "stroke": string, label?: string,
 ): boolean {
   const x1 = coord.timeToX(t1);
   const x2 = coord.timeToX(t2);
@@ -123,7 +123,7 @@ export function drawRiskReward(
 ): boolean {
   const g = rrGeometry(coord, trade);
   if (!g) return false;
-  const band = (yA: number, yB: number, fill: string, edge: string) => {
+  const band = (yA: number, yB: number, "fill": string, edge: string) => {
     const top = Math.min(yA, yB);
     const h = Math.abs(yB - yA);
     if (h < 2) return;

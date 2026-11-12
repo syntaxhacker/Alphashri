@@ -146,7 +146,7 @@ function LegendItem({ item }: { item: LegendItemDef }) {
           data-testid={swatchTestId}
           aria-hidden
           className="inline-block shrink-0 w-2 h-2 rounded-[1px]"
-          style={{ backgroundColor: item.color }}
+          style={{ "background-color": item.color }}
         />
       ) : item.shape === "dot" ? (
         <Box
@@ -154,7 +154,7 @@ function LegendItem({ item }: { item: LegendItemDef }) {
           data-testid={swatchTestId}
           aria-hidden
           className="inline-block shrink-0 w-2 h-2 rounded-full"
-          style={{ backgroundColor: item.color }}
+          style={{ "background-color": item.color }}
         />
       ) : item.shape === "line" ? (
         <Box
@@ -162,7 +162,7 @@ function LegendItem({ item }: { item: LegendItemDef }) {
           data-testid={swatchTestId}
           aria-hidden
           className="inline-block shrink-0 w-3 h-0.5"
-          style={{ backgroundColor: item.color }}
+          style={{ "background-color": item.color }}
         />
       ) : (
         <Box
@@ -170,7 +170,7 @@ function LegendItem({ item }: { item: LegendItemDef }) {
           data-testid={swatchTestId}
           aria-hidden
           className="inline-block shrink-0 w-3 h-0 border-t border-dashed"
-          style={{ borderColor: item.color }}
+          style={{ "border-color": item.color }}
         />
       )}
       <Box component="span">{item.label}</Box>
@@ -515,11 +515,11 @@ const NiftyOiHeatmapInner = function NiftyOiHeatmap({
         onMouseLeave={() => setHover(null)}
         style={{
           flex: 1,
-          minHeight: 40,
+          "min-height": 40,
           display: "block",
           cursor: "crosshair",
           position: "relative",
-          zIndex: 1,
+          "z-index": 1,
         }}
       >
         {/* Cells are painted on the canvas behind this SVG (one paint instead
@@ -533,7 +533,7 @@ const NiftyOiHeatmapInner = function NiftyOiHeatmap({
             y1={0}
             y2={gridH}
             stroke={WARNING}
-            strokeWidth={1.5}
+            stroke-width={1.5}
             strokeDasharray="3 3"
           >
             <title>{`Last 5m flow flip ${flipX.label}`}</title>
@@ -544,7 +544,7 @@ const NiftyOiHeatmapInner = function NiftyOiHeatmap({
           data-testid="nifty-heatmap-spotline"
           fill="none"
           stroke={HEATMAP_SPOT}
-          strokeWidth={1.5}
+          stroke-width={1.5}
           points={buckets
             .map((b, bi) => (b.spot === null ? null : `${xOf(bi)},${yOf(b.spot)}`))
             .filter((p): p is string => p !== null)
@@ -568,7 +568,7 @@ const NiftyOiHeatmapInner = function NiftyOiHeatmap({
               r={3.5}
               fill={WARNING}
               stroke="#000"
-              strokeWidth={1}
+              stroke-width={1}
             >
               <title>{`Max pain touch ${formatNumberIN(Math.round(b.touch.maxPain))} @ ${b.label}`}</title>
             </circle>
@@ -585,7 +585,7 @@ const NiftyOiHeatmapInner = function NiftyOiHeatmap({
               y1={yOf(b.maxPain)}
               y2={yOf(b.maxPain)}
               stroke={HEATMAP_MP}
-              strokeWidth={1}
+              stroke-width={1}
               strokeDasharray="4 3"
             >
               <title>{`Max pain ${formatNumberIN(Math.round(b.maxPain))} @ ${b.label}`}</title>
@@ -606,7 +606,7 @@ const NiftyOiHeatmapInner = function NiftyOiHeatmap({
               y1={yOf(flip)}
               y2={yOf(flip)}
               stroke={HEATMAP_FLIP}
-              strokeWidth={1}
+              stroke-width={1}
               strokeDasharray="2 3"
             >
               <title>{`Flip ${formatNumberIN(Math.round(flip))} @ ${b.label}`}</title>
@@ -621,7 +621,7 @@ const NiftyOiHeatmapInner = function NiftyOiHeatmap({
             x={PAD_L - 6}
             y={rowOf(s) * cellH + cellH / 2 + 3.5}
             textAnchor="end"
-            fontSize={10}
+            font-size={10}
             fill="currentColor"
             opacity={0.65}
           >
@@ -635,7 +635,7 @@ const NiftyOiHeatmapInner = function NiftyOiHeatmap({
           y={gridH / 2}
           transform={`rotate(-90 10 ${gridH / 2})`}
           textAnchor="middle"
-          fontSize={9}
+          font-size={9}
           fill="currentColor"
           opacity={0.8}
           fontFamily={MONO}
@@ -648,7 +648,7 @@ const NiftyOiHeatmapInner = function NiftyOiHeatmap({
           x={PAD_L - 4}
           y={VB_H - 8}
           textAnchor="end"
-          fontSize={9}
+          font-size={9}
           fill="currentColor"
           opacity={0.8}
           fontFamily={MONO}
@@ -667,7 +667,7 @@ const NiftyOiHeatmapInner = function NiftyOiHeatmap({
               x={isFirst ? PAD_L : isLast ? VB_W - 2 : xOf(bi)}
               y={VB_H - 8}
               textAnchor={isFirst ? "start" : isLast ? "end" : "middle"}
-              fontSize={10}
+              font-size={10}
               fill="currentColor"
               opacity={0.9}
               fontFamily={MONO}
@@ -691,15 +691,15 @@ const NiftyOiHeatmapInner = function NiftyOiHeatmap({
           width: 0,
           height: 0,
           display: "block",
-          pointerEvents: "none",
-          zIndex: 0,
+          "pointer-events": "none",
+          "z-index": 0,
         }}
       />
       {hoverCell && hover ? (
         <Box
           data-testid="nifty-heatmap-hover"
           className="absolute right-1 top-[14px] px-1 py-[1px] border border-fin-border rounded-[3px] text-[9px] font-mono text-fin-text whitespace-nowrap pointer-events-none z-[3]"
-          style={{ backgroundColor: TERM_HEADER, borderColor: TERM_BORDER }}
+          style={{ "background-color": TERM_HEADER, "border-color": TERM_BORDER }}
         >
           {buckets[hover.bucket]?.label ?? ""} · {formatNumberIN(hover.strike)} · CE{" "}
           {formatReportCompact(hoverCell.ceDoi, {

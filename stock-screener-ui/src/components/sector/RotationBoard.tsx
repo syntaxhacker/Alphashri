@@ -13,7 +13,7 @@ function Return({ value, strong = false }: { value: number; strong?: boolean }) 
     <Text
       c={getPnLTextColor(value)}
       className="font-mono text-[10.5px] tabular-nums leading-none"
-      style={{ fontWeight: strong ? 700 : 600 }}
+      style={{ "font-weight": strong ? 700 : 600 }}
     >
       {formatPercentage(value, 2, true)}
     </Text>
@@ -37,7 +37,7 @@ function Status({ status }: { status: RotationStatus }) {
   const label = ROTATION_STATUS_LABELS[status].short;
   return (
     <Box className="inline-flex items-center justify-center gap-1">
-      <Box className="size-[5px] rounded-full shrink-0" style={{ backgroundColor: info }} />
+      <Box className="size-[5px] rounded-full shrink-0" style={{ "background-color": info }} />
       <Text className="text-[9px] font-bold tracking-[0.4px]" style={{ color: info }}>{label}</Text>
     </Box>
   );
@@ -174,7 +174,7 @@ export function RotationBoard({ rows, selectedId, onSelect, period }: RotationBo
           row.id === selectedId
             ? {
                 background: "rgba(88, 166, 255, 0.12)",
-                boxShadow: "inset 2px 0 0 var(--color-fin-primary)",
+                "box-shadow": "inset 2px 0 0 var(--color-fin-primary)",
               }
             : undefined
         }

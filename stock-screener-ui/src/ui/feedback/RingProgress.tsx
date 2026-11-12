@@ -75,14 +75,14 @@ export function RingProgress(props: UIRingProgressProps) {
       style={{ width: size, height: size, ...known.style }}
     >
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0" aria-hidden="true">
-        <circle cx={cx} cy={cx} r={r} stroke={trackColor} strokeWidth={thickness} fill="none" strokeLinecap={strokeCap} />
+        <circle cx={cx} cy={cx} r={r} stroke={trackColor} stroke-width={thickness} fill="none" strokeLinecap={strokeCap} />
         <For each={arcs}>{({ col, startLen, arcLen }) => (
           <circle
             cx={cx}
             cy={cx}
             r={r}
             stroke={col}
-            strokeWidth={thickness}
+            stroke-width={thickness}
             fill="none"
             strokeLinecap={strokeCap}
             strokeDasharray={`${arcLen} ${circumference}`}
@@ -94,7 +94,7 @@ export function RingProgress(props: UIRingProgressProps) {
       <Show when={known.label != null}>
         <div
           className="absolute inset-0 flex items-center justify-center pointer-events-none select-none"
-          style={{ fontSize: Math.max(10, size * 0.25), fontWeight: 600, color: palette.TEXT }}
+          style={{ "font-size": Math.max(10, size * 0.25), "font-weight": 600, color: palette.TEXT }}
         >
           {known.label}
         </div>

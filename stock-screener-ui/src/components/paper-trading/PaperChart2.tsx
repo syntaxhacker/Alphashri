@@ -99,7 +99,7 @@ function ChartLegend({ orbLabel, hasWeek52, hasTrades, position }: { orbLabel?: 
     <Flex className="paper-chart-legend py-2 px-2" gap="xs" justify="center" align="center" wrap="wrap" data-testid="chart-legend" id="chart-legend">
       {items.map((item, i) => (
         <Flex key={i} className="paper-chart-legend-item gap-2" id={`paper-chart-legend-${item.label.toLowerCase().replace(/\s+/g, "-")}`} align="center">
-          <div className="paper-chart-legend-swatch w-2 h-2 shrink-0" style={{ borderRadius: item.shape === "circle" ? "50%" : "2px", backgroundColor: item.color }} />
+          <div className="paper-chart-legend-swatch w-2 h-2 shrink-0" style={{ "border-radius": item.shape === "circle" ? "50%" : "2px", "background-color": item.color }} />
           <Text className="paper-chart-legend-label" size="xs" c="dimmed">{item.label}</Text>
         </Flex>
       ))}
@@ -239,7 +239,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
         value={state.chartTimeframe}
         onChange={handleTimeframeChange}
         data={fromDate ? TIMEFRAME_OPTIONS : TIMEFRAME_OPTIONS.filter((tf) => tf.value !== "12hour" && tf.value !== "1day")}
-        style={{ width: 84, minWidth: 84, flex: "0 0 auto" }}
+        style={{ width: 84, "min-width": 84, flex: "0 0 auto" }}
       />
 
       <DatePicker
@@ -290,7 +290,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
         <PopoverDropdown p="xs">
           <Stack className="gap-2">
             <Group gap="xs">
-              <div className="w-[3px] h-[14px] shrink-0" style={{ borderRadius: 2, backgroundColor: PRIMARY }} />
+              <div className="w-[3px] h-[14px] shrink-0" style={{ "border-radius": 2, "background-color": PRIMARY }} />
               <Text size="xs" fw={600}>Range</Text>
             </Group>
             <Group className="gap-2">
@@ -310,7 +310,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
             <Divider className="my-2" />
 
             <Group gap="xs">
-              <div className="w-[3px] h-[14px] shrink-0" style={{ borderRadius: 2, backgroundColor: PRIMARY }} />
+              <div className="w-[3px] h-[14px] shrink-0" style={{ "border-radius": 2, "background-color": PRIMARY }} />
               <Text size="xs" fw={600}>Overlays</Text>
             </Group>
             <Group className="gap-2">
@@ -325,7 +325,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
                     onChange={(checked) => setter(checked)}
                     style={
                       state[key]
-                        ? { backgroundColor: alpha(color, 0.18), color, border: `1px solid ${color}` }
+                        ? { "background-color": alpha(color, 0.18), color, border: `1px solid ${color}` }
                         : { color: TEXT_MUTED, border: `1px solid ${BORDER}` }
                     }
                   >
@@ -413,7 +413,7 @@ export function PaperChart({ engine = "echarts" }: { engine?: "echarts" | "tradi
     <Card className="paper-chart-container flex flex-col min-h-0 overflow-hidden h-full" data-testid="paper-chart-container" id="paper-chart">
       <ChartHeader state={state} />
       <div className="paper-chart-body flex-1 min-h-0 relative flex flex-col" id="paper-chart-body">
-        <LoadingOverlay visible={state.chartLoading} zIndex={10} overlayProps={{ radius: "sm", blur: 1 }} />
+        <LoadingOverlay visible={state.chartLoading} z-index={10} overlayProps={{ radius: "sm", blur: 1 }} />
         {chartInput ? (
           <div className="paper-chart-canvas-wrap flex-1 min-h-0 flex" id="paper-chart-canvas-wrap">
             {engine === "tradingview" ? (
@@ -427,7 +427,7 @@ export function PaperChart({ engine = "echarts" }: { engine?: "echarts" | "tradi
                 livePosition={chartInput.livePosition}
               />
             ) : (
-              <TradingChart input={chartInput} style={{ flex: 1, minHeight: 0 }} />
+              <TradingChart input={chartInput} style={{ flex: 1, "min-height": 0 }} />
             )}
           </div>
         ) : (

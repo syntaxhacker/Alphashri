@@ -96,7 +96,7 @@ function NiftyVolumeProfileInner({
           )}
         </Box>
 
-        <Box className="w-full min-w-0" style={{ height: 220, overflowY: "auto" }}>
+        <Box className="w-full min-w-0" style={{ height: 220, "overflow-y": "auto" }}>
           <svg
             data-testid={testId}
             viewBox={`0 0 ${SVG_W} ${svgH}`}
@@ -111,7 +111,7 @@ function NiftyVolumeProfileInner({
               y1={0}
               y2={svgH}
               stroke={palette.CHART_BORDER}
-              strokeWidth={1}
+              stroke-width={1}
               vectorEffect="non-scaling-stroke"
             />
             {points.map((p, i) => {
@@ -150,7 +150,7 @@ function NiftyVolumeProfileInner({
                       y2={y + h + 0.5}
                       stroke={palette.TEXT}
                       strokeDasharray="2 2"
-                      strokeWidth={1}
+                      stroke-width={1}
                       vectorEffect="non-scaling-stroke"
                     />
                   )}
@@ -163,7 +163,7 @@ function NiftyVolumeProfileInner({
                       height={h}
                       fill="none"
                       stroke={OI_STROKE}
-                      strokeWidth={0.75}
+                      stroke-width={0.75}
                       opacity={0.5}
                       vectorEffect="non-scaling-stroke"
                     />
@@ -176,7 +176,7 @@ function NiftyVolumeProfileInner({
                       height={h}
                       fill="none"
                       stroke={OI_STROKE}
-                      strokeWidth={0.75}
+                      stroke-width={0.75}
                       opacity={0.5}
                       vectorEffect="non-scaling-stroke"
                     />
@@ -208,9 +208,9 @@ function NiftyVolumeProfileInner({
                     x={CENTER}
                     y={y + h / 2 + 3}
                     textAnchor="middle"
-                    fontSize={8}
+                    font-size={8}
                     fill={isAtm ? palette.TERM_FLIP : palette.TEXT_MUTED}
-                    fontWeight={isAtm || isTop ? 700 : 400}
+                    font-weight={isAtm || isTop ? 700 : 400}
                   >
                     {formatNumberIN(p.strike)}
                   </text>
@@ -238,7 +238,7 @@ function Legend({ color, label, outline = false }: { color: string; label: strin
         aria-hidden
         className="w-[10px] h-[4px] rounded-[4px]"
         style={{
-          backgroundColor: outline ? "transparent" : color,
+          "background-color": outline ? "transparent" : color,
           border: outline ? `1px solid ${color}` : undefined,
         }}
       />

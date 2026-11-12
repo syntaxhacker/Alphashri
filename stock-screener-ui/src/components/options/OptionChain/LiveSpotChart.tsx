@@ -62,7 +62,7 @@ export function LiveSpotChart({ underlying }: { underlying: string }) {
   const color = isPositive ? palette.POSITIVE : palette.NEGATIVE;
 
   return (
-    <Box className="flex live-spot-chart" data-testid="options-live-spot-chart" alignItems="center" justifyContent="center" gap={1} p={1}>
+    <Box className="flex live-spot-chart" data-testid="options-live-spot-chart" align-items="center" justify-content="center" gap={1} p={1}>
       <Box className="flex flex-col items-center relative spot-chart-svg-container">
         <svg width="200" height="40" style={{ display: "block" }} className="spot-chart-svg">
           <defs>
@@ -74,7 +74,7 @@ export function LiveSpotChart({ underlying }: { underlying: string }) {
           <polyline
             fill="none"
             stroke={color}
-            strokeWidth="2"
+            stroke-width="2"
             strokeLinecap="round"
             strokeLinejoin="round"
             points={svgParams.points}

@@ -67,33 +67,33 @@ export function Anchor(props: UIAnchorProps) {
     if (tone != null) {
       o.color = TONE_COLOR[tone] ?? (isLiteralColor(tone) ? tone : undefined);
     }
-    if (known.fw != null) o.fontWeight = known.fw;
-    if (known.ta != null) o.textAlign = known.ta;
-    if (known.lh != null) o.lineHeight = known.lh;
-    if (known.size != null) o.fontSize = sizeMap[known.size as string] ?? (known.size as string);
+    if (known.fw != null) o["font-weight"] = known.fw;
+    if (known.ta != null) o["text-align"] = known.ta;
+    if (known.lh != null) o["line-height"] = known.lh;
+    if (known.size != null) o["font-size"] = sizeMap[known.size as string] ?? (known.size as string);
 
     let underlineClass: string | undefined;
     if (underlineProp === "always") {
-      o.textDecoration = "underline";
+      o["text-decoration"] = "underline";
     } else if (underlineProp === "none") {
-      o.textDecoration = "none";
+      o["text-decoration"] = "none";
     } else {
       // "hover": no underline by default, underline on hover.
-      o.textDecoration = "none";
+      o["text-decoration"] = "none";
       underlineClass = "hover:underline";
     }
 
     if (known.truncate) {
       o.overflow = "hidden";
-      o.textOverflow = "ellipsis";
-      o.whiteSpace = "nowrap";
+      o["text-overflow"] = "ellipsis";
+      o["white-space"] = "nowrap";
       o.display = "inline-block";
-      o.maxWidth = "100%";
+      o["max-width"] = "100%";
     }
 
     if (known.lineClamp != null) {
       o.display = "-webkit-box";
-      o.WebkitLineClamp = known.lineClamp;
+      o["webkit-line-clamp"] = known.lineClamp;
       o.WebkitBoxOrient = "vertical";
       o.overflow = "hidden";
     }

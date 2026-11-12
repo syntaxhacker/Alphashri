@@ -57,10 +57,10 @@ export function leadTimeDays(event: EventDTO): number | null {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <ToolbarRow gap={8} justify="space-between" wrap={false}>
-      <Text size="xs" c="dimmed" tt="uppercase" style={{ fontSize: 10, letterSpacing: "0.4px" }}>
+      <Text size="xs" c="dimmed" tt="uppercase" style={{ "font-size": 10, "letter-spacing": "0.4px" }}>
         {label}
       </Text>
-      <Box style={{ minWidth: 0, textAlign: "right" }}>{children}</Box>
+      <Box style={{ "min-width": 0, "text-align": "right" }}>{children}</Box>
     </ToolbarRow>
   );
 }
@@ -78,14 +78,14 @@ export function EventDetailDrawer({ event, onClose }: EventDetailDrawerProps) {
     top: 0,
     right: 0,
     width: 420,
-    maxWidth: "100%",
+    "max-width": "100%",
     height: "100%",
-    backgroundColor: palette.SURFACE,
+    "background-color": palette.SURFACE,
     borderLeft: `1px solid ${palette.BORDER}`,
     display: "flex",
-    flexDirection: "column",
-    minWidth: 0,
-    zIndex: 1300,
+    "flex-direction": "column",
+    "min-width": 0,
+    "z-index": 1300,
   };
 
   return (
@@ -101,9 +101,9 @@ export function EventDetailDrawer({ event, onClose }: EventDetailDrawerProps) {
           wrap={false}
           justify="space-between"
           className="border-b border-fin-border"
-          style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 8, paddingBottom: 8, borderBottom: `1px solid ${palette.BORDER}` }}
+          style={{ "padding-left": 16, "padding-right": 16, "padding-top": 8, "padding-bottom": 8, borderBottom: `1px solid ${palette.BORDER}` }}
         >
-          <Box style={{ minWidth: 0 }}>
+          <Box style={{ "min-width": 0 }}>
             <Text fw={700} truncate data-testid="event-detail-title">
               {event.title}
             </Text>
@@ -122,7 +122,7 @@ export function EventDetailDrawer({ event, onClose }: EventDetailDrawerProps) {
           </ActionIcon>
         </ToolbarRow>
 
-        <Box style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+        <Box style={{ flex: 1, "min-height": 0, "overflow-y": "auto", padding: 16, display: "flex", "flex-direction": "column", gap: 8 }}>
           <ToolbarRow gap={8} wrap={false}>
             <EventTypeBadge type={event.event_type} isAlpha={event.is_alpha} />
             <Badge size="xs" color="secondary" data-testid="event-detail-source">
@@ -172,7 +172,7 @@ export function EventDetailDrawer({ event, onClose }: EventDetailDrawerProps) {
             <>
               <Divider />
               <Box>
-                <Text size="xs" c="dimmed" tt="uppercase" style={{ fontSize: 10, letterSpacing: "0.4px" }}>
+                <Text size="xs" c="dimmed" tt="uppercase" style={{ "font-size": 10, "letter-spacing": "0.4px" }}>
                   Notes
                 </Text>
                 <Text size="xs" data-testid="event-detail-notes">
@@ -193,7 +193,7 @@ export function EventDetailDrawer({ event, onClose }: EventDetailDrawerProps) {
                   rel="noopener noreferrer"
                   size="xs"
                   data-testid="event-detail-source-link"
-                  style={{ wordBreak: "break-all" }}
+                  style={{ "word-break": "break-all" }}
                 >
                   {event.source_url}
                 </Anchor>

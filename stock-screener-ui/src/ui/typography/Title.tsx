@@ -80,16 +80,16 @@ export function Title(props: UITitleProps) {
     if (tone != null) {
       o.color = TONE_COLOR[tone] ?? (isLiteralColor(tone) ? tone : undefined);
     }
-    if (known.fw != null) o.fontWeight = known.fw;
-    if (known.ta != null) o.textAlign = known.ta;
-    if (known.lh != null) o.lineHeight = known.lh;
+    if (known.fw != null) o["font-weight"] = known.fw;
+    if (known.ta != null) o["text-align"] = known.ta;
+    if (known.lh != null) o["line-height"] = known.lh;
     if (known.size != null) {
-      o.fontSize = sizeMap[known.size as string] ?? (typeof known.size === "number" ? `${known.size}px` : known.size);
+      o["font-size"] = sizeMap[known.size as string] ?? (typeof known.size === "number" ? `${known.size}px` : known.size);
     }
-    if (known.mt != null) o.marginTop = typeof known.mt === "number" ? `${known.mt * 8}px` : known.mt;
-    if (known.mb != null) o.marginBottom = typeof known.mb === "number" ? `${known.mb * 8}px` : known.mb;
-    if (known.ml != null) o.marginLeft = typeof known.ml === "number" ? `${known.ml * 8}px` : known.ml;
-    if (known.mr != null) o.marginRight = typeof known.mr === "number" ? `${known.mr * 8}px` : known.mr;
+    if (known.mt != null) o["margin-top"] = typeof known.mt === "number" ? `${known.mt * 8}px` : known.mt;
+    if (known.mb != null) o["margin-bottom"] = typeof known.mb === "number" ? `${known.mb * 8}px` : known.mb;
+    if (known.ml != null) o["margin-left"] = typeof known.ml === "number" ? `${known.ml * 8}px` : known.ml;
+    if (known.mr != null) o["margin-right"] = typeof known.mr === "number" ? `${known.mr * 8}px` : known.mr;
     return { cls, style: o };
   });
 

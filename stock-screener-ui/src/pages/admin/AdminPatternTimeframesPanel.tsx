@@ -366,10 +366,10 @@ export function AdminPatternTimeframesPanel() {
       className="flex h-full min-h-0 flex-col p-[2px]"
     >
       <Box className="flex shrink-0 items-center justify-between gap-2 px-1 py-[2px]">
-        <Text size="xs" c="dimmed" data-testid="admin-tf-summary" style={{ fontSize: 10 }}>
+        <Text size="xs" c="dimmed" data-testid="admin-tf-summary" style={{ "font-size": 10 }}>
           {`${enabledCount} enabled / ${totalCount} total · ${Math.max(0, totalCount - enabledCount)} disabled · ${resampledCount} resampled`}
         </Text>
-        <Text size="xs" c="dimmed" data-testid="admin-tf-note" style={{ fontSize: 10 }}>
+        <Text size="xs" c="dimmed" data-testid="admin-tf-note" style={{ "font-size": 10 }}>
           3m and 2h are off by default
         </Text>
       </Box>
@@ -401,7 +401,7 @@ export function AdminPatternTimeframesPanel() {
         />
         {sourceOptions.length > 0 && (
           <>
-            <Text size="xs" c="dimmed" style={{ fontSize: 10 }}>src</Text>
+            <Text size="xs" c="dimmed" style={{ "font-size": 10 }}>src</Text>
             <Select
               size="xs"
               w={90}
@@ -418,13 +418,13 @@ export function AdminPatternTimeframesPanel() {
           disabled={!canAdd}
           onClick={() => void handleAdd()}
           data-testid="admin-tf-add"
-          style={{ minWidth: 0, minHeight: 24, padding: "2px 10px", fontSize: 11, lineHeight: 1.2 }}
+          style={{ "min-width": 0, "min-height": 24, padding: "2px 10px", "font-size": 11, "line-height": 1.2 }}
         >
           Add
         </Button>
-        <Text size="xs" c="dimmed" style={{ fontSize: 10 }}>e.g. 45m, 6h, 2D, 3W, 3M</Text>
+        <Text size="xs" c="dimmed" style={{ "font-size": 10 }}>e.g. 45m, 6h, 2D, 3W, 3M</Text>
         {addError && (
-          <Text size="xs" c="error" data-testid="admin-tf-add-error" style={{ fontSize: 10 }}>
+          <Text size="xs" c="error" data-testid="admin-tf-add-error" style={{ "font-size": 10 }}>
             <span data-testid="admin-tf-error">{addError}</span>
           </Text>
         )}

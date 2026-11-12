@@ -23,7 +23,7 @@ export function Icon({ name, size = 16, className, "data-testid": testId, color 
       viewBox="0 0 24 24"
       fill="none"
       stroke={color ?? "currentColor"}
-      strokeWidth="2"
+      stroke-width="2"
       strokeLinecap="round"
       strokeLinejoin="round"
     >

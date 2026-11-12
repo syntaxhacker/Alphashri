@@ -53,9 +53,9 @@ export function SymbolAvatar({ symbol, name, logo, size = 20 }: SymbolAvatarProp
       style={{
         width: size,
         height: size,
-        minWidth: size,
-        minHeight: size,
-        backgroundColor: showImg ? "var(--color-fin-surface-alt)" : tintFor(symbol),
+        "min-width": size,
+        "min-height": size,
+        "background-color": showImg ? "var(--color-fin-surface-alt)" : tintFor(symbol),
       }}
     >
       {showImg ? (
@@ -65,10 +65,10 @@ export function SymbolAvatar({ symbol, name, logo, size = 20 }: SymbolAvatarProp
           width={size}
           height={size}
           onError={() => setFailed(true)}
-          style={{ width: size, height: size, objectFit: "contain", display: "block" }}
+          style={{ width: size, height: size, "object-fit": "contain", display: "block" }}
         />
       ) : (
-        <Text size="xs" span fw={700} style={{ fontSize: size * 0.45, color: TEXT, lineHeight: 1 }}>
+        <Text size="xs" span fw={700} style={{ "font-size": size * 0.45, color: TEXT, "line-height": 1 }}>
           {initialsFor(symbol)}
         </Text>
       )}

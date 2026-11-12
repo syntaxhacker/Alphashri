@@ -29,7 +29,7 @@ export function EventsTable({ events, isLoading, onOpen }: EventsTableProps) {
       <Box
         data-testid="events-loading"
         className="flex flex-col gap-1 p-1"
-        style={{ flex: 1, minHeight: 0 }}
+        style={{ flex: 1, "min-height": 0 }}
       >
         {Array.from({ length: SKELETON_ROWS }).map((_, index) => (
           <Skeleton key={`events-skeleton-${index}`} h={24} data-testid="events-skeleton-row" />

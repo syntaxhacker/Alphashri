@@ -11,10 +11,10 @@ describe("Title", () => {
   });
 
   it("renders the heading tag from order", () => {
-    render(() => <Title data-testid="t" order={1}>h1</Title>);
-    expect(screen.getByTestId("t").tagName).toBe("H1");
-    render(() => <Title data-testid="t" order={6}>h6</Title>);
-    expect(screen.getByTestId("t").tagName).toBe("H6");
+    render(() => <Title data-testid="t1" order={1}>h1</Title>);
+    expect(screen.getByTestId("t1").tagName).toBe("H1");
+    render(() => <Title data-testid="t6" order={6}>h6</Title>);
+    expect(screen.getByTestId("t6").tagName).toBe("H6");
   });
 
   it("applies tone color via c", () => {
@@ -24,7 +24,7 @@ describe("Title", () => {
 
   it("applies size from the type scale", () => {
     render(() => <Title data-testid="t" order={2} size="xl">big</Title>);
-    expect(screen.getByTestId("t")).toHaveStyle("font-size: 1.5rem");
+    expect(screen.getByTestId("t")).toHaveStyle("font-size: 24px");
   });
 
   it("forwards title as a native tooltip attribute", () => {

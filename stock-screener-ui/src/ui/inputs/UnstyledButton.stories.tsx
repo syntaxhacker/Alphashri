@@ -14,7 +14,7 @@ type Story = StoryObj<typeof UnstyledButton>;
 
 export const Default: Story = {
   render: () => (
-    <UnstyledButton style={{ fontSize: 14, textDecoration: "underline" }}>
+    <UnstyledButton style={{ "font-size": 14, "text-decoration": "underline" }}>
       Plain text button
     </UnstyledButton>
   ),
@@ -23,10 +23,10 @@ export const Default: Story = {
 export const LinkStyle: Story = {
   render: () => (
     <Group gap="md">
-      <UnstyledButton style={{ color: "var(--color-fin-primary)", fontSize: 14 }}>
+      <UnstyledButton style={{ color: "var(--color-fin-primary)", "font-size": 14 }}>
         View details
       </UnstyledButton>
-      <UnstyledButton style={{ color: "var(--color-fin-negative)", fontSize: 14 }}>
+      <UnstyledButton style={{ color: "var(--color-fin-negative)", "font-size": 14 }}>
         Delete
       </UnstyledButton>
     </Group>
@@ -37,8 +37,8 @@ export const CardStyle: Story = {
   render: () => (
     <UnstyledButton
       style={{
-        borderRadius: 8,
-        textAlign: "left",
+        "border-radius": 8,
+        "text-align": "left",
         padding: 16,
         width: 220,
       }}

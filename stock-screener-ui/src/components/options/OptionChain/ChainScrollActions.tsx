@@ -16,9 +16,9 @@ export function ChainScrollActions({ scrollToATM, scrollToEdge }: ChainScrollAct
         position: "absolute",
         right: 20,
         bottom: 80,
-        zIndex: 100,
+        "z-index": 100,
         display: "flex",
-        flexDirection: "column",
+        "flex-direction": "column",
         gap: 8,
       }}
       data-testid="options-chain-scroll-actions"
@@ -43,7 +43,7 @@ export function ChainScrollActions({ scrollToATM, scrollToEdge }: ChainScrollAct
           size="xl"
           radius="xl"
           onClick={() => scrollToATM("smooth")}
-          style={{ boxShadow: `0 4px 12px ${withAlpha(BLACK, 0.15)}` }}
+          style={{ "box-shadow": `0 4px 12px ${withAlpha(BLACK, 0.15)}` }}
           className="scroll-action-btn scroll-atm-btn"
           data-testid="options-scroll-atm-btn"
         >

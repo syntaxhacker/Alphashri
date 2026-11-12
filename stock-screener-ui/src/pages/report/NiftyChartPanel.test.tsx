@@ -198,7 +198,7 @@ describe("NiftyChartPanel", () => {
   test("default fills; size toggle pins S 180px → XL 760px", async () => {
     const user = userEvent.setup();
     r(<NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
-    // Default = fill: no fixed height, autoSize chart.
+    // Default = "fill": no fixed height, autoSize chart.
     const wrap = screen.getByTestId("nifty-chart-wrap");
     expect(wrap).toHaveAttribute("data-fill", "1");
     expect(wrap).not.toHaveStyle({ height: "180px" });
@@ -225,12 +225,12 @@ describe("NiftyChartPanel", () => {
     );
     const wrap = screen.getByTestId("nifty-chart-wrap");
     // DESK reads at a glance: the auto chart stops at 300px (floor 260).
-    expect(wrap).toHaveStyle({ maxHeight: "300px", minHeight: "260px" });
+    expect(wrap).toHaveStyle({ "max-height": "300px", "min-height": "260px" });
     await user.click(screen.getByRole("button", { name: "XL" }));
     // A manual preset drops the cap so S/M/L/XL keep their exact height.
     const xl = screen.getByTestId("nifty-chart-wrap");
     expect(xl).toHaveStyle({ height: "760px" });
-    expect(xl).not.toHaveStyle({ maxHeight: "300px" });
+    expect(xl).not.toHaveStyle({ "max-height": "300px" });
     expect(onSizeChange).toHaveBeenLastCalledWith("xl");
   });
 

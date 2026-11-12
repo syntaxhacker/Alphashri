@@ -1,6 +1,5 @@
 import { createUniqueId, splitProps } from "solid-js";
 import { cn } from "../cn";
-import { stripLegacyInputProps } from "./legacyProps";
 import type { UITextareaProps } from "../types";
 
 function sizeClass(size?: UITextareaProps["size"]): string {
@@ -55,12 +54,11 @@ export function Textarea(props: UITextareaProps) {
 
   // Legacy Mantine props are accepted for backward compatibility but never
   // forwarded to the DOM (native elements reject unknown attributes).
-  const forwarded = stripLegacyInputProps(_rest);
 
   const wrapperStyle = explicitWidth ? { width: explicitWidth, ...known.style } : known.style ?? {};
   const inputStyle = {
     ...(explicitHeight ? { height: explicitHeight } : {}),
-    ...(effectiveMaxRows ? { maxHeight: `${effectiveMaxRows * 1.4}rem` } : {}),
+    ...(effectiveMaxRows ? { "max-height": `${effectiveMaxRows * 1.4}rem` } : {}),
   };
 
   const wrapperTestId = known["data-testid"] ? `${known["data-testid"]}-field` : undefined;

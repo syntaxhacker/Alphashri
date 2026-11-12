@@ -45,9 +45,9 @@ const SECTOR_STOCK_TREEMAP_STYLE: StockTreemapStyle = {
   borderDark: BROWN_DARK,
   borderLight: CREAM,
   label: {
-    fontSize: 10,
-    fontWeight: 600,
-    lineHeight: 13,
+    "font-size": 10,
+    "font-weight": 600,
+    "line-height": 13,
     textShadowColor: "rgba(0, 0, 0, 0.45)",
     textShadowBlur: 2,
   },
@@ -84,8 +84,8 @@ function buildSectorTreemapOption(sectors: SectorItem[], isDark: boolean) {
   return {
     tooltip: {
       trigger: "item" as const,
-      backgroundColor: tooltipBg,
-      borderColor: tooltipBorder,
+      "background-color": tooltipBg,
+      "border-color": tooltipBorder,
       textStyle: { color: tooltipText },
       formatter: (params: { data?: Record<string, unknown> }) => {
         const d = params.data;
@@ -125,22 +125,22 @@ function buildSectorTreemapOption(sectors: SectorItem[], isDark: boolean) {
           formatter: (params: { name?: string; data?: { avg_change?: number } }) =>
             `${params.name}\n${params.data?.avg_change != null ? formatPercentage(params.data.avg_change, 2, false) : ""}`,
           color: CREAM,
-          fontSize: 10,
-          fontWeight: 600,
-          lineHeight: 13,
+          "font-size": 10,
+          "font-weight": 600,
+          "line-height": 13,
           textShadowColor: "rgba(0, 0, 0, 0.45)",
           textShadowBlur: 2,
         },
         breadcrumb: { show: false },
         itemStyle: {
-          borderColor: isDark ? BROWN_DARK : CREAM,
+          "border-color": isDark ? BROWN_DARK : CREAM,
           borderWidth: 1,
           gapWidth: 0,
         },
         levels: [
           {
             itemStyle: {
-              borderColor: isDark ? BROWN_DARK : CREAM,
+              "border-color": isDark ? BROWN_DARK : CREAM,
               borderWidth: 0,
               gapWidth: 0,
             },

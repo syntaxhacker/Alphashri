@@ -72,8 +72,8 @@ export function ScatterView({ stocks, metricX, metricY, onMetricXChange, onMetri
             show: true,
             formatter: (params: any) => params.data?.symbol || '',
             position: 'top',
-            fontSize: 11,
-            fontWeight: 'bold',
+            "font-size": 11,
+            "font-weight": 'bold',
             color: tooltipText,
           },
         },
@@ -81,7 +81,7 @@ export function ScatterView({ stocks, metricX, metricY, onMetricXChange, onMetri
     });
 
     return {
-      backgroundColor: 'transparent',
+      "background-color": 'transparent',
       tooltip: {
         trigger: 'item',
         formatter: (params: any) => {
@@ -98,8 +98,8 @@ export function ScatterView({ stocks, metricX, metricY, onMetricXChange, onMetri
             `</div>`,
           ].join('\n');
         },
-        backgroundColor: tooltipBg,
-        borderColor: isDark ? TOOLTIP_DARK_BORDER : TOOLTIP_LIGHT_BORDER,
+        "background-color": tooltipBg,
+        "border-color": isDark ? TOOLTIP_DARK_BORDER : TOOLTIP_LIGHT_BORDER,
         textStyle: { color: tooltipText },
       },
       legend: {
@@ -107,7 +107,7 @@ export function ScatterView({ stocks, metricX, metricY, onMetricXChange, onMetri
         orient: 'vertical',
         right: 10,
         top: 40,
-        textStyle: { color: isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT, fontSize: 10 },
+        textStyle: { color: isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT, "font-size": 10 },
         pageTextStyle: { color: isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT },
       },
       grid: {
@@ -121,7 +121,7 @@ export function ScatterView({ stocks, metricX, metricY, onMetricXChange, onMetri
         name: metricXLabel,
         nameLocation: 'center',
         nameGap: 30,
-        nameTextStyle: { fontSize: 12, fontWeight: 'bold', color: isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT },
+        nameTextStyle: { "font-size": 12, "font-weight": 'bold', color: isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT },
         axisLabel: { show: false },
         axisLine: { lineStyle: { color: axisLineColor } },
         splitLine: { lineStyle: { color: splitLineColor } },
@@ -131,7 +131,7 @@ export function ScatterView({ stocks, metricX, metricY, onMetricXChange, onMetri
         name: metricYLabel,
         nameLocation: 'center',
         nameGap: 40,
-        nameTextStyle: { fontSize: 12, fontWeight: 'bold', color: isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT },
+        nameTextStyle: { "font-size": 12, "font-weight": 'bold', color: isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT },
         axisLabel: { show: false },
         axisLine: { lineStyle: { color: axisLineColor } },
         splitLine: { lineStyle: { color: splitLineColor } },

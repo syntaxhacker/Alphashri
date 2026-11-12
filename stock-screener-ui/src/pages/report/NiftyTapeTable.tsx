@@ -330,7 +330,7 @@ function NiftyTapeTableInner({
     // Fixed px chrome: root gaps are 4px; the table wrap below owns the only
     // height budget. No `overflow` on this Box — it is not a page-column
     // child, but the rule stands: only inner scroll containers scroll.
-    <Box className="flex flex-col" style={{ gap: "4px", minWidth: 0, backgroundColor: TAPE_TERM_BG }}>
+    <Box className="flex flex-col" style={{ gap: "4px", "min-width": 0, "background-color": TAPE_TERM_BG }}>
       {/* Single wrapping stat line (was two stacked rows): PCR OI, ΔOI since
           baseline, max pain, flip, walls, then session meta + order toggle +
           LIVE dot all flow inline so the head is one ~18px line at width. */}
@@ -338,50 +338,50 @@ function NiftyTapeTableInner({
         data-testid="nifty-tape-head"
         className="min-w-0"
         style={{
-          backgroundColor: TAPE_TERM_BG,
-          paddingLeft: `${REPORT_PAD.sm / 8}px`,
-          paddingTop: `${REPORT_PAD.xs / 8}px`,
+          "background-color": TAPE_TERM_BG,
+          "padding-left": `${REPORT_PAD.sm / 8}px`,
+          "padding-top": `${REPORT_PAD.xs / 8}px`,
         }}
       >
         <Box
           className="flex items-center flex-wrap"
           style={{
-            columnGap: "12px",
-            rowGap: `${REPORT_PAD.xs / 8}px`,
+            "column-gap": "12px",
+            "row-gap": `${REPORT_PAD.xs / 8}px`,
             fontVariantNumeric: "tabular-nums",
           }}
         >
           <Box data-testid="nifty-tape-pcr" className="flex items-baseline" style={{ gap: "4px" }}>
-            <Text span fw={600} tt="uppercase" c="dimmed" style={{ fontSize: `${REPORT_FONT.xs - 1}px` }}>PCR OI</Text>
-            <Text span fw={700} data-testid="nifty-tape-head-pcr-oi" style={{ fontSize: `${REPORT_FONT.sm}px` }}>{formatTapeRatio(head.pcrOi)}</Text>
-            <Text span c="dimmed" style={{ fontSize: `${REPORT_FONT.xs - 1}px` }}>snapshot</Text>
+            <Text span fw={600} tt="uppercase" c="dimmed" style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>PCR OI</Text>
+            <Text span fw={700} data-testid="nifty-tape-head-pcr-oi" style={{ "font-size": `${REPORT_FONT.sm}px` }}>{formatTapeRatio(head.pcrOi)}</Text>
+            <Text span c="dimmed" style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>snapshot</Text>
           </Box>
           <Box data-testid="nifty-tape-head-pcr-doi" className="flex items-baseline" style={{ gap: "4px" }}>
-            <Text span fw={600} tt="uppercase" c="dimmed" style={{ fontSize: `${REPORT_FONT.xs - 1}px` }}>{doiLabel}</Text>
-            <Text span fw={700} c={TAPE_CALL_DOI} style={{ fontSize: `${REPORT_FONT.sm}px` }}>{formatTapeSigned(head.pcrDoiDelta)}</Text>
+            <Text span fw={600} tt="uppercase" c="dimmed" style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>{doiLabel}</Text>
+            <Text span fw={700} c={TAPE_CALL_DOI} style={{ "font-size": `${REPORT_FONT.sm}px` }}>{formatTapeSigned(head.pcrDoiDelta)}</Text>
           </Box>
           <Box data-testid="nifty-tape-max-pain" className="flex items-baseline" style={{ gap: "4px" }}>
-            <Text span fw={600} tt="uppercase" c="dimmed" style={{ fontSize: `${REPORT_FONT.xs - 1}px` }}>Max pain</Text>
-            <Text span fw={700} data-testid="nifty-tape-head-max-pain" style={{ fontSize: `${REPORT_FONT.sm}px` }}>{formatTapePrice(head.maxPain)}</Text>
+            <Text span fw={600} tt="uppercase" c="dimmed" style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>Max pain</Text>
+            <Text span fw={700} data-testid="nifty-tape-head-max-pain" style={{ "font-size": `${REPORT_FONT.sm}px` }}>{formatTapePrice(head.maxPain)}</Text>
           </Box>
           <Box data-testid="nifty-tape-flip" className="flex items-baseline" style={{ gap: "4px" }}>
-            <Text span fw={600} tt="uppercase" c="dimmed" style={{ fontSize: `${REPORT_FONT.xs - 1}px` }}>Flip</Text>
-            <Text span fw={700} data-testid="nifty-tape-head-flip" style={{ fontSize: `${REPORT_FONT.sm}px` }}>
+            <Text span fw={600} tt="uppercase" c="dimmed" style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>Flip</Text>
+            <Text span fw={700} data-testid="nifty-tape-head-flip" style={{ "font-size": `${REPORT_FONT.sm}px` }}>
               {formatTapePrice(head.flip)}{" "}
-              <Text span fw={700} c={head.flipDeltaPts >= 0 ? TAPE_FLIP_POS_TEXT : TAPE_FLIP_NEG_TEXT} style={{ fontSize: `${REPORT_FONT.xs - 1}px` }}>
+              <Text span fw={700} c={head.flipDeltaPts >= 0 ? TAPE_FLIP_POS_TEXT : TAPE_FLIP_NEG_TEXT} style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>
                 {flipSigned}
               </Text>
             </Text>
-            <Text span c="dimmed" style={{ fontSize: `${REPORT_FONT.xs - 1}px` }}>spot−flip</Text>
+            <Text span c="dimmed" style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>spot−flip</Text>
           </Box>
           <Box data-testid="nifty-tape-walls" className="flex items-baseline" style={{ gap: "4px" }}>
-            <Text span fw={600} tt="uppercase" c="dimmed" style={{ fontSize: `${REPORT_FONT.xs - 1}px` }}>Walls</Text>
-            <Text span fw={700} data-testid="nifty-tape-head-walls" style={{ fontSize: `${REPORT_FONT.sm}px` }}>
+            <Text span fw={600} tt="uppercase" c="dimmed" style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>Walls</Text>
+            <Text span fw={700} data-testid="nifty-tape-head-walls" style={{ "font-size": `${REPORT_FONT.sm}px` }}>
               {formatTapePrice(head.wallCall)} / {formatTapePrice(head.wallPut)}
             </Text>
-            <Text span c="dimmed" style={{ fontSize: `${REPORT_FONT.xs - 1}px` }}>call / put</Text>
+            <Text span c="dimmed" style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>call / put</Text>
           </Box>
-          <Text c="dimmed" ta="left" span style={{ fontSize: `${REPORT_FONT.xs - 1}px` }}>
+          <Text c="dimmed" ta="left" span style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>
             TICKS {rows.length} · one per minute
           </Text>
           {updatedAtMs !== null && (
@@ -389,28 +389,28 @@ function NiftyTapeTableInner({
               data-testid="nifty-tape-updated"
               c="dimmed"
               span
-              style={{ fontVariantNumeric: "tabular-nums", fontSize: `${REPORT_FONT.xs - 1}px` }}
+              style={{ fontVariantNumeric: "tabular-nums", "font-size": `${REPORT_FONT.xs - 1}px` }}
             >
               upd {formatIstClock(updatedAtMs)}
               {nextUpdateAtMs !== null ? ` · next ${formatIstClock(nextUpdateAtMs)}` : ""}
             </Text>
           )}
-          <Text c="dimmed" span style={{ fontSize: `${REPORT_FONT.xs - 1}px` }}>
+          <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>
             SPOT {formatTapePrice(session.spotLo)}–{formatTapePrice(session.spotHi)}
           </Text>
           <Box className="flex items-baseline" style={{ gap: "4px" }}>
-            <Text c="dimmed" span style={{ fontSize: `${REPORT_FONT.xs - 1}px` }}>MAX ΔOI</Text>
-            <Text span fw={700} c={TAPE_CALL_DOI} style={{ fontSize: `${REPORT_FONT.xs - 1}px` }}>C {formatTapeCompact(session.maxCallDoi)}</Text>
-            <Text span fw={700} c={TAPE_PUT_DOI} style={{ fontSize: `${REPORT_FONT.xs - 1}px` }}>P {formatTapeCompact(session.maxPutDoi)}</Text>
+            <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>MAX ΔOI</Text>
+            <Text span fw={700} c={TAPE_CALL_DOI} style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>C {formatTapeCompact(session.maxCallDoi)}</Text>
+            <Text span fw={700} c={TAPE_PUT_DOI} style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>P {formatTapeCompact(session.maxPutDoi)}</Text>
           </Box>
           <Box className="flex items-baseline" style={{ gap: "4px" }}>
-            <Text c="dimmed" span style={{ fontSize: `${REPORT_FONT.xs - 1}px` }}>NET</Text>
+            <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>NET</Text>
             <Text
               span
               fw={700}
               c={session.netLast >= 0 ? TAPE_NET_TEXT : TAPE_FLIP_NEG_TEXT}
               title="Cumulative put ΔOI − call ΔOI at the last recorded minute (the tape's `net` is already a running total — the column is never summed)"
-              style={{ fontSize: `${REPORT_FONT.xs - 1}px` }}
+              style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}
             >
               {formatTapeCompact(session.netLast)}
             </Text>
@@ -423,15 +423,15 @@ function NiftyTapeTableInner({
               border: "1px solid #2A2A2A",
               background: "transparent",
               color: TAPE_CALL_DOI,
-              borderRadius: "9999px",
-              paddingLeft: "8px",
-              paddingRight: "8px",
-              paddingTop: 0,
-              paddingBottom: 0,
-              fontSize: `${REPORT_FONT.micro}px`,
-              fontWeight: REPORT_FONT_WEIGHT.bold,
+              "border-radius": "9999px",
+              "padding-left": "8px",
+              "padding-right": "8px",
+              "padding-top": 0,
+              "padding-bottom": 0,
+              "font-size": `${REPORT_FONT.micro}px`,
+              "font-weight": REPORT_FONT_WEIGHT.bold,
               cursor: "pointer",
-              letterSpacing: REPORT_LETTER_SPACING.normal,
+              "letter-spacing": REPORT_LETTER_SPACING.normal,
             }}
           >
             {order === "newest" ? "NEWEST FIRST ↓" : "OLDEST FIRST ↑"}
@@ -446,17 +446,17 @@ function NiftyTapeTableInner({
                 style={{
                   width: "7px",
                   height: "7px",
-                  borderRadius: "50%",
-                  backgroundColor: palette.POSITIVE,
+                  "border-radius": "50%",
+                  "background-color": palette.POSITIVE,
                   "@keyframes tapePulse": {
-                    "0%": { opacity: 1, boxShadow: `0 0 0 0 ${hexToRgba(palette.POSITIVE, 0.5)}` },
-                    "70%": { opacity: 0.6, boxShadow: `0 0 0 5px ${hexToRgba(palette.POSITIVE, 0)}` },
-                    "100%": { opacity: 1, boxShadow: `0 0 0 0 ${hexToRgba(palette.POSITIVE, 0)}` },
+                    "0%": { opacity: 1, "box-shadow": `0 0 0 0 ${hexToRgba(palette.POSITIVE, 0.5)}` },
+                    "70%": { opacity: 0.6, "box-shadow": `0 0 0 5px ${hexToRgba(palette.POSITIVE, 0)}` },
+                    "100%": { opacity: 1, "box-shadow": `0 0 0 0 ${hexToRgba(palette.POSITIVE, 0)}` },
                   },
                   animation: "tapePulse 1.8s ease-out infinite",
                 }}
               />
-              <Text span fw={700} c={palette.POSITIVE} style={{ fontSize: `${REPORT_FONT.xs - 1}px` }}>LIVE</Text>
+              <Text span fw={700} c={palette.POSITIVE} style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>LIVE</Text>
             </Box>
           )}
         </Box>
@@ -486,36 +486,36 @@ function NiftyTapeTableInner({
         data-testid="nifty-tape-heat-legend"
         className="flex items-center flex-wrap"
         style={{
-          columnGap: "8px",
-          rowGap: 0,
-          paddingLeft: `${REPORT_PAD.sm / 8}px`,
-          paddingBottom: `${REPORT_PAD.xs / 8}px`,
-          lineHeight: REPORT_LINE_HEIGHT.snug,
+          "column-gap": "8px",
+          "row-gap": 0,
+          "padding-left": `${REPORT_PAD.sm / 8}px`,
+          "padding-bottom": `${REPORT_PAD.xs / 8}px`,
+          "line-height": REPORT_LINE_HEIGHT.snug,
         }}
       >
-        <Text c="dimmed" span style={{ fontSize: `${REPORT_FONT.xs - 1}px` }}>HEAT</Text>
+        <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>HEAT</Text>
         <Box className="flex items-center" style={{ gap: "4px" }}>
-          <Box style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_POS_HUE, 0.18), borderRadius: `${REPORT_RADIUS.sm / 2}px` }} />
-          <Box style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_POS_HUE, 0.45), borderRadius: `${REPORT_RADIUS.sm / 2}px` }} />
-          <Box style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_POS_HUE, 0.7), borderRadius: `${REPORT_RADIUS.sm / 2}px` }} />
-          <Text c="dimmed" span style={{ fontSize: `${REPORT_FONT.xs - 1}px` }} title="Positive value in the signed columns — net put-led, call/put tick volume up, PCR up, spot above the flip">positive</Text>
+          <Box style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_POS_HUE, 0.18), "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
+          <Box style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_POS_HUE, 0.45), "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
+          <Box style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_POS_HUE, 0.7), "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
+          <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.xs - 1}px` }} title="Positive value in the signed columns — net put-led, call/put tick volume up, PCR up, spot above the flip">positive</Text>
         </Box>
         <Box className="flex items-center" style={{ gap: "4px" }}>
-          <Box style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_NEG_HUE, 0.18), borderRadius: `${REPORT_RADIUS.sm / 2}px` }} />
-          <Box style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_NEG_HUE, 0.45), borderRadius: `${REPORT_RADIUS.sm / 2}px` }} />
-          <Box style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_NEG_HUE, 0.7), borderRadius: `${REPORT_RADIUS.sm / 2}px` }} />
-          <Text c="dimmed" span style={{ fontSize: `${REPORT_FONT.xs - 1}px` }} title="Negative value in the signed columns — net call-led, call/put tick volume down, PCR down, spot below the flip">negative</Text>
+          <Box style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_NEG_HUE, 0.18), "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
+          <Box style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_NEG_HUE, 0.45), "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
+          <Box style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_NEG_HUE, 0.7), "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
+          <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.xs - 1}px` }} title="Negative value in the signed columns — net call-led, call/put tick volume down, PCR down, spot below the flip">negative</Text>
         </Box>
         <Box className="flex items-center" style={{ gap: "4px" }}>
-          <Box style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_NET_HUE, 0.7), borderRadius: `${REPORT_RADIUS.sm / 2}px` }} />
-          <Text c="dimmed" span style={{ fontSize: `${REPORT_FONT.xs - 1}px` }}>net ΔOI (put−call)</Text>
+          <Box style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_NET_HUE, 0.7), "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
+          <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>net ΔOI (put−call)</Text>
         </Box>
         <Box data-testid="nifty-tape-burst-legend" className="flex items-center" style={{ gap: "4px" }}>
-          <Box style={{ width: "10px", height: "8px", background: TAPE_CALL_DOI, borderRadius: `${REPORT_RADIUS.sm / 2}px` }} />
-          <Box style={{ width: "10px", height: "8px", background: TAPE_PUT_DOI, borderRadius: `${REPORT_RADIUS.sm / 2}px` }} />
-          <Text c="dimmed" span style={{ fontSize: `${REPORT_FONT.xs - 1}px` }}>burst minute</Text>
+          <Box style={{ width: "10px", height: "8px", background: TAPE_CALL_DOI, "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
+          <Box style={{ width: "10px", height: "8px", background: TAPE_PUT_DOI, "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
+          <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>burst minute</Text>
         </Box>
-        <Text c="dimmed" span style={{ fontSize: `${REPORT_FONT.xs - 1}px` }}>· brighter = bigger print</Text>
+        <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>· brighter = bigger print</Text>
       </Box>
     </Box>
   );

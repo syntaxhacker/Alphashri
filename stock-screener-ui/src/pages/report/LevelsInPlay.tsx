@@ -104,7 +104,7 @@ function LevelInline({
       <span
         data-testid={testId}
         className="text-[11px] leading-none whitespace-nowrap"
-        style={{ color: palette.TEXT_MUTED, fontSize: REPORT_FONT.xs }}
+        style={{ color: palette.TEXT_MUTED, "font-size": REPORT_FONT.xs }}
       >
         {side} —
       </span>
@@ -116,16 +116,16 @@ function LevelInline({
       data-testid={testId}
       className="flex items-baseline gap-1 shrink-0 whitespace-nowrap"
       style={{
-        minWidth: 0,
-        flexShrink: 0,
+        "min-width": 0,
+        "flex-shrink": 0,
       }}
     >
-      <span className="font-black text-[11px] leading-none" style={{ color: tone, fontSize: REPORT_FONT.xs, fontWeight: 800 }}>
+      <span className="font-black text-[11px] leading-none" style={{ color: tone, "font-size": REPORT_FONT.xs, "font-weight": 800 }}>
         {side}
       </span>
       <span
         className="font-mono text-[12px] font-bold leading-none"
-        style={{ color: palette.TEXT, fontSize: REPORT_FONT.sm, fontWeight: 700 }}
+        style={{ color: palette.TEXT, "font-size": REPORT_FONT.sm, "font-weight": 700 }}
       >
         {formatNumberIN(Math.round(level.strike))}
       </span>
@@ -134,19 +134,19 @@ function LevelInline({
         className="inline-flex items-center shrink-0"
         style={{
           display: "inline-flex",
-          alignItems: "center",
+          "align-items": "center",
           height: 14,
-          minWidth: 0,
-          flexShrink: 0,
-          whiteSpace: "nowrap",
+          "min-width": 0,
+          "flex-shrink": 0,
+          "white-space": "nowrap",
           fontFamily: palette.MONO,
-          fontSize: REPORT_FONT.sm,
-          fontWeight: 800,
-          lineHeight: 1,
+          "font-size": REPORT_FONT.sm,
+          "font-weight": 800,
+          "line-height": 1,
           color: level.tag === "AT" ? palette.NEGATIVE : tone,
-          backgroundColor: level.tag === "AT" ? palette.TINT_NEGATIVE : palette.SURFACE_ALT,
+          "background-color": level.tag === "AT" ? palette.TINT_NEGATIVE : palette.SURFACE_ALT,
           border: `1px solid ${level.tag === "AT" ? palette.NEGATIVE : "transparent"}`,
-          borderRadius: "2px",
+          "border-radius": "2px",
           padding: "0 3px",
         }}
       >
@@ -155,16 +155,16 @@ function LevelInline({
       <span
         className="text-[11px] font-bold leading-none"
         style={{
-          fontSize: REPORT_FONT.xs,
-          fontWeight: 800,
-          letterSpacing: 0.2,
-          lineHeight: 1,
+          "font-size": REPORT_FONT.xs,
+          "font-weight": 800,
+          "letter-spacing": 0.2,
+          "line-height": 1,
           color: level.tag === "AT" ? palette.NEGATIVE : level.tag === "NEAR" ? tone : palette.TEXT_MUTED,
         }}
       >
         {level.tag}
       </span>
-      <span className="font-mono text-[11px] leading-none" style={{ color: palette.TEXT_MUTED, fontSize: REPORT_FONT.xs }}>
+      <span className="font-mono text-[11px] leading-none" style={{ color: palette.TEXT_MUTED, "font-size": REPORT_FONT.xs }}>
         {level.oi >= 1e6 ? `${(level.oi / 1e6).toFixed(1)}M` : `${Math.round(level.oi / 1e3)}k`}
       </span>
     </span>
@@ -192,12 +192,12 @@ function IndexRow({
       <div
         data-testid={`levels-label-${label}`}
         className="flex items-baseline gap-[3px] shrink-0"
-        style={{ minWidth: 84 }}
+        style={{ "min-width": 84 }}
       >
-        <Text size="xs" fw={800} style={{ fontSize: REPORT_FONT.xs, letterSpacing: 0.3, lineHeight: 1 }}>
+        <Text size="xs" fw={800} style={{ "font-size": REPORT_FONT.xs, "letter-spacing": 0.3, "line-height": 1 }}>
           {label}
         </Text>
-        <Text size="xs" c="dimmed" style={{ fontFamily: palette.MONO, fontSize: REPORT_FONT.xs, lineHeight: 1 }}>
+        <Text size="xs" c="dimmed" style={{ fontFamily: palette.MONO, "font-size": REPORT_FONT.xs, "line-height": 1 }}>
           {formatNumberIN(Math.round(spot))}
         </Text>
       </div>
@@ -205,7 +205,7 @@ function IndexRow({
       <LevelInline side="PE" level={read.put} rowLabel={label} />
       <span
         className="font-mono text-[11px] leading-none whitespace-nowrap shrink-0"
-        style={{ color: palette.TEXT_MUTED, fontSize: REPORT_FONT.xs }}
+        style={{ color: palette.TEXT_MUTED, "font-size": REPORT_FONT.xs }}
       >
         MP {maxPain > 0 ? formatNumberIN(Math.round(maxPain)) : "—"}
       </span>
@@ -255,8 +255,8 @@ export function LevelsInPlay({ report, sensex }: LevelsInPlayProps) {
           fw={800}
           data-testid="levels-badge"
           style={{
-            fontSize: REPORT_FONT.xs,
-            letterSpacing: 0.35,
+            "font-size": REPORT_FONT.xs,
+            "letter-spacing": 0.35,
             color: badge === "DUAL RESISTANCE" ? palette.NEGATIVE : badge === "DUAL SUPPORT" ? palette.POSITIVE : palette.TEXT_MUTED,
           }}
         >

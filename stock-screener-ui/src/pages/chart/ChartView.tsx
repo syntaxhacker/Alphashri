@@ -45,7 +45,7 @@ function ChartMessage({
         {title}
       </Text>
       {detail ? (
-        <Text size="xs" c="dimmed" style={{ textAlign: "center", maxWidth: 520 }}>
+        <Text size="xs" c="dimmed" style={{ "text-align": "center", "max-width": 520 }}>
           {detail}
         </Text>
       ) : null}
@@ -100,7 +100,7 @@ function NoPatternsPanel({
       <Text size="sm" fw={600}>
         No patterns detected
       </Text>
-      <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
+      <Text size="xs" c="dimmed" style={{ "overflow-wrap": "anywhere" }}>
         {symbol} has no detected pattern on {timeframe}. Try another timeframe.
       </Text>
       {alternatives.length > 0 ? (

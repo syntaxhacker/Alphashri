@@ -1,6 +1,5 @@
 import { createMemo, createSignal, createUniqueId, createEffect, For, Show, splitProps } from "solid-js";
 import { cn } from "../cn";
-import { stripLegacyInputProps } from "./legacyProps";
 import type { UIMultiSelectProps } from "../types";
 
 type Option = { value: string; label: string; disabled?: boolean };
@@ -87,7 +86,6 @@ export function MultiSelect(props: UIMultiSelectProps) {
   const [query, setQuery] = createSignal(known.searchValue ?? "");
   const [open, setOpen] = createSignal(false);
   const [highlighted, setHighlighted] = createSignal(-1);
-  let inputEl: HTMLInputElement | null = null;
 
   const selectedValues = createMemo(() => known.value ?? internalSelected());
   const selectedSet = createMemo(() => new Set(selectedValues()));
@@ -203,7 +201,6 @@ export function MultiSelect(props: UIMultiSelectProps) {
         <div className="inline-flex w-full items-center gap-2">
           {known.leftSection && <span className="shrink-0 text-fin-text-muted text-xs">{known.leftSection}</span>}
           <input
-            ref={(el) => (inputEl = el)}
             id={inputId}
             role="combobox"
             aria-expanded={open()}

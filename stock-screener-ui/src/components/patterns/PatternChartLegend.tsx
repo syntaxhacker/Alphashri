@@ -62,12 +62,12 @@ export function PatternChartLegend({ lines, levels, markers, hidden, onToggle }:
               w={8}
               h={8}
               className="rounded-full"
-              style={{ backgroundColor: entry.color, filter: isHidden ? "grayscale(1)" : undefined }}
+              style={{ "background-color": entry.color, filter: isHidden ? "grayscale(1)" : undefined }}
             />
             <Text
               size="xs"
               c="dimmed"
-              style={isHidden ? { textDecoration: "line-through" } : undefined}
+              style={isHidden ? { "text-decoration": "line-through" } : undefined}
             >
               {entry.name}
             </Text>

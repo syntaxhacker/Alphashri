@@ -127,11 +127,11 @@ function FullScreenReplay() {
     }`;
 
   return (
-    <Box className="h-[100vh] flex flex-col overflow-hidden" style={{ backgroundColor: palette.BG }}>
+    <Box className="h-[100vh] flex flex-col overflow-hidden" style={{ "background-color": palette.BG }}>
       {/* Toolbar — 48px like TradingView top */}
       <Paper
         className="flex items-center gap-2 px-3 h-12 min-h-[48px] border-b border-[#30363D] shrink-0 rounded-none"
-        style={{ backgroundColor: palette.SURFACE }}
+        style={{ "background-color": palette.SURFACE }}
       >
         <Text className="text-[11px] font-bold tracking-[0.5px]" style={{ color: palette.TEXT_MUTED }}>
           REPLAY
@@ -155,11 +155,11 @@ function FullScreenReplay() {
             size="xs"
             label={currentCandle ? `O ${currentCandle.open} H ${currentCandle.high} L ${currentCandle.low} C ${currentCandle.close} V ${currentCandle.volume}` : "—"}
             className="text-[10px] h-5 text-[#F0F6FC] border border-[#30363D]"
-            style={{ backgroundColor: palette.SURFACE_ALT }}
+            style={{ "background-color": palette.SURFACE_ALT }}
           />
         </div>
         <Box className="flex-1" />
-        <Chip size="xs" label={`${filteredTrades.length} trades`} className="text-[11px] h-5 text-[#8B949E] border border-[#30363D]" style={{ backgroundColor: palette.SURFACE_ALT }} />
+        <Chip size="xs" label={`${filteredTrades.length} trades`} className="text-[11px] h-5 text-[#8B949E] border border-[#30363D]" style={{ "background-color": palette.SURFACE_ALT }} />
         <Button size="xs" variant={highlighted ? "filled" : "outline"} color="secondary" onClick={() => setHighlighted(null)} className="text-[11px] h-6 border border-[#30363D]">
           Clear highlight
         </Button>
@@ -168,7 +168,7 @@ function FullScreenReplay() {
       {/* Playback bar — candles scrub + play/pause + speed + volume + buy/sell */}
       <Paper
         className="flex items-center gap-2 px-3 py-1 border-b border-[#30363D] shrink-0"
-        style={{ backgroundColor: palette.SURFACE }}
+        style={{ "background-color": palette.SURFACE }}
       >
         <Tooltip label={isPlaying ? "Pause" : "Play"}>
           <ActionIcon size="sm" onClick={handlePlayPause} className="border border-[#30363D] bg-[#21262D] text-[#F0F6FC] w-8 h-8">
@@ -225,7 +225,7 @@ function FullScreenReplay() {
           color="secondary"
           onClick={() => setUseTV((v) => !v)}
           className="text-[10px] h-6 border border-[#30363D]"
-          style={{ backgroundColor: useTV ? palette.SURFACE_ALT : "transparent" }}
+          style={{ "background-color": useTV ? palette.SURFACE_ALT : "transparent" }}
         >
           {useTV ? "TV" : "ECharts"}
         </Button>
@@ -249,14 +249,14 @@ function FullScreenReplay() {
           value={String(orderQty)}
           onChange={(v) => setOrderQty(Math.max(1, Number(v) || 1))}
           className="w-[64px] text-[11px] px-2 py-1.5 text-[#F0F6FC] border border-[#30363D] rounded-sm"
-          style={{ backgroundColor: palette.SURFACE_ALT }}
+          style={{ "background-color": palette.SURFACE_ALT }}
         />
         <TextInput
           size="xs"
           value={currentCandle ? String(currentCandle.close) : ""}
           placeholder="Price"
           className="w-[80px] text-[11px] px-2 py-1.5 text-[#F0F6FC] border border-[#30363D] rounded-sm"
-          style={{ backgroundColor: palette.SURFACE_ALT }}
+          style={{ "background-color": palette.SURFACE_ALT }}
         />
         <Button
           size="xs"
@@ -269,7 +269,7 @@ function FullScreenReplay() {
           }}
           className="text-[11px] h-7 min-w-[72px] rounded-none"
           style={{
-            backgroundColor: orderSide === "BUY" ? palette.POSITIVE : palette.NEGATIVE,
+            "background-color": orderSide === "BUY" ? palette.POSITIVE : palette.NEGATIVE,
             color: "#fff",
             opacity: 1,
           }}
@@ -282,7 +282,7 @@ function FullScreenReplay() {
       <Box className="flex-1 min-h-0 flex flex-col p-1 gap-1 overflow-hidden">
         <Paper
           className="flex-1 min-h-0 flex flex-col overflow-hidden border border-[#30363D] rounded-sm"
-          style={{ backgroundColor: palette.SURFACE }}
+          style={{ "background-color": palette.SURFACE }}
         >
           {useTV ? (
             <TradingViewChart candles={visibleCandles} trades={visibleTrades as any} highlightedTradeId={highlighted} height={420} />
@@ -310,9 +310,9 @@ function FullScreenReplay() {
       <Box className="h-[220px] shrink-0 p-1 pt-0 flex flex-col gap-1">
         <Paper
           className="flex-1 flex flex-col overflow-hidden border border-[#30363D] rounded-sm"
-          style={{ backgroundColor: palette.SURFACE }}
+          style={{ "background-color": palette.SURFACE }}
         >
-          <Box className="flex items-center gap-2 px-3 py-[12px] border-b border-[#30363D] shrink-0" style={{ backgroundColor: SURFACE_ALT, height: 28 }}>
+          <Box className="flex items-center gap-2 px-3 py-[12px] border-b border-[#30363D] shrink-0" style={{ "background-color": SURFACE_ALT, height: 28 }}>
             <Text className="text-[11px] font-bold tracking-[0.5px]" style={{ color: palette.TEXT_MUTED }}>
               TRADES — click row to zoom chart
             </Text>

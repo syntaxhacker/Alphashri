@@ -18,12 +18,12 @@ export function KeyPointLegend({ hit }: { hit: PatternHitDTO }) {
         size="xs"
         c="dimmed"
         fw={700}
-        style={{ fontSize: 10, textTransform: "uppercase" }}
+        style={{ "font-size": 10, "text-transform": "uppercase" }}
       >
         Key points
       </Text>
       {meanings.map((item, index) => (
-        <Text key={item.label} size="xs" c="dimmed" style={{ fontSize: 10 }}>
+        <Text key={item.label} size="xs" c="dimmed" style={{ "font-size": 10 }}>
           {`${item.label} ${item.meaning}${index < meanings.length - 1 ? " ·" : ""}`}
         </Text>
       ))}

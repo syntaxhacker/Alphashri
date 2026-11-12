@@ -399,10 +399,10 @@ function NiftyIvStraddleInner({
       title="IV · ATM IV, straddle & RV"
       testId="nifty-iv-straddle-panel"
       style={{
-        backgroundColor: palette.TERM_BG,
+        "background-color": palette.TERM_BG,
         border: `1px solid ${palette.TERM_BORDER}`,
-        borderColor: palette.TERM_BORDER,
-        borderRadius: 1,
+        "border-color": palette.TERM_BORDER,
+        "border-radius": 1,
       }}
     >
       <CompactStatGrid>

@@ -15,7 +15,7 @@ export function UsLadder({ row }: { row: UsRow }) {
     <Box
       data-testid="us-ladder"
       className="flex flex-col min-h-0 flex-1 border border-fin-border font-mono tabular-nums text-[10.5px] overflow-hidden"
-      style={{ lineHeight: `${ROW_H}px` }}
+      style={{ "line-height": `${ROW_H}px` }}
     >
       <Box
         className="flex items-center px-1 text-fin-text-muted border-b border-fin-border text-[9.5px] tracking-[0.4px] shrink-0"
@@ -55,7 +55,7 @@ export function UsLadder({ row }: { row: UsRow }) {
                 height: ROW_H,
                 borderLeft: r.isPutWall ? `2px solid ${NEGATIVE}` : "2px solid transparent",
                 borderRight: r.isCallWall ? `2px solid ${POSITIVE}` : "2px solid transparent",
-                backgroundColor: r.isSpot
+                "background-color": r.isSpot
                   ? "rgba(88,166,255,0.16)"
                   : isPain
                     ? "rgba(240,136,62,0.10)"
@@ -66,7 +66,7 @@ export function UsLadder({ row }: { row: UsRow }) {
                 {fmtInt(r.p_oi)}
               </Box>
               <Box className="flex-1 flex justify-end pr-1">
-                <Box className="h-[7px] opacity-75 bg-fin-negative" style={{ width: `${(r.p_oi / maxOi) * 100}%`, maxWidth: "100%" }} />
+                <Box className="h-[7px] opacity-75 bg-fin-negative" style={{ width: `${(r.p_oi / maxOi) * 100}%`, "max-width": "100%" }} />
               </Box>
               <Box
                 className={`w-[66px] text-center ${r.isPutWall || r.isCallWall ? "font-extrabold" : "font-medium"}`}
@@ -75,7 +75,7 @@ export function UsLadder({ row }: { row: UsRow }) {
                 {fmtInt(r.k)}
               </Box>
               <Box className="flex-1 flex pl-1">
-                <Box className="h-[7px] opacity-75 bg-fin-positive" style={{ width: `${(r.c_oi / maxOi) * 100}%`, maxWidth: "100%" }} />
+                <Box className="h-[7px] opacity-75 bg-fin-positive" style={{ width: `${(r.c_oi / maxOi) * 100}%`, "max-width": "100%" }} />
               </Box>
               <Box className="w-[50px] text-left" style={{ color: r.c_oi ? POSITIVE : SCALE_DARK[3] }}>
                 {fmtInt(r.c_oi)}

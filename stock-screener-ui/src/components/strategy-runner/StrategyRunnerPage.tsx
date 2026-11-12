@@ -113,7 +113,7 @@ export function StrategyRunnerPage() {
         style={{ flex: "0 0 auto", height: palette.FIN_HEADER_H, padding: `0 ${palette.FIN_OUTER_PAD}px`, borderBottom: "1px solid var(--color-fin-border)" }}
       >
         <Title order={2} size="h4">Strategy Runner</Title>
-        <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <Text size="sm" c="dimmed" style={{ "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }}>
           Compare bot strategies side by side
           {config.bot_uuids.length > 0 || config.symbols.length > 0
             ? ` · ${config.bot_uuids.length} bot${config.bot_uuids.length === 1 ? "" : "s"} · ${config.symbols.length} symbol${config.symbols.length === 1 ? "" : "s"}`
@@ -152,7 +152,7 @@ export function StrategyRunnerPage() {
         <StrategyRunnerStats trades={trades} summary={summary} isRunning={isRunning} progress={progress} />
       </Box>
 
-      <Box style={{ flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column" }} data-testid="sr-tabs">
+      <Box style={{ flex: 1, "min-height": 0, "min-width": 0, overflow: "hidden", display: "flex", "flex-direction": "column" }} data-testid="sr-tabs">
         <StrategyRunnerTabs trades={trades} summary={summary} bots={bots} />
       </Box>
     </Box>

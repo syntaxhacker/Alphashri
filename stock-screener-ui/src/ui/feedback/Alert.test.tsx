@@ -6,11 +6,10 @@ import { Alert } from "./Alert";
 
 describe("Alert", () => {
   test("renders role=alert with title and children", () => {
-    render(
+    render(() => (
       <Alert title="Heads up" data-testid="al">
         Something happened
-      </Alert>,
-    );
+      </Alert>));
     const alert = screen.getByTestId("al");
     expect(alert).toHaveAttribute("role", "alert");
     expect(alert.textContent).toContain("Heads up");
@@ -19,18 +18,17 @@ describe("Alert", () => {
 
   test("filled error variant renders and close button calls onClose", () => {
     const onClose = vi.fn();
-    render(
+    render(() => (
       <Alert variant="filled" color="error" withCloseButton onClose={onClose} data-testid="al2">
         failed
-      </Alert>,
-    );
+      </Alert>));
     expect(screen.getByText("failed")).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Close"));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   test("icon and title are optional", () => {
-    render(<Alert data-testid="al3">plain</Alert>);
+    render(() => <Alert data-testid="al3">plain</Alert>);
     expect(screen.getByTestId("al3").textContent).toBe("plain");
     expect(screen.getByTestId("al3").querySelector("button")).toBeNull();
   });

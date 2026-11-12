@@ -321,7 +321,7 @@ export function PatternListView({
         activeKey && fullscreenDedupeKey(hit) === activeKey
           ? {
               background: "rgba(88, 166, 255, 0.12)",
-              boxShadow: "inset 3px 0 0 var(--color-fin-primary)",
+              "box-shadow": "inset 3px 0 0 var(--color-fin-primary)",
             }
           : undefined
       }

@@ -18,12 +18,12 @@ function Placeholder() {
       w={48}
       h={48}
       style={{
-        borderRadius: "50%",
-        backgroundColor: "#21262d",
+        "border-radius": "50%",
+        "background-color": "#21262d",
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontWeight: 600,
+        "align-items": "center",
+        "justify-content": "center",
+        "font-weight": 600,
       }}
     >
       AS
@@ -94,7 +94,7 @@ export const Inline: Story = {
   render: () => (
     <Group gap={8}>
       <Indicator color="info" size={10}>
-        <span style={{ fontSize: 12 }}>Live feed</span>
+        <span style={{ "font-size": 12 }}>Live feed</span>
       </Indicator>
     </Group>
   ),

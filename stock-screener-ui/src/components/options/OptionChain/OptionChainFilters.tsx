@@ -12,7 +12,7 @@ export function OptionChainFilters({
       id="chain-filters"
       data-testid="options-chain-filters"
       className="flex items-center flex-wrap"
-      alignItems="center"
+      align-items="center"
       gap={1}
     >
       <Box className="flex items-center" flex="1 1 140px" maw={220} gap={1}>
@@ -54,7 +54,7 @@ export function OptionChainFilters({
         className="flex items-center flex-wrap"
         flex="1 1 200px"
         maw={340}
-        alignItems="center"
+        align-items="center"
         gap={1}
       >
         <Box className="flex items-center" flex="1 1 100px" maw={170} gap={1}>

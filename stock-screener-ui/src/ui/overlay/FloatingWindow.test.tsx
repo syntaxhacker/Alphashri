@@ -10,11 +10,11 @@ function renderWindow(overrides: Partial<FWProps> = {}) {
   const onClose = vi.fn();
   const onMinimize = vi.fn();
   const onFocus = vi.fn();
-  render(
+  render(() => (
     <FloatingWindow
       title="Config"
       geometry={{ x: 10, y: 20, width: 400, height: 300 }}
-      zIndex={1000}
+      z-index={1000}
       onClose={onClose}
       onMinimize={onMinimize}
       onFocus={onFocus}
@@ -23,8 +23,7 @@ function renderWindow(overrides: Partial<FWProps> = {}) {
       {...overrides}
     >
       <div>body</div>
-    </FloatingWindow>,
-  );
+    </FloatingWindow>));
   const root = () => screen.getByTestId("fw") as HTMLElement;
   return { screen, root, onGeometryChange, onClose, onMinimize, onFocus };
 }

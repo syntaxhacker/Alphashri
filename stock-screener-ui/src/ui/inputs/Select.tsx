@@ -213,7 +213,6 @@ function SearchableSelect(props: {
   const [query, setQuery] = createSignal("");
   const [open, setOpen] = createSignal(false);
   const [highlighted, setHighlighted] = createSignal(-1);
-  let inputEl: HTMLInputElement | null = null;
   const listboxId = `${props.inputId}-listbox`;
 
   const filtered = createMemo(() =>
@@ -284,7 +283,6 @@ function SearchableSelect(props: {
         <div className="inline-flex w-full items-center gap-2">
           {props.leftSection && <span className="shrink-0 text-fin-text-muted text-xs">{props.leftSection}</span>}
           <input
-            ref={(el) => (inputEl = el)}
             id={props.inputId}
             role="combobox"
             aria-expanded={open()}

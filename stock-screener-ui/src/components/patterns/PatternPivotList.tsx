@@ -27,7 +27,7 @@ export function PivotList({ pivots }: { pivots?: PatternHitDTO["pivots"] }) {
           size={14}
           style={{ transform: opened ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}
         />
-        <Text size="xs" fw={700} style={{ textTransform: "uppercase" }}>
+        <Text size="xs" fw={700} style={{ "text-transform": "uppercase" }}>
           Pivots
         </Text>
         <Text size="xs" c="dimmed">

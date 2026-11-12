@@ -25,30 +25,30 @@ export function Flex(props: UIFlexProps & Record<string, unknown>) {
   const styleObj: Record<string, string | number | undefined> = {
     display: "flex",
   };
-  if (known.flexDirection != null) styleObj.flexDirection = known.flexDirection;
-  else if (known.direction != null) styleObj.flexDirection = known.direction;
-  if (known.wrap) styleObj.flexWrap = known.wrap as string;
-  if (known.justifyContent != null) styleObj.justifyContent = known.justifyContent;
-  else if (known.justify != null) styleObj.justifyContent = known.justify;
-  if (known.alignItems != null) styleObj.alignItems = known.alignItems;
-  else if (known.align != null) styleObj.alignItems = known.align;
+  if (known.flexDirection != null) styleObj["flex-direction"] = known.flexDirection;
+  else if (known.direction != null) styleObj["flex-direction"] = known.direction;
+  if (known.wrap) styleObj["flex-wrap"] = known.wrap as string;
+  if (known.justifyContent != null) styleObj["justify-content"] = known.justifyContent;
+  else if (known.justify != null) styleObj["justify-content"] = known.justify;
+  if (known.alignItems != null) styleObj["align-items"] = known.alignItems;
+  else if (known.align != null) styleObj["align-items"] = known.align;
   if (known.spacing != null) styleObj.gap = typeof known.spacing === "number" ? `${known.spacing * 8}px` : sp(known.spacing);
   if (known.gap != null) styleObj.gap = sp(known.gap);
   if (known.p != null) styleObj.padding = sp(known.p);
-  if (known.px != null) { styleObj.paddingLeft = sp(known.px); styleObj.paddingRight = sp(known.px); }
-  if (known.py != null) { styleObj.paddingTop = sp(known.py); styleObj.paddingBottom = sp(known.py); }
-  if (known.pt != null) styleObj.paddingTop = sp(known.pt);
-  if (known.pb != null) styleObj.paddingBottom = sp(known.pb);
-  if (known.pl != null) styleObj.paddingLeft = sp(known.pl);
-  if (known.pr != null) styleObj.paddingRight = sp(known.pr);
+  if (known.px != null) { styleObj["padding-left"] = sp(known.px); styleObj["padding-right"] = sp(known.px); }
+  if (known.py != null) { styleObj["padding-top"] = sp(known.py); styleObj["padding-bottom"] = sp(known.py); }
+  if (known.pt != null) styleObj["padding-top"] = sp(known.pt);
+  if (known.pb != null) styleObj["padding-bottom"] = sp(known.pb);
+  if (known.pl != null) styleObj["padding-left"] = sp(known.pl);
+  if (known.pr != null) styleObj["padding-right"] = sp(known.pr);
   if (known.m != null) styleObj.margin = sp(known.m);
-  if (known.mx != null) { styleObj.marginLeft = sp(known.mx); styleObj.marginRight = sp(known.mx); }
-  if (known.my != null) { styleObj.marginTop = sp(known.my); styleObj.marginBottom = sp(known.my); }
-  if (known.mt != null) styleObj.marginTop = sp(known.mt);
-  if (known.mb != null) styleObj.marginBottom = sp(known.mb);
-  if (known.ml != null) styleObj.marginLeft = sp(known.ml);
-  if (known.mr != null) styleObj.marginRight = sp(known.mr);
-  if (known.bg != null) styleObj.backgroundColor = known.bg as string;
+  if (known.mx != null) { styleObj["margin-left"] = sp(known.mx); styleObj["margin-right"] = sp(known.mx); }
+  if (known.my != null) { styleObj["margin-top"] = sp(known.my); styleObj["margin-bottom"] = sp(known.my); }
+  if (known.mt != null) styleObj["margin-top"] = sp(known.mt);
+  if (known.mb != null) styleObj["margin-bottom"] = sp(known.mb);
+  if (known.ml != null) styleObj["margin-left"] = sp(known.ml);
+  if (known.mr != null) styleObj["margin-right"] = sp(known.mr);
+  if (known.bg != null) styleObj["background-color"] = known.bg as string;
   if (known.c != null) styleObj.color = known.c as string;
   if (known.opacity != null) styleObj.opacity = known.opacity;
   if (known.pos != null) styleObj.position = known.pos;
@@ -59,10 +59,10 @@ export function Flex(props: UIFlexProps & Record<string, unknown>) {
   if (known.inset != null) styleObj.inset = toSz(known.inset);
   if (known.w != null) styleObj.width = toSz(known.w);
   if (known.h != null) styleObj.height = toSz(known.h);
-  if (known.miw != null) styleObj.minWidth = toSz(known.miw);
-  if (known.maw != null) styleObj.maxWidth = toSz(known.maw);
-  if (known.mih != null) styleObj.minHeight = toSz(known.mih);
-  if (known.mah != null) styleObj.maxHeight = toSz(known.mah);
+  if (known.miw != null) styleObj["min-width"] = toSz(known.miw);
+  if (known.maw != null) styleObj["max-width"] = toSz(known.maw);
+  if (known.mih != null) styleObj["min-height"] = toSz(known.mih);
+  if (known.mah != null) styleObj["max-height"] = toSz(known.mah);
   if (known.flex != null) styleObj.flex = known.flex as string;
 
   const Tag = (known.component ?? "div") as string;

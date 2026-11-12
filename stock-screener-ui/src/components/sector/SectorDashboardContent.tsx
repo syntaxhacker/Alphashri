@@ -76,8 +76,8 @@ export function DashboardContent({
             <div className="flex flex-col items-center justify-center p-2 gap-2">
               <Text size="xs" className="flex items-center justify-center">Market Breadth</Text>
               <div className="flex items-center justify-center gap-2 p-2">
-                <div className="flex items-center justify-center gap-2 p-2" style={{ backgroundColor: "rgba(63, 185, 80, 0.12)", borderRadius: "4px" }}>{totalAdvances} UP</div>
-                <div className="flex items-center justify-center gap-2 p-2" style={{ backgroundColor: "rgba(248, 81, 73, 0.12)", borderRadius: "4px" }}>{totalDeclines} DOWN</div>
+                <div className="flex items-center justify-center gap-2 p-2" style={{ "background-color": "rgba(63, 185, 80, 0.12)", "border-radius": "4px" }}>{totalAdvances} UP</div>
+                <div className="flex items-center justify-center gap-2 p-2" style={{ "background-color": "rgba(248, 81, 73, 0.12)", "border-radius": "4px" }}>{totalDeclines} DOWN</div>
               </div>
             </div>
           </Card>

@@ -23,7 +23,7 @@ describe("SimpleGrid", () => {
 
   it("applies spacing as gap and verticalSpacing as row-gap", () => {
     render(() => <SimpleGrid data-testid="sg" spacing="lg" verticalSpacing="sm" />);
-    expect(screen.getByTestId("sg")).toHaveStyle("gap: 16px");
+    expect(screen.getByTestId("sg")).toHaveStyle("gap: 24px");
     expect(screen.getByTestId("sg")).toHaveStyle("row-gap: 8px");
   });
 });

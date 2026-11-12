@@ -133,11 +133,11 @@ function ChartCompareInner() {
     }`;
 
   return (
-    <Box className="h-[100vh] flex flex-col overflow-hidden" style={{ backgroundColor: BG }}>
+    <Box className="h-[100vh] flex flex-col overflow-hidden" style={{ "background-color": BG }}>
       {/* Toolbar — 48px, dense, 8pt */}
       <Paper
         className="flex items-center gap-2 px-3 h-12 min-h-[48px] border-b border-[#30363D] shrink-0 rounded-none"
-        style={{ backgroundColor: SURFACE }}
+        style={{ "background-color": SURFACE }}
       >
         <Text className="text-[11px] font-bold tracking-[0.6px]" style={{ color: TEXT_MUTED }}>
           CHART COMPARE
@@ -146,7 +146,7 @@ function ChartCompareInner() {
           size="xs"
           label="RELIANCE · 1m · 375"
           className="text-[10px] h-5 ml-2 border border-[#30363D]"
-          style={{ backgroundColor: SURFACE_ALT, color: TEXT }}
+          style={{ "background-color": SURFACE_ALT, color: TEXT }}
         />
         <div className="w-[1px] h-[18px] bg-[#30363D] mx-1.5" />
 
@@ -158,10 +158,10 @@ function ChartCompareInner() {
             onClick={() => addTrade("BUY")}
             className={btnClass(activeTool === "long", "#3FB950")}
             style={{
-              borderColor: activeTool === "long" ? POS : BORDER,
-              backgroundColor: activeTool === "long" ? SURFACE_ALT : "transparent",
+              "border-color": activeTool === "long" ? POS : BORDER,
+              "background-color": activeTool === "long" ? SURFACE_ALT : "transparent",
               color: activeTool === "long" ? POS : TEXT_MUTED,
-              minWidth: 52,
+              "min-width": 52,
             }}
           >
             Long
@@ -175,10 +175,10 @@ function ChartCompareInner() {
             onClick={() => addTrade("SELL")}
             className={btnClass(activeTool === "short", "#F85149")}
             style={{
-              borderColor: activeTool === "short" ? NEG : BORDER,
-              backgroundColor: activeTool === "short" ? SURFACE_ALT : "transparent",
+              "border-color": activeTool === "short" ? NEG : BORDER,
+              "background-color": activeTool === "short" ? SURFACE_ALT : "transparent",
               color: activeTool === "short" ? NEG : TEXT_MUTED,
-              minWidth: 56,
+              "min-width": 56,
             }}
           >
             Short
@@ -191,7 +191,7 @@ function ChartCompareInner() {
             color="primary"
             onClick={handleTrend}
             className={btnClass(trendOn, "#58A6FF")}
-            style={{ minWidth: 56 }}
+            style={{ "min-width": 56 }}
           >
             Trend
           </Button>
@@ -249,15 +249,15 @@ function ChartCompareInner() {
         </div>
 
         <Box className="flex-1" />
-        <Chip size="xs" label={`${trades.length} markers`} className="text-[10px] h-5 text-[#8B949E] border border-[#30363D]" style={{ backgroundColor: SURFACE_ALT }} />
+        <Chip size="xs" label={`${trades.length} markers`} className="text-[10px] h-5 text-[#8B949E] border border-[#30363D]" style={{ "background-color": SURFACE_ALT }} />
       </Paper>
 
       {/* Info bar — 20px dense */}
       <Box
         className="flex items-center gap-2 px-3 h-5 min-h-[20px] border-b border-[#30363D] shrink-0"
-        style={{ backgroundColor: SURFACE }}
+        style={{ "background-color": SURFACE }}
       >
-        <Text className="text-[10px] text-[#8B949E]" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <Text className="text-[10px] text-[#8B949E]" style={{ "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }}>
           {currentCandle ? `O ${currentCandle.open} H ${currentCandle.high} L ${currentCandle.low} C ${currentCandle.close} V ${currentCandle.volume}` : "—"} · {trendOn ? "Trend on" : "Trend off"} · Long/Short adds BUY/SELL markers to both panes
         </Text>
         <Box className="flex-1" />
@@ -274,12 +274,12 @@ function ChartCompareInner() {
         >
           <Box
             className="flex items-center gap-2 px-1 h-6 min-h-[24px] border-b border-[#30363D] shrink-0"
-            style={{ backgroundColor: SURFACE_ALT }}
+            style={{ "background-color": SURFACE_ALT }}
           >
             <Text className="text-[10px] font-medium tracking-[0.5px]" style={{ color: TEXT_MUTED }}>
               ECHARTS
             </Text>
-            <Chip size="xs" label="ReplayChart" className="text-[10px] h-4 border border-[#30363D]" style={{ backgroundColor: BG, color: TEXT_MUTED }} />
+            <Chip size="xs" label="ReplayChart" className="text-[10px] h-4 border border-[#30363D]" style={{ "background-color": BG, color: TEXT_MUTED }} />
             <Box className="flex-1" />
             <Text className="text-[10px] text-[#8B949E]">{visibleCandles.length} candles</Text>
           </Box>
@@ -299,7 +299,7 @@ function ChartCompareInner() {
               highlightedTradeId={null}
             />
             {trendOn && (
-              <Box className="px-1 py-[12px] border-t border-[#30363D] shrink-0" style={{ backgroundColor: SURFACE_ALT }}>
+              <Box className="px-1 py-[12px] border-t border-[#30363D] shrink-0" style={{ "background-color": SURFACE_ALT }}>
                 <Text className="text-[10px] text-[#8B949E]">
                   Trend: {visibleCandles[20]?.close?.toFixed(2) ?? "—"} → {currentCandle?.close?.toFixed(2) ?? "—"} (draw on TV pane with Trend button inside chart)
                 </Text>
@@ -314,12 +314,12 @@ function ChartCompareInner() {
         >
           <Box
             className="flex items-center gap-2 px-1 h-6 min-h-[24px] border-b border-[#30363D] shrink-0"
-            style={{ backgroundColor: SURFACE_ALT }}
+            style={{ "background-color": SURFACE_ALT }}
           >
             <Text className="text-[10px] font-medium tracking-[0.5px]" style={{ color: TEXT_MUTED }}>
               TRADINGVIEW
             </Text>
-            <Chip size="xs" label="Lightweight Charts" className="text-[10px] h-4 border border-[#30363D]" style={{ backgroundColor: BG, color: TEXT_MUTED }} />
+            <Chip size="xs" label="Lightweight Charts" className="text-[10px] h-4 border border-[#30363D]" style={{ "background-color": BG, color: TEXT_MUTED }} />
             <Box className="flex-1" />
             <Text className="text-[10px] text-[#8B949E]">markers + tools</Text>
           </Box>
@@ -332,7 +332,7 @@ function ChartCompareInner() {
       {/* Bottom meta — 20px dense */}
       <Box
         className="flex items-center gap-2 px-3 h-5 min-h-[20px] border-t border-[#30363D] shrink-0"
-        style={{ backgroundColor: SURFACE }}
+        style={{ "background-color": SURFACE }}
       >
         <Text className="text-[10px] text-[#8B949E]">
           {baseCandles.length} candles · {baseCandles[0].time} → {baseCandles[baseCandles.length - 1].time} · 1m · same data both panes

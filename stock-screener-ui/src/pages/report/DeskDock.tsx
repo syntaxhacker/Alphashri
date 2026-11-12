@@ -62,7 +62,7 @@ export function DeskDock({
       aria-pressed={selected}
       onClick={() => toggle(tab.key)}
       className={`flex items-center gap-1 min-w-0 shrink-0 h-[20px] px-1.5 py-0 rounded-sm whitespace-nowrap ${selected ? "bg-fin-primary text-fin-bg" : "bg-fin-surface-alt text-fin-text"}`}
-      style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: 0.5 }}
+      style={{ "font-size": 8.5, "font-weight": 800, "letter-spacing": 0.5 }}
     >
       <span className="font-black text-[8.5px] tracking-[0.5em]">{tab.label}</span>
       {tab.summary != null ? (
@@ -73,11 +73,11 @@ export function DeskDock({
           className="inline-flex items-center justify-center shrink-0 whitespace-nowrap min-w-[15px] h-[14px] rounded-[7px]"
           style={{
             padding: "1px 3px",
-            backgroundColor: palette.NEGATIVE,
+            "background-color": palette.NEGATIVE,
             color: "#fff",
-            fontSize: 7.5,
-            fontWeight: 800,
-            lineHeight: 1,
+            "font-size": 7.5,
+            "font-weight": 800,
+            "line-height": 1,
           }}
         >
           {tab.badge}
@@ -92,7 +92,7 @@ export function DeskDock({
         data-testid="desk-dock"
         className="sticky bottom-0 z-20 flex items-center gap-[2px] h-[26px] min-h-[26px] px-1 overflow-x-auto overflow-y-hidden"
         style={{
-          backgroundColor: palette.TERM_HEADER,
+          "background-color": palette.TERM_HEADER,
           borderTop: `1px solid ${palette.TERM_BORDER}`,
         }}
       >
@@ -107,7 +107,7 @@ export function DeskDock({
           <div
             data-testid="desk-dock-backdrop"
             className="fixed inset-0 z-40"
-            style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+            style={{ "background-color": "rgba(0,0,0,0.6)" }}
             onClick={() => onActiveChange(null)}
           />
           <div
@@ -119,18 +119,18 @@ export function DeskDock({
               right: 0,
               width: "auto",
               height: mobile ? "100%" : activeTab?.height ?? "auto",
-              maxHeight: mobile ? "100%" : "55vh",
-              backgroundColor: palette.TERM_BG,
-              backgroundImage: "none",
+              "max-height": mobile ? "100%" : "55vh",
+              "background-color": palette.TERM_BG,
+              "background-image": "none",
               borderTop: `1px solid ${palette.TERM_BORDER}`,
-              boxShadow: "0 -8px 24px rgba(0,0,0,0.45)",
+              "box-shadow": "0 -8px 24px rgba(0,0,0,0.45)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex flex-col h-full min-h-0">
               <div
                 className="flex items-center gap-[2px] h-[24px] min-h-[24px] px-1 border-b border-fin-border"
-                style={{ backgroundColor: palette.TERM_HEADER }}
+                style={{ "background-color": palette.TERM_HEADER }}
               >
                 {tabs.map((tab) => (
                   <button
@@ -138,7 +138,7 @@ export function DeskDock({
                     type="button"
                     className={`flex items-center gap-1 min-w-0 shrink-0 h-[20px] px-1.5 py-0 rounded-sm whitespace-nowrap ${active === tab.key ? "bg-fin-primary text-fin-bg" : "bg-fin-surface-alt text-fin-text"}`}
                     onClick={() => onActiveChange(tab.key)}
-                    style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: 0.4 }}
+                    style={{ "font-size": 8.5, "font-weight": 800, "letter-spacing": 0.4 }}
                   >
                     {tab.label}
                   </button>

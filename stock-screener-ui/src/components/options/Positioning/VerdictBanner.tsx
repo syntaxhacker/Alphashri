@@ -13,7 +13,7 @@ export function VerdictBanner({ data }: VerdictBannerProps) {
       data-testid="positioning-verdict"
       p="sm"
       radius="sm"
-      style={{ border: `1px solid ${palette.BORDER}`, backgroundColor: meta.tintToken }}
+      style={{ border: `1px solid ${palette.BORDER}`, "background-color": meta.tintToken }}
     >
       <Box className="flex flex-col" gap={1}>
         <Text size="lg" fw={700} c={meta.colorToken} data-testid="positioning-verdict-word">

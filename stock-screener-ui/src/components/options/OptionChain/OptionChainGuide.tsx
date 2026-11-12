@@ -16,16 +16,16 @@ export function OptionChainGuide({ opened, onClose }: OptionChainGuideProps) {
       title="How to Read the Option Chain"
       size="lg"
       centered
-      style={{ borderRadius: 8 }}
+      style={{ "border-radius": 8 }}
       className="option-chain-guide-modal"
       data-testid="options-chain-guide-modal"
     >
       <Stack spacing={1} className="flex items-center w-full guide-content" data-testid="options-guide-content">
-        <Text size="sm" className="text-fin-text-muted guide-intro" style={{ textAlign: "center" }}>
+        <Text size="sm" className="text-fin-text-muted guide-intro" style={{ "text-align": "center" }}>
           Options can be complex. Here is a simple guide to help you understand the data and make better decisions.
         </Text>
 
-        <Box className="flex items-center justify-center w-full" style={{ paddingTop: 8, paddingBottom: 8 }}>
+        <Box className="flex items-center justify-center w-full" style={{ "padding-top": 8, "padding-bottom": 8 }}>
           <Text size="sm" fw={700}>
             The Basics
           </Text>
@@ -58,7 +58,7 @@ export function OptionChainGuide({ opened, onClose }: OptionChainGuideProps) {
           </Box>
         </Box>
 
-        <Box className="flex items-center justify-center w-full" style={{ paddingTop: 8, paddingBottom: 8 }}>
+        <Box className="flex items-center justify-center w-full" style={{ "padding-top": 8, "padding-bottom": 8 }}>
           <Text size="sm" fw={700}>
             Key Indicators
           </Text>
@@ -76,7 +76,7 @@ export function OptionChainGuide({ opened, onClose }: OptionChainGuideProps) {
           </ListItem>
         </List>
 
-        <Box className="flex items-center justify-center w-full" style={{ paddingTop: 8, paddingBottom: 8 }}>
+        <Box className="flex items-center justify-center w-full" style={{ "padding-top": 8, "padding-bottom": 8 }}>
           <Text size="sm" fw={700}>
             Sentiment Badges (What are they doing?)
           </Text>

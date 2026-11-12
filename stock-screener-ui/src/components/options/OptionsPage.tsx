@@ -66,12 +66,12 @@ export function OptionsPage({
         className="w-full shrink-0"
         style={{
           height: palette.FIN_HEADER_H,
-          minHeight: palette.FIN_HEADER_H,
-          maxHeight: palette.FIN_HEADER_H,
-          paddingLeft: 12,
-          paddingRight: 12,
+          "min-height": palette.FIN_HEADER_H,
+          "max-height": palette.FIN_HEADER_H,
+          "padding-left": 12,
+          "padding-right": 12,
           borderBottom: `1px solid ${palette.BORDER}`,
-          flexShrink: 0,
+          "flex-shrink": 0,
         }}
       >
         <OptionsNav activeTab={activeTab} onTabChange={setActiveTab} />
@@ -86,12 +86,12 @@ export function OptionsPage({
           justify="flex-start"
           className="w-full shrink-0"
           style={{
-            paddingLeft: 12,
-            paddingRight: 12,
-            paddingTop: 4,
-            paddingBottom: 4,
+            "padding-left": 12,
+            "padding-right": 12,
+            "padding-top": 4,
+            "padding-bottom": 4,
             borderBottom: `1px solid ${palette.BORDER}`,
-            flexShrink: 0,
+            "flex-shrink": 0,
           }}
         >
           <OptionChainHeader

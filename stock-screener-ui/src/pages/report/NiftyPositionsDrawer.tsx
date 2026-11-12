@@ -57,7 +57,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     size: 120,
     meta: { align: "left" },
     cell: (info) => (
-      <Text span size="xs" fw={700} title={String(info.getValue() ?? "")} style={{ minWidth: 0 }}>
+      <Text span size="xs" fw={700} title={String(info.getValue() ?? "")} style={{ "min-width": 0 }}>
         {String(info.getValue() ?? "—")}
       </Text>
     ),
@@ -188,8 +188,8 @@ function GreekStat({ testId, label, value }: { testId: string; label: string; va
       title={`${label} — Σ chain greek × signed qty (missing legs skipped)`}
       className="flex items-baseline justify-between gap-1 px-2 py-[2px] border border-fin-border rounded-[4px] bg-fin-bg min-w-0 font-mono tabular-nums"
       style={{
-        borderColor: palette.TERM_BORDER,
-        backgroundColor: palette.TERM_BG,
+        "border-color": palette.TERM_BORDER,
+        "background-color": palette.TERM_BG,
       }}
     >
       <span className="text-[9px] text-fin-text-muted tracking-[0.06em]">{label}</span>
@@ -254,9 +254,9 @@ export function NiftyPositionsDrawerInner({
             style={{
               width: 5,
               height: 5,
-              borderRadius: "50%",
-              backgroundColor: pnlTone,
-              marginRight: 4,
+              "border-radius": "50%",
+              "background-color": pnlTone,
+              "margin-right": 4,
             }}
           />
         )}
@@ -282,7 +282,7 @@ export function NiftyPositionsDrawerInner({
               span
               size="xs"
               fw={700}
-              style={{ fontSize: 10, letterSpacing: "0.08em", color: palette.TEXT_MUTED }}
+              style={{ "font-size": 10, "letter-spacing": "0.08em", color: palette.TEXT_MUTED }}
             >
               PAPER POSITIONS
             </Text>
@@ -303,7 +303,7 @@ export function NiftyPositionsDrawerInner({
             <GreekStat testId="nifty-book-theta" label="Net Θ" value={greeks.theta} />
             <GreekStat testId="nifty-book-vega" label="Net V" value={greeks.vega} />
           </div>
-          <Text size="xs" c="dimmed" style={{ fontSize: 9 }}>
+          <Text size="xs" c="dimmed" style={{ "font-size": 9 }}>
             Book greeks = Σ chain greek × signed qty · {greeks.legs} leg
             {greeks.legs === 1 ? "" : "s"} matched · missing legs skipped
           </Text>
@@ -334,7 +334,7 @@ export function NiftyPositionsDrawerInner({
                 enableSorting={false}
                 stickyHeader
                 dense
-                style={{ minWidth: 0 }}
+                style={{ "min-width": 0 }}
               />
             </Box>
           )}

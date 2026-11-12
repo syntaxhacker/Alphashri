@@ -161,7 +161,7 @@ export function PatternPresets({ filters, applyFilters }: PatternPresetsProps) {
                 height: 1,
                 overflow: "hidden",
                 clip: "rect(0 0 0 0)",
-                whiteSpace: "nowrap",
+                "white-space": "nowrap",
               }}
             >
               Preset name

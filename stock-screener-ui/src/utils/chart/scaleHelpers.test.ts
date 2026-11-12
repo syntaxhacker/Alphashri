@@ -35,7 +35,7 @@ describe("buildHighlightEntryMarker", () => {
       symbolSize: 32,
       itemStyle: {
         color: expect.any(String),
-        borderColor: expect.any(String),
+        "border-color": expect.any(String),
         borderWidth: 4,
         shadowBlur: 10,
       },
@@ -44,9 +44,9 @@ describe("buildHighlightEntryMarker", () => {
         position: "top",
         distance: 8,
         formatter: "▼ Entry #1",
-        fontSize: 12,
-        fontWeight: "bold",
-        borderRadius: 4,
+        "font-size": 12,
+        "font-weight": "bold",
+        "border-radius": 4,
       },
     });
   });

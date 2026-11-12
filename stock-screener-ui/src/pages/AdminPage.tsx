@@ -19,7 +19,7 @@ export default function AdminPage() {
         className="flex min-h-0 flex-1 flex-col"
       >
         <Box className="flex shrink-0 items-center gap-2 border-b border-fin-border px-1">
-          <Text size="xs" fw={700} c="dimmed" tt="uppercase" style={{ fontSize: 10, letterSpacing: 0.6 }}>
+          <Text size="xs" fw={700} c="dimmed" tt="uppercase" style={{ "font-size": 10, "letter-spacing": 0.6 }}>
             Admin
           </Text>
           <Tabs.List data-testid="admin-tabs">

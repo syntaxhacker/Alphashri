@@ -71,7 +71,7 @@ const ReplayChartHost = forwardRef<ReplayChartHandle, ReplayChartHostProps>(func
       width: boxRef.current.clientWidth,
       height,
       timeScale: {
-        borderColor: palette.NT_GRID, timeVisible: true, secondsVisible: true, rightOffset: 4,
+        "border-color": palette.NT_GRID, timeVisible: true, secondsVisible: true, rightOffset: 4,
         tickMarkFormatter: (t: Time) => {
           if (typeof t !== "number") return "";
           const d = new Date(t * 1000);
@@ -81,7 +81,7 @@ const ReplayChartHost = forwardRef<ReplayChartHandle, ReplayChartHostProps>(func
           return hm;
         },
       },
-      rightPriceScale: { borderColor: palette.NT_GRID },
+      rightPriceScale: { "border-color": palette.NT_GRID },
       localization: {
         timeFormatter: (t: Time) => typeof t === "number" ? fmtClock(t) : "",
         locale: "en-IN",
@@ -106,8 +106,8 @@ const ReplayChartHost = forwardRef<ReplayChartHandle, ReplayChartHostProps>(func
     const rr = document.createElement("canvas");
     rr.style.position = "absolute";
     rr.style.inset = "0";
-    rr.style.pointerEvents = "none";
-    rr.style.zIndex = "10";
+    rr.style["pointer-events"] = "none";
+    rr.style["z-index"] = "10";
     boxRef.current.style.position = "relative";
     boxRef.current.appendChild(rr);
     rrBoxRef.current = rr;

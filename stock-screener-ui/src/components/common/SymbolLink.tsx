@@ -154,7 +154,7 @@ export function SymbolLink({
               size === "xs" ? "text-xs" : size === "sm" ? "text-sm" : "text-base",
               textClassName,
             )}
-            style={{ fontWeight: weight }}
+            style={{ "font-weight": weight }}
           >
             {children ?? label}
           </Box>
@@ -173,7 +173,7 @@ export function SymbolLink({
               variant="subtle"
               color={copied ? "info" : "secondary"}
               size="xs"
-              style={{ width: 16, height: 16, minHeight: 16, padding: 0 }}
+              style={{ width: 16, height: 16, "min-height": 16, padding: 0 }}
               onClick={(event) => {
                 event.stopPropagation();
                 copy();

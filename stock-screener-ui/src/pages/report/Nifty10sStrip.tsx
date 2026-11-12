@@ -85,34 +85,34 @@ const Nifty10sStripInner = function Nifty10sStrip({ points, noise = FLOW_NOISE }
       style={{
         gap: "8px",
         height: "20px",
-        minHeight: "20px",
-        paddingLeft: "8px",
-        paddingRight: "8px",
+        "min-height": "20px",
+        "padding-left": "8px",
+        "padding-right": "8px",
         border: `1px solid ${palette.TERM_BORDER}`,
-        borderRadius: "4px",
-        backgroundColor: palette.TERM_HEADER,
+        "border-radius": "4px",
+        "background-color": palette.TERM_HEADER,
         fontFamily: palette.MONO,
-        fontSize: "9px",
+        "font-size": "9px",
       }}
     >
-      <span style={{ color: palette.TEXT_MUTED, fontWeight: 700, letterSpacing: "0.08em", flexShrink: 0 }}>
+      <span style={{ color: palette.TEXT_MUTED, "font-weight": 700, "letter-spacing": "0.08em", "flex-shrink": 0 }}>
         OI 1m
       </span>
       <span
         data-testid="nifty-10s-ce"
-        style={{ color: d60.ce < 0 ? palette.POSITIVE : palette.NEGATIVE, fontWeight: 800, flexShrink: 0 }}
+        style={{ color: d60.ce < 0 ? palette.POSITIVE : palette.NEGATIVE, "font-weight": 800, "flex-shrink": 0 }}
       >
         CE {fmtDelta(d60.ce)}
       </span>
       <span
         data-testid="nifty-10s-pe"
-        style={{ color: d60.pe > 0 ? palette.POSITIVE : palette.NEGATIVE, fontWeight: 800, flexShrink: 0 }}
+        style={{ color: d60.pe > 0 ? palette.POSITIVE : palette.NEGATIVE, "font-weight": 800, "flex-shrink": 0 }}
       >
         PE {fmtDelta(d60.pe)}
       </span>
       <span
         data-testid="nifty-10s-state"
-        style={{ color: tone, fontWeight: 800, letterSpacing: "0.04em", flexShrink: 0 }}
+        style={{ color: tone, "font-weight": 800, "letter-spacing": "0.04em", "flex-shrink": 0 }}
         title="Premium vs the delta-implied move (ATM delta 0.5). IV expansion can read as buying."
       >
         {read ? (read.bias === "bull" ? "↑ BULLISH" : "↓ BEARISH") : "FLAT"}
@@ -120,7 +120,7 @@ const Nifty10sStripInner = function Nifty10sStrip({ points, noise = FLOW_NOISE }
       {read ? (
         <span
           data-testid="nifty-10s-reason"
-          style={{ color: palette.TEXT_MUTED, fontWeight: 600, flexShrink: 0 }}
+          style={{ color: palette.TEXT_MUTED, "font-weight": 600, "flex-shrink": 0 }}
         >
           {read.reason}
         </span>
@@ -128,7 +128,7 @@ const Nifty10sStripInner = function Nifty10sStrip({ points, noise = FLOW_NOISE }
       {burst ? (
         <span
           data-testid="nifty-10s-burst"
-          style={{ color: palette.WARNING, fontWeight: 800, letterSpacing: "0.06em", flexShrink: 0 }}
+          style={{ color: palette.WARNING, "font-weight": 800, "letter-spacing": "0.06em", "flex-shrink": 0 }}
           title={`last 10 s: CE ${fmtDelta(d10.ce)} · PE ${fmtDelta(d10.pe)}`}
         >
           ⚡ BURST
@@ -136,7 +136,7 @@ const Nifty10sStripInner = function Nifty10sStrip({ points, noise = FLOW_NOISE }
       ) : null}
       <span
         data-testid="nifty-10s-counts"
-        style={{ color: palette.TEXT_MUTED, fontWeight: 700, flexShrink: 0, display: "inline-flex", gap: "4px" }}
+        style={{ color: palette.TEXT_MUTED, "font-weight": 700, "flex-shrink": 0, display: "inline-flex", gap: "4px" }}
         title={`${ribbon.length} snapshots · ${bullCount} bullish · ${bearCount} bearish · ${flatCount} flat · last 10 s CE ${fmtDelta(d10.ce)} / PE ${fmtDelta(d10.pe)}`}
       >
         <span style={{ color: palette.POSITIVE }}>{bullCount}↑</span>
@@ -147,7 +147,7 @@ const Nifty10sStripInner = function Nifty10sStrip({ points, noise = FLOW_NOISE }
         width={ribbon.length * (BLOCK_W + BLOCK_GAP)}
         height={12}
         viewBox={`0 0 ${ribbon.length * (BLOCK_W + BLOCK_GAP)} 12`}
-        style={{ display: "block", flexShrink: 0 }}
+        style={{ display: "block", "flex-shrink": 0 }}
         aria-hidden
       >
         {ribbon.map((r, i) => (
@@ -164,7 +164,7 @@ const Nifty10sStripInner = function Nifty10sStrip({ points, noise = FLOW_NOISE }
         ))}
       </svg>
       <span
-        style={{ color: palette.TEXT_MUTED, flexShrink: 0 }}
+        style={{ color: palette.TEXT_MUTED, "flex-shrink": 0 }}
         title={`${points.length} snapshots · ${points[0].t.slice(11, 19)} → ${last.t.slice(11, 19)}`}
       >
         {last.t.slice(11, 19)}

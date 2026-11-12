@@ -3054,10 +3054,10 @@ describe("NiftyReportPanel compact desk top", () => {
     expect(screen.getByTestId("nifty-stat-pin")).toBeInTheDocument();
     // spot anchors the row larger, the rest compact
     expect(screen.getByTestId("nifty-stat-spot-value")).toHaveStyle({
-      fontSize: "15px",
+      "font-size": "15px",
     });
     expect(screen.getByTestId("nifty-stat-regime-value")).toHaveStyle({
-      fontSize: "12px",
+      "font-size": "12px",
     });
   });
 
@@ -3310,7 +3310,7 @@ describe("NiftyReportPanel compact desk top", () => {
       expect(within(strip).getByTestId(id)).toBeInTheDocument();
     }
     expect(screen.getByTestId("nifty-verdict-control-primary")).toHaveStyle({
-      fontSize: "11px",
+      "font-size": "11px",
     });
     // regime stays a top-row headline, never a second-strip cell
     expect(screen.queryByTestId("nifty-verdict-regime")).not.toBeInTheDocument();

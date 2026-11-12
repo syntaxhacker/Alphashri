@@ -72,7 +72,7 @@ export const LongNameTruncation: Story = {
   },
   decorators: [
     (Story) => (
-      <div style={{ maxWidth: 180, border: "1px dashed var(--color-fin-text-muted)" }}>
+      <div style={{ "max-width": 180, border: "1px dashed var(--color-fin-text-muted)" }}>
         <Story />
       </div>
     ),

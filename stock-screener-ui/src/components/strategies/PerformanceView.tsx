@@ -112,7 +112,7 @@ export function PerformanceView({
         cell: (info) => {
           const val = info.getValue<number>();
           return (
-            <span style={{ color: val >= 0 ? palette.INFO : palette.NEGATIVE, fontWeight: 500, fontSize: 13 }}>
+            <span style={{ color: val >= 0 ? palette.INFO : palette.NEGATIVE, "font-weight": 500, "font-size": 13 }}>
               {val >= 0 ? "+" : ""}
               {val.toFixed(2)}
             </span>

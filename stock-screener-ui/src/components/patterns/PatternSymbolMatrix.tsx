@@ -222,7 +222,7 @@ const PatternChip = memo(function PatternChip({ hit, onSelect }: { hit: PatternH
       title={`${label} — ${String(hit.status ?? "")}`}
       className="inline-flex h-4 shrink-0 cursor-pointer select-none items-center whitespace-nowrap rounded-[3px] border px-1 text-[10px] leading-none"
       style={{
-        borderColor: alpha(color, 0.45),
+        "border-color": alpha(color, 0.45),
         background: alpha(color, 0.14),
         color,
       }}
@@ -386,7 +386,7 @@ export function PatternSymbolMatrix({
         activeSymbol && row.symbol === activeSymbol
           ? {
               background: "rgba(88, 166, 255, 0.12)",
-              boxShadow: "inset 3px 0 0 var(--color-fin-primary)",
+              "box-shadow": "inset 3px 0 0 var(--color-fin-primary)",
             }
           : undefined
       }

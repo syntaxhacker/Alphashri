@@ -25,8 +25,8 @@ function chartOption({
   return {
     grid: { left: 44, right: 8, top: 8, bottom: 18 },
     tooltip: { trigger: "axis" as const, valueFormatter: tooltipFormatter },
-    xAxis: { type: "category" as const, data: xData, axisLabel: { fontSize: 9 }, splitLine },
-    yAxis: { type: "value" as const, axisLabel: { fontSize: 9, formatter: yFormatter }, splitLine },
+    xAxis: { type: "category" as const, data: xData, axisLabel: { "font-size": 9 }, splitLine },
+    yAxis: { type: "value" as const, axisLabel: { "font-size": 9, formatter: yFormatter }, splitLine },
     series,
   };
 }
@@ -83,7 +83,7 @@ function DailyPnLChart({ data }: { data: DailyPnLPoint[] }) {
               value: d.net_pnl,
               itemStyle: {
                 color: d.net_pnl >= 0 ? POSITIVE : NEGATIVE,
-                borderRadius: [2, 2, 0, 0],
+                "border-radius": [2, 2, 0, 0],
               },
             })),
             barMaxWidth: 20,
@@ -152,7 +152,7 @@ function MonthlyChart({ data }: { data: any[] }) {
               value: d.pnl,
               itemStyle: {
                 color: d.pnl >= 0 ? POSITIVE : NEGATIVE,
-                borderRadius: [2, 2, 0, 0],
+                "border-radius": [2, 2, 0, 0],
               },
             })),
             barMaxWidth: 24,
@@ -222,7 +222,7 @@ export function PerformanceAnalytics() {
     <Flex direction="column" gap="xs">
       <Flex justify="space-between" align="center">
         <Group gap="xs">
-            <Box w={4} h={20} style={{ borderRadius: 2, backgroundColor: INFO }} />
+            <Box w={4} h={20} style={{ "border-radius": 2, "background-color": INFO }} />
             <Text fw={700} size="lg">Performance Analytics</Text>
         </Group>
         <SegmentedControl
@@ -245,14 +245,14 @@ export function PerformanceAnalytics() {
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
         <Paper p="xs" radius="md">
           <Group gap="xs" mb={2}>
-            <Box w={4} h={14} style={{ borderRadius: 2, backgroundColor: PRIMARY }} />
+            <Box w={4} h={14} style={{ "border-radius": 2, "background-color": PRIMARY }} />
             <Text fw={600} size="xs">Equity Curve</Text>
           </Group>
           <EquityCurveChart data={equity_curve} />
         </Paper>
         <Paper p="xs" radius="md">
           <Group gap="xs" mb={2}>
-            <Box w={4} h={14} style={{ borderRadius: 2, backgroundColor: TEXT_MUTED }} />
+            <Box w={4} h={14} style={{ "border-radius": 2, "background-color": TEXT_MUTED }} />
             <Text fw={600} size="xs">Daily P&L</Text>
           </Group>
           <DailyPnLChart data={daily_pnl} />
@@ -262,14 +262,14 @@ export function PerformanceAnalytics() {
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
         <Paper p="xs" radius="md">
           <Group gap="xs" mb={2}>
-            <Box w={4} h={14} style={{ borderRadius: 2, backgroundColor: NEGATIVE }} />
+            <Box w={4} h={14} style={{ "border-radius": 2, "background-color": NEGATIVE }} />
             <Text fw={600} size="xs">Drawdown</Text>
           </Group>
           <DrawdownChart data={drawdown} />
         </Paper>
         <Paper p="xs" radius="md">
           <Group gap="xs" mb={2}>
-            <Box w={4} h={14} style={{ borderRadius: 2, backgroundColor: INFO }} />
+            <Box w={4} h={14} style={{ "border-radius": 2, "background-color": INFO }} />
             <Text fw={600} size="xs">Monthly P&L</Text>
           </Group>
           <MonthlyChart data={monthly_pnl} />

@@ -11,7 +11,7 @@ function Chevron({ expanded }: { expanded: () => boolean }) {
       aria-hidden="true"
     >
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 18l-6-6 6-6" />
+        <path strokeLinecap="round" strokeLinejoin="round" stroke-width="2" d="M15 18l-6-6 6-6" />
       </svg>
     </button>
   );
@@ -27,10 +27,9 @@ type TreeNodeProps = {
   renderNode?: UITreeProps["renderNode"];
 };
 
-function TreeNode({ node, level, levelOffset, expandedSet, onToggle, onNodeClick, renderNode }: TreeNodeProps) {
+function TreeNode({ node, level, expandedSet, onToggle, onNodeClick, renderNode }: TreeNodeProps) {
   const hasChildren = !!(node.children && node.children.length > 0);
   const expanded = createMemo(() => expandedSet().has(node.value));
-  const paddingLeft = level * levelOffset;
 
   const handleClick = () => {
     onNodeClick?.(node);

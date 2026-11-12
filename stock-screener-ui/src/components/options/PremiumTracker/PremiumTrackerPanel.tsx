@@ -240,7 +240,7 @@ export function PremiumTrackerPanel({ strikeMatrix = [], selectedUnderlying = "N
           </Box>
         )}
         <Divider data-testid="premium-checks-divider" />
-        <ul style={{ margin: 0, paddingLeft: 16, width: "100%" }} data-testid="premium-checks">
+        <ul style={{ margin: 0, "padding-left": 16, width: "100%" }} data-testid="premium-checks">
           {CHECKS.map((check) => (
             <li key={check}>
               <Text size="xs" className="text-fin-text-muted">{check}</Text>

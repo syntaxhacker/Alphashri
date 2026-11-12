@@ -299,10 +299,10 @@ function NiftyGammaTimeInner({
       title="Dealer gamma — net per minute"
       testId="nifty-gamma-time-panel"
       style={{
-        backgroundColor: palette.TERM_BG,
+        "background-color": palette.TERM_BG,
         border: `1px solid ${palette.TERM_BORDER}`,
-        borderColor: palette.TERM_BORDER,
-        borderRadius: 8,
+        "border-color": palette.TERM_BORDER,
+        "border-radius": 8,
       }}
     >
       {/* Tight column + tight stat row: plain grids instead of
@@ -362,7 +362,7 @@ function NiftyGammaTimeInner({
               style={{
                 color: regime.tone,
                 border: `1px solid ${regime.tone}`,
-                borderRadius: 6,
+                "border-radius": 6,
                 padding: "4px 2px",
               }}
             >

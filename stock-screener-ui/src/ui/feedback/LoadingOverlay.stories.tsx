@@ -14,7 +14,7 @@ type Story = StoryObj<typeof LoadingOverlay>;
 
 function Panel({ children }: { children: React.ReactNode }) {
   return (
-    <Box pos="relative" h={160} p="md" style={{ borderRadius: 8 }}>
+    <Box pos="relative" h={160} p="md" style={{ "border-radius": 8 }}>
       {children}
     </Box>
   );
@@ -49,7 +49,7 @@ export const Hidden: Story = {
 export const WithZIndex: Story = {
   args: {
     visible: true,
-    zIndex: 50,
+    "z-index": 50,
     loaderProps: { size: "sm", color: "info" },
   },
 };

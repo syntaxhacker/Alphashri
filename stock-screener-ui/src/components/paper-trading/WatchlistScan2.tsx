@@ -300,7 +300,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
         </Group>
       </Group>
 
-      <ToolbarRow gap={32} style={{ paddingLeft: 4, paddingRight: 4 }}>
+      <ToolbarRow gap={32} style={{ "padding-left": 4, "padding-right": 4 }}>
         <SegmentedControl
           size="xs"
           value={statusFilter}
@@ -349,14 +349,14 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
             const isNew = isNewSignal(row, snapshot?.timestamp ?? null);
             return {
               cursor: "pointer",
-              backgroundColor: isSelected
+              "background-color": isSelected
                 ? alpha(palette.PRIMARY, 0.08)
                 : isNew
                   ? alpha(palette.POSITIVE, 0.08)
                   : undefined,
               borderLeftWidth: 3,
               borderLeftStyle: "solid",
-              borderLeftColor: STATUS_BORDER_COLOR[row.status] ?? STATUS_BORDER_COLOR.skipped,
+              "border-left-color": STATUS_BORDER_COLOR[row.status] ?? STATUS_BORDER_COLOR.skipped,
             };
           }}
           getRowTestId={(row) => `scan-row-${row.symbol}`}

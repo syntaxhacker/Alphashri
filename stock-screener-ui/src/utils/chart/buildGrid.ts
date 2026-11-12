@@ -51,7 +51,7 @@ export function buildGrid(
           boundaryGap: true,
           axisLine: { lineStyle: { color: colors.borderColor } },
           axisLabel: {
-            fontSize: 10,
+            "font-size": 10,
             color: colors.mutedColor,
             rotate: 0,
             interval: 0,
@@ -76,14 +76,14 @@ export function buildGrid(
         {
           scale: true,
           axisLine: { lineStyle: { color: colors.borderColor } },
-          axisLabel: { color: colors.mutedColor, fontSize: 10 },
+          axisLabel: { color: colors.mutedColor, "font-size": 10 },
           splitLine: { lineStyle: { color: colors.gridLineColor } },
         },
         {
           scale: true,
           gridIndex: 1,
           axisLine: { show: false },
-          axisLabel: { show: true, color: colors.mutedColor, fontSize: 9, formatter: (value: number) => formatVolume(value) },
+          axisLabel: { show: true, color: colors.mutedColor, "font-size": 9, formatter: (value: number) => formatVolume(value) },
           splitLine: { show: false },
         },
       ],

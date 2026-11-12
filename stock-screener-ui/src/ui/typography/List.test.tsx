@@ -33,7 +33,7 @@ describe("List", () => {
 
   it("applies size from the type scale", () => {
     render(() => <List data-testid="lst" size="sm" />);
-    expect(screen.getByTestId("lst")).toHaveStyle("font-size: 0.875rem");
+    expect(screen.getByTestId("lst")).toHaveStyle("font-size: 14px");
   });
 
   it("defaults unordered list marker to disc", () => {

@@ -6,21 +6,19 @@ import { LoadingOverlay } from "./LoadingOverlay";
 
 describe("LoadingOverlay", () => {
   test("renders loader and children when visible", () => {
-    render(
+    render(() => (
       <LoadingOverlay visible data-testid="ov">
         <span>content</span>
-      </LoadingOverlay>,
-    );
+      </LoadingOverlay>));
     expect(screen.getByTestId("ov")).toBeInTheDocument();
     expect(screen.getByText("content")).toBeInTheDocument();
   });
 
   test("renders nothing when hidden", () => {
-    render(
+    render(() => (
       <LoadingOverlay visible={false} data-testid="ov2">
         <span>content</span>
-      </LoadingOverlay>,
-    );
+      </LoadingOverlay>));
     expect(screen.queryByTestId("ov2")).toBeNull();
   });
 });

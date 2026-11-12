@@ -228,8 +228,8 @@ export function NiftySqueezeRadarInner({
       className="w-full min-w-0 flex flex-col gap-[6px] px-2 py-[6px] shrink-0"
       style={{
         border: `1px solid ${palette.TERM_BORDER}`,
-        borderRadius: 4,
-        backgroundColor: palette.TERM_HEADER,
+        "border-radius": 4,
+        "background-color": palette.TERM_HEADER,
         fontFamily: palette.MONO,
       }}
     >
@@ -245,7 +245,7 @@ export function NiftySqueezeRadarInner({
           style={{
             border: `1px solid ${STAGE_COLOR[stage]}`,
             color: STAGE_COLOR[stage],
-            backgroundColor:
+            "background-color":
               stage === "TRIGGER"
                 ? "rgba(63,185,80,0.14)"
                 : stage === "ARMING" || stage === "PRE-BLAST"
@@ -341,8 +341,8 @@ export function NiftySqueezeRadarInner({
           className="absolute top-[-2px] bottom-[-2px] w-[2px]"
           style={{
             left: `calc(${proximity}% - 1px)`,
-            backgroundColor: STAGE_COLOR[stage],
-            boxShadow: `0 0 4px ${STAGE_COLOR[stage]}`,
+            "background-color": STAGE_COLOR[stage],
+            "box-shadow": `0 0 4px ${STAGE_COLOR[stage]}`,
           }}
         />
       </Box>
@@ -368,7 +368,7 @@ export function NiftySqueezeRadarInner({
               className="px-[4px] py-[1px] rounded-[3px] text-[9px] font-bold whitespace-nowrap shrink-0"
               style={{
                 border: `1px solid ${c.points > 0 ? palette.POSITIVE : palette.NEGATIVE}`,
-                backgroundColor: c.points > 0 ? "rgba(63,185,80,0.10)" : "rgba(248,81,73,0.08)",
+                "background-color": c.points > 0 ? "rgba(63,185,80,0.10)" : "rgba(248,81,73,0.08)",
                 color: c.points > 0 ? palette.POSITIVE : palette.NEGATIVE,
               }}
             >
@@ -382,7 +382,7 @@ export function NiftySqueezeRadarInner({
         <Box
           component="span"
           className="px-[4px] py-[1px] rounded-[3px] border border-solid text-[9px] shrink-0 ml-auto"
-          style={{ borderColor: palette.TERM_BORDER, color: palette.TEXT_MUTED }}
+          style={{ "border-color": palette.TERM_BORDER, color: palette.TEXT_MUTED }}
         >
           setup {setup.score}/{setup.gates.length} · flow {preMove.score}/{preMove.max}
         </Box>
@@ -400,7 +400,7 @@ export function NiftySqueezeRadarInner({
             viewBox="0 0 1000 22"
             preserveAspectRatio="none"
             aria-label="pre-move score, last 30 minutes"
-            style={{ flex: 1, minWidth: 0 }}
+            style={{ flex: 1, "min-width": 0 }}
           >
             {spans.map((s, i) => {
               const x0 = n <= 1 ? 0 : ((s.from - t0!) / (t1! - t0! || 1)) * 1000;
@@ -423,11 +423,11 @@ export function NiftySqueezeRadarInner({
               y1={scoreY(5)}
               y2={scoreY(5)}
               stroke={palette.WARNING}
-              strokeWidth={0.6}
+              stroke-width={0.6}
               strokeDasharray="3 3"
               opacity={0.5}
             />
-            <polyline points={scoreLine} fill="none" stroke={STAGE_COLOR[stage]} strokeWidth={1.4} />
+            <polyline points={scoreLine} fill="none" stroke={STAGE_COLOR[stage]} stroke-width={1.4} />
             {n > 0 ? (
               <circle
                 cx={1000}

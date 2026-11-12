@@ -16,8 +16,8 @@ const cell = (label: string) => (
     style={{
       background: "#80b5ff",
       padding: 16,
-      borderRadius: 6,
-      textAlign: "center",
+      "border-radius": 6,
+      "text-align": "center",
     }}
   >
     {label}

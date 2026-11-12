@@ -96,7 +96,7 @@ export function PatternTradingViewChart({
       width: containerRef.current.clientWidth,
       height: initialHeight,
       timeScale: {
-        borderColor: palette.BORDER,
+        "border-color": palette.BORDER,
         timeVisible: true,
         secondsVisible: false,
         rightOffset: 6,
@@ -104,7 +104,7 @@ export function PatternTradingViewChart({
         tickMarkFormatter: tvTickMarkFormatter,
       },
       localization: { locale: "en-IN", timeFormatter: tvTimeFormatter },
-      rightPriceScale: { borderColor: palette.BORDER },
+      rightPriceScale: { "border-color": palette.BORDER },
       crosshair: { mode: 1 },
       handleScroll: true,
       handleScale: true,
@@ -267,7 +267,7 @@ export function PatternTradingViewChart({
     if (typeof ts.timeToCoordinate !== "function") return;
     ctx.font = "600 11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
     ctx.textBaseline = "middle";
-    ctx.textAlign = "left";
+    ctx["text-align"] = "left";
     const placed: { x: number; y: number; w: number; h: number }[] = [];
     data.lines.forEach((line, i) => {
       if (!line.labelEligible || hiddenRef.current.has(line.name)) return;
@@ -373,7 +373,7 @@ export function PatternTradingViewChart({
         ref={overlayRef}
         aria-hidden="true"
         data-testid="patterns-tv-overlay"
-        style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 3 }}
+        style={{ position: "absolute", inset: 0, "pointer-events": "none", "z-index": 3 }}
       />
     </div>
   );

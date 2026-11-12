@@ -36,7 +36,7 @@ export function BacktestProgress({ progress }: BacktestProgressProps) {
         value={Math.max(0, Math.min(100, percent))}
         data-testid="progress-fill"
         size="md"
-        style={{ height: 6, borderRadius: 3 }}
+        style={{ height: 6, "border-radius": 3 }}
       />
       <Text size="xs" c="muted" ta="center" data-testid="progress-message">
         {progress.message}

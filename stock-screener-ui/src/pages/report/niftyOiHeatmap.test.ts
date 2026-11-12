@@ -323,15 +323,15 @@ describe("NiftyOiHeatmap render", () => {
     const mp = screen.getByTestId("nifty-heatmap-legend-maxpain-swatch");
     const flip = screen.getByTestId("nifty-heatmap-legend-flip-swatch");
     const touch = screen.getByTestId("nifty-heatmap-legend-mp-touch-swatch");
-    expect(ce).toHaveStyle({ backgroundColor: HEATMAP_CE });
+    expect(ce).toHaveStyle({ "background-color": HEATMAP_CE });
     expect(ce).toHaveClass("w-2", "h-2");
-    expect(pe).toHaveStyle({ backgroundColor: HEATMAP_PE });
+    expect(pe).toHaveStyle({ "background-color": HEATMAP_PE });
     expect(pe).toHaveClass("w-2", "h-2");
-    expect(spot).toHaveStyle({ backgroundColor: HEATMAP_SPOT });
+    expect(spot).toHaveStyle({ "background-color": HEATMAP_SPOT });
     expect(spot).toHaveClass("w-3", "h-0.5");
-    expect(mp).toHaveStyle({ borderTopColor: HEATMAP_MP });
-    expect(flip).toHaveStyle({ borderTopColor: HEATMAP_FLIP });
-    expect(touch).toHaveStyle({ backgroundColor: palette.WARNING });
+    expect(mp).toHaveStyle({ "border-top-color": HEATMAP_MP });
+    expect(flip).toHaveStyle({ "border-top-color": HEATMAP_FLIP });
+    expect(touch).toHaveStyle({ "background-color": palette.WARNING });
     for (const el of [ce, pe, spot, mp, flip, touch]) expect(el.textContent).toBe("");
   });
 

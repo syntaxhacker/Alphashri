@@ -48,7 +48,7 @@ function Chevron({ expanded, disableRotation }: { expanded: () => boolean; disab
       viewBox="0 0 24 24"
       aria-hidden="true"
     >
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 10l5 5 5-5" />
+      <path strokeLinecap="round" strokeLinejoin="round" stroke-width="2" d="M7 10l5 5 5-5" />
     </svg>
   );
 }

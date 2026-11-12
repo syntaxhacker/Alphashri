@@ -256,13 +256,13 @@ export function ScanProgress({
         data-testid="patterns-scan-progress"
         className="flex min-w-0 items-center gap-4 rounded-fin border border-fin-border bg-fin-surface p-2"
       >
-        <Text size="xs" fw={700} style={{ whiteSpace: "nowrap" }}>
+        <Text size="xs" fw={700} style={{ "white-space": "nowrap" }}>
           Scanning{combo ? ` ${combo}` : ""}…
         </Text>
         <Box className="min-w-[120px] flex-1">
           <Progress value={pct} size="sm" color="primary" aria-label="pattern scan progress" />
         </Box>
-        <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }} data-testid="patterns-scan-progress-count">
+        <Text size="xs" c="dimmed" style={{ "white-space": "nowrap" }} data-testid="patterns-scan-progress-count">
           {total > 0 ? `${done}/${total} stocks · ${pct}%` : "starting…"}
           {eta ? ` · ${eta}` : ""}
         </Text>

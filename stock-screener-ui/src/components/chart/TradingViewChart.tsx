@@ -450,9 +450,9 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       ...(fixedHeight != null
         ? { width: containerRef.current.clientWidth, height: fixedHeight }
         : { autoSize: true }),
-      timeScale: { borderColor: c.grid, timeVisible: true, secondsVisible: false, rightOffset: 6, barSpacing: 5, tickMarkFormatter: tvTickMarkFormatter },
+      timeScale: { "border-color": c.grid, timeVisible: true, secondsVisible: false, rightOffset: 6, barSpacing: 5, tickMarkFormatter: tvTickMarkFormatter },
       localization: { locale: "en-IN", timeFormatter: tvTimeFormatter },
-      rightPriceScale: { borderColor: c.grid },
+      rightPriceScale: { "border-color": c.grid },
       crosshair: { mode: 1 },
       handleScroll: true,
       handleScale: true,
@@ -469,7 +469,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       : chart.addSeries(CandlestickSeries, {
           upColor: c.bull,
           downColor: c.bear,
-          borderColor: c.bear,
+          "border-color": c.bear,
           borderUpColor: c.bull,
           borderDownColor: c.bear,
           wickUpColor: c.bull,
@@ -950,7 +950,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       if (area.label) {
         ctx.font = "700 10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
         ctx.textBaseline = "middle";
-        ctx.textAlign = "left";
+        ctx["text-align"] = "left";
         ctx.fillStyle = area.borderColor || "#E5E7EB";
         ctx.fillText(area.label, 6, Math.max(8, top + Math.min(14, (bottom - top) / 2)));
       }
@@ -982,9 +982,9 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       const bottomEdge = rect.height - Math.max(0, timeAxisH) - 4;
       ctx.font = "600 10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
       ctx.textBaseline = "middle";
-      ctx.textAlign = "left";
+      ctx["text-align"] = "left";
       const rowH = 14;
-      const rowGap = 2;
+      const ["row-gap"] = 2;
       const drawEdge = (items: MarkLineData[], atTop: boolean) => {
         const shown = items.slice(0, 4);
         shown.forEach((ml, i) => {
@@ -1009,7 +1009,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     const visible = filterVisibleTrades(trades, highlightedTradeId, showAllTrades);
     ctx.font = "700 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
     ctx.textBaseline = "middle";
-    ctx.textAlign = "left";
+    ctx["text-align"] = "left";
 
     const { barTimes, byTime } = entryGeometry;
     // Trades may carry an intraday entry time while bars are daily — snap to the
@@ -1131,10 +1131,10 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
   return (
     <div
       className="flex flex-col h-full min-w-0 relative"
-      style={{ width: "100%", flex: 1, minHeight: 0, position: "relative" }}
+      style={{ width: "100%", flex: 1, "min-height": 0, position: "relative" }}
     >
-      <div ref={containerRef} className="w-full flex-1 min-h-0 relative" data-testid="tradingview-chart" style={{ width: "100%", flex: 1, minHeight: 0, position: "relative", ...(height != null ? { height } : {}) }} />
-      <canvas ref={overlayRef} aria-hidden="true" data-testid="tradingview-overlay" style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 3 }} />
+      <div ref={containerRef} className="w-full flex-1 min-h-0 relative" data-testid="tradingview-chart" style={{ width: "100%", flex: 1, "min-height": 0, position: "relative", ...(height != null ? { height } : {}) }} />
+      <canvas ref={overlayRef} aria-hidden="true" data-testid="tradingview-overlay" style={{ position: "absolute", inset: 0, "pointer-events": "none", "z-index": 3 }} />
     </div>
   );
 });

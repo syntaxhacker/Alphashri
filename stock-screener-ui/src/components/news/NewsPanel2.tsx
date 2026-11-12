@@ -210,7 +210,7 @@ function NewsPanelToggle({
         aria-label="News"
         title={`Open news panel${unreadCount > 0 ? ` — ${unreadCount} unread` : ""}`}
         leftSection={<IconNews size={18} />}
-        style={{ minWidth: 32, width: 32, height: 32, padding: 0 }}
+        style={{ "min-width": 32, width: 32, height: 32, padding: 0 }}
       />
     </Indicator>
   );
@@ -222,7 +222,7 @@ function NewsPanelOverlay({ onClose }: { onClose: () => void }) {
       color="secondary"
       backgroundOpacity={0.5}
       onClick={onClose}
-      zIndex={100}
+      z-index={100}
       data-testid="news-overlay"
       className="news-overlay"
     />

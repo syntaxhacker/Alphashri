@@ -163,13 +163,13 @@ export class ChartOptionBuilder {
 
     return {
       title: this.titleText
-        ? { text: this.titleText, left: "center", textStyle: { fontSize: 14 } }
+        ? { text: this.titleText, left: "center", textStyle: { "font-size": 14 } }
         : undefined,
       tooltip: {
         trigger: this.tooltipTrigger,
-        backgroundColor: TOOLTIP_DARK_BG,
-        borderColor: TOOLTIP_DARK_BORDER,
-        textStyle: { color: TOOLTIP_DARK_TEXT, fontSize: 12 },
+        "background-color": TOOLTIP_DARK_BG,
+        "border-color": TOOLTIP_DARK_BORDER,
+        textStyle: { color: TOOLTIP_DARK_TEXT, "font-size": 12 },
       },
       legend: this.legendEnabled
         ? { data: this.collectLegendNames(), bottom: 0, textStyle: { color: CHART_TEXT } }
@@ -193,7 +193,7 @@ export class ChartOptionBuilder {
           gridIndex: 1,
           axisLine: { lineStyle: { color: AXIS_DARK_LINE } },
           splitLine: { show: false },
-          axisLabel: { color: TEXT_MUTED, fontSize: 10, rotate: 45 },
+          axisLabel: { color: TEXT_MUTED, "font-size": 10, rotate: 45 },
         },
       ],
       yAxis: [
@@ -202,13 +202,13 @@ export class ChartOptionBuilder {
           gridIndex: 0,
           scale: true,
           splitLine: { lineStyle: { color: AXIS_DARK_SPLIT, type: "dashed" } },
-          axisLabel: { color: TEXT_MUTED, fontSize: 10 },
+          axisLabel: { color: TEXT_MUTED, "font-size": 10 },
         },
         {
           type: "value",
           gridIndex: 1,
           splitLine: { show: false },
-          axisLabel: { color: TEXT_MUTED, fontSize: 10 },
+          axisLabel: { color: TEXT_MUTED, "font-size": 10 },
         },
       ],
       series,
@@ -229,7 +229,7 @@ export class ChartOptionBuilder {
         itemStyle: {
           color: BULLISH,
           color0: BEARISH,
-          borderColor: BULLISH,
+          "border-color": BULLISH,
           borderColor0: BEARISH,
         },
         tooltip: {
@@ -426,15 +426,15 @@ export class ChartOptionBuilder {
         symbol: "triangle",
         symbolSize: 18,
         symbolRotate: 180,
-        itemStyle: { color: MARKER_ENTRY, borderColor: MARKER_BORDER, borderWidth: 1 },
+        itemStyle: { color: MARKER_ENTRY, "border-color": MARKER_BORDER, borderWidth: 1 },
         label: {
           show: true,
           position: "top",
           distance: 6,
           formatter: "Entry",
           color: MARKER_ENTRY,
-          fontSize: 10,
-          fontWeight: "bold",
+          "font-size": 10,
+          "font-weight": "bold",
         },
       });
     }
@@ -449,15 +449,15 @@ export class ChartOptionBuilder {
         coord: [idx, ex.price],
         symbol,
         symbolSize: 16,
-        itemStyle: { color: exitColor, borderColor: MARKER_BORDER, borderWidth: 1 },
+        itemStyle: { color: exitColor, "border-color": MARKER_BORDER, borderWidth: 1 },
         label: {
           show: true,
           position: "bottom",
           distance: 6,
           formatter: ex.reason || "Exit",
           color: exitColor,
-          fontSize: 10,
-          fontWeight: "bold",
+          "font-size": 10,
+          "font-weight": "bold",
         },
       });
     }

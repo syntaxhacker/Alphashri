@@ -50,7 +50,7 @@ export function ReplaySummaryPanel({ summary }: ReplaySummaryProps) {
         accessorKey: "name",
         meta: { align: "left" },
         cell: (info) => (
-          <span style={{ fontWeight: info.row.original.isTotal ? 700 : 500, fontSize: 11 }}>
+          <span style={{ "font-weight": info.row.original.isTotal ? 700 : 500, "font-size": 11 }}>
             {info.getValue<string>()}
           </span>
         ),
@@ -63,9 +63,9 @@ export function ReplaySummaryPanel({ summary }: ReplaySummaryProps) {
         cell: (info) => (
           <span
             style={{
-              fontWeight: info.row.original.isTotal ? 700 : 400,
-              fontSize: 11,
-              textAlign: "right",
+              "font-weight": info.row.original.isTotal ? 700 : 400,
+              "font-size": 11,
+              "text-align": "right",
               display: "block",
             }}
           >
@@ -81,9 +81,9 @@ export function ReplaySummaryPanel({ summary }: ReplaySummaryProps) {
         cell: (info) => (
           <span
             style={{
-              fontWeight: info.row.original.isTotal ? 700 : 400,
-              fontSize: 11,
-              textAlign: "right",
+              "font-weight": info.row.original.isTotal ? 700 : 400,
+              "font-size": 11,
+              "text-align": "right",
               display: "block",
             }}
           >
@@ -101,9 +101,9 @@ export function ReplaySummaryPanel({ summary }: ReplaySummaryProps) {
           return (
             <span
               style={{
-                fontWeight: 500,
-                fontSize: 11,
-                textAlign: "right",
+                "font-weight": 500,
+                "font-size": 11,
+                "text-align": "right",
                 display: "block",
                 color: getPnLTextColor(val) === "success" ? palette.POSITIVE : palette.NEGATIVE,
               }}
@@ -130,9 +130,9 @@ export function ReplaySummaryPanel({ summary }: ReplaySummaryProps) {
           return (
             <span
               style={{
-                fontWeight: info.row.original.isTotal ? 700 : 400,
-                fontSize: 11,
-                textAlign: "right",
+                "font-weight": info.row.original.isTotal ? 700 : 400,
+                "font-size": 11,
+                "text-align": "right",
                 display: "block",
                 color,
               }}

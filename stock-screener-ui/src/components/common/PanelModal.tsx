@@ -46,7 +46,7 @@ export function PanelModal({
   maxWidth,
   drawerWidth,
   autoHeight = false,
-  maxHeight = "80vh",
+  ["max-height"] = "80vh",
 }: PanelModalProps) {
   const isDrawer = variant === "drawer";
   const compact = !isDrawer && autoHeight;
@@ -80,17 +80,17 @@ export function PanelModal({
     top: 0,
     right: 0,
     width: "100%",
-    maxWidth: `min(${drawerWidth ?? 720}px, 74vw)`,
+    "max-width": `min(${drawerWidth ?? 720}px, 74vw)`,
     height: "100%",
-    maxHeight: "100%",
-    backgroundColor: palette.TERM_BG,
+    "max-height": "100%",
+    "background-color": palette.TERM_BG,
     color: palette.TEXT,
     border: `1px solid ${palette.TERM_BORDER}`,
     borderRight: "none",
-    borderRadius: 0,
-    boxShadow: DIALOG_SHADOW,
+    "border-radius": 0,
+    "box-shadow": DIALOG_SHADOW,
     display: "flex",
-    flexDirection: "column",
+    "flex-direction": "column",
     overflow: "hidden",
   };
 
@@ -100,58 +100,58 @@ export function PanelModal({
     left: "50%",
     transform: "translate(-50%, -50%)",
     width: compact ? "100%" : width,
-    maxWidth: compact ? width : undefined,
-    maxHeight: compact ? (typeof maxHeight === "number" ? `${maxHeight}px` : maxHeight) : "88vh",
+    "max-width": compact ? width : undefined,
+    "max-height": compact ? (typeof ["max-height"] === "number" ? `${maxHeight}px` : maxHeight) : "88vh",
     height: compact ? "auto" : "88vh",
-    backgroundColor: palette.TERM_BG,
+    "background-color": palette.TERM_BG,
     color: palette.TEXT,
     border: `1px solid ${palette.TERM_BORDER}`,
-    borderRadius: "4px",
-    boxShadow: DIALOG_SHADOW,
+    "border-radius": "4px",
+    "box-shadow": DIALOG_SHADOW,
     display: "flex",
-    flexDirection: "column",
+    "flex-direction": "column",
     overflow: "hidden",
   };
 
   const backdropStyle: React.CSSProperties = isDrawer
-    ? { backgroundColor: withAlpha(palette.BG, 0.18) }
-    : { backgroundColor: withAlpha(palette.BG, 0.5) };
+    ? { "background-color": withAlpha(palette.BG, 0.18) }
+    : { "background-color": withAlpha(palette.BG, 0.5) };
 
   const titlebarStyle: React.CSSProperties = {
     display: "flex",
-    alignItems: "center",
+    "align-items": "center",
     gap: 8,
     padding: "12px 16px",
-    minHeight: 36,
-    flexShrink: 0,
-    backgroundColor: palette.TERM_HEADER,
+    "min-height": 36,
+    "flex-shrink": 0,
+    "background-color": palette.TERM_HEADER,
     borderBottom: `1px solid ${palette.TERM_BORDER}`,
   };
 
   const titleStyle: React.CSSProperties = {
     flex: 1,
-    minWidth: 0,
+    "min-width": 0,
     overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
+    "text-overflow": "ellipsis",
+    "white-space": "nowrap",
   };
 
   const bodyStyle: React.CSSProperties = {
     flex: compact ? "0 1 auto" : 1,
-    minHeight: 0,
+    "min-height": 0,
     overflow: "auto",
     padding: 8,
   };
 
   const actionsStyle: React.CSSProperties = {
     display: "flex",
-    alignItems: "center",
-    justifyContent: "flex-end",
+    "align-items": "center",
+    "justify-content": "flex-end",
     gap: 8,
     padding: "12px 16px",
-    flexShrink: 0,
+    "flex-shrink": 0,
     borderTop: `1px solid ${palette.TERM_BORDER}`,
-    backgroundColor: palette.TERM_HEADER,
+    "background-color": palette.TERM_HEADER,
   };
 
   const closeButtonStyle: React.CSSProperties = {
@@ -159,7 +159,7 @@ export function PanelModal({
     color: palette.TEXT_MUTED,
     border: "none",
     background: "none",
-    borderRadius: 0,
+    "border-radius": 0,
     cursor: "pointer",
   };
 
@@ -169,10 +169,10 @@ export function PanelModal({
       size="xs"
       fw={700}
       style={{
-        fontSize: 10,
-        lineHeight: 1.2,
-        letterSpacing: "0.08em",
-        textTransform: "uppercase",
+        "font-size": 10,
+        "line-height": 1.2,
+        "letter-spacing": "0.08em",
+        "text-transform": "uppercase",
         color: palette.TEXT_MUTED,
       }}
     >
@@ -191,10 +191,10 @@ export function PanelModal({
         style={{
           position: "fixed",
           inset: 0,
-          zIndex: 50,
+          "z-index": 50,
           display: "flex",
-          justifyContent: isDrawer ? "flex-end" : "center",
-          alignItems: isDrawer ? "stretch" : "center",
+          "justify-content": isDrawer ? "flex-end" : "center",
+          "align-items": isDrawer ? "stretch" : "center",
           padding: isDrawer ? 0 : 16,
           ...backdropStyle,
         }}

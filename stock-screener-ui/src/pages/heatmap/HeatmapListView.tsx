@@ -34,7 +34,7 @@ export function HeatmapListView({ stocks, metric, activeMetric, metricMin, metri
         const tc = getMetricTextColor(val, metricMin, metricMax);
         return (
           <Box className="flex items-center justify-end gap-2 p-2">
-            <Box className="flex items-center justify-center px-2 rounded font-bold text-[12px]" style={{ backgroundColor: bg, color: tc }}>
+            <Box className="flex items-center justify-center px-2 rounded font-bold text-[12px]" style={{ "background-color": bg, color: tc }}>
               {activeMetric.fmt(val)}
             </Box>
           </Box>

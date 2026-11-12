@@ -41,18 +41,18 @@ function Cell({
       className="flex items-center min-w-0"
       style={{
         gap: `${REPORT_PAD.sm}px`,
-        paddingLeft: `${REPORT_PAD.md}px`,
-        paddingRight: emphasis ? `${REPORT_PAD.sm}px` : 0,
-        backgroundColor: emphasis ? palette.SURFACE_ALT : "transparent",
+        "padding-left": `${REPORT_PAD.md}px`,
+        "padding-right": emphasis ? `${REPORT_PAD.sm}px` : 0,
+        "background-color": emphasis ? palette.SURFACE_ALT : "transparent",
         borderLeft: emphasis
           ? `2px solid ${TONE_COLOR[tone]}`
           : `1px solid ${palette.TERM_BORDER}`,
       }}
     >
-      <span style={{ color: palette.TEXT_MUTED, fontWeight: 700, letterSpacing: "0.06em", flexShrink: 0 }}>
+      <span style={{ color: palette.TEXT_MUTED, "font-weight": 700, "letter-spacing": "0.06em", "flex-shrink": 0 }}>
         {label}
       </span>
-      <span style={{ color: TONE_COLOR[tone], fontWeight: emphasis ? 800 : 700, whiteSpace: "nowrap" }}>
+      <span style={{ color: TONE_COLOR[tone], "font-weight": emphasis ? 800 : 700, "white-space": "nowrap" }}>
         {value}
       </span>
     </Box>
@@ -98,20 +98,20 @@ export const NiftyFlowWindows = memo(function NiftyFlowWindows({
       style={{
         gap: `${REPORT_PAD.md}px`,
         height: `${REPORT_ROW.normal}px`,
-        minHeight: `${REPORT_ROW.normal}px`,
-        paddingLeft: `${REPORT_PAD.md}px`,
-        paddingRight: `${REPORT_PAD.md}px`,
+        "min-height": `${REPORT_ROW.normal}px`,
+        "padding-left": `${REPORT_PAD.md}px`,
+        "padding-right": `${REPORT_PAD.md}px`,
         borderTop: `1px solid ${palette.TERM_BORDER}`,
         borderBottom: `1px solid ${palette.TERM_BORDER}`,
-        backgroundColor: palette.TERM_HEADER,
+        "background-color": palette.TERM_HEADER,
         fontFamily: palette.MONO,
-        fontSize: `${REPORT_FONT.xs}px`,
-        whiteSpace: "nowrap",
+        "font-size": `${REPORT_FONT.xs}px`,
+        "white-space": "nowrap",
         overflow: "hidden",
-        flexShrink: 0,
+        "flex-shrink": 0,
       }}
     >
-      <span style={{ color: palette.TEXT_MUTED, fontWeight: 800, fontSize: `${REPORT_FONT.micro}px`, letterSpacing: "0.1em" }}>
+      <span style={{ color: palette.TEXT_MUTED, "font-weight": 800, "font-size": `${REPORT_FONT.micro}px`, "letter-spacing": "0.1em" }}>
         WINDOWS
       </span>
 
@@ -126,17 +126,17 @@ export const NiftyFlowWindows = memo(function NiftyFlowWindows({
           aria-label="Flow window legend: CALL BID means call OI build plus put unwind; PUT BID means call unwind plus put build; BOTH BUILD or BOTH UNWIND is two-sided with no direction"
           style={{
             display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
+            "align-items": "center",
+            "justify-content": "center",
             width: "14px",
             height: "14px",
-            flexShrink: 0,
-            borderRadius: `${REPORT_RADIUS.sm}px`,
+            "flex-shrink": 0,
+            "border-radius": `${REPORT_RADIUS.sm}px`,
             border: `1px solid ${palette.TERM_BORDER}`,
             color: palette.TEXT_MUTED,
-            fontSize: `${REPORT_FONT.micro}px`,
-            fontWeight: 800,
-            lineHeight: 1,
+            "font-size": `${REPORT_FONT.micro}px`,
+            "font-weight": 800,
+            "line-height": 1,
             cursor: "help",
           }}
         >
@@ -152,7 +152,7 @@ export const NiftyFlowWindows = memo(function NiftyFlowWindows({
           <>
             {sessionLabel}
             {showSessionValue ? (
-              <span style={{ color: palette.TEXT_MUTED, fontWeight: 500 }}>
+              <span style={{ color: palette.TEXT_MUTED, "font-weight": 500 }}>
                 {" "}{fmtFlowCr(report.control?.flow_bias)}
               </span>
             ) : null}
@@ -167,7 +167,7 @@ export const NiftyFlowWindows = memo(function NiftyFlowWindows({
         value={
           <>
             CE {fmtFlowOi(leg15?.ce)} · PE {fmtFlowOi(leg15?.pe)}{" "}
-            <span style={{ color: TONE_COLOR[leg15c.tone], fontWeight: 800 }}>{leg15c.label}</span>
+            <span style={{ color: TONE_COLOR[leg15c.tone], "font-weight": 800 }}>{leg15c.label}</span>
           </>
         }
       />
@@ -180,7 +180,7 @@ export const NiftyFlowWindows = memo(function NiftyFlowWindows({
         value={
           <>
             CE {fmtFlowOi(leg5?.ce)} · PE {fmtFlowOi(leg5?.pe)}{" "}
-            <span style={{ color: TONE_COLOR[leg5c.tone], fontWeight: 800 }}>{leg5c.label}</span>
+            <span style={{ color: TONE_COLOR[leg5c.tone], "font-weight": 800 }}>{leg5c.label}</span>
           </>
         }
       />
@@ -190,17 +190,17 @@ export const NiftyFlowWindows = memo(function NiftyFlowWindows({
           data-testid="flow-flip"
           className="flex items-center shrink-0"
           style={{
-            marginLeft: "auto",
+            "margin-left": "auto",
             gap: `${REPORT_PAD.sm}px`,
-            paddingLeft: `${REPORT_PAD.sm}px`,
-            paddingRight: `${REPORT_PAD.sm}px`,
-            paddingTop: "1px",
-            paddingBottom: "1px",
+            "padding-left": `${REPORT_PAD.sm}px`,
+            "padding-right": `${REPORT_PAD.sm}px`,
+            "padding-top": "1px",
+            "padding-bottom": "1px",
             color: palette.WARNING,
             border: `1px solid ${palette.WARNING}`,
-            borderRadius: `${REPORT_RADIUS.sm}px`,
-            fontWeight: 800,
-            letterSpacing: "0.05em",
+            "border-radius": `${REPORT_RADIUS.sm}px`,
+            "font-weight": 800,
+            "letter-spacing": "0.05em",
           }}
         >
           FLOW FLIP{flipAt ? ` since ${flipAt}` : ""} · {flip.reason}
@@ -210,10 +210,10 @@ export const NiftyFlowWindows = memo(function NiftyFlowWindows({
           data-testid="flow-aligned"
           className="shrink-0"
           style={{
-            marginLeft: "auto",
+            "margin-left": "auto",
             color: palette.TEXT_MUTED,
-            fontWeight: 700,
-            letterSpacing: "0.05em",
+            "font-weight": 700,
+            "letter-spacing": "0.05em",
           }}
         >
           ALIGNED
@@ -226,13 +226,13 @@ export const NiftyFlowWindows = memo(function NiftyFlowWindows({
           title={`Last 5m sign flip ${lastFlipAt}${lastFlip?.reason ? ` · ${lastFlip.reason}` : ""}`}
           style={{
             color: palette.TEXT_MUTED,
-            fontWeight: 700,
-            letterSpacing: "0.05em",
-            flexShrink: 0,
-            paddingLeft: `${REPORT_PAD.sm}px`,
-            paddingRight: `${REPORT_PAD.sm}px`,
+            "font-weight": 700,
+            "letter-spacing": "0.05em",
+            "flex-shrink": 0,
+            "padding-left": `${REPORT_PAD.sm}px`,
+            "padding-right": `${REPORT_PAD.sm}px`,
             border: `1px solid ${palette.TERM_BORDER}`,
-            borderRadius: `${REPORT_RADIUS.sm}px`,
+            "border-radius": `${REPORT_RADIUS.sm}px`,
             opacity: 0.85,
           }}
         >

@@ -78,7 +78,7 @@ function Legend({
       {line ? (
         <span className="w-[11px]" style={{ borderTop: `1px ${dashed ? "dashed" : "solid"} ${color}` }} />
       ) : (
-        <span className="w-2 h-2 rounded-[1px]" style={{ backgroundColor: color }} />
+        <span className="w-2 h-2 rounded-[1px]" style={{ "background-color": color }} />
       )}
       <div className="text-[7.5px] leading-1 text-fin-text-muted">{label}</div>
     </div>
@@ -106,7 +106,7 @@ function AxisLabels({
           x={xOffset + index * cellW + cellW / 2}
           y={HEADER_H + rowsH + 11}
           textAnchor="middle"
-          fontSize={7.5}
+          font-size={7.5}
           fill={palette.TEXT_MUTED}
         >
           {timeLabel(times[index])}
@@ -283,7 +283,7 @@ export function WallsMapChart({
       style={{
         padding: "1px 4px",
         color: pressed ? palette.TEXT_COLOR : palette.TEXT_MUTED,
-        backgroundColor: pressed ? palette.SURFACE_ALT : "transparent",
+        "background-color": pressed ? palette.SURFACE_ALT : "transparent",
         border: `1px solid ${pressed ? palette.BORDER : "transparent"}`,
       }}
     >
@@ -325,7 +325,7 @@ export function WallsMapChart({
               data-testid="walls-map-regime"
               className="px-1 py-[1px] border rounded-sm text-[8px] font-bold leading-[1.4]"
               style={{
-                borderColor: regime === "SHORT" ? palette.NEGATIVE : palette.POSITIVE,
+                "border-color": regime === "SHORT" ? palette.NEGATIVE : palette.POSITIVE,
                 color: regime === "SHORT" ? palette.NEGATIVE : palette.POSITIVE,
               }}
             >
@@ -350,7 +350,7 @@ export function WallsMapChart({
                 padding: "1px 5px",
                 color: palette.PRIMARY,
                 border: `1px solid ${palette.PRIMARY}`,
-                borderRadius: 4,
+                "border-radius": 4,
               }}
             >
               LIVE
@@ -386,16 +386,16 @@ export function WallsMapChart({
         }}
       >
         {/* panel headers + current-OI columns */}
-        <text x={4} y={9} fontSize={8} fontWeight={800} fill={palette.NEGATIVE}>
+        <text x={4} y={9} font-size={8} font-weight={800} fill={palette.NEGATIVE}>
           CALLS · OI Δ
         </text>
-        <text x={PLOT_W + NOW_W / 2} y={9} textAnchor="middle" fontSize={7.5} fill={palette.TEXT_MUTED}>
+        <text x={PLOT_W + NOW_W / 2} y={9} textAnchor="middle" font-size={7.5} fill={palette.TEXT_MUTED}>
           {isLive ? "NOW" : timeLabel(activeTime)}
         </text>
-        <text x={PUT_NOW_X + NOW_W / 2} y={9} textAnchor="middle" fontSize={7.5} fill={palette.TEXT_MUTED}>
+        <text x={PUT_NOW_X + NOW_W / 2} y={9} textAnchor="middle" font-size={7.5} fill={palette.TEXT_MUTED}>
           {isLive ? "NOW" : timeLabel(activeTime)}
         </text>
-        <text x={PUT_PLOT_X + 4} y={9} fontSize={8} fontWeight={800} fill={palette.POSITIVE}>
+        <text x={PUT_PLOT_X + 4} y={9} font-size={8} font-weight={800} fill={palette.POSITIVE}>
           PUTS · OI Δ
         </text>
 
@@ -445,7 +445,7 @@ export function WallsMapChart({
 
         {/* max pain ± half a strike gap: the pin zone */}
         {map.pin_band ? (
-          <g data-testid="walls-map-pin-band" pointerEvents="none">
+          <g data-testid="walls-map-pin-band" pointer-events="none">
             {[0, PUT_PLOT_X].map((offset) => {
               const high = map.pin_band!.high.map(
                 (value, index) => `${offset + index * cellW + cellW / 2},${strikeY(value, strikes)}`,
@@ -461,10 +461,10 @@ export function WallsMapChart({
                 />
               );
             })}
-            <polyline points={path(map.pin_band.high, 0)} fill="none" stroke={palette.WARNING} strokeWidth={0.7} strokeDasharray="2 3" opacity={0.45} />
-            <polyline points={path(map.pin_band.low, 0)} fill="none" stroke={palette.WARNING} strokeWidth={0.7} strokeDasharray="2 3" opacity={0.45} />
-            <polyline points={path(map.pin_band.high, PUT_PLOT_X)} fill="none" stroke={palette.WARNING} strokeWidth={0.7} strokeDasharray="2 3" opacity={0.45} />
-            <polyline points={path(map.pin_band.low, PUT_PLOT_X)} fill="none" stroke={palette.WARNING} strokeWidth={0.7} strokeDasharray="2 3" opacity={0.45} />
+            <polyline points={path(map.pin_band.high, 0)} fill="none" stroke={palette.WARNING} stroke-width={0.7} strokeDasharray="2 3" opacity={0.45} />
+            <polyline points={path(map.pin_band.low, 0)} fill="none" stroke={palette.WARNING} stroke-width={0.7} strokeDasharray="2 3" opacity={0.45} />
+            <polyline points={path(map.pin_band.high, PUT_PLOT_X)} fill="none" stroke={palette.WARNING} stroke-width={0.7} strokeDasharray="2 3" opacity={0.45} />
+            <polyline points={path(map.pin_band.low, PUT_PLOT_X)} fill="none" stroke={palette.WARNING} stroke-width={0.7} strokeDasharray="2 3" opacity={0.45} />
           </g>
         ) : null}
 
@@ -504,22 +504,22 @@ export function WallsMapChart({
         })}
 
         {/* spot / max pain / flip paths over both panels */}
-        <g pointerEvents="none">
-          <polyline points={path(map.spot, 0)} fill="none" stroke={palette.TEXT_COLOR} strokeWidth={1.2} strokeLinejoin="round" />
-          <polyline points={path(map.spot, PUT_PLOT_X)} fill="none" stroke={palette.TEXT_COLOR} strokeWidth={1.2} strokeLinejoin="round" />
-          <polyline points={path(map.max_pain, 0)} fill="none" stroke={palette.WARNING} strokeWidth={1} strokeDasharray="4 3" opacity={0.9} />
-          <polyline points={path(map.max_pain, PUT_PLOT_X)} fill="none" stroke={palette.WARNING} strokeWidth={1} strokeDasharray="4 3" opacity={0.9} />
+        <g pointer-events="none">
+          <polyline points={path(map.spot, 0)} fill="none" stroke={palette.TEXT_COLOR} stroke-width={1.2} strokeLinejoin="round" />
+          <polyline points={path(map.spot, PUT_PLOT_X)} fill="none" stroke={palette.TEXT_COLOR} stroke-width={1.2} strokeLinejoin="round" />
+          <polyline points={path(map.max_pain, 0)} fill="none" stroke={palette.WARNING} stroke-width={1} strokeDasharray="4 3" opacity={0.9} />
+          <polyline points={path(map.max_pain, PUT_PLOT_X)} fill="none" stroke={palette.WARNING} stroke-width={1} strokeDasharray="4 3" opacity={0.9} />
           {hasFlip ? (
             <>
-              <polyline points={path(map.flip, 0)} fill="none" stroke={palette.PRIMARY} strokeWidth={1} strokeDasharray="2 3" opacity={0.8} />
-              <polyline points={path(map.flip, PUT_PLOT_X)} fill="none" stroke={palette.PRIMARY} strokeWidth={1} strokeDasharray="2 3" opacity={0.8} />
+              <polyline points={path(map.flip, 0)} fill="none" stroke={palette.PRIMARY} stroke-width={1} strokeDasharray="2 3" opacity={0.8} />
+              <polyline points={path(map.flip, PUT_PLOT_X)} fill="none" stroke={palette.PRIMARY} stroke-width={1} strokeDasharray="2 3" opacity={0.8} />
             </>
           ) : null}
           {map.top_call?.some((value) => value != null) ? (
-            <polyline points={stepPath(map.top_call, 0)} fill="none" stroke={palette.NEGATIVE} strokeWidth={1.6} strokeLinejoin="miter" opacity={0.75} />
+            <polyline points={stepPath(map.top_call, 0)} fill="none" stroke={palette.NEGATIVE} stroke-width={1.6} strokeLinejoin="miter" opacity={0.75} />
           ) : null}
           {map.top_put?.some((value) => value != null) ? (
-            <polyline points={stepPath(map.top_put, PUT_PLOT_X)} fill="none" stroke={palette.POSITIVE} strokeWidth={1.6} strokeLinejoin="miter" opacity={0.75} />
+            <polyline points={stepPath(map.top_put, PUT_PLOT_X)} fill="none" stroke={palette.POSITIVE} stroke-width={1.6} strokeLinejoin="miter" opacity={0.75} />
           ) : null}
         </g>
 
@@ -530,9 +530,9 @@ export function WallsMapChart({
           const y = strikeY(event.spot, strikes);
           const isBreak = event.kind === "BREAK";
           return (
-            <g key={`event-${event.at}-${index}`} pointerEvents="none">
-              <line x1={x} x2={x} y1={HEADER_H} y2={HEADER_H + rowsH} stroke={isBreak ? palette.NEGATIVE : palette.WARNING} strokeWidth={1} opacity={0.16} />
-              <line x1={PUT_PLOT_X + x} x2={PUT_PLOT_X + x} y1={HEADER_H} y2={HEADER_H + rowsH} stroke={isBreak ? palette.NEGATIVE : palette.WARNING} strokeWidth={1} opacity={0.16} />
+            <g key={`event-${event.at}-${index}`} pointer-events="none">
+              <line x1={x} x2={x} y1={HEADER_H} y2={HEADER_H + rowsH} stroke={isBreak ? palette.NEGATIVE : palette.WARNING} stroke-width={1} opacity={0.16} />
+              <line x1={PUT_PLOT_X + x} x2={PUT_PLOT_X + x} y1={HEADER_H} y2={HEADER_H + rowsH} stroke={isBreak ? palette.NEGATIVE : palette.WARNING} stroke-width={1} opacity={0.16} />
               <circle cx={x} cy={y} r={isBreak ? 2.8 : 2} fill={isBreak ? palette.NEGATIVE : palette.WARNING}>
                 <title>{`${timeLabel(event.at)} ${event.kind} ${fmtNum(event.wall)}`}</title>
               </circle>
@@ -544,10 +544,10 @@ export function WallsMapChart({
                   x={x}
                   y={HEADER_H + 8}
                   textAnchor="middle"
-                  fontSize={7}
-                  fontWeight={800}
+                  font-size={7}
+                  font-weight={800}
                   fill={palette.NEGATIVE}
-                  style={{ paintOrder: "stroke", stroke: palette.SURFACE, strokeWidth: 2 }}
+                  style={{ paintOrder: "stroke", "stroke": palette.SURFACE, "stroke-width": 2 }}
                 >
                   BREAK {fmtNum(event.wall)}
                 </text>
@@ -558,9 +558,9 @@ export function WallsMapChart({
 
         {/* crosshair + active dots */}
         {!isLive ? (
-          <g pointerEvents="none">
-            <line x1={activeX} x2={activeX} y1={HEADER_H} y2={HEADER_H + rowsH} stroke={palette.TEXT_COLOR} strokeWidth={1} opacity={0.5} />
-            <line x1={PUT_PLOT_X + activeX} x2={PUT_PLOT_X + activeX} y1={HEADER_H} y2={HEADER_H + rowsH} stroke={palette.TEXT_COLOR} strokeWidth={1} opacity={0.5} />
+          <g pointer-events="none">
+            <line x1={activeX} x2={activeX} y1={HEADER_H} y2={HEADER_H + rowsH} stroke={palette.TEXT_COLOR} stroke-width={1} opacity={0.5} />
+            <line x1={PUT_PLOT_X + activeX} x2={PUT_PLOT_X + activeX} y1={HEADER_H} y2={HEADER_H + rowsH} stroke={palette.TEXT_COLOR} stroke-width={1} opacity={0.5} />
           </g>
         ) : null}
         <circle cx={activeX} cy={strikeY(activeSpot, strikes)} r={2.2} fill={palette.TEXT_COLOR} />
@@ -589,13 +589,13 @@ export function WallsMapChart({
               x={PANEL_W + CENTER_W / 2}
               y={y}
               textAnchor="middle"
-              fontSize={9}
-              fontWeight={tag ? 800 : 500}
+              font-size={9}
+              font-weight={tag ? 800 : 500}
               fill={tag ? tagColor : palette.TEXT_COLOR}
               style={{ fontVariantNumeric: "tabular-nums" }}
             >
               {fmtNum(strike)}
-              {tag ? <tspan dx={2} fontSize={6.5} fill={tagColor}>{tag}</tspan> : null}
+              {tag ? <tspan dx={2} font-size={6.5} fill={tagColor}>{tag}</tspan> : null}
             </text>
           );
         })}

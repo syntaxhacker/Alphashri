@@ -23,7 +23,7 @@ type Story = StoryObj<typeof CompactPanel>;
 
 export const Panel: Story = {
   render: () => (
-    <div style={{ padding: 16, maxWidth: 720 }}>
+    <div style={{ padding: 16, "max-width": 720 }}>
       <CompactPanel
         title="Compact Panel"
         description="Shared surface for cards, empty states, and dense content blocks."
@@ -53,7 +53,7 @@ export const Panel: Story = {
 
 export const StatGrid: Story = {
   render: () => (
-    <div style={{ padding: 16, maxWidth: 960 }}>
+    <div style={{ padding: 16, "max-width": 960 }}>
       <CompactStatGrid>
         <CompactStat label="Net P&L" value="₹42,180" tone="success" hint="+8.2% today" />
         <CompactStat label="Win Rate" value="61.4%" tone="blue.6" hint="Last 30 trades" />
