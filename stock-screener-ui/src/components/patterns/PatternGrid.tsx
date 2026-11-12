@@ -1,7 +1,7 @@
 import { createMemo, For } from "solid-js";
 import { SimpleGrid, useMediaQuery } from "@/ui";
 import type { PatternHitDTO, TrendlinesView } from "@/types/chartPatterns";
-import { fullscreenDedupeKey } from "@/hooks/usePatternFullscreen";
+import { fullscreenDedupeKey } from "@/pages/patterns/fullscreenKey";
 import { PatternCard } from "./PatternCard";
 
 export interface PatternGridProps {

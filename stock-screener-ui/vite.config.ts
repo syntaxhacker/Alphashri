@@ -40,7 +40,6 @@ export default defineConfig(({ mode }) => {
             // Keep the chart engine out of the shared chunk so the entry shell
             // does not statically pull it in (chart pages import it lazily).
             if (id.includes("echarts") || id.includes("zrender")) return "echarts";
-            if (id.includes("node_modules/@tabler/icons-react")) return "icons";
           },
         },
       },

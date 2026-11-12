@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { OptionChainPanel } from "./OptionChainPanel";
-import { CHAIN_POLL_INTERVAL_MS } from "../../../hooks/useChainLivePolling";
+import { CHAIN_POLL_INTERVAL_MS } from "../../../hooks/chainLiveState";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
 
 vi.mock("@/ui", async () => {

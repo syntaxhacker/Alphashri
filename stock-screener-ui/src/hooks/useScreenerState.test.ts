@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act, cleanup } from "@testing-library/react";
 import { useScreenerState } from "./useScreenerState";
 import * as state from "../state";
 import { fetchData, loadScreeners, setupAutoRefresh } from "../api";
 import { useStoreSubscription } from "./useStoreSubscription";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@solidjs/router";
+import { renderSolidHook } from "../test-utils/solidRenderHook";
 
 // Helper to flush pending promises
 const flushPromises = () => new Promise(setImmediate);
@@ -34,10 +34,20 @@ vi.mock("./useStoreSubscription", () => ({
   useStoreSubscription: vi.fn(),
 }));
 
-vi.mock("react-router-dom", () => ({
+vi.mock("@solidjs/router", () => ({
   useNavigate: vi.fn(() => vi.fn()),
   useSearchParams: vi.fn(() => [new URLSearchParams(), vi.fn()]),
 }));
+
+// Every mount is disposed between cases so no owner (or effect) leaks across.
+let activeHook: { dispose: () => void } | undefined;
+
+/** Mount `useScreenerState` in a Solid root (no React renderer involved). */
+function mountScreenerState() {
+  const handle = renderSolidHook(() => useScreenerState());
+  activeHook = handle;
+  return handle;
+}
 
 describe("useScreenerState", () => {
   beforeEach(() => {
@@ -46,7 +56,8 @@ describe("useScreenerState", () => {
   });
 
   afterEach(() => {
-  cleanup();
+    activeHook?.dispose();
+    activeHook = undefined;
     vi.clearAllMocks();
   });
 
@@ -55,7 +66,7 @@ describe("useScreenerState", () => {
       // Set state to have empty screenerOptions
       (state as any).screenerOptions = [];
 
-      renderHook(() => useScreenerState());
+      mountScreenerState();
 
       expect(loadScreeners).toHaveBeenCalledTimes(1);
 
@@ -69,7 +80,7 @@ describe("useScreenerState", () => {
     it("fetches data on mount when screenerOptions already exist", () => {
       (state as any).screenerOptions = [{ id: "trending", label: "Trending" }];
 
-      renderHook(() => useScreenerState());
+      mountScreenerState();
 
       expect(loadScreeners).not.toHaveBeenCalled();
       expect(fetchData).toHaveBeenCalledWith("upstox", "intraday", "52w_high");
@@ -80,7 +91,7 @@ describe("useScreenerState", () => {
       (state as any).data = { provider: "indmoney", mode: "historical" };
       (state as any).screenerOptions = [{ id: "trending", label: "Trending" }];
 
-      renderHook(() => useScreenerState());
+      mountScreenerState();
 
       expect(fetchData).toHaveBeenCalledWith("indmoney", "historical", "52w_high");
     });
@@ -89,7 +100,7 @@ describe("useScreenerState", () => {
       (state as any).data = null;
       (state as any).screenerOptions = [{ id: "trending", label: "Trending" }];
 
-      renderHook(() => useScreenerState());
+      mountScreenerState();
 
       expect(fetchData).toHaveBeenCalledWith("upstox", "intraday", "52w_high");
     });
@@ -100,7 +111,7 @@ describe("useScreenerState", () => {
       const mockApproaching = [{ symbol: "RELIANCE" }, { symbol: "TCS" }];
       (state as any).data = { approaching: mockApproaching, touched: [] };
 
-      const { result } = renderHook(() => useScreenerState());
+      const { result } = mountScreenerState();
 
       expect(result.current.approachingStocks).toEqual(mockApproaching);
     });
@@ -109,7 +120,7 @@ describe("useScreenerState", () => {
       const mockTouched = [{ symbol: "INFY", touched_52w: true }];
       (state as any).data = { approaching: [], touched: mockTouched };
 
-      const { result } = renderHook(() => useScreenerState());
+      const { result } = mountScreenerState();
 
       expect(result.current.touchedStocks).toEqual(mockTouched);
     });
@@ -117,7 +128,7 @@ describe("useScreenerState", () => {
     it("returns empty arrays when state.data is null", () => {
       (state as any).data = null;
 
-      const { result } = renderHook(() => useScreenerState());
+      const { result } = mountScreenerState();
 
       expect(result.current.approachingStocks).toEqual([]);
       expect(result.current.touchedStocks).toEqual([]);
@@ -127,7 +138,7 @@ describe("useScreenerState", () => {
       const options = [{ id: "trending", label: "Trending" }];
       (state as any).screenerOptions = options;
 
-      const { result } = renderHook(() => useScreenerState());
+      const { result } = mountScreenerState();
 
       expect(result.current.screenerOptions).toEqual(options);
     });
@@ -135,7 +146,7 @@ describe("useScreenerState", () => {
     it("returns activeScreener from state", () => {
       (state as any).activeScreener = "buyer_interest_enhanced";
 
-      const { result } = renderHook(() => useScreenerState());
+      const { result } = mountScreenerState();
 
       expect(result.current.activeScreener).toBe("buyer_interest_enhanced");
     });
@@ -143,7 +154,7 @@ describe("useScreenerState", () => {
     it("returns isLoading from state", () => {
       (state as any).isLoading = true;
 
-      const { result } = renderHook(() => useScreenerState());
+      const { result } = mountScreenerState();
 
       expect(result.current.isLoading).toBe(true);
     });
@@ -151,7 +162,7 @@ describe("useScreenerState", () => {
     it("returns error from state", () => {
       (state as any).error = "Failed to load";
 
-      const { result } = renderHook(() => useScreenerState());
+      const { result } = mountScreenerState();
 
       expect(result.current.error).toBe("Failed to load");
     });
@@ -159,7 +170,7 @@ describe("useScreenerState", () => {
     it("returns autoRefreshSeconds from state", () => {
       (state as any).autoRefreshSeconds = 120;
 
-      const { result } = renderHook(() => useScreenerState());
+      const { result } = mountScreenerState();
 
       expect(result.current.autoRefreshSeconds).toBe(120);
     });
@@ -167,7 +178,7 @@ describe("useScreenerState", () => {
     it("returns provider from state.data or defaults to upstox", () => {
       (state as any).data = { provider: "indmoney" };
 
-      const { result } = renderHook(() => useScreenerState());
+      const { result } = mountScreenerState();
 
       expect(result.current.provider).toBe("indmoney");
     });
@@ -175,7 +186,7 @@ describe("useScreenerState", () => {
     it("returns mode from state.data or defaults to intraday", () => {
       (state as any).data = { mode: "historical" };
 
-      const { result } = renderHook(() => useScreenerState());
+      const { result } = mountScreenerState();
 
       expect(result.current.mode).toBe("historical");
     });
@@ -188,24 +199,20 @@ describe("useScreenerState", () => {
 
     it("onRefresh calls fetchData with current provider, mode, and activeScreener", () => {
       (state as any).activeScreener = "trending";
-      const { result } = renderHook(() => useScreenerState());
+      const { result } = mountScreenerState();
 
-      act(() => {
-        result.current.onRefresh();
-      });
+      result.current.onRefresh();
 
       expect(fetchData).toHaveBeenCalledWith("upstox", "intraday", "trending");
     });
 
     it("onAutoRefreshChange calls setAutoRefreshSeconds and setupAutoRefresh", () => {
-      const { result } = renderHook(() => useScreenerState());
+      const { result } = mountScreenerState();
 
       // Clear mount call to test only the action
       vi.clearAllMocks();
 
-      act(() => {
-        result.current.onAutoRefreshChange(180);
-      });
+      result.current.onAutoRefreshChange(180);
 
       expect(state.setAutoRefreshSeconds).toHaveBeenCalledWith(180);
       expect(setupAutoRefresh).toHaveBeenCalledTimes(1);
@@ -213,33 +220,27 @@ describe("useScreenerState", () => {
 
     it("onProviderChange fetches data with new provider", () => {
       (state as any).activeScreener = "trending";
-      const { result } = renderHook(() => useScreenerState());
+      const { result } = mountScreenerState();
 
-      act(() => {
-        result.current.onProviderChange("indmoney");
-      });
+      result.current.onProviderChange("indmoney");
 
       expect(fetchData).toHaveBeenCalledWith("indmoney", "intraday", "trending");
     });
 
     it("onModeChange fetches data with new mode", () => {
       (state as any).activeScreener = "trending";
-      const { result } = renderHook(() => useScreenerState());
+      const { result } = mountScreenerState();
 
-      act(() => {
-        result.current.onModeChange("historical");
-      });
+      result.current.onModeChange("historical");
 
       expect(fetchData).toHaveBeenCalledWith("upstox", "historical", "trending");
     });
 
     it("onScreenerChange sets active screener and fetches data", () => {
       (state as any).activeScreener = "trending";
-      const { result } = renderHook(() => useScreenerState());
+      const { result } = mountScreenerState();
 
-      act(() => {
-        result.current.onScreenerChange("rsi_reversal");
-      });
+      result.current.onScreenerChange("rsi_reversal");
 
       expect(state.setActiveScreener).toHaveBeenCalledWith("rsi_reversal");
       expect(fetchData).toHaveBeenCalledWith("upstox", "intraday", "rsi_reversal");
@@ -249,15 +250,12 @@ describe("useScreenerState", () => {
       const mockNavigate = vi.fn();
       (useNavigate as any).mockReturnValue(mockNavigate);
 
-      const { result } = renderHook(() => useScreenerState());
+      const { result } = mountScreenerState();
 
-      act(() => {
-        result.current.onSymbolClick("RELIANCE");
-      });
+      result.current.onSymbolClick("RELIANCE");
 
       expect(mockNavigate).toHaveBeenCalledWith("/chart/RELIANCE");
     });
-
   });
 
   describe("edge cases", () => {
@@ -265,7 +263,7 @@ describe("useScreenerState", () => {
       (state as any).data = undefined;
       (state as any).screenerOptions = [];
 
-      const { result } = renderHook(() => useScreenerState());
+      const { result } = mountScreenerState();
 
       expect(result.current.provider).toBe("upstox");
       expect(result.current.mode).toBe("intraday");
@@ -277,7 +275,7 @@ describe("useScreenerState", () => {
       (state as any).data = { approaching: undefined, touched: undefined };
       (state as any).screenerOptions = [];
 
-      const { result } = renderHook(() => useScreenerState());
+      const { result } = mountScreenerState();
 
       expect(result.current.approachingStocks).toEqual([]);
       expect(result.current.touchedStocks).toEqual([]);

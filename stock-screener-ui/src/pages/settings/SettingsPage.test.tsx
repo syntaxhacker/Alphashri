@@ -36,8 +36,9 @@ vi.mock("../../state/holidays", () => ({
   isMarketClosedToday: vi.fn().mockReturnValue(false),
 }));
 
-// BrokerConnectionCard still imports @tabler/icons-react (React forwardRef
-// objects), which Solid cannot mount. Stub it with the same testids/buttons.
+// Stub BrokerConnectionCard so these page-level tests exercise SettingsPage's
+// broker wiring without pulling in the card's own broker API/polling stream.
+// Same testids/buttons as the real card.
 vi.mock("../../components/settings/BrokerConnectionCard", () => ({
   BrokerConnectionCard: (props: any) => {
     const suffix = props.broker ?? "upstox";

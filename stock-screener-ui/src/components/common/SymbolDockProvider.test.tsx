@@ -2,100 +2,11 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
-import { createSignal, useContext } from "solid-js";
+import { useContext } from "solid-js";
 import { Router } from "@solidjs/router";
 import { UIProvider } from "@/ui";
 import { SymbolDockProvider } from "./SymbolDockProvider";
 import { SymbolDockContext } from "./symbolDockContext";
-
-// usePatternFullscreen is still on React; the dock tests exercise the dock
-// against a faithful Solid port of the hook's two-phase state machine.
-vi.mock("@/hooks/usePatternFullscreen", async () => {
-  const { fetchSymbolChart } = await vi.importMock<typeof import("../../api/chartPatterns")>(
-    "../../api/chartPatterns",
-  );
-  const [fullscreen, setFullscreen] = createSignal<Record<string, unknown> | null>(null);
-  let token = 0;
-  let detectMode = true;
-
-  const staleFields = (chart: { stale?: boolean; as_of?: string | null }) =>
-    chart.stale === true
-      ? { stale: true, dataAsOf: chart.as_of ?? null }
-      : { stale: false, dataAsOf: null };
-
-  const run = (
-    symbol: string,
-    timeframe: string | undefined,
-    pinned: boolean,
-    detectPatterns: boolean = true,
-  ) => {
-    const tf = timeframe ?? "1D";
-    const myToken = ++token;
-    detectMode = detectPatterns;
-    setFullscreen({
-      symbol,
-      hit: null,
-      hits: [],
-      timeframe: tf,
-      candles: [],
-      overlays: [],
-      trendLines: [],
-      loading: true,
-      detectPatterns,
-      asOf: null,
-      fromDate: null,
-      pinned,
-      patternsLoading: undefined,
-      stale: false,
-      dataAsOf: null,
-    });
-    fetchSymbolChart(symbol, tf, { detectPatterns: false })
-        .then((chart: any) => {
-          if (myToken !== token) return;
-          setFullscreen((prev: any) =>
-            prev && prev.symbol === symbol && prev.timeframe === tf
-              ? { ...prev, ...staleFields(chart), candles: chart.candles ?? [], trendLines: chart.trend_lines ?? [], loading: false }
-              : prev,
-          );
-          if (!detectMode) return;
-          fetchSymbolChart(symbol, tf, { detectPatterns: true })
-            .then((chart2: any) => {
-              if (myToken !== token) return;
-              setFullscreen((prev: any) =>
-                prev && prev.symbol === symbol && prev.timeframe === tf
-                  ? { ...prev, ...staleFields(chart2), hit: null, hits: [], trendLines: chart2.trend_lines ?? [], patternsLoading: false }
-                  : prev,
-              );
-            })
-            .catch(() => {
-              if (myToken !== token) return;
-              setFullscreen((prev: any) =>
-                prev && prev.symbol === symbol && prev.timeframe === tf ? { ...prev, patternsLoading: false } : prev,
-              );
-            });
-        })
-        .catch(() => {
-          if (myToken !== token) return;
-          setFullscreen((prev: any) =>
-            prev && prev.symbol === symbol && prev.timeframe === tf ? { ...prev, loading: false } : prev,
-          );
-        });
-  };
-
-  return {
-    __resetFullscreen: () => setFullscreen(null),
-    usePatternFullscreen: () => ({
-      fullscreen,
-      openFromSymbol: (symbol: string) => run(symbol, undefined, true, true),
-      previewFromSymbol: (symbol: string) => run(symbol, undefined, false, true),
-      changeFullscreenTimeframe: () => undefined,
-      pinFullscreen: () =>
-        setFullscreen((prev: any) => (prev ? { ...prev, pinned: true } : prev)),
-      closeFullscreen: () => setFullscreen(null),
-      selectFullscreenHit: () => undefined,
-    }),
-  };
-});
 
 vi.mock("../../api/chartPatterns", () => ({
   fetchSymbolChart: vi.fn(),
@@ -110,7 +21,7 @@ vi.mock("@/components/patterns/PatternFullscreenView", () => ({
   ),
 }));
 
-import { __resetFullscreen } from "@/hooks/usePatternFullscreen";
+import { __resetFullscreen } from "@/pages/patterns/fullscreenKey";
 import { fetchSymbolChart } from "../../api/chartPatterns";
 
 const mockedFetchSymbolChart = vi.mocked(fetchSymbolChart);

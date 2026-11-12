@@ -11,13 +11,6 @@ import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 // We mock the hook to control states; the real StrategiesPage is not mocked
 const mockStrategiesState = vi.fn();
 
-// @tabler/icons-react ships React memo() components — they are objects, not
-// functions, so Solid createComponent throws on them. Stub with inline SVGs.
-vi.mock("@tabler/icons-react", () => ({
-  IconAlertCircle: (props: Record<string, unknown>) => <svg data-testid="icon-alert-circle" aria-hidden {...props} />,
-  IconRefresh: (props: Record<string, unknown>) => <svg data-testid="icon-refresh" aria-hidden {...props} />,
-}));
-
 vi.mock("../../hooks/useStrategiesState", () => ({
   useStrategiesState: (...args: unknown[]) => mockStrategiesState(...args),
 }));

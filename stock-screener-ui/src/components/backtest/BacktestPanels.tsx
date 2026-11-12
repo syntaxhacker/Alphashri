@@ -1,5 +1,5 @@
 import { Tabs, Box, Flex } from "@/ui";
-import { IconTable, IconHistory } from "@tabler/icons-react";
+import { IconTable, IconHistory } from "@/components/common/Icons";
 import {
   BacktestSummary,
   BacktestResultsTable,

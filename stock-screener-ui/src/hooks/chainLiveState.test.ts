@@ -4,7 +4,7 @@ import {
   CHAIN_POLL_INTERVAL_MS,
   CHAIN_STALE_AFTER_MS,
   getChainLiveState,
-} from "./useChainLivePolling";
+} from "./chainLiveState";
 
 describe("getChainLiveState", () => {
   const now = new Date("2026-05-09T10:30:00Z").getTime();

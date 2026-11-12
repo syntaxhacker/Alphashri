@@ -1,8 +1,8 @@
 # SolidJS migration conventions
 
-The UI is migrating from React 19 to **SolidJS 1.9** (`solid-js`), React Router to
-`@solidjs/router`, Redux to `solid-js/store`, `@tanstack/react-table` to
-`@tanstack/solid-table`, and `@testing-library/react` to `@solidjs/testing-library`.
+The UI **is** SolidJS 1.9 (`solid-js`), with `@solidjs/router`, `solid-js/store`,
+`@tanstack/solid-table` and `@solidjs/testing-library`. The React → Solid
+migration is complete (see §7); React is no longer a dependency.
 
 This file is the **contract**. Follow it exactly — the whole point of Solid is
 fine-grained reactivity, and a React habit smuggled across destroys it.
@@ -335,16 +335,30 @@ the **final** value is rendered and that no stale intermediate value lingers.
 
 ---
 
-## 7. Things that do NOT survive the migration
+## 7. Migration status: complete
 
-| React | Solid replacement | Note |
-|---|---|---|
-| `echarts-for-react` | `echarts` directly (`echarts.init` in `onMount`, `setOption` in `createEffect`) | 10 files |
-| `react-markdown` | `marked` + a small renderer | 2 files |
-| `notistack` | `solid-notifications` | 1 file (main.tsx) |
-| `@sentry/react` | `@sentry/solid` | 1 file (main.tsx) |
-| `@tanstack/react-table` | `@tanstack/solid-table` | 54 files — note the Solid adapter uses `<Table>`/`<TableBody>` sub-components, not `flexRender` |
-| `react-redux` | `solid-js/store` | 2 files |
+The React → Solid migration is **finished**. The React runtime is no longer in
+`package.json`; everything below is history kept only so it is obvious *why* a
+given library is absent and what to use instead.
+
+| Removed | What replaced it |
+|---|---|
+| `react` / `react-dom` / `@types/react*` | `solid-js` (+ `vite-plugin-solid`, `jsxImportSource: solid-js`) |
+| `react-router-dom` | `@solidjs/router` |
+| `react-redux` / Redux slices | `solid-js/store` (`createStore`) |
+| `@tanstack/react-table` | `@tanstack/solid-table` — the Solid adapter uses `<Table>`/`<TableBody>` sub-components, not `flexRender` |
+| `echarts-for-react` | `echarts` directly (`echarts.init` in `onMount`, `setOption` in `createEffect`) |
+| `react-markdown` | `marked` + a small renderer |
+| `notistack` | `solid-notifications` |
+| `@sentry/react` | `@sentry/solid` |
+| `@testing-library/react` / `user-event` / `renderHook` | `@solidjs/testing-library` (`render` + `fireEvent`) |
+| `@tabler/icons-react` | inline SVGs in `src/components/common/Icons.tsx` |
+| Storybook (`storybook`, `@storybook/*`, `@chromatic-com/storybook`, `.storybook/`, all `*.stories.*`, `storybook-static/`) | deleted — no component gallery |
+
+Consequence for any new code: nothing from `react`, `react-dom`,
+`react-router-dom`, `react-redux`, `@tanstack/react-table`, `echarts-for-react`
+or `@tabler/icons-react` can be imported, because those packages are no longer
+installed.
 
 ---
 

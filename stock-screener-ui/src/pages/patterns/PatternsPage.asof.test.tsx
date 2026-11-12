@@ -5,10 +5,6 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-li
 import { UIProvider } from "@/ui";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { For, Show, type JSX } from "solid-js";
-vi.mock("@tabler/icons-react", () => ({
-  IconAdjustmentsHorizontal: (props: Record<string, unknown>) => <svg data-testid="icon-adjustments" aria-hidden {...props} />,
-  IconDotsVertical: (props: Record<string, unknown>) => <svg data-testid="icon-dots" aria-hidden {...props} />,
-}));
 import { PatternsPage, type PatternsPageProps } from "./PatternsPage";
 
 // Menu stub: bare pass-throughs with an onSelect-fired button; the suite

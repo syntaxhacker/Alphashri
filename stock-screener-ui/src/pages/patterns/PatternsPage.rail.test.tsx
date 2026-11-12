@@ -52,13 +52,6 @@ vi.mock("@/components/patterns/IndexMembersDrawer", () => ({
   IndexMembersDrawer: () => null,
 }));
 
-// @tabler/icons-react ships React memo() components — objects, not functions —
-// so Solid's createComponent throws on them. Stub with inline SVGs.
-vi.mock("@tabler/icons-react", () => ({
-  IconAdjustmentsHorizontal: (props: Record<string, unknown>) => <svg data-testid="icon-adjustments" aria-hidden {...props} />,
-  IconDotsVertical: (props: Record<string, unknown>) => <svg data-testid="icon-dots" aria-hidden {...props} />,
-}));
-
 vi.mock("@/hooks/useECharts", () => ({
   useECharts: () => ({
     chartRef: { current: null },

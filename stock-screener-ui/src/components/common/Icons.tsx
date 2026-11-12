@@ -7,13 +7,19 @@ export interface IconProps {
   stroke?: number;
 }
 
+/** "alert-circle" -> "alertCircle", "menu-2" -> "menu2". */
+const toCamelCase = (name: string) => name.replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+
 /**
  * Inline SVG icons generated from @tabler/icons (outline set, MIT).
  * The Solid build has no React DOM, so @tabler/icons-react cannot mount —
  * these render the same tabler path data as plain SVG.
  */
 export function Icon(props: IconProps & { name: string }) {
-  const node = ICON_NODES[props.name];
+  // ICON_NODES is keyed in camelCase but most aliases below pass a kebab-case
+  // name ("alert-circle"), so try the exact key first (nothing that already
+  // resolved changes behaviour) and fall back to the kebab -> camelCase form.
+  const node = ICON_NODES[props.name] ?? ICON_NODES[toCamelCase(props.name)];
   return (
     <svg
       data-testid={props["data-testid"] ?? `icon-${props.name}`}
@@ -125,6 +131,7 @@ const ICON_NODES: Record<string, Array<[string, Record<string, string>]>> = {
 
 export const IconActivity = (props: IconProps) => <Icon name="activity" {...props} />;
 export const IconAdjustments = (props: IconProps) => <Icon name="adjustments" {...props} />;
+export const IconAdjustmentsHorizontal = (props: IconProps) => <Icon name="adjustments" {...props} />;
 export const IconAlertCircle = (props: IconProps) => <Icon name="alert-circle" {...props} />;
 export const IconAlertTriangle = (props: IconProps) => <Icon name="alert-triangle" {...props} />;
 export const IconArchive = (props: IconProps) => <Icon name="archive" {...props} />;
@@ -157,6 +164,7 @@ export const IconDatabase = (props: IconProps) => <Icon name="database" {...prop
 export const IconDatabaseOff = (props: IconProps) => <Icon name="database-off" {...props} />;
 export const IconDeviceFloppy = (props: IconProps) => <Icon name="device-floppy" {...props} />;
 export const IconDots = (props: IconProps) => <Icon name="dots" {...props} />;
+export const IconDotsVertical = (props: IconProps) => <Icon name="dots" {...props} />;
 export const IconDownload = (props: IconProps) => <Icon name="download" {...props} />;
 export const IconEdit = (props: IconProps) => <Icon name="edit" {...props} />;
 export const IconExternalLink = (props: IconProps) => <Icon name="external-link" {...props} />;
@@ -178,6 +186,8 @@ export const IconNews = (props: IconProps) => <Icon name="news" {...props} />;
 export const IconPlayerPause = (props: IconProps) => <Icon name="player-pause" {...props} />;
 export const IconPlayerPlay = (props: IconProps) => <Icon name="player-play" {...props} />;
 export const IconPlayerStop = (props: IconProps) => <Icon name="player-stop" {...props} />;
+export const IconPlugConnected = (props: IconProps) => <Icon name="plugConnected" {...props} />;
+export const IconPlugX = (props: IconProps) => <Icon name="plugX" {...props} />;
 export const IconPlus = (props: IconProps) => <Icon name="plus" {...props} />;
 export const IconRefresh = (props: IconProps) => <Icon name="refresh" {...props} />;
 export const IconReportAnalytics = (props: IconProps) => <Icon name="report-analytics" {...props} />;

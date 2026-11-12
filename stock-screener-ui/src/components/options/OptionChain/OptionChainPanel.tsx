@@ -9,7 +9,7 @@ import {
   IconClock,
 } from "@/patterns/icons";
 import dayjs from "dayjs";
-import { getChainLiveState, CHAIN_POLL_INTERVAL_MS } from "../../../hooks/useChainLivePolling";
+import { getChainLiveState, CHAIN_POLL_INTERVAL_MS } from "../../../hooks/chainLiveState";
 import { OptionChainTable } from "./OptionChainTable";
 import { ChainSummary } from "./ChainSummary";
 import { OIAnalysis } from "./OIAnalysis";

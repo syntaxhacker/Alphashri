@@ -1,6 +1,6 @@
 import { createEffect, createMemo, createSignal, mergeProps } from "solid-js";
 import { ActionIcon, Alert, Box, Button, Chip, Divider, Loader, LoadingOverlay, Menu, MenuDropdown, MenuItem, MenuTarget, Modal, SegmentedControl, Select, Switch, Tabs, Text, ToolbarRow, Tooltip, useMediaQuery } from "@/ui";
-import { IconAdjustmentsHorizontal, IconDotsVertical } from "@tabler/icons-react";
+import { IconAdjustmentsHorizontal, IconDotsVertical } from "@/components/common/Icons";
 import type {
   JobDTO,
   PatternDef,

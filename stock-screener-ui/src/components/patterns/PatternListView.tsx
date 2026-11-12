@@ -4,7 +4,7 @@ import type { TableColumnDef } from "@/components/common/TanStackTable";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
 import type { PatternHitDTO } from "@/types/chartPatterns";
-import { fullscreenDedupeKey } from "@/hooks/usePatternFullscreen";
+import { fullscreenDedupeKey } from "@/pages/patterns/fullscreenKey";
 import { QUALITY_INFO } from "@/config/patternCatalog";
 import { SymbolLink } from "@/components/common/SymbolLink";
 import { hasIndexMembers } from "@/config/indexGroups";

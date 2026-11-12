@@ -1,22 +1,15 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useSearchParams } from "@solidjs/router";
 import {
   parsePatternParams,
   buildPatternParams,
   filterValuesEqual,
+  usePatternUrlSync,
   type UsePatternUrlSyncArgs,
 } from "./usePatternUrlSync";
 import { DEFAULT_PATTERN_FILTERS } from "../state/chartPatterns";
-import {
-  urlSyncSetSearchParams as setSearchParams,
-  setMockUrl,
-  urlSyncArgsBase,
-  registerUrlSyncTestHarness,
-  renderPatternUrlSync,
-  expectNoUrlSyncCalls,
-  expectUrlWrite,
-} from "./testFixtures";
+import { renderSolidHookReactive } from "../test-utils/solidRenderHook";
 
 vi.mock("@solidjs/router", () => ({
   useSearchParams: vi.fn(() => [new URLSearchParams(), vi.fn()]),
@@ -24,7 +17,88 @@ vi.mock("@solidjs/router", () => ({
 
 const mockedUseSearchParams = vi.mocked(useSearchParams);
 
-registerUrlSyncTestHarness();
+// ---- local URL-sync harness (the shared React fixtures are gone) ----------
+/** The single params object the mocked `useSearchParams` always hands out.
+ * It is mutated in place: the hook captures the tuple once at mount, so a new
+ * `URLSearchParams` instance would be invisible to it. */
+const mockParams = new URLSearchParams();
+
+/** Point the mocked useSearchParams at the given query string. */
+function setMockUrl(url: string): void {
+  const next = new URLSearchParams(url);
+  for (const key of Array.from(mockParams.keys())) mockParams.delete(key);
+  for (const [key, value] of next) mockParams.append(key, value);
+  mockedUseSearchParams.mockReturnValue([
+    mockParams,
+    setSearchParams,
+  ] as never);
+}
+
+/** Write spy that behaves like the router: the URL now reports what was written. */
+const setSearchParams = vi.fn((next: URLSearchParams) => {
+  setMockUrl(next.toString());
+});
+
+/** Base args shared by the URL-sync suites. */
+function urlSyncArgsBase() {
+  return {
+    universe: "",
+    timeframe: "1D",
+    lookbackBars: null,
+    filters: { ...DEFAULT_PATTERN_FILTERS },
+    setUniverse: vi.fn(),
+    setTimeframe: vi.fn(),
+    setLookbackBars: vi.fn(),
+    setComputeTrendlines: vi.fn(),
+    applyFilters: vi.fn(),
+  };
+}
+
+let activeHook: { dispose: () => void } | undefined;
+
+/** Mount the hook with live props: `rerender(next)` re-runs the effects that
+ * read the changed fields (Solid has no re-render of its own). */
+function renderPatternUrlSync(args: UsePatternUrlSyncArgs) {
+  const handle = renderSolidHookReactive(
+    (props: UsePatternUrlSyncArgs) => usePatternUrlSync(props),
+    { initialProps: args },
+  );
+  activeHook = handle;
+  return handle;
+}
+
+/** Assert the "sync hook did nothing" block shared by several mount tests. */
+function expectNoUrlSyncCalls(
+  args: UsePatternUrlSyncArgs,
+  opts: { computeTrendlines?: boolean; writes?: boolean } = {},
+): void {
+  const { computeTrendlines = false, writes = true } = opts;
+  expect(args.setUniverse).not.toHaveBeenCalled();
+  expect(args.setTimeframe).not.toHaveBeenCalled();
+  expect(args.setLookbackBars).not.toHaveBeenCalled();
+  if (computeTrendlines) expect(args.setComputeTrendlines).not.toHaveBeenCalled();
+  expect(args.applyFilters).not.toHaveBeenCalled();
+  if (writes) expect(setSearchParams).not.toHaveBeenCalled();
+}
+
+/** Assert exactly one URL write with replace:true; returns the written params. */
+function expectUrlWrite(): URLSearchParams {
+  expect(setSearchParams).toHaveBeenCalledTimes(1);
+  const [params, options] = setSearchParams.mock.calls[0];
+  expect(options).toEqual({ replace: true });
+  return params as URLSearchParams;
+}
+
+beforeEach(() => {
+  setSearchParams.mockClear();
+  setMockUrl("");
+});
+
+afterEach(() => {
+  activeHook?.dispose();
+  activeHook = undefined;
+  vi.clearAllMocks();
+});
 
 function makeArgs(overrides: Partial<UsePatternUrlSyncArgs> = {}): UsePatternUrlSyncArgs {
   return {
@@ -680,7 +754,7 @@ describe("usePatternUrlSync", () => {
     // The router now reports the written URL: nothing new to adopt.
     (args.setUniverse as ReturnType<typeof vi.fn>).mockClear();
     (args.applyFilters as ReturnType<typeof vi.fn>).mockClear();
-    mockedUseSearchParams.mockReturnValue([written, setSearchParams] as never);
+    setMockUrl(written.toString());
     rerender({ ...args, universe: "nifty50", filters: { ...DEFAULT_PATTERN_FILTERS, q: "bank" } });
 
     expect(args.setUniverse).not.toHaveBeenCalled();

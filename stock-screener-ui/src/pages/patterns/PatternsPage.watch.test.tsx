@@ -6,10 +6,6 @@ import { UIProvider } from "@/ui";
 import type { PatternHitDTO, PatternSummary } from "@/types/chartPatterns";
 import { For, Show } from "solid-js";
 import type { JSX } from "solid-js";
-vi.mock("@tabler/icons-react", () => ({
-  IconAdjustmentsHorizontal: (props: Record<string, unknown>) => <svg data-testid="icon-adjustments" aria-hidden {...props} />,
-  IconDotsVertical: (props: Record<string, unknown>) => <svg data-testid="icon-dots" aria-hidden {...props} />,
-}));
 import { PatternsPage, type PatternsPageProps } from "./PatternsPage";
 
 vi.mock("@/hooks/useECharts", () => ({
