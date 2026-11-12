@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback } from "react";
+import { createEffect, createMemo } from "solid-js";
 import * as optionsState from "../state/optionsStore";
 import {
   subscribe,
@@ -57,47 +57,45 @@ export function buildStrikeMatrix(
 export function useOptionsState() {
   useStoreSubscription(subscribe);
 
-  useEffect(() => {
-    void optionsState.initOptionsState();
-  }, []);
-
+  // The store is a module singleton, read through the subscription above.
   const state = optionsState.getOptionsState();
 
-  useEffect(() => {
+  createEffect(() => {
+    void optionsState.initOptionsState();
+  });
+
+  createEffect(() => {
     if (state.selectedUnderlying && state.selectedExpiry) {
       void optionsState.fetchChain();
     }
-  }, [state.selectedUnderlying, state.selectedExpiry]);
+  });
 
-  useEffect(() => {
+  createEffect(() => {
     void optionsState.fetchPositions();
-  }, []);
+  });
 
-  const filteredChain = useMemo(
-    () => getFilteredChain(),
-    [state.optionChain, state.filters, state.spotPrice],
-  );
-  const strikeMatrix = useMemo(() => getStrikeMatrix(), [filteredChain]);
-  const availableExpiries = useMemo(() => getAvailableExpiries(), [state.expiries]);
-  const availableUnderlyings = useMemo(() => getAvailableUnderlyingSymbols(), [state.underlyings]);
+  const filteredChain = createMemo(() => getFilteredChain());
+  const strikeMatrix = createMemo(() => getStrikeMatrix(filteredChain()));
+  const availableExpiries = createMemo(() => getAvailableExpiries());
+  const availableUnderlyings = createMemo(() => getAvailableUnderlyingSymbols());
 
-  const onSetUnderlying = useCallback((underlying: string) => {
+  const onSetUnderlying = (underlying: string) => {
     optionsState.setUnderlying(underlying);
-  }, []);
+  };
 
-  const onSetExpiry = useCallback((expiry: string) => {
+  const onSetExpiry = (expiry: string) => {
     // The [selectedUnderlying, selectedExpiry] effect owns the chain fetch;
     // calling it here too produced two identical requests per expiry click.
     optionsState.setExpiry(expiry);
-  }, []);
+  };
 
-  const onSetFilters = useCallback((newFilters: Partial<typeof state.filters>) => {
+  const onSetFilters = (newFilters: Partial<OptionsFilters>) => {
     optionsState.setFilters(newFilters);
-  }, []);
+  };
 
-  const onChainRowClick = useCallback((contract: any) => {
+  const onChainRowClick = (contract: OptionContract) => {
     console.log("Row clicked:", contract);
-  }, []);
+  };
 
   return {
     selectedUnderlying: state.selectedUnderlying,
@@ -110,10 +108,10 @@ export function useOptionsState() {
     spotPrice: state.spotPrice,
     timestamp: state.lastUpdated,
     summary: state.summary,
-    availableUnderlyings,
-    availableExpiries,
-    filteredChain,
-    strikeMatrix,
+    availableUnderlyings: availableUnderlyings(),
+    availableExpiries: availableExpiries(),
+    filteredChain: filteredChain(),
+    strikeMatrix: strikeMatrix(),
     setUnderlying: onSetUnderlying,
     setExpiry: onSetExpiry,
     setFilters: onSetFilters,

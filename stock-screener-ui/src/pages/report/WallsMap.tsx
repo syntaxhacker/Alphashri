@@ -274,18 +274,18 @@ export function WallsMapChart(props: {
 
   if (strikes().length === 0 || times().length === 0) return null;
 
-  const toggleButton = (testId: string, pressed: boolean, label: string, onClick: () => void) => (
+  const toggleButton = (testId: string, pressed: () => boolean, label: string, onClick: () => void) => (
     <button
       type="button"
       data-testid={testId}
-      aria-pressed={pressed}
+      aria-pressed={pressed()}
       onClick={onClick}
       class="inline-flex items-center justify-center min-w-0 rounded-sm text-[7.5px] font-bold leading-[1.4] whitespace-nowrap"
       style={{
         padding: "1px 4px",
-        color: pressed ? palette.TEXT_COLOR : palette.TEXT_MUTED,
-        "background-color": pressed ? palette.SURFACE_ALT : "transparent",
-        border: `1px solid ${pressed ? palette.BORDER : "transparent"}`,
+        color: pressed() ? palette.TEXT_COLOR : palette.TEXT_MUTED,
+        "background-color": pressed() ? palette.SURFACE_ALT : "transparent",
+        border: `1px solid ${pressed() ? palette.BORDER : "transparent"}`,
       }}
     >
       {label}
@@ -364,11 +364,11 @@ export function WallsMapChart(props: {
       <div class="flex items-center flex-wrap mb-[3px] gap-1 row-gap-[2px]">
         <div class="text-[7px] font-bold tracking-[0.5em] text-fin-text-muted">COLOR</div>
         <For each={["window", "session"] as const}>{(mode) =>
-          toggleButton(`walls-map-horizon-${mode}`, horizon() === mode, mode === "window" ? "60m" : "SESSION", () => setHorizon(mode))
+          toggleButton(`walls-map-horizon-${mode}`, () => horizon() === mode, mode === "window" ? "60m" : "SESSION", () => setHorizon(mode))
         }</For>
         <div class="text-[7px] font-bold tracking-[0.5em] text-fin-text-muted ml-[8px]">MEASURE</div>
         <For each={["pct", "oi"] as const}>{(mode) =>
-          toggleButton(`walls-map-measure-${mode}`, measure() === mode, mode === "pct" ? "%" : "OI", () => setMeasure(mode))
+          toggleButton(`walls-map-measure-${mode}`, () => measure() === mode, mode === "pct" ? "%" : "OI", () => setMeasure(mode))
         }</For>
         <div class="text-[7px] text-fin-text-muted ml-[8px]">bars: muted = open · bright = new</div>
       </div>

@@ -19,7 +19,7 @@
  * keys listed below.
  */
 
-import { useEffect, useRef } from "react";
+import { createEffect } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
 import type { PatternFilters, TrendlinesView } from "../types/chartPatterns";
 import { DEFAULT_PATTERN_FILTERS, DEFAULT_TIMEFRAME } from "../state/chartPatterns";
@@ -403,30 +403,32 @@ export function usePatternUrlSync({
   applyFilters,
 }: UsePatternUrlSyncArgs): void {
   const [searchParams, setSearchParams] = useSearchParams();
-  const didReadRef = useRef(false);
+  // Plain flags, not refs: Solid needs no mutable box for non-reactive state,
+  // and `.current` does not exist here.
+  let didRead = false;
   // Parsed selection from the initial URL (null when the URL carried none).
-  const parsedRef = useRef<ParsedPatternParams | null>(null);
+  let parsedParams: ParsedPatternParams | null = null;
   // Becomes true once the store has adopted the parsed selection, so the first
   // write reflects the applied state instead of clobbering the incoming params.
-  const hydratedRef = useRef(false);
+  let hydrated = false;
   // Skip the very first write commit (initial defaults) — only real changes write.
-  const firstRunRef = useRef(true);
+  let firstRun = true;
   // Serialized URL this hook last wrote (or last observed). A `searchParams`
   // change to anything else is external navigation (back/forward, manual edit)
   // and must be adopted rather than clobbered.
-  const lastWrittenRef = useRef<string | null>(null);
+  let lastWritten: string | null = null;
 
-  useEffect(() => {
-    if (didReadRef.current) return;
-    didReadRef.current = true;
+  createEffect(() => {
+    if (didRead) return;
+    didRead = true;
 
     const parsed = parsePatternParams(searchParams);
     if (!hasAnyPatternParam(parsed)) {
-      hydratedRef.current = true;
+      hydrated = true;
       return;
     }
 
-    parsedRef.current = parsed;
+    parsedParams = parsed;
     if (parsed.universe && parsed.universe !== universe) setUniverse(parsed.universe);
     const currentSelection = selectedTimeframes ?? [timeframe];
     if (parsed.timeframes) {
@@ -457,17 +459,17 @@ export function usePatternUrlSync({
     if (filtersDiffer) applyFilters(parsed.filters);
     // Intentionally mount-only: read the URL once, then let changes write back.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  });
 
-  useEffect(() => {
-    if (firstRunRef.current) {
-      firstRunRef.current = false;
+  createEffect(() => {
+    if (firstRun) {
+      firstRun = false;
       return;
     }
-    if (!hydratedRef.current) {
-      const parsed = parsedRef.current;
+    if (!hydrated) {
+      const parsed = parsedParams;
       if (!parsed) {
-        hydratedRef.current = true;
+        hydrated = true;
       } else {
         const universeOk = !parsed.universe || universe === parsed.universe;
         const timeframeOk = !parsed.timeframe || timeframe === parsed.timeframe;
@@ -488,7 +490,7 @@ export function usePatternUrlSync({
           return filterValuesEqual(current, value);
         });
         if (!(universeOk && timeframeOk && timeframesOk && lookbackOk && computeOk && tabOk && viewOk && indexGroupOk && membersOk && filtersOk)) return; // wait for adoption
-        hydratedRef.current = true;
+        hydrated = true;
       }
     }
 
@@ -509,23 +511,23 @@ export function usePatternUrlSync({
       if (!PATTERN_PARAM_KEYS.has(key)) next.append(key, value);
     }
     const nextString = next.toString();
-    lastWrittenRef.current = nextString;
+    lastWritten = nextString;
     if (nextString === searchParams.toString()) return;
     setSearchParams(next, { replace: true });
     // Intentionally keyed on the synced state; `searchParams`/`setSearchParams`
     // are read imperatively and would re-trigger on every navigation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [universe, timeframe, selectedTimeframes, lookbackBars, computeTrendlines, tab, view, indexGroup, members, filters]);
+  });
 
   // Back/forward (or manual) navigation: once hydrated, adopt a URL that
   // differs from what this hook last wrote. Setter calls are diffed against
   // current state so adopting an equivalent URL is a no-op, and the write
   // effect above converges instead of looping (`next === searchParams`).
-  useEffect(() => {
-    if (!hydratedRef.current) return;
+  createEffect(() => {
+    if (!hydrated) return;
     const current = searchParams.toString();
-    if (current === lastWrittenRef.current) return;
-    lastWrittenRef.current = current;
+    if (current === lastWritten) return;
+    lastWritten = current;
 
     const parsed = parsePatternParams(searchParams);
     if (parsed.universe && parsed.universe !== universe) setUniverse(parsed.universe);
@@ -565,5 +567,5 @@ export function usePatternUrlSync({
     }
     // Intentionally keyed on the URL; state/setters are read imperatively.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  });
 }

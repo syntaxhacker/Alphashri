@@ -763,7 +763,7 @@ export function NiftyWallsCardInner(props: {
     const currentWalls = walls();
     if (!currentWalls?.alert) return;
     const alert = currentWalls.alert;
-    const key = `walls()!.alert.v1.${currentWalls.symbol}.${currentWalls.date}.${alert.wall}`;
+    const key = `walls.alert.v1.${currentWalls.symbol}.${currentWalls.date}.${alert.wall}`;
     try {
       const stored = window.localStorage.getItem(key);
       if (!stored) return;
@@ -806,7 +806,7 @@ export function NiftyWallsCardInner(props: {
     if (!currentWalls) return;
     try {
       window.localStorage.setItem(
-        `walls()!.alert.v1.${currentWalls.symbol}.${currentWalls.date}.${wall}`,
+        `walls.alert.v1.${currentWalls.symbol}.${currentWalls.date}.${wall}`,
         at,
       );
     } catch {
@@ -1029,7 +1029,7 @@ export function NiftyWallsCardInner(props: {
                     color: palette.TEXT_MUTED,
                   }}
                 >
-                  call {fmtPct(alert.erosion_30m)} · put {fmtPct(alert.put_build_30m)} · {alert.at.slice(11, 19)}
+                  call {fmtPct(alert()!.erosion_30m)} · put {fmtPct(alert()!.put_build_30m)} · {alert()!.at.slice(11, 19)}
                 </Text>
               </div>
             ) : breakEvent() ? (
@@ -1128,7 +1128,7 @@ export function NiftyWallsCardInner(props: {
                 No confirmed break in the window.
               </Text>
             ) : null}
-            <SequenceLine events={events} />
+            <SequenceLine events={events()} />
           </div>
 
           <div style={{ "min-width": 0, "border-left": `1px solid ${palette.BORDER}`, "padding-left": `${REPORT_PAD.sm}px` }}>

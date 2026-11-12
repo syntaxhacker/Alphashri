@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi } from "vitest";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "@solidjs/router";
 import {
   parsePatternParams,
   buildPatternParams,
@@ -18,7 +18,7 @@ import {
   expectUrlWrite,
 } from "./testFixtures";
 
-vi.mock("react-router-dom", () => ({
+vi.mock("@solidjs/router", () => ({
   useSearchParams: vi.fn(() => [new URLSearchParams(), vi.fn()]),
 }));
 
