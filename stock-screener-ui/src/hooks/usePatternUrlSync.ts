@@ -20,7 +20,7 @@
  */
 
 import { useEffect, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "@solidjs/router";
 import type { PatternFilters, TrendlinesView } from "../types/chartPatterns";
 import { DEFAULT_PATTERN_FILTERS, DEFAULT_TIMEFRAME } from "../state/chartPatterns";
 import type { IndexGroup } from "../config/indexGroups";

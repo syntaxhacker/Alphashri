@@ -66,36 +66,40 @@ describe("ClickableSymbol", () => {
 
   it("stops click propagation when stopClickPropagation=true", async () => {
           const parentHandler = vi.fn();
-    render(() => (<BrowserRouter>
-        <UIProvider>
-          {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-          <div onClick={parentHandler}>
-            <ClickableSymbol symbol="RELIANCE" stopClickPropagation />
-          </div>
-        </UIProvider>
-      </BrowserRouter>),
-    );
+    render(() => (
+      <Router
+        root={() => (
+          <UIProvider>
+            {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+            <div onClick={parentHandler}>
+              <ClickableSymbol symbol="RELIANCE" stopClickPropagation />
+            </div>
+          </UIProvider>
+        )}
+      />
+    ));
     await fireEvent.click(screen.getByText("RELIANCE"));
     expect(parentHandler).not.toHaveBeenCalled();
   });
 
   it("shows preview chart on hover when showPreview=true", async () => {
           renderComponent({ showPreview: true });
-    await fireEvent.mouseEnter(screen.getByText("RELIANCE"));
+    await fireEvent.mouseEnter(screen.getByTestId("symbol-link-RELIANCE-wrap"));
     expect(mocks.showPreviewChart).toHaveBeenCalled();
   });
 
   it("hides preview chart on mouse leave", async () => {
           renderComponent({ showPreview: true });
-    await fireEvent.mouseEnter(screen.getByText("RELIANCE"));
-    await fireEvent.mouseLeave(screen.getByText("RELIANCE"));
+    const wrap = screen.getByTestId("symbol-link-RELIANCE-wrap");
+    await fireEvent.mouseEnter(wrap);
+    await fireEvent.mouseLeave(wrap);
     expect(mocks.hidePreviewChart).toHaveBeenCalled();
   });
 
   it("debounces hover preview with timeout", async () => {
           renderComponent({ showPreview: true, previewTimeout: 5000 });
-    await fireEvent.mouseEnter(screen.getByText("RELIANCE"));
-    await fireEvent.mouseLeave(screen.getByText("RELIANCE"));
+    await fireEvent.mouseEnter(screen.getByTestId("symbol-link-RELIANCE-wrap"));
+    await fireEvent.mouseLeave(screen.getByTestId("symbol-link-RELIANCE-wrap"));
     expect(mocks.hidePreviewChart).toHaveBeenCalled();
   });
 });

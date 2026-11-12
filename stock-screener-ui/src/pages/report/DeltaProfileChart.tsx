@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Box, Text } from "@/ui";
+import { createMemo, createSignal, Show, For } from "solid-js";
+import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { NiftyPositioningStrike } from "@/types/niftyReport";
 import { sortByField, formatNumberIN } from "@/utils/ui-helpers";
@@ -126,20 +126,19 @@ interface DeltaProfileChartProps {
  * Deliberately SVG (like the GEX panel): a 600px-wide chart over ~30 strikes
  * does not justify a canvas instance, and HTML remains readable by tests.
  */
-export function DeltaProfileChart({
-  points,
-  spot = null,
-  flip = null,
-  formatValue = (v) => formatNumberIN(Math.round(v)),
-  testId = "nifty-positioning-profile",
-  emptyMessage = "No strike breakdown",
-}: DeltaProfileChartProps) {
-  const [hover, setHover] = useState<number | null>(null);
+export function DeltaProfileChart(props: DeltaProfileChartProps) {
+  const points = () => props.points;
+  const spot = () => props.spot ?? null;
+  const flip = () => props.flip ?? null;
+  const formatValue = () => props.formatValue ?? ((v: number) => formatNumberIN(Math.round(v)));
+  const testId = () => props.testId ?? "nifty-positioning-profile";
+  const emptyMessage = () => props.emptyMessage ?? "No strike breakdown";
+  const [hover, setHover] = createSignal<number | null>(null);
 
-  const bounds = useMemo(() => {
+  const bounds = createMemo(() => {
     let min = Infinity;
     let max = -Infinity;
-    for (const p of points) {
+    for (const p of points()) {
       if (p.cumulative < min) min = p.cumulative;
       if (p.cumulative > max) max = p.cumulative;
     }
@@ -149,78 +148,80 @@ export function DeltaProfileChart({
       return { min: min - pad, max: max + pad };
     }
     return { min, max };
-  }, [points]);
+  });
 
-  const maxAbsFlow = useMemo(
-    () => points.reduce((m, p) => Math.max(m, Math.abs(p.netInitiated)), 0),
-    [points],
+  const maxAbsFlow = createMemo(
+    () => points().reduce((m, p) => Math.max(m, Math.abs(p.netInitiated)), 0),
   );
 
-  const spotIdx = useMemo(() => nearestIndex(points, spot), [points, spot]);
-  const flipIdx = useMemo(() => nearestIndex(points, flip), [points, flip]);
+  const spotIdx = createMemo(() => nearestIndex(points(), spot()));
+  const flipIdx = createMemo(() => nearestIndex(points(), flip()));
 
-  if (points.length === 0) {
-    return (
-      <Box
-        data-testid={testId}
-        className="flex items-center justify-center"
-        style={{ flex: 1, minHeight: "120px" }}
-      >
-        <Text size="xs" c="dimmed" span>
-          {emptyMessage}
-        </Text>
-      </Box>
-    );
-  }
+  const metrics = createMemo(() => {
+    const b = bounds();
+    const pts = points();
+    const innerW = W - PAD_X * 2;
+    const stepX = pts.length > 1 ? innerW / (pts.length - 1) : 0;
+    const xOf = (i: number) => PAD_X + i * stepX;
+    const span = b.max - b.min || 1;
+    const yOf = (v: number) =>
+      LINE_TOP + LINE_H - ((v - b.min) / span) * LINE_H;
+    const zeroY = yOf(0);
+    const zeroInBand = zeroY >= LINE_TOP - 0.5 && zeroY <= LINE_TOP + LINE_H + 0.5;
+    const line = pts
+      .map((p, i) => `${i === 0 ? "M" : "L"}${xOf(i).toFixed(1)} ${yOf(p.cumulative).toFixed(1)}`)
+      .join(" ");
+    const area = `${line} L${xOf(pts.length - 1).toFixed(1)} ${(LINE_TOP + LINE_H).toFixed(1)} L${PAD_X} ${(LINE_TOP + LINE_H).toFixed(1)} Z`;
+    return { xOf, yOf, stepX, span, zeroY, zeroInBand, line, area };
+  });
 
-  const innerW = W - PAD_X * 2;
-  const stepX = points.length > 1 ? innerW / (points.length - 1) : 0;
-  const xOf = (i: number) => PAD_X + i * stepX;
-  const span = bounds.max - bounds.min || 1;
-  const yOf = (v: number) =>
-    LINE_TOP + LINE_H - ((v - bounds.min) / span) * LINE_H;
-  const zeroY = yOf(0);
-  const zeroInBand = zeroY >= LINE_TOP - 0.5 && zeroY <= LINE_TOP + LINE_H + 0.5;
+  const barW = () => Math.max(1.5, metrics().stepX * 0.62);
+  const hoverPoint = () => (hover() != null ? points()[hover()!] : null);
+  const hoverX = () => (hover() != null ? metrics().xOf(hover()!) : 0);
 
-  const line = points
-    .map((p, i) => `${i === 0 ? "M" : "L"}${xOf(i).toFixed(1)} ${yOf(p.cumulative).toFixed(1)}`)
-    .join(" ");
-  const area = `${line} L${xOf(points.length - 1).toFixed(1)} ${(LINE_TOP + LINE_H).toFixed(1)} L${PAD_X} ${(LINE_TOP + LINE_H).toFixed(1)} Z`;
-
-  const barW = Math.max(1.5, stepX * 0.62);
-  const hoverPoint = hover != null ? points[hover] : null;
-  const hoverX = hover != null ? xOf(hover) : 0;
-
-  const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
+  const onMove = (e: MouseEvent & { currentTarget: SVGSVGElement }) => {
+    const pts = points();
+    if (pts.length === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * W;
-    const idx = Math.round((x - PAD_X) / (stepX || 1));
-    setHover(Math.max(0, Math.min(points.length - 1, idx)));
+    const idx = Math.round((x - PAD_X) / (metrics().stepX || 1));
+    setHover(Math.max(0, Math.min(pts.length - 1, idx)));
   };
 
   const marker = (idx: number, color: string, key: string, dashed = true) =>
     idx >= 0 ? (
       <line
-        key={key}
-        data-testid={`${testId}-marker-${key}`}
-        x1={xOf(idx)}
-        x2={xOf(idx)}
+        data-testid={`${testId()}-marker-${key}`}
+        x1={metrics().xOf(idx)}
+        x2={metrics().xOf(idx)}
         y1={LINE_TOP}
         y2={BAR_TOP + BAR_H}
         stroke={color}
-        strokeDasharray={dashed ? "2 3" : undefined}
+        stroke-dasharray={dashed ? "2 3" : undefined}
         stroke-width={dashed ? 1 : 1.25}
-        vectorEffect="non-scaling-stroke"
+        vector-effect="non-scaling-stroke"
       />
     ) : null;
 
-  return (
-    <Box
-      data-testid={testId}
-      className="flex flex-col"
-      style={{ flex: 1, minHeight: 0, minWidth: 0, gap: "2px" }}
+  const emptyView = () => (
+    <div
+      data-testid={testId()}
+      class="flex items-center justify-center"
+      style={{ flex: 1, "min-height": "120px" }}
     >
-      <Box className="min-h-[120px] min-w-0" style={{ flex: 1 }}>
+      <Text size="xs" c="dimmed" span>
+        {emptyMessage()}
+      </Text>
+    </div>
+  );
+
+  const chartView = () => (
+    <div
+      data-testid={testId()}
+      class="flex flex-col"
+      style={{ flex: 1, "min-height": 0, "min-width": 0, gap: "2px" }}
+    >
+      <div class="min-h-[120px] min-w-0" style={{ flex: 1 }}>
         <svg
           viewBox={`0 0 ${W} ${H}`}
           preserveAspectRatio="none"
@@ -231,44 +232,45 @@ export function DeltaProfileChart({
           aria-label="Cumulative delta exposure and today's initiated delta by strike"
         >
           {/* zero reference for the cumulative curve */}
-          {zeroInBand && (
+          <Show when={metrics().zeroInBand}>
             <line
               x1={PAD_X}
               x2={W - PAD_X}
               y1={zeroY}
               y2={zeroY}
               stroke={palette.TEXT_MUTED}
-              strokeDasharray="3 3"
+              stroke-dasharray="3 3"
               stroke-width={1}
-              vectorEffect="non-scaling-stroke"
+              vector-effect="non-scaling-stroke"
             />
-          )}
-          {marker(spotIdx, palette.TERM_SPOT, "spot", false)}
-          {marker(flipIdx, palette.TERM_FLIP, "flip")}
-          <path d={area} fill={palette.TEXT} opacity={0.06} stroke="none" />
+          </Show>
+          {marker(spotIdx(), palette.TERM_SPOT, "spot", false)}
+          {marker(flipIdx(), palette.TERM_FLIP, "flip")}
+          <path d={metrics().area} fill={palette.TEXT} opacity={0.06} stroke="none" />
           <path
-            d={line}
+            d={metrics().line}
             fill="none"
             stroke={palette.TEXT}
             stroke-width={1.6}
-            vectorEffect="non-scaling-stroke"
+            vector-effect="non-scaling-stroke"
           />
-          {points.map((p, i) => {
-            const h = barHeight(p.netInitiated, maxAbsFlow);
-            if (h <= 0) return null;
-            const up = p.netInitiated >= 0;
-            return (
-              <rect
-                key={`b${p.strike}`}
-                x={xOf(i) - barW / 2}
-                y={up ? BAR_BASE - h : BAR_BASE}
-                width={barW}
-                height={h}
-                fill={up ? palette.POSITIVE : palette.NEGATIVE}
-                opacity={0.72}
-              />
-            );
-          })}
+          <For each={points()}>
+            {(p, i) => {
+              const h = barHeight(p.netInitiated, maxAbsFlow());
+              if (h <= 0) return null;
+              const up = p.netInitiated >= 0;
+              return (
+                <rect
+                  x={metrics().xOf(i()) - barW() / 2}
+                  y={up ? BAR_BASE - h : BAR_BASE}
+                  width={barW()}
+                  height={h}
+                  fill={up ? palette.POSITIVE : palette.NEGATIVE}
+                  opacity={0.72}
+                />
+              );
+            }}
+          </For>
           {/* baseline for the flow columns */}
           <line
             x1={PAD_X}
@@ -277,75 +279,78 @@ export function DeltaProfileChart({
             y2={BAR_BASE}
             stroke={palette.CHART_BORDER}
             stroke-width={1}
-            vectorEffect="non-scaling-stroke"
+            vector-effect="non-scaling-stroke"
           />
-          {hover != null && (
+          <Show when={hover() != null}>
             <line
-              x1={hoverX}
-              x2={hoverX}
+              x1={hoverX()}
+              x2={hoverX()}
               y1={LINE_TOP}
               y2={BAR_TOP + BAR_H}
               stroke={palette.TEXT_MUTED}
               stroke-width={1}
-              vectorEffect="non-scaling-stroke"
+              vector-effect="non-scaling-stroke"
             />
-          )}
+          </Show>
         </svg>
-      </Box>
+      </div>
 
-      <Box className="flex items-center justify-between" style={{ minWidth: 0, paddingLeft: "2px", gap: "8px" }}>
-        <Box className="flex items-center gap-[10px]" style={{ minWidth: 0, overflow: "hidden" }}>
+      <div class="flex items-center justify-between" style={{ "min-width": 0, "padding-left": "2px", gap: "8px" }}>
+        <div class="flex items-center gap-[10px]" style={{ "min-width": 0, "overflow": "hidden" }}>
           <Legend color={palette.TEXT} label="Cumulative δ" line />
           <Legend color={palette.POSITIVE} label="Flow +" block />
           <Legend color={palette.NEGATIVE} label="Flow −" block />
           <Legend color={palette.TERM_SPOT} label="Spot" line />
           <Legend color={palette.TERM_FLIP} label="Δ pivot" dashed />
-        </Box>
+        </div>
         <Text
           size="xs"
           c="dimmed"
           span
-          data-testid={`${testId}-readout`}
+          data-testid={`${testId()}-readout`}
           className="tabular-nums whitespace-nowrap shrink-0"
         >
-          {hoverPoint
-            ? `${formatNumberIN(hoverPoint.strike)} · cum ${formatValue(hoverPoint.cumulative)} · flow ${formatValue(hoverPoint.netInitiated)}`
-            : `${formatNumberIN(points[0].strike)}–${formatNumberIN(points[points.length - 1].strike)}`}
+          {hoverPoint()
+            ? `${formatNumberIN(hoverPoint()!.strike)} · cum ${formatValue()(hoverPoint()!.cumulative)} · flow ${formatValue()(hoverPoint()!.netInitiated)}`
+            : `${formatNumberIN(points()[0].strike)}–${formatNumberIN(points()[points().length - 1].strike)}`}
         </Text>
-      </Box>
-    </Box>
+      </div>
+    </div>
+  );
+
+  return (
+    <Show when={points().length > 0} fallback={emptyView()}>
+      {chartView()}
+    </Show>
   );
 }
 
-function Legend({
-  color,
-  label,
-  line = false,
-  dashed = false,
-  block = false,
-}: {
+function Legend(props: {
   color: string;
   label: string;
   line?: boolean;
   dashed?: boolean;
   block?: boolean;
 }) {
+  const line = () => props.line ?? false;
+  const dashed = () => props.dashed ?? false;
+  const block = () => props.block ?? false;
   return (
-    <Box className="flex items-center gap-2 shrink-0" style={{ flexShrink: 0 }}>
-      <Box
+    <div class="flex items-center gap-2 shrink-0" style={{ "flex-shrink": 0 }}>
+      <div
         aria-hidden
         style={{
-          width: block ? 6 : 12,
-          height: block ? 6 : 0,
-          borderRadius: block ? 1 : 0,
-          backgroundColor: block ? color : "transparent",
-          borderTop: line || dashed ? `1px ${dashed ? "dashed" : "solid"} ${color}` : undefined,
-          opacity: 0.9,
+          "width": block() ? "6px" : "12px",
+          "height": block() ? "6px" : "0",
+          "border-radius": block() ? "1px" : "0",
+          "background-color": block() ? props.color : "transparent",
+          "border-top": line() || dashed() ? `1px ${dashed() ? "dashed" : "solid"} ${props.color}` : undefined,
+          "opacity": 0.9,
         }}
       />
       <Text size="xs" c="dimmed" span>
-        {label}
+        {props.label}
       </Text>
-    </Box>
+    </div>
   );
 }

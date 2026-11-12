@@ -572,15 +572,15 @@ export function OrderFlowPage() {
             onChange={(v) => setReplayDraft((r) => ({ ...r, to: v }))}
             data-testid="orderflow-replay-to"
           />
-          <Button
-            size="sm"
-            variant="filled"
-            onClick={applyReplayRange}
-            disabled={!replayFile()}
-            data-testid="orderflow-replay-load"
-          >
-            Load
-          </Button>
+          <Show when={replayFile()} fallback={
+            <Button size="sm" variant="filled" disabled data-testid="orderflow-replay-load">
+              Load
+            </Button>
+          }>
+            <Button size="sm" variant="filled" onClick={applyReplayRange} data-testid="orderflow-replay-load">
+              Load
+            </Button>
+          </Show>
           <Show when={journalError() || replayError()}>
             <Text size="xs" c="red" data-testid="orderflow-replay-error">
               {journalError() ?? replayError()}
@@ -635,15 +635,15 @@ export function OrderFlowPage() {
             onChange={(value) => setOptionType(value as OptionType)}
             data-testid="orderflow-option-type"
           />
-          <Button
-            size="sm"
-            variant="filled"
-            disabled={!selectedContract()}
-            onClick={useContract}
-            data-testid="orderflow-use-contract"
-          >
-            Use contract
-          </Button>
+          <Show when={selectedContract()} fallback={
+            <Button size="sm" variant="filled" disabled data-testid="orderflow-use-contract">
+              Use contract
+            </Button>
+          }>
+            <Button size="sm" variant="filled" onClick={useContract} data-testid="orderflow-use-contract">
+              Use contract
+            </Button>
+          </Show>
           <Show when={optionsLoading()}>
             <Loader size="xs" data-testid="orderflow-options-loading" />
           </Show>

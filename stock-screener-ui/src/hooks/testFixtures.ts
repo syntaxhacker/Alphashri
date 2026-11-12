@@ -2,7 +2,7 @@
 // Extracted so the hook suites stop cloning their setup/teardown harnesses.
 import { vi, beforeEach, afterEach, expect } from "vitest";
 import { act, cleanup, renderHook } from "@testing-library/react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "@solidjs/router";
 import { DEFAULT_PATTERN_FILTERS } from "../state/chartPatterns";
 import { usePatternUrlSync, type UsePatternUrlSyncArgs } from "./usePatternUrlSync";
 

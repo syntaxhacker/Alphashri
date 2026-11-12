@@ -29,14 +29,14 @@ const MOCK_STOCKS = {
 };
 
 function renderPicker(props?: { symbols?: string[]; onAddSymbols?: any }) {
-  return render(
+  return render(() => (
     <UIProvider>
       <ScreenerSymbolPicker
         symbols={props?.symbols ?? []}
         onAddSymbols={props?.onAddSymbols ?? vi.fn()}
       />
-    </UIProvider>,
-  );
+    </UIProvider>
+  ));
 }
 
 describe("ScreenerSymbolPicker", () => {

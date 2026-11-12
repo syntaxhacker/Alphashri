@@ -9,9 +9,6 @@ vi.mock("@/ui", async () => {
   return mockSolidUi();
 });
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
 
 describe("LookbackSelect", () => {
   afterEach(() => cleanup());
@@ -28,14 +25,14 @@ describe("LookbackSelect", () => {
   test("selecting 250 calls onChange(250)", async () => {
     const onChange = vi.fn();
     render(() => <LookbackSelect value={null} onChange={onChange} />);
-    fireEvent.change(screen.getByTestId("patterns-lookback-select"), "250");
+    fireEvent.change(screen.getByTestId("patterns-lookback-select"), { target: { value: "250" } });
     expect(onChange).toHaveBeenCalledWith(250);
   });
 
   test("selecting Auto calls onChange(null)", async () => {
     const onChange = vi.fn();
     render(() => <LookbackSelect value={250} onChange={onChange} />);
-    fireEvent.change(screen.getByTestId("patterns-lookback-select"), "auto");
+    fireEvent.change(screen.getByTestId("patterns-lookback-select"), { target: { value: "auto" } });
     expect(onChange).toHaveBeenCalledWith(null);
   });
 
@@ -55,7 +52,7 @@ describe("LookbackSelect", () => {
   ])("selecting %s calls onChange(%i)", async (option, expected) => {
     const onChange = vi.fn();
     render(() => <LookbackSelect value={null} onChange={onChange} />);
-    fireEvent.change(screen.getByTestId("patterns-lookback-select"), option);
+    fireEvent.change(screen.getByTestId("patterns-lookback-select"), { target: { value: option } });
     expect(onChange).toHaveBeenCalledWith(expected);
   });
 });

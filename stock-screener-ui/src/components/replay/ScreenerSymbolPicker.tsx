@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { createSignal, Show, For } from "solid-js";
 import { Select, Button, Checkbox, ScrollArea, Text, Badge, Divider } from "@/ui";
 import { Modal } from "../paper-trading/overlays";
-import { IconDatabase, IconPlus } from "@tabler/icons-react";
+import { IconDatabase, IconPlus } from "@/components/common/Icons";
 import { fetchWithAuth } from "../../state/auth";
 import type { Stock } from "../../types";
 
@@ -53,14 +53,14 @@ interface ScreenerSymbolPickerProps {
   onAddSymbols: (newSymbols: string[]) => void;
 }
 
-export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPickerProps) {
-  const [opened, setOpened] = useState(false);
-  const [selectedScreener, setSelectedScreener] = useState<string>("52w_high");
-  const [stocks, setStocks] = useState<Stock[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [hasLoaded, setHasLoaded] = useState(false);
-  const [selectedSet, setSelectedSet] = useState<Set<string>>(new Set());
+export function ScreenerSymbolPicker(props: ScreenerSymbolPickerProps) {
+  const [opened, setOpened] = createSignal(false);
+  const [selectedScreener, setSelectedScreener] = createSignal<string>("52w_high");
+  const [stocks, setStocks] = createSignal<Stock[]>([]);
+  const [isLoading, setIsLoading] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  const [hasLoaded, setHasLoaded] = createSignal(false);
+  const [selectedSet, setSelectedSet] = createSignal<Set<string>>(new Set());
 
   const handleLoad = async () => {
     setIsLoading(true);
@@ -69,7 +69,7 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
     setSelectedSet(new Set());
     try {
       const res = await fetchWithAuth(
-        `${API_BASE}/api/screener?provider=upstox&mode=intraday&screener=${selectedScreener}`,
+        `${API_BASE}/api/screener?provider=upstox&mode=intraday&screener=${selectedScreener()}`,
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -84,16 +84,16 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
   };
 
   const handleAdd = () => {
-    const existing = new Set(symbols);
-    const newSymbols = [...selectedSet].filter((s) => !existing.has(s));
+    const existing = new Set(props.symbols);
+    const newSymbols = [...selectedSet()].filter((s) => !existing.has(s));
     if (newSymbols.length > 0) {
-      onAddSymbols(newSymbols);
+      props.onAddSymbols(newSymbols);
     }
     setOpened(false);
   };
 
   const toggleStock = (symbol: string) => {
-    const next = new Set(selectedSet);
+    const next = new Set(selectedSet());
     if (next.has(symbol)) next.delete(symbol);
     else next.add(symbol);
     setSelectedSet(next);
@@ -101,28 +101,28 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
 
   const toggleAll = (checked: boolean) => {
     if (checked) {
-      setSelectedSet(new Set(stocks.map((s) => s.symbol)));
+      setSelectedSet(new Set(stocks().map((s) => s.symbol)));
     } else {
       setSelectedSet(new Set());
     }
   };
 
   const toggleTouched = (checked: boolean) => {
-    const touchedStocks = stocks.filter((s) => s.touched_52w);
+    const touchedStocks = stocks().filter((s) => s.touched_52w);
+    const next = new Set(selectedSet());
     if (checked) {
-      const next = new Set(selectedSet);
       touchedStocks.forEach((s) => next.add(s.symbol));
-      setSelectedSet(next);
     } else {
-      const next = new Set(selectedSet);
       touchedStocks.forEach((s) => next.delete(s.symbol));
-      setSelectedSet(next);
     }
+    setSelectedSet(next);
   };
 
-  const allSelected = stocks.length > 0 && selectedSet.size === stocks.length;
-  const touchedCount = stocks.filter((s) => s.touched_52w).length;
-  const touchedChecked = stocks.length > 0 && stocks.filter((s) => s.touched_52w).every((s) => selectedSet.has(s.symbol));
+  const allSelected = () => stocks().length > 0 && selectedSet().size === stocks().length;
+  const touchedCount = () => stocks().filter((s) => s.touched_52w).length;
+  const touchedChecked = () =>
+    stocks().length > 0 &&
+    stocks().filter((s) => s.touched_52w).every((s) => selectedSet().has(s.symbol));
 
   return (
     <>
@@ -138,7 +138,7 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
       </Button>
 
       <Modal
-        opened={opened}
+        opened={opened()}
         onClose={() => setOpened(false)}
         title="Load Symbols from Screener"
         size="md"
@@ -150,7 +150,7 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
               size="sm"
               w={260}
               data={SCREENER_OPTIONS}
-              value={selectedScreener}
+              value={selectedScreener()}
               onChange={(v) => v && setSelectedScreener(v)}
               data-testid="screener-select"
             />
@@ -158,7 +158,7 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
               size="sm"
               variant="light"
               onClick={handleLoad}
-              loading={isLoading}
+              loading={isLoading()}
               leftSection={<IconPlus size={14} />}
               data-testid="screener-load-btn"
             >
@@ -166,67 +166,68 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
             </Button>
           </Group>
 
-          {error && (
-            <Text size="sm" c="error" data-testid="screener-error">
-              {error}
-            </Text>
-          )}
+          <Show when={error()}>
+            {(err) => (
+              <Text size="sm" c="error" data-testid="screener-error">
+                {err()}
+              </Text>
+            )}
+          </Show>
 
-          {isLoading && (
+          <Show when={isLoading()}>
             <Text size="sm" c="dimmed" ta="center" className="py-md">
               Loading stocks...
             </Text>
-          )}
+          </Show>
 
-          {!isLoading && hasLoaded && stocks.length === 0 && (
+          <Show when={!isLoading() && hasLoaded() && stocks().length === 0}>
             <Text size="sm" c="dimmed" ta="center" className="py-md" data-testid="screener-empty">
               No stocks found for this screener.
             </Text>
-          )}
+          </Show>
 
-          {!isLoading && stocks.length > 0 && (
+          <Show when={!isLoading() && stocks().length > 0}>
             <>
               <Group gap="md" align="center">
                 <Checkbox
                   size="xs"
-                  checked={allSelected}
-                  onChange={(checked) => toggleAll(checked)}
-                  label={`All (${stocks.length})`}
+                  checked={allSelected()}
+                  onChange={(e) => toggleAll(e.currentTarget.checked)}
+                  label={`All (${stocks().length})`}
                   data-testid="screener-select-all"
                 />
-                {touchedCount > 0 && (
+                <Show when={touchedCount() > 0}>
                   <Checkbox
                     size="xs"
-                    checked={touchedChecked}
-                    indeterminate={!touchedChecked && [...selectedSet].some((s) => stocks.find((st) => st.symbol === s)?.touched_52w)}
-                    onChange={(checked) => toggleTouched(checked)}
-                    label={`Touched (${touchedCount})`}
+                    checked={touchedChecked()}
+                    indeterminate={!touchedChecked() && [...selectedSet()].some((s) => stocks().find((st) => st.symbol === s)?.touched_52w)}
+                    onChange={(e) => toggleTouched(e.currentTarget.checked)}
+                    label={`Touched (${touchedCount()})`}
                     data-testid="screener-select-touched"
                   />
-                )}
+                </Show>
               </Group>
 
               <Divider />
 
               <ScrollArea h={350} data-testid="screener-stock-list">
                 <Stack gap={0}>
-                  {stocks.map((stock, idx) => {
+                  <For each={stocks()}>{(stock, idx) => {
                     const price = stock.upstox_price || stock.tv_price || 0;
                     const pct = stock.to_52w_high || 0;
                     return (
                       <Group
-                        key={stock.symbol}
                         gap="xs"
                         wrap="nowrap"
                         align="center"
                         px="xs"
                         py={3}
                         className="cursor-pointer hover:bg-fin-surface-alt"
-                        style={{ borderRadius: "1px", backgroundColor: idx % 2 === 1 ? palette.BG : undefined }}
+                        style={{ borderRadius: "1px", "background-color": idx() % 2 === 1 ? palette.BG : undefined }}
                       >
                         <Checkbox
                           size="xs"
-                          checked={selectedSet.has(stock.symbol)}
+                          checked={selectedSet().has(stock.symbol)}
                           onChange={() => toggleStock(stock.symbol)}
                           data-testid={`stock-check-${stock.symbol}`}
                         />
@@ -239,45 +240,46 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
                         <Text size="xs" ta="right" c={pctColor(pct)} style={{ fontFamily: "monospace", width: "65px" }}>
                           {pct >= 0 ? "+" : ""}{pct.toFixed(1)}%
                         </Text>
-                        {stock.touched_52w ? (
+                        <Show when={stock.touched_52w}>
                           <Text size="xs" ta="center" c="primary" style={{ fontFamily: "monospace", width: "72px" }}>
                             {formatTouchDate(stock)}
                           </Text>
-                        ) : (
+                        </Show>
+                        <Show when={!stock.touched_52w}>
                           <Text size="xs" ta="center" c="dimmed" style={{ width: "72px" }}>
                             -
                           </Text>
-                        )}
+                        </Show>
                         <Badge size="sm" color={getScoreColor(stock.score)} variant="filled" style={{ width: "36px" }}>
                           {stock.score}
                         </Badge>
                       </Group>
                     );
-                  })}
+                  }}</For>
                 </Stack>
               </ScrollArea>
             </>
-          )}
+          </Show>
 
-          {!isLoading && stocks.length > 0 && (
+          <Show when={!isLoading() && stocks().length > 0}>
             <>
               <Divider />
               <Group justify="space-between" align="center">
-                <Text size="sm" c="dimmed">
-                  {selectedSet.size} of {stocks.length} selected
+                <Text size="sm" c="dimmed" className="font-mono tabular-nums">
+                  {selectedSet().size} of {stocks().length} selected
                 </Text>
                 <Button
                   size="sm"
-                  disabled={selectedSet.size === 0}
+                  disabled={selectedSet().size === 0}
                   onClick={handleAdd}
                   leftSection={<IconPlus size={14} />}
                   data-testid="screener-add-btn"
                 >
-                  Add {selectedSet.size} &rarr; Symbols
+                  Add {selectedSet().size} &rarr; Symbols
                 </Button>
               </Group>
             </>
-          )}
+          </Show>
         </Stack>
       </Modal>
     </>

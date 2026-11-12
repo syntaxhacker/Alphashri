@@ -522,6 +522,7 @@ export function DashboardView(props: DashboardViewProps) {
     let cancelled = false;
     const controller = new AbortController();
     onCleanup(() => {
+      console.log("DBG cleanup fired");
       cancelled = true;
       controller.abort();
     });
@@ -543,11 +544,13 @@ export function DashboardView(props: DashboardViewProps) {
       : fetchScreenerDashboard(currentUniverse, controller.signal);
     request
       .then((payload) => {
+        console.log("DBG then", cancelled);
         if (cancelled) return;
         setData(payload);
         setLoading(false);
       })
       .catch((err: unknown) => {
+        console.log("DBG catch", cancelled, err);
         if (cancelled) return;
         if (err instanceof DOMException && err.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Failed to load dashboard");

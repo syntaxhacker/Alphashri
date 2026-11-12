@@ -15,7 +15,7 @@
  *
  * Nothing here is imported by app code — tests only.
  */
-import { createContext, createSignal, splitProps, useContext, Show, For, type JSX } from "solid-js";
+import { createContext, createSignal, createEffect, splitProps, useContext, Show, For, type JSX } from "solid-js";
 import { cn } from "@/ui/cn";
 import { alpha } from "@/ui/alpha";
 import * as palette from "@/ui/palette";
@@ -475,18 +475,21 @@ function StubSelect(props: DivProps & {
     "label", "clearable", "searchable", "data-testid", "id", "className", "onBlur",
   ] as const);
   const options = () => normalizeOptions(local.data);
-  const selectedLabel = () => options().find((o) => o.value === local.value)?.label;
+  let selectEl: HTMLSelectElement | undefined;
+  createEffect(() => {
+    if (selectEl) selectEl.value = String(local.value ?? "");
+  });
   return (
     <span class="inline-flex min-w-0 flex-col gap-1" style={{ width: typeof local.w === "number" ? `${local.w}px` : local.w }}>
       <Show when={local.label}>
         <label class="text-xs font-medium text-fin-text-muted">{local.label}</label>
       </Show>
       <select
+        ref={(el) => (selectEl = el)}
         id={local.id}
         class={cn(INPUT_CHROME, "px-2 py-1.5 text-xs", local.className)}
         data-testid={local["data-testid"]}
         disabled={Boolean(local.disabled)}
-        value={local.value ?? ""}
         onChange={(e) => local.onChange?.(e.currentTarget.value === "" ? null : e.currentTarget.value)}
         onBlur={local.onBlur}
         {...(rest as Record<string, unknown>)}

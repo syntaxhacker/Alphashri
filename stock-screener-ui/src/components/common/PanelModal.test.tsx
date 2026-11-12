@@ -3,14 +3,11 @@ import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
+import type { JSX } from "solid-js";
 import { PanelModal } from "./PanelModal";
 
-function TestWrapper({ children }: { children: JSX.Element }) {
-  return <UIProvider>{children}</UIProvider>;
-}
-
 function r(jsx: JSX.Element) {
-  return render(jsx, { wrapper: TestWrapper });
+  return render(() => <UIProvider>{jsx}</UIProvider>);
 }
 
 afterEach(() => {

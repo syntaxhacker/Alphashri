@@ -10,7 +10,7 @@ export interface LookbackSelectProps {
 }
 
 /** Lookback (in bars) selector for the Patterns scan bar. */
-export function LookbackSelect({ value, onChange }: LookbackSelectProps) {
+export function LookbackSelect(props: LookbackSelectProps) {
   const data = [
     { value: "auto", label: "Auto" },
     ...LOOKBACK_OPTIONS.map((n) => ({ value: String(n), label: String(n) })),
@@ -18,14 +18,14 @@ export function LookbackSelect({ value, onChange }: LookbackSelectProps) {
   return (
     <Select
       data={data}
-      value={value == null ? "auto" : String(value)}
+      value={props.value == null ? "auto" : String(props.value)}
       onChange={(v) => {
         if (v == null || v === "" || v === "auto") {
-          onChange(null);
+          props.onChange(null);
           return;
         }
         const n = Number(v);
-        if (Number.isFinite(n)) onChange(n);
+        if (Number.isFinite(n)) props.onChange(n);
       }}
       w={122}
       size="xs"

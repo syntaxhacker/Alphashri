@@ -137,12 +137,24 @@ export function NewsQueuePanel() {
 
           <ToolbarRow gap={8} justify="space-between" wrap>
             <Group gap="xs">
-              <Button size="sm" leftSection={<Icon name="plus" size={14} />} onClick={() => doAction("enqueue", { limit: 0, force: false })} loading={actionLoading() === "enqueue"} disabled={busy()} variant="light">
-                Enqueue broken
-              </Button>
-              <Button size="sm" leftSection={<Icon name="player-play" size={14} />} onClick={() => doAction("process", {})} loading={actionLoading() === "process"} disabled={busy() || !vm().qq?.pending}>
-                Process next
-              </Button>
+              <Show when={busy()} fallback={
+                <Button size="sm" leftSection={<Icon name="plus" size={14} />} onClick={() => doAction("enqueue", { limit: 0, force: false })} loading={actionLoading() === "enqueue"} variant="light">
+                  Enqueue broken
+                </Button>
+              }>
+                <Button size="sm" leftSection={<Icon name="plus" size={14} />} onClick={() => doAction("enqueue", { limit: 0, force: false })} loading={actionLoading() === "enqueue"} disabled variant="light">
+                  Enqueue broken
+                </Button>
+              </Show>
+              <Show when={busy() || !vm().qq?.pending} fallback={
+                <Button size="sm" leftSection={<Icon name="player-play" size={14} />} onClick={() => doAction("process", {})} loading={actionLoading() === "process"}>
+                  Process next
+                </Button>
+              }>
+                <Button size="sm" leftSection={<Icon name="player-play" size={14} />} onClick={() => doAction("process", {})} loading={actionLoading() === "process"} disabled>
+                  Process next
+                </Button>
+              </Show>
             </Group>
             <Badge size="lg" variant="outline" color={!vm().needsWork ? "success" : "warning"}>
               {vm().needs?.broken_summary ?? "—"} broken · {vm().needs?.null_analysis ?? "—"} null

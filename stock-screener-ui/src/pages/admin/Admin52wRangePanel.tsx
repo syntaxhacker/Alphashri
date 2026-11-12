@@ -156,15 +156,33 @@ export function Admin52wRangePanel() {
 
         <ToolbarRow gap={8} justify="space-between" wrap data-testid="admin-52w-toolbar">
           <Group gap="xs">
-            <Button size="sm" leftSection={<Icon name="player-play" size={14} />} onClick={startBatch} loading={starting()} disabled={vm().running} data-testid="admin-52w-run">
-              Run batch
-            </Button>
-            <Button size="sm" variant="filled" color="warning" leftSection={<Icon name="trash" size={14} />} onClick={() => clearAction(false)} loading={clearing()} disabled={vm().running}>
-              Clear cache
-            </Button>
-            <Button size="sm" variant="filled" color="error" leftSection={<Icon name="trash" size={14} />} onClick={() => clearAction(true)} loading={clearing()} disabled={vm().running}>
-              Clear cache + DB
-            </Button>
+            <Show when={vm().running} fallback={
+              <Button size="sm" leftSection={<Icon name="player-play" size={14} />} onClick={startBatch} loading={starting()} data-testid="admin-52w-run">
+                Run batch
+              </Button>
+            }>
+              <Button size="sm" leftSection={<Icon name="player-play" size={14} />} onClick={startBatch} loading={starting()} disabled data-testid="admin-52w-run">
+                Run batch
+              </Button>
+            </Show>
+            <Show when={vm().running} fallback={
+              <Button size="sm" variant="filled" color="warning" leftSection={<Icon name="trash" size={14} />} onClick={() => clearAction(false)} loading={clearing()}>
+                Clear cache
+              </Button>
+            }>
+              <Button size="sm" variant="filled" color="warning" leftSection={<Icon name="trash" size={14} />} onClick={() => clearAction(false)} loading={clearing()} disabled>
+                Clear cache
+              </Button>
+            </Show>
+            <Show when={vm().running} fallback={
+              <Button size="sm" variant="filled" color="error" leftSection={<Icon name="trash" size={14} />} onClick={() => clearAction(true)} loading={clearing()}>
+                Clear cache + DB
+              </Button>
+            }>
+              <Button size="sm" variant="filled" color="error" leftSection={<Icon name="trash" size={14} />} onClick={() => clearAction(true)} loading={clearing()} disabled>
+                Clear cache + DB
+              </Button>
+            </Show>
           </Group>
           <Group gap="xs" align="center">
             <Checkbox
