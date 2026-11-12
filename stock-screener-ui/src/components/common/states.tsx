@@ -13,7 +13,7 @@ export interface InlineLoaderProps {
 }
 
 export function InlineLoader({
-  "data-testid": testId,
+  dataTestid: testId,
   className,
   size = "sm",
   message,
@@ -42,7 +42,7 @@ export function EmptyState({
   emoji,
   title,
   description,
-  "data-testid": testId,
+  dataTestid: testId,
   className,
 }: EmptyStateProps) {
   return (
@@ -72,7 +72,7 @@ export function ErrorAlert({
   title = "Error",
   message,
   onClose,
-  "data-testid": testId,
+  dataTestid: testId,
   className,
   withRetry,
   onRetry,
@@ -122,7 +122,7 @@ export function EmptyCompact({
   emoji,
   title,
   description,
-  "data-testid": testId,
+  dataTestid: testId,
   className,
   id,
   children,

@@ -99,7 +99,7 @@ export function NotificationsPanel(props: { opened: boolean; onClose: () => void
 
         <ScrollArea
           h={360}
-          style={{ "max-height": "70vh", "min-height": 180 }}
+          style={{ maxHeight: "70vh", minHeight: 180 }}
           data-testid="surge-alerts-scroll"
         >
           <Stack gap="xs">

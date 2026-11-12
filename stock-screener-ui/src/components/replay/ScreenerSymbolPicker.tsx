@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Modal, Select, Button, Checkbox, ScrollArea, Text, Badge, Divider } from "@/ui";
+import { Select, Button, Checkbox, ScrollArea, Text, Badge, Divider } from "@/ui";
+import { Modal } from "../paper-trading/overlays";
 import { IconDatabase, IconPlus } from "@tabler/icons-react";
 import { fetchWithAuth } from "../../state/auth";
 import type { Stock } from "../../types";
@@ -221,7 +222,7 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
                         px="xs"
                         py={3}
                         className="cursor-pointer hover:bg-fin-surface-alt"
-                        style={{ "border-radius": "1px", "background-color": idx % 2 === 1 ? palette.BG : undefined }}
+                        style={{ borderRadius: "1px", backgroundColor: idx % 2 === 1 ? palette.BG : undefined }}
                       >
                         <Checkbox
                           size="xs"

@@ -146,7 +146,7 @@ function LegendItem({ item }: { item: LegendItemDef }) {
           data-testid={swatchTestId}
           aria-hidden
           className="inline-block shrink-0 w-2 h-2 rounded-[1px]"
-          style={{ "background-color": item.color }}
+          style={{ backgroundColor: item.color }}
         />
       ) : item.shape === "dot" ? (
         <Box
@@ -154,7 +154,7 @@ function LegendItem({ item }: { item: LegendItemDef }) {
           data-testid={swatchTestId}
           aria-hidden
           className="inline-block shrink-0 w-2 h-2 rounded-full"
-          style={{ "background-color": item.color }}
+          style={{ backgroundColor: item.color }}
         />
       ) : item.shape === "line" ? (
         <Box
@@ -162,7 +162,7 @@ function LegendItem({ item }: { item: LegendItemDef }) {
           data-testid={swatchTestId}
           aria-hidden
           className="inline-block shrink-0 w-3 h-0.5"
-          style={{ "background-color": item.color }}
+          style={{ backgroundColor: item.color }}
         />
       ) : (
         <Box
@@ -170,7 +170,7 @@ function LegendItem({ item }: { item: LegendItemDef }) {
           data-testid={swatchTestId}
           aria-hidden
           className="inline-block shrink-0 w-3 h-0 border-t border-dashed"
-          style={{ "border-color": item.color }}
+          style={{ borderColor: item.color }}
         />
       )}
       <Box component="span">{item.label}</Box>
@@ -515,11 +515,11 @@ const NiftyOiHeatmapInner = function NiftyOiHeatmap({
         onMouseLeave={() => setHover(null)}
         style={{
           flex: 1,
-          "min-height": 40,
+          minHeight: 40,
           display: "block",
           cursor: "crosshair",
           position: "relative",
-          "z-index": 1,
+          zIndex: 1,
         }}
       >
         {/* Cells are painted on the canvas behind this SVG (one paint instead
@@ -691,15 +691,15 @@ const NiftyOiHeatmapInner = function NiftyOiHeatmap({
           width: 0,
           height: 0,
           display: "block",
-          "pointer-events": "none",
-          "z-index": 0,
+          pointerEvents: "none",
+          zIndex: 0,
         }}
       />
       {hoverCell && hover ? (
         <Box
           data-testid="nifty-heatmap-hover"
           className="absolute right-1 top-[14px] px-1 py-[1px] border border-fin-border rounded-[3px] text-[9px] font-mono text-fin-text whitespace-nowrap pointer-events-none z-[3]"
-          style={{ "background-color": TERM_HEADER, "border-color": TERM_BORDER }}
+          style={{ backgroundColor: TERM_HEADER, borderColor: TERM_BORDER }}
         >
           {buckets[hover.bucket]?.label ?? ""} · {formatNumberIN(hover.strike)} · CE{" "}
           {formatReportCompact(hoverCell.ceDoi, {

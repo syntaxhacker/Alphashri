@@ -1,5 +1,6 @@
+import { createMemo, For, Show } from "solid-js";
 import { Box, Button, Text, ToolbarRow } from "@/ui";
-import { IconX } from "@tabler/icons-react";
+import { IconX } from "@/patterns/icons";
 import { DEFAULT_PATTERN_FILTERS } from "@/state/chartPatterns";
 import type { PatternDef, PatternFilters } from "@/types/chartPatterns";
 import { FAMILY_LABELS } from "./shared";
@@ -268,75 +269,79 @@ export interface AppliedFiltersProps {
  * removable with its close button — so the modal never has to be reopened just
  * to drop one filter. Renders nothing when no filters are applied.
  */
-export function AppliedFilters({ filters, patterns, setFilter, resetFilters }: AppliedFiltersProps) {
-  const chips = buildAppliedFilterChips(filters, patterns);
-  if (chips.length === 0) return null;
-
-  const shown = chips;
+export function AppliedFilters(props: AppliedFiltersProps) {
+  const chips = createMemo(() => buildAppliedFilterChips(props.filters, props.patterns));
 
   // Consecutive chips sharing a `group` render under one muted label, so
   // "Pattern: A · Pattern: B · Pattern: C" becomes "Patterns  A  B  C".
-  const groups: Array<{ group: string; items: AppliedFilterChip[] }> = [];
-  for (const chip of shown) {
-    const last = groups[groups.length - 1];
-    if (last && last.group === chip.group) last.items.push(chip);
-    else groups.push({ group: chip.group, items: [chip] });
-  }
+  const groups = createMemo(() => {
+    const next: Array<{ group: string; items: AppliedFilterChip[] }> = [];
+    for (const chip of chips()) {
+      const last = next[next.length - 1];
+      if (last && last.group === chip.group) last.items.push(chip);
+      else next.push({ group: chip.group, items: [chip] });
+    }
+    return next;
+  });
 
   return (
-    <Box data-testid="patterns-applied-filters" className="min-w-0">
-      <ToolbarRow gap={6} style={{ "flex-wrap": "wrap", "row-gap": 3 }}>
-        <Text
-          size="xs"
-          c="dimmed"
-          fw={700}
-          style={{ "text-transform": "none", "letter-spacing": 0.2 }}
-        >
-          Active
-        </Text>
-        {groups.map((group) => {
-          const multi = group.items.length > 1;
-          return (
-            <Box
-              key={group.group}
-              data-testid={`patterns-applied-group-${group.group.toLowerCase()}`}
-              className="inline-flex min-w-0 items-center gap-[2px] pl-[2px]"
-            >
-              {multi ? (
-                <Text size="xs" c="dimmed" fw={600} style={{ "white-space": "nowrap" }}>
-                  {`${group.group}s`}
-                </Text>
-              ) : null}
-              {group.items.map((chip) => (
-                <span
-                  key={chip.id}
-                  data-testid={`patterns-applied-filter-${chip.id}`}
-                  className="inline-flex items-center gap-1 whitespace-nowrap rounded-fin border border-transparent bg-[#484F58] px-2 py-1 text-xs text-fin-text"
+    <Show when={chips().length > 0}>
+      <Box data-testid="patterns-applied-filters" className="min-w-0">
+        <ToolbarRow gap={6} style={{ flexWrap: "wrap", rowGap: 3 }}>
+          <Text
+            size="xs"
+            c="dimmed"
+            fw={700}
+            style={{ textTransform: "none", letterSpacing: 0.2 }}
+          >
+            Active
+          </Text>
+          <For each={groups()}>
+            {(group) => {
+              const multi = group.items.length > 1;
+              return (
+                <Box
+                  data-testid={`patterns-applied-group-${group.group.toLowerCase()}`}
+                  className="inline-flex min-w-0 items-center gap-[2px] pl-[2px]"
                 >
-                  {multi ? chip.label : `${chip.group}: ${chip.label}`}
-                  <button
-                    type="button"
-                    aria-label={`Remove ${multi ? chip.label : `${chip.group}: ${chip.label}`}`}
-                    data-testid={`patterns-applied-filter-${chip.id}-remove`}
-                    className="inline-flex cursor-pointer items-center justify-center rounded-sm p-0.5 leading-none hover:bg-white/10"
-                    onClick={() => setFilter(chip.key, chip.nextValue)}
-                  >
-                    <IconX size={10} stroke={2.5} />
-                  </button>
-                </span>
-              ))}
-            </Box>
-          );
-        })}
+                  <Show when={multi}>
+                    <Text size="xs" c="dimmed" fw={600} style={{ whiteSpace: "nowrap" }}>
+                      {`${group.group}s`}
+                    </Text>
+                  </Show>
+                  <For each={group.items}>
+                    {(chip) => (
+                      <span
+                        data-testid={`patterns-applied-filter-${chip.id}`}
+                        className="inline-flex items-center gap-1 whitespace-nowrap rounded-fin border border-transparent bg-[#484F58] px-2 py-1 text-xs text-fin-text"
+                      >
+                        {multi ? chip.label : `${chip.group}: ${chip.label}`}
+                        <button
+                          type="button"
+                          aria-label={`Remove ${multi ? chip.label : `${chip.group}: ${chip.label}`}`}
+                          data-testid={`patterns-applied-filter-${chip.id}-remove`}
+                          className="inline-flex cursor-pointer items-center justify-center rounded-sm p-0.5 leading-none hover:bg-white/10"
+                          onClick={() => props.setFilter(chip.key, chip.nextValue)}
+                        >
+                          <IconX size={10} stroke={2.5} />
+                        </button>
+                      </span>
+                    )}
+                  </For>
+                </Box>
+              );
+            }}
+          </For>
         <Button
           size="xs"
           variant="subtle"
-          onClick={resetFilters}
+          onClick={() => props.resetFilters()}
           data-testid="patterns-applied-clear-all"
         >
           Clear all
         </Button>
       </ToolbarRow>
-    </Box>
+      </Box>
+    </Show>
   );
 }

@@ -32,10 +32,10 @@ export function EventsTable(props: EventsTableProps) {
         <Box
           data-testid="events-loading"
           className="flex flex-col gap-1 p-1"
-          style={{ flex: 1, "min-height": 0 }}
+          style={{ flex: 1, minHeight: 0 }}
         >
           <For each={Array.from({ length: SKELETON_ROWS })}>
-            {() => <Skeleton h={24} data-testid="events-skeleton-row" />}
+            {() => <Skeleton h={24} data-testid="events-skeleton-row" visible />}
           </For>
         </Box>
       }

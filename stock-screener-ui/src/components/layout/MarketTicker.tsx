@@ -78,10 +78,10 @@ function formatLastUpdated(lastUpdated: string | null): string {
  *  `−511.20 (−0.92%)` then line up from item to item. */
 const TICKER_GRID = {
   display: "grid",
-  "grid-template-columns": "minmax(56px, auto) minmax(64px, 1fr) 82px",
-  "align-items": "center",
-  "column-gap": "6px",
-  "flex-shrink": 0,
+  gridTemplateColumns: "minmax(56px, auto) minmax(64px, 1fr) 82px",
+  alignItems: "center",
+  columnGap: "6px",
+  flexShrink: 0,
 } as const;
 
 function createErrorState(error: unknown): MarketTickerData {
@@ -117,7 +117,7 @@ function TickerItem(props: TickerItemProps) {
         size="sm"
         fw={600}
         c="dimmed"
-        style={{ "font-size": 9.5, "line-height": 1.1, "white-space": "nowrap" }}
+        style={{ fontSize: 9.5, lineHeight: 1.1, whiteSpace: "nowrap" }}
       >
         {label()}
       </Text>
@@ -126,12 +126,12 @@ function TickerItem(props: TickerItemProps) {
         fw={700}
         data-testid={`ticker-price-${testId()}`}
         style={{
-          "font-size": 11,
-          "line-height": 1.1,
+          fontSize: 11,
+          lineHeight: 1.1,
           fontFamily: palette.MONO,
           fontVariantNumeric: "tabular-nums",
-          "text-align": "right",
-          "white-space": "nowrap",
+          textAlign: "right",
+          whiteSpace: "nowrap",
         }}
       >
         {price().toLocaleString("en-IN", {
@@ -157,11 +157,11 @@ function TickerItem(props: TickerItemProps) {
           span
           fw={700}
           style={{
-            "font-size": 9.5,
-            "line-height": 1.1,
+            fontSize: 9.5,
+            lineHeight: 1.1,
             color: tone(),
             fontVariantNumeric: "tabular-nums",
-            "white-space": "nowrap",
+            whiteSpace: "nowrap",
           }}
         >
           {isPositive() ? "+" : ""}
@@ -187,13 +187,13 @@ function TickerContainer(props: TickerContainerProps) {
       px="sm"
       style={{
         display: "flex",
-        "align-items": "center",
+        alignItems: "center",
         gap: 10,
         height: 22,
-        "overflow-x": "auto",
-        "overflow-y": "hidden",
-        "flex-wrap": "nowrap",
-        "min-width": 0,
+        overflowX: "auto",
+        overflowY: "hidden",
+        flexWrap: "nowrap",
+        minWidth: 0,
       }}
     >
       {props.children}
@@ -210,13 +210,13 @@ function TickerLoadingState() {
       px="sm"
       style={{
         display: "flex",
-        "align-items": "center",
+        alignItems: "center",
         gap: 10,
         height: 22,
         overflow: "hidden",
       }}
     >
-      <For each={[1, 2, 3, 4, 5, 6]}>{(i) => <Skeleton w={88} h={14} />}</For>
+      <For each={[1, 2, 3, 4, 5, 6]}>{(i) => <Skeleton w={88} h={14} visible />}</For>
     </Box>
   );
 }
@@ -228,9 +228,9 @@ function TickerErrorState() {
       id="market-ticker"
       className="market-ticker market-ticker-error"
       px="sm"
-      style={{ display: "flex", "align-items": "center", height: 22 }}
+      style={{ display: "flex", alignItems: "center", height: 22 }}
     >
-      <Text size="sm" c="dimmed" style={{ "font-size": 9.5, "line-height": 1.2 }}>
+      <Text size="sm" c="dimmed" style={{ fontSize: 9.5, lineHeight: 1.2 }}>
         Market data unavailable
       </Text>
     </Box>
@@ -242,19 +242,19 @@ function TickerStatus({ label, detail }: { label: string; detail?: string | null
     <Box
       data-testid="market-ticker-status"
       className="flex items-center gap-0.75 min-w-0 overflow-hidden"
-      style={{ "padding-left": 4, "padding-right": 4 }}
+      style={{ paddingLeft: 4, paddingRight: 4 }}
     >
       <Box
         aria-hidden
         className="size-6 rounded-full flex-shrink-0"
-        style={{ "background-color": palette.TEXT_MUTED }}
+        style={{ backgroundColor: palette.TEXT_MUTED }}
       />
-      <Text size="sm" fw={600} c="dimmed" style={{ "font-size": 9.5, "line-height": 1.2 }}>{label}</Text>
+      <Text size="sm" fw={600} c="dimmed" style={{ fontSize: 9.5, lineHeight: 1.2 }}>{label}</Text>
       <Show when={detail}>
         <Text
           size="sm"
           c="dimmed"
-          style={{ "font-size": 9.5, "line-height": 1.2 }}
+          style={{ fontSize: 9.5, lineHeight: 1.2 }}
           className="opacity-75 min-w-0 overflow-hidden truncate"
         >
           · {detail}
@@ -298,10 +298,10 @@ export function MarketStatus(props: { compact?: boolean }) {
       title={title()}
       className="flex items-center min-w-0 overflow-hidden"
       style={{
-        "justify-content": compact() ? "center" : "flex-start",
+        justifyContent: compact() ? "center" : "flex-start",
         gap: compact() ? 0 : 6,
-        "padding-left": compact() ? 0 : 2,
-        "padding-right": compact() ? 0 : 2,
+        paddingLeft: compact() ? 0 : 2,
+        paddingRight: compact() ? 0 : 2,
       }}
     >
       <Box
@@ -310,20 +310,20 @@ export function MarketStatus(props: { compact?: boolean }) {
         style={{
           width: 6,
           height: 6,
-          "border-radius": "50%",
-          "flex-shrink": 0,
-          "background-color": closed ? palette.TEXT_MUTED : palette.POSITIVE,
+          borderRadius: "50%",
+          flexShrink: 0,
+          backgroundColor: closed ? palette.TEXT_MUTED : palette.POSITIVE,
         }}
       />
       <Show when={!compact()}>
-        <Text size="sm" fw={600} c="dimmed" style={{ "font-size": 9.5, "line-height": 1.2, "white-space": "nowrap" }}>
+        <Text size="sm" fw={600} c="dimmed" style={{ fontSize: 9.5, lineHeight: 1.2, whiteSpace: "nowrap" }}>
           {label()}
         </Text>
         <Show when={detail()}>
           <Text
             size="sm"
             c="dimmed"
-            style={{ "font-size": 9.5, "line-height": 1.2 }}
+            style={{ fontSize: 9.5, lineHeight: 1.2 }}
             className="opacity-75 min-w-0 overflow-hidden truncate"
           >
             · {detail()}

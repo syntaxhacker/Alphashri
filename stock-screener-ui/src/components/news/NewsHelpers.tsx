@@ -34,7 +34,7 @@ function ArticleSymbols(props: {
     <Show when={props.symbols && props.symbols.length > 0}>
 
     <Box data-testid="news-article-symbols">
-      <Text size="sm" c="dimmed" style={{ "margin-bottom": 4 }}>
+      <Text size="sm" c="dimmed" style={{ marginBottom: 4 }}>
         Stocks mentioned:
       </Text>
       <Group gap="xs" align="center">
@@ -55,7 +55,7 @@ function ArticleSymbols(props: {
             >
               {symbol.name || symbol.code}
               <Show when={symbol.instrument_key}>
-                <IconChartLine size={12} style={{ "margin-left": 4 }} />
+                <IconChartLine size={12} style={{ marginLeft: 4 }} />
               </Show>
             </Badge>
           </Tooltip>
@@ -121,7 +121,7 @@ export function ArticleView(props: {
         justify="space-between"
         align="center"
         className="news-article-header"
-        style={{ borderBottom: `1px solid ${/* divider */ "" }`, "border-bottom-color": "" }}
+        style={{ borderBottom: `1px solid ${/* divider */ "" }`, borderBottomColor: "" }}
       >
         <Button
           variant="subtle"
@@ -204,32 +204,32 @@ export function NewsItemCard(props: {
       }}
       className={`news-item-card ${isUnread() ? "unread" : ""} flex items-start gap-4 cursor-pointer`}
       style={{
-        "align-items": "flex-start",
+        alignItems: "flex-start",
         gap: 8,
         ...(isDesk
           ? {
-              "min-height": 64,
-              "padding-left": 12,
-              "padding-right": 12,
-              "padding-top": 8,
-              "padding-bottom": 8,
-              "border-radius": 0,
-              "border-left": `3px solid ${selected() ? palette.PRIMARY : "transparent"}`,
-              "transition-property": "background-color, border-color, transform",
-              "transition-duration": "120ms",
+              minHeight: 64,
+              paddingLeft: 12,
+              paddingRight: 12,
+              paddingTop: 8,
+              paddingBottom: 8,
+              borderRadius: 0,
+              borderLeft: `3px solid ${selected() ? palette.PRIMARY : "transparent"}`,
+              transitionProperty: "background-color, border-color, transform",
+              transitionDuration: "120ms",
             }
-          : { "padding-top": 8, "padding-bottom": 8 }),
+          : { paddingTop: 8, paddingBottom: 8 }),
       }}
       aria-label={item().headline}
       aria-current={selected() ? "true" : undefined}
       data-testid={props.testId ?? "news-item"}
     >
-      <Box className="shrink-0" style={{ "margin-top": 4, display: "flex", "align-items": "center", "justify-content": "center" }}>
+      <Box className="shrink-0" style={{ marginTop: 4, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <Show when={isUnread()}>
-          <Box style={{ width: 8, height: 8, "border-radius": "50%", "background-color": palette.PRIMARY }} />
+          <Box style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: palette.PRIMARY }} />
         </Show>
       </Box>
-      <Box style={{ "min-width": 0 }}>
+      <Box style={{ minWidth: 0 }}>
         <Text
           size="sm"
           fw={isUnread() ? 600 : 400}
@@ -239,18 +239,18 @@ export function NewsItemCard(props: {
             "-webkit-box-orient": isDesk() ? "vertical" : undefined,
             "-webkit-line-clamp": isDesk() ? 2 : undefined,
             overflow: isDesk() ? "hidden" : undefined,
-            "line-height": isDesk() ? 1.35 : undefined,
-            "padding-right": isDesk() ? 4 : undefined,
-            "white-space": isDesk() ? "nowrap" : undefined,
+            lineHeight: isDesk() ? 1.35 : undefined,
+            paddingRight: isDesk() ? 4 : undefined,
+            whiteSpace: isDesk() ? "nowrap" : undefined,
           }}
         >
           {item().headline}
         </Text>
-        <Box className="flex items-center justify-between gap-4 min-h-[18px]" style={{ display: "flex", "align-items": "center", "justify-content": "space-between", gap: 8, "min-height": 18 }}>
-          <Box component="span" style={{ "min-width": 0 }}>
+        <Box className="flex items-center justify-between gap-4 min-h-[18px]" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minHeight: 18 }}>
+          <Box component="span" style={{ minWidth: 0 }}>
             {props.meta}
           </Box>
-          <Text size="xs" c="dimmed" className="news-item-meta" style={{ flex: "0 0 auto", fontVariantNumeric: "tabular-nums", "margin-top": isDesk() ? 4 : 0 }}>
+          <Text size="xs" c="dimmed" className="news-item-meta" style={{ flex: "0 0 auto", fontVariantNumeric: "tabular-nums", marginTop: isDesk() ? 4 : 0 }}>
             {formatTimeAgo(item().publishedAt)}
           </Text>
         </Box>
@@ -273,8 +273,8 @@ export function NewsSourceGroup(props: {
   const isDesk = () => (props.variant ?? "default") === "desk";
   return (
     <Box component={isDesk() ? "section" : "div"} className="news-source-group list-none">
-      <Box role="button" tabIndex={0} onClick={props.onToggle} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); props.onToggle(); } }} aria-expanded={props.isExpanded} data-testid={`news-source-group-${props.source}`} className="flex items-center gap-2 cursor-pointer" style={isDesk() ? { position: "sticky", top: 0, "z-index": 1, "min-height": 36, "padding-left": 12, "padding-right": 12, "border-radius": 0, "border-top": `1px solid ${palette.BORDER}`, "background-color": palette.BG, "transition-property": "background-color", "transition-duration": "120ms" } : { "border-radius": 8 }}>
-        <Text size="sm" fw={700} style={{ "text-transform": "uppercase" }}>
+      <Box role="button" tabIndex={0} onClick={props.onToggle} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); props.onToggle(); } }} aria-expanded={props.isExpanded} data-testid={`news-source-group-${props.source}`} className="flex items-center gap-2 cursor-pointer" style={isDesk() ? { position: "sticky", top: 0, zIndex: 1, minHeight: 36, paddingLeft: 12, paddingRight: 12, borderRadius: 0, borderTop: `1px solid ${palette.BORDER}`, backgroundColor: palette.BG, transitionProperty: "background-color", transitionDuration: "120ms" } : { borderRadius: 8 }}>
+        <Text size="sm" fw={700} style={{ textTransform: "uppercase" }}>
           {props.source}
         </Text>
         <Text size="xs" c="dimmed">
@@ -285,7 +285,7 @@ export function NewsSourceGroup(props: {
       </Box>
 
       <Collapse in={props.isExpanded}>
-        <Box style={isDesk() ? { "padding-top": 0, "padding-bottom": 0 } : { "padding-top": 4, "padding-bottom": 4 }}>
+        <Box style={isDesk() ? { paddingTop: 0, paddingBottom: 0 } : { paddingTop: 4, paddingBottom: 4 }}>
           <For each={props.items}>{(item) => {
             const isUnread = !props.readIds.has(item.id);
             return props.renderItem ? (
@@ -432,7 +432,7 @@ export function NewsListContent(props: {
         <Box style={{ padding: 16 }} data-testid="news-loading">
           <Stack className="gap-2">
             <For each={[0, 1, 2]}>{(row) => (
-              <Skeleton variant="rounded" h={64} />
+              <Skeleton h={64} radius="sm" visible />
             )}</For>
             <Text size="sm" c="dimmed" className="flex items-center gap-4">
               <Loader size="sm" />
@@ -447,9 +447,9 @@ export function NewsListContent(props: {
         </Alert>
       </Match>
       <Match when={props.newsItems.length === 0}>
-        <Box style={{ "padding-left": 16, "padding-right": 16, "padding-top": 32, "padding-bottom": 32, "text-align": "center" }} data-testid="news-empty">
+        <Box style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 32, paddingBottom: 32, textAlign: "center" }} data-testid="news-empty">
           <IconNews size={32} aria-hidden="true" />
-          <Text size="sm" fw={600} style={{ "margin-top": 8 }}>
+          <Text size="sm" fw={600} style={{ marginTop: 8 }}>
             No news available
           </Text>
           <Text size="sm" c="dimmed">
@@ -468,21 +468,21 @@ export function NewsListHeader(props: {
 }) {
   return (
     <Box id="news-panel-header" data-testid="news-panel-header">
-      <ToolbarRow style={{ "padding-left": 8, gap: 8 }}>
-        <Text size="sm" fw={700} style={{ "text-transform": "uppercase" }}>
+      <ToolbarRow style={{ paddingLeft: 8, gap: 8 }}>
+        <Text size="sm" fw={700} style={{ textTransform: "uppercase" }}>
           News
         </Text>
         <Show when={props.wsConnected}>
           <Tooltip label="Live updates connected">
-            <Box style={{ color: palette.POSITIVE, "font-size": 8 }}>
-              <Box style={{ width: 8, height: 8, "border-radius": "50%", "background-color": palette.POSITIVE }} />
+            <Box style={{ color: palette.POSITIVE, fontSize: 8 }}>
+              <Box style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: palette.POSITIVE }} />
             </Box>
           </Tooltip>
         </Show>
         <Show when={props.isRefreshing}>
           <Loader size="sm" />
         </Show>
-        <Box style={{ "flex-grow": 1 }} />
+        <Box style={{ flexGrow: 1 }} />
         <ActionIcon
           size="small"
           aria-label="Close news panel"

@@ -71,7 +71,7 @@ const ReplayChartHost = forwardRef<ReplayChartHandle, ReplayChartHostProps>(func
       width: boxRef.current.clientWidth,
       height,
       timeScale: {
-        "border-color": palette.NT_GRID, timeVisible: true, secondsVisible: true, rightOffset: 4,
+        borderColor: palette.NT_GRID, timeVisible: true, secondsVisible: true, rightOffset: 4,
         tickMarkFormatter: (t: Time) => {
           if (typeof t !== "number") return "";
           const d = new Date(t * 1000);
@@ -81,7 +81,7 @@ const ReplayChartHost = forwardRef<ReplayChartHandle, ReplayChartHostProps>(func
           return hm;
         },
       },
-      rightPriceScale: { "border-color": palette.NT_GRID },
+      rightPriceScale: { borderColor: palette.NT_GRID },
       localization: {
         timeFormatter: (t: Time) => typeof t === "number" ? fmtClock(t) : "",
         locale: "en-IN",

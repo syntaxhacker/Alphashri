@@ -20,7 +20,7 @@ function toneToBadgeTone(tone: DisplayTone): BadgeTone {
 }
 
 /** Small semantic chip for a pattern detection status. */
-export function StatusBadge({ status, display, "data-testid": testId }: StatusBadgeProps) {
+export function StatusBadge({ status, display, dataTestid: testId }: StatusBadgeProps) {
   const key = String(status ?? "").toLowerCase();
   const label = display ? titleCase(display.label) : statusLabel(status);
   const color = display ? toneToBadgeTone(display.tone) : statusBadgeTone(status);

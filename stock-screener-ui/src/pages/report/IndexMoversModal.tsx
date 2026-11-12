@@ -55,10 +55,10 @@ function MoversTable({
           size="xs"
           fw={600}
           style={{
-            "font-size": REPORT_FONT.xs,
-            "font-variant-numeric": "tabular-nums",
+            fontSize: REPORT_FONT.xs,
+            fontVariantNumeric: "tabular-nums",
             color: palette.TEXT_MUTED,
-            "font-family": palette.MONO,
+            fontFamily: palette.MONO,
           }}
         >
           {info.getValue()}
@@ -76,9 +76,9 @@ function MoversTable({
           size="xs"
           fw={700}
           style={{
-            "font-size": REPORT_FONT.sm,
-            "font-variant-numeric": "tabular-nums",
-            "font-family": palette.MONO,
+            fontSize: REPORT_FONT.sm,
+            fontVariantNumeric: "tabular-nums",
+            fontFamily: palette.MONO,
           }}
         >
           {info.getValue()}
@@ -96,9 +96,9 @@ function MoversTable({
           size="xs"
           fw={600}
           style={{
-            "font-size": REPORT_FONT.sm,
-            "font-variant-numeric": "tabular-nums",
-            "font-family": palette.MONO,
+            fontSize: REPORT_FONT.sm,
+            fontVariantNumeric: "tabular-nums",
+            fontFamily: palette.MONO,
           }}
         >
           {formatNumberIN(info.getValue() as number)}
@@ -119,9 +119,9 @@ function MoversTable({
             size="xs"
             fw={700}
             style={{
-              "font-size": REPORT_FONT.sm,
-              "font-variant-numeric": "tabular-nums",
-              "font-family": palette.MONO,
+              fontSize: REPORT_FONT.sm,
+              fontVariantNumeric: "tabular-nums",
+              fontFamily: palette.MONO,
               color: isGainer ? GAINER_COLOR : LOSER_COLOR,
             }}
           >
@@ -144,9 +144,9 @@ function MoversTable({
               size="xs"
               c="dimmed"
               style={{
-                "font-size": REPORT_FONT.sm,
-                "font-variant-numeric": "tabular-nums",
-                "font-family": palette.MONO,
+                fontSize: REPORT_FONT.sm,
+                fontVariantNumeric: "tabular-nums",
+                fontFamily: palette.MONO,
               }}
             >
               —
@@ -160,9 +160,9 @@ function MoversTable({
             size="xs"
             fw={600}
             style={{
-              "font-size": REPORT_FONT.sm,
-              "font-variant-numeric": "tabular-nums",
-              "font-family": palette.MONO,
+              fontSize: REPORT_FONT.sm,
+              fontVariantNumeric: "tabular-nums",
+              fontFamily: palette.MONO,
               color: isGainer ? GAINER_COLOR : LOSER_COLOR,
             }}
           >
@@ -182,9 +182,9 @@ function MoversTable({
           size="xs"
           c="dimmed"
           style={{
-            "font-size": REPORT_FONT.xs,
-            "font-variant-numeric": "tabular-nums",
-            "font-family": palette.MONO,
+            fontSize: REPORT_FONT.xs,
+            fontVariantNumeric: "tabular-nums",
+            fontFamily: palette.MONO,
           }}
         >
           {formatNumberIN(info.getValue() as number)}
@@ -216,8 +216,8 @@ function MoversTable({
       fillContainer
       minTableWidth={560}
       getRowAttributes={(row) => ({
-        "data-mover-rank": row.rank,
-        "data-mover-symbol": row.symbol,
+        dataMoverRank: row.rank,
+        dataMoverSymbol: row.symbol,
       })}
     />
   );
@@ -322,7 +322,7 @@ export const IndexMoversModal = memo(function IndexMoversModal({
           className="flex items-center justify-center min-h-[120px] text-fin-text-muted"
         >
           <Loader size="xs" color={palette.PRIMARY} />
-          <Text span size="xs" c="dimmed" style={{ "margin-left": 8 }}>
+          <Text span size="xs" c="dimmed" style={{ marginLeft: 8 }}>
             loading movers…
           </Text>
         </div>

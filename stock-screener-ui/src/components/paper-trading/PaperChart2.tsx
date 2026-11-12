@@ -1,6 +1,7 @@
 import { createMemo, createEffect, createSignal, For, Show, onCleanup, onMount } from "solid-js";
 import { useStoreSnapshot } from "./storeSnapshot";
-import { Button, Text, Select, useColorScheme, Badge, LoadingOverlay, ActionIcon, Popover, PopoverTarget, PopoverDropdown, Chip, Divider, DatePicker } from "@/ui";
+import { Button, Text, Select, useColorScheme, Badge, LoadingOverlay, ActionIcon, Chip, Divider, DatePicker } from "@/ui";
+import { Popover, PopoverTarget, PopoverDropdown } from "./overlays";
 import { IconDots } from "@/components/common/Icons";
 import dayjs from "dayjs";
 import {
@@ -136,7 +137,7 @@ function ChartLegend(props: { orbLabel?: string; hasWeek52: boolean; hasTrades: 
       <Flex className="paper-chart-legend py-2 px-2" gap="xs" justify="center" align="center" wrap="wrap" data-testid="chart-legend" id="chart-legend">
         <For each={items()}>{(item) => (
           <Flex className="paper-chart-legend-item gap-2" id={`paper-chart-legend-${item.label.toLowerCase().replace(/\s+/g, "-")}`} align="center">
-            <div class="paper-chart-legend-swatch w-2 h-2 shrink-0" style={{ "border-radius": item.shape === "circle" ? "50%" : "2px", "background-color": item.color }} />
+            <div class="paper-chart-legend-swatch w-2 h-2 shrink-0" style={{ borderRadius: item.shape === "circle" ? "50%" : "2px", backgroundColor: item.color }} />
             <Text className="paper-chart-legend-label" size="xs" c="dimmed">{item.label}</Text>
           </Flex>
         )}</For>
@@ -273,7 +274,7 @@ function ChartHeader(props: { state: ReturnType<typeof getPaperTradingState> }) 
         value={props.state.chartTimeframe}
         onChange={handleTimeframeChange}
         data={fromDate() ? TIMEFRAME_OPTIONS : TIMEFRAME_OPTIONS.filter((tf) => tf.value !== "12hour" && tf.value !== "1day")}
-        style={{ width: "84px", "min-width": "84px", flex: "0 0 auto" }}
+        style={{ width: "84px", minWidth: "84px", flex: "0 0 auto" }}
       />
 
       <DatePicker
@@ -324,7 +325,7 @@ function ChartHeader(props: { state: ReturnType<typeof getPaperTradingState> }) 
         <PopoverDropdown p="xs">
           <Stack className="gap-2">
             <Group gap="xs">
-              <div class="w-[3px] h-[14px] shrink-0" style={{ "border-radius": 2, "background-color": PRIMARY }} />
+              <div class="w-[3px] h-[14px] shrink-0" style={{ borderRadius: 2, backgroundColor: PRIMARY }} />
               <Text size="xs" fw={600}>Range</Text>
             </Group>
             <Group className="gap-2">
@@ -343,7 +344,7 @@ function ChartHeader(props: { state: ReturnType<typeof getPaperTradingState> }) 
             <Divider className="my-2" />
 
             <Group gap="xs">
-              <div class="w-[3px] h-[14px] shrink-0" style={{ "border-radius": 2, "background-color": PRIMARY }} />
+              <div class="w-[3px] h-[14px] shrink-0" style={{ borderRadius: 2, backgroundColor: PRIMARY }} />
               <Text size="xs" fw={600}>Overlays</Text>
             </Group>
             <Group className="gap-2">
@@ -358,7 +359,7 @@ function ChartHeader(props: { state: ReturnType<typeof getPaperTradingState> }) 
                     onChange={(checked) => setter(checked)}
                     style={
                       props.state[key]
-                        ? { "background-color": alpha(color, 0.18), color, border: `1px solid ${color}` }
+                        ? { backgroundColor: alpha(color, 0.18), color, border: `1px solid ${color}` }
                         : { color: TEXT_MUTED, border: `1px solid ${BORDER}` }
                     }
                   >

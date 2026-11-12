@@ -23,12 +23,12 @@ export function CollapsiblePanel({ id, title, badge, open, onToggle, children }:
       className="flex flex-col min-h-0 min-w-0 border-t border-fin-border"
       style={{
         display: "flex",
-        "flex-direction": "column",
+        flexDirection: "column",
         flex: open ? "1 1 0" : "0 0 auto",
-        "min-height": 0,
-        "min-width": 0,
+        minHeight: 0,
+        minWidth: 0,
         borderTop: "1px solid #30363D",
-        "border-radius": 8,
+        borderRadius: 8,
       }}
     >
       <button
@@ -40,10 +40,10 @@ export function CollapsiblePanel({ id, title, badge, open, onToggle, children }:
         style={{
           width: "100%",
           height: 30,
-          "padding-left": 8,
-          "padding-right": 8,
-          "justify-content": "flex-start",
-          "background-color": open ? "#121212" : "#000000",
+          paddingLeft: 8,
+          paddingRight: 8,
+          justifyContent: "flex-start",
+          backgroundColor: open ? "#121212" : "#000000",
         }}
       >
         <Stack direction="row" align="center" gap={0.75} className="w-full">
@@ -55,14 +55,14 @@ export function CollapsiblePanel({ id, title, badge, open, onToggle, children }:
             fw={700}
             c="text-primary"
             style={{
-              "font-size": 10,
-              "font-weight": 700,
-              "letter-spacing": 0.6,
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: 0.6,
               flex: 1,
-              "text-align": "left",
-              "white-space": "nowrap",
+              textAlign: "left",
+              whiteSpace: "nowrap",
               overflow: "hidden",
-              "text-overflow": "ellipsis",
+              textOverflow: "ellipsis",
             }}
           >
             {title}
@@ -70,7 +70,7 @@ export function CollapsiblePanel({ id, title, badge, open, onToggle, children }:
           {badge != null && (
             <Badge
               size="xs"
-              style={{ height: 16, "font-size": 10, "font-weight": 700, "background-color": "#121212" }}
+              style={{ height: 16, fontSize: 10, fontWeight: 700, backgroundColor: "#121212" }}
               variant="light"
             >
               {badge}

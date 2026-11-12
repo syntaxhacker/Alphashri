@@ -38,10 +38,10 @@ export function Code(props: UICodeProps & Record<string, unknown>) {
   const colorValue = resolveColorValue(known.color as string | undefined);
 
   const baseStyle: Record<string, string | number | undefined> = {
-    "font-size": "0.875em",
+    fontSize: "0.875em",
     padding: "2px 6px",
-    "border-radius": "1px",
-    ...(known.color != null ? { color: "white", ...(colorValue ? { "background-color": colorValue } : {}) } : {}),
+    borderRadius: "1px",
+    ...(known.color != null ? { color: "white", ...(colorValue ? { backgroundColor: colorValue } : {}) } : {}),
   };
 
   const rootTag = known.block ? "pre" : "code";
@@ -54,11 +54,11 @@ export function Code(props: UICodeProps & Record<string, unknown>) {
         style={{
           ...baseStyle,
           display: "block",
-          "overflow-x": "auto",
+          overflowX: "auto",
           padding: "12px",
           margin: 0,
-          "white-space": "pre-wrap",
-          "word-break": "break-word",
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
           ...(known.style as Record<string, unknown> | undefined),
         }}
         id={known.id}

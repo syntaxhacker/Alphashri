@@ -9,7 +9,7 @@ function pct(value: number): string {
 }
 
 const GRID_COLS = "grid grid-cols-[minmax(0,1fr)_44px_44px_52px] items-center gap-0.5 min-h-[18px] px-0.5 border-b border-fin-border";
-const NUM_CELL = { "font-family": MONO, "font-variant-numeric": "tabular-nums" } as const;
+const NUM_CELL = { fontFamily: MONO, fontVariantNumeric: "tabular-nums" } as const;
 
 export function IntervalMoversTable(props: { movers: InternalStockMover[] }) {
   const movers = () => props.movers ?? [];
@@ -32,7 +32,7 @@ export function IntervalMoversTable(props: { movers: InternalStockMover[] }) {
               <Text
                 c="dimmed"
                 className="text-[9px] font-bold tracking-[0.3px]"
-                style={{ "text-align": index() === 0 ? "left" : "right" }}
+                style={{ textAlign: index() === 0 ? "left" : "right" }}
               >
                 {label}
               </Text>

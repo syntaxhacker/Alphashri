@@ -130,7 +130,7 @@ export function Flex(props: Record<string, unknown> & { children?: JSX.Element }
   const [known, rest] = splitProps(props as never, FLEX_KNOWN) as [Record<string, unknown>, Record<string, unknown>];
   const styleObj: Record<string, string | number | undefined> = {
     display: "flex",
-    "flex-direction": (known.flexDirection as string | undefined) ?? (known.direction as string | undefined) ?? "row",
+    flexDirection: (known.flexDirection as string | undefined) ?? (known.direction as string | undefined) ?? "row",
   };
   if (known.wrap != null) styleObj["flex-wrap"] = known.wrap as string;
   else styleObj["flex-wrap"] = "wrap";
@@ -166,7 +166,7 @@ export function Stack(props: Record<string, unknown> & { children?: JSX.Element 
   const [known, rest] = splitProps(props as never, STACK_KNOWN) as [Record<string, unknown>, Record<string, unknown>];
   const styleObj: Record<string, string | number | undefined> = {
     display: "flex",
-    "flex-direction": (known.flexDirection as string | undefined) ?? (known.direction as string | undefined) ?? "column",
+    flexDirection: (known.flexDirection as string | undefined) ?? (known.direction as string | undefined) ?? "column",
   };
   if (known.wrap != null) styleObj["flex-wrap"] = known.wrap as string;
   if (known.justifyContent != null) styleObj["justify-content"] = known.justifyContent as string;
@@ -210,8 +210,8 @@ export function Group(props: Record<string, unknown> & { children?: JSX.Element 
 
   const styleObj: Record<string, string | number | undefined> = {
     display: "flex",
-    "flex-direction": (known.flexDirection as string | undefined) ?? (known.direction as string | undefined) ?? "row",
-    "flex-wrap": (known.wrap as string | undefined) ?? "wrap",
+    flexDirection: (known.flexDirection as string | undefined) ?? (known.direction as string | undefined) ?? "row",
+    flexWrap: (known.wrap as string | undefined) ?? "wrap",
   };
   if (known.justifyContent != null) styleObj["justify-content"] = known.justifyContent as string;
   else if (known.justify != null) styleObj["justify-content"] = known.justify as string;

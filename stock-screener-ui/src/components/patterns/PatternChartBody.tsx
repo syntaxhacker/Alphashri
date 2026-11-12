@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import { createEffect, createMemo, createSignal, Show } from "solid-js";
+import type { JSX } from "solid-js";
 import { Alert, Box, SegmentedControl, Text, ToolbarRow } from "@/ui";
 import { formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
 import type {
@@ -45,7 +45,7 @@ export interface PatternChartBodyProps {
   /** As-of replay cutoff (ISO local datetime, null = live). */
   asOf?: string | null;
   /** Right-hand panel content when no pattern is selected (page empty state). */
-  emptyState?: ReactNode;
+  emptyState?: JSX.Element;
   /**
    * Fill the flex parent (page layout) instead of sizing to the modal viewport.
    * The fullscreen modal keeps its `calc(100vh - 72px)` body height.
@@ -63,12 +63,7 @@ export interface PatternChartBodyProps {
  * audit list. Intentionally leaves vertical room free so future panels (levels,
  * trade plan, checklist) can be added without touching the chart layout.
  */
-function FullscreenPanel({
-  hit,
-  hits,
-  onSelectHit,
-  candles = [],
-}: {
+function FullscreenPanel(props: {
   hit: PatternHitDTO;
   hits?: PatternHitDTO[];
   onSelectHit?: (hit: PatternHitDTO) => void;
@@ -76,63 +71,64 @@ function FullscreenPanel({
 }) {
   // Live-detected hits carry no enrichment, so fall back to the chart's own
   // last two candles for Last close / Day.
-  const lastCandle = candles.length ? candles[candles.length - 1] : null;
-  const prevCandle = candles.length > 1 ? candles[candles.length - 2] : null;
-  const dayChange =
-    hit.day_change_pct ??
-    (lastCandle && prevCandle && prevCandle.c
-      ? ((lastCandle.c - prevCandle.c) / prevCandle.c) * 100
+  const candles = () => props.candles ?? [];
+  const lastCandle = () => (candles().length ? candles()[candles().length - 1] : null);
+  const prevCandle = () => (candles().length > 1 ? candles()[candles().length - 2] : null);
+  const dayChange = () =>
+    props.hit.day_change_pct ??
+    (lastCandle() && prevCandle() && prevCandle()!.c
+      ? ((lastCandle()!.c - prevCandle()!.c) / prevCandle()!.c) * 100
       : null);
-  const lastClose = hit.last_close ?? lastCandle?.c ?? null;
-  const activeKey = fullscreenHitKey(hit);
+  const lastClose = () => props.hit.last_close ?? lastCandle()?.c ?? null;
+  const activeKey = () => fullscreenHitKey(props.hit);
 
   return (
     <Box
       data-testid="patterns-fullscreen-panel"
       className="flex h-full min-w-0 flex-col gap-3 overflow-y-auto"
     >
-      {hits && onSelectHit ? (
+      <Show when={props.hits && props.onSelectHit}>
         <Box className="flex flex-col gap-2">
-          <FullscreenPatternList hits={hits} activeKey={activeKey} onSelect={onSelectHit} />
+          <FullscreenPatternList hits={props.hits!} activeKey={activeKey()} onSelect={props.onSelectHit!} />
           <Box className="border-t border-fin-border" />
         </Box>
-      ) : null}
+      </Show>
       <Box className="flex flex-col gap-2">
         <ToolbarRow gap={4} wrap>
-          <StatusBadge status={hit.status} display={displayStatusForHit(hit)} />
-          <QualityBadge quality={hit.quality} />
+          <StatusBadge status={props.hit.status} display={displayStatusForHit(props.hit)} />
+          <QualityBadge quality={props.hit.quality} />
         </ToolbarRow>
         <Text size="xs" c="dimmed" truncate>
-          {hit.symbol} · {hit.timeframe} · {hit.bars_ago} bar{hit.bars_ago === 1 ? "" : "s"} ago
+          {props.hit.symbol} · {props.hit.timeframe} · {props.hit.bars_ago} bar{props.hit.bars_ago === 1 ? "" : "s"} ago
         </Text>
         <ToolbarRow justify="space-between" gap={4}>
           <Text size="xs" c="dimmed">
             Last close
           </Text>
           <Text size="sm" fw={600}>
-            {formatPrice(lastClose)}
+            {formatPrice(lastClose())}
           </Text>
         </ToolbarRow>
         <ToolbarRow justify="space-between" gap={4}>
           <Text size="xs" c="dimmed">
             Day
           </Text>
-          <Text size="xs" c={getPnLTextColor(dayChange ?? 0)}>
-            {dayChange != null ? formatPercentage(dayChange, 2) : "—"}
+          <Text size="xs" c={getPnLTextColor(dayChange() ?? 0)}>
+            {dayChange() != null ? formatPercentage(dayChange()!, 2) : "—"}
           </Text>
         </ToolbarRow>
       </Box>
 
-      {hit.notes ? (
+      <Show when={props.hit.notes}>
         <Box className="border-t border-fin-border pt-2">
-          <Text size="xs" c="dimmed" style={{ "overflow-wrap": "anywhere" }}>
-            {hit.notes}
+          <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
+            {props.hit.notes}
           </Text>
         </Box>
-      ) : null}
+      </Show>
 
-      <KeyPointLegend hit={hit} />
-      <PivotList pivots={hit.pivots} />
+      <KeyPointLegend hit={props.hit} />
+      <PivotList pivots={props.hit.pivots} />
     </Box>
   );
 }
@@ -143,14 +139,7 @@ function FullscreenPanel({
  * `buildPatternTVData(...).lines` the chart draws, so swatch colours always
  * match the rendered lines.
  */
-function FullscreenTV({
-  hit,
-  candles,
-  overlays,
-  trendLines,
-  trendlinesView = "both",
-  historyHits,
-}: {
+function FullscreenTV(props: {
   hit: PatternHitDTO | null;
   candles: ChartCandle[];
   overlays?: PatternOverlay[];
@@ -158,69 +147,79 @@ function FullscreenTV({
   trendlinesView?: TrendlinesView;
   historyHits?: PatternHitDTO[];
 }) {
-  const data = useMemo(
-    () => buildPatternTVData({ candles, hit, overlays, trendLines, trendlinesView, historyHits }),
-    [candles, hit, overlays, trendLines, trendlinesView, historyHits],
+  const trendlinesView = () => props.trendlinesView ?? "both";
+  const data = createMemo(() =>
+    buildPatternTVData({
+      candles: props.candles,
+      hit: props.hit,
+      overlays: props.overlays,
+      trendLines: props.trendLines,
+      trendlinesView: trendlinesView(),
+      historyHits: props.historyHits,
+    }),
   );
-  const levelEntries = useMemo(
-    () => data.levels.map((level) => ({ name: level.title, color: level.color })),
-    [data.levels],
+  const levelEntries = createMemo(() =>
+    data().levels.map((level) => ({ name: level.title, color: level.color })),
   );
-  const markerEntries = useMemo(() => {
-    const hasPivots = data.markers.some((marker) => marker.group !== "keypoints");
-    const hasKeys = data.markers.some((marker) => marker.group === "keypoints");
+  const markerEntries = createMemo(() => {
+    const hasPivots = data().markers.some((marker) => marker.group !== "keypoints");
+    const hasKeys = data().markers.some((marker) => marker.group === "keypoints");
     return [
       ...(hasPivots ? [{ name: PIVOT_LEGEND_NAME, color: TEXT_MUTED }] : []),
       ...(hasKeys ? [{ name: KEY_POINTS_LEGEND_NAME, color: WARNING }] : []),
     ];
-  }, [data.markers]);
+  });
 
   // Per-series show/hide via the legend. Reset whenever the inspected pattern
   // (or symbol) changes so toggles don't leak between charts.
-  const [hidden, setHidden] = useState<ReadonlySet<string>>(
-    () => new Set<string>([PIVOT_LEGEND_NAME]),
+  const [hidden, setHidden] = createSignal<ReadonlySet<string>>(
+    new Set<string>([PIVOT_LEGEND_NAME]),
   );
-  useEffect(() => {
+  createEffect(() => {
+    // Track the inspected pattern identity so toggles reset per chart.
+    void props.hit?.symbol;
+    void props.hit?.pattern_id;
+    void props.hit?.start_date;
     setHidden(new Set<string>([PIVOT_LEGEND_NAME]));
-  }, [hit?.symbol, hit?.pattern_id, hit?.start_date]);
-  const toggle = useCallback((name: string) => {
+  });
+  const toggle = (name: string) => {
     setHidden((prev) => {
       const next = new Set(prev);
       if (next.has(name)) next.delete(name);
       else next.add(name);
       return next;
     });
-  }, []);
+  };
 
   return (
     <Box
       className="relative flex h-[60vh] min-h-[360px] w-full flex-1 flex-col overflow-hidden rounded-fin border border-fin-border bg-fin-bg lg:h-full"
     >
       <PatternChartLegend
-        lines={data.lines}
-        levels={levelEntries}
-        markers={markerEntries}
-        hidden={hidden}
+        lines={data().lines}
+        levels={levelEntries()}
+        markers={markerEntries()}
+        hidden={hidden()}
         onToggle={toggle}
       />
       <Box className="flex min-h-0 flex-1">
         <PatternTradingViewChart
-          hit={hit}
-          candles={candles}
-          overlays={overlays}
-          trendLines={trendLines}
-          trendlinesView={trendlinesView}
-          historyHits={historyHits}
-          hiddenNames={hidden}
+          hit={props.hit}
+          candles={props.candles}
+          overlays={props.overlays}
+          trendLines={props.trendLines}
+          trendlinesView={trendlinesView()}
+          historyHits={props.historyHits}
+          hiddenNames={hidden()}
         />
       </Box>
-      {candles.length === 0 ? (
+      <Show when={props.candles.length === 0}>
         <Box className="absolute inset-0 flex items-center justify-center">
           <Text size="sm" c="dimmed">
             No chart data
           </Text>
         </Box>
-      ) : null}
+      </Show>
     </Box>
   );
 }
@@ -231,53 +230,43 @@ function FullscreenTV({
  * meta/pattern panel. The TV chart is mounted by the caller (it needs a live
  * ref and is cheap to keep mounted inside this body).
  */
-export function PatternChartBody({
-  hit,
-  candles,
-  hits,
-  onSelectHit,
-  overlays,
-  trendLines,
-  trendlinesView = "both",
-  asOf = null,
-  emptyState,
-  ["fill"] = false,
-  docked = false,
-}: PatternChartBodyProps) {
-  const asOfLabel = typeof asOf === "string" && asOf !== "" ? asOf.replace("T", " ") : null;
-  const [historyCount, setHistoryCount] = useState(3);
-  const historyHits = useMemo(
-    () => selectLastN(hits ?? [], historyCount, true),
-    [hits, historyCount],
-  );
+export function PatternChartBody(props: PatternChartBodyProps) {
+  const asOfLabel = () => {
+    const asOf = props.asOf;
+    return typeof asOf === "string" && asOf !== "" ? asOf.replace("T", " ") : null;
+  };
+  const [historyCount, setHistoryCount] = createSignal(3);
+  const historyHits = createMemo(() => selectLastN(props.hits ?? [], historyCount(), true));
+  const docked = () => props.docked ?? false;
+  const fill = () => props.fill ?? false;
 
   return (
     <Box
       data-testid="patterns-chart-body"
-      className={`flex min-h-0 min-w-0 flex-col ${fill ? "flex-1" : ""}`}
+      className={`flex min-h-0 min-w-0 flex-col ${fill() ? "flex-1" : ""}`}
     >
-      {asOfLabel ? (
+      <Show when={asOfLabel()}>
         <Box className="px-4 pt-4">
           <Alert color="info" data-testid="patterns-fullscreen-asof-banner">
-            {`Viewing as of ${asOfLabel}`}
+            {`Viewing as of ${asOfLabel()}`}
           </Alert>
         </Box>
-      ) : null}
+      </Show>
       <Box
         className={
-          docked
+          docked()
             ? "flex min-h-0 flex-col gap-2 p-2"
-            : fill
+            : fill()
               ? "flex min-h-0 flex-1 flex-col gap-4 p-4 lg:flex-row"
               : "flex min-h-0 flex-col gap-4 p-4 h-auto lg:h-[calc(100vh-72px)] lg:flex-row"
         }
       >
         <Box
           className={`flex min-h-0 min-w-0 flex-col ${
-            docked ? "flex-[1_1_auto]" : "flex-[1_1_auto] lg:flex-[0_0_80%]"
+            docked() ? "flex-[1_1_auto]" : "flex-[1_1_auto] lg:flex-[0_0_80%]"
           }`}
         >
-          <ToolbarRow justify="flex-start" gap={6} style={{ "padding-bottom": 4 }}>
+          <ToolbarRow justify="flex-start" gap={6} style={{ paddingBottom: 4 }}>
             <Text size="xs" c="dimmed">History</Text>
             <SegmentedControl
               size="xs"
@@ -286,34 +275,32 @@ export function PatternChartBody({
                 { value: "3", label: "3" },
                 { value: "5", label: "5" },
               ]}
-              value={String(historyCount)}
+              value={String(historyCount())}
               onChange={(value) => setHistoryCount(Number(value))}
               data-testid="patterns-history-count"
             />
           </ToolbarRow>
           <FullscreenTV
-            hit={hit}
-            candles={candles}
-            overlays={overlays}
-            trendLines={trendLines}
-            trendlinesView={trendlinesView}
-            historyHits={historyHits}
+            hit={props.hit}
+            candles={props.candles}
+            overlays={props.overlays}
+            trendLines={props.trendLines}
+            trendlinesView={props.trendlinesView}
+            historyHits={historyHits()}
           />
         </Box>
 
-        {hit || emptyState ? (
+        <Show when={props.hit || props.emptyState}>
           <Box
             className={`min-h-0 min-w-0 ${
-              docked ? "flex-[0_1_34%]" : "flex-[1_1_auto] lg:flex-[1_1_0]"
+              docked() ? "flex-[0_1_34%]" : "flex-[1_1_auto] lg:flex-[1_1_0]"
             }`}
           >
-            {hit ? (
-              <FullscreenPanel hit={hit} hits={hits} onSelectHit={onSelectHit} candles={candles} />
-            ) : (
-              emptyState
-            )}
+            <Show when={props.hit} fallback={props.emptyState}>
+              {(h) => <FullscreenPanel hit={h()} hits={props.hits} onSelectHit={props.onSelectHit} candles={props.candles} />}
+            </Show>
           </Box>
-        ) : null}
+        </Show>
       </Box>
     </Box>
   );

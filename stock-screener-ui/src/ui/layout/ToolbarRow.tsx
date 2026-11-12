@@ -37,7 +37,7 @@ export function ToolbarRow(props: ToolbarRowProps) {
         known.className,
       )}
       style={{
-        "justify-content": known.justify ?? "flex-start",
+        justifyContent: known.justify ?? "flex-start",
         gap: `${known.gap ?? 8}px`,
         ...(known.style as Record<string, unknown> | undefined),
       }}

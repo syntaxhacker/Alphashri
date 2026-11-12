@@ -124,8 +124,8 @@ function PriceDisplay(props: { price: number; prevPrice: number }) {
   return (
     <span
       classList={{
-        "price-flash-up": flash() === "up",
-        "price-flash-down": flash() === "down",
+        priceFlashUp: flash() === "up",
+        priceFlashDown: flash() === "down",
       }}
       style={{ display: "inline-block", padding: "0 2px" }}
       onAnimationEnd={() => setFlash(null)}
@@ -490,7 +490,7 @@ export function PositionsTableBody(props: {
       columns={columns()}
       getRowCanExpand={() => true}
       renderSubComponent={(pos) => (
-        <Box className="paper-position-expanded p-1" id={`paper-position-expanded-${pos.order_id || pos.symbol}`} style={{ "background-color": BG, borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
+        <Box className="paper-position-expanded p-1" id={`paper-position-expanded-${pos.order_id || pos.symbol}`} style={{ backgroundColor: BG, borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
           <PositionDetail pos={pos} />
         </Box>
       )}

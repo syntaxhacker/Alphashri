@@ -1,4 +1,4 @@
-import { For, Show, Fragment, createMemo } from "solid-js";
+import { For, Show, createMemo } from "solid-js";
 import { Box, Text, Tooltip } from "@/ui";
 import { CREAM, TEXT, TEXT_MUTED } from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
@@ -150,7 +150,7 @@ export function RotationRrg(props: RotationRrgProps) {
                       top: `${top}%`,
                       width: `${w}%`,
                       height: `${h}%`,
-                      "background-color": withAlpha(color, 0.055),
+                      backgroundColor: withAlpha(color, 0.055),
                     }}
                   >
                     <Box
@@ -241,14 +241,14 @@ export function RotationRrg(props: RotationRrgProps) {
                 const anchor =
                   px > 80 ? "translateX(-100%)" : px < 20 ? "none" : "translateX(-50%)";
                 return (
-                  <Fragment>
+                  <>
                     <Box
                       className="absolute"
                       style={{
                         left: `${px}%`,
                         bottom: `${py}%`,
                         transform: "translate(-50%, 50%)",
-                        "z-index": selected ? 6 : 3,
+                        zIndex: selected ? 6 : 3,
                       }}
                     >
                       <Tooltip
@@ -288,8 +288,8 @@ export function RotationRrg(props: RotationRrgProps) {
                             border: selected
                               ? `1.5px solid ${CREAM}`
                               : `1px solid ${withAlpha(color, 0.9)}`,
-                            "background-color": withAlpha(color, selected ? 1 : 0.9),
-                            "box-shadow": selected
+                            backgroundColor: withAlpha(color, selected ? 1 : 0.9),
+                            boxShadow: selected
                               ? `0 0 0 3px ${withAlpha(color, 0.25)}`
                               : "none",
                           }}
@@ -305,21 +305,21 @@ export function RotationRrg(props: RotationRrgProps) {
                             ? { top: `calc(${100 - py}% + ${r + 5}px)` }
                             : { bottom: `calc(${py}% + ${r + 5}px)` }),
                           transform: anchor,
-                          "z-index": selected ? 5 : 2,
-                          "background-color": selected
+                          zIndex: selected ? 5 : 2,
+                          backgroundColor: selected
                             ? "background.paper"
                             : withAlpha("#000000", 0.38),
                         }}
                       >
                         <Text
                           className="text-[9.5px] leading-[1.2] whitespace-nowrap overflow-hidden text-ellipsis"
-                          style={{ "font-weight": selected ? 700 : 500, color: selected ? TEXT : TEXT_MUTED }}
+                          style={{ fontWeight: selected ? 700 : 500, color: selected ? TEXT : TEXT_MUTED }}
                         >
                           {shortName(row.name)}
                         </Text>
                       </Box>
                     </Show>
-                  </Fragment>
+                  </>
                 );
                 }}
               </For>
@@ -342,7 +342,7 @@ export function RotationRrg(props: RotationRrgProps) {
           <For each={["leading", "improving", "weakening", "lagging"] as RotationQuadrant[]}>
             {(key) => (
             <Box className="inline-flex items-center gap-[3.2px]">
-              <Box className="size-[5px] rounded-full shrink-0" style={{ "background-color": QUADRANT_COLORS[key] }} />
+              <Box className="size-[5px] rounded-full shrink-0" style={{ backgroundColor: QUADRANT_COLORS[key] }} />
               <Text className="text-[8.5px] font-bold tracking-[0.3px] text-fin-text-muted">
                 {QUADRANT_LABELS[key]}
               </Text>

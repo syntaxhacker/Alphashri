@@ -14,7 +14,7 @@ describe("buildGrid", () => {
     bgColor: CHART_BG,
     textColor: CHART_TEXT,
     mutedColor: CHART_MUTED,
-    "border-color": CHART_BORDER,
+    borderColor: CHART_BORDER,
     gridLineColor: CHART_SPLIT,
   };
 

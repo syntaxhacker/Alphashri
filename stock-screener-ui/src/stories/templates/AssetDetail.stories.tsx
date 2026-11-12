@@ -6,7 +6,7 @@ import { MOCK_PAPER_POSITIONS, MOCK_PAPER_TRADES, MOCK_SECTOR_STOCKS, MOCK_SPOT_
 
 function DetailChrome({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <Box h={520} style={{ display: "flex", "flex-direction": "column", border: "1px solid var(--color-fin-border)", "border-radius": 8, overflow: "hidden" }}>
+    <Box h={520} style={{ display: "flex", flexDirection: "column", border: "1px solid var(--color-fin-border)", borderRadius: 8, overflow: "hidden" }}>
       <Group justify="space-between" px="md" py="xs" style={{ borderBottom: "1px solid var(--color-fin-border)" }}>
         <div><Text fw={600} size="sm">{title}</Text>{subtitle && <Text size="xs" c="dimmed">{subtitle}</Text>}</div>
       </Group>
@@ -66,7 +66,7 @@ export const Anatomy: StoryObj = {
 };
 export const ChartDetail: StoryObj = {
   render: () => (
-    <Box p="sm" h={520} style={{ display: "flex", "flex-direction": "column", gap: 8 }}>
+    <Box p="sm" h={520} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <DetailChrome title="RELIANCE — chart detail" subtitle="Same chrome as /chart/:symbol (pattern workspace)">
         <Stack gap="sm">
           <Card p="sm">

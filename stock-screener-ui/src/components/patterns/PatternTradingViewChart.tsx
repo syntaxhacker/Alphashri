@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { createEffect, createMemo, onCleanup, onMount } from "solid-js";
 import {
   CandlestickSeries,
   ColorType,
@@ -61,42 +61,40 @@ function visibleMarkers(markers: TVMarker[], hidden: ReadonlySet<string>): TVMar
  * standalone TLS/TLR segments, horizontal breakout/target/stop levels, and
  * pivot markers. Pure mapping lives in `patternTVData.ts`.
  */
-export function PatternTradingViewChart({
-  hit,
-  candles,
-  overlays,
-  trendLines,
-  trendlinesView = "both",
-  historyHits,
-  hiddenNames,
-  height = "100%",
-}: PatternTradingViewChartProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const overlayRef = useRef<HTMLCanvasElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
-  const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
-  const lineSeriesRef = useRef<ISeriesApi<"Line">[]>([]);
-  const markersRef = useRef<ReturnType<typeof createSeriesMarkers> | null>(null);
-  const priceLinesRef = useRef<Array<{ name: string; line: IPriceLine }>>([]);
-  const hiddenRef = useRef<ReadonlySet<string>>(hiddenNames ?? EMPTY_HIDDEN);
+export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
+  let containerEl: HTMLDivElement | undefined;
+  let overlayEl: HTMLCanvasElement | undefined;
+  let chart: IChartApi | null = null;
+  let candleSeries: ISeriesApi<"Candlestick"> | null = null;
+  let volumeSeries: ISeriesApi<"Histogram"> | null = null;
+  let lineSeries: ISeriesApi<"Line">[] = [];
+  let markers: ReturnType<typeof createSeriesMarkers> | null = null;
+  let priceLines: Array<{ name: string; line: IPriceLine }> = [];
+  let hiddenRef: ReadonlySet<string> = props.hiddenNames ?? EMPTY_HIDDEN;
 
-  const data = useMemo(
-    () => buildPatternTVData({ candles, hit, overlays, trendLines, trendlinesView, historyHits }),
-    [candles, hit, overlays, trendLines, trendlinesView, historyHits],
+  const trendlinesView = () => props.trendlinesView ?? "both";
+  const data = createMemo(() =>
+    buildPatternTVData({
+      candles: props.candles,
+      hit: props.hit,
+      overlays: props.overlays,
+      trendLines: props.trendLines,
+      trendlinesView: trendlinesView(),
+      historyHits: props.historyHits,
+    }),
   );
 
   // Create the chart once; data/overlays update in the effect below.
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const initialHeight = containerRef.current.clientHeight || 360;
-    const chart = createChart(containerRef.current, {
+  onMount(() => {
+    if (!containerEl) return;
+    const initialHeight = containerEl.clientHeight || 360;
+    const created = createChart(containerEl, {
       layout: { background: { type: ColorType.Solid, color: palette.CHART_TV_BG }, textColor: palette.TEXT },
       grid: { vertLines: { visible: false }, horzLines: { visible: false } },
-      width: containerRef.current.clientWidth,
+      width: containerEl.clientWidth,
       height: initialHeight,
       timeScale: {
-        "border-color": palette.BORDER,
+        borderColor: palette.BORDER,
         timeVisible: true,
         secondsVisible: false,
         rightOffset: 6,
@@ -104,18 +102,18 @@ export function PatternTradingViewChart({
         tickMarkFormatter: tvTickMarkFormatter,
       },
       localization: { locale: "en-IN", timeFormatter: tvTimeFormatter },
-      rightPriceScale: { "border-color": palette.BORDER },
+      rightPriceScale: { borderColor: palette.BORDER },
       crosshair: { mode: 1 },
       handleScroll: true,
       handleScale: true,
     });
-    chartRef.current = chart;
+    chart = created;
 
     // Same default candle scheme as the paper-trading chart: white up bars,
     // blue down bars (`TradingViewChart`'s default theme).
     const bull = palette.MARKER_BORDER;
     const bear = palette.SCALE_BLUE[6];
-    const candleSeries = chart.addSeries(CandlestickSeries, {
+    const candles = created.addSeries(CandlestickSeries, {
       upColor: bull,
       downColor: bear,
       borderUpColor: bull,
@@ -125,71 +123,89 @@ export function PatternTradingViewChart({
       borderVisible: true,
       wickVisible: true,
     });
-    candleSeriesRef.current = candleSeries as unknown as ISeriesApi<"Candlestick">;
+    candleSeries = candles as unknown as ISeriesApi<"Candlestick">;
 
-    const volumeSeries = chart.addSeries(HistogramSeries, {
+    const volume = created.addSeries(HistogramSeries, {
       color: withAlpha(palette.TEXT_MUTED, 0.3),
       priceScaleId: "",
       priceFormat: { type: "volume" },
       lastValueVisible: false,
       priceLineVisible: false,
     });
-    volumeSeriesRef.current = volumeSeries as unknown as ISeriesApi<"Histogram">;
-    (volumeSeries as unknown as ISeriesApi<"Histogram">).priceScale().applyOptions({
+    volumeSeries = volume as unknown as ISeriesApi<"Histogram">;
+    (volume as unknown as ISeriesApi<"Histogram">).priceScale().applyOptions({
       scaleMargins: { top: 0.85, bottom: 0 },
     });
 
-    markersRef.current = createSeriesMarkers(candleSeries, []);
+    markers = createSeriesMarkers(candles, []);
 
     const ro = new ResizeObserver(() => {
-      if (containerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({
-          width: containerRef.current.clientWidth,
-          height: containerRef.current.clientHeight || initialHeight,
+      if (containerEl && chart) {
+        chart.applyOptions({
+          width: containerEl.clientWidth,
+          height: containerEl.clientHeight || initialHeight,
         });
       }
     });
-    ro.observe(containerRef.current);
+    ro.observe(containerEl);
 
-    return () => {
-      ro.disconnect();
-      chart.remove();
-      chartRef.current = null;
-      candleSeriesRef.current = null;
-      volumeSeriesRef.current = null;
-      lineSeriesRef.current = [];
-      markersRef.current = null;
-      priceLinesRef.current = [];
+    const ts = created.timeScale() as unknown as {
+      subscribeVisibleLogicalRangeChange?: (h: () => void) => void;
+      unsubscribeVisibleLogicalRangeChange?: (h: () => void) => void;
     };
-  }, []);
+    if (typeof ts.subscribeVisibleLogicalRangeChange === "function") {
+      const onRedraw = () => requestAnimationFrame(drawEndLabels);
+      ts.subscribeVisibleLogicalRangeChange(onRedraw);
+      window.addEventListener("resize", onRedraw);
+      const parentRo = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onRedraw) : null;
+      if (containerEl && parentRo) parentRo.observe(containerEl);
+      onCleanup(() => {
+        ts.unsubscribeVisibleLogicalRangeChange?.(onRedraw);
+        parentRo?.disconnect();
+        window.removeEventListener("resize", onRedraw);
+      });
+    }
+
+    onCleanup(() => {
+      ro.disconnect();
+      created.remove();
+      chart = null;
+      candleSeries = null;
+      volumeSeries = null;
+      lineSeries = [];
+      markers = null;
+      priceLines = [];
+    });
+  });
 
   // Explicit numeric height updates without recreate; `"100%"` is driven by the
   // ResizeObserver above (which measures the flex parent).
-  useEffect(() => {
-    if (typeof height === "number") chartRef.current?.applyOptions({ height });
-  }, [height]);
+  createEffect(() => {
+    const h = props.height;
+    if (typeof h === "number") chart?.applyOptions({ height: h });
+  });
 
   // Paint candles, volume, levels, boundary/TLS-TLR lines and pivots on data change.
-  useEffect(() => {
-    const chart = chartRef.current;
-    const candleSeries = candleSeriesRef.current;
-    const volumeSeries = volumeSeriesRef.current;
-    if (!chart || !candleSeries || !volumeSeries) return;
+  createEffect(() => {
+    const d = data();
+    const candle = candleSeries;
+    const volume = volumeSeries;
+    if (!chart || !candle || !volume) return;
 
-    candleSeries.setData(data.candles as never);
-    volumeSeries.setData(data.volume as never);
+    candle.setData(d.candles as never);
+    volume.setData(d.volume as never);
 
-    priceLinesRef.current.forEach(({ line }) => {
+    priceLines.forEach(({ line }) => {
       try {
-        candleSeries.removePriceLine(line);
+        candle.removePriceLine(line);
       } catch {
         /* noop */
       }
     });
-    priceLinesRef.current = [];
-    data.levels.forEach((level) => {
-      const hidden = hiddenRef.current.has(level.title);
-      const line = candleSeries.createPriceLine({
+    priceLines = [];
+    d.levels.forEach((level) => {
+      const hidden = hiddenRef.has(level.title);
+      const line = candle.createPriceLine({
         price: level.price,
         color: level.color,
         lineWidth: clampWidth(level.width),
@@ -198,19 +214,19 @@ export function PatternTradingViewChart({
         title: level.title,
         ...(hidden ? { lineVisible: false } : {}),
       });
-      priceLinesRef.current.push({ name: level.title, line });
+      priceLines.push({ name: level.title, line });
     });
 
-    lineSeriesRef.current.forEach((s) => {
+    lineSeries.forEach((s) => {
       try {
-        chart.removeSeries(s);
+        chart!.removeSeries(s);
       } catch {
         /* noop */
       }
     });
-    lineSeriesRef.current = [];
-    data.lines.forEach((line) => {
-      const series = chart.addSeries(LineSeries, {
+    lineSeries = [];
+    d.lines.forEach((line) => {
+      const series = chart!.addSeries(LineSeries, {
         color: line.color,
         lineWidth: clampWidth(line.width),
         lineStyle: line.dashed ? LineStyle.Dashed : LineStyle.Solid,
@@ -219,26 +235,25 @@ export function PatternTradingViewChart({
         crosshairMarkerVisible: false,
       });
       series.setData(line.points as never);
-      if (hiddenRef.current.has(line.name)) series.applyOptions({ visible: false });
-      lineSeriesRef.current.push(series);
+      if (hiddenRef.has(line.name)) series.applyOptions({ visible: false });
+      lineSeries.push(series);
     });
 
     try {
-      markersRef.current?.setMarkers(visibleMarkers(data.markers, hiddenRef.current) as never);
+      markers?.setMarkers(visibleMarkers(d.markers, hiddenRef) as never);
     } catch {
       /* noop */
     }
 
     chart.timeScale().fitContent();
-  }, [data]);
+  });
 
   // End labels: draw each line's name at its last point on a transparent canvas
   // overlay (same technique as TradingViewChart's entry pills). Coordinates
   // come from the chart scale + the line's own series; missing coordinates are
   // skipped. Redrawn on data change, pan/zoom and resize via the effects below.
-  const drawEndLabels = useCallback(() => {
-    const chart = chartRef.current;
-    const canvas = overlayRef.current;
+  const drawEndLabels = () => {
+    const canvas = overlayEl;
     if (!canvas || !chart) return;
     let ctx: CanvasRenderingContext2D | null = null;
     try {
@@ -267,11 +282,11 @@ export function PatternTradingViewChart({
     if (typeof ts.timeToCoordinate !== "function") return;
     ctx.font = "600 11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
     ctx.textBaseline = "middle";
-    ctx["text-align"] = "left";
+    ctx.textAlign = "left";
     const placed: { x: number; y: number; w: number; h: number }[] = [];
-    data.lines.forEach((line, i) => {
-      if (!line.labelEligible || hiddenRef.current.has(line.name)) return;
-      const series = lineSeriesRef.current[i] as unknown as
+    data().lines.forEach((line, i) => {
+      if (!line.labelEligible || hiddenRef.has(line.name)) return;
+      const series = lineSeries[i] as unknown as
         | { priceToCoordinate?: (p: number) => number | null }
         | undefined;
       if (!series || typeof series.priceToCoordinate !== "function") return;
@@ -313,67 +328,48 @@ export function PatternTradingViewChart({
       ctx.fillStyle = line.color;
       ctx.fillText(text, bx + padX, by + h / 2 + 0.5);
     });
-  }, [data]);
+  };
 
-  useEffect(() => {
+  createEffect(() => {
+    data();
     drawEndLabels();
-  }, [drawEndLabels]);
-
-  useEffect(() => {
-    const chart = chartRef.current;
-    if (!chart) return;
-    const ts = chart.timeScale() as unknown as {
-      subscribeVisibleLogicalRangeChange?: (h: () => void) => void;
-      unsubscribeVisibleLogicalRangeChange?: (h: () => void) => void;
-    };
-    if (typeof ts.subscribeVisibleLogicalRangeChange !== "function") return;
-    const onRedraw = () => requestAnimationFrame(drawEndLabels);
-    ts.subscribeVisibleLogicalRangeChange(onRedraw);
-    const parent = overlayRef.current?.parentElement;
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onRedraw) : null;
-    if (parent && ro) ro.observe(parent);
-    window.addEventListener("resize", onRedraw);
-    return () => {
-      ts.unsubscribeVisibleLogicalRangeChange?.(onRedraw);
-      ro?.disconnect();
-      window.removeEventListener("resize", onRedraw);
-    };
-  }, [drawEndLabels]);
+  });
 
   // Legend toggles: show/hide a pattern's line series in place (no recreate) and
   // repaint the end-label overlay so hidden lines drop their inline labels too.
-  useEffect(() => {
-    const next = hiddenNames ?? EMPTY_HIDDEN;
-    hiddenRef.current = next;
-    lineSeriesRef.current.forEach((series, i) => {
-      const line = data.lines[i];
+  createEffect(() => {
+    const next = props.hiddenNames ?? EMPTY_HIDDEN;
+    hiddenRef = next;
+    const d = data();
+    lineSeries.forEach((series, i) => {
+      const line = d.lines[i];
       if (!line) return;
       series.applyOptions({ visible: !next.has(line.name) });
     });
-    priceLinesRef.current.forEach(({ name, line }) => {
+    priceLines.forEach(({ name, line }) => {
       const hidden = next.has(name);
       line.applyOptions({ lineVisible: !hidden, axisLabelVisible: !hidden });
     });
     try {
-      markersRef.current?.setMarkers(visibleMarkers(data.markers, next) as never);
+      markers?.setMarkers(visibleMarkers(d.markers, next) as never);
     } catch {
       /* noop */
     }
     drawEndLabels();
-  }, [hiddenNames, data, drawEndLabels]);
+  });
 
   return (
     <div
       data-testid="patterns-tv-chart"
       className="relative flex min-h-0 w-full flex-col"
-      style={{ height }}
+      style={{ height: typeof props.height === "number" ? `${props.height}px` : (props.height ?? "100%") }}
     >
-      <div ref={containerRef} className="relative min-h-0 w-full flex-1" />
+      <div ref={(el) => (containerEl = el)} className="relative min-h-0 w-full flex-1" />
       <canvas
-        ref={overlayRef}
+        ref={(el) => (overlayEl = el)}
         aria-hidden="true"
         data-testid="patterns-tv-overlay"
-        style={{ position: "absolute", inset: 0, "pointer-events": "none", "z-index": 3 }}
+        style={{ position: "absolute", inset: "0", pointerEvents: "none", zIndex: 3 }}
       />
     </div>
   );

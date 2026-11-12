@@ -21,10 +21,10 @@ function resolveColor(color: UIIndicatorProps["color"]): string {
 }
 
 const ANCHOR: Record<string, { top?: number; right?: number; bottom?: number; left?: number }> = {
-  "top-start": { top: 0, left: 0 },
-  "bottom-start": { bottom: 0, left: 0 },
-  "bottom-end": { bottom: 0, right: 0 },
-  "top-end": { top: 0, right: 0 },
+  topStart: { top: 0, left: 0 },
+  bottomStart: { bottom: 0, left: 0 },
+  bottomEnd: { bottom: 0, right: 0 },
+  topEnd: { top: 0, right: 0 },
 };
 
 export function Indicator(props: UIIndicatorProps) {
@@ -75,18 +75,18 @@ export function Indicator(props: UIIndicatorProps) {
           ...anchor,
           width: dotSize,
           height: dotSize,
-          "background-color": col,
+          backgroundColor: col,
           transform,
           ...(known.label != null
-            ? { color: palette.BG, "font-size": Math.max(6, dotSize * 0.5), "font-weight": 600 }
+            ? { color: palette.BG, fontSize: Math.max(6, dotSize * 0.5), fontWeight: 600 }
             : {}),
         }}
       >
-        {known.label != null ? <span style={{ position: "relative", "z-index": 1 }}>{known.label}</span> : null}
+        {known.label != null ? <span style={{ position: "relative", zIndex: 1 }}>{known.label}</span> : null}
         {known.processing && (
           <span
             className="animate-ping border shrink-0 absolute inset-0 rounded-full"
-            style={{ "border-color": col, opacity: 0.5, animationDuration: "1.2s" }}
+            style={{ borderColor: col, opacity: 0.5, animationDuration: "1.2s" }}
           />
         )}
       </span>

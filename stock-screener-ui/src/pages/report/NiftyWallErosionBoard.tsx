@@ -127,7 +127,7 @@ function Stat({
       className="inline-flex items-baseline gap-[2px] min-w-0 shrink-0"
       style={{ display: hideBelowMd ? "none" : "inline-flex" }}
     >
-      <Text size="xs" c="dimmed" lh={1.1} style={{ "font-size": REPORT_FONT.micro }}>
+      <Text size="xs" c="dimmed" lh={1.1} style={{ fontSize: REPORT_FONT.micro }}>
         {label}
       </Text>
       <Text
@@ -170,7 +170,7 @@ function ErosionRow({
       title={fuelPartsTooltip(row)}
       className="flex items-center flex-nowrap min-w-0 shrink-0 overflow-hidden h-[24px]"
       style={{
-        "border-top": `1px solid ${palette.BORDER}`,
+        borderTop: `1px solid ${palette.BORDER}`,
         height: ROW_H,
       }}
     >
@@ -185,9 +185,9 @@ function ErosionRow({
           className="tabular-nums whitespace-nowrap shrink-0"
           style={{
             width: 108,
-            "flex-shrink": 0,
+            flexShrink: 0,
             color: sideColor,
-            "white-space": "nowrap",
+            whiteSpace: "nowrap",
           }}
         >
           {side} {view.strikeText} {view.arrow}
@@ -199,11 +199,11 @@ function ErosionRow({
             padding: "4px 2px",
             border: `1px solid ${statusColor}`,
             color: statusColor,
-            "border-radius": `${REPORT_RADIUS.sm}px`,
-            "font-size": REPORT_FONT.micro,
-            "font-weight": 800,
-            "line-height": 1.2,
-            "letter-spacing": "0.06em",
+            borderRadius: `${REPORT_RADIUS.sm}px`,
+            fontSize: REPORT_FONT.micro,
+            fontWeight: 800,
+            lineHeight: 1.2,
+            letterSpacing: "0.06em",
           }}
         >
           {view.statusText}
@@ -232,13 +232,13 @@ function ErosionRow({
           className="tabular-nums whitespace-nowrap shrink-0"
           style={{
             color: flowColor,
-            "letter-spacing": "0.04em",
-            "white-space": "nowrap",
-            "max-width": FLOW_MAX_W,
+            letterSpacing: "0.04em",
+            whiteSpace: "nowrap",
+            maxWidth: FLOW_MAX_W,
             overflow: "hidden",
-            "text-overflow": "ellipsis",
-            "min-width": 0,
-            "flex-shrink": 1,
+            textOverflow: "ellipsis",
+            minWidth: 0,
+            flexShrink: 1,
           }}
         >
           {view.flowText}
@@ -250,10 +250,10 @@ function ErosionRow({
           className="tabular-nums whitespace-nowrap shrink-0"
           style={{
             color: fuelColor,
-            "letter-spacing": "0.04em",
-            "white-space": "nowrap",
-            "min-width": FUEL_MIN_W,
-            "flex-shrink": 0,
+            letterSpacing: "0.04em",
+            whiteSpace: "nowrap",
+            minWidth: FUEL_MIN_W,
+            flexShrink: 0,
           }}
         >
           {preBlast ? `PRE-BLAST ${view.fuelScore}` : `FUEL ${view.fuelScore}`}
@@ -262,12 +262,12 @@ function ErosionRow({
           className="ml-auto flex items-center justify-end"
           style={{
             width: RIGHT_GROUP_W,
-            "min-width": 0,
-            "flex-shrink": 0,
+            minWidth: 0,
+            flexShrink: 0,
             overflow: "hidden",
             display: "flex",
-            "align-items": "center",
-            "justify-content": "flex-end",
+            alignItems: "center",
+            justifyContent: "flex-end",
           }}
         >
           {view.breached ? (
@@ -277,7 +277,7 @@ function ErosionRow({
                 fw={900}
                 lh={1.1}
                 className="whitespace-nowrap shrink-0"
-                style={{ color: palette.NEGATIVE, "letter-spacing": "0.06em" }}
+                style={{ color: palette.NEGATIVE, letterSpacing: "0.06em" }}
               >
                 BREACHED
               </Text>
@@ -286,7 +286,7 @@ function ErosionRow({
                 c="dimmed"
                 lh={1.1}
                 className="min-w-0 overflow-hidden truncate whitespace-nowrap shrink-0"
-                style={{ "font-size": REPORT_FONT.micro, "min-width": 0, "flex-shrink": 1 }}
+                style={{ fontSize: REPORT_FONT.micro, minWidth: 0, flexShrink: 1 }}
               >
                 spot crossed
               </Text>
@@ -297,7 +297,7 @@ function ErosionRow({
               c="dimmed"
               lh={1.1}
               className="tabular-nums whitespace-nowrap shrink-0 min-w-0 overflow-hidden truncate"
-              style={{ "min-width": 0, "flex-shrink": 1 }}
+              style={{ minWidth: 0, flexShrink: 1 }}
             >
               {hasTtb ? `${fmtTimeToBreak(ttb)} to break` : "—"}
             </Text>
@@ -307,10 +307,10 @@ function ErosionRow({
             style={{
               width: SPARK_W,
               height: SPARK_H,
-              "flex-shrink": 0,
+              flexShrink: 0,
               display: "flex",
-              "align-items": "center",
-              "justify-content": "flex-end",
+              alignItems: "center",
+              justifyContent: "flex-end",
               overflow: "hidden",
             }}
           >
@@ -373,18 +373,18 @@ export function NiftyWallErosionBoard({
             style={{
               width: REGIME_SLOT_W,
               height: REGIME_SLOT_H,
-              "flex-shrink": 0,
+              flexShrink: 0,
               visibility: regime ? "visible" : "hidden",
               ...(regime
                 ? {
                     padding: "4px 2px",
                     border: `1px solid ${regimeColor}`,
                     color: regimeColor,
-                    "border-radius": `${REPORT_RADIUS.sm}px`,
-                    "font-size": REPORT_FONT.micro,
-                    "font-weight": 800,
-                    "line-height": 1.2,
-                    "letter-spacing": "0.06em",
+                    borderRadius: `${REPORT_RADIUS.sm}px`,
+                    fontSize: REPORT_FONT.micro,
+                    fontWeight: 800,
+                    lineHeight: 1.2,
+                    letterSpacing: "0.06em",
                   }
                 : {}),
             }}
@@ -400,9 +400,9 @@ export function NiftyWallErosionBoard({
               width: FLIP_SLOT_W,
               height: FLIP_SLOT_H,
               display: "flex",
-              "align-items": "center",
-              "justify-content": "flex-end",
-              "flex-shrink": 0,
+              alignItems: "center",
+              justifyContent: "flex-end",
+              flexShrink: 0,
               visibility: hasFlip ? "visible" : "hidden",
             }}
           >
@@ -420,7 +420,7 @@ export function NiftyWallErosionBoard({
         className="relative flex flex-col min-w-0 overflow-hidden"
         style={{
           height: ROW_H * 2 + 2,
-          "min-height": ROW_H * 2 + 2,
+          minHeight: ROW_H * 2 + 2,
         }}
       >
         {/* Zero-size marker: the strip keeps its shape while the payload loads. */}
@@ -432,7 +432,7 @@ export function NiftyWallErosionBoard({
             style={{
               width: 0,
               height: 0,
-              "pointer-events": "none",
+              pointerEvents: "none",
             }}
           />
         ) : null}

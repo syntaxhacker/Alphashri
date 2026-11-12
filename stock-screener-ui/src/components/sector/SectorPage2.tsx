@@ -8,7 +8,7 @@ import {
   IconTrendingUp,
   IconClock,
   IconNetwork,
-} from "@tabler/icons-react";
+} from "../screener/icons";
 import { SectorTable } from "./SectorTable";
 import { IntervalMoversTable } from "./IntervalMoversTable";
 import { SectorCorrelationTab } from "./SectorCorrelationTab";
@@ -576,7 +576,7 @@ function SectorPageHeader(props: {
     <ToolbarRow
       gap={8}
       data-testid="sector-header"
-      style={{ padding: "0 12px", "min-height": 36, height: 36, borderBottom: "1px solid var(--color-fin-border)", "flex-shrink": 0 }}
+      style={{ padding: "0 12px", minHeight: 36, height: 36, borderBottom: "1px solid var(--color-fin-border)", flexShrink: 0 }}
     >
       <Text fw={700} className="text-[12px] whitespace-nowrap">
         Sector Dashboard

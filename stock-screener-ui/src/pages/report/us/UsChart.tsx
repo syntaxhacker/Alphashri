@@ -138,7 +138,7 @@ export function UsChart({ frames, cursor, bucket = 1 }: Props) {
         <Box
           key={w.label}
           className="absolute right-1 font-mono text-[9px] bg-black/65 px-1 leading-[11px] pointer-events-none"
-          style={{ top: `calc(${pctFor(w.v)}% - 6px)`, color: w.color, "border-left": `2px solid ${w.color}`, "z-index": 2 + i }}
+          style={{ top: `calc(${pctFor(w.v)}% - 6px)`, color: w.color, borderLeft: `2px solid ${w.color}`, zIndex: 2 + i }}
         >
           {w.label} {fmtInt(w.v)}
         </Box>
@@ -167,7 +167,7 @@ export function UsChart({ frames, cursor, bucket = 1 }: Props) {
       {/* last price chip */}
       <Box
         className="absolute right-1 font-mono text-[9.5px] font-bold bg-black/75 px-1 leading-[12px] pointer-events-none"
-        style={{ top: `calc(${pctFor(last.c)}% - 7px)`, color: INFO, "border-left": `2px solid ${INFO}` }}
+        style={{ top: `calc(${pctFor(last.c)}% - 7px)`, color: INFO, borderLeft: `2px solid ${INFO}` }}
       >
         {fmtInt(last.c)}
       </Box>

@@ -73,7 +73,7 @@ export function EventsPanel() {
       }
       scrollable
     >
-      <Box className="flex flex-col gap-0.5" style={{ "min-height": 0, height: "100%" }}>
+      <Box className="flex flex-col gap-0.5" style={{ minHeight: 0, height: "100%" }}>
         <EventsFilters
           query={query()}
           onChange={patchQuery}
@@ -91,7 +91,7 @@ export function EventsPanel() {
             </Text>
             <Box
               className="grid gap-0.5"
-              style={{ "grid-template-columns": "repeat(auto-fill, minmax(140px, 1fr))" }}
+              style={{ gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}
             >
               <For each={shownAnomalies()}>{(anomaly) => (
                 <CompactStat

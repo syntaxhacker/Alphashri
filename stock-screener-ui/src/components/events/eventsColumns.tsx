@@ -182,7 +182,7 @@ export function buildEventColumns(onOpen: (event: EventDTO) => void): ColumnDef<
           <ActionIcon
             size="xs"
             variant="subtle"
-            style={{ width: 16, height: 16, "min-height": 16, padding: 0 }}
+            style={{ width: 16, height: 16, minHeight: 16, padding: 0 }}
             aria-label={`Open ${event.symbol} event`}
             data-testid={`event-open-${event.id}`}
             onClick={(e) => {

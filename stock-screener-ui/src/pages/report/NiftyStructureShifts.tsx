@@ -92,7 +92,7 @@ function NiftyStructureShiftsInner({ structure }: NiftyStructureShiftsProps) {
     // Wrapper is a flex item inside the report's "signals row" (structure +
     // OI bursts). It intentionally has no `overflow: hidden`: that would drop
     // the implicit `min-height: auto` and could collapse it. `flex`/`minWidth`
-    // size it horizontally; `"min-width": 0` contains horizontal overflow while
+    // size it horizontally; `minWidth: 0` contains horizontal overflow while
     // the internal list (below) owns the vertical scroll.
     <Box data-testid="nifty-structure" className="flex-[1_1_420px] min-w-0">
       <CompactPanel title="Structure shifts">
@@ -114,7 +114,7 @@ function NiftyStructureShiftsInner({ structure }: NiftyStructureShiftsProps) {
           <Box
             data-testid="nifty-structure-list"
             className="flex flex-col gap-[2px] min-w-0"
-            style={{ "max-height": 120, "overflow-y": "auto" }}
+            style={{ maxHeight: 120, overflowY: "auto" }}
           >
             {ordered.map((shift, i) => {
               const accent = structureSeverityAccent(shift.severity);
@@ -125,9 +125,9 @@ function NiftyStructureShiftsInner({ structure }: NiftyStructureShiftsProps) {
                   data-testid="nifty-structure-row"
                   className="flex items-center gap-[8px] min-w-0 pl-1 pr-1 py-0 line-height-[1.2]"
                   style={{
-                    "border-left": `3px solid ${accent}`,
-                    "background-color": palette.SURFACE_ALT,
-                    "border-radius": 4,
+                    borderLeft: `3px solid ${accent}`,
+                    backgroundColor: palette.SURFACE_ALT,
+                    borderRadius: 4,
                   }}
                 >
                   <Box component="span" className="shrink-0 whitespace-nowrap">

@@ -23,7 +23,7 @@ export const DefaultTargetBody: Story = {
           background: "var(--color-fin-primary)",
           color: "white",
           padding: "8px 16px",
-          "border-radius": 8,
+          borderRadius: 8,
         }}
       >
         Rendered into document.body via Portal
@@ -35,7 +35,7 @@ export const DefaultTargetBody: Story = {
 export const StringTarget: Story = {
   render: () => (
     <>
-      <div id="portal-demo" style={{ "min-height": 60 }} />
+      <div id="portal-demo" style={{ minHeight: 60 }} />
       <Portal target="portal-demo">
         <div style={{ padding: 8 }}>Portaled into #portal-demo by id</div>
       </Portal>

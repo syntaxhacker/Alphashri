@@ -171,7 +171,7 @@ function IntelBody({ intel, eod = false }: { intel: NiftyIntel; eod?: boolean })
             size="xs"
             fw={700}
             title="Total change in call OI across the chain, in units (contracts × lot size)"
-            style={{ color: palette.NEGATIVE, "letter-spacing": "0.06em" }}
+            style={{ color: palette.NEGATIVE, letterSpacing: "0.06em" }}
           >
             TOP CALL ΔOI {fmtIntelOi(intel.dce_oi)}
           </Text>
@@ -182,7 +182,7 @@ function IntelBody({ intel, eod = false }: { intel: NiftyIntel; eod?: boolean })
             size="xs"
             fw={700}
             title="Total change in put OI across the chain, in units (contracts × lot size)"
-            style={{ color: palette.POSITIVE, "letter-spacing": "0.06em" }}
+            style={{ color: palette.POSITIVE, letterSpacing: "0.06em" }}
           >
             TOP PUT ΔOI {fmtIntelOi(intel.dpe_oi)}
           </Text>
@@ -191,7 +191,7 @@ function IntelBody({ intel, eod = false }: { intel: NiftyIntel; eod?: boolean })
       </div>
 
       <div data-testid="nifty-intel-modal-news" className="min-w-0">
-        <Text size="xs" fw={700} style={{ color: palette.TEXT_MUTED, "letter-spacing": "0.06em" }}>
+        <Text size="xs" fw={700} style={{ color: palette.TEXT_MUTED, letterSpacing: "0.06em" }}>
           NEWS ({intel.news.length})
         </Text>
         {intel.news.length === 0 ? (
@@ -317,10 +317,10 @@ export function NiftyIntelStrip({
       <div
         data-testid="nifty-intel-strip"
         data-state="unavailable"
-        style={{ height: 24, "min-height": 24 }}
+        style={{ height: 24, minHeight: 24 }}
         className="flex items-center h-[24px] min-h-[24px] shrink-0 px-2 border border-fin-border rounded-[4px] bg-fin-surface overflow-hidden"
       >
-        <Text data-testid="nifty-intel-unavailable" size="xs" c="dimmed" style={{ "letter-spacing": "0.04em" }}>
+        <Text data-testid="nifty-intel-unavailable" size="xs" c="dimmed" style={{ letterSpacing: "0.04em" }}>
           INTEL unavailable
         </Text>
       </div>
@@ -332,7 +332,7 @@ export function NiftyIntelStrip({
       <div
         data-testid="nifty-intel-strip"
         data-state="loading"
-        style={{ height: 24, "min-height": 24 }}
+        style={{ height: 24, minHeight: 24 }}
         className="flex items-center h-[24px] min-h-[24px] shrink-0 px-2 border border-fin-border rounded-[4px] bg-fin-surface overflow-hidden"
       >
         <Text data-testid="nifty-intel-loading" size="xs" c="dimmed">
@@ -352,7 +352,7 @@ export function NiftyIntelStrip({
         tabIndex={0}
         aria-label="Open Nifty intel — FII/DII, ΔOI, max pain, PCR and news"
         data-state={status}
-        style={{ height: 24, "min-height": 24 }}
+        style={{ height: 24, minHeight: 24 }}
         title={`Session ${data.date || INTEL_DASH} · expiry ${data.expiry || INTEL_DASH}${
           eod ? " · latest session, not this frame" : ""
         }`}

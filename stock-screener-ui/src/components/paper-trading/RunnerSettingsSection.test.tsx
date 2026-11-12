@@ -91,8 +91,8 @@ describe("RunnerSettingsSection", () => {
       const header = screen.getByText("Runner Configuration");
       expect(header).toBeInTheDocument();
       // Check inline styles for uppercase and font weight
-      expect(header).toHaveStyle({ "text-transform": "uppercase" });
-      expect(header).toHaveStyle({ "font-weight": "600" });
+      expect(header).toHaveStyle({ textTransform: "uppercase" });
+      expect(header).toHaveStyle({ fontWeight: "600" });
     });
 
     it("renders Cooldown NumberInput with correct label and testid", () => {

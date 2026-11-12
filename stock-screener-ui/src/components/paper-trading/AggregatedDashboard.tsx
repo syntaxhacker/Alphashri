@@ -24,8 +24,8 @@ import {
 import { withAlpha } from "../../utils/color";
 import { TanStackTable, type TableColumnDef } from "./TanStackTable";
 import { EChartSolid } from "./EChartSolid";
-import type {
 import { Box, Flex, Group, Stack } from "./primitives";
+import type {
   PaperDashboardAnalyticsData,
   PaperDashboardBotRanking,
   PaperDashboardStrategyRanking,
@@ -70,8 +70,8 @@ function chartBase(xData: string[], series: any[], yFormatter = "₹{value}") {
   return {
     grid: { left: 48, right: 12, top: 16, bottom: 24 },
     tooltip: { trigger: "axis" as const },
-    xAxis: { type: "category" as const, data: xData, axisLabel: { "font-size": 10 }, splitLine },
-    yAxis: { type: "value" as const, axisLabel: { "font-size": 10, formatter: yFormatter }, splitLine },
+    xAxis: { type: "category" as const, data: xData, axisLabel: { fontSize: 10 }, splitLine },
+    yAxis: { type: "value" as const, axisLabel: { fontSize: 10, formatter: yFormatter }, splitLine },
     series,
   };
 }
@@ -102,7 +102,7 @@ function EquityChart(props: { data: PaperDashboardAnalyticsData }) {
       }],
     );
   };
-  return <EChartSolid option={option} style={{ height: `${CHART_HERO}px`, "min-height": `${CHART_HERO}px` }} data-testid="equity-curve-chart" />;
+  return <EChartSolid option={option} style={{ height: `${CHART_HERO}px`, minHeight: `${CHART_HERO}px` }} data-testid="equity-curve-chart" />;
 }
 
 function DailyPnlChart(props: { data: PaperDashboardAnalyticsData }) {
@@ -114,7 +114,7 @@ function DailyPnlChart(props: { data: PaperDashboardAnalyticsData }) {
         value: p.net_pnl,
         itemStyle: {
           color: p.net_pnl >= 0 ? POSITIVE : NEGATIVE,
-          "border-radius": [3, 3, 0, 0],
+          borderRadius: [3, 3, 0, 0],
         },
       })),
       barMaxWidth: 22,
@@ -127,7 +127,7 @@ function DailyPnlChart(props: { data: PaperDashboardAnalyticsData }) {
       },
     }],
   );
-  return <EChartSolid option={option} style={{ height: `${CHART_ROW}px`, "min-height": `${CHART_ROW}px` }} data-testid="daily-pnl-chart" />;
+  return <EChartSolid option={option} style={{ height: `${CHART_ROW}px`, minHeight: `${CHART_ROW}px` }} data-testid="daily-pnl-chart" />;
 }
 
 function DrawdownChart(props: { data: PaperDashboardAnalyticsData }) {
@@ -152,7 +152,7 @@ function DrawdownChart(props: { data: PaperDashboardAnalyticsData }) {
     }],
     "{value}%",
   );
-  return <EChartSolid option={option} style={{ height: `${CHART_ROW}px`, "min-height": `${CHART_ROW}px` }} data-testid="drawdown-chart" />;
+  return <EChartSolid option={option} style={{ height: `${CHART_ROW}px`, minHeight: `${CHART_ROW}px` }} data-testid="drawdown-chart" />;
 }
 
 function BotComparisonChart(props: { data: PaperDashboardAnalyticsData }) {
@@ -161,22 +161,22 @@ function BotComparisonChart(props: { data: PaperDashboardAnalyticsData }) {
     return {
       grid: { left: 88, right: 12, top: 12, bottom: 20 },
       tooltip: { trigger: "axis" as const },
-      xAxis: { type: "value" as const, axisLabel: { "font-size": 10, formatter: "₹{value}" }, splitLine },
-      yAxis: { type: "category" as const, data: bots.map((b) => b.bot_name), axisLabel: { "font-size": 10 }, splitLine },
+      xAxis: { type: "value" as const, axisLabel: { fontSize: 10, formatter: "₹{value}" }, splitLine },
+      yAxis: { type: "category" as const, data: bots.map((b) => b.bot_name), axisLabel: { fontSize: 10 }, splitLine },
       series: [{
         type: "bar",
         data: bots.map((b) => ({
           value: b.total_net_pnl,
           itemStyle: {
             color: b.total_net_pnl >= 0 ? POSITIVE : NEGATIVE,
-            "border-radius": [0, 3, 3, 0],
+            borderRadius: [0, 3, 3, 0],
           },
         })),
         barMaxWidth: 18,
       }],
     };
   };
-  return <EChartSolid option={option} style={{ height: `${CHART_ROW}px`, "min-height": `${CHART_ROW}px` }} data-testid="bot-comparison-chart" />;
+  return <EChartSolid option={option} style={{ height: `${CHART_ROW}px`, minHeight: `${CHART_ROW}px` }} data-testid="bot-comparison-chart" />;
 }
 
 function ExitReasonChart(props: { data: PaperDashboardAnalyticsData }) {
@@ -188,9 +188,9 @@ function ExitReasonChart(props: { data: PaperDashboardAnalyticsData }) {
       data: props.data.exit_reasons.map((r, i) => ({
         name: r.reason,
         value: r.count,
-        itemStyle: { color: exitColor(r.reason, i), "border-color": withAlpha(BLACK, 0.1), borderWidth: 1 },
+        itemStyle: { color: exitColor(r.reason, i), borderColor: withAlpha(BLACK, 0.1), borderWidth: 1 },
       })),
-      label: { "font-size": 10, formatter: "{b} {d}%" },
+      label: { fontSize: 10, formatter: "{b} {d}%" },
       emphasis: {
         scale: true,
         itemStyle: {
@@ -201,7 +201,7 @@ function ExitReasonChart(props: { data: PaperDashboardAnalyticsData }) {
       },
     }],
   });
-  return <EChartSolid option={option} style={{ height: `${CHART_ROW}px`, "min-height": `${CHART_ROW}px` }} data-testid="exit-reason-chart" />;
+  return <EChartSolid option={option} style={{ height: `${CHART_ROW}px`, minHeight: `${CHART_ROW}px` }} data-testid="exit-reason-chart" />;
 }
 
 function PnlValue(props: { value: number }) {
@@ -241,7 +241,7 @@ function BotRankingPanel(props: { bots: PaperDashboardBotRanking[] }) {
       accessorKey: "bot_name",
       meta: { align: "left" },
       cell: ({ row }) => (
-        <Stack gap={0} style={{ "min-width": 0 }}>
+        <Stack gap={0} style={{ minWidth: 0 }}>
           <Text size="sm" fw={700} truncate>{row.original.bot_name}</Text>
           <Text size="xs" c="dimmed">{row.original.total_trades} trades · {pct(row.original.win_rate)} win</Text>
         </Stack>

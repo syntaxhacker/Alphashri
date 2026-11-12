@@ -151,7 +151,7 @@ function BotsTable(props: {
               w={8}
               h={8}
               className="rounded-full"
-              style={{ "background-color": getBotIndicatorColor(row.original.running) }}
+              style={{ backgroundColor: getBotIndicatorColor(row.original.running) }}
             />
             <Text fw={500} ta="left">{row.original.name}</Text>
             <Show when={row.original.live_trading}>
@@ -250,7 +250,7 @@ function BotsTable(props: {
           getRowTestId={(row) => `bot-row-${row.id}`}
           getRowClassName={() => "bot-row"}
           getRowStyle={(row) => ({
-            "background-color": state().selectedBot?.id === row.id ? "rgba(88 166 255 / 0.15)" : undefined,
+            backgroundColor: state().selectedBot?.id === row.id ? "rgba(88 166 255 / 0.15)" : undefined,
           })}
         />
       </Box>
@@ -376,7 +376,7 @@ export function BotsPage() {
     <Box className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-fin-bg" data-testid="bots-view">
       <ToolbarRow gap={8} wrap={false} style={{ flex: "0 0 auto", height: palette.FIN_HEADER_H, padding: `0 ${palette.FIN_OUTER_PAD}px`, borderBottom: "1px solid var(--color-fin-border)" }}>
         <Text size="lg" fw={600}>Bots</Text>
-        <Text size="sm" c="dimmed" style={{ "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }}>
+        <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           Manage bot configurations, live status, and execution controls.
         </Text>
         <Box className="flex-1" />

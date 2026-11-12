@@ -48,7 +48,7 @@ export function FullscreenPatternList({ hits, activeKey, onSelect }: FullscreenP
   const sorted = sortHitsNewest(hits).slice(0, 1);
   return (
     <Box data-testid="patterns-fullscreen-list" className="flex flex-col gap-1">
-      <Text size="xs" c="dimmed" fw={700} style={{ "text-transform": "uppercase" }}>
+      <Text size="xs" c="dimmed" fw={700} style={{ textTransform: "uppercase" }}>
         {`Patterns (${sorted.length})`}
       </Text>
       {sorted.length === 0 ? (
@@ -71,7 +71,7 @@ export function FullscreenPatternList({ hits, activeKey, onSelect }: FullscreenP
               }`}
             >
               <ToolbarRow justify="space-between" gap={4} align="center">
-                <Text size="xs" fw={600} truncate style={{ flex: 1, "min-width": 0 }} lh={1.15}>
+                <Text size="xs" fw={600} truncate style={{ flex: 1, minWidth: 0 }} lh={1.15}>
                   {hit.pattern_name}
                 </Text>
                 <StatusBadge status={hit.status} display={displayStatusForHit(hit)} />

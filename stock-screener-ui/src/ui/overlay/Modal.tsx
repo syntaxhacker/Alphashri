@@ -85,7 +85,7 @@ export function Modal(props: ModalProps) {
   };
 
   const overlayStyle: Record<string, string | undefined> = {
-    "background-color": known.overlayProps?.color ?? undefined,
+    backgroundColor: known.overlayProps?.color ?? undefined,
     opacity: known.overlayProps?.opacity != null ? known.overlayProps.opacity : undefined,
     backdropFilter:
       known.overlayProps?.blur != null
@@ -94,7 +94,7 @@ export function Modal(props: ModalProps) {
   };
 
   const panelStyle: Record<string, string | undefined> = {
-    ...(maxWidthStyle ? { "max-width": maxWidthStyle } : {}),
+    ...(maxWidthStyle ? { maxWidth: maxWidthStyle } : {}),
     ...(known.fullScreen
       ? { position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }
       : {}),

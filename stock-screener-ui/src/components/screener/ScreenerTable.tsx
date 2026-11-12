@@ -1,6 +1,6 @@
 import { createMemo, createEffect, createSignal, onCleanup, Show, type JSX } from "solid-js";
 import { Checkbox, ActionIcon, CopyButton, Tooltip, Badge, Group, Text, Box, Stack } from "@/ui";
-import { IconCopy, IconCheck } from "@tabler/icons-react";
+import { IconCopy, IconCheck } from "./icons";
 import { TanStackTable, type TableColumnDef } from "../common/TanStackTable";
 import { SymbolLink } from "../common/SymbolLink";
 import { useSymbolDock } from "../common/symbolDockContext";
@@ -106,7 +106,7 @@ export function ScreenerTable(props: ScreenerTableProps) {
                         variant="subtle"
                         color={copied ? "info" : "secondary"}
                         size="xs"
-                        style={{ width: 16, height: 16, "min-height": 16, padding: 0 }}
+                        style={{ width: 16, height: 16, minHeight: 16, padding: 0 }}
                         onClick={(e: MouseEvent) => { e.stopPropagation(); copy(); }}
                         data-testid="copy-all-symbols-btn"
                       >
@@ -176,7 +176,7 @@ export function ScreenerTable(props: ScreenerTableProps) {
                       variant="subtle"
                       color={copied ? "info" : "secondary"}
                       size="xs"
-                      style={{ width: 16, height: 16, "min-height": 16, padding: 0 }}
+                      style={{ width: 16, height: 16, minHeight: 16, padding: 0 }}
                       onClick={(e: MouseEvent) => { e.stopPropagation(); copy(); }}
                       data-testid={`copy-symbol-btn-${stock.symbol}`}
                     >

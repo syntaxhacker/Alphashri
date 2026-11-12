@@ -83,12 +83,12 @@ interface WallListProps {
 
 function panelTitleStyles() {
   return {
-    "font-size": `${REPORT_FONT.micro}px`,
-    "font-weight": String(REPORT_FONT_WEIGHT.extrabold),
-    "letter-spacing": REPORT_LETTER_SPACING.wider,
-    "text-transform": "uppercase",
+    fontSize: `${REPORT_FONT.micro}px`,
+    fontWeight: String(REPORT_FONT_WEIGHT.extrabold),
+    letterSpacing: REPORT_LETTER_SPACING.wider,
+    textTransform: "uppercase",
     color: MUTED,
-    "line-height": REPORT_LINE_HEIGHT.tight,
+    lineHeight: REPORT_LINE_HEIGHT.tight,
   };
 }
 
@@ -107,9 +107,9 @@ function SideMark({ side, size = 7 }: { side: PressureSide; size?: number }) {
       style={{
         width: size,
         height: size,
-        "flex-shrink": 0,
-        "border-radius": side === "CALL" ? "50%" : "1px",
-        "background-color": sideColor(side),
+        flexShrink: 0,
+        borderRadius: side === "CALL" ? "50%" : "1px",
+        backgroundColor: sideColor(side),
       }}
     />
   );
@@ -124,15 +124,15 @@ function FuelBar({ score, width = 54 }: { score: number | undefined; width?: num
     >
       <div
         className="absolute inset-0 rounded-[1px]"
-        style={{ "border-radius": 1, "background-color": BORDER }}
+        style={{ borderRadius: 1, backgroundColor: BORDER }}
       />
       <div
         className="absolute left-0 top-0 bottom-0 rounded-[1px]"
-        style={{ width: `${value}%`, "border-radius": 1, "background-color": palette.TEXT }}
+        style={{ width: `${value}%`, borderRadius: 1, backgroundColor: palette.TEXT }}
       />
       <div
         className="absolute left-[60%] top-[-2px] bottom-[-2px] w-[1px]"
-        style={{ "border-radius": 1, "background-color": palette.WARNING }}
+        style={{ borderRadius: 1, backgroundColor: palette.WARNING }}
       />
     </div>
   );
@@ -145,7 +145,7 @@ function StatusPill({ status }: { status: string | null | undefined }) {
       className="inline-flex items-center gap-1 rounded-sm px-1 py-[2px] font-mono text-[10px] font-black tracking-[0.08em] leading-tight whitespace-nowrap"
       style={{
         border: `1px solid ${tone}`,
-        "border-radius": `${REPORT_RADIUS.sm}px`,
+        borderRadius: `${REPORT_RADIUS.sm}px`,
         color: tone,
       }}
     >
@@ -444,19 +444,19 @@ function Detail({ label, value, color }: { label: string; value: string; color?:
     <div className="min-w-0">
       <div
         className="text-[10px] text-fin-text-muted tracking-[0.08em]"
-        style={{ "font-size": REPORT_FONT.micro, color: MUTED, "letter-spacing": REPORT_LETTER_SPACING.wide }}
+        style={{ fontSize: REPORT_FONT.micro, color: MUTED, letterSpacing: REPORT_LETTER_SPACING.wide }}
       >
         {label}
       </div>
       <div
         className="font-mono text-[12px] font-semibold tabular-nums whitespace-nowrap"
         style={{
-          "font-family": MONO,
-          "font-size": REPORT_FONT.sm,
-          "font-weight": REPORT_FONT_WEIGHT.semibold,
+          fontFamily: MONO,
+          fontSize: REPORT_FONT.sm,
+          fontWeight: REPORT_FONT_WEIGHT.semibold,
           color: color ?? palette.TEXT,
-          "font-variant-numeric": "tabular-nums",
-          "white-space": "nowrap",
+          fontVariantNumeric: "tabular-nums",
+          whiteSpace: "nowrap",
         }}
       >
         {value}
@@ -483,7 +483,7 @@ function WallRead({ wall, payload }: WallReadProps) {
         <div
           data-testid="pressure-read-name"
           className="text-[14px] font-bold tracking-[-0.01em]"
-          style={{ "font-size": REPORT_FONT.lg, "font-weight": REPORT_FONT_WEIGHT.bold, "letter-spacing": "-0.01em" }}
+          style={{ fontSize: REPORT_FONT.lg, fontWeight: REPORT_FONT_WEIGHT.bold, letterSpacing: "-0.01em" }}
         >
           {wallLabel(wall.side, wall.strike)}
         </div>
@@ -501,15 +501,15 @@ function WallRead({ wall, payload }: WallReadProps) {
           {short ? "SHORT Γ" : "LONG Γ"}
         </div>
       </div>
-      <div className="mt-1.5 text-[11.5px] leading-loose text-fin-text" style={{ "font-size": REPORT_FONT.xsPlus, "line-height": REPORT_LINE_HEIGHT.loose, color: palette.TEXT }}>
+      <div className="mt-1.5 text-[11.5px] leading-loose text-fin-text" style={{ fontSize: REPORT_FONT.xsPlus, lineHeight: REPORT_LINE_HEIGHT.loose, color: palette.TEXT }}>
         {sentence}
       </div>
-      <div className="mt-[2px] text-[11px] leading-loose text-fin-text-muted" style={{ "font-size": REPORT_FONT.xs, "line-height": REPORT_LINE_HEIGHT.loose, color: MUTED }}>
+      <div className="mt-[2px] text-[11px] leading-loose text-fin-text-muted" style={{ fontSize: REPORT_FONT.xs, lineHeight: REPORT_LINE_HEIGHT.loose, color: MUTED }}>
         {why}
       </div>
       <div
         className="mt-1.5 grid grid-cols-[1fr_1fr] gap-1.5 row-gap-[3px]"
-        style={{ mt: 0.75, display: "grid", "grid-template-columns": "1fr 1fr", "column-gap": 1.5, "row-gap": 0.4 }}
+        style={{ mt: 0.75, display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: 1.5, rowGap: 0.4 }}
       >
         <Detail label="OI" value={fmtOI(row.oi)} />
         <Detail label="Open" value={fmtOI(row.oi_open)} />
@@ -550,21 +550,21 @@ function WallList({ walls, selectedKey, spot, onSelect }: WallListProps) {
         className="grid grid-cols-[minmax(0,1fr)_50px_46px_58px] gap-1.5 pb-[2px] border-b border-fin-border font-mono text-[10px] font-black tracking-[0.08em] text-fin-text-muted uppercase"
         style={{
           display: "grid",
-          "grid-template-columns": "minmax(0,1fr) 50px 46px 58px",
-          "column-gap": 0.75,
-          "border-bottom": `1px solid ${BORDER}`,
-          "font-family": MONO,
-          "font-size": `${REPORT_FONT.micro}px`,
-          "font-weight": String(REPORT_FONT_WEIGHT.extrabold),
-          "letter-spacing": REPORT_LETTER_SPACING.wide,
+          gridTemplateColumns: "minmax(0,1fr) 50px 46px 58px",
+          columnGap: 0.75,
+          borderBottom: `1px solid ${BORDER}`,
+          fontFamily: MONO,
+          fontSize: `${REPORT_FONT.micro}px`,
+          fontWeight: String(REPORT_FONT_WEIGHT.extrabold),
+          letterSpacing: REPORT_LETTER_SPACING.wide,
           color: MUTED,
-          "text-transform": "uppercase",
+          textTransform: "uppercase",
         }}
       >
         <span>Wall</span>
-        <span style={{ "text-align": "right" }}>OI</span>
-        <span style={{ "text-align": "right" }}>30m</span>
-        <span style={{ "text-align": "right" }}>Fuel</span>
+        <span style={{ textAlign: "right" }}>OI</span>
+        <span style={{ textAlign: "right" }}>30m</span>
+        <span style={{ textAlign: "right" }}>Fuel</span>
       </div>
       <div className="overflow-auto min-h-0 max-h-[430px]">
         {view.map((group) => (
@@ -573,7 +573,7 @@ function WallList({ walls, selectedKey, spot, onSelect }: WallListProps) {
             {group.rows.map((wall) => {
               const selected = wall.key === selectedKey;
               const borderLeft = selected ? `2px solid ${SELECTED}` : "2px solid transparent";
-              const ["background-color"] = selected ? palette.SURFACE_ALT : "transparent";
+              const backgroundColor = selected ? palette.SURFACE_ALT : "transparent";
               return (
                 <div
                   key={wall.key}
@@ -591,12 +591,12 @@ function WallList({ walls, selectedKey, spot, onSelect }: WallListProps) {
                   className="grid grid-cols-[minmax(0,1fr)_50px_46px_58px] gap-1.5 items-center min-h-[28px] px-1 cursor-pointer hover:bg-fin-surface-alt"
                   style={{
                     display: "grid",
-                    "grid-template-columns": "minmax(0,1fr) 50px 46px 58px",
-                    "column-gap": 0.75,
-                    "align-items": "center",
-                    "min-height": 28,
+                    gridTemplateColumns: "minmax(0,1fr) 50px 46px 58px",
+                    columnGap: 0.75,
+                    alignItems: "center",
+                    minHeight: 28,
                     px: 0.5,
-                    "border-left": borderLeft as any,
+                    borderLeft: borderLeft as any,
                     backgroundColor,
                   }}
                 >
@@ -605,13 +605,13 @@ function WallList({ walls, selectedKey, spot, onSelect }: WallListProps) {
                     <div
                       className={`font-mono text-[11px] text-fin-text whitespace-nowrap overflow-hidden overflow-ellipsis ${selected ? "font-bold" : "font-medium"}`}
                       style={{
-                        "font-family": MONO,
-                        "font-size": REPORT_FONT.xs,
-                        "font-weight": selected ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.medium,
+                        fontFamily: MONO,
+                        fontSize: REPORT_FONT.xs,
+                        fontWeight: selected ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.medium,
                         color: palette.TEXT,
-                        "white-space": "nowrap",
+                        whiteSpace: "nowrap",
                         overflow: "hidden",
-                        "text-overflow": "ellipsis",
+                        textOverflow: "ellipsis",
                       }}
                     >
                       {wall.strike.toLocaleString("en-IN")}
@@ -621,9 +621,9 @@ function WallList({ walls, selectedKey, spot, onSelect }: WallListProps) {
                   <div
                     className="font-mono text-[11px] text-right"
                     style={{
-                      "font-family": MONO,
-                      "font-size": REPORT_FONT.xs,
-                      "text-align": "right",
+                      fontFamily: MONO,
+                      fontSize: REPORT_FONT.xs,
+                      textAlign: "right",
                       color: wall.oiPct != null && wall.oiPct < 0 ? palette.WARNING : MUTED,
                     }}
                   >
@@ -793,7 +793,7 @@ function PressureTable({
         getRowClassName={(wall) => (wall.key === selectedKey ? "pressure-row-selected" : undefined)}
         getRowStyle={(wall) =>
           wall.key === selectedKey
-            ? { background: palette.SURFACE_ALT, "box-shadow": `inset 2px 0 0 ${SELECTED}` }
+            ? { background: palette.SURFACE_ALT, boxShadow: `inset 2px 0 0 ${SELECTED}` }
             : undefined
         }
         getRowTestId={(wall) => `pressure-table-${wall.key}`}
@@ -808,12 +808,12 @@ function SummaryChip({ label, value }: { label: string; value: string }) {
       className="inline-flex items-center gap-1 rounded-sm border px-1.5 py-[2px] text-[10px] font-mono whitespace-nowrap"
       style={{
         height: 20,
-        "border-color": BORDER,
+        borderColor: BORDER,
         color: palette.TEXT,
         border: `1px solid ${BORDER}`,
       }}
     >
-      <span className="text-fin-text-muted" style={{ "margin-right": 4 }}>
+      <span className="text-fin-text-muted" style={{ marginRight: 4 }}>
         {label}
       </span>
       {value}
@@ -882,7 +882,7 @@ export function NiftyPressureDesk({ open, onClose, walls }: NiftyPressureDeskPro
                 <WallList walls={allWalls} selectedKey={selected.key} spot={walls.spot} onSelect={setSelectedKey} />
               </Box>
             </Box>
-            <div className="mt-2 pt-[6px] border-t border-fin-border min-w-0" style={{ "border-top": `1px solid ${BORDER}`, "min-width": 0 }}>
+            <div className="mt-2 pt-[6px] border-t border-fin-border min-w-0" style={{ borderTop: `1px solid ${BORDER}`, minWidth: 0 }}>
               <div className="flex items-baseline justify-between gap-2 mb-1">
                 <div className="mb-1.5" style={{ ...panelTitleStyles() }}>Current minute · full values</div>
                 <div className="font-mono text-[10px] text-fin-text-muted">% vs 5 / 15 / 30m</div>

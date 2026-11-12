@@ -25,7 +25,7 @@ export default meta;
 function Swatch({ name, hex }: { name: string; hex: string }) {
   return (
     <div style={{ width: 120 }}>
-      <div style={{ height: 48, "background-color": hex, "border-radius": 6, border: "1px solid rgba(128,128,128,.3)" }} />
+      <div style={{ height: 48, backgroundColor: hex, borderRadius: 6, border: "1px solid rgba(128,128,128,.3)" }} />
       <MText size="xs" fw={600} mt={4}>{name}</MText>
       <MText size="xs" c="dimmed" style={{ fontFamily: "monospace" }}>{hex}</MText>
     </div>
@@ -38,8 +38,8 @@ function Scale({ name, scale }: { name: string; scale: string[] }) {
       <Title order={6} mb={6}>{name}</Title>
       <Group gap={4}>
         {scale.map((hex, i) => (
-          <div key={i} style={{ "text-align": "center" }}>
-            <div style={{ width: 44, height: 36, "background-color": hex, "border-radius": 4, border: "1px solid rgba(128,128,128,.25)" }} />
+          <div key={i} style={{ textAlign: "center" }}>
+            <div style={{ width: 44, height: 36, backgroundColor: hex, borderRadius: 4, border: "1px solid rgba(128,128,128,.25)" }} />
             <MText size="10px" c="dimmed">{i}</MText>
           </div>
         ))}
@@ -72,9 +72,9 @@ export const TradingColors: StoryObj = {
   name: "Trading Semantics",
   render: () => (
     <Group gap="lg">
-      <Group gap={8}><div style={{ width: 14, height: 14, background: POSITIVE_COLOR, "border-radius": 3 }} /><MText size="sm">Gain / long / BUY</MText></Group>
-      <Group gap={8}><div style={{ width: 14, height: 14, background: NEGATIVE_COLOR, "border-radius": 3 }} /><MText size="sm">Loss / short / SELL</MText></Group>
-      <Group gap={8}><div style={{ width: 14, height: 14, background: PRIMARY, "border-radius": 3 }} /><MText size="sm">Interactive / accent</MText></Group>
+      <Group gap={8}><div style={{ width: 14, height: 14, background: POSITIVE_COLOR, borderRadius: 3 }} /><MText size="sm">Gain / long / BUY</MText></Group>
+      <Group gap={8}><div style={{ width: 14, height: 14, background: NEGATIVE_COLOR, borderRadius: 3 }} /><MText size="sm">Loss / short / SELL</MText></Group>
+      <Group gap={8}><div style={{ width: 14, height: 14, background: PRIMARY, borderRadius: 3 }} /><MText size="sm">Interactive / accent</MText></Group>
     </Group>
   ),
 };
@@ -101,7 +101,7 @@ export const LightDarkPreview: StoryObj = {
         Below the same swatches are shown on both light and dark surfaces to verify contrast.
       </MText>
       <Group gap="xl" align="flex-start">
-        <div style={{ background: "var(--color-fin-surface)", padding: 12, "border-radius": 8, border: "1px solid #D0D7DE" }}>
+        <div style={{ background: "var(--color-fin-surface)", padding: 12, borderRadius: 8, border: "1px solid #D0D7DE" }}>
           <MText size="xs" fw={600} mb={8}>On light ( var(--color-fin-surface) )</MText>
           <Group gap={8}>
             <Swatch name="PRIMARY" hex={PRIMARY} />
@@ -109,7 +109,7 @@ export const LightDarkPreview: StoryObj = {
             <Swatch name="NEGATIVE" hex={NEGATIVE_COLOR} />
           </Group>
         </div>
-        <div style={{ background: BG_COLOR, padding: 12, "border-radius": 8, border: `1px solid ${BORDER_COLOR}` }}>
+        <div style={{ background: BG_COLOR, padding: 12, borderRadius: 8, border: `1px solid ${BORDER_COLOR}` }}>
           <MText size="xs" fw={600} mb={8} c={TEXT_COLOR}>On dark ( BG_COLOR )</MText>
           <Group gap={8}>
             <Swatch name="PRIMARY" hex={PRIMARY} />

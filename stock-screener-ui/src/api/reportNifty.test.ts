@@ -1027,11 +1027,11 @@ describe("fetchNiftyReplay (recorded EOD minute frames)", () => {
         count: 1,
         interval_sec: 60,
         snapshots: [{ t: "10:33", report: snakeReport }],
-        gap_reasons: { "chain-failed": 41, timeout: 12, zero: 0, neg: -3, junk: "x" },
+        gap_reasons: { chainFailed: 41, timeout: 12, zero: 0, neg: -3, junk: "x" },
       }),
     } as unknown as Response);
     const replay = await fetchNiftyReplay("2026-10-19");
-    expect(replay!.gap_reasons).toEqual({ "chain-failed": 41, timeout: 12 });
+    expect(replay!.gap_reasons).toEqual({ chainFailed: 41, timeout: 12 });
   });
 
   test("leaves gap_reasons undefined when the day has no journal", async () => {
@@ -1392,7 +1392,7 @@ describe("generic options history (per-symbol endpoints)", () => {
         date: "2026-10-28",
         count: 1,
         interval_sec: 60,
-        gap_reasons: { "chain-failed": 2, timeout: 0 },
+        gap_reasons: { chainFailed: 2, timeout: 0 },
         snapshots: [{ t: "2026-10-28T10:05:00+05:30", fetched_at: "", report: snakeReport }],
       }),
     );
@@ -1405,7 +1405,7 @@ describe("generic options history (per-symbol endpoints)", () => {
     expect(replay?.snapshots).toHaveLength(1);
     expect(replay?.snapshots[0].report.spot).toBe(22363.35);
     expect(replay?.snapshots[0].sensex).toBeNull();
-    expect(replay?.gap_reasons).toEqual({ "chain-failed": 2 });
+    expect(replay?.gap_reasons).toEqual({ chainFailed: 2 });
 
     vi.mocked(fetchWithAuth).mockResolvedValueOnce(errorResponse());
     await expect(fetchOptionsReplay("RELIANCE", "2026-10-28")).resolves.toBeNull();

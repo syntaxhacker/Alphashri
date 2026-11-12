@@ -46,14 +46,14 @@ function EntryButton(props: {
       w={8}
       h={8}
       className="rounded-full"
-      style={{ "background-color": props.entry.color, filter: props.isHidden ? "grayscale(1)" : undefined }}
+      style={{ backgroundColor: props.entry.color, filter: props.isHidden ? "grayscale(1)" : undefined }}
     />
   );
   const label = (
     <Text
       size="xs"
       c="dimmed"
-      style={props.isHidden ? { "text-decoration": "line-through" } : undefined}
+      style={props.isHidden ? { textDecoration: "line-through" } : undefined}
     >
       {props.entry.name}
     </Text>

@@ -28,7 +28,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
       fw={700}
       c="dimmed"
       tt="uppercase"
-      style={{ display: "block", "letter-spacing": "0.08em", "line-height": 1.4 }}
+      style={{ display: "block", letterSpacing: "0.08em", lineHeight: 1.4 }}
     >
       {children}
     </Text>
@@ -70,9 +70,9 @@ export function ArticleDetail({
                   height: 48,
                   display: "grid",
                   placeItems: "center",
-                  "border-radius": 8,
+                  borderRadius: 8,
                   color: palette.TEXT_MUTED,
-                  "background-color": "#121212",
+                  backgroundColor: "#121212",
                 }}
               >
                 <IconNews size={26} stroke={1.4} />
@@ -99,22 +99,22 @@ export function ArticleDetail({
           style={{
             position: "sticky",
             top: 0,
-            "z-index": 2,
-            "padding-left": 16,
-            "padding-right": 16,
-            "padding-top": 12,
-            "padding-bottom": 12,
-            "background-color": palette.SURFACE,
+            zIndex: 2,
+            paddingLeft: 16,
+            paddingRight: 16,
+            paddingTop: 12,
+            paddingBottom: 12,
+            backgroundColor: palette.SURFACE,
             borderBottom: `1px solid ${palette.BORDER}`,
           }}
         >
-          <Box className="flex items-start gap-6" style={{ display: "flex", "align-items": "flex-start", gap: 12 }}>
+          <Box className="flex items-start gap-6" style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
             <Box className="flex-1 min-w-0">
-              <Box className="flex items-center gap-4 mb-3 min-w-0" style={{ display: "flex", "align-items": "center", gap: 8, "margin-bottom": 6, "min-width": 0 }}>
-                <Text size="xs" fw={800} c="primary" style={{ "text-transform": "uppercase", "letter-spacing": "0.08em" }}>
+              <Box className="flex items-center gap-4 mb-3 min-w-0" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, minWidth: 0 }}>
+                <Text size="xs" fw={800} c="primary" style={{ textTransform: "uppercase", letterSpacing: "0.08em" }}>
                   {selectedArticle.source}
                 </Text>
-                <Box style={{ width: 3, height: 3, "border-radius": "50%", "background-color": palette.TEXT_MUTED }} />
+                <Box style={{ width: 3, height: 3, borderRadius: "50%", backgroundColor: palette.TEXT_MUTED }} />
                 <Text size="xs" c="dimmed" className="[font-variant-numeric:tabular-nums]">
                   {formatTimeAgo(articleContent?.publishedAt || selectedArticle.publishedAt)}
                 </Text>
@@ -122,7 +122,7 @@ export function ArticleDetail({
               <Title
                 order={4}
                 data-testid="article-title"
-                style={{ "font-size": "1.25rem", "line-height": 1.2, "font-weight": 750, textWrap: "balance" }}
+                style={{ fontSize: "1.25rem", lineHeight: 1.2, fontWeight: 750, textWrap: "balance" }}
               >
                 {selectedArticle.headline}
               </Title>
@@ -134,7 +134,7 @@ export function ArticleDetail({
                 onClick={onClose}
                 data-testid="close-article-btn"
                 variant="subtle"
-                style={{ "margin-top": 2, flex: "0 0 auto" }}
+                style={{ marginTop: 2, flex: "0 0 auto" }}
               >
                 <IconX size={12} />
               </ActionIcon>
@@ -157,7 +157,7 @@ export function ArticleDetail({
         ) : (
           <>
             <Box className="flex-1 min-h-0 overflow-auto">
-              <Stack className="gap-8" style={{ "max-width": 920, padding: "24px 16px" }}>
+              <Stack className="gap-8" style={{ maxWidth: 920, padding: "24px 16px" }}>
                 {articleError ? (
                   <Alert color="error" variant="filled" data-testid="article-error">
                     {articleError}
@@ -180,8 +180,8 @@ export function ArticleDetail({
                 ) : null}
 
                 {articleContent?.sentiment || articleContent?.impact_score !== undefined ? (
-                  <Box className="flex items-center flex-wrap" style={{ display: "flex", "align-items": "center", "flex-wrap": "wrap", "padding-top": 4, "padding-bottom": 4, "padding-left": 4, "padding-right": 4 }}>
-                    <Box className="flex items-center gap-2" style={{ color: palette.TEXT_MUTED, display: "flex", "align-items": "center", gap: 4 }}>
+                  <Box className="flex items-center flex-wrap" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", paddingTop: 4, paddingBottom: 4, paddingLeft: 4, paddingRight: 4 }}>
+                    <Box className="flex items-center gap-2" style={{ color: palette.TEXT_MUTED, display: "flex", alignItems: "center", gap: 4 }}>
                       <IconBulb size={15} aria-hidden="true" />
                       <Text size="xs" fw={700}>
                         Signal snapshot
@@ -198,16 +198,16 @@ export function ArticleDetail({
                     data-testid="article-summary"
                     style={{
                       padding: 12,
-                      "border-radius": 8,
+                      borderRadius: 8,
                       borderLeft: `3px solid ${palette.PRIMARY}`,
-                      "background-color": "#121212",
+                      backgroundColor: "#121212",
                     }}
                   >
-                    <Box className="flex items-center gap-3 mb-3" style={{ display: "flex", "align-items": "center", gap: 12, "margin-bottom": 12 }}>
+                    <Box className="flex items-center gap-3 mb-3" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
                       <IconBulb size={16} color="primary" aria-hidden="true" />
                       <SectionLabel>Summary</SectionLabel>
                     </Box>
-                    <Text size="sm" style={{ "line-height": 1.65, textWrap: "pretty" }}>
+                    <Text size="sm" style={{ lineHeight: 1.65, textWrap: "pretty" }}>
                       {articleContent.summary}
                     </Text>
                   </Box>
@@ -216,13 +216,13 @@ export function ArticleDetail({
                 {articleContent?.key_points && articleContent.key_points.length > 0 ? (
                   <Box component="section">
                     <SectionLabel>Key Takeaways</SectionLabel>
-                    <Stack component="ul" className="list-none" style={{ padding: 0, "margin-top": 6, listStyle: "none" }}>
+                    <Stack component="ul" className="list-none" style={{ padding: 0, marginTop: 6, listStyle: "none" }}>
                       {articleContent.key_points.map((point, index) => (
                         <Box
                           component="li"
                           key={`${index}-${point.slice(0, 40)}`}
                           className="flex items-start gap-4"
-                          style={{ display: "flex", "align-items": "flex-start", gap: 4 }}
+                          style={{ display: "flex", alignItems: "flex-start", gap: 4 }}
                         >
                           <Box
                             component="span"
@@ -231,18 +231,18 @@ export function ArticleDetail({
                               height: 20,
                               display: "grid",
                               placeItems: "center",
-                              "border-radius": "50%",
-                              "background-color": palette.PRIMARY,
+                              borderRadius: "50%",
+                              backgroundColor: palette.PRIMARY,
                               color: palette.BG,
-                              "font-size": 11,
-                              "font-weight": 800,
+                              fontSize: 11,
+                              fontWeight: 800,
                               flex: "0 0 auto",
-                              "margin-top": 1,
+                              marginTop: 1,
                             }}
                           >
                             {index + 1}
                           </Box>
-                          <Text size="sm" style={{ "line-height": 1.55, textWrap: "pretty" }}>
+                          <Text size="sm" style={{ lineHeight: 1.55, textWrap: "pretty" }}>
                             {point}
                           </Text>
                         </Box>
@@ -254,7 +254,7 @@ export function ArticleDetail({
                 {articleContent?.symbols && articleContent.symbols.length > 0 ? (
                   <Box component="section">
                     <SectionLabel>Stocks mentioned</SectionLabel>
-                    <Box className="flex flex-wrap gap-2 mt-2" style={{ display: "flex", "flex-wrap": "wrap", gap: 8, "margin-top": 12 }}>
+                    <Box className="flex flex-wrap gap-2 mt-2" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
                       {articleContent.symbols.map((symbol) => (
                         <Tooltip
                           key={symbol.code}
@@ -269,7 +269,7 @@ export function ArticleDetail({
                             style={{ cursor: "pointer" }}
                           >
                             {symbol.name || symbol.code}
-                            {symbol.instrument_key && <IconChartLine size={12} style={{ "margin-left": 4 }} />}
+                            {symbol.instrument_key && <IconChartLine size={12} style={{ marginLeft: 4 }} />}
                           </Badge>
                         </Tooltip>
                       ))}
@@ -280,7 +280,7 @@ export function ArticleDetail({
                 {articleContent?.trade_ideas && articleContent.trade_ideas.length > 0 ? (
                   <Box component="section">
                     <SectionLabel>Trade Ideas</SectionLabel>
-                    <Stack className="gap-2" style={{ "margin-top": 12 }}>
+                    <Stack className="gap-2" style={{ marginTop: 12 }}>
                       {articleContent.trade_ideas.map((idea, index) => (
                         <TradeIdeaCard
                           key={`${idea.symbol}-${idea.direction}-${index}`}
@@ -292,7 +292,7 @@ export function ArticleDetail({
                 ) : null}
 
                 {articleContent?.description ? (
-                  <Box component="section" style={{ "padding-top": 4 }}>
+                  <Box component="section" style={{ paddingTop: 4 }}>
                     <SectionLabel>Full article</SectionLabel>
                     {hasLlmSummary ? (
                       <>
@@ -303,17 +303,17 @@ export function ArticleDetail({
                           data-testid="article-toggle-full-content-btn"
                           startIcon={showFullContent ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
                           variant="subtle"
-                          style={{ "margin-top": 4, alignSelf: "flex-start" }}
+                          style={{ marginTop: 4, alignSelf: "flex-start" }}
                         >
                           {showFullContent ? "Hide full article" : "View full article"}
                         </Button>
                         <Collapse in={showFullContent}>
-                          <Stack className="gap-4" style={{ "margin-top": 16 }}>
+                          <Stack className="gap-4" style={{ marginTop: 16 }}>
                             {articleContent.description.split("\n\n").map((paragraph, index) => (
                               <Text
                                 key={`full-${index}-${paragraph.slice(0, 40)}`}
                                 size="sm"
-                                style={{ "line-height": 1.7, "margin-bottom": 0, textWrap: "pretty" }}
+                                style={{ lineHeight: 1.7, marginBottom: 0, textWrap: "pretty" }}
                               >
                                 {paragraph}
                               </Text>
@@ -322,12 +322,12 @@ export function ArticleDetail({
                         </Collapse>
                       </>
                     ) : (
-                      <Stack className="gap-4" style={{ "margin-top": 16 }}>
+                      <Stack className="gap-4" style={{ marginTop: 16 }}>
                         {articleContent.description.split("\n\n").map((paragraph, index) => (
                           <Text
                             key={`partial-${index}-${paragraph.slice(0, 40)}`}
                             size="sm"
-                            style={{ "line-height": 1.7, "margin-bottom": 0, textWrap: "pretty" }}
+                            style={{ lineHeight: 1.7, marginBottom: 0, textWrap: "pretty" }}
                           >
                             {paragraph}
                           </Text>
@@ -339,7 +339,7 @@ export function ArticleDetail({
               </Stack>
             </Box>
             <Divider />
-            <Box className="flex items-center justify-between gap-4 bg-fin-surface" style={{ "min-height": 48, "padding-left": 12, "padding-right": 12, "padding-top": 6, "padding-bottom": 6, display: "flex", "align-items": "center", "justify-content": "space-between", gap: 8, "background-color": palette.SURFACE }}>
+            <Box className="flex items-center justify-between gap-4 bg-fin-surface" style={{ minHeight: 48, paddingLeft: 12, paddingRight: 12, paddingTop: 6, paddingBottom: 6, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, backgroundColor: palette.SURFACE }}>
               {articleError && onRetryArticle ? (
                 <Button size="sm" onClick={onRetryArticle} data-testid="article-retry">
                   Retry

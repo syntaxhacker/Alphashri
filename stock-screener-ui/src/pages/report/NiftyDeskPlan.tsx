@@ -60,10 +60,10 @@ const SectionLabel = memo(function SectionLabel({
       span
       style={{
         color,
-        "font-size": 9,
-        "line-height": 1.2,
-        "letter-spacing": "0.1em",
-        "text-transform": "uppercase",
+        fontSize: 9,
+        lineHeight: 1.2,
+        letterSpacing: "0.1em",
+        textTransform: "uppercase",
       }}
     >
       {children}
@@ -79,20 +79,20 @@ function BiasBadge({ bias, side }: { bias: DeskBias; side: "bull" | "bear" }) {
       data-testid={`desk-bias-${side}`}
       className="inline-flex items-center shrink-0"
       style={{
-        "padding-left": "6px",
-        "padding-right": "6px",
-        "padding-top": "1px",
-        "padding-bottom": "1px",
-        "border-radius": "9999px",
+        paddingLeft: "6px",
+        paddingRight: "6px",
+        paddingTop: "1px",
+        paddingBottom: "1px",
+        borderRadius: "9999px",
         border: `1px solid ${alpha(accent, 0.5)}`,
-        "background-color": alpha(accent, 0.12),
+        backgroundColor: alpha(accent, 0.12),
       }}
     >
       <Text
         span
         size="xs"
         fw={800}
-        style={{ color: accent, "font-size": "9px", "line-height": 1.2, "letter-spacing": "0.08em" }}
+        style={{ color: accent, fontSize: "9px", lineHeight: 1.2, letterSpacing: "0.08em" }}
       >
         {bias.toUpperCase()}
       </Text>
@@ -127,7 +127,7 @@ function InlineStats({ side, noTrade }: { side: DeskSide; noTrade: boolean }) {
     <Box
       data-testid={`desk-do-${side.side}-stats`}
       className="flex items-baseline flex-wrap min-w-0"
-      style={{ "column-gap": "8px", "row-gap": "2px" }}
+      style={{ columnGap: "8px", rowGap: "2px" }}
     >
       {stats.map((stat, index) => (
         <Box
@@ -136,8 +136,8 @@ function InlineStats({ side, noTrade }: { side: DeskSide; noTrade: boolean }) {
           style={{
             gap: "4px",
             ...(index > 0 && {
-              "padding-left": "8px",
-              "border-left": `1px solid ${palette.TERM_BORDER}`,
+              paddingLeft: "8px",
+              borderLeft: `1px solid ${palette.TERM_BORDER}`,
             }),
           }}
         >
@@ -146,7 +146,7 @@ function InlineStats({ side, noTrade }: { side: DeskSide; noTrade: boolean }) {
             fw={700}
             c="dimmed"
             span
-            style={{ "font-size": 9, "line-height": 1.2, "letter-spacing": "0.06em", "text-transform": "uppercase" }}
+            style={{ fontSize: 9, lineHeight: 1.2, letterSpacing: "0.06em", textTransform: "uppercase" }}
           >
             {stat.label}
           </Text>
@@ -155,7 +155,7 @@ function InlineStats({ side, noTrade }: { side: DeskSide; noTrade: boolean }) {
             size="xs"
             fw={800}
             span
-            style={{ "font-size": 12, "line-height": 1.3, "font-variant-numeric": "tabular-nums" }}
+            style={{ fontSize: 12, lineHeight: 1.3, fontVariantNumeric: "tabular-nums" }}
           >
             {stat.value}
           </Text>
@@ -189,15 +189,15 @@ function DeskSideColumn({
         className="flex items-center min-w-0"
         style={{
           gap: "8px",
-          "padding-bottom": "4px",
-          "border-bottom": `1px solid ${palette.TERM_BORDER}`,
+          paddingBottom: "4px",
+          borderBottom: `1px solid ${palette.TERM_BORDER}`,
         }}
       >
         <Text
           span
           size="xs"
           fw={800}
-          style={{ color: accent, "font-size": 11, "line-height": 1.2, "letter-spacing": "0.08em" }}
+          style={{ color: accent, fontSize: 11, lineHeight: 1.2, letterSpacing: "0.08em" }}
         >
           {label}
         </Text>
@@ -217,7 +217,7 @@ function DeskSideColumn({
           size="xs"
           fw={700}
           lh={1.3}
-          style={{ "font-size": 11 }}
+          style={{ fontSize: 11 }}
         >
           {side.action}
         </Text>
@@ -226,7 +226,7 @@ function DeskSideColumn({
           size="xs"
           c="dimmed"
           lh={1.35}
-          style={{ "font-size": 10 }}
+          style={{ fontSize: 10 }}
         >
           {noTrade ? NO_TRADE : trigger}
         </Text>
@@ -248,10 +248,10 @@ function DeskSideColumn({
             className="flex items-flex-start min-w-0"
             style={{ gap: "6px" }}
           >
-            <Text span size="xs" fw={800} style={{ color: palette.WARNING, "font-size": 10, "line-height": 1.35 }}>
+            <Text span size="xs" fw={800} style={{ color: palette.WARNING, fontSize: 10, lineHeight: 1.35 }}>
               ×
             </Text>
-            <Text size="xs" c="dimmed" lh={1.35} style={{ "font-size": 10 }}>
+            <Text size="xs" c="dimmed" lh={1.35} style={{ fontSize: 10 }}>
               {line}
             </Text>
           </Box>
@@ -266,7 +266,7 @@ function DeskSideColumn({
           <ol
             data-testid={`desk-reasons-${side.side}`}
             className="flex flex-col min-w-0"
-            style={{ "list-style": "none", margin: 0, padding: 0, gap: "4px" }}
+            style={{ listStyle: "none", margin: 0, padding: 0, gap: "4px" }}
           >
             {side.reasons.map((reason, index) => (
               <Box
@@ -281,7 +281,7 @@ function DeskSideColumn({
                   size="xs"
                   fw={700}
                   c="dimmed"
-                  style={{ "font-size": 10, "line-height": 1.4, "min-width": 12, "font-variant-numeric": "tabular-nums" }}
+                  style={{ fontSize: 10, lineHeight: 1.4, minWidth: 12, fontVariantNumeric: "tabular-nums" }}
                 >
                   {index + 1}.
                 </Text>
@@ -289,11 +289,11 @@ function DeskSideColumn({
                   data-testid={`desk-reason-tag-${side.side}-${index}`}
                   className="inline-flex items-center shrink-0"
                   style={{
-                    "padding-left": "4px",
-                    "padding-right": "4px",
-                    "border-radius": "4px",
-                    "background-color": alpha(TAG_COLORS[reason.tag], 0.14),
-                    "margin-top": "1px",
+                    paddingLeft: "4px",
+                    paddingRight: "4px",
+                    borderRadius: "4px",
+                    backgroundColor: alpha(TAG_COLORS[reason.tag], 0.14),
+                    marginTop: "1px",
                   }}
                 >
                   <Text
@@ -302,16 +302,16 @@ function DeskSideColumn({
                     fw={800}
                     style={{
                       color: TAG_COLORS[reason.tag],
-                      "font-size": 8,
-                      "line-height": 1.5,
-                      "letter-spacing": "0.06em",
-                      "text-transform": "uppercase",
+                      fontSize: 8,
+                      lineHeight: 1.5,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
                     }}
                   >
                     {reason.tag}
                   </Text>
                 </Box>
-                <Text size="xs" c="dimmed" lh={1.4} style={{ "font-size": 10 }}>
+                <Text size="xs" c="dimmed" lh={1.4} style={{ fontSize: 10 }}>
                   {reason.text}
                 </Text>
               </Box>
@@ -363,12 +363,12 @@ function NiftyDeskPlanInner({ report }: NiftyDeskPlanProps) {
           className="min-w-0"
           style={{
             padding: "8px",
-            "min-width": 0,
+            minWidth: 0,
             // Keep the chart inside the first 1080p screen; the body scrolls
             // internally when both reason lists run long.
-            "max-height": "320px",
-            "overflow-y": "auto",
-            "scrollbar-gutter": "stable",
+            maxHeight: "320px",
+            overflowY: "auto",
+            scrollbarGutter: "stable",
           }}
         >
           {noTrade && (
@@ -377,12 +377,12 @@ function NiftyDeskPlanInner({ report }: NiftyDeskPlanProps) {
               className="flex items-center min-w-0"
               style={{
                 gap: "6px",
-                "padding-bottom": "4px",
-                "margin-bottom": "4px",
-                "border-bottom": `1px solid ${palette.TERM_BORDER}`,
+                paddingBottom: "4px",
+                marginBottom: "4px",
+                borderBottom: `1px solid ${palette.TERM_BORDER}`,
               }}
             >
-              <Text size="xs" fw={700} c="dimmed" lh={1.3} style={{ "font-size": "10px" }}>
+              <Text size="xs" fw={700} c="dimmed" lh={1.3} style={{ fontSize: "10px" }}>
                 {plan.waitNote}
               </Text>
             </Box>
@@ -390,12 +390,12 @@ function NiftyDeskPlanInner({ report }: NiftyDeskPlanProps) {
           <Box
             className="grid"
             style={{
-              "grid-template-columns": {
+              gridTemplateColumns: {
                 xs: "minmax(0, 1fr)",
                 md: "repeat(2, minmax(0, 1fr))",
               },
               gap: "8px",
-              "min-width": 0,
+              minWidth: 0,
             }}
           >
             <DeskSideColumn side={plan.bull} label="BULL" noTrade={noTrade} />

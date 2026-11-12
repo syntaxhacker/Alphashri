@@ -1,6 +1,5 @@
 // smc-ifvg — second ReplayStrategyPlugin. Ports the /poc/smc-trades page:
 // SMC iFVG engine on real NQ ticks, merging the `inv` + `retest` entry feeds.
-import { createElement } from "react";
 import { TZ_IST_LABEL } from "@/config/constants";
 import * as palette from "@/ui/palette";
 import { Chip } from "@/ui";
@@ -55,23 +54,23 @@ const smcIfvg: ReplayStrategyPlugin = {
   panel: (bundle) => {
     const trades = bundle.trades;
     const netStack = (st: TradeStack) => trades.filter(t => t.stack === st).reduce((a, t) => a + t.pnl, 0);
-    return createElement(
-      Stack,
-      { direction: "row", gap: "sm", mb: "sm", wrap: "wrap" },
-      ...tradeStatChips(bundle, [
-        createElement(Chip, {
-          size: "small",
-          key: "momentum",
-          children: `MOMENTUM ${netStack("inv") > 0 ? "+" : ""}${netStack("inv").toFixed(1)}`,
-          style: { "background-color": "#1F2937", color: palette.PRIMARY, border: `1px solid ${stackColor("inv")}` },
-        }),
-        createElement(Chip, {
-          size: "small",
-          key: "reversion",
-          children: `REVERSION ${netStack("retest") > 0 ? "+" : ""}${netStack("retest").toFixed(1)}`,
-          style: { "background-color": "#1F2937", color: "#CE9BFC", border: `1px solid ${stackColor("retest")}` },
-        }),
-      ]),
+    return (
+      <Stack direction="row" gap="sm" mb="sm" wrap="wrap">
+        {tradeStatChips(bundle, [
+          <Chip
+            size="sm"
+            style={{ "background-color": "#1F2937", color: palette.PRIMARY, border: `1px solid ${stackColor("inv")}` }}
+          >
+            {`MOMENTUM ${netStack("inv") > 0 ? "+" : ""}${netStack("inv").toFixed(1)}`}
+          </Chip>,
+          <Chip
+            size="sm"
+            style={{ "background-color": "#1F2937", color: "#CE9BFC", border: `1px solid ${stackColor("retest")}` }}
+          >
+            {`REVERSION ${netStack("retest") > 0 ? "+" : ""}${netStack("retest").toFixed(1)}`}
+          </Chip>,
+        ])}
+      </Stack>
     );
   },
   summary: (bundle) =>

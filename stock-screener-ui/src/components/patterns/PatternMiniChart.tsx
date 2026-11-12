@@ -1,10 +1,10 @@
-import { memo, useEffect } from "react";
-import { Box } from "@/ui";
-import { useECharts } from "@/hooks/useECharts";
+import { createEffect, onCleanup, onMount } from "solid-js";
+import type * as ECharts from "echarts";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
 import type { PatternHitDTO, TrendlinesView } from "@/types/chartPatterns";
 import { MINI_CHART_HEIGHT } from "@/config/patterns";
 import { buildPatternChartOption, BOUNDARY_COLORS } from "./patternChartOption";
+import { loadEcharts } from "@/utils/loadEcharts";
 
 export interface PatternMiniChartProps {
   hit: PatternHitDTO;
@@ -16,15 +16,27 @@ export interface PatternMiniChartProps {
  * Compact inline candlestick for a card. Reuses the shared option builder so
  * the pattern geometry matches the detail / fullscreen views exactly.
  */
-export const PatternMiniChart = memo(function PatternMiniChart({ hit, trendlinesView = "both" }: PatternMiniChartProps) {
-  const { chartRef, setChartOption } = useECharts({ isDark: true });
+export function PatternMiniChart(props: PatternMiniChartProps) {
+  let chartEl: HTMLDivElement | undefined;
+  let chart: ECharts.ECharts | undefined;
+  let disposed = false;
 
-  useEffect(() => {
+  async function applyOption(option: Record<string, unknown>) {
+    const lib = await loadEcharts();
+    if (disposed || !chartEl || !lib) return;
+    if (!chart) chart = lib.init(chartEl, null) as ECharts.ECharts;
+    chart.setOption(option, true);
+    chart.resize();
+  }
+
+  createEffect(() => {
+    const hit = props.hit;
+    const trendlinesView = props.trendlinesView ?? "both";
     const candles = hit.candles ?? [];
     const trendlines = (hit.trendlines ?? []).filter((line) => line.length > 0);
 
     if (candles.length > 0) {
-      setChartOption(
+      void applyOption(
         buildPatternChartOption({
           candles,
           trendlines,
@@ -32,7 +44,7 @@ export const PatternMiniChart = memo(function PatternMiniChart({ hit, trendlines
           standaloneTrendLines: hit.trend_lines ?? [],
           trendlinesView,
           compact: true,
-        }) as never,
+        }) as Record<string, unknown>,
       );
       return;
     }
@@ -61,7 +73,7 @@ export const PatternMiniChart = memo(function PatternMiniChart({ hit, trendlines
 
     const length = Math.max(...series.map((s) => s.data.length), 2);
 
-    setChartOption({
+    void applyOption({
       animation: false,
       grid: { left: 2, right: 2, top: 6, bottom: 2 },
       tooltip: { show: false },
@@ -69,14 +81,26 @@ export const PatternMiniChart = memo(function PatternMiniChart({ hit, trendlines
       yAxis: { type: "value", show: false, scale: true },
       series,
     });
-  }, [hit, setChartOption, trendlinesView]);
+  });
+
+  onMount(() => {
+    const handleResize = () => chart?.resize();
+    window.addEventListener("resize", handleResize);
+    onCleanup(() => window.removeEventListener("resize", handleResize));
+  });
+
+  onCleanup(() => {
+    disposed = true;
+    chart?.dispose();
+    chart = undefined;
+  });
 
   return (
-    <Box
-      ref={chartRef}
-      data-testid={`patterns-mini-chart-${hit.symbol}-${hit.pattern_id}`}
+    <div
+      ref={(el) => (chartEl = el)}
+      data-testid={`patterns-mini-chart-${props.hit.symbol}-${props.hit.pattern_id}`}
       className="w-full"
-      style={{ height: MINI_CHART_HEIGHT }}
+      style={{ height: `${MINI_CHART_HEIGHT}px` }}
     />
   );
-});
+}

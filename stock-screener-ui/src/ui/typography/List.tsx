@@ -34,12 +34,12 @@ export function List(props: UIListProps & Record<string, unknown>) {
       style={{
         margin: 0,
         padding: 0,
-        ...(known.withPadding ? { "padding-left": "24px" } : { "padding-left": "0px" }),
+        ...(known.withPadding ? { paddingLeft: "24px" } : { paddingLeft: "0px" }),
         listStylePosition: "inside",
-        ...(known.size != null ? { "font-size": sizeMap[known.size as string] ?? (known.size as string) } : {}),
-        ...(known.listStyleType ? { "list-style-type": known.listStyleType } : {}),
-        ...(known.center ? { "text-align": "center" } : {}),
-        ...(known.type === "ordered" ? {} : { "list-style-type": known.listStyleType ?? "disc" }),
+        ...(known.size != null ? { fontSize: sizeMap[known.size as string] ?? (known.size as string) } : {}),
+        ...(known.listStyleType ? { listStyleType: known.listStyleType } : {}),
+        ...(known.center ? { textAlign: "center" } : {}),
+        ...(known.type === "ordered" ? {} : { listStyleType: known.listStyleType ?? "disc" }),
         ...(known.style as Record<string, unknown> | undefined),
       }}
       id={known.id}

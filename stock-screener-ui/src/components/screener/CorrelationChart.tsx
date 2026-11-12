@@ -87,14 +87,14 @@ export function CorrelationChart(props: CorrelationChartProps) {
         data: symbols,
         top: 0,
         type: "scroll" as const,
-        textStyle: { "font-size": 11, color: CHART_MUTED },
+        textStyle: { fontSize: 11, color: CHART_MUTED },
       },
       grid: { left: 60, right: 20, top: 40, bottom: 30 },
       xAxis: {
         type: "category" as const,
         data: sortedTimestamps,
         axisLabel: {
-          "font-size": 10,
+          fontSize: 10,
           rotate: 30,
           formatter: (val: string) => {
             const d = new Date(val);
@@ -106,8 +106,8 @@ export function CorrelationChart(props: CorrelationChartProps) {
       yAxis: {
         type: "value" as const,
         name: "% Change",
-        nameTextStyle: { "font-size": 11, color: CHART_MUTED },
-        axisLabel: { "font-size": 10, formatter: "{value}%", color: CHART_MUTED },
+        nameTextStyle: { fontSize: 11, color: CHART_MUTED },
+        axisLabel: { fontSize: 10, formatter: "{value}%", color: CHART_MUTED },
         splitLine: { lineStyle: { type: "dashed", color: CHART_SPLIT } },
         axisLine: { lineStyle: { color: CHART_MUTED } },
       },

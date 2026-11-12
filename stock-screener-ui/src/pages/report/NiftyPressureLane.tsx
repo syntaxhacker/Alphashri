@@ -278,7 +278,7 @@ const NiftyPressureLaneInner = function NiftyPressureLane({
           style={{
             left: `${hoverPct}%`,
             transform: readoutShift,
-            "background-color": palette.TERM_HEADER,
+            backgroundColor: palette.TERM_HEADER,
             border: `1px solid ${palette.TERM_BORDER}`,
             color: palette.TEXT,
           }}
@@ -321,15 +321,15 @@ const NiftyPressureLaneInner = function NiftyPressureLane({
             className="flex items-center gap-[10px] flex-wrap mt-[3px] text-[8.5px] font-mono text-fin-text-muted"
           >
             <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 rounded-[1px]" style={{ "background-color": palette.TERM_CE }} />
+              <span className="w-2 h-2 rounded-[1px]" style={{ backgroundColor: palette.TERM_CE }} />
               CE volume (up)
             </span>
             <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 rounded-[1px]" style={{ "background-color": palette.TERM_PE }} />
+              <span className="w-2 h-2 rounded-[1px]" style={{ backgroundColor: palette.TERM_PE }} />
               PE volume (down)
             </span>
             <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 rounded-[1px]" style={{ "background-color": palette.TEXT_MUTED, opacity: 0.35 }} />
+              <span className="w-2 h-2 rounded-[1px]" style={{ backgroundColor: palette.TEXT_MUTED, opacity: 0.35 }} />
               solid = buy
             </span>
             <span className="inline-flex items-center gap-1">
@@ -348,7 +348,7 @@ const NiftyPressureLaneInner = function NiftyPressureLane({
             <span className="inline-flex items-center gap-1">
               <span
                 className="w-2 h-2 rounded-[1px] border border-fin-warning"
-                style={{ "background-color": palette.WARNING, opacity: 0.25 }}
+                style={{ backgroundColor: palette.WARNING, opacity: 0.25 }}
               />
               ≥2× burst (4× climax)
             </span>

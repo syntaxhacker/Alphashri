@@ -4,7 +4,7 @@ import { Button } from "@/ui";
 import { Loader } from "@/ui";
 import { Select } from "@/ui";
 import { Chip } from "@/ui";
-import { IconRefresh, IconClock } from "@tabler/icons-react";
+import { IconRefresh, IconClock } from "../screener/icons";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
 import type { SectorCorrelationResponse } from "../../types/sector";
 import {

@@ -12,10 +12,10 @@ export default function ReplayIndexPage() {
 
   return (
     <Box className="p-4 w-full" data-testid="replay-index">
-      <Text size="lg" fw={700} style={{ color: palette.TEXT, "margin-bottom": 4 }}>
+      <Text size="lg" fw={700} style={{ color: palette.TEXT, marginBottom: 4 }}>
         Replay strategies
       </Text>
-      <Text size="xs" style={{ color: palette.TEXT_MUTED, display: "block", "margin-bottom": 16 }}>
+      <Text size="xs" style={{ color: palette.TEXT_MUTED, display: "block", marginBottom: 16 }}>
         {strategies.length} registered · select one to open its replay
       </Text>
       <Stack direction="row" spacing={1} className="flex-wrap items-stretch">
@@ -24,7 +24,7 @@ export default function ReplayIndexPage() {
             key={plugin.id}
             className="w-[240px]"
             style={{
-              "background-color": palette.SURFACE,
+              backgroundColor: palette.SURFACE,
               border: `1px solid ${palette.BORDER}`,
             }}
           >
@@ -36,7 +36,7 @@ export default function ReplayIndexPage() {
               <Text size="sm" fw={600} style={{ color: palette.TEXT }}>
                 {plugin.label}
               </Text>
-              <Text size="xs" style={{ color: palette.TEXT_MUTED, display: "block", "margin-bottom": 8 }}>
+              <Text size="xs" style={{ color: palette.TEXT_MUTED, display: "block", marginBottom: 8 }}>
                 {plugin.id}
               </Text>
               <Stack direction="row" spacing={1} className="flex-wrap">
@@ -44,14 +44,14 @@ export default function ReplayIndexPage() {
                   size="sm"
                   label={plugin.mode}
                   style={{
-                    "background-color": palette.SURFACE_ALT,
+                    backgroundColor: palette.SURFACE_ALT,
                     color: plugin.mode === "timeline" ? palette.PRIMARY : palette.POSITIVE,
                   }}
                 />
                 <Chip
                   size="sm"
                   label={`${plugin.params.length} params`}
-                  style={{ "background-color": palette.SURFACE_ALT, color: palette.TEXT_MUTED }}
+                  style={{ backgroundColor: palette.SURFACE_ALT, color: palette.TEXT_MUTED }}
                 />
               </Stack>
             </Box>

@@ -280,7 +280,7 @@ describe("NiftyStructureShifts render", () => {
     render(<NiftyStructureShifts structure={twelve} />, { wrapper: TestWrapper });
     const list = screen.getByTestId("nifty-structure-list");
     expect(within(list).getAllByTestId("nifty-structure-row")).toHaveLength(12);
-    expect(list).toHaveStyle({ "max-height": "120px", "overflow-y": "auto" });
+    expect(list).toHaveStyle({ maxHeight: "120px", overflowY: "auto" });
   });
 
   test("absent detail falls back to a dash and still exposes a title", () => {

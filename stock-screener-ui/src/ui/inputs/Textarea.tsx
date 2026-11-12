@@ -58,7 +58,7 @@ export function Textarea(props: UITextareaProps) {
   const wrapperStyle = explicitWidth ? { width: explicitWidth, ...known.style } : known.style ?? {};
   const inputStyle = {
     ...(explicitHeight ? { height: explicitHeight } : {}),
-    ...(effectiveMaxRows ? { "max-height": `${effectiveMaxRows * 1.4}rem` } : {}),
+    ...(effectiveMaxRows ? { maxHeight: `${effectiveMaxRows * 1.4}rem` } : {}),
   };
 
   const wrapperTestId = known["data-testid"] ? `${known["data-testid"]}-field` : undefined;

@@ -481,8 +481,8 @@ function GexLevelValue(level: GexSideLevel | null) {
         component="span"
         className="ml-[4px] whitespace-nowrap"
         style={{
-          "font-size": 9,
-          "font-weight": 400,
+          fontSize: 9,
+          fontWeight: 400,
           color: palette.TEXT_MUTED,
         }}
       >
@@ -526,10 +526,10 @@ function NiftyGexProfileInner({ gex, spot }: NiftyGexProfileProps) {
       title="GEX profile"
       testId="nifty-gex-profile-panel"
       style={{
-        "background-color": palette.TERM_BG,
+        backgroundColor: palette.TERM_BG,
         border: `1px solid ${palette.TERM_BORDER}`,
-        "border-color": palette.TERM_BORDER,
-        "border-radius": 8,
+        borderColor: palette.TERM_BORDER,
+        borderRadius: 8,
       }}
     >
       {/* Tight stat row: plain grid instead of CompactStatGrid (whose
@@ -587,7 +587,7 @@ function NiftyGexProfileInner({ gex, spot }: NiftyGexProfileProps) {
             style={{
               color: regimeTone,
               border: `1px solid ${regimeTone}`,
-              "border-radius": 6,
+              borderRadius: 6,
               padding: "4px 2px",
             }}
           >

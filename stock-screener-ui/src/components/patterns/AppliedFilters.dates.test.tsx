@@ -15,10 +15,6 @@ function makeFilters(overrides: Partial<PatternFilters> = {}): PatternFilters {
   return { ...DEFAULT_PATTERN_FILTERS, ...overrides };
 }
 
-function r(ui: React.ReactElement) {
-  return render(ui, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
-
 afterEach(() => cleanup());
 
 describe("AppliedFilters date chips", () => {

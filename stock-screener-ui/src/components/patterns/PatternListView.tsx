@@ -321,12 +321,12 @@ export function PatternListView({
         activeKey && fullscreenDedupeKey(hit) === activeKey
           ? {
               background: "rgba(88, 166, 255, 0.12)",
-              "box-shadow": "inset 3px 0 0 var(--color-fin-primary)",
+              boxShadow: "inset 3px 0 0 var(--color-fin-primary)",
             }
           : undefined
       }
       getRowAttributes={(hit) => ({
-        "data-active":
+        dataActive:
           activeKey && fullscreenDedupeKey(hit) === activeKey ? "true" : undefined,
       })}
       getRowTestId={(hit) =>

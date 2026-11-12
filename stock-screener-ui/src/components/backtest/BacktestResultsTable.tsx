@@ -144,7 +144,7 @@ export function BacktestResultsTable({
         getRowTestId={(row) => `result-row-${row.symbol}`}
         getRowClassName={(row) => (selectedSymbol === row.symbol ? "result-row-selected" : undefined)}
         getRowStyle={(row) => ({
-          "background-color": row.symbol === selectedSymbol ? "rgba(88, 166, 255, 0.08)" : undefined,
+          backgroundColor: row.symbol === selectedSymbol ? "rgba(88, 166, 255, 0.08)" : undefined,
         })}
         onRowClick={(row) => onRowClick(row.symbol)}
       />

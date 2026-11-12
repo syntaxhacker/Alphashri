@@ -23,12 +23,12 @@ interface TickReplayChartProps {
 }
 
 const MARKER_COLOR: Record<string, string> = {
-  "entry-long": palette.MARKER_ENTRY,
-  "entry-short": palette.MARKER_SL,
-  "exit-tp": palette.MARKER_TP,
-  "exit-sl": palette.MARKER_SL,
-  "exit-be": palette.TEXT_MUTED,
-  "exit-trail": palette.MARKER_EOD,
+  entryLong: palette.MARKER_ENTRY,
+  entryShort: palette.MARKER_SL,
+  exitTp: palette.MARKER_TP,
+  exitSl: palette.MARKER_SL,
+  exitBe: palette.TEXT_MUTED,
+  exitTrail: palette.MARKER_EOD,
 };
 
 export default function TickReplayChart({

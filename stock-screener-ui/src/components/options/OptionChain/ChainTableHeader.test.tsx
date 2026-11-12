@@ -34,7 +34,7 @@ const mockTheme = {
 
 const mockStyles = {
   header: { display: "flex" as const },
-  headerCell: { flex: 1 as const, "text-align": "center" as const },
+  headerCell: { flex: 1 as const, textAlign: "center" as const },
 };
 
 describe("ChainTableHeader", () => {

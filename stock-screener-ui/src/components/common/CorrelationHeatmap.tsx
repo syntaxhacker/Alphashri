@@ -124,13 +124,13 @@ export function CorrelationHeatmap(props: CorrelationHeatmapProps) {
       xAxis: {
         type: "category" as const,
         data: symbols,
-        axisLabel: { rotate: 45, "font-size": 10, color: colors.axisLabel },
+        axisLabel: { rotate: 45, fontSize: 10, color: colors.axisLabel },
         axisLine: { lineStyle: { color: colors.axisLine } },
       },
       yAxis: {
         type: "category" as const,
         data: symbols,
-        axisLabel: { "font-size": 11, color: colors.axisLabel },
+        axisLabel: { fontSize: 11, color: colors.axisLabel },
         axisLine: { lineStyle: { color: colors.axisLine } },
       },
       visualMap: {
@@ -141,7 +141,7 @@ export function CorrelationHeatmap(props: CorrelationHeatmapProps) {
         right: 0,
         top: "center",
         inRange: { color: COLOR_STOPS.map((c) => c.color) },
-        textStyle: { color: colors.axisLabel, "font-size": 10 },
+        textStyle: { color: colors.axisLabel, fontSize: 10 },
       },
       series: [
         {
@@ -149,11 +149,11 @@ export function CorrelationHeatmap(props: CorrelationHeatmapProps) {
           data: heatmapData,
           label: {
             show: true,
-            "font-size": 14,
-            "font-weight": 700,
+            fontSize: 14,
+            fontWeight: 700,
             formatter: (p: any) => format(p.data.value[2]),
           },
-          itemStyle: { "border-color": colors.border, borderWidth: 1 },
+          itemStyle: { borderColor: colors.border, borderWidth: 1 },
           emphasis: {
             itemStyle: { shadowBlur: 10, shadowColor: withAlpha(BLACK, 0.5) },
             label: { show: true },
@@ -191,14 +191,14 @@ export function CorrelationHeatmap(props: CorrelationHeatmapProps) {
   const minHeight = () => (hasData() ? Math.max(300, props.symbols.length * 40 + 120) : 300);
 
   return (
-    <Box pos="relative" style={{ "min-height": `${minHeight()}px` }}>
+    <Box pos="relative" style={{ minHeight: `${minHeight()}px` }}>
       <Box
         data-testid={props.testId}
         ref={(el: HTMLDivElement) => (chartDiv = el)}
-        style={{ "min-height": `${minHeight()}px`, opacity: hasData() ? 1 : 0, width: "100%" }}
+        style={{ minHeight: `${minHeight()}px`, opacity: hasData() ? 1 : 0, width: "100%" }}
       />
       <Show when={props.isLoading}>
-        <Flex pos="absolute" top={0} right={0} bottom={0} left={0} justify="center" align="center" style={{ "z-index": 1 }}>
+        <Flex pos="absolute" top={0} right={0} bottom={0} left={0} justify="center" align="center" style={{ zIndex: 1 }}>
           <Stack align="center" gap="xs">
             <Loader size="sm" />
             <Text size="sm" c="dimmed">

@@ -67,23 +67,23 @@ export function SidebarHeader(props: SidebarHeaderProps) {
       data-testid={testId("app-sidebar-header")}
       className="flex flex-col items-stretch gap-2 flex-shrink-0"
       style={{
-        "padding-left": collapsed() ? 0 : 8,
-        "padding-top": 6,
-        "padding-bottom": 4,
+        paddingLeft: collapsed() ? 0 : 8,
+        paddingTop: 6,
+        paddingBottom: 4,
         display: "flex",
-        "flex-direction": "column",
-        "align-items": collapsed() ? "center" : "stretch",
+        flexDirection: "column",
+        alignItems: collapsed() ? "center" : "stretch",
         gap: 4,
-        "min-width": 0,
+        minWidth: 0,
       }}
     >
       <Show when={collapsed()} fallback={(
-        <Box className="flex items-center justify-between min-w-0" style={{ gap: 4, display: "flex", "align-items": "center", "justify-content": "space-between", "min-width": 0 }}>
+        <Box className="flex items-center justify-between min-w-0" style={{ gap: 4, display: "flex", alignItems: "center", justifyContent: "space-between", minWidth: 0 }}>
           <Text
             id={testId("app-logo")}
             data-testid={testId("app-logo")}
             fw={700}
-            style={{ "font-size": 14, "line-height": 1, "letter-spacing": "-0.01em" }}
+            style={{ fontSize: 14, lineHeight: 1, letterSpacing: "-0.01em" }}
           >
             Alphashri
           </Text>

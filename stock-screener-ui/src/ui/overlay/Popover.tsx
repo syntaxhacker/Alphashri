@@ -192,16 +192,16 @@ export function PopoverDropdown(props: UIPopoverDropdownProps & { p?: number | s
       case "bottom":
         s = { position: "fixed", top: `${rect.bottom + off}px`, left: `${rect.left + rect.width / 2}px`, transform: "translateX(-50%)" };
         break;
-      case "top-start":
+      case topStart:
         s = { position: "fixed", bottom: `${vpH - rect.top + off}px`, left: `${rect.left}px` };
         break;
-      case "top-end":
+      case topEnd:
         s = { position: "fixed", bottom: `${vpH - rect.top + off}px`, right: `${vpW - rect.right}px` };
         break;
-      case "bottom-start":
+      case bottomStart:
         s = { position: "fixed", top: `${rect.bottom + off}px`, left: `${rect.left}px` };
         break;
-      case "bottom-end":
+      case bottomEnd:
         s = { position: "fixed", top: `${rect.bottom + off}px`, right: `${vpW - rect.right}px` };
         break;
       case "left":

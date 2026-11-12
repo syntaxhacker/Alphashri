@@ -45,7 +45,7 @@ function toneFor(value: number | null): string {
 }
 
 const NUM = (v: number): ReactNode => (
-  <Text span size="xs" fw={500} style={{ "font-family": palette.MONO }}>
+  <Text span size="xs" fw={500} style={{ fontFamily: palette.MONO }}>
     {formatNumberIN(v)}
   </Text>
 );
@@ -57,7 +57,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     size: 120,
     meta: { align: "left" },
     cell: (info) => (
-      <Text span size="xs" fw={700} title={String(info.getValue() ?? "")} style={{ "min-width": 0 }}>
+      <Text span size="xs" fw={700} title={String(info.getValue() ?? "")} style={{ minWidth: 0 }}>
         {String(info.getValue() ?? "—")}
       </Text>
     ),
@@ -89,7 +89,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     cell: (info) => {
       const strike = info.getValue() as number | null;
       return (
-        <Text span size="xs" style={{ "font-family": palette.MONO }}>
+        <Text span size="xs" style={{ fontFamily: palette.MONO }}>
           {strike === null ? "—" : formatNumberIN(strike)}
         </Text>
       );
@@ -127,7 +127,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     size: 72,
     meta: { align: "right" },
     cell: (info) => (
-      <Text span size="xs" style={{ "font-family": palette.MONO }}>
+      <Text span size="xs" style={{ fontFamily: palette.MONO }}>
         {formatRupees(Number(info.getValue()) || 0)}
       </Text>
     ),
@@ -138,7 +138,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     size: 72,
     meta: { align: "right" },
     cell: (info) => (
-      <Text span size="xs" style={{ "font-family": palette.MONO }}>
+      <Text span size="xs" style={{ fontFamily: palette.MONO }}>
         {formatRupees(Number(info.getValue()) || 0)}
       </Text>
     ),
@@ -151,7 +151,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     cell: (info) => {
       const pnl = Number(info.getValue()) || 0;
       return (
-        <Text span size="xs" fw={700} style={{ color: toneFor(pnl), "font-family": palette.MONO }}>
+        <Text span size="xs" fw={700} style={{ color: toneFor(pnl), fontFamily: palette.MONO }}>
           {signedRupees(pnl)}
         </Text>
       );
@@ -163,7 +163,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     size: 72,
     meta: { align: "right" },
     cell: (info) => (
-      <Text span size="xs" style={{ color: palette.NEGATIVE, "font-family": palette.MONO }}>
+      <Text span size="xs" style={{ color: palette.NEGATIVE, fontFamily: palette.MONO }}>
         {formatRupees(Number(info.getValue()) || 0)}
       </Text>
     ),
@@ -174,7 +174,7 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     size: 72,
     meta: { align: "right" },
     cell: (info) => (
-      <Text span size="xs" style={{ color: palette.POSITIVE, "font-family": palette.MONO }}>
+      <Text span size="xs" style={{ color: palette.POSITIVE, fontFamily: palette.MONO }}>
         {formatRupees(Number(info.getValue()) || 0)}
       </Text>
     ),
@@ -188,8 +188,8 @@ function GreekStat({ testId, label, value }: { testId: string; label: string; va
       title={`${label} — Σ chain greek × signed qty (missing legs skipped)`}
       className="flex items-baseline justify-between gap-1 px-2 py-[2px] border border-fin-border rounded-[4px] bg-fin-bg min-w-0 font-mono tabular-nums"
       style={{
-        "border-color": palette.TERM_BORDER,
-        "background-color": palette.TERM_BG,
+        borderColor: palette.TERM_BORDER,
+        backgroundColor: palette.TERM_BG,
       }}
     >
       <span className="text-[9px] text-fin-text-muted tracking-[0.06em]">{label}</span>
@@ -254,9 +254,9 @@ export function NiftyPositionsDrawerInner({
             style={{
               width: 5,
               height: 5,
-              "border-radius": "50%",
-              "background-color": pnlTone,
-              "margin-right": 4,
+              borderRadius: "50%",
+              backgroundColor: pnlTone,
+              marginRight: 4,
             }}
           />
         )}
@@ -282,11 +282,11 @@ export function NiftyPositionsDrawerInner({
               span
               size="xs"
               fw={700}
-              style={{ "font-size": 10, "letter-spacing": "0.08em", color: palette.TEXT_MUTED }}
+              style={{ fontSize: 10, letterSpacing: "0.08em", color: palette.TEXT_MUTED }}
             >
               PAPER POSITIONS
             </Text>
-            <Text span size="xs" c="dimmed" style={{ "font-variant-numeric": "tabular-nums" }}>
+            <Text span size="xs" c="dimmed" style={{ fontVariantNumeric: "tabular-nums" }}>
               {count} open · net{" "}
               <span className="font-bold" style={{ color: pnlTone }}>
                 {formatSignedPnl(netPnl)}
@@ -303,7 +303,7 @@ export function NiftyPositionsDrawerInner({
             <GreekStat testId="nifty-book-theta" label="Net Θ" value={greeks.theta} />
             <GreekStat testId="nifty-book-vega" label="Net V" value={greeks.vega} />
           </div>
-          <Text size="xs" c="dimmed" style={{ "font-size": 9 }}>
+          <Text size="xs" c="dimmed" style={{ fontSize: 9 }}>
             Book greeks = Σ chain greek × signed qty · {greeks.legs} leg
             {greeks.legs === 1 ? "" : "s"} matched · missing legs skipped
           </Text>
@@ -334,7 +334,7 @@ export function NiftyPositionsDrawerInner({
                 enableSorting={false}
                 stickyHeader
                 dense
-                style={{ "min-width": 0 }}
+                style={{ minWidth: 0 }}
               />
             </Box>
           )}

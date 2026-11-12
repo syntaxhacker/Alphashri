@@ -51,7 +51,7 @@ export function ThemeIcon(props: UIThemeIconProps) {
   const { main, dark } = resolveColor(known.color as string);
   const px = toPx(known.size);
 
-  const baseSize = px != null ? { width: px, height: px, "font-size": `${Number(px.replace("px", "")) * 0.5}px` } : { width: "36px", height: "36px", "font-size": "18px" };
+  const baseSize = px != null ? { width: px, height: px, fontSize: `${Number(px.replace("px", "")) * 0.5}px` } : { width: "36px", height: "36px", fontSize: "18px" };
 
   let backgroundColor: string | undefined;
   let colorValue: string | undefined;

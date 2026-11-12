@@ -314,7 +314,7 @@ export function buildDepthOption(report: NiftyReport): Record<string, unknown> {
   const ceDom = rows.filter((r) => r.ceOi > r.peOi).map((r) => [r.ceOi + r.peOi, keyOf(r.strike)]);
   const peDom = rows.filter((r) => r.peOi > r.ceOi).map((r) => [r.ceOi + r.peOi, keyOf(r.strike)]);
 
-  const axisLabel = { color: palette.CHART_MUTED, "font-size": 10 };
+  const axisLabel = { color: palette.CHART_MUTED, fontSize: 10 };
   const strikeFmt = (v: string | number) => fmtStrike(Number(v));
   const istFmt = (v: unknown) => formatIstTimeMs(Number(v));
   // Labeled level lines live on the candle series (grid 0): it owns the
@@ -328,7 +328,7 @@ export function buildDepthOption(report: NiftyReport): Record<string, unknown> {
   }));
 
   return {
-    "background-color": "transparent",
+    backgroundColor: "transparent",
     animation: false,
     legend: { show: false },
     // The two grids no longer share a value axis (depth y is categorical),
@@ -336,9 +336,9 @@ export function buildDepthOption(report: NiftyReport): Record<string, unknown> {
     axisPointer: { link: { yAxisIndex: [0] } },
     tooltip: {
       trigger: "item",
-      "background-color": palette.TOOLTIP_BG,
-      "border-color": palette.TOOLTIP_BORDER,
-      textStyle: { color: palette.TOOLTIP_TEXT, "font-size": 12 },
+      backgroundColor: palette.TOOLTIP_BG,
+      borderColor: palette.TOOLTIP_BORDER,
+      textStyle: { color: palette.TOOLTIP_TEXT, fontSize: 12 },
       formatter: (p: unknown) => {
         const param = p as {
           seriesName?: string;
@@ -432,13 +432,13 @@ export function buildDepthOption(report: NiftyReport): Record<string, unknown> {
         itemStyle: {
           color: palette.POSITIVE,
           color0: palette.NEGATIVE,
-          "border-color": palette.POSITIVE,
+          borderColor: palette.POSITIVE,
           borderColor0: palette.NEGATIVE,
         },
         markLine: {
           symbol: "none",
           silent: true,
-          label: { "font-size": 10, formatter: "{b}" },
+          label: { fontSize: 10, formatter: "{b}" },
           data: lineData,
         },
       },
@@ -453,7 +453,7 @@ export function buildDepthOption(report: NiftyReport): Record<string, unknown> {
         barMaxWidth: 16,
         encode: { x: 0, y: 1 },
         data: rows.map((r) => [-r.ceOi, keyOf(r.strike)]),
-        itemStyle: { color: palette.NEGATIVE, "border-radius": [2, 0, 0, 2] },
+        itemStyle: { color: palette.NEGATIVE, borderRadius: [2, 0, 0, 2] },
       },
       {
         name: "PE OI",
@@ -464,11 +464,11 @@ export function buildDepthOption(report: NiftyReport): Record<string, unknown> {
         barMaxWidth: 16,
         encode: { x: 0, y: 1 },
         data: rows.map((r) => [r.peOi, keyOf(r.strike)]),
-        itemStyle: { color: palette.POSITIVE, "border-radius": [0, 2, 2, 0] },
+        itemStyle: { color: palette.POSITIVE, borderRadius: [0, 2, 2, 0] },
         label: {
           show: true,
           position: "right",
-          "font-size": 9,
+          fontSize: 9,
           color: palette.CHART_MUTED,
           formatter: (p: { value?: unknown }) => {
             const strike = Array.isArray(p.value) ? Number((p.value as number[])[1]) : NaN;
@@ -532,7 +532,7 @@ const LegendChip = memo(function LegendChip({
     >
       <Box
         className="w-[8px] h-[8px] rounded-full shrink-0"
-        style={{ "background-color": color }}
+        style={{ backgroundColor: color }}
       />
       <Text size="xs" c="dimmed" span>
         {label}

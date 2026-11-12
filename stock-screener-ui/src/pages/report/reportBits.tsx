@@ -53,15 +53,15 @@ export function LocalSymbolAvatar(props: { symbol: string; name?: string; logo?:
       style={{
         "width": `${size()}px`,
         "height": `${size()}px`,
-        "min-width": `${size()}px`,
-        "min-height": `${size()}px`,
-        "background-color": showImg() ? "var(--color-fin-surface-alt)" : tintFor(props.symbol),
+        minWidth: `${size()}px`,
+        minHeight: `${size()}px`,
+        backgroundColor: showImg() ? "var(--color-fin-surface-alt)" : tintFor(props.symbol),
       }}
     >
       <Show
         when={showImg()}
         fallback={
-          <span class="text-[10px] font-bold leading-none" style={{ "font-size": `${size() * 0.45}px`, "color": TEXT, "line-height": 1 }}>
+          <span class="text-[10px] font-bold leading-none" style={{ fontSize: `${size() * 0.45}px`, "color": TEXT, lineHeight: 1 }}>
             {initialsFor(props.symbol)}
           </span>
         }
@@ -72,7 +72,7 @@ export function LocalSymbolAvatar(props: { symbol: string; name?: string; logo?:
           width={size()}
           height={size()}
           onError={() => setFailed(true)}
-          style={{ "width": `${size()}px`, "height": `${size()}px`, "object-fit": "contain", "display": "block" }}
+          style={{ "width": `${size()}px`, "height": `${size()}px`, objectFit: "contain", "display": "block" }}
         />
       </Show>
     </div>

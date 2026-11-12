@@ -55,24 +55,24 @@ export function OptionPayoffChart(props: {
       {
         xAxis: strike,
         lineStyle: { color: CHART_AVG_ENTRY, width: 1, type: "dashed" },
-        label: { formatter: `K ${strike}`, color: CHART_AVG_ENTRY, "font-size": 10, position: "insideEndTop" },
+        label: { formatter: `K ${strike}`, color: CHART_AVG_ENTRY, fontSize: 10, position: "insideEndTop" },
       },
     ];
     if (props.breakeven != null) {
       markLineData.push({
         xAxis: props.breakeven,
         lineStyle: { color: CHART_MUTED, width: 1, type: "dotted" },
-        label: { formatter: `BE ${Math.round(props.breakeven)}`, color: CHART_MUTED, "font-size": 10, position: "insideEndTop" },
+        label: { formatter: `BE ${Math.round(props.breakeven)}`, color: CHART_MUTED, fontSize: 10, position: "insideEndTop" },
       });
     }
     return {
       animation: false,
-      "background-color": SURFACE,
+      backgroundColor: SURFACE,
       tooltip: {
         trigger: "axis",
-        "background-color": SURFACE_ALT,
-        "border-color": CHART_MUTED,
-        textStyle: { color: "#E6EDF3", "font-size": 11 },
+        backgroundColor: SURFACE_ALT,
+        borderColor: CHART_MUTED,
+        textStyle: { color: "#E6EDF3", fontSize: 11 },
         formatter: (params: unknown) => {
           const p = Array.isArray(params) ? params[0] : params;
           const v = (p as { value?: [number, number] } | undefined)?.value;
@@ -89,7 +89,7 @@ export function OptionPayoffChart(props: {
         splitLine: { show: false },
         axisLabel: {
           color: CHART_MUTED,
-          "font-size": 10,
+          fontSize: 10,
           hideOverlap: true,
           formatter: (v: number) => String(Math.round(v)),
         },
@@ -100,7 +100,7 @@ export function OptionPayoffChart(props: {
         axisLine: { show: false },
         axisTick: { show: false },
         splitLine: { lineStyle: { color: SURFACE_ALT, type: "dashed", opacity: 0.55 } },
-        axisLabel: { color: CHART_MUTED, "font-size": 10, formatter: (v: number) => fmtK(v) },
+        axisLabel: { color: CHART_MUTED, fontSize: 10, formatter: (v: number) => fmtK(v) },
       },
       series: [
         {
@@ -191,7 +191,7 @@ function Stat(props: { label: string; value: string; tone?: "pos" | "neg" }) {
   const color = () => props.tone === "pos" ? POSITIVE : props.tone === "neg" ? NEGATIVE : undefined;
   return (
     <div class="flex flex-col min-w-0">
-      <Text size="xs" c="dimmed" className="uppercase" style={{ "font-size": 9, "letter-spacing": 0.5 }}>
+      <Text size="xs" c="dimmed" className="uppercase" style={{ fontSize: 9, letterSpacing: 0.5 }}>
         {props.label}
       </Text>
       <Text
@@ -243,7 +243,7 @@ export function OptionPayoffCard(props: { trade: PaperTrade }) {
                 >
                   {open() ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
                 </ActionIcon>
-                <Text size="xs" fw={700} className="uppercase" style={{ "letter-spacing": 0.7 }} c="dimmed">
+                <Text size="xs" fw={700} className="uppercase" style={{ letterSpacing: 0.7 }} c="dimmed">
                   Payoff @ expiry
                 </Text>
                 <Badge size="xs" variant="filled" color={isShort() ? "error" : "success"}>

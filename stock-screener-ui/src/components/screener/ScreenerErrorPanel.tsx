@@ -1,5 +1,5 @@
 import { Stack, Box, Text, Button } from "@/ui";
-import { IconAlertCircle } from "@tabler/icons-react";
+import { IconAlertCircle } from "./icons";
 
 interface ScreenerErrorPanelProps {
   error: string;

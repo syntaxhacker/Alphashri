@@ -38,7 +38,7 @@ export function buildSeries(
     candleSeries.markLine = {
       symbol: ["none", "none"],
       data: markLines,
-      label: { color: "inherit", "font-size": 11, formatter: "{b}" },
+      label: { color: "inherit", fontSize: 11, formatter: "{b}" },
     };
   }
 

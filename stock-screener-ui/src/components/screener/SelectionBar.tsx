@@ -2,7 +2,7 @@ import { Show, createEffect, createMemo, createSignal, onCleanup } from "solid-j
 import { alpha } from "@/ui/alpha";
 import { Box, Group, Button, Badge } from "@/ui";
 import { BLACK } from "@/ui/palette";
-import { IconChartDots, IconX } from "@tabler/icons-react";
+import { IconChartDots, IconX } from "./icons";
 import { selectedSymbols, clearSelectedSymbols, subscribeToSelection } from "../../state";
 
 interface SelectionBarProps {

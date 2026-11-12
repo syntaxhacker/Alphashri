@@ -51,12 +51,12 @@ export function SectorBarView(props: SectorBarViewProps) {
     const maxAvg = entries[0].avg;
 
     return {
-      "background-color": "transparent",
+      backgroundColor: "transparent",
       tooltip: {
         trigger: "axis",
         axisPointer: { type: "shadow" },
-        "background-color": tooltipBg(),
-        "border-color": isDark() ? TOOLTIP_DARK_BORDER : TOOLTIP_LIGHT_BORDER,
+        backgroundColor: tooltipBg(),
+        borderColor: isDark() ? TOOLTIP_DARK_BORDER : TOOLTIP_LIGHT_BORDER,
         textStyle: { color: tooltipText() },
         formatter: (params: any) => {
           const d = params[0];
@@ -73,9 +73,9 @@ export function SectorBarView(props: SectorBarViewProps) {
       xAxis: {
         type: "value",
         name: label(),
-        nameTextStyle: { "font-size": 11, color: tooltipText() },
+        nameTextStyle: { fontSize: 11, color: tooltipText() },
         axisLabel: {
-          "font-size": 10,
+          fontSize: 10,
           color: tooltipText(),
           formatter: (v: number) => fmt()(v),
         },
@@ -85,7 +85,7 @@ export function SectorBarView(props: SectorBarViewProps) {
       yAxis: {
         type: "category",
         data: entries.map((e) => e.sector),
-        axisLabel: { "font-size": 10, color: tooltipText() },
+        axisLabel: { fontSize: 10, color: tooltipText() },
         axisLine: { lineStyle: { color: axisLineColor() } },
         splitLine: { show: false },
       },
@@ -101,7 +101,7 @@ export function SectorBarView(props: SectorBarViewProps) {
           label: {
             show: true,
             position: "right",
-            "font-size": 10,
+            fontSize: 10,
             color: tooltipText(),
             formatter: (p: any) => fmt()(p.value),
           },

@@ -12,7 +12,7 @@ function Return(props: { value: number; strong?: boolean }) {
     <Text
       c={getPnLTextColor(props.value)}
       className="font-mono text-[10.5px] tabular-nums leading-none"
-      style={{ "font-weight": props.strong ? 700 : 600 }}
+      style={{ fontWeight: props.strong ? 700 : 600 }}
     >
       {formatPercentage(props.value, 2, true)}
     </Text>
@@ -36,7 +36,7 @@ function Status(props: { status: RotationStatus }) {
   const label = () => ROTATION_STATUS_LABELS[props.status].short;
   return (
     <Box className="inline-flex items-center justify-center gap-1">
-      <Box className="size-[5px] rounded-full shrink-0" style={{ "background-color": info() }} />
+      <Box className="size-[5px] rounded-full shrink-0" style={{ backgroundColor: info() }} />
       <Text className="text-[9px] font-bold tracking-[0.4px]" style={{ color: info() }}>{label()}</Text>
     </Box>
   );
@@ -170,12 +170,12 @@ export function RotationBoard(props: RotationBoardProps) {
               row.id === props.selectedId
                 ? {
                     background: "rgba(88, 166, 255, 0.12)",
-                    "box-shadow": "inset 2px 0 0 var(--color-fin-primary)",
+                    boxShadow: "inset 2px 0 0 var(--color-fin-primary)",
                   }
                 : undefined
             }
             getRowAttributes={(row) => ({
-              "data-active": row.id === props.selectedId ? "true" : undefined,
+              dataActive: row.id === props.selectedId ? "true" : undefined,
             })}
           />
         )}

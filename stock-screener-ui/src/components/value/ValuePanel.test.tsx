@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor, within } from "@solidjs/testing-library";
+import { render, screen, cleanup, waitFor, within, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { ValuePanel } from "./ValuePanel";
 import { valueScan } from "../../api/valueScan";

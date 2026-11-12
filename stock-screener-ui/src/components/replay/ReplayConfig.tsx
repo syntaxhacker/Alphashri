@@ -1,6 +1,7 @@
 import {  } from "solid-js";
 import { useState, useEffect, useMemo } from "react";
-import { Text, Select, Button, Switch, Alert, MultiSelect, Tooltip, ActionIcon, Badge, Modal, TextInput } from "@/ui";
+import { Text, Select, Button, Switch, Alert, MultiSelect, Tooltip, ActionIcon, Badge, TextInput } from "@/ui";
+import { Modal } from "../paper-trading/overlays";
 import { useDebouncedValue } from "@/ui";
 import { IconPlayerPlay, IconPlayerStop, IconAlertTriangle, IconX, IconDeviceFloppy, IconFolderOpen, IconTrash } from "@tabler/icons-react";
 import { ScreenerSymbolPicker } from "./ScreenerSymbolPicker";
@@ -11,7 +12,8 @@ import type { BotConfig } from "../../types/bots";
 import type { ReplayConfig as ReplayConfigType, ReplaySavedConfig } from "../../types/replay";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { TradingDatePicker } from "../common/TradingDatePicker";
-import { import { Group, Box, Stack } from "../paper-trading/primitives";
+import { Group, Box, Stack } from "../paper-trading/primitives";
+import {
   getHolidayState,
   subscribeToHolidays,
   loadHolidays,
@@ -154,7 +156,7 @@ export function ReplayConfigBar({
     <Box>
       <Group gap="sm" wrap="wrap" align="flex-start" data-testid="replay-config">
         <Box>
-          <Text size="xs" fw={500} style={{ "margin-bottom": "8px" }}>
+          <Text size="xs" fw={500} style={{ marginBottom: "8px" }}>
             Bot
           </Text>
           <Select
@@ -173,7 +175,7 @@ export function ReplayConfigBar({
 
         <Group gap="xs" align="flex-start">
           <Box data-testid="replay-date-from">
-            <Text size="xs" fw={500} style={{ "margin-bottom": "8px" }}>
+            <Text size="xs" fw={500} style={{ marginBottom: "8px" }}>
               From
             </Text>
             <TradingDatePicker
@@ -186,7 +188,7 @@ export function ReplayConfigBar({
             {config.date && <span style={{ display: "none" }}>{formatDisplayDate(config.date)}</span>}
           </Box>
           <Box data-testid="replay-date-to">
-            <Text size="xs" fw={500} style={{ "margin-bottom": "8px" }}>
+            <Text size="xs" fw={500} style={{ marginBottom: "8px" }}>
               To
             </Text>
             <TradingDatePicker
@@ -201,7 +203,7 @@ export function ReplayConfigBar({
         </Group>
 
         <Box>
-          <Text size="xs" fw={500} style={{ "margin-bottom": "8px" }}>
+          <Text size="xs" fw={500} style={{ marginBottom: "8px" }}>
             Symbols
           </Text>
           <Group gap={4} align="center">
@@ -246,7 +248,7 @@ export function ReplayConfigBar({
                   key={symbol}
                   variant="outline"
                   size="sm"
-                  style={{ "margin-right": "8px", "margin-bottom": "8px" }}
+                  style={{ marginRight: "8px", marginBottom: "8px" }}
                   rightSection={
                     <IconX
                       size={10}
@@ -265,7 +267,7 @@ export function ReplayConfigBar({
         </Box>
 
         <Box>
-          <Text size="xs" fw={500} style={{ "margin-bottom": "8px" }}>
+          <Text size="xs" fw={500} style={{ marginBottom: "8px" }}>
             Refresh Cache
           </Text>
           <Switch
@@ -277,7 +279,7 @@ export function ReplayConfigBar({
         </Box>
 
         <Box>
-          <Text size="xs" fw={500} style={{ "margin-bottom": "8px" }}>
+          <Text size="xs" fw={500} style={{ marginBottom: "8px" }}>
             &nbsp;
           </Text>
           <Group gap="xs" align="center">

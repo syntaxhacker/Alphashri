@@ -26,7 +26,7 @@ export const SpacingScale: StoryObj = {
       {SPACING.map(([name, _val]) => (
         <Group key={name} gap="sm" align="center">
           <MText size="xs" w={40} fw={600}>{name}</MText>
-          <Box className="bg-fin-primary" style={{ width: "8px", height: 20, "border-radius": 3 }} />
+          <Box className="bg-fin-primary" style={{ width: "8px", height: 20, borderRadius: 3 }} />
           <MText size="xs" c="dimmed">8px</MText>
         </Group>
       ))}
@@ -38,7 +38,7 @@ export const RadiusScale: StoryObj = {
   render: () => (
     <Group gap="md">
       {(["xs", "sm", "md", "lg", "xl"] as const).map((r) => (
-        <div key={r} style={{ "text-align": "center" }}>
+        <div key={r} style={{ textAlign: "center" }}>
           <Box className="bg-fin-primary" radius={r} style={{ width: 72, height: 48 }} />
           <MText size="xs" mt={4}>{r}</MText>
         </div>
@@ -53,7 +53,7 @@ export const Elevation: StoryObj = {
       <Title order={6}>Shadow levels (Paper/Card `shadow` prop)</Title>
       <Group gap="xl">
         {(["xs", "sm", "md", "lg", "xl"] as const).map((sh) => (
-          <div key={sh} style={{ "text-align": "center" }}>
+          <div key={sh} style={{ textAlign: "center" }}>
             <MBox bg="var(--color-fin-surface)" shadow={sh} p="md" radius="md" style={{ border: "1px solid var(--color-fin-border)" }}>
               <MText size="sm" fw={500}>shadow="{sh}"</MText>
             </MBox>

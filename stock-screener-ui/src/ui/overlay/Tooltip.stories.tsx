@@ -38,7 +38,7 @@ export const DelayedAndMultiline: Story = {
         </Tooltip>
         <Tooltip
           multiline
-          style={{ "max-width": 220 }}
+          style={{ maxWidth: 220 }}
           withArrow
           label="Strategy pauses for the rest of the day after 3 consecutive stop-loss hits."
           position="bottom"

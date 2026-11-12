@@ -97,56 +97,56 @@ export function MembersDrawer(props: MembersDrawerProps) {
     top: 0,
     right: 0,
     width: `${props.width}px`,
-    "max-width": "100%",
+    maxWidth: "100%",
     height: "100%",
-    "background-color": palette.SURFACE,
-    "border-left": `1px solid ${palette.BORDER}`,
+    backgroundColor: palette.SURFACE,
+    borderLeft: `1px solid ${palette.BORDER}`,
     display: "flex",
-    "flex-direction": "column",
-    "min-width": 0,
-    "z-index": 1300,
+    flexDirection: "column",
+    minWidth: 0,
+    zIndex: 1300,
   };
 
   const headerStyle: CSSProperties = {
-    "padding-left": pad(contentPx()),
-    "padding-right": pad(contentPx()),
-    "padding-top": pad(headerPy()),
-    "padding-bottom": pad(headerPy()),
-    "border-bottom": `1px solid ${palette.BORDER}`,
+    paddingLeft: pad(contentPx()),
+    paddingRight: pad(contentPx()),
+    paddingTop: pad(headerPy()),
+    paddingBottom: pad(headerPy()),
+    borderBottom: `1px solid ${palette.BORDER}`,
   };
 
   const contentStyle: CSSProperties = {
-    "padding-left": pad(contentPx()),
-    "padding-top": 6,
-    "padding-bottom": 6,
-    ...(searchStacked() ? { display: "flex", "flex-direction": "column", gap: 6 } : {}),
+    paddingLeft: pad(contentPx()),
+    paddingTop: 6,
+    paddingBottom: 6,
+    ...(searchStacked() ? { display: "flex", flexDirection: "column", gap: 6 } : {}),
   };
 
   const errorStyle: CSSProperties = {
-    "padding-left": pad(contentPx()),
-    "padding-bottom": 8,
+    paddingLeft: pad(contentPx()),
+    paddingBottom: 8,
   };
 
   const bodyStyle: CSSProperties = {
     flex: 1,
-    "min-height": 0,
-    "overflow-y": "auto",
-    "padding-left": pad(contentPx()),
-    "padding-right": pad(contentPx()),
-    "padding-bottom": 8,
+    minHeight: 0,
+    overflowY: "auto",
+    paddingLeft: pad(contentPx()),
+    paddingRight: pad(contentPx()),
+    paddingBottom: 8,
   };
 
   const loaderStyle: CSSProperties = {
     display: "flex",
-    "align-items": "center",
+    alignItems: "center",
     gap: 6,
-    "padding-top": 16,
-    "padding-left": pad(bodyPx()),
+    paddingTop: 16,
+    paddingLeft: pad(bodyPx()),
   };
 
   const gridStyle: CSSProperties = {
     display: "grid",
-    "grid-template-columns": `repeat(auto-fill, minmax(${props.gridMin}px, 1fr))`,
+    gridTemplateColumns: `repeat(auto-fill, minmax(${props.gridMin}px, 1fr))`,
     gap: gridGap(),
   };
 
@@ -233,15 +233,15 @@ export function MembersDrawer(props: MembersDrawerProps) {
                           <div
                             data-testid={props.ids.row(symbol)}
                             className={rowClasses()}
-                            style={{ "border-radius": radius() }}
+                            style={{ borderRadius: radius() }}
                           >
                             <Box
                               className="min-w-0 flex-1"
                               style={{
-                                "padding-left": 4,
-                                "padding-right": 4,
-                                "padding-top": pad(props.symbolPy ?? 0.5),
-                                "padding-bottom": pad(props.symbolPy ?? 0.5),
+                                paddingLeft: 4,
+                                paddingRight: 4,
+                                paddingTop: pad(props.symbolPy ?? 0.5),
+                                paddingBottom: pad(props.symbolPy ?? 0.5),
                               }}
                             >
                               <SymbolTvLink
@@ -259,11 +259,11 @@ export function MembersDrawer(props: MembersDrawerProps) {
                               data-testid={props.ids.chart(symbol)}
                               style={{
                                 display: "inline-flex",
-                                "align-items": "center",
-                                "justify-content": "center",
+                                alignItems: "center",
+                                justifyContent: "center",
                                 width: 22,
                                 height: 22,
-                                "flex-shrink": 0,
+                                flexShrink: 0,
                                 color: palette.TEXT_MUTED,
                               }}
                             >
@@ -291,11 +291,11 @@ export function MembersDrawer(props: MembersDrawerProps) {
               wrap={false}
               className="border-t border-fin-border"
               style={{
-                "padding-left": pad(contentPx()),
-                "padding-right": pad(contentPx()),
-                "padding-top": pad(footerPy()),
-                "padding-bottom": pad(footerPy()),
-                "background-color": palette.TERM_HEADER,
+                paddingLeft: pad(contentPx()),
+                paddingRight: pad(contentPx()),
+                paddingTop: pad(footerPy()),
+                paddingBottom: pad(footerPy()),
+                backgroundColor: palette.TERM_HEADER,
               }}
             >
               {props.footerLeft}

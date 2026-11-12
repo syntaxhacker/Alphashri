@@ -9,7 +9,7 @@ export function buildLivePositionMarker(pos: UnifiedLivePosition, candleIdx: num
       data: [
         {
           value: [candleIdx, pos.entry_price],
-          itemStyle: { color: MARKER_ENTRY, "border-color": MARKER_BORDER, borderWidth: 3 },
+          itemStyle: { color: MARKER_ENTRY, borderColor: MARKER_BORDER, borderWidth: 3 },
           symbol: pos.side === "BUY" ? "triangle" : "triangleRotated",
           symbolSize: 22,
           trade: pos,

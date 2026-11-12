@@ -64,17 +64,17 @@ export function PanelModal(props: PanelModalProps) {
     top: 0,
     right: 0,
     width: "100%",
-    "max-width": `min(${props.drawerWidth ?? 720}px, 74vw)`,
+    maxWidth: `min(${props.drawerWidth ?? 720}px, 74vw)`,
     height: "100%",
-    "max-height": "100%",
-    "background-color": palette.TERM_BG,
+    maxHeight: "100%",
+    backgroundColor: palette.TERM_BG,
     color: palette.TEXT,
     border: `1px solid ${palette.TERM_BORDER}`,
-    "border-right": "none",
-    "border-radius": 0,
-    "box-shadow": DIALOG_SHADOW,
+    borderRight: "none",
+    borderRadius: 0,
+    boxShadow: DIALOG_SHADOW,
     display: "flex",
-    "flex-direction": "column",
+    flexDirection: "column",
     overflow: "hidden",
   };
 
@@ -84,58 +84,58 @@ export function PanelModal(props: PanelModalProps) {
     left: "50%",
     transform: "translate(-50%, -50%)",
     width: compact() ? "100%" : width(),
-    "max-width": compact() ? width() : undefined,
-    "max-height": compact() ? maxHeightValue() : "88vh",
+    maxWidth: compact() ? width() : undefined,
+    maxHeight: compact() ? maxHeightValue() : "88vh",
     height: compact() ? "auto" : "88vh",
-    "background-color": palette.TERM_BG,
+    backgroundColor: palette.TERM_BG,
     color: palette.TEXT,
     border: `1px solid ${palette.TERM_BORDER}`,
-    "border-radius": "4px",
-    "box-shadow": DIALOG_SHADOW,
+    borderRadius: "4px",
+    boxShadow: DIALOG_SHADOW,
     display: "flex",
-    "flex-direction": "column",
+    flexDirection: "column",
     overflow: "hidden",
   };
 
   const backdropStyle: CSSProperties = isDrawer()
-    ? { "background-color": withAlpha(palette.BG, 0.18) }
-    : { "background-color": withAlpha(palette.BG, 0.5) };
+    ? { backgroundColor: withAlpha(palette.BG, 0.18) }
+    : { backgroundColor: withAlpha(palette.BG, 0.5) };
 
   const titlebarStyle: CSSProperties = {
     display: "flex",
-    "align-items": "center",
+    alignItems: "center",
     gap: 8,
     padding: "12px 16px",
-    "min-height": 36,
-    "flex-shrink": 0,
-    "background-color": palette.TERM_HEADER,
-    "border-bottom": `1px solid ${palette.TERM_BORDER}`,
+    minHeight: 36,
+    flexShrink: 0,
+    backgroundColor: palette.TERM_HEADER,
+    borderBottom: `1px solid ${palette.TERM_BORDER}`,
   };
 
   const titleStyle: CSSProperties = {
     flex: 1,
-    "min-width": 0,
+    minWidth: 0,
     overflow: "hidden",
-    "text-overflow": "ellipsis",
-    "white-space": "nowrap",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   };
 
   const bodyStyle: CSSProperties = {
     flex: compact() ? "0 1 auto" : 1,
-    "min-height": 0,
+    minHeight: 0,
     overflow: "auto",
     padding: 8,
   };
 
   const actionsStyle: CSSProperties = {
     display: "flex",
-    "align-items": "center",
-    "justify-content": "flex-end",
+    alignItems: "center",
+    justifyContent: "flex-end",
     gap: 8,
     padding: "12px 16px",
-    "flex-shrink": 0,
-    "border-top": `1px solid ${palette.TERM_BORDER}`,
-    "background-color": palette.TERM_HEADER,
+    flexShrink: 0,
+    borderTop: `1px solid ${palette.TERM_BORDER}`,
+    backgroundColor: palette.TERM_HEADER,
   };
 
   const closeButtonStyle: CSSProperties = {
@@ -143,7 +143,7 @@ export function PanelModal(props: PanelModalProps) {
     color: palette.TEXT_MUTED,
     border: "none",
     background: "none",
-    "border-radius": 0,
+    borderRadius: 0,
     cursor: "pointer",
   };
 
@@ -157,10 +157,10 @@ export function PanelModal(props: PanelModalProps) {
           style={{
             position: "fixed",
             inset: 0,
-            "z-index": 50,
+            zIndex: 50,
             display: "flex",
-            "justify-content": isDrawer() ? "flex-end" : "center",
-            "align-items": isDrawer() ? "stretch" : "center",
+            justifyContent: isDrawer() ? "flex-end" : "center",
+            alignItems: isDrawer() ? "stretch" : "center",
             padding: isDrawer() ? 0 : 16,
             ...backdropStyle,
           }}
@@ -189,10 +189,10 @@ export function PanelModal(props: PanelModalProps) {
                     size="xs"
                     fw={700}
                     style={{
-                      "font-size": 10,
-                      "line-height": 1.2,
-                      "letter-spacing": "0.08em",
-                      "text-transform": "uppercase",
+                      fontSize: 10,
+                      lineHeight: 1.2,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
                       color: palette.TEXT_MUTED,
                     }}
                   >

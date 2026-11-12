@@ -3,15 +3,15 @@ import "@testing-library/jest-dom/vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen } from "@solidjs/testing-library";
+import { cleanup, render, screen, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { isoDate } from "../../state/events";
 import type { AnomaliesResponse, EventDTO } from "../../types/events";
-import type { UseEventsResult } from "../../hooks/useEvents";
+import type { EventsViewModel } from "./useEventsSolid";
 
 const mocks = vi.hoisted(() => ({ useEvents: vi.fn() }));
 
-vi.mock("../../hooks/useEvents", () => ({ useEvents: mocks.useEvents }));
+vi.mock("./useEventsSolid", () => ({ useEventsSolid: mocks.useEvents }));
 
 import { EventsPanel } from "./EventsPanel";
 
@@ -74,20 +74,33 @@ const ANOMALIES: AnomaliesResponse = {
   },
 };
 
-function makeResult(overrides: Partial<UseEventsResult> = {}): UseEventsResult {
+function makeResult(overrides: {
+  events?: EventDTO[];
+  anomalies?: AnomaliesResponse | null;
+  isLoading?: boolean;
+  isRefreshing?: boolean;
+  error?: Error | null;
+  lastUpdated?: string | null;
+} = {}): EventsViewModel {
+  const {
+    events = EVENTS,
+    anomalies = null,
+    isLoading = false,
+    isRefreshing = false,
+    error = null,
+    lastUpdated = "2026-10-29T10:00:00+05:30",
+  } = overrides;
   return {
-    data: null,
-    events: EVENTS,
-    anomalies: null,
-    meta: null,
-    isLoading: false,
-    isRefreshing: false,
-    error: null,
-    lastUpdated: "2026-10-29T10:00:00+05:30",
+    data: () => null,
+    events: () => events,
+    anomalies: () => anomalies,
+    meta: () => null,
+    isLoading: () => isLoading,
+    isRefreshing: () => isRefreshing,
+    error: () => error,
+    lastUpdated: () => lastUpdated,
     refresh: vi.fn(),
-    setQuery: vi.fn(),
     loadAnomalies: vi.fn(),
-    ...overrides,
   };
 }
 

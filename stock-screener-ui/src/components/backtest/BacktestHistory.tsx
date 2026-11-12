@@ -256,7 +256,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
         className="backtest-history-empty"
         data-testid="backtest-history-empty"
         p={1}
-        style={{ "box-shadow": "none" } as any}
+        style={{ boxShadow: "none" } as any}
       >
         <div className="flex items-center justify-center flex-col gap-2 p-2">
           <EmptyState
@@ -279,7 +279,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
       data-testid="backtest-history"
     >
       <div className="flex items-center justify-between gap-2 p-2">
-        <Text size="sm" c="dimmed" style={{ "min-width": 80, display: "flex", "align-items": "center" }}>
+        <Text size="sm" c="dimmed" style={{ minWidth: 80, display: "flex", alignItems: "center" }}>
           {history.length} backtest{history.length !== 1 ? "s" : ""} saved
         </Text>
         <Group gap={1} align="center" className="history-actions flex items-center justify-center gap-2">

@@ -30,7 +30,7 @@ export function PositioningHeader(props: PositioningHeaderProps) {
       data-testid="positioning-header"
       gap={8}
       wrap={false}
-      style={{ height: 48, "min-height": 48, "max-height": 48 }}
+      style={{ height: 48, minHeight: 48, maxHeight: 48 }}
     >
       <Select
         data-testid="positioning-underlying"

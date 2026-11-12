@@ -17,7 +17,7 @@ vi.mock("@/ui", async (importOriginal) => {
       value,
       onChange,
       data = [],
-      "data-testid": testId,
+      dataTestid: testId,
     }: any) => (
       <select data-testid={testId} value={value ?? ""} onChange={(e) => onChange?.(e.target.value)}>
         {(data as Array<{ value: string; label: string }>).map((opt) => (

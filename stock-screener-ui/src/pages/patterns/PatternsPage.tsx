@@ -732,7 +732,7 @@ export function PatternsPage({
             Watch
           </Tabs.Tab>
         </Tabs.List>
-        <Tabs.Panel value="scan" data-testid="patterns-panel-scan" style={{ "padding-top": 0, "padding-bottom": 0 }}>
+        <Tabs.Panel value="scan" data-testid="patterns-panel-scan" style={{ paddingTop: 0, paddingBottom: 0 }}>
       <ScanStats
         summary={displaySummary}
         job={job}
@@ -849,7 +849,7 @@ export function PatternsPage({
                   onChange={(v) => {
                     if (v === "all" || v === "big" || v === "others") changeIndexGroup(v);
                   }}
-                  leftSection={<Text size="xs" c="dimmed" style={{ "font-size": 10 }}>IDX</Text>}
+                  leftSection={<Text size="xs" c="dimmed" style={{ fontSize: 10 }}>IDX</Text>}
                   w={106}
                   size="xs"
                   data-testid="patterns-index-group"
@@ -859,7 +859,7 @@ export function PatternsPage({
                 <Text
                   size="xs"
                   c="dimmed"
-                  style={{ "font-size": 10, "white-space": "nowrap" }}
+                  style={{ fontSize: 10, whiteSpace: "nowrap" }}
                   data-testid="patterns-multi-tf-hint"
                 >
                   {`List/Grid: ${timeframe}`}
@@ -1127,7 +1127,7 @@ export function PatternsPage({
         )}
       </Box>
         </Tabs.Panel>
-        <Tabs.Panel value="watch" data-testid="patterns-panel-watch" style={{ "padding-top": 0, "padding-bottom": 0 }}>
+        <Tabs.Panel value="watch" data-testid="patterns-panel-watch" style={{ paddingTop: 0, paddingBottom: 0 }}>
           <WatchView
             universe={universe}
             timeframe={timeframe}
@@ -1163,7 +1163,7 @@ export function PatternsPage({
         <ToolbarRow
           justify="space-between"
           gap={8}
-          style={{ "padding-top": 12, borderTop: "1px solid", "border-color": "var(--color-fin-border)" }}
+          style={{ paddingTop: 12, borderTop: "1px solid", borderColor: "var(--color-fin-border)" }}
         >
           <Button
             size="sm"

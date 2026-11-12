@@ -33,7 +33,7 @@ export function DistributionView(props: DistributionViewProps) {
     const max = Math.max(...values);
     if (max === min) {
       return {
-        "background-color": "transparent",
+        backgroundColor: "transparent",
         tooltip: { trigger: "axis" },
         xAxis: { type: "category", data: [fmt()(min)], axisLine: { lineStyle: { color: axisLineColor() } } },
         yAxis: { type: "value", axisLine: { lineStyle: { color: axisLineColor() } }, splitLine: { lineStyle: { color: splitLineColor() } } },
@@ -74,11 +74,11 @@ export function DistributionView(props: DistributionViewProps) {
     });
 
     return {
-      "background-color": "transparent",
+      backgroundColor: "transparent",
       tooltip: {
         trigger: "axis",
-        "background-color": tooltipBg(),
-        "border-color": isDark() ? TOOLTIP_DARK_BORDER : TOOLTIP_LIGHT_BORDER,
+        backgroundColor: tooltipBg(),
+        borderColor: isDark() ? TOOLTIP_DARK_BORDER : TOOLTIP_LIGHT_BORDER,
         textStyle: { color: tooltipText() },
         formatter: (params: any) => {
           const idx = params[0]?.dataIndex;
@@ -98,7 +98,7 @@ export function DistributionView(props: DistributionViewProps) {
         data: xData,
         axisLabel: {
           rotate: 45,
-          "font-size": 10,
+          fontSize: 10,
           color: tooltipText(),
           interval: 0,
           formatter: (val: string) => val || "",
@@ -109,8 +109,8 @@ export function DistributionView(props: DistributionViewProps) {
       yAxis: {
         type: "value",
         name: "Count",
-        nameTextStyle: { "font-size": 11, color: tooltipText() },
-        axisLabel: { "font-size": 10, color: tooltipText() },
+        nameTextStyle: { fontSize: 11, color: tooltipText() },
+        axisLabel: { fontSize: 10, color: tooltipText() },
         axisLine: { lineStyle: { color: axisLineColor() } },
         splitLine: { lineStyle: { color: splitLineColor() } },
       },

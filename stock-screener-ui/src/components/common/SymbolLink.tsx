@@ -159,7 +159,7 @@ export function SymbolLink(props: SymbolLinkProps) {
               local.size === "xs" ? "text-xs" : local.size === "sm" || local.size === undefined ? "text-sm" : "text-base",
               local.textClassName,
             )}
-            style={{ "font-weight": local.weight ?? 700 }}
+            style={{ fontWeight: local.weight ?? 700 }}
           >
             {local.children ?? label()}
           </Box>
@@ -179,7 +179,7 @@ export function SymbolLink(props: SymbolLinkProps) {
               variant="subtle"
               color={copied ? "info" : "secondary"}
               size="xs"
-              style={{ width: 16, height: 16, "min-height": 16, padding: 0 }}
+              style={{ width: 16, height: 16, minHeight: 16, padding: 0 }}
               onClick={(event) => {
                 event.stopPropagation();
                 copy();

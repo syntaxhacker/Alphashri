@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, cleanup } from "@solidjs/testing-library";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import { BrowserRouter } from "react-router-dom";
 import { UIProvider } from "@/ui";
 import { PreviewChartProvider, usePreviewChart } from "./PreviewChartProvider";

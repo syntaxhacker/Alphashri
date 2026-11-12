@@ -202,7 +202,7 @@ function NewsPanelToggle(props: {
         aria-label="News"
         title={`Open news panel${props.unreadCount > 0 ? ` — ${props.unreadCount} unread` : ""}`}
         leftSection={<IconNews size={18} />}
-        style={{ "min-width": 32, width: 32, height: 32, padding: 0 }}
+        style={{ minWidth: 32, width: 32, height: 32, padding: 0 }}
       />
     </Indicator>
   );

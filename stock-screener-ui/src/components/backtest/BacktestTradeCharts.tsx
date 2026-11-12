@@ -216,7 +216,7 @@ function TradeChartRow({
       className="flex-shrink-0 rounded-fin overflow-hidden"
       style={{
         border: `1px solid ${palette.BORDER}`,
-        "background-color": palette.NT_BG,
+        backgroundColor: palette.NT_BG,
         contentVisibility: "auto",
         containIntrinsicSize: "auto 371px",
       }}
@@ -229,25 +229,25 @@ function TradeChartRow({
         py="4px"
         style={{ borderBottom: `1px solid ${palette.BORDER}` }}
       >
-        <Badge size="xs" style={{ height: 16, "font-size": 10, "background-color": palette.SURFACE_ALT, color: palette.TEXT }}>
+        <Badge size="xs" style={{ height: 16, fontSize: 10, backgroundColor: palette.SURFACE_ALT, color: palette.TEXT }}>
           {`#${number}`}
         </Badge>
         <Badge
           size="xs"
           data-testid={`trade-symbol-${index}`}
-          style={{ height: 16, "font-size": 10, "font-weight": 700, "background-color": palette.PRIMARY, color: palette.NT_BG }}
+          style={{ height: 16, fontSize: 10, fontWeight: 700, backgroundColor: palette.PRIMARY, color: palette.NT_BG }}
         >
           {symbol}
         </Badge>
         <Badge
           size="xs"
-          style={{ height: 16, "font-size": 10, "font-weight": 700 }}
+          style={{ height: 16, fontSize: 10, fontWeight: 700 }}
           color={canonicalSide(trade.side) === "SHORT" ? "negative" : "positive"}
           variant="filled"
         >
           {canonicalSide(trade.side)}
         </Badge>
-        <Text size="xs" c="muted" style={{ "white-space": "nowrap" }}>
+        <Text size="xs" c="muted" style={{ whiteSpace: "nowrap" }}>
           {fmt(trade.entry_time)} → {fmt(trade.exit_time)}
         </Text>
         <div className="flex-1" />
@@ -256,7 +256,7 @@ function TradeChartRow({
           {(trade.pnl ?? 0) >= 0 ? "+" : ""}{(trade.pnl ?? 0).toFixed(0)}
         </Text>
       </Stack>
-      <div ref={containerRef} className="h-[340px] min-h-[340px] flex-shrink-0 flex" style={{ height: 340, "min-height": 340 }}>
+      <div ref={containerRef} className="h-[340px] min-h-[340px] flex-shrink-0 flex" style={{ height: 340, minHeight: 340 }}>
         {inView ? (
           <TradingViewChart
             theme="nt"
@@ -268,7 +268,7 @@ function TradeChartRow({
             markLines={levels}
           />
         ) : (
-          <div className="flex-1" style={{ "background-color": palette.NT_BG }} />
+          <div className="flex-1" style={{ backgroundColor: palette.NT_BG }} />
         )}
       </div>
     </Card>
@@ -325,7 +325,7 @@ export function BacktestTradeCharts({
   const netPnl = useMemo(() => trades.reduce((s, t) => s + (t.pnl ?? 0), 0), [trades]);
 
   return (
-    <div className="h-full overflow-auto flex flex-col" style={{ "background-color": palette.BG }}>
+    <div className="h-full overflow-auto flex flex-col" style={{ backgroundColor: palette.BG }}>
       <Stack
         direction="row"
         align="center"
@@ -336,10 +336,10 @@ export function BacktestTradeCharts({
         style={{
           position: "sticky",
           top: 0,
-          "z-index": 2,
+          zIndex: 2,
           flex: "0 0 auto",
           borderBottom: `1px solid ${palette.BORDER}`,
-          "background-color": palette.SURFACE,
+          backgroundColor: palette.SURFACE,
         }}
       >
         {symbolList.map((s) => (
@@ -352,8 +352,8 @@ export function BacktestTradeCharts({
             color={s === (selectedSymbol ?? symbol) ? "primary" : "secondary"}
             style={{
               height: 18,
-              "font-size": 10,
-              "font-weight": 700,
+              fontSize: 10,
+              fontWeight: 700,
               cursor: onSymbolSelect ? "pointer" : "default",
             }}
           >
@@ -361,9 +361,9 @@ export function BacktestTradeCharts({
           </Badge>
         ))}
         <div className="flex-1" />
-        <Text size="xs" c="muted" style={{ "white-space": "nowrap" }}>
+        <Text size="xs" c="muted" style={{ whiteSpace: "nowrap" }}>
           {trades.length}/{allTrades.length} trades · net{" "}
-          <span style={{ color: netPnl >= 0 ? palette.POSITIVE : palette.NEGATIVE, "font-weight": 700 }}>
+          <span style={{ color: netPnl >= 0 ? palette.POSITIVE : palette.NEGATIVE, fontWeight: 700 }}>
             {netPnl >= 0 ? "+" : ""}₹{netPnl.toFixed(0)}
           </span>
         </Text>

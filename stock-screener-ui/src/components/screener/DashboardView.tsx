@@ -283,7 +283,7 @@ function DashboardCard(props: {
       testId={`dashboard-card-${cardKey()}`}
       padded={false}
       flush
-      style={{ "min-width": 0, "min-height": 0, display: "flex", "flex-direction": "column", overflow: "hidden" }}
+      style={{ minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}
       title={
         <Box className="flex w-full flex-col gap-0.5 py-0.5">
           <ToolbarRow gap={4} wrap={false}>
@@ -418,7 +418,7 @@ function DashboardCard(props: {
                   <ActionIcon
                     size="xs"
                     variant="subtle"
-                    style={{ width: 16, height: 16, "min-height": 16, padding: 0 }}
+                    style={{ width: 16, height: 16, minHeight: 16, padding: 0 }}
                     data-testid={`dashboard-row-expand-${activePanel()?.id}-${row.symbol}`}
                     aria-label={isOpen() ? `Hide details for ${row.symbol}` : `Show details for ${row.symbol}`}
                     aria-expanded={isOpen()}

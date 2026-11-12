@@ -38,17 +38,17 @@ export function IVSkewChart(props: IVSkewChartProps) {
   createEffect(() => {
     const data = chartData();
     const option = {
-      "background-color": "transparent",
+      backgroundColor: "transparent",
       tooltip: {
         trigger: "axis",
         formatter: (params: any) => {
           const dataPoint = params[0];
           return `Strike: ${dataPoint.name}<br/>IV: ${dataPoint.value}%`;
         },
-        "background-color": isDark() ? palette.CHART_DROPDOWN : palette.SURFACE,
+        backgroundColor: isDark() ? palette.CHART_DROPDOWN : palette.SURFACE,
         textStyle: {
           color: isDark() ? palette.TEXT : "#0D1117",
-          "font-size": 12,
+          fontSize: 12,
         },
       },
       grid: {
@@ -60,12 +60,12 @@ export function IVSkewChart(props: IVSkewChartProps) {
       xAxis: {
         type: "category",
         data: data.map((d) => d.strike),
-        axisLabel: { color: palette.TEXT_MUTED, "font-size": 12 },
+        axisLabel: { color: palette.TEXT_MUTED, fontSize: 12 },
         axisLine: { lineStyle: { color: palette.BORDER } },
       },
       yAxis: {
         type: "value",
-        axisLabel: { color: palette.TEXT_MUTED, "font-size": 12, formatter: "{value}%" },
+        axisLabel: { color: palette.TEXT_MUTED, fontSize: 12, formatter: "{value}%" },
         splitLine: {
           lineStyle: { color: palette.BORDER, type: "dashed" },
         },
@@ -111,7 +111,7 @@ export function IVSkewChart(props: IVSkewChartProps) {
   return (
     <CompactPanel className="iv-skew-chart-panel" data-testid="options-iv-skew-chart">
       <Box className="flex items-center justify-center w-full iv-skew-header" gap={1} p="sm">
-        <Text size="sm" fw={800} className="text-fin-primary" style={{ "letter-spacing": "0.5px" }}>
+        <Text size="sm" fw={800} className="text-fin-primary" style={{ letterSpacing: "0.5px" }}>
           VOLATILITY SMILE (IV SKEW)
         </Text>
         <Text size="sm" className="text-fin-text-muted">

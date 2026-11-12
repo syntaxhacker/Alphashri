@@ -222,7 +222,7 @@ function OptionColumn(props: {
     if (!d) return null;
     return (
       <Box p="xs">
-        <Group justify="space-between" style={{ "margin-bottom": 8 }}>
+        <Group justify="space-between" style={{ marginBottom: 8 }}>
           <Text size="sm" fw={700}>
             {d.contract.trading_symbol}
           </Text>
@@ -237,14 +237,14 @@ function OptionColumn(props: {
         <Text size="sm" c={getPnLTextColor(d.oiChange)}>
           OI Change %: {d.oiChangePct.toFixed(2)}%
         </Text>
-        <Box style={{ "margin-top": 8, "padding-top": 8 }}>
+        <Box style={{ marginTop: 8, paddingTop: 8 }}>
           <Text size="sm">Delta: {d.delta.toFixed(3)}</Text>
           <Text size="sm">Theta: {(d.gr?.theta ?? 0).toFixed(2)}</Text>
           <Text size="sm">Gamma: {(d.gr?.gamma ?? 0).toFixed(5)}</Text>
           <Text size="sm">Vega: {(d.gr?.vega ?? 0).toFixed(2)}</Text>
           <Text size="sm">IV: {d.iv.toFixed(2)}%</Text>
         </Box>
-        <Box style={{ "margin-top": 8, "padding-top": 8 }}>
+        <Box style={{ marginTop: 8, paddingTop: 8 }}>
           <Text size="sm">
             Bid: {d.md?.bid_price} | Ask: {d.md?.ask_price}
           </Text>
@@ -290,9 +290,9 @@ function OptionColumn(props: {
               const cellStyle: CSSProperties = {
                 ...(styles.cell as CSSProperties),
                 position: "relative",
-                "font-weight": cell.fw,
+                fontWeight: cell.fw,
                 background: cellPalette.background as string,
-                "box-shadow": cellPalette.shadow,
+                boxShadow: cellPalette.shadow,
                 color: cell.c ? undefined : cellPalette.text,
               };
 
@@ -316,8 +316,8 @@ function OptionColumn(props: {
                           [type() === "CE" ? "right" : "left"]: 0,
                           width: `${d().oiBarPct}%`,
                           background: `linear-gradient(180deg, ${hexToRgba(cellPalette.accent, 0.22)} 0%, ${hexToRgba(cellPalette.accent, 0.08)} 100%)`,
-                          "border-radius": type() === "CE" ? "999px 0 0 999px" : "0 999px 999px 0",
-                          "z-index": 0,
+                          borderRadius: type() === "CE" ? "999px 0 0 999px" : "0 999px 999px 0",
+                          zIndex: 0,
                           transition: "width 0.35s ease",
                         }}
                       />
@@ -334,14 +334,14 @@ function OptionColumn(props: {
                           [type() === "CE" ? "right" : "left"]: 0,
                           width: `${d().volBarPct}%`,
                           background: `linear-gradient(180deg, ${hexToRgba(cellPalette.accent, 0.22)} 0%, ${hexToRgba(cellPalette.accent, 0.08)} 100%)`,
-                          "border-radius": type() === "CE" ? "999px 0 0 999px" : "0 999px 999px 0",
-                          "z-index": 0,
+                          borderRadius: type() === "CE" ? "999px 0 0 999px" : "0 999px 999px 0",
+                          zIndex: 0,
                           transition: "width 0.35s ease",
                         }}
                       />
                     </Show>
 
-                    <Stack gap={0} align="center" w="100%" style={{ "z-index": "1" }}>
+                    <Stack gap={0} align="center" w="100%" style={{ zIndex: "1" }}>
                       <Group gap={4} wrap="nowrap" align="center" justify="center">
                         <Text
                           size="sm"
@@ -361,7 +361,7 @@ function OptionColumn(props: {
                               variant="light"
                               color={badge().color}
                               px={4}
-                              style={{ "font-size": "10px", height: 14 }}
+                              style={{ fontSize: "10px", height: 14 }}
                             >
                               {badge().label}
                             </Badge>
@@ -370,7 +370,7 @@ function OptionColumn(props: {
                       </Group>
 
                       <Show when={cell.isLTP}>
-                        <Box style={{ width: "72%", "margin-top": 4 }}>
+                        <Box style={{ width: "72%", marginTop: 4 }}>
                           <Progress
                             value={clamp(Math.abs(d().delta) * 100, 0, 100)}
                             size={3}
@@ -495,10 +495,10 @@ export function OptionChainTable(props: OptionChainTableProps) {
 
       <div
         ref={(el) => (viewportRef = el)}
-        style={{ flex: 1, "min-height": 0, overflow: "auto" }}
+        style={{ flex: 1, minHeight: 0, overflow: "auto" }}
         data-testid="options-chain-table-scrollarea"
       >
-        <Box style={{ "min-width": 800, "padding-bottom": 152 } as CSSProperties}>
+        <Box style={{ minWidth: 800, paddingBottom: 152 } as CSSProperties}>
           <Index each={visibleRows()}>
             {(row) => {
               const index = () => row().index;
@@ -572,7 +572,7 @@ export function OptionChainTable(props: OptionChainTableProps) {
                       ...(isATM() ? (styles.atmHighlight as CSSProperties) : {}),
                       ...(isHovered()
                         ? {
-                            "box-shadow": `inset 0 0 0 1px rgba(240, 136, 62, 0.45), 0 8px 22px rgba(0, 0, 0, 0.08)`,
+                            boxShadow: `inset 0 0 0 1px rgba(240, 136, 62, 0.45), 0 8px 22px rgba(0, 0, 0, 0.08)`,
                           }
                         : undefined),
                     } as CSSProperties}
@@ -599,14 +599,14 @@ export function OptionChainTable(props: OptionChainTableProps) {
                         display: "flex",
                         width: "100%",
                         height: 4,
-                        "border-radius": 4,
+                        borderRadius: 4,
                         overflow: "hidden",
-                        "margin-top": 2,
-                        "background-color": palette.BORDER,
+                        marginTop: 2,
+                        backgroundColor: palette.BORDER,
                       }}
                     >
-                      <Box style={{ width: `${ceSharePct()}%`, "background-color": palette.POSITIVE }} />
-                      <Box style={{ width: `${100 - ceSharePct()}%`, "background-color": palette.NEGATIVE }} />
+                      <Box style={{ width: `${ceSharePct()}%`, backgroundColor: palette.POSITIVE }} />
+                      <Box style={{ width: `${100 - ceSharePct()}%`, backgroundColor: palette.NEGATIVE }} />
                     </Box>
                   </Box>
 

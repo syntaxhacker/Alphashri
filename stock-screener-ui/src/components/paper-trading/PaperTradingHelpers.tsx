@@ -1,6 +1,7 @@
 import { createMemo, Show, Switch, Match, type JSX } from "solid-js";
 import dayjs from "dayjs";
-import { Tabs, Text, Select } from "@/ui";
+import { Text, Select } from "@/ui";
+import { Tabs } from "./overlays";
 import { IconActivity, IconChartDots, IconClipboardList, IconSettings, IconTimeline } from "@/components/common/Icons";
 import { TradingDatePicker } from "../common/TradingDatePicker";
 import {

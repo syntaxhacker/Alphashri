@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen } from "@solidjs/testing-library";
+import { cleanup, render, screen, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { SymbolLink } from "./SymbolLink";
 import { SymbolDockContext } from "./symbolDockContext";

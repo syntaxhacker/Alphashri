@@ -70,7 +70,7 @@ export function buildChartOption(data: SymbolChartData, isDark: boolean): any {
       .filter((t) => t.computedIdx !== undefined)
       .map((t) => ({
         value: [t.computedIdx!, t.price],
-        itemStyle: { color: config.color, "border-color": MARKER_BORDER, borderWidth: 2 },
+        itemStyle: { color: config.color, borderColor: MARKER_BORDER, borderWidth: 2 },
         symbol: config.symbol,
         ...(config.symbolRotate !== undefined ? { symbolRotate: config.symbolRotate } : {}),
         symbolSize: config.symbolSize,
@@ -207,19 +207,19 @@ export function buildChartOption(data: SymbolChartData, isDark: boolean): any {
   }
 
   return {
-    "background-color": bgColor,
+    backgroundColor: bgColor,
     title: {
       text: `${data.symbol} - Backtest Results`,
       left: "center",
-      textStyle: { "font-size": fontSizes.lg, color: textColor },
+      textStyle: { fontSize: fontSizes.lg, color: textColor },
     },
     tooltip: {
       trigger: "axis",
       axisPointer: { type: "cross", lineStyle: { color: CHART_CROSSHAIR } },
-      "background-color": tooltipBg,
-      "border-color": borderColor,
+      backgroundColor: tooltipBg,
+      borderColor: borderColor,
       borderWidth: 1,
-      textStyle: { color: textColor, "font-size": fontSizes.sm },
+      textStyle: { color: textColor, fontSize: fontSizes.sm },
       formatter: function (params: any) {
         for (const p of params) {
           if (p.data && p.data.trade) {
@@ -280,7 +280,7 @@ export function buildChartOption(data: SymbolChartData, isDark: boolean): any {
       itemWidth: 14,
       itemHeight: 10,
       itemGap: 8,
-      textStyle: { color: mutedColor, "font-size": fontSizes.sm },
+      textStyle: { color: mutedColor, fontSize: fontSizes.sm },
       type: "scroll",
     },
     grid: {

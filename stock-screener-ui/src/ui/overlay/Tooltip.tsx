@@ -12,10 +12,10 @@ const PLACEMENT: Record<TooltipPosition, string> = {
   bottom: "top-full left-1/2 -translate-x-1/2 mt-1",
   left: "right-full top-1/2 -translate-y-1/2 mb-1",
   right: "left-full top-1/2 -translate-y-1/2 mt-1",
-  "top-start": "bottom-full left-0 mb-1",
-  "top-end": "bottom-full right-0 mb-1",
-  "bottom-start": "top-full left-0 mt-1",
-  "bottom-end": "top-full right-0 mt-1",
+  topStart: "bottom-full left-0 mb-1",
+  topEnd: "bottom-full right-0 mb-1",
+  bottomStart: "top-full left-0 mt-1",
+  bottomEnd: "top-full right-0 mt-1",
 };
 
 const ARROW_SIDE: Record<TooltipPosition, "t" | "r" | "b" | "l"> = {
@@ -23,10 +23,10 @@ const ARROW_SIDE: Record<TooltipPosition, "t" | "r" | "b" | "l"> = {
   bottom: "t",
   left: "r",
   right: "l",
-  "top-start": "b",
-  "top-end": "b",
-  "bottom-start": "t",
-  "bottom-end": "t",
+  topStart: "b",
+  topEnd: "b",
+  bottomStart: "t",
+  bottomEnd: "t",
 };
 
 type ArrowPos = { bottom?: string; left?: string; transform?: string; top?: string; right?: string };
@@ -35,10 +35,10 @@ const ARROW_POS: Record<TooltipPosition, ArrowPos> = {
   bottom: { top: "-10px", left: "50%", transform: "translateX(-50%)" },
   left: { right: "-10px", top: "50%", transform: "translateY(-50%)" },
   right: { left: "-10px", top: "50%", transform: "translateY(-50%)" },
-  "top-start": { bottom: "-10px", left: "8px" },
-  "top-end": { bottom: "-10px", right: "8px" },
-  "bottom-start": { top: "-10px", left: "8px" },
-  "bottom-end": { top: "-10px", right: "8px" },
+  topStart: { bottom: "-10px", left: "8px" },
+  topEnd: { bottom: "-10px", right: "8px" },
+  bottomStart: { top: "-10px", left: "8px" },
+  bottomEnd: { top: "-10px", right: "8px" },
 };
 
 export function Tooltip(props: TooltipProps) {
@@ -138,7 +138,7 @@ export function Tooltip(props: TooltipProps) {
             known.color ? "text-white" : undefined,
             known.multiline ? "max-w-[220px] whitespace-normal" : "whitespace-nowrap",
           )}
-          style={{ "background-color": known.color ?? undefined }}
+          style={{ backgroundColor: known.color ?? undefined }}
         >
           {known.label}
           {known.withArrow && (

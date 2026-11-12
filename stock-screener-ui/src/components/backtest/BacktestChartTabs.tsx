@@ -59,7 +59,7 @@ export function BacktestChartTabs({
         data-testid="chart-container"
         h={400}
         className="rounded-fin"
-        style={{ "background-color": "#0A0A0A", "border-radius": 2 }}
+        style={{ backgroundColor: "#0A0A0A", borderRadius: 2 }}
       >
         <Text c="dimmed">Select a symbol to view chart</Text>
       </Center>
@@ -73,7 +73,7 @@ export function BacktestChartTabs({
       id="chart-container"
       data-testid="chart-container"
       h="100%"
-      style={{ display: "flex", "flex-direction": "column", "min-height": 0, "min-width": 0, overflow: "hidden" }}
+      style={{ display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0, overflow: "hidden" }}
     >
       <Box mb={1} flex="0 0 auto" data-testid="chart-tabs-header" p={1}>
         <Box className="flex items-center justify-between gap-2 p-2">
@@ -119,7 +119,7 @@ export function BacktestChartTabs({
       <Box
         flex={1}
         data-testid="chart-tabs-content"
-        style={{ "min-height": 0, "min-width": 0, position: "relative", overflow: "hidden" }}
+        style={{ minHeight: 0, minWidth: 0, position: "relative", overflow: "hidden" }}
       >
         {selectedSymbol ? (
           <BacktestChart
@@ -135,7 +135,7 @@ export function BacktestChartTabs({
             data-testid="chart-placeholder"
             h="100%"
             className="rounded-fin"
-            style={{ "background-color": "#0A0A0A", "border-radius": 2 }}
+            style={{ backgroundColor: "#0A0A0A", borderRadius: 2 }}
           >
             <Text c="dimmed">Select a symbol</Text>
           </Center>

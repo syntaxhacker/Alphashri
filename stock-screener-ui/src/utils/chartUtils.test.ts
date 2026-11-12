@@ -200,7 +200,7 @@ describe("buildHighlightMarkers", () => {
       value: [5, 100],
       symbol: "triangle",
       symbolSize: 32,
-      itemStyle: { color: CHART_AVG_ENTRY, "border-color": CHART_TRADE_EXIT, borderWidth: 4 },
+      itemStyle: { color: CHART_AVG_ENTRY, borderColor: CHART_TRADE_EXIT, borderWidth: 4 },
       label: { show: true, position: "top", formatter: "▼ Entry #1" },
     });
   });

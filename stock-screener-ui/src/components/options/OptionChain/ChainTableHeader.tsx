@@ -14,8 +14,8 @@ export function ChainTableHeader(props: ChainTableHeaderProps) {
   const headerCell = {
     ...props.styles.headerCell,
     display: "flex",
-    "align-items": "center",
-    "justify-content": "center",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
     padding: 8,
   } as CSSProperties;
@@ -27,19 +27,19 @@ export function ChainTableHeader(props: ChainTableHeaderProps) {
     >
       <Box
         className="chain-header-cell chain-calls-header"
-        style={{ ...headerCell, color: palette.POSITIVE, "background-color": palette.SURFACE } as CSSProperties}
+        style={{ ...headerCell, color: palette.POSITIVE, backgroundColor: palette.SURFACE } as CSSProperties}
       >
         CALLS (CE)
       </Box>
       <Box
         className="chain-header-cell chain-strike-header"
-        style={{ ...headerCell, color: palette.WARNING, "background-color": palette.SURFACE } as CSSProperties}
+        style={{ ...headerCell, color: palette.WARNING, backgroundColor: palette.SURFACE } as CSSProperties}
       >
         STRIKE
       </Box>
       <Box
         className="chain-header-cell chain-puts-header"
-        style={{ ...headerCell, color: palette.NEGATIVE, "background-color": palette.SURFACE } as CSSProperties}
+        style={{ ...headerCell, color: palette.NEGATIVE, backgroundColor: palette.SURFACE } as CSSProperties}
       >
         PUTS (PE)
       </Box>

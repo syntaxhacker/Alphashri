@@ -90,7 +90,7 @@ const meta: Meta<typeof MarketTicker> = {
       window.fetch = () => mockFetch;
 
       return (
-        <Box style={{ width: "100%", "max-width": 900 }}>
+        <Box style={{ width: "100%", maxWidth: 900 }}>
           <Story />
         </Box>
       );

@@ -1379,7 +1379,7 @@ describe("NiftyReportPanel EOD minute replay", () => {
   });
 
   test("names the recorder's skip reasons in the tooltip, not in the bar", async () => {
-    const bar = await engageEodWithReplay({ "chain-failed": 41, timeout: 12 });
+    const bar = await engageEodWithReplay({ chainFailed: 41, timeout: 12 });
     const reasons = within(bar).getByTestId("nifty-replay-reasons");
     expect(reasons).toHaveAttribute("title", expect.stringContaining("chain fetch failed ×41"));
     expect(reasons).toHaveAttribute("title", expect.stringContaining("tick timed out ×12"));
@@ -3054,10 +3054,10 @@ describe("NiftyReportPanel compact desk top", () => {
     expect(screen.getByTestId("nifty-stat-pin")).toBeInTheDocument();
     // spot anchors the row larger, the rest compact
     expect(screen.getByTestId("nifty-stat-spot-value")).toHaveStyle({
-      "font-size": "15px",
+      fontSize: "15px",
     });
     expect(screen.getByTestId("nifty-stat-regime-value")).toHaveStyle({
-      "font-size": "12px",
+      fontSize: "12px",
     });
   });
 
@@ -3310,7 +3310,7 @@ describe("NiftyReportPanel compact desk top", () => {
       expect(within(strip).getByTestId(id)).toBeInTheDocument();
     }
     expect(screen.getByTestId("nifty-verdict-control-primary")).toHaveStyle({
-      "font-size": "11px",
+      fontSize: "11px",
     });
     // regime stays a top-row headline, never a second-strip cell
     expect(screen.queryByTestId("nifty-verdict-regime")).not.toBeInTheDocument();

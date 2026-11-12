@@ -82,7 +82,7 @@ describe("buildSeries", () => {
       const result = buildSeries(mockCandles, {} as any, false, singleBlackMarkLine);
       expect(result.series[0].markLine.label).toEqual({
         color: "inherit",
-        "font-size": 11,
+        fontSize: 11,
         formatter: "{b}",
       });
     });

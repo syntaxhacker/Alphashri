@@ -105,7 +105,7 @@ vi.mock("../../hooks/useStoreSubscription", () => ({
 // PaperTradingHelpers.test.tsx does for TradingDatePicker. Values convert to
 // Date like the real picker (empty -> null).
 vi.mock("@/ui/dates/DatePicker", () => ({
-  DatePicker: ({ value, onChange, "data-testid": testId, placeholder }: any) => (
+  DatePicker: ({ value, onChange, dataTestid: testId, placeholder }: any) => (
     <input
       type="text"
       data-testid={testId}

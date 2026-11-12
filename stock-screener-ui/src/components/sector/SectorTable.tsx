@@ -52,7 +52,7 @@ function TopMoversCell(props: { text: string }) {
                 <Box component="span" className="text-fin-text-muted">
                   {symbol}
                 </Box>
-                <Box component="span" style={{ color: getPnLTextColor(parseFloat(raw)) === "success" ? POSITIVE : NEGATIVE, "font-weight": 600 }}>
+                <Box component="span" style={{ color: getPnLTextColor(parseFloat(raw)) === "success" ? POSITIVE : NEGATIVE, fontWeight: 600 }}>
                   ({raw})
                 </Box>
               </Text>
@@ -157,7 +157,7 @@ export function SectorTable(props: SectorTableProps) {
       dense
       fillContainer
       rowWindowSize={40}
-      style={{ "min-width": "100%" }}
+      style={{ minWidth: "100%" }}
     />
   );
 }

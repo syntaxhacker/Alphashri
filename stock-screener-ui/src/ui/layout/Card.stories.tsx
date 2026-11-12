@@ -21,7 +21,7 @@ export const Default: Story = {
 
 export const PaddingVariants: Story = {
   render: () => (
-    <div style={{ display: "flex", gap: 16, "align-items": "flex-start" }}>
+    <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
       {(["xs", "md", "xl"] as const).map((padding) => (
         <Card key={padding} padding={padding} radius="md">
           padding=&quot;{padding}&quot;

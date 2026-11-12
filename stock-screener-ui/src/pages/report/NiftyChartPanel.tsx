@@ -162,22 +162,22 @@ export function LevelLegend({ live, gex, spot }: LevelLegendProps) {
     <Box
       data-testid="nifty-level-legend"
       className="flex flex-wrap"
-      style={{ "column-gap": "8px", "row-gap": "4px", "padding-top": "4px" }}
+      style={{ columnGap: "8px", rowGap: "4px", paddingTop: "4px" }}
     >
       {items.map((it) => (
         <Box
           key={it.code}
           className="flex items-center"
-          style={{ gap: "8px", "white-space": "nowrap" }}
+          style={{ gap: "8px", whiteSpace: "nowrap" }}
         >
           <Box
             style={{
               width: it.zone ? 12 : 8,
               height: it.zone ? 8 : 8,
-              "border-radius": it.zone ? 1 : "50%",
-              "background-color": it.zone ? hexToRgba(it.color, 0.18) : it.color,
+              borderRadius: it.zone ? 1 : "50%",
+              backgroundColor: it.zone ? hexToRgba(it.color, 0.18) : it.color,
               border: it.zone ? `1px solid ${it.color}` : "none",
-              "flex-shrink": 0,
+              flexShrink: 0,
             }}
           />
           <Text size="xs" fw={700} span>
@@ -451,16 +451,16 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
   return (
     <CompactPanel
       title={
-        <span style={{ display: "inline-flex", "align-items": "center", gap: "6px" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
           {view === "depth" ? `${symbol} depth map` : `${symbol} chart`}
           {wallOverlay.markers.length > 0 ? (
             <Text
               data-testid="nifty-chart-event-badge"
               style={{
-                "font-size": "9px",
-                "font-weight": 700,
-                "letter-spacing": "0.4em",
-                "text-transform": "uppercase",
+                fontSize: "9px",
+                fontWeight: 700,
+                letterSpacing: "0.4em",
+                textTransform: "uppercase",
                 color: palette.WARNING,
               }}
             >
@@ -471,7 +471,7 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
       }
       testId="nifty-chart-panel"
       className="[&_[data-compact-card-content]]:flex-1 [&_[data-compact-card-content]]:min-h-0"
-      style={{ "min-width": 0, "min-height": 0, height: "100%", overflow: "hidden", display: "flex", "flex-direction": "column" }}
+      style={{ minWidth: 0, minHeight: 0, height: "100%", overflow: "hidden", display: "flex", flexDirection: "column" }}
       action={
         view === "chart" ? (
           <Box className="flex items-center" style={{ gap: "4px" }}>
@@ -489,7 +489,7 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
               onClick={() => scanPatterns(chartTf)}
               disabled={patternScan.status === "loading"}
               title={`Run the chart-pattern detector on ${symbol} ${chartTf}`}
-              style={{ "min-width": 0, "padding-left": 6, "padding-right": 6, "padding-top": 0, "padding-bottom": 0, height: 20, "font-size": 9, "font-weight": 800, "letter-spacing": "0.06em" }}
+              style={{ minWidth: 0, paddingLeft: 6, paddingRight: 6, paddingTop: 0, paddingBottom: 0, height: 20, fontSize: 9, fontWeight: 800, letterSpacing: "0.06em" }}
             >
               {patternScan.status === "loading" ? "…" : "PATTERNS"}
             </Button>
@@ -509,7 +509,7 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
                 onClick={onExpand}
                 style={{ padding: "1px", color: palette.TEXT_MUTED }}
               >
-                <Text span size="xs" fw={700} style={{ "font-size": "13px", "line-height": 1 }}>
+                <Text span size="xs" fw={700} style={{ fontSize: "13px", lineHeight: 1 }}>
                   ⤢
                 </Text>
               </ActionIcon>
@@ -530,7 +530,7 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
         style={{
           display: view === "chart" ? "flex" : "none",
           flex: view === "chart" ? 1 : undefined,
-          "min-height": 0,
+          minHeight: 0,
         }}
       >
         {chartCandles.length === 0 ? (
@@ -551,10 +551,10 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
               ...(chartHeight == null ? undefined : { height: chartHeight }),
               display: chartCandles.length > 0 ? "flex" : "none",
               flex: chartHeight == null ? 1 : undefined,
-              "min-width": 0,
-              "min-height": 0,
-              "flex-shrink": 0,
-              ...(chartHeight == null && !fillContainer ? { "max-height": FILL_MAX_HEIGHT, "min-height": FILL_MIN_HEIGHT } : {}),
+              minWidth: 0,
+              minHeight: 0,
+              flexShrink: 0,
+              ...(chartHeight == null && !fillContainer ? { maxHeight: FILL_MAX_HEIGHT, minHeight: FILL_MIN_HEIGHT } : {}),
             }}
           >
             <TradingViewChart
@@ -596,19 +596,19 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
           style={{
             gap: "6px",
             height: "18px",
-            "min-height": "18px",
-            "margin-top": "2px",
-            "padding-left": "4px",
-            "padding-right": "4px",
-            "font-family": palette.MONO,
-            "font-size": "9px",
-            "white-space": "nowrap",
+            minHeight: "18px",
+            marginTop: "2px",
+            paddingLeft: "4px",
+            paddingRight: "4px",
+            fontFamily: palette.MONO,
+            fontSize: "9px",
+            whiteSpace: "nowrap",
             overflow: "hidden",
             color: palette.TEXT_MUTED,
-            "border-top": `1px solid ${palette.TERM_BORDER}`,
+            borderTop: `1px solid ${palette.TERM_BORDER}`,
           }}
         >
-          <span style={{ "font-weight": 800, "letter-spacing": "0.08em" }}>
+          <span style={{ fontWeight: 800, letterSpacing: "0.08em" }}>
             PATTERNS {patternScan.tf}
           </span>
           {patternScan.status === "loading" ? (
@@ -628,7 +628,7 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
                       : patternScan.hits[0].direction === "bearish"
                         ? palette.NEGATIVE
                         : palette.TEXT,
-                  "font-weight": 700,
+                  fontWeight: 700,
                 }}
               >
                 {patternScan.hits[0].pattern_name}
@@ -656,10 +656,10 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
                 : `Pattern was scanned on ${patternScan.tf}; rescan on ${chartTf} to draw it here`
             }
             style={{
-              "margin-left": "auto",
+              marginLeft: "auto",
               cursor: "pointer",
-              "font-weight": 800,
-              "letter-spacing": "0.06em",
+              fontWeight: 800,
+              letterSpacing: "0.06em",
               color: drawPattern ? palette.PRIMARY : palette.TEXT_MUTED,
               opacity: patternScan.tf === chartTf ? 1 : 0.5,
             }}

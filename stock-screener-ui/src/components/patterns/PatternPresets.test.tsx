@@ -16,7 +16,7 @@ vi.mock("@/ui", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
-    Select: ({ value, onChange, data = [], "data-testid": testId }: any) => (
+    Select: ({ value, onChange, data = [], dataTestid: testId }: any) => (
       <select
         data-testid={testId}
         value={value ?? ""}

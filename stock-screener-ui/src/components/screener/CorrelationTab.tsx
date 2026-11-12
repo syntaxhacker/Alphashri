@@ -10,7 +10,7 @@ import {
   Stack,
   Text,
 } from "@/ui";
-import { IconAlertCircle, IconChartLine } from "@tabler/icons-react";
+import { IconAlertCircle, IconChartLine } from "./icons";
 import {
   subscribe,
   symbols,

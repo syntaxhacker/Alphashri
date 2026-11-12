@@ -60,7 +60,7 @@ export function EventTypeBadge({
       size="xs"
       color={color}
       variant={variant}
-      style={{ "white-space": "nowrap" }}
+      style={{ whiteSpace: "nowrap" }}
     >
       {EVENT_TYPE_LABELS[type] ?? "Other"}
     </Badge>

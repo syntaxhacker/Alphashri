@@ -21,7 +21,7 @@ export const BackgroundPadding: Story = {
 
 export const InlineStyle: Story = {
   render: () => (
-    <Box style={{ background: "var(--color-fin-info)", padding: 16, "border-radius": 8 }}>
+    <Box style={{ background: "var(--color-fin-info)", padding: 16, borderRadius: 8 }}>
       styled via style prop
     </Box>
   ),

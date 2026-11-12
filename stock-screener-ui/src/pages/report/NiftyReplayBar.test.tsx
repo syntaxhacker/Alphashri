@@ -123,7 +123,7 @@ describe("NiftyReplayBar", () => {
 
   test("names the recorder's skip reasons when the gap journal exists", () => {
     cleanup();
-    const reasons = toReplayReasons({ "chain-failed": 41, timeout: 12 });
+    const reasons = toReplayReasons({ chainFailed: 41, timeout: 12 });
     r(
       <NiftyReplayBar
         replay={replayFixture()}
@@ -197,7 +197,7 @@ describe("replay helpers", () => {
 
   test("toReplayReasons sorts by count and labels known reasons", () => {
     expect(toReplayReasons(undefined)).toEqual([]);
-    expect(toReplayReasons({ timeout: 1, "chain-failed": 5 })).toEqual([
+    expect(toReplayReasons({ timeout: 1, chainFailed: 5 })).toEqual([
       { reason: "chain-failed", n: 5, label: "chain fetch failed" },
       { reason: "timeout", n: 1, label: "tick timed out" },
     ]);

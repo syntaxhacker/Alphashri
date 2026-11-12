@@ -30,13 +30,13 @@ function Row({ b, maxAbs }: { b: EdgeBucket; maxAbs: number }) {
       title={`${b.label}: ${b.count} trades · ${winRate(b).toFixed(0)}% WR · ₹${b.netPnl.toFixed(0)}`}
       data-testid={`edge-row-${b.key}`}
     >
-      <Text size="xs" c="muted" style={{ width: 60, flex: "0 0 auto", "white-space": "nowrap" }}>{b.label}</Text>
-      <div className="relative flex-1 h-[14px] rounded-sm overflow-hidden" style={{ "background-color": "#121212" }}>
-        <div className="absolute top-0 bottom-0 left-1/2 w-[1px]" style={{ "background-color": "#30363D" }} />
+      <Text size="xs" c="muted" style={{ width: 60, flex: "0 0 auto", whiteSpace: "nowrap" }}>{b.label}</Text>
+      <div className="relative flex-1 h-[14px] rounded-sm overflow-hidden" style={{ backgroundColor: "#121212" }}>
+        <div className="absolute top-0 bottom-0 left-1/2 w-[1px]" style={{ backgroundColor: "#30363D" }} />
         <div
           className="absolute top-1 bottom-1 rounded-xs"
           style={{
-            "background-color": color,
+            backgroundColor: color,
             ...(positive ? { left: "50%", width: `${width}%` } : { right: "50%", width: `${width}%` }),
           }}
         />
@@ -44,11 +44,11 @@ function Row({ b, maxAbs }: { b: EdgeBucket; maxAbs: number }) {
       <Text
         size="xs"
         c={positive ? "positive" : "negative"}
-        style={{ width: 62, flex: "0 0 auto", "text-align": "right", fontVariantNumeric: "tabular-nums" }}
+        style={{ width: 62, flex: "0 0 auto", textAlign: "right", fontVariantNumeric: "tabular-nums" }}
       >
         {positive ? "+" : ""}{b.netPnl.toFixed(0)}
       </Text>
-      <Text size="xs" c="muted" style={{ width: 30, flex: "0 0 auto", "text-align": "right" }}>{b.count}t</Text>
+      <Text size="xs" c="muted" style={{ width: 30, flex: "0 0 auto", textAlign: "right" }}>{b.count}t</Text>
     </Box>
   );
 }
@@ -58,7 +58,7 @@ function Section({ title, buckets }: { title: string; buckets: EdgeBucket[] }) {
   const maxAbs = Math.max(1, ...buckets.map((b) => Math.abs(b.netPnl)));
   return (
     <Box className="mb-2" data-testid={`edge-section-${title.toLowerCase().replace(/\s+/g, "-")}`}>
-      <Text size="xs" fw={600} c="muted" style={{ display: "block", mb: 0.5 * 8, "text-transform": "uppercase", "letter-spacing": 0.4 }}>
+      <Text size="xs" fw={600} c="muted" style={{ display: "block", mb: 0.5 * 8, textTransform: "uppercase", letterSpacing: 0.4 }}>
         {title}
       </Text>
       <For each={buckets}>{(b) => <Row key={b.key} b={b} maxAbs={maxAbs} />}</For>
@@ -107,7 +107,7 @@ export function BacktestEdgePanel({ symbol, trades, filters }: { symbol?: string
             {total >= 0 ? "+" : ""}₹{total.toFixed(0)}
           </Text>
         </Text>
-        <Text size="xs" c="muted" style={{ display: "block", "margin-top": 2 }} data-testid="edge-insight-best">
+        <Text size="xs" c="muted" style={{ display: "block", marginTop: 2 }} data-testid="edge-insight-best">
           Best window: {fmtBucket(best)}
         </Text>
         <Text size="xs" c="muted" style={{ display: "block" }} data-testid="edge-insight-worst">

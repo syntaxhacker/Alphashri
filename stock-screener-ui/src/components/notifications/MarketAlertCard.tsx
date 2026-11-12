@@ -114,7 +114,7 @@ function metricTone(tone: MarketAlertMetric["tone"]): string {
 /** Inline `LABEL value` fact, tabular and unadorned. */
 function Fact(props: { m: MarketAlertMetric }) {
   return (
-    <Box component="span" style={{ "white-space": "nowrap" }}>
+    <Box component="span" style={{ whiteSpace: "nowrap" }}>
       <Text size="xs" span c="dimmed">{props.m.label}&nbsp;</Text>
       <Text size="xs" span fw={600} c={metricTone(props.m.tone)}>{props.m.value}</Text>
     </Box>
@@ -128,9 +128,9 @@ function Rail(props: { severity: AlertSeverity }) {
       aria-hidden="true"
       style={{
         width: 2,
-        "align-self": "stretch",
-        "flex-shrink": 0,
-        "background-color": ALERT_SEVERITY[props.severity].rail,
+        alignSelf: "stretch",
+        flexShrink: 0,
+        backgroundColor: ALERT_SEVERITY[props.severity].rail,
       }}
     />
   );
@@ -173,21 +173,21 @@ export function MarketAlertRow(props: MarketAlertRowProps) {
       onClick={clickable() ? () => (onSelect() ?? onOpen())?.(alert()) : undefined}
       className="flex items-center gap-1 h-[20px] font-mono cursor-pointer"
       style={{
-        "padding-left": 0,
-        "padding-right": 4,
-        "background-color": active() ? palette.SURFACE_ALT : palette.BG,
-        "border-bottom": `1px solid ${palette.AXIS_SPLIT}`,
+        paddingLeft: 0,
+        paddingRight: 4,
+        backgroundColor: active() ? palette.SURFACE_ALT : palette.BG,
+        borderBottom: `1px solid ${palette.AXIS_SPLIT}`,
         cursor: clickable() ? "pointer" : "default",
-        "font-variant-numeric": "tabular-nums",
-        ...(active() ? { "box-shadow": `inset 2px 0 0 0 ${palette.PRIMARY}` } : {}),
+        fontVariantNumeric: "tabular-nums",
+        ...(active() ? { boxShadow: `inset 2px 0 0 0 ${palette.PRIMARY}` } : {}),
       }}
     >
       <Rail severity={alert().severity} />
       <Box
         style={{
           width: 34,
-          "padding-left": 6,
-          "flex-shrink": 0,
+          paddingLeft: 6,
+          flexShrink: 0,
           display: compact() ? "none" : "block",
         }}
       >
@@ -198,7 +198,7 @@ export function MarketAlertRow(props: MarketAlertRowProps) {
         data-testid="market-alert-severity"
         style={{
           width: compact() ? 62 : 70,
-          "flex-shrink": 0,
+          flexShrink: 0,
           overflow: "hidden",
         }}
       >
@@ -207,12 +207,12 @@ export function MarketAlertRow(props: MarketAlertRowProps) {
           span
           fw={sev().emphasize ? 700 : 400}
           c={sev().emphasize ? sev().rail : "dimmed"}
-          style={{ "text-transform": "uppercase", "letter-spacing": "0.03em" }}
+          style={{ textTransform: "uppercase", letterSpacing: "0.03em" }}
         >
           {sev().label}
         </Text>
       </Box>
-      <Box style={{ width: 92, "flex-shrink": 0, overflow: "hidden" }}>
+      <Box style={{ width: 92, flexShrink: 0, overflow: "hidden" }}>
         <Text size="xs" span fw={700} truncate>{alert().symbol}</Text>
       </Box>
       <Box className="flex-1 min-w-0 overflow-hidden">
@@ -221,18 +221,18 @@ export function MarketAlertRow(props: MarketAlertRowProps) {
       <Show when={!compact()}>
         <Show
           when={alert().metrics && alert().metrics!.length > 0}
-          fallback={<Box style={{ width: 232, "flex-shrink": 0 }} />}
+          fallback={<Box style={{ width: 232, flexShrink: 0 }} />}
         >
           <Box
             data-testid="market-alert-metrics"
             className="flex gap-1.5"
-            style={{ width: 232, "flex-shrink": 0, overflow: "hidden" }}
+            style={{ width: 232, flexShrink: 0, overflow: "hidden" }}
           >
             <For each={alert().metrics!.slice(0, 3)}>{(m) => <Fact m={m} />}</For>
           </Box>
         </Show>
       </Show>
-      <Text size="xs" span c="dimmed" style={{ "flex-shrink": 0 }}>{formatAlertHm(alert().ts)}</Text>
+      <Text size="xs" span c="dimmed" style={{ flexShrink: 0 }}>{formatAlertHm(alert().ts)}</Text>
       <Show when={!!onDismiss()}>
         <ActionIcon
           size="xs"
@@ -284,32 +284,32 @@ export function MarketAlertCard(props: MarketAlertCardProps) {
       onClick={clickable() ? () => onOpen()?.(alert()) : undefined}
       className="flex gap-1 font-mono cursor-pointer"
       style={{
-        "padding-top": compact() ? 4 : 6,
-        "padding-bottom": compact() ? 4 : 6,
-        "padding-right": 4,
-        "background-color": palette.BG,
-        "border-bottom": `1px solid ${palette.AXIS_SPLIT}`,
+        paddingTop: compact() ? 4 : 6,
+        paddingBottom: compact() ? 4 : 6,
+        paddingRight: 4,
+        backgroundColor: palette.BG,
+        borderBottom: `1px solid ${palette.AXIS_SPLIT}`,
         cursor: clickable() ? "pointer" : "default",
-        "font-variant-numeric": "tabular-nums",
+        fontVariantNumeric: "tabular-nums",
       }}
     >
       <Rail severity={alert().severity} />
-      <Box style={{ flex: 1, "min-width": 0, display: "flex", "flex-direction": "column", gap: compact() ? 0 : 2 }}>
-        <Box style={{ display: "flex", "align-items": "center", gap: 4, "min-width": 0 }}>
+      <Box style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: compact() ? 0 : 2 }}>
+        <Box style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
           <Text size="xs" span c="dimmed">{ALERT_KIND_CODE[alert().kind]}</Text>
           <Text size={compact() ? "xs" : "sm"} span fw={700} truncate>{alert().symbol}</Text>
-          <Box component="span" data-testid="market-alert-severity" style={{ "flex-shrink": 0 }}>
+          <Box component="span" data-testid="market-alert-severity" style={{ flexShrink: 0 }}>
             <Text
               size="xs"
               span
               fw={sev().emphasize ? 700 : 400}
               c={sev().emphasize ? sev().rail : "dimmed"}
-              style={{ "text-transform": "uppercase", "letter-spacing": "0.03em" }}
+              style={{ textTransform: "uppercase", letterSpacing: "0.03em" }}
             >
               {sev().label}
             </Text>
           </Box>
-          <Box style={{ flex: 1, "min-width": 4 }} />
+          <Box style={{ flex: 1, minWidth: 4 }} />
           <Text size="xs" span c="dimmed">{formatAlertTime(alert().ts)}</Text>
         </Box>
         <Text size={compact() ? "xs" : "sm"} span fw={600} truncate>{alert().title}</Text>
@@ -320,7 +320,7 @@ export function MarketAlertCard(props: MarketAlertCardProps) {
           <Box
             data-testid="market-alert-metrics"
             className="flex flex-wrap"
-            style={{ "column-gap": 8, overflow: "hidden" }}
+            style={{ columnGap: 8, overflow: "hidden" }}
           >
             <For each={alert().metrics ?? []}>{(m) => <Fact m={m} />}</For>
           </Box>
@@ -339,7 +339,7 @@ export function MarketAlertCard(props: MarketAlertCardProps) {
             onDismiss()?.(alert().id);
           }}
           className="rounded-none hover:text-fin-text"
-          style={{ "align-self": "flex-start", padding: 0, color: palette.TEXT_MUTED }}
+          style={{ alignSelf: "flex-start", padding: 0, color: palette.TEXT_MUTED }}
         >
           <IconX size={11} />
         </ActionIcon>
@@ -420,12 +420,12 @@ export function MarketAlertLog(props: MarketAlertLogProps) {
       onKeyDown={onKeyDown}
       className="flex flex-col min-w-0 font-mono outline-none"
       style={{
-        "background-color": palette.BG,
+        backgroundColor: palette.BG,
         border: `1px solid ${palette.BORDER}`,
-        "border-bottom": `1px solid ${palette.AXIS_SPLIT}`,
+        borderBottom: `1px solid ${palette.AXIS_SPLIT}`,
         outline: "none",
         ...(fill()
-          ? { flex: 1, "min-height": 0, height: heightStyle() ?? "100%" }
+          ? { flex: 1, minHeight: 0, height: heightStyle() ?? "100%" }
           : { height: heightStyle() ?? "320px" }),
       }}
     >
@@ -435,35 +435,35 @@ export function MarketAlertLog(props: MarketAlertLogProps) {
         className="flex items-center gap-1 flex-shrink-0"
         style={{
           height: 22,
-          "padding-left": 0,
-          "padding-right": 4,
-          "background-color": palette.SURFACE,
-          "border-bottom": `1px solid ${palette.AXIS_SPLIT}`,
+          paddingLeft: 0,
+          paddingRight: 4,
+          backgroundColor: palette.SURFACE,
+          borderBottom: `1px solid ${palette.AXIS_SPLIT}`,
         }}
       >
-        <Box style={{ width: 2, "flex-shrink": 0 }} />
-        <Box style={{ width: 34, "padding-left": 6, "flex-shrink": 0 }}>
+        <Box style={{ width: 2, flexShrink: 0 }} />
+        <Box style={{ width: 34, paddingLeft: 6, flexShrink: 0 }}>
           <Text size="xs" span c="dimmed">K</Text>
         </Box>
-        <Box style={{ width: 70, "flex-shrink": 0 }}>
+        <Box style={{ width: 70, flexShrink: 0 }}>
           <Text size="xs" span c="dimmed">SEV</Text>
         </Box>
-        <Box style={{ width: 92, "flex-shrink": 0 }}>
+        <Box style={{ width: 92, flexShrink: 0 }}>
           <Text size="xs" span c="dimmed">SYMBOL</Text>
         </Box>
         <Box className="flex-1 min-w-0 overflow-hidden">
           <Text size="xs" span c="dimmed">HEADLINE</Text>
         </Box>
-        <Box style={{ width: 232, "flex-shrink": 0 }}>
+        <Box style={{ width: 232, flexShrink: 0 }}>
           <Text size="xs" span c="dimmed">FACTS</Text>
         </Box>
-        <Box style={{ width: 34, "flex-shrink": 0, "text-align": "right" }}>
+        <Box style={{ width: 34, flexShrink: 0, textAlign: "right" }}>
           <Text size="xs" span c="dimmed">IST</Text>
         </Box>
-        <Box style={{ width: 18, "flex-shrink": 0 }} />
+        <Box style={{ width: 18, flexShrink: 0 }} />
       </Box>
 
-      <Box ref={(el: HTMLDivElement) => (scrollRef = el)} style={{ flex: 1, "min-height": 0, overflow: "auto" }}>
+      <Box ref={(el: HTMLDivElement) => (scrollRef = el)} style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
         <Show when={rows().length > 0} fallback={
           <Box style={{ padding: 8 }}>
             <Text size="xs" c="dimmed">NO ALERTS</Text>
@@ -489,14 +489,14 @@ export function MarketAlertLog(props: MarketAlertLogProps) {
       <Box
         style={{
           display: "flex",
-          "align-items": "center",
-          "justify-content": "space-between",
+          alignItems: "center",
+          justifyContent: "space-between",
           height: 18,
-          "flex-shrink": 0,
-          "padding-left": 8,
-          "padding-right": 8,
-          "border-top": `1px solid ${palette.AXIS_SPLIT}`,
-          "background-color": palette.SURFACE,
+          flexShrink: 0,
+          paddingLeft: 8,
+          paddingRight: 8,
+          borderTop: `1px solid ${palette.AXIS_SPLIT}`,
+          backgroundColor: palette.SURFACE,
         }}
       >
         <Text size="xs" span c="dimmed">{rows().length} rows</Text>
@@ -534,13 +534,13 @@ export function MarketAlertStack(props: MarketAlertStackProps) {
       className="flex flex-col font-mono"
       style={{
         display: "flex",
-        "flex-direction": "column",
+        flexDirection: "column",
         gap: 0,
         width: props.width ?? "100%",
-        "min-width": 0,
-        "background-color": palette.BG,
+        minWidth: 0,
+        backgroundColor: palette.BG,
         border: `1px solid ${palette.BORDER}`,
-        "border-bottom": `1px solid ${palette.AXIS_SPLIT}`,
+        borderBottom: `1px solid ${palette.AXIS_SPLIT}`,
       }}
     >
       <For each={shown()}>{(a) => (
@@ -557,9 +557,9 @@ export function MarketAlertStack(props: MarketAlertStackProps) {
           style={{
             height: 18,
             display: "flex",
-            "align-items": "center",
-            "padding-left": 8,
-            "background-color": palette.SURFACE,
+            alignItems: "center",
+            paddingLeft: 8,
+            backgroundColor: palette.SURFACE,
           }}
         >
           <Text size="xs" span c="dimmed">+{overflow()} more alerts</Text>

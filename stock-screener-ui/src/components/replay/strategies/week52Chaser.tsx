@@ -3,7 +3,6 @@
 // candles: multi-day swing entries on a confirmed breakout above the rolling 52W high,
 // exits via SL/TP/trailing/max-holding. Unlike the intraday plugins, each trade spans
 // days, so the chart window is widened to ~3 days on either side of the trade.
-import { createElement } from "react";
 import { TZ_IST_LABEL } from "@/config/constants";
 
 import { tradeStatChips } from "./shared";
@@ -63,10 +62,10 @@ const week52Chaser: ReplayStrategyPlugin = {
     fitPaddingBeforeMin: 3 * DAY_MIN,
     fitPaddingAfterMin: 3 * DAY_MIN,
   },
-  panel: (bundle) => createElement(
-    Stack,
-    { direction: "row", gap: "sm", mb: "sm", wrap: "wrap" },
-    ...tradeStatChips(bundle),
+  panel: (bundle) => (
+    <Stack direction="row" gap="sm" mb="sm" wrap="wrap">
+      {tradeStatChips(bundle)}
+    </Stack>
   ),
   summary: (bundle) =>
     `daily NSE bars · breakout of rolling 52W high · SL/TP or trailing/max-holding exit · ${bundle.trades.length} trades · ${TZ_IST_LABEL}`,

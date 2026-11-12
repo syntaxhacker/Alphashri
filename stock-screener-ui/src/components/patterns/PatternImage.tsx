@@ -25,7 +25,7 @@ function PatternPlaceholder(props: { label: string; showLabel: boolean }) {
       <svg
         viewBox="0 0 96 40"
         aria-hidden="true"
-        class="h-auto w-full max-w-[120px] text-fin-primary"
+        className="h-auto w-full max-w-[120px] text-fin-primary"
       >
         <polyline
           points="2,34 18,20 30,26 48,10 64,18 78,6 94,12"
@@ -87,7 +87,7 @@ export function PatternImage(props: PatternImageProps) {
         alt={label()}
         data-testid={`pattern-image-${props.patternId}`}
         onError={() => setErrored(true)}
-        class="block w-full rounded-fin bg-fin-surface-alt object-contain"
+        className="block w-full rounded-fin bg-fin-surface-alt object-contain"
         style={{ height: `${height()}px` }}
       />
     </Show>

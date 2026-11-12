@@ -65,10 +65,10 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
         span
         fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
         style={{
-          "font-size": REPORT_FONT.micro,
-          "line-height": REPORT_LINE_HEIGHT.tight,
+          fontSize: REPORT_FONT.micro,
+          lineHeight: REPORT_LINE_HEIGHT.tight,
           color: palette.TEXT_MUTED,
-          "letter-spacing": REPORT_LETTER_SPACING.wide,
+          letterSpacing: REPORT_LETTER_SPACING.wide,
         }}
       >
         {label}
@@ -79,12 +79,12 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
         fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
         className="tabular-nums whitespace-nowrap overflow-hidden truncate"
         style={{
-          "font-size": REPORT_FONT.md,
-          "line-height": REPORT_LINE_HEIGHT.snug,
+          fontSize: REPORT_FONT.md,
+          lineHeight: REPORT_LINE_HEIGHT.snug,
           color: color ?? palette.TEXT_COLOR,
-          "white-space": "nowrap",
+          whiteSpace: "nowrap",
           overflow: "hidden",
-          "text-overflow": "ellipsis",
+          textOverflow: "ellipsis",
         }}
       >
         {value}
@@ -130,23 +130,23 @@ function WallPlaceholderRow({ side }: { side: "CALL" | "PUT" }) {
       data-wall-row="true"
       className="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] items-center pl-[8px]"
       style={{
-        "column-gap": `${REPORT_PAD.xs}px`,
-        "padding-top": `${REPORT_PAD.xs}px`,
-        "padding-bottom": `${REPORT_PAD.xs}px`,
-        "padding-left": `${REPORT_PAD.sm}px`,
-        "min-height": REPORT_ROW.walls,
-        "border-left": "2px solid transparent",
+        columnGap: `${REPORT_PAD.xs}px`,
+        paddingTop: `${REPORT_PAD.xs}px`,
+        paddingBottom: `${REPORT_PAD.xs}px`,
+        paddingLeft: `${REPORT_PAD.sm}px`,
+        minHeight: REPORT_ROW.walls,
+        borderLeft: "2px solid transparent",
       }}
     >
-      <Box className="flex flex-col gap-[4px] min-w-0" style={{ "padding-left": `${REPORT_PAD.xs}px` }}>
+      <Box className="flex flex-col gap-[4px] min-w-0" style={{ paddingLeft: `${REPORT_PAD.xs}px` }}>
         <Text
           size="xs"
           span
           style={{
-            "font-size": REPORT_FONT.sm,
-            "line-height": REPORT_LINE_HEIGHT.snug,
+            fontSize: REPORT_FONT.sm,
+            lineHeight: REPORT_LINE_HEIGHT.snug,
             color: palette.TEXT_MUTED,
-            "font-variant-numeric": "tabular-nums",
+            fontVariantNumeric: "tabular-nums",
           }}
         >
           —
@@ -155,8 +155,8 @@ function WallPlaceholderRow({ side }: { side: "CALL" | "PUT" }) {
           size="xs"
           span
           style={{
-            "font-size": REPORT_FONT.micro,
-            "line-height": REPORT_LINE_HEIGHT.tight,
+            fontSize: REPORT_FONT.micro,
+            lineHeight: REPORT_LINE_HEIGHT.tight,
             color: palette.TEXT_MUTED,
           }}
         >
@@ -169,11 +169,11 @@ function WallPlaceholderRow({ side }: { side: "CALL" | "PUT" }) {
           size="xs"
           span
           style={{
-            "font-size": REPORT_FONT.sm,
-            "line-height": REPORT_LINE_HEIGHT.snug,
-            "text-align": "right",
+            fontSize: REPORT_FONT.sm,
+            lineHeight: REPORT_LINE_HEIGHT.snug,
+            textAlign: "right",
             color: palette.TEXT_MUTED,
-            "font-variant-numeric": "tabular-nums",
+            fontVariantNumeric: "tabular-nums",
           }}
         >
           —
@@ -199,10 +199,10 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
       <Box
         className="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] border-b border-solid pb-[4px] mb-[4px]"
         style={{
-          "column-gap": `${REPORT_PAD.xs}px`,
-          "border-bottom": `1px solid ${palette.BORDER}`,
-          "padding-bottom": `${REPORT_PAD.xs}px`,
-          "margin-bottom": `${REPORT_PAD.xs}px`,
+          columnGap: `${REPORT_PAD.xs}px`,
+          borderBottom: `1px solid ${palette.BORDER}`,
+          paddingBottom: `${REPORT_PAD.xs}px`,
+          marginBottom: `${REPORT_PAD.xs}px`,
         }}
       >
         <Text
@@ -210,9 +210,9 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
           span
           fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            "font-size": REPORT_FONT.xs,
+            fontSize: REPORT_FONT.xs,
             color,
-            "letter-spacing": REPORT_LETTER_SPACING.wider,
+            letterSpacing: REPORT_LETTER_SPACING.wider,
           }}
         >
           {side}
@@ -224,10 +224,10 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
             span
             title={heading === "NEW" ? "New OI since session open (old book → new book)" : undefined}
             style={{
-              "font-size": REPORT_FONT.xs,
+              fontSize: REPORT_FONT.xs,
               color: palette.TEXT_MUTED,
-              "text-align": "right",
-              "letter-spacing": REPORT_LETTER_SPACING.normal,
+              textAlign: "right",
+              letterSpacing: REPORT_LETTER_SPACING.normal,
             }}
           >
             {heading}
@@ -261,38 +261,38 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
             data-wall-row="true"
             className="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] items-center pl-[8px]"
             style={{
-              "column-gap": `${REPORT_PAD.xs}px`,
-              "align-items": "center",
-              "padding-top": `${REPORT_PAD.xs}px`,
-              "padding-bottom": `${REPORT_PAD.xs}px`,
-              "padding-left": `${REPORT_PAD.sm}px`,
-              "min-height": REPORT_ROW.walls,
-              "border-left": border,
-              "background-color": (nearest || tracked) ? palette.SURFACE_ALT : "transparent",
+              columnGap: `${REPORT_PAD.xs}px`,
+              alignItems: "center",
+              paddingTop: `${REPORT_PAD.xs}px`,
+              paddingBottom: `${REPORT_PAD.xs}px`,
+              paddingLeft: `${REPORT_PAD.sm}px`,
+              minHeight: REPORT_ROW.walls,
+              borderLeft: border,
+              backgroundColor: (nearest || tracked) ? palette.SURFACE_ALT : "transparent",
               transition: "background-color 180ms ease",
             }}
           >
-            <Box className="flex flex-col gap-[4px] min-w-0" style={{ "padding-left": `${REPORT_PAD.xs}px` }}>
+            <Box className="flex flex-col gap-[4px] min-w-0" style={{ paddingLeft: `${REPORT_PAD.xs}px` }}>
               <Box className="flex items-baseline gap-[4px] min-w-0">
                 <Text
                   size="xs"
                   span
                   fw={tracked ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.medium}
                   style={{
-                    "font-size": REPORT_FONT.sm,
-                    "line-height": REPORT_LINE_HEIGHT.snug,
-                    "font-weight": tracked ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.medium,
+                    fontSize: REPORT_FONT.sm,
+                    lineHeight: REPORT_LINE_HEIGHT.snug,
+                    fontWeight: tracked ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.medium,
                     color: tracked ? color : palette.TEXT_COLOR,
-                    "font-variant-numeric": "tabular-nums",
-                    "white-space": "nowrap",
+                    fontVariantNumeric: "tabular-nums",
+                    whiteSpace: "nowrap",
                     overflow: "hidden",
-                    "text-overflow": "ellipsis",
+                    textOverflow: "ellipsis",
                   }}
                 >
                   {fmtNum(row.strike)}
                 </Text>
                 {nearest && (
-                  <Box className="w-[3px] h-[3px] rounded-full shrink-0" style={{ "background-color": cellColor }} />
+                  <Box className="w-[3px] h-[3px] rounded-full shrink-0" style={{ backgroundColor: cellColor }} />
                 )}
                 {view.arrow !== "—" && (
                   <Text
@@ -300,17 +300,17 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                     span
                     fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
                     style={{
-                      "font-size": REPORT_FONT.micro,
-                      "font-weight": REPORT_FONT_WEIGHT.extrabold,
+                      fontSize: REPORT_FONT.micro,
+                      fontWeight: REPORT_FONT_WEIGHT.extrabold,
                       color: cellColor,
-                      "margin-left": `${REPORT_PAD.xs}px`,
-                      "flex-shrink": 0,
+                      marginLeft: `${REPORT_PAD.xs}px`,
+                      flexShrink: 0,
                     }}
                   >
                     {view.arrow}
                   </Text>
                 )}
-                <span style={{ "font-size": REPORT_FONT.micro, "margin-left": 3, color: palette.TEXT_MUTED }}>
+                <span style={{ fontSize: REPORT_FONT.micro, marginLeft: 3, color: palette.TEXT_MUTED }}>
                   {wallCode(side === "CALL", wallSide(row.strike, spot), false)}
                 </span>
               </Box>
@@ -325,11 +325,11 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                 }
                 data-testid={`nifty-walls-${side.toLowerCase()}-${row.strike}-flow`}
                 style={{
-                  "font-size": REPORT_FONT.micro,
-                  "line-height": REPORT_LINE_HEIGHT.tight,
+                  fontSize: REPORT_FONT.micro,
+                  lineHeight: REPORT_LINE_HEIGHT.tight,
                   color: flowToneColor(flowTone(row.flow)),
-                  "font-weight": REPORT_FONT_WEIGHT.bold,
-                  "min-width": 0,
+                  fontWeight: REPORT_FONT_WEIGHT.bold,
+                  minWidth: 0,
                 }}
               >
                 {flowSuffix}
@@ -339,11 +339,11 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
               title={`Old ${fmtOI(row.oi_open)} → new ${fmtOI(row.oi)}`}
               style={{
                 position: "relative",
-                "min-width": 0,
-                "align-self": "stretch",
+                minWidth: 0,
+                alignSelf: "stretch",
                 display: "flex",
-                "align-items": "center",
-                "justify-content": "flex-end",
+                alignItems: "center",
+                justifyContent: "flex-end",
               }}
             >
               <Box
@@ -353,7 +353,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                   right: 0,
                   bottom: 0,
                   height: 2,
-                  "background-color": palette.SURFACE,
+                  backgroundColor: palette.SURFACE,
                   overflow: "hidden",
                 }}
               >
@@ -361,7 +361,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                   style={{
                     width: `${Math.min(100, (row.oi / maxOi) * 100)}%`,
                     height: "100%",
-                    "background-color": color,
+                    backgroundColor: color,
                     opacity: 0.55,
                     transition: "width 280ms cubic-bezier(.22,1,.36,1)",
                   }}
@@ -371,10 +371,10 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                 size="sm"
                 span
                 style={{
-                  "font-size": REPORT_FONT.sm,
-                  "line-height": REPORT_LINE_HEIGHT.snug,
-                  "text-align": "right",
-                  "font-variant-numeric": "tabular-nums",
+                  fontSize: REPORT_FONT.sm,
+                  lineHeight: REPORT_LINE_HEIGHT.snug,
+                  textAlign: "right",
+                  fontVariantNumeric: "tabular-nums",
                   color: palette.TEXT_COLOR,
                 }}
               >
@@ -386,15 +386,15 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
               span
               title={`Old ${fmtOI(row.oi_open)} → new ${fmtOI(row.oi)} · ${fmtPct(row.new_oi_pct)} of old book`}
               style={{
-                "font-size": REPORT_FONT.sm,
-                "line-height": REPORT_LINE_HEIGHT.snug,
-                "text-align": "right",
-                "font-variant-numeric": "tabular-nums",
+                fontSize: REPORT_FONT.sm,
+                lineHeight: REPORT_LINE_HEIGHT.snug,
+                textAlign: "right",
+                fontVariantNumeric: "tabular-nums",
                 color: erosionColor(row.new_oi),
-                "background-color": newOiTint(row.new_oi, rows),
-                "border-radius": `${REPORT_RADIUS.sm}px`,
-                "padding-left": `${REPORT_PAD.xs}px`,
-                "padding-right": `${REPORT_PAD.xs}px`,
+                backgroundColor: newOiTint(row.new_oi, rows),
+                borderRadius: `${REPORT_RADIUS.sm}px`,
+                paddingLeft: `${REPORT_PAD.xs}px`,
+                paddingRight: `${REPORT_PAD.xs}px`,
                 transition: "background-color 220ms ease",
               }}
             >
@@ -405,11 +405,11 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
               span
               title={row.erosion_5m != null ? `5m erosion ${fmtPct(row.erosion_5m)} · 30m rate ${fmtRate(row.erosion_rate_30m)}` : undefined}
               style={{
-                "font-size": REPORT_FONT.sm,
-                "line-height": REPORT_LINE_HEIGHT.snug,
-                "text-align": "right",
+                fontSize: REPORT_FONT.sm,
+                lineHeight: REPORT_LINE_HEIGHT.snug,
+                textAlign: "right",
                 color: cellColor,
-                "font-variant-numeric": "tabular-nums",
+                fontVariantNumeric: "tabular-nums",
               }}
             >
               {fmtPct(row.erosion_5m)}
@@ -419,11 +419,11 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
               span
               title={`30m erosion ${fmtPct(row.erosion_30m)} · rate ${fmtRate(row.erosion_rate_30m)} · prem ${fmtPremChange(row.prem_chg_5m)}`}
               style={{
-                "font-size": REPORT_FONT.sm,
-                "line-height": REPORT_LINE_HEIGHT.snug,
-                "text-align": "right",
+                fontSize: REPORT_FONT.sm,
+                lineHeight: REPORT_LINE_HEIGHT.snug,
+                textAlign: "right",
                 color: cellColor,
-                "font-variant-numeric": "tabular-nums",
+                fontVariantNumeric: "tabular-nums",
               }}
             >
               {fmtPct(row.erosion_30m)}
@@ -432,11 +432,11 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
               size="sm"
               span
               style={{
-                "font-size": REPORT_FONT.sm,
-                "line-height": REPORT_LINE_HEIGHT.snug,
-                "text-align": "right",
+                fontSize: REPORT_FONT.sm,
+                lineHeight: REPORT_LINE_HEIGHT.snug,
+                textAlign: "right",
                 color: palette.TEXT_MUTED,
-                "font-variant-numeric": "tabular-nums",
+                fontVariantNumeric: "tabular-nums",
               }}
             >
               {dist(row.distance_pct)}
@@ -453,22 +453,22 @@ function SequenceLine({ events }: { events: WallsEvent[] }) {
   const hidden = events.length - recent.length;
   const firstBreakAt = firstBreakEvent(events)?.at;
   return (
-    <Box className="flex items-center gap-[8px] min-w-0 overflow-hidden" style={{ "margin-left": `${REPORT_PAD.sm}px` }}>
+    <Box className="flex items-center gap-[8px] min-w-0 overflow-hidden" style={{ marginLeft: `${REPORT_PAD.sm}px` }}>
       <Text
         size="xs"
         span
         fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
         style={{
-          "font-size": REPORT_FONT.micro,
+          fontSize: REPORT_FONT.micro,
           color: palette.TEXT_MUTED,
-          "letter-spacing": REPORT_LETTER_SPACING.wider,
-          "flex-shrink": 0,
+          letterSpacing: REPORT_LETTER_SPACING.wider,
+          flexShrink: 0,
         }}
       >
         SEQ
       </Text>
       {hidden > 0 && (
-        <Text size="xs" span style={{ color: palette.TEXT_MUTED, "flex-shrink": 0 }}>
+        <Text size="xs" span style={{ color: palette.TEXT_MUTED, flexShrink: 0 }}>
           +{hidden}
         </Text>
       )}
@@ -482,20 +482,20 @@ function SequenceLine({ events }: { events: WallsEvent[] }) {
             className="flex items-center gap-[4px] shrink-0"
             style={{
               display: "flex",
-              "align-items": "center",
+              alignItems: "center",
               gap: `${REPORT_PAD.xs}px`,
-              "flex-shrink": 0,
+              flexShrink: 0,
               animation: "wall-event-in 160ms cubic-bezier(.22,1,.36,1)",
             }}
           >
-            <Box className="w-[4px] h-[4px] rounded-full shrink-0" style={{ "background-color": isBreak ? palette.NEGATIVE : palette.WARNING }} />
+            <Box className="w-[4px] h-[4px] rounded-full shrink-0" style={{ backgroundColor: isBreak ? palette.NEGATIVE : palette.WARNING }} />
             <Text
               size="xs"
               span
               style={{
-                "font-size": REPORT_FONT.micro,
+                fontSize: REPORT_FONT.micro,
                 color: isBreak ? palette.NEGATIVE : palette.TEXT_MUTED,
-                "font-variant-numeric": "tabular-nums",
+                fontVariantNumeric: "tabular-nums",
               }}
             >
               {event.at.slice(11, 16)}
@@ -505,8 +505,8 @@ function SequenceLine({ events }: { events: WallsEvent[] }) {
               span
               fw={isBreak ? REPORT_FONT_WEIGHT.extrabold : REPORT_FONT_WEIGHT.medium}
               style={{
-                "font-size": REPORT_FONT.xsPlus,
-                "font-weight": isBreak ? REPORT_FONT_WEIGHT.extrabold : REPORT_FONT_WEIGHT.medium,
+                fontSize: REPORT_FONT.xsPlus,
+                fontWeight: isBreak ? REPORT_FONT_WEIGHT.extrabold : REPORT_FONT_WEIGHT.medium,
                 color: isBreak ? palette.NEGATIVE : palette.TEXT_MUTED,
               }}
             >
@@ -526,16 +526,16 @@ function MiniHistory({ walls }: { walls: WallsPayload }) {
   const last = walls.history[walls.history.length - 1];
   return (
     <Box className="min-w-0">
-      <Stack direction="row" className="items-center justify-between" style={{ "align-items": "center", "justify-content": "space-between" }}>
+      <Stack direction="row" className="items-center justify-between" style={{ alignItems: "center", justifyContent: "space-between" }}>
         <Text
           size="xs"
           span
           fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            "font-size": REPORT_FONT.micro,
-            "font-weight": REPORT_FONT_WEIGHT.extrabold,
+            fontSize: REPORT_FONT.micro,
+            fontWeight: REPORT_FONT_WEIGHT.extrabold,
             color: palette.TEXT_MUTED,
-            "letter-spacing": REPORT_LETTER_SPACING.wide,
+            letterSpacing: REPORT_LETTER_SPACING.wide,
           }}
         >
           TRACKED WALL {fmtNum(walls.call_wall.strike)} · LAST {walls.window_min}m
@@ -544,40 +544,40 @@ function MiniHistory({ walls }: { walls: WallsPayload }) {
           {first?.t?.slice(11, 16)} → {last?.t?.slice(11, 16)}
         </Text>
       </Stack>
-      <Stack direction="row" className="items-center justify-between" style={{ "align-items": "center", "justify-content": "space-between", "margin-top": `${REPORT_PAD.xs}px` }}>
+      <Stack direction="row" className="items-center justify-between" style={{ alignItems: "center", justifyContent: "space-between", marginTop: `${REPORT_PAD.xs}px` }}>
         <Text size="xs" span style={{ color: palette.TEXT_MUTED }}>call OI · 30m Δ</Text>
         <Text
           size="xs"
           span
           fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            "font-size": REPORT_FONT.xs,
-            "font-weight": REPORT_FONT_WEIGHT.bold,
+            fontSize: REPORT_FONT.xs,
+            fontWeight: REPORT_FONT_WEIGHT.bold,
             color: erosionColor(walls.tracked_call_erosion_30m),
           }}
         >
           {fmtPct(walls.tracked_call_erosion_30m)}
         </Text>
       </Stack>
-      <Box style={{ "& svg": { width: "100%", height: 18, "max-width": 420 } }}>
+      <Box style={{ "& svg": { width: "100%", height: 18, maxWidth: 420 } }}>
         <Sparkline values={callValues} width={420} height={18} color={palette.NEGATIVE} testId="walls-card-call-spark" animate responsive />
       </Box>
-      <Stack direction="row" className="items-center justify-between" style={{ "align-items": "center", "justify-content": "space-between" }}>
+      <Stack direction="row" className="items-center justify-between" style={{ alignItems: "center", justifyContent: "space-between" }}>
         <Text size="xs" span style={{ color: palette.TEXT_MUTED }}>put OI · 30m Δ</Text>
         <Text
           size="xs"
           span
           fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            "font-size": REPORT_FONT.xs,
-            "font-weight": REPORT_FONT_WEIGHT.bold,
+            fontSize: REPORT_FONT.xs,
+            fontWeight: REPORT_FONT_WEIGHT.bold,
             color: erosionColor(walls.tracked_put_build_30m),
           }}
         >
           {fmtPct(walls.tracked_put_build_30m)}
         </Text>
       </Stack>
-      <Box style={{ "& svg": { width: "100%", height: 18, "max-width": 420 } }}>
+      <Box style={{ "& svg": { width: "100%", height: 18, maxWidth: 420 } }}>
         <Sparkline values={putValues} width={420} height={18} color={palette.POSITIVE} testId="walls-card-put-spark" animate responsive />
       </Box>
     </Box>
@@ -591,8 +591,8 @@ function SkeletonBar({ height, width = "100%" }: { height: number; width?: numbe
       style={{
         height: `${height}px`,
         width: typeof width === "number" ? `${width}px` : width,
-        "border-radius": `${REPORT_RADIUS.sm}px`,
-        "background-color": palette.SURFACE_ALT,
+        borderRadius: `${REPORT_RADIUS.sm}px`,
+        backgroundColor: palette.SURFACE_ALT,
       }}
     />
   );
@@ -616,9 +616,9 @@ function WallsLevelsBlock({ levels }: { levels?: ReactNode }) {
   return (
     <Box
       style={{
-        "border-top": `1px solid ${palette.BORDER}`,
-        "padding-top": `${REPORT_PAD.sm}px`,
-        "min-width": 0,
+        borderTop: `1px solid ${palette.BORDER}`,
+        paddingTop: `${REPORT_PAD.sm}px`,
+        minWidth: 0,
       }}
     >
       {levels}
@@ -642,14 +642,14 @@ function WallsSkeleton({ emptyText }: { emptyText: string }) {
       className="grid gap-[8px] p-[8px] items-start"
       style={{
         display: "grid",
-        "grid-template-columns": WALLS_GRID_COLS.xs,
+        gridTemplateColumns: WALLS_GRID_COLS.xs,
         gap: `${REPORT_PAD.sm}px`,
         padding: `${REPORT_PAD.sm}px`,
-        "align-items": "start",
+        alignItems: "start",
       }}
     >
       <Box data-testid="nifty-walls-skeleton-strip" className="min-w-0">
-        <Stack direction="row" spacing={1} className="items-center flex-wrap" style={{ "align-items": "center", "flex-wrap": "wrap", "row-gap": `${REPORT_PAD.xs}px` }}>
+        <Stack direction="row" spacing={1} className="items-center flex-wrap" style={{ alignItems: "center", flexWrap: "wrap", rowGap: `${REPORT_PAD.xs}px` }}>
           <SkeletonBar height={18} width={64} />
           <SkeletonBar height={12} width={46} />
           <SkeletonBar height={12} width={108} />
@@ -657,10 +657,10 @@ function WallsSkeleton({ emptyText }: { emptyText: string }) {
         <Box
           style={{
             display: "grid",
-            "grid-template-columns": "1fr 1fr",
-            "column-gap": `${REPORT_PAD.md}px`,
-            "row-gap": `${REPORT_PAD.xs}px`,
-            "margin-top": `${REPORT_PAD.sm}px`,
+            gridTemplateColumns: "1fr 1fr",
+            columnGap: `${REPORT_PAD.md}px`,
+            rowGap: `${REPORT_PAD.xs}px`,
+            marginTop: `${REPORT_PAD.sm}px`,
           }}
         >
           <SkeletonStat />
@@ -672,9 +672,9 @@ function WallsSkeleton({ emptyText }: { emptyText: string }) {
           size="xs"
           span
           style={{
-            "font-size": REPORT_FONT.xs,
+            fontSize: REPORT_FONT.xs,
             color: palette.TEXT_MUTED,
-            "margin-top": `${REPORT_PAD.xs}px`,
+            marginTop: `${REPORT_PAD.xs}px`,
           }}
         >
           {emptyText}
@@ -687,12 +687,12 @@ function WallsSkeleton({ emptyText }: { emptyText: string }) {
       <Box
         data-testid="nifty-walls-skeleton-read"
         style={{
-          "min-height": WALLS_RESERVED_H,
-          "min-width": 0,
-          "border-left": `1px solid ${palette.BORDER}`,
-          "padding-left": `${REPORT_PAD.sm}px`,
+          minHeight: WALLS_RESERVED_H,
+          minWidth: 0,
+          borderLeft: `1px solid ${palette.BORDER}`,
+          paddingLeft: `${REPORT_PAD.sm}px`,
           display: "flex",
-          "flex-direction": "column",
+          flexDirection: "column",
           gap: `${REPORT_PAD.xs}px`,
         }}
       >
@@ -701,10 +701,10 @@ function WallsSkeleton({ emptyText }: { emptyText: string }) {
           span
           fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            "font-size": REPORT_FONT.micro,
-            "font-weight": REPORT_FONT_WEIGHT.extrabold,
+            fontSize: REPORT_FONT.micro,
+            fontWeight: REPORT_FONT_WEIGHT.extrabold,
             color: palette.TEXT_MUTED,
-            "letter-spacing": REPORT_LETTER_SPACING.wider,
+            letterSpacing: REPORT_LETTER_SPACING.wider,
           }}
         >
           READ
@@ -717,11 +717,11 @@ function WallsSkeleton({ emptyText }: { emptyText: string }) {
           span
           fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            "font-size": REPORT_FONT.micro,
-            "font-weight": REPORT_FONT_WEIGHT.extrabold,
+            fontSize: REPORT_FONT.micro,
+            fontWeight: REPORT_FONT_WEIGHT.extrabold,
             color: palette.TEXT_MUTED,
-            "letter-spacing": REPORT_LETTER_SPACING.wider,
-            "margin-top": `${REPORT_PAD.sm}px`,
+            letterSpacing: REPORT_LETTER_SPACING.wider,
+            marginTop: `${REPORT_PAD.sm}px`,
           }}
         >
           SEQ
@@ -732,10 +732,10 @@ function WallsSkeleton({ emptyText }: { emptyText: string }) {
       <Box
         data-testid="nifty-walls-skeleton-history"
         style={{
-          "min-height": WALLS_RESERVED_H,
-          "min-width": 0,
+          minHeight: WALLS_RESERVED_H,
+          minWidth: 0,
           display: "flex",
-          "flex-direction": "column",
+          flexDirection: "column",
           gap: `${REPORT_PAD.xs}px`,
         }}
       >
@@ -828,7 +828,7 @@ export function NiftyWallsCardInner({
       testId="nifty-walls-card"
       padded={false}
       action={
-        <Stack direction="row" spacing={0.5} className="items-center" style={{ "align-items": "center" }}>
+        <Stack direction="row" spacing={0.5} className="items-center" style={{ alignItems: "center" }}>
           {onOpenDesk ? (
             <Button
               size="xs"
@@ -838,10 +838,10 @@ export function NiftyWallsCardInner({
               className="min-w-0"
               style={{
                 paddingY: 0,
-                "padding-left": `${REPORT_PAD.sm}px`,
-                "padding-right": `${REPORT_PAD.sm}px`,
-                "min-width": 0,
-                "font-size": REPORT_FONT.micro,
+                paddingLeft: `${REPORT_PAD.sm}px`,
+                paddingRight: `${REPORT_PAD.sm}px`,
+                minWidth: 0,
+                fontSize: REPORT_FONT.micro,
               }}
             >
               DESK
@@ -854,30 +854,30 @@ export function NiftyWallsCardInner({
             className="min-w-0"
             style={{
               paddingY: 0,
-              "padding-left": `${REPORT_PAD.sm}px`,
-              "padding-right": `${REPORT_PAD.sm}px`,
-              "min-width": 0,
-              "font-size": REPORT_FONT.micro,
+              paddingLeft: `${REPORT_PAD.sm}px`,
+              paddingRight: `${REPORT_PAD.sm}px`,
+              minWidth: 0,
+              fontSize: REPORT_FONT.micro,
             }}
           >
             EXPAND
           </Button>
         </Stack>
       }
-      style={{ "border-top": "none" }}
+      style={{ borderTop: "none" }}
     >
       <Box
         className="grid items-start"
         style={{
           display: "grid",
-          "grid-template-columns": WALLS_GRID_COLS.xs,
+          gridTemplateColumns: WALLS_GRID_COLS.xs,
           gap: `${REPORT_PAD.sm}px`,
           padding: `${REPORT_PAD.sm}px`,
-          "align-items": "start",
+          alignItems: "start",
         }}
       >
         <Box className="min-w-0">
-          <Stack direction="row" spacing={1} className="items-center flex-wrap" style={{ "align-items": "center", "flex-wrap": "wrap", "row-gap": `${REPORT_PAD.xs}px` }}>
+          <Stack direction="row" spacing={1} className="items-center flex-wrap" style={{ alignItems: "center", flexWrap: "wrap", rowGap: `${REPORT_PAD.xs}px` }}>
             <Badge
               size="xs"
               variant="outline"
@@ -885,14 +885,14 @@ export function NiftyWallsCardInner({
               className="min-w-0"
               style={{
                 height: 18,
-                "font-size": REPORT_FONT.xs,
-                "font-weight": REPORT_FONT_WEIGHT.extrabold,
-                "letter-spacing": REPORT_LETTER_SPACING.wide,
+                fontSize: REPORT_FONT.xs,
+                fontWeight: REPORT_FONT_WEIGHT.extrabold,
+                letterSpacing: REPORT_LETTER_SPACING.wide,
                 color: stateColor,
-                "background-color": "transparent",
+                backgroundColor: "transparent",
                 border: `1px solid ${stateColor}`,
-                "padding-left": `${REPORT_PAD.xs}px`,
-                "padding-right": `${REPORT_PAD.xs}px`,
+                paddingLeft: `${REPORT_PAD.xs}px`,
+                paddingRight: `${REPORT_PAD.xs}px`,
               }}
             >
               {walls.state.replace("_", " ")}
@@ -903,10 +903,10 @@ export function NiftyWallsCardInner({
                 span
                 fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
                 style={{
-                  "font-size": REPORT_FONT.xs,
-                  "font-weight": REPORT_FONT_WEIGHT.bold,
+                  fontSize: REPORT_FONT.xs,
+                  fontWeight: REPORT_FONT_WEIGHT.bold,
                   color: walls.expiry_day ? palette.WARNING : palette.TEXT_MUTED,
-                  "white-space": "nowrap",
+                  whiteSpace: "nowrap",
                 }}
               >
                 {dteLabel}
@@ -916,9 +916,9 @@ export function NiftyWallsCardInner({
               size="xs"
               span
               style={{
-                "font-size": REPORT_FONT.xs,
+                fontSize: REPORT_FONT.xs,
                 color: palette.TEXT_MUTED,
-                "white-space": "nowrap",
+                whiteSpace: "nowrap",
               }}
             >
               {walls.expiry ?? "—"} · tape {walls.freshness.last_t.slice(11, 16)}
@@ -931,12 +931,12 @@ export function NiftyWallsCardInner({
                 className="min-w-0"
                 style={{
                   height: 17,
-                  "font-size": REPORT_FONT.xs,
+                  fontSize: REPORT_FONT.xs,
                   color: palette.WARNING,
-                  "background-color": "transparent",
+                  backgroundColor: "transparent",
                   border: `1px solid ${palette.WARNING}`,
-                  "padding-left": `${REPORT_PAD.xs}px`,
-                  "padding-right": `${REPORT_PAD.xs}px`,
+                  paddingLeft: `${REPORT_PAD.xs}px`,
+                  paddingRight: `${REPORT_PAD.xs}px`,
                 }}
               >
                 STALE
@@ -947,10 +947,10 @@ export function NiftyWallsCardInner({
           <Box
             style={{
               display: "grid",
-              "grid-template-columns": "1fr 1fr",
-              "column-gap": `${REPORT_PAD.md}px`,
-              "row-gap": `${REPORT_PAD.xs}px`,
-              "margin-top": `${REPORT_PAD.sm}px`,
+              gridTemplateColumns: "1fr 1fr",
+              columnGap: `${REPORT_PAD.md}px`,
+              rowGap: `${REPORT_PAD.xs}px`,
+              marginTop: `${REPORT_PAD.sm}px`,
             }}
           >
             <Stat label="SPOT" value={fmtNum(walls.spot, 2)} />
@@ -974,38 +974,38 @@ export function NiftyWallsCardInner({
 
         <Box
           style={{
-            "min-width": 0,
+            minWidth: 0,
             display: "grid",
-            "grid-template-columns": "minmax(0,1.15fr) minmax(0,1fr)",
+            gridTemplateColumns: "minmax(0,1.15fr) minmax(0,1fr)",
             gap: `${REPORT_PAD.md}px`,
           }}
         >
-          <Box style={{ "min-width": 0, display: "flex", "flex-direction": "column", gap: `${REPORT_PAD.sm}px` }}>
+          <Box style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: `${REPORT_PAD.sm}px` }}>
             {showAlert && alert ? (
               <Box
                 data-testid="nifty-walls-alert"
                 data-wall-anim=""
                 style={{
-                  "border-left": `3px solid ${palette.NEGATIVE}`,
-                  "background-color": palette.SURFACE_ALT,
-                  "padding-left": `${REPORT_PAD.sm}px`,
-                  "padding-top": `${REPORT_PAD.xs}px`,
-                  "padding-bottom": `${REPORT_PAD.xs}px`,
+                  borderLeft: `3px solid ${palette.NEGATIVE}`,
+                  backgroundColor: palette.SURFACE_ALT,
+                  paddingLeft: `${REPORT_PAD.sm}px`,
+                  paddingTop: `${REPORT_PAD.xs}px`,
+                  paddingBottom: `${REPORT_PAD.xs}px`,
                   animation: "wall-alert-in 180ms cubic-bezier(.22,1,.36,1)",
                 }}
               >
-                <Stack direction="row" spacing={1} className="items-center justify-between" style={{ "align-items": "center", "justify-content": "space-between", gap: `${REPORT_PAD.sm}px` }}>
+                <Stack direction="row" spacing={1} className="items-center justify-between" style={{ alignItems: "center", justifyContent: "space-between", gap: `${REPORT_PAD.sm}px` }}>
                   <Text
                     size="xs"
                     span
                     fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
                     style={{
-                      "font-size": REPORT_FONT.xs,
-                      "font-weight": REPORT_FONT_WEIGHT.extrabold,
+                      fontSize: REPORT_FONT.xs,
+                      fontWeight: REPORT_FONT_WEIGHT.extrabold,
                       color: palette.NEGATIVE,
-                      "white-space": "nowrap",
+                      whiteSpace: "nowrap",
                       overflow: "hidden",
-                      "text-overflow": "ellipsis",
+                      textOverflow: "ellipsis",
                     }}
                   >
                     WALL BREAK · {fmtNum(alert.wall)} · {fmtNum(alert.spot, 1)}
@@ -1016,13 +1016,13 @@ export function NiftyWallsCardInner({
                     onClick={() => dismiss(alert.at, alert.wall)}
                     className="min-w-0 shrink-0"
                     style={{
-                      "min-width": 0,
+                      minWidth: 0,
                       paddingY: 0,
-                      "padding-left": `${REPORT_PAD.xs}px`,
-                      "padding-right": `${REPORT_PAD.xs}px`,
-                      "font-size": REPORT_FONT.micro,
+                      paddingLeft: `${REPORT_PAD.xs}px`,
+                      paddingRight: `${REPORT_PAD.xs}px`,
+                      fontSize: REPORT_FONT.micro,
                       color: palette.TEXT_MUTED,
-                      "flex-shrink": 0,
+                      flexShrink: 0,
                     }}
                   >
                     dismiss
@@ -1032,8 +1032,8 @@ export function NiftyWallsCardInner({
                   size="xs"
                   span
                   style={{
-                    "font-size": REPORT_FONT.xsPlus,
-                    "line-height": REPORT_LINE_HEIGHT.relaxed,
+                    fontSize: REPORT_FONT.xsPlus,
+                    lineHeight: REPORT_LINE_HEIGHT.relaxed,
                     color: palette.TEXT_MUTED,
                   }}
                 >
@@ -1041,17 +1041,17 @@ export function NiftyWallsCardInner({
                 </Text>
               </Box>
             ) : breakEvent ? (
-              <Box style={{ "padding-left": `${REPORT_PAD.sm}px`, "border-left": `2px solid ${palette.NEGATIVE}`, display: "flex", "flex-direction": "column", gap: `${REPORT_PAD.xs}px` }}>
-                <Stack direction="row" spacing={1} className="items-center flex-wrap" style={{ "align-items": "center", "flex-wrap": "wrap", "row-gap": `${REPORT_PAD.xs}px` }}>
+              <Box style={{ paddingLeft: `${REPORT_PAD.sm}px`, borderLeft: `2px solid ${palette.NEGATIVE}`, display: "flex", flexDirection: "column", gap: `${REPORT_PAD.xs}px` }}>
+                <Stack direction="row" spacing={1} className="items-center flex-wrap" style={{ alignItems: "center", flexWrap: "wrap", rowGap: `${REPORT_PAD.xs}px` }}>
                   <Text
                     size="xs"
                     span
                     fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
                     style={{
-                      "font-size": REPORT_FONT.micro,
-                      "font-weight": REPORT_FONT_WEIGHT.extrabold,
+                      fontSize: REPORT_FONT.micro,
+                      fontWeight: REPORT_FONT_WEIGHT.extrabold,
                       color: palette.TEXT_MUTED,
-                      "letter-spacing": REPORT_LETTER_SPACING.wide,
+                      letterSpacing: REPORT_LETTER_SPACING.wide,
                     }}
                   >
                     FIRST BREAK
@@ -1062,10 +1062,10 @@ export function NiftyWallsCardInner({
                     fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
                     className="tabular-nums"
                     style={{
-                      "font-size": REPORT_FONT.xs,
-                      "font-weight": REPORT_FONT_WEIGHT.extrabold,
+                      fontSize: REPORT_FONT.xs,
+                      fontWeight: REPORT_FONT_WEIGHT.extrabold,
                       color: palette.NEGATIVE,
-                      "font-variant-numeric": "tabular-nums",
+                      fontVariantNumeric: "tabular-nums",
                     }}
                   >
                     {breakEvent.at.slice(11, 19)} · {fmtNum(breakEvent.wall)}
@@ -1074,7 +1074,7 @@ export function NiftyWallsCardInner({
                     size="xs"
                     span
                     style={{
-                      "font-size": REPORT_FONT.xsPlus,
+                      fontSize: REPORT_FONT.xsPlus,
                       color: palette.TEXT_MUTED,
                     }}
                   >
@@ -1082,16 +1082,16 @@ export function NiftyWallsCardInner({
                   </Text>
                 </Stack>
                 {lastBreak && lastBreak.at !== breakEvent.at && (
-                  <Stack direction="row" spacing={1} className="items-center flex-wrap" style={{ "align-items": "center", "flex-wrap": "wrap", "row-gap": `${REPORT_PAD.xs}px` }}>
+                  <Stack direction="row" spacing={1} className="items-center flex-wrap" style={{ alignItems: "center", flexWrap: "wrap", rowGap: `${REPORT_PAD.xs}px` }}>
                     <Text
                       size="xs"
                       span
                       fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
                       style={{
-                        "font-size": REPORT_FONT.micro,
-                        "font-weight": REPORT_FONT_WEIGHT.extrabold,
+                        fontSize: REPORT_FONT.micro,
+                        fontWeight: REPORT_FONT_WEIGHT.extrabold,
                         color: palette.WARNING,
-                        "letter-spacing": REPORT_LETTER_SPACING.wide,
+                        letterSpacing: REPORT_LETTER_SPACING.wide,
                       }}
                     >
                       RE-BROKE
@@ -1102,10 +1102,10 @@ export function NiftyWallsCardInner({
                       fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
                       className="tabular-nums"
                       style={{
-                        "font-size": REPORT_FONT.xs,
-                        "font-weight": REPORT_FONT_WEIGHT.bold,
+                        fontSize: REPORT_FONT.xs,
+                        fontWeight: REPORT_FONT_WEIGHT.bold,
                         color: palette.WARNING,
-                        "font-variant-numeric": "tabular-nums",
+                        fontVariantNumeric: "tabular-nums",
                       }}
                     >
                       {lastBreak.at.slice(11, 19)} · {fmtNum(lastBreak.wall)}
@@ -1114,7 +1114,7 @@ export function NiftyWallsCardInner({
                       size="xs"
                       span
                       style={{
-                        "font-size": REPORT_FONT.xsPlus,
+                        fontSize: REPORT_FONT.xsPlus,
                         color: palette.TEXT_MUTED,
                       }}
                     >
@@ -1128,8 +1128,8 @@ export function NiftyWallsCardInner({
                 size="xs"
                 span
                 style={{
-                  "font-size": REPORT_FONT.xs,
-                  "line-height": REPORT_LINE_HEIGHT.relaxed,
+                  fontSize: REPORT_FONT.xs,
+                  lineHeight: REPORT_LINE_HEIGHT.relaxed,
                   color: palette.TEXT_MUTED,
                 }}
               >
@@ -1139,16 +1139,16 @@ export function NiftyWallsCardInner({
             <SequenceLine events={events} />
           </Box>
 
-          <Box style={{ "min-width": 0, "border-left": `1px solid ${palette.BORDER}`, "padding-left": `${REPORT_PAD.sm}px` }}>
+          <Box style={{ minWidth: 0, borderLeft: `1px solid ${palette.BORDER}`, paddingLeft: `${REPORT_PAD.sm}px` }}>
             <Text
               size="xs"
               span
               fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
               style={{
-                "font-size": REPORT_FONT.micro,
-                "font-weight": REPORT_FONT_WEIGHT.extrabold,
+                fontSize: REPORT_FONT.micro,
+                fontWeight: REPORT_FONT_WEIGHT.extrabold,
                 color: palette.TEXT_MUTED,
-                "letter-spacing": REPORT_LETTER_SPACING.wider,
+                letterSpacing: REPORT_LETTER_SPACING.wider,
               }}
             >
               READ
@@ -1157,10 +1157,10 @@ export function NiftyWallsCardInner({
               size="xs"
               span
               style={{
-                "font-size": REPORT_FONT.xsPlus,
-                "line-height": REPORT_LINE_HEIGHT.relaxed,
+                fontSize: REPORT_FONT.xsPlus,
+                lineHeight: REPORT_LINE_HEIGHT.relaxed,
                 color: palette.TEXT_MUTED,
-                "margin-top": `${REPORT_PAD.xs}px`,
+                marginTop: `${REPORT_PAD.xs}px`,
               }}
             >
               {walls.reasons.slice(0, 4).join(" · ")}
@@ -1169,10 +1169,10 @@ export function NiftyWallsCardInner({
               size="xs"
               span
               style={{
-                "font-size": REPORT_FONT.xsPlus,
-                "line-height": REPORT_LINE_HEIGHT.relaxed,
+                fontSize: REPORT_FONT.xsPlus,
+                lineHeight: REPORT_LINE_HEIGHT.relaxed,
                 color: palette.TEXT_MUTED,
-                "margin-top": `${REPORT_PAD.sm}px`,
+                marginTop: `${REPORT_PAD.sm}px`,
               }}
             >
               {walls.expiry_day ? "break = erosion + put floor" : "Non-expiry: positioning, not gamma"}

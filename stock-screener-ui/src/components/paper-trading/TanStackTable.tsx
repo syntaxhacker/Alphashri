@@ -1,7 +1,7 @@
 import { For, createEffect, createMemo, createSignal } from "solid-js";
 import { Box, Paper } from "./primitives";
 import { ScrollArea, useDensity } from "@/ui";
-import { InlineLoader } from "./states";
+import { InlineLoader } from "../common/states";
 import * as palette from "@/ui/palette";
 import type { CSSProperties, JSX } from "solid-js";
 
@@ -218,9 +218,9 @@ export function TanStackTable<T>(props: Props<T>) {
   const tableStyle: CSSProperties = {
     width: "100%",
     tableLayout: hasSizedColumns ? "fixed" : "auto",
-    "min-width": props.minTableWidth ?? Math.max(640, colCount * 96),
+    minWidth: props.minTableWidth ?? Math.max(640, colCount * 96),
     borderCollapse: "collapse",
-    "background-color": palette.SURFACE,
+    backgroundColor: palette.SURFACE,
     ...props.style,
   };
 
@@ -246,16 +246,16 @@ export function TanStackTable<T>(props: Props<T>) {
     const { align } = getColumnMeta(col);
     const s: CSSProperties = {
       padding: width === 0 ? "0" : cellPad(),
-      "font-size": cellFontSize(),
-      "line-height": 1.2,
+      fontSize: cellFontSize(),
+      lineHeight: 1.2,
       fontVariantNumeric: "tabular-nums",
-      "white-space": "nowrap",
+      whiteSpace: "nowrap",
       height: rowEstimated(),
       borderBottom: `1px solid ${palette.BORDER}`,
-      "background-color": palette.SURFACE,
+      backgroundColor: palette.SURFACE,
       width: width !== undefined ? width : undefined,
       display: width === 0 ? "none" : undefined,
-      "text-align": align ?? (numericColumnIds.has(col.id) ? "right" : "left"),
+      textAlign: align ?? (numericColumnIds.has(col.id) ? "right" : "left"),
     };
     if (width !== undefined) {
       s.overflow = "hidden";
@@ -276,21 +276,21 @@ export function TanStackTable<T>(props: Props<T>) {
     const headerStyle: CSSProperties = {
       padding: width === 0 ? "0" : cellPad(),
       height: headerHeight(),
-      "font-size": cellFontSize(),
-      "line-height": 1.2,
-      "font-weight": 600,
+      fontSize: cellFontSize(),
+      lineHeight: 1.2,
+      fontWeight: 600,
       fontVariantNumeric: "tabular-nums",
-      "white-space": "nowrap",
-      "user-select": "none",
+      whiteSpace: "nowrap",
+      userSelect: "none",
       color: palette.TEXT_MUTED,
       borderBottom: `1px solid ${palette.BORDER}`,
       width: width !== undefined ? width : undefined,
       display: width === 0 ? "none" : undefined,
-      "text-align": getColumnMeta(col).align ?? (numericColumnIds.has(col.id) ? "right" : "left"),
+      textAlign: getColumnMeta(col).align ?? (numericColumnIds.has(col.id) ? "right" : "left"),
       cursor: col.enableSorting !== false && props.enableSorting ? "pointer" : "default",
       position: props.stickyHeader ? "sticky" : undefined,
       top: props.stickyHeader ? 0 : undefined,
-      "z-index": props.stickyHeader ? 1 : undefined,
+      zIndex: props.stickyHeader ? 1 : undefined,
     };
     const h = col.header;
     const content = typeof h === "function" ? h({ column: col }) : h != null ? <span>{h}</span> : <span>{col.id}</span>;
@@ -383,7 +383,7 @@ export function TanStackTable<T>(props: Props<T>) {
   const tableScroll = (
     <ScrollArea
       className="paper-tanstack-scroll"
-      style={{ flex: 1, "min-height": 0, overflow: "auto", display: "flex", "flex-direction": "column", "background-color": palette.SURFACE }}
+      style={{ flex: 1, minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column", backgroundColor: palette.SURFACE }}
     >
       <Box
         component="table"
@@ -460,13 +460,13 @@ export function TanStackTable<T>(props: Props<T>) {
 
   const containerStyle: CSSProperties = {
     display: "flex",
-    "flex-direction": "column",
+    flexDirection: "column",
     overflow: "hidden",
-    "border-radius": 8,
+    borderRadius: 8,
     border: `1px solid ${palette.BORDER}`,
-    "background-color": palette.SURFACE,
-    "max-height": props.fillContainer ? undefined : "65vh",
-    "min-height": props.fillContainer ? 0 : 200,
+    backgroundColor: palette.SURFACE,
+    maxHeight: props.fillContainer ? undefined : "65vh",
+    minHeight: props.fillContainer ? 0 : 200,
     flex: props.fillContainer ? 1 : undefined,
     height: props.fillContainer ? "100%" : undefined,
   };

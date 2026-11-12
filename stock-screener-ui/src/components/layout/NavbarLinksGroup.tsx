@@ -33,9 +33,9 @@ export function NavbarLinksGroup(props: NavbarLinksGroupProps) {
       title={props.label}
       className="flex items-center gap-2 rounded-fin px-3 py-3 min-w-0 cursor-pointer transition-colors"
       style={{
-        "justify-content": collapsed() ? "center" : "flex-start",
+        justifyContent: collapsed() ? "center" : "flex-start",
         ...(props.active
-          ? { "background-color": "#80B5FF", color: "#1A5CD6" }
+          ? { backgroundColor: "#80B5FF", color: "#1A5CD6" }
           : {}),
       }}
     >
@@ -43,7 +43,7 @@ export function NavbarLinksGroup(props: NavbarLinksGroupProps) {
         <IconC size={16} />
       </Box>
       <Show when={!collapsed()}>
-        <Text size="sm" style={{ "font-size": "0.875rem", "font-weight": props.active ? 600 : 400 }}>
+        <Text size="sm" style={{ fontSize: "0.875rem", fontWeight: props.active ? 600 : 400 }}>
           {props.label}
         </Text>
       </Show>

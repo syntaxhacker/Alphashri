@@ -25,8 +25,8 @@ export function Group(props: UIGroupProps & Record<string, unknown>) {
 
   const styleObj: Record<string, string | number | undefined> = {
     display: "flex",
-    "flex-direction": (known.flexDirection as string | undefined) ?? (known.direction as string | undefined) ?? "row",
-    "flex-wrap": (known.wrap as string | undefined) ?? "wrap",
+    flexDirection: (known.flexDirection as string | undefined) ?? (known.direction as string | undefined) ?? "row",
+    flexWrap: (known.wrap as string | undefined) ?? "wrap",
   };
   if (known.justifyContent != null) styleObj["justify-content"] = known.justifyContent;
   else if (known.justify != null) styleObj["justify-content"] = known.justify;

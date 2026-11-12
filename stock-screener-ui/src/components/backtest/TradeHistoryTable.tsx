@@ -250,9 +250,9 @@ export function TradeHistoryTable({
         cell: ({ row }) => {
           const side = (row.original as any).side || "LONG";
           return <div className="flex items-center justify-center">{side === "LONG" ? (
-            <Text size="xs" c="success" ta="center"><IconArrowUp size={12} style={{ "margin-right": 2 }} />LONG</Text>
+            <Text size="xs" c="success" ta="center"><IconArrowUp size={12} style={{ marginRight: 2 }} />LONG</Text>
           ) : (
-            <Text size="xs" c="error" ta="center"><IconArrowDown size={12} style={{ "margin-right": 2 }} />SHORT</Text>
+            <Text size="xs" c="error" ta="center"><IconArrowDown size={12} style={{ marginRight: 2 }} />SHORT</Text>
           )}</div>;
         },
       },
@@ -358,7 +358,7 @@ export function TradeHistoryTable({
       className="trade-history-panel min-h-0 overflow-hidden p-0"
       data-testid="trade-history-panel"
       h="100%"
-      style={{ "min-height": 0, gap: 0 }}
+      style={{ minHeight: 0, gap: 0 }}
     >
       <Stack
         direction="row"
@@ -369,7 +369,7 @@ export function TradeHistoryTable({
         data-testid="trade-history-header"
         style={{ flex: "0 0 auto", borderBottom: "1px solid #30363D" }}
       >
-        <Text size="xs" c="dimmed" style={{ "white-space": "nowrap", "font-weight": 600 }}>
+        <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap", fontWeight: 600 }}>
           {symbol} Trades ({trades.length})
         </Text>
         <div className="flex-1" />
@@ -411,7 +411,7 @@ export function TradeHistoryTable({
         py="4px"
         data-testid="trade-history-filters"
         className="flex-wrap"
-        style={{ flex: "0 0 auto", borderBottom: "1px solid #30363D", "row-gap": "4px" }}
+        style={{ flex: "0 0 auto", borderBottom: "1px solid #30363D", rowGap: "4px" }}
       >
         <SegmentedControl
           size="xs"
@@ -474,10 +474,10 @@ export function TradeHistoryTable({
             dataTestId="trade-history-table"
             enableSorting={false}
             getRowStyle={(row) => ({
-              "background-color": row.net_pnl >= 0 ? undefined : TINT_LOSS_ROW,
+              backgroundColor: row.net_pnl >= 0 ? undefined : TINT_LOSS_ROW,
             })}
             getRowTestId={(_row, index) => `trade-history-row-${index}`}
-            getRowAttributes={(trade) => ({ "data-trade-number": numberOf(trade) })}
+            getRowAttributes={(trade) => ({ dataTradeNumber: numberOf(trade) })}
             onRowClick={(row) => onRowClick(numberOf(row))}
           />
         )}

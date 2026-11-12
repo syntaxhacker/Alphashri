@@ -23,8 +23,8 @@ export const FullShell: Story = {
             🚀 Alphashri
           </Text>
           {/* MarketTicker placeholder - real one needs WS */}
-          <Box flex={1} style={{ "max-width": 360 }}>
-            <Text size="xs" c="dimmed" ta="center" style={{ "border-radius": 6, padding: "4px 8px" }}>
+          <Box flex={1} style={{ maxWidth: 360 }}>
+            <Text size="xs" c="dimmed" ta="center" style={{ borderRadius: 6, padding: "4px 8px" }}>
               Market Ticker
             </Text>
           </Box>

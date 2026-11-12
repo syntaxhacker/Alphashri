@@ -124,7 +124,7 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
         <Box
           aria-hidden
           className="w-[6px] h-[6px] rounded-full shrink-0"
-          style={{ "background-color": accent }}
+          style={{ backgroundColor: accent }}
         />
         <Text
           data-testid="nifty-coil-state"
@@ -134,10 +134,10 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           span
           truncate
           style={{
-            "font-size": 11,
-            "line-height": 1.2,
-            "letter-spacing": "0.04em",
-            "min-width": 0,
+            fontSize: 11,
+            lineHeight: 1.2,
+            letterSpacing: "0.04em",
+            minWidth: 0,
           }}
         >
           {state ?? "—"}
@@ -149,10 +149,10 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           c="dimmed"
           span
           style={{
-            "font-size": 11,
-            "line-height": 1.2,
-            "font-variant-numeric": "tabular-nums",
-            "white-space": "nowrap",
+            fontSize: 11,
+            lineHeight: 1.2,
+            fontVariantNumeric: "tabular-nums",
+            whiteSpace: "nowrap",
           }}
         >
           {ratioText}
@@ -164,10 +164,10 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           span
           truncate
           style={{
-            "font-size": 9,
-            "line-height": 1.2,
-            "font-variant-numeric": "tabular-nums",
-            "min-width": 0,
+            fontSize: 9,
+            lineHeight: 1.2,
+            fontVariantNumeric: "tabular-nums",
+            minWidth: 0,
           }}
         >
           {rvIv}
@@ -181,13 +181,13 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
       data-testid="nifty-coil-gauge"
       title={`${state ?? "—"} — ${hint} · ${rvIv}`}
       className="flex flex-col justify-center min-w-0 overflow-hidden px-[12px] py-[6px]"
-      style={{ "border-left": `1px solid ${palette.TERM_BORDER}` }}
+      style={{ borderLeft: `1px solid ${palette.TERM_BORDER}` }}
     >
       <Box className="flex items-center gap-[6px] min-w-0">
         <Box
           aria-hidden
           className="w-[6px] h-[6px] rounded-full shrink-0"
-          style={{ "background-color": accent }}
+          style={{ backgroundColor: accent }}
         />
         <Text
           data-testid="nifty-coil-state"
@@ -197,9 +197,9 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           span
           truncate
           style={{
-            "font-size": 11,
-            "line-height": 1.3,
-            "letter-spacing": "0.04em",
+            fontSize: 11,
+            lineHeight: 1.3,
+            letterSpacing: "0.04em",
           }}
         >
           {state ?? "—"}
@@ -211,10 +211,10 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           c="dimmed"
           span
           style={{
-            "font-size": 10,
-            "line-height": 1.3,
-            "font-variant-numeric": "tabular-nums",
-            "white-space": "nowrap",
+            fontSize: 10,
+            lineHeight: 1.3,
+            fontVariantNumeric: "tabular-nums",
+            whiteSpace: "nowrap",
           }}
         >
           {ratioText}
@@ -226,7 +226,7 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
         c="dimmed"
         span
         truncate
-        style={{ "font-size": 10, "line-height": 1.3 }}
+        style={{ fontSize: 10, lineHeight: 1.3 }}
       >
         {hint}
       </Text>
@@ -237,9 +237,9 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
         span
         truncate
         style={{
-          "font-size": 10,
-          "line-height": 1.3,
-          "font-variant-numeric": "tabular-nums",
+          fontSize: 10,
+          lineHeight: 1.3,
+          fontVariantNumeric: "tabular-nums",
         }}
       >
         {rvIv}

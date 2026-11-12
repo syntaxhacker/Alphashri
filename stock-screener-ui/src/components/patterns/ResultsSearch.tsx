@@ -70,7 +70,7 @@ export function ResultsSearch(props: ResultsSearchProps) {
       leftSection={<IconSearch size={14} />}
       value={value()}
       onChange={setValue}
-      style={{ "flex-shrink": 0 }}
+      style={{ flexShrink: 0 }}
     />
   );
 }

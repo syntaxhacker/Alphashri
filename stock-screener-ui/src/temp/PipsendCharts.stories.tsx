@@ -133,12 +133,12 @@ function PipsendChartInner() {
         timeScale: {
           timeVisible: true,
           secondsVisible: false,
-          "border-color": BORDER,
+          borderColor: BORDER,
           rightOffset: 6,
           barSpacing: 4,
           minBarSpacing: 2,
         },
-        rightPriceScale: { "border-color": BORDER, scaleMargins: { top: 0.06, bottom: 0.22 } },
+        rightPriceScale: { borderColor: BORDER, scaleMargins: { top: 0.06, bottom: 0.22 } },
         handleScroll: true,
         handleScale: true,
       });
@@ -434,11 +434,11 @@ function PipsendChartInner() {
   const placeholder = status() === "missing" || status() === "error";
 
   return (
-    <Box className="h-[100vh] flex flex-col overflow-hidden" style={{ "background-color": BG }}>
+    <Box className="h-[100vh] flex flex-col overflow-hidden" style={{ backgroundColor: BG }}>
       {/* Top toolbar — 48px TradingView-like, dense 20px controls, no blue */}
       <Paper
         className="flex items-center gap-1.5 px-2.5 h-12 min-h-[48px] border-b border-[#30363D] shrink-0 rounded-none"
-        style={{ "background-color": SURFACE }}
+        style={{ backgroundColor: SURFACE }}
       >
         <Text className="text-[11px] font-bold tracking-[0.6px]" style={{ color: TEXT_MUTED }}>
           PIPSEND
@@ -447,7 +447,7 @@ function PipsendChartInner() {
           size="xs"
           label="RELIANCE · 1m · 375"
           className="text-[10px] h-5 ml-1 border border-[#30363D]"
-          style={{ "background-color": SURFACE_ALT, color: TEXT }}
+          style={{ backgroundColor: SURFACE_ALT, color: TEXT }}
         />
         <div className="w-[1px] h-[18px] bg-[#30363D] mx-1.5" />
 
@@ -459,8 +459,8 @@ function PipsendChartInner() {
             onClick={handleLong}
             className={toolBtnClass(activeTool() === "long", TEXT)}
             style={{
-              "border-color": activeTool() === "long" ? TEXT : BORDER,
-              "background-color": activeTool() === "long" ? SURFACE_ALT : "transparent",
+              borderColor: activeTool() === "long" ? TEXT : BORDER,
+              backgroundColor: activeTool() === "long" ? SURFACE_ALT : "transparent",
               color: activeTool() === "long" ? TEXT : TEXT_MUTED,
             }}
           >
@@ -474,8 +474,8 @@ function PipsendChartInner() {
             onClick={handleShort}
             className={toolBtnClass(activeTool() === "short", POS)}
             style={{
-              "border-color": activeTool() === "short" ? TEXT : BORDER,
-              "background-color": activeTool() === "short" ? SURFACE_ALT : "transparent",
+              borderColor: activeTool() === "short" ? TEXT : BORDER,
+              backgroundColor: activeTool() === "short" ? SURFACE_ALT : "transparent",
               color: activeTool() === "short" ? TEXT : TEXT_MUTED,
             }}
           >
@@ -489,8 +489,8 @@ function PipsendChartInner() {
             onClick={handleTrendLine}
             className={toolBtnClass(activeTool() === "trend", TEXT)}
             style={{
-              "border-color": activeTool() === "trend" ? TEXT : BORDER,
-              "background-color": activeTool() === "trend" ? SURFACE_ALT : "transparent",
+              borderColor: activeTool() === "trend" ? TEXT : BORDER,
+              backgroundColor: activeTool() === "trend" ? SURFACE_ALT : "transparent",
               color: activeTool() === "trend" ? TEXT : TEXT_MUTED,
             }}
           >
@@ -512,9 +512,9 @@ function PipsendChartInner() {
           label={installed() ? "Pipsend ready" : status() === "loading" ? "Loading…" : "Install required"}
           className="text-[10px] h-5 border border-[#30363D]"
           style={{
-            "background-color": installed() ? "rgba(63,185,80,0.12)" : SURFACE_ALT,
+            backgroundColor: installed() ? "rgba(63,185,80,0.12)" : SURFACE_ALT,
             color: installed() ? POS : TEXT_MUTED,
-            "border-color": installed() ? "rgba(63,185,80,0.35)" : BORDER,
+            borderColor: installed() ? "rgba(63,185,80,0.35)" : BORDER,
           }}
         />
       </Paper>
@@ -522,9 +522,9 @@ function PipsendChartInner() {
       {/* Info bar — 20px dense */}
       <Box
         className="flex items-center gap-2 px-2.5 h-5 min-h-[20px] border-b border-[#30363D] shrink-0"
-        style={{ "background-color": SURFACE }}
+        style={{ backgroundColor: SURFACE }}
       >
-        <Text className="text-[10px] text-[#8B949E]" style={{ "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }}>
+        <Text className="text-[10px] text-[#8B949E]" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {lastAction()}
         </Text>
         <Box className="flex-1" />
@@ -545,7 +545,7 @@ function PipsendChartInner() {
           <Show when={placeholder}>
             <Box
               className="absolute inset-0 flex items-center justify-center p-2"
-              style={{ "background-color": "rgba(13,17,23,0.92)" }}
+              style={{ backgroundColor: "rgba(13,17,23,0.92)" }}
             >
               <Stack spacing={1} className="max-w-[560px] text-center items-center">
                 <Text className="text-[11px] font-bold tracking-[0.6px]" style={{ color: TEXT }}>
@@ -579,7 +579,7 @@ function PipsendChartInner() {
         </Paper>
 
         {/* Bottom meta — dense 20px rows */}
-        <Paper className="flex items-center gap-2 px-2.5 h-5 min-h-[20px] border border-[#30363D] rounded-sm shrink-0" style={{ "background-color": SURFACE }}>
+        <Paper className="flex items-center gap-2 px-2.5 h-5 min-h-[20px] border border-[#30363D] rounded-sm shrink-0" style={{ backgroundColor: SURFACE }}>
           <Text className="text-[10px] text-[#8B949E]">
             {rawCandles.length} candles · {rawCandles[0].time} → {rawCandles[rawCandles.length - 1].time} · 1m · volume histogram
           </Text>

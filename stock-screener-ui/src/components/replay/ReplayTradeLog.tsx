@@ -228,7 +228,7 @@ export function ReplayTradeLog({
   return (
     <Box
       data-testid="replay-trade-log"
-      style={{ display: "flex", "flex-direction": "column", height: "100%" }}
+      style={{ display: "flex", flexDirection: "column", height: "100%" }}
     >
       <Group gap="sm" align="center" mb="xs" style={{ flex: "0 0 auto" }}>
         <Text size="xs" fw={500}>Trade Log</Text>
@@ -263,7 +263,7 @@ export function ReplayTradeLog({
           emptyMessage="No trades yet"
           getRowStyle={(row) => ({
             cursor: onTradeClick ? "pointer" : undefined,
-            "background-color":
+            backgroundColor:
               highlightedTradeId === row.id
                 ? alpha(palette.PRIMARY, 0.10)
                 : undefined,

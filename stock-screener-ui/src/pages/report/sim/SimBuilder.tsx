@@ -65,9 +65,9 @@ function Ctx(props: { label: string; value: JSX.Element; hint?: JSX.Element }) {
         span
         size="xs"
         style={{
-          "font-size": 9,
-          "letter-spacing": "0.06em",
-          "text-transform": "uppercase",
+          fontSize: 9,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
           color: palette.TEXT_MUTED,
         }}
       >
@@ -140,7 +140,7 @@ export function SimBuilder(props: SimBuilderProps) {
   const errors = () => props.errors;
 
   const patchLeg = (index: number, patch: Partial<SimLegSpec>) =>
-    onChange({ ...strategy, legs: replaceLeg(legs, index, patch) });
+    onChange({ ...strategy(), legs: replaceLeg(legs(), index, patch) });
 
   const addLeg = () => {
     if (legs().length >= MAX_LEGS) return;
@@ -243,7 +243,7 @@ export function SimBuilder(props: SimBuilderProps) {
                     size="xs"
                     data-testid={`sim-leg-${index()}-resolved`}
                     style={{
-                      "font-size": 9,
+                      fontSize: 9,
                       color: preview() === null ? palette.NEGATIVE : palette.TEXT_MUTED,
                     }}
                   >

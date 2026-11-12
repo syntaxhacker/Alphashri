@@ -11,7 +11,7 @@ import {
   ToolbarRow,
 } from "@/ui";
 import { CompactPanel } from "@/components/common/compact";
-import { IconRefresh } from "@tabler/icons-react";
+import { IconRefresh } from "../screener/icons";
 import { NEGATIVE, POSITIVE, WARNING } from "@/ui/palette";
 import type {
   RotationKind,
@@ -223,10 +223,10 @@ export function RotationTab(props: { market: "india" | "america" }) {
         className="overflow-x-auto overflow-y-hidden"
         style={{
           padding: "0 10px",
-          "min-height": 34,
+          minHeight: 34,
           height: 34,
           borderBottom: "1px solid var(--color-fin-border)",
-          "flex-shrink": 0,
+          flexShrink: 0,
         }}
       >
         <Text fw={700} className="text-[12px] whitespace-nowrap">
@@ -328,7 +328,7 @@ export function RotationTab(props: { market: "india" | "america" }) {
             <Box className="flex items-center gap-1">
               <Box
                 className="size-[6px] rounded-full shrink-0"
-                style={{ "background-color": regimeTone(regimeAcc().label) }}
+                style={{ backgroundColor: regimeTone(regimeAcc().label) }}
               />
               <Text
                 fw={700}
@@ -345,7 +345,7 @@ export function RotationTab(props: { market: "india" | "america" }) {
                   <Box className="flex items-center gap-1">
                     <Box
                       className="size-[5px] rounded-full shrink-0"
-                      style={{ "background-color": ROTATION_STATUS_COLORS_PANEL[status] }}
+                      style={{ backgroundColor: ROTATION_STATUS_COLORS_PANEL[status] }}
                     />
                     <Text c="dimmed" className="text-[9.5px] font-bold tracking-[0.3px]">
                       {ROTATION_STATUS_LABELS[status].short}

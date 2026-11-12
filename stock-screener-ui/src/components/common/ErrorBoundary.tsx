@@ -42,15 +42,15 @@ export function ErrorBoundary(props: ErrorBoundaryProps) {
             role="alert"
             data-testid="ui-error-boundary"
             className="flex flex-col items-start gap-2 p-4 m-2 min-h-[120px] border border-fin-border bg-fin-surface"
-            style={{ "border-color": BORDER, "background-color": SURFACE }}
+            style={{ borderColor: BORDER, backgroundColor: SURFACE }}
           >
             <Text size="sm" fw={700} c="dimmed">
               {label} hit an error
             </Text>
-            <Text size="xs" c="dimmed" style={{ color: TEXT_MUTED, "word-break": "break-word" }}>
+            <Text size="xs" c="dimmed" style={{ color: TEXT_MUTED, wordBreak: "break-word" }}>
               {error?.message || String(error)}
             </Text>
-            <Box style={{ display: "flex", gap: 12, "margin-top": 8 }}>
+            <Box style={{ display: "flex", gap: 12, marginTop: 8 }}>
               <Button size="xs" variant="outline" onClick={() => reset()} data-testid="ui-error-retry">
                 Try again
               </Button>

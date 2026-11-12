@@ -85,7 +85,7 @@ export const NiftyDataFreshness = memo(function NiftyDataFreshness({
       title={freshness.detail}
       className="inline-flex items-center shrink-0 whitespace-nowrap border rounded-full px-2 py-[2px] text-[11px]"
       style={{
-        "border-color": freshness.isStale ? palette.WARNING : palette.TERM_BORDER,
+        borderColor: freshness.isStale ? palette.WARNING : palette.TERM_BORDER,
         color: freshness.isStale ? palette.WARNING : palette.TEXT_MUTED,
       }}
     >

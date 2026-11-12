@@ -5,17 +5,17 @@ import type { UIStackProps, UIPaperProps } from "@/ui";
 
 const SCROLLABLE_PANEL_STYLE: CSSProperties = {
   display: "flex",
-  "flex-direction": "column",
+  flexDirection: "column",
   flex: 1,
-  "min-height": 0,
-  "min-width": 0,
+  minHeight: 0,
+  minWidth: 0,
   overflow: "hidden",
 };
 
 const SCROLL_CONTAINER_STYLE: CSSProperties = {
   flex: 1,
-  "min-height": 0,
-  "min-width": 0,
+  minHeight: 0,
+  minWidth: 0,
   overflow: "auto",
 };
 
@@ -40,12 +40,12 @@ export function CompactPage({
     <Stack
       spacing="sm"
       style={{
-        "align-items": center ? "center" : "stretch",
+        alignItems: center ? "center" : "stretch",
         height: "100%",
         display: "flex",
-        "flex-direction": "column",
+        flexDirection: "column",
         overflow: "hidden",
-        "min-height": 0,
+        minHeight: 0,
         width: "100%",
       }}
       className="flex flex-col w-full min-h-0 overflow-hidden"
@@ -54,7 +54,7 @@ export function CompactPage({
       {(title || description || actions) && (
         <Box
           className="flex items-center justify-between w-full gap-2"
-          style={{ display: "flex", "align-items": "center", "justify-content": "space-between", width: "100%", gap: 8 }}
+          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", gap: 8 }}
         >
           <Stack spacing="sm" className="flex flex-start">
             {title ? (typeof title === "string" ? <Title order={2} size="h4">{title}</Title> : title) : null}
@@ -64,7 +64,7 @@ export function CompactPage({
         </Box>
       )}
       <Box
-        style={{ flex: 1, "min-height": 0, overflow: "auto", width: "100%", display: "flex", "justify-content": center ? "center" : "flex-start" }}
+        style={{ flex: 1, minHeight: 0, overflow: "auto", width: "100%", display: "flex", justifyContent: center ? "center" : "flex-start" }}
         className="flex-1 min-h-0 overflow-auto w-full flex"
       >
         {children}
@@ -110,7 +110,7 @@ export function CompactPanel({
     <Paper
       data-compact=""
       className="bg-fin-surface rounded-fin border border-fin-border"
-      style={{ "background-color": palette.SURFACE, "border-radius": 8, border: `1px solid ${palette.BORDER}`, ...panelStyle }}
+      style={{ backgroundColor: palette.SURFACE, borderRadius: 8, border: `1px solid ${palette.BORDER}`, ...panelStyle }}
       data-testid={testId}
       {...(paperProps as Record<string, unknown>)}
     >
@@ -119,7 +119,7 @@ export function CompactPanel({
         className="flex flex-col"
         style={{
           padding: flush ? 0 : pad * 8,
-          ...(scrollable && { flex: 1, "min-height": 0, display: "flex", "flex-direction": "column", overflow: "hidden" }),
+          ...(scrollable && { flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }),
         }}
       >
         {(title || description || action) && (
@@ -128,12 +128,12 @@ export function CompactPanel({
             className="flex items-center justify-between gap-0.5 px-4 py-1 mb-0 w-full border-b border-fin-border"
             style={{
               display: "flex",
-              "align-items": "center",
-              "justify-content": "space-between",
+              alignItems: "center",
+              justifyContent: "space-between",
               gap: 4,
-              "padding-left": 8,
-              "padding-right": 8,
-              "padding-bottom": 0,
+              paddingLeft: 8,
+              paddingRight: 8,
+              paddingBottom: 0,
               width: "100%",
               borderBottom: `1px solid ${palette.BORDER}`,
             }}
@@ -142,7 +142,7 @@ export function CompactPanel({
               {title ? (
                 typeof title === "string" ? (
                   <Box className="flex items-center flex-start">
-                    <Title order={4} size="sm" style={{ "line-height": 1.2 }}>{title}</Title>
+                    <Title order={4} size="sm" style={{ lineHeight: 1.2 }}>{title}</Title>
                   </Box>
                 ) : (
                   <Box className="flex items-center flex-start">{title}</Box>
@@ -204,41 +204,41 @@ export function CompactStat({
     <Card
       data-compact-stat=""
       className="bg-fin-surface border border-fin-border"
-      style={{ "background-color": palette.SURFACE, border: `1px solid ${palette.BORDER}` }}
+      style={{ backgroundColor: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}
       {...(paperProps as Record<string, unknown>)}
     >
       <Box
         className="flex flex-col items-center justify-center text-center gap-1"
         style={{
           padding: padPx,
-          "padding-bottom": padPx,
+          paddingBottom: padPx,
           display: "flex",
-          "flex-direction": "column",
-          "align-items": "center",
-          "justify-content": "center",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
           gap: 4,
-          "text-align": "center",
+          textAlign: "center",
         }}
       >
         <Box className="flex items-center justify-center w-full">
-          <Text size={resolvedLabelSize} tt="uppercase" fw={700} c="dimmed" style={{ "line-height": 1.1, "text-align": "center" }}>
+          <Text size={resolvedLabelSize} tt="uppercase" fw={700} c="dimmed" style={{ lineHeight: 1.1, textAlign: "center" }}>
             {label}
           </Text>
         </Box>
         <Box className="flex items-center justify-center w-full">
-          <Text size={resolvedValueSize} fw={700} c={tone} style={{ "line-height": 1.1, "text-align": "center" }}>
+          <Text size={resolvedValueSize} fw={700} c={tone} style={{ lineHeight: 1.1, textAlign: "center" }}>
             {value}
           </Text>
         </Box>
         {hint ? (
           typeof hint === "string" || typeof hint === "number" ? (
             <Box className="flex items-center justify-center w-full">
-              <Text size="xs" c="dimmed" style={{ "text-align": "center" }}>
+              <Text size="xs" c="dimmed" style={{ textAlign: "center" }}>
                 {hint}
               </Text>
             </Box>
           ) : (
-            <Box className="flex items-center justify-center w-full" style={{ "margin-top": 4 }}>
+            <Box className="flex items-center justify-center w-full" style={{ marginTop: 4 }}>
               {hint}
             </Box>
           )
@@ -261,8 +261,8 @@ export function CompactStatGrid({
   return (
     <Box
       style={{
-        "justify-content": center ? "center" : "flex-start",
-        "align-items": center ? "center" : "stretch",
+        justifyContent: center ? "center" : "flex-start",
+        alignItems: center ? "center" : "stretch",
         display: "flex",
         width: "100%",
         padding: 4,
@@ -272,8 +272,8 @@ export function CompactStatGrid({
       <SimpleGrid
         className="w-full gap-2"
         style={{
-          "justify-content": center ? "center" : "flex-start",
-          "align-items": center ? "center" : "stretch",
+          justifyContent: center ? "center" : "flex-start",
+          alignItems: center ? "center" : "stretch",
           width: "100%",
           gap: 4,
         }}

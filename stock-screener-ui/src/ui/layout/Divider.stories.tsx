@@ -33,7 +33,7 @@ export const WithLabel: Story = {
 
 export const Vertical: Story = {
   render: () => (
-    <div style={{ display: "flex", "align-items": "center", gap: 16, height: 60 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 16, height: 60 }}>
       <span>Left</span>
       <Divider orientation="vertical" />
       <span>Right</span>

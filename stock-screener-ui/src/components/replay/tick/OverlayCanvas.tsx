@@ -74,7 +74,7 @@ export default function OverlayCanvas({ chartApi, height = 300, draw, testid = "
   return (
     <canvas
       ref={canvasRef}
-      style={{ position: "absolute", inset: 0, "pointer-events": "none", "z-index": 10 }}
+      style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 10 }}
       data-testid={testid}
     />
   );

@@ -51,10 +51,10 @@ const FLOW_BURST_THRESHOLD = 2_000_000;
 
 /** Burst leg + direction → the human stem used by an aggregated bucket. */
 const FLOW_SEGMENT_STEM: Record<string, string> = {
-  "put-build": "Put build",
-  "put-unwind": "Put unwind",
-  "call-build": "Call build",
-  "call-unwind": "Call unwind",
+  putBuild: "Put build",
+  putUnwind: "Put unwind",
+  callBuild: "Call build",
+  callUnwind: "Call unwind",
 };
 
 /** Default number of buckets shown in the one-line summary. */

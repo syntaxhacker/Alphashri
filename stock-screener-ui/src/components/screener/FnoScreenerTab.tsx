@@ -1,5 +1,5 @@
 import { Show, createEffect, createMemo, createSignal, For, onCleanup } from "solid-js";
-import { IconRefresh } from "@tabler/icons-react";
+import { IconRefresh } from "./icons";
 import {
   ActionIcon,
   Alert,

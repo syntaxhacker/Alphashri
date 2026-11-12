@@ -13,7 +13,7 @@ type Story = StoryObj<typeof Title>;
 
 export const AllOrders: Story = {
   render: () => (
-    <div style={{ display: "flex", "flex-direction": "column", gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {([1, 2, 3, 4, 5, 6] as const).map((order) => (
         <Title key={order} order={order}>
           Heading order={order}
@@ -43,7 +43,7 @@ export const AlignedCenter: Story = {
 // App pattern: explicit heading sizes (size="h4"/"h5") decoupled from order
 export const HeadingSizes: Story = {
   render: () => (
-    <div style={{ display: "flex", "flex-direction": "column", gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <Title order={2} size="h3">size=&quot;h3&quot;</Title>
       <Title order={2} size="h4">size=&quot;h4&quot; (panel headers)</Title>
       <Title order={3} size="h5">size=&quot;h5&quot; (section headers)</Title>

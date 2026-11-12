@@ -1,6 +1,7 @@
 import { Tabs } from "@/ui";
 import { IconTable, IconHistory } from "@tabler/icons-react";
-import { import { Box, Flex } from "../paper-trading/primitives";
+import { Box, Flex } from "../paper-trading/primitives";
+import {
   BacktestSummary,
   BacktestResultsTable,
   BacktestProgress,
@@ -43,7 +44,7 @@ export function BacktestLeftPanel({
       h="100%"
       className="flex flex-col"
     >
-      <Box className="shrink-0 flex items-center justify-center p-2" style={{ flex: "0 0 auto", display: "flex", "align-items": "center", "justify-content": "center", padding: 8 }}>
+      <Box className="shrink-0 flex items-center justify-center p-2" style={{ flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", padding: 8 }}>
         <Tabs.List>
           <Tabs.Tab value="results" leftSection={<IconTable size={14} />}>
             Results
@@ -58,10 +59,10 @@ export function BacktestLeftPanel({
         value="results"
         className="backtest-results-panel min-h-0 overflow-hidden"
         flex={1}
-        style={{ "min-height": 0, overflow: "hidden" }}
+        style={{ minHeight: 0, overflow: "hidden" }}
       >
         {isRunning ? (
-          <Box className="flex items-center justify-center p-2" style={{ display: "flex", "align-items": "center", "justify-content": "center", padding: 16 }}>
+          <Box className="flex items-center justify-center p-2" style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
             <BacktestProgress
               progress={{
                 current: progress.current,
@@ -75,8 +76,8 @@ export function BacktestLeftPanel({
             className="flex items-center justify-center h-full"
             style={{
               display: "flex",
-              "align-items": "center",
-              "justify-content": "center",
+              alignItems: "center",
+              justifyContent: "center",
               height: "100%",
               color: "#8B949E",
             }}
@@ -90,12 +91,12 @@ export function BacktestLeftPanel({
             gap="xs"
             h="100%"
             className="backtest-results-content min-h-0 gap-2"
-            style={{ "min-height": 0, gap: 8 }}
+            style={{ minHeight: 0, gap: 8 }}
           >
-            <Box className="shrink-0 flex items-center" style={{ flex: "0 0 auto", display: "flex", "align-items": "center" }}>
+            <Box className="shrink-0 flex items-center" style={{ flex: "0 0 auto", display: "flex", alignItems: "center" }}>
               <BacktestSummary totals={totals} />
             </Box>
-            <Box flex={1} className="min-h-0 overflow-auto flex flex-col" style={{ "min-height": 0, overflow: "auto", display: "flex", "flex-direction": "column" }}>
+            <Box flex={1} className="min-h-0 overflow-auto flex flex-col" style={{ minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column" }}>
               <BacktestResultsTable
                 results={sortedResults}
                 selectedSymbol={selectedChartSymbol}
@@ -113,7 +114,7 @@ export function BacktestLeftPanel({
         value="history"
         className="backtest-history-panel min-h-0 min-w-0 overflow-auto flex flex-col"
         flex={1}
-        style={{ "min-height": 0, "min-width": 0, overflow: "auto", display: "flex", "flex-direction": "column" }}
+        style={{ minHeight: 0, minWidth: 0, overflow: "auto", display: "flex", flexDirection: "column" }}
       >
         <BacktestHistory active={activeTab === "history"} onLoad={() => setActiveTab("results")} />
       </Tabs.Panel>

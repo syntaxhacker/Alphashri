@@ -103,7 +103,7 @@ export function HeatmapPage() {
     >
       <ToolbarRow
         gap={8}
-        style={{ padding: "0 16px", "min-height": 48, height: 48, borderBottom: "1px solid var(--color-fin-border)", "flex-shrink": 0 }}
+        style={{ padding: "0 16px", minHeight: 48, height: 48, borderBottom: "1px solid var(--color-fin-border)", flexShrink: 0 }}
         data-testid="heatmap-toolbar"
       >
         <Text data-testid="heatmap-title" fw={700} size="sm">NSE 500</Text>
@@ -242,10 +242,10 @@ export function HeatmapPage() {
         className="flex h-8 min-h-8 flex-shrink-0 items-center gap-4 overflow-hidden border-t border-fin-border px-4"
       >
         <Text size="xs" fw={600} data-testid="heatmap-legend-label">{activeMetric().label}</Text>
-        <Box className="h-3 w-3 flex-shrink-0 rounded-[2px]" style={{ "background-color": getMetricColor(metricMin(), metricMin(), metricMax()) }} />
+        <Box className="h-3 w-3 flex-shrink-0 rounded-[2px]" style={{ backgroundColor: getMetricColor(metricMin(), metricMin(), metricMax()) }} />
         <Text size="xs" data-testid="heatmap-legend-min">{activeMetric().fmt(metricMin())}</Text>
         <Box className="h-2 max-w-[120px] flex-1 rounded-[4px]" style={{ background: `linear-gradient(to right, ${SECTOR_STRONG_GREEN}, ${SECTOR_GREEN}, ${SECTOR_NEUTRAL}, ${SECTOR_RED}, ${SECTOR_STRONG_RED})` }} />
-        <Box className="h-3 w-3 flex-shrink-0 rounded-[2px]" style={{ "background-color": getMetricColor(metricMax(), metricMin(), metricMax()) }} />
+        <Box className="h-3 w-3 flex-shrink-0 rounded-[2px]" style={{ backgroundColor: getMetricColor(metricMax(), metricMin(), metricMax()) }} />
         <Text size="xs" data-testid="heatmap-legend-max">{activeMetric().fmt(metricMax())}</Text>
       </Box>
     </Box>

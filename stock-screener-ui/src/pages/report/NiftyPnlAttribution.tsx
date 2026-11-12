@@ -106,9 +106,9 @@ function NiftyPnlAttributionInner({
                 title={`${leg.label}: Δ ${formatPnlSigned(leg.delta)} · ν ${formatPnlSigned(leg.vega)} · θ ${formatPnlSigned(leg.theta)} · res ${formatPnlSigned(leg.residual)}`}
                 className="relative flex-1 h-[10px] min-w-0"
                 style={{
-                  "background-color": palette.TERM_BG,
+                  backgroundColor: palette.TERM_BG,
                   border: `1px solid ${palette.TERM_BORDER}`,
-                  "border-radius": 4,
+                  borderRadius: 4,
                   overflow: "hidden",
                 }}
               >
@@ -116,7 +116,7 @@ function NiftyPnlAttributionInner({
                 <Box
                   aria-hidden
                   className="absolute left-[50%] top-0 bottom-0 w-[1px]"
-                  style={{ "background-color": palette.CHART_BORDER }}
+                  style={{ backgroundColor: palette.CHART_BORDER }}
                 />
                 {/* losses grow left from center */}
                 <Box
@@ -131,7 +131,7 @@ function NiftyPnlAttributionInner({
                       className="h-full min-w-[1px]"
                       style={{
                         width: `${(Math.abs(leg[k] as number) / maxAbs) * 50}%`,
-                        "background-color": palette.NEGATIVE,
+                        backgroundColor: palette.NEGATIVE,
                         opacity: SEG_OPACITY[k],
                       }}
                     />
@@ -150,7 +150,7 @@ function NiftyPnlAttributionInner({
                       className="h-full min-w-[1px]"
                       style={{
                         width: `${(leg[k] as number / maxAbs) * 50}%`,
-                        "background-color": palette.POSITIVE,
+                        backgroundColor: palette.POSITIVE,
                         opacity: SEG_OPACITY[k],
                       }}
                     />
@@ -176,7 +176,7 @@ function NiftyPnlAttributionInner({
 
         <Box
           className="flex items-center justify-between gap-[8px] min-w-0"
-          style={{ "border-top": `1px solid ${palette.TERM_BORDER}`, "padding-top": 4 }}
+          style={{ borderTop: `1px solid ${palette.TERM_BORDER}`, paddingTop: 4 }}
         >
           <Box
             data-testid={`${testId}-legend`}
@@ -191,7 +191,7 @@ function NiftyPnlAttributionInner({
                 <Box
                   aria-hidden
                   className="w-[10px] h-[4px] rounded-[4px] shrink-0"
-                  style={{ "background-color": palette.TEXT_MUTED, opacity: SEG_OPACITY[k] }}
+                  style={{ backgroundColor: palette.TEXT_MUTED, opacity: SEG_OPACITY[k] }}
                 />
                 <Text size="xs" c="dimmed" span>
                   {k === "residual" ? "res" : k}
@@ -202,13 +202,13 @@ function NiftyPnlAttributionInner({
               <Box
                 aria-hidden
                 className="w-[10px] h-[4px] rounded-[4px] shrink-0"
-                style={{ "background-color": palette.POSITIVE }}
+                style={{ backgroundColor: palette.POSITIVE }}
               />
               <Text size="xs" c="dimmed" span>profit</Text>
               <Box
                 aria-hidden
                 className="w-[10px] h-[4px] rounded-[4px] shrink-0"
-                style={{ "background-color": palette.NEGATIVE }}
+                style={{ backgroundColor: palette.NEGATIVE }}
               />
               <Text size="xs" c="dimmed" span>loss</Text>
             </Box>
@@ -219,7 +219,7 @@ function NiftyPnlAttributionInner({
             span
             fw={700}
             c={total > 0 ? palette.POSITIVE : total < 0 ? palette.NEGATIVE : palette.TEXT_MUTED}
-            style={{ "font-variant-numeric": "tabular-nums", "white-space": "nowrap" }}
+            style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}
           >
             {formatPnlSigned(total)}
           </Text>

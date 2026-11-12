@@ -18,7 +18,7 @@ const ACCENT_CLASS: Record<string, string> = {
   grape: "bg-fin-text-muted",
 };
 
-export function SectionHeader({ title, badge, color = "primary", "data-testid": testId }: SectionHeaderProps) {
+export function SectionHeader({ title, badge, color = "primary", dataTestid: testId }: SectionHeaderProps) {
   return (
     <Group gap="xs" data-testid={testId}>
       <Box w={4} h={18} className={`rounded-fin ${ACCENT_CLASS[color] ?? "bg-fin-primary"}`} />

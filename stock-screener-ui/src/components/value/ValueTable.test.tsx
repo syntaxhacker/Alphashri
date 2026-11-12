@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
-import { render, screen, cleanup, within } from "@solidjs/testing-library";
+import { render, screen, cleanup, within, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { ValueTable } from "./ValueTable";
 import { buildValueColumns } from "./valueColumns";

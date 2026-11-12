@@ -6,7 +6,7 @@ interface SideBadgeProps {
   "data-testid"?: string;
 }
 
-export function SideBadge({ side, "data-testid": testId }: SideBadgeProps) {
+export function SideBadge({ side, dataTestid: testId }: SideBadgeProps) {
   const isBuy = side.toUpperCase() === "BUY" || side.toUpperCase() === "LONG";
   const arrow = side.toUpperCase() === "BUY" ? "▲" : side.toUpperCase() === "SELL" ? "▼" : "";
   return (
@@ -25,7 +25,7 @@ interface ExitReasonBadgeProps {
 export function ExitReasonBadge({
   reason,
   size = "sm",
-  "data-testid": testId,
+  dataTestid: testId,
 }: ExitReasonBadgeProps) {
   let color: string = "secondary";
   const r = (reason || "").toLowerCase().trim();
@@ -80,7 +80,7 @@ interface StatusBadgeProps {
   "data-testid"?: string;
 }
 
-export function StatusBadge({ running, pid, statusUnknown, size = "sm", "data-testid": testId }: StatusBadgeProps) {
+export function StatusBadge({ running, pid, statusUnknown, size = "sm", dataTestid: testId }: StatusBadgeProps) {
   return (
     <Badge
       color={running ? "success" : statusUnknown ? "warning" : "error"}

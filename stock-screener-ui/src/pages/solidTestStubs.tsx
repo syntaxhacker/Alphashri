@@ -11,45 +11,40 @@
  * props.children inside the Solid dev transform (child vanished).
  */
 export async function uiLayoutStub(actual: Record<string, unknown>) {
+  const safeProps = (props: any) => {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(props ?? {})) {
+      if (v == null || k === "children") continue;
+      if (k === "className") {
+        out.class = v;
+        continue;
+      }
+      if (
+        k === "style" ||
+        k === "id" ||
+        k === "onClick" ||
+        k === "colSpan" ||
+        k === "rowSpan" ||
+        k === "role" ||
+        k === "title" ||
+        k.startsWith("aria-") ||
+        k.startsWith("data-")
+      ) {
+        out[k] = v;
+      }
+    }
+    return out;
+  };
   const makeStub = (Tag: "div" | "section" | "article") =>
     (props: any) => {
+      const passthrough = safeProps(props);
       if (Tag === "section") {
-        return (
-          <section
-            id={props.id}
-            class={props.className}
-            style={props.style}
-            data-testid={props["data-testid"]}
-            onClick={props.onClick}
-          >
-            {props.children}
-          </section>
-        );
+        return <section {...passthrough}>{props.children}</section>;
       }
       if (Tag === "article") {
-        return (
-          <article
-            id={props.id}
-            class={props.className}
-            style={props.style}
-            data-testid={props["data-testid"]}
-            onClick={props.onClick}
-          >
-            {props.children}
-          </article>
-        );
+        return <article {...passthrough}>{props.children}</article>;
       }
-      return (
-        <div
-          id={props.id}
-          class={props.className}
-          style={props.style}
-          data-testid={props["data-testid"]}
-          onClick={props.onClick}
-        >
-          {props.children}
-        </div>
-      );
+      return <div {...passthrough}>{props.children}</div>;
     };
   return {
     ...actual,

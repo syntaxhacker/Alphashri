@@ -60,35 +60,35 @@ export function NewsList({
         style={{
           position: "sticky",
           top: 0,
-          "z-index": 2,
-          "background-color": palette.SURFACE,
+          zIndex: 2,
+          backgroundColor: palette.SURFACE,
           borderBottom: `1px solid ${palette.BORDER}`,
         }}
       >
-        <Box style={{ "padding-left": 12, "padding-right": 12, "padding-top": 10, "padding-bottom": 6 }}>
+        <Box style={{ paddingLeft: 12, paddingRight: 12, paddingTop: 10, paddingBottom: 6 }}>
           <ToolbarRow gap={8}>
-            <Box style={{ "min-width": 0, flex: "0 0 auto", width: "100%" }}>
-              <Box className="flex items-center gap-3" style={{ display: "flex", "align-items": "center", gap: 6 }}>
-                <Text size="sm" fw={700} style={{ "line-height": 1.2 }}>
+            <Box style={{ minWidth: 0, flex: "0 0 auto", width: "100%" }}>
+              <Box className="flex items-center gap-3" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
                   Market feed
                 </Text>
                 <Box
                   className="flex items-center gap-2 rounded-fin"
                   style={{
                     display: "flex",
-                    "align-items": "center",
+                    alignItems: "center",
                     gap: 4,
                     color: palette.POSITIVE,
-                    "padding-left": 6,
-                    "padding-right": 6,
-                    "padding-top": 2,
-                    "padding-bottom": 2,
-                    "border-radius": 8,
-                    "background-color": "#121212",
+                    paddingLeft: 6,
+                    paddingRight: 6,
+                    paddingTop: 2,
+                    paddingBottom: 2,
+                    borderRadius: 8,
+                    backgroundColor: "#121212",
                   }}
                 >
                   <IconBolt size={12} aria-hidden="true" />
-                  <Text size="xs" fw={700} style={{ "line-height": 1 }}>
+                  <Text size="xs" fw={700} style={{ lineHeight: 1 }}>
                     Live
                   </Text>
                 </Box>
@@ -98,13 +98,13 @@ export function NewsList({
                 c="dimmed"
                 data-testid="news-story-count"
                 className="block mt-2 [font-variant-numeric:tabular-nums]"
-                style={{ display: "block", "margin-top": 2, fontVariantNumeric: "tabular-nums" }}
+                style={{ display: "block", marginTop: 2, fontVariantNumeric: "tabular-nums" }}
               >
                 {storyLabel} across {visibleSourceNames.length} {visibleSourceNames.length === 1 ? "source" : "sources"}
               </Text>
             </Box>
-            <Box style={{ flex: 1, "min-width": 0, display: "none" }} />
-            <Box style={{ width: "auto", flex: 1, "max-width": "100%" }}>
+            <Box style={{ flex: 1, minWidth: 0, display: "none" }} />
+            <Box style={{ width: "auto", flex: 1, maxWidth: "100%" }}>
               <Select
                 aria-label="Source"
                 size="sm"
@@ -163,7 +163,7 @@ export function NewsList({
                 <Box
                   component="span"
                   className="flex items-center gap-3 min-w-0"
-                  style={{ display: "flex", "align-items": "center", gap: 6, "min-width": 0 }}
+                  style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}
                 >
                   {item.sentiment && <SentimentBadge sentiment={item.sentiment} />}
                   {item.impact_score !== undefined && <ImpactScore score={item.impact_score} compact />}

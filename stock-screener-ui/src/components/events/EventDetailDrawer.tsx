@@ -1,4 +1,4 @@
-import {  } from "solid-js";
+import { For, Show, type CSSProperties, type JSX } from "solid-js";
 import { ActionIcon, Anchor, Badge, Box, Divider, Text, ToolbarRow } from "@/ui";
 import { Portal } from "@/ui/layout/Portal";
 import { IconExternalLink, IconX } from "../common/Icons";
@@ -55,26 +55,25 @@ export function leadTimeDays(event: EventDTO): number | null {
   return Math.round((happening.getTime() - announced.getTime()) / 86_400_000);
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field(props: { label: string; children?: JSX.Element }) {
   return (
     <ToolbarRow gap={8} justify="space-between" wrap={false}>
       <Text size="xs" c="dimmed" tt="uppercase" style={{ "font-size": 10, "letter-spacing": "0.4px" }}>
-        {label}
+        {props.label}
       </Text>
-      <Box style={{ "min-width": 0, "text-align": "right" }}>{children}</Box>
+      <Box style={{ "min-width": 0, "text-align": "right" }}>{props.children}</Box>
     </ToolbarRow>
   );
 }
 
-export function EventDetailDrawer({ event, onClose }: EventDetailDrawerProps) {
-  const lead = event ? leadTimeDays(event) : null;
-  const confidence = event
-    ? `${Math.round((event.confidence <= 1 ? event.confidence * 100 : event.confidence))}%`
-    : "";
+export function EventDetailDrawer(props: EventDetailDrawerProps) {
+  const lead = () => (props.event ? leadTimeDays(props.event) : null);
+  const confidence = () =>
+    props.event
+      ? `${Math.round((props.event.confidence <= 1 ? props.event.confidence * 100 : props.event.confidence))}%`
+      : "";
 
-  if (!event) return null;
-
-  const drawerStyle: React.CSSProperties = {
+  const drawerStyle: CSSProperties = {
     position: "fixed",
     top: 0,
     right: 0,
@@ -82,7 +81,7 @@ export function EventDetailDrawer({ event, onClose }: EventDetailDrawerProps) {
     "max-width": "100%",
     height: "100%",
     "background-color": palette.SURFACE,
-    borderLeft: `1px solid ${palette.BORDER}`,
+    "border-left": `1px solid ${palette.BORDER}`,
     display: "flex",
     "flex-direction": "column",
     "min-width": 0,
@@ -90,119 +89,121 @@ export function EventDetailDrawer({ event, onClose }: EventDetailDrawerProps) {
   };
 
   return (
-    <Portal>
-      <div
-        data-testid="event-detail-drawer"
-        data-event-id={event.id}
-        className="flex flex-col h-full min-w-0"
-        style={drawerStyle}
-      >
-        <ToolbarRow
-          gap={8}
-          wrap={false}
-          justify="space-between"
-          className="border-b border-fin-border"
-          style={{ "padding-left": 16, "padding-right": 16, "padding-top": 8, "padding-bottom": 8, borderBottom: `1px solid ${palette.BORDER}` }}
-        >
-          <Box style={{ "min-width": 0 }}>
-            <Text fw={700} truncate data-testid="event-detail-title">
-              {event.title}
-            </Text>
-            <Text size="xs" c="dimmed" truncate>
-              {[event.symbol, event.exchange, event.name].filter(Boolean).join(" · ")}
-            </Text>
-          </Box>
-          <ActionIcon
-            variant="subtle"
-            size="sm"
-            aria-label="Close event details"
-            onClick={onClose}
-            data-testid="event-detail-close"
+    <Show when={props.event}>
+      {(event) => (
+        <Portal>
+          <div
+            data-testid="event-detail-drawer"
+            data-event-id={event().id}
+            className="flex flex-col h-full min-w-0"
+            style={drawerStyle}
           >
-            <IconX size={15} />
-          </ActionIcon>
-        </ToolbarRow>
-
-        <Box style={{ flex: 1, "min-height": 0, "overflow-y": "auto", padding: 16, display: "flex", "flex-direction": "column", gap: 8 }}>
-          <ToolbarRow gap={8} wrap={false}>
-            <EventTypeBadge type={event.event_type} isAlpha={event.is_alpha} />
-            <Badge size="xs" color="secondary" data-testid="event-detail-source">
-              {event.source.toUpperCase()}
-            </Badge>
-            {event.recurring ? (
-              <Badge size="xs" color="success" data-testid="event-detail-recurring">
-                Recurring
-              </Badge>
-            ) : (
-              <Badge size="xs" color="default" data-testid="event-detail-recurring">
-                One-off
-              </Badge>
-            )}
-          </ToolbarRow>
-
-          <Text size="xs" c="dimmed" data-testid="event-detail-hint">
-            {EVENT_TYPE_HINT[event.event_type] ?? EVENT_TYPE_HINT.other}
-          </Text>
-
-          <Divider />
-
-          <Field label="Event date">
-            <Text size="xs" fw={600} data-testid="event-detail-date">
-              {formatEventDate(event.event_date)}
-            </Text>
-          </Field>
-          <Field label="Announced">
-            <Text size="xs" data-testid="event-detail-announced">
-              {formatEventDate(event.announced_at)}
-            </Text>
-          </Field>
-          <Field label="Lead time">
-            <Text size="xs" data-testid="event-detail-lead">
-              {lead === null
-                ? "announcement date unknown"
-                : `announced ${lead} day${lead === 1 ? "" : "s"} before`}
-            </Text>
-          </Field>
-          <Field label="Confidence">
-            <Text size="xs" data-testid="event-detail-confidence">
-              {confidence}
-            </Text>
-          </Field>
-
-          {event.notes && (
-            <>
-              <Divider />
-              <Box>
-                <Text size="xs" c="dimmed" tt="uppercase" style={{ "font-size": 10, "letter-spacing": "0.4px" }}>
-                  Notes
+            <ToolbarRow
+              gap={8}
+              wrap={false}
+              justify="space-between"
+              className="border-b border-fin-border"
+              style={{ "padding-left": 16, "padding-right": 16, "padding-top": 8, "padding-bottom": 8, "border-bottom": `1px solid ${palette.BORDER}` }}
+            >
+              <Box style={{ "min-width": 0 }}>
+                <Text fw={700} truncate data-testid="event-detail-title">
+                  {event().title}
                 </Text>
-                <Text size="xs" data-testid="event-detail-notes">
-                  {event.notes}
+                <Text size="xs" c="dimmed" truncate>
+                  {[event().symbol, event().exchange, event().name].filter(Boolean).join(" · ")}
                 </Text>
               </Box>
-            </>
-          )}
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                aria-label="Close event details"
+                onClick={props.onClose}
+                data-testid="event-detail-close"
+              >
+                <IconX size={15} />
+              </ActionIcon>
+            </ToolbarRow>
 
-          {event.source_url && (
-            <>
-              <Divider />
-              <ToolbarRow gap={4} wrap={false}>
-                <IconExternalLink size={14} />
-                <Anchor
-                  href={event.source_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  size="xs"
-                  data-testid="event-detail-source-link"
-                  style={{ "word-break": "break-all" }}
+            <Box style={{ flex: 1, "min-height": 0, "overflow-y": "auto", padding: 16, display: "flex", "flex-direction": "column", gap: 8 }}>
+              <ToolbarRow gap={8} wrap={false}>
+                <EventTypeBadge type={event().event_type} isAlpha={event().is_alpha} />
+                <Badge size="xs" color="secondary" data-testid="event-detail-source">
+                  {event().source.toUpperCase()}
+                </Badge>
+                <Show when={event().recurring}
+                  fallback={
+                    <Badge size="xs" color="default" data-testid="event-detail-recurring">
+                      One-off
+                    </Badge>
+                  }
                 >
-                  {event.source_url}
-                </Anchor>
+                  <Badge size="xs" color="success" data-testid="event-detail-recurring">
+                    Recurring
+                  </Badge>
+                </Show>
               </ToolbarRow>
-            </>
-          )}
-        </Box>
-      </div>
-    </Portal>
+
+              <Text size="xs" c="dimmed" data-testid="event-detail-hint">
+                {EVENT_TYPE_HINT[event().event_type] ?? EVENT_TYPE_HINT.other}
+              </Text>
+
+              <Divider />
+
+              <Field label="Event date">
+                <Text size="xs" fw={600} data-testid="event-detail-date">
+                  {formatEventDate(event().event_date)}
+                </Text>
+              </Field>
+              <Field label="Announced">
+                <Text size="xs" data-testid="event-detail-announced">
+                  {formatEventDate(event().announced_at)}
+                </Text>
+              </Field>
+              <Field label="Lead time">
+                <Text size="xs" data-testid="event-detail-lead">
+                  {lead() === null
+                    ? "announcement date unknown"
+                    : `announced ${lead()} day${lead() === 1 ? "" : "s"} before`}
+                </Text>
+              </Field>
+              <Field label="Confidence">
+                <Text size="xs" data-testid="event-detail-confidence">
+                  {confidence()}
+                </Text>
+              </Field>
+
+              <Show when={event().notes}>
+                <Divider />
+                <Box>
+                  <Text size="xs" c="dimmed" tt="uppercase" style={{ "font-size": 10, "letter-spacing": "0.4px" }}>
+                    Notes
+                  </Text>
+                  <Text size="xs" data-testid="event-detail-notes">
+                    {event().notes}
+                  </Text>
+                </Box>
+              </Show>
+
+              <Show when={event().source_url}>
+                <Divider />
+                <ToolbarRow gap={4} wrap={false}>
+                  <IconExternalLink size={14} />
+                  <Anchor
+                    href={event().source_url!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    size="xs"
+                    data-testid="event-detail-source-link"
+                    style={{ "word-break": "break-all" }}
+                  >
+                    {event().source_url}
+                  </Anchor>
+                </ToolbarRow>
+              </Show>
+            </Box>
+          </div>
+        </Portal>
+      )}
+    </Show>
   );
 }

@@ -2,7 +2,7 @@
 // entry is a plain spec; the factory fills in the shape every review plugin shares
 // (normalize/envelope, chip panel, summary, trade explainer, chart fit padding) so a
 // new strategy is one config object, not another near-identical module.
-import { type ReactNode } from "react";
+import type { JSX } from "solid-js";
 
 import { TZ_IST_LABEL } from "@/config/constants";
 import { tradeStatChips } from "./shared";
@@ -34,8 +34,8 @@ export interface ReplayPluginSpec {
   /** Custom timeline mapper when mode === "timeline"; defaults to json.bars bars. */
   timeline?: (json: any) => TimelineData;
   explainer?: (trade: ReplayTrade, json: any) => string;
-  panel?: (bundle: ReplayBundle, json: any) => ReactNode;
-  summary?: (bundle: ReplayBundle, json: any) => ReactNode;
+  panel?: (bundle: ReplayBundle, json: any) => JSX.Element;
+  summary?: (bundle: ReplayBundle, json: any) => JSX.Element | string;
 }
 
 export function makeReplayPlugin(spec: ReplayPluginSpec): ReplayStrategyPlugin {
@@ -89,10 +89,10 @@ export function makeReplayPlugin(spec: ReplayPluginSpec): ReplayStrategyPlugin {
   };
   plugin.panel =
     spec.panel ??
-    ((bundle: ReplayBundle) => createElement(
-      Stack,
-      { direction: "row", gap: "sm", mb: "sm", wrap: "wrap" },
-      ...tradeStatChips(bundle),
+    ((bundle: ReplayBundle) => (
+      <Stack direction="row" gap="sm" mb="sm" wrap="wrap">
+        {tradeStatChips(bundle)}
+      </Stack>
     ));
   return plugin;
 }

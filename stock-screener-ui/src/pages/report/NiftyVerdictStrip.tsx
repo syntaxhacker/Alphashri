@@ -252,7 +252,7 @@ const VerdictCell = memo(function VerdictCell({ testId, accent, primary, seconda
           aria-hidden
           data-testid={`${testId}-dot`}
           className="w-[6px] h-[6px] rounded-full shrink-0"
-          style={{ "background-color": accent }}
+          style={{ backgroundColor: accent }}
         />
         <Text
           data-testid={`${testId}-primary`}
@@ -262,11 +262,11 @@ const VerdictCell = memo(function VerdictCell({ testId, accent, primary, seconda
           span
           truncate
           style={{
-            "font-size": 11,
-            "line-height": 1.2,
-            "letter-spacing": "0.04em",
-            "min-width": 0,
-            "flex-shrink": 0,
+            fontSize: 11,
+            lineHeight: 1.2,
+            letterSpacing: "0.04em",
+            minWidth: 0,
+            flexShrink: 0,
           }}
         >
           {primaryNode ?? primary}
@@ -277,7 +277,7 @@ const VerdictCell = memo(function VerdictCell({ testId, accent, primary, seconda
           c="dimmed"
           span
           truncate
-          style={{ "font-size": 9, "line-height": 1.2, "min-width": 0 }}
+          style={{ fontSize: 9, lineHeight: 1.2, minWidth: 0 }}
         >
           {secondary}
         </Text>
@@ -289,14 +289,14 @@ const VerdictCell = memo(function VerdictCell({ testId, accent, primary, seconda
       data-testid={testId}
       title={`${primary} — ${secondary}`}
       className="flex flex-col justify-center gap-[2px] min-w-0 overflow-hidden px-[12px] py-[6px]"
-      style={{ "border-left": `1px solid ${palette.TERM_BORDER}` }}
+      style={{ borderLeft: `1px solid ${palette.TERM_BORDER}` }}
     >
       <Box className="flex items-center gap-[6px] min-w-0">
         <Box
           aria-hidden
           data-testid={`${testId}-dot`}
           className="w-[6px] h-[6px] rounded-full shrink-0"
-          style={{ "background-color": accent }}
+          style={{ backgroundColor: accent }}
         />
         <Text
           data-testid={`${testId}-primary`}
@@ -306,9 +306,9 @@ const VerdictCell = memo(function VerdictCell({ testId, accent, primary, seconda
           span
           truncate
           style={{
-            "font-size": 11,
-            "line-height": 1.3,
-            "letter-spacing": "0.04em",
+            fontSize: 11,
+            lineHeight: 1.3,
+            letterSpacing: "0.04em",
           }}
         >
           {primaryNode ?? primary}
@@ -320,7 +320,7 @@ const VerdictCell = memo(function VerdictCell({ testId, accent, primary, seconda
         c="dimmed"
         span
         truncate
-        style={{ "font-size": 10, "line-height": 1.3 }}
+        style={{ fontSize: 10, lineHeight: 1.3 }}
       >
         {secondary}
       </Text>

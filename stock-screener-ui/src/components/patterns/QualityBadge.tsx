@@ -9,7 +9,7 @@ export interface QualityBadgeProps {
 }
 
 /** Small semantic chip for shape quality, with a help tooltip explaining the tier. */
-export function QualityBadge({ quality, "data-testid": testId }: QualityBadgeProps) {
+export function QualityBadge({ quality, dataTestid: testId }: QualityBadgeProps) {
   const key = String(quality ?? "").toLowerCase();
   const info = QUALITY_INFO[key as keyof typeof QUALITY_INFO];
   const label = qualityLabel(quality);

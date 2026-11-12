@@ -26,7 +26,7 @@ export function Stack(props: UIStackProps & Record<string, unknown>) {
   // replicate both here since a plain div has neither by default.
   const styleObj: Record<string, string | number | undefined> = {
     display: "flex",
-    "flex-direction": (known.flexDirection as string | undefined) ?? (known.direction as string | undefined) ?? "column",
+    flexDirection: (known.flexDirection as string | undefined) ?? (known.direction as string | undefined) ?? "column",
   };
   if (known.wrap) styleObj["flex-wrap"] = known.wrap as string;
   if (known.justifyContent != null) styleObj["justify-content"] = known.justifyContent;

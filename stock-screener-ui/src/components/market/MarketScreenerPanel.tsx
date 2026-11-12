@@ -61,7 +61,7 @@ function MarketGrid(props: {
   hasActiveFilters: boolean;
   onResetFilters: () => void;
   onRowClick: (row: MarketRow) => void;
-  getRowStyle: (row: MarketRow) => { "background-color": string } | undefined;
+  getRowStyle: (row: MarketRow) => { backgroundColor: string } | undefined;
   getRowTestId: (row: MarketRow) => string;
 }) {
   return (
@@ -231,7 +231,7 @@ export function MarketScreenerPanel() {
 
   const getRowStyle = (row: MarketRow) =>
     row.symbol === selectedSymbol()
-      ? { "background-color": "rgba(88, 166, 255, 0.12)" }
+      ? { backgroundColor: "rgba(88, 166, 255, 0.12)" }
       : undefined;
 
   const getRowTestId = (row: MarketRow) => `market-row-${row.symbol}`;
@@ -486,7 +486,7 @@ export function MarketScreenerPanel() {
               data-testid="market-skeleton"
               className="flex-1 border border-fin-border rounded-sm bg-fin-surface p-2 flex flex-col gap-2"
             >
-              <For each={Array.from({ length: 12 }, (_, i) => i)}>{(i) => <Skeleton h={24} />}</For>
+              <For each={Array.from({ length: 12 }, (_, i) => i)}>{(i) => <Skeleton h={24} visible />}</For>
             </Paper>
           </Show>
         </Box>
@@ -496,7 +496,7 @@ export function MarketScreenerPanel() {
         <Box
           data-testid="market-filter-drawer"
           className="fixed inset-0 z-50 flex"
-          style={{ "z-index": 1050 }}
+          style={{ zIndex: 1050 }}
           onClick={() => setDrawerOpen(false)}
         >
           <Box

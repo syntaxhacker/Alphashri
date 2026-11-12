@@ -34,11 +34,11 @@ export function BacktestToolbar({
         flex: "0 0 auto",
         height: 40,
         display: "flex",
-        "align-items": "center",
+        alignItems: "center",
         gap: 8,
-        "padding-left": 8,
-        "padding-right": 8,
-        "background-color": "#0A0A0A",
+        paddingLeft: 8,
+        paddingRight: 8,
+        backgroundColor: "#0A0A0A",
         borderBottom: "1px solid #30363D",
       }}
       data-testid="backtest-toolbar"
@@ -67,10 +67,10 @@ export function BacktestToolbar({
       </Box>
 
       <Box className="flex-1 min-w-0 flex items-center gap-1.5 px-2">
-        <Text size="xs" c="text-muted" style={{ "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }}>
+        <Text size="xs" c="text-muted" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {strategyLabel || "No strategy"}
         </Text>
-        <Text size="xs" c="dimmed" style={{ "white-space": "nowrap" }}>
+        <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
           {symbolCount} symbol{symbolCount === 1 ? "" : "s"} · {days}d
         </Text>
       </Box>

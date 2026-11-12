@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@solidjs/testing-library";
+import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { MemoryRouter, useSearchParams } from "react-router-dom";
 import { UIProvider } from "@/ui";
@@ -51,6 +51,19 @@ vi.mock("../../state/holidays", () => ({
 }));
 
 import { BotsPage } from "./BotsPage";
+
+import { Router } from "@solidjs/router";
+import type { JSX } from "solid-js";
+
+// Local equivalent of the shared renderWithProviders test helper, fixed for
+// Solid: solid-router renders no plain children, so tests mount through the
+// router's `root` prop instead.
+function renderWithProviders(ui: () => JSX.Element) {
+  return render(() => (
+    <Router root={() => <UIProvider>{ui()}</UIProvider>} />
+  ));
+}
+
 
 const baseState = (): BotsState =>
   ({
@@ -122,12 +135,12 @@ describe("BotsPage", () => {
   });
 
   it("renders 'New Bot' create button", () => {
-    renderWithProviders(<BotsPage />);
+    renderWithProviders(() => <BotsPage />);
     expect(screen.getByText("New Bot")).toBeInTheDocument();
   });
 
   it("renders bots-view container", () => {
-    renderWithProviders(<BotsPage />);
+    renderWithProviders(() => <BotsPage />);
     expect(screen.getByTestId("bots-view")).toBeInTheDocument();
   });
 
@@ -135,7 +148,7 @@ describe("BotsPage", () => {
     const state = baseState();
     state.loading.list = true;
     mockGetBotsState.mockReturnValue(state);
-    renderWithProviders(<BotsPage />);
+    renderWithProviders(() => <BotsPage />);
     expect(screen.getByTestId("bots-loading")).toBeInTheDocument();
   });
 
@@ -143,13 +156,13 @@ describe("BotsPage", () => {
     const state = baseState();
     state.error = "Something went wrong";
     mockGetBotsState.mockReturnValue(state);
-    renderWithProviders(<BotsPage />);
+    renderWithProviders(() => <BotsPage />);
     expect(screen.getByTestId("bots-error")).toBeInTheDocument();
     expect(screen.getByText("Something went wrong")).toBeInTheDocument();
   });
 
   it("shows empty state when no bots configured", () => {
-    renderWithProviders(<BotsPage />);
+    renderWithProviders(() => <BotsPage />);
     expect(screen.getByText("No bots configured")).toBeInTheDocument();
   });
 
@@ -157,7 +170,7 @@ describe("BotsPage", () => {
     const state = baseState();
     state.bots = [createBot()];
     mockGetBotsState.mockReturnValue(state);
-    renderWithProviders(<BotsPage />);
+    renderWithProviders(() => <BotsPage />);
     expect(screen.getByTestId("bots-table")).toBeInTheDocument();
     expect(screen.getByText("Test Bot")).toBeInTheDocument();
   });
@@ -166,7 +179,7 @@ describe("BotsPage", () => {
     const state = baseState();
     state.bots = [createBot()];
     mockGetBotsState.mockReturnValue(state);
-    const { container } = renderWithProviders(<BotsPage />);
+    const { container } = renderWithProviders(() => <BotsPage />);
     const table = container.querySelector('[data-testid="bots-table"]');
     expect(table!.textContent).toContain("Name");
     expect(table!.textContent).toContain("Status");
@@ -180,7 +193,7 @@ describe("BotsPage", () => {
     const state = baseState();
     state.bots = [createBot({ is_active: false })];
     mockGetBotsState.mockReturnValue(state);
-    renderWithProviders(<BotsPage />);
+    renderWithProviders(() => <BotsPage />);
     expect(screen.getByText("Inactive")).toBeInTheDocument();
   });
 
@@ -188,7 +201,7 @@ describe("BotsPage", () => {
     const state = baseState();
     state.bots = [createBot({ running: true, pid: 12345 })];
     mockGetBotsState.mockReturnValue(state);
-    renderWithProviders(<BotsPage />);
+    renderWithProviders(() => <BotsPage />);
     expect(screen.getByText(/Running/)).toBeInTheDocument();
   });
 
@@ -196,7 +209,7 @@ describe("BotsPage", () => {
     const state = baseState();
     state.bots = [createBot()];
     mockGetBotsState.mockReturnValue(state);
-    renderWithProviders(<BotsPage />);
+    renderWithProviders(() => <BotsPage />);
     const statusTab = screen.getByTestId("bots-tab-status");
     expect(statusTab).toBeInTheDocument();
   });
@@ -205,7 +218,7 @@ describe("BotsPage", () => {
         const state = baseState();
     state.bots = [createBot()];
     mockGetBotsState.mockReturnValue(state);
-    renderWithProviders(<BotsPage />);
+    renderWithProviders(() => <BotsPage />);
     await fireEvent.click(screen.getByTestId("view-bot-status-btn-bot-1"));
     expect(mockSelectBot).toHaveBeenCalled();
     expect(mockSetCurrentView).toHaveBeenCalledWith("status");
@@ -216,7 +229,7 @@ describe("BotsPage", () => {
         const state = baseState();
     state.bots = [createBot({ running: true, pid: 12345 })];
     mockGetBotsState.mockReturnValue(state);
-    renderWithProviders(<BotsPage />);
+    renderWithProviders(() => <BotsPage />);
     await fireEvent.click(screen.getByTestId("view-bot-status-btn-bot-1"));
     expect(mockSelectBot).toHaveBeenCalled();
     expect(mockSetCurrentView).toHaveBeenCalledWith("status");
@@ -229,7 +242,7 @@ describe("BotsPage", () => {
     state.selectedBot = createBot();
     mockGetCurrentView.mockReturnValue("status");
     mockGetBotsState.mockReturnValue(state);
-    renderWithProviders(<BotsPage />);
+    renderWithProviders(() => <BotsPage />);
     expect(screen.getByTestId("bot-status-panel")).toBeInTheDocument();
   });
 
@@ -237,7 +250,7 @@ describe("BotsPage", () => {
         const state = baseState();
     state.bots = [createBot()];
     mockGetBotsState.mockReturnValue(state);
-    renderWithProviders(<BotsPage />);
+    renderWithProviders(() => <BotsPage />);
     await fireEvent.click(screen.getByTestId("start-bot-btn-bot-1"));
     expect(mockStartBotAction).toHaveBeenCalledWith("bot-1", false);
   });
@@ -246,7 +259,7 @@ describe("BotsPage", () => {
         const state = baseState();
     state.bots = [createBot({ running: true, pid: 12345 })];
     mockGetBotsState.mockReturnValue(state);
-    renderWithProviders(<BotsPage />);
+    renderWithProviders(() => <BotsPage />);
     await fireEvent.click(screen.getByTestId("stop-bot-btn-bot-1"));
     expect(mockStopBotAction).toHaveBeenCalledWith("bot-1");
   });
@@ -256,7 +269,7 @@ describe("BotsPage", () => {
     const state = baseState();
     state.bots = [createBot()];
     mockGetBotsState.mockReturnValue(state);
-    renderWithProviders(<BotsPage />);
+    renderWithProviders(() => <BotsPage />);
     await fireEvent.click(screen.getByTestId("delete-bot-btn-bot-1"));
     expect(window.confirm).toHaveBeenCalledWith("Are you sure you want to delete this bot?");
     expect(mockDeleteBotAction).toHaveBeenCalledWith("bot-1");
@@ -267,14 +280,14 @@ describe("BotsPage", () => {
     const state = baseState();
     state.bots = [createBot()];
     mockGetBotsState.mockReturnValue(state);
-    renderWithProviders(<BotsPage />);
+    renderWithProviders(() => <BotsPage />);
     await fireEvent.click(screen.getByTestId("delete-bot-btn-bot-1"));
     expect(window.confirm).toHaveBeenCalled();
     expect(mockDeleteBotAction).not.toHaveBeenCalled();
   });
 
   it("opens create modal when New Bot button is clicked", async () => {
-        renderWithProviders(<BotsPage />);
+        renderWithProviders(() => <BotsPage />);
     await fireEvent.click(screen.getByText("New Bot"));
     expect(mockOpenCreateModal).toHaveBeenCalled();
   });
@@ -296,7 +309,7 @@ describe("BotsPage", () => {
       },
     ];
     mockGetBotsState.mockReturnValue(state);
-    renderWithProviders(<BotsPage />);
+    renderWithProviders(() => <BotsPage />);
     expect(screen.getByTestId("bot-config-modal")).toBeInTheDocument();
   });
 
@@ -305,7 +318,7 @@ describe("BotsPage", () => {
     state.bots = [createBot()];
     state.selectedBot = createBot();
     mockGetBotsState.mockReturnValue(state);
-    renderWithProviders(<BotsPage />);
+    renderWithProviders(() => <BotsPage />);
     const statusTab = screen.getByTestId("bots-tab-status");
     await fireEvent.click(statusTab);
     expect(mockSetCurrentView).toHaveBeenCalledWith("status");
@@ -313,13 +326,13 @@ describe("BotsPage", () => {
 
   it("deep-links ?tab=performance to the Performance view", () => {
     mockGetBotsState.mockReturnValue(baseState());
-    renderWithProviders(<BotsPage />, ["/bots?tab=performance"]);
+    renderWithProviders(() => <BotsPage />, ["/bots?tab=performance"]);
     expect(mockSetCurrentView).toHaveBeenCalledWith("performance");
   });
 
   it("falls back to list for ?tab=status with no bot selected", () => {
     mockGetBotsState.mockReturnValue(baseState());
-    renderWithProviders(<BotsPage />, ["/bots?tab=status"]);
+    renderWithProviders(() => <BotsPage />, ["/bots?tab=status"]);
     expect(mockSetCurrentView).toHaveBeenCalledWith("list");
   });
 
@@ -361,7 +374,7 @@ describe("BotsPage", () => {
         const state = baseState();
     state.error = "Test error";
     mockGetBotsState.mockReturnValue(state);
-    renderWithProviders(<BotsPage />);
+    renderWithProviders(() => <BotsPage />);
     const closeBtn = screen.getByTestId("bots-error").querySelector('[aria-label="Close"]');
     if (closeBtn) {
       await fireEvent.click(closeBtn);

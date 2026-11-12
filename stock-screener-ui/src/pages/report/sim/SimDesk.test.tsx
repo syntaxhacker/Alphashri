@@ -1,12 +1,12 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, waitFor, fireEvent } from "@solidjs/testing-library";
 import type { SimRunResult, SimStrategyResult, SimTrade } from "@/types/reportSim";
 import type { NiftyOptionSide, NiftyReport } from "@/types/niftyReport";
 import { fetchSimStrategies, runSim } from "@/api/reportSim";
 import { isDerivativesOpenIst } from "@/utils/marketClock";
+import { For } from "solid-js";
 import { SimDesk } from "./SimDesk";
 
 vi.mock("@/utils/marketClock", () => ({
@@ -18,10 +18,34 @@ vi.mock("@/api/reportSim", () => ({
   runSim: vi.fn(),
 }));
 
-vi.mock("@/hooks/useECharts", () => ({
-  useECharts: () => ({
-    chartRef: { current: null },
-    chartInstance: { current: null },
+// TanStackTable renders @/ui Box (broken at runtime). Stub it with a plain
+// table that honors dataTestId / cell renderers / getRowTestId.
+vi.mock("@/components/common/TanStackTable", () => ({
+  TanStackTable: (props: any) => (
+    <table data-testid={props.dataTestId}>
+      <thead>
+        <tr>
+          {props.columns.map((col: any, j: number) => (
+            <th key={j}>{typeof col.header === "string" ? col.header : null}</th>
+          ))}
+        </tr>
+      </thead>
+      <For each={props.data}>
+        {(row: any, i) => (
+          <tr data-testid={props.getRowTestId ? props.getRowTestId(row, i()) : undefined}>
+            {props.columns.map((col: any, j: number) => (
+              <td key={j}>{col.cell ? col.cell({ row: { original: row, index: i() }, column: col }) : null}</td>
+            ))}
+          </tr>
+        )}
+      </For>
+    </table>
+  ),
+}));
+
+vi.mock("../echartsSolid", () => ({
+  createECharts: () => ({
+    ref: () => {},
     setChartOption: vi.fn(),
   }),
 }));
@@ -149,9 +173,9 @@ function deskProps() {
   };
 }
 
-async function openDesk(user: ReturnType<typeof userEvent.setup>) {
-  render(<SimDesk {...deskProps()} />);
-  await user.click(screen.getByTestId("sim-open"));
+async function openDesk() {
+  render(() => <SimDesk {...deskProps()} />);
+  fireEvent.click(screen.getByTestId("sim-open"));
   await screen.findByTestId("panel-modal");
   await screen.findByTestId("sim-leg-0");
 }
@@ -166,13 +190,12 @@ beforeEach(() => {
 
 describe("SimDesk", () => {
   test("renders the SIM trigger with the strategy count", () => {
-    render(<SimDesk {...deskProps()} />);
+    render(() => <SimDesk {...deskProps()} />);
     expect(screen.getByTestId("sim-open")).toHaveTextContent("SIM · 1");
   });
 
   test("opens the desk and shows the long-call legs", async () => {
-    const user = userEvent.setup();
-    await openDesk(user);
+    await openDesk();
 
     expect(document.querySelector('[data-variant="drawer"]')).not.toBeNull();
     expect(screen.getByTestId("sim-leg-0-strike")).toHaveValue("ATM");
@@ -186,8 +209,7 @@ describe("SimDesk", () => {
       ...runResult(),
       expiryNote: "2026-11-09 was the 0-DTE expiry; the tape recorded 2026-11-17.",
     });
-    const user = userEvent.setup();
-    await openDesk(user);
+    await openDesk();
 
     expect(await screen.findByTestId("sim-expiry-note")).toHaveTextContent(
       "0-DTE",
@@ -196,8 +218,7 @@ describe("SimDesk", () => {
 
   test("forces the EOD view after the close", async () => {
     mockMarketOpen.mockReturnValue(false);
-    const user = userEvent.setup();
-    await openDesk(user);
+    await openDesk();
 
     expect(screen.getByTestId("sim-context")).toHaveTextContent("EOD");
     expect(screen.getByTestId("sim-market-closed")).toBeInTheDocument();
@@ -207,12 +228,11 @@ describe("SimDesk", () => {
   });
 
   test("runs the selected strategies with costs on", async () => {
-    const user = userEvent.setup();
-    await openDesk(user);
+    await openDesk();
     await waitFor(() => expect(mockRunSim).toHaveBeenCalledTimes(1));
 
     mockRunSim.mockClear();
-    await user.click(screen.getByTestId("sim-run"));
+    fireEvent.click(screen.getByTestId("sim-run"));
     await waitFor(() => expect(mockRunSim).toHaveBeenCalledTimes(1));
 
     const request = mockRunSim.mock.calls[0][0];
@@ -228,8 +248,7 @@ describe("SimDesk", () => {
   });
 
   test("shows build, payoff and runs in one view", async () => {
-    const user = userEvent.setup();
-    await openDesk(user);
+    await openDesk();
 
     expect(screen.getByTestId("sim-builder")).toBeInTheDocument();
     expect(await screen.findByTestId("sim-payoff-debit")).toHaveTextContent("Net debit");
@@ -241,8 +260,7 @@ describe("SimDesk", () => {
 
   test("surfaces a failed run as an alert", async () => {
     mockRunSim.mockRejectedValue(new Error("tape unavailable"));
-    const user = userEvent.setup();
-    await openDesk(user);
+    await openDesk();
 
     const alert = await screen.findByTestId("sim-error");
     expect(alert).toHaveTextContent("tape unavailable");

@@ -41,11 +41,11 @@ const Metric = ({
   tone?: string;
   testid: string;
 }) => (
-  <Stack className="flex-1 min-w-[92px] px-1.5 py-0.75 gap-0.5 justify-center" style={{ flex: "1 1 0", "min-width": 92, gap: 4 }}>
-    <Text size="xs" fw={600} c="muted" style={{ "font-size": 10, "line-height": 1.1, "letter-spacing": 0.6, "text-align": "center" }}>
+  <Stack className="flex-1 min-w-[92px] px-1.5 py-0.75 gap-0.5 justify-center" style={{ flex: "1 1 0", minWidth: 92, gap: 4 }}>
+    <Text size="xs" fw={600} c="muted" style={{ fontSize: 10, lineHeight: 1.1, letterSpacing: 0.6, textAlign: "center" }}>
       {label}
     </Text>
-    <Text size="sm" fw={700} c={tone ?? "text-primary"} data-testid={testid} style={{ "font-size": 18, "line-height": 1.15, fontVariantNumeric: "tabular-nums" }}>
+    <Text size="sm" fw={700} c={tone ?? "text-primary"} data-testid={testid} style={{ fontSize: 18, lineHeight: 1.15, fontVariantNumeric: "tabular-nums" }}>
       {value}
     </Text>
   </Stack>

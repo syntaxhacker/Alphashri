@@ -57,15 +57,15 @@ export function NotificationItem(props: NotificationItemProps) {
       className="flex items-start gap-3 rounded-fin"
       style={{
         padding: "12px 16px",
-        "border-left": `3px solid ${config().borderColor}`,
-        "border-radius": 8,
-        "box-shadow": `0 4px 12px ${withAlpha(palette.BG, 0.08)}`,
+        borderLeft: `3px solid ${config().borderColor}`,
+        borderRadius: 8,
+        boxShadow: `0 4px 12px ${withAlpha(palette.BG, 0.08)}`,
       }}
     >
-      <Box aria-hidden="true" style={{ "line-height": 1.5, color: config().color }}>
+      <Box aria-hidden="true" style={{ lineHeight: 1.5, color: config().color }}>
         {config().icon}
       </Box>
-      <Text size="sm" data-testid="notification-message" style={{ flex: 1, "min-width": 0 }}>
+      <Text size="sm" data-testid="notification-message" style={{ flex: 1, minWidth: 0 }}>
         {props.notification.message}
       </Text>
       <ActionIcon size="sm" onClick={() => props.onDismiss(props.notification.id)} aria-label="Dismiss notification" data-testid="notification-dismiss-btn" variant="transparent">

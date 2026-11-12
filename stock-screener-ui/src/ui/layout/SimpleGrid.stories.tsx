@@ -17,8 +17,8 @@ const cells = Array.from({ length: 6 }, (_, i) => (
     style={{
       background: "#80b5ff",
       padding: 16,
-      "border-radius": 6,
-      "text-align": "center",
+      borderRadius: 6,
+      textAlign: "center",
     }}
   >
     Cell {i + 1}

@@ -82,8 +82,8 @@ export function Alert(props: UIAlertProps) {
       id={known.id}
       className={cn("flex items-start gap-3 p-3 text-sm leading-snug", br ? undefined : "rounded-fin", known.className)}
       style={{
-        "border-radius": br,
-        "background-color": bg,
+        borderRadius: br,
+        backgroundColor: bg,
         border: borderColor ? `1px solid ${borderColor}` : undefined,
         color: textColor,
         ...known.style,
@@ -95,7 +95,7 @@ export function Alert(props: UIAlertProps) {
       <Show when={known.icon != null}>
         <span className="shrink-0" aria-hidden="true">{known.icon}</span>
       </Show>
-      <div className="flex flex-col gap-1" style={{ flex: 1, "min-width": 0 }}>
+      <div className="flex flex-col gap-1" style={{ flex: 1, minWidth: 0 }}>
         <Show when={known.title != null}>
           <div className="font-semibold">{known.title}</div>
         </Show>

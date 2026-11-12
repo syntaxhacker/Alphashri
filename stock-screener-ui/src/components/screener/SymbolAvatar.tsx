@@ -57,15 +57,15 @@ export function SymbolAvatar(props: SymbolAvatarProps) {
       style={{
         width: `${size()}px`,
         height: `${size()}px`,
-        "min-width": `${size()}px`,
-        "min-height": `${size()}px`,
-        "background-color": showImg() ? "var(--color-fin-surface-alt)" : tintFor(props.symbol),
+        minWidth: `${size()}px`,
+        minHeight: `${size()}px`,
+        backgroundColor: showImg() ? "var(--color-fin-surface-alt)" : tintFor(props.symbol),
       }}
     >
       <Show
         when={showImg()}
         fallback={
-          <Text size="xs" span fw={700} style={{ "font-size": `${size() * 0.45}px`, color: TEXT, "line-height": 1 }}>
+          <Text size="xs" span fw={700} style={{ fontSize: `${size() * 0.45}px`, color: TEXT, lineHeight: 1 }}>
             {initialsFor(props.symbol)}
           </Text>
         }
@@ -76,7 +76,7 @@ export function SymbolAvatar(props: SymbolAvatarProps) {
           width={size()}
           height={size()}
           onError={() => setFailed(true)}
-          style={{ width: `${size()}px`, height: `${size()}px`, "object-fit": "contain", display: "block" }}
+          style={{ width: `${size()}px`, height: `${size()}px`, objectFit: "contain", display: "block" }}
         />
       </Show>
     </Box>

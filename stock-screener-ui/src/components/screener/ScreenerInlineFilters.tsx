@@ -74,12 +74,12 @@ function FilterChips(props: { filters: any[]; activeScreener: string }) {
             title={f.label}
             data-testid={`filter-chip-${f.key}`}
             style={{
-              "font-size": 11,
+              fontSize: 11,
               height: 24,
-              "background-color": palette.SURFACE_ALT,
+              backgroundColor: palette.SURFACE_ALT,
               color: palette.TEXT,
               border: `1px solid ${palette.BORDER}`,
-              "border-radius": 0,
+              borderRadius: 0,
             }}
           >
             {f.label || f.key}
@@ -93,7 +93,7 @@ function FilterChips(props: { filters: any[]; activeScreener: string }) {
         color="inherit"
         data-testid="apply-filters-btn"
         onClick={() => fetchData("upstox", "intraday", props.activeScreener, "manual")}
-        style={{ "font-size": 11, height: 24, "text-transform": "none" }}
+        style={{ fontSize: 11, height: 24, textTransform: "none" }}
       >
         Apply
       </Button>

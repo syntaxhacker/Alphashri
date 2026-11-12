@@ -43,8 +43,8 @@ const NtChart = forwardRef<NtChartApi, NtChartProps>(function NtChart(
       grid: { vertLines: { color: palette.NT_GRID }, horzLines: { color: palette.NT_GRID } },
       width: el.clientWidth,
       height,
-      timeScale: { "border-color": palette.NT_GRID, timeVisible: true, secondsVisible: false, rightOffset },
-      rightPriceScale: { "border-color": palette.NT_GRID },
+      timeScale: { borderColor: palette.NT_GRID, timeVisible: true, secondsVisible: false, rightOffset },
+      rightPriceScale: { borderColor: palette.NT_GRID },
     });
     chartRef.current = chart;
     const cs = chart.addSeries(CandlestickSeries, {

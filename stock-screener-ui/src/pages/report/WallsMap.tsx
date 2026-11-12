@@ -76,9 +76,9 @@ function Legend({
   return (
     <div className="flex items-center gap-[3px]">
       {line ? (
-        <span className="w-[11px]" style={{ "border-top": `1px ${dashed ? "dashed" : "solid"} ${color}` }} />
+        <span className="w-[11px]" style={{ borderTop: `1px ${dashed ? "dashed" : "solid"} ${color}` }} />
       ) : (
-        <span className="w-2 h-2 rounded-[1px]" style={{ "background-color": color }} />
+        <span className="w-2 h-2 rounded-[1px]" style={{ backgroundColor: color }} />
       )}
       <div className="text-[7.5px] leading-1 text-fin-text-muted">{label}</div>
     </div>
@@ -283,7 +283,7 @@ export function WallsMapChart({
       style={{
         padding: "1px 4px",
         color: pressed ? palette.TEXT_COLOR : palette.TEXT_MUTED,
-        "background-color": pressed ? palette.SURFACE_ALT : "transparent",
+        backgroundColor: pressed ? palette.SURFACE_ALT : "transparent",
         border: `1px solid ${pressed ? palette.BORDER : "transparent"}`,
       }}
     >
@@ -325,7 +325,7 @@ export function WallsMapChart({
               data-testid="walls-map-regime"
               className="px-1 py-[1px] border rounded-sm text-[8px] font-bold leading-[1.4]"
               style={{
-                "border-color": regime === "SHORT" ? palette.NEGATIVE : palette.POSITIVE,
+                borderColor: regime === "SHORT" ? palette.NEGATIVE : palette.POSITIVE,
                 color: regime === "SHORT" ? palette.NEGATIVE : palette.POSITIVE,
               }}
             >
@@ -350,7 +350,7 @@ export function WallsMapChart({
                 padding: "1px 5px",
                 color: palette.PRIMARY,
                 border: `1px solid ${palette.PRIMARY}`,
-                "border-radius": 4,
+                borderRadius: 4,
               }}
             >
               LIVE
@@ -547,7 +547,7 @@ export function WallsMapChart({
                   font-size={7}
                   font-weight={800}
                   fill={palette.NEGATIVE}
-                  style={{ "paint-order": "stroke", "stroke": palette.SURFACE, "stroke-width": 2 }}
+                  style={{ paintOrder: "stroke", "stroke": palette.SURFACE, strokeWidth: 2 }}
                 >
                   BREAK {fmtNum(event.wall)}
                 </text>
@@ -592,7 +592,7 @@ export function WallsMapChart({
               font-size={9}
               font-weight={tag ? 800 : 500}
               fill={tag ? tagColor : palette.TEXT_COLOR}
-              style={{ "font-variant-numeric": "tabular-nums" }}
+              style={{ fontVariantNumeric: "tabular-nums" }}
             >
               {fmtNum(strike)}
               {tag ? <tspan dx={2} font-size={6.5} fill={tagColor}>{tag}</tspan> : null}

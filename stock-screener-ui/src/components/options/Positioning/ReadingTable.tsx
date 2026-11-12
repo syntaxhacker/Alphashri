@@ -31,12 +31,12 @@ function SplitValue(props: { data: PositioningData }) {
   const bullish = Math.abs(props.data.split.bullish_cr ?? 0);
   const gross = bearish + bullish;
   return (
-    <Box style={{ display: "flex", "flex-direction": "column", gap: "4px", "min-width": "160px" }}>
-      <Box style={{ display: "flex", width: "100%", height: "8px", "border-radius": "1px", overflow: "hidden" }}>
-        <Box style={{ width: `${props.data.split.bearish_pct}%`, "background-color": NEGATIVE }} />
-        <Box style={{ width: `${props.data.split.bullish_pct}%`, "background-color": POSITIVE }} />
+    <Box style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: "160px" }}>
+      <Box style={{ display: "flex", width: "100%", height: "8px", borderRadius: "1px", overflow: "hidden" }}>
+        <Box style={{ width: `${props.data.split.bearish_pct}%`, backgroundColor: NEGATIVE }} />
+        <Box style={{ width: `${props.data.split.bullish_pct}%`, backgroundColor: POSITIVE }} />
       </Box>
-      <Text size="xs" ta="right" style={{ "font-variant-numeric": "tabular-nums" }}>
+      <Text size="xs" ta="right" style={{ fontVariantNumeric: "tabular-nums" }}>
         {formatCr(gross)} · 100%
       </Text>
     </Box>

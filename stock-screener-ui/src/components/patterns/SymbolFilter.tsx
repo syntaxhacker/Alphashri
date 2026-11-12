@@ -154,7 +154,7 @@ export function SymbolFilter(props: SymbolFilterProps) {
                     aria-label={`Remove ${symbol}`}
                     data-testid={`patterns-symbol-remove-${symbol}`}
                     onClick={() => removeSymbol(symbol)}
-                    class="inline-flex h-4 w-4 items-center justify-center rounded-full text-fin-text-muted transition-colors hover:bg-fin-surface-alt hover:text-fin-text"
+                    className="inline-flex h-4 w-4 items-center justify-center rounded-full text-fin-text-muted transition-colors hover:bg-fin-surface-alt hover:text-fin-text"
                   >
                     <IconX size={8} />
                   </button>

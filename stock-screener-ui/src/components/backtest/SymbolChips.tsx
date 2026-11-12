@@ -95,7 +95,7 @@ export function SymbolChips({
                 variant="outline"
                 size="sm"
                 className="symbol-chip"
-                style={{ color: palette.TEXT, "border-color": palette.BORDER }}
+                style={{ color: palette.TEXT, borderColor: palette.BORDER }}
                 rightSection={<IconX size={10} onClick={() => handleRemoveSymbol(symbol)} />}
                 data-testid={`chip-${symbol}`}
               >

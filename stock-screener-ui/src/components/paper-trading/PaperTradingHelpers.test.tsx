@@ -164,7 +164,7 @@ vi.mock("../common/BadgeComponents", () => ({
 
 // Mock TradingDatePicker as a simple date input for test interactions
 vi.mock("../common/TradingDatePicker", () => ({
-  TradingDatePicker: ({ value, onChange, "data-testid": testId, placeholder, ...rest }: any) => (
+  TradingDatePicker: ({ value, onChange, dataTestid: testId, placeholder, ...rest }: any) => (
     <input
       type="text"
       data-testid={testId}

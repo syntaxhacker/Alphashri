@@ -16,9 +16,9 @@ export function ChainScrollActions(props: ChainScrollActionsProps) {
         position: "absolute",
         right: 20,
         bottom: 80,
-        "z-index": 100,
+        zIndex: 100,
         display: "flex",
-        "flex-direction": "column",
+        flexDirection: "column",
         gap: 8,
       }}
       data-testid="options-chain-scroll-actions"
@@ -43,7 +43,7 @@ export function ChainScrollActions(props: ChainScrollActionsProps) {
           size="xl"
           radius="xl"
           onClick={() => props.scrollToATM("smooth")}
-          style={{ "box-shadow": `0 4px 12px ${withAlpha(BLACK, 0.15)}` }}
+          style={{ boxShadow: `0 4px 12px ${withAlpha(BLACK, 0.15)}` }}
           className="scroll-action-btn scroll-atm-btn"
           data-testid="options-scroll-atm-btn"
         >

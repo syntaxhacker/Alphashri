@@ -36,7 +36,7 @@ export function getChartThemeColors(isDark: boolean, theme: UITheme | Record<str
       bgColor: isDark ? colors.dark[7] : t.white ?? CHART_BG,
       textColor: isDark ? (t.white ?? TEXT) : colors.gray[8],
       gridLineColor: isDark ? colors.dark[5] : colors.gray[2],
-      "border-color": isDark ? colors.dark[4] : colors.gray[3],
+      borderColor: isDark ? colors.dark[4] : colors.gray[3],
       mutedColor: isDark ? colors.dark[1] : colors.gray[6],
       positiveColor: POSITIVE,
       negativeColor: NEGATIVE,
@@ -53,7 +53,7 @@ export function getChartThemeColors(isDark: boolean, theme: UITheme | Record<str
     bgColor: isDark ? (bgPaper ?? bgDefault ?? BG) : (bgPaper ?? CHART_LIGHT_BG),
     textColor: isDark ? (textPrimary ?? TEXT) : (textPrimary ?? BG),
     gridLineColor: divider ?? (grey?.[700] ?? BORDER),
-    "border-color": divider ?? (grey?.[400] ?? BORDER),
+    borderColor: divider ?? (grey?.[400] ?? BORDER),
     mutedColor: textSecondary ?? (grey?.[500] ?? TEXT_MUTED),
     positiveColor: POSITIVE,
     negativeColor: NEGATIVE,
@@ -63,7 +63,7 @@ export function getChartThemeColors(isDark: boolean, theme: UITheme | Record<str
 export const CANDLESTICK_ITEM_STYLE = {
   color: BULLISH,
   color0: BEARISH,
-  "border-color": BULLISH,
+  borderColor: BULLISH,
   borderColor0: BEARISH,
 };
 

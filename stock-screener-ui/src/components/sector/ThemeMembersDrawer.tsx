@@ -89,12 +89,12 @@ export function ThemeMembersDrawer(props: ThemeMembersDrawerProps) {
         chart: (symbol: string) => `theme-member-chart-${symbol}`,
       }}
       textSx={{
-        title: { "font-size": 11 },
-        subtitle: { display: "block", "font-size": 9 },
-        description: { "font-size": 10 },
-        symbol: { "font-size": 10.5, "line-height": 1.15 },
-        loading: { "font-size": 10 },
-        empty: { display: "block", py: 2, px: 0.25, "font-size": 10 },
+        title: { fontSize: 11 },
+        subtitle: { display: "block", fontSize: 9 },
+        description: { fontSize: 10 },
+        symbol: { fontSize: 10.5, lineHeight: 1.15 },
+        loading: { fontSize: 10 },
+        empty: { display: "block", py: 2, px: 0.25, fontSize: 10 },
       }}
       footerLeft={
         <Text c="dimmed" truncate className="text-[9.5px]">

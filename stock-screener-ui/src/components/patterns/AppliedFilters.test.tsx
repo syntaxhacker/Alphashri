@@ -1,11 +1,16 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { UIProvider } from "@/ui";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { DEFAULT_PATTERN_FILTERS } from "@/state/chartPatterns";
 import type { PatternDef, PatternFilters } from "@/types/chartPatterns";
 import { AppliedFilters, buildAppliedFilterChips } from "./AppliedFilters";
+
+vi.mock("@/ui", async (importOriginal) => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const actual = await importOriginal<typeof import("@/ui")>();
+  return mockSolidUi(actual);
+});
 
 const PATTERNS: PatternDef[] = [
   { pattern_id: "double_bottom", name: "Double Bottom", family: "reversal", direction: "bullish", description: "" },
@@ -13,10 +18,6 @@ const PATTERNS: PatternDef[] = [
 
 function makeFilters(overrides: Partial<PatternFilters> = {}): PatternFilters {
   return { ...DEFAULT_PATTERN_FILTERS, ...overrides };
-}
-
-function r(ui: React.ReactElement) {
-  return render(ui, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
 }
 
 afterEach(() => cleanup());
@@ -208,15 +209,13 @@ describe("buildAppliedFilterChips", () => {
 
 describe("AppliedFilters", () => {
   test("renders nothing when no filters are applied", () => {
-    const { container } = r(
-      <AppliedFilters filters={makeFilters({ min_avg_volume_10d: null })} patterns={PATTERNS} setFilter={vi.fn()} resetFilters={vi.fn()} />,
+    const { container } = render(() =>       <AppliedFilters filters={makeFilters({ min_avg_volume_10d: null })} patterns={PATTERNS} setFilter={vi.fn()} resetFilters={vi.fn()} />,
     );
     expect(container).toBeEmptyDOMElement();
   });
 
   test("shows a chip per applied filter", () => {
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ direction: ["bullish"], quality: "strong", min_rr: 2 })}
         patterns={PATTERNS}
         setFilter={vi.fn()}
@@ -230,8 +229,7 @@ describe("AppliedFilters", () => {
 
   test("removing an array chip drops only that value", () => {
     const setFilter = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ direction: ["bullish", "bearish"] })}
         patterns={PATTERNS}
         setFilter={setFilter}
@@ -245,8 +243,7 @@ describe("AppliedFilters", () => {
 
   test("removing a scalar chip clears it", () => {
     const setFilter = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ quality: "strong" })}
         patterns={PATTERNS}
         setFilter={setFilter}
@@ -260,8 +257,7 @@ describe("AppliedFilters", () => {
 
   test("Clear all resets every filter", () => {
     const resetFilters = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ status: ["failed"] })}
         patterns={PATTERNS}
         setFilter={vi.fn()}
@@ -274,8 +270,7 @@ describe("AppliedFilters", () => {
 
   test("clicking the trendlines chip resets the view to both", () => {
     const setFilter = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ trendlines: "none" })}
         patterns={PATTERNS}
         setFilter={setFilter}
@@ -289,8 +284,7 @@ describe("AppliedFilters", () => {
   });
 
   test("shows the TLS/TLR trendline labels", () => {
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ trendlines: "support" })}
         patterns={PATTERNS}
         setFilter={vi.fn()}
@@ -299,8 +293,7 @@ describe("AppliedFilters", () => {
     );
     expect(screen.getByText("Trendlines: TLS only")).toBeInTheDocument();
     cleanup();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ trendlines: "resistance" })}
         patterns={PATTERNS}
         setFilter={vi.fn()}
@@ -311,8 +304,7 @@ describe("AppliedFilters", () => {
   });
 
   test("shows one chip per active filter across all groups", () => {
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({
           family: ["reversal"],
           pattern_id: ["double_bottom"],
@@ -356,8 +348,7 @@ describe("AppliedFilters", () => {
 
   test("removing family / pattern / status chips drops only that value", () => {
     const setFilter = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({
           family: ["reversal", "continuation"],
           pattern_id: ["double_bottom"],
@@ -398,8 +389,7 @@ describe("AppliedFilters", () => {
     ["max_52w_gap", "patterns-applied-filter-max_52w_gap", "max_52w_gap", null],
   ])("removing the %s chip clears it", (_name, testId, key, next) => {
     const setFilter = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({
           formed_within_bars: 5,
           volume_confirmed: true,
@@ -422,8 +412,7 @@ describe("AppliedFilters", () => {
 
   test("removing the sort chip resets to confidence", () => {
     const setFilter = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ sort: "newest" })}
         patterns={PATTERNS}
         setFilter={setFilter}
@@ -440,8 +429,7 @@ describe("AppliedFilters", () => {
 
   test("removing the range-pos chip clears it", () => {
     const setFilter = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ min_range_pos: 80 })}
         patterns={PATTERNS}
         setFilter={setFilter}
@@ -459,8 +447,7 @@ describe("AppliedFilters", () => {
 
   test("shows and removes the score and breakout chips", () => {
     const setFilter = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ min_confidence: 70, min_breakout_score: 60 })}
         patterns={PATTERNS}
         setFilter={setFilter}
@@ -485,8 +472,7 @@ describe("AppliedFilters", () => {
 
   test("removing the range_pos sort chip resets to confidence", () => {
     const setFilter = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ sort: "range_pos" })}
         patterns={PATTERNS}
         setFilter={setFilter}
@@ -503,8 +489,7 @@ describe("AppliedFilters", () => {
   });
 
   test("groups the volume chips under one label (no repeated prefix)", () => {
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ min_rel_volume: 1.5, min_volume_m: 5 })}
         patterns={PATTERNS}
         setFilter={vi.fn()}
@@ -518,8 +503,7 @@ describe("AppliedFilters", () => {
   });
 
   test("does not render the default 10d avg volume floor as a removable chip", () => {
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters()}
         patterns={PATTERNS}
         setFilter={vi.fn()}
@@ -536,8 +520,7 @@ describe("AppliedFilters", () => {
     ["min_avg_volume_10d", "patterns-applied-filter-min_avg_volume_10d", "min_avg_volume_10d", null],
   ])("removing the %s chip clears it", (_name, testId, key, next) => {
     const setFilter = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ min_rel_volume: 1.5, min_volume_m: 5, min_avg_volume_10d: 250 })}
         patterns={PATTERNS}
         setFilter={setFilter}

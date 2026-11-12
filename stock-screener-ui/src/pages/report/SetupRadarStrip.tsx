@@ -45,7 +45,7 @@ function SetupRadarStripInner({ read, preMove }: { read: SetupRead; preMove?: Pr
             style={{
               padding: "1px 4px",
               border: `1px solid ${tone}`,
-              "background-color": bg,
+              backgroundColor: bg,
               color: tone,
             }}
           >
@@ -64,9 +64,9 @@ function SetupRadarStripInner({ read, preMove }: { read: SetupRead; preMove?: Pr
           style={{
             padding: "1px 4px",
             border: `1px solid ${preMove.state === "armed" ? palette.POSITIVE : palette.WARNING}`,
-            "background-color": preMove.state === "armed" ? "rgba(63,185,80,0.10)" : "transparent",
+            backgroundColor: preMove.state === "armed" ? "rgba(63,185,80,0.10)" : "transparent",
             color: preMove.state === "armed" ? palette.POSITIVE : palette.WARNING,
-            "margin-left": "6px",
+            marginLeft: "6px",
           }}
         >
           PRE {preMove.score}/{preMove.max} {preMove.state === "armed" ? "ARMED" : "WATCH"}
@@ -75,7 +75,7 @@ function SetupRadarStripInner({ read, preMove }: { read: SetupRead; preMove?: Pr
       <span
         data-testid="nifty-setup-score"
         className="font-black shrink-0 text-[10px]"
-        style={{ "margin-left": preMove && preMove.state !== "quiet" ? "6px" : "auto", color: STATE_COLOR[read.state] }}
+        style={{ marginLeft: preMove && preMove.state !== "quiet" ? "6px" : "auto", color: STATE_COLOR[read.state] }}
       >
         {read.score}/{read.gates.length} · {STATE_LABEL[read.state]}
       </span>

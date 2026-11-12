@@ -1,6 +1,6 @@
 import { Show, createEffect, For, createMemo, createSignal, onCleanup } from "solid-js";
 import { Stack, Button, CopyButton } from "@/ui";
-import { IconCopy, IconCheck } from "@tabler/icons-react";
+import { IconCopy, IconCheck } from "./icons";
 import { ScreenerEmpty } from "./ScreenerEmpty";
 import { ScreenerLoading } from "./ScreenerLoading";
 import { ScreenerErrorPanel } from "./ScreenerErrorPanel";

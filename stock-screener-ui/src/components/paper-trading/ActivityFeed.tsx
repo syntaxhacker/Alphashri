@@ -24,7 +24,7 @@ export function ActivityFeed() {
       size: 72,
       meta: { align: "left" },
       cell: ({ row }) => (
-        <Text className="paper-activity-time font-mono tabular-nums" size="xs" c="dimmed" style={{ "font-size": 11 }}>
+        <Text className="paper-activity-time font-mono tabular-nums" size="xs" c="dimmed" style={{ fontSize: 11 }}>
           {formatTimeOnly(row.original.timestamp)}
         </Text>
       ),
@@ -44,7 +44,7 @@ export function ActivityFeed() {
         const badgeColor = isEntry ? "primary" : isExit ? (isProfit ? "success" : "error") : "secondary";
         const label = isEntry ? "ENTRY" : isExit ? "EXIT" : ev.type.toUpperCase();
         return (
-          <Badge className="paper-activity-type" size="xs" color={badgeColor as "primary" | "success" | "error" | "secondary"} variant="light" style={{ "text-transform": "none" }}>
+          <Badge className="paper-activity-type" size="xs" color={badgeColor as "primary" | "success" | "error" | "secondary"} variant="light" style={{ textTransform: "none" }}>
             {label}
           </Badge>
         );
@@ -57,7 +57,7 @@ export function ActivityFeed() {
       size: 88,
       meta: { align: "left" },
       cell: ({ row }) => (
-        <Text className="paper-activity-symbol font-mono tabular-nums" fw={600} size="xs" c={palette.PRIMARY} style={{ "font-size": 11 }}>
+        <Text className="paper-activity-symbol font-mono tabular-nums" fw={600} size="xs" c={palette.PRIMARY} style={{ fontSize: 11 }}>
           {row.original.symbol}
         </Text>
       ),
@@ -69,7 +69,7 @@ export function ActivityFeed() {
       meta: { align: "center" },
       accessorFn: (row: ActivityEvent) => row.direction || row.side,
       cell: ({ row }) => (
-        <Text className="paper-activity-side" size="xs" c="dimmed" style={{ "font-size": 11 }}>
+        <Text className="paper-activity-side" size="xs" c="dimmed" style={{ fontSize: 11 }}>
           {row.original.direction || row.original.side}
         </Text>
       ),
@@ -82,7 +82,7 @@ export function ActivityFeed() {
       cell: ({ row }) => {
         const ev = row.original;
         return (
-          <Text className="paper-activity-entry font-mono tabular-nums" size="xs" c={palette.TEXT} fw={500} style={{ "font-size": 11 }}>
+          <Text className="paper-activity-entry font-mono tabular-nums" size="xs" c={palette.TEXT} fw={500} style={{ fontSize: 11 }}>
             {ev.quantity} @ ₹{ev.entry_price?.toFixed(1) ?? "-"}
           </Text>
         );
@@ -97,11 +97,11 @@ export function ActivityFeed() {
         const ev = row.original;
         const isExit = ev.type === "trade_exit" || !!ev.exit_price;
         return isExit ? (
-          <Text className="paper-activity-exit font-mono tabular-nums" size="xs" c={palette.TEXT} fw={600} style={{ "font-size": 11 }}>
+          <Text className="paper-activity-exit font-mono tabular-nums" size="xs" c={palette.TEXT} fw={600} style={{ fontSize: 11 }}>
             → ₹{ev.exit_price?.toFixed(1)}
           </Text>
         ) : (
-          <Text size="xs" c="dimmed" style={{ "font-size": 11 }}>
+          <Text size="xs" c="dimmed" style={{ fontSize: 11 }}>
             —
           </Text>
         );
@@ -116,11 +116,11 @@ export function ActivityFeed() {
       cell: ({ row }) => {
         const ev = row.original;
         const isExit = ev.type === "trade_exit" || !!ev.exit_price;
-        if (!isExit) return <Text size="xs" c="dimmed" style={{ "font-size": 11 }}>—</Text>;
+        if (!isExit) return <Text size="xs" c="dimmed" style={{ fontSize: 11 }}>—</Text>;
         const pnl = ev.net_pnl ?? ev.pnl ?? 0;
         const isProfit = pnl >= 0;
         return (
-          <Text className="paper-activity-pnl font-mono tabular-nums" size="xs" c={isProfit ? palette.POSITIVE : palette.NEGATIVE} fw={700} style={{ "font-size": 11 }}>
+          <Text className="paper-activity-pnl font-mono tabular-nums" size="xs" c={isProfit ? palette.POSITIVE : palette.NEGATIVE} fw={700} style={{ fontSize: 11 }}>
             {isProfit ? "+" : ""}₹{pnl.toFixed(0)} {ev.pnl_pct != null ? `(${ev.pnl_pct.toFixed(2)}%)` : ""}
           </Text>
         );
@@ -134,11 +134,11 @@ export function ActivityFeed() {
       accessorKey: "strategy_name",
       cell: ({ row }) =>
         row.original.strategy_name ? (
-          <Badge className="paper-activity-strategy" size="xs" variant="outline" color="secondary" style={{ "text-transform": "none" }}>
+          <Badge className="paper-activity-strategy" size="xs" variant="outline" color="secondary" style={{ textTransform: "none" }}>
             {row.original.strategy_name}
           </Badge>
         ) : (
-          <Text size="xs" c="dimmed" style={{ "font-size": 11 }}>
+          <Text size="xs" c="dimmed" style={{ fontSize: 11 }}>
             —
           </Text>
         ),
@@ -150,7 +150,7 @@ export function ActivityFeed() {
       meta: { align: "left" },
       enableSorting: false,
       cell: ({ row }) => (
-        <Text className="paper-activity-reason" size="xs" c="dimmed" style={{ "font-size": 11 }} truncate>
+        <Text className="paper-activity-reason" size="xs" c="dimmed" style={{ fontSize: 11 }} truncate>
           {row.original.exit_reason || "—"}
         </Text>
       ),

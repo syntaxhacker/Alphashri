@@ -175,7 +175,7 @@ export function PatternImageManager() {
                       aria-label={`Delete image for ${pattern.name}`}
                       data-testid={`pattern-image-delete-${pattern.id}`}
                       onClick={() => void handleDelete(pattern.id)}
-                      class="inline-flex size-7 items-center justify-center rounded text-white/80 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="inline-flex size-7 items-center justify-center rounded text-white/80 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <IconTrash size={15} />
                     </button>

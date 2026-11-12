@@ -68,7 +68,7 @@ vi.mock("../chartUtils", () => ({
     bgColor: CHART_BG,
     textColor: CHART_TEXT,
     mutedColor: CHART_MUTED,
-    "border-color": CHART_BORDER,
+    borderColor: CHART_BORDER,
     gridLineColor: CHART_SPLIT,
     positiveColor: POSITIVE,
     negativeColor: NEGATIVE,
@@ -142,7 +142,7 @@ describe("buildChartOption", () => {
       expect(result.title).toEqual({
         text: "My Chart",
         left: "center",
-        textStyle: { color: CHART_TEXT, "font-size": 14 },
+        textStyle: { color: CHART_TEXT, fontSize: 14 },
       });
     });
 
@@ -158,10 +158,10 @@ describe("buildChartOption", () => {
       expect(result.tooltip).toEqual({
         trigger: "axis",
         axisPointer: { type: "cross", lineStyle: { color: CHART_CROSSHAIR } },
-        "background-color": CHART_LIGHT_OVERLAY,
-        "border-color": CHART_BORDER,
+        backgroundColor: CHART_LIGHT_OVERLAY,
+        borderColor: CHART_BORDER,
         borderWidth: 1,
-        textStyle: { color: CHART_TEXT, "font-size": "12px" },
+        textStyle: { color: CHART_TEXT, fontSize: "12px" },
         formatter: "tooltip HTML",
       });
     });

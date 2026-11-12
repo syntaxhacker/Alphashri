@@ -26,7 +26,7 @@ export function NotificationContainer() {
         bottom: 84,
         right: 16,
         width: "min(360px, calc(100vw - 32px))",
-        "max-height": "calc(100vh - 180px)",
+        maxHeight: "calc(100vh - 180px)",
       }}
     >
       {notifications.map((notification) => (

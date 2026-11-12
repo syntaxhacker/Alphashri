@@ -287,7 +287,7 @@ export function WatchlistScan2(props: WatchlistScan2Props) {
           </Group>
         </Group>
 
-        <ToolbarRow gap={32} style={{ "padding-left": "4px", "padding-right": "4px" }}>
+        <ToolbarRow gap={32} style={{ paddingLeft: "4px", paddingRight: "4px" }}>
           <SegmentedControl
             size="xs"
             value={statusFilter()}
@@ -336,14 +336,14 @@ export function WatchlistScan2(props: WatchlistScan2Props) {
               const isNew = isNewSignal(row, props.snapshot?.timestamp ?? null);
               return {
                 cursor: "pointer",
-                "background-color": isSelected
+                backgroundColor: isSelected
                   ? alpha(palette.PRIMARY, 0.08)
                   : isNew
                     ? alpha(palette.POSITIVE, 0.08)
                     : undefined,
                 borderLeftWidth: "3px",
                 borderLeftStyle: "solid",
-                "border-left-color": STATUS_BORDER_COLOR[row.status] ?? STATUS_BORDER_COLOR.skipped,
+                borderLeftColor: STATUS_BORDER_COLOR[row.status] ?? STATUS_BORDER_COLOR.skipped,
               };
             }}
             getRowTestId={(row) => `scan-row-${row.symbol}`}

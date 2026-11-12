@@ -96,7 +96,7 @@ function NiftyVolumeProfileInner({
           )}
         </Box>
 
-        <Box className="w-full min-w-0" style={{ height: 220, "overflow-y": "auto" }}>
+        <Box className="w-full min-w-0" style={{ height: 220, overflowY: "auto" }}>
           <svg
             data-testid={testId}
             viewBox={`0 0 ${SVG_W} ${svgH}`}
@@ -238,7 +238,7 @@ function Legend({ color, label, outline = false }: { color: string; label: strin
         aria-hidden
         className="w-[10px] h-[4px] rounded-[4px]"
         style={{
-          "background-color": outline ? "transparent" : color,
+          backgroundColor: outline ? "transparent" : color,
           border: outline ? `1px solid ${color}` : undefined,
         }}
       />

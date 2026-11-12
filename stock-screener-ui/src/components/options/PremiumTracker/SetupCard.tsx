@@ -60,12 +60,12 @@ export function SetupCard(props: SetupCardProps) {
       data-testid={`setup-card-${setup().id}`}
       w={460}
       style={{
-        "flex-shrink": 0,
+        flexShrink: 0,
         border: `1px solid ${props.glow ? palette.WARNING : palette.BORDER}`,
-        "border-radius": 1,
+        borderRadius: 1,
         padding: 8,
         display: "flex",
-        "flex-direction": "column",
+        flexDirection: "column",
         gap: 8,
       }}
     >

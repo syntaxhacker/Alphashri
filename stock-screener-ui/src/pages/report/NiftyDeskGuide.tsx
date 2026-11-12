@@ -88,7 +88,7 @@ export function NiftyDeskGuide({ open: openProp, onOpenChange }: NiftyDeskGuideP
         aria-label="Desk guide"
         title="Desk guide"
         onClick={() => setOpen(true)}
-        style={{ "min-width": 0, "padding-left": "4px", "padding-right": "4px" }}
+        style={{ minWidth: 0, paddingLeft: "4px", paddingRight: "4px" }}
       >
         <IconHelpCircle size={14} />
       </Button>
@@ -113,24 +113,24 @@ export function NiftyDeskGuide({ open: openProp, onOpenChange }: NiftyDeskGuideP
               data-testid={`nifty-help-entry-${entry.term.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`}
               className={`min-w-0 ${i % 3 !== 0 ? "min-[900px]:border-l min-[900px]:border-l-[var(--term-border)] min-[900px]:pl-2" : ""}`}
               style={{
-                "padding-top": "8px",
-                "border-top": `1px solid ${palette.TERM_BORDER}`,
+                paddingTop: "8px",
+                borderTop: `1px solid ${palette.TERM_BORDER}`,
               }}
             >
               <div
                 style={{
-                  "font-size": "10px",
-                  "font-weight": 700,
-                  "line-height": 1.2,
-                  "letter-spacing": "0.08em",
-                  "text-transform": "uppercase",
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  lineHeight: 1.2,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
                   color: palette.TEXT_MUTED,
-                  "margin-bottom": "3px",
+                  marginBottom: "3px",
                 }}
               >
                 {entry.term}
               </div>
-              <div style={{ "font-size": "11px", "line-height": 1.35, color: palette.TEXT }}>
+              <div style={{ fontSize: "11px", lineHeight: 1.35, color: palette.TEXT }}>
                 {entry.text}
               </div>
             </Box>

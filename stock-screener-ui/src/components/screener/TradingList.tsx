@@ -1,6 +1,6 @@
 import { createSignal, Show } from "solid-js";
 import { Textarea, Group, Text, ActionIcon, Collapse, CopyButton } from "@/ui";
-import { IconCopy, IconCheck, IconChevronDown, IconChevronUp } from "@tabler/icons-react";
+import { IconCopy, IconCheck, IconChevronDown, IconChevronUp } from "./icons";
 import { CompactPanel } from "../common/compact";
 
 interface TradingListProps {

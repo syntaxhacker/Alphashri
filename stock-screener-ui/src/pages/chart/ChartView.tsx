@@ -40,7 +40,7 @@ function ChartMessage(props: ChartMessageProps) {
         {props.title}
       </Text>
       <Show when={props.detail}>
-        <Text size="xs" c="dimmed" style={{ "text-align": "center", "max-width": "520px" }}>
+        <Text size="xs" c="dimmed" style={{ textAlign: "center", maxWidth: "520px" }}>
           {props.detail}
         </Text>
       </Show>
@@ -90,7 +90,7 @@ function NoPatternsPanel(props: {
       <Text size="sm" fw={600}>
         No patterns detected
       </Text>
-      <Text size="xs" c="dimmed" style={{ "overflow-wrap": "anywhere" }}>
+      <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
         {props.symbol} has no detected pattern on {props.timeframe}. Try another timeframe.
       </Text>
       <Show when={alternatives().length > 0}>

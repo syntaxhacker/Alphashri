@@ -78,7 +78,7 @@ export function SectorBetaChart(props: {
     const names = sectors.map((s) => s.name);
     const betas = sectors.map((s) => s.beta_vs_index);
     return {
-      "background-color": "transparent",
+      backgroundColor: "transparent",
       tooltip: {
         trigger: "axis" as const,
         formatter: (p: any) => `${p.name}<br/>Beta: ${(p.value ?? 0).toFixed(3)}`,
@@ -87,7 +87,7 @@ export function SectorBetaChart(props: {
       xAxis: {
         type: "category" as const,
         data: names,
-        axisLabel: { rotate: 45, "font-size": 10, color: colors.axisLabel },
+        axisLabel: { rotate: 45, fontSize: 10, color: colors.axisLabel },
         axisLine: { lineStyle: { color: colors.axisLine } },
       },
       yAxis: {
@@ -107,7 +107,7 @@ export function SectorBetaChart(props: {
           label: {
             show: true,
             position: "top" as const,
-            "font-size": 10,
+            fontSize: 10,
             color: (p: any) => (p.value >= 1 || p.value <= 0 ? CREAM : BROWN_DARK),
             formatter: (p: any) => p.value.toFixed(2),
           },
@@ -149,7 +149,7 @@ export function RotationTimeline(props: {
     const changes = sorted.map((s) => s.rank_change_1m);
     const barColors = changes.map((c) => (c > 0 ? SECTOR_STRONG_GREEN : c < 0 ? SECTOR_STRONG_RED : TEXT_MUTED));
     return {
-      "background-color": "transparent",
+      backgroundColor: "transparent",
       tooltip: {
         trigger: "axis" as const,
         formatter: (p: any) => `${p.name}<br/>Rank Change: ${p.value > 0 ? "+" : ""}${p.value}`,
@@ -158,7 +158,7 @@ export function RotationTimeline(props: {
       xAxis: {
         type: "category" as const,
         data: names,
-        axisLabel: { rotate: 45, "font-size": 10, color: colors.axisLabel },
+        axisLabel: { rotate: 45, fontSize: 10, color: colors.axisLabel },
         axisLine: { lineStyle: { color: colors.axisLine } },
       },
       yAxis: {
@@ -176,7 +176,7 @@ export function RotationTimeline(props: {
           label: {
             show: true,
             position: "top" as const,
-            "font-size": 10,
+            fontSize: 10,
             color: CREAM,
             formatter: (p: any) => (p.value > 0 ? `+${p.value}` : p.value.toString()),
           },

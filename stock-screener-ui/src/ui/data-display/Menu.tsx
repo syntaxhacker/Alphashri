@@ -45,15 +45,15 @@ function menuPosition(anchorEl: HTMLElement, position?: string, offset = 0): { t
       style.left = centerX;
       style.transform = "translateX(-50%)";
       break;
-    case "top-start":
+    case topStart:
       style.bottom = aboveBottom;
       style.left = `${rect.left}px`;
       break;
-    case "top-end":
+    case topEnd:
       style.bottom = aboveBottom;
       style.right = `${vpW - rect.right}px`;
       break;
-    case "bottom-end":
+    case bottomEnd:
       style.top = `${rect.bottom + offset}px`;
       style.right = `${vpW - rect.right}px`;
       break;
@@ -256,7 +256,7 @@ export function MenuDropdown(props: UIMenuDropdownProps) {
         )}
         style={{
           ...posStyle(),
-          "box-shadow": shadow() ?? DEFAULT_SHADOW,
+          boxShadow: shadow() ?? DEFAULT_SHADOW,
           ...(known.style as Record<string, string | undefined>),
         }}
         data-testid={known["data-testid"]}
@@ -344,7 +344,7 @@ export function MenuItem(props: UIMenuItemProps) {
   );
 }
 
-function MenuDivider({ className, style, "data-testid": testId, ...props }: any) {
+function MenuDivider({ className, style, dataTestid: testId, ...props }: any) {
   return (
     <hr
       role="separator"

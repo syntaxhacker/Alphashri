@@ -1,6 +1,6 @@
 import { Show } from "solid-js";
 import { Box, Text, ActionIcon, NumberInput, Select, Tooltip, SegmentedControl, ToolbarRow } from "@/ui";
-import { IconRefresh } from "@tabler/icons-react";
+import { IconRefresh } from "./icons";
 
 type ScreenerViewMode = "table" | "heatmap";
 
@@ -36,7 +36,7 @@ export function ScreenerHeader(props: ScreenerHeaderProps) {
           </Text>
         </Box>
       </Show>
-      <ToolbarRow data-testid="header-controls" gap={8} wrap={false} style={{ "flex-shrink": 0 }}>
+      <ToolbarRow data-testid="header-controls" gap={8} wrap={false} style={{ flexShrink: 0 }}>
           <Tooltip label="Refresh">
             <ActionIcon
               variant="subtle"

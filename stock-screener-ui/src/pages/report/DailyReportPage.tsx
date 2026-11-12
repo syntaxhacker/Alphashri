@@ -332,7 +332,7 @@ export function DailyReportPage(props: DailyReportPageProps) {
 
   return (
     <div data-testid="daily-report" class="flex flex-col gap-1 min-w-0 w-full flex-1 tabular-nums">
-      <ToolbarRow gap={8} data-testid="daily-report-toolbar" style={{ "min-height": "36px", position: "sticky", top: 0, "z-index": 10, "background-color": "var(--color-fin-surface)" }}>
+      <ToolbarRow gap={8} data-testid="daily-report-toolbar" style={{ minHeight: "36px", position: "sticky", top: 0, zIndex: 10, backgroundColor: "var(--color-fin-surface)" }}>
         <Text size="sm" fw={700} span data-testid="report-title" className="whitespace-nowrap">
           Daily Report
         </Text>
@@ -443,7 +443,7 @@ export function DailyReportPage(props: DailyReportPageProps) {
                         </For>
                       </div>
                     </div>
-                    <div hidden={tab() !== "scan"} data-testid="report-tab-panel-scan" style={{ "padding-top": "4px", "padding-bottom": "4px" }}>
+                    <div hidden={tab() !== "scan"} data-testid="report-tab-panel-scan" style={{ paddingTop: "4px", paddingBottom: "4px" }}>
                       <div class="flex flex-col gap-1 min-w-0">
                         <Show
                           when={dailyLoading()}
@@ -511,7 +511,7 @@ export function DailyReportPage(props: DailyReportPageProps) {
                         </Show>
                       </div>
                     </div>
-                    <div hidden={tab() !== "moves"} data-testid="report-tab-panel-moves" style={{ "padding-top": "4px", "padding-bottom": "4px" }}>
+                    <div hidden={tab() !== "moves"} data-testid="report-tab-panel-moves" style={{ paddingTop: "4px", paddingBottom: "4px" }}>
                       <div class="flex flex-col gap-1 min-w-0">
                         <Show
                           when={dailyLoading()}
@@ -544,7 +544,7 @@ export function DailyReportPage(props: DailyReportPageProps) {
                         </Show>
                       </div>
                     </div>
-                    <div hidden={tab() !== "breakouts"} data-testid="report-tab-panel-breakouts" style={{ "padding-top": "4px", "padding-bottom": "4px" }}>
+                    <div hidden={tab() !== "breakouts"} data-testid="report-tab-panel-breakouts" style={{ paddingTop: "4px", paddingBottom: "4px" }}>
                       <div class="flex flex-col gap-1 min-w-0">
                         <Show
                           when={breakoutLoading()}
@@ -617,7 +617,7 @@ export function DailyReportPage(props: DailyReportPageProps) {
                         </Show>
                       </div>
                     </div>
-                    <div hidden={tab() !== "followthrough"} data-testid="report-tab-panel-followthrough" style={{ "padding-top": "4px", "padding-bottom": "4px" }}>
+                    <div hidden={tab() !== "followthrough"} data-testid="report-tab-panel-followthrough" style={{ paddingTop: "4px", paddingBottom: "4px" }}>
                       <div class="flex flex-col gap-1 min-w-0">
                         <ReportDeliveryStrip data={delivery()} loading={deliveryLoading()} error={deliveryError()} onOpenSymbol={props.onOpenSymbol} />
                         <Show
@@ -669,7 +669,7 @@ export function DailyReportPage(props: DailyReportPageProps) {
                         </Show>
                       </div>
                     </div>
-                    <div hidden={tab() !== "events"} data-testid="report-tab-panel-events" style={{ "padding-top": "4px", "padding-bottom": "4px" }}>
+                    <div hidden={tab() !== "events"} data-testid="report-tab-panel-events" style={{ paddingTop: "4px", paddingBottom: "4px" }}>
                       <div class="flex flex-col gap-1 min-w-0">
                         <EventWatch universe={universe()} daily={daily()} onOpenSymbol={props.onOpenSymbol} />
                         <ReportEventsStrip data={events()} loading={eventsLoading()} error={eventsError()} onOpenSymbol={props.onOpenSymbol} />

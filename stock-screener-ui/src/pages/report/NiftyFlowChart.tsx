@@ -125,7 +125,7 @@ const NiftyFlowChartInner = function NiftyFlowChart({ series, height = 64, showA
   if (points.length === 0) {
     return (
       <Box data-testid="nifty-flowchart-empty" className="flex items-center justify-center" style={{ height }}>
-        <span style={{ "font-size": "9px", color: palette.TEXT_MUTED }}>no flow tape</span>
+        <span style={{ fontSize: "9px", color: palette.TEXT_MUTED }}>no flow tape</span>
       </Box>
     );
   }
@@ -154,7 +154,7 @@ const NiftyFlowChartInner = function NiftyFlowChart({ series, height = 64, showA
     <Box data-testid="nifty-flowchart" className="w-full min-w-0 relative">
       <span
         aria-hidden
-        style={{ position: "absolute", left: 0, top: 0, "font-size": "8px", "letter-spacing": "0.06em", color: palette.TEXT_MUTED, "pointer-events": "none" }}
+        style={{ position: "absolute", left: 0, top: 0, fontSize: "8px", letterSpacing: "0.06em", color: palette.TEXT_MUTED, pointerEvents: "none" }}
       >
         FLOW
       </span>
@@ -178,7 +178,7 @@ const NiftyFlowChartInner = function NiftyFlowChart({ series, height = 64, showA
       <span
         data-testid="nifty-flowchart-last"
         title={`${points[points.length - 1].t} · flow ${series.points[points.length - 1].net.toFixed(2)}`}
-        style={{ position: "absolute", right: 0, top: "2px", "font-size": "9px", "font-weight": 800, "font-family": palette.MONO, color: palette.PRIMARY, "white-space": "nowrap" }}
+        style={{ position: "absolute", right: 0, top: "2px", fontSize: "9px", fontWeight: 800, fontFamily: palette.MONO, color: palette.PRIMARY, whiteSpace: "nowrap" }}
       >
         {fmtFlow(points[points.length - 1].net)}
       </span>
@@ -188,22 +188,22 @@ const NiftyFlowChartInner = function NiftyFlowChart({ series, height = 64, showA
           className="absolute z-2"
           style={{
             top: 0, left: `${hoverPct}%`, transform: shift,
-            "padding-left": "4px", "padding-right": "4px", "padding-top": "1px", "padding-bottom": "1px",
-            "background-color": palette.TERM_HEADER,
-            border: `1px solid ${palette.TERM_BORDER}`, "border-radius": "3px",
-            "font-size": "9px", "font-family": palette.MONO, color: palette.TEXT, "white-space": "nowrap", "pointer-events": "none",
+            paddingLeft: "4px", paddingRight: "4px", paddingTop: "1px", paddingBottom: "1px",
+            backgroundColor: palette.TERM_HEADER,
+            border: `1px solid ${palette.TERM_BORDER}`, borderRadius: "3px",
+            fontSize: "9px", fontFamily: palette.MONO, color: palette.TEXT, whiteSpace: "nowrap", pointerEvents: "none",
           }}
         >
           {hoverPoint.t} · flow {fmtFlow(hoverPoint.net)} · {hoverPoint.regime ?? "—"} book Γ
         </Box>
       ) : null}
       {showAxis ? (
-        <Box data-testid="nifty-flowchart-axis" className="relative w-full" style={{ height: "12px", "margin-top": "1px", "pointer-events": "none" }}>
+        <Box data-testid="nifty-flowchart-axis" className="relative w-full" style={{ height: "12px", marginTop: "1px", pointerEvents: "none" }}>
           {axisTicks(points).map(({ i, t }) => {
             const pct = (xOf(i) / VB_W) * 100;
             const tr = pct > 92 ? "translateX(-100%)" : pct < 2 ? "none" : "translateX(-50%)";
             return (
-              <span key={`${t}-${i}`} style={{ position: "absolute", left: `${pct}%`, transform: tr, "font-size": "8px", "line-height": "12px", color: palette.TEXT_MUTED, "font-family": palette.MONO, "white-space": "nowrap" }}>
+              <span key={`${t}-${i}`} style={{ position: "absolute", left: `${pct}%`, transform: tr, fontSize: "8px", lineHeight: "12px", color: palette.TEXT_MUTED, fontFamily: palette.MONO, whiteSpace: "nowrap" }}>
                 {t}
               </span>
             );

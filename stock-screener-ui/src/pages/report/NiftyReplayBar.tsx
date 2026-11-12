@@ -20,11 +20,11 @@ export function replayTimeLabel(t: string): string {
 
 /** Human labels for the recorder's skip reasons (the gap journal). */
 const REPLAY_REASON_LABEL: Record<string, string> = {
-  "chain-failed": "chain fetch failed",
+  chainFailed: "chain fetch failed",
   timeout: "tick timed out",
-  "spot-rejected": "spot rejected",
-  "empty-chain": "empty chain",
-  "loop-error": "loop error",
+  spotRejected: "spot rejected",
+  emptyChain: "empty chain",
+  loopError: "loop error",
 };
 
 export interface ReplayReason {
@@ -99,16 +99,16 @@ const ReplayCoverageStrip = memo(function ReplayCoverageStrip({
       data-testid="nifty-replay-coverage-strip"
       title={title}
       className="flex overflow-hidden rounded-[0.75px]"
-      style={{ height: "6px", "background-color": palette.TERM_BORDER }}
+      style={{ height: "6px", backgroundColor: palette.TERM_BORDER }}
     >
       {segments.map((s) => (
         <Box
           key={s.key}
           className="min-w-0"
           style={{
-            "flex-grow": s.minutes,
-            "flex-basis": 0,
-            "background-color": s.missing ? palette.NEGATIVE : palette.PRIMARY,
+            flexGrow: s.minutes,
+            flexBasis: 0,
+            backgroundColor: s.missing ? palette.NEGATIVE : palette.PRIMARY,
             opacity: s.missing ? 0.45 : 0.9,
           }}
         />
@@ -201,11 +201,11 @@ export const NiftyReplayBar = memo(function NiftyReplayBar({
       className="flex items-center gap-4 whitespace-nowrap w-full max-w-full min-w-0 shrink-0 overflow-hidden"
       style={{
         height: "24px",
-        "border-top": `1px solid ${palette.TERM_BORDER}`,
-        "padding-left": "8px",
-        "padding-right": "8px",
-        "padding-top": 0,
-        "padding-bottom": 0,
+        borderTop: `1px solid ${palette.TERM_BORDER}`,
+        paddingLeft: "8px",
+        paddingRight: "8px",
+        paddingTop: 0,
+        paddingBottom: 0,
       }}
     >
       <Button
@@ -218,7 +218,7 @@ export const NiftyReplayBar = memo(function NiftyReplayBar({
       </Button>
       {/* Timeline: recorded minutes in blue, holes in red, so the size
           and position of every gap is visible before playback jumps it. */}
-      <Box className="flex flex-col" style={{ flex: 1, "min-width": "160px", gap: "3px" }}>
+      <Box className="flex flex-col" style={{ flex: 1, minWidth: "160px", gap: "3px" }}>
         <ReplayCoverageStrip segments={segments} title={stripTitle} />
         <Box
           component="input"
@@ -231,7 +231,7 @@ export const NiftyReplayBar = memo(function NiftyReplayBar({
           value={replayIndex}
           onChange={(e) => onScrub(Number(e.target.value))}
           className="w-full"
-          style={{ height: "12px", "accent-color": palette.PRIMARY }}
+          style={{ height: "12px", accentColor: palette.PRIMARY }}
         />
       </Box>
       <Text
@@ -240,13 +240,13 @@ export const NiftyReplayBar = memo(function NiftyReplayBar({
         c="dimmed"
         fw={600}
         span
-        style={{ "flex-shrink": 0, "font-variant-numeric": "tabular-nums" }}
+        style={{ flexShrink: 0, fontVariantNumeric: "tabular-nums" }}
       >
         {replayTimeLabel(replay.snapshots[replayIndex]?.t ?? "")}
       </Text>
       {coverage && (
         <>
-          <Text size="xs" span c="dimmed" style={{ "flex-shrink": 0 }} aria-hidden>
+          <Text size="xs" span c="dimmed" style={{ flexShrink: 0 }} aria-hidden>
             ·
           </Text>
           <Text
@@ -255,7 +255,7 @@ export const NiftyReplayBar = memo(function NiftyReplayBar({
             span
             fw={600}
             title={coverageTitle}
-            style={{ color: toneColor, "white-space": "nowrap", "flex-shrink": 0, "font-variant-numeric": "tabular-nums" }}
+            style={{ color: toneColor, whiteSpace: "nowrap", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}
           >
             {coverage.pct}% · {coverage.recorded}/{coverage.sessionMinutes}
           </Text>
@@ -267,7 +267,7 @@ export const NiftyReplayBar = memo(function NiftyReplayBar({
           size="xs"
           span
           title={`${coverage.stepMissing[replayIndex]} minutes skipped before this frame`}
-          style={{ color: palette.WARNING, "white-space": "nowrap", "flex-shrink": 0 }}
+          style={{ color: palette.WARNING, whiteSpace: "nowrap", flexShrink: 0 }}
         >
           +{coverage.stepMissing[replayIndex]}m
         </Text>
@@ -277,7 +277,7 @@ export const NiftyReplayBar = memo(function NiftyReplayBar({
         size="xs"
         span
         c="dimmed"
-        style={{ "flex-shrink": 0, "font-variant-numeric": "tabular-nums" }}
+        style={{ flexShrink: 0, fontVariantNumeric: "tabular-nums" }}
       >
         {replayIndex + 1}/{replay.snapshots.length}
       </Text>
@@ -290,10 +290,10 @@ export const NiftyReplayBar = memo(function NiftyReplayBar({
           title={reasonsTitle}
           aria-label={reasonsTitle}
           style={{
-            "white-space": "nowrap",
-            "flex-shrink": 0,
+            whiteSpace: "nowrap",
+            flexShrink: 0,
             cursor: "help",
-            "font-size": "9px",
+            fontSize: "9px",
             opacity: 0.72,
           }}
         >

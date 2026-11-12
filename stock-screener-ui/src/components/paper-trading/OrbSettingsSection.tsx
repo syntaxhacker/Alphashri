@@ -45,7 +45,7 @@ export function OrbSettingsSection(props: OrbSettingsSectionProps) {
           size="xs"
           style={{ width: "100%" }}
           error={slPctError() ? "Invalid stop loss percentage" : undefined}
-          errorProps={{ "data-testid": "config-sl-pct-error" }}
+          errorProps={{ dataTestid: "config-sl-pct-error" }}
         />
         <NumberInput
           label="Take Profit %"

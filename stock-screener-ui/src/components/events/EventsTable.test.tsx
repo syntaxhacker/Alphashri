@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen, within } from "@solidjs/testing-library";
+import { cleanup, render, screen, within, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import type { EventDTO } from "../../types/events";
 import { EventsTable } from "./EventsTable";

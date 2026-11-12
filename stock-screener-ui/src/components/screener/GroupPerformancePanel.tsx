@@ -1,5 +1,5 @@
 import { Show, Switch, Match, createEffect, createMemo, createSignal, For, onCleanup } from "solid-js";
-import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
+import { IconChevronLeft, IconChevronRight } from "./icons";
 import { ActionIcon, Box, Button, Paper, Select, Skeleton, Text, ToolbarRow } from "@/ui";
 import { cn } from "@/ui/cn";
 import { fetchSectorGroups } from "../../api/sector";
@@ -207,7 +207,7 @@ export function GroupPerformancePanel(props: GroupPerformancePanelProps) {
                               className="h-full rounded-sm"
                               style={{
                                 width: `${pct}%`,
-                                "background-color": positive ? "var(--color-fin-positive)" : "var(--color-fin-negative)",
+                                backgroundColor: positive ? "var(--color-fin-positive)" : "var(--color-fin-negative)",
                               }}
                             />
                           </Box>

@@ -1,10 +1,23 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@solidjs/testing-library";
+import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { BotConfigModal } from "./BotConfigModal2";
 import type { BotConfig, AvailableStrategy } from "../../types/bots";
+
+import { Router } from "@solidjs/router";
+import type { JSX } from "solid-js";
+
+// Local equivalent of the shared renderWithProviders test helper, fixed for
+// Solid: solid-router renders no plain children, so tests mount through the
+// router's `root` prop instead.
+function renderWithProviders(ui: () => JSX.Element) {
+  return render(() => (
+    <Router root={() => <UIProvider>{ui()}</UIProvider>} />
+  ));
+}
+
 
 const mockCreateBotAction = vi.fn();
 const mockUpdateBotAction = vi.fn();
@@ -176,66 +189,66 @@ describe("BotConfigModal", () => {
   };
 
   it("modal title is 'Create New Bot' when bot is null", () => {
-    renderWithProviders(<BotConfigModal {...defaultProps} />);
+    renderWithProviders(() => <BotConfigModal {...defaultProps} />);
     expect(screen.getByText("Create New Bot")).toBeInTheDocument();
   });
 
   it("modal title is 'Edit Bot' when bot is provided", () => {
-    renderWithProviders(<BotConfigModal {...defaultProps} bot={mockBot} />);
+    renderWithProviders(() => <BotConfigModal {...defaultProps} bot={mockBot} />);
     expect(screen.getByText("Edit Bot")).toBeInTheDocument();
   });
 
   it("form pre-fills bot data when editing", () => {
-    renderWithProviders(<BotConfigModal {...defaultProps} bot={mockBot} />);
+    renderWithProviders(() => <BotConfigModal {...defaultProps} bot={mockBot} />);
     expect(nameTextbox()).toHaveValue("Test Bot");
   });
 
   it("bot name input is required", () => {
-    renderWithProviders(<BotConfigModal {...defaultProps} />);
+    renderWithProviders(() => <BotConfigModal {...defaultProps} />);
     expect(nameTextbox()).toBeRequired();
   });
 
   it("active checkbox is shown", () => {
-    renderWithProviders(<BotConfigModal {...defaultProps} />);
+    renderWithProviders(() => <BotConfigModal {...defaultProps} />);
     expect(screen.getByTestId("bot-active-checkbox")).toBeInTheDocument();
   });
 
   it("max positions number input (1-20)", () => {
-    renderWithProviders(<BotConfigModal {...defaultProps} />);
+    renderWithProviders(() => <BotConfigModal {...defaultProps} />);
     const input = screen.getByTestId("max-positions-input");
     expect(input).toBeInTheDocument();
   });
 
   it("max capital % number input (10-100)", () => {
-    renderWithProviders(<BotConfigModal {...defaultProps} />);
+    renderWithProviders(() => <BotConfigModal {...defaultProps} />);
     const input = screen.getByTestId("max-capital-input");
     expect(input).toBeInTheDocument();
   });
 
   it("max daily loss % number input (1-20)", () => {
-    renderWithProviders(<BotConfigModal {...defaultProps} />);
+    renderWithProviders(() => <BotConfigModal {...defaultProps} />);
     const input = screen.getByTestId("max-daily-loss-input");
     expect(input).toBeInTheDocument();
   });
 
   it("strategy allocation rows are editable", () => {
-    renderWithProviders(<BotConfigModal {...defaultProps} bot={mockBot} />);
+    renderWithProviders(() => <BotConfigModal {...defaultProps} bot={mockBot} />);
     expect(screen.getByTestId("strategy-allocation-row")).toBeInTheDocument();
   });
 
   it("strategy select dropdown shows available strategies", () => {
-    renderWithProviders(<BotConfigModal {...defaultProps} />);
+    renderWithProviders(() => <BotConfigModal {...defaultProps} />);
     expect(screen.getByText("Strategy Allocations")).toBeInTheDocument();
   });
 
   it("add strategy button adds a new row", async () => {
-        renderWithProviders(<BotConfigModal {...defaultProps} />);
+        renderWithProviders(() => <BotConfigModal {...defaultProps} />);
     await fireEvent.click(screen.getByTestId("add-strategy-btn"));
     expect(screen.getAllByTestId("strategy-allocation-row")).toHaveLength(1);
   });
 
   it("remove strategy button removes a row", async () => {
-        renderWithProviders(<BotConfigModal {...defaultProps} bot={mockBot} />);
+        renderWithProviders(() => <BotConfigModal {...defaultProps} bot={mockBot} />);
     await fireEvent.click(screen.getByTestId("add-strategy-btn"));
     expect(screen.getAllByTestId("strategy-allocation-row")).toHaveLength(2);
     const removeBtn = screen.getByTestId("remove-strategy-btn-new-100");
@@ -244,21 +257,20 @@ describe("BotConfigModal", () => {
   });
 
   it("total allocation % is calculated and displayed", () => {
-    renderWithProviders(<BotConfigModal {...defaultProps} bot={mockBot} />);
+    renderWithProviders(() => <BotConfigModal {...defaultProps} bot={mockBot} />);
     expect(screen.getByText(/Total Allocation/)).toBeInTheDocument();
   });
 
   it("cancel button closes the modal", async () => {
         const onClose = vi.fn();
-    renderWithProviders(<BotConfigModal {...defaultProps} onClose={onClose} />);
+    renderWithProviders(() => <BotConfigModal {...defaultProps} onClose={onClose} />);
     await fireEvent.click(screen.getByTestId("cancel-bot-config-btn"));
     expect(onClose).toHaveBeenCalled();
   });
 
   it("submit calls createBotAction for new bot", async () => {
         const onClose = vi.fn();
-    renderWithProviders(
-      <BotConfigModal {...defaultProps} onClose={onClose} />,
+    renderWithProviders(() => <BotConfigModal {...defaultProps} onClose={onClose} />,
     );
     await fireEvent.input(nameTextbox(), { target: { value: "New Bot" } });
     await fireEvent.click(screen.getByTestId("save-bot-config-btn"));
@@ -269,8 +281,7 @@ describe("BotConfigModal", () => {
 
   it("submit calls updateBotAction for existing bot", async () => {
         const onClose = vi.fn();
-    renderWithProviders(
-      <BotConfigModal {...defaultProps} bot={mockBot} onClose={onClose} />,
+    renderWithProviders(() => <BotConfigModal {...defaultProps} bot={mockBot} onClose={onClose} />,
     );
     await fireEvent.click(screen.getByTestId("save-bot-config-btn"));
     await waitFor(() => {
@@ -279,7 +290,7 @@ describe("BotConfigModal", () => {
   });
 
   it("StrategyParams displays ORB-specific parameters", () => {
-    renderWithProviders(<BotConfigModal {...defaultProps} bot={mockBot} />);
+    renderWithProviders(() => <BotConfigModal {...defaultProps} bot={mockBot} />);
     expect(screen.getByText(/OR Window/)).toBeInTheDocument();
   });
 
@@ -296,7 +307,7 @@ describe("BotConfigModal", () => {
         },
       ],
     };
-    renderWithProviders(<BotConfigModal {...defaultProps} bot={bot52W} />);
+    renderWithProviders(() => <BotConfigModal {...defaultProps} bot={bot52W} />);
     expect(screen.getByText(/Entry Threshold/)).toBeInTheDocument();
     expect(screen.getByText(/Trailing/)).toBeInTheDocument();
     expect(screen.getByText(/Max Holding/)).toBeInTheDocument();
@@ -316,7 +327,7 @@ describe("BotConfigModal", () => {
         },
       ],
     };
-    renderWithProviders(<BotConfigModal {...defaultProps} bot={botEMACross} />);
+    renderWithProviders(() => <BotConfigModal {...defaultProps} bot={botEMACross} />);
     expect(screen.getByText(/EMA Fast/)).toBeInTheDocument();
     expect(screen.getByText(/EMA Slow/)).toBeInTheDocument();
   });

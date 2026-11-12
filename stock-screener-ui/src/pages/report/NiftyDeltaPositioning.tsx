@@ -213,7 +213,7 @@ const PositioningStatRow = memo(function PositioningStatRow({
       title={title}
       className="flex items-baseline justify-start gap-[6px] flex-[0_1_auto] px-[6px] py-[1px] min-w-0 rounded-[4px] tabular-nums"
       style={{
-        "background-color": palette.TERM_BG,
+        backgroundColor: palette.TERM_BG,
         border: `1px solid ${palette.TERM_BORDER}`,
       }}
     >
@@ -305,7 +305,7 @@ function NiftyDeltaPositioningInner({
             aria-hidden
             data-testid="nifty-positioning-verdict-dot"
             className="w-[6px] h-[6px] rounded-full shrink-0"
-            style={{ "background-color": accent, "flex-shrink": 0 }}
+            style={{ backgroundColor: accent, flexShrink: 0 }}
           />
           <Text size="sm" fw={700} c={accent} span>
             {positioningVerdictLabel(verdict)}
@@ -357,8 +357,8 @@ function NiftyDeltaPositioningInner({
                 title={`Bullish ${bullShare}% · Bearish ${bearShare}%`}
                 className="flex w-[64px] h-[4px] rounded-[8px] overflow-hidden shrink-0"
               >
-                <Box className="block" style={{ "flex-grow": bullShare, "flex-shrink": 1, "flex-basis": 0, "background-color": palette.POSITIVE }} />
-                <Box className="block" style={{ "flex-grow": bearShare, "flex-shrink": 1, "flex-basis": 0, "background-color": palette.NEGATIVE }} />
+                <Box className="block" style={{ flexGrow: bullShare, flexShrink: 1, flexBasis: 0, backgroundColor: palette.POSITIVE }} />
+                <Box className="block" style={{ flexGrow: bearShare, flexShrink: 1, flexBasis: 0, backgroundColor: palette.NEGATIVE }} />
               </Box>
             }
           />

@@ -1,6 +1,6 @@
-import { memo, useMemo } from "react";
-import { ActionIcon, Badge, Box, Card, Text, ToolbarRow, Tooltip } from "@/ui";
-import { IconArrowsMaximize } from "@tabler/icons-react";
+import { createMemo, For, Show } from "solid-js";
+import { Badge, Box, Card, Text, ToolbarRow, Tooltip } from "@/ui";
+import { IconArrowsMaximize } from "@/patterns/icons";
 import { formatPercentage } from "@/utils/ui-helpers";
 import type { PatternHitDTO, TrendlinesView } from "@/types/chartPatterns";
 import { QUALITY_INFO } from "@/config/patternCatalog";
@@ -35,7 +35,7 @@ export interface PatternCardProps {
   onSymbolOpen?: (symbol: string) => void;
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric(props: { label: string; value: string }) {
   return (
     <Box className="min-w-0 px-1.5 py-1">
       <Text
@@ -43,36 +43,36 @@ function Metric({ label, value }: { label: string; value: string }) {
         c="dimmed"
         fw={700}
         truncate
-        style={{ "font-size": 9, "line-height": 1, "letter-spacing": 0.6, "text-transform": "uppercase" }}
+        style={{ fontSize: 9, lineHeight: 1, letterSpacing: 0.6, textTransform: "uppercase" }}
       >
-        {label}
+        {props.label}
       </Text>
       <Text
         size="xs"
         fw={600}
         truncate
-        style={{ "font-size": 11, "line-height": 1.25, fontVariantNumeric: "tabular-nums" }}
+        style={{ fontSize: 11, lineHeight: 1.25, fontVariantNumeric: "tabular-nums" }}
       >
-        {value}
+        {props.value}
       </Text>
     </Box>
   );
 }
 
-function Level({ label, value, testId }: { label: string; value: string; testId?: string }) {
+function Level(props: { label: string; value: string; testId?: string }) {
   return (
-    <Box data-testid={testId} className="flex min-w-0 flex-col gap-[2px]">
+    <Box data-testid={props.testId} className="flex min-w-0 flex-col gap-[2px]">
       <Text
         size="xs"
         c="dimmed"
         fw={700}
         truncate
-        style={{ "font-size": 9, "line-height": 1, "letter-spacing": 0.5, "text-transform": "uppercase" }}
+        style={{ fontSize: 9, lineHeight: 1, letterSpacing: 0.5, textTransform: "uppercase" }}
       >
-        {label}
+        {props.label}
       </Text>
-      <Text size="xs" fw={600} truncate style={{ "font-size": 11, "line-height": 1.2, fontVariantNumeric: "tabular-nums" }}>
-        {value}
+      <Text size="xs" fw={600} truncate style={{ fontSize: 11, lineHeight: 1.2, fontVariantNumeric: "tabular-nums" }}>
+        {props.value}
       </Text>
     </Box>
   );
@@ -111,73 +111,65 @@ function consolidationBounds(hit: PatternHitDTO): { lo: number | null; hi: numbe
 }
 
 /** One pattern result card in the grid. */
-export const PatternCard = memo(function PatternCard({
-  hit,
-  selected = false,
-  onClick,
-  onExpand,
-  onShowMembers,
-  trendlinesView = "both",
-  onSymbolPreview,
-  onSymbolPreviewEnd,
-  onSymbolOpen,
-}: PatternCardProps) {
-  const lastPrice = hitLastPrice(hit);
-  const changePct = hitChangePct(hit);
-  const barsLabel = `${hit.bars_ago} ${hit.timeframe} candle${hit.bars_ago === 1 ? "" : "s"} ago`;
-  const baseDays = hit.base_days ?? 0;
-  const isConsolidation = hit.pattern_id === "consolidation" || baseDays > 0;
-  const missingCandles = (hit.candles ?? []).length === 0;
-  const bounds = useMemo(() => (isConsolidation ? consolidationBounds(hit) : null), [hit, isConsolidation]);
-  const triggerDistance = useMemo(() => {
-    if (!isConsolidation || bounds?.hi == null || lastPrice <= 0) return null;
-    return ((lastPrice - bounds.hi) / bounds.hi) * 100;
-  }, [isConsolidation, bounds, lastPrice]);
-  const display = useMemo(
-    () =>
-      patternDisplayStatus({
-        rawStatus: hit.status,
-        isBase: isConsolidation,
-        lastClose: hit.last_close ?? null,
-        upper: bounds?.hi ?? null,
-        lower: bounds?.lo ?? null,
-      }),
-    [hit, isConsolidation, bounds]
+export function PatternCard(props: PatternCardProps) {
+  const hit = () => props.hit;
+  const selected = () => props.selected ?? false;
+  const trendlinesView = () => props.trendlinesView ?? "both";
+
+  const lastPrice = createMemo(() => hitLastPrice(hit()));
+  const changePct = createMemo(() => hitChangePct(hit()));
+  const barsLabel = () => `${hit().bars_ago} ${hit().timeframe} candle${hit().bars_ago === 1 ? "" : "s"} ago`;
+  const baseDays = () => hit().base_days ?? 0;
+  const isConsolidation = () => hit().pattern_id === "consolidation" || baseDays() > 0;
+  const missingCandles = () => (hit().candles ?? []).length === 0;
+  const bounds = createMemo(() => (isConsolidation() ? consolidationBounds(hit()) : null));
+  const triggerDistance = createMemo(() => {
+    if (!isConsolidation() || bounds()?.hi == null || lastPrice() <= 0) return null;
+    return ((lastPrice() - bounds()!.hi!) / bounds()!.hi!) * 100;
+  });
+  const display = createMemo(() =>
+    patternDisplayStatus({
+      rawStatus: hit().status,
+      isBase: isConsolidation(),
+      lastClose: hit().last_close ?? null,
+      upper: bounds()?.hi ?? null,
+      lower: bounds()?.lo ?? null,
+    }),
   );
-  const qualityKey = String(hit.quality ?? "").toLowerCase();
-  const qualityInfo = QUALITY_INFO[qualityKey as keyof typeof QUALITY_INFO];
-  const quality = qualityLabelFor(qualityKey, "—");
-  const canShowMembers = Boolean(onShowMembers && hasIndexMembers(hit.symbol));
-  const metrics = [
-    { label: "Score", value: formatScore(hit.confidence) },
-    { label: "Pos", value: formatRangePos(hit.range_pos) },
-  ];
+  const qualityKey = () => String(hit().quality ?? "").toLowerCase();
+  const qualityInfo = () => QUALITY_INFO[qualityKey() as keyof typeof QUALITY_INFO];
+  const quality = () => qualityLabelFor(qualityKey(), "—");
+  const canShowMembers = () => Boolean(props.onShowMembers && hasIndexMembers(hit().symbol));
+  const metrics = createMemo(() => [
+    { label: "Score", value: formatScore(hit().confidence) },
+    { label: "Pos", value: formatRangePos(hit().range_pos) },
+  ]);
 
   return (
     <Card
-      data-testid={`patterns-card-${hit.symbol}-${hit.pattern_id}`}
-      onClick={() => onClick?.(hit)}
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick ? 0 : undefined}
+      data-testid={`patterns-card-${hit().symbol}-${hit().pattern_id}`}
+      onClick={() => props.onClick?.(hit())}
+      role={props.onClick ? "button" : undefined}
+      tabIndex={props.onClick ? 0 : undefined}
       onKeyDown={
-        onClick
-          ? (e: React.KeyboardEvent) => {
+        props.onClick
+          ? (e: KeyboardEvent) => {
               // Inner controls (Members, expand) own their own keys; a bubbled
               // Enter must not also select the card.
               if (e.target !== e.currentTarget) return;
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
-                onClick(hit);
+                props.onClick?.(hit());
               }
             }
           : undefined
       }
       className={`overflow-hidden rounded-fin border bg-fin-surface transition-[border-color] duration-[120ms] ${
-        selected ? "border-fin-primary" : missingCandles ? "border-fin-negative" : "border-fin-border"
-      } ${onClick ? "hover:border-fin-primary" : ""}`}
+        selected() ? "border-fin-primary" : missingCandles() ? "border-fin-negative" : "border-fin-border"
+      } ${props.onClick ? "hover:border-fin-primary" : ""}`}
       style={{
-        "box-shadow": selected ? "inset 0 0 0 1px var(--color-fin-primary)" : "none",
-        cursor: onClick ? "pointer" : "default",
+        boxShadow: selected() ? "inset 0 0 0 1px var(--color-fin-primary)" : "none",
+        cursor: props.onClick ? "pointer" : "default",
         // Offscreen containment: the browser skips layout/paint for cards
         // outside the visible area while the user scrolls a long results grid.
         contentVisibility: "auto",
@@ -186,70 +178,70 @@ export const PatternCard = memo(function PatternCard({
     >
       <Box
         data-testid="patterns-card"
-        data-selected={selected ? "true" : undefined}
+        data-selected={selected() ? "true" : undefined}
         className="flex min-w-0 flex-col"
       >
         <Box className="flex min-w-0 gap-1.5 px-1.5 pb-1 pt-1.5">
           <Box className="min-w-0 flex-1">
             <SymbolLink
-              symbol={hit.symbol}
-              testId={`patterns-card-tv-${hit.symbol}-${hit.pattern_id}`}
-              chartTestId={`patterns-card-chart-${hit.symbol}-${hit.pattern_id}`}
-              onOpen={onSymbolOpen}
-              onPreview={onSymbolPreview}
-              onPreviewEnd={onSymbolPreviewEnd}
+              symbol={hit().symbol}
+              testId={`patterns-card-tv-${hit().symbol}-${hit().pattern_id}`}
+              chartTestId={`patterns-card-chart-${hit().symbol}-${hit().pattern_id}`}
+              onOpen={props.onSymbolOpen}
+              onPreview={props.onSymbolPreview}
+              onPreviewEnd={props.onSymbolPreviewEnd}
               size="sm"
               weight={700}
               className="max-w-full"
             />
-            <Text size="xs" c="dimmed" truncate style={{ "font-size": 10, "line-height": 1.25 }}>
-              {hit.pattern_name}
+            <Text size="xs" c="dimmed" truncate style={{ fontSize: 10, lineHeight: 1.25 }}>
+              {hit().pattern_name}
             </Text>
           </Box>
           <Box className="flex shrink-0 items-start gap-[2px]">
             <Box
               className="flex min-w-0 flex-col items-end gap-[2px]"
             >
-              <Text size="xs" c="dimmed" style={{ "font-size": 9, "line-height": 1, "white-space": "nowrap" }}>
-                {barsLabel}
+              <Text size="xs" c="dimmed" style={{ fontSize: 9, lineHeight: 1, whiteSpace: "nowrap" }}>
+                {barsLabel()}
               </Text>
-              <Tooltip label={display.tooltip} withArrow position="top">
+              <Tooltip label={display().tooltip} withArrow position="top">
                 <Box className="flex items-center gap-1">
                   <Box
                     className="h-[5px] w-[5px] shrink-0 rounded-full"
-                    style={{ "background-color": displayToneColor(display.tone) }}
+                    style={{ backgroundColor: displayToneColor(display().tone) }}
                   />
                   <Text
-                    data-testid={`patterns-status-${String(hit.status ?? "").toLowerCase()}`}
+                    data-testid={`patterns-status-${String(hit().status ?? "").toLowerCase()}`}
                     size="xs"
                     fw={700}
                     style={{
-                      "font-size": 9,
-                      "line-height": 1,
-                      "letter-spacing": 0.5,
-                      "text-transform": "uppercase",
-                      color: displayToneColor(display.tone),
+                      fontSize: 9,
+                      lineHeight: 1,
+                      letterSpacing: 0.5,
+                      textTransform: "uppercase",
+                      color: displayToneColor(display().tone),
                     }}
                   >
-                    {display.label}
+                    {display().label}
                   </Text>
                 </Box>
               </Tooltip>
-              <Tooltip label={qualityInfo?.description ?? quality} position="left" withArrow>
+              <Tooltip label={qualityInfo()?.description ?? quality()} position="left" withArrow>
                 <Text
-                  data-testid={`patterns-quality-${qualityKey || "unknown"}`}
+                  data-testid={`patterns-quality-${qualityKey() || "unknown"}`}
                   size="xs"
                   fw={600}
                   c="dimmed"
                   className="cursor-help"
                   style={{
-                    "font-size": 9,
-                    "line-height": 1,
-                    "letter-spacing": 0.5,
-                    "text-transform": "uppercase",
+                    fontSize: 9,
+                    lineHeight: 1,
+                    letterSpacing: 0.5,
+                    textTransform: "uppercase",
                   }}
                 >
-                  {quality}
+                  {quality()}
                 </Text>
               </Tooltip>
             </Box>
@@ -260,78 +252,77 @@ export const PatternCard = memo(function PatternCard({
           <Text
             size="sm"
             fw={700}
-            style={{ "font-size": 16, "line-height": 1.1, fontVariantNumeric: "tabular-nums" }}
+            style={{ fontSize: 16, lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}
           >
-            {formatPrice(lastPrice)}
+            {formatPrice(lastPrice())}
           </Text>
           <Text
             size="xs"
             style={{
-              "font-size": 11,
-              "line-height": 1.1,
+              fontSize: 11,
+              lineHeight: 1.1,
               fontVariantNumeric: "tabular-nums",
-              color: changeChartColor(changePct),
+              color: changeChartColor(changePct()),
             }}
           >
-            {formatPercentage(changePct, 2)}
+            {formatPercentage(changePct(), 2)}
           </Text>
-          {triggerDistance != null ? (
+          <Show when={triggerDistance() != null}>
             <Text
-              data-testid={`patterns-card-to-trigger-${hit.symbol}`}
+              data-testid={`patterns-card-to-trigger-${hit().symbol}`}
               size="xs"
-              c={triggerDistance >= 0 ? "success" : "dimmed"}
+              c={(triggerDistance() ?? 0) >= 0 ? "success" : "dimmed"}
               style={{
-                "font-size": 10,
-                "line-height": 1.1,
+                fontSize: 10,
+                lineHeight: 1.1,
                 fontVariantNumeric: "tabular-nums",
-                "white-space": "nowrap",
+                whiteSpace: "nowrap",
               }}
             >
-              {`${formatSignedPct1(triggerDistance)} to trigger`}
+              {`${formatSignedPct1(triggerDistance()!)} to trigger`}
             </Text>
-          ) : null}
-          {missingCandles ? (
+          </Show>
+          <Show when={missingCandles()}>
             <Tooltip
               label="Chart data failed to load (rate limit or fetch error) — pattern levels only. Refresh or force-rescan to retry."
               withArrow
               position="top"
             >
-              <Badge color="error" size="xs" data-testid={`patterns-card-no-data-${hit.symbol}`}>
+              <Badge color="error" size="xs" data-testid={`patterns-card-no-data-${hit().symbol}`}>
                 No chart
               </Badge>
             </Tooltip>
-          ) : null}
+          </Show>
         </Box>
 
         <Box
           className="relative min-w-0 border-t border-fin-border bg-fin-bg"
         >
-          <PatternMiniChart hit={hit} trendlinesView={trendlinesView} />
+          <PatternMiniChart hit={hit()} trendlinesView={trendlinesView()} />
           <Box
             className="absolute right-[2px] top-[2px] z-[1] flex items-center gap-[2px]"
           >
-            {onExpand ? (
+            <Show when={props.onExpand}>
               <Tooltip label="Open fullscreen chart" withArrow position="left">
-                <ActionIcon
-                  variant="subtle"
-                  size="xs"
-                  aria-label={`Open fullscreen chart for ${hit.symbol} ${hit.pattern_name}`}
-                  data-testid={`patterns-card-expand-${hit.symbol}-${hit.pattern_id}`}
+                <button
+                  type="button"
+                  aria-label={`Open fullscreen chart for ${hit().symbol} ${hit().pattern_name}`}
+                  data-testid={`patterns-card-expand-${hit().symbol}-${hit().pattern_id}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    onExpand(hit);
+                    props.onExpand?.(hit());
                   }}
-                  style={{ "background-color": "var(--color-fin-surface)" }}
-                  className="opacity-[0.85] hover:text-fin-text hover:opacity-100"
+                  style={{ backgroundColor: "var(--color-fin-surface)" }}
+                  className="inline-flex size-5 items-center justify-center rounded text-white/85 opacity-[0.85] transition-colors hover:text-fin-text hover:opacity-100"
                 >
                   <IconArrowsMaximize size={12} />
-                </ActionIcon>
+                </button>
               </Tooltip>
-            ) : null}
+            </Show>
           </Box>
         </Box>
 
-        {isConsolidation && bounds ? (
+        <Show when={isConsolidation() && bounds()}>
           <ToolbarRow
             gap={1.5}
             justify="space-between"
@@ -339,16 +330,16 @@ export const PatternCard = memo(function PatternCard({
             className="border-t border-fin-border px-1.5 py-1"
           >
             <Level
-              testId={`patterns-card-range-${hit.symbol}`}
+              testId={`patterns-card-range-${hit().symbol}`}
               label="Range"
               value={
-                bounds.lo != null && bounds.hi != null
-                  ? `${formatPrice(bounds.lo)} – ${formatPrice(bounds.hi)}`
+                bounds()?.lo != null && bounds()?.hi != null
+                  ? `${formatPrice(bounds()!.lo!)} – ${formatPrice(bounds()!.hi!)}`
                   : "—"
               }
             />
             <Box
-              data-testid={`patterns-card-breakout-both-${hit.symbol}`}
+              data-testid={`patterns-card-breakout-both-${hit().symbol}`}
               className="flex min-w-0 flex-col gap-[2px]"
             >
               <Text
@@ -356,89 +347,87 @@ export const PatternCard = memo(function PatternCard({
                 c="dimmed"
                 fw={700}
                 truncate
-                style={{ "font-size": 9, "line-height": 1, "letter-spacing": 0.5, "text-transform": "uppercase" }}
+                style={{ fontSize: 9, lineHeight: 1, letterSpacing: 0.5, textTransform: "uppercase" }}
               >
                 Range
               </Text>
               <ToolbarRow gap={6} wrap={false}>
-                <Text size="xs" fw={600} truncate style={{ "font-size": 11, color: PATTERN_CONFIRMED }}>
-                  ↑ {formatPrice(bounds.hi)}
+                <Text size="xs" fw={600} truncate style={{ fontSize: 11, color: PATTERN_CONFIRMED }}>
+                  ↑ {bounds()?.hi != null ? formatPrice(bounds()!.hi!) : "—"}
                 </Text>
-                <Text size="xs" fw={600} truncate style={{ "font-size": 11, color: PATTERN_FAILED }}>
-                  ↓ {formatPrice(bounds.lo)}
+                <Text size="xs" fw={600} truncate style={{ fontSize: 11, color: PATTERN_FAILED }}>
+                  ↓ {bounds()?.lo != null ? formatPrice(bounds()!.lo!) : "—"}
                 </Text>
               </ToolbarRow>
             </Box>
           </ToolbarRow>
-        ) : null}
+        </Show>
 
-        {baseDays > 0 || hit.to_52w_high != null ? (
+        <Show when={baseDays() > 0 || hit().to_52w_high != null}>
           <ToolbarRow
             justify="space-between"
             gap={1}
             className="border-t border-fin-border px-1.5 py-[2px]"
           >
-            {baseDays > 0 ? (
+            <Show when={baseDays() > 0} fallback={<Box className="flex-1" />}>
               <Text
                 size="xs"
                 c="dimmed"
                 truncate
-                data-testid={`patterns-card-base-${hit.symbol}-${hit.pattern_id}`}
-                style={{ "font-size": 9, "line-height": 1.2 }}
+                data-testid={`patterns-card-base-${hit().symbol}-${hit().pattern_id}`}
+                style={{ fontSize: 9, lineHeight: 1.2 }}
               >
-                {hit.range_pct != null
-                  ? `Base ${baseDays}d · ${formatOneDecimal(hit.range_pct)}%`
-                  : `Base ${baseDays}d`}
+                {hit().range_pct != null
+                  ? `Base ${baseDays()}d · ${formatOneDecimal(hit().range_pct!)}%`
+                  : `Base ${baseDays()}d`}
               </Text>
-            ) : (
-              <Box className="flex-1" />
-            )}
-            {hit.to_52w_high != null ? (
+            </Show>
+            <Show when={hit().to_52w_high != null}>
               <Text
                 size="xs"
                 c="dimmed"
                 truncate
                 data-testid="patterns-card-52w-gap"
-                style={{ "font-size": 9, "line-height": 1.2, "text-align": "right" }}
+                style={{ fontSize: 9, lineHeight: 1.2, textAlign: "right" }}
               >
-                52W: {formatOneDecimal(hit.to_52w_high)}%
+                52W: {formatOneDecimal(hit().to_52w_high!)}%
               </Text>
-            ) : null}
+            </Show>
           </ToolbarRow>
-        ) : null}
+        </Show>
 
         <Box
           className="grid border-t border-fin-border"
-          style={{ "grid-template-columns": `repeat(${canShowMembers ? 5 : 4}, minmax(0, 1fr))` }}
+          style={{ gridTemplateColumns: `repeat(${canShowMembers() ? 5 : 4}, minmax(0, 1fr))` }}
         >
-          {metrics.map((metric, index) => (
-            <Box
-              key={metric.label}
-              className={`min-w-0 ${index === 0 ? "" : "border-l border-fin-border"}`}
-            >
-              <Metric label={metric.label} value={metric.value} />
-            </Box>
-          ))}
-          {canShowMembers ? (
+          <For each={metrics()}>
+            {(metric, index) => (
+              <Box
+                className={`min-w-0 ${index() === 0 ? "" : "border-l border-fin-border"}`}
+              >
+                <Metric label={metric.label} value={metric.value} />
+              </Box>
+            )}
+          </For>
+          <Show when={canShowMembers()}>
             <Box
               className="flex min-w-0 items-center justify-center border-l border-fin-border"
             >
-              <Box
-                component="button"
+              <button
                 type="button"
-                data-testid={`patterns-card-members-${hit.symbol}`}
+                data-testid={`patterns-card-members-${hit().symbol}`}
                 onClick={(event) => {
                   event.stopPropagation();
-                  onShowMembers?.(hit.symbol);
+                  props.onShowMembers?.(hit().symbol);
                 }}
                 className="cursor-pointer border-0 bg-transparent p-1 text-[9px] font-bold uppercase tracking-[0.5px] text-fin-primary hover:underline"
               >
                 Members
-              </Box>
+              </button>
             </Box>
-          ) : null}
+          </Show>
         </Box>
       </Box>
     </Card>
   );
-});
+}

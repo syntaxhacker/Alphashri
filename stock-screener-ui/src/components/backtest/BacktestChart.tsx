@@ -274,7 +274,7 @@ export function BacktestChart({
       <Box
         className="backtest-chart-loading flex items-center justify-center h-full rounded-fin"
         data-testid="backtest-chart-loading"
-        style={{ height: "100%", "background-color": "#0A0A0A" }}
+        style={{ height: "100%", backgroundColor: "#0A0A0A" }}
       >
         <Text c="dimmed">Loading {symbol}...</Text>
       </Box>
@@ -286,7 +286,7 @@ export function BacktestChart({
       <Box
         className="backtest-chart-empty flex items-center justify-center h-full rounded-fin"
         data-testid="backtest-chart-empty"
-        style={{ height: "100%", "background-color": "#0A0A0A" }}
+        style={{ height: "100%", backgroundColor: "#0A0A0A" }}
       >
         <Text c="dimmed">No chart data for {symbol}</Text>
       </Box>
@@ -299,7 +299,7 @@ export function BacktestChart({
       className="backtest-chart w-full h-full min-h-0 min-w-0 flex"
       data-testid="echarts-container"
       data-symbol={symbol}
-      style={{ width: "100%", height: "100%", "min-height": 0, "min-width": 0, display: "flex", "background-color": palette.NT_BG }}
+      style={{ width: "100%", height: "100%", minHeight: 0, minWidth: 0, display: "flex", backgroundColor: palette.NT_BG }}
     >
       <TradingViewChart
         ref={(h) => (chartRef = h)}

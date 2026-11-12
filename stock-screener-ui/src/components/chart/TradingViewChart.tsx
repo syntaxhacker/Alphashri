@@ -439,9 +439,9 @@ export function TradingViewChart(props: TradingViewChartProps) {
       ...(fixedHeight != null
         ? { width: el.clientWidth, height: fixedHeight }
         : { autoSize: true }),
-      timeScale: { "border-color": c.grid, timeVisible: true, secondsVisible: false, rightOffset: 6, barSpacing: 5, tickMarkFormatter: tvTickMarkFormatter },
+      timeScale: { borderColor: c.grid, timeVisible: true, secondsVisible: false, rightOffset: 6, barSpacing: 5, tickMarkFormatter: tvTickMarkFormatter },
       localization: { locale: "en-IN", timeFormatter: tvTimeFormatter },
-      rightPriceScale: { "border-color": c.grid },
+      rightPriceScale: { borderColor: c.grid },
       crosshair: { mode: 1 },
       handleScroll: true,
       handleScale: true,
@@ -458,7 +458,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
       : created.addSeries(CandlestickSeries, {
           upColor: c.bull,
           downColor: c.bear,
-          "border-color": c.bear,
+          borderColor: c.bear,
           borderUpColor: c.bull,
           borderDownColor: c.bear,
           wickUpColor: c.bull,
@@ -1143,10 +1143,10 @@ export function TradingViewChart(props: TradingViewChartProps) {
   return (
     <div
       className="flex flex-col h-full min-w-0 relative"
-      style={{ width: "100%", flex: 1, "min-height": "0", position: "relative" }}
+      style={{ width: "100%", flex: 1, minHeight: "0", position: "relative" }}
     >
-      <div ref={(el) => (containerRef = el)} className="w-full flex-1 min-h-0 relative" data-testid="tradingview-chart" style={{ width: "100%", flex: 1, "min-height": "0", position: "relative", ...(props.height != null ? { height: `${props.height}px` } : {}) }} />
-      <canvas ref={(el) => (overlayRef = el)} aria-hidden="true" data-testid="tradingview-overlay" style={{ position: "absolute", inset: "0", "pointer-events": "none", "z-index": 3 }} />
+      <div ref={(el) => (containerRef = el)} className="w-full flex-1 min-h-0 relative" data-testid="tradingview-chart" style={{ width: "100%", flex: 1, minHeight: "0", position: "relative", ...(props.height != null ? { height: `${props.height}px` } : {}) }} />
+      <canvas ref={(el) => (overlayRef = el)} aria-hidden="true" data-testid="tradingview-overlay" style={{ position: "absolute", inset: "0", pointerEvents: "none", zIndex: 3 }} />
     </div>
   );
 }

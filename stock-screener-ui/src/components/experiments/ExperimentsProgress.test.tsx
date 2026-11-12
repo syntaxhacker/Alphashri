@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { cleanup, screen, waitFor } from "@solidjs/testing-library";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
+import { cleanup, screen, waitFor, fireEvent, render } from "@solidjs/testing-library";
 import { ExperimentsProgress } from "./ExperimentsProgress";
 import type { ExperimentState } from "../../types/experiments";
 
@@ -23,6 +22,20 @@ vi.mock("../../api/experiments", async (importOriginal) => {
 });
 
 import { resetExperimentState, setActiveSession, setSessionState } from "../../state/experiments";
+import { UIProvider } from "@/ui";
+
+import { Router } from "@solidjs/router";
+import type { JSX } from "solid-js";
+
+// Local equivalent of the shared renderWithProviders test helper, fixed for
+// Solid: solid-router renders no plain children, so tests mount through the
+// router's `root` prop instead.
+function renderWithProviders(ui: () => JSX.Element) {
+  return render(() => (
+    <Router root={() => <UIProvider>{ui()}</UIProvider>} />
+  ));
+}
+
 
 const api = vi.mocked(await import("../../api/experiments"));
 
@@ -53,7 +66,7 @@ describe("ExperimentsProgress", () => {
   });
 
   it("shows empty state when no active experiment", () => {
-    renderWithProviders(<ExperimentsProgress />);
+    renderWithProviders(() => <ExperimentsProgress />);
     expect(screen.getByTestId("experiments-progress-empty")).toHaveTextContent(
       "No active experiment",
     );
@@ -62,7 +75,7 @@ describe("ExperimentsProgress", () => {
   it("renders status, progress counter, progress bar, and best PF", () => {
     setActiveSession("exp_orb_1");
     setSessionState(makeState());
-    renderWithProviders(<ExperimentsProgress />);
+    renderWithProviders(() => <ExperimentsProgress />);
 
     expect(screen.getByTestId("experiments-progress-status")).toHaveTextContent("running");
     expect(screen.getByTestId("experiments-progress-counter")).toHaveTextContent("14/72");
@@ -74,7 +87,7 @@ describe("ExperimentsProgress", () => {
   it("renders last result description", () => {
     setActiveSession("exp_orb_1");
     setSessionState(makeState());
-    renderWithProviders(<ExperimentsProgress />);
+    renderWithProviders(() => <ExperimentsProgress />);
     expect(screen.getByTestId("experiments-progress-last-result")).toHaveTextContent(
       "sl 1.0 pf 1.83",
     );
@@ -83,7 +96,7 @@ describe("ExperimentsProgress", () => {
   it("falls back to best_desc when last_result has no description", () => {
     setActiveSession("exp_orb_1");
     setSessionState(makeState({ last_result: null, best_desc: "baseline sweep" }));
-    renderWithProviders(<ExperimentsProgress />);
+    renderWithProviders(() => <ExperimentsProgress />);
     expect(screen.getByTestId("experiments-progress-last-result")).toHaveTextContent(
       "baseline sweep",
     );
@@ -94,7 +107,7 @@ describe("ExperimentsProgress", () => {
     setSessionState(makeState());
     api.pauseExperiment.mockResolvedValue(true);
     api.fetchSessionState.mockResolvedValue(null);
-    renderWithProviders(<ExperimentsProgress />);
+    renderWithProviders(() => <ExperimentsProgress />);
 
     expect(screen.getByTestId("experiments-pause-btn")).toBeInTheDocument();
     expect(screen.queryByTestId("experiments-resume-btn")).not.toBeInTheDocument();
@@ -111,7 +124,7 @@ describe("ExperimentsProgress", () => {
     setSessionState(makeState({ status: "paused" }));
     api.resumeExperiment.mockResolvedValue(true);
     api.fetchSessionState.mockResolvedValue(null);
-    renderWithProviders(<ExperimentsProgress />);
+    renderWithProviders(() => <ExperimentsProgress />);
 
     expect(screen.getByTestId("experiments-resume-btn")).toBeInTheDocument();
     expect(screen.queryByTestId("experiments-pause-btn")).not.toBeInTheDocument();
@@ -127,7 +140,7 @@ describe("ExperimentsProgress", () => {
     setSessionState(makeState());
     api.cancelExperiment.mockResolvedValue(true);
     api.fetchSessionState.mockResolvedValue(null);
-    renderWithProviders(<ExperimentsProgress />);
+    renderWithProviders(() => <ExperimentsProgress />);
 
     await fireEvent.click(screen.getByTestId("experiments-cancel-btn"));
     await waitFor(() => {
@@ -138,7 +151,7 @@ describe("ExperimentsProgress", () => {
   it("hides control buttons once completed", () => {
     setActiveSession("exp_orb_1");
     setSessionState(makeState({ status: "completed", current: 72, total: 72, best_pf: 1.83 }));
-    renderWithProviders(<ExperimentsProgress />);
+    renderWithProviders(() => <ExperimentsProgress />);
 
     expect(screen.getByTestId("experiments-progress-status")).toHaveTextContent("completed");
     expect(screen.queryByTestId("experiments-pause-btn")).not.toBeInTheDocument();
@@ -149,7 +162,7 @@ describe("ExperimentsProgress", () => {
   it("renders error status badge", () => {
     setActiveSession("exp_orb_1");
     setSessionState(makeState({ status: "error" }));
-    renderWithProviders(<ExperimentsProgress />);
+    renderWithProviders(() => <ExperimentsProgress />);
     expect(screen.getByTestId("experiments-progress-status")).toHaveTextContent("error");
   });
 });

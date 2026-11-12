@@ -370,7 +370,7 @@ describe("WatchlistScan2", () => {
 
   describe("color-coded left border", () => {
     function expectLeftBorder(symbol: string, color: string) {
-      expect(row(symbol)).toHaveStyle({ "border-left-color": color, borderLeftWidth: "3px", borderLeftStyle: "solid" });
+      expect(row(symbol)).toHaveStyle({ borderLeftColor: color, borderLeftWidth: "3px", borderLeftStyle: "solid" });
     }
 
     test("signal row has green left border", () => {
@@ -466,7 +466,7 @@ describe("WatchlistScan2", () => {
       );
       // selected rows use a primary-tint background (PRIMARY at 8% via local alpha())
       expect(row("RELIANCE")).toHaveStyle({
-        "background-color": withAlpha("#58A6FF", 0.08),
+        backgroundColor: withAlpha("#58A6FF", 0.08),
       });
     });
   });

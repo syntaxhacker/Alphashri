@@ -399,14 +399,14 @@ describe("MarketTicker", () => {
         "minmax(56px, auto) minmax(64px, 1fr) 82px",
       );
       expect(within(item).getByText(/Nifty 50|Gold/)).toHaveStyle({
-        "font-size": "9.5px",
+        fontSize: "9.5px",
       });
     }
     expect(screen.getByTestId("ticker-price-nsei")).toHaveStyle({
-      "font-size": "11px",
+      fontSize: "11px",
     });
     expect(screen.getByTestId("ticker-price-gcf")).toHaveStyle({
-      "font-size": "11px",
+      fontSize: "11px",
     });
   });
 

@@ -17,7 +17,7 @@ function CollapseDemo() {
           style={{
             background: "#80b5ff",
             padding: "16px",
-            "border-radius": "8px",
+            borderRadius: "8px",
           }}
         >
           Collapsible content revealed with a height transition.
@@ -45,7 +45,7 @@ export const OpenByDefault: Story = {
   args: {
     in: true,
     children: (
-      <div style={{ background: "#80b5ff", padding: "16px", "border-radius": "8px" }}>
+      <div style={{ background: "#80b5ff", padding: "16px", borderRadius: "8px" }}>
         Always-open collapse content.
       </div>
     ),

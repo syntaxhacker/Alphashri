@@ -107,7 +107,7 @@ export interface ChartColors {
   bgColor: string;
   textColor: string;
   mutedColor: string;
-  "border-color": string;
+  borderColor: string;
   gridLineColor: string;
 }
 
