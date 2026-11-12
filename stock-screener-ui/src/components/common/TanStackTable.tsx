@@ -103,12 +103,23 @@ function getValue<T>(row: T, column: TableColumnDef<T>): unknown {
 }
 
 export function TanStackTable<T>(props: Props<T>) {
-  const { density, tokens: densityTokens } = useDensity();
-  const isComfortable = density === "comfortable";
-  const rowEstimated = props.dense ? 18 : isComfortable ? densityTokens.tableRowHeight : ROW_ESTIMATED;
-  const cellPad = props.dense ? "1px 6px" : isComfortable ? densityTokens.tableCellPad : "2px 8px";
-  const cellFontSize = props.dense ? 10 : 11;
-  const headerHeight = props.dense ? 20 : isComfortable ? densityTokens.tableRowHeight : ROW_ESTIMATED;
+  const densityApi = useDensity();
+  const isDense = () => props.dense ?? false;
+  const isComfortable = () => densityApi.density() === "comfortable";
+
+  // Sizing is written once as CSS variables and read by every cell. Toggling
+  // density then repaints through CSS instead of re-rendering rows.
+  let tableEl: HTMLTableElement | undefined;
+  createEffect(() => {
+    const el = tableEl;
+    if (!el) return;
+    const comfortable = isComfortable();
+    const tokens = densityApi.tokens;
+    const rowH = isDense() ? 18 : comfortable ? tokens.tableRowHeight : ROW_ESTIMATED;
+    el.style.setProperty("--tbl-row-h", `${rowH}px`);
+    el.style.setProperty("--tbl-cell-pad", isDense() ? "1px 6px" : comfortable ? tokens.tableCellPad : "2px 8px");
+    el.style.setProperty("--tbl-fs", `${isDense() ? 10 : 11}px`);
+  });
 
   const [sorting, setSorting] = createSignal<{ id: string; desc: boolean }[]>(props.initialState?.sorting ?? []);
   const [expandedGroups, setExpandedGroups] = createSignal<Record<string, boolean>>({});
@@ -252,16 +263,20 @@ export function TanStackTable<T>(props: Props<T>) {
 
   const tableClassName = `paper-tanstack-table ${props.className || ""}`;
 
-  const numericColumnIds = new Set<string>();
-  const sampleRows = sortedData().slice(0, 5);
-  if (sampleRows.length > 0) {
-    for (const col of visibleColumns()) {
-      const values = sampleRows.map((r) => getValue(r, col)).filter((v) => v !== null && v !== undefined && v !== "");
-      if (values.length > 0 && values.every((v) => typeof v === "number")) {
-        numericColumnIds.add(col.id);
+  const numericColumnIds = createMemo(() => {
+    const ids = new Set<string>();
+    const sampleRows = sortedData().slice(0, 5);
+    if (sampleRows.length > 0) {
+      for (const col of visibleColumns()) {
+        const values = sampleRows.map((r) => getValue(r, col)).filter((v) => v !== null && v !== undefined && v !== "");
+        if (values.length > 0 && values.every((v) => typeof v === "number")) {
+          ids.add(col.id);
+        }
       }
     }
-  }
+    return ids;
+  });
+  const isNumeric = (id: string) => numericColumnIds().has(id);
 
   const rowStyleBase = (row: T): CSSProperties => ({
     "cursor": props.onRowClick ? "pointer" : undefined,
@@ -271,17 +286,17 @@ export function TanStackTable<T>(props: Props<T>) {
   const cellStyle = (col: TableColumnDef<T>, width: number | undefined): CSSProperties => {
     const { align } = getColumnMeta(col);
     const s: CSSProperties = {
-      padding: width === 0 ? "0" : cellPad,
-      "font-size": cellFontSize,
-      "line-height": "1.2px",
+      padding: width === 0 ? "0" : "var(--tbl-cell-pad, 2px 8px)",
+      "font-size": "var(--tbl-fs, 11px)",
+      "line-height": "1.2",
       "font-variant-numeric": "tabular-nums",
       "white-space": "nowrap",
-      height: `${rowEstimated}px`,
+      height: "var(--tbl-row-h, 23px)",
       "border-bottom": `1px solid ${palette.BORDER}`,
       "background-color": palette.SURFACE,
       width: width !== undefined ? `${width}px` : undefined,
       display: width === 0 ? "none" : undefined,
-      "text-align": align ?? (numericColumnIds.has(col.id) ? "right" : "left"),
+      "text-align": align ?? (isNumeric(col.id) ? "right" : "left"),
     };
     if (width !== undefined) {
       s.overflow = "hidden";
@@ -292,7 +307,7 @@ export function TanStackTable<T>(props: Props<T>) {
 
   const alignClass = (col: TableColumnDef<T>) => {
     const { align } = getColumnMeta(col);
-    return (align === "right" || numericColumnIds.has(col.id)) ? "font-mono" : "";
+    return (align === "right" || isNumeric(col.id)) ? "font-mono" : "";
   };
 
   const renderHeader = (col: TableColumnDef<T>) => {
@@ -300,11 +315,12 @@ export function TanStackTable<T>(props: Props<T>) {
     const isSorted = () => sorting().some((s) => s.id === col.id);
     const sortDir = () => sorting().find((s) => s.id === col.id);
     const headerStyle: CSSProperties = {
-      padding: width === 0 ? "0" : cellPad,
-      height: `${headerHeight}px`,
-      "font-size": cellFontSize,
-      "line-height": "1.2px",
-      "font-weight": "600px",
+      padding: width === 0 ? "0" : "var(--tbl-cell-pad, 2px 8px)",
+      height: "var(--tbl-row-h, 23px)",
+      "font-size": "var(--tbl-fs, 11px)",
+      "line-height": "1.2",
+      "font-weight": 600,
+      "letter-spacing": "0.02em",
       "font-variant-numeric": "tabular-nums",
       "white-space": "nowrap",
       "user-select": "none",
@@ -312,11 +328,12 @@ export function TanStackTable<T>(props: Props<T>) {
       "border-bottom": `1px solid ${palette.BORDER}`,
       width: width !== undefined ? `${width}px` : undefined,
       display: width === 0 ? "none" : undefined,
-      "text-align": getColumnMeta(col).align ?? (numericColumnIds.has(col.id) ? "right" : "left"),
+      "text-align": getColumnMeta(col).align ?? (isNumeric(col.id) ? "right" : "left"),
       "cursor": col.enableSorting !== false && enableSorting() ? "pointer" : "default",
       position: props.stickyHeader ? "sticky" : undefined,
       top: props.stickyHeader ? 0 : undefined,
       "z-index": props.stickyHeader ? 1 : undefined,
+      "background-color": props.stickyHeader ? palette.SURFACE_ALT : undefined,
     };
     const h = col.header;
     const content = typeof h === "function" ? h({ column: col }) : h != null ? <span>{h}</span> : <span>{col.id}</span>;
@@ -419,6 +436,7 @@ export function TanStackTable<T>(props: Props<T>) {
     >
       <Box
         component="table"
+        ref={(el: HTMLTableElement) => (tableEl = el)}
         data-testid={props.dataTestId}
         aria-label={props.ariaLabel}
         id={props.dataTestId ? `paper-tanstack-table-${props.dataTestId}` : undefined}

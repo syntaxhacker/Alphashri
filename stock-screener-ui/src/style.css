@@ -49,6 +49,20 @@ body[data-color-scheme="dark"] { color-scheme: dark; }
 }
 
 
+/* Dense data-table row affordance. Cells paint their own background, so the
+   hover tint has to land on the td, not the tr (same reason the selected-row
+   rule below targets td). */
+.paper-tanstack-table tbody tr:hover td {
+  background-color: color-mix(in srgb, var(--color-fin-surface-alt) 70%, var(--color-fin-surface)) !important;
+}
+.paper-tanstack-table tbody tr[data-row="stock"]:hover td:first-child {
+  box-shadow: inset 2px 0 0 0 var(--color-fin-primary);
+}
+.paper-tanstack-table tbody tr:focus-visible {
+  outline: 1px solid var(--color-fin-primary);
+  outline-offset: -1px;
+}
+
 /* 0-DTE walls — small, purposeful motion. */
 @keyframes wall-spark-draw {
   from { stroke-dashoffset: 1; }

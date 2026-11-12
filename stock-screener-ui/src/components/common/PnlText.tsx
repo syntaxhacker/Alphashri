@@ -10,10 +10,15 @@ interface PnlTextProps {
   span?: boolean;
   ml?: number | string;
   fs?: string;
+  /** Opt out of the mono numeral face (e.g. when embedding in prose). */
+  mono?: boolean;
+  className?: string;
   "data-testid"?: string;
 }
 
 export function PnlText(props: PnlTextProps) {
+  const className = () =>
+    [props.mono === false ? "" : "font-mono tabular-nums", props.className ?? ""].filter(Boolean).join(" ");
   return (
     <Text
       c={getPnLTextColor(props.value)}
@@ -22,6 +27,8 @@ export function PnlText(props: PnlTextProps) {
       span={props.span}
       ml={props.ml}
       fs={props.fs}
+      className={className()}
+      style={{ "font-variant-numeric": "tabular-nums" }}
       data-testid={props["data-testid"]}
     >
       {props.children ?? (props.value >= 0 ? `+${props.value}` : `${props.value}`)}

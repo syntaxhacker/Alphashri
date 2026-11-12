@@ -24,43 +24,39 @@ interface ExitReasonBadgeProps {
 }
 
 export function ExitReasonBadge(props: ExitReasonBadgeProps) {
-  const reason = () => props.reason;
   const size = () => props.size ?? "sm";
-  let color: string = "secondary";
-  const r = () => (reason() || "").toLowerCase().trim();
-  const ladder = r();
-  if (ladder === "tp" || ladder === "target") color = "success";
-  else if (ladder === "sl" || ladder === "stop_loss" || ladder.includes("stop loss")) color = "error";
-  else if (ladder === "trailing_stop" || ladder === "trailing stop" || ladder.includes("trailing")) color = "warning";
-  else if (ladder === "force_close" || ladder === "force close" || ladder === "forceclose") color = "secondary";
-  else if (ladder === "max_holding" || ladder === "max holding" || ladder.includes("max holding")) color = "warning";
-  else if (ladder === "new_52w_high" || ladder === "new 52w" || ladder.includes("52w")) color = "info";
-  else if (ladder === "eod" || ladder === "manual_close" || ladder === "manual") color = "secondary";
-  else if (ladder.startsWith("stop loss hit") || ladder.startsWith("take profit")) color = ladder.includes("stop") ? "error" : "success";
+  const r = () => (props.reason || "").toLowerCase().trim();
 
-  const rr = r();
-  const label =
-    rr === "tp"
-      ? "TP"
-      : rr === "sl"
-        ? "SL"
-        : rr === "stop_loss"
-          ? "SL"
-          : rr === "target"
-            ? "Target"
-            : rr === "trailing_stop" || rr === "trailing stop"
-              ? "Trail"
-              : rr === "force_close" || rr === "force close"
-                ? "Force"
-                : rr === "max_holding" || rr === "max holding"
-                  ? "Max Hold"
-                  : rr === "new_52w_high"
-                    ? "52W High"
-                    : reason();
+  // Accessors, not body-time constants: `props.reason` is a getter and the
+  // component body runs once, so a plain `const color = ...` would pin the
+  // first reason forever.
+  const color = () => {
+    const ladder = r();
+    if (ladder === "tp" || ladder === "target") return "success";
+    if (ladder === "sl" || ladder === "stop_loss" || ladder.includes("stop loss")) return "error";
+    if (ladder === "trailing_stop" || ladder === "trailing stop" || ladder.includes("trailing")) return "warning";
+    if (ladder === "max_holding" || ladder === "max holding" || ladder.includes("max holding")) return "warning";
+    if (ladder === "new_52w_high" || ladder === "new 52w" || ladder.includes("52w")) return "info";
+    if (ladder.startsWith("stop loss hit")) return "error";
+    if (ladder.startsWith("take profit")) return "success";
+    return "secondary";
+  };
+
+  const label = () => {
+    const ladder = r();
+    if (ladder === "tp") return "TP";
+    if (ladder === "sl" || ladder === "stop_loss") return "SL";
+    if (ladder === "target") return "Target";
+    if (ladder === "trailing_stop" || ladder === "trailing stop") return "Trail";
+    if (ladder === "force_close" || ladder === "force close") return "Force";
+    if (ladder === "max_holding" || ladder === "max holding") return "Max Hold";
+    if (ladder === "new_52w_high") return "52W High";
+    return props.reason;
+  };
 
   return (
-    <Badge color={color} variant="filled" size={size()} data-testid={props["data-testid"]}>
-      {label}
+    <Badge color={color()} variant="filled" size={size()} data-testid={props["data-testid"]}>
+      {label()}
     </Badge>
   );
 }

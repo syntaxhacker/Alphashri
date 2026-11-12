@@ -98,9 +98,10 @@ export function setDensity(next: Density): void {
 applyRowPyVar(DENSITY_TOKENS[currentDensity].tableRowPy);
 
 export interface DensityValue {
-  density: Density;
+  density: () => Density;
   setDensity: (next: Density) => void;
-  tokens: DensityTokens;
+  /** Reactive: reads through `density()`, so consumers stay subscribed. */
+  readonly tokens: DensityTokens;
 }
 
 /** Reactive density value; no provider required (module store + localStorage). */
@@ -117,7 +118,13 @@ export function useDensity(): DensityValue {
     onCleanup(unsub);
   });
 
-  return { density, setDensity, tokens: DENSITY_TOKENS[density()] };
+  return {
+    density,
+    setDensity,
+    get tokens() {
+      return DENSITY_TOKENS[density()];
+    },
+  };
 }
 
 interface DensityProviderProps {

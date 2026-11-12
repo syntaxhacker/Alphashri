@@ -153,7 +153,7 @@ export function CompactPanel(props: CompactPanelProps) {
               <Show when={own.title}>
                 <Show when={isStringTitle()} fallback={<Box className="flex items-center flex-start">{own.title}</Box>}>
                   <Box className="flex items-center flex-start">
-                    <Title order={4} size="sm" style={{ "line-height": "1.2px" }}>{own.title}</Title>
+                    <Title order={4} size="sm" style={{ "line-height": "1.2" }}>{own.title}</Title>
                   </Box>
                 </Show>
               </Show>
@@ -209,9 +209,9 @@ export function CompactStat(props: CompactStatProps) {
   const dense = () => own.dense ?? false;
   const labelSize = (): "xs" | "sm" | "md" | "lg" | "xl" => (dense() ? "xs" : (own.labelSize ?? "xs"));
   const valueSize = (): "xs" | "sm" | "md" | "lg" | "xl" => (dense() ? "sm" : (own.valueSize ?? "lg"));
-  const { tokens: densityTokens } = useDensity();
+  const densityApi = useDensity();
   // 4px body inset keeps stat cards from adding vertical air between rows.
-  const pad = () => (dense() ? 0.375 : Math.min(densityTokens.statPad, 0.5));
+  const pad = () => (dense() ? 0.375 : Math.min(densityApi.tokens.statPad, 0.5));
   const padPx = () => `${pad() * 8}px`;
 
   const isPrimitiveHint = () => typeof own.hint === "string" || typeof own.hint === "number";
@@ -237,12 +237,12 @@ export function CompactStat(props: CompactStatProps) {
         }}
       >
         <Box className="flex items-center justify-center w-full">
-          <Text size={labelSize()} tt="uppercase" fw={700} c="dimmed" style={{ "line-height": "1.1px", "text-align": "center" }}>
+          <Text size={labelSize()} tt="uppercase" fw={700} c="dimmed" style={{ "line-height": "1.15", "letter-spacing": "0.04em", "text-align": "center" }}>
             {own.label}
           </Text>
         </Box>
         <Box className="flex items-center justify-center w-full">
-          <Text size={valueSize()} fw={700} c={tone()} style={{ "line-height": "1.1px", "text-align": "center" }}>
+          <Text size={valueSize()} fw={700} c={tone()} style={{ "line-height": "1.1", "font-variant-numeric": "tabular-nums", "text-align": "center" }}>
             {own.value}
           </Text>
         </Box>
