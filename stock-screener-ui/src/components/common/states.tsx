@@ -1,5 +1,6 @@
 import { Show, type JSX } from "solid-js";
-import { Stack, Group, Text, Loader, Button, Alert } from "@/ui";
+import { Alert, Box, Button, Group, Loader, Stack, Text } from "@/ui";
+import * as palette from "@/ui/palette";
 import { IconAlertCircle, IconDatabaseOff } from "@/components/common/Icons";
 import { CompactPanel } from "./compact";
 
@@ -39,11 +40,35 @@ interface EmptyStateProps {
 
 export function EmptyState(props: EmptyStateProps) {
   return (
-    <Stack align="center" gap="xs" py="sm" data-testid={props["data-testid"] ?? props.dataTestid} className={props.className}>
-      {props.icon ?? (props.emoji ? <Text size="xl">{props.emoji}</Text> : <IconDatabaseOff size={40} color="secondary" />)}
-      <Text fw={600}>{props.title}</Text>
+    <Stack
+      align="center"
+      gap={4}
+      py="sm"
+      data-testid={props["data-testid"] ?? props.dataTestid}
+      className={props.className}
+      style={{ "align-items": "center", gap: "4px" }}
+    >
+      <Box
+        className="flex items-center justify-center rounded-fin border border-fin-border bg-fin-surface-alt text-fin-text-muted"
+        style={{
+          display: "flex",
+          "align-items": "center",
+          "justify-content": "center",
+          width: "36px",
+          height: "36px",
+          "border-radius": "8px",
+          border: `1px solid ${palette.BORDER}`,
+          "background-color": palette.SURFACE_ALT,
+          color: palette.TEXT_MUTED,
+        }}
+      >
+        {props.icon ?? (props.emoji ? <Text size="md" style={{ "line-height": "1" }}>{props.emoji}</Text> : <IconDatabaseOff size={18} />)}
+      </Box>
+      <Text size="sm" fw={600} style={{ "line-height": "1.3" }}>
+        {props.title}
+      </Text>
       <Show when={props.description}>
-        <Text size="sm" c="dimmed">
+        <Text size="xs" c="dimmed" style={{ "line-height": "1.35", "max-width": "42ch", "text-align": "center" }}>
           {props.description}
         </Text>
       </Show>
