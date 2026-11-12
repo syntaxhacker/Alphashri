@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, JSX } from "solid-js";
 import { Box, Card, Paper, SimpleGrid, Stack, Text, Title, useDensity } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { UIStackProps, UIPaperProps } from "@/ui";
@@ -20,10 +20,10 @@ const SCROLL_CONTAINER_STYLE: CSSProperties = {
 };
 
 interface CompactPageProps extends UIStackProps {
-  title?: ReactNode;
-  description?: ReactNode;
-  actions?: ReactNode;
-  children: ReactNode;
+  title?: JSX.Element;
+  description?: JSX.Element;
+  actions?: JSX.Element;
+  children: JSX.Element;
   /** Opt-in to the legacy centered layout. Default is left/stretch. */
   center?: boolean;
 }
@@ -74,20 +74,18 @@ export function CompactPage({
 }
 
 interface CompactPanelProps extends UIPaperProps {
-  children: ReactNode;
-  title?: ReactNode;
-  description?: ReactNode;
-  action?: ReactNode;
+  children: JSX.Element;
+  title?: JSX.Element;
+  description?: JSX.Element;
+  action?: JSX.Element;
   padded?: boolean;
   testId?: string;
   id?: string;
   scrollable?: boolean;
-  /**
-   * Edge-to-edge header divider: the header spans the panel width and the
-   * body keeps `panelPad`, instead of the header sitting inside the card's
-   * padding. Terminal/desk pages use this so panel headers line up with the
-   * grid rather than being inset by 8px on each side.
-   */
+  /** Edge-to-edge header divider: the header spans the panel width and the
+   *  body keeps `panelPad`, instead of the header sitting inside the card's
+   *  padding. Terminal/desk pages use this so panel headers line up with the
+   *  grid rather than being inset by 8px on each side. */
   flush?: boolean;
 }
 
@@ -176,10 +174,10 @@ export function CompactPanel({
 }
 
 interface CompactStatProps extends UIPaperProps {
-  label: ReactNode;
-  value: ReactNode;
+  label: JSX.Element;
+  value: JSX.Element;
   tone?: string;
-  hint?: ReactNode;
+  hint?: JSX.Element;
   labelSize?: "xs" | "sm" | "md" | "lg" | "xl";
   valueSize?: "xs" | "sm" | "md" | "lg" | "xl";
   /** Dense mode: smaller label/value fonts + tighter padding (report pages). */
@@ -255,7 +253,7 @@ export function CompactStatGrid({
   center = false,
   ...props
 }: {
-  children: ReactNode;
+  children: JSX.Element;
   /** Opt-in to the legacy centered layout. Default is left/stretch. */
   center?: boolean;
   [key: string]: any;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { createSignal, createMemo } from "solid-js";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Stack } from "@/ui";
 import { DatePicker } from "./DatePicker";
@@ -15,12 +15,13 @@ type Story = StoryObj<typeof DatePicker>;
 
 export const Default: Story = {
   render: () => {
-    const [value, setValue] = useState<Date | null>(null);
+    const [value, setValue] = createSignal<Date | null>(null);
+    const selectedLabel = createMemo(() => value()?.toDateString() ?? "none");
     return (
       <Stack gap="xs" w={280}>
-        <DatePicker value={value} onChange={setValue} placeholder="Pick a date" />
-        <span style={{ fontSize: 12 }}>
-          Selected: {value ? value.toDateString() : "none"}
+        <DatePicker value={value()} onChange={setValue} placeholder="Pick a date" />
+        <span style={{ fontSize: "12px" }}>
+          Selected: {selectedLabel()}
         </span>
       </Stack>
     );
@@ -35,10 +36,10 @@ export const WithDefaultValue: Story = {
 
 export const Clearable: Story = {
   render: () => {
-    const [value, setValue] = useState<Date | null>(null);
+    const [value, setValue] = createSignal<Date | null>(null);
     return (
       <Stack w={280}>
-        <DatePicker value={value} onChange={setValue} clearable placeholder="Clearable date" />
+        <DatePicker value={value()} onChange={setValue} clearable placeholder="Clearable date" />
       </Stack>
     );
   },
@@ -46,11 +47,12 @@ export const Clearable: Story = {
 
 export const WithValueFormat: Story = {
   render: () => {
-    const [value, setValue] = useState<Date | null>(null);
+    const [value, setValue] = createSignal<Date | null>(null);
+    const formatted = createMemo(() => value()?.toISOString().slice(0, 10) ?? "—");
     return (
       <Stack gap="xs" w={280}>
-        <DatePicker value={value} onChange={setValue} valueFormat="DD MMM YYYY" clearable />
-        <span style={{ fontSize: 12 }}>Formatted: {value ? value.toISOString().slice(0, 10) : "—"}</span>
+        <DatePicker value={value()} onChange={setValue} valueFormat="DD MMM YYYY" clearable />
+        <span style={{ fontSize: "12px" }}>Formatted: {formatted()}</span>
       </Stack>
     );
   },

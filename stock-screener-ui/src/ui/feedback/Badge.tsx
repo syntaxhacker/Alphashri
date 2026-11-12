@@ -1,3 +1,4 @@
+import { splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
 import type { UIBadgeProps } from "../types";
@@ -36,37 +37,44 @@ function radiusValue(radius: UIBadgeProps["radius"] | undefined): string | undef
 
 function badgeSizeClasses(size: UIBadgeProps["size"]): string {
   switch (size) {
-    case "xs": return "px-2 py-0.5 text-xs leading-none shrink-0";
-    case "sm": return "px-2.5 py-0.5 text-sm leading-none shrink-0";
-    case "md": return "px-3 py-1 text-sm leading-none shrink-0";
-    case "lg": return "px-3.5 py-1.5 text-base leading-none shrink-0";
-    case "xl": return "px-4 py-1.5 text-base leading-none shrink-0";
-    default: return "px-2.5 py-0.5 text-sm leading-none shrink-0";
+    case "xs":
+      return "px-2 py-0.5 text-xs leading-none shrink-0";
+    case "sm":
+      return "px-2.5 py-0.5 text-sm leading-none shrink-0";
+    case "md":
+      return "px-3 py-1 text-sm leading-none shrink-0";
+    case "lg":
+      return "px-3.5 py-1.5 text-base leading-none shrink-0";
+    case "xl":
+      return "px-4 py-1.5 text-base leading-none shrink-0";
+    default:
+      return "px-2.5 py-0.5 text-sm leading-none shrink-0";
   }
 }
 
-export function Badge({
-  children,
-  leftSection,
-  rightSection,
-  className,
-  style,
-  "data-testid": testId,
-  id,
-  variant,
-  color,
-  size,
-  radius,
-  fullWidth,
-  onClick,
-  onMouseEnter,
-  onMouseLeave,
-  ...rest
-}: UIBadgeProps) {
-  const main = resolveColor(color);
-  const isFilled = variant === "filled" || variant === "white";
-  const isOutline = variant === "outline" || variant === "default";
-  const br = radiusValue(radius);
+export function Badge(props: UIBadgeProps) {
+  const [known, _rest] = splitProps(props, [
+    "children",
+    "leftSection",
+    "rightSection",
+    "className",
+    "style",
+    "data-testid",
+    "id",
+    "variant",
+    "color",
+    "size",
+    "radius",
+    "fullWidth",
+    "onClick",
+    "onMouseEnter",
+    "onMouseLeave",
+  ]);
+
+  const main = resolveColor(known.color);
+  const isFilled = known.variant === "filled" || known.variant === "white";
+  const isOutline = known.variant === "outline" || known.variant === "default";
+  const br = radiusValue(known.radius);
 
   let bg: string | undefined;
   let borderColor: string | undefined;
@@ -90,30 +98,33 @@ export function Badge({
 
   return (
     <span
-      data-testid={testId}
-      id={id}
+      data-testid={known["data-testid"]}
+      id={known.id}
       className={cn(
         "inline-flex items-center gap-1.5 whitespace-nowrap font-semibold border",
         br ? undefined : "rounded-fin",
-        fullWidth ? "w-full" : "",
-        badgeSizeClasses(size),
-        className
+        known.fullWidth ? "w-full" : "",
+        badgeSizeClasses(known.size),
+        known.className
       )}
       style={{
         borderRadius: br,
         backgroundColor: bg,
         border: borderColor ? `1px solid ${borderColor}` : undefined,
         color: textColor,
-        ...style,
+        ...known.style,
       }}
-      onClick={onClick as never}
-      onMouseEnter={onMouseEnter as never}
-      onMouseLeave={onMouseLeave as never}
-      {...rest}
+      onClick={(e) => known.onClick?.(e)}
+      onMouseEnter={(e) => known.onMouseEnter?.(e)}
+      onMouseLeave={(e) => known.onMouseLeave?.(e)}
     >
-      {leftSection != null && <span className="shrink-0">{leftSection}</span>}
-      <span>{children}</span>
-      {rightSection != null && <span className="shrink-0">{rightSection}</span>}
+      <Show when={known.leftSection != null}>
+        <span className="shrink-0">{known.leftSection}</span>
+      </Show>
+      <span>{known.children}</span>
+      <Show when={known.rightSection != null}>
+        <span className="shrink-0">{known.rightSection}</span>
+      </Show>
     </span>
   );
 }

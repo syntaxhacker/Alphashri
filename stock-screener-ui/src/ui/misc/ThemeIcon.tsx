@@ -1,3 +1,4 @@
+import { splitProps } from "solid-js";
 import { cn } from "../cn";
 import { sxTheme } from "../sxTheme";
 import type { UIThemeIconProps } from "../types";
@@ -34,17 +35,29 @@ function resolveColor(color?: string): { main: string; dark: string } {
   return { main: color, dark: color };
 }
 
-export function ThemeIcon({ variant, color, size, radius, children, className, style, "data-testid": testId, id, ...rest }: UIThemeIconProps) {
-  const { main, dark } = resolveColor(color as string);
-  const px = toPx(size);
-  const borderRadius = radiusValue(radius);
+export function ThemeIcon(props: UIThemeIconProps) {
+  const [known, _rest] = splitProps(props, [
+    "variant",
+    "color",
+    "size",
+    "radius",
+    "children",
+    "className",
+    "style",
+    "data-testid",
+    "id",
+  ]);
+
+  const { main, dark } = resolveColor(known.color as string);
+  const px = toPx(known.size);
+  const borderRadius = radiusValue(known.radius);
 
   const baseSize = px != null ? { width: px, height: px, fontSize: `${Number(px.replace("px", "")) * 0.5}px` } : { width: "36px", height: "36px", fontSize: "18px" };
 
   let backgroundColor: string | undefined;
   let colorValue: string | undefined;
-  const isFilled = variant === "filled";
-  switch (variant) {
+  const isFilled = known.variant === "filled";
+  switch (known.variant) {
     case "filled":
       backgroundColor = dark;
       break;
@@ -66,18 +79,12 @@ export function ThemeIcon({ variant, color, size, radius, children, className, s
 
   return (
     <span
-      className={cn(
-        "inline-flex items-center justify-center shrink-0",
-        isFilled ? "text-white" : "",
-        `rounded-[${borderRadius}]`,
-        className,
-      )}
-      style={{ ...baseSize, borderRadius, backgroundColor, color: isFilled ? undefined : colorValue, ...style }}
-      id={id}
-      data-testid={testId}
-      {...(rest as Record<string, unknown>)}
+      className={cn("inline-flex items-center justify-center shrink-0", isFilled ? "text-white" : "", `rounded-[${borderRadius}]`, known.className)}
+      style={{ ...baseSize, borderRadius, backgroundColor, color: isFilled ? undefined : colorValue, ...known.style }}
+      id={known.id}
+      data-testid={known["data-testid"]}
     >
-      {children}
+      {known.children}
     </span>
   );
 }

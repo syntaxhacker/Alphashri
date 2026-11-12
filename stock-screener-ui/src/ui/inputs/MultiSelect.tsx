@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { createMemo, createSignal, createUniqueId, createEffect, For, Show, splitProps } from "solid-js";
 import { cn } from "../cn";
+import { stripLegacyInputProps } from "./legacyProps";
 import type { UIMultiSelectProps } from "../types";
 
 type Option = { value: string; label: string; disabled?: boolean };
@@ -29,142 +30,139 @@ function helperTextClasses(error?: boolean): string {
   return cn("text-xs leading-none", error ? "text-fin-negative" : "text-fin-text-muted");
 }
 
-export function MultiSelect({
-  value,
-  defaultValue,
-  onChange,
-  data,
-  searchable: _searchable,
-  searchValue,
-  onSearchChange,
-  clearable,
-  placeholder,
-  nothingFoundMessage,
-  leftSection,
-  rightSection,
-  maxValues,
-  hidePickedOptions,
-  hideTags,
-  label,
-  description,
-  error,
-  required,
-  disabled,
-  size,
-  className,
-  style,
-  id,
-  w,
-  h,
-  "data-testid": testId,
-  // Legacy Mantine-isms — accepted for backward compat, never forwarded.
-  allowDeselect: _allowDeselect,
-  maxDropdownHeight: _maxDropdownHeight,
-  comboboxProps: _comboboxProps,
-  withinPortal: _withinPortal,
-  InputProps: _InputProps,
-}: UIMultiSelectProps) {
-  const autoId = useId();
-  const inputId = id ?? `${autoId}-multiselect`;
-  const labelId = label ? `${inputId}-label` : undefined;
-  const explicitWidth = w != null ? (typeof w === "number" ? `${w}px` : w) : undefined;
-  const explicitHeight = h != null ? (typeof h === "number" ? `${h}px` : h) : undefined;
-  const options = useMemo(() => normalizeOptions(data), [data]);
-  const isError = Boolean(error);
-  const rootRef = useRef<HTMLDivElement>(null);
+export function MultiSelect(props: UIMultiSelectProps) {
+  const [known, _rest] = splitProps(props, [
+    "value",
+    "defaultValue",
+    "onChange",
+    "data",
+    "searchable",
+    "searchValue",
+    "onSearchChange",
+    "clearable",
+    "placeholder",
+    "nothingFoundMessage",
+    "leftSection",
+    "rightSection",
+    "maxValues",
+    "hidePickedOptions",
+    "hideTags",
+    "label",
+    "description",
+    "error",
+    "required",
+    "disabled",
+    "size",
+    "className",
+    "style",
+    "name",
+    "id",
+    "w",
+    "h",
+    "data-testid",
+    "allowDeselect",
+    "maxDropdownHeight",
+    "comboboxProps",
+    "withinPortal",
+    "InputProps",
+  ]);
+
+  const inputId = known.id ?? createUniqueId();
+  const labelId = known.label ? `${inputId}-multiselect-label` : undefined;
+  const explicitWidth = known.w != null ? (typeof known.w === "number" ? `${known.w}px` : known.w) : undefined;
+  const explicitHeight = known.h != null ? (typeof known.h === "number" ? `${known.h}px` : known.h) : undefined;
+  const options = createMemo(() => normalizeOptions(known.data));
+  const byValue = createMemo(() => new Map(options().map((o) => [o.value, o])));
+  const isError = Boolean(known.error);
+  let rootEl: HTMLDivElement | undefined;
   const helperText = isError
-    ? typeof error === "string"
-      ? error
-      : String(error ?? "")
-    : (description as string | undefined);
+    ? typeof known.error === "string"
+      ? known.error
+      : String(known.error ?? "")
+    : (known.description as string | undefined);
+
+  const [internalSelected, setInternalSelected] = createSignal<string[]>(
+    (known.defaultValue ?? []).filter((v) => options().some((o) => o.value === v)),
+  );
+  const [query, setQuery] = createSignal(known.searchValue ?? "");
+  const [open, setOpen] = createSignal(false);
+  const [highlighted, setHighlighted] = createSignal(-1);
+  let inputEl: HTMLInputElement | null = null;
+
+  const selectedValues = createMemo(() => known.value ?? internalSelected());
+  const selectedSet = createMemo(() => new Set(selectedValues()));
+  const shownOptions = createMemo(() => {
+    const shown = [...options()];
+    selectedValues().forEach((v) => {
+      if (!byValue().has(v)) shown.push({ value: v, label: v });
+    });
+    return known.hidePickedOptions ? shown.filter((o) => !selectedSet().has(o.value)) : shown;
+  });
 
   const rootClass = cn(
     "flex flex-col gap-2 text-sm leading-none",
     explicitWidth == null ? "w-full" : undefined,
-    className,
+    known.className,
   );
   const rootStyle = {
-    ...(style as React.CSSProperties),
+    ...known.style,
     ...(explicitWidth != null ? { width: explicitWidth } : {}),
     ...(explicitHeight != null ? { height: explicitHeight } : {}),
   };
-  const labelClass = labelClasses(size);
+  const labelClass = labelClasses(known.size);
   const helperTextClass = helperTextClasses(isError);
 
-  const [internalSelected, setInternalSelected] = useState<string[]>(() =>
-    (defaultValue ?? []).filter((v) => options.some((o) => o.value === v)),
-  );
-  const [query, setQuery] = useState(searchValue ?? "");
-  const [open, setOpen] = useState(false);
-  const [highlighted, setHighlighted] = useState(-1);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const toggle = (v: string) => {
+    if (known.disabled) return;
+    const next = selectedSet().has(v) ? selectedValues().filter((x) => x !== v) : [...selectedValues(), v];
+    const capped = known.maxValues !== undefined && next.length > known.maxValues ? next.slice(0, known.maxValues) : next;
+    if (known.value === undefined) setInternalSelected(capped);
+    known.onChange?.(capped);
+  };
 
-  const selectedValues = value ?? internalSelected;
-  const selectedSet = new Set(selectedValues);
-  const byValue = new Map(options.map((o) => [o.value, o]));
-
-  // Union caller-selected values with the current options so a value chosen
-  // earlier is never dropped when the latest options page omits it.
-  const shownOptions = useMemo(() => {
-    const shown = [...options];
-    selectedValues.forEach((v) => {
-      if (!byValue.has(v)) shown.push({ value: v, label: v });
-    });
-    return hidePickedOptions ? shown.filter((o) => !selectedSet.has(o.value)) : shown;
-  }, [options, selectedValues, selectedSet, byValue, hidePickedOptions]);
-
-  const toggle = useCallback(
-    (v: string) => {
-      if (disabled) return;
-      const next = selectedSet.has(v) ? selectedValues.filter((x) => x !== v) : [...selectedValues, v];
-      const capped = maxValues !== undefined && next.length > maxValues ? next.slice(0, maxValues) : next;
-      if (value === undefined) setInternalSelected(capped);
-      onChange?.(capped);
-    },
-    [disabled, selectedValues, selectedSet, maxValues, value, onChange],
-  );
-
-  useEffect(() => {
+  createEffect(() => {
+    if (!open()) return undefined;
+    const root = rootEl;
     const handleOutside = (e: MouseEvent) => {
-      if (open && rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+      if (open() && root && !root.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("mousedown", handleOutside);
     return () => document.removeEventListener("mousedown", handleOutside);
-  }, [open, rootRef]);
+  });
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const next = e.target.value;
+  const handleInputChange = (e: Event) => {
+    const next = (e.currentTarget as HTMLInputElement).value;
     setQuery(next);
     setOpen(true);
-    onSearchChange?.(next, "input");
+    known.onSearchChange?.(next, "input");
   };
 
   const handleClearSearch = () => {
-    if (query === "") return;
+    if (query() === "") return;
     setQuery("");
-    onSearchChange?.("", "clear");
+    known.onSearchChange?.("", "clear");
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
       handleClearSearch();
       setOpen(false);
       return;
     }
-    if (!open && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+    if (!open() && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
       setOpen(true);
       return;
     }
-    if (!open) return;
+    if (!open()) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setHighlighted((p) => Math.min(p + 1, Math.max(shownOptions.length - 1, 0)));
+      setHighlighted((p) => Math.min(p + 1, Math.max(shownOptions().length - 1, 0)));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setHighlighted((p) => Math.max(p - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      const option = shownOptions[highlighted];
+      const option = shownOptions()[highlighted()];
       if (option && !option.disabled) toggle(option.value);
     }
   };
@@ -172,20 +170,20 @@ export function MultiSelect({
   const tagClass = "inline-flex items-center gap-1.5 border rounded-fin px-2 py-0.5 text-xs text-fin-text border-fin-border bg-fin-surface-alt";
 
   return (
-    <div ref={rootRef} className={rootClass} data-testid={testId} style={rootStyle}>
-      {label && (
+    <div ref={(el) => (rootEl = el)} className={rootClass} data-testid={known["data-testid"]} style={rootStyle}>
+      {known.label && (
         <label id={labelId} htmlFor={inputId} className={labelClass}>
-          {label}
-          {required && <span className="text-fin-negative"> *</span>}
+          {known.label}
+          {known.required && <span className="text-fin-negative"> *</span>}
         </label>
       )}
       <div className="relative w-full">
-        {!hideTags && selectedValues.length > 0 && (
+        {!known.hideTags && selectedValues().length > 0 && (
           <div className="flex flex-wrap gap-1 mb-1">
-            {selectedValues.map((v) => (
-              <span key={v} className={tagClass}>
-                {byValue.get(v)?.label ?? v}
-                {clearable && !disabled && (
+            <For each={selectedValues()}>{(v) => (
+              <span className={tagClass}>
+                {byValue().get(v)?.label ?? v}
+                {known.clearable && !known.disabled && (
                   <button
                     type="button"
                     aria-label={`Remove ${v}`}
@@ -199,56 +197,56 @@ export function MultiSelect({
                   </button>
                 )}
               </span>
-            ))}
+            )}</For>
           </div>
         )}
         <div className="inline-flex w-full items-center gap-2">
-          {leftSection && <span className="shrink-0 text-fin-text-muted text-xs">{leftSection}</span>}
+          {known.leftSection && <span className="shrink-0 text-fin-text-muted text-xs">{known.leftSection}</span>}
           <input
-            ref={inputRef}
+            ref={(el) => (inputEl = el)}
             id={inputId}
             role="combobox"
-            aria-expanded={open}
+            aria-expanded={open()}
             aria-haspopup="listbox"
             aria-multiselectable="true"
-            value={searchValue ?? query}
-            onChange={handleInputChange}
+            value={known.searchValue ?? query()}
+            onInput={handleInputChange}
             onFocus={() => setOpen(true)}
             onKeyDown={handleKeyDown}
-            disabled={disabled}
-            required={required}
-            placeholder={placeholder}
-            className={controlClasses(size, disabled, isError)}
+            disabled={known.disabled}
+            required={known.required}
+            placeholder={known.placeholder}
+            className={controlClasses(known.size, known.disabled, isError)}
           />
-          {rightSection && <span className="shrink-0">{rightSection}</span>}
+          {known.rightSection && <span className="shrink-0">{known.rightSection}</span>}
         </div>
-        {open && (
+        <Show when={open()}>
           <ul role="listbox" className="absolute z-50 left-0 right-0 mt-1 border border-fin-border rounded-fin bg-fin-surface text-fin-text max-h-60 overflow-y-auto outline-none">
-            {shownOptions.length === 0 ? (
+            {shownOptions().length === 0 ? (
               <li role="option" aria-disabled className="px-3 py-2 text-xs text-fin-text-muted">
-                {nothingFoundMessage ?? "No options"}
+                {known.nothingFoundMessage ?? "No options"}
               </li>
             ) : (
-              shownOptions.map((opt) => (
-                <li key={opt.value} role="option" aria-selected={selectedSet.has(opt.value)} aria-disabled={opt.disabled || disabled}>
+              <For each={shownOptions()}>{(opt) => (
+                <li role="option" aria-selected={selectedSet().has(opt.value)} aria-disabled={opt.disabled || known.disabled}>
                   <label className="flex items-center gap-2 cursor-pointer select-none w-full px-3 py-2 text-xs disabled:opacity-50 disabled:cursor-not-allowed">
                     <input
                       type="checkbox"
-                      checked={selectedSet.has(opt.value)}
+                      checked={selectedSet().has(opt.value)}
                       onChange={(e) => {
                         e.stopPropagation();
                         toggle(opt.value);
                       }}
-                      disabled={opt.disabled || disabled}
+                      disabled={opt.disabled || known.disabled}
                       className="shrink-0 text-fin-primary"
                     />
                     {opt.label}
                   </label>
                 </li>
-              ))
+              )}</For>
             )}
           </ul>
-        )}
+        </Show>
       </div>
       {helperText && <p className={helperTextClass}>{helperText}</p>}
     </div>

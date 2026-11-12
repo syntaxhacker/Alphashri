@@ -1,15 +1,15 @@
 // CollapsiblePanel — dense panel for the backtest right rail.
 import { Badge, Box, Divider, Stack, Text } from "@/ui";
-import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
+import { IconChevronDown, IconChevronRight } from "@/components/common/Icons";
 import type { BacktestPanelId } from "./useBacktestLayout";
 
 interface CollapsiblePanelProps {
   id: BacktestPanelId;
   title: string;
-  badge?: React.ReactNode;
+  badge?: JSX.Element;
   open: boolean;
   onToggle: () => void;
-  children: React.ReactNode;
+  children: JSX.Element;
 }
 
 export function CollapsiblePanel({ id, title, badge, open, onToggle, children }: CollapsiblePanelProps) {
@@ -76,11 +76,11 @@ export function CollapsiblePanel({ id, title, badge, open, onToggle, children }:
         </Stack>
       </button>
       <Divider />
-      {open && (
+      <Show when={open}>
         <div className="flex-1 min-h-0 min-w-0 overflow-auto flex flex-col">
           {children}
         </div>
-      )}
+      </Show>
     </Box>
   );
 }

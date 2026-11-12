@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { createSignal, createEffect, onCleanup } from "solid-js";
 import { sxTheme } from "./sxTheme";
 import type { UIUseColorSchemeResult } from "./types";
 
@@ -12,68 +12,85 @@ export function rem(value: number | string): string {
   return `${value / 16}rem`;
 }
 
-// useMediaQuery: window.matchMedia only
-export function useMediaQuery(query: string, defaultValue?: boolean, _options?: any): boolean {
-  const [matches, setMatches] = useState<boolean>(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return Boolean(defaultValue);
-    return window.matchMedia(query).matches;
-  });
+// useMediaQuery: window.matchMedia only. Reads reactively via a signal so
+// Solid subscribers re-run when the media query flips.
+export function useMediaQuery(query: string, defaultValue?: boolean, _options?: any): () => boolean {
+  let initial = Boolean(defaultValue);
+  if (typeof window !== "undefined" && window.matchMedia) {
+    try {
+      const mql = window.matchMedia(query);
+      if (mql) initial = mql.matches;
+    } catch {
+      // matchMedia threw — keep the default.
+    }
+  }
+  const [matches, setMatches] = createSignal<boolean>(initial);
 
-  useEffect(() => {
+  createEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
-    const mql = window.matchMedia(query);
+    let mql: MediaQueryList | null;
+    try {
+      mql = window.matchMedia(query);
+    } catch {
+      return;
+    }
+    if (!mql) return;
     const handler = (e: MediaQueryListEvent) => setMatches(e.matches);
     // Modern: addEventListener, fallback: addListener
     if ((mql as any).addEventListener) mql.addEventListener("change", handler as any);
     else (mql as any).addListener(handler);
     setMatches(mql.matches);
-    return () => {
+    onCleanup(() => {
       if ((mql as any).removeEventListener) mql.removeEventListener("change", handler as any);
       else (mql as any).removeListener(handler);
-    };
-  }, [query]);
+    });
+  });
 
   return matches;
 }
 
-// useDebouncedValue: [debouncedValue]
-export function useDebouncedValue<T>(value: T, wait: number): [T] {
-  const [debounced, setDebounced] = useState<T>(value);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+// useDebouncedValue: [debounced] — debounced is a signal, read as debounced()
+export function useDebouncedValue<T>(value: T, wait: number): [() => T] {
+  const [debounced, setDebounced] = createSignal<T>(value);
 
-  useEffect(() => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => setDebounced(value), wait);
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  createEffect(() => {
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    const run = () => {
+      timeout = null;
+      setDebounced(value);
     };
-  }, [value, wait]);
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(run, wait);
+    onCleanup(() => {
+      if (timeout) clearTimeout(timeout);
+    });
+  });
 
   return [debounced];
 }
 
-// useDisclosure: [opened, { open, close, toggle }]
+// useDisclosure: [opened, { open, close, toggle }] — opened is a signal
 export function useDisclosure(
   initialState = false,
   callbacks?: { onOpen?: () => void; onClose?: () => void },
-): [boolean, { open: () => void; close: () => void; toggle: () => void }] {
-  const [opened, setOpened] = useState(initialState);
-  const open = useCallback(() => {
+): [() => boolean, { open: () => void; close: () => void; toggle: () => void }] {
+  const [opened, setOpened] = createSignal(initialState);
+
+  const open = () => {
     setOpened(true);
     callbacks?.onOpen?.();
-  }, [callbacks]);
-  const close = useCallback(() => {
+  };
+  const close = () => {
     setOpened(false);
     callbacks?.onClose?.();
-  }, [callbacks]);
-  const toggle = useCallback(() => {
-    setOpened((v) => {
-      const next = !v;
-      if (next) callbacks?.onOpen?.();
-      else callbacks?.onClose?.();
-      return next;
-    });
-  }, [callbacks]);
+  };
+  const toggle = () => {
+    const next = !opened();
+    if (next) callbacks?.onOpen?.();
+    else callbacks?.onClose?.();
+    setOpened(next);
+  };
+
   return [opened, { open, close, toggle }];
 }
 
@@ -89,37 +106,33 @@ export function useColorScheme(): UIUseColorSchemeResult {
     return "light";
   };
 
-  const [fallback, setFallback] = useState<"light" | "dark">(getInitial);
-  const colorScheme: "light" | "dark" = fallback;
+  const [colorScheme, setColorSchemeSignal] = createSignal(getInitial());
 
-  useEffect(() => {
+  createEffect(() => {
+    const scheme = colorScheme();
     if (typeof document !== "undefined") {
-      document.documentElement.setAttribute("data-color-scheme", colorScheme);
-      document.documentElement.style.colorScheme = colorScheme;
+      document.documentElement.setAttribute("data-color-scheme", scheme);
+      document.documentElement.style.colorScheme = scheme;
     }
-  }, [colorScheme]);
+  });
 
-  const setColorScheme = useCallback(
-    (scheme: "light" | "dark") => {
-      setFallback(scheme);
-      if (typeof window !== "undefined") {
-        try {
-          window.localStorage.setItem("color-scheme", scheme);
-        } catch {}
-        document.documentElement?.setAttribute("data-color-scheme", scheme);
-        document.documentElement.style.colorScheme = scheme;
-      }
-    },
-    [], // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  const setColorScheme = (scheme: "light" | "dark") => {
+    setColorSchemeSignal(scheme);
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem("color-scheme", scheme);
+      } catch {}
+      document.documentElement?.setAttribute("data-color-scheme", scheme);
+      document.documentElement.style.colorScheme = scheme;
+    }
+  };
 
-  const toggleColorScheme = useCallback(() => {
-    const next = colorScheme === "dark" ? "light" : "dark";
-    setColorScheme(next);
-  }, [colorScheme, setColorScheme]);
+  const toggleColorScheme = () => {
+    setColorScheme(colorScheme() === "dark" ? "light" : "dark");
+  };
 
   return {
-    isDark: colorScheme === "dark",
+    isDark: () => colorScheme() === "dark",
     colorScheme,
     toggleColorScheme,
     setColorScheme,
@@ -139,24 +152,22 @@ export function useUICore() {
 // Tree state: tracks expanded node values.
 // initialExpandedState accepts an array of values or a record of value->bool.
 export function useTree(options?: { initialExpandedState?: string[] | Record<string, boolean> }) {
-  const initial = useRef<string[] | undefined>(undefined);
-  if (initial.current === undefined) {
-    const s = options?.initialExpandedState;
-    initial.current = Array.isArray(s)
-      ? [...s]
-      : s && typeof s === "object"
-        ? Object.keys(s).filter((k) => (s as Record<string, boolean>)[k])
-        : [];
-  }
-  const [expanded, setExpandedState] = useState<string[]>(initial.current ?? []);
-  const setExpanded = useCallback((next: string[]) => {
-    setExpandedState([...next]);
-  }, []);
-  const toggleExpanded = useCallback((value: string) => {
-    setExpandedState((prev) =>
-      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
-    );
-  }, []);
+  const initial = options?.initialExpandedState;
+  const [expanded, setExpandedSignal] = createSignal<string[]>(
+    Array.isArray(initial)
+      ? [...initial]
+      : initial && typeof initial === "object"
+        ? Object.keys(initial).filter((k) => (initial as Record<string, boolean>)[k])
+        : [],
+  );
+
+  const setExpanded = (next: string[]) => {
+    setExpandedSignal([...next]);
+  };
+  const toggleExpanded = (value: string) => {
+    const prev = expanded();
+    setExpandedSignal(prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]);
+  };
   return { expanded, toggleExpanded, setExpanded } as any;
 }
 export function getTreeExpandedState(data: any, value: any): string[] {

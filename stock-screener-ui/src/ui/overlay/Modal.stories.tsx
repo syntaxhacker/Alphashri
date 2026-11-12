@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
+import { createSignal } from "solid-js";
 import { Stack, Text, Title, Button, Group } from "@/ui";
 import { Modal } from "./Modal";
 
@@ -14,9 +14,9 @@ export default meta;
 type Story = StoryObj<typeof Modal>;
 
 function OpenByDefault() {
-  const [opened, setOpened] = useState(true);
+  const [opened, setOpened] = createSignal(true);
   return (
-    <Modal opened={opened} onClose={() => setOpened(false)} title="Confirm force exit">
+    <Modal opened={opened()} onClose={() => setOpened(false)} title="Confirm force exit">
       <Text size="sm" mb="md">
         This will close all open positions at market price. Continue?
       </Text>
@@ -39,12 +39,12 @@ export const OpenByDefaultStory: Story = {
 };
 
 function TriggeredModal() {
-  const [opened, setOpened] = useState(false);
+  const [opened, setOpened] = createSignal(false);
   return (
     <>
       <Button onClick={() => setOpened(true)}>Close all positions</Button>
       <Modal
-        opened={opened}
+        opened={opened()}
         onClose={() => setOpened(false)}
         title="Close all positions"
         centered

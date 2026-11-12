@@ -1,8 +1,4 @@
-import {
-  useEffect,
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
+import { createSignal, createEffect, onCleanup, type JSX } from "solid-js";
 
 /**
  * Table density: Comfortable | Compact (default Compact).
@@ -10,7 +6,7 @@ import {
  * The default is byte-identical to the pre-density Compact styling, so
  * nothing shifts visually unless the user opts into Comfortable.
  * Persisted to localStorage; also mirrored to the `--table-row-py` CSS var
- * for any non-React consumer.
+ * for any non-Solid consumer.
  */
 
 export type Density = "compact" | "comfortable";
@@ -109,16 +105,23 @@ export interface DensityValue {
 
 /** Reactive density value; no provider required (module store + localStorage). */
 export function useDensity(): DensityValue {
-  const density = useSyncExternalStore(
-    subscribeDensity,
-    getDensitySnapshot,
-    getDensitySnapshot,
-  );
-  return { density, setDensity, tokens: DENSITY_TOKENS[density] };
+  const [density, setDensitySignal] = createSignal<Density>(getDensitySnapshot());
+
+  // Subscribe to module-store changes and push them into the signal.
+  createEffect(() => {
+    const unsub = subscribeDensity(() => {
+      setDensitySignal(getDensitySnapshot());
+    });
+    // Seed with the current snapshot on mount.
+    setDensitySignal(getDensitySnapshot());
+    onCleanup(unsub);
+  });
+
+  return { density, setDensity, tokens: DENSITY_TOKENS[density()] };
 }
 
 interface DensityProviderProps {
-  children: ReactNode;
+  children: JSX.Element;
   /** Test/story override: applied on mount (and restored on unmount). */
   value?: Density;
 }
@@ -128,13 +131,13 @@ interface DensityProviderProps {
  * provider — `useDensity` reads the module store by default.
  */
 export function DensityProvider({ children, value }: DensityProviderProps) {
-  useEffect(() => {
+  createEffect(() => {
     if (value === undefined) return;
     const prev = getDensitySnapshot();
     setDensity(value);
-    return () => {
+    onCleanup(() => {
       setDensity(prev);
-    };
-  }, [value]);
+    });
+  });
   return <>{children}</>;
 }

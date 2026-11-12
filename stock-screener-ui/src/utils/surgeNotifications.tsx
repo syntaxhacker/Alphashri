@@ -1,4 +1,4 @@
-import { enqueueSnackbar } from "notistack";
+import { showToast } from "solid-notifications";
 import type { ScreenerData } from "../types";
 import { recordSurge } from "../api/notifications";
 
@@ -89,15 +89,20 @@ export function checkPriceSurges(
     const dir = moveValue > 0 ? "\u{1F680}" : "\u{1F4C9}";
     const priceStr = stock.upstox_price != null ? ` | \u20B9${stock.upstox_price}` : "";
 
-    enqueueSnackbar({
-      title: `${dir} ${stock.symbol} ${signed}`,
-      message: `${screenLabel} | ${moveLabel}${priceStr}`,
-      color: moveValue > 0 ? "green" : "red",
-      autoClose: 8000,
-      withCloseButton: true,
-      style: { cursor: "pointer" },
-      "data-surge-symbol": stock.symbol,
-    } as any);
+    // The global click listener above picks up `[data-surge-symbol]`, so the
+    // toast content carries it and clicking it opens the chart.
+    showToast(
+      <div data-surge-symbol={stock.symbol} style={{ cursor: "pointer" }}>
+        <div>{`${dir} ${stock.symbol} ${signed}`}</div>
+        <div>{`${screenLabel} | ${moveLabel}${priceStr}`}</div>
+      </div>,
+      {
+        type: moveValue > 0 ? "success" : "error",
+        duration: 8000,
+        positionX: "right",
+        positionY: "bottom",
+      },
+    );
 
     recordSurge({
       symbol: stock.symbol,

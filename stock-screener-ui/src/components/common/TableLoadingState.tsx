@@ -1,10 +1,10 @@
-import type { ReactNode } from "react";
+import type { JSX } from "solid-js";
 import { InlineLoader } from "./states";
 
 interface TableLoadingStateProps {
   message?: string;
   showSpinner?: boolean;
-  children?: ReactNode;
+  children?: JSX.Element;
 }
 
 /**

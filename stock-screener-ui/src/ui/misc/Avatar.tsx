@@ -1,3 +1,4 @@
+import { splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UIAvatarProps } from "../types";
 
@@ -40,27 +41,39 @@ function radiusClass(radius: UIAvatarProps["radius"]): string {
   return "rounded-sm";
 }
 
-export function Avatar({ src, alt, color, radius, size, children, className, style, "data-testid": testId, id, ...rest }: UIAvatarProps) {
-  const { w, h, fontSize } = mapSize(size);
-  const hasSrc = Boolean(src);
-  const colorCls = color ? (BG_BY_COLOR[String(color)] ?? "bg-fin-surface text-fin-text") : "bg-fin-surface text-fin-text";
-  const display = hasSrc ? undefined : children ?? (alt ? initials(alt) : "?");
+export function Avatar(props: UIAvatarProps) {
+  const [known, _rest] = splitProps(props, [
+    "src",
+    "alt",
+    "color",
+    "radius",
+    "size",
+    "children",
+    "className",
+    "style",
+    "data-testid",
+    "id",
+  ]);
+
+  const { w, h, fontSize } = mapSize(known.size);
+  const hasSrc = Boolean(known.src);
+  const colorCls = known.color ? (BG_BY_COLOR[String(known.color)] ?? "bg-fin-surface text-fin-text") : "bg-fin-surface text-fin-text";
+  const display = hasSrc ? undefined : known.children ?? (known.alt ? initials(known.alt) : "?");
 
   return (
     <div
       className={cn(
         "inline-flex items-center justify-center overflow-hidden border border-fin-border shrink-0",
         colorCls,
-        radiusClass(radius),
-        className,
+        radiusClass(known.radius),
+        known.className,
       )}
-      style={{ width: w, height: h, fontSize, ...style }}
-      id={id}
-      data-testid={testId}
-      {...(rest as Record<string, unknown>)}
+      style={{ width: w, height: h, fontSize, ...known.style }}
+      id={known.id}
+      data-testid={known["data-testid"]}
     >
       {hasSrc ? (
-        <img src={src} alt={alt ?? ""} className="w-full h-full object-cover" />
+        <img src={known.src} alt={known.alt ?? ""} className="w-full h-full object-cover" />
       ) : (
         <span className="text-fin-text font-medium leading-none">{display}</span>
       )}

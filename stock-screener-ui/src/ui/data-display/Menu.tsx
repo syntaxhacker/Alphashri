@@ -1,37 +1,34 @@
-import * as React from "react";
+import { createContext, createEffect, createMemo, Show, splitProps, useContext } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
 import type { UIMenuProps, UIMenuTargetProps, UIMenuDropdownProps, UIMenuItemProps } from "../types";
 
 type MenuContextValue = {
-  anchorEl: HTMLElement | null;
+  anchorEl: () => HTMLElement | null;
   setAnchorEl: (el: HTMLElement | null) => void;
-  open: boolean;
+  open: () => boolean;
   onClose: () => void;
   onOpen: (el: HTMLElement) => void;
   closeOnItemClick?: boolean;
   closeOnClickOutside?: boolean;
-  position?: string;
-  offset?: number;
-  withArrow?: boolean;
-  shadow?: string;
-  trigger?: string;
+  position: () => string | undefined;
+  offset: () => number | undefined;
+  withArrow: () => boolean | undefined;
+  shadow: () => string | undefined;
+  trigger: () => string | undefined;
   registerDropdownEl: (el: HTMLElement | null) => void;
 };
 
-const MenuContext = React.createContext<MenuContextValue | null>(null);
+const MenuContext = createContext<MenuContextValue | null>(null);
 
 function useMenuContext() {
-  const ctx = React.useContext(MenuContext);
+  const ctx = useContext(MenuContext);
   if (!ctx) throw new Error("Menu compound components must be used within Menu");
   return ctx;
 }
 
 const DEFAULT_SHADOW = palette.DIALOG_SHADOW;
 
-// Best-effort fixed-position placement of the dropdown relative to the anchor
-// element's viewport rect. Uses `bottom:` for above-anchor positions so the
-// dropdown height never needs to be measured.
 function menuPosition(anchorEl: HTMLElement, position?: string, offset = 0): { top?: string; left?: string; right?: string; bottom?: string; transform?: string } {
   const rect = anchorEl.getBoundingClientRect();
   const vpW = window.innerWidth;
@@ -78,83 +75,79 @@ function menuPosition(anchorEl: HTMLElement, position?: string, offset = 0): { t
   return style;
 }
 
-export function Menu({
-  trigger,
-  opened,
-  onChange,
-  position,
-  offset,
-  withArrow,
-  shadow,
-  closeOnItemClick = true,
-  closeOnClickOutside = true,
-  _loop,
-  children,
-  _renderTarget,
-  className,
-  style,
-  id,
-  "data-testid": testId,
-  ...rest
-}: UIMenuProps) {
-  const [internalAnchorEl, setInternalAnchorEl] = React.useState<HTMLElement | null>(null);
-  const dropdownElRef = React.useRef<HTMLElement | null>(null);
-  const isControlled = opened !== undefined;
-  const open = isControlled ? !!opened : !!internalAnchorEl;
+export function Menu(props: UIMenuProps) {
+  const [known, rest] = splitProps(props, [
+    "trigger",
+    "opened",
+    "onChange",
+    "position",
+    "offset",
+    "withArrow",
+    "shadow",
+    "closeOnItemClick",
+    "closeOnClickOutside",
+    "_loop",
+    "children",
+    "_renderTarget",
+    "className",
+    "style",
+    "id",
+    "data-testid",
+  ]);
 
-  const setAnchorEl = React.useCallback(
-    (el: HTMLElement | null) => {
-      setInternalAnchorEl(el);
-      onChange?.(!!el);
-    },
-    [onChange]
-  );
+  const internalAnchorEl = createSignal<HTMLElement | null>(null);
+  const [setInternalAnchorEl] = internalAnchorEl;
+  const dropdownElRef = createSignal<HTMLElement | null>(null);
+  const [setDropdownEl] = dropdownElRef;
 
-  const onClose = React.useCallback(() => {
+  const isControlled = createMemo(() => known.opened !== undefined);
+  const open = createMemo(() => (isControlled() ? !!known.opened : !!internalAnchorEl()));
+
+  const setAnchorEl = (el: HTMLElement | null) => {
+    setInternalAnchorEl(el);
+    known.onChange?.(!!el);
+  };
+
+  const onClose = () => {
     setInternalAnchorEl(null);
-    onChange?.(false);
-  }, [onChange]);
+    known.onChange?.(false);
+  };
 
-  const onOpen = React.useCallback(
-    (el: HTMLElement) => {
-      setInternalAnchorEl(el);
-      onChange?.(true);
-    },
-    [onChange]
-  );
+  const onOpen = (el: HTMLElement) => {
+    setInternalAnchorEl(el);
+    known.onChange?.(true);
+  };
 
-  React.useEffect(() => {
-    if (isControlled && !opened) setInternalAnchorEl(null);
-  }, [isControlled, opened]);
+  createEffect(() => {
+    if (isControlled() && !known.opened) setInternalAnchorEl(null);
+  });
 
-  const registerDropdownEl = React.useCallback((el: HTMLElement | null) => {
-    dropdownElRef.current = el;
-  }, []);
+  const registerDropdownEl = (el: HTMLElement | null) => {
+    setDropdownEl(el);
+  };
 
-  // Click outside closes the menu.
-  React.useEffect(() => {
-    if (!open || !closeOnClickOutside) return;
+  createEffect(() => {
+    if (!open() || !known.closeOnClickOutside) return;
     const handleMousedown = (e: MouseEvent) => {
       const target = e.target as Node;
-      const anchor = internalAnchorEl;
-      const dropdown = dropdownElRef.current;
+      const anchor = internalAnchorEl();
+      const dropdown = dropdownElRef();
       if (anchor && !anchor.contains(target) && (!dropdown || !dropdown.contains(target))) {
         onClose();
       }
     };
     document.addEventListener("mousedown", handleMousedown);
     return () => document.removeEventListener("mousedown", handleMousedown);
-  }, [open, closeOnClickOutside, internalAnchorEl, onClose]);
+  });
 
-  // Escape closes the menu.
-  React.useEffect(() => {
-    if (!open) return;
+  createEffect(() => {
+    if (!open()) return;
     const handleKeydown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", handleKeydown);
     return () => document.removeEventListener("keydown", handleKeydown);
-  }, [open, onClose]);
+  });
 
   const ctxValue: MenuContextValue = {
     anchorEl: internalAnchorEl,
@@ -162,95 +155,142 @@ export function Menu({
     open,
     onClose,
     onOpen,
-    closeOnItemClick,
-    closeOnClickOutside,
-    position,
-    offset,
-    withArrow,
-    shadow,
-    trigger,
+    closeOnItemClick: known.closeOnItemClick,
+    closeOnClickOutside: known.closeOnClickOutside,
+    position: () => known.position,
+    offset: () => known.offset,
+    withArrow: () => known.withArrow,
+    shadow: () => known.shadow,
+    trigger: () => known.trigger,
     registerDropdownEl,
   };
 
+  const children = known.children;
   return (
     <MenuContext.Provider value={ctxValue}>
-      <div id={id} className={cn("ui-menu", "inline-block", className)} style={style} data-testid={testId} {...(rest as any)}>
-        {typeof children === "function" ? (children as any)({ open, close: onClose }) : children}
+      <div
+        id={known.id}
+        className={cn("ui-menu", "inline-block", known.className)}
+        style={known.style as Record<string, string | undefined>}
+        data-testid={known["data-testid"]}
+        {...(rest as Record<string, unknown>)}
+      >
+        <Show when={typeof children === "function"}>
+          {(children as (payload: { open: boolean; close: () => void }) => JSX.Element)({
+            open: open(),
+            close: onClose,
+          })}
+        </Show>
+        <Show when={typeof children !== "function"}>{children}</Show>
       </div>
     </MenuContext.Provider>
   );
 }
 
-export function MenuTarget({ children, className, style, id }: UIMenuTargetProps) {
+export function MenuTarget(props: UIMenuTargetProps) {
+  const [known, rest] = splitProps(props, [
+    "children",
+    "className",
+    "style",
+    "id",
+    "data-testid",
+    "onClick",
+    "onMouseEnter",
+  ]);
   const { setAnchorEl, anchorEl, open, onClose, trigger } = useMenuContext();
-  const child = React.Children.only(children as React.ReactElement<any>);
-  const isHover = trigger === "hover" || trigger === "click-hover";
+  const isHover = createMemo(() => trigger() === "hover" || trigger() === "click-hover");
 
-  const handleClick = (e: React.MouseEvent) => {
+  const handleClick = (e: MouseEvent) => {
     const target = e.currentTarget as HTMLElement;
-    if (open && anchorEl === target) {
+    if (open() && anchorEl() === target) {
       onClose();
     } else {
       setAnchorEl(target);
     }
-    (child.props as any)?.onClick?.(e);
+    known.onClick?.(e);
   };
 
-  const handleMouseEnter = (e: React.MouseEvent) => {
-    if (isHover) {
-      const target = e.currentTarget as HTMLElement;
-      if (!open) setAnchorEl(target);
+  const handleMouseEnter = (e: MouseEvent) => {
+    if (isHover()) {
+      if (!open()) setAnchorEl(e.currentTarget as HTMLElement);
     }
-    (child.props as any)?.onMouseEnter?.(e);
+    known.onMouseEnter?.(e);
   };
-
-  return React.cloneElement(child, {
-    id,
-    onClick: handleClick,
-    onMouseEnter: handleMouseEnter,
-    className: cn(className, (child.props as any).className),
-    style: { ...style, ...(child.props as any).style },
-  } as any);
-}
-
-export function MenuDropdown({ children, className, style, id, "data-testid": testId, ...rest }: UIMenuDropdownProps) {
-  const { anchorEl, open, position, offset, shadow, withArrow, registerDropdownEl } = useMenuContext();
-
-  if (!open || !anchorEl) return null;
-
-  const posStyle = menuPosition(anchorEl, position, offset ?? 0);
-  const boxShadow = shadow ?? DEFAULT_SHADOW;
 
   return (
-    <div
-      id={id}
-      ref={registerDropdownEl}
-      role="menu"
-      className={cn(
-        "ui-menu-dropdown",
-        "fixed z-[100] min-w-[160px] bg-fin-surface border border-fin-border rounded-fin text-fin-text text-[14px] py-[4px] outline-none",
-        withArrow ? "with-arrow" : "",
-        className,
-      )}
-      style={{ ...posStyle, boxShadow, ...(style as any) }}
-      data-testid={testId}
-      {...(rest as any)}
+    <span
+      id={known.id}
+      data-testid={known["data-testid"]}
+      className={cn(known.className)}
+      style={known.style as Record<string, string | undefined>}
+      onClick={handleClick}
+      onMouseEnter={handleMouseEnter}
+      {...(rest as Record<string, unknown>)}
     >
-      {withArrow && (
-        <div
-          className="ui-menu-arrow absolute -top-[7px] left-3 w-[12px] h-[12px] bg-fin-surface border-t border-fin-border border-l border-fin-border rotate-45"
-          aria-hidden="true"
-        />
-      )}
-      <div className="ui-menu-dropdown-inner">{children}</div>
-    </div>
+      {known.children}
+    </span>
   );
 }
 
-export function MenuItem({ leftSection, rightSection, color, disabled, onClick, children, className, style, id, "data-testid": testId, ...rest }: UIMenuItemProps) {
+export function MenuDropdown(props: UIMenuDropdownProps) {
+  const [known, rest] = splitProps(props, ["children", "className", "style", "id", "data-testid"]);
+  const { anchorEl, open, position, offset, shadow, withArrow, registerDropdownEl } = useMenuContext();
+  const [placeEl, setPlaceEl] = createSignal<HTMLElement | null>(null);
+
+  const posStyle = createMemo(() => {
+    if (!anchorEl()) return {};
+    return menuPosition(anchorEl(), position(), offset() ?? 0);
+  });
+
+  return (
+    <Show when={open()}>
+      <div
+        id={known.id}
+        ref={(el) => setPlaceEl(el)}
+        role="menu"
+        className={cn(
+          "ui-menu-dropdown",
+          "fixed z-[100] min-w-[160px] bg-fin-surface border border-fin-border rounded-fin text-fin-text text-[14px] py-[4px] outline-none",
+          withArrow() ? "with-arrow" : "",
+          known.className,
+        )}
+        style={{
+          ...posStyle(),
+          boxShadow: shadow() ?? DEFAULT_SHADOW,
+          ...(known.style as Record<string, string | undefined>),
+        }}
+        data-testid={known["data-testid"]}
+        {...(rest as Record<string, unknown>)}
+      >
+        <Show when={withArrow()}>
+          <div
+            className="ui-menu-arrow absolute -top-[7px] left-3 w-[12px] h-[12px] bg-fin-surface border-t border-fin-border border-l border-fin-border rotate-45"
+            aria-hidden="true"
+          />
+        </Show>
+        <div className="ui-menu-dropdown-inner">{known.children}</div>
+      </div>
+    </Show>
+  );
+}
+
+export function MenuItem(props: UIMenuItemProps) {
+  const [known, rest] = splitProps(props, [
+    "leftSection",
+    "rightSection",
+    "color",
+    "disabled",
+    "onClick",
+    "children",
+    "className",
+    "style",
+    "id",
+    "data-testid",
+  ]);
   const { onClose, closeOnItemClick } = useMenuContext();
-  const tone = (() => {
-    switch (color) {
+
+  const tone = createMemo(() => {
+    switch (known.color) {
       case "success": return "fin-positive";
       case "error":
       case "danger": return "fin-negative";
@@ -260,51 +300,69 @@ export function MenuItem({ leftSection, rightSection, color, disabled, onClick, 
       case "primary":
       default: return "fin-primary";
     }
-  })();
+  });
 
-  const handleClick = (_e: React.MouseEvent) => {
-    if (disabled) return;
-    onClick?.();
+  const handleClick = (e: MouseEvent) => {
+    if (known.disabled) return;
+    known.onClick?.();
     if (closeOnItemClick) onClose();
   };
 
-  const cls = cn(
-    "ui-menu-item",
-    "flex w-full items-center gap-2 rounded-[4px] px-3 py-[6px] text-left text-[14px] border-none bg-transparent outline-none text-fin-text",
-    disabled ? "text-fin-text-muted opacity-60 cursor-default" : "cursor-pointer hover:bg-fin-surface-alt",
-    `text-${tone}`,
-    className,
+  const cls = createMemo(() =>
+    cn(
+      "ui-menu-item",
+      "flex w-full items-center gap-2 rounded-[4px] px-3 py-[6px] text-left text-[14px] border-none bg-transparent outline-none text-fin-text",
+      known.disabled
+        ? "text-fin-text-muted opacity-60 cursor-default"
+        : "cursor-pointer hover:bg-fin-surface-alt",
+      `text-${tone()}`,
+      known.className,
+    ),
   );
 
   return (
     <button
       type="button"
       role="menuitem"
-      id={id}
-      aria-disabled={disabled || undefined}
-      disabled={disabled}
-      className={cls}
-      style={style}
-      data-testid={testId}
+      id={known.id}
+      aria-disabled={known.disabled || undefined}
+      disabled={known.disabled}
+      className={cls()}
+      style={known.style as Record<string, string | undefined>}
+      data-testid={known["data-testid"]}
       onClick={handleClick}
-      {...(rest as any)}
+      {...(rest as Record<string, unknown>)}
     >
-      {leftSection ? <span className="ui-menu-item-section shrink-0">{leftSection}</span> : null}
-      <span className="flex-1 min-w-0 truncate">{children}</span>
-      {rightSection ? <span className="ui-menu-item-section shrink-0">{rightSection}</span> : null}
+      <Show when={known.leftSection}>
+        <span className="ui-menu-item-section shrink-0">{known.leftSection}</span>
+      </Show>
+      <span className="flex-1 min-w-0 truncate">{known.children}</span>
+      <Show when={known.rightSection}>
+        <span className="ui-menu-item-section shrink-0">{known.rightSection}</span>
+      </Show>
     </button>
   );
 }
 
 function MenuDivider({ className, style, "data-testid": testId, ...props }: any) {
   return (
-    <hr role="separator" className={cn("ui-menu-divider", "border-0 border-t border-fin-border mx-3 my-[4px]", className)} style={style} data-testid={testId} {...props} />
+    <hr
+      role="separator"
+      className={cn("ui-menu-divider", "border-0 border-t border-fin-border mx-3 my-[4px]", className)}
+      style={style}
+      data-testid={testId}
+      {...props}
+    />
   );
 }
 
 function MenuLabel({ children, className, style, ...rest }: any) {
   return (
-    <div className={cn("ui-menu-label", "px-3 py-[4px] text-[11px] font-semibold uppercase text-fin-text-muted", className)} style={style} {...rest}>
+    <div
+      className={cn("ui-menu-label", "px-3 py-[4px] text-[11px] font-semibold uppercase text-fin-text-muted", className)}
+      style={style}
+      {...rest}
+    >
       {children}
     </div>
   );

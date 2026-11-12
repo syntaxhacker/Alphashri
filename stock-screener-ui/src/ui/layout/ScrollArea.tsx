@@ -1,37 +1,53 @@
+import { splitProps } from "solid-js";
 import { cn } from "../cn";
-import type { CSSProperties } from "react";
 import type { UIScrollAreaProps } from "../types";
 
 const toSz = (v: unknown): string | undefined => (typeof v === "number" ? `${v}px` : (v as string | undefined));
 
+const SCROLL_AREA_KNOWN = [
+  "children", "className", "style", "id", "data-testid", "h", "w", "onScroll", "onScrollPositionChange",
+] as const;
+
 export const ScrollArea = Object.assign(
-  ({
-    children, className, style, id, "data-testid": testId, h, w, type, offsetScrollbars, scrollbarSize, scrollHideDelay, onScrollPositionChange, ...rest
-  }: UIScrollAreaProps & { onScrollPositionChange?: (pos: { x: number; y: number }) => void } & Record<string, unknown>) => {
-    void type; void offsetScrollbars; void scrollbarSize; void scrollHideDelay;
-    const styleObj: CSSProperties = {
-      ...style,
-      ...(h != null && { height: toSz(h) }),
-      ...(w != null && { width: toSz(w) }),
-    };
+  (props: UIScrollAreaProps & Record<string, unknown>) => {
+    const [known, rest] = splitProps(props, SCROLL_AREA_KNOWN);
+    void known.type; void known.offsetScrollbars; void known.scrollbarSize; void known.scrollHideDelay;
+
     return (
       <div
-        id={id}
-        className={cn("overflow-auto", className)}
-        style={styleObj}
-        data-testid={testId}
+        id={known.id}
+        className={cn("overflow-auto", known.className)}
+        style={{
+          ...(known.style as Record<string, unknown> | undefined),
+          ...(known.h != null ? { height: toSz(known.h) } : {}),
+          ...(known.w != null ? { width: toSz(known.w) } : {}),
+        }}
+        data-testid={known["data-testid"]}
         onScroll={(e) => {
-          if (onScrollPositionChange) {
+          if (known.onScrollPositionChange) {
             const t = e.currentTarget as HTMLElement;
-            onScrollPositionChange({ x: t.scrollLeft, y: t.scrollTop });
+            known.onScrollPositionChange({ x: t.scrollLeft, y: t.scrollTop });
           }
-          (rest.onScroll as ((e: unknown) => void) | undefined)?.(e);
+          known.onScroll?.(e);
         }}
         {...rest}
       >
-        {children}
+        {known.children}
       </div>
     );
   },
-  { Autosize: ({ children, ...rest }: UIScrollAreaProps & Record<string, unknown>) => <div style={{ overflow: "auto" }} {...rest}>{children}</div> },
+  {
+    Autosize: (props: UIScrollAreaProps & Record<string, unknown>) => {
+      const [known, rest] = splitProps(props, ["children", "style", "className"] as const);
+      return (
+        <div
+          style={{ overflow: "auto", ...(known.style as Record<string, unknown> | undefined) }}
+          className={cn(known.className)}
+          {...rest}
+        >
+          {known.children}
+        </div>
+      );
+    },
+  },
 );

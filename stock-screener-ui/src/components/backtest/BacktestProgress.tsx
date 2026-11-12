@@ -1,5 +1,4 @@
 // BacktestProgress — stock loading UI shown while a backtest run is in flight.
-import { memo } from "react";
 import { Loader, Progress, Stack, Text } from "@/ui";
 
 interface BacktestProgressProps {
@@ -14,7 +13,7 @@ export function calcProgressPercent(current: number, total: number): number {
   return total > 0 ? (current / total) * 100 : 0;
 }
 
-export const BacktestProgress = memo(function BacktestProgress({ progress }: BacktestProgressProps) {
+export function BacktestProgress({ progress }: BacktestProgressProps) {
   const percent = calcProgressPercent(progress.current, progress.total);
 
   return (
@@ -44,4 +43,4 @@ export const BacktestProgress = memo(function BacktestProgress({ progress }: Bac
       </Text>
     </Stack>
   );
-});
+}

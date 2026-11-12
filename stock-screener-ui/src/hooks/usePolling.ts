@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { createEffect, onCleanup } from "solid-js";
 
 export interface UsePollingOptions {
   /** Whether polling is active. Defaults to true. */
@@ -12,17 +12,15 @@ export interface UsePollingOptions {
 }
 
 /**
- * Shared replacement for ad-hoc `useEffect(() => { setInterval(tick, ms); ... })` blocks.
+ * Shared replacement for ad-hoc `setInterval` loops.
  *
  * - Only sets an interval when `enabled && ms > 0`.
- * - Clears the interval on unmount and whenever `enabled`/`ms`/`fn` change.
- * - `immediate` invokes `fn` once on mount (and whenever the effect re-arms).
- * - `pauseWhenHidden` listens to `document.visibilitychange`, clears the interval
- *   while hidden and runs a catch-up tick + restarts the cadence when visible.
+ * - Clears the interval on unmount and whenever `enabled`/`ms` change.
+ * - `immediate` invokes `fn` once after mount (and whenever the effect re-arms).
+ * - `pauseWhenHidden` pauses while the tab is hidden, with a catch-up tick on resume.
  * - `skipIfRunning` prevents overlapping async invocations.
  *
- * The callback is kept in a ref so changing `fn` does not restart the clock; only
- * `enabled`, `ms`, `skipIfRunning` and `immediate` re-arm the interval.
+ * `fn` is held in a ref so replacing it never restarts the clock.
  */
 export function usePolling(
   fn: () => void | Promise<void>,
@@ -36,28 +34,26 @@ export function usePolling(
     skipIfRunning = true,
   } = opts;
 
-  const fnRef = useRef(fn);
+  const fnRef = { current: fn };
   fnRef.current = fn;
+  const runningRef = { current: false };
+  let timer: ReturnType<typeof setInterval> | null = null;
 
-  const runningRef = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const clearTimer = useCallback(() => {
-    const id = timerRef.current;
+  const clearTimer = () => {
+    const id = timer;
     if (id !== null) {
       clearInterval(id);
-      timerRef.current = null;
+      timer = null;
     }
-  }, []);
+  };
 
-  const invoke = useCallback(() => {
+  const invoke = () => {
     if (!enabled) return;
     if (skipIfRunning && runningRef.current) return;
     let result: void | Promise<void>;
     try {
       result = fnRef.current();
     } catch {
-      // A synchronous throw from a poll tick must not kill the interval.
       return;
     }
     if (skipIfRunning && result instanceof Promise) {
@@ -65,49 +61,39 @@ export function usePolling(
       result.finally(() => {
         runningRef.current = false;
       }).catch(() => {
-        // Swallow rejections so a failed tick never becomes an unhandled
-        // rejection and never blocks subsequent polls.
+        // Swallow rejections so a failed tick never blocks subsequent polls.
       });
     }
-  }, [enabled, skipIfRunning]);
+  };
 
-  // ---- interval -----------------------------------------------------------
-  useEffect(() => {
+  createEffect(() => {
     clearTimer();
-    // `parseInt("off")` yields NaN, and `NaN <= 0` is false — without the
-    // isFinite guard a bad interval becomes a zero-delay timer storm.
     if (!enabled || !Number.isFinite(ms) || ms <= 0) return;
-    timerRef.current = setInterval(invoke, ms);
-    return () => {
-      clearTimer();
-    };
-  }, [enabled, ms, invoke, clearTimer]);
+    timer = setInterval(invoke, ms);
+  });
+  onCleanup(() => clearTimer());
 
-  // ---- immediate ----------------------------------------------------------
-  useEffect(() => {
+  createEffect(() => {
     if (!enabled || !immediate) return;
     invoke();
-  }, [enabled, immediate, invoke]);
+  });
 
-  // ---- pause when hidden --------------------------------------------------
-  useEffect(() => {
-    if (!pauseWhenHidden) return;
+  if (pauseWhenHidden) {
     const onVisibilityChange = () => {
       if (document.hidden) {
         clearTimer();
       } else {
-        // Tab became visible: run a catch-up tick and restart the cadence.
         invoke();
         clearTimer();
         if (enabled && ms > 0) {
-          timerRef.current = setInterval(invoke, ms);
+          timer = setInterval(invoke, ms);
         }
       }
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => {
+    onCleanup(() => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
       clearTimer();
-    };
-  }, [pauseWhenHidden, enabled, ms, invoke, clearTimer]);
+    });
+  }
 }

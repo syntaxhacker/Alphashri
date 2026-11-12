@@ -1,6 +1,5 @@
 // BacktestRightRail — fixed right column holding the collapsible panels.
 // Width resizes on the DOM node during the gesture (rAF) and commits on release.
-import { useRef } from "react";
 import { Box } from "@/ui";
 import * as palette from "@/ui/palette";
 import { RAIL_MAX_WIDTH, RAIL_MIN_WIDTH } from "./useBacktestLayout";
@@ -8,18 +7,18 @@ import { RAIL_MAX_WIDTH, RAIL_MIN_WIDTH } from "./useBacktestLayout";
 interface BacktestRightRailProps {
   width: number;
   onWidthChange: (width: number) => void;
-  children: React.ReactNode;
+  children: JSX.Element;
 }
 
 export function BacktestRightRail({ width, onWidthChange, children }: BacktestRightRailProps) {
-  const railRef = useRef<HTMLDivElement>(null);
+  let railRef: HTMLDivElement | undefined;
 
-  const beginResize = (e: React.PointerEvent) => {
+  const beginResize = (e: PointerEvent) => {
     if (e.button !== 0) return;
     e.preventDefault();
     const startX = e.clientX;
-    const startW = railRef.current?.getBoundingClientRect().width ?? width;
-    const el = railRef.current;
+    const startW = railRef?.getBoundingClientRect().width ?? width;
+    const el = railRef;
     if (el) el.style.willChange = "width";
     let raf = 0;
     let next = startW;
@@ -41,7 +40,7 @@ export function BacktestRightRail({ width, onWidthChange, children }: BacktestRi
 
   return (
     <Box
-      ref={railRef}
+      ref={el => (railRef = el)}
       data-testid="backtest-rail"
       className="flex-shrink-0 h-full min-h-0 flex flex-col overflow-hidden"
       style={{

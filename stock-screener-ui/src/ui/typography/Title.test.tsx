@@ -1,0 +1,34 @@
+// @vitest-environment happy-dom
+import { describe, it, expect } from "vitest";
+import { render, screen } from "@solidjs/testing-library";
+import "@testing-library/jest-dom/vitest";
+import { Title } from "./Title";
+
+describe("Title", () => {
+  it("defaults to an h3", () => {
+    render(() => <Title data-testid="t">heading</Title>);
+    expect(screen.getByTestId("t").tagName).toBe("H3");
+  });
+
+  it("renders the heading tag from order", () => {
+    render(() => <Title data-testid="t" order={1}>h1</Title>);
+    expect(screen.getByTestId("t").tagName).toBe("H1");
+    render(() => <Title data-testid="t" order={6}>h6</Title>);
+    expect(screen.getByTestId("t").tagName).toBe("H6");
+  });
+
+  it("applies tone color via c", () => {
+    render(() => <Title data-testid="t" order={3} c="info">teal</Title>);
+    expect(screen.getByTestId("t")).toHaveStyle("color: #58A6FF");
+  });
+
+  it("applies size from the type scale", () => {
+    render(() => <Title data-testid="t" order={2} size="xl">big</Title>);
+    expect(screen.getByTestId("t")).toHaveStyle("font-size: 1.5rem");
+  });
+
+  it("forwards title as a native tooltip attribute", () => {
+    render(() => <Title data-testid="t" order={3} title="hover me">tip</Title>);
+    expect(screen.getByTestId("t")).toHaveAttribute("title", "hover me");
+  });
+});

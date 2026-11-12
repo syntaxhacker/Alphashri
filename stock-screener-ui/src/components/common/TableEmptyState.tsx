@@ -1,10 +1,10 @@
-import type { ReactNode } from "react";
+import type { JSX } from "solid-js";
 import { EmptyCompact } from "./states";
 
 interface TableEmptyStateProps {
   message: string;
-  icon?: ReactNode;
-  action?: ReactNode;
+  icon?: JSX.Element;
+  action?: JSX.Element;
 }
 
 /**

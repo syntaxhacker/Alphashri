@@ -557,6 +557,60 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
   (yfinance said 29 Oct for Mankind Q2 FY27; the filing says 26 Oct).
 - Tests: `.venv/bin/python -m pytest .prime/agent/skills/earnings-history/tests -q`.
 
+## Position Probability (research skill — think before the position)
+
+- Reusable probabilistic pre-position brief for any NSE ticker:
+  **`.prime/agent/skills/position-probability/`** (Prime Agent skill `position-probability`).
+- One-shot generator (run from repo root, project venv):
+  ```bash
+  .venv/bin/python .prime/agent/skills/position-probability/scripts/position_probability.py \
+    --symbol IRFC --target 2026-11-23
+  ```
+  Output → `reports/position_probability/<SYMBOL>/position_probability_<target>.md` (+ Upstox daily CSVs).
+- Computes: momentum/trend state (RSI, 5/10/20/60/120d, distance to 20/50/100/200-DMA, 200-DMA
+  slope, vol ratio, realised vol, 52w position), correlation/beta vs indices (60d + 252d), zigzag
+  cycle legs, forward returns after ≥30% drawdown troughs, **conditional forward-return tables by
+  state**, **RSI-peak momentum decay**, matched-state analog, **market-implied range from live
+  Upstox option chains** (ATM straddle → 1σ, max pain, PCR, put−call skew), and the **probability
+  distribution of the close on the target date** (vol-only + market-implied, momentum/trend-adjusted,
+  blended) as price buckets, key levels and percentiles.
+- Data: **Upstox first** (`fetch_historical_data_v3` daily + `fetch_intraday_data_v3` for the current
+  session, because the daily endpoint omits today); option chains from the local
+  `/api/options/chain/{underlying}` (Upstox-native `NSE_FO` keys, QA token minted by the script);
+  valuation from yfinance. Horizon = real trading sessions (`trading.utils.is_trading_holiday`).
+- **Gotchas that corrupt results** (read `references/gotchas.md`): the API's `summary.expected_move`
+  is a **0.61×straddle convention, not 1σ** (compute 1σ as straddle ÷ 0.7979 ÷ spot); always report
+  **episodes** (non-overlapping) alongside pooled overlapping days; split momentum analogs by
+  above/below the 200-DMA or the sample mixes melt-up and bear-phase episodes; state the history
+  window (2021+ includes IRFC's 2022–24 melt-up, 2023+ does not).
+- P/B cycle (the real driver of NBFC/PSU moves) is a separate script because BVPS is not
+  script-friendly: `scripts/pb_cycle.py --symbol IRFC --bvps <csv with date,bvps>`.
+- Original working scripts from the Nov-2026 IRFC / POWERGRID run are kept in `session/` as an
+  audit trail; the maintained entry point is `scripts/position_probability.py`.
+- **Event IV crush** (separate script, same skill): `scripts/iv_crush.py --symbol SBIN --earnings
+  2026-11-03 --expiry 2026-11-23` measures the implied-vol collapse around an announcement from
+  the stock's **own listed options** (Upstox `/option/chain` accepts the equity instrument key;
+  the local `/api/options/chain` only serves indices). It rebuilds the ATM straddle's IV day by day
+  from Upstox historical candles of the same contracts and **re-picks the strike that was ATM on
+  each session** — reusing today's strike mis-states IV by several vol points. Reports IV
+  before/on/after the event, the crush in vol points, the straddle's rupee change, and the priced
+  move (straddle ÷ 0.7979 ÷ spot) vs the actual reaction.
+- **Dark-theme EDA report**: `scripts/generate_dark_report.py --symbols IRFC,POWERGRID --target 2026-11-23`
+  → `reports/eda_<target>/eda_report.html` (self-contained), `.md`, `figures/*.png`. Charts are
+  matplotlib PNGs themed from **`src/ui/palette.ts`** (parsed at runtime — the report cannot drift
+  from the product theme) and every chart is followed by a **data-driven "read this" paragraph**
+  computed from the same numbers, so the report stands alone.
+- **Intraday F&O momentum scan**: `scripts/fno_momentum_scan.py --top 10` ranks every optionable
+  NSE name by live momentum (Upstox market data only — no broker token needed) and can pull the
+  chains of the leaders → `reports/fno_scan/<date>/fno_momentum.csv`. Score = z-scored 1d/5d/10d/20d
+  momentum + RS vs NIFTY + participation + trend health, with penalties for RSI exhaustion and for
+  a single huge day on no volume. **Chain access needs the Upstox OAuth token** (which expires
+  ~24h after the OAuth flow — reconnect in Settings); when it is dead, option economics can still be
+  rebuilt from the local instrument cache (`upstox_trader/config_and_utils/nse_instruments.json` →
+  contract keys, lot sizes, expiries) + the historical-candle API (yesterday's ATM close → implied
+  IV → re-price at today's spot).
+- Tests: `.venv/bin/python -m pytest .prime/agent/skills/position-probability/tests -q` (15, offline).
+
 ## Known Issues / Deferred
 - **Replay system name→ID migration** (Phase 3) — deferred, known limitation
 - **ExitReasonBadge**: doesn't color-code rich exit reasons (MANUAL_CLOSE, PnL-formatted strings like "Stop loss hit ₹1340.00") — falls to gray default

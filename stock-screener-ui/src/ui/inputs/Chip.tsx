@@ -1,4 +1,4 @@
-import { useCallback, useState, type CSSProperties } from "react";
+import { createSignal, createMemo, splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UIChipProps, UIColor } from "../types";
 
@@ -25,52 +25,51 @@ function toneClasses(color?: UIColor): { checked: string; border: string } {
   }
 }
 
-export function Chip({
-  checked,
-  defaultChecked,
-  onChange,
-  disabled,
-  size,
-  color,
-  variant,
-  label,
-  value: _value,
-  children,
-  className,
-  style,
-  id,
-  "data-testid": testId,
-  onClick,
-}: UIChipProps) {
-  const isControlled = checked !== undefined;
-  const [internalChecked, setInternalChecked] = useState<boolean>(defaultChecked ?? false);
-  const isChecked = isControlled ? checked : internalChecked;
-  const { checked: toneChecked, border: toneBorder } = toneClasses(color);
-  const isOutline = variant === "outline";
+export function Chip(props: UIChipProps) {
+  const [known, _rest] = splitProps(props, [
+    "checked",
+    "defaultChecked",
+    "onChange",
+    "disabled",
+    "size",
+    "color",
+    "variant",
+    "label",
+    "value",
+    "children",
+    "className",
+    "style",
+    "id",
+    "data-testid",
+    "onClick",
+  ]);
 
-  const handleClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (disabled) return;
-      onClick?.(e as never);
-      const next = !isChecked;
-      if (!isControlled) setInternalChecked(next);
-      onChange?.(next);
-    },
-    [disabled, isChecked, isControlled, onChange, onClick],
-  );
+  const isControlled = known.checked !== undefined;
+  const [internalChecked, setInternalChecked] = createSignal<boolean>(known.defaultChecked ?? false);
+  const isChecked = createMemo(() => (isControlled ? known.checked : internalChecked()));
+  const { checked: toneChecked, border: toneBorder } = toneClasses(known.color);
+  const isOutline = known.variant === "outline";
+
+  const handleClick = (e: MouseEvent) => {
+    if (known.disabled) return;
+    known.onClick?.(e);
+    const next = !isChecked();
+    if (!isControlled) setInternalChecked(next);
+    known.onChange?.(next);
+  };
 
   const base = cn(
     "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-transparent transition-colors",
-    chipSizeClasses(size),
-    disabled ? "opacity-50 cursor-default" : "cursor-pointer",
-    className,
+    chipSizeClasses(known.size),
+    known.disabled ? "opacity-50 cursor-default" : "cursor-pointer",
+    known.className,
   );
 
   const variantClass = isOutline
-    ? isChecked
+    ? isChecked()
       ? toneBorder
       : cn("border-fin-border bg-transparent text-fin-text-muted hover:bg-fin-surface-alt")
-    : isChecked
+    : isChecked()
       ? toneChecked
       : cn("border-fin-border bg-transparent text-fin-text-muted hover:bg-fin-surface-alt");
 
@@ -78,15 +77,15 @@ export function Chip({
     <button
       type="button"
       role="checkbox"
-      aria-checked={isChecked}
-      disabled={disabled}
-      id={id}
-      data-testid={testId}
+      aria-checked={isChecked()}
+      disabled={known.disabled}
+      id={known.id}
+      data-testid={known["data-testid"]}
       className={cn(base, variantClass)}
-      style={style as CSSProperties}
+      style={known.style}
       onClick={handleClick}
     >
-      {children ?? label}
+      {known.children ?? known.label}
     </button>
   );
 }

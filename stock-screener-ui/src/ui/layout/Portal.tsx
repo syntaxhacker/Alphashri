@@ -1,4 +1,4 @@
-import { createPortal } from "react-dom";
+import { createPortal } from "solid-js/web";
 import type { UIPortalProps } from "../types";
 
 export function Portal({ children, target }: UIPortalProps) {

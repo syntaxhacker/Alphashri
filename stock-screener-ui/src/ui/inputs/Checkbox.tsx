@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties } from "react";
+import { createEffect, splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UICheckboxProps } from "../types";
 
@@ -23,75 +23,77 @@ function toneClass(color?: UICheckboxProps["color"]): string {
   }
 }
 
-export function Checkbox({
-  label,
-  checked,
-  defaultChecked,
-  onChange,
-  disabled,
-  size,
-  color,
-  indeterminate,
-  description,
-  className,
-  style,
-  id,
-  "data-testid": testId,
-  children: _children,
-  onClick: _onClick,
-  onMouseEnter: _onMouseEnter,
-  onMouseLeave: _onMouseLeave,
-}: UICheckboxProps) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
+export function Checkbox(props: UICheckboxProps) {
+  const [known, _rest] = splitProps(props, [
+    "label",
+    "checked",
+    "defaultChecked",
+    "onChange",
+    "disabled",
+    "size",
+    "color",
+    "indeterminate",
+    "description",
+    "className",
+    "style",
+    "id",
+    "data-testid",
+    "children",
+    "onClick",
+    "onMouseEnter",
+    "onMouseLeave",
+  ]);
+
+  let inputEl: HTMLInputElement | undefined;
 
   // `indeterminate` is a property, not an HTML attribute: sync it imperatively.
-  useEffect(() => {
-    if (inputRef.current) inputRef.current.indeterminate = !!indeterminate;
-  }, [indeterminate]);
+  createEffect(() => {
+    if (inputEl) inputEl.indeterminate = !!known.indeterminate;
+  });
 
-  const rootClass = cn("inline-flex items-center gap-2 text-sm leading-none", disabled && "opacity-50", className);
+  const rootClass = cn("inline-flex items-center gap-2 text-sm leading-none", known.disabled && "opacity-50", known.className);
   const boxClass = cn(
     "flex items-center justify-center shrink-0 rounded-fin border border-fin-border bg-fin-surface text-fin-bg transition-colors",
-    boxSizeClasses(size),
-    toneClass(color),
-    indeterminate && "border-fin-primary",
-    disabled && "opacity-50 cursor-not-allowed",
+    boxSizeClasses(known.size),
+    toneClass(known.color),
+    known.indeterminate && "border-fin-primary",
+    known.disabled && "opacity-50 cursor-not-allowed",
   );
 
   const control = (
     <span className="relative inline-block shrink-0">
       <input
-        ref={inputRef}
+        ref={(el) => (inputEl = el)}
         type="checkbox"
         role="checkbox"
-        checked={checked}
-        defaultChecked={defaultChecked}
-        onChange={onChange}
-        disabled={disabled}
-        id={id}
-        data-testid={testId}
+        checked={known.checked}
+        defaultChecked={known.defaultChecked}
+        onChange={(e) => known.onChange?.(e)}
+        disabled={known.disabled}
+        id={known.id}
+        data-testid={known["data-testid"]}
         className="peer absolute inset-0 w-full h-full cursor-pointer appearance-none bg-transparent border-none z-10"
       />
       <span className={boxClass}>
-        {indeterminate ? "—" : checked ? "✔" : ""}
+        {known.indeterminate ? "—" : known.checked ? "✔" : ""}
       </span>
     </span>
   );
 
-  if (!label && !description) {
+  if (!known.label && !known.description) {
     return (
-      <span className={cn("inline-flex items-center", className)} data-testid={testId ? `${testId}-wrapper` : undefined} style={style as CSSProperties}>
+      <span className={cn("inline-flex items-center", known.className)} data-testid={known["data-testid"] ? `${known["data-testid"]}-wrapper` : undefined} style={known.style}>
         {control}
       </span>
     );
   }
 
   return (
-    <label className={rootClass} style={style as CSSProperties} data-testid={testId ? `${testId}-group` : undefined}>
+    <label className={rootClass} style={known.style} data-testid={known["data-testid"] ? `${known["data-testid"]}-group` : undefined}>
       {control}
       <span className="leading-none">
-        {label ? <span className="text-fin-text">{label}</span> : null}
-        {description ? <span className="text-xs text-fin-text-muted">{description}</span> : null}
+        {known.label ? <span className="text-fin-text">{known.label}</span> : null}
+        {known.description ? <span className="text-xs text-fin-text-muted">{known.description}</span> : null}
       </span>
     </label>
   );

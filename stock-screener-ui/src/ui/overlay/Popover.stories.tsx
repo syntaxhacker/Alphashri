@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
+import { createSignal, createMemo } from "solid-js";
 import { Stack, Text, Title, Button, Group } from "@/ui";
 import { Popover, PopoverTarget, PopoverDropdown } from "./Popover";
 
@@ -34,12 +34,14 @@ export const Uncontrolled: Story = {
 };
 
 function ControlledPopover() {
-  const [opened, setOpened] = useState(false);
+  const [opened, setOpened] = createSignal(false);
+  const label = createMemo(() => (opened() ? "Hide details" : "Show details"));
+  const variant = createMemo(() => (opened() ? "filled" : "light") as "filled" | "light");
   return (
-    <Popover opened={opened} onClose={() => setOpened(false)} position="bottom-start" withArrow offset={8}>
+    <Popover opened={opened()} onClose={() => setOpened(false)} position="bottom-start" withArrow offset={8}>
       <PopoverTarget>
-        <Button onClick={() => setOpened((o) => !o)} variant={opened ? "filled" : "light"}>
-          {opened ? "Hide details" : "Show details"}
+        <Button onClick={() => setOpened((o) => !o)} variant={variant()}>
+          {label()}
         </Button>
       </PopoverTarget>
       <PopoverDropdown>

@@ -1,14 +1,16 @@
 // @vitest-environment happy-dom
 import { describe, expect, test, vi } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
+import { render, fireEvent, screen } from "@solidjs/testing-library";
 import FloatingWindow from "./FloatingWindow";
 
-function renderWindow(overrides: Partial<React.ComponentProps<typeof FloatingWindow>> = {}) {
+type FWProps = Parameters<typeof FloatingWindow>[0];
+
+function renderWindow(overrides: Partial<FWProps> = {}) {
   const onGeometryChange = vi.fn();
   const onClose = vi.fn();
   const onMinimize = vi.fn();
   const onFocus = vi.fn();
-  const utils = render(
+  render(
     <FloatingWindow
       title="Config"
       geometry={{ x: 10, y: 20, width: 400, height: 300 }}
@@ -23,23 +25,23 @@ function renderWindow(overrides: Partial<React.ComponentProps<typeof FloatingWin
       <div>body</div>
     </FloatingWindow>,
   );
-  const root = () => utils.getByTestId("fw") as HTMLElement;
-  return { ...utils, root, onGeometryChange, onClose, onMinimize, onFocus };
+  const root = () => screen.getByTestId("fw") as HTMLElement;
+  return { screen, root, onGeometryChange, onClose, onMinimize, onFocus };
 }
 
 describe("FloatingWindow", () => {
   test("renders title, body and close/minimize controls", () => {
-    const { getByText, getByLabelText } = renderWindow();
-    expect(getByText("Config")).toBeInTheDocument();
-    expect(getByText("body")).toBeInTheDocument();
-    expect(getByLabelText("Close Config")).toBeInTheDocument();
-    expect(getByLabelText("Minimize Config")).toBeInTheDocument();
+    renderWindow();
+    expect(screen.getByText("Config")).toBeInTheDocument();
+    expect(screen.getByText("body")).toBeInTheDocument();
+    expect(screen.getByLabelText("Close Config")).toBeInTheDocument();
+    expect(screen.getByLabelText("Minimize Config")).toBeInTheDocument();
   });
 
   test("close / minimize buttons fire callbacks", () => {
-    const { getByLabelText, onClose, onMinimize } = renderWindow();
-    fireEvent.click(getByLabelText("Close Config"));
-    fireEvent.click(getByLabelText("Minimize Config"));
+    const { onClose, onMinimize } = renderWindow();
+    fireEvent.click(screen.getByLabelText("Close Config"));
+    fireEvent.click(screen.getByLabelText("Minimize Config"));
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onMinimize).toHaveBeenCalledTimes(1);
   });
@@ -58,8 +60,8 @@ describe("FloatingWindow", () => {
   });
 
   test("minimized windows stay mounted but hidden", () => {
-    const { getByTestId } = renderWindow({ minimized: true });
-    const el = getByTestId("fw");
+    renderWindow({ minimized: true });
+    const el = screen.getByTestId("fw");
     expect(el).toBeInTheDocument();
     expect(el.getAttribute("data-minimized")).toBe("true");
     expect(getComputedStyle(el).display).toBe("none");

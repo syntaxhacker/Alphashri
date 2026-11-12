@@ -1,7 +1,7 @@
 // BacktestEdgePanel — "Edge AI" right-rail panel for the selected symbol.
 // Pure rule-based edge breakdown: long/short, time-of-day, weekday, hold
 // duration, and exit reason, rendered as compact diverging bars.
-import { useMemo } from "react";
+import { createMemo } from "solid-js";
 import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { Trade } from "../../types/backtest";
@@ -17,6 +17,7 @@ import {
   worstBucket,
   type EdgeBucket,
 } from "./edgeAnalytics";
+import { For } from "solid-js";
 
 function Row({ b, maxAbs }: { b: EdgeBucket; maxAbs: number }) {
   const positive = b.netPnl >= 0;
@@ -59,21 +60,20 @@ function Section({ title, buckets }: { title: string; buckets: EdgeBucket[] }) {
       <Text size="xs" fw={600} c="muted" style={{ display: "block", mb: 0.5 * 8, textTransform: "uppercase", letterSpacing: 0.4 }}>
         {title}
       </Text>
-      {buckets.map((b) => <Row key={b.key} b={b} maxAbs={maxAbs} />)}
+      <For each={buckets}>{(b) => <Row key={b.key} b={b} maxAbs={maxAbs} />}</For>
     </Box>
   );
 }
 
 export function BacktestEdgePanel({ symbol, trades, filters }: { symbol?: string; trades: Trade[]; filters?: TradeFilters }) {
-  const active = useMemo(
+  const active = createMemo(
     () => (filters ? filterTrades(trades, filters) : trades),
-    [trades, filters?.side, filters?.result, filters?.reason],
   );
-  const hours = useMemo(() => hourEdge(active), [active]);
-  const sides = useMemo(() => sideEdge(active), [active]);
-  const weekdays = useMemo(() => weekdayEdge(active), [active]);
-  const holds = useMemo(() => holdEdge(active), [active]);
-  const reasons = useMemo(() => exitReasonEdge(active), [active]);
+  const hours = createMemo(() => hourEdge(active()));
+  const sides = createMemo(() => sideEdge(active()));
+  const weekdays = createMemo(() => weekdayEdge(active()));
+  const holds = createMemo(() => holdEdge(active()));
+  const reasons = createMemo(() => exitReasonEdge(active()));
 
   if (!trades || trades.length === 0) {
     return (
@@ -83,7 +83,7 @@ export function BacktestEdgePanel({ symbol, trades, filters }: { symbol?: string
     );
   }
 
-  if (active.length === 0) {
+  if (active().length === 0) {
     return (
       <Box className="p-1.5">
         <Text size="xs" c="muted">No trades match the current filters.</Text>
@@ -91,9 +91,9 @@ export function BacktestEdgePanel({ symbol, trades, filters }: { symbol?: string
     );
   }
 
-  const total = active.reduce((s, t) => s + t.net_pnl, 0);
-  const best = bestBucket(hours);
-  const worst = worstBucket(hours);
+  const total = active().reduce((s, t) => s + t.net_pnl, 0);
+  const best = bestBucket(hours());
+  const worst = worstBucket(hours());
   const fmtBucket = (b: EdgeBucket | null) =>
     b ? `${b.label} (${b.netPnl >= 0 ? "+" : ""}₹${b.netPnl.toFixed(0)}, ${winRate(b).toFixed(0)}% WR)` : "—";
 
@@ -101,7 +101,7 @@ export function BacktestEdgePanel({ symbol, trades, filters }: { symbol?: string
     <Box className="p-1 overflow-auto" data-testid="edge-panel">
       <Box className="mb-1">
         <Text size="xs" c="text-muted">
-          {symbol ?? "—"} · {active.length} trades · net{" "}
+          {symbol ?? "—"} · {active().length} trades · net{" "}
           <Text span size="xs" c={total >= 0 ? "positive" : "negative"} fw={700}>
             {total >= 0 ? "+" : ""}₹{total.toFixed(0)}
           </Text>
@@ -114,11 +114,11 @@ export function BacktestEdgePanel({ symbol, trades, filters }: { symbol?: string
         </Text>
       </Box>
 
-      <Section title="Side" buckets={sides} />
-      <Section title="Time of day" buckets={hours} />
-      <Section title="Weekday" buckets={weekdays} />
-      <Section title="Hold duration" buckets={holds} />
-      <Section title="Exit reason" buckets={reasons} />
+      <Section title="Side" buckets={sides()} />
+      <Section title="Time of day" buckets={hours()} />
+      <Section title="Weekday" buckets={weekdays()} />
+      <Section title="Hold duration" buckets={holds()} />
+      <Section title="Exit reason" buckets={reasons()} />
     </Box>
   );
 }

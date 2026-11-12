@@ -1,3 +1,4 @@
+import { splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UIActionIconProps } from "../types";
 
@@ -64,47 +65,47 @@ const Spinner = () => (
   <span className="inline-block w-3 h-3 border-2 border-fin-text border-t-transparent rounded-full animate-spin" aria-hidden="true" />
 );
 
-export function ActionIcon({
-  children,
-  className,
-  style,
-  onClick,
-  "data-testid": testId,
-  variant,
-  color,
-  size,
-  radius,
-  disabled,
-  loading,
-  id,
-  onMouseEnter,
-  onMouseLeave,
-  ...rest
-}: UIActionIconProps) {
-  const token = colorToken(color);
-  const disabledOrLoading = disabled || loading;
+export function ActionIcon(props: UIActionIconProps) {
+  const [known, _rest] = splitProps(props, [
+    "children",
+    "className",
+    "style",
+    "onClick",
+    "data-testid",
+    "id",
+    "variant",
+    "color",
+    "size",
+    "radius",
+    "disabled",
+    "loading",
+    "onMouseEnter",
+    "onMouseLeave",
+  ]);
+
+  const token = colorToken(known.color);
+  const disabledOrLoading = known.disabled || known.loading;
 
   return (
     <button
       type="button"
-      id={id}
-      data-testid={testId}
+      id={known.id}
+      data-testid={known["data-testid"]}
       className={cn(
         "inline-flex items-center justify-center rounded-fin transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed",
-        variantClass(variant, token),
-        typeof size === "string" ? SIZE_CLASSES[size] : undefined,
-        radiusClass(radius),
-        className,
+        variantClass(known.variant, token),
+        typeof known.size === "string" ? SIZE_CLASSES[known.size] : undefined,
+        radiusClass(known.radius),
+        known.className,
       )}
-      style={{ ...sizeStyle(size), ...(style as React.CSSProperties) }}
+      style={{ ...sizeStyle(known.size), ...known.style }}
       disabled={disabledOrLoading}
-      aria-busy={loading || undefined}
-      onClick={onClick}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      {...rest}
+      aria-busy={known.loading || undefined}
+      onClick={(e) => known.onClick?.(e)}
+      onMouseEnter={(e) => known.onMouseEnter?.(e)}
+      onMouseLeave={(e) => known.onMouseLeave?.(e)}
     >
-      {loading ? <Spinner /> : children}
+      {known.loading ? <Spinner /> : known.children}
     </button>
   );
 }

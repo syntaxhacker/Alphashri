@@ -1,4 +1,3 @@
-import { memo } from "react";
 import { Stack, Text } from "@/ui";
 import type { BacktestTotals } from "../../types/backtest";
 import { formatPnl as formatPnlShared, getPnLTextColor } from "../../utils/ui-helpers";
@@ -51,7 +50,7 @@ const Metric = ({
   </Stack>
 );
 
-export const BacktestSummary = memo(function BacktestSummary({ totals }: BacktestSummaryProps) {
+export function BacktestSummary({ totals }: BacktestSummaryProps) {
   if (!totals) return null;
 
   const netPnl = totals.net_pnl ?? 0;
@@ -77,4 +76,4 @@ export const BacktestSummary = memo(function BacktestSummary({ totals }: Backtes
       <Metric label="Trades" value={String(totals.trades ?? 0)} testid="summary-trades" />
     </Stack>
   );
-});
+}

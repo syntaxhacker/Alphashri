@@ -1,47 +1,48 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createEffect, createSignal, onCleanup } from "solid-js";
 
 interface UICopyButtonProps {
   value: string;
   timeout?: number;
-  children: (payload: { copied: boolean; copy: () => void }) => React.ReactNode;
+  children: (payload: { copied: boolean; copy: () => void }) => JSX.Element;
 }
 
-export function CopyButton({ value, timeout = 1000, children }: UICopyButtonProps) {
-  const [copied, setCopied] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+export function CopyButton(props: UICopyButtonProps) {
+  const [copied, setCopied] = createSignal(false);
+  let timer: ReturnType<typeof setTimeout> | null = null;
 
-  useEffect(() => {
+  createEffect(() => {
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
+      if (timer) clearTimeout(timer);
     };
-  }, []);
+  });
 
-  const copy = useCallback(async () => {
+  const copy = async () => {
     try {
       if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(value);
+        await navigator.clipboard.writeText(props.value);
       } else {
         // Fallback for non-secure contexts.
         const ta = document.createElement("textarea");
-        ta.value = value;
+        ta.value = props.value;
         ta.style.position = "fixed";
         ta.style.opacity = "0";
         document.body.appendChild(ta);
+        ta.focus();
         ta.select();
         document.execCommand("copy");
         document.body.removeChild(ta);
       }
       setCopied(true);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setCopied(false), timeout);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => setCopied(false), props.timeout ?? 1000);
     } catch {
       // Clipboard failures still surface the copied state; callers decide how
       // to present the confirmation.
       setCopied(true);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setCopied(false), timeout);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => setCopied(false), props.timeout ?? 1000);
     }
-  }, [value, timeout]);
+  };
 
-  return <>{children({ copied, copy })}</>;
+  return props.children({ copied: copied(), copy });
 }

@@ -1,16 +1,23 @@
-import type { ReactElement, ReactNode } from "react";
-import { render, type RenderResult } from "@testing-library/react";
+import { render, type RenderResult } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
-import { BrowserRouter } from "react-router-dom";
+import { Router } from "@solidjs/router";
+import type { JSX } from "solid-js";
 
-function TestWrapper({ children }: { children: ReactNode }) {
+function TestWrapper({ children }: { children: JSX.Element }) {
   return <UIProvider>{children}</UIProvider>;
 }
 
-export function renderWithProviders(ui: ReactElement): RenderResult {
+export function renderWithProviders(ui: JSX.Element, options?: { initialRoute?: string; user?: unknown }): RenderResult {
   return render(ui, { wrapper: TestWrapper });
 }
 
-export function renderWithRouter(ui: ReactElement): RenderResult {
-  return render(<UIProvider><BrowserRouter>{ui}</BrowserRouter></UIProvider>);
+export function renderWithRouter(ui: JSX.Element): RenderResult {
+  function RouterWrapper({ children }: { children: JSX.Element }) {
+    return (
+      <Router>
+        <UIProvider>{children}</UIProvider>
+      </Router>
+    );
+  }
+  return render(ui, { wrapper: RouterWrapper });
 }

@@ -1,3 +1,4 @@
+import { splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UICloseButtonProps } from "../types";
 
@@ -37,27 +38,38 @@ function variantClass(variant: UICloseButtonProps["variant"]): string {
   }
 }
 
-export function CloseButton({ size, variant, disabled, onClick, className, style, "data-testid": testId, id, ...rest }: UICloseButtonProps) {
-  const { w, h, text } = mapSize(size);
+export function CloseButton(props: UICloseButtonProps) {
+  const [known, _rest] = splitProps(props, [
+    "size",
+    "variant",
+    "disabled",
+    "onClick",
+    "className",
+    "style",
+    "data-testid",
+    "id",
+  ]);
+
+  const { w, h, text } = mapSize(known.size);
+
   return (
     <button
       type="button"
       aria-label="close"
-      disabled={disabled}
-      onClick={onClick}
+      disabled={known.disabled}
+      onClick={(e) => known.onClick?.(e)}
       className={cn(
         "inline-flex items-center justify-center shrink-0 rounded-fin border border-transparent",
         w,
         h,
         text,
-        variantClass(variant),
-        disabled && "opacity-50 pointer-events-none",
-        className,
+        variantClass(known.variant),
+        known.disabled && "opacity-50 pointer-events-none",
+        known.className,
       )}
-      style={style}
-      id={id}
-      data-testid={testId}
-      {...(rest as Record<string, unknown>)}
+      style={known.style}
+      id={known.id}
+      data-testid={known["data-testid"]}
     >
       <span aria-hidden="true" className="leading-none">
         ×

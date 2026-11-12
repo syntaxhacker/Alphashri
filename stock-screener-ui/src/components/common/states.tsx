@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
+import type { JSX } from "solid-js";
 import { Stack, Group, Text, Loader, Button, Alert } from "@/ui";
-import { IconAlertCircle, IconDatabaseOff } from "@tabler/icons-react";
+import { IconAlertCircle, IconDatabaseOff } from "@/components/common/Icons";
 import { CompactPanel } from "./compact";
 
 export interface InlineLoaderProps {
@@ -9,7 +9,7 @@ export interface InlineLoaderProps {
   size?: string;
   message?: string;
   showSpinner?: boolean;
-  children?: ReactNode;
+  children?: JSX.Element;
 }
 
 export function InlineLoader({
@@ -29,7 +29,7 @@ export function InlineLoader({
 }
 
 interface EmptyStateProps {
-  icon?: React.ReactNode;
+  icon?: JSX.Element;
   emoji?: string;
   title: string;
   description?: string;
@@ -47,8 +47,7 @@ export function EmptyState({
 }: EmptyStateProps) {
   return (
     <Stack align="center" gap="xs" py="sm" data-testid={testId} className={className}>
-      {icon ??
-        (emoji ? <Text size="xl">{emoji}</Text> : <IconDatabaseOff size={40} color="secondary" />)}
+      {icon ?? (emoji ? <Text size="xl">{emoji}</Text> : <IconDatabaseOff size={40} color="secondary" />)}
       <Text fw={600}>{title}</Text>
       {description && (
         <Text size="sm" c="dimmed">
@@ -108,14 +107,14 @@ export function ErrorAlert({
 }
 
 interface EmptyCompactProps {
-  icon?: React.ReactNode;
+  icon?: JSX.Element;
   emoji?: string;
   title: string;
   description?: string;
   "data-testid"?: string;
   className?: string;
   id?: string;
-  children?: React.ReactNode;
+  children?: JSX.Element;
 }
 
 export function EmptyCompact({

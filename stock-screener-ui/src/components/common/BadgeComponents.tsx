@@ -80,22 +80,16 @@ interface StatusBadgeProps {
   "data-testid"?: string;
 }
 
-export function StatusBadge({
-  running,
-  statusUnknown,
-  size = "sm",
-  "data-testid": testId,
-}: StatusBadgeProps) {
-  if (statusUnknown) {
-    return (
-      <Badge color="warning" variant="filled" size={size} data-testid={testId}>
-        Unknown (Redis unavailable)
-      </Badge>
-    );
-  }
+export function StatusBadge({ running, pid, statusUnknown, size = "sm", "data-testid": testId }: StatusBadgeProps) {
   return (
-    <Badge color={running ? "success" : "secondary"} variant="filled" size={size} data-testid={testId}>
-      {running ? "Running" : "Stopped"}
+    <Badge
+      color={running ? "success" : statusUnknown ? "warning" : "error"}
+      variant="filled"
+      size={size}
+      data-testid={testId}
+    >
+      {running ? "RUNNING" : statusUnknown ? "UNKNOWN" : "STOPPED"}
+      {pid != null ? ` #${pid}` : null}
     </Badge>
   );
 }

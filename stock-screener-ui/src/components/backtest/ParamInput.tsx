@@ -1,8 +1,7 @@
-import { memo } from "react";
 import { Select, NumberInput, Checkbox } from "@/ui";
 import type { StrategyParam } from "../../types/backtest";
 
-export const ParamInput = memo(function ParamInput({
+export function ParamInput({
   param,
   value,
   onChange,
@@ -49,4 +48,4 @@ export const ParamInput = memo(function ParamInput({
       w="100%"
     />
   );
-});
+}

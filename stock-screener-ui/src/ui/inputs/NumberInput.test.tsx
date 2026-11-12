@@ -1,32 +1,28 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { UIProvider } from "@/ui";
+import { describe, expect, test, vi } from "vitest";
+import { fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { NumberInput, coerceNumberInput } from "./NumberInput";
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
-
 describe("NumberInput", () => {
-  afterEach(() => cleanup());
-
-  test("exposes the testid on the wrapper; the input is a fillable spinbutton", async () => {
+  test("exposes the testid on the wrapper; the input is a fillable spinbutton", () => {
     const onChange = vi.fn();
-    r(<NumberInput value="" onChange={onChange} data-testid="num" />);
+    render(() => <NumberInput value="" onChange={onChange} data-testid="num" />);
     const input = within(screen.getByTestId("num")).getByRole("spinbutton");
-    fireEvent.change(input, { target: { value: "20" } });
+    input.value = "20";
+    fireEvent.input(input);
     expect(onChange).toHaveBeenLastCalledWith(20);
   });
 
   test("complete numbers arrive as numbers, clears as empty string", () => {
     const onChange = vi.fn();
-    r(<NumberInput value="5" onChange={onChange} data-testid="num" />);
+    render(() => <NumberInput value="5" onChange={onChange} data-testid="num" />);
     const input = within(screen.getByTestId("num")).getByRole("spinbutton");
-    fireEvent.change(input, { target: { value: "" } });
+    input.value = "";
+    fireEvent.input(input);
     expect(onChange).toHaveBeenLastCalledWith("");
-    fireEvent.change(input, { target: { value: "42" } });
+    input.value = "42";
+    fireEvent.input(input);
     expect(onChange).toHaveBeenLastCalledWith(42);
   });
 

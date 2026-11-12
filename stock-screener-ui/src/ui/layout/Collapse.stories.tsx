@@ -1,21 +1,23 @@
-import { useState } from "react";
+import { createSignal, Show } from "solid-js";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Button } from "@/ui";
 import { Collapse } from "./Collapse";
 
 function CollapseDemo() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = createSignal(false);
   return (
-    <div style={{ width: 320 }}>
+    <div style={{ width: "320px" }}>
       <Button onClick={() => setOpen((v) => !v)} mb="sm">
-        {open ? "Hide" : "Show"} content
+        <Show when={open()} fallback="Show content">
+          Hide content
+        </Show>
       </Button>
-      <Collapse in={open}>
+      <Collapse in={open()}>
         <div
           style={{
             background: "#80b5ff",
-            padding: 16,
-            borderRadius: 8,
+            padding: "16px",
+            borderRadius: "8px",
           }}
         >
           Collapsible content revealed with a height transition.
@@ -43,7 +45,7 @@ export const OpenByDefault: Story = {
   args: {
     in: true,
     children: (
-      <div style={{ background: "#80b5ff", padding: 16, borderRadius: 8 }}>
+      <div style={{ background: "#80b5ff", padding: "16px", borderRadius: "8px" }}>
         Always-open collapse content.
       </div>
     ),

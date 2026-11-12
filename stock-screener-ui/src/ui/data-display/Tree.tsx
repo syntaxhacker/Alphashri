@@ -1,13 +1,13 @@
-import * as React from "react";
+import { createMemo, createSignal, For, Show, splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UITreeProps, UITreeNode } from "../types";
 
-function Chevron({ expanded }: { expanded: boolean }) {
+function Chevron({ expanded }: { expanded: () => boolean }) {
   return (
     <button
       type="button"
       className="p-0 w-[22px] h-[22px] shrink-0 text-fin-text-muted transition-transform duration-150 border-none bg-transparent outline-none"
-      style={{ transform: expanded ? "rotate(90deg)" : undefined }}
+      style={{ transform: expanded() ? "rotate(90deg)" : undefined }}
       aria-hidden="true"
     >
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -21,7 +21,7 @@ type TreeNodeProps = {
   node: UITreeNode;
   level: number;
   levelOffset: number;
-  expandedSet: Set<string>;
+  expandedSet: () => Set<string>;
   onToggle: (value: string) => void;
   onNodeClick?: (node: UITreeNode) => void;
   renderNode?: UITreeProps["renderNode"];
@@ -29,7 +29,7 @@ type TreeNodeProps = {
 
 function TreeNode({ node, level, levelOffset, expandedSet, onToggle, onNodeClick, renderNode }: TreeNodeProps) {
   const hasChildren = !!(node.children && node.children.length > 0);
-  const expanded = expandedSet.has(node.value);
+  const expanded = createMemo(() => expandedSet().has(node.value));
   const paddingLeft = level * levelOffset;
 
   const handleClick = () => {
@@ -40,10 +40,28 @@ function TreeNode({ node, level, levelOffset, expandedSet, onToggle, onNodeClick
   const nodeCls = cn(
     "ui-tree-node",
     "flex items-center gap-2 cursor-pointer select-none rounded-[4px] py-[2px] text-[14px] text-fin-text hover:bg-fin-surface-alt",
-    `pl-[${paddingLeft}px]`
+    `pl-[${paddingLeft}px]`,
   );
 
-  const renderPayload = { node, expanded, hasChildren, level, elementProps: {} } as any;
+  const renderPayload = { node, expanded: expanded(), hasChildren, level, elementProps: {} } as any;
+
+  const childrenList = () => (
+    <ul className="list-none p-0 m-0 pl-2">
+      <For each={node.children} key={(child) => child.value}>
+        {(child) => (
+          <TreeNode
+            node={child}
+            level={level + 1}
+            levelOffset={levelOffset}
+            expandedSet={expandedSet}
+            onToggle={onToggle}
+            onNodeClick={onNodeClick}
+            renderNode={renderNode}
+          />
+        )}
+      </For>
+    </ul>
+  );
 
   if (renderNode) {
     return (
@@ -53,22 +71,7 @@ function TreeNode({ node, level, levelOffset, expandedSet, onToggle, onNodeClick
           {!hasChildren && <span className="w-[22px] shrink-0" />}
           <span className="flex-1 min-w-0">{renderNode(renderPayload)}</span>
         </div>
-        {hasChildren && expanded && (
-          <ul className="list-none p-0 m-0 pl-2">
-            {node.children!.map((child) => (
-              <TreeNode
-                key={child.value}
-                node={child}
-                level={level + 1}
-                levelOffset={levelOffset}
-                expandedSet={expandedSet}
-                onToggle={onToggle}
-                onNodeClick={onNodeClick}
-                renderNode={renderNode}
-              />
-            ))}
-          </ul>
-        )}
+        <Show when={hasChildren && expanded()}>{childrenList()}</Show>
       </>
     );
   }
@@ -80,77 +83,73 @@ function TreeNode({ node, level, levelOffset, expandedSet, onToggle, onNodeClick
         {!hasChildren && <span className="w-[22px] shrink-0" />}
         <span className="flex-1 min-w-0">{node.label}</span>
       </div>
-      {hasChildren && expanded && (
-        <ul className="list-none p-0 m-0 pl-2">
-          {node.children!.map((child) => (
-            <TreeNode
-              key={child.value}
-              node={child}
-              level={level + 1}
-              levelOffset={levelOffset}
-              expandedSet={expandedSet}
-              onToggle={onToggle}
-              onNodeClick={onNodeClick}
-              renderNode={renderNode}
-            />
-          ))}
-        </ul>
-      )}
+      <Show when={hasChildren && expanded()}>{childrenList()}</Show>
     </>
   );
 }
 
-export function Tree({
-  data,
-  tree,
-  expanded,
-  onExpandedChange,
-  onNodeClick,
-  levelOffset = 16,
-  renderNode,
-  className,
-  style,
-  id,
-  "data-testid": testId,
-  ...rest
-}: UITreeProps) {
-  // Determine controlled vs uncontrolled
-  const treeExpanded: string[] | undefined = tree?.expandedState ? Object.keys(tree.expandedState).filter((k) => (tree.expandedState as any)[k]) : tree?.expanded;
-  const controlled = expanded ?? treeExpanded;
-  const [internal, setInternal] = React.useState<string[]>(() => (controlled as string[]) ?? []);
-  const isControlled = expanded !== undefined || treeExpanded !== undefined;
+export function Tree(props: UITreeProps) {
+  const [known, rest] = splitProps(props, [
+    "data",
+    "tree",
+    "expanded",
+    "onExpandedChange",
+    "onNodeClick",
+    "levelOffset",
+    "renderNode",
+    "className",
+    "style",
+    "id",
+    "data-testid",
+  ]);
 
-  // sync if controlled changes (derived)
-  const expandedArray: string[] = (isControlled ? (controlled as string[]) : internal) ?? [];
-  const expandedSet = React.useMemo(() => new Set(expandedArray), [expandedArray]);
+  const levelOffset = known.levelOffset ?? 16;
 
-  const handleToggle = React.useCallback(
-    (value: string) => {
-      const next = expandedSet.has(value) ? expandedArray.filter((v) => v !== value) : [...expandedArray, value];
-      if (!isControlled) setInternal(next);
-      onExpandedChange?.(next);
-      // also sync to tree object if provided
-      if (tree?.setExpanded) tree.setExpanded(next);
-    },
-    [expandedSet, expandedArray, isControlled, onExpandedChange, tree]
-  );
+  const treeExpanded = createMemo(() => {
+    const t = known.tree;
+    if (!t) return undefined;
+    if (t.expandedState) return Object.keys(t.expandedState).filter((k) => (t.expandedState as any)[k]);
+    return t.expanded;
+  });
 
-  const cls = cn("ui-tree", "list-none p-0 m-0 text-[14px]", className);
+  const isControlled = createMemo(() => known.expanded !== undefined || treeExpanded() !== undefined);
+  const controlled = createMemo(() => known.expanded ?? treeExpanded());
+
+  const internal = createSignal<string[]>(controlled() ?? []);
+  const [internalValue, setInternal] = internal;
+  const expandedArray = createMemo(() => (isControlled() ? (controlled() as string[]) : internalValue()));
+  const expandedSet = createMemo(() => new Set(expandedArray()));
+
+  const handleToggle = (value: string) => {
+    const next = expandedSet().has(value) ? expandedArray().filter((v) => v !== value) : [...expandedArray(), value];
+    if (!isControlled()) setInternal(next);
+    known.onExpandedChange?.(next);
+    known.tree?.setExpanded?.(next);
+  };
+
+  const cls = cn("ui-tree", "list-none p-0 m-0 text-[14px]", known.className);
 
   return (
-    <ul id={id} className={cls} style={style} data-testid={testId} {...(rest as any)}>
-      {data.map((node) => (
-        <TreeNode
-          key={node.value}
-          node={node}
-          level={0}
-          levelOffset={levelOffset}
-          expandedSet={expandedSet}
-          onToggle={handleToggle}
-          onNodeClick={onNodeClick}
-          renderNode={renderNode}
-        />
-      ))}
+    <ul
+      id={known.id}
+      className={cls}
+      style={known.style as Record<string, string | undefined>}
+      data-testid={known["data-testid"]}
+      {...(rest as Record<string, unknown>)}
+    >
+      <For each={known.data} key={(node) => node.value}>
+        {(node) => (
+          <TreeNode
+            node={node}
+            level={0}
+            levelOffset={levelOffset}
+            expandedSet={expandedSet}
+            onToggle={handleToggle}
+            onNodeClick={known.onNodeClick}
+            renderNode={known.renderNode}
+          />
+        )}
+      </For>
     </ul>
   );
 }

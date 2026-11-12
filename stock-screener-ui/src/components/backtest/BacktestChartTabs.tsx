@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { For } from "solid-js";
 import { Tabs, Select, Group, Text, Box, Center } from "@/ui";
 import { BacktestChart } from "./BacktestChart";
 import type { SymbolChartData } from "../../types/backtest";
@@ -38,7 +38,7 @@ const TF_OPTIONS = [
   { value: "43200", label: "1M" },
 ];
 
-export const BacktestChartTabs = memo(function BacktestChartTabs({
+export function BacktestChartTabs({
   symbols,
   selectedSymbol,
   onSymbolSelect,
@@ -83,11 +83,11 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
               data-testid="chart-tabs"
             >
               <Tabs.List className="flex items-center justify-center gap-2">
-                {symbols.map((symbol) => (
+                <For each={symbols}>{(symbol) => (
                   <Tabs.Tab key={symbol} value={symbol} data-testid={`chart-tab-${symbol}`}>
                     {symbol}
                   </Tabs.Tab>
-                ))}
+                )}</For>
               </Tabs.List>
             </Tabs>
           </Box>
@@ -142,4 +142,4 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
       </Box>
     </Box>
   );
-});
+}

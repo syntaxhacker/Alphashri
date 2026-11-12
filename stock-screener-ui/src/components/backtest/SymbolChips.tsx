@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { createEffect, createSignal } from "solid-js";
 import { Box, Group, MultiSelect, Tooltip, Badge, ActionIcon, useDebouncedValue } from "@/ui";
-import { IconChevronDown, IconChevronUp, IconX } from "@tabler/icons-react";
+import { IconX, IconChevronDown, IconChevronUp } from "@/components/common/Icons";
 import * as palette from "@/ui/palette";
 import { searchSymbols } from "../../api/symbols";
+import { For } from "solid-js";
 
 const MAX_VISIBLE_CHIPS = 5;
 
@@ -13,12 +14,12 @@ export function SymbolChips({
   selectedSymbols: string[];
   onSymbolsChange: (symbols: string[]) => void;
 }) {
-  const [symbolSearch, setSymbolSearch] = useState("");
-  const [symbolOptions, setSymbolOptions] = useState<{ value: string; label: string }[]>([]);
+  const [symbolSearch, setSymbolSearch] = createSignal("");
+  const [symbolOptions, setSymbolOptions] = createSignal<{ value: string; label: string }[]>([]);
   const [debouncedSearch] = useDebouncedValue(symbolSearch, 300);
-  const [symbolsExpanded, setSymbolsExpanded] = useState(false);
+  const [symbolsExpanded, setSymbolsExpanded] = createSignal(false);
 
-  useEffect(() => {
+  createEffect(() => {
     if (debouncedSearch.trim().length < 1) {
       return;
     }
@@ -35,11 +36,9 @@ export function SymbolChips({
       .catch((err) => {
         console.error("Failed to search symbols:", err);
       });
-  }, [debouncedSearch]);
+  });
 
-  const visibleChips = symbolsExpanded
-    ? selectedSymbols
-    : selectedSymbols.slice(0, MAX_VISIBLE_CHIPS);
+  const visibleChips = symbolsExpanded() ? selectedSymbols : selectedSymbols.slice(0, MAX_VISIBLE_CHIPS);
   const hiddenCount = selectedSymbols.length - MAX_VISIBLE_CHIPS;
   const hasOverflow = selectedSymbols.length > MAX_VISIBLE_CHIPS;
 
@@ -58,7 +57,7 @@ export function SymbolChips({
             value={selectedSymbols}
             onChange={onSymbolsChange}
             searchable
-            searchValue={symbolSearch}
+            searchValue={symbolSearch()}
             onSearchChange={setSymbolSearch}
             clearable
             hidePickedOptions
@@ -85,23 +84,25 @@ export function SymbolChips({
       </Group>
       {selectedSymbols.length > 0 && (
         <Box
-          className={`config-symbols-chips ${symbolsExpanded ? "expanded" : ""}`}
+          className={`config-symbols-chips ${symbolsExpanded() ? "expanded" : ""}`}
           data-testid="symbol-chips"
         >
-          {visibleChips.map((symbol) => (
-            <Badge
-              key={symbol}
-              variant="outline"
-              size="sm"
-              className="symbol-chip"
-              style={{ color: palette.TEXT, borderColor: palette.BORDER }}
-              rightSection={<IconX size={10} onClick={() => handleRemoveSymbol(symbol)} />}
-              data-testid={`chip-${symbol}`}
-            >
-              {symbol}
-            </Badge>
-          ))}
-          {hasOverflow && !symbolsExpanded && (
+          <For each={visibleChips}>
+            {(symbol) => (
+              <Badge
+                key={symbol}
+                variant="outline"
+                size="sm"
+                className="symbol-chip"
+                style={{ color: palette.TEXT, borderColor: palette.BORDER }}
+                rightSection={<IconX size={10} onClick={() => handleRemoveSymbol(symbol)} />}
+                data-testid={`chip-${symbol}`}
+              >
+                {symbol}
+              </Badge>
+            )}
+          </For>
+          {hasOverflow && !symbolsExpanded() && (
             <Badge
               variant="light"
               color="secondary"
@@ -115,7 +116,7 @@ export function SymbolChips({
               +{hiddenCount} more
             </Badge>
           )}
-          {symbolsExpanded && hasOverflow && (
+          {symbolsExpanded() && hasOverflow && (
             <Badge
               variant="light"
               color="secondary"

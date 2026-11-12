@@ -1,4 +1,4 @@
-import { useCallback, useState, type CSSProperties } from "react";
+import { createSignal, For, splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UISegmentedControlProps } from "../types";
 
@@ -22,44 +22,42 @@ function itemSizeClasses(size?: UISegmentedControlProps["size"]): string {
   }
 }
 
-export function SegmentedControl({
-  value,
-  defaultValue,
-  onChange,
-  data,
-  color: _color,
-  size,
-  fullWidth,
-  withItemsBorders: _withItemsBorders,
-  className,
-  style,
-  id,
-  "data-testid": testId,
-}: UISegmentedControlProps) {
-  const isControlled = value !== undefined;
-  const [internal, setInternal] = useState<string | undefined>(defaultValue);
-  const current = isControlled ? value : internal;
-  const items = normalize(data);
+export function SegmentedControl(props: UISegmentedControlProps) {
+  const [known, rest] = splitProps(props, [
+    "value",
+    "defaultValue",
+    "onChange",
+    "data",
+    "color",
+    "size",
+    "fullWidth",
+    "withItemsBorders",
+    "className",
+    "style",
+    "id",
+    "data-testid",
+  ]);
 
-  const handleChange = useCallback(
-    (v: string) => {
-      if (!isControlled) setInternal(v);
-      onChange?.(v);
-    },
-    [isControlled, onChange],
-  );
+  const isControlled = known.value !== undefined;
+  const [internal, setInternal] = createSignal<string | undefined>(known.defaultValue);
+  const current = isControlled ? known.value : internal();
+  const items = normalize(known.data);
+
+  const handleChange = (v: string) => {
+    if (!isControlled) setInternal(v);
+    known.onChange?.(v);
+  };
 
   const rootClass = cn(
     "inline-flex overflow-hidden rounded-fin border border-fin-border bg-fin-surface text-sm",
-    fullWidth ? "w-full" : "",
-    className,
+    known.fullWidth ? "w-full" : "",
+    known.className,
   );
 
   return (
-    <div role="group" id={id} data-testid={testId} className={rootClass} style={style as CSSProperties}>
-      {items.map((item, i) => (
+    <div role="group" id={known.id} data-testid={known["data-testid"]} className={rootClass} style={known.style} {...rest}>
+      <For each={items}>{(item, i) => (
         <button
-          key={item.value}
           type="button"
           aria-pressed={current === item.value}
           data-value={item.value}
@@ -70,7 +68,7 @@ export function SegmentedControl({
           }}
           className={cn(
             "flex-1 cursor-pointer select-none transition-colors",
-            itemSizeClasses(size),
+            itemSizeClasses(known.size),
             "border-b border-t border-fin-border",
             i === 0 ? "border-l rounded-l-fin" : "border-x border-fin-border",
             i === items.length - 1 ? "border-r rounded-r-fin" : "",
@@ -81,7 +79,7 @@ export function SegmentedControl({
         >
           {item.label}
         </button>
-      ))}
+      )}</For>
     </div>
   );
 }

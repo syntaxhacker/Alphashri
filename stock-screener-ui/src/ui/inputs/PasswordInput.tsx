@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { createSignal, createUniqueId, splitProps } from "solid-js";
 import { cn } from "../cn";
 import { stripLegacyInputProps } from "./legacyProps";
 import type { UIPasswordInputProps } from "../types";
@@ -21,115 +21,114 @@ const Eye = () => (
 const EyeOff = () => (
   <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8" />
-    <circle cx="12" cy="12" r="3" />
     <path d="M1 1l22 22" />
   </svg>
 );
 
-export function PasswordInput({
-  value,
-  defaultValue,
-  onChange,
-  visibilityToggleButtonLabel,
-  visible: controlledVisible,
-  onVisibilityChange,
-  label,
-  description,
-  error,
-  required,
-  disabled,
-  size,
-  placeholder,
-  leftSection,
-  rightSection,
-  className,
-  style,
-  "data-testid": testId,
-  w,
-  h,
-  id: inputId,
-  ...rest
-}: UIPasswordInputProps) {
-  const autoId = useId();
-  const resolvedId = inputId ?? autoId;
-  const explicitWidth = w != null ? (typeof w === "number" ? `${w}px` : w) : undefined;
-  const explicitHeight = h != null ? (typeof h === "number" ? `${h}px` : h) : undefined;
-  const isError = Boolean(error);
-  const helperText = isError
-    ? typeof error === "string"
-      ? error
-      : String(error ?? "")
-    : (description as string | undefined);
+export function PasswordInput(props: UIPasswordInputProps) {
+  const [known, _rest] = splitProps(props, [
+    "value",
+    "defaultValue",
+    "onChange",
+    "visibilityToggleButtonLabel",
+    "visible",
+    "onVisibilityChange",
+    "label",
+    "description",
+    "error",
+    "required",
+    "disabled",
+    "size",
+    "placeholder",
+    "leftSection",
+    "rightSection",
+    "className",
+    "style",
+    "data-testid",
+    "id",
+    "w",
+    "h",
+  ]);
 
-  const [internalVisible, setInternalVisible] = useState(false);
-  const isControlled = controlledVisible !== undefined;
-  const visible = isControlled ? controlledVisible : internalVisible;
+  const resolvedId = known.id ?? createUniqueId();
+  const explicitWidth = known.w != null ? (typeof known.w === "number" ? `${known.w}px` : known.w) : undefined;
+  const explicitHeight = known.h != null ? (typeof known.h === "number" ? `${known.h}px` : known.h) : undefined;
+  const isError = Boolean(known.error);
+  const helperText = isError
+    ? typeof known.error === "string"
+      ? known.error
+      : String(known.error ?? "")
+    : (known.description as string | undefined);
+
+  const [internalVisible, setInternalVisible] = createSignal(false);
+  const isControlled = known.visible !== undefined;
+  const visible = isControlled ? known.visible : internalVisible();
 
   const handleToggle = () => {
     const next = !visible;
     if (!isControlled) setInternalVisible(next);
-    onVisibilityChange?.(next);
+    known.onVisibilityChange?.(next);
   };
 
   // Legacy Mantine props are accepted for backward compatibility but never
   // forwarded to the DOM (native elements reject unknown attributes).
-  const forwarded = stripLegacyInputProps(rest);
+  const forwarded = stripLegacyInputProps(_rest);
 
-  const wrapperStyle: React.CSSProperties = explicitWidth
-    ? { width: explicitWidth, ...style }
-    : style ?? {};
-  const inputStyle: React.CSSProperties = explicitHeight ? { height: explicitHeight } : {};
+  const wrapperStyle = explicitWidth ? { width: explicitWidth, ...known.style } : known.style ?? {};
+  const inputStyle = explicitHeight ? { height: explicitHeight } : {};
 
-  const wrapperTestId = testId ? `${testId}-field` : undefined;
-  const inputTestId = testId;
+  const wrapperTestId = known["data-testid"] ? `${known["data-testid"]}-field` : undefined;
+  const inputTestId = known["data-testid"];
+
+  const isControlledInput = known.value !== undefined || (known.onChange !== undefined && known.defaultValue === undefined);
 
   return (
     <div
       data-testid={wrapperTestId}
-      className={cn("flex flex-col min-w-0 gap-1.5", explicitWidth == null ? "w-full" : undefined, className)}
+      className={cn("flex flex-col min-w-0 gap-1.5", explicitWidth == null ? "w-full" : undefined, known.className)}
       style={wrapperStyle}
     >
-      {label && (
+      {known.label && (
         <label htmlFor={resolvedId} className={cn("text-xs font-medium", isError ? "text-fin-negative" : "text-fin-text")}>
-          {label}
-          {required && <span className="ml-1 text-fin-negative">*</span>}
+          {known.label}
+          {known.required && <span className="ml-1 text-fin-negative">*</span>}
         </label>
       )}
       <div className="flex items-center gap-2 w-full min-w-0">
-        {leftSection && <div className="shrink-0">{leftSection}</div>}
+        {known.leftSection && <div className="shrink-0">{known.leftSection}</div>}
         <input
           id={resolvedId}
           type={visible ? "text" : "password"}
-          value={value}
-          defaultValue={defaultValue}
-          onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-          placeholder={placeholder}
-          required={required}
-          disabled={disabled}
+          value={isControlledInput ? known.value : undefined}
+          defaultValue={isControlledInput ? undefined : known.defaultValue}
+          onInput={(e) => known.onChange?.(e.currentTarget.value)}
+          placeholder={known.placeholder}
+          required={known.required}
+          disabled={known.disabled}
           className={cn(
             "flex-1 min-w-0 block",
-            sizeClass(size),
+            sizeClass(known.size),
             "bg-fin-surface border border-fin-border rounded-fin text-fin-text placeholder:text-fin-text-muted",
             "focus:outline-none focus:border-fin-primary focus:ring-2 focus:ring-fin-primary",
-            disabled ? "disabled:bg-fin-surface-alt disabled:text-fin-text-muted disabled:border-fin-border disabled:cursor-not-allowed" : undefined,
+            known.disabled ? "disabled:bg-fin-surface-alt disabled:text-fin-text-muted disabled:border-fin-border disabled:cursor-not-allowed" : undefined,
             isError ? "border-fin-negative focus:border-fin-negative" : undefined,
           )}
           style={inputStyle}
           data-testid={inputTestId}
           {...(forwarded as Record<string, unknown>)}
         />
-        {rightSection && <div className="shrink-0">{rightSection}</div>}
+        {known.rightSection && <div className="shrink-0">{known.rightSection}</div>}
         <button
           type="button"
-          aria-label={visibilityToggleButtonLabel ?? "Toggle password visibility"}
+          aria-label={known.visibilityToggleButtonLabel ?? "Toggle password visibility"}
           onClick={handleToggle}
-          disabled={disabled}
+          disabled={known.disabled}
           className={cn(
             "flex-shrink-0 flex items-center justify-center",
-            buttonSizeClass(size),
+            buttonSizeClass(known.size),
             "rounded-fin border border-fin-border text-fin-text-muted bg-fin-surface",
             "hover:bg-fin-surface-alt focus:outline-none focus:border-fin-primary focus:ring-1 focus:ring-fin-primary",
-            disabled ? "opacity-50 cursor-not-allowed" : undefined,
+            known.disabled ? "opacity-50 cursor-not-allowed" : undefined,
           )}
         >
           {visible ? <EyeOff /> : <Eye />}

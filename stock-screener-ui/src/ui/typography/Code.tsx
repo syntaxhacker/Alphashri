@@ -1,5 +1,7 @@
+import { splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
+import type { JSX } from "solid-js";
 import type { UICodeProps } from "../types";
 
 const BG_MAP: Record<string, string> = {
@@ -20,56 +22,63 @@ function resolveColorValue(v: string | undefined): string | undefined {
   return BG_MAP[v];
 }
 
-export function Code({
-  children,
-  block,
-  color,
-  className,
-  style,
-  id,
-  "data-testid": testId,
-  ...rest
-}: UICodeProps) {
-  const colorValue = resolveColorValue(color as string | undefined);
-  const baseStyle: React.CSSProperties = {
+const CODE_TAGS: Record<string, (props: any) => JSX.Element> = {
+  pre: (props) => <pre {...props} />,
+  code: (props) => <code {...props} />,
+};
+
+const CODE_KNOWN = [
+  "children", "className", "style", "id", "data-testid", "block", "color",
+] as const;
+// `title` (inherited via UIBaseProps) is intentionally omitted: it flows through
+// `rest` onto the DOM element as a native tooltip.
+
+export function Code(props: UICodeProps & Record<string, unknown>) {
+  const [known, rest] = splitProps(props, CODE_KNOWN);
+  const colorValue = resolveColorValue(known.color as string | undefined);
+
+  const baseStyle: Record<string, string | number | undefined> = {
     fontSize: "0.875em",
     padding: "2px 6px",
     borderRadius: "1px",
-    ...(color != null ? { color: "white", ...(colorValue ? { backgroundColor: colorValue } : {}) } : {}),
+    ...(known.color != null ? { color: "white", ...(colorValue ? { backgroundColor: colorValue } : {}) } : {}),
   };
 
-  if (block) {
-    const blockStyle: React.CSSProperties = {
-      ...baseStyle,
-      display: "block",
-      overflowX: "auto",
-      padding: "12px",
-      margin: 0,
-      whiteSpace: "pre-wrap",
-      wordBreak: "break-word",
-    };
+  const rootTag = known.block ? "pre" : "code";
+  const Root = CODE_TAGS[rootTag];
+
+  if (known.block) {
     return (
-      <pre
-        className={cn(className, "font-mono")}
-        style={{ ...blockStyle, ...style }}
-        id={id}
-        data-testid={testId}
-        {...(rest as Record<string, unknown>)}
+      <Root
+        className={cn(known.className, "font-mono")}
+        style={{
+          ...baseStyle,
+          display: "block",
+          overflowX: "auto",
+          padding: "12px",
+          margin: 0,
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+          ...(known.style as Record<string, unknown> | undefined),
+        }}
+        id={known.id}
+        data-testid={known["data-testid"]}
+        {...rest}
       >
-        <code>{children}</code>
-      </pre>
+        <code>{known.children}</code>
+      </Root>
     );
   }
 
   return (
-    <code
-      className={cn(className, "font-mono")}
-      style={{ ...baseStyle, ...style }}
-      id={id}
-      data-testid={testId}
-      {...(rest as Record<string, unknown>)}
+    <Root
+      className={cn(known.className, "font-mono")}
+      style={{ ...baseStyle, ...(known.style as Record<string, unknown> | undefined) }}
+      id={known.id}
+      data-testid={known["data-testid"]}
+      {...rest}
     >
-      {children}
-    </code>
+      {known.children}
+    </Root>
   );
 }

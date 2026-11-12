@@ -1,3 +1,4 @@
+import { splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
 import type { UILoaderProps } from "../types";
@@ -27,25 +28,18 @@ function resolveColor(color: UILoaderProps["color"]): string {
   return COLOR_MAIN[color] ?? palette.PRIMARY;
 }
 
-export function Loader({
-  className,
-  style,
-  "data-testid": testId,
-  id,
-  size,
-  color,
-  type = "oval",
-  ...rest
-}: UILoaderProps) {
-  const dim = resolveSize(size) ?? "28px";
-  const col = resolveColor(color);
+export function Loader(props: UILoaderProps) {
+  const [known, _rest] = splitProps(props, ["className", "style", "data-testid", "id", "size", "color", "type"]);
+
+  const dim = resolveSize(known.size) ?? "28px";
+  const col = resolveColor(known.color);
 
   return (
     <div
       role="progressbar"
-      data-testid={testId}
-      id={id}
-      className={cn("inline-block shrink-0", className)}
+      data-testid={known["data-testid"]}
+      id={known.id}
+      className={cn("inline-block shrink-0", known.className)}
       style={{
         width: dim,
         height: dim,
@@ -53,31 +47,10 @@ export function Loader({
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        ...style,
+        ...known.style,
       }}
-      {...rest}
     >
-      {type === "bars" ? (
-        <div className="flex w-full h-full items-end gap-1">
-          {[0.6, 1.0, 0.75].map((fill, i) => (
-            <div
-              key={i}
-              className="w-1.5 bg-current rounded-sm shrink-0 animate-pulse"
-              style={{ height: `${Math.round(fill * 100)}%`, animationDelay: `${i * 0.15}s` }}
-            />
-          ))}
-        </div>
-      ) : type === "dots" ? (
-        <div className="flex w-full h-full items-center justify-center gap-1">
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="w-2 h-2 bg-current rounded-full shrink-0 animate-pulse"
-              style={{ animationDelay: `${i * 0.15}s` }}
-            />
-          ))}
-        </div>
-      ) : (
+      <Switch fallback={(
         <svg
           className="animate-spin shrink-0"
           style={{ width: "100%", height: "100%" }}
@@ -87,7 +60,28 @@ export function Loader({
         >
           <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
         </svg>
-      )}
+      )}>
+        <Match when={known.type === "bars"}>
+          <div className="flex w-full h-full items-end gap-1">
+            <For each={[0.6, 1.0, 0.75]}>{(fill, i) => (
+              <div
+                className="w-1.5 bg-current rounded-sm shrink-0 animate-pulse"
+                style={{ height: `${Math.round(fill * 100)}%`, animationDelay: `${i * 0.15}s` }}
+              />
+            )}</For>
+          </div>
+        </Match>
+        <Match when={known.type === "dots"}>
+          <div className="flex w-full h-full items-center justify-center gap-1">
+            <For each={[0, 1, 2]}>{(_, i) => (
+              <div
+                className="w-2 h-2 bg-current rounded-full shrink-0 animate-pulse"
+                style={{ animationDelay: `${i * 0.15}s` }}
+              />
+            )}</For>
+          </div>
+        </Match>
+      </Switch>
     </div>
   );
 }

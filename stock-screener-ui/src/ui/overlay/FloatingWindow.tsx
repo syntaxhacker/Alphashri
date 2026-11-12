@@ -1,11 +1,4 @@
-// FloatingWindow — dependency-free draggable/resizable window for full-bleed
-// chart screens. Performance contract:
-//  • moves/resizes use transform + width/height on the DOM node (no React state)
-//  • pointermove is coalesced into one requestAnimationFrame
-//  • geometry is committed to React once, on pointerup
-//  • `will-change` is only set while a gesture is active
-//  • content is memoized by the caller; window chrome re-renders at most per commit
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { createEffect, For, onCleanup, splitProps } from "solid-js";
 import { cn } from "../cn";
 
 export interface FloatingWindowGeometry {
@@ -17,7 +10,7 @@ export interface FloatingWindowGeometry {
 
 export interface FloatingWindowProps {
   title: string;
-  icon?: React.ReactNode;
+  icon?: JSX.Element;
   geometry: FloatingWindowGeometry;
   zIndex: number;
   minimized?: boolean;
@@ -27,87 +20,94 @@ export interface FloatingWindowProps {
   onClose?: () => void;
   onMinimize?: () => void;
   onGeometryChange?: (g: FloatingWindowGeometry) => void;
-  children: React.ReactNode;
+  children: JSX.Element;
   testid?: string;
 }
 
 const RESIZE_DIRS = ["n", "s", "e", "w", "ne", "nw", "se", "sw"] as const;
 type ResizeDir = (typeof RESIZE_DIRS)[number];
 
-const HANDLE_STYLE: Record<ResizeDir, React.CSSProperties> = {
-  n: { top: -3, left: 8, right: 8, height: 6, cursor: "ns-resize" },
-  s: { bottom: -3, left: 8, right: 8, height: 6, cursor: "ns-resize" },
-  e: { right: -3, top: 8, bottom: 8, width: 6, cursor: "ew-resize" },
-  w: { left: -3, top: 8, bottom: 8, width: 6, cursor: "ew-resize" },
-  ne: { top: -4, right: -4, width: 12, height: 12, cursor: "nesw-resize" },
-  nw: { top: -4, left: -4, width: 12, height: 12, cursor: "nwse-resize" },
-  se: { bottom: -4, right: -4, width: 12, height: 12, cursor: "nwse-resize" },
-  sw: { bottom: -4, left: -4, width: 12, height: 12, cursor: "nesw-resize" },
+const HANDLE_STYLE: Record<ResizeDir, Record<string, string | number>> = {
+  n: { top: "-3px", left: "8px", right: "8px", height: "6px", cursor: "ns-resize" },
+  s: { bottom: "-3px", left: "8px", right: "8px", height: "6px", cursor: "ns-resize" },
+  e: { right: "-3px", top: "8px", bottom: "8px", width: "6px", cursor: "ew-resize" },
+  w: { left: "-3px", top: "8px", bottom: "8px", width: "6px", cursor: "ew-resize" },
+  ne: { top: "-4px", right: "-4px", width: "12px", height: "12px", cursor: "nesw-resize" },
+  nw: { top: "-4px", left: "-4px", width: "12px", height: "12px", cursor: "nwse-resize" },
+  se: { bottom: "-4px", right: "-4px", width: "12px", height: "12px", cursor: "nwse-resize" },
+  sw: { bottom: "-4px", left: "-4px", width: "12px", height: "12px", cursor: "nesw-resize" },
 };
 
 export interface FloatingWindowHandle {
   focus: () => void;
 }
 
-const FloatingWindow = forwardRef<FloatingWindowHandle, FloatingWindowProps>(function FloatingWindow(
-  {
-    title,
-    icon,
-    geometry,
-    zIndex,
-    minimized = false,
-    minWidth = 260,
-    minHeight = 140,
-    onFocus,
-    onClose,
-    onMinimize,
-    onGeometryChange,
-    children,
-    testid,
-  },
-  ref,
-) {
-  const rootRef = useRef<HTMLDivElement>(null);
-  // Live geometry (kept in sync with props when no gesture is active) so a
-  // re-render mid-gesture cannot reset the DOM we're moving imperatively.
-  const geom = useRef<FloatingWindowGeometry>({ ...geometry });
-  const gesture = useRef<boolean>(false);
-  const rafRef = useRef(0);
-  const pending = useRef<FloatingWindowGeometry | null>(null);
+export function FloatingWindow(props: FloatingWindowProps) {
+  const [known, rest] = splitProps(props, [
+    "title",
+    "icon",
+    "geometry",
+    "zIndex",
+    "minimized",
+    "minWidth",
+    "minHeight",
+    "onFocus",
+    "onClose",
+    "onMinimize",
+    "onGeometryChange",
+    "children",
+    "testid",
+  ]);
 
-  useEffect(() => {
-    if (!gesture.current) geom.current = { ...geometry };
-  }, [geometry.x, geometry.y, geometry.width, geometry.height]);
+  let rootEl: HTMLDivElement | undefined;
+  // Snapshot of geometry used as the gesture origin; synced from props when idle.
+  const geom = { ...known.geometry };
+  let gesture = false;
+  let raf = 0;
+  let pending: FloatingWindowGeometry | null = null;
 
-  useImperativeHandle(
-    ref,
-    () => ({
-      focus: () => onFocus?.(),
-    }),
-    [onFocus],
-  );
+  // Apply geometry reactively from props, but never while a gesture drives the DOM.
+  createEffect(() => {
+    if (gesture || !rootEl) return;
+    const g = known.geometry;
+    rootEl.style.position = "absolute";
+    rootEl.style.top = "0";
+    rootEl.style.left = "0";
+    rootEl.style.width = `${g.width}px`;
+    rootEl.style.height = `${g.height}px`;
+    rootEl.style.transform = `translate3d(${g.x}px, ${g.y}px, 0)`;
+    rootEl.style.zIndex = String(known.zIndex);
+    rootEl.style.display = known.minimized ? "none" : "flex";
+    rootEl.style.flexDirection = "column";
+  });
 
-  const beginGesture = (mode: "move" | "resize", e: React.PointerEvent, dir?: ResizeDir) => {
+  onCleanup(() => {
+    if (raf) cancelAnimationFrame(raf);
+  });
+
+  const beginGesture = (mode: "move" | "resize", e: PointerEvent, dir?: ResizeDir) => {
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
-    onFocus?.();
-    gesture.current = true;
+    known.onFocus?.();
+    gesture = true;
     const startX = e.clientX;
     const startY = e.clientY;
-    const orig = { ...geom.current };
-    const el = rootRef.current;
+    const orig = { ...geom };
+    const el = rootEl;
     if (el) el.style.willChange = mode === "move" ? "transform" : "transform, width, height";
 
     const parent = el?.parentElement;
     const pw = parent?.clientWidth || window.innerWidth;
     const ph = parent?.clientHeight || window.innerHeight;
+    const minW = known.minWidth ?? 260;
+    const minH = known.minHeight ?? 140;
     const clampX = (v: number) => Math.min(Math.max(-orig.width + 60, v), pw - 60);
     const clampY = (v: number) => Math.min(Math.max(0, v), ph - 28);
 
     const apply = () => {
-      rafRef.current = 0;
-      const g = pending.current;
+      raf = 0;
+      const g = pending;
       if (!g || !el) return;
       el.style.transform = `translate3d(${g.x}px, ${g.y}px, 0)`;
       el.style.width = `${g.width}px`;
@@ -132,29 +132,29 @@ const FloatingWindow = forwardRef<FloatingWindowHandle, FloatingWindowProps>(fun
           height = orig.height - dy;
           y = orig.y + dy;
         }
-        width = Math.max(minWidth, width);
-        height = Math.max(minHeight, height);
-        if (width <= minWidth && dir.includes("w")) x = orig.x + (orig.width - minWidth);
-        if (height <= minHeight && dir.includes("n")) y = orig.y + (orig.height - minHeight);
+        width = Math.max(minW, width);
+        height = Math.max(minH, height);
+        if (width <= minW && dir.includes("w")) x = orig.x + (orig.width - minW);
+        if (height <= minH && dir.includes("n")) y = orig.y + (orig.height - minH);
       }
       const g = { x, y, width, height };
-      pending.current = g;
-      geom.current = g;
-      if (!rafRef.current) rafRef.current = requestAnimationFrame(apply);
+      pending = g;
+      Object.assign(geom, g);
+      if (!raf) raf = requestAnimationFrame(apply);
     };
 
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = 0;
+      if (raf) {
+        cancelAnimationFrame(raf);
+        raf = 0;
       }
       if (el) el.style.willChange = "";
-      gesture.current = false;
-      const g = pending.current;
-      pending.current = null;
-      if (g && onGeometryChange) onGeometryChange(g);
+      gesture = false;
+      const g = pending;
+      pending = null;
+      if (g && known.onGeometryChange) known.onGeometryChange(g);
     };
 
     window.addEventListener("pointermove", move);
@@ -163,41 +163,31 @@ const FloatingWindow = forwardRef<FloatingWindowHandle, FloatingWindowProps>(fun
 
   return (
     <div
-      ref={rootRef}
-      data-testid={testid}
-      data-minimized={minimized || undefined}
-      aria-hidden={minimized || undefined}
+      ref={(el) => (rootEl = el)}
+      data-testid={known.testid}
+      data-minimized={known.minimized || undefined}
+      aria-hidden={known.minimized || undefined}
       role="dialog"
-      aria-label={title}
-      onPointerDownCapture={() => onFocus?.()}
+      aria-label={known.title}
+      onPointerDownCapture={() => known.onFocus?.()}
       className={cn("flex flex-col shadow-2xl")}
-      style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        width: geometry.width,
-        height: geometry.height,
-        transform: `translate3d(${geometry.x}px, ${geometry.y}px, 0)`,
-        zIndex,
-        display: minimized ? "none" : "flex",
-        flexDirection: "column",
-      }}
+      {...(rest as Record<string, unknown>)}
     >
       {/* Title bar (drag handle) */}
       <div
         onPointerDown={(e) => beginGesture("move", e)}
-        onDoubleClick={() => onMinimize?.()}
+        onDoubleClick={() => known.onMinimize?.()}
         className="flex-none h-7 px-2 flex items-center gap-1.5 cursor-move select-none bg-fin-surface-alt border-b border-fin-border touch-none"
       >
-        {icon}
+        {known.icon}
         <span className="text-[11px] font-bold tracking-[0.4px] text-fin-text uppercase truncate flex-1">
-          {title}
+          {known.title}
         </span>
         <div
           role="button"
-          aria-label={`Minimize ${title}`}
+          aria-label={`Minimize ${known.title}`}
           onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => onMinimize?.()}
+          onClick={() => known.onMinimize?.()}
           className="grid place-items-center rounded text-fin-text-muted cursor-pointer leading-none hover:bg-fin-border"
           style={{ width: 18, height: 18 }}
         >
@@ -205,9 +195,9 @@ const FloatingWindow = forwardRef<FloatingWindowHandle, FloatingWindowProps>(fun
         </div>
         <div
           role="button"
-          aria-label={`Close ${title}`}
+          aria-label={`Close ${known.title}`}
           onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => onClose?.()}
+          onClick={() => known.onClose?.()}
           className="grid place-items-center rounded text-fin-text-muted cursor-pointer leading-none hover:bg-fin-negative hover:text-fin-text"
           style={{ width: 18, height: 18 }}
         >
@@ -216,18 +206,19 @@ const FloatingWindow = forwardRef<FloatingWindowHandle, FloatingWindowProps>(fun
       </div>
 
       {/* Body */}
-      <div className="flex-1 min-h-0 min-w-0 overflow-auto flex flex-col">{children}</div>
+      <div className="flex-1 min-h-0 min-w-0 overflow-auto flex flex-col">{known.children}</div>
 
       {/* Resize handles */}
-      {RESIZE_DIRS.map((dir) => (
-        <div
-          key={dir}
-          onPointerDown={(e) => beginGesture("resize", e, dir)}
-          style={{ position: "absolute", touchAction: "none", ...HANDLE_STYLE[dir] }}
-        />
-      ))}
+      <For each={RESIZE_DIRS}>
+        {(dir) => (
+          <div
+            onPointerDown={(e) => beginGesture("resize", e, dir)}
+            style={{ position: "absolute", touchAction: "none", ...HANDLE_STYLE[dir] }}
+          />
+        )}
+      </For>
     </div>
   );
-});
+}
 
 export default FloatingWindow;

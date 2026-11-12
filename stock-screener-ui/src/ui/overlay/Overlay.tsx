@@ -1,12 +1,11 @@
-import * as React from "react";
 import { cn } from "../cn";
 import type { UIOverlayProps } from "../types";
-
-type OverlayProps = UIOverlayProps;
 
 // Palette-derived translucent black backdrop.
 import * as palette from "../palette";
 import { alpha } from "../alpha";
+
+type OverlayProps = UIOverlayProps;
 
 const DEFAULT_BG = alpha(palette.SCALE_DARK[9], 0.5);
 

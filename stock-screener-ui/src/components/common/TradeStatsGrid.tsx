@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, JSX } from "solid-js";
 import { Box, Text, Progress, Stack } from "@/ui";
 import { CompactStat, CompactStatGrid } from "./compact";
 import { getPnLTextColor } from "../../utils/ui-helpers";
@@ -69,7 +69,7 @@ interface TradeStatsGridProps {
   /** Applied to the root node (empty state and populated stack). */
   testId?: string;
   /** Extra stats rendered after "Winners / Losers" and before "Progress". */
-  extraStats?: ReactNode;
+  extraStats?: JSX.Element;
   progressStat?: { value: string; hint: string } | null;
   progressBar?: { percent: number; style?: CSSProperties } | null;
 }

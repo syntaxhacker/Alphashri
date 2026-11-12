@@ -1,3 +1,4 @@
+import { splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UIButtonProps, UISize } from "../types";
 
@@ -64,65 +65,66 @@ const Spinner = () => (
   <span className="inline-block w-3 h-3 border-2 border-fin-text border-t-transparent rounded-full animate-spin" aria-hidden="true" />
 );
 
-export function Button({
-  children,
-  leftSection,
-  rightSection,
-  className,
-  style,
-  onClick,
-  "data-testid": testId,
-  variant = "filled",
-  color,
-  size = "md",
-  radius,
-  fullWidth,
-  disabled,
-  loading,
-  type,
-  id,
-  onMouseEnter,
-  onMouseLeave,
-  _compact,
-  elevation: _elevation,
-  spacing: _spacing,
-  alignItems: _alignItems,
-  ...rest
-}: UIButtonProps) {
-  const token = colorToken(color);
-  const disabledOrLoading = disabled || loading;
-  void _elevation; void _spacing; void _alignItems;
+export function Button(props: UIButtonProps) {
+  const [known, _rest] = splitProps(props, [
+    "children",
+    "leftSection",
+    "rightSection",
+    "className",
+    "style",
+    "onClick",
+    "data-testid",
+    "id",
+    "variant",
+    "color",
+    "size",
+    "radius",
+    "fullWidth",
+    "disabled",
+    "loading",
+    "type",
+    "onMouseEnter",
+    "onMouseLeave",
+    "_compact",
+    "_elevation",
+    "_spacing",
+    "_alignItems",
+  ]);
+
+  const token = colorToken(known.color);
+  const disabledOrLoading = known.disabled || known.loading;
+  void known._elevation; void known._spacing; void known._alignItems;
 
   // `compact` is accepted for backward compat but has no dedicated Tailwind
   // mapping; sizing is driven by `size`. Deliberately not forwarded to the DOM.
+  void known._compact;
 
   return (
     <button
-      type={type ?? "button"}
-      id={id}
-      data-testid={testId}
+      type={known.type ?? "button"}
+      id={known.id}
+      data-testid={known["data-testid"]}
       className={cn(
         "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed",
-        variantClass(variant, token),
-        SIZE_CLASSES[size],
-        radiusClass(radius),
-        fullWidth && "w-full",
-        className,
+        variantClass(known.variant, token),
+        SIZE_CLASSES[known.size],
+        radiusClass(known.radius),
+        known.fullWidth && "w-full",
+        known.className,
       )}
-      style={{ ...(typeof radius === "number" ? { borderRadius: radius } : {}), ...style }}
+      style={{ ...(typeof known.radius === "number" ? { borderRadius: known.radius } : {}), ...known.style }}
       disabled={disabledOrLoading}
-      data-loading={loading || undefined}
-      aria-busy={loading || undefined}
-      onClick={onClick}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      {...rest}
+      data-loading={known.loading || undefined}
+      aria-busy={known.loading || undefined}
+      onClick={(e) => known.onClick?.(e)}
+      onMouseEnter={(e) => known.onMouseEnter?.(e)}
+      onMouseLeave={(e) => known.onMouseLeave?.(e)}
     >
-      {leftSection || loading ? (
-        <span className="flex-shrink-0 mr-2">{leftSection ?? <Spinner />}</span>
+      {known.leftSection || known.loading ? (
+        <span className="flex-shrink-0 mr-2">{known.leftSection ?? <Spinner />}</span>
       ) : null}
-      {children}
-      {rightSection ? <span className="flex-shrink-0 ml-2">{rightSection}</span> : null}
+      {known.children}
+      {known.rightSection ? <span className="flex-shrink-0 ml-2">{known.rightSection}</span> : null}
     </button>
   );
 }

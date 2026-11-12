@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { splitProps } from "solid-js";
 import { DatePicker, type UIDatePickerProps } from "@/ui";
 import { isTradingHoliday } from "../../state/holidays";
 
@@ -13,18 +13,17 @@ export interface TradingDatePickerProps extends Omit<UIDatePickerProps, "onChang
   onChange: (value: string) => void;
 }
 
-export function TradingDatePicker({ value, onChange, ...rest }: TradingDatePickerProps) {
-  const handleChange = useCallback(
-    (v: string | null) => {
-      onChange(v || "");
-    },
-    [onChange],
-  );
+export function TradingDatePicker(props: TradingDatePickerProps) {
+  const [local, rest] = splitProps(props, ["value", "onChange"]);
+
+  const handleChange = (v: string | null) => {
+    local.onChange(v || "");
+  };
 
   return (
     <DatePicker
       size="sm"
-      value={value || null}
+      value={local.value || null}
       onChange={handleChange}
       excludeDate={isNonTradingDay}
       getDayProps={(date) => (isNonTradingDay(date) ? { disabled: true } : {})}

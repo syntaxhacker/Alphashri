@@ -1,7 +1,7 @@
 // BacktestToolbar — always-visible control strip above the full-bleed chart.
 // Chart mode + Run/Reset live here; right-rail panels collapse from their own headers.
 import { Box, Button, Text } from "@/ui";
-import { IconPlayerPlay, IconLayoutGrid } from "@tabler/icons-react";
+import { IconPlayerPlay, IconLayoutGrid } from "@/components/common/Icons";
 
 interface BacktestToolbarProps {
   strategyLabel: string;

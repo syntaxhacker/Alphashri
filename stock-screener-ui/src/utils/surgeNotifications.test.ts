@@ -1,13 +1,14 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render } from "solid-js/web";
 import type { ScreenerData } from "../types";
 
-const { mockEnqueueSnackbar } = vi.hoisted(() => ({
-  mockEnqueueSnackbar: vi.fn(),
+const { mockShowToast } = vi.hoisted(() => ({
+  mockShowToast: vi.fn(),
 }));
 
-vi.mock("notistack", () => ({
-  enqueueSnackbar: mockEnqueueSnackbar,
+vi.mock("solid-notifications", () => ({
+  showToast: mockShowToast,
 }));
 
 vi.mock("../api/notifications", () => ({
@@ -15,6 +16,16 @@ vi.mock("../api/notifications", () => ({
 }));
 
 import { checkPriceSurges, clearSurgeCache } from "./surgeNotifications";
+
+/** Render the JSX toast content so the assertions read real text. */
+function toastText(content: unknown): string {
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  render(() => content as never, container);
+  const text = container.textContent ?? "";
+  container.remove();
+  return text;
+}
 
 function makeStock(overrides: Record<string, any> = {}) {
   return { symbol: "TEST", score: 50, sector: "Test", ...overrides };
@@ -53,55 +64,59 @@ describe("checkPriceSurges", () => {
     const data = makeSurgeData("intraday_5m", [{ symbol: "RELIANCE", move_5m: 4.2, upstox_price: 2850 }]);
     checkPriceSurges(data, "intraday_5m", "5-Min Movers");
 
-    expect(mockEnqueueSnackbar).toHaveBeenCalledTimes(1);
-    const call = mockEnqueueSnackbar.mock.calls[0][0];
-    expect(call.title).toContain("RELIANCE");
-    expect(call.title).toContain("+4.2%");
-    expect(call.color).toBe("green");
-    expect(call["data-surge-symbol"]).toBe("RELIANCE");
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+    const [content, options] = mockShowToast.mock.calls[0] as [unknown, { type: string; duration: number }];
+    const text = toastText(content);
+    expect(text).toContain("RELIANCE");
+    expect(text).toContain("+4.2%");
+    expect(options.type).toBe("success");
+    expect(options.duration).toBe(8000);
   });
 
   it("skips stock below threshold", () => {
     const data = makeSurgeData("intraday_5m", [{ symbol: "RELIANCE", move_5m: 2.1 }]);
     checkPriceSurges(data, "intraday_5m", "5-Min Movers");
 
-    expect(mockEnqueueSnackbar).not.toHaveBeenCalled();
+    expect(mockShowToast).not.toHaveBeenCalled();
   });
 
   it("uses day_change for unknown screener profile", () => {
     const data = makeSurgeData("trending", [{ symbol: "TCS", day_change: 6.0 }]);
     checkPriceSurges(data, "trending", "Trending");
 
-    expect(mockEnqueueSnackbar).toHaveBeenCalledTimes(1);
-    expect(mockEnqueueSnackbar.mock.calls[0][0].title).toContain("TCS");
-    expect(mockEnqueueSnackbar.mock.calls[0][0].title).toContain("+6.0%");
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+    const text = toastText(mockShowToast.mock.calls[0][0]);
+    expect(text).toContain("TCS");
+    expect(text).toContain("+6.0%");
   });
 
   it("uses default threshold of 5 for unknown profiless", () => {
     const data = makeSurgeData("trending", [{ symbol: "TCS", day_change: 4.9 }]);
     checkPriceSurges(data, "trending", "Trending");
 
-    expect(mockEnqueueSnackbar).not.toHaveBeenCalled();
+    expect(mockShowToast).not.toHaveBeenCalled();
   });
 
   it("respects cooldown per symbol", () => {
     const data = makeSurgeData("intraday_5m", [{ symbol: "INFY", move_5m: 5.0 }]);
 
     checkPriceSurges(data, "intraday_5m", "5-Min Movers");
-    expect(mockEnqueueSnackbar).toHaveBeenCalledTimes(1);
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
 
     checkPriceSurges(data, "intraday_5m", "5-Min Movers");
-    expect(mockEnqueueSnackbar).toHaveBeenCalledTimes(1);
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
   });
 
   it("shows red notification for negative surges", () => {
     const data = makeSurgeData("intraday_5m", [{ symbol: "WIPRO", move_5m: -4.1 }]);
     checkPriceSurges(data, "intraday_5m", "5-Min Movers");
 
-    expect(mockEnqueueSnackbar).toHaveBeenCalledTimes(1);
-    const call = mockEnqueueSnackbar.mock.calls[0][0];
-    expect(call.title).toContain("-4.1%");
-    expect(call.color).toBe("red");
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+    const [content, options] = mockShowToast.mock.calls[0] as [unknown, { type: string }];
+    const text = toastText(content);
+    expect(text).toContain("WIPRO");
+    expect(text).toContain("-4.1%");
+    expect(options.type).toBe("error");
   });
 
   it("handles multiple surging stocks", () => {
@@ -111,7 +126,7 @@ describe("checkPriceSurges", () => {
     ]);
     checkPriceSurges(data, "intraday_5m", "5-Min Movers");
 
-    expect(mockEnqueueSnackbar).toHaveBeenCalledTimes(2);
+    expect(mockShowToast).toHaveBeenCalledTimes(2);
   });
 
   it("checks stocks in both sections", () => {
@@ -120,27 +135,27 @@ describe("checkPriceSurges", () => {
     );
     checkPriceSurges(data, "intraday_10m", "10-Min Movers");
 
-    expect(mockEnqueueSnackbar).toHaveBeenCalledTimes(1);
-    expect(mockEnqueueSnackbar.mock.calls[0][0].title).toContain("HDFC");
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+    expect(toastText(mockShowToast.mock.calls[0][0])).toContain("HDFC");
   });
 
   it("does nothing with empty data", () => {
     const data = makeSurgeData("trending");
     checkPriceSurges(data, "trending", "Trending");
-    expect(mockEnqueueSnackbar).not.toHaveBeenCalled();
+    expect(mockShowToast).not.toHaveBeenCalled();
   });
 
   it("includes price in message when available", () => {
     const data = makeSurgeData("intraday_5m", [{ symbol: "SBIN", move_5m: 5.0, upstox_price: 750 }]);
     checkPriceSurges(data, "intraday_5m", "5-Min Movers");
 
-    expect(mockEnqueueSnackbar.mock.calls[0][0].message).toContain("₹750");
+    expect(toastText(mockShowToast.mock.calls[0][0])).toContain("₹750");
   });
 
   it("includes screener label in message", () => {
     const data = makeSurgeData("intraday_5m", [{ symbol: "AXIS", move_5m: 4.0 }]);
     checkPriceSurges(data, "intraday_5m", "5-Min Movers");
 
-    expect(mockEnqueueSnackbar.mock.calls[0][0].message).toContain("5-Min Movers");
+    expect(toastText(mockShowToast.mock.calls[0][0])).toContain("5-Min Movers");
   });
 });

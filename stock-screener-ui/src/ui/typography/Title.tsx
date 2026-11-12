@@ -1,5 +1,7 @@
+import { createMemo, splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
+import type { JSX } from "solid-js";
 import type { UITitleProps } from "../types";
 
 const sizeMap: Record<string, string> = {
@@ -47,62 +49,62 @@ function isLiteralColor(c: string): boolean {
   return c.startsWith("#") || c.startsWith("rgb") || c.includes(".");
 }
 
-export function Title({
-  children,
-  order,
-  c,
-  ta,
-  fw,
-  size,
-  lh,
-  component,
-  mt,
-  mb,
-  ml,
-  mr,
-  className,
-  style,
-  id,
-  "data-testid": testId,
-  onClick,
-  onMouseEnter,
-  onMouseLeave,
-  ...rest
-}: UITitleProps) {
-  const tag: "h1" | "h2" | "h3" | "h4" | "h5" | "h6" =
-    order != null ? (orderVariant[order] ?? "h3") : "h3";
+const TITLE_TAGS: Record<string, (props: any) => JSX.Element> = {
+  h1: (props) => <h1 {...props} />,
+  h2: (props) => <h2 {...props} />,
+  h3: (props) => <h3 {...props} />,
+  h4: (props) => <h4 {...props} />,
+  h5: (props) => <h5 {...props} />,
+  h6: (props) => <h6 {...props} />,
+  div: (props) => <div {...props} />,
+};
 
-  const tone = c as string | undefined;
-  const cls = tone != null ? TONE_CLASS[tone] : undefined;
-  const styleObj: React.CSSProperties = {};
-  if (tone != null) {
-    styleObj.color = TONE_COLOR[tone] ?? (isLiteralColor(tone) ? tone : undefined);
-  }
-  if (fw != null) styleObj.fontWeight = fw;
-  if (ta != null) styleObj.textAlign = ta;
-  if (lh != null) styleObj.lineHeight = lh;
-  if (size != null) {
-    styleObj.fontSize = sizeMap[size as string] ?? (typeof size === "number" ? `${size}px` : size);
-  }
-  if (mt != null) styleObj.marginTop = typeof mt === "number" ? `${mt * 8}px` : mt;
-  if (mb != null) styleObj.marginBottom = typeof mb === "number" ? `${mb * 8}px` : mb;
-  if (ml != null) styleObj.marginLeft = typeof ml === "number" ? `${ml * 8}px` : ml;
-  if (mr != null) styleObj.marginRight = typeof mr === "number" ? `${mr * 8}px` : mr;
+const TITLE_KNOWN = [
+  "children", "className", "style", "id", "data-testid", "onClick", "onMouseEnter", "onMouseLeave",
+  "order", "c", "ta", "fw", "size", "lh", "component", "mt", "mb", "ml", "mr",
+] as const;
+// `title` is intentionally omitted: it is a native tooltip and must flow through
+// `rest` onto the DOM element rather than being consumed here.
 
-  const Component = (component ?? tag) as ElementType;
+export function Title(props: UITitleProps) {
+  const [known, rest] = splitProps(props, TITLE_KNOWN);
+
+  const orderTag = known.order != null ? (orderVariant[known.order] ?? "h3") : "h3";
+  const rootTag = (known.component ?? orderTag) as string;
+  const Root = TITLE_TAGS[rootTag] ?? TITLE_TAGS["div"];
+
+  const derived = createMemo(() => {
+    const tone = known.c as string | undefined;
+    const cls = tone != null ? TONE_CLASS[tone] : undefined;
+    const o: Record<string, string | number | undefined> = {};
+    if (tone != null) {
+      o.color = TONE_COLOR[tone] ?? (isLiteralColor(tone) ? tone : undefined);
+    }
+    if (known.fw != null) o.fontWeight = known.fw;
+    if (known.ta != null) o.textAlign = known.ta;
+    if (known.lh != null) o.lineHeight = known.lh;
+    if (known.size != null) {
+      o.fontSize = sizeMap[known.size as string] ?? (typeof known.size === "number" ? `${known.size}px` : known.size);
+    }
+    if (known.mt != null) o.marginTop = typeof known.mt === "number" ? `${known.mt * 8}px` : known.mt;
+    if (known.mb != null) o.marginBottom = typeof known.mb === "number" ? `${known.mb * 8}px` : known.mb;
+    if (known.ml != null) o.marginLeft = typeof known.ml === "number" ? `${known.ml * 8}px` : known.ml;
+    if (known.mr != null) o.marginRight = typeof known.mr === "number" ? `${known.mr * 8}px` : known.mr;
+    return { cls, style: o };
+  });
 
   return (
-    <Component
-      className={cn(className, cls)}
-      style={{ ...styleObj, ...style }}
-      id={id}
-      data-testid={testId}
-      onClick={onClick}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      {...(rest as Record<string, unknown>)}
+    <Root
+      className={cn(known.className, derived().cls)}
+      style={{ ...derived().style, ...(known.style as Record<string, unknown> | undefined) }}
+      id={known.id}
+      data-testid={known["data-testid"]}
+      onClick={known.onClick}
+      onMouseEnter={known.onMouseEnter}
+      onMouseLeave={known.onMouseLeave}
+      {...rest}
     >
-      {children}
-    </Component>
+      {known.children}
+    </Root>
   );
 }
