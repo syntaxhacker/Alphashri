@@ -1,12 +1,4 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
-  type ReactNode,
-} from "react";
+import { createContext, createEffect, createSignal, onCleanup, useContext, type JSX } from "solid-js";
 import type { NewsItem } from "../components/news/news-types";
 import { WS_BASE } from "../api/config";
 
@@ -18,10 +10,10 @@ interface NewsWebSocketMessage {
   timestamp?: string;
 }
 
-interface NewsWebSocketContextType {
-  connected: boolean;
-  newsItems: NewsItem[];
-  hasNewArticles: boolean;
+export interface NewsWebSocketContextType {
+  connected: () => boolean;
+  newsItems: () => NewsItem[];
+  hasNewArticles: () => boolean;
   clearNewArticlesFlag: () => void;
   addNewsItems: (items: NewsItem[]) => void;
 }
@@ -36,56 +28,58 @@ export function useNewsWebSocket(): NewsWebSocketContextType {
   return context;
 }
 
-export function NewsWebSocketProvider({ children }: { children: ReactNode }) {
-  const [connected, setConnected] = useState(false);
-  const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
-  const [hasNewArticles, setHasNewArticles] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+function mergeNews(prev: NewsItem[], incoming: NewsItem[]): NewsItem[] {
+  const existingIds = new Set(prev.map((i) => i.id));
+  const fresh = incoming.filter((i) => !existingIds.has(i.id));
+  if (fresh.length === 0) return prev;
+  return [...fresh, ...prev].slice(0, 100);
+}
 
-  const clearNewArticlesFlag = useCallback(() => {
-    setHasNewArticles(false);
-  }, []);
+export function NewsWebSocketProvider(props: { children?: JSX.Element }) {
+  const [connected, setConnected] = createSignal(false);
+  const [newsItems, setNewsItems] = createSignal<NewsItem[]>([]);
+  const [hasNewArticles, setHasNewArticles] = createSignal(false);
 
-  const addNewsItems = useCallback((items: NewsItem[]) => {
-    setNewsItems((prev) => {
-      const existingIds = new Set(prev.map((i) => i.id));
-      const newItems = items.filter((i) => !existingIds.has(i.id));
-      if (newItems.length === 0) return prev;
-      return [...newItems, ...prev].slice(0, 100);
-    });
-  }, []);
+  let ws: WebSocket | null = null;
+  let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  useEffect(() => {
+  const clearNewArticlesFlag = () => setHasNewArticles(false);
+  const addNewsItems = (items: NewsItem[]) => {
+    setNewsItems((prev) => mergeNews(prev, items));
+    setHasNewArticles(true);
+  };
+
+  createEffect(() => {
     let retryCount = 0;
     const maxRetries = 10;
     const baseDelay = 2000;
+    let disposed = false;
 
-    const getRetryDelay = () => {
-      const delay = Math.min(baseDelay * Math.pow(2, retryCount), 30000);
-      return delay + Math.random() * 1000; // jitter
+    const getRetryDelay = () =>
+      Math.min(baseDelay * Math.pow(2, retryCount), 30000) + Math.random() * 1000;
+
+    const scheduleReconnect = () => {
+      if (disposed || retryCount >= maxRetries) return;
+      retryCount++;
+      reconnectTimeout = setTimeout(connect, getRetryDelay());
     };
 
-    const connectWebSocket = () => {
+    const connect = () => {
+      if (disposed) return;
       try {
-        const ws = new WebSocket(`${WS_BASE}/ws/news`);
-        wsRef.current = ws;
+        ws = new WebSocket(`${WS_BASE}/ws/news`);
 
         ws.onopen = () => {
           setConnected(true);
-          retryCount = 0; // reset on successful connection
+          retryCount = 0;
         };
 
         ws.onmessage = (event) => {
           try {
             const data: NewsWebSocketMessage = JSON.parse(event.data);
             if (data.type === "new_items" && data.items) {
-              setNewsItems((prev) => {
-                const existingIds = new Set(prev.map((i) => i.id));
-                const newItems = data.items!.filter((i) => !existingIds.has(i.id));
-                if (newItems.length === 0) return prev;
-                return [...newItems, ...prev].slice(0, 100);
-              });
+              const incoming = data.items;
+              setNewsItems((prev) => mergeNews(prev, incoming));
               setHasNewArticles(true);
             }
           } catch (e) {
@@ -99,41 +93,28 @@ export function NewsWebSocketProvider({ children }: { children: ReactNode }) {
 
         ws.onclose = (event) => {
           setConnected(false);
-          wsRef.current = null;
-
-          // Don't reconnect on normal close or if max retries exceeded
-          if (event.code === 1000 || retryCount >= maxRetries) {
-            if (retryCount >= maxRetries) {
-              console.error("📰 News WebSocket max retries reached, giving up");
-            }
+          ws = null;
+          if (event.code === 1000) return;
+          if (retryCount >= maxRetries) {
+            console.error("📰 News WebSocket max retries reached, giving up");
             return;
           }
-
-          retryCount++;
-          const delay = getRetryDelay();
-          reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
+          scheduleReconnect();
         };
       } catch (error) {
         console.error("Failed to create WebSocket:", error);
-        if (retryCount < maxRetries) {
-          retryCount++;
-          const delay = getRetryDelay();
-          reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
-        }
+        scheduleReconnect();
       }
     };
 
-    connectWebSocket();
+    connect();
 
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-    };
-  }, []);
+    onCleanup(() => {
+      disposed = true;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (ws) ws.close();
+    });
+  });
 
   const value: NewsWebSocketContextType = {
     connected,
@@ -143,5 +124,5 @@ export function NewsWebSocketProvider({ children }: { children: ReactNode }) {
     addNewsItems,
   };
 
-  return <NewsWebSocketContext.Provider value={value}>{children}</NewsWebSocketContext.Provider>;
+  return <NewsWebSocketContext.Provider value={value}>{props.children}</NewsWebSocketContext.Provider>;
 }

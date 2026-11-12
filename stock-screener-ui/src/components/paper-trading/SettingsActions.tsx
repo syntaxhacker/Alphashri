@@ -1,6 +1,5 @@
-import { memo } from "react";
 import { Button, Group } from "@/ui";
-import { IconRefresh, IconDeviceFloppy } from "@tabler/icons-react";
+import { IconRefresh, IconDeviceFloppy } from "@/components/common/Icons";
 
 interface SettingsActionsProps {
   loading: boolean;
@@ -9,16 +8,16 @@ interface SettingsActionsProps {
   onReset: () => void;
 }
 
-export const SettingsActions = memo(function SettingsActions({ loading, dirty, onSave, onReset }: SettingsActionsProps) {
+export function SettingsActions(props: SettingsActionsProps) {
   return (
     <Group justify="flex-end" gap="xs" className="paper-settings-actions" id="settings-actions">
       <Button
         variant="light"
         color="secondary"
         size="sm"
-        onClick={onReset}
-        loading={loading}
-        disabled={loading}
+        onClick={props.onReset}
+        loading={props.loading}
+        disabled={props.loading}
         leftSection={<IconRefresh size={16} />}
         data-testid="reset-settings-button"
       >
@@ -27,14 +26,14 @@ export const SettingsActions = memo(function SettingsActions({ loading, dirty, o
       <Button
         variant="filled"
         size="sm"
-        onClick={onSave}
-        loading={loading}
-        disabled={loading || !dirty}
+        onClick={props.onSave}
+        loading={props.loading}
+        disabled={props.loading || !props.dirty}
         leftSection={<IconDeviceFloppy size={16} />}
         data-testid="save-settings-button"
       >
-        {dirty ? "Save Changes" : "Saved"}
+        {props.dirty ? "Save Changes" : "Saved"}
       </Button>
     </Group>
   );
-});
+}

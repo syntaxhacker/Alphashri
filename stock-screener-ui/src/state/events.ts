@@ -15,7 +15,7 @@
  *     gone out.
  */
 
-import { useSyncExternalStore } from "react";
+import { useStoreSnapshot } from "../hooks/useStoreSubscription";
 
 import { createSubscriber } from "./createSubscriber";
 import {
@@ -353,16 +353,14 @@ export const eventsStore: {
 };
 
 /**
- * Subscribe a component to the store and return the current state.
+ * Subscribe a component to the store and return an accessor for the state.
  *
- * `useSyncExternalStore` (rather than the local `useStoreSubscription` +
- * `getState()` pair) is what React requires for an external store: it
- * re-reads the snapshot on every notification and guarantees the component
- * never renders a value older than the last notify. The manual
- * force-update version silently stopped re-rendering this panel when it was
- * lazy-mounted inside a Suspense boundary, which is exactly the tearing
- * class `useSyncExternalStore` exists to prevent.
+ * Solid has no `useSyncExternalStore`; `useStoreSnapshot` is the equivalent:
+ * it re-reads the snapshot on every notification, so the returned accessor
+ * always yields the value the last `notify()` published. Read it as
+ * `state().rows` in JSX and in memos — reading it once at setup would pin the
+ * first snapshot forever.
  */
-export function useEventsStore(): EventsState {
-  return useSyncExternalStore(subscribe, getState, getState);
+export function useEventsStore(): () => EventsState {
+  return useStoreSnapshot(subscribe, getState);
 }

@@ -1,6 +1,7 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { lazy, Show, Suspense, createEffect, onCleanup, type JSX } from "solid-js";
+import { createStore, produce } from "solid-js/store";
 import { Box, Loader, Text, Badge, Tooltip, useMediaQuery } from "@/ui";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@solidjs/router";
 import { usePatternFullscreen } from "@/hooks/usePatternFullscreen";
 import { FALLBACK_TIMEFRAMES } from "@/components/patterns/TimeframeSelect";
 import { SymbolDockContext, type SymbolDockApi } from "./symbolDockContext";
@@ -29,7 +30,7 @@ const PREVIEW_CLOSE_MS = 800;
  * Desktop only; below 1200px `open` navigates to `/chart/:symbol` and hover
  * does nothing (no hidden mid-screen panel).
  */
-export function SymbolDockProvider({ children }: { children: ReactNode }) {
+export function SymbolDockProvider(props: { children?: JSX.Element }) {
   const navigate = useNavigate();
   const isDesktop = useMediaQuery("(min-width: 1200px)");
   const {
@@ -42,88 +43,93 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
     selectFullscreenHit,
   } = usePatternFullscreen({ timeframe: "1D", computeTrendlines: true });
 
-  const previewTimerRef = useRef<number | null>(null);
-  const closeTimerRef = useRef<number | null>(null);
-  const fullscreenRef = useRef(fullscreen);
-  fullscreenRef.current = fullscreen;
+  let previewTimer: number | null = null;
+  let closeTimer: number | null = null;
+  let fullscreenSnapshot = fullscreen();
 
-  const clearTimers = useCallback(() => {
-    if (previewTimerRef.current) {
-      window.clearTimeout(previewTimerRef.current);
-      previewTimerRef.current = null;
+  const clearTimers = () => {
+    if (previewTimer) {
+      window.clearTimeout(previewTimer);
+      previewTimer = null;
     }
-    if (closeTimerRef.current) {
-      window.clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
+    if (closeTimer) {
+      window.clearTimeout(closeTimer);
+      closeTimer = null;
     }
-  }, []);
-  useEffect(() => clearTimers, [clearTimers]);
+  };
+  // Mirror the latest fullscreen state into a plain variable so the debounce
+  // timers can read it without subscribing to every chart tick.
+  createEffect(() => {
+    fullscreenSnapshot = fullscreen() ?? null;
+  });
+  onCleanup(clearTimers);
 
-  const preview = useCallback(
-    (symbol: string) => {
-      if (!isDesktop) return;
-      if (fullscreenRef.current?.pinned) return;
-      if (previewTimerRef.current) window.clearTimeout(previewTimerRef.current);
-      // A close timer may be pending from leaving the previous symbol —
-      // cancelling it keeps the new symbol's preview from being closed
-      // when the old timer fires (A → B fast mouse move).
-      if (closeTimerRef.current) {
-        window.clearTimeout(closeTimerRef.current);
-        closeTimerRef.current = null;
-      }
-      previewTimerRef.current = window.setTimeout(() => {
-        previewFromSymbol(symbol, undefined, false);
-      }, PREVIEW_DEBOUNCE_MS);
-    },
-    [isDesktop, previewFromSymbol],
-  );
-
-  const endPreview = useCallback(() => {
-    if (previewTimerRef.current) {
-      window.clearTimeout(previewTimerRef.current);
-      previewTimerRef.current = null;
+  const preview = (symbol: string) => {
+    if (!isDesktop()) return;
+    if (fullscreenSnapshot?.pinned) return;
+    if (previewTimer) window.clearTimeout(previewTimer);
+    // A close timer may be pending from leaving the previous symbol —
+    // cancelling it keeps the new symbol's preview from being closed
+    // when the old timer fires (A → B fast mouse move).
+    if (closeTimer) {
+      window.clearTimeout(closeTimer);
+      closeTimer = null;
     }
-    if (!isDesktop) return;
-    if (!fullscreenRef.current || fullscreenRef.current.pinned) return;
-    if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
-    closeTimerRef.current = window.setTimeout(() => {
-      if (fullscreenRef.current && !fullscreenRef.current.pinned) closeFullscreen();
+    previewTimer = window.setTimeout(() => {
+      previewFromSymbol(symbol, undefined, false);
+    }, PREVIEW_DEBOUNCE_MS);
+  };
+
+  const endPreview = () => {
+    if (previewTimer) {
+      window.clearTimeout(previewTimer);
+      previewTimer = null;
+    }
+    if (!isDesktop()) return;
+    if (!fullscreenSnapshot || fullscreenSnapshot.pinned) return;
+    if (closeTimer) window.clearTimeout(closeTimer);
+    closeTimer = window.setTimeout(() => {
+      if (fullscreenSnapshot && !fullscreenSnapshot.pinned) closeFullscreen();
     }, PREVIEW_CLOSE_MS);
-  }, [isDesktop, closeFullscreen]);
+  };
 
-  const cancelClose = useCallback(() => {
-    if (closeTimerRef.current) {
-      window.clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
+  const cancelClose = () => {
+    if (closeTimer) {
+      window.clearTimeout(closeTimer);
+      closeTimer = null;
     }
-  }, []);
+  };
 
-  const open = useCallback(
-    (symbol: string) => {
-      clearTimers();
-      if (!isDesktop) {
-        navigate(`/chart/${encodeURIComponent(symbol)}`);
-        return;
-      }
-      openFromSymbol(symbol);
-    },
-    [isDesktop, openFromSymbol, navigate, clearTimers],
-  );
+  const open = (symbol: string) => {
+    clearTimers();
+    if (!isDesktop()) {
+      navigate(`/chart/${encodeURIComponent(symbol)}`);
+      return;
+    }
+    openFromSymbol(symbol);
+  };
 
-  const close = useCallback(() => {
+  const close = () => {
     clearTimers();
     closeFullscreen();
-  }, [clearTimers, closeFullscreen]);
+  };
 
-  const api = useMemo<SymbolDockApi>(
-    () => ({ preview, endPreview, open, close, pinned: Boolean(fullscreen?.pinned) }),
-    [preview, endPreview, open, close, fullscreen?.pinned],
-  );
+  const [api, setApi] = createStore<SymbolDockApi>({
+    preview,
+    endPreview,
+    open,
+    close,
+    pinned: Boolean(fullscreen()?.pinned),
+  });
+  createEffect(() => {
+    const pinned = Boolean(fullscreen()?.pinned);
+    setApi(produce((s) => { s.pinned = pinned; }));
+  });
 
   return (
     <SymbolDockContext.Provider value={api}>
-      {children}
-      {isDesktop && fullscreen ? (
+      {props.children}
+      <Show when={isDesktop() && fullscreen()}>
         <Box
           data-testid="symbol-dock"
           onMouseEnter={cancelClose}
@@ -132,16 +138,16 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
           className="fixed right-0 bottom-0 z-[1100] flex flex-col overflow-hidden border-l border-fin-border bg-fin-surface shadow-lg"
           style={{ top: DOCK_TOP, width: "clamp(420px, 36vw, 620px)" }}
         >
-          {fullscreen?.stale ? (
+          <Show when={fullscreen()?.stale}>
             <Box className="absolute bottom-2 right-2 z-[1200]">
               <Tooltip label="Showing cached candles; refreshing in background">
                 <Badge size="xs" variant="outline" color="warning" data-testid="dock-stale">
-                  {fullscreen?.dataAsOf ? `Cached ${fullscreen.dataAsOf}` : "Cached"}
+                  {fullscreen()?.dataAsOf ? `Cached ${fullscreen()!.dataAsOf}` : "Cached"}
                 </Badge>
               </Tooltip>
             </Box>
-          ) : null}
-          {fullscreen?.patternsLoading && (
+          </Show>
+          <Show when={fullscreen()?.patternsLoading}>
             <Box
               data-testid="dock-patterns-loading"
               className="pointer-events-none absolute top-2 right-2 z-[1200] flex items-center gap-1 rounded-fin border border-fin-border bg-fin-surface px-1.5 py-0.5"
@@ -151,8 +157,8 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
                 Computing patterns…
               </Text>
             </Box>
-          )}
-          <ErrorBoundary label="Chart" resetKey={fullscreen?.symbol}>
+          </Show>
+          <ErrorBoundary label="Chart" resetKey={fullscreen()?.symbol}>
           <Suspense
             fallback={
               <Box className="flex flex-1 items-center justify-center">
@@ -163,26 +169,26 @@ export function SymbolDockProvider({ children }: { children: ReactNode }) {
             <PatternFullscreenView
               opened
               docked
-              symbol={fullscreen?.symbol ?? null}
-              hit={fullscreen?.hit ?? null}
-              hits={fullscreen?.hits ?? []}
+              symbol={fullscreen()?.symbol ?? null}
+              hit={fullscreen()?.hit ?? null}
+              hits={fullscreen()?.hits ?? []}
               onSelectHit={selectFullscreenHit}
-              candles={fullscreen?.candles ?? []}
-              trendLines={fullscreen?.trendLines ?? []}
+              candles={fullscreen()?.candles ?? []}
+              trendLines={fullscreen()?.trendLines ?? []}
               trendlinesView="both"
-              timeframe={fullscreen?.timeframe}
+              timeframe={fullscreen()?.timeframe}
               timeframes={FALLBACK_TIMEFRAMES}
               onTimeframeChange={changeFullscreenTimeframe}
-              loading={fullscreen?.loading ?? false}
-              asOf={fullscreen?.asOf ?? null}
-              fromDate={fullscreen?.fromDate ?? null}
+              loading={fullscreen()?.loading ?? false}
+              asOf={fullscreen()?.asOf ?? null}
+              fromDate={fullscreen()?.fromDate ?? null}
               onClose={close}
               onLive={() => undefined}
             />
           </Suspense>
           </ErrorBoundary>
         </Box>
-      ) : null}
+      </Show>
     </SymbolDockContext.Provider>
   );
 }

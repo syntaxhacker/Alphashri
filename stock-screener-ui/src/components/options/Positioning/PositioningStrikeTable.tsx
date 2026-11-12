@@ -1,6 +1,6 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
-import { useMemo } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
+import { createMemo } from "solid-js";
+import type { TableColumnDef } from "../../common/TanStackTable";
 import { Badge, Box, Text } from "@/ui";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
 import { TanStackTable } from "../../common/TanStackTable";
@@ -29,10 +29,10 @@ function classBadgeColor(cls: string | null): BadgeColor {
   }
 }
 
-function ClassCell({ cls }: { cls: string | null }) {
+function ClassCell(props: { cls: string | null }) {
   return (
-    <Badge color={classBadgeColor(cls)} size="xs">
-      {cls ?? EM_DASH}
+    <Badge color={classBadgeColor(props.cls)} size="xs">
+      {props.cls ?? EM_DASH}
     </Badge>
   );
 }
@@ -45,115 +45,120 @@ export function heatBg(cr: number | null, max: number): string | undefined {
   return hexToRgba(cr < 0 ? NEGATIVE : POSITIVE, alpha);
 }
 
-function CrCell({ cr, max }: { cr: number | null; max: number }) {
-  if (cr === null || cr === undefined) {
+function CrCell(props: { cr: number | null; max: number }) {
+  if (props.cr === null || props.cr === undefined) {
     return (
       <Text size="sm" c="dimmed">
         {EM_DASH}
       </Text>
     );
   }
-  const bg = heatBg(cr, max);
+  const bg = heatBg(props.cr, props.max);
   return (
     <Box
       style={{
         display: "inline-block",
         "background-color": bg,
-        "border-radius": 1,
+        "border-radius": "1px",
         padding: "8px 4px",
-        fontVariantNumeric: "tabular-nums",
-        color: cr < 0 ? NEGATIVE : POSITIVE,
+        "font-variant-numeric": "tabular-nums",
+        color: props.cr < 0 ? NEGATIVE : POSITIVE,
       }}
     >
-      {formatCr(cr)}
+      {formatCr(props.cr)}
     </Box>
   );
 }
 
-function SharesCell({ v }: { v: number | null }) {
-  if (v === null || v === undefined) {
+function SharesCell(props: { v: number | null }) {
+  if (props.v === null || props.v === undefined) {
     return (
       <Text size="sm" c="dimmed">
         {EM_DASH}
       </Text>
     );
   }
-  return <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatShares(v)}</span>;
+  return <span style={{ "font-variant-numeric": "tabular-nums" }}>{formatShares(props.v)}</span>;
 }
 
-export function PositioningStrikeTable({ rows, maxAbsCr }: PositioningStrikeTableProps) {
-  const max = useMemo(() => {
-    if (maxAbsCr !== undefined && maxAbsCr > 0) return maxAbsCr;
+export function PositioningStrikeTable(props: PositioningStrikeTableProps) {
+  const max = createMemo(() => {
+    if (props.maxAbsCr !== undefined && props.maxAbsCr > 0) return props.maxAbsCr;
     let m = 0;
-    for (const r of rows) {
+    for (const r of props.rows) {
       for (const v of [r.ce_cr, r.pe_cr, r.net_cr]) {
         if (v !== null && v !== undefined) m = Math.max(m, Math.abs(v));
       }
     }
     return m;
-  }, [rows, maxAbsCr]);
+  });
 
-  const columns: ColumnDef<PositioningStrikeRow>[] = useMemo(
-    () => [
-      {
-        header: "Strike",
-        accessorKey: "strike",
-        meta: { align: "center" },
-        cell: ({ getValue }) => (
-          <span style={{ fontVariantNumeric: "tabular-nums" }}>
-            {formatNumberIN(getValue<number>())}
-          </span>
-        ),
-      },
-      {
-        header: "Calls",
-        accessorKey: "ce_class",
-        meta: { align: "left" },
-        cell: ({ getValue }) => <ClassCell cls={getValue<string | null>()} />,
-      },
-      {
-        header: "ΔOI",
-        accessorKey: "ce_doi_shares",
-        meta: { align: "right" },
-        cell: ({ getValue }) => <SharesCell v={getValue<number | null>()} />,
-      },
-      {
-        header: "Initiated Δ",
-        accessorKey: "ce_cr",
-        meta: { align: "right" },
-        cell: ({ getValue }) => <CrCell cr={getValue<number | null>()} max={max} />,
-      },
-      {
-        header: "Puts",
-        accessorKey: "pe_class",
-        meta: { align: "left" },
-        cell: ({ getValue }) => <ClassCell cls={getValue<string | null>()} />,
-      },
-      {
-        header: "ΔOI",
-        accessorKey: "pe_doi_shares",
-        meta: { align: "right" },
-        cell: ({ getValue }) => <SharesCell v={getValue<number | null>()} />,
-      },
-      {
-        header: "Initiated Δ",
-        accessorKey: "pe_cr",
-        meta: { align: "right" },
-        cell: ({ getValue }) => <CrCell cr={getValue<number | null>()} max={max} />,
-      },
-      {
-        header: "Net initiated",
-        accessorKey: "net_cr",
-        meta: { align: "right" },
-        cell: ({ getValue }) => <CrCell cr={getValue<number | null>()} max={max} />,
-      },
-    ],
-    [max],
-  );
+  const columns: TableColumnDef<PositioningStrikeRow>[] = [
+    {
+      id: "strike",
+      header: "Strike",
+      accessorKey: "strike",
+      meta: { align: "center" },
+      cell: (ctx) => (
+        <span style={{ "font-variant-numeric": "tabular-nums" }}>
+          {formatNumberIN(ctx.row.original.strike)}
+        </span>
+      ),
+    },
+    {
+      id: "ce_class",
+      header: "Calls",
+      accessorKey: "ce_class",
+      meta: { align: "left" },
+      cell: (ctx) => <ClassCell cls={ctx.row.original.ce_class} />,
+    },
+    {
+      id: "ce_doi_shares",
+      header: "ΔOI",
+      accessorKey: "ce_doi_shares",
+      meta: { align: "right" },
+      cell: (ctx) => <SharesCell v={ctx.row.original.ce_doi_shares} />,
+    },
+    {
+      id: "ce_cr",
+      header: "Initiated Δ",
+      accessorKey: "ce_cr",
+      meta: { align: "right" },
+      cell: (ctx) => <CrCell cr={ctx.row.original.ce_cr} max={max()} />,
+    },
+    {
+      id: "pe_class",
+      header: "Puts",
+      accessorKey: "pe_class",
+      meta: { align: "left" },
+      cell: (ctx) => <ClassCell cls={ctx.row.original.pe_class} />,
+    },
+    {
+      id: "pe_doi_shares",
+      header: "ΔOI",
+      accessorKey: "pe_doi_shares",
+      meta: { align: "right" },
+      cell: (ctx) => <SharesCell v={ctx.row.original.pe_doi_shares} />,
+    },
+    {
+      id: "pe_cr",
+      header: "Initiated Δ",
+      accessorKey: "pe_cr",
+      meta: { align: "right" },
+      cell: (ctx) => <CrCell cr={ctx.row.original.pe_cr} max={max()} />,
+    },
+    {
+      id: "net_cr",
+      header: "Net initiated",
+      accessorKey: "net_cr",
+      meta: { align: "right" },
+      cell: (ctx) => <CrCell cr={ctx.row.original.net_cr} max={max()} />,
+    },
+  ];
 
   return (
     <TanStackTable<PositioningStrikeRow>
-      data={rows}
+      data={props.rows}
       columns={columns}
       bare
       dataTestId="positioning-strike-table"

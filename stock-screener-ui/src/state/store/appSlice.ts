@@ -16,10 +16,10 @@ const initialState: AppState = {
  * A Solid store (not Redux): `setCurrentView` mutates through `produce`, so
  * subscribers re-run only when the field they read actually changes.
  */
-export const appStore = createStore<AppState>(initialState);
+export const [appStore, setAppStore] = createStore<AppState>(initialState);
 
 export function setCurrentView(view: AppRouteView): void {
-  appStore.setState(
+  setAppStore(
     produce((s) => {
       s.currentView = view;
     }),

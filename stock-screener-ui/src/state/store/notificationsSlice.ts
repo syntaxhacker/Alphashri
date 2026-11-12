@@ -24,7 +24,8 @@ const initialState: NotificationsState = {
  * `produce` keeps the array reference stable for untouched subscribers and
  * only notifies the ones reading `items`.
  */
-export const notificationsStore = createStore<NotificationsState>(initialState);
+export const [notificationsStore, setNotificationsStore] =
+  createStore<NotificationsState>(initialState);
 
 export function addNotification(
   payload: Omit<Notification, "id" | "timestamp">,
@@ -35,7 +36,7 @@ export function addNotification(
     timestamp: Date.now(),
     duration: payload.duration ?? 5000,
   };
-  notificationsStore.setState(
+  setNotificationsStore(
     produce((s) => {
       s.items = [...s.items, notification];
     }),
@@ -43,7 +44,7 @@ export function addNotification(
 }
 
 export function removeNotification(id: string): void {
-  notificationsStore.setState(
+  setNotificationsStore(
     produce((s) => {
       s.items = s.items.filter((n) => n.id !== id);
     }),
@@ -51,7 +52,7 @@ export function removeNotification(id: string): void {
 }
 
 export function clearAllNotifications(): void {
-  notificationsStore.setState(
+  setNotificationsStore(
     produce((s) => {
       s.items = [];
     }),

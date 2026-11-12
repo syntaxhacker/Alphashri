@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { createSignal } from "solid-js";
 import { ScreenerPage, DEFAULT_DASHBOARD_UNIVERSE } from "../../components/screener/ScreenerPage";
 import { useScreenerState } from "../../hooks/useScreenerState";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "@solidjs/router";
 
 export function ScreenerContainer() {
   const [searchParams] = useSearchParams();
-  const rawScreener = searchParams.get("screener");
+  const raw = searchParams.screener;
+  const rawScreener = Array.isArray(raw) ? raw[0] : raw;
   const urlScreener = rawScreener?.includes(":")
     ? rawScreener.split(":").pop()
     : rawScreener || undefined;
@@ -31,8 +32,8 @@ export function ScreenerContainer() {
     onSymbolHover,
   } = useScreenerState(urlScreener);
 
-  const totalStocks = (approachingStocks ?? []).length + (touchedStocks ?? []).length;
-  const [universe, setUniverse] = useState(DEFAULT_DASHBOARD_UNIVERSE);
+  const totalStocks = () => (approachingStocks ?? []).length + (touchedStocks ?? []).length;
+  const [universe, setUniverse] = createSignal(DEFAULT_DASHBOARD_UNIVERSE);
 
   return (
     <ScreenerPage
@@ -42,9 +43,9 @@ export function ScreenerContainer() {
       onConfigScreenerSelect={onConfigScreenerSelect}
       title={`${(screenerOptions ?? []).find((s) => s.id === activeScreener)?.label || "Screener"} | Alphashri`}
       status={
-        isLoading && totalStocks === 0
+        isLoading && totalStocks() === 0
           ? "Loading..."
-          : `${totalStocks} stocks${isLoading ? " • Updating..." : ""}`
+          : `${totalStocks()} stocks${isLoading ? " • Updating..." : ""}`
       }
       isLoading={isLoading}
       autoRefreshSeconds={autoRefreshSeconds}
@@ -60,7 +61,7 @@ export function ScreenerContainer() {
       onSymbolHover={onSymbolHover}
       error={error}
       warning={warning}
-      universe={universe}
+      universe={universe()}
       onUniverseChange={setUniverse}
     />
   );

@@ -437,3 +437,19 @@ createSignal<string[]>(compute())        // correct
 `toHaveStyle("font-size: 0.75rem")` fails even when the inline style is
 correct — assert `12px` instead. Likewise `column-gap` resolves to `""` when
 only the `gap` shorthand is set; assert `gap`.
+
+### 9.8 The redux store is gone — read the Solid store directly
+
+`src/state/store/{appSlice,notificationsSlice}` export `const [store, setStore] =
+createStore(...)`, so `store` is the reactive proxy and `setStore` the setter.
+There is no Provider and no `useStore` in Solid 1.9.
+
+`useAppSelector(sel)` now returns an **accessor**; call it in JSX or a memo:
+
+```tsx
+const items = useAppSelector((s) => s.notifications.items);
+<span>{items().length}</span>   // not items.length — the component body runs once
+```
+
+`useAppDispatch()` is a no-op: the slice mutators (`removeNotification(id)`)
+already write the store before `dispatch(...)` is reached.

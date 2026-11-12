@@ -1,3 +1,4 @@
+import type { Component, JSX } from "solid-js";
 import { OrbParamsPanel } from "../../components/strategies/OrbParamsPanel";
 import { SrBreakoutParamsPanel } from "../../components/strategies/SrBreakoutParamsPanel";
 import { EmaParamsPanel } from "../../components/strategies/EmaParamsPanel";
@@ -15,7 +16,7 @@ interface PanelProps {
   is52wChaser?: boolean;
 }
 
-type PanelComponent = React.ComponentType<PanelProps>;
+type PanelComponent = Component<PanelProps>;
 
 /**
  * StrategyParamPanelFactory — Factory Method pattern.
@@ -52,7 +53,7 @@ export class StrategyParamPanelFactory {
    * themselves without touching this factory.
    *
    * @param type - strategy_type string (e.g. "MY_CUSTOM")
-   * @param component - React component receiving PanelProps
+   * @param component - Solid component receiving PanelProps
    */
   static registerPanel(type: string, component: PanelComponent): void {
     this.registry.set(type, component);
@@ -64,7 +65,7 @@ export class StrategyParamPanelFactory {
    * @param type         - strategy_type (e.g. "ORB", "52W_CHASER")
    * @param initialValues - form default values
    * @param isSwing       - whether the strategy type is a swing strategy
-   * @returns A <Tabs.Panel> React element, or null if the type is unknown
+   * @returns A <Tabs.Panel> JSX element, or null if the type is unknown
    */
   static createPanel(
     type: string,
@@ -106,6 +107,6 @@ export interface StrategyParamPanelProps {
  * @example
  * <StrategyParamPanel type="ORB" initialValues={values} isSwing={false} />
  */
-export function StrategyParamPanel({ type, initialValues, isSwing }: StrategyParamPanelProps) {
-  return StrategyParamPanelFactory.createPanel(type, initialValues, isSwing);
+export function StrategyParamPanel(props: StrategyParamPanelProps) {
+  return StrategyParamPanelFactory.createPanel(props.type, props.initialValues, props.isSwing);
 }

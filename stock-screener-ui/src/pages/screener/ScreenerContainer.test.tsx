@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { ScreenerContainer } from "./ScreenerContainer";
 import { UIProvider } from "@/ui";
@@ -9,7 +9,7 @@ import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 const mockUseScreenerState = vi.fn();
 const mockUseSearchParams = vi.fn();
 
-vi.mock("react-router-dom", () => ({
+vi.mock("@solidjs/router", () => ({
   useNavigate: vi.fn(() => vi.fn()),
   useSearchParams: (...args: any[]) => mockUseSearchParams(...args),
 }));
@@ -74,49 +74,45 @@ describe("ScreenerContainer", () => {
     vi.clearAllMocks();
     setupBrowserMocks();
     lastScreenerPageProps = null;
-    mockUseSearchParams.mockReturnValue([new URLSearchParams(), vi.fn()]);
+    mockUseSearchParams.mockReturnValue([{}, vi.fn()]);
     mockUseScreenerState.mockReturnValue(makeScreenerState());
   });
 
-  afterEach(() => {
-    cleanup();
-  });
-
   it("renders screener page", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerContainer />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("screener-page")).toBeInTheDocument();
   });
 
   it("passes screener options title derived from activeScreener", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerContainer />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const page = screen.getByTestId("screener-page");
     expect(page).toHaveAttribute("data-title", "Trending | Alphashri");
     expect(page).toHaveTextContent("Trending | Alphashri");
   });
 
   it("passes active screener", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerContainer />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("screener-page")).toHaveAttribute("data-active-screener", "trending");
   });
 
   it("passes loading state", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerContainer />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("screener-page")).toHaveAttribute("data-is-loading", "false");
   });
 
@@ -124,11 +120,11 @@ describe("ScreenerContainer", () => {
     const approaching = [{ symbol: "RELIANCE" }, { symbol: "TCS" }] as any;
     const touched = [{ symbol: "INFY" }] as any;
     mockUseScreenerState.mockReturnValue(makeScreenerState({ approachingStocks: approaching, touchedStocks: touched }));
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerContainer />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const page = screen.getByTestId("screener-page");
     expect(page).toHaveAttribute("data-approaching-count", "2");
     expect(page).toHaveAttribute("data-touched-count", "1");
@@ -140,11 +136,11 @@ describe("ScreenerContainer", () => {
 
   it("shows Loading... status when isLoading true", () => {
     mockUseScreenerState.mockReturnValue(makeScreenerState({ isLoading: true }));
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerContainer />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("screener-page")).toHaveAttribute("data-status", "Loading...");
   });
 
@@ -156,11 +152,11 @@ describe("ScreenerContainer", () => {
         touchedStocks: [{ symbol: "INFY" }],
       }),
     );
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerContainer />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("screener-page")).toHaveAttribute(
       "data-status",
       "3 stocks • Updating...",
@@ -169,52 +165,52 @@ describe("ScreenerContainer", () => {
 
   it("passes error and warning through to ScreenerPage", () => {
     mockUseScreenerState.mockReturnValue(makeScreenerState({ error: "fetch failed", warning: "stale data" }));
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerContainer />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("screener-page")).toHaveAttribute("data-error", "fetch failed");
     expect(screen.getByTestId("screener-page")).toHaveAttribute("data-warning", "stale data");
   });
 
   it("calls useScreenerState with undefined when no query param", () => {
-    mockUseSearchParams.mockReturnValue([new URLSearchParams(), vi.fn()]);
-    render(
+    mockUseSearchParams.mockReturnValue([{}, vi.fn()]);
+    render(() => (
       <UIProvider>
         <ScreenerContainer />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(mockUseScreenerState).toHaveBeenCalledWith(undefined);
   });
 
   it("parses screener query param without prefix", () => {
-    mockUseSearchParams.mockReturnValue([new URLSearchParams("screener=new-highs"), vi.fn()]);
-    render(
+    mockUseSearchParams.mockReturnValue([{ screener: "new-highs" }, vi.fn()]);
+    render(() => (
       <UIProvider>
         <ScreenerContainer />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(mockUseScreenerState).toHaveBeenCalledWith("new-highs");
   });
 
   it("parses builtin: prefix by taking last segment after colon", () => {
-    mockUseSearchParams.mockReturnValue([new URLSearchParams("screener=builtin:trending"), vi.fn()]);
-    render(
+    mockUseSearchParams.mockReturnValue([{ screener: "builtin:trending" }, vi.fn()]);
+    render(() => (
       <UIProvider>
         <ScreenerContainer />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(mockUseScreenerState).toHaveBeenCalledWith("trending");
   });
 
   it("handles nested colon only uses last segment", () => {
-    mockUseSearchParams.mockReturnValue([new URLSearchParams("screener=a:b:c"), vi.fn()]);
-    render(
+    mockUseSearchParams.mockReturnValue([{ screener: "a:b:c" }, vi.fn()]);
+    render(() => (
       <UIProvider>
         <ScreenerContainer />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(mockUseScreenerState).toHaveBeenCalledWith("c");
   });
 
@@ -225,11 +221,11 @@ describe("ScreenerContainer", () => {
         screenerOptions: [{ id: "trending", label: "Trending" }],
       }),
     );
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerContainer />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("screener-page")).toHaveAttribute("data-title", "Screener | Alphashri");
   });
 
@@ -237,22 +233,22 @@ describe("ScreenerContainer", () => {
     const onRefresh = vi.fn();
     const onScreenerChange = vi.fn();
     mockUseScreenerState.mockReturnValue(makeScreenerState({ onRefresh, onScreenerChange }));
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerContainer />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(lastScreenerPageProps.onRefresh).toBe(onRefresh);
     expect(lastScreenerPageProps.onScreenerChange).toBe(onScreenerChange);
     expect(lastScreenerPageProps.onConfigScreenerSelect).toBeDefined();
   });
 
   it("passes the dashboard universe through to ScreenerPage", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerContainer />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("screener-page")).toHaveAttribute("data-universe", "nifty500");
     expect(lastScreenerPageProps.universe).toBe("nifty500");
     expect(lastScreenerPageProps.onUniverseChange).toBeDefined();
