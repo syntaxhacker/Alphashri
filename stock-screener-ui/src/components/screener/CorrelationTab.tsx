@@ -3,12 +3,11 @@ import { useSearchParams } from "@solidjs/router";
 import {
   Alert,
   Button,
-  Flex,
   MultiSelect,
   SegmentedControl,
   Select,
   Stack,
-  Text,
+  ToolbarRow,
 } from "@/ui";
 import { IconAlertCircle, IconChartLine } from "./icons";
 import {
@@ -167,78 +166,68 @@ export function CorrelationTab() {
   return (
     <Stack spacing={2} className="h-full w-full" data-testid="correlation-tab">
       <CompactPanel title="Correlation Analysis" description="Analyze price correlation between symbols">
-        <Stack spacing={2} className="w-full items-center">
-          <Flex className="w-full justify-center">
-            <div className="grid w-full grid-cols-1 items-center justify-center gap-4 md:grid-cols-[auto_auto_auto_auto]">
-              <Stack spacing={1} className="items-center">
-                <Text size="xs" c="dimmed">
-                  Symbols
-                </Text>
-                <MultiSelect
-                  placeholder="Search and select symbols"
-                  data={searchData().map((s) => ({ value: s.symbol, label: s.symbol }))}
-                  value={localSymbols()}
-                  onChange={setLocalSymbols}
-                  searchValue={searchText()}
-                  onSearchChange={setSearchText}
-                  searchable
-                  size="sm"
-                  w={280}
-                  aria-label="Symbols"
-                />
-              </Stack>
-              <SegmentedControl
-                value={store().timeframe}
-                onChange={handleTimeframeChange}
-                data={[
-                  { label: "Daily", value: "daily" },
-                  { label: "Intraday", value: "intraday" },
-                ]}
-                size="sm"
-                data-testid="correlation-timeframe"
-              />
-              <Select
-                label="Period"
-                value={currentPeriod()}
-                onChange={handlePeriodChange}
-                data={periods()}
-                size="sm"
-                w={110}
-                data-testid="correlation-period"
-              />
-              <Button
-                onClick={handleCalculate}
-                loading={store().isLoading}
-                disabled={localSymbols().length < 2}
-                size="sm"
-                leftSection={<IconChartLine size={16} />}
-                fullWidth
-              >
-                Calculate
-              </Button>
-            </div>
-          </Flex>
+        <ToolbarRow gap={8} align="center" className="w-full">
+          <MultiSelect
+            placeholder="Search and select symbols"
+            data={searchData().map((s) => ({ value: s.symbol, label: s.symbol }))}
+            value={localSymbols()}
+            onChange={setLocalSymbols}
+            searchValue={searchText()}
+            onSearchChange={setSearchText}
+            searchable
+            size="sm"
+            w={280}
+            aria-label="Symbols"
+          />
+          <SegmentedControl
+            value={store().timeframe}
+            onChange={handleTimeframeChange}
+            data={[
+              { label: "Daily", value: "daily" },
+              { label: "Intraday", value: "intraday" },
+            ]}
+            size="sm"
+            data-testid="correlation-timeframe"
+          />
+          <Select
+            placeholder="Period"
+            value={currentPeriod()}
+            onChange={handlePeriodChange}
+            data={periods()}
+            size="sm"
+            w={110}
+            data-testid="correlation-period"
+          />
+          <Button
+            onClick={handleCalculate}
+            loading={store().isLoading}
+            disabled={localSymbols().length < 2}
+            size="sm"
+            leftSection={<IconChartLine size={16} />}
+          >
+            Calculate
+          </Button>
+        </ToolbarRow>
 
-          <Show when={store().error}>
-            <Alert icon={<IconAlertCircle size={16} />} color="error" size="sm">
-              {store().error}
-            </Alert>
-          </Show>
+        <Show when={store().error}>
+          <Alert icon={<IconAlertCircle size={16} />} color="error" size="sm">
+            {store().error}
+          </Alert>
+        </Show>
 
-          <Show when={store().meta}>
-            {(m) => (
-              <CompactStatGrid>
-                <CompactStat
-                  label="Date Range"
-                  value={`${formatDateRange(m().start_date)} → ${formatDateRange(m().end_date)}`}
-                />
-                <CompactStat label="Data Points" value={m().data_points} />
-                <CompactStat label="Symbols" value={store().symbols.length} />
-                <CompactStat label="Timeframe" value={isIntraday() ? "Intraday" : "Daily"} />
-              </CompactStatGrid>
-            )}
-          </Show>
-        </Stack>
+        <Show when={store().meta}>
+          {(m) => (
+            <CompactStatGrid>
+              <CompactStat
+                label="Date Range"
+                value={`${formatDateRange(m().start_date)} → ${formatDateRange(m().end_date)}`}
+              />
+              <CompactStat label="Data Points" value={m().data_points} />
+              <CompactStat label="Symbols" value={store().symbols.length} />
+              <CompactStat label="Timeframe" value={isIntraday() ? "Intraday" : "Daily"} />
+            </CompactStatGrid>
+          )}
+        </Show>
       </CompactPanel>
 
       <Stack spacing={2} className="min-h-0 flex-1">

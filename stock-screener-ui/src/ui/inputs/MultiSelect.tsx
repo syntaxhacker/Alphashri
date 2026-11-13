@@ -64,6 +64,7 @@ export function MultiSelect(props: UIMultiSelectProps) {
     "comboboxProps",
     "withinPortal",
     "InputProps",
+    "aria-label",
   ]);
 
   const inputId = known.id ?? createUniqueId();
@@ -211,6 +212,7 @@ export function MultiSelect(props: UIMultiSelectProps) {
           <input
             id={inputId}
             role="combobox"
+            aria-label={known["aria-label"]}
             aria-expanded={open()}
             aria-haspopup="listbox"
             aria-multiselectable="true"

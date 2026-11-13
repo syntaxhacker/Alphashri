@@ -112,7 +112,9 @@ describe("CorrelationTab", () => {
 
   it("renders MultiSelect for symbols", () => {
     renderWithProvider(<CorrelationTab />);
-    expect(screen.getByText("Symbols")).toBeInTheDocument();
+    // The control row is a single dense line, so the field is identified by its
+    // accessible name rather than a separate visible "Symbols" label.
+    expect(screen.getByLabelText("Symbols")).toBeInTheDocument();
   });
 
   it("calls searchSymbols on search input", async () => {

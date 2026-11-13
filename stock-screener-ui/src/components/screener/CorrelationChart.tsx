@@ -144,12 +144,11 @@ export function CorrelationChart(props: CorrelationChartProps) {
   });
 
   return (
-    <Box pos="relative" className="min-h-[300px]">
+    <Box pos="relative" style={{ "min-height": hasData() || props.isLoading ? "300px" : "36px" }}>
       <div
         data-testid="correlation-chart"
         ref={(el) => (chartEl = el)}
-        class="min-h-[300px]"
-        style={{ opacity: hasData() ? "1" : "0" }}
+        style={{ opacity: hasData() ? "1" : "0", "min-height": hasData() || props.isLoading ? "300px" : "36px" }}
       />
       <Show when={props.isLoading}>
         <Flex pos="absolute" inset={0} justify="center" align="center" className="z-[1]">

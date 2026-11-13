@@ -188,7 +188,13 @@ export function CorrelationHeatmap(props: CorrelationHeatmapProps) {
   window.addEventListener("resize", handleResize);
   onCleanup(() => window.removeEventListener("resize", handleResize));
 
-  const minHeight = () => (hasData() ? Math.max(300, props.symbols.length * 40 + 120) : 300);
+  // An empty state must not reserve the plot's height: two blank 300px+ panels
+  // left the Correlation tab mostly dead space before any symbols were chosen.
+  const minHeight = () => {
+    if (props.isLoading) return 300;
+    if (!hasData()) return 36;
+    return Math.max(300, props.symbols.length * 40 + 120);
+  };
 
   return (
     <Box pos="relative" style={{ "min-height": `${minHeight()}px` }}>
