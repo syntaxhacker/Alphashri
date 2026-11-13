@@ -354,26 +354,28 @@ export function MenuItem(props: UIMenuItemProps) {
   );
 }
 
-function MenuDivider({ className, style, dataTestid: testId, ...props }: any) {
+function MenuDivider(props: any) {
+  const [local, rest] = splitProps(props, ["className", "style", "dataTestid"]);
   return (
     <hr
       role="separator"
-      className={cn("ui-menu-divider", "border-0 border-t border-fin-border mx-3 my-[4px]", className)}
-      style={style}
-      data-testid={testId}
-      {...props}
+      className={cn("ui-menu-divider", "border-0 border-t border-fin-border mx-3 my-[4px]", local.className)}
+      style={local.style}
+      data-testid={local.dataTestid}
+      {...rest}
     />
   );
 }
 
-function MenuLabel({ children, className, style, ...rest }: any) {
+function MenuLabel(props: any) {
+  const [local, rest] = splitProps(props, ["children", "className", "style"]);
   return (
     <div
-      className={cn("ui-menu-label", "px-3 py-[4px] text-[11px] font-semibold uppercase text-fin-text-muted", className)}
-      style={style}
+      className={cn("ui-menu-label", "px-3 py-[4px] text-[11px] font-semibold uppercase text-fin-text-muted", local.className)}
+      style={local.style}
       {...rest}
     >
-      {children}
+      {local.children}
     </div>
   );
 }

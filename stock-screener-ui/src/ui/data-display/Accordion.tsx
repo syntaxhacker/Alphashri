@@ -37,12 +37,13 @@ function isExpanded(accordionValue: string | string[] | null | undefined, itemVa
   return accordionValue === itemValue;
 }
 
-function Chevron({ expanded, disableRotation }: { expanded: () => boolean; disableRotation?: () => boolean | undefined }) {
-  const rotate = expanded() && !disableRotation() ? 180 : 0;
+function Chevron(props: { expanded: () => boolean; disableRotation?: () => boolean | undefined }) {
   return (
     <svg
       className="w-[20px] h-[20px] shrink-0 text-fin-text-muted transition-transform duration-200"
-      style={{ transform: rotate ? `rotate(${rotate}deg)` : undefined }}
+      style={{
+        transform: props.expanded() && !props.disableRotation() ? "rotate(180deg)" : undefined,
+      }}
       fill="none"
       stroke="currentColor"
       viewBox="0 0 24 24"
@@ -153,7 +154,7 @@ export function AccordionControl(props: UIAccordionControlProps) {
   const [known, rest] = splitProps(props, ["children", "className", "style", "id", "data-testid"]);
   const { expanded, toggle } = useAccordionItemContext();
   const { chevronPosition, disableChevronRotation } = useAccordionContext();
-  const isLeft = chevronPosition() === "left";
+  const isLeft = createMemo(() => chevronPosition() === "left");
 
   const cls = cn(
     "ui-accordion-control",
