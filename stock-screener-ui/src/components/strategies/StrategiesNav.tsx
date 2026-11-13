@@ -31,7 +31,7 @@ export function StrategiesNav(props: StrategiesNavProps & { children?: JSX.Eleme
           }))}
         />
       </ToolbarRow>
-      <div style={{ marginTop: "8px", flex: 1, minHeight: 0 }}>{props.children}</div>
+      <div style={{ "margin-top": "8px", flex: 1, "min-height": 0 }}>{props.children}</div>
     </CompactPanel>
   );
 }

@@ -164,7 +164,7 @@ function LadderRow(props: {
         span
         style={{
           "font-size": REPORT_FONT.sm,
-          textAlign: "right",
+          "text-align": "right",
           "font-variant-numeric": "tabular-nums",
           color: palette.TEXT_COLOR,
         }}
@@ -176,7 +176,7 @@ function LadderRow(props: {
         span
         style={{
           "font-size": REPORT_FONT.sm,
-          textAlign: "right",
+          "text-align": "right",
           "font-variant-numeric": "tabular-nums",
           color: erosionColor(props.row.new_oi),
         }}
@@ -296,8 +296,8 @@ function WallsTable({ title, side, rows, spot }: { title: string; side: "CALL" |
         component="table"
         style={{
           width: "100%",
-          tableLayout: "fixed",
-          borderCollapse: "collapse",
+          "table-layout": "fixed",
+          "border-collapse": "collapse",
           "font-size": REPORT_FONT.sm,
           "font-variant-numeric": "tabular-nums",
         }}
@@ -525,8 +525,8 @@ function SequenceTable(props: { events: WallsEvent[] }) {
         component="table"
         style={{
           width: "100%",
-          tableLayout: "fixed",
-          borderCollapse: "collapse",
+          "table-layout": "fixed",
+          "border-collapse": "collapse",
           "font-size": REPORT_FONT.sm,
           "font-variant-numeric": "tabular-nums",
         }}

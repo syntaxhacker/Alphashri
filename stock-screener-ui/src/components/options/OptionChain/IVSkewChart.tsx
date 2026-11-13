@@ -111,7 +111,7 @@ export function IVSkewChart(props: IVSkewChartProps) {
   return (
     <CompactPanel className="iv-skew-chart-panel" data-testid="options-iv-skew-chart">
       <Box className="flex items-center justify-center w-full iv-skew-header" gap={1} p="sm">
-        <Text size="sm" fw={800} className="text-fin-primary" style={{ letterSpacing: "0.5px" }}>
+        <Text size="sm" fw={800} className="text-fin-primary" style={{ "letter-spacing": "0.5px" }}>
           VOLATILITY SMILE (IV SKEW)
         </Text>
         <Text size="sm" className="text-fin-text-muted">

@@ -58,12 +58,12 @@ export function TimeframeSelect(props: TimeframeSelectProps) {
           aria-label="Timeframes"
           title="Timeframes used for pattern detection (select one or more)"
           style={{
-            minWidth: 136,
-            maxWidth: 210,
-            justifyContent: "space-between",
-            textTransform: "none",
-            fontSize: 11,
-            fontWeight: 600,
+            "min-width": "136px",
+            "max-width": "210px",
+            "justify-content": "space-between",
+            "text-transform": "none",
+            "font-size": "11px",
+            "font-weight": 600,
           }}
         >
           {`Timeframe · ${summary()}`}

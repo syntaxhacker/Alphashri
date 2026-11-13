@@ -60,13 +60,13 @@ export function SetupCard(props: SetupCardProps) {
       data-testid={`setup-card-${setup().id}`}
       w={460}
       style={{
-        flexShrink: 0,
+        "flex-shrink": 0,
         border: `1px solid ${props.glow ? palette.WARNING : palette.BORDER}`,
-        borderRadius: 1,
-        padding: 8,
+        "border-radius": "1px",
+        padding: "8px",
         display: "flex",
-        flexDirection: "column",
-        gap: 8,
+        "flex-direction": "column",
+        gap: "8px",
       }}
     >
       <ToolbarRow justify="space-between" data-testid={`setup-header-${setup().id}`}>

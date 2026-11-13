@@ -36,7 +36,7 @@ export function ScreenerHeader(props: ScreenerHeaderProps) {
           </Text>
         </Box>
       </Show>
-      <ToolbarRow data-testid="header-controls" gap={8} wrap={false} style={{ flexShrink: 0 }}>
+      <ToolbarRow data-testid="header-controls" gap={8} wrap={false} style={{ "flex-shrink": 0 }}>
           <Tooltip label="Refresh">
             <ActionIcon
               variant="subtle"

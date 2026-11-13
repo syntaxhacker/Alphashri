@@ -189,7 +189,7 @@ export function FloatingWindow(props: FloatingWindowProps) {
           onPointerDown={(e) => e.stopPropagation()}
           onClick={() => known.onMinimize?.()}
           className="grid place-items-center rounded text-fin-text-muted cursor-pointer leading-none hover:bg-fin-border"
-          style={{ width: 18, height: 18 }}
+          style={{ width: "18px", height: "18px" }}
         >
           –
         </div>
@@ -199,7 +199,7 @@ export function FloatingWindow(props: FloatingWindowProps) {
           onPointerDown={(e) => e.stopPropagation()}
           onClick={() => known.onClose?.()}
           className="grid place-items-center rounded text-fin-text-muted cursor-pointer leading-none hover:bg-fin-negative hover:text-fin-text"
-          style={{ width: 18, height: 18 }}
+          style={{ width: "18px", height: "18px" }}
         >
           ✕
         </div>
@@ -213,7 +213,7 @@ export function FloatingWindow(props: FloatingWindowProps) {
         {(dir) => (
           <div
             onPointerDown={(e) => beginGesture("resize", e, dir)}
-            style={{ position: "absolute", touchAction: "none", ...HANDLE_STYLE[dir] }}
+            style={{ position: "absolute", "touch-action": "none", ...HANDLE_STYLE[dir] }}
           />
         )}
       </For>

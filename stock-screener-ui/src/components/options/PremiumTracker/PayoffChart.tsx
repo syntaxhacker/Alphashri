@@ -120,8 +120,8 @@ export function PayoffChart(props: PayoffChartProps) {
           height: `${height()}px`,
           width: "100%",
           display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          "align-items": "center",
+          "justify-content": "center",
         }}
       >
         <Text size="sm" className="text-fin-text-muted">

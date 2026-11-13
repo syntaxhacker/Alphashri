@@ -46,7 +46,7 @@ function EntryButton(props: {
       w={8}
       h={8}
       className="rounded-full"
-      style={{ backgroundColor: props.entry.color, filter: props.isHidden ? "grayscale(1)" : undefined }}
+      style={{ "background-color": props.entry.color, filter: props.isHidden ? "grayscale(1)" : undefined }}
     />
   );
   const label = (

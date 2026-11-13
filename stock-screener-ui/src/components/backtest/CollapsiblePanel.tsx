@@ -26,7 +26,7 @@ export function CollapsiblePanel({ id, title, badge, open, onToggle, children }:
         "min-height": 0,
         "min-width": 0,
         "border-top": "1px solid #30363D",
-        "border-radius": 8,
+        "border-radius": "8px",
       }}
     >
       <button
@@ -37,9 +37,9 @@ export function CollapsiblePanel({ id, title, badge, open, onToggle, children }:
         className="flex w-full items-center gap-1.5 px-1.5 h-7.5 rounded-fin transition-colors"
         style={{
           width: "100%",
-          height: 30,
-          "padding-left": 8,
-          "padding-right": 8,
+          height: "30px",
+          "padding-left": "8px",
+          "padding-right": "8px",
           "justify-content": "flex-start",
           "background-color": open ? "#121212" : "#000000",
         }}
@@ -53,9 +53,9 @@ export function CollapsiblePanel({ id, title, badge, open, onToggle, children }:
             fw={700}
             c="primary"
             style={{
-              "font-size": 10,
+              "font-size": "10px",
               "font-weight": 700,
-              "letter-spacing": 0.6,
+              "letter-spacing": "0.6px",
               flex: 1,
               "text-align": "left",
               "white-space": "nowrap",
@@ -68,7 +68,7 @@ export function CollapsiblePanel({ id, title, badge, open, onToggle, children }:
           {badge != null && (
             <Badge
               size="xs"
-              style={{ height: 16, "font-size": 10, "font-weight": 700, "background-color": "#121212" }}
+              style={{ height: "16px", "font-size": "10px", "font-weight": 700, "background-color": "#121212" }}
               variant="light"
             >
               {badge}

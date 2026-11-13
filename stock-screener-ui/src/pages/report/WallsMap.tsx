@@ -547,7 +547,7 @@ export function WallsMapChart(props: {
                   font-size={7}
                   font-weight={800}
                   fill={palette.NEGATIVE}
-                  style={{ paintOrder: "stroke", "stroke": palette.SURFACE, "stroke-width": 2 }}
+                  style={{ "paint-order": "stroke", "stroke": palette.SURFACE, "stroke-width": 2 }}
                 >
                   BREAK {fmtNum(event.wall)}
                 </text>

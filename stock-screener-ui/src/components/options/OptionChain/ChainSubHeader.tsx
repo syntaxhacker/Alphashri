@@ -29,7 +29,7 @@ export function ChainSubHeader(props: ChainSubHeaderProps) {
   return (
     <Box
       className="chain-table-subheader"
-      style={{ ...props.styles.subHeader, display: "grid", gap: 8, padding: 8 } as CSSProperties}
+      style={{ ...props.styles.subHeader, display: "grid", gap: "8px", padding: "8px" } as CSSProperties}
       data-testid="options-chain-table-subheader"
     >
       <Box style={numericHeader}>OI</Box>

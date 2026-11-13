@@ -69,7 +69,7 @@ export function BacktestRightRail({ width, onWidthChange, children }: BacktestRi
           left: 0,
           top: 0,
           bottom: 0,
-          width: 6,
+          width: "6px",
           cursor: "ew-resize",
           "touch-action": "none",
           "z-index": 3,

@@ -30,12 +30,12 @@ export function BacktestToolbar({
       className="flex-shrink-0 h-10 flex items-center gap-2 px-2 border-b border-fin-border"
       style={{
         flex: "0 0 auto",
-        height: 40,
+        height: "40px",
         display: "flex",
         "align-items": "center",
-        gap: 8,
-        "padding-left": 8,
-        "padding-right": 8,
+        gap: "8px",
+        "padding-left": "8px",
+        "padding-right": "8px",
         "background-color": "#0A0A0A",
         "border-bottom": "1px solid #30363D",
       }}

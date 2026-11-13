@@ -63,7 +63,7 @@ function ReplayTradeStats(props: { trade: ReplayTrade; clock: number }) {
           "min-width": 0,
         }}
       >
-        <Text size="xs" fw={700} style={{ color: palette.TEXT_MUTED, "font-size": "10px", "letter-spacing": 0.6, display: "block", "margin-bottom": "2px", "border-bottom": `1px solid ${palette.BORDER}` }}>
+        <Text size="xs" fw={700} style={{ color: palette.TEXT_MUTED, "font-size": "10px", "letter-spacing": "0.6px", display: "block", "margin-bottom": "2px", "border-bottom": `1px solid ${palette.BORDER}` }}>
           ENTRY
         </Text>
         <StatRow label="Time" value={fmtT(props.trade.time)} />
@@ -81,7 +81,7 @@ function ReplayTradeStats(props: { trade: ReplayTrade; clock: number }) {
           "min-width": 0,
         }}
       >
-        <Text size="xs" fw={700} style={{ color: palette.TEXT_MUTED, "font-size": "10px", "letter-spacing": 0.6, display: "block", "margin-bottom": "2px", "border-bottom": `1px solid ${palette.BORDER}` }}>
+        <Text size="xs" fw={700} style={{ color: palette.TEXT_MUTED, "font-size": "10px", "letter-spacing": "0.6px", display: "block", "margin-bottom": "2px", "border-bottom": `1px solid ${palette.BORDER}` }}>
           EXIT
         </Text>
         <StatRow label="Time" value={closed() ? fmtT(props.trade.exit_time) : "…"} />

@@ -266,12 +266,12 @@ export function UsReportPage() {
           class="grid grid-cols-[70px_70px_70px_70px_70px_70px_1fr] px-1 text-fin-text-muted border-b border-fin-border text-[9px] tracking-[0.4px]"
         >
           <span>STRIKE</span>
-          <span style={{ textAlign: "right" }}>CALL OI</span>
-          <span style={{ textAlign: "right" }}>CALL VOL</span>
-          <span style={{ textAlign: "right" }}>PUT OI</span>
-          <span style={{ textAlign: "right" }}>PUT VOL</span>
-          <span style={{ textAlign: "right" }}>NET OI</span>
-          <span style={{ textAlign: "right" }}>GEX $m</span>
+          <span style={{ "text-align": "right" }}>CALL OI</span>
+          <span style={{ "text-align": "right" }}>CALL VOL</span>
+          <span style={{ "text-align": "right" }}>PUT OI</span>
+          <span style={{ "text-align": "right" }}>PUT VOL</span>
+          <span style={{ "text-align": "right" }}>NET OI</span>
+          <span style={{ "text-align": "right" }}>GEX $m</span>
         </div>
         <div class="flex-1 overflow-auto">
           <For each={topStrikes()}>
@@ -287,12 +287,12 @@ export function UsReportPage() {
                 <span style={{ "font-weight": s.k === row?.max_pain ? 800 : 500, color: s.k === row?.max_pain ? WARNING : undefined }}>
                   {fmtInt(s.k)}
                 </span>
-                <span style={{ textAlign: "right", color: POSITIVE }}>{fmtInt(s.c_oi)}</span>
-                <span style={{ textAlign: "right", color: "var(--color-fin-text-muted)" }}>{fmtInt(s.c_vol)}</span>
-                <span style={{ textAlign: "right", color: NEGATIVE }}>{fmtInt(s.p_oi)}</span>
-                <span style={{ textAlign: "right", color: "var(--color-fin-text-muted)" }}>{fmtInt(s.p_vol)}</span>
-                <span style={{ textAlign: "right", color: net >= 0 ? POSITIVE : NEGATIVE }}>{net > 0 ? "+" : ""}{fmtInt(net)}</span>
-                <span style={{ textAlign: "right", color: s.g ? (s.g >= 0 ? POSITIVE : NEGATIVE) : undefined }}>{s.g ? fmtNum(s.g, 1) : "–"}</span>
+                <span style={{ "text-align": "right", color: POSITIVE }}>{fmtInt(s.c_oi)}</span>
+                <span style={{ "text-align": "right", color: "var(--color-fin-text-muted)" }}>{fmtInt(s.c_vol)}</span>
+                <span style={{ "text-align": "right", color: NEGATIVE }}>{fmtInt(s.p_oi)}</span>
+                <span style={{ "text-align": "right", color: "var(--color-fin-text-muted)" }}>{fmtInt(s.p_vol)}</span>
+                <span style={{ "text-align": "right", color: net >= 0 ? POSITIVE : NEGATIVE }}>{net > 0 ? "+" : ""}{fmtInt(net)}</span>
+                <span style={{ "text-align": "right", color: s.g ? (s.g >= 0 ? POSITIVE : NEGATIVE) : undefined }}>{s.g ? fmtNum(s.g, 1) : "–"}</span>
               </div>
             );
             }}

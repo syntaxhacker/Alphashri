@@ -35,7 +35,7 @@ describe("Text", () => {
   });
 
   it("applies truncation styles", () => {
-    render(() => <Text data-testid="t" truncate style={{ "max-width": 200 }}>long</Text>);
+    render(() => <Text data-testid="t" truncate style={{ "max-width": "200px" }}>long</Text>);
     expect(screen.getByTestId("t")).toHaveStyle("overflow: hidden");
     expect(screen.getByTestId("t")).toHaveStyle("text-overflow: ellipsis");
     expect(screen.getByTestId("t")).toHaveStyle("white-space: nowrap");

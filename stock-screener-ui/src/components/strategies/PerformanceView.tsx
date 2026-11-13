@@ -87,8 +87,8 @@ export function PerformanceView(props: PerformanceViewProps) {
             class="font-mono tabular-nums"
             style={{
               color: val >= 0 ? palette.INFO : palette.NEGATIVE,
-              fontWeight: 500,
-              fontSize: "13px",
+              "font-weight": 500,
+              "font-size": "13px",
             }}
           >
             {val >= 0 ? "+" : ""}

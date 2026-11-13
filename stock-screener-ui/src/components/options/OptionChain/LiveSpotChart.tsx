@@ -92,8 +92,8 @@ export function LiveSpotChart(props: { underlying: string }) {
                   stroke-linejoin="round"
                   points={sp().points}
                   style={{
-                    strokeDasharray: "1000",
-                    strokeDashoffset: "1000",
+                    "stroke-dasharray": "1000",
+                    "stroke-dashoffset": "1000",
                     animation: "dash 2s ease-out forwards",
                   }}
                 />

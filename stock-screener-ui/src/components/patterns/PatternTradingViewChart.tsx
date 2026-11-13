@@ -369,7 +369,7 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
         ref={(el) => (overlayEl = el)}
         aria-hidden="true"
         data-testid="patterns-tv-overlay"
-        style={{ position: "absolute", inset: "0", pointerEvents: "none", zIndex: 3 }}
+        style={{ position: "absolute", inset: "0", "pointer-events": "none", "z-index": 3 }}
       />
     </div>
   );

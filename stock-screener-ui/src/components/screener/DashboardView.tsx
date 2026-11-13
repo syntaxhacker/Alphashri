@@ -418,7 +418,7 @@ function DashboardCard(props: {
                   <ActionIcon
                     size="xs"
                     variant="subtle"
-                    style={{ width: 16, height: 16, "min-height": 16, padding: 0 }}
+                    style={{ width: "16px", height: "16px", "min-height": "16px", padding: 0 }}
                     data-testid={`dashboard-row-expand-${activePanel()?.id}-${row.symbol}`}
                     aria-label={isOpen() ? `Hide details for ${row.symbol}` : `Show details for ${row.symbol}`}
                     aria-expanded={isOpen()}

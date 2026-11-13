@@ -24,7 +24,7 @@ export function ActivityFeed() {
       size: 72,
       meta: { align: "left" },
       cell: ({ row }) => (
-        <Text className="paper-activity-time font-mono tabular-nums" size="xs" c="dimmed" style={{ "font-size": 11 }}>
+        <Text className="paper-activity-time font-mono tabular-nums" size="xs" c="dimmed" style={{ "font-size": "11px" }}>
           {formatTimeOnly(row.original.timestamp)}
         </Text>
       ),
@@ -57,7 +57,7 @@ export function ActivityFeed() {
       size: 88,
       meta: { align: "left" },
       cell: ({ row }) => (
-        <Text className="paper-activity-symbol font-mono tabular-nums" fw={600} size="xs" c={palette.PRIMARY} style={{ "font-size": 11 }}>
+        <Text className="paper-activity-symbol font-mono tabular-nums" fw={600} size="xs" c={palette.PRIMARY} style={{ "font-size": "11px" }}>
           {row.original.symbol}
         </Text>
       ),
@@ -69,7 +69,7 @@ export function ActivityFeed() {
       meta: { align: "center" },
       accessorFn: (row: ActivityEvent) => row.direction || row.side,
       cell: ({ row }) => (
-        <Text className="paper-activity-side" size="xs" c="dimmed" style={{ "font-size": 11 }}>
+        <Text className="paper-activity-side" size="xs" c="dimmed" style={{ "font-size": "11px" }}>
           {row.original.direction || row.original.side}
         </Text>
       ),
@@ -82,7 +82,7 @@ export function ActivityFeed() {
       cell: ({ row }) => {
         const ev = row.original;
         return (
-          <Text className="paper-activity-entry font-mono tabular-nums" size="xs" c={palette.TEXT} fw={500} style={{ "font-size": 11 }}>
+          <Text className="paper-activity-entry font-mono tabular-nums" size="xs" c={palette.TEXT} fw={500} style={{ "font-size": "11px" }}>
             {ev.quantity} @ ₹{ev.entry_price?.toFixed(1) ?? "-"}
           </Text>
         );
@@ -97,11 +97,11 @@ export function ActivityFeed() {
         const ev = row.original;
         const isExit = ev.type === "trade_exit" || !!ev.exit_price;
         return isExit ? (
-          <Text className="paper-activity-exit font-mono tabular-nums" size="xs" c={palette.TEXT} fw={600} style={{ "font-size": 11 }}>
+          <Text className="paper-activity-exit font-mono tabular-nums" size="xs" c={palette.TEXT} fw={600} style={{ "font-size": "11px" }}>
             → ₹{ev.exit_price?.toFixed(1)}
           </Text>
         ) : (
-          <Text size="xs" c="dimmed" style={{ "font-size": 11 }}>
+          <Text size="xs" c="dimmed" style={{ "font-size": "11px" }}>
             —
           </Text>
         );
@@ -116,11 +116,11 @@ export function ActivityFeed() {
       cell: ({ row }) => {
         const ev = row.original;
         const isExit = ev.type === "trade_exit" || !!ev.exit_price;
-        if (!isExit) return <Text size="xs" c="dimmed" style={{ "font-size": 11 }}>—</Text>;
+        if (!isExit) return <Text size="xs" c="dimmed" style={{ "font-size": "11px" }}>—</Text>;
         const pnl = ev.net_pnl ?? ev.pnl ?? 0;
         const isProfit = pnl >= 0;
         return (
-          <Text className="paper-activity-pnl font-mono tabular-nums" size="xs" c={isProfit ? palette.POSITIVE : palette.NEGATIVE} fw={700} style={{ "font-size": 11 }}>
+          <Text className="paper-activity-pnl font-mono tabular-nums" size="xs" c={isProfit ? palette.POSITIVE : palette.NEGATIVE} fw={700} style={{ "font-size": "11px" }}>
             {isProfit ? "+" : ""}₹{pnl.toFixed(0)} {ev.pnl_pct != null ? `(${ev.pnl_pct.toFixed(2)}%)` : ""}
           </Text>
         );
@@ -138,7 +138,7 @@ export function ActivityFeed() {
             {row.original.strategy_name}
           </Badge>
         ) : (
-          <Text size="xs" c="dimmed" style={{ "font-size": 11 }}>
+          <Text size="xs" c="dimmed" style={{ "font-size": "11px" }}>
             —
           </Text>
         ),
@@ -150,7 +150,7 @@ export function ActivityFeed() {
       meta: { align: "left" },
       enableSorting: false,
       cell: ({ row }) => (
-        <Text className="paper-activity-reason" size="xs" c="dimmed" style={{ "font-size": 11 }} truncate>
+        <Text className="paper-activity-reason" size="xs" c="dimmed" style={{ "font-size": "11px" }} truncate>
           {row.original.exit_reason || "—"}
         </Text>
       ),

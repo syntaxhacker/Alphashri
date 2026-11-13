@@ -34,14 +34,14 @@ export function LookbackSelect(props: LookbackSelectProps) {
           size="xs"
           c="dimmed"
           className="font-mono uppercase"
-          style={{ fontSize: 10, letterSpacing: "0.06em" }}
+          style={{ "font-size": "10px", "letter-spacing": "0.06em" }}
         >
           Bars
         </Text>
       }
       data-testid="patterns-lookback-select"
       title="Bars of history the detector reads before forming a pattern (Auto = preset default)"
-      style={{ flexShrink: 0 }}
+      style={{ "flex-shrink": 0 }}
     />
   );
 }

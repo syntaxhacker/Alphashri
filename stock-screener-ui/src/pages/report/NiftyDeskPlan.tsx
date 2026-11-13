@@ -255,7 +255,7 @@ function DeskSideColumn(props: { side: DeskSide; label: string; noTrade: boolean
           <ol
             data-testid={`desk-reasons-${side().side}`}
             className="flex flex-col min-w-0"
-            style={{ listStyle: "none", margin: 0, padding: 0, gap: "4px" }}
+            style={{ "list-style": "none", margin: 0, padding: 0, gap: "4px" }}
           >
             <For each={side().reasons}>
               {(reason, index) => (

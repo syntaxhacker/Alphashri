@@ -280,7 +280,7 @@ function TradesTable(props: { title: string; trades: PaperDashboardTradeItem[] }
     { id: "pnl", header: "P&L", accessorKey: "net_pnl", meta: { align: "right" }, cell: ({ row }) => <PnlValue value={row.original.net_pnl} /> },
   ];
   return (
-    <CompactPanel scrollable style={{ height: 280 }}>
+    <CompactPanel scrollable style={{ height: "280px" }}>
       <Box mb={0.5}><SectionHeader title={props.title} badge={props.trades.length} color={accentColor()} /></Box>
       <TanStackTable columns={columns} data={props.trades} dense />
     </CompactPanel>
@@ -295,7 +295,7 @@ function SymbolPanel(props: { data: PaperDashboardAnalyticsData }) {
     { id: "pnl", header: "Net P&L", accessorKey: "total_net_pnl", meta: { align: "right" }, cell: ({ row }) => <PnlValue value={row.original.total_net_pnl} /> },
   ];
   return (
-    <CompactPanel scrollable style={{ height: 280 }}>
+    <CompactPanel scrollable style={{ height: "280px" }}>
       <Box mb={0.5}><SectionHeader title="Symbol Performance" badge={props.data.symbol_performance.length} color="secondary" /></Box>
       <TanStackTable columns={columns} data={props.data.symbol_performance.slice(0, 12)} dense />
     </CompactPanel>

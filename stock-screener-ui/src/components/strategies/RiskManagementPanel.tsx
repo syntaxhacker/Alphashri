@@ -13,7 +13,7 @@ export function RiskManagementPanel(props: RiskManagementPanelProps) {
     <Tabs.Panel value="risk" keepMounted className="strategy-form-tab-panel" data-testid="strategy-panel-risk">
       <Stack spacing={1} gap="sm" mt="sm" className="p-2">
         <Box className="flex items-center justify-center p-2">
-          <Text size="xs" c="dimmed" ta="center" style={{ lineHeight: 1.5 }}>
+          <Text size="xs" c="dimmed" ta="center" style={{ "line-height": 1.5 }}>
             These limits apply to the capital allocated to this strategy from the bot. Example: if bot
             allocates ₹5Lac to this strategy, a 1% risk = max loss ₹5,000 per trade.
           </Text>

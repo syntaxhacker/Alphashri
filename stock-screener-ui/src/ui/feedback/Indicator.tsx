@@ -94,7 +94,7 @@ export function Indicator(props: UIIndicatorProps) {
               {known.processing && (
                 <span
                   className="animate-ping border shrink-0 absolute inset-0 rounded-full"
-                  style={{ "border-color": col, opacity: 0.5, animationDuration: "1.2s" }}
+                  style={{ "border-color": col, opacity: 0.5, "animation-duration": "1.2s" }}
                 />
               )}
             </span>

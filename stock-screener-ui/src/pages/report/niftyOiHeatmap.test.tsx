@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { screen, cleanup } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import * as palette from "@/ui/palette";
 import { buildOiHeatmap, heatmapReadText, readHeatmap, type HeatmapTapeRow } from "./niftyOiHeatmap";
 import { HEATMAP_CE, HEATMAP_FLIP, HEATMAP_MP, HEATMAP_PE, HEATMAP_SPOT, NiftyOiHeatmap } from "./NiftyOiHeatmap";
@@ -596,5 +597,139 @@ describe("session-anchored time axis edge cases", () => {
     expect(withGarbage.buckets.map((b) => b.startLabel)).toEqual(without.buckets.map((b) => b.startLabel));
     expect(withGarbage.buckets[0].startLabel).toBe("09:30");
     expect(withGarbage.buckets[0].spot).toBe(25750);
+  });
+});
+
+/**
+ * Flip-guide geometry: PAD_L=64 and a 1000-wide viewBox over two 5m buckets
+ * give cellW=468, so bucket centres land at 298 and 766. These assert the
+ * mapping is bucket-indexed, not "minutes into the axis".
+ */
+describe("flow-flip guide x mapping", () => {
+  const twoBuckets = [
+    row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000)),
+    row(isoAt(6), 25760, chainAt(STRIKES, 2000, 1000)),
+  ];
+
+  function renderHeatmap(props: { flipAt?: string | null } = {}) {
+    return r(
+      <NiftyOiHeatmap
+        rows={twoBuckets}
+        bucketMin={5}
+        widthPts={500}
+        startTime={isoAt(0)}
+        flipAt={props.flipAt}
+      />,
+    );
+  }
+
+  test("the flip line lands on the flip's own bucket centre", () => {
+    renderHeatmap({ flipAt: isoAt(5) }); // 09:20 → bucket 1, not "5 minutes into the axis"
+    const line = screen.getByTestId("heatmap-flip-line");
+    expect(Number(line.getAttribute("x1"))).toBe(766);
+    expect(line.getAttribute("x1")).toBe(line.getAttribute("x2"));
+    expect(line.getAttribute("y1")).toBe("0");
+    expect(Number(line.getAttribute("y2"))).toBeGreaterThan(0);
+    expect(line.querySelector("title")?.textContent).toContain("09:20");
+  });
+
+  test("a flip at the session open lands on the first bucket centre", () => {
+    renderHeatmap({ flipAt: isoAt(0) });
+    expect(Number(screen.getByTestId("heatmap-flip-line").getAttribute("x1"))).toBe(298);
+  });
+
+  test("a flip past the last bucket clamps to the final bucket centre", () => {
+    renderHeatmap({ flipAt: isoAt(30) }); // 09:45 — beyond the plotted window
+    expect(Number(screen.getByTestId("heatmap-flip-line").getAttribute("x1"))).toBe(766);
+  });
+
+  test("a bare HH:MM flip stamp maps the same as an ISO stamp", () => {
+    renderHeatmap({ flipAt: "09:20" });
+    expect(Number(screen.getByTestId("heatmap-flip-line").getAttribute("x1"))).toBe(766);
+  });
+
+  test("no line when flipAt is null", () => {
+    renderHeatmap({ flipAt: null });
+    expect(screen.queryByTestId("heatmap-flip-line")).not.toBeInTheDocument();
+  });
+
+  test("no line when flipAt is unparseable", () => {
+    renderHeatmap({ flipAt: "not-a-time" });
+    expect(screen.queryByTestId("heatmap-flip-line")).not.toBeInTheDocument();
+  });
+
+  test("no line when flipAt precedes the plotted window", () => {
+    renderHeatmap({ flipAt: isoAt(-10) }); // 09:05 — before the 09:15 axis start
+    expect(screen.queryByTestId("heatmap-flip-line")).not.toBeInTheDocument();
+  });
+});
+
+describe("ResizeObserver lifecycle", () => {
+  function stubResizeObserver() {
+    let constructed = 0;
+    const disconnect = vi.fn();
+    class MockResizeObserver {
+      constructor(_cb: ResizeObserverCallback) {
+        constructed += 1;
+      }
+      observe() {}
+      unobserve() {}
+      disconnect = disconnect;
+    }
+    vi.stubGlobal("ResizeObserver", MockResizeObserver);
+    return { constructed: () => constructed, disconnect };
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // A tape tick replaces the rows array; the observer must survive it and be
+  // torn down exactly once on unmount (otherwise every poll leaks a listener).
+  test("one observer survives tape ticks and disconnects on unmount", () => {
+    const ro = stubResizeObserver();
+    const [rows, setRows] = createSignal([
+      row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000)),
+      row(isoAt(6), 25760, chainAt(STRIKES, 2000, 1000)),
+    ]);
+    const view = r(() => <NiftyOiHeatmap rows={rows()} bucketMin={5} widthPts={500} startTime={isoAt(0)} />);
+    expect(ro.constructed()).toBe(1);
+    setRows((prev) => [...prev]);
+    expect(ro.constructed()).toBe(1);
+    view.unmount();
+    expect(ro.disconnect).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("padded leading bucket", () => {
+  // The first tape row lands at 09:30, so startTime pads 09:15/09:20/09:25
+  // with empty buckets whose cells must still exist in the model.
+  const lateRows = [
+    row(isoAt(15), 25750, chainAt(STRIKES, 1000, 1000)),
+    row(isoAt(20), 25760, chainAt(STRIKES, 2000, 1000)),
+  ];
+
+  test("cells render for the padded buckets without throwing", () => {
+    const model = buildOiHeatmap(lateRows, { bucketMin: 5, widthPts: 500, startTime: isoAt(0) });
+    expect(model.buckets.slice(0, 3).every((b) => b.spot === null)).toBe(true);
+
+    r(<NiftyOiHeatmap rows={lateRows} bucketMin={5} widthPts={500} startTime={isoAt(0)} />);
+
+    expect(screen.queryByTestId("nifty-heatmap-empty")).not.toBeInTheDocument();
+    // The canvas carries every cell in the model, padded buckets included.
+    expect(Number(screen.getByTestId("nifty-heatmap-canvas").getAttribute("data-cells"))).toBe(
+      model.cells.length,
+    );
+    expect(model.cells.filter((c) => c.bucket < 3).length).toBe(3 * STRIKES.length);
+  });
+
+  test("padded buckets are excluded from the spot line but not from the axis", () => {
+    r(<NiftyOiHeatmap rows={lateRows} bucketMin={5} widthPts={500} startTime={isoAt(0)} />);
+    const points = (screen.getByTestId("nifty-heatmap-spotline").getAttribute("points") ?? "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    expect(points).toHaveLength(2); // only the two buckets with a tape spot
+    expect(screen.getByTestId("nifty-heatmap-svg")).toBeInTheDocument();
   });
 });

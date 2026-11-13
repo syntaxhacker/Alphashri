@@ -171,7 +171,7 @@ function WallPlaceholderRow({ side }: { side: "CALL" | "PUT" }) {
           style={{
             "font-size": REPORT_FONT.sm,
             "line-height": REPORT_LINE_HEIGHT.snug,
-            textAlign: "right",
+            "text-align": "right",
             color: palette.TEXT_MUTED,
             "font-variant-numeric": "tabular-nums",
           }}
@@ -225,7 +225,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
             style={{
               "font-size": REPORT_FONT.xs,
               color: palette.TEXT_MUTED,
-              textAlign: "right",
+              "text-align": "right",
               "letter-spacing": REPORT_LETTER_SPACING.normal,
             }}
           >
@@ -371,7 +371,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                 style={{
                   "font-size": REPORT_FONT.sm,
                   "line-height": REPORT_LINE_HEIGHT.snug,
-                  textAlign: "right",
+                  "text-align": "right",
                   "font-variant-numeric": "tabular-nums",
                   color: palette.TEXT_COLOR,
                 }}
@@ -386,7 +386,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
               style={{
                 "font-size": REPORT_FONT.sm,
                 "line-height": REPORT_LINE_HEIGHT.snug,
-                textAlign: "right",
+                "text-align": "right",
                 "font-variant-numeric": "tabular-nums",
                 color: erosionColor(row.new_oi),
                 "background-color": newOiTint(row.new_oi, rows),
@@ -405,7 +405,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
               style={{
                 "font-size": REPORT_FONT.sm,
                 "line-height": REPORT_LINE_HEIGHT.snug,
-                textAlign: "right",
+                "text-align": "right",
                 color: cellColor,
                 "font-variant-numeric": "tabular-nums",
               }}
@@ -419,7 +419,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
               style={{
                 "font-size": REPORT_FONT.sm,
                 "line-height": REPORT_LINE_HEIGHT.snug,
-                textAlign: "right",
+                "text-align": "right",
                 color: cellColor,
                 "font-variant-numeric": "tabular-nums",
               }}
@@ -432,7 +432,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
               style={{
                 "font-size": REPORT_FONT.sm,
                 "line-height": REPORT_LINE_HEIGHT.snug,
-                textAlign: "right",
+                "text-align": "right",
                 color: palette.TEXT_MUTED,
                 "font-variant-numeric": "tabular-nums",
               }}
@@ -829,7 +829,7 @@ export function NiftyWallsCardInner(props: {
               onClick={onOpenDesk}
               className="min-w-0"
               style={{
-                paddingY: 0,
+                "padding-y": 0,
                 "padding-left": `${REPORT_PAD.sm}px`,
                 "padding-right": `${REPORT_PAD.sm}px`,
                 "min-width": 0,
@@ -845,7 +845,7 @@ export function NiftyWallsCardInner(props: {
             onClick={onExpand}
             className="min-w-0"
             style={{
-              paddingY: 0,
+              "padding-y": 0,
               "padding-left": `${REPORT_PAD.sm}px`,
               "padding-right": `${REPORT_PAD.sm}px`,
               "min-width": 0,
@@ -1009,7 +1009,7 @@ export function NiftyWallsCardInner(props: {
                     className="min-w-0 shrink-0"
                     style={{
                       "min-width": 0,
-                      paddingY: 0,
+                      "padding-y": 0,
                       "padding-left": `${REPORT_PAD.xs}px`,
                       "padding-right": `${REPORT_PAD.xs}px`,
                       "font-size": REPORT_FONT.micro,

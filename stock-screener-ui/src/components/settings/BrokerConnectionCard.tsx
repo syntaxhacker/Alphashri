@@ -68,7 +68,7 @@ export function BrokerConnectionCard(props: BrokerConnectionCardProps) {
   return (
     <Box id={cardTestId()} data-testid={cardTestId()} className="w-full">
       <Stack gap={4}>
-        <ToolbarRow justify="space-between" gap={8} style={{ flexWrap: "wrap", rowGap: 8 }}>
+        <ToolbarRow justify="space-between" gap={8} style={{ "flex-wrap": "wrap", "row-gap": "8px" }}>
           <Box className="flex min-w-0 flex-wrap items-center gap-2">
             <Text fw={600} size="sm">
               {p.title}

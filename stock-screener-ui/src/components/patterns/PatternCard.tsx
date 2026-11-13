@@ -43,7 +43,7 @@ function Metric(props: { label: string; value: string }) {
         c="dimmed"
         fw={700}
         truncate
-        style={{ fontSize: 9, lineHeight: 1, letterSpacing: 0.6, textTransform: "uppercase" }}
+        style={{ "font-size": "9px", "line-height": 1, "letter-spacing": "0.6px", "text-transform": "uppercase" }}
       >
         {props.label}
       </Text>
@@ -51,7 +51,7 @@ function Metric(props: { label: string; value: string }) {
         size="xs"
         fw={600}
         truncate
-        style={{ fontSize: 11, lineHeight: 1.25, fontVariantNumeric: "tabular-nums" }}
+        style={{ "font-size": "11px", "line-height": 1.25, "font-variant-numeric": "tabular-nums" }}
       >
         {props.value}
       </Text>
@@ -67,11 +67,11 @@ function Level(props: { label: string; value: string; testId?: string }) {
         c="dimmed"
         fw={700}
         truncate
-        style={{ fontSize: 9, lineHeight: 1, letterSpacing: 0.5, textTransform: "uppercase" }}
+        style={{ "font-size": "9px", "line-height": 1, "letter-spacing": "0.5px", "text-transform": "uppercase" }}
       >
         {props.label}
       </Text>
-      <Text size="xs" fw={600} truncate style={{ fontSize: 11, lineHeight: 1.2, fontVariantNumeric: "tabular-nums" }}>
+      <Text size="xs" fw={600} truncate style={{ "font-size": "11px", "line-height": 1.2, "font-variant-numeric": "tabular-nums" }}>
         {props.value}
       </Text>
     </Box>
@@ -168,12 +168,12 @@ export function PatternCard(props: PatternCardProps) {
         selected() ? "border-fin-primary" : missingCandles() ? "border-fin-negative" : "border-fin-border"
       } ${props.onClick ? "hover:border-fin-primary" : ""}`}
       style={{
-        boxShadow: selected() ? "inset 0 0 0 1px var(--color-fin-primary)" : "none",
+        "box-shadow": selected() ? "inset 0 0 0 1px var(--color-fin-primary)" : "none",
         cursor: props.onClick ? "pointer" : "default",
         // Offscreen containment: the browser skips layout/paint for cards
         // outside the visible area while the user scrolls a long results grid.
-        contentVisibility: "auto",
-        containIntrinsicSize: "300px 480px",
+        "content-visibility": "auto",
+        "contain-intrinsic-size": "300px 480px",
       }}
     >
       <Box
@@ -194,7 +194,7 @@ export function PatternCard(props: PatternCardProps) {
               weight={700}
               className="max-w-full"
             />
-            <Text size="xs" c="dimmed" truncate style={{ fontSize: 10, lineHeight: 1.25 }}>
+            <Text size="xs" c="dimmed" truncate style={{ "font-size": "10px", "line-height": 1.25 }}>
               {hit().pattern_name}
             </Text>
           </Box>
@@ -202,24 +202,24 @@ export function PatternCard(props: PatternCardProps) {
             <Box
               className="flex min-w-0 flex-col items-end gap-[2px]"
             >
-              <Text size="xs" c="dimmed" style={{ fontSize: 9, lineHeight: 1, whiteSpace: "nowrap" }}>
+              <Text size="xs" c="dimmed" style={{ "font-size": "9px", "line-height": 1, "white-space": "nowrap" }}>
                 {barsLabel()}
               </Text>
               <Tooltip label={display().tooltip} withArrow position="top">
                 <Box className="flex items-center gap-1">
                   <Box
                     className="h-[5px] w-[5px] shrink-0 rounded-full"
-                    style={{ backgroundColor: displayToneColor(display().tone) }}
+                    style={{ "background-color": displayToneColor(display().tone) }}
                   />
                   <Text
                     data-testid={`patterns-status-${String(hit().status ?? "").toLowerCase()}`}
                     size="xs"
                     fw={700}
                     style={{
-                      fontSize: 9,
-                      lineHeight: 1,
-                      letterSpacing: 0.5,
-                      textTransform: "uppercase",
+                      "font-size": "9px",
+                      "line-height": 1,
+                      "letter-spacing": "0.5px",
+                      "text-transform": "uppercase",
                       color: displayToneColor(display().tone),
                     }}
                   >
@@ -235,10 +235,10 @@ export function PatternCard(props: PatternCardProps) {
                   c="dimmed"
                   className="cursor-help"
                   style={{
-                    fontSize: 9,
-                    lineHeight: 1,
-                    letterSpacing: 0.5,
-                    textTransform: "uppercase",
+                    "font-size": "9px",
+                    "line-height": 1,
+                    "letter-spacing": "0.5px",
+                    "text-transform": "uppercase",
                   }}
                 >
                   {quality()}
@@ -252,16 +252,16 @@ export function PatternCard(props: PatternCardProps) {
           <Text
             size="sm"
             fw={700}
-            style={{ fontSize: 16, lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}
+            style={{ "font-size": "16px", "line-height": 1.1, "font-variant-numeric": "tabular-nums" }}
           >
             {formatPrice(lastPrice())}
           </Text>
           <Text
             size="xs"
             style={{
-              fontSize: 11,
-              lineHeight: 1.1,
-              fontVariantNumeric: "tabular-nums",
+              "font-size": "11px",
+              "line-height": 1.1,
+              "font-variant-numeric": "tabular-nums",
               color: changeChartColor(changePct()),
             }}
           >
@@ -273,10 +273,10 @@ export function PatternCard(props: PatternCardProps) {
               size="xs"
               c={(triggerDistance() ?? 0) >= 0 ? "success" : "dimmed"}
               style={{
-                fontSize: 10,
-                lineHeight: 1.1,
-                fontVariantNumeric: "tabular-nums",
-                whiteSpace: "nowrap",
+                "font-size": "10px",
+                "line-height": 1.1,
+                "font-variant-numeric": "tabular-nums",
+                "white-space": "nowrap",
               }}
             >
               {`${formatSignedPct1(triggerDistance()!)} to trigger`}
@@ -312,7 +312,7 @@ export function PatternCard(props: PatternCardProps) {
                     e.stopPropagation();
                     props.onExpand?.(hit());
                   }}
-                  style={{ backgroundColor: "var(--color-fin-surface)" }}
+                  style={{ "background-color": "var(--color-fin-surface)" }}
                   className="inline-flex size-5 items-center justify-center rounded text-white/85 opacity-[0.85] transition-colors hover:text-fin-text hover:opacity-100"
                 >
                   <IconArrowsMaximize size={12} />
@@ -347,15 +347,15 @@ export function PatternCard(props: PatternCardProps) {
                 c="dimmed"
                 fw={700}
                 truncate
-                style={{ fontSize: 9, lineHeight: 1, letterSpacing: 0.5, textTransform: "uppercase" }}
+                style={{ "font-size": "9px", "line-height": 1, "letter-spacing": "0.5px", "text-transform": "uppercase" }}
               >
                 Range
               </Text>
               <ToolbarRow gap={6} wrap={false}>
-                <Text size="xs" fw={600} truncate style={{ fontSize: 11, color: PATTERN_CONFIRMED }}>
+                <Text size="xs" fw={600} truncate style={{ "font-size": "11px", color: PATTERN_CONFIRMED }}>
                   ↑ {bounds()?.hi != null ? formatPrice(bounds()!.hi!) : "—"}
                 </Text>
-                <Text size="xs" fw={600} truncate style={{ fontSize: 11, color: PATTERN_FAILED }}>
+                <Text size="xs" fw={600} truncate style={{ "font-size": "11px", color: PATTERN_FAILED }}>
                   ↓ {bounds()?.lo != null ? formatPrice(bounds()!.lo!) : "—"}
                 </Text>
               </ToolbarRow>
@@ -375,7 +375,7 @@ export function PatternCard(props: PatternCardProps) {
                 c="dimmed"
                 truncate
                 data-testid={`patterns-card-base-${hit().symbol}-${hit().pattern_id}`}
-                style={{ fontSize: 9, lineHeight: 1.2 }}
+                style={{ "font-size": "9px", "line-height": 1.2 }}
               >
                 {hit().range_pct != null
                   ? `Base ${baseDays()}d · ${formatOneDecimal(hit().range_pct!)}%`
@@ -388,7 +388,7 @@ export function PatternCard(props: PatternCardProps) {
                 c="dimmed"
                 truncate
                 data-testid="patterns-card-52w-gap"
-                style={{ fontSize: 9, lineHeight: 1.2, textAlign: "right" }}
+                style={{ "font-size": "9px", "line-height": 1.2, "text-align": "right" }}
               >
                 52W: {formatOneDecimal(hit().to_52w_high!)}%
               </Text>
@@ -398,7 +398,7 @@ export function PatternCard(props: PatternCardProps) {
 
         <Box
           className="grid border-t border-fin-border"
-          style={{ gridTemplateColumns: `repeat(${canShowMembers() ? 5 : 4}, minmax(0, 1fr))` }}
+          style={{ "grid-template-columns": `repeat(${canShowMembers() ? 5 : 4}, minmax(0, 1fr))` }}
         >
           <For each={metrics()}>
             {(metric, index) => (

@@ -223,10 +223,10 @@ export function RotationTab(props: { market: "india" | "america" }) {
         className="overflow-x-auto overflow-y-hidden"
         style={{
           padding: "0 10px",
-          "min-height": 34,
-          height: 34,
+          "min-height": "34px",
+          height: "34px",
           "border-bottom": "1px solid var(--color-fin-border)",
-          flexShrink: 0,
+          "flex-shrink": 0,
         }}
       >
         <Text fw={700} className="text-[12px] whitespace-nowrap">

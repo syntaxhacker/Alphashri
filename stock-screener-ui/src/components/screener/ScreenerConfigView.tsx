@@ -377,7 +377,7 @@ export function ScreenerConfigView(props: Props) {
         className="flex-shrink-0 flex flex-col overflow-hidden border border-fin-border"
       >
         <Box className="flex items-center justify-between gap-2 px-3 py-2 h-[36px] flex-shrink-0 border-b border-fin-border bg-fin-surface-alt">
-          <Text fw={600} size="xs" data-testid="screener-configs-title" style={{ "font-size": 11, "letter-spacing": 0.5, color: palette.TEXT_MUTED }}>
+          <Text fw={600} size="xs" data-testid="screener-configs-title" style={{ "font-size": "11px", "letter-spacing": "0.5px", color: palette.TEXT_MUTED }}>
             CONFIGS
           </Text>
           <Button
@@ -396,7 +396,7 @@ export function ScreenerConfigView(props: Props) {
               setCreateModalOpen(true);
             }}
             data-testid="create-screener-btn"
-            style={{ "font-size": 11, height: 24, color: palette.TEXT }}
+            style={{ "font-size": "11px", height: "24px", color: palette.TEXT }}
           >
             + Create
           </Button>
@@ -416,7 +416,7 @@ export function ScreenerConfigView(props: Props) {
                 >
                   <Box className="flex items-center justify-between gap-2 mb-1">
                     <Group gap={1} align="center">
-                      <Text size="xs" fw={500} style={{ "font-size": 12, color: palette.TEXT }}>
+                      <Text size="xs" fw={500} style={{ "font-size": "12px", color: palette.TEXT }}>
                         {option.label}
                       </Text>
                       <Show when={option.id === props.activeScreener}>
@@ -434,7 +434,7 @@ export function ScreenerConfigView(props: Props) {
                           openEditModal(option);
                         }}
                         data-testid={`edit-screener-${option.id}`}
-                        style={{ "font-size": 11, height: 22, padding: "0 6px", "border-color": palette.BORDER, color: palette.TEXT }}
+                        style={{ "font-size": "11px", height: "22px", padding: "0 6px", "border-color": palette.BORDER, color: palette.TEXT }}
                       >
                         Edit
                       </Button>
@@ -447,13 +447,13 @@ export function ScreenerConfigView(props: Props) {
                           openDeleteConfirm(option.id);
                         }}
                         data-testid={`delete-screener-${option.id}`}
-                        style={{ "font-size": 11, height: 22, padding: "0 6px" }}
+                        style={{ "font-size": "11px", height: "22px", padding: "0 6px" }}
                       >
                         Del
                       </Button>
                     </Group>
                   </Box>
-                  <Text size="xs" c="dimmed" lineClamp={1} style={{ "font-size": 11, color: palette.TEXT_MUTED }}>
+                  <Text size="xs" c="dimmed" lineClamp={1} style={{ "font-size": "11px", color: palette.TEXT_MUTED }}>
                     {option.id}
                   </Text>
                 </Box>
@@ -473,7 +473,7 @@ export function ScreenerConfigView(props: Props) {
             <Show
               when={activeOption()}
               fallback={
-                <Text size="xs" c="dimmed" style={{ "font-size": 11, color: palette.TEXT_MUTED }}>
+                <Text size="xs" c="dimmed" style={{ "font-size": "11px", color: palette.TEXT_MUTED }}>
                   Select a screener
                 </Text>
               }
@@ -495,7 +495,7 @@ export function ScreenerConfigView(props: Props) {
             </Show>
           </Group>
           <Group gap={1} align="center" className="flex-shrink-0">
-            <Text fw={600} size="xs" data-testid="preview-count" style={{ "font-size": 11, color: palette.TEXT_MUTED }}>
+            <Text fw={600} size="xs" data-testid="preview-count" style={{ "font-size": "11px", color: palette.TEXT_MUTED }}>
               PREVIEW ({previewStocks().length})
             </Text>
             <Button
@@ -504,7 +504,7 @@ export function ScreenerConfigView(props: Props) {
               onClick={() => loadPreview()}
               loading={previewLoading()}
               data-testid="preview-refresh-btn"
-              style={{ height: 24, "font-size": 11 }}
+              style={{ height: "24px", "font-size": "11px" }}
             >
               ↻
             </Button>
@@ -514,8 +514,8 @@ export function ScreenerConfigView(props: Props) {
           <Box gap={2} bg={palette.BG} className="flex p-3 border-b border-fin-border max-h-[380px] overflow-auto" data-testid="inline-form">
             <Stack gap={1}>
               <Box className="flex items-center justify-between gap-2 mb-1">
-                <Text fw={600} size="xs" style={{ "font-size": 11, "letter-spacing": 0.5, color: palette.TEXT_MUTED }}>{editModalOpen() ? "EDIT SCREENER" : "NEW SCREENER"}</Text>
-                <Button size="xs" variant="subtle" onClick={() => { setCreateModalOpen(false); setEditModalOpen(false); setEditingScreener(null); setForm(EMPTY_FORM); }} style={{ height: 22 }}>✕</Button>
+                <Text fw={600} size="xs" style={{ "font-size": "11px", "letter-spacing": "0.5px", color: palette.TEXT_MUTED }}>{editModalOpen() ? "EDIT SCREENER" : "NEW SCREENER"}</Text>
+                <Button size="xs" variant="subtle" onClick={() => { setCreateModalOpen(false); setEditModalOpen(false); setEditingScreener(null); setForm(EMPTY_FORM); }} style={{ height: "22px" }}>✕</Button>
               </Box>
               <ToolbarRow gap={8} wrap={false}>
                 <Box className="flex-1 min-w-0">
@@ -525,7 +525,7 @@ export function ScreenerConfigView(props: Props) {
                   <TextInput label="Description" placeholder="Brief description" value={form().description} onChange={(val) => setForm({ ...form(), description: val })} size="xs" style={{ width: "100%" }} />
                 </Box>
               </ToolbarRow>
-              <Text size="xs" fw={600} style={{ "font-size": 11, "letter-spacing": 0.5, color: palette.TEXT_MUTED }}>Indicators</Text>
+              <Text size="xs" fw={600} style={{ "font-size": "11px", "letter-spacing": "0.5px", color: palette.TEXT_MUTED }}>Indicators</Text>
               <ToolbarRow gap={8}>
                 <For each={["RSI", "ADX", "Volume", "52W Gap %", "Stochastic", "ATR", "MACD", "Momentum"]}>
                   {(ind) => (
@@ -543,7 +543,7 @@ export function ScreenerConfigView(props: Props) {
                 </For>
               </ToolbarRow>
               <Show when={form().filters.length > 0}>
-                <Text size="xs" fw={600} style={{ "font-size": 11, "letter-spacing": 0.5, color: palette.TEXT_MUTED }}>Filters</Text>
+                <Text size="xs" fw={600} style={{ "font-size": "11px", "letter-spacing": "0.5px", color: palette.TEXT_MUTED }}>Filters</Text>
                 <ToolbarRow gap={8}><For each={form().filters}>{renderFilterInput}</For></ToolbarRow>
               </Show>
               <ToolbarRow gap={8} wrap={false}>

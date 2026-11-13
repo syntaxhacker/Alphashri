@@ -17,13 +17,13 @@ export function KeyPointLegend(props: { hit: PatternHitDTO }) {
           size="xs"
           c="dimmed"
           fw={700}
-          style={{ fontSize: 10, textTransform: "uppercase" }}
+          style={{ "font-size": "10px", "text-transform": "uppercase" }}
         >
           Key points
         </Text>
         <For each={meanings()}>
           {(item, index) => (
-            <Text size="xs" c="dimmed" style={{ fontSize: 10 }}>
+            <Text size="xs" c="dimmed" style={{ "font-size": "10px" }}>
               {`${item.label} ${item.meaning}${index() < meanings().length - 1 ? " ·" : ""}`}
             </Text>
           )}

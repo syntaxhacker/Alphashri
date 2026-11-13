@@ -43,7 +43,7 @@ export function BacktestLeftPanel({
       h="100%"
       className="flex flex-col"
     >
-      <Box className="shrink-0 flex items-center justify-center p-2" style={{ flex: "0 0 auto", display: "flex", "align-items": "center", "justify-content": "center", padding: 8 }}>
+      <Box className="shrink-0 flex items-center justify-center p-2" style={{ flex: "0 0 auto", display: "flex", "align-items": "center", "justify-content": "center", padding: "8px" }}>
         <Tabs.List>
           <Tabs.Tab value="results" leftSection={<IconTable size={14} />}>
             Results
@@ -61,7 +61,7 @@ export function BacktestLeftPanel({
         style={{ "min-height": 0, overflow: "hidden" }}
       >
         {isRunning ? (
-          <Box className="flex items-center justify-center p-2" style={{ display: "flex", "align-items": "center", "justify-content": "center", padding: 16 }}>
+          <Box className="flex items-center justify-center p-2" style={{ display: "flex", "align-items": "center", "justify-content": "center", padding: "16px" }}>
             <BacktestProgress
               progress={{
                 current: progress.current,
@@ -90,7 +90,7 @@ export function BacktestLeftPanel({
             gap="xs"
             h="100%"
             className="backtest-results-content min-h-0 gap-2"
-            style={{ "min-height": 0, gap: 8 }}
+            style={{ "min-height": 0, gap: "8px" }}
           >
             <Box className="shrink-0 flex items-center" style={{ flex: "0 0 auto", display: "flex", "align-items": "center" }}>
               <BacktestSummary totals={totals} />

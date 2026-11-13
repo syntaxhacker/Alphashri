@@ -274,7 +274,7 @@ export function BacktestHistory(props: BacktestHistoryProps) {
           data-testid="backtest-history"
         >
           <div class="flex items-center justify-between gap-2 p-2">
-            <Text size="sm" c="dimmed" style={{ "min-width": 80, display: "flex", "align-items": "center" }}>
+            <Text size="sm" c="dimmed" style={{ "min-width": "80px", display: "flex", "align-items": "center" }}>
               {history().length} backtest{history().length !== 1 ? "s" : ""} saved
             </Text>
             <Group gap={1} align="center" className="history-actions flex items-center justify-center gap-2">

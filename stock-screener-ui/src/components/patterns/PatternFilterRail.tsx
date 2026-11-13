@@ -69,7 +69,7 @@ function Section(props: {
     return (
       <Box className="flex min-w-0 flex-col gap-0.5">
         <Box className="flex items-center gap-1">
-          <Text size="xs" c="dimmed" style={{ fontSize: 10, lineHeight: 1.2 }}>
+          <Text size="xs" c="dimmed" style={{ "font-size": "10px", "line-height": 1.2 }}>
             {props.title}
           </Text>
           {props.info}
@@ -83,7 +83,7 @@ function Section(props: {
       <Box
         className="flex items-center gap-1 border-b border-fin-border pb-0.5"
       >
-        <Text size="xs" fw={700} style={{ textTransform: "uppercase", letterSpacing: 0.4 }} c="dimmed">
+        <Text size="xs" fw={700} style={{ "text-transform": "uppercase", "letter-spacing": "0.4px" }} c="dimmed">
           {props.title}
         </Text>
         {props.info}
@@ -122,7 +122,7 @@ function InfoTip(props: {
       <Text
         size="xs"
         c="dimmed"
-        style={{ cursor: "help", userSelect: "none", lineHeight: 1 }}
+        style={{ cursor: "help", "user-select": "none", "line-height": 1 }}
         data-testid={props.testId}
       >
         ⓘ
@@ -276,7 +276,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
           <Text
             size="xs"
             c={tileProps.count > 0 ? "text.secondary" : "dimmed"}
-            style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", paddingLeft: 3 }}
+            style={{ "font-variant-numeric": "tabular-nums", "white-space": "nowrap", "padding-left": "3px" }}
           >
             {` (${tileProps.count})`}
           </Text>
@@ -402,7 +402,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
               className="flex flex-col gap-0.5"
               data-testid={`patterns-filter-family-group-${family.id}`}
             >
-              <Text size="xs" c="dimmed" fw={600} style={{ fontSize: 10 }}>
+              <Text size="xs" c="dimmed" fw={600} style={{ "font-size": "10px" }}>
                 {family.label}
               </Text>
               <Box

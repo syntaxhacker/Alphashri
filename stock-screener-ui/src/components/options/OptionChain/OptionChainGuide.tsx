@@ -16,16 +16,16 @@ export function OptionChainGuide(props: OptionChainGuideProps) {
       title="How to Read the Option Chain"
       size="lg"
       centered
-      style={{ borderRadius: 8 }}
+      style={{ "border-radius": "8px" }}
       className="option-chain-guide-modal"
       data-testid="options-chain-guide-modal"
     >
       <Stack spacing={1} className="flex items-center w-full guide-content" data-testid="options-guide-content">
-        <Text size="sm" className="text-fin-text-muted guide-intro" style={{ textAlign: "center" }}>
+        <Text size="sm" className="text-fin-text-muted guide-intro" style={{ "text-align": "center" }}>
           Options can be complex. Here is a simple guide to help you understand the data and make better decisions.
         </Text>
 
-        <Box className="flex items-center justify-center w-full" style={{ paddingTop: 8, paddingBottom: 8 }}>
+        <Box className="flex items-center justify-center w-full" style={{ "padding-top": "8px", "padding-bottom": "8px" }}>
           <Text size="sm" fw={700}>
             The Basics
           </Text>
@@ -58,7 +58,7 @@ export function OptionChainGuide(props: OptionChainGuideProps) {
           </Box>
         </Box>
 
-        <Box className="flex items-center justify-center w-full" style={{ paddingTop: 8, paddingBottom: 8 }}>
+        <Box className="flex items-center justify-center w-full" style={{ "padding-top": "8px", "padding-bottom": "8px" }}>
           <Text size="sm" fw={700}>
             Key Indicators
           </Text>
@@ -76,7 +76,7 @@ export function OptionChainGuide(props: OptionChainGuideProps) {
           </ListItem>
         </List>
 
-        <Box className="flex items-center justify-center w-full" style={{ paddingTop: 8, paddingBottom: 8 }}>
+        <Box className="flex items-center justify-center w-full" style={{ "padding-top": "8px", "padding-bottom": "8px" }}>
           <Text size="sm" fw={700}>
             Sentiment Badges (What are they doing?)
           </Text>
@@ -84,7 +84,7 @@ export function OptionChainGuide(props: OptionChainGuideProps) {
 
         <Stack spacing={1} className="w-full items-center" data-testid="options-guide-badges">
           <Box className="flex items-center gap-[8px] justify-center" data-testid="options-guide-badge-lb">
-            <Badge color="success" variant="light" style={{ width: 80 }}>
+            <Badge color="success" variant="light" style={{ width: "80px" }}>
               LB
             </Badge>
             <Text size="sm" fw={700}>
@@ -95,7 +95,7 @@ export function OptionChainGuide(props: OptionChainGuideProps) {
             </Text>
           </Box>
           <Box className="flex items-center gap-[8px] justify-center" data-testid="options-guide-badge-sb">
-            <Badge color="error" variant="light" style={{ width: 80 }}>
+            <Badge color="error" variant="light" style={{ width: "80px" }}>
               SB
             </Badge>
             <Text size="sm" fw={700}>
@@ -106,7 +106,7 @@ export function OptionChainGuide(props: OptionChainGuideProps) {
             </Text>
           </Box>
           <Box className="flex items-center gap-[8px] justify-center" data-testid="options-guide-badge-sc">
-            <Badge color="info" variant="light" style={{ width: 80 }}>
+            <Badge color="info" variant="light" style={{ width: "80px" }}>
               SC
             </Badge>
             <Text size="sm" fw={700}>
@@ -117,7 +117,7 @@ export function OptionChainGuide(props: OptionChainGuideProps) {
             </Text>
           </Box>
           <Box className="flex items-center gap-[8px] justify-center" data-testid="options-guide-badge-lu">
-            <Badge color="warning" variant="light" style={{ width: 80 }}>
+            <Badge color="warning" variant="light" style={{ width: "80px" }}>
               LU
             </Badge>
             <Text size="sm" fw={700}>

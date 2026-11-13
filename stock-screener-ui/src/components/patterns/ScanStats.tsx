@@ -94,12 +94,12 @@ export function ScanStats(props: ScanStatsProps) {
       data-testid="patterns-stats"
       className="flex min-h-[18px] items-center overflow-x-auto tabular-nums"
     >
-      <ToolbarRow gap={0} wrap={false} style={{ overflowX: "auto" }}>
+      <ToolbarRow gap={0} wrap={false} style={{ "overflow-x": "auto" }}>
         <For each={cells()}>
           {(cell, index) => (
             <Box className="flex shrink-0 items-center">
               <Show when={index() > 0}>
-                <Divider orientation="vertical" style={{ height: 16 }} className="mx-3" />
+                <Divider orientation="vertical" style={{ height: "16px" }} className="mx-3" />
               </Show>
               <Box
                 data-testid={`patterns-stat-${cell.key}`}
@@ -121,10 +121,10 @@ export function ScanStats(props: ScanStatsProps) {
                     : ""
                 }`}
               >
-                <Text size="xs" c="dimmed" style={{ textTransform: "uppercase", fontSize: 10 }} fw={700} truncate>
+                <Text size="xs" c="dimmed" style={{ "text-transform": "uppercase", "font-size": "10px" }} fw={700} truncate>
                   {cell.label}
                 </Text>
-                <Text size="xs" fw={700} c={cell.tone ?? "default"} style={{ fontSize: 10 }} truncate>
+                <Text size="xs" fw={700} c={cell.tone ?? "default"} style={{ "font-size": "10px" }} truncate>
                   <Show when={cell.key === "bull_bear" && props.onSelect} fallback={cell.value}>
                     <>
                       <span

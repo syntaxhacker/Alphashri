@@ -21,7 +21,7 @@ export function BotCardStrip(props: BotCardStripProps) {
                 data-testid={`bot-card-${bot.id}`}
                 style={{
                   cursor: bot.is_active ? "pointer" : "default",
-                  "border-radius": 6,
+                  "border-radius": "6px",
                   background: bot.id === props.selectedBotId ? BOT_SELECTED_BG : "transparent",
                   opacity: bot.is_active ? 1 : 0.5,
                 }}

@@ -328,7 +328,7 @@ function ChartHeader(props: { state: ReturnType<typeof getPaperTradingState> }) 
         <PopoverDropdown p="xs">
           <Stack className="gap-2">
             <Group gap="xs">
-              <div class="w-[3px] h-[14px] shrink-0" style={{ "border-radius": 2, "background-color": PRIMARY }} />
+              <div class="w-[3px] h-[14px] shrink-0" style={{ "border-radius": "2px", "background-color": PRIMARY }} />
               <Text size="xs" fw={600}>Range</Text>
             </Group>
             <Group className="gap-2">
@@ -347,7 +347,7 @@ function ChartHeader(props: { state: ReturnType<typeof getPaperTradingState> }) 
             <Divider className="my-2" />
 
             <Group gap="xs">
-              <div class="w-[3px] h-[14px] shrink-0" style={{ "border-radius": 2, "background-color": PRIMARY }} />
+              <div class="w-[3px] h-[14px] shrink-0" style={{ "border-radius": "2px", "background-color": PRIMARY }} />
               <Text size="xs" fw={600}>Overlays</Text>
             </Group>
             <Group className="gap-2">

@@ -287,12 +287,12 @@ export function AppliedFilters(props: AppliedFiltersProps) {
   return (
     <Show when={chips().length > 0}>
       <Box data-testid="patterns-applied-filters" className="min-w-0">
-        <ToolbarRow gap={6} style={{ flexWrap: "wrap", rowGap: 3 }}>
+        <ToolbarRow gap={6} style={{ "flex-wrap": "wrap", "row-gap": "3px" }}>
           <Text
             size="xs"
             c="dimmed"
             fw={700}
-            style={{ textTransform: "none", letterSpacing: 0.2 }}
+            style={{ "text-transform": "none", "letter-spacing": "0.2px" }}
           >
             Active
           </Text>
@@ -305,7 +305,7 @@ export function AppliedFilters(props: AppliedFiltersProps) {
                   className="inline-flex min-w-0 items-center gap-[2px] pl-[2px]"
                 >
                   <Show when={multi}>
-                    <Text size="xs" c="dimmed" fw={600} style={{ whiteSpace: "nowrap" }}>
+                    <Text size="xs" c="dimmed" fw={600} style={{ "white-space": "nowrap" }}>
                       {`${group.group}s`}
                     </Text>
                   </Show>

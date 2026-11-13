@@ -220,7 +220,7 @@ function TradeStats(props: { trade: PaperTrade }) {
   return (
     <div class="paper-trade-stats grid grid-cols-1 md:grid-cols-2 gap-1 w-full" id={`paper-trade-stats-${props.trade.trade_id}`}>
       <div class="paper-trade-stats-entry p-1 border-0 rounded-none bg-transparent min-w-0 w-full" id={`paper-trade-stats-entry-${props.trade.trade_id}`}>
-        <Text className="paper-trade-stats-entry-title uppercase pb-1 mb-0.5 border-b border-fin-border" id={`paper-trade-stats-entry-title-${props.trade.trade_id}`} size="xs" fw={700} c="dimmed" style={{ "letter-spacing": 0.6 }}>
+        <Text className="paper-trade-stats-entry-title uppercase pb-1 mb-0.5 border-b border-fin-border" id={`paper-trade-stats-entry-title-${props.trade.trade_id}`} size="xs" fw={700} c="dimmed" style={{ "letter-spacing": "0.6px" }}>
           Entry
         </Text>
         <For each={entryContext()}>{(item) => (
@@ -231,7 +231,7 @@ function TradeStats(props: { trade: PaperTrade }) {
         )}</For>
       </div>
       <div class="paper-trade-stats-exit p-1 border-0 rounded-none bg-transparent min-w-0 w-full" id={`paper-trade-stats-exit-${props.trade.trade_id}`}>
-        <Text className="paper-trade-stats-exit-title uppercase pb-1 mb-0.5 border-b border-fin-border" id={`paper-trade-stats-exit-title-${props.trade.trade_id}`} size="xs" fw={700} c="dimmed" style={{ "letter-spacing": 0.6 }}>
+        <Text className="paper-trade-stats-exit-title uppercase pb-1 mb-0.5 border-b border-fin-border" id={`paper-trade-stats-exit-title-${props.trade.trade_id}`} size="xs" fw={700} c="dimmed" style={{ "letter-spacing": "0.6px" }}>
           Exit
         </Text>
         <For each={exitContext()}>{(item) => (
@@ -274,7 +274,7 @@ function TradeNotesEditor(props: { trade: PaperTrade }) {
     <div class="paper-trade-notes-editor p-1.5 border border-fin-border rounded-[1px] bg-fin-surface" id={`paper-trade-notes-${props.trade.trade_id}`}>
       <Stack className="paper-trade-notes-stack gap-2">
         <div class="paper-trade-notes-reason-row flex items-center justify-between gap-2 py-1 border-b border-fin-border" id={`paper-trade-notes-reason-row-${props.trade.trade_id}`}>
-          <Text className="paper-trade-notes-label uppercase shrink-0" size="xs" c="dimmed" fw={600} style={{ "letter-spacing": 0.5 }}>
+          <Text className="paper-trade-notes-label uppercase shrink-0" size="xs" c="dimmed" fw={600} style={{ "letter-spacing": "0.5px" }}>
             Reason
           </Text>
           <Text className="paper-trade-notes-reason whitespace-pre-wrap leading-[1.5] text-right flex-1" id={`paper-trade-notes-reason-${props.trade.trade_id}`} size="xs" data-testid={`trade-reason-${props.trade.trade_id}`}>
@@ -282,7 +282,7 @@ function TradeNotesEditor(props: { trade: PaperTrade }) {
           </Text>
         </div>
         <div class="paper-trade-notes-input-group flex flex-col gap-2" id={`paper-trade-notes-input-group-${props.trade.trade_id}`}>
-          <Text className="paper-trade-notes-notes-label uppercase shrink-0" size="xs" c="dimmed" fw={600} style={{ "letter-spacing": 0.5 }}>
+          <Text className="paper-trade-notes-notes-label uppercase shrink-0" size="xs" c="dimmed" fw={600} style={{ "letter-spacing": "0.5px" }}>
             Notes
           </Text>
           <div class="paper-trade-notes-input-row flex items-center gap-2">

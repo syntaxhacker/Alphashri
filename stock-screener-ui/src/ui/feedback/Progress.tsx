@@ -129,7 +129,7 @@ export function Progress(props: UIProgressProps) {
           "border-radius": br,
           "background-color": col,
           ...(known.striped ? { "background-image": STRIPE } : {}),
-          ...(known.animated && known.striped ? { backgroundSize: "16px 16px" } : {}),
+          ...(known.animated && known.striped ? { "background-size": "16px 16px" } : {}),
           ...(transition ? { transition } : {}),
         }}
       />

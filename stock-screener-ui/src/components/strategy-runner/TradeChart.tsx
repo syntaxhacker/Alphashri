@@ -95,7 +95,7 @@ export function TradeChart(props: TradeChartProps) {
   });
 
   return (
-    <Box style={{ width: "100%", height: `${height()}px`, minHeight: `${height()}px` }}>
+    <Box style={{ width: "100%", height: `${height()}px`, "min-height": `${height()}px` }}>
       <div ref={(el) => (chartRef = el)} style={{ width: "100%", height: "100%" }} />
     </Box>
   );

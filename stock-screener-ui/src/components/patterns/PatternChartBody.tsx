@@ -121,7 +121,7 @@ function FullscreenPanel(props: {
 
       <Show when={props.hit.notes}>
         <Box className="border-t border-fin-border pt-2">
-          <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
+          <Text size="xs" c="dimmed" style={{ "overflow-wrap": "anywhere" }}>
             {props.hit.notes}
           </Text>
         </Box>
@@ -266,7 +266,7 @@ export function PatternChartBody(props: PatternChartBodyProps) {
             docked() ? "flex-[1_1_auto]" : "flex-[1_1_auto] lg:flex-[0_0_80%]"
           }`}
         >
-          <ToolbarRow justify="flex-start" gap={6} style={{ paddingBottom: 4 }}>
+          <ToolbarRow justify="flex-start" gap={6} style={{ "padding-bottom": "4px" }}>
             <Text size="xs" c="dimmed">History</Text>
             <SegmentedControl
               size="xs"

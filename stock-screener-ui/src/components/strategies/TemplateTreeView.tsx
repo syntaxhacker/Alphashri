@@ -69,13 +69,13 @@ export function TemplateTreeView(props: TemplateTreeViewProps) {
         wrap="nowrap"
         align="center"
         {...elementProps}
-        style={{ ...(elementProps.style as JSX.CSSProperties), padding: "2px 0", display: "flex", alignItems: "center", gap: "8px" }}
+        style={{ ...(elementProps.style as JSX.CSSProperties), padding: "2px 0", display: "flex", "align-items": "center", gap: "8px" }}
       >
-        <Text size="sm" fw={isTemplate ? 600 : 400} c={isTemplate ? undefined : "dimmed"} style={{ width: "180px", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center" }}>
+        <Text size="sm" fw={isTemplate ? 600 : 400} c={isTemplate ? undefined : "dimmed"} style={{ width: "180px", "flex-shrink": 0, overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap", display: "flex", "align-items": "center" }}>
           {node.label as string}
         </Text>
 
-        <Text size="xs" c="text.secondary" style={{ width: "90px", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <Text size="xs" c="text.secondary" style={{ width: "90px", "flex-shrink": 0, overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
           <span class="font-mono tabular-nums">{isTemplate ? config.strategy_type : ""}</span>
         </Text>
 
@@ -116,7 +116,7 @@ export function TemplateTreeView(props: TemplateTreeViewProps) {
           />
         </span>
 
-        <Group gap={2} style={{ flexShrink: 0, width: "90px" }} wrap="nowrap">
+        <Group gap={2} style={{ "flex-shrink": 0, width: "90px" }} wrap="nowrap">
           <Show
             when={isTemplate}
             fallback={
@@ -219,25 +219,25 @@ export function TemplateTreeView(props: TemplateTreeViewProps) {
             gap={1}
             align="center"
             className="items-center"
-            style={{ paddingTop: "8px", paddingBottom: "4px", paddingRight: "8px", paddingLeft: 0 }}
+            style={{ "padding-top": "8px", "padding-bottom": "4px", "padding-right": "8px", "padding-left": 0 }}
           >
-            <span style={{ width: "18px", flexShrink: 0 }} />
-            <Text size="xs" c="dimmed" style={{ width: "180px", display: "flex", alignItems: "center" }}>
+            <span style={{ width: "18px", "flex-shrink": 0 }} />
+            <Text size="xs" c="dimmed" style={{ width: "180px", display: "flex", "align-items": "center" }}>
               Name
             </Text>
-            <Text size="xs" c="dimmed" style={{ width: "90px", display: "flex", alignItems: "center" }}>
+            <Text size="xs" c="dimmed" style={{ width: "90px", display: "flex", "align-items": "center" }}>
               Type
             </Text>
-            <Text size="xs" c="dimmed" style={{ width: "70px", display: "flex", alignItems: "center" }}>
+            <Text size="xs" c="dimmed" style={{ width: "70px", display: "flex", "align-items": "center" }}>
               SL%
             </Text>
-            <Text size="xs" c="dimmed" style={{ width: "70px", display: "flex", alignItems: "center" }}>
+            <Text size="xs" c="dimmed" style={{ width: "70px", display: "flex", "align-items": "center" }}>
               TP%
             </Text>
-            <Text size="xs" c="dimmed" style={{ width: "60px", display: "flex", alignItems: "center" }}>
+            <Text size="xs" c="dimmed" style={{ width: "60px", display: "flex", "align-items": "center" }}>
               MaxPos
             </Text>
-            <Text size="xs" c="dimmed" style={{ width: "90px", display: "flex", alignItems: "center" }}>
+            <Text size="xs" c="dimmed" style={{ width: "90px", display: "flex", "align-items": "center" }}>
               Actions
             </Text>
           </Group>

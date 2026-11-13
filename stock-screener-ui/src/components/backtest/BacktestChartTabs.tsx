@@ -57,7 +57,7 @@ export function BacktestChartTabs({
         data-testid="chart-container"
         h={400}
         className="rounded-fin"
-        style={{ "background-color": "#0A0A0A", "border-radius": 2 }}
+        style={{ "background-color": "#0A0A0A", "border-radius": "2px" }}
       >
         <Text c="dimmed">Select a symbol to view chart</Text>
       </Center>
@@ -133,7 +133,7 @@ export function BacktestChartTabs({
             data-testid="chart-placeholder"
             h="100%"
             className="rounded-fin"
-            style={{ "background-color": "#0A0A0A", "border-radius": 2 }}
+            style={{ "background-color": "#0A0A0A", "border-radius": "2px" }}
           >
             <Text c="dimmed">Select a symbol</Text>
           </Center>

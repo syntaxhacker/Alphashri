@@ -851,7 +851,7 @@ export function WatchView(props: WatchViewProps) {
         </Text>
       </Show>
 
-      <ToolbarRow gap={8} data-testid="watch-filters" style={{ flexWrap: "wrap", alignItems: "center" }}>
+      <ToolbarRow gap={8} data-testid="watch-filters" style={{ "flex-wrap": "wrap", "align-items": "center" }}>
         <TextInput
           placeholder="Search symbol…"
           value={search()}

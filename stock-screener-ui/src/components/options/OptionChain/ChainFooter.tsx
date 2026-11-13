@@ -13,18 +13,18 @@ export function ChainFooter(props: ChainFooterProps) {
   return (
     <Box
       className="chain-table-footer flex items-center justify-center gap-[8px] p-[8px] flex-wrap w-full"
-      style={{ backgroundColor: palette.SURFACE, flexWrap: "wrap" }}
+      style={{ "background-color": palette.SURFACE, "flex-wrap": "wrap" }}
       data-testid="options-chain-table-footer"
     >
       <Box className="flex items-center gap-[8px] p-[8px] flex-wrap justify-center">
         <Box className="flex items-center gap-[4px]" data-testid="options-legend-itm">
-          <Box style={{ width: 10, height: 10, borderRadius: 9999, backgroundColor: palette.POSITIVE }} />
+          <Box style={{ width: "10px", height: "10px", "border-radius": "9999px", "background-color": palette.POSITIVE }} />
           <Text size="sm" className="text-fin-text-muted">
             ITM (In The Money)
           </Text>
         </Box>
         <Box className="flex items-center gap-[4px]" data-testid="options-legend-atm">
-          <Box style={{ width: 10, height: 10, borderRadius: 9999, backgroundColor: palette.WARNING }} />
+          <Box style={{ width: "10px", height: "10px", "border-radius": "9999px", "background-color": palette.WARNING }} />
           <Text size="sm" className="text-fin-text-muted">
             ATM (At The Money)
           </Text>

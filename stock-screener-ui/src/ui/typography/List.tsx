@@ -35,7 +35,7 @@ export function List(props: UIListProps & Record<string, unknown>) {
         margin: 0,
         padding: 0,
         ...(known.withPadding ? { "padding-left": "24px" } : { "padding-left": "0px" }),
-        listStylePosition: "inside",
+        "list-style-position": "inside",
         ...(known.size != null ? { "font-size": sizeMap[known.size as string] ?? (known.size as string) } : {}),
         ...(known.listStyleType ? { "list-style-type": known.listStyleType } : {}),
         ...(known.center ? { "text-align": "center" } : {}),

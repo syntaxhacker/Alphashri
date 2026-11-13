@@ -81,7 +81,7 @@ export function OptionAlerts(props: OptionAlertsProps) {
           >
             <IconBellRinging size={18} />
           </Box>
-          <Text fw={800} size="sm" style={{ letterSpacing: "0.5px" }}>
+          <Text fw={800} size="sm" style={{ "letter-spacing": "0.5px" }}>
             LIVE SMART MONEY ALERTS
           </Text>
         </Box>
@@ -100,7 +100,7 @@ export function OptionAlerts(props: OptionAlertsProps) {
           </Box>
         }
       >
-        <Box className="alerts-timeline" data-testid="options-alerts-timeline" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <Box className="alerts-timeline" data-testid="options-alerts-timeline" style={{ display: "flex", "flex-direction": "column", gap: "8px" }}>
           <For each={alerts()}>
             {(alert, i) => (
               <Box
@@ -126,7 +126,7 @@ export function OptionAlerts(props: OptionAlertsProps) {
                     <Text size="sm" fw={700}>{alert.title}</Text>
                     <Badge size="sm" color={alert.intensity === "Critical" ? "error" : "primary"}>{alert.intensity}</Badge>
                   </Box>
-                  <Text size="sm" className="text-fin-text-muted" style={{ marginTop: "8px" }}>
+                  <Text size="sm" className="text-fin-text-muted" style={{ "margin-top": "8px" }}>
                     {alert.description}
                   </Text>
                 </Box>
@@ -139,7 +139,7 @@ export function OptionAlerts(props: OptionAlertsProps) {
       <Box
         className="alerts-profit-tip"
         data-testid="options-alerts-profit-tip"
-        style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${palette.BORDER}` }}
+        style={{ "margin-top": "8px", "padding-top": "8px", "border-top": `1px solid ${palette.BORDER}` }}
       >
         <Text size="sm" fw={600} className="text-fin-primary">
           💡 HOW TO PROFIT: When a "Squeeze" alert appears near the spot price, consider a quick bullish trade. When a "Wall" appears, expect the price to reverse from that strike.

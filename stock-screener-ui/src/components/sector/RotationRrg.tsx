@@ -201,7 +201,7 @@ export function RotationRrg(props: RotationRrgProps) {
                     style={{
                       left: isLo ? 4 : isHi ? "auto" : `${x(tick)}%`,
                       right: isHi ? 4 : "auto",
-                      bottom: 3,
+                      bottom: "3px",
                       transform: isLo || isHi ? "none" : "translateX(-50%)",
                     }}
                   >
@@ -218,7 +218,7 @@ export function RotationRrg(props: RotationRrgProps) {
                   <Box
                     className="absolute pointer-events-none text-[8px] text-fin-text-muted tabular-nums"
                     style={{
-                      right: 4,
+                      right: "4px",
                       bottom: isLo ? 2 : isHi ? "auto" : `${y(tick)}%`,
                       top: isHi ? 2 : "auto",
                       transform: isLo || isHi ? "none" : "translateY(50%)",

@@ -332,28 +332,28 @@ export function ScreenerPage(props: ScreenerPageProps) {
               className="flex-1 min-w-0 overflow-x-auto"
             >
               <Tabs.List className="min-h-[32px] flex items-center gap-1">
-                <Tabs.Tab value="dashboard" leftSection={<IconLayoutDashboard size={14} />} data-testid="tab-dashboard" style={{ "min-height": 32 }}>
+                <Tabs.Tab value="dashboard" leftSection={<IconLayoutDashboard size={14} />} data-testid="tab-dashboard" style={{ "min-height": "32px" }}>
                   Dashboard
                 </Tabs.Tab>
-                <Tabs.Tab value="screener" leftSection={<IconTable size={14} />} data-testid="tab-screener" style={{ "min-height": 32 }}>
+                <Tabs.Tab value="screener" leftSection={<IconTable size={14} />} data-testid="tab-screener" style={{ "min-height": "32px" }}>
                   Screener
                 </Tabs.Tab>
-                <Tabs.Tab value="deepvalue" leftSection={<IconCoins size={14} />} data-testid="tab-deepvalue" style={{ "min-height": 32 }}>
+                <Tabs.Tab value="deepvalue" leftSection={<IconCoins size={14} />} data-testid="tab-deepvalue" style={{ "min-height": "32px" }}>
                   Deep Value
                 </Tabs.Tab>
-                <Tabs.Tab value="fno" leftSection={<IconChartCandle size={14} />} data-testid="tab-fno" style={{ "min-height": 32 }}>
+                <Tabs.Tab value="fno" leftSection={<IconChartCandle size={14} />} data-testid="tab-fno" style={{ "min-height": "32px" }}>
                   F&O
                 </Tabs.Tab>
-                <Tabs.Tab value="events" leftSection={<IconCalendarEvent size={14} />} data-testid="tab-events" style={{ "min-height": 32 }}>
+                <Tabs.Tab value="events" leftSection={<IconCalendarEvent size={14} />} data-testid="tab-events" style={{ "min-height": "32px" }}>
                   Events
                 </Tabs.Tab>
-                <Tabs.Tab value="market" leftSection={<IconWorld size={14} />} data-testid="tab-market" style={{ "min-height": 32 }} onMouseEnter={prefetchMarketTab} onFocus={prefetchMarketTab}>
+                <Tabs.Tab value="market" leftSection={<IconWorld size={14} />} data-testid="tab-market" style={{ "min-height": "32px" }} onMouseEnter={prefetchMarketTab} onFocus={prefetchMarketTab}>
                   Market
                 </Tabs.Tab>
-                <Tabs.Tab value="correlation" leftSection={<IconChartDots size={14} />} data-testid="tab-correlation" style={{ "min-height": 32 }}>
+                <Tabs.Tab value="correlation" leftSection={<IconChartDots size={14} />} data-testid="tab-correlation" style={{ "min-height": "32px" }}>
                   Correlation
                 </Tabs.Tab>
-                <Tabs.Tab value="config" leftSection={<IconSettings size={14} />} data-testid="tab-config" style={{ "min-height": 32 }}>
+                <Tabs.Tab value="config" leftSection={<IconSettings size={14} />} data-testid="tab-config" style={{ "min-height": "32px" }}>
                   Config
                 </Tabs.Tab>
               </Tabs.List>

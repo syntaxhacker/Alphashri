@@ -58,10 +58,10 @@ function CrCell(props: { cr: number | null; max: number }) {
     <Box
       style={{
         display: "inline-block",
-        backgroundColor: bg,
-        borderRadius: "1px",
+        "background-color": bg,
+        "border-radius": "1px",
         padding: "8px 4px",
-        fontVariantNumeric: "tabular-nums",
+        "font-variant-numeric": "tabular-nums",
         color: props.cr < 0 ? NEGATIVE : POSITIVE,
       }}
     >
@@ -78,7 +78,7 @@ function SharesCell(props: { v: number | null }) {
       </Text>
     );
   }
-  return <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatShares(props.v)}</span>;
+  return <span style={{ "font-variant-numeric": "tabular-nums" }}>{formatShares(props.v)}</span>;
 }
 
 export function PositioningStrikeTable(props: PositioningStrikeTableProps) {
@@ -100,7 +100,7 @@ export function PositioningStrikeTable(props: PositioningStrikeTableProps) {
       accessorKey: "strike",
       meta: { align: "center" },
       cell: (ctx) => (
-        <span style={{ fontVariantNumeric: "tabular-nums" }}>
+        <span style={{ "font-variant-numeric": "tabular-nums" }}>
           {formatNumberIN(ctx.row.original.strike)}
         </span>
       ),

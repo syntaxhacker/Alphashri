@@ -26,7 +26,7 @@ function Row(props: { b: EdgeBucket; maxAbs: number }) {
       title={`${props.b.label}: ${props.b.count} trades · ${winRate(props.b).toFixed(0)}% WR · ₹${props.b.netPnl.toFixed(0)}`}
       data-testid={`edge-row-${props.b.key}`}
     >
-      <Text size="xs" c="dimmed" style={{ width: 60, flex: "0 0 auto", "white-space": "nowrap" }}>{props.b.label}</Text>
+      <Text size="xs" c="dimmed" style={{ width: "60px", flex: "0 0 auto", "white-space": "nowrap" }}>{props.b.label}</Text>
       <div class="relative flex-1 h-[14px] rounded-sm overflow-hidden" style={{ "background-color": "#121212" }}>
         <div class="absolute top-0 bottom-0 left-1/2 w-[1px]" style={{ "background-color": "#30363D" }} />
         <div
@@ -40,11 +40,11 @@ function Row(props: { b: EdgeBucket; maxAbs: number }) {
       <Text
         size="xs"
         c={positive() ? palette.POSITIVE : palette.NEGATIVE}
-        style={{ width: 62, flex: "0 0 auto", "text-align": "right", "font-variant-numeric": "tabular-nums" }}
+        style={{ width: "62px", flex: "0 0 auto", "text-align": "right", "font-variant-numeric": "tabular-nums" }}
       >
         {positive() ? "+" : ""}{props.b.netPnl.toFixed(0)}
       </Text>
-      <Text size="xs" c="dimmed" style={{ width: 30, flex: "0 0 auto", "text-align": "right" }}>{props.b.count}t</Text>
+      <Text size="xs" c="dimmed" style={{ width: "30px", flex: "0 0 auto", "text-align": "right" }}>{props.b.count}t</Text>
     </Box>
   );
 }
@@ -54,7 +54,7 @@ function Section(props: { title: string; buckets: EdgeBucket[] }) {
   return (
     <Show when={props.buckets.length > 0}>
       <Box className="mb-2" data-testid={`edge-section-${props.title.toLowerCase().replace(/\s+/g, "-")}`}>
-        <Text size="xs" fw={600} c="dimmed" style={{ display: "block", "margin-bottom": 4, "text-transform": "uppercase", "letter-spacing": 0.4 }}>
+        <Text size="xs" fw={600} c="dimmed" style={{ display: "block", "margin-bottom": "4px", "text-transform": "uppercase", "letter-spacing": "0.4px" }}>
           {props.title}
         </Text>
         <For each={props.buckets}>{(b) => <Row b={b} maxAbs={maxAbs()} />}</For>
@@ -100,7 +100,7 @@ export function BacktestEdgePanel(props: { symbol?: string; trades: Trade[]; fil
                 {total() >= 0 ? "+" : ""}₹{total().toFixed(0)}
               </Text>
             </Text>
-            <Text size="xs" c="dimmed" style={{ display: "block", "margin-top": 2 }} data-testid="edge-insight-best">
+            <Text size="xs" c="dimmed" style={{ display: "block", "margin-top": "2px" }} data-testid="edge-insight-best">
               Best window: {fmtBucket(best())}
             </Text>
             <Text size="xs" c="dimmed" style={{ display: "block" }} data-testid="edge-insight-worst">

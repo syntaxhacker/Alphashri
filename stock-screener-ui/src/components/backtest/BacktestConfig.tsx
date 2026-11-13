@@ -35,7 +35,7 @@ function Field(props: { label?: string; span?: boolean; children?: JSX.Element }
       style={{ "grid-column": props.span ? "1 / -1" : undefined, display: "flex", "flex-direction": "column", gap: "2px", "min-width": 0 }}
     >
       <Show when={props.label}>
-        <Text size="xs" c="dimmed" fw={700} style={{ "letter-spacing": 0.5, "text-transform": "uppercase", "font-size": "10px", "line-height": 1.2 }}>
+        <Text size="xs" c="dimmed" fw={700} style={{ "letter-spacing": "0.5px", "text-transform": "uppercase", "font-size": "10px", "line-height": 1.2 }}>
           {props.label}
         </Text>
       </Show>

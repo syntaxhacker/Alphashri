@@ -380,7 +380,7 @@ function TradeLogTab(props: { trades: StrategyRunnerTrade[] }) {
 
   return (
     <Show when={props.trades.length > 0} fallback={<Text c="dimmed" ta="center" py="lg">No trades yet</Text>}>
-      <Box style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <Box style={{ display: "flex", "flex-direction": "column", height: "100%" }}>
         <Group gap="sm" align="center" mb="xs" style={{ flex: "0 0 auto" }}>
           <Text size="xs" fw={500}>Trade Log</Text>
           <Text size="xs" c="dimmed" class="font-mono tabular-nums">{props.trades.length} trade{props.trades.length !== 1 ? "s" : ""}</Text>
@@ -464,7 +464,7 @@ function CorrelationTab(props: TabsProps) {
           const netPnl = botTrades.reduce((s, t) => s + t.net_pnl, 0);
           const wins = botTrades.filter((t) => t.pnl > 0).length;
           return (
-            <Box ta="center" className="px-1 py-[2px]" style={{ backgroundColor: netPnl > 0 ? palette.TINT_POSITIVE : palette.TINT_NEGATIVE }}>
+            <Box ta="center" className="px-1 py-[2px]" style={{ "background-color": netPnl > 0 ? palette.TINT_POSITIVE : palette.TINT_NEGATIVE }}>
               <Text size="xs" fw={500} c={netPnl > 0 ? "success" : "error"} class="font-mono tabular-nums">
                 {netPnl >= 0 ? "+" : ""}{netPnl.toFixed(0)}
               </Text>
@@ -512,7 +512,7 @@ export function StrategyRunnerTabs(props: TabsProps) {
       <Tabs.Panel value="by_symbol" className="pt-2">
         <BySymbolTab summary={props.summary} trades={props.trades} bots={props.bots} />
       </Tabs.Panel>
-      <Tabs.Panel value="trade_log" className="pt-2" style={{ flex: 1, minHeight: "300px" }}>
+      <Tabs.Panel value="trade_log" className="pt-2" style={{ flex: 1, "min-height": "300px" }}>
         <TradeLogTab trades={props.trades} />
       </Tabs.Panel>
       <Tabs.Panel value="correlation" className="pt-2">

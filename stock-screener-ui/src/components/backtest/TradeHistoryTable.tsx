@@ -238,9 +238,9 @@ export function TradeHistoryTable(props: TradeHistoryTableProps) {
         cell: ({ row }) => {
           const side = (row.original as any).side || "LONG";
           return <div class="flex items-center justify-center">{side === "LONG" ? (
-            <Text size="xs" c="success" ta="center"><IconArrowUp size={12} style={{ "margin-right": 2 }} />LONG</Text>
+            <Text size="xs" c="success" ta="center"><IconArrowUp size={12} style={{ "margin-right": "2px" }} />LONG</Text>
           ) : (
-            <Text size="xs" c="error" ta="center"><IconArrowDown size={12} style={{ "margin-right": 2 }} />SHORT</Text>
+            <Text size="xs" c="error" ta="center"><IconArrowDown size={12} style={{ "margin-right": "2px" }} />SHORT</Text>
           )}</div>;
         },
       },

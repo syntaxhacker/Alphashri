@@ -210,7 +210,7 @@ export function PerformanceAnalytics() {
             <Flex direction="column" gap="xs">
               <Flex justify="space-between" align="center">
                 <Group gap="xs">
-                  <Box w={4} h={20} style={{ "border-radius": 2, "background-color": INFO }} />
+                  <Box w={4} h={20} style={{ "border-radius": "2px", "background-color": INFO }} />
                   <Text fw={700} size="lg">Performance Analytics</Text>
                 </Group>
                 <SegmentedControl
@@ -233,28 +233,28 @@ export function PerformanceAnalytics() {
               <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
                 <Paper p="xs" radius="md">
                   <Group gap="xs" mb={2}>
-                    <Box w={4} h={14} style={{ "border-radius": 2, "background-color": PRIMARY }} />
+                    <Box w={4} h={14} style={{ "border-radius": "2px", "background-color": PRIMARY }} />
                     <Text fw={600} size="xs">Equity Curve</Text>
                   </Group>
                   <EquityCurveChart data={equityCurve()} />
                 </Paper>
                 <Paper p="xs" radius="md">
                   <Group gap="xs" mb={2}>
-                    <Box w={4} h={14} style={{ "border-radius": 2, "background-color": TEXT_MUTED }} />
+                    <Box w={4} h={14} style={{ "border-radius": "2px", "background-color": TEXT_MUTED }} />
                     <Text fw={600} size="xs">Daily P&L</Text>
                   </Group>
                   <DailyPnLChart data={dailyPnl()} />
                 </Paper>
                 <Paper p="xs" radius="md">
                   <Group gap="xs" mb={2}>
-                    <Box w={4} h={14} style={{ "border-radius": 2, "background-color": NEGATIVE }} />
+                    <Box w={4} h={14} style={{ "border-radius": "2px", "background-color": NEGATIVE }} />
                     <Text fw={600} size="xs">Drawdown</Text>
                   </Group>
                   <DrawdownChart data={drawdown()} />
                 </Paper>
                 <Paper p="xs" radius="md">
                   <Group gap="xs" mb={2}>
-                    <Box w={4} h={14} style={{ "border-radius": 2, "background-color": INFO }} />
+                    <Box w={4} h={14} style={{ "border-radius": "2px", "background-color": INFO }} />
                     <Text fw={600} size="xs">Monthly P&L</Text>
                   </Group>
                   <MonthlyChart data={monthlyPnl()} />

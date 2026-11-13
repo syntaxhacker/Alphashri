@@ -48,7 +48,7 @@ export function LoadingOverlay(props: UILoadingOverlayProps) {
           "z-index": known.zIndex,
           "background-color": resolveColor(known.overlayProps?.color),
           opacity: known.overlayProps?.opacity,
-          backdropFilter:
+          "backdrop-filter":
             known.overlayProps?.blur != null
               ? `blur(${typeof known.overlayProps.blur === "number" ? `${known.overlayProps.blur}px` : known.overlayProps.blur})`
               : undefined,
