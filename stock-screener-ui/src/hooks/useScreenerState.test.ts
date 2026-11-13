@@ -52,7 +52,9 @@ function mountScreenerState() {
 describe("useScreenerState", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (useStoreSubscription as any).mockImplementation((_subscribe: any) => {});
+    // The hook reads the subscription version to make store reads reactive, so
+    // the stub must return an accessor, not undefined.
+    (useStoreSubscription as any).mockImplementation((_subscribe: any) => () => 0);
   });
 
   afterEach(() => {

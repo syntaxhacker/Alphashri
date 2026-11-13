@@ -36,7 +36,10 @@ export function useScreenerState(initialScreener?: string) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  useStoreSubscription(subscribe);
+  // `state.*` are plain module `let`s reassigned by their setters, so a read
+  // captures nothing reactive on its own. Reading the subscription counter
+  // first makes every memo/getter below re-run when the store notifies.
+  const storeVersion = useStoreSubscription(subscribe);
 
   let initialLoadDone = false;
 
@@ -71,8 +74,14 @@ export function useScreenerState(initialScreener?: string) {
     }
   });
 
-  const approachingStocks = createMemo(() => approachingStocksOf(state.data));
-  const touchedStocks = createMemo(() => touchedStocksOf(state.data));
+  const approachingStocks = createMemo(() => {
+    storeVersion();
+    return approachingStocksOf(state.data);
+  });
+  const touchedStocks = createMemo(() => {
+    storeVersion();
+    return touchedStocksOf(state.data);
+  });
 
   // Actions are plain functions: a Solid function defined in the component body
   // is already referentially stable, so useCallback has nothing to memoise.
@@ -121,27 +130,35 @@ export function useScreenerState(initialScreener?: string) {
       return touchedStocks();
     },
     get screenerOptions() {
+      storeVersion();
       return state.screenerOptions;
     },
     get activeScreener() {
+      storeVersion();
       return state.activeScreener;
     },
     get isLoading() {
+      storeVersion();
       return state.isLoading;
     },
     get error() {
+      storeVersion();
       return state.error;
     },
     get warning() {
+      storeVersion();
       return state.data?.warning || null;
     },
     get autoRefreshSeconds() {
+      storeVersion();
       return state.autoRefreshSeconds;
     },
     get provider() {
+      storeVersion();
       return getScreenerDefaults(state.data).provider;
     },
     get mode() {
+      storeVersion();
       return getScreenerDefaults(state.data).mode;
     },
     onRefresh,
