@@ -35,7 +35,20 @@ clean, and a regression test that FAILS before the fix.
 | 13 | Breakouts endpoint hang (blank Report) | diagnosis | **IN FLIGHT** | breakouts >180s; daily 2s |
 | 14 | common/ component reactivity audit | 30 files | **IN FLIGHT** | signal-read-outside-context hunt |
 | 15 | Screener deep reactivity audit | 7 files | **IN FLIGHT** | memos/effects/leaks |
-| 16 | `@/ui/inputs` w/h + reactivity | 14 files | **IN FLIGHT** | 17 tsc errors live here |
+| 16 | `@/ui/inputs` w/h + reactivity | 14 files | **DONE** | 131 ui tests; 16/17 new tests fail pre-fix; fixed 17 defects |
+| 17 | `useScreenerState` store reactivity | 1 + test | **DONE** | `state.*` are plain `let`s → memos never re-ran; tab showed "0 stocks" over a real payload |
+| 18 | `formatOneDecimal` NaN | 1 + test | **DONE** | card printed `52W: -NaN%` on a half-streamed hit |
+| 19 | Report per-section loading gate | 1 + test | **IN FLIGHT** | `dailyLoading() && breakoutLoading()` blanks a 2s section behind a 14min scan |
+| 20 | Breakouts scan upstream-call explosion | backend | **IN FLIGHT** | 501 symbols × intraday fetch @120/min, circuit-wait 10s each |
+| 21 | common table/states audit | 6 files | **IN FLIGHT** | flexRender/rowModel/body-signal hunts |
+
+## Measured facts (do not re-derive)
+
+- `GET /api/reports/daily` 0.0055s · `delivery` 0.0033s · `health` 0.0293s.
+- `GET /api/reports/breakouts` = **>18 min** (never completed; client aborted at 180s).
+- `fetch_for_timeframe(sym,"1D",include_partial_today=True)` = **10–12s**; cached 1D without it = 0.5s.
+- Rate limiter `api` consumer = **120 req/min**; `upstox:circuit:until` open with +45s remaining.
+- Cached 1D frames ending 2026-11-13: **0 of 501**.
 
 ## Verified no-op findings (do not redo)
 
