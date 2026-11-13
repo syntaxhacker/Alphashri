@@ -394,19 +394,19 @@ export function PatternCard(props: PatternCardProps) {
           </ToolbarRow>
         </Show>
 
-        <Box
-          className="grid border-t border-fin-border"
-          style={{ "grid-template-columns": `repeat(${canShowMembers() ? 5 : 4}, minmax(0, 1fr))` }}
-        >
-          <Box className="min-w-0 ">
+        {/* Only two stats are rendered (plus Members when the symbol belongs to
+            an index group), so the children size themselves: declaring 4-5 grid
+            tracks left the row half empty. */}
+        <Box className="flex border-t border-fin-border">
+          <Box className="flex-1 min-w-0">
             <Metric label="Score" value={formatScore(hit().confidence)} />
           </Box>
-          <Box className="min-w-0 border-l border-fin-border">
+          <Box className="flex-1 min-w-0 border-l border-fin-border">
             <Metric label="Pos" value={formatRangePos(hit().range_pos)} />
           </Box>
           <Show when={canShowMembers()}>
             <Box
-              className="flex min-w-0 items-center justify-center border-l border-fin-border"
+              className="flex w-[76px] shrink-0 min-w-0 items-center justify-center border-l border-fin-border"
             >
               <button
                 type="button"
