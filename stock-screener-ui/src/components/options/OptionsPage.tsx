@@ -30,26 +30,7 @@ interface OptionsPageProps {
   summary?: any;
 }
 
-export function OptionsPage({
-  activeTab,
-  setActiveTab,
-  selectedUnderlying,
-  selectedExpiry,
-  loading,
-  error,
-  filters,
-  spotPrice,
-  setUnderlying,
-  setExpiry,
-  setFilters,
-  refreshChain,
-  availableUnderlyings,
-  availableExpiries,
-  strikeMatrix,
-  positions,
-  timestamp,
-  summary,
-}: OptionsPageProps) {
+export function OptionsPage(props: OptionsPageProps) {
   return (
     <Stack
       id="options-main"
@@ -74,12 +55,12 @@ export function OptionsPage({
           "flex-shrink": 0,
         }}
       >
-        <OptionsNav activeTab={activeTab} onTabChange={setActiveTab} />
+        <OptionsNav activeTab={props.activeTab} onTabChange={props.setActiveTab} />
       </ToolbarRow>
 
       {/* Chain controls stay mounted across chain/positions/premium tabs;
           the simulator owns its header, so the chain controls are hidden there. */}
-      {activeTab !== "simulator" && (
+      {props.activeTab !== "simulator" && (
         <ToolbarRow
           id="options-chain-controls-bar"
           gap={8}
@@ -95,81 +76,81 @@ export function OptionsPage({
           }}
         >
           <OptionChainHeader
-            selectedUnderlying={selectedUnderlying}
-            selectedExpiry={selectedExpiry}
-            setUnderlying={setUnderlying}
-            setExpiry={setExpiry}
-            availableUnderlyings={availableUnderlyings}
-            availableExpiries={availableExpiries}
+            selectedUnderlying={props.selectedUnderlying}
+            selectedExpiry={props.selectedExpiry}
+            setUnderlying={props.setUnderlying}
+            setExpiry={props.setExpiry}
+            availableUnderlyings={props.availableUnderlyings}
+            availableExpiries={props.availableExpiries}
           />
-          <OptionChainFilters filters={filters} setFilters={setFilters} />
+          <OptionChainFilters filters={props.filters} setFilters={props.setFilters} />
         </ToolbarRow>
       )}
 
       <div className="flex flex-col h-full overflow-hidden w-full min-h-0">
         <ScrollArea className="h-full" offsetScrollbars>
-          {activeTab === "chain" && (
+          {props.activeTab === "chain" && (
             <OptionChainPanel
-                selectedUnderlying={selectedUnderlying}
-                selectedExpiry={selectedExpiry}
-                loading={loading}
-                error={error}
-                filters={filters}
-                spotPrice={spotPrice}
-                refreshChain={refreshChain}
-                strikeMatrix={strikeMatrix}
-                timestamp={timestamp}
-                summary={summary}
+                selectedUnderlying={props.selectedUnderlying}
+                selectedExpiry={props.selectedExpiry}
+                loading={props.loading}
+                error={props.error}
+                filters={props.filters}
+                spotPrice={props.spotPrice}
+                refreshChain={props.refreshChain}
+                strikeMatrix={props.strikeMatrix}
+                timestamp={props.timestamp}
+                summary={props.summary}
               />
             )}
 
-            {activeTab === "positions" && (
+            {props.activeTab === "positions" && (
               <div
                 id="positions-container"
                 className="options-tab-content flex flex-col w-full min-h-0"
                 data-testid="options-positions-tab"
               >
-                <PositionsPanel positions={positions || []} />
+                <PositionsPanel positions={props.positions || []} />
               </div>
             )}
 
-            {activeTab === "premium" && (
+            {props.activeTab === "premium" && (
               <div
                 id="premium-container"
                 className="options-tab-content flex flex-col w-full min-h-0"
                 data-testid="options-premium-tab"
               >
-                <PremiumTrackerPanel strikeMatrix={strikeMatrix} selectedUnderlying={selectedUnderlying} />
+                <PremiumTrackerPanel strikeMatrix={props.strikeMatrix} selectedUnderlying={props.selectedUnderlying} />
               </div>
             )}
 
-            {activeTab === "positioning" && (
+            {props.activeTab === "positioning" && (
               <div
                 id="positioning-container"
                 className="options-tab-content flex flex-col w-full min-h-0"
                 data-testid="options-positioning-tab"
               >
-                <PositioningPanel underlying={selectedUnderlying} expiry={selectedExpiry} />
+                <PositioningPanel underlying={props.selectedUnderlying} expiry={props.selectedExpiry} />
               </div>
             )}
 
-            {activeTab === "simulator" && (
+            {props.activeTab === "simulator" && (
               <div
                 id="simulator-container"
                 className="options-tab-content flex flex-col w-full min-h-0"
                 data-testid="options-simulator-tab"
               >
                 <SimulatorPanel
-                  selectedUnderlying={selectedUnderlying}
-                  selectedExpiry={selectedExpiry}
-                  spotPrice={spotPrice}
-                  strikeMatrix={strikeMatrix}
-                  availableUnderlyings={availableUnderlyings}
-                  availableExpiries={availableExpiries}
-                  loading={loading && strikeMatrix.length === 0}
-                  error={error}
-                  onUnderlyingChange={setUnderlying}
-                  onExpiryChange={setExpiry}
+                  selectedUnderlying={props.selectedUnderlying}
+                  selectedExpiry={props.selectedExpiry}
+                  spotPrice={props.spotPrice}
+                  strikeMatrix={props.strikeMatrix}
+                  availableUnderlyings={props.availableUnderlyings}
+                  availableExpiries={props.availableExpiries}
+                  loading={props.loading && props.strikeMatrix.length === 0}
+                  error={props.error}
+                  onUnderlyingChange={props.setUnderlying}
+                  onExpiryChange={props.setExpiry}
                 />
               </div>
             )}

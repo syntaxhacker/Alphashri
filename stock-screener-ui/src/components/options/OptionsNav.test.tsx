@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { createSignal } from "solid-js";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { OptionsNav } from "./OptionsNav";
@@ -40,5 +41,18 @@ describe("OptionsNav", () => {
     render(() => <OptionsNav activeTab="positions" onTabChange={vi.fn()} />);
     const tab = screen.getByTestId("nav-tab-positions");
     expect(tab).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("reacts to a signal-backed activeTab after mutation", () => {
+    const [activeTab, setActiveTab] = createSignal("chain");
+    render(() => <OptionsNav activeTab={activeTab()} onTabChange={vi.fn()} />);
+
+    expect(screen.getByTestId("nav-tab-chain")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("nav-tab-premium")).toHaveAttribute("aria-selected", "false");
+
+    setActiveTab("premium");
+
+    expect(screen.getByTestId("nav-tab-premium")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("nav-tab-chain")).toHaveAttribute("aria-selected", "false");
   });
 });

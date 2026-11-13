@@ -1,13 +1,6 @@
 import { Select, Box } from "@/ui";
 
-export function OptionChainHeader({
-  selectedUnderlying,
-  selectedExpiry,
-  setUnderlying,
-  setExpiry,
-  availableUnderlyings,
-  availableExpiries,
-}: {
+export function OptionChainHeader(props: {
   selectedUnderlying: string;
   selectedExpiry: string;
   setUnderlying: (u: string) => void;
@@ -29,9 +22,9 @@ export function OptionChainHeader({
         </span>
         <Box className="flex items-center" flex="1" miw={120}>
           <Select
-            value={selectedUnderlying}
-            onChange={(val) => val && setUnderlying(val)}
-            data={availableUnderlyings.map((u) => ({ value: u, label: u }))}
+            value={props.selectedUnderlying}
+            onChange={(val) => val && props.setUnderlying(val)}
+            data={props.availableUnderlyings.map((u) => ({ value: u, label: u }))}
             data-testid="underlying-select"
           />
         </Box>
@@ -42,9 +35,9 @@ export function OptionChainHeader({
         </span>
         <Box className="flex items-center" flex="1" miw={120}>
           <Select
-            value={selectedExpiry}
-            onChange={(val) => val && setExpiry(val)}
-            data={availableExpiries.map((e) => ({ value: e, label: e }))}
+            value={props.selectedExpiry}
+            onChange={(val) => val && props.setExpiry(val)}
+            data={props.availableExpiries.map((e) => ({ value: e, label: e }))}
             data-testid="expiry-select"
           />
         </Box>

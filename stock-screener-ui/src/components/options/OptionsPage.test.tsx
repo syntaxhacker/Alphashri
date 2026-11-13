@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createSignal } from "solid-js";
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { OptionsPage } from "./OptionsPage";
@@ -89,5 +90,29 @@ describe("OptionsPage", () => {
     render(() => <OptionsPage {...defaultProps} activeTab="simulator" />);
     expect(screen.queryByTestId("options-chain-panel")).not.toBeInTheDocument();
     expect(screen.getByTestId("simulator-panel")).toBeInTheDocument();
+  });
+
+  it("reacts to a signal-backed activeTab after mutation", () => {
+    const [activeTab, setActiveTab] = createSignal("chain");
+    const { container } = render(() => <OptionsPage {...defaultProps} activeTab={activeTab()} />);
+
+    expect(screen.getByTestId("options-chain-panel")).toBeInTheDocument();
+    expect(container.querySelector("#options-chain-controls-bar")).not.toBeNull();
+
+    setActiveTab("positions");
+
+    expect(screen.queryByTestId("options-chain-panel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("options-positions-panel")).toBeInTheDocument();
+
+    setActiveTab("simulator");
+
+    expect(screen.queryByTestId("options-positions-panel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("simulator-panel")).toBeInTheDocument();
+    expect(container.querySelector("#options-chain-controls-bar")).toBeNull();
+
+    setActiveTab("chain");
+
+    expect(screen.getByTestId("options-chain-panel")).toBeInTheDocument();
+    expect(container.querySelector("#options-chain-controls-bar")).not.toBeNull();
   });
 });

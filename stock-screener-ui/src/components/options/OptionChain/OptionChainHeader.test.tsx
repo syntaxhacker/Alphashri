@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { createSignal } from "solid-js";
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 
@@ -42,5 +43,29 @@ describe("OptionChainHeader", () => {
     expect(screen.getByRole("option", { name: "25MAY" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "01JUN" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "08JUN" })).toBeInTheDocument();
+  });
+
+  it("reacts to signal-backed selections and option lists", () => {
+    const [underlying, setUnderlying] = createSignal("NIFTY");
+    const [underlyings, setUnderlyings] = createSignal(["NIFTY", "BANKNIFTY"]);
+    render(() => (
+      <OptionChainHeader
+        {...defaultProps}
+        selectedUnderlying={underlying()}
+        availableUnderlyings={underlyings()}
+      />
+    ));
+
+    const underlyingSelect = screen.getByTestId("underlying-select").querySelector("select")!;
+    expect(underlyingSelect.value).toBe("NIFTY");
+    expect(screen.queryByRole("option", { name: "FINNIFTY" })).not.toBeInTheDocument();
+
+    setUnderlyings(["NIFTY", "BANKNIFTY", "FINNIFTY"]);
+
+    expect(screen.getByRole("option", { name: "FINNIFTY" })).toBeInTheDocument();
+    expect(underlyingSelect.options.length).toBe(3);
+
+    setUnderlying("BANKNIFTY");
+    expect(underlyingSelect.value).toBe("BANKNIFTY");
   });
 });
