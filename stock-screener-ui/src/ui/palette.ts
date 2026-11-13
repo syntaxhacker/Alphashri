@@ -185,6 +185,26 @@ export const ORB_AREA = "rgba(225, 29, 46, 0.15)";
 export const IV_AREA_START = "rgba(225, 29, 46, 0.30)";
 export const IV_AREA_END = "rgba(225, 29, 46, 0)";
 
+// ----- Nifty tape terminal palette ----------------------------------------
+// A deliberate standalone "terminal" palette for the Nifty tape table (pitch
+// black desk, blue call/put deltas, brown Net, blue/brown spot-flip tints).
+// These are chart-specific hues that have no global-app equivalent, so they
+// live here as the single source rather than as inline hexes in the table.
+export const TAPE_CELL_RULE = "#141414";
+export const TAPE_HEADER_RULE = "#2A2A2A";
+export const TAPE_COL_RULE = "#1F1F1F";
+export const TAPE_ROW_HOVER = "#101418";
+export const TAPE_ROW_LATEST = "#0A0F16";
+export const TAPE_SPOT = "#F2CC60";
+export const TAPE_CALL_DOI = "#80B5FF";
+export const TAPE_PUT_DOI = "#8AA4C2";
+export const TAPE_NET_HUE = "#7A4D16";
+export const TAPE_NET_TEXT = "#FFDDB3";
+export const TAPE_POS_HUE = "#1F7FFF";
+export const TAPE_FLIP_POS_TEXT = "#B3D1FF";
+export const TAPE_NEG_HUE = "#DB6D28";
+export const TAPE_FLIP_NEG_TEXT = "#FFC680";
+
 // ----- Legacy light/dark aliases (app is DARK theme) -----
 export const TOOLTIP_DARK_BG = TOOLTIP_BG;
 export const TOOLTIP_LIGHT_BG = "#FFFFFF";

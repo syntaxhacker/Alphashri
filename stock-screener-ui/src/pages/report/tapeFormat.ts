@@ -29,21 +29,22 @@ import {
  * Scoped to this table only; the global app palette stays untouched.
  */
 export const TAPE_TERM_BG = palette.BG;
-// Tape-scoped hairlines/hover/latest-row shades — the global palette stays untouched.
-export const TAPE_CELL_RULE = "#141414";
-export const TAPE_HEADER_RULE = "#2A2A2A";
-export const TAPE_COL_RULE = "#1F1F1F";
-export const TAPE_ROW_HOVER = "#101418";
-export const TAPE_ROW_LATEST = "#0A0F16";
-export const TAPE_SPOT = "#F2CC60";
-export const TAPE_CALL_DOI = "#80B5FF";
-export const TAPE_PUT_DOI = "#8AA4C2";
-export const TAPE_NET_HUE = "#7A4D16";
-export const TAPE_NET_TEXT = "#FFDDB3";
-export const TAPE_POS_HUE = "#1F7FFF";
-export const TAPE_FLIP_POS_TEXT = "#B3D1FF";
-export const TAPE_NEG_HUE = "#DB6D28";
-export const TAPE_FLIP_NEG_TEXT = "#FFC680";
+// Tape-scoped hairlines/hover/latest-row shades + terminal series hues — the
+// global palette stays untouched; the values are the tape's own named tokens.
+export const TAPE_CELL_RULE = palette.TAPE_CELL_RULE;
+export const TAPE_HEADER_RULE = palette.TAPE_HEADER_RULE;
+export const TAPE_COL_RULE = palette.TAPE_COL_RULE;
+export const TAPE_ROW_HOVER = palette.TAPE_ROW_HOVER;
+export const TAPE_ROW_LATEST = palette.TAPE_ROW_LATEST;
+export const TAPE_SPOT = palette.TAPE_SPOT;
+export const TAPE_CALL_DOI = palette.TAPE_CALL_DOI;
+export const TAPE_PUT_DOI = palette.TAPE_PUT_DOI;
+export const TAPE_NET_HUE = palette.TAPE_NET_HUE;
+export const TAPE_NET_TEXT = palette.TAPE_NET_TEXT;
+export const TAPE_POS_HUE = palette.TAPE_POS_HUE;
+export const TAPE_FLIP_POS_TEXT = palette.TAPE_FLIP_POS_TEXT;
+export const TAPE_NEG_HUE = palette.TAPE_NEG_HUE;
+export const TAPE_FLIP_NEG_TEXT = palette.TAPE_FLIP_NEG_TEXT;
 export const TAPE_TICK_POS = palette.POSITIVE;
 export const TAPE_TICK_NEG = palette.NEGATIVE;
 

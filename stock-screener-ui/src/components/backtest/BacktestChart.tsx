@@ -273,7 +273,7 @@ export function BacktestChart(props: BacktestChartProps) {
         <Box
           className="backtest-chart-loading flex items-center justify-center h-full rounded-fin"
           data-testid="backtest-chart-loading"
-          style={{ height: "100%", "background-color": "#0A0A0A" }}
+          style={{ height: "100%", "background-color": palette.SURFACE }}
         >
           <Text c="dimmed">Loading {props.symbol}...</Text>
         </Box>
@@ -282,7 +282,7 @@ export function BacktestChart(props: BacktestChartProps) {
         <Box
           className="backtest-chart-empty flex items-center justify-center h-full rounded-fin"
           data-testid="backtest-chart-empty"
-          style={{ height: "100%", "background-color": "#0A0A0A" }}
+          style={{ height: "100%", "background-color": palette.SURFACE }}
         >
           <Text c="dimmed">No chart data for {props.symbol}</Text>
         </Box>
