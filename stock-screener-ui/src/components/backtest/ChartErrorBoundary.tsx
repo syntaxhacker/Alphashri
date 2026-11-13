@@ -6,12 +6,12 @@ interface Props {
   resetKey?: unknown;
 }
 
-export function ChartErrorBoundary({ children, resetKey }: Props) {
+export function ChartErrorBoundary(props: Props) {
   const [error, setError] = createSignal<Error | null>(null);
 
   // A new resetKey clears the captured error so the chart remounts and retries.
   createEffect(() => {
-    void resetKey;
+    void props.resetKey;
     setError(null);
   });
 
@@ -27,7 +27,7 @@ export function ChartErrorBoundary({ children, resetKey }: Props) {
     <>
       <Show when={!error()}>
         <ErrorBoundary fallback={(err) => { setError(err); return errorBox; }}>
-          {children}
+          {props.children}
         </ErrorBoundary>
       </Show>
       <Show when={error()}>{errorBox}</Show>

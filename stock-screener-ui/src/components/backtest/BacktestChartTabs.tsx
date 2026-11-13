@@ -37,20 +37,8 @@ const TF_OPTIONS = [
   { value: "43200", label: "1M" },
 ];
 
-export function BacktestChartTabs({
-  symbols,
-  selectedSymbol,
-  onSymbolSelect,
-  zoomValue,
-  onZoomChange,
-  chartDataMap,
-  chartLoading,
-  onTradeClick,
-  holidays,
-  selectedTf,
-  onTfChange,
-}: BacktestChartTabsProps) {
-  if (symbols.length === 0) {
+export function BacktestChartTabs(props: BacktestChartTabsProps) {
+  if (props.symbols.length === 0) {
     return (
       <Center
         id="chart-container"
@@ -64,7 +52,7 @@ export function BacktestChartTabs({
     );
   }
 
-  const currentChartData = selectedSymbol ? chartDataMap.get(selectedSymbol) : null;
+  const currentChartData = props.selectedSymbol ? props.chartDataMap.get(props.selectedSymbol) : null;
 
   return (
     <Box
@@ -77,12 +65,12 @@ export function BacktestChartTabs({
         <Box className="flex items-center justify-between gap-2 p-2">
           <Box className="flex items-center justify-center">
             <Tabs
-              value={selectedSymbol}
-              onChange={(value) => value && onSymbolSelect(value)}
+              value={props.selectedSymbol}
+              onChange={(value) => value && props.onSymbolSelect(value)}
               data-testid="chart-tabs"
             >
               <Tabs.List className="flex items-center justify-center gap-2">
-                <For each={symbols}>{(symbol) => (
+                <For each={props.symbols}>{(symbol) => (
                   <Tabs.Tab value={symbol} data-testid={`chart-tab-${symbol}`}>
                     {symbol}
                   </Tabs.Tab>
@@ -94,8 +82,8 @@ export function BacktestChartTabs({
           <Group gap={1} align="center" className="flex items-center gap-2">
             <Select
               data-testid="chart-tf-select"
-              value={selectedTf}
-              onChange={(value) => onTfChange(value)}
+              value={props.selectedTf}
+              onChange={(value) => props.onTfChange(value)}
               data={TF_OPTIONS}
               w={80}
               size="sm"
@@ -103,8 +91,8 @@ export function BacktestChartTabs({
             />
             <Select
               id="chart-zoom-select"
-              value={zoomValue}
-              onChange={(value) => value && onZoomChange(value)}
+              value={props.zoomValue}
+              onChange={(value) => value && props.onZoomChange(value)}
               data={ZOOM_OPTIONS}
               data-testid="chart-zoom-select"
               w={80}
@@ -121,12 +109,12 @@ export function BacktestChartTabs({
       >
         {selectedSymbol ? (
           <BacktestChart
-            symbol={selectedSymbol}
+            symbol={props.selectedSymbol}
             chartData={currentChartData}
-            isLoading={chartLoading && !currentChartData}
-            onTradeClick={onTradeClick}
-            holidays={holidays}
-            zoomValue={zoomValue}
+            isLoading={props.chartLoading && !currentChartData}
+            onTradeClick={props.onTradeClick}
+            holidays={props.holidays}
+            zoomValue={props.zoomValue}
           />
         ) : (
           <Center

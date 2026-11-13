@@ -1,4 +1,4 @@
-import { createEffect, createMemo, onCleanup } from "solid-js";
+import { createEffect, createMemo, onCleanup, Show } from "solid-js";
 import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { SymbolChartData, ChartTrade } from "../../types/backtest";
@@ -209,39 +209,33 @@ interface BacktestChartProps {
   showAllTrades?: boolean;
 }
 
-export function BacktestChart({
-  symbol,
-  chartData,
-  isLoading,
-  onTradeClick,
-  holidays,
-  zoomValue,
-  highlightedTradeId = null,
-  showAllTrades = true,
-}: BacktestChartProps) {
+export function BacktestChart(props: BacktestChartProps) {
   let chartRef: TradingViewChartHandle | undefined;
 
   createEffect(() => {
-    if (chartRef) chartHandles.set(symbol, chartRef);
+    if (chartRef) chartHandles.set(props.symbol, chartRef);
     onCleanup(() => {
-      chartHandles.delete(symbol);
+      chartHandles.delete(props.symbol);
     });
   });
 
   const input = createMemo(() => {
-    if (!chartData) return null;
-    return normalizeBacktest(chartData, true, holidays, highlightedTradeId);
+    if (!props.chartData) return null;
+    return normalizeBacktest(props.chartData, true, props.holidays, props.highlightedTradeId ?? null);
   });
 
-  const trades = createMemo(() => (chartData ? mapTrades(chartData) : []));
+  const trades = createMemo(() => {
+    const cd = props.chartData;
+    return cd ? mapTrades(cd) : [];
+  });
   const markLines = createMemo(() => {
-    if (!chartData) return [];
+    if (!props.chartData) return [];
     // Force solid lines (the shared normalizer emits dashed/dotted).
     const forced = (input()?.markLines ?? []).map((ml) => ({
       ...ml,
       lineStyle: { ...ml.lineStyle, type: "solid" },
     }));
-    return [...forced, ...buildLevelLines(chartData)];
+    return [...forced, ...buildLevelLines(props.chartData)];
   });
   const candles = createMemo(() =>
     (input()?.candles ?? []).map((c) => ({
@@ -256,11 +250,11 @@ export function BacktestChart({
 
   // zoom preset (All / 30D / 7D / 1D)
   createEffect(() => {
-    if (!chartData || !zoomValue || chartData.candles.length === 0) return;
-    const total = chartData.candles.length;
-    const startIdx = getBacktestZoomStartIndex(chartData.candles, zoomValue);
+    if (!props.chartData || !props.zoomValue || props.chartData.candles.length === 0) return;
+    const total = props.chartData.candles.length;
+    const startIdx = getBacktestZoomStartIndex(props.chartData.candles, props.zoomValue);
     const timer = setTimeout(() => {
-      if (zoomValue === "all") {
+      if (props.zoomValue === "all") {
         chartRef?.fitContent();
       } else {
         chartRef?.zoomToIndexRange(startIdx, total - 1, total);
@@ -269,51 +263,49 @@ export function BacktestChart({
     onCleanup(() => clearTimeout(timer));
   });
 
-  if (isLoading) {
-    return (
-      <Box
-        className="backtest-chart-loading flex items-center justify-center h-full rounded-fin"
-        data-testid="backtest-chart-loading"
-        style={{ height: "100%", "background-color": "#0A0A0A" }}
-      >
-        <Text c="dimmed">Loading {symbol}...</Text>
-      </Box>
-    );
-  }
-
-  if (!chartData || !input()) {
-    return (
-      <Box
-        className="backtest-chart-empty flex items-center justify-center h-full rounded-fin"
-        data-testid="backtest-chart-empty"
-        style={{ height: "100%", "background-color": "#0A0A0A" }}
-      >
-        <Text c="dimmed">No chart data for {symbol}</Text>
-      </Box>
-    );
-  }
-
   return (
-    <Box
-      id={`backtest-chart-${symbol}`}
-      className="backtest-chart w-full h-full min-h-0 min-w-0 flex"
-      data-testid="echarts-container"
-      data-symbol={symbol}
-      style={{ width: "100%", height: "100%", "min-height": 0, "min-width": 0, display: "flex", "background-color": palette.NT_BG }}
-    >
-      <TradingViewChart
-        ref={(h) => (chartRef = h)}
-        theme="nt"
-        entryLabels
-        candles={candles()}
-        trades={trades()}
-        highlightedTradeId={highlightedTradeId}
-        showAllTrades={showAllTrades}
-        markLines={markLines()}
-        emaData={input().emaData}
-        rsiData={input().rsiData}
-        onTradeClick={onTradeClick}
-      />
-    </Box>
+    <>
+      <Show when={props.isLoading}>
+        <Box
+          className="backtest-chart-loading flex items-center justify-center h-full rounded-fin"
+          data-testid="backtest-chart-loading"
+          style={{ height: "100%", "background-color": "#0A0A0A" }}
+        >
+          <Text c="dimmed">Loading {props.symbol}...</Text>
+        </Box>
+      </Show>
+      <Show when={!props.isLoading && (!props.chartData || !input())}>
+        <Box
+          className="backtest-chart-empty flex items-center justify-center h-full rounded-fin"
+          data-testid="backtest-chart-empty"
+          style={{ height: "100%", "background-color": "#0A0A0A" }}
+        >
+          <Text c="dimmed">No chart data for {props.symbol}</Text>
+        </Box>
+      </Show>
+      <Show when={!props.isLoading && props.chartData && input()}>
+        <Box
+          id={`backtest-chart-${props.symbol}`}
+          className="backtest-chart w-full h-full min-h-0 min-w-0 flex"
+          data-testid="echarts-container"
+          data-symbol={props.symbol}
+          style={{ width: "100%", height: "100%", "min-height": 0, "min-width": 0, display: "flex", "background-color": palette.NT_BG }}
+        >
+          <TradingViewChart
+            ref={(h) => (chartRef = h)}
+            theme="nt"
+            entryLabels
+            candles={candles()}
+            trades={trades()}
+            highlightedTradeId={props.highlightedTradeId ?? null}
+            showAllTrades={props.showAllTrades ?? true}
+            markLines={markLines()}
+            emaData={input().emaData}
+            rsiData={input().rsiData}
+            onTradeClick={props.onTradeClick}
+          />
+        </Box>
+      </Show>
+    </>
   );
 }

@@ -11,14 +11,14 @@ interface BacktestRightRailProps {
   children: JSX.Element;
 }
 
-export function BacktestRightRail({ width, onWidthChange, children }: BacktestRightRailProps) {
+export function BacktestRightRail(props: BacktestRightRailProps) {
   let railRef: HTMLDivElement | undefined;
 
   const beginResize = (e: PointerEvent) => {
     if (e.button !== 0) return;
     e.preventDefault();
     const startX = e.clientX;
-    const startW = railRef?.getBoundingClientRect().width ?? width;
+    const startW = railRef?.getBoundingClientRect().width ?? props.width;
     const el = railRef;
     if (el) el.style.willChange = "width";
     let raf = 0;
@@ -33,7 +33,7 @@ export function BacktestRightRail({ width, onWidthChange, children }: BacktestRi
       window.removeEventListener("pointerup", up);
       if (raf) cancelAnimationFrame(raf);
       if (el) el.style.willChange = "";
-      onWidthChange(next);
+      props.onWidthChange(next);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -46,7 +46,7 @@ export function BacktestRightRail({ width, onWidthChange, children }: BacktestRi
       className="flex-shrink-0 h-full min-h-0 flex flex-col overflow-hidden"
       style={{
         flex: "0 0 auto",
-        width,
+        width: props.width,
         "min-width": RAIL_MIN_WIDTH,
         "max-width": RAIL_MAX_WIDTH,
         height: "100%",
@@ -75,7 +75,7 @@ export function BacktestRightRail({ width, onWidthChange, children }: BacktestRi
           "z-index": 3,
         }}
       />
-      {children}
+      {props.children}
     </Box>
   );
 }

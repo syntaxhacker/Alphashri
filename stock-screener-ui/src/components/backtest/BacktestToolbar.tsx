@@ -14,17 +14,7 @@ interface BacktestToolbarProps {
   onReset: () => void;
 }
 
-export function BacktestToolbar({
-  strategyLabel,
-  symbolCount,
-  days,
-  isRunning,
-  canRun,
-  chartMode,
-  onChartModeChange,
-  onRun,
-  onReset,
-}: BacktestToolbarProps) {
+export function BacktestToolbar(props: BacktestToolbarProps) {
   return (
     <Box
       className="flex-shrink-0 h-10 flex items-center gap-2 px-2 border-b border-fin-border"
@@ -44,9 +34,9 @@ export function BacktestToolbar({
       <Box className="flex items-center gap-1">
         <Button
           size="sm"
-          variant={chartMode === "all" ? "filled" : "subtle"}
-          color={chartMode === "all" ? "primary" : "secondary"}
-          onClick={() => onChartModeChange("all")}
+          variant={props.chartMode === "all" ? "filled" : "subtle"}
+          color={props.chartMode === "all" ? "primary" : "secondary"}
+          onClick={() => props.onChartModeChange("all")}
           data-testid="chart-mode-all"
           data-state={chartMode === "all" ? "active" : "inactive"}
         >
@@ -54,9 +44,9 @@ export function BacktestToolbar({
         </Button>
         <Button
           size="sm"
-          variant={chartMode === "trades" ? "filled" : "subtle"}
-          color={chartMode === "trades" ? "primary" : "secondary"}
-          onClick={() => onChartModeChange("trades")}
+          variant={props.chartMode === "trades" ? "filled" : "subtle"}
+          color={props.chartMode === "trades" ? "primary" : "secondary"}
+          onClick={() => props.onChartModeChange("trades")}
           data-testid="chart-mode-trades"
           data-state={chartMode === "trades" ? "active" : "inactive"}
         >
@@ -66,29 +56,29 @@ export function BacktestToolbar({
 
       <Box className="flex-1 min-w-0 flex items-center gap-1.5 px-2">
         <Text size="xs" c="dimmed" style={{ "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }}>
-          {strategyLabel || "No strategy"}
+          {props.strategyLabel || "No strategy"}
         </Text>
         <Text size="xs" c="dimmed" style={{ "white-space": "nowrap" }}>
-          {symbolCount} symbol{symbolCount === 1 ? "" : "s"} · {days}d
+          {props.symbolCount} symbol{props.symbolCount === 1 ? "" : "s"} · {props.days}d
         </Text>
       </Box>
 
       <Button
         size="sm"
         variant="filled"
-        onClick={onRun}
-        disabled={!canRun || isRunning}
-        loading={isRunning}
-        leftSection={isRunning ? undefined : <IconPlayerPlay size={12} />}
+        onClick={props.onRun}
+        disabled={!props.canRun || props.isRunning}
+        loading={props.isRunning}
+        leftSection={props.isRunning ? undefined : <IconPlayerPlay size={12} />}
         data-testid="toolbar-run-btn"
       >
-        {isRunning ? null : "Run"}
+        {props.isRunning ? null : "Run"}
       </Button>
       <Button
         size="sm"
         variant="subtle"
         color="secondary"
-        onClick={onReset}
+        onClick={props.onReset}
         leftSection={<IconLayoutGrid size={12} />}
         data-testid="toolbar-reset-layout"
       >

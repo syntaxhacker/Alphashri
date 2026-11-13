@@ -1,4 +1,5 @@
 // BacktestProgress — stock loading UI shown while a backtest run is in flight.
+import { createMemo } from "solid-js";
 import { Loader, Progress, Text, Stack } from "@/ui";
 interface BacktestProgressProps {
   progress: {
@@ -12,8 +13,8 @@ export function calcProgressPercent(current: number, total: number): number {
   return total > 0 ? (current / total) * 100 : 0;
 }
 
-export function BacktestProgress({ progress }: BacktestProgressProps) {
-  const percent = calcProgressPercent(progress.current, progress.total);
+export function BacktestProgress(props: BacktestProgressProps) {
+  const percent = createMemo(() => calcProgressPercent(props.progress.current, props.progress.total));
 
   return (
     <Stack
@@ -27,18 +28,18 @@ export function BacktestProgress({ progress }: BacktestProgressProps) {
         <Text size="xs" fw={600}>Running...</Text>
         <div className="flex-1" />
         <Text size="xs" c="dimmed" data-testid="progress-counter" style={{ "font-variant-numeric": "tabular-nums" }}>
-          {progress.current}/{progress.total}
+          {props.progress.current}/{props.progress.total}
         </Text>
       </Stack>
       <Progress
         variant="determinate"
-        value={Math.max(0, Math.min(100, percent))}
+        value={Math.max(0, Math.min(100, percent()))}
         data-testid="progress-fill"
         size="md"
         style={{ height: "6px", "border-radius": "3px" }}
       />
       <Text size="xs" c="dimmed" ta="center" data-testid="progress-message">
-        {progress.message}
+        {props.progress.message}
       </Text>
     </Stack>
   );
