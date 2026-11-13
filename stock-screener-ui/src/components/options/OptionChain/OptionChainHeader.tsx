@@ -12,7 +12,7 @@ export function OptionChainHeader(props: {
     <Box
       id="chain-header-controls"
       data-testid="options-chain-header-controls"
-      className="flex items-center flex-wrap"
+      className="flex items-center flex-wrap px-2 py-1 min-h-[34px]"
       align-items="center"
       gap={1}
     >
