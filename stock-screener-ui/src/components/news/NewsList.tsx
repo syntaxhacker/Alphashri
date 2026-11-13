@@ -79,7 +79,7 @@ export function NewsList(props: NewsListProps) {
                     "padding-top": "2px",
                     "padding-bottom": "2px",
                     "border-radius": "8px",
-                    "background-color": "#121212",
+                    "background-color": palette.SURFACE_ALT,
                   }}
                 >
                   <IconBolt size={12} aria-hidden="true" />

@@ -1,5 +1,6 @@
 import { For, Show, createEffect, createMemo, onCleanup, onMount } from "solid-js";
 import { Alert, Badge, Box, Stack, Text, ToolbarRow } from "@/ui";
+import { BG_COLOR, BROWN } from "@/ui/palette";
 import { IconAlertCircle } from "../common/Icons";
 import {
   fetchSessions,
@@ -33,9 +34,9 @@ const paneSx = {
   overflow: "hidden",
   display: "flex",
   flexDirection: "column",
-  border: "1px solid #30363D",
+  border: `1px solid ${BROWN}`,
   borderRadius: 8,
-  backgroundColor: "#000000",
+  backgroundColor: BG_COLOR,
 } as const;
 
 const paneHeaderSx = {
@@ -44,7 +45,7 @@ const paneHeaderSx = {
   gap: 0.5,
   paddingLeft: 8,
   minHeight: 28,
-  borderBottom: "1px solid #30363D",
+  borderBottom: `1px solid ${BROWN}`,
   flex: "0 0 auto",
 } as const;
 
@@ -111,9 +112,9 @@ export function ExperimentsPage() {
           flex: "0 0 auto",
           "max-height": "36vh",
           overflow: "auto",
-          border: "1px solid #30363D",
+          border: `1px solid ${BROWN}`,
           "border-radius": "8px",
-          "background-color": "#000000",
+          "background-color": BG_COLOR,
         }}
         data-testid="experiments-config-scroll"
       >

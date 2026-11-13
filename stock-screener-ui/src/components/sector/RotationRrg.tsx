@@ -1,15 +1,15 @@
 import { For, Show, createMemo } from "solid-js";
 import { Box, Text, Tooltip } from "@/ui";
-import { CREAM, TEXT, TEXT_MUTED } from "@/ui/palette";
+import { BG_COLOR, CREAM, ROTATION_IMPROVING, ROTATION_LAGGING, ROTATION_LEADING, ROTATION_WEAKENING, TEXT, TEXT_MUTED } from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import { formatPercentage } from "@/utils/ui-helpers";
 import type { RotationQuadrant, RotationRow } from "@/types/rotation";
 
 const QUADRANT_COLORS: Record<RotationQuadrant, string> = {
-  leading: "#4C9A8F",
-  improving: "#5B8DEF",
-  weakening: "#C9A227",
-  lagging: "#C05A5A",
+  leading: ROTATION_LEADING,
+  improving: ROTATION_IMPROVING,
+  weakening: ROTATION_WEAKENING,
+  lagging: ROTATION_LAGGING,
 };
 
 const QUADRANT_LABELS: Record<RotationQuadrant, string> = {
@@ -308,7 +308,7 @@ export function RotationRrg(props: RotationRrgProps) {
                           "z-index": selected ? 5 : 2,
                           "background-color": selected
                             ? "background.paper"
-                            : withAlpha("#000000", 0.38),
+                            : withAlpha(BG_COLOR, 0.38),
                         }}
                       >
                         <Text

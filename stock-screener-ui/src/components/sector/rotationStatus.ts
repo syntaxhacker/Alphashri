@@ -3,6 +3,8 @@ import {
   NEGATIVE,
   WARNING,
   INDICATOR_BLUE_A,
+  ROTATION_COOLING,
+  ROTATION_HEATING,
   TEXT_MUTED,
 } from "@/ui/palette";
 import type { RotationStatus } from "@/types/rotation";
@@ -27,8 +29,8 @@ export const ROTATION_STATUS_TONE: Record<RotationStatus, "positive" | "warning"
 
 export const ROTATION_STATUS_COLORS_BOARD: Record<RotationStatus, string> = {
   booming: "var(--color-fin-positive)",
-  heating: "#F0883E",
-  cooling: "#5B8DEF",
+  heating: ROTATION_HEATING,
+  cooling: ROTATION_COOLING,
   dumping: "var(--color-fin-negative)",
   neutral: TEXT_MUTED,
 };

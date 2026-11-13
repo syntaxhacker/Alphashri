@@ -12,6 +12,7 @@ import {
   SECTOR_STRONG_RED,
   CREAM,
   BLACK,
+  TEXT_ON_ACCENT,
 } from "../../config/colors";
 import { withAlpha } from "../../utils/color";
 import { buildTreemapData } from "./sectorUtils";
@@ -64,7 +65,7 @@ function TreemapTile(props: {
         "grid-row": props.span.row,
         "min-height": `${props.span.minHeight}px`,
         background: sector().itemStyle.color,
-        color: "#ffffff",
+        color: TEXT_ON_ACCENT,
         padding: index() === 0 ? "16px" : "12px",
         display: "flex",
         "flex-direction": "column",
@@ -98,7 +99,7 @@ function TreemapTile(props: {
             color="secondary"
             style={{
               "background-color": withAlpha(BLACK, 0.28),
-              color: "#ffffff",
+              color: TEXT_ON_ACCENT,
             }}
           >
             #{index() + 1}

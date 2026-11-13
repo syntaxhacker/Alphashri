@@ -172,6 +172,17 @@ export const SECTOR_RED = "#9E4640";
 export const SECTOR_LIGHT_RED = "#5E3B39";
 export const SECTOR_NEUTRAL = "#242A31";
 
+// Sector rotation (RRG quadrants + rotation status) — muted, never neon.
+export const ROTATION_LEADING = "#4C9A8F";
+export const ROTATION_IMPROVING = "#5B8DEF";
+export const ROTATION_WEAKENING = "#C9A227";
+export const ROTATION_LAGGING = "#C05A5A";
+export const ROTATION_HEATING = "#F0883E";
+export const ROTATION_COOLING = "#5B8DEF";
+
+/** Text/icon on a saturated tile or badge fill. */
+export const TEXT_ON_ACCENT = "#FFFFFF";
+
 // Tinted row backgrounds
 export const TINT_POSITIVE = "rgba(0, 200, 83, 0.12)";
 export const TINT_NEGATIVE = "rgba(255, 59, 48, 0.12)";
@@ -204,6 +215,22 @@ export const TAPE_POS_HUE = "#1F7FFF";
 export const TAPE_FLIP_POS_TEXT = "#B3D1FF";
 export const TAPE_NEG_HUE = "#DB6D28";
 export const TAPE_FLIP_NEG_TEXT = "#FFC680";
+
+// ----- Replay / tick terminals ---------------------------------------------
+// Shared status-chip surfaces for the replay review panels, plus the lightweight-charts
+// series hues (VWAP line, EOD marker, generic series grey) and the SMC trade-stack
+// hues. One-offs with no global-app equivalent, so they live here as the single source.
+export const REPLAY_CHIP_BG = "#1F2937";
+export const REPLAY_CHIP_BG_ERROR = "#3B1D1D";
+export const REPLAY_CHIP_TEXT_ERROR = "#F87171";
+export const REPLAY_CHART_TEXT = "#E5E7EB";
+export const REPLAY_CHART_MUTED = "#9CA3AF";
+export const REPLAY_BG = "#111111";
+export const SERIES_VWAP = "#F0B90B";
+export const SERIES_STACK_DEFAULT = "#6B7280";
+export const STACK_MOMENTUM = "#2563EB";
+export const STACK_REVERSION = "#A855F7";
+export const STACK_REVERSION_TEXT = "#CE9BFC";
 
 // ----- Legacy light/dark aliases (app is DARK theme) -----
 export const TOOLTIP_DARK_BG = TOOLTIP_BG;
@@ -259,3 +286,27 @@ export const BROWN_DARK = "#0D1117";
 export const CREAM = "#F0F6FC";
 export const TRADING_GREEN = POSITIVE_COLOR;
 export const TRADING_RED = NEGATIVE_COLOR;
+
+// ----- TradingView lightweight-charts one-offs -----------------------------
+// Bright label hues for the trade markers and RSI guides: deliberately more
+// vivid than the candle bodies so labels stay legible at a glance.
+const TV_HUE_RED = "#FF5252";
+const TV_HUE_GREEN = "#00E676";
+export const TV_ENTRY_BUY = "#38BDF8";
+export const TV_ENTRY_SELL = "#FF9F43";
+export const TV_EXIT_TP = TV_HUE_GREEN;
+export const TV_EXIT_SL = TV_HUE_RED;
+export const TV_EXIT_OTHER = "#FFD166";
+export const TV_SERIES_TEXT = "#E5E7EB";
+export const RSI_OVERBOUGHT = TV_HUE_RED;
+export const RSI_OVERSOLD = TV_HUE_GREEN;
+
+// ----- Nifty OI heatmap cells ----------------------------------------------
+export const HEATMAP_CE = "#DC2626";
+export const HEATMAP_PE = "#16A34A";
+export const HEATMAP_SPOT = TEXT_ON_ACCENT;
+export const HEATMAP_MP = "#F59E0B";
+export const HEATMAP_FLIP = "#38BDF8";
+
+// ----- Option payoff chart tooltip -----------------------------------------
+export const OPTION_PAYOFF_TOOLTIP_TEXT = "#E6EDF3";

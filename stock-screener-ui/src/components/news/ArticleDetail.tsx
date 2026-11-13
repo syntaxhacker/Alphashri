@@ -70,7 +70,7 @@ export function ArticleDetail(props: ArticleDetailProps) {
                     "place-items": "center",
                     "border-radius": "8px",
                     color: palette.TEXT_MUTED,
-                    "background-color": "#121212",
+                    "background-color": palette.SURFACE_ALT,
                   }}
                 >
                   <IconNews size={26} stroke={1.4} />
@@ -184,7 +184,7 @@ export function ArticleDetail(props: ArticleDetailProps) {
                             padding: "12px",
                             "border-radius": "8px",
                             "border-left": `3px solid ${palette.PRIMARY}`,
-                            "background-color": "#121212",
+                            "background-color": palette.SURFACE_ALT,
                           }}
                         >
                           <Box className="flex items-center gap-3 mb-3" style={{ display: "flex", "align-items": "center", gap: "12px", "margin-bottom": "12px" }}>
