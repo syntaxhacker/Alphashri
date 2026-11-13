@@ -367,13 +367,6 @@ export function extendAutoscaleWithLevels<T extends AutoscaleRange>(
   return { ...info, priceRange: { minValue: lo, maxValue: hi } };
 }
 
-// Distinct, high-contrast entry/exit label colors (different from candle bodies).
-const ENTRY_BUY_COLOR = "#38BDF8";
-const ENTRY_SELL_COLOR = "#FF9F43";
-const EXIT_TP_COLOR = "#00E676";
-const EXIT_SL_COLOR = "#FF5252";
-const EXIT_OTHER_COLOR = "#FFD166";
-
 // Muted volume tints — deliberately lower-contrast than the candles so volume
 // never competes with price action.
 const NT_VOL_UP = "rgba(148, 163, 184, 0.40)";
@@ -422,7 +415,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
     const c = {
       bg: nt ? palette.NT_BG : palette.BG,
       grid: nt ? palette.NT_GRID : palette.BORDER,
-      text: nt ? "#E5E7EB" : palette.TEXT,
+      text: nt ? palette.TV_SERIES_TEXT : palette.TEXT,
       bull: nt ? palette.NT_CANDLE_BULL : palette.MARKER_BORDER,
       bear: nt ? palette.NT_CANDLE_BEAR : palette.SCALE_BLUE[6],
       volMuted: withAlpha(palette.TEXT_MUTED, 0.3),
@@ -450,7 +443,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
 
     const createdCandle = chartType() === "line"
       ? created.addSeries(LineSeries, {
-          color: nt ? "#E5E7EB" : palette.PRIMARY,
+          color: nt ? palette.TV_SERIES_TEXT : palette.PRIMARY,
           lineWidth: 2 as LineWidth,
           priceLineVisible: false,
           lastValueVisible: true,
@@ -544,7 +537,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
     const series = currentChart.addSeries(
       LineSeries,
       {
-        color: nt ? "#E5E7EB" : palette.PRIMARY,
+        color: nt ? palette.TV_SERIES_TEXT : palette.PRIMARY,
         lineWidth: 1 as LineWidth,
         priceLineVisible: false,
         lastValueVisible: true,
@@ -573,8 +566,8 @@ export function TradingViewChart(props: TradingViewChartProps) {
         }),
       );
     };
-    addGuide(70, nt ? "#FF5252" : palette.NEGATIVE);
-    addGuide(30, nt ? "#00E676" : palette.POSITIVE);
+    addGuide(70, nt ? palette.RSI_OVERBOUGHT : palette.NEGATIVE);
+    addGuide(30, nt ? palette.RSI_OVERSOLD : palette.POSITIVE);
 
     const panes = currentChart.panes();
     if (panes.length > 1) {
@@ -845,7 +838,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
         return {
           time: toEpochSeconds(t.entry_time),
           position: isBuy ? ("belowBar" as const) : ("aboveBar" as const),
-          color: isBuy ? ENTRY_BUY_COLOR : ENTRY_SELL_COLOR,
+          color: isBuy ? palette.TV_ENTRY_BUY : palette.TV_ENTRY_SELL,
           shape: isBuy ? ("arrowUp" as const) : ("arrowDown" as const),
           text: entryLabels() ? "" : (isHighlighted ? `★ ${t.side} ${t.entry_price}` : `${t.side}`),
           size: isHighlighted ? 2 : 1,
@@ -859,7 +852,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
         return {
           time: toEpochSeconds(t.exit_time!),
           position: (isBuy ? "aboveBar" : "belowBar") as "aboveBar" | "belowBar",
-          color: t.exit_reason === "TP" ? EXIT_TP_COLOR : t.exit_reason === "SL" ? EXIT_SL_COLOR : EXIT_OTHER_COLOR,
+          color: t.exit_reason === "TP" ? palette.TV_EXIT_TP : t.exit_reason === "SL" ? palette.TV_EXIT_SL : palette.TV_EXIT_OTHER,
           shape: "circle" as const,
           text: entryLabels() ? "" : (isHighlighted ? `✕ ${t.exit_reason} ${t.exit_price}` : `${t.exit_reason}`),
         };
@@ -952,7 +945,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
         ctx.font = "700 10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
         ctx.textBaseline = "middle";
         ctx.textAlign = "left";
-        ctx.fillStyle = area.borderColor || "#E5E7EB";
+        ctx.fillStyle = area.borderColor || palette.TV_SERIES_TEXT;
         ctx.fillText(area.label, 6, Math.max(8, top + Math.min(14, (bottom - top) / 2)));
       }
     }
@@ -1070,12 +1063,12 @@ export function TradingViewChart(props: TradingViewChartProps) {
 
       if (t.entry_time) {
         const c = coordFor(t.entry_time, isBuy, t.entry_price, false);
-        if (c) drawPill(c.x, c.y, isBuy ? "BUY" : "SELL", isBuy ? ENTRY_BUY_COLOR : ENTRY_SELL_COLOR, !isBuy);
+        if (c) drawPill(c.x, c.y, isBuy ? "BUY" : "SELL", isBuy ? palette.TV_ENTRY_BUY : palette.TV_ENTRY_SELL, !isBuy);
       }
 
       if (t.exit_time) {
         const reason = (t.exit_reason || "EXIT").toUpperCase();
-        const color = reason.startsWith("TP") ? EXIT_TP_COLOR : reason.startsWith("SL") ? EXIT_SL_COLOR : EXIT_OTHER_COLOR;
+        const color = reason.startsWith("TP") ? palette.TV_EXIT_TP : reason.startsWith("SL") ? palette.TV_EXIT_SL : palette.TV_EXIT_OTHER;
         const c = coordFor(t.exit_time, isBuy, t.exit_price ?? t.entry_price, true);
         if (c) drawPill(c.x, c.y, reason, color, isBuy);
       }

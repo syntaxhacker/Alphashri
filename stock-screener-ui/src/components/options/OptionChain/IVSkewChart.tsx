@@ -47,7 +47,7 @@ export function IVSkewChart(props: IVSkewChartProps) {
         },
         backgroundColor: isDark() ? palette.CHART_DROPDOWN : palette.SURFACE,
         textStyle: {
-          color: isDark() ? palette.TEXT : "#0D1117",
+          color: isDark() ? palette.TEXT : palette.TOOLTIP_LIGHT_TEXT,
           fontSize: 12,
         },
       },

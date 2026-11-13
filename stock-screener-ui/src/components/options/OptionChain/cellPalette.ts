@@ -16,6 +16,7 @@ import {
   SCALE_DARK,
   SCALE_PINK,
   TEXT_MUTED,
+  TEXT_ON_ACCENT,
 } from "../../../config/colors";
 
 function parseHex(hex: string) {
@@ -164,7 +165,10 @@ export function getCellPalette(
   const altAlpha = 0.04 + secondaryScale * 0.18;
   const shadowAlpha = 0.08 + baseIntensity * 0.16;
 
-  const white = (theme as any)?.white ?? (theme as any)?.palette?.common?.white ?? "#FFFFFF";
+  const white =
+    (theme as any)?.white ??
+    (theme as any)?.palette?.common?.white ??
+    TEXT_ON_ACCENT;
   return {
     background: `linear-gradient(135deg, ${hexToRgba(base ?? TEXT_MUTED, baseAlpha)} 0%, ${hexToRgba(alt ?? TEXT_MUTED, altAlpha)} 100%)`,
     shadow: `inset 0 1px 0 ${hexToRgba(white, 0.06)}, 0 0 0 1px ${hexToRgba(glow ?? TEXT_MUTED, shadowAlpha)}`,

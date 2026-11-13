@@ -1,6 +1,6 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { Text } from "@/ui";
-import { MONO, TERM_BORDER, TERM_HEADER, TEXT_MUTED, WARNING } from "@/ui/palette";
+import { HEATMAP_CE, HEATMAP_FLIP, HEATMAP_MP, HEATMAP_PE, HEATMAP_SPOT, MONO, TERM_BORDER, TERM_HEADER, TEXT_MUTED, WARNING } from "@/ui/palette";
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import {
   HEATMAP_PAD_L,
@@ -14,11 +14,7 @@ import { gexFlipAtSpot } from "./niftyGex";
 import { REPORT_MINUS, formatReportCompact } from "./reportFormat";
 import type { NiftyGex } from "@/types/niftyReport";
 
-export const HEATMAP_CE = "#DC2626";
-export const HEATMAP_PE = "#16A34A";
-export const HEATMAP_SPOT = "#FFFFFF";
-export const HEATMAP_MP = "#F59E0B";
-export const HEATMAP_FLIP = "#38BDF8";
+export { HEATMAP_CE, HEATMAP_FLIP, HEATMAP_MP, HEATMAP_PE, HEATMAP_SPOT };
 
 const VB_W = HEATMAP_VB_W;
 const PAD_L = HEATMAP_PAD_L;

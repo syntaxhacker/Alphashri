@@ -7,6 +7,7 @@ import {
   CHART_AVG_ENTRY,
   CHART_MUTED,
   NEGATIVE,
+  OPTION_PAYOFF_TOOLTIP_TEXT,
   POSITIVE,
   SURFACE,
   SURFACE_ALT,
@@ -70,7 +71,7 @@ export function OptionPayoffChart(props: {
         trigger: "axis",
         backgroundColor: SURFACE_ALT,
         borderColor: CHART_MUTED,
-        textStyle: { color: "#E6EDF3", fontSize: 11 },
+        textStyle: { color: OPTION_PAYOFF_TOOLTIP_TEXT, fontSize: 11 },
         formatter: (params: unknown) => {
           const p = Array.isArray(params) ? params[0] : params;
           const v = (p as { value?: [number, number] } | undefined)?.value;
