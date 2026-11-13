@@ -56,7 +56,7 @@ export function EmptyState(props: EmptyStateProps) {
           "justify-content": "center",
           width: "36px",
           height: "36px",
-          "border-radius": "8px",
+          "border-radius": "2px",
           border: `1px solid ${palette.BORDER}`,
           "background-color": palette.SURFACE_ALT,
           color: palette.TEXT_MUTED,

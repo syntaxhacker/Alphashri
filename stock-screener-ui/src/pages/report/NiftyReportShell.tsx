@@ -16,10 +16,14 @@ function SectionError(props: { name: string; error: unknown }) {
       data-testid="nifty-section-error"
       style={{
         border: "1px solid " + palette.NEGATIVE,
-        "border-radius": "8px",
-        padding: "8px",
-        "font-size": "11px",
-        color: palette.TEXT_MUTED,
+        "border-radius": "2px",
+        padding: "4px 6px",
+        "font-family": palette.MONO,
+        "font-size": "10px",
+        "line-height": "1.4",
+        "letter-spacing": "0.02em",
+        color: palette.TEXT,
+        "white-space": "pre-wrap",
       }}
     >
       {props.name} failed: {props.error instanceof Error ? props.error.message : String(props.error)}

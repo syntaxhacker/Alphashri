@@ -36,11 +36,11 @@ const DESK_TOGGLE_DATA: { value: string; label: string }[] = [
   { value: "research", label: "RESEARCH" },
 ];
 
-const EXPIRY_SELECT_CLASS = "w-[120px] flex-none min-w-0";
-const SYMBOL_SELECT_CLASS = "w-[130px] flex-none min-w-0";
+const EXPIRY_SELECT_CLASS = "w-[104px] min-w-[104px] max-w-[104px] flex-none";
+const SYMBOL_SELECT_CLASS = "w-[116px] min-w-[116px] max-w-[116px] flex-none";
 
 const TOOLBAR_CLASS =
-  "flex flex-wrap items-center gap-1.5 px-2 py-1 min-h-[30px] w-full max-w-full min-w-0 shrink-0 [&>*]:flex-none [&_[data-testid='nifty-updated-at']]:leading-[20px]";
+  "flex items-center gap-1.5 flex-nowrap overflow-x-auto px-2 py-1 min-h-[30px] w-full max-w-full min-w-0 shrink-0 [&>*]:flex-none [&_[data-testid='nifty-updated-at']]:leading-[20px]";
 
 const GENERIC_EXPIRY_NOTE_STYLE: JSX.CSSProperties = {
   "font-size": "9px",
@@ -109,7 +109,7 @@ export function ReportToolbar(_props: { onOpenSymbol?: (s: string) => void }) {
           onChange={(value) => store.selection.handleSymbolChange(value)}
           data={SYMBOL_SELECT_DATA}
           size="xs"
-          w={130}
+          w={116}
           h={22}
           className={SYMBOL_SELECT_CLASS}
         />
@@ -151,7 +151,7 @@ export function ReportToolbar(_props: { onOpenSymbol?: (s: string) => void }) {
           onChange={(value) => store.selection.handleExpiryChange(value)}
           data={store.selection.expiryData()}
           size="xs"
-          w={120}
+          w={104}
           h={22}
           className={EXPIRY_SELECT_CLASS}
         />

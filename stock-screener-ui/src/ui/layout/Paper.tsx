@@ -81,12 +81,13 @@ const PAPER_TAGS: Record<string, (p: any) => JSX.Element> = {
   // through the intrinsic registry (see above).
   const Tag = PAPER_TAGS[(known.component as string) ?? "section"] ?? PAPER_TAGS["section"];
 
+  const merged = { ...styleObj, ...(known.style as Record<string, string | number | undefined> | undefined) };
 
   return (
     <Tag
       id={known.id}
       className={cn("bg-fin-surface", known.className)}
-      style={styleObj}
+      style={merged}
       data-testid={testId}
       onClick={known.onClick}
       {...rest}

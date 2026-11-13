@@ -159,16 +159,19 @@ export function LocalCompactPanel(props: {
   return (
     <div
       data-testid={props.testId}
-      class={`flex flex-col border border-fin-border rounded-[8px] overflow-hidden font-mono${props.class ? ` ${props.class}` : ""}`}
+      class={`flex flex-col border border-fin-border rounded-[2px] overflow-hidden font-mono${props.class ? ` ${props.class}` : ""}`}
       style={props.style}
     >
       <div class="flex items-center justify-between gap-2 px-2 py-1 border-b border-fin-border bg-fin-surface shrink-0">
-        <span class="text-[10px] font-bold uppercase tracking-[0.07em] text-fin-text-secondary">
+        <span class="text-[10px] font-bold uppercase tracking-[0.08em] text-fin-primary">
+          {"· "}
           {props.title}
         </span>
         <Show when={props.action}>{props.action}</Show>
       </div>
-      <div class={props.flush ? "flex flex-col" : "flex flex-col gap-1 p-[6px]"}>{props.children}</div>
+      <div class={`flex flex-col min-h-0 overflow-auto${props.flush ? "" : " gap-1 p-[6px]"}`}>
+        {props.children}
+      </div>
     </div>
   );
 }

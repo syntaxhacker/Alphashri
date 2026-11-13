@@ -42,7 +42,8 @@ export function Tabs(props: UITabsProps) {
 
   const cls = cn(
     "ui-tabs-wrapper",
-    known.orientation === "vertical" ? "flex flex-col" : "flex flex-row",
+    "min-w-0",
+    known.orientation === "vertical" ? "flex flex-row" : "flex flex-col",
     known.className,
   );
 
@@ -82,8 +83,8 @@ export function TabsList(props: UITabsProps) {
 
   const cls = cn(
     "ui-tabs-list",
-    known.orientation === "vertical" ? "flex-col" : "flex flex-row items-center",
-    "gap-1 rounded-fin border border-fin-border bg-fin-surface p-[2px] min-h-[36px]",
+    known.orientation === "vertical" ? "flex flex-col" : "flex flex-row items-center",
+    "gap-1 min-h-[28px] rounded-fin border border-fin-border bg-fin-surface p-[2px]",
     known.className,
   );
 
@@ -119,7 +120,7 @@ export function Tab(props: UITabProps) {
   const { value, onChange } = useTabsContext();
   const active = createMemo(() => value() === known.value);
 
-  const handleClick = (_e: MouseEvent) => {
+  const handleClick = () => {
     if (known.disabled) return;
     onChange?.(known.value);
   };
@@ -127,8 +128,8 @@ export function Tab(props: UITabProps) {
   const cls = createMemo(() =>
     cn(
       "ui-tab",
-      "inline-flex items-center justify-center gap-1.5 rounded-[4px] px-2 py-[4px] min-h-[36px] text-[13px] font-medium transition-colors outline-none focus-visible:ring-1 focus-visible:ring-fin-primary focus-visible:ring-offset-1",
-      active() ? "bg-fin-surface-alt text-fin-primary" : "text-fin-text-muted hover:bg-fin-surface-alt hover:text-fin-text",
+      "inline-flex items-center justify-center gap-1 px-1.5 min-h-[28px] text-[10.5px] font-mono uppercase tracking-[0.07em] leading-none transition-colors outline-none focus-visible:ring-1 focus-visible:ring-fin-primary",
+      active() ? "text-fin-primary border-b-2 border-fin-primary" : "text-fin-text-muted hover:bg-fin-surface-alt hover:text-fin-text",
       known.disabled ? "opacity-50 cursor-default" : "cursor-pointer",
       known.className,
     ),
@@ -147,7 +148,7 @@ export function Tab(props: UITabProps) {
       onClick={handleClick}
       {...(rest as Record<string, unknown>)}
     >
-      <span className="flex items-center gap-1.5">{known.leftSection ?? known.icon}{known.children}{known.rightSection}</span>
+      <span className="flex items-center gap-1">{known.leftSection ?? known.icon}{known.children}{known.rightSection}</span>
     </button>
   );
 }
@@ -156,7 +157,7 @@ export function TabsPanel(props: UITabsPanelProps) {
   const [known, rest] = splitProps(props, ["value", "keepMounted", "children", "className", "style", "id", "data-testid"]);
   const { value } = useTabsContext();
   const isActive = createMemo(() => value() === known.value);
-  const cls = cn("ui-tabs-panel", "py-3 min-w-0 min-h-0", known.className);
+  const cls = cn("ui-tabs-panel", "py-1 min-w-0 min-h-0", known.className);
 
   return (
     <Show when={isActive() || known.keepMounted}>

@@ -5,6 +5,7 @@ import type { TableColumnDef } from "../paper-trading/TanStackTable";
 import type { Trade } from "../../types/backtest";
 import { formatDateTimeHuman, formatDuration, getPnLTextColor } from "../../utils/ui-helpers";
 import { TINT_LOSS_ROW } from "../../config/colors";
+import * as palette from "@/ui/palette";
 import { TanStackTable } from "../paper-trading/TanStackTable";
 import { DEFAULT_TRADE_FILTERS, filterTrades, tradeReason, type TradeFilters } from "./tradeFilters";
 /** Safe net P&L % — guards against zero entry_price/quantity. */
@@ -357,7 +358,7 @@ export function TradeHistoryTable(props: TradeHistoryTableProps) {
           px={1}
           py="3px"
           data-testid="trade-history-header"
-          style={{ flex: "0 0 auto", "border-bottom": "1px solid #30363D" }}
+          style={{ flex: "0 0 auto", "border-bottom": `1px solid ${palette.BORDER_COLOR}` }}
         >
           <Text size="xs" c="dimmed" style={{ "white-space": "nowrap", "font-weight": 600 }}>
             {props.symbol} Trades ({props.trades.length})
@@ -378,7 +379,7 @@ export function TradeHistoryTable(props: TradeHistoryTableProps) {
           px={1}
           py="5px"
           data-testid="trade-history-summary"
-          style={{ flex: "0 0 auto", "border-bottom": "1px solid #30363D" }}
+          style={{ flex: "0 0 auto", "border-bottom": `1px solid ${palette.BORDER_COLOR}` }}
         >
           <Stack direction="row" spacing={0.5} align="baseline">
             <Text size="xs" c="dimmed">P&L</Text>
@@ -401,7 +402,7 @@ export function TradeHistoryTable(props: TradeHistoryTableProps) {
           py="4px"
           data-testid="trade-history-filters"
           className="flex-wrap"
-          style={{ flex: "0 0 auto", "border-bottom": "1px solid #30363D", "row-gap": "4px" }}
+          style={{ flex: "0 0 auto", "border-bottom": `1px solid ${palette.BORDER_COLOR}`, "row-gap": "4px" }}
         >
           <SegmentedControl
             size="xs"

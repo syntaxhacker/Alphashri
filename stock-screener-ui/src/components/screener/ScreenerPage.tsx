@@ -150,7 +150,6 @@ function CompactAlerts(props: {
   return (
     <Show when={lines().length > 0}>
       <Box
-        px={2}
         py={1}
         className="flex-shrink-0"
         data-testid="screener-52w-high-banner"
@@ -262,11 +261,10 @@ export function ScreenerPage(props: ScreenerPageProps) {
   return (
     <Box gap={1} className="w-full min-h-0 flex flex-col">
       <Stack spacing={0} id="screener-main" data-testid="screener-page" gap={1} className="min-h-0 w-full">
-        {/* Unified 48px toolbar — POC Option A promoted to live */}
         <Paper
           radius={2}
           data-testid="screener-controls"
-          className="flex items-center justify-between gap-4 px-3 h-[48px] min-h-[48px] max-h-[48px] flex-shrink-0 overflow-hidden flex-nowrap border border-fin-border"
+          className="flex items-center justify-between gap-3 px-2 h-[34px] min-h-[34px] max-h-[34px] flex-shrink-0 overflow-hidden flex-nowrap border border-fin-border"
         >
           <Box className="flex items-center gap-2 flex-shrink-0">
             <Show when={isDashboard()} fallback={
@@ -417,7 +415,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
           id="screener-content"
           data-testid="screener-content"
           flex={1}
-          className="min-h-0 flex overflow-hidden"
+          className="min-h-0 flex overflow-hidden px-2"
           style={{ display: "flex" }}
         >
           <div
@@ -454,7 +452,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
                 <Show when={hasSideFilters()}>
                   <ScreenerInlineFilters activeScreener={props.activeScreener} embedded />
                 </Show>
-                <Box flex={1} className="min-h-0 overflow-hidden flex flex-col p-1 gap-1">
+                <Box flex={1} className="min-h-0 overflow-hidden flex flex-col py-1 gap-1">
                   <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
                     <ScreenerContent
                       approachingStocks={props.approachingStocks}

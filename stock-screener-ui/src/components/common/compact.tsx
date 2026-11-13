@@ -121,7 +121,7 @@ export function CompactPanel(props: CompactPanelProps) {
     <Paper
       data-compact=""
       className="bg-fin-surface rounded-fin border border-fin-border"
-      style={{ "background-color": palette.SURFACE, "border-radius": "8px", border: `1px solid ${palette.BORDER}`, ...panelStyle() }}
+      style={{ "background-color": palette.SURFACE, "border-radius": "2px", border: `1px solid ${palette.BORDER}`, ...panelStyle() }}
       data-testid={own.testId}
       {...(paperProps as Record<string, unknown>)}
     >
@@ -153,7 +153,20 @@ export function CompactPanel(props: CompactPanelProps) {
               <Show when={own.title}>
                 <Show when={isStringTitle()} fallback={<Box className="flex items-center flex-start">{own.title}</Box>}>
                   <Box className="flex items-center flex-start">
-                    <Title order={4} size="sm" style={{ "line-height": "1.2" }}>{own.title}</Title>
+                    <Title
+                      order={4}
+                      style={{
+                        "font-size": "10px",
+                        "font-family": palette.MONO,
+                        "font-weight": 700,
+                        "letter-spacing": "0.08em",
+                        "text-transform": "uppercase",
+                        "line-height": "1.2",
+                        color: palette.PRIMARY,
+                      }}
+                    >
+                      {own.title}
+                    </Title>
                   </Box>
                 </Show>
               </Show>
@@ -242,7 +255,17 @@ export function CompactStat(props: CompactStatProps) {
           </Text>
         </Box>
         <Box className="flex items-center justify-center w-full">
-          <Text size={valueSize()} fw={700} c={tone()} style={{ "line-height": "1.1", "font-variant-numeric": "tabular-nums", "text-align": "center" }}>
+          <Text
+            size={valueSize()}
+            fw={700}
+            c={tone()}
+            style={{
+              "line-height": "1.1",
+              "font-family": palette.MONO,
+              "font-variant-numeric": "tabular-nums",
+              "text-align": "center",
+            }}
+          >
             {own.value}
           </Text>
         </Box>
