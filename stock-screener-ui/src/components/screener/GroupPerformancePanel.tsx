@@ -89,7 +89,7 @@ export function GroupPerformancePanel(props: GroupPerformancePanelProps) {
           radius={2}
           data-testid="group-performance-panel"
           data-collapsed="false"
-          w={props.width ?? 200}
+          w={props.width ?? 248}
           className="flex-shrink-0 min-h-0 flex flex-col overflow-hidden border border-fin-border"
         >
           <ToolbarRow gap={4} clip data-testid="group-performance-header" wrap={false}>
@@ -108,7 +108,9 @@ export function GroupPerformancePanel(props: GroupPerformancePanelProps) {
               </ActionIcon>
             </Box>
           </ToolbarRow>
-          <Box className="flex flex-wrap gap-8 px-2 pb-2">
+          {/* 7 periods in one dense row: a 32px gap wrapped them onto two lines
+              and cost 56px of rail height for nothing. */}
+          <Box className="grid grid-cols-7 gap-[2px] px-1 pb-1">
             <For each={GROUP_PERFORMANCE_PERIODS}>
               {(p) => (
                 <Button
@@ -116,13 +118,14 @@ export function GroupPerformancePanel(props: GroupPerformancePanelProps) {
                   variant={p === period() ? "filled" : "subtle"}
                   onClick={() => setPeriod(p)}
                   data-testid={`group-performance-period-${p}`}
+                  className="!px-0 !min-w-0 text-[9px]"
                 >
                   {p}
                 </Button>
               )}
             </For>
           </Box>
-          <Box className="flex items-center gap-2 px-2 pb-2">
+          <Box className="flex items-center gap-1 px-1 pb-1">
             <Box className="flex-1 min-w-0">
               <Select
                 value={classify()}
@@ -188,40 +191,39 @@ export function GroupPerformancePanel(props: GroupPerformancePanelProps) {
                         data-testid={`group-performance-row-${sanitizeTestId(g.name)}`}
                         data-group={g.name}
                         onClick={props.onSelectGroup ? () => props.onSelectGroup?.(g.name) : undefined}
-                        className={cn("flex flex-col gap-4 py-[2px] border-b border-fin-border", props.onSelectGroup ? "cursor-pointer" : "cursor-default")}
+                        className={cn("flex items-center gap-1 px-1 h-[18px] border-b border-fin-border/60 leading-none", props.onSelectGroup ? "cursor-pointer hover:bg-fin-surface-alt" : "cursor-default")}
                       >
-                        <Box className="flex items-center gap-2 min-w-0">
-                          <Text size="xs" truncate span className="flex-1 min-w-0" title={g.name}>
-                            {g.name}
-                          </Text>
-                          <Text size="xs" c="dimmed" span className="flex-shrink-0 font-mono tabular-nums">
-                            {g.stock_count}
-                          </Text>
+                        <Text size="xs" truncate span className="flex-1 min-w-0" title={g.name}>
+                          {g.name}
+                        </Text>
+                        <span
+                          className="flex-shrink-0 font-mono text-[9px] tabular-nums text-fin-text-muted w-[22px] text-right"
+                          title={`${g.stock_count} stocks`}
+                        >
+                          {g.stock_count}
+                        </span>
+                        <Box className="flex-shrink-0 w-[46px] h-[5px] rounded-sm overflow-hidden bg-fin-surface-alt">
+                          <Box
+                            data-testid={`group-performance-bar-${sanitizeTestId(g.name)}`}
+                            data-value={g.change}
+                            data-positive={positive ? "true" : "false"}
+                            className="h-full rounded-sm"
+                            style={{
+                              width: `${pct}%`,
+                              "background-color": positive ? "var(--color-fin-positive)" : "var(--color-fin-negative)",
+                            }}
+                          />
                         </Box>
-                        <Box className="flex items-center gap-2">
-                          <Box className="flex-1 min-w-0 h-[6px] rounded-sm overflow-hidden bg-fin-surface-alt">
-                            <Box
-                              data-testid={`group-performance-bar-${sanitizeTestId(g.name)}`}
-                              data-value={g.change}
-                              data-positive={positive ? "true" : "false"}
-                              className="h-full rounded-sm"
-                              style={{
-                                width: `${pct}%`,
-                                "background-color": positive ? "var(--color-fin-positive)" : "var(--color-fin-negative)",
-                              }}
-                            />
-                          </Box>
-                          <Text
-                            size="xs"
-                            c={getPnLTextColor(g.change)}
-                            span
-                            ta="right"
-                            className="w-[56px] flex-shrink-0 font-mono tabular-nums"
-                            data-testid={`group-performance-value-${sanitizeTestId(g.name)}`}
-                          >
-                            {formatPercentage(g.change)}
-                          </Text>
-                        </Box>
+                        <Text
+                          size="xs"
+                          c={getPnLTextColor(g.change)}
+                          span
+                          ta="right"
+                          className="w-[52px] flex-shrink-0 font-mono text-[10px] tabular-nums"
+                          data-testid={`group-performance-value-${sanitizeTestId(g.name)}`}
+                        >
+                          {formatPercentage(g.change)}
+                        </Text>
                       </Box>
                     );
                   }}

@@ -469,7 +469,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
           </div>
           <div
             data-testid="screener-panel"
-            class="min-w-0 min-h-0 flex-col gap-1"
+            class="min-w-0 min-h-0 flex-row gap-1"
             style={{ display: activeTab() === "screener" ? "flex" : "none", flex: 1 }}
           >
             <Show when={isVisited("screener")}>

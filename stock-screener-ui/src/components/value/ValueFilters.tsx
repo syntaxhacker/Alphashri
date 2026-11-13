@@ -48,8 +48,7 @@ export function ValueFilters(props: ValueFiltersProps) {
     <Box data-testid="value-filters">
       <ToolbarRow data-testid="value-toolbar" gap={8}>
         <NumberInput
-          label="Max P/E"
-          placeholder="e.g. 15"
+          placeholder="Max P/E"
           value={filters().max_pe ?? ""}
           onChange={(v: number | string) => props.onChange({ max_pe: toNum(v) })}
           w={110}
@@ -57,8 +56,7 @@ export function ValueFilters(props: ValueFiltersProps) {
           data-testid="value-filter-max-pe"
         />
         <NumberInput
-          label="Max P/S"
-          placeholder="e.g. 2"
+          placeholder="Max P/S"
           value={filters().max_ps ?? ""}
           onChange={(v: number | string) => props.onChange({ max_ps: toNum(v) })}
           w={110}
@@ -66,8 +64,7 @@ export function ValueFilters(props: ValueFiltersProps) {
           data-testid="value-filter-max-ps"
         />
         <NumberInput
-          label="Min ROE%"
-          placeholder="e.g. 12"
+          placeholder="Min ROE%"
           value={filters().min_roe ?? ""}
           onChange={(v: number | string) => props.onChange({ min_roe: toNum(v) })}
           w={110}
@@ -75,8 +72,7 @@ export function ValueFilters(props: ValueFiltersProps) {
           data-testid="value-filter-min-roe"
         />
         <NumberInput
-          label="Min FCF%"
-          placeholder="e.g. 4"
+          placeholder="Min FCF%"
           value={filters().min_fcf_yield ?? ""}
           onChange={(v: number | string) => props.onChange({ min_fcf_yield: toNum(v) })}
           w={110}
@@ -91,8 +87,7 @@ export function ValueFilters(props: ValueFiltersProps) {
           data-testid="value-filter-above-200dma"
         />
         <MultiSelect
-          label="Sectors"
-          placeholder="All sectors"
+          placeholder="Sectors"
           data={sectorOptions()}
           value={filters().sectors ?? []}
           onChange={(vals) => props.onChange({ sectors: vals })}
@@ -101,7 +96,7 @@ export function ValueFilters(props: ValueFiltersProps) {
           data-testid="value-filter-sectors"
         />
         <Select
-          label="Sort"
+          placeholder="Sort"
           data={SORT_OPTIONS}
           value={filters().sort ?? "score"}
           onChange={(v) => props.onChange({ sort: v ?? undefined })}
@@ -110,7 +105,7 @@ export function ValueFilters(props: ValueFiltersProps) {
           data-testid="value-filter-sort"
         />
         <Select
-          label="Limit"
+          placeholder="Limit"
           data={LIMIT_OPTIONS}
           value={String(filters().limit ?? 100)}
           onChange={(v) => props.onChange({ limit: v ? Number(v) : undefined })}
