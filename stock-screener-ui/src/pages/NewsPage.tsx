@@ -77,9 +77,9 @@ function NewsWorkspaceHeader(props: { storyCount: number; sourceCount: number })
       <Box
         className="size-8 grid place-items-center rounded-fin flex-shrink-0"
         style={{
-          width: 32,
-          height: 32,
-          "border-radius": "8px",
+          width: "32px",
+          height: "32px",
+          "border-radius": "2px",
           color: palette.PRIMARY,
           "background-color": palette.alpha(palette.PRIMARY, 0.12),
         }}

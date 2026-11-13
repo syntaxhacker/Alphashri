@@ -202,39 +202,41 @@ describe("ScreenerConfigView", () => {
   describe("preview debounce", () => {
     it("Preview fetches on screener change with debounce", async () => {
       vi.useFakeTimers();
-      mockFetchWithAuth.mockReset();
-      mockFetchWithAuth.mockResolvedValue({
-        ok: true,
-        json: async () => ({ approaching: [], touched: [] }),
-      });
-      const onChange = vi.fn();
-      const { createSignal } = await import("solid-js");
-      const [screener, setScreener] = createSignal("trending");
-      render(() => (
-        <UIProvider>
-          <ScreenerConfigView
-            screenerOptions={defaultProps.screenerOptions}
-            activeScreener={screener()}
-            onScreenerChange={onChange}
-          />
-        </UIProvider>
-      ));
+      try {
+        mockFetchWithAuth.mockReset();
+        mockFetchWithAuth.mockResolvedValue({
+          ok: true,
+          json: async () => ({ approaching: [], touched: [] }),
+        });
+        const onChange = vi.fn();
+        const { createSignal } = await import("solid-js");
+        const [screener, setScreener] = createSignal("trending");
+        render(() => (
+          <UIProvider>
+            <ScreenerConfigView
+              screenerOptions={defaultProps.screenerOptions}
+              activeScreener={screener()}
+              onScreenerChange={onChange}
+            />
+          </UIProvider>
+        ));
 
-      expect(mockFetchWithAuth).not.toHaveBeenCalled();
+        expect(mockFetchWithAuth).not.toHaveBeenCalled();
 
-      await vi.advanceTimersByTimeAsync(500);
-      expect(mockFetchWithAuth).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(500);
+        expect(mockFetchWithAuth).toHaveBeenCalledTimes(1);
 
-      mockFetchWithAuth.mockClear();
+        mockFetchWithAuth.mockClear();
 
-      setScreener("new-highs");
+        setScreener("new-highs");
 
-      expect(mockFetchWithAuth).not.toHaveBeenCalled();
+        expect(mockFetchWithAuth).not.toHaveBeenCalled();
 
-      await vi.advanceTimersByTimeAsync(500);
-      expect(mockFetchWithAuth).toHaveBeenCalledTimes(1);
-
-      vi.useRealTimers();
+        await vi.advanceTimersByTimeAsync(500);
+        expect(mockFetchWithAuth).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

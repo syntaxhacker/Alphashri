@@ -103,7 +103,7 @@ export function HeatmapPage() {
     >
       <ToolbarRow
         gap={8}
-        style={{ padding: "0 16px", "min-height": "48px", height: 48, "border-bottom": "1px solid var(--color-fin-border)", "flex-shrink": 0 }}
+        style={{ padding: "0 16px", "min-height": "48px", height: "48px", "border-bottom": "1px solid var(--color-fin-border)", "flex-shrink": "0" }}
         data-testid="heatmap-toolbar"
       >
         <Text data-testid="heatmap-title" fw={700} size="sm">NSE 500</Text>
@@ -114,6 +114,7 @@ export function HeatmapPage() {
           data-testid="heatmap-sector-filter"
           size="xs"
           w={180}
+          h={22}
           placeholder="Filter by sector"
           clearable
           value={sectorFilter()}
@@ -126,33 +127,40 @@ export function HeatmapPage() {
           data-testid="heatmap-search"
           size="xs"
           w={140}
+          h={22}
           placeholder="Search symbol..."
           value={searchFilter()}
           onChange={(val) => setSearchFilter(val)}
           aria-label="Search symbol"
         />
         <Show when={!isScatterView()}>
+          <Box className="flex shrink-0 items-center gap-1">
+            <Text size="xs" c="dimmed">Metric</Text>
+            <Select
+              data-testid="heatmap-metric"
+              size="xs"
+              w={130}
+              h={22}
+              value={metric()}
+              onChange={(v) => setMetric(v || "market_cap")}
+              data={metricOptions}
+              aria-label="Metric"
+            />
+          </Box>
+        </Show>
+        <Box className="flex shrink-0 items-center gap-1">
+          <Text size="xs" c="dimmed">View</Text>
           <Select
-            data-testid="heatmap-metric"
+            data-testid="heatmap-view"
             size="xs"
             w={130}
-            label="Metric"
-            value={metric()}
-            onChange={(v) => setMetric(v || "market_cap")}
-            data={metricOptions}
-            aria-label="Metric"
+            h={22}
+            value={view()}
+            onChange={(v) => setView(v || "treemap")}
+            data={VIEWS}
+            aria-label="View"
           />
-        </Show>
-        <Select
-          data-testid="heatmap-view"
-          size="xs"
-          w={130}
-          label="View"
-          value={view()}
-          onChange={(v) => setView(v || "treemap")}
-          data={VIEWS}
-          aria-label="View"
-        />
+        </Box>
         <Box className="flex-1" />
         <Text
           data-testid="heatmap-stock-count"
