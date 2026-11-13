@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo } from "solid-js";
+import { For, Show, Suspense, createEffect, createMemo, lazy } from "solid-js";
 import type { JSX } from "solid-js";
 
 import { ActionIcon, Box, Button, Text } from "@/ui";
@@ -8,19 +8,34 @@ import type { NiftyStrike } from "@/types/niftyReport";
 
 import { DeskDock } from "./DeskDock";
 import type { DeskDockTab } from "./DeskDock";
-import {
-  CHART_HEIGHTS,
-  CHART_ROW_CHROME,
-  FILL_MAX_HEIGHT,
-  NiftyChartPanel,
-} from "./NiftyChartPanel";
-import { NiftyDeltaPositioning } from "./NiftyDeltaPositioning";
-import { NiftyGexProfile } from "./NiftyGexProfile";
-import { NiftyIvSkew } from "./NiftyIvSkew";
-import { NiftyOiHeatmap } from "./NiftyOiHeatmap";
 import { useNiftyReport } from "./ReportContext";
 import type { HeatMetric } from "./niftyReportStore";
 import { NiftyOiChain, getNiftyOiColumns } from "./reportCells";
+
+// The chart, greeks, skew and heatmap are the heavy panels of the workspace.
+// Each gets its own lazy boundary so the chain/table chrome paints first and a
+// panel streams in behind a height-matched skeleton.
+const NiftyChartPanel = lazy(() =>
+  import("./NiftyChartPanel").then((m) => ({ default: m.NiftyChartPanel })),
+);
+const NiftyDeltaPositioning = lazy(() =>
+  import("./NiftyDeltaPositioning").then((m) => ({ default: m.NiftyDeltaPositioning })),
+);
+const NiftyGexProfile = lazy(() =>
+  import("./NiftyGexProfile").then((m) => ({ default: m.NiftyGexProfile })),
+);
+const NiftyIvSkew = lazy(() =>
+  import("./NiftyIvSkew").then((m) => ({ default: m.NiftyIvSkew })),
+);
+const NiftyOiHeatmap = lazy(() =>
+  import("./NiftyOiHeatmap").then((m) => ({ default: m.NiftyOiHeatmap })),
+);
+
+// Mirrors NiftyChartPanel's layout presets. Duplicated so the chart panel can
+// stay behind its lazy boundary without pulling its module into this chunk.
+const CHART_HEIGHTS = { s: 180, m: 320, l: 520, xl: 760 } as const;
+const CHART_ROW_CHROME = 48;
+const FILL_MAX_HEIGHT = 300;
 
 const ANALYTICS_CELL_CLASS = "min-w-0 min-h-0 flex flex-col [&>*]:flex-1 [&>*]:min-h-0";
 
@@ -76,6 +91,20 @@ function metricTitle(metric: HeatMetric): string {
 
 function DockSummary(props: { text: () => string }) {
   return <span>{props.text()}</span>;
+}
+
+/** Height-matched placeholder for a streaming workspace panel. */
+function PanelSkeleton(props: { h: number }) {
+  return (
+    <Box
+      class="w-full min-w-0"
+      style={{
+        height: `${props.h}px`,
+        "background-color": palette.SURFACE_ALT,
+        "border-radius": "2px",
+      }}
+    />
+  );
 }
 
 export function ReportWorkspace() {
@@ -168,36 +197,55 @@ export function ReportWorkspace() {
     }
   });
 
-  const deskTabs: DeskDockTab[] = [
-    {
-      key: "flow",
-      label: "DELTA",
-      summary: <DockSummary text={() => store.data.report()?.positioning?.verdict ?? "—"} />,
-      content: (
-        <NiftyDeltaPositioning
-          positioning={store.data.report()?.positioning}
-          spot={store.data.report()?.spot}
-        />
-      ),
-    },
-    {
-      key: "setup",
-      label: "GEX",
-      summary: <DockSummary text={() => gexForDisplay()?.regime ?? "—"} />,
-      content: <NiftyGexProfile gex={gexForDisplay()} spot={store.data.report()?.spot ?? 0} />,
-    },
-    {
-      key: "market",
-      label: "IV",
-      summary: <DockSummary text={() => `${store.data.visibleStrikes().length} strikes`} />,
-      content: (
-        <NiftyIvSkew
-          strikes={store.data.report()?.strikes}
-          spot={store.data.report()?.spot}
-        />
-      ),
-    },
-  ];
+  // Only the active desk drawer builds its panel; the tab content getters are
+  // read by DeskDock when (and only when) that drawer opens.
+  const deskTabs = createMemo<DeskDockTab[]>(() => {
+    if (!isDesk()) return [];
+    return [
+      {
+        key: "flow",
+        label: "DELTA",
+        summary: <DockSummary text={() => store.data.report()?.positioning?.verdict ?? "—"} />,
+        get content() {
+          return (
+            <Suspense fallback={<PanelSkeleton h={180} />}>
+              <NiftyDeltaPositioning
+                positioning={store.data.report()?.positioning}
+                spot={store.data.report()?.spot}
+              />
+            </Suspense>
+          );
+        },
+      },
+      {
+        key: "setup",
+        label: "GEX",
+        summary: <DockSummary text={() => gexForDisplay()?.regime ?? "—"} />,
+        get content() {
+          return (
+            <Suspense fallback={<PanelSkeleton h={180} />}>
+              <NiftyGexProfile gex={gexForDisplay()} spot={store.data.report()?.spot ?? 0} />
+            </Suspense>
+          );
+        },
+      },
+      {
+        key: "market",
+        label: "IV",
+        summary: <DockSummary text={() => `${store.data.visibleStrikes().length} strikes`} />,
+        get content() {
+          return (
+            <Suspense fallback={<PanelSkeleton h={180} />}>
+              <NiftyIvSkew
+                strikes={store.data.report()?.strikes}
+                spot={store.data.report()?.spot}
+              />
+            </Suspense>
+          );
+        },
+      },
+    ];
+  });
 
   return (
     <>
@@ -211,23 +259,25 @@ export function ReportWorkspace() {
       >
         <Show when={store.data.report()}>
           {(current) => (
-            <NiftyChartPanel
-              report={current()}
-              bursts={store.data.effectiveBursts()}
-              tape={store.data.tape()}
-              spotPoints={store.data.oiPoints()}
-              flipAt={store.data.flipAt()}
-              maxWalls={maxWalls()}
-              mode={store.selection.mode()}
-              view={store.ui.view()}
-              symbol={store.selection.symbol()}
-              asOf={store.selection.mode() === "eod" ? store.replay.frameT() ?? undefined : undefined}
-              timeframe={store.ui.chartTf()}
-              onTimeframeChange={(tf) => store.ui.handleChartTf(tf)}
-              onSizeChange={(size) => store.ui.handleChartSize(size)}
-              onExpand={() => store.ui.openChartFull()}
-              fillContainer={isDesk() && chartSize() === "fill"}
-            />
+            <Suspense fallback={<PanelSkeleton h={chartRowHeight()} />}>
+              <NiftyChartPanel
+                report={current()}
+                bursts={store.data.effectiveBursts()}
+                tape={store.data.tape()}
+                spotPoints={store.data.oiPoints()}
+                flipAt={store.data.flipAt()}
+                maxWalls={maxWalls()}
+                mode={store.selection.mode()}
+                view={store.ui.view()}
+                symbol={store.selection.symbol()}
+                asOf={store.selection.mode() === "eod" ? store.replay.frameT() ?? undefined : undefined}
+                timeframe={store.ui.chartTf()}
+                onTimeframeChange={(tf) => store.ui.handleChartTf(tf)}
+                onSizeChange={(size) => store.ui.handleChartSize(size)}
+                onExpand={() => store.ui.openChartFull()}
+                fillContainer={isDesk() && chartSize() === "fill"}
+              />
+            </Suspense>
           )}
         </Show>
 
@@ -306,15 +356,17 @@ export function ReportWorkspace() {
                 <Text className="ml-auto mr-5 text-[7.5px] text-fin-text-muted">OI change</Text>
               </Box>
               <Box data-testid="nifty-heatmap-wrap" className="flex-1 min-h-0 min-w-0 flex">
-                <NiftyOiHeatmap
-                  rows={store.data.tapeRows()}
-                  bucketMin={1}
-                  widthPts={store.data.metrics()?.heatmapWidthPts ?? 250}
-                  viewBoxHeight={240}
-                  metric={heatMetric()}
-                  startTime={store.data.intradayStart()}
-                  flipAt={store.data.flipAt()}
-                />
+                <Suspense fallback={<PanelSkeleton h={220} />}>
+                  <NiftyOiHeatmap
+                    rows={store.data.tapeRows()}
+                    bucketMin={1}
+                    widthPts={store.data.metrics()?.heatmapWidthPts ?? 250}
+                    viewBoxHeight={240}
+                    metric={heatMetric()}
+                    startTime={store.data.intradayStart()}
+                    flipAt={store.data.flipAt()}
+                  />
+                </Suspense>
               </Box>
               <Button
                 data-testid="nifty-heatmap-expand"
@@ -335,7 +387,7 @@ export function ReportWorkspace() {
 
       <Show when={isDesk()}>
         <DeskDock
-          tabs={deskTabs}
+          tabs={deskTabs()}
           active={store.ui.deskDockTab()}
           onActiveChange={(key) => store.ui.setDeskDockTab(key)}
         />
@@ -350,10 +402,14 @@ export function ReportWorkspace() {
                 className="grid grid-cols-1 min-[1200px]:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-stretch gap-0 w-full max-w-full min-w-0 shrink-0"
               >
                 <Box className={ANALYTICS_FILL_CELL_CLASS}>
-                  <NiftyDeltaPositioning positioning={current().positioning} spot={current().spot} />
+                  <Suspense fallback={<PanelSkeleton h={160} />}>
+                    <NiftyDeltaPositioning positioning={current().positioning} spot={current().spot} />
+                  </Suspense>
                 </Box>
                 <Box className={`${ANALYTICS_CELL_CLASS} relative`}>
-                  <NiftyGexProfile gex={gexForDisplay()} spot={current().spot} />
+                  <Suspense fallback={<PanelSkeleton h={160} />}>
+                    <NiftyGexProfile gex={gexForDisplay()} spot={current().spot} />
+                  </Suspense>
                   <ActionIcon
                     data-testid="nifty-gex-expand"
                     aria-label="Expand GEX profile"
@@ -375,7 +431,9 @@ export function ReportWorkspace() {
                 className="grid grid-cols-1 min-[1200px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-0 items-stretch w-full max-w-full min-w-0 shrink-0"
               >
                 <Box className="min-w-0 min-h-0 relative">
-                  <NiftyIvSkew strikes={current().strikes} spot={current().spot} />
+                  <Suspense fallback={<PanelSkeleton h={160} />}>
+                    <NiftyIvSkew strikes={current().strikes} spot={current().spot} />
+                  </Suspense>
                   <ActionIcon
                     data-testid="nifty-ivskew-expand"
                     aria-label="Expand IV skew"

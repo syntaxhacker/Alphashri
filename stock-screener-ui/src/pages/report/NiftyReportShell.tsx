@@ -1,14 +1,28 @@
-import { ErrorBoundary, Show } from "solid-js";
+import { ErrorBoundary, Show, Suspense, lazy } from "solid-js";
 import { Box } from "@/ui";
 import * as palette from "@/ui/palette";
 import { EmptyState, ErrorAlert, InlineLoader } from "@/components/common/states";
 import { ReportProvider, useNiftyReport } from "./ReportContext";
 import { ReportToolbar } from "./ReportToolbar";
-import { ReportDecisionStrip } from "./ReportDecisionStrip";
-import { ReportStrips } from "./ReportStrips";
-import { ReportWorkspace } from "./ReportWorkspace";
-import { ReportAnalytics } from "./ReportAnalytics";
-import { ReportOverlays } from "./ReportOverlays";
+
+// Each report section owns its own lazy boundary: the shell chrome (toolbar,
+// date controls) paints from this small chunk while the heavy panels stream in
+// behind height-matched skeletons.
+const ReportDecisionStrip = lazy(() =>
+  import("./ReportDecisionStrip").then((m) => ({ default: m.ReportDecisionStrip })),
+);
+const ReportStrips = lazy(() =>
+  import("./ReportStrips").then((m) => ({ default: m.ReportStrips })),
+);
+const ReportWorkspace = lazy(() =>
+  import("./ReportWorkspace").then((m) => ({ default: m.ReportWorkspace })),
+);
+const ReportAnalytics = lazy(() =>
+  import("./ReportAnalytics").then((m) => ({ default: m.ReportAnalytics })),
+);
+const ReportOverlays = lazy(() =>
+  import("./ReportOverlays").then((m) => ({ default: m.ReportOverlays })),
+);
 
 function SectionError(props: { name: string; error: unknown }) {
   return (
@@ -28,6 +42,20 @@ function SectionError(props: { name: string; error: unknown }) {
     >
       {props.name} failed: {props.error instanceof Error ? props.error.message : String(props.error)}
     </Box>
+  );
+}
+
+/** Height-matched placeholder for a streaming section. */
+function PanelSkeleton(props: { h: number }) {
+  return (
+    <Box
+      class="w-full min-w-0 shrink-0"
+      style={{
+        height: `${props.h}px`,
+        "background-color": palette.SURFACE_ALT,
+        "border-radius": "2px",
+      }}
+    />
   );
 }
 
@@ -87,21 +115,33 @@ function ReportBody() {
           }}
         >
           <ErrorBoundary fallback={(err) => <SectionError name="decision strip" error={err} />}>
-            <ReportDecisionStrip />
+            <Suspense fallback={<PanelSkeleton h={48} />}>
+              <ReportDecisionStrip />
+            </Suspense>
           </ErrorBoundary>
           <ErrorBoundary fallback={(err) => <SectionError name="desk strips" error={err} />}>
-            <ReportStrips />
+            <Suspense fallback={<PanelSkeleton h={150} />}>
+              <ReportStrips />
+            </Suspense>
           </ErrorBoundary>
           <ErrorBoundary fallback={(err) => <SectionError name="workspace" error={err} />}>
-            <ReportWorkspace />
+            <Suspense fallback={<PanelSkeleton h={320} />}>
+              <ReportWorkspace />
+            </Suspense>
           </ErrorBoundary>
           <ErrorBoundary fallback={(err) => <SectionError name="analytics" error={err} />}>
-            <ReportAnalytics />
+            <Suspense fallback={<PanelSkeleton h={200} />}>
+              <ReportAnalytics />
+            </Suspense>
           </ErrorBoundary>
         </Box>
       </Show>
 
-      <ReportOverlays />
+      <ErrorBoundary fallback={(err) => <SectionError name="overlays" error={err} />}>
+        <Suspense fallback={null}>
+          <ReportOverlays />
+        </Suspense>
+      </ErrorBoundary>
     </Box>
   );
 }

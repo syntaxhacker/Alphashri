@@ -1,4 +1,4 @@
-import { Show } from "solid-js";
+import { Show, Suspense, lazy } from "solid-js";
 import type { JSX } from "solid-js";
 import { Box, Button, SegmentedControl, Select, Text, TextInput } from "@/ui";
 import * as palette from "@/ui/palette";
@@ -9,7 +9,19 @@ import { NiftyPositionsDrawer } from "./NiftyPositionsDrawer";
 import { NiftyReplayBar } from "./NiftyReplayBar";
 import { NiftyUpdatedLabel } from "./NiftyUpdatedLabel";
 import { useNiftyReport } from "./ReportContext";
-import { SimDesk } from "./sim/SimDesk";
+
+// The SIM desk owns the largest non-chart bundle (builder, payoff, runs). It
+// streams in on its own so the toolbar chrome paints without it.
+const SimDesk = lazy(() =>
+  import("./sim/SimDesk").then((m) => ({ default: m.SimDesk })),
+);
+
+const SIM_BUTTON_FALLBACK_STYLE: JSX.CSSProperties = {
+  width: "64px",
+  height: "22px",
+  "background-color": palette.SURFACE_ALT,
+  "border-radius": "2px",
+};
 
 type ReportSymbol = "NIFTY" | "SENSEX" | "RELIANCE";
 
@@ -176,14 +188,16 @@ export function ReportToolbar(_props: { onOpenSymbol?: (s: string) => void }) {
           </span>
         </Show>
         <Box className="flex-1 min-w-[8px]" />
-        <SimDesk
-          symbol={symbol()}
-          mode={mode()}
-          date={date()}
-          report={report()}
-          replay={replay()}
-          replayIndex={store.replay.index()}
-        />
+        <Suspense fallback={<Box style={SIM_BUTTON_FALLBACK_STYLE} />}>
+          <SimDesk
+            symbol={symbol()}
+            mode={mode()}
+            date={date()}
+            report={report()}
+            replay={replay()}
+            replayIndex={store.replay.index()}
+          />
+        </Suspense>
         <NiftyPositionsDrawer
           positions={store.data.paperPositions()}
           strikes={report()?.strikes}
