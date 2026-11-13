@@ -1,4 +1,4 @@
-import { For } from "solid-js";
+import type { JSX } from "solid-js";
 
 export interface IconProps {
   size?: number | string;
@@ -13,15 +13,70 @@ export interface IconProps {
 const toCamelCase = (name: string) => name.replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase());
 
 /**
+ * Icons are rendered once per card in the pattern grid, so resolve the node
+ * array (including the kebab -> camelCase alias) once per name instead of on
+ * every render, and emit the static children directly — the array never
+ * changes, so a reactive `<For>` would only add a computation per icon.
+ */
+const NODE_LOOKUP = new Map<string, Array<[string, Record<string, string>]>>();
+function iconNode(name: string): Array<[string, Record<string, string>]> {
+  const cached = NODE_LOOKUP.get(name);
+  if (cached) return cached;
+  const node = ICON_NODES[name] ?? ICON_NODES[toCamelCase(name)] ?? [];
+  NODE_LOOKUP.set(name, node);
+  return node;
+}
+
+/**
+ * Most tabler icons are nothing but `<path>` elements, and every card draws two
+ * of them — 17 element insertions per card for what is visually one stroke. A
+ * path's `d` is self-delimiting, so all subpaths concatenate into a single `d`
+ * that paints identically with one tenth of the DOM nodes. Icons that mix
+ * circles/lines/rects keep their individual nodes.
+ */
+interface IconRender {
+  merged: string | null;
+  nodes: Array<[string, Record<string, string>]>;
+}
+
+const RENDER_LOOKUP = new Map<string, IconRender>();
+function iconRender(name: string): IconRender {
+  const cached = RENDER_LOOKUP.get(name);
+  if (cached) return cached;
+  const nodes = iconNode(name);
+  let merged: string | null = nodes.length > 0 ? "" : null;
+  if (merged !== null) {
+    for (const [tag, attrs] of nodes) {
+      if (tag !== "path") {
+        merged = null;
+        break;
+      }
+      merged += attrs.d;
+    }
+  }
+  const render = { merged, nodes };
+  RENDER_LOOKUP.set(name, render);
+  return render;
+}
+
+function iconChild(tag: string, attrs: Record<string, string>): JSX.Element | null {
+  if (tag === "path") return <path d={attrs.d} />;
+  if (tag === "circle") return <circle cx={attrs.cx} cy={attrs.cy} r={attrs.r} />;
+  if (tag === "line") return <line x1={attrs.x1} y1={attrs.y1} x2={attrs.x2} y2={attrs.y2} />;
+  if (tag === "rect") return <rect x={attrs.x} y={attrs.y} width={attrs.width} height={attrs.height} rx={attrs.rx} />;
+  if (tag === "polyline") return <polyline points={attrs.points} />;
+  if (tag === "polygon") return <polygon points={attrs.points} />;
+  if (tag === "ellipse") return <ellipse cx={attrs.cx} cy={attrs.cy} rx={attrs.rx} ry={attrs.ry} />;
+  return null;
+}
+
+/**
  * Inline SVG icons generated from @tabler/icons (outline set, MIT).
  * The Solid build has no React DOM, so @tabler/icons-react cannot mount —
  * these render the same tabler path data as plain SVG.
  */
 export function Icon(props: IconProps & { name: string }) {
-  // ICON_NODES is keyed in camelCase but most aliases below pass a kebab-case
-  // name ("alert-circle"), so try the exact key first (nothing that already
-  // resolved changes behaviour) and fall back to the kebab -> camelCase form.
-  const node = ICON_NODES[props.name] ?? ICON_NODES[toCamelCase(props.name)];
+  const render = iconRender(props.name);
   return (
     <svg
       data-testid={props["data-testid"] ?? `icon-${props.name}`}
@@ -35,18 +90,9 @@ export function Icon(props: IconProps & { name: string }) {
       stroke-linecap="round"
       stroke-linejoin="round"
     >
-      <For each={node ?? []}>
-        {([tag, attrs]: [string, Record<string, string>]) => {
-          if (tag === "path") return <path d={attrs.d} />;
-          if (tag === "circle") return <circle cx={attrs.cx} cy={attrs.cy} r={attrs.r} />;
-          if (tag === "line") return <line x1={attrs.x1} y1={attrs.y1} x2={attrs.x2} y2={attrs.y2} />;
-          if (tag === "rect") return <rect x={attrs.x} y={attrs.y} width={attrs.width} height={attrs.height} rx={attrs.rx} />;
-          if (tag === "polyline") return <polyline points={attrs.points} />;
-          if (tag === "polygon") return <polygon points={attrs.points} />;
-          if (tag === "ellipse") return <ellipse cx={attrs.cx} cy={attrs.cy} rx={attrs.rx} ry={attrs.ry} />;
-          return null;
-        }}
-      </For>
+      {render.merged !== null
+        ? <path d={render.merged} />
+        : render.nodes.map(([tag, attrs]) => iconChild(tag, attrs))}
     </svg>
   );
 }

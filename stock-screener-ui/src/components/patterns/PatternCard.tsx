@@ -1,4 +1,4 @@
-import { createMemo, For, Show } from "solid-js";
+import { createMemo, Show } from "solid-js";
 import { Badge, Box, Card, Text, ToolbarRow, Tooltip } from "@/ui";
 import { IconArrowsMaximize } from "@/patterns/icons";
 import { formatPercentage } from "@/utils/ui-helpers";
@@ -119,8 +119,8 @@ export function PatternCard(props: PatternCardProps) {
   const lastPrice = createMemo(() => hitLastPrice(hit()));
   const changePct = createMemo(() => hitChangePct(hit()));
   const barsLabel = () => `${hit().bars_ago} ${hit().timeframe} candle${hit().bars_ago === 1 ? "" : "s"} ago`;
-  const baseDays = () => hit().base_days ?? 0;
-  const isConsolidation = () => hit().pattern_id === "consolidation" || baseDays() > 0;
+  const baseDays = createMemo(() => hit().base_days ?? 0);
+  const isConsolidation = createMemo(() => hit().pattern_id === "consolidation" || baseDays() > 0);
   const missingCandles = () => (hit().candles ?? []).length === 0;
   const bounds = createMemo(() => (isConsolidation() ? consolidationBounds(hit()) : null));
   const triggerDistance = createMemo(() => {
@@ -136,14 +136,12 @@ export function PatternCard(props: PatternCardProps) {
       lower: bounds()?.lo ?? null,
     }),
   );
-  const qualityKey = () => String(hit().quality ?? "").toLowerCase();
+  const qualityKey = createMemo(() => String(hit().quality ?? "").toLowerCase());
   const qualityInfo = () => QUALITY_INFO[qualityKey() as keyof typeof QUALITY_INFO];
   const quality = () => qualityLabelFor(qualityKey(), "—");
   const canShowMembers = () => Boolean(props.onShowMembers && hasIndexMembers(hit().symbol));
-  const metrics = createMemo(() => [
-    { label: "Score", value: formatScore(hit().confidence) },
-    { label: "Pos", value: formatRangePos(hit().range_pos) },
-  ]);
+  // Colour is read twice (dot + label); resolve it once per derived status.
+  const displayTone = createMemo(() => displayToneColor(display().tone));
 
   return (
     <Card
@@ -209,7 +207,7 @@ export function PatternCard(props: PatternCardProps) {
                 <Box className="flex items-center gap-1">
                   <Box
                     className="h-[5px] w-[5px] shrink-0 rounded-full"
-                    style={{ "background-color": displayToneColor(display().tone) }}
+                    style={{ "background-color": displayTone() }}
                   />
                   <Text
                     data-testid={`patterns-status-${String(hit().status ?? "").toLowerCase()}`}
@@ -220,7 +218,7 @@ export function PatternCard(props: PatternCardProps) {
                       "line-height": 1,
                       "letter-spacing": "0.5px",
                       "text-transform": "uppercase",
-                      color: displayToneColor(display().tone),
+                      color: displayTone(),
                     }}
                   >
                     {display().label}
@@ -400,15 +398,12 @@ export function PatternCard(props: PatternCardProps) {
           className="grid border-t border-fin-border"
           style={{ "grid-template-columns": `repeat(${canShowMembers() ? 5 : 4}, minmax(0, 1fr))` }}
         >
-          <For each={metrics()}>
-            {(metric, index) => (
-              <Box
-                className={`min-w-0 ${index() === 0 ? "" : "border-l border-fin-border"}`}
-              >
-                <Metric label={metric.label} value={metric.value} />
-              </Box>
-            )}
-          </For>
+          <Box className="min-w-0 ">
+            <Metric label="Score" value={formatScore(hit().confidence)} />
+          </Box>
+          <Box className="min-w-0 border-l border-fin-border">
+            <Metric label="Pos" value={formatRangePos(hit().range_pos)} />
+          </Box>
           <Show when={canShowMembers()}>
             <Box
               className="flex min-w-0 items-center justify-center border-l border-fin-border"

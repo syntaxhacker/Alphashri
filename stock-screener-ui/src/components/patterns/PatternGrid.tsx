@@ -1,7 +1,6 @@
 import { createMemo, For } from "solid-js";
 import { SimpleGrid, useMediaQuery } from "@/ui";
 import type { PatternHitDTO, TrendlinesView } from "@/types/chartPatterns";
-import { fullscreenDedupeKey } from "@/pages/patterns/fullscreenKey";
 import { PatternCard } from "./PatternCard";
 
 export interface PatternGridProps {
@@ -30,15 +29,30 @@ export function PatternGrid(props: PatternGridProps) {
   const trendlinesView = () => props.trendlinesView ?? "both";
   const activeHit = () => props.activeHit ?? null;
 
+  /**
+   * Identity of the docked hit, resolved once per active change instead of
+   * rebuilding a dedupe key per card (200 string allocations per render).
+   * Field equality matches `fullscreenDedupeKey` without the join.
+   */
+  const isActive = (hit: PatternHitDTO): boolean => {
+    const active = activeHit();
+    if (!active) return false;
+    return (
+      active.symbol === hit.symbol &&
+      active.timeframe === hit.timeframe &&
+      active.pattern_id === hit.pattern_id &&
+      active.start_date === hit.start_date &&
+      active.end_date === hit.end_date
+    );
+  };
+
   return (
     <SimpleGrid cols={cols()} spacing={16} data-testid="patterns-grid">
       <For each={props.hits}>
         {(hit) => (
           <PatternCard
             hit={hit}
-            selected={
-              activeHit() ? fullscreenDedupeKey(activeHit()!) === fullscreenDedupeKey(hit) : false
-            }
+            selected={isActive(hit)}
             onClick={props.onSelect}
             onExpand={props.onExpand}
             onShowMembers={props.onShowMembers}
