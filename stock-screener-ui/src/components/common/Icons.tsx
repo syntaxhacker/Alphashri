@@ -1,3 +1,5 @@
+import { For } from "solid-js";
+
 export interface IconProps {
   size?: number | string;
   className?: string;
@@ -33,16 +35,18 @@ export function Icon(props: IconProps & { name: string }) {
       stroke-linecap="round"
       stroke-linejoin="round"
     >
-      {node?.map(([tag, attrs]: [string, Record<string, string>]) => {
-        if (tag === "path") return <path d={attrs.d} />;
-        if (tag === "circle") return <circle cx={attrs.cx} cy={attrs.cy} r={attrs.r} />;
-        if (tag === "line") return <line x1={attrs.x1} y1={attrs.y1} x2={attrs.x2} y2={attrs.y2} />;
-        if (tag === "rect") return <rect x={attrs.x} y={attrs.y} width={attrs.width} height={attrs.height} rx={attrs.rx} />;
-        if (tag === "polyline") return <polyline points={attrs.points} />;
-        if (tag === "polygon") return <polygon points={attrs.points} />;
-        if (tag === "ellipse") return <ellipse cx={attrs.cx} cy={attrs.cy} rx={attrs.rx} ry={attrs.ry} />;
-        return null;
-      })}
+      <For each={node ?? []}>
+        {([tag, attrs]: [string, Record<string, string>]) => {
+          if (tag === "path") return <path d={attrs.d} />;
+          if (tag === "circle") return <circle cx={attrs.cx} cy={attrs.cy} r={attrs.r} />;
+          if (tag === "line") return <line x1={attrs.x1} y1={attrs.y1} x2={attrs.x2} y2={attrs.y2} />;
+          if (tag === "rect") return <rect x={attrs.x} y={attrs.y} width={attrs.width} height={attrs.height} rx={attrs.rx} />;
+          if (tag === "polyline") return <polyline points={attrs.points} />;
+          if (tag === "polygon") return <polygon points={attrs.points} />;
+          if (tag === "ellipse") return <ellipse cx={attrs.cx} cy={attrs.cy} rx={attrs.rx} ry={attrs.ry} />;
+          return null;
+        }}
+      </For>
     </svg>
   );
 }
