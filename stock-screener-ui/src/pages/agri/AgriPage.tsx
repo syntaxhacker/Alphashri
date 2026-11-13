@@ -13,6 +13,7 @@ import { fetchAgriCommodities, fetchAgriPrices } from "@/api/agri";
 import type { AgriCommodity, AgriCommoditiesResponse, AgriPricesResponse } from "@/types/agri";
 import { useColorScheme } from "@/ui/hooks";
 import { POSITIVE, NEGATIVE, PRIMARY } from "@/ui/palette";
+import * as palette from "@/ui/palette";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { Icon } from "../../components/common/Icons";
 import { EChart } from "../heatmap/EChart";
@@ -123,21 +124,21 @@ export function AgriPage() {
       "background-color": "transparent",
       tooltip: {
         trigger: "axis",
-        "background-color": dark ? "rgba(20,20,20,0.85)" : "#fff",
-        textStyle: { color: dark ? "#F0F6FC" : "#000" },
+        "background-color": dark ? palette.alpha(palette.BG_COLOR, 0.85) : "#fff",
+        textStyle: { color: dark ? palette.TEXT_COLOR : "#000" },
       },
       grid: { left: 60, right: 40, top: 40, bottom: 60 },
       xAxis: {
         type: "category",
         data: dates,
-        axisLabel: { "font-size": 10, color: dark ? "#8B949E" : "#6E7681" },
-        axisLine: { lineStyle: { color: dark ? "#30363D" : "#D1D5DB" } },
+        axisLabel: { "font-size": "10px", color: dark ? palette.TEXT_MUTED_COLOR : palette.TEXT_MUTED_COLOR },
+        axisLine: { lineStyle: { color: dark ? palette.BORDER_COLOR : palette.TEXT_MUTED_COLOR } },
       },
       yAxis: {
         type: "value",
-        axisLabel: { "font-size": 10, color: dark ? "#8B949E" : "#6E7681", formatter: "₹{value}" },
-        axisLine: { lineStyle: { color: dark ? "#30363D" : "#D1D5DB" } },
-        splitLine: { lineStyle: { color: dark ? "#161B22" : "#E5E7EB", type: "dashed" } },
+        axisLabel: { "font-size": "10px", color: dark ? palette.TEXT_MUTED_COLOR : palette.TEXT_MUTED_COLOR, formatter: "₹{value}" },
+        axisLine: { lineStyle: { color: dark ? palette.BORDER_COLOR : palette.TEXT_MUTED_COLOR } },
+        splitLine: { lineStyle: { color: dark ? palette.SURFACE_ALT : palette.TEXT_COLOR, type: "dashed" } },
       },
       series: [
         {
@@ -176,7 +177,7 @@ export function AgriPage() {
         className="min-h-0"
       >
         <Box className="flex shrink-0 items-center gap-2">
-          <Text size="xs" c="dimmed" style={{ "text-transform": "uppercase", "font-size": 10 }} fw={700}>
+          <Text size="xs" c="dimmed" style={{ "text-transform": "uppercase", "font-size": "10px" }} fw={700}>
             Commodity
           </Text>
           <Select
@@ -227,14 +228,14 @@ export function AgriPage() {
             {chg7d() == null ? "—" : `${pct(chg7d())} 1w`}
           </Text>
         </Box>
-        <Divider orientation="vertical" style={{ height: 32, "margin-left": 8, "margin-right": 8 }} />
+        <Divider orientation="vertical" style={{ height: 32, "margin-left": "8px", "margin-right": "8px" }} />
         <Box className="min-w-0">
           <Text size="xs" c="dimmed">1 month</Text>
           <Text size="sm" fw={600} c={statColor(chg30d())} className="font-mono tabular-nums" data-testid="agri-stat-chg30d">
             {pct(chg30d())}
           </Text>
         </Box>
-        <Divider orientation="vertical" style={{ height: 32, "margin-left": 8, "margin-right": 8 }} />
+        <Divider orientation="vertical" style={{ height: 32, "margin-left": "8px", "margin-right": "8px" }} />
         <Box className="min-w-0">
           <Text size="xs" c="dimmed">6 months</Text>
           <Text size="sm" fw={600} c={statColor(chg180d())} className="font-mono tabular-nums" data-testid="agri-stat-chg180d">

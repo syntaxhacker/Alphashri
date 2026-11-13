@@ -78,28 +78,28 @@ export default function SmcPoc() {
       data-testid="smc-poc"
     >
       <Stack direction="row" spacing={1} className="flex-wrap items-center px-2">
-        <Text size="sm" fw={600} style={{ color: "#E5E7EB" }}>
+        <Text size="sm" fw={600} style={{ color: palette.TEXT_COLOR }}>
           POC — Trendline + Rectangle
         </Text>
-        <Text size="xs" style={{ color: "#9CA3AF" }}>
+        <Text size="xs" style={{ color: palette.TEXT_MUTED_COLOR }}>
           {source() === "nq" ? "NQ=F 15m" : "Mock 1m"} ·
-          <span style={{ color: "#A78BFA" }}>rect</span>{" "}
+          <span style={{ color: palette.PIVOT_CUSTOM }}>rect</span>{" "}
           <span style={{ color: palette.NT_TREND }}>trend</span>
         </Text>
-        <Chip size="sm" label={`${bars().length} bars`} style={{ "background-color": "#1F2937", color: "#9CA3AF", height: 20 }} />
+        <Chip size="sm" label={`${bars().length} bars`} style={{ "background-color": palette.SURFACE_ALT, color: palette.TEXT_MUTED_COLOR, height: 20 }} />
         <Show when={loading()}>
-          <Chip size="sm" label="loading…" style={{ "background-color": "#1F2937", color: "#58A6FF", height: 20 }} />
+          <Chip size="sm" label="loading…" style={{ "background-color": palette.SURFACE_ALT, color: palette.INFO, height: 20 }} />
         </Show>
         <Box className="flex-1" />
-        <span className="flex items-center gap-2" style={{ "font-size": 12, color: "#E5E7EB" }}>
+        <span className="flex items-center gap-2" style={{ "font-size": "12px", color: palette.TEXT_COLOR }}>
           <Switch size="sm" checked={source() === "nq"} onChange={(e) => setSource(e.currentTarget.checked ? "nq" : "mock")} color="primary" />
           Real NQ
         </span>
-        <span className="flex items-center gap-2" style={{ "font-size": 12, color: "#A78BFA" }}>
+        <span className="flex items-center gap-2" style={{ "font-size": "12px", color: palette.PIVOT_CUSTOM }}>
           <Switch size="sm" checked={showRect()} onChange={(e) => setShowRect(e.currentTarget.checked)} color="info" />
           Rect
         </span>
-        <span className="flex items-center gap-2" style={{ "font-size": 12, color: palette.NT_TREND }}>
+        <span className="flex items-center gap-2" style={{ "font-size": "12px", color: palette.NT_TREND }}>
           <Switch size="sm" checked={showTrend()} onChange={(e) => setShowTrend(e.currentTarget.checked)} color="primary" />
           Trend
         </span>

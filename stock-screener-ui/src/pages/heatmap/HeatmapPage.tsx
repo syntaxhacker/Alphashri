@@ -103,7 +103,7 @@ export function HeatmapPage() {
     >
       <ToolbarRow
         gap={8}
-        style={{ padding: "0 16px", "min-height": 48, height: 48, "border-bottom": "1px solid var(--color-fin-border)", "flex-shrink": 0 }}
+        style={{ padding: "0 16px", "min-height": "48px", height: 48, "border-bottom": "1px solid var(--color-fin-border)", "flex-shrink": 0 }}
         data-testid="heatmap-toolbar"
       >
         <Text data-testid="heatmap-title" fw={700} size="sm">NSE 500</Text>

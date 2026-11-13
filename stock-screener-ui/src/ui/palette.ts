@@ -1,49 +1,59 @@
 // ============================================================
 // SINGLE SOURCE OF TRUTH FOR ALL COLORS IN THE APP
 // ------------------------------------------------------------
-// Style: "tastylive terminal" — obsidian canvas, crimson accent, cyan links.
-//   - Body #0E1012, panels #1A1D21, bars #15181C, hairline #2A2E35
-//   - Text #FFFFFF, muted #A0A6B1, dividers #6B7280
-//   - Primary/CTA: crimson #E11D2E (LIVE badges, active tabs, selection)
-//   - Links/categories: cyan #00B4D8
-//   - Bullish #00C853 / bearish #FF3B30 — tickers and deltas only
+// Style: "Bloomberg terminal" — pure black canvas, amber chrome, mono data.
+//   - Body #000000, panels #0A0A0A, bars #141414, hairline #2B2B2B
+//   - Text #E8E8E8, muted #9B9B9B, dividers #6E6E6E
+//   - Primary/CTA: amber #D9902A (panel headers, active tabs, selection, keys)
+//   - Links/info: blue #4A8FD8
+//   - Bullish #2FA36B / bearish #D94A55 — tickers and deltas only
 // Every other color in the app derives from here. Changing a raw anchor
 // below re-themes the whole UI; never hardcode a hex outside this file.
 // ============================================================
 
 // ----- Raw anchors -----
-export const PRIMARY = "#E11D2E";        // crimson accent
-export const POSITIVE_COLOR = "#00C853"; // bullish green
-export const NEGATIVE_COLOR = "#FF3B30"; // bearish red
-export const TEXT_COLOR = "#FFFFFF";     // crisp white
-export const TEXT_MUTED_COLOR = "#A0A6B1";
-export const BG_COLOR = "#0E1012";       // body
-export const SURFACE_COLOR = "#1A1D21";  // cards / panels
-export const BORDER_COLOR = "#2A2E35";   // hairline borders
+export const PRIMARY = "#D9902A";        // amber chrome
+export const POSITIVE_COLOR = "#2FA36B"; // bullish green
+export const NEGATIVE_COLOR = "#D94A55"; // bearish red
+export const TEXT_COLOR = "#E8E8E8";     // off-white
+export const TEXT_MUTED_COLOR = "#9B9B9B";
+export const BG_COLOR = "#000000";       // body
+export const SURFACE_COLOR = "#0A0A0A";  // cards / panels
+export const BORDER_COLOR = "#2B2B2B";   // hairline borders
 
 // ----- dark theme scales (high-contrast ramps) -----
-export const SCALE_DARK = ["#FFFFFF","#C9CED6","#A0A6B1","#6B7280","#4B5158","#2F343B","#2A2E35","#15181C","#1A1D21","#0E1012"];
-export const SCALE_GRAY = ["#FFFFFF","#C9CED6","#A0A6B1","#6B7280","#4B5158","#2F343B","#2A2E35","#15181C","#1A1D21","#0E1012"];
-export const SCALE_BLUE = ["#F0F7FF","#D9E8FF","#B3D1FF","#80B5FF","#4D99FF","#1F7FFF","#1F6FEB","#1A5CD6","#1449B8","#0F3A94"];
-export const SCALE_CYAN = ["#E6FAFF","#B8F0FF","#8AE4FF","#5CD6F5","#2FC4E8","#0FB5D9","#0A9CC4","#0883A8","#066A8A","#04546E"];
-export const SCALE_GREEN = ["#E6FFEC","#B7F0C4","#8CE0A4","#5CD182","#3FB950","#2EA043","#238636","#1A7F37","#1A6E32","#0F5323"];
-export const SCALE_TEAL = ["#E6FFFB","#B8F3E8","#8AE6D4","#5CD4C0","#2FC0AC","#0FAE99","#0E9A87","#0C8575","#0A7063","#08594F"];
-export const SCALE_RED = ["#FFF0F0","#FFD7D5","#FFA8A3","#FF7B72","#FF6259","#F85149","#DA3633","#B6231C","#8E151A","#67060C"];
-export const SCALE_ORANGE = ["#FFF1E5","#FFDDB3","#FFC680","#FFA657","#F0883E","#DB6D28","#BD561D","#9E4213","#7D2F12","#5D2207"];
-export const SCALE_YELLOW = ["#FFF8C5","#F8E3A1","#F2CC60","#E3B341","#D29922","#BB8009","#A68B1F","#8F6D1F","#785A1F","#62490E"];
-export const SCALE_VIOLET = ["#F6F0FF","#E0D3FF","#C8B1FF","#AF8FFF","#9772FF","#8250DF","#6E40C9","#6332B2","#4E2A8F","#3D2370"];
-export const SCALE_INDIGO = ["#edf2ff","#dbe4ff","#bac8ff","#91a7ff","#748ffc","#5c7cfa","#4c6ef5","#4263eb","#3b5bdb","#364fc7"];
-export const SCALE_PINK = ["#fff0f6","#ffdeeb","#fcc2d7","#faa2c1","#f783ac","#f06595","#e64980","#d6336c","#c2255c","#a61e4d"];
-export const SCALE_GRAPE = ["#f8f0fc","#f3d9fa","#eebefa","#e599f7","#da77f2","#cc5de8","#be4bdb","#ae3ec9","#9c36b5","#862e9c"];
-export const SCALE_LIME = ["#f4fce3","#e9fac8","#d8f5a2","#c0eb75","#a9e34b","#94d82d","#82c91e","#74b816","#66a80f","#5c940d"];
+export const SCALE_DARK = ["#E8E8E8","#C4C4C4","#9B9B9B","#6E6E6E","#525252","#3A3A3A","#2B2B2B","#1F1F1F","#141414","#000000"];
+export const SCALE_GRAY = ["#E8E8E8","#C4C4C4","#9B9B9B","#6E6E6E","#525252","#3A3A3A","#2B2B2B","#1F1F1F","#141414","#000000"];
+export const SCALE_BLUE = ["#E6EDF5","#C6D4E4","#A6BBD3","#86A0C1","#4A7FC1","#3F6CA6","#35598A","#2B466E","#213452","#172337"];
+export const SCALE_CYAN = ["#E2EEF1","#B9D6DD","#90BEC9","#6AA6B4","#3B93AD","#337D92","#2B6777","#24525E","#1D3E47","#162B31"];
+export const SCALE_GREEN = ["#E4F3EA","#B9DCC7","#8CC4A4","#5EAA82","#2FA36B","#278A5B","#21744D","#1C6142","#184F36","#123D29"];
+export const SCALE_TEAL = ["#E4F2EF","#B7DCD5","#8CC4BA","#5FA89D","#3B93AD","#337D88","#2B6771","#24525A","#1D3E45","#162B30"];
+export const SCALE_RED = ["#F5E4E5","#E6C4C7","#D6A0A5","#C77D84","#D94A55","#BE3A46","#A32B36","#8A2029","#6E1720","#520F17"];
+export const SCALE_ORANGE = ["#F3E7DA","#E3CDB0","#D2B186","#C2966A","#D9822B","#BE6F22","#A25C1B","#864A15","#6B3A11","#512B0C"];
+export const SCALE_YELLOW = ["#F2EDD3","#E4DAB0","#D4C48A","#C4AE67","#C9912F","#B27F27","#9A6D20","#835C1B","#6C4B16","#553A11"];
+export const SCALE_VIOLET = ["#EDEAF4","#D6D0E6","#BEB6D6","#A79BC7","#8E80B8","#7C6BC4","#6859A8","#57498D","#463A72","#352B57"];
+export const SCALE_INDIGO = ["#E7EAF2","#C9D2E4","#ABBBD5","#8DA3C6","#6E86AE","#5C7296","#4B5E7D","#3A4A64","#29364B","#1B2331"];
+export const SCALE_PINK = ["#F3E7EB","#E0C6CE","#CDA5B1","#BA8494","#A66277","#8E5365","#764553","#5E3743","#462933","#321C23"];
+export const SCALE_GRAPE = ["#EFEAF3","#D9D0E2","#C3B6D1","#AD9CC0","#8E80B8","#7C6BAB","#695A92","#574A79","#453B60","#332C47"];
+export const SCALE_LIME = ["#EEF0DC","#DADFB4","#C6CE8C","#B2BD65","#9AA84E","#849140","#6E7A34","#586329","#434C1F","#2F3615"];
 
 // ----- Semantic tokens (single place everything imports) -----
 export const POSITIVE = POSITIVE_COLOR; // green up
 export const NEGATIVE = NEGATIVE_COLOR; // red down
-export const NEUTRAL = "#A0A6B1";
+export const NEUTRAL = "#9B9B9B";
 export const ERROR = NEGATIVE_COLOR;
-export const WARNING = "#F5A524";
-export const INFO = "#00B4D8";
+export const WARNING = "#C9912F";
+export const INFO = "#4A8FD8";
+
+/** Derive an rgba() tint from any anchor above — keeps alphas out of components. */
+export function alpha(hex: string, a: number): string {
+  const raw = hex.replace("#", "");
+  const full = raw.length === 3 ? raw.split("").map((c) => c + c).join("") : raw;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
 
 /** Tabular/mono numeral stack for price, P&L, OI and IV columns. */
 export const MONO = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';

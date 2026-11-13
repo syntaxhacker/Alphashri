@@ -72,16 +72,16 @@ function NewsWorkspaceHeader(props: { storyCount: number; sourceCount: number })
       component="header"
       data-testid="news-workspace-header"
       className="flex items-center gap-2 border-b border-fin-border bg-fin-surface"
-      style={{ "min-height": 56, "padding-left": 16, "padding-right": 16, "padding-top": 8, "padding-bottom": 8 }}
+      style={{ "min-height": "56px", "padding-left": "16px", "padding-right": "16px", "padding-top": "8px", "padding-bottom": "8px" }}
     >
       <Box
         className="size-8 grid place-items-center rounded-fin flex-shrink-0"
         style={{
           width: 32,
           height: 32,
-          "border-radius": 8,
+          "border-radius": "8px",
           color: palette.PRIMARY,
-          "background-color": "rgba(88, 166, 255, 0.12)",
+          "background-color": palette.alpha(palette.PRIMARY, 0.12),
         }}
       >
         <Icon name="news" size={18} stroke={1.8} aria-hidden="true" />

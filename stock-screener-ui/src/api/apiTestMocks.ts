@@ -1,3 +1,4 @@
+import * as palette from "@/ui/palette";
 /**
  * Shared test helpers for src/api tests — response/stream builders,
  * fixtures, and mock helpers. Test-only; not imported by production code.
@@ -317,7 +318,7 @@ export function makeChartTrade(overrides: Record<string, unknown> = {}) {
     candle_idx: 2,
     date: "2025-10-24",
     price: 103,
-    marker: { symbol: "triangle", color: "#58A6FF", size: 16 },
+    marker: { symbol: "triangle", color: palette.INFO, size: 16 },
     trade: {
       ...BASE_TRADE,
       or_high: undefined,

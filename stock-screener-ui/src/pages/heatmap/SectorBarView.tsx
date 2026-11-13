@@ -73,9 +73,9 @@ export function SectorBarView(props: SectorBarViewProps) {
       xAxis: {
         type: "value",
         name: label(),
-        nameTextStyle: { "font-size": 11, color: tooltipText() },
+        nameTextStyle: { "font-size": "11px", color: tooltipText() },
         axisLabel: {
-          "font-size": 10,
+          "font-size": "10px",
           color: tooltipText(),
           formatter: (v: number) => fmt()(v),
         },
@@ -85,7 +85,7 @@ export function SectorBarView(props: SectorBarViewProps) {
       yAxis: {
         type: "category",
         data: entries.map((e) => e.sector),
-        axisLabel: { "font-size": 10, color: tooltipText() },
+        axisLabel: { "font-size": "10px", color: tooltipText() },
         axisLine: { lineStyle: { color: axisLineColor() } },
         splitLine: { show: false },
       },
@@ -101,7 +101,7 @@ export function SectorBarView(props: SectorBarViewProps) {
           label: {
             show: true,
             position: "right",
-            "font-size": 10,
+            "font-size": "10px",
             color: tooltipText(),
             formatter: (p: any) => fmt()(p.value),
           },

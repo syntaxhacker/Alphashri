@@ -55,7 +55,7 @@ export function TopBottomView(props: TopBottomViewProps) {
       accessorKey: "name",
       meta: { align: "left" },
       cell: ({ row }) => (
-        <Box className="flex items-center justify-start"><Text size="xs" className="overflow-hidden text-ellipsis whitespace-nowrap" style={{ "max-width": 160 }}>{row.original.name}</Text></Box>
+        <Box className="flex items-center justify-start"><Text size="xs" className="overflow-hidden text-ellipsis whitespace-nowrap" style={{ "max-width": "160px" }}>{row.original.name}</Text></Box>
       ),
     },
     {
@@ -91,7 +91,7 @@ export function TopBottomView(props: TopBottomViewProps) {
       accessorKey: "sector",
       meta: { align: "left" },
       cell: ({ row }) => (
-        <Box className="flex items-center justify-start"><Text size="xs" className="overflow-hidden text-ellipsis whitespace-nowrap" style={{ "max-width": 120 }}>{row.original.sector}</Text></Box>
+        <Box className="flex items-center justify-start"><Text size="xs" className="overflow-hidden text-ellipsis whitespace-nowrap" style={{ "max-width": "120px" }}>{row.original.sector}</Text></Box>
       ),
     },
   ]);

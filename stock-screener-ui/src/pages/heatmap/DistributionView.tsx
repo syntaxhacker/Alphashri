@@ -98,7 +98,7 @@ export function DistributionView(props: DistributionViewProps) {
         data: xData,
         axisLabel: {
           rotate: 45,
-          "font-size": 10,
+          "font-size": "10px",
           color: tooltipText(),
           interval: 0,
           formatter: (val: string) => val || "",
@@ -109,8 +109,8 @@ export function DistributionView(props: DistributionViewProps) {
       yAxis: {
         type: "value",
         name: "Count",
-        nameTextStyle: { "font-size": 11, color: tooltipText() },
-        axisLabel: { "font-size": 10, color: tooltipText() },
+        nameTextStyle: { "font-size": "11px", color: tooltipText() },
+        axisLabel: { "font-size": "10px", color: tooltipText() },
         axisLine: { lineStyle: { color: axisLineColor() } },
         splitLine: { lineStyle: { color: splitLineColor() } },
       },

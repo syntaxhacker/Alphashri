@@ -13,10 +13,10 @@ export default function ReplayIndexPage() {
 
   return (
     <Box className="p-4 w-full" data-testid="replay-index">
-      <Text size="lg" fw={700} style={{ color: palette.TEXT, "margin-bottom": 4 }}>
+      <Text size="lg" fw={700} style={{ color: palette.TEXT, "margin-bottom": "4px" }}>
         Replay strategies
       </Text>
-      <Text size="xs" style={{ color: palette.TEXT_MUTED, display: "block", "margin-bottom": 16 }}>
+      <Text size="xs" style={{ color: palette.TEXT_MUTED, display: "block", "margin-bottom": "16px" }}>
         {strategies.length} registered · select one to open its replay
       </Text>
       <Stack direction="row" spacing={1} className="flex-wrap items-stretch">
@@ -37,7 +37,7 @@ export default function ReplayIndexPage() {
                 <Text size="sm" fw={600} style={{ color: palette.TEXT }}>
                   {plugin.label}
                 </Text>
-                <Text size="xs" style={{ color: palette.TEXT_MUTED, display: "block", "margin-bottom": 8 }}>
+                <Text size="xs" style={{ color: palette.TEXT_MUTED, display: "block", "margin-bottom": "8px" }}>
                   {plugin.id}
                 </Text>
                 <Stack direction="row" spacing={1} className="flex-wrap">

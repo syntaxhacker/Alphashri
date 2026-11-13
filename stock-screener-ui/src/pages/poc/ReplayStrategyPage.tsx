@@ -1,3 +1,4 @@
+import * as palette from "@/ui/palette";
 // ReplayStrategyPage — resolves :strategyId and renders the generic ReplayShell.
 // Falls back to a default strategy when mounted from the legacy /poc/tick-replay route.
 import { createMemo, Show } from "solid-js";
@@ -16,10 +17,10 @@ export default function ReplayStrategyPage(props: { defaultStrategyId?: string }
       when={plugin()}
       fallback={
         <Box className="p-4" data-testid="replay-strategy-missing">
-          <Text size="lg" fw={700} style={{ color: "#F87171" }}>
+          <Text size="lg" fw={700} style={{ color: palette.NEGATIVE_COLOR }}>
             Unknown replay strategy
           </Text>
-          <Text size="xs" style={{ color: "#9CA3AF" }}>
+          <Text size="xs" style={{ color: palette.TEXT_MUTED_COLOR }}>
             No plugin registered for “{params.strategyId ?? props.defaultStrategyId ?? ""}”.
           </Text>
         </Box>

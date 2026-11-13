@@ -470,7 +470,7 @@ export function OrderFlowPage() {
             </Button>
           </PopoverTarget>
           <PopoverDropdown>
-            <Stack gap={2} style={{ padding: 8, "min-width": 220 }}>
+            <Stack gap={2} style={{ padding: 8, "min-width": "220px" }}>
               <For each={[...VIEW_ITEMS]}>{(item) => (
                 <Checkbox
                   size="sm"

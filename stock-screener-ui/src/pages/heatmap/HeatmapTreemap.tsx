@@ -1,3 +1,4 @@
+import * as palette from "@/ui/palette";
 import { createMemo, onMount, onCleanup, createEffect, Show } from "solid-js";
 import { Box, Stack, Text } from "@/ui";
 import { Select } from "@/ui";
@@ -31,15 +32,15 @@ const HEATMAP_TREEMAP_STYLE: StockTreemapStyle = {
   borderDark: SURFACE,
   borderLight: CREAM,
   label: {
-    "font-size": 10,
+    "font-size": "10px",
     "font-weight": "bold",
     "line-height": 14,
     textBorderColor: BG,
     textBorderWidth: 0.5,
   },
   colorSaturation: [0.35, 0.5],
-  changePositive: "#3fb950",
-  changeNegative: "#f85149",
+  changePositive: palette.POSITIVE_COLOR,
+  changeNegative: palette.NEGATIVE_COLOR,
 };
 
 export interface HeatmapTreemapProps {

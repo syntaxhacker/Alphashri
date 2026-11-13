@@ -5,6 +5,7 @@ import { render, screen, waitFor, within, fireEvent } from "@solidjs/testing-lib
 import { MemoryRouter, Route, createMemoryHistory } from "@solidjs/router";
 import { OrderFlowPage } from "./OrderFlowPage";
 import { getBrokerStatus } from "@/api/brokers";
+import { API_BASE } from "@/api/config";
 import { getExpiries, getFyersSymbol, getOptionChain, getUnderlyings } from "@/api/upstoxOptions";
 
 vi.mock("@/api/brokers", () => ({
@@ -123,7 +124,9 @@ describe("OrderFlowPage", () => {
     expect(iframe.getAttribute("src")).toContain("/orderflow/index.html");
 
     const params = await iframeParams();
-    expect(params.get("ws")).toBe("ws://localhost:8765/ws/orderflow");
+    const apiHost = new URL(API_BASE);
+    const expectedWs = `${apiHost.protocol === "https:" ? "wss:" : "ws:"}//${apiHost.host}/ws/orderflow`;
+    expect(params.get("ws")).toBe(expectedWs);
     expect(params.get("symbol")).toBe("RELIANCE");
     expect(params.get("tick")).toBe("0.05");
     expect(params.get("autoconnect")).toBe("1");
