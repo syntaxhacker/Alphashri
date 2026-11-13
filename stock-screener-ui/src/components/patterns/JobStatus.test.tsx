@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test } from "vitest";
+import { createSignal } from "solid-js";
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import type { JobDTO } from "@/types/chartPatterns";
 import { JobStatus } from "./JobStatus";
@@ -181,5 +182,14 @@ describe("JobStatus", () => {
       />);
     expect(screen.getByTestId("patterns-job-status")).toHaveTextContent("Last scan complete");
     expect(screen.getByTestId("patterns-job-status")).not.toHaveTextContent("reused");
+  });
+
+  test("updates when the job prop changes", () => {
+    const [job, setJob] = createSignal<JobDTO | null>(JOB);
+    render(() => <JobStatus job={job()} queuePosition={null} scanning />);
+    expect(screen.getByTestId("patterns-job-status")).toHaveTextContent("Scanning 210/500");
+
+    setJob({ ...JOB, done: 400 });
+    expect(screen.getByTestId("patterns-job-status")).toHaveTextContent("Scanning 400/500");
   });
 });

@@ -6,6 +6,7 @@ vi.mock("@/ui", async () => {
   return mockSolidUi();
 });
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { createSignal } from "solid-js";
 import { cleanup, render, screen, fireEvent } from "@solidjs/testing-library";
 import type { JobDTO } from "@/types/chartPatterns";
 import { ScanProgress, ScanCacheChip, getScanCacheState } from "./ScanProgress";
@@ -197,6 +198,15 @@ describe("ScanProgress", () => {
       />);
     expect(screen.getByTestId("patterns-scan-reused-force")).toBeInTheDocument();
   });
+
+  test("updates when the job prop changes", () => {
+    const [job, setJob] = createSignal(makeJob({ done: 23, total: 50 }));
+    render(() => <ScanProgress job={job()} scanning universe="nifty50" timeframe="1h" />);
+    expect(screen.getByTestId("patterns-scan-progress-count")).toHaveTextContent("23 / 50 stocks");
+
+    setJob(makeJob({ done: 40, total: 50 }));
+    expect(screen.getByTestId("patterns-scan-progress-count")).toHaveTextContent("40 / 50 stocks");
+  });
 });
 
 describe("getScanCacheState", () => {
@@ -369,5 +379,17 @@ describe("ScanCacheChip", () => {
     expect(
       await screen.findByText("Scan reused: no — freshly computed · Data as of 2026-09-30"),
     ).toBeInTheDocument();
+  });
+
+  test("appears and updates when the job prop arrives after mount", () => {
+    const [job, setJob] = createSignal<JobDTO | null>(null);
+    render(() => <ScanCacheChip job={job()} />);
+    expect(screen.queryByTestId("patterns-scan-status")).not.toBeInTheDocument();
+
+    setJob(makeJob({ status: "completed" }));
+    expect(screen.getByTestId("patterns-scan-fresh")).toHaveTextContent("Fresh");
+
+    setJob(makeJob({ status: "completed", reused: true, reused_age_sec: 60 }));
+    expect(screen.getByTestId("patterns-scan-reused")).toHaveTextContent("Cached · 1 min ago");
   });
 });

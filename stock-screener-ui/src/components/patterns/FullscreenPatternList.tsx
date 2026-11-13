@@ -1,3 +1,4 @@
+import { createMemo } from "solid-js";
 import { Box, Text, ToolbarRow, UnstyledButton } from "@/ui";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { StatusBadge } from "./StatusBadge";
@@ -44,25 +45,25 @@ export interface FullscreenPatternListProps {
  * newest first. Selecting a row replaces the chart's single active pattern
  * (radio-style — no multi-select, no dashed siblings).
  */
-export function FullscreenPatternList({ hits, activeKey, onSelect }: FullscreenPatternListProps) {
-  const sorted = sortHitsNewest(hits).slice(0, 1);
+export function FullscreenPatternList(props: FullscreenPatternListProps) {
+  const sorted = createMemo(() => sortHitsNewest(props.hits).slice(0, 1));
   return (
     <Box data-testid="patterns-fullscreen-list" className="flex flex-col gap-1">
       <Text size="xs" c="dimmed" fw={700} style={{ "text-transform": "uppercase" }}>
-        {`Patterns (${sorted.length})`}
+        {`Patterns (${sorted().length})`}
       </Text>
-      {sorted.length === 0 ? (
+      {sorted().length === 0 ? (
         <Text size="xs" c="dimmed">
           No patterns detected
         </Text>
       ) : (
-        sorted.map((hit, i) => {
+        sorted().map((hit, i) => {
           const key = fullscreenHitKey(hit);
-          const active = activeKey != null && key === activeKey;
+          const active = props.activeKey != null && key === props.activeKey;
           return (
             <UnstyledButton
               key={key}
-              onClick={() => onSelect(hit)}
+              onClick={() => props.onSelect(hit)}
               data-testid={`patterns-fullscreen-list-item-${i}`}
               data-selected={active ? "true" : undefined}
               aria-pressed={active}

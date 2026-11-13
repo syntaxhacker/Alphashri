@@ -1,3 +1,4 @@
+import { createMemo, Show } from "solid-js";
 import { Alert, Badge, Box, Button, Progress, Text, Tooltip } from "@/ui";
 import type { JobDTO, ScanProvenance } from "@/types/chartPatterns";
 import { formatAgeLong } from "@/utils/ui-helpers";
@@ -138,46 +139,51 @@ export interface ScanCacheChipProps {
  * Keeps the `patterns-scan-reused` testid on the reused chip so the reuse
  * contract (and its Force re-run action) keeps working.
  */
-export function ScanCacheChip({ job, onForceRefresh }: ScanCacheChipProps) {
-  if (!job) return null;
-  const cache = getScanCacheState(job);
-  const label =
-    cache.kind === "reused"
-      ? cache.age
-        ? `Cached · ${cache.age}`
-        : "Cached"
-      : cache.kind === "mixed" && cache.pct != null
-        ? `Cache ${cache.pct}%`
-        : "Fresh";
-  const color = cache.kind === "reused" ? "warning" : cache.kind === "mixed" ? "default" : "success";
-  const lines = scanCacheDetails(job, cache);
-  // One accessible string: the wrapper surfaces a string title as its aria-label, so the layers stay queryable without hovering.
-  const summary = lines.join(" · ");
+export function ScanCacheChip(props: ScanCacheChipProps) {
+  const cache = createMemo(() => (props.job ? getScanCacheState(props.job) : null));
+  const label = createMemo(() => {
+    const state = cache();
+    if (!state) return "";
+    if (state.kind === "reused") return state.age ? `Cached · ${state.age}` : "Cached";
+    if (state.kind === "mixed" && state.pct != null) return `Cache ${state.pct}%`;
+    return "Fresh";
+  });
+  const color = createMemo(() => {
+    const kind = cache()?.kind;
+    return kind === "reused" ? "warning" : kind === "mixed" ? "default" : "success";
+  });
+  const summary = createMemo(() => {
+    const job = props.job;
+    const state = cache();
+    // One accessible string: the wrapper surfaces a string title as its aria-label, so the layers stay queryable without hovering.
+    return job && state ? scanCacheDetails(job, state).join(" · ") : "";
+  });
   return (
-    <Box
-      data-testid="patterns-scan-status"
-      className="flex min-w-0 items-center gap-2"
-    >
-      <Tooltip position="bottom" withArrow multiline label={summary}>
-        <Badge
-          size="xs"
-          color={color}
-          data-testid={cache.kind === "reused" ? "patterns-scan-reused" : "patterns-scan-fresh"}
-        >
-          {label}
-        </Badge>
-      </Tooltip>
-      {cache.kind === "reused" && onForceRefresh ? (
-        <Button
-          size="xs"
-          variant="outline"
-          onClick={onForceRefresh}
-          data-testid="patterns-scan-reused-force"
-        >
-          Force re-run
-        </Button>
-      ) : null}
-    </Box>
+    <Show when={cache()}>
+      {(state) => (
+        <Box data-testid="patterns-scan-status" className="flex min-w-0 items-center gap-2">
+          <Tooltip position="bottom" withArrow multiline label={summary()}>
+            <Badge
+              size="xs"
+              color={color()}
+              data-testid={state().kind === "reused" ? "patterns-scan-reused" : "patterns-scan-fresh"}
+            >
+              {label()}
+            </Badge>
+          </Tooltip>
+          {state().kind === "reused" && props.onForceRefresh ? (
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={props.onForceRefresh}
+              data-testid="patterns-scan-reused-force"
+            >
+              Force re-run
+            </Button>
+          ) : null}
+        </Box>
+      )}
+    </Show>
   );
 }
 
@@ -185,21 +191,27 @@ export function ScanCacheChip({ job, onForceRefresh }: ScanCacheChipProps) {
  * Notice shown when a non-forced scan reused a previous scan without
  * re-detecting (data unchanged). Pairs with the Force refresh action.
  */
-export function ReusedScanNotice({ job, onForceRefresh }: ReusedScanNoticeProps) {
-  if (!job.reused) return null;
-  const age = formatReusedAge(job);
-  const when = age ? ` from ${age}` : "";
+export function ReusedScanNotice(props: ReusedScanNoticeProps) {
+  const age = createMemo(() => formatReusedAge(props.job));
+  const when = createMemo(() => (age() ? ` from ${age()}` : ""));
   return (
-    <Alert color="info" data-testid="patterns-scan-reused">
-      <Box className="flex flex-wrap items-center gap-2">
-        <Text size="xs">{`Reused scan${when} — data unchanged. Force to re-run.`}</Text>
-        {onForceRefresh ? (
-          <Button size="xs" variant="outline" onClick={onForceRefresh} data-testid="patterns-scan-reused-force">
-            Force re-run
-          </Button>
-        ) : null}
-      </Box>
-    </Alert>
+    <Show when={props.job.reused}>
+      <Alert color="info" data-testid="patterns-scan-reused">
+        <Box className="flex flex-wrap items-center gap-2">
+          <Text size="xs">{`Reused scan${when()} — data unchanged. Force to re-run.`}</Text>
+          {props.onForceRefresh ? (
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={props.onForceRefresh}
+              data-testid="patterns-scan-reused-force"
+            >
+              Force re-run
+            </Button>
+          ) : null}
+        </Box>
+      </Alert>
+    </Show>
   );
 }
 
@@ -208,37 +220,34 @@ export function ReusedScanNotice({ job, onForceRefresh }: ReusedScanNoticeProps)
  * Renders nothing when no scan is active (so it never clutters an idle page),
  * except for the reused-scan notice which explains a silently reused scan.
  */
-export function ScanProgress({
-  job,
-  scanning,
-  universe,
-  timeframe,
-  variant = "block",
-  onForceRefresh,
-}: ScanProgressProps) {
-  const status = job?.status ?? null;
-  const queued = status === "queued" || (!scanning && status === "queued");
-  const running = scanning || status === "running";
-  if (job?.reused && !running && !queued) {
-    return <ReusedScanNotice job={job} onForceRefresh={onForceRefresh} />;
+export function ScanProgress(props: ScanProgressProps) {
+  const status = createMemo(() => props.job?.status ?? null);
+  const queued = createMemo(() => status() === "queued" || (!props.scanning && status() === "queued"));
+  const running = createMemo(() => props.scanning || status() === "running");
+  const reused = createMemo(() => Boolean(props.job?.reused && !running() && !queued()));
+  const total = createMemo(() => props.job?.total ?? 0);
+  const done = createMemo(() => props.job?.done ?? 0);
+  const pct = createMemo(() => (total() > 0 ? Math.min(100, Math.round((done() / total()) * 100)) : 0));
+  const combo = createMemo(() => comboLabel(props.universe, props.timeframe));
+  const position = createMemo(() => props.job?.queue_position ?? null);
+  const countText = createMemo(() => (total() > 0 ? `${done()} / ${total()} stocks` : "starting…"));
+  const eta = createMemo(() => etaLabel(props.job));
+
+  if (reused()) {
+    // `reused()` is only true for a non-null job.
+    return <ReusedScanNotice job={props.job!} onForceRefresh={props.onForceRefresh} />;
   }
-  if (!running && !queued) return null;
+  if (!running() && !queued()) return null;
 
-  const total = job?.total ?? 0;
-  const done = job?.done ?? 0;
-  const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
-  const combo = comboLabel(universe, timeframe);
-  const position = job?.queue_position ?? null;
-
-  if (queued && !running) {
+  if (queued() && !running()) {
     return (
       <Box
         data-testid="patterns-scan-progress"
         className="mx-auto flex max-w-[460px] flex-col items-center gap-2"
       >
         <Text size="sm" fw={600}>
-          Queued{combo ? ` — ${combo}` : ""}
-          {position != null ? ` (position ${position})` : ""}
+          Queued{combo() ? ` — ${combo()}` : ""}
+          {position() != null ? ` (position ${position()})` : ""}
         </Text>
         <Text size="xs" c="dimmed">
           Waiting for a free scan slot…
@@ -247,37 +256,34 @@ export function ScanProgress({
     );
   }
 
-  const countText = total > 0 ? `${done} / ${total} stocks` : "starting…";
-  const eta = etaLabel(job);
-
-  if (variant === "banner") {
+  if (props.variant === "banner") {
     return (
       <Box
         data-testid="patterns-scan-progress"
         className="flex min-w-0 items-center gap-4 rounded-fin border border-fin-border bg-fin-surface p-2"
       >
         <Text size="xs" fw={700} style={{ "white-space": "nowrap" }}>
-          Scanning{combo ? ` ${combo}` : ""}…
+          Scanning{combo() ? ` ${combo()}` : ""}…
         </Text>
         <Box className="min-w-[120px] flex-1">
-          <Progress value={pct} size="sm" color="primary" aria-label="pattern scan progress" />
+          <Progress value={pct()} size="sm" color="primary" aria-label="pattern scan progress" />
         </Box>
         <Text size="xs" c="dimmed" style={{ "white-space": "nowrap" }} data-testid="patterns-scan-progress-count">
-          {total > 0 ? `${done}/${total} stocks · ${pct}%` : "starting…"}
-          {eta ? ` · ${eta}` : ""}
+          {total() > 0 ? `${done()}/${total()} stocks · ${pct()}%` : "starting…"}
+          {eta() ? ` · ${eta()}` : ""}
         </Text>
       </Box>
     );
   }
 
-  if (variant === "inline") {
+  if (props.variant === "inline") {
     return (
       <Box data-testid="patterns-scan-progress" className="flex min-w-[180px] flex-col gap-1">
         <Text size="xs" c="dimmed" truncate>
-          Scanning{combo ? ` ${combo}` : ""} · {countText}
-          {eta ? ` · ${eta}` : ""}
+          Scanning{combo() ? ` ${combo()}` : ""} · {countText()}
+          {eta() ? ` · ${eta()}` : ""}
         </Text>
-        <Progress value={pct} size="sm" color="primary" aria-label="pattern scan progress" />
+        <Progress value={pct()} size="sm" color="primary" aria-label="pattern scan progress" />
       </Box>
     );
   }
@@ -288,11 +294,11 @@ export function ScanProgress({
       className="mx-auto flex w-full max-w-[520px] flex-col items-center gap-3 rounded-fin border border-fin-border bg-fin-surface px-6 py-4"
     >
       <Text size="sm" fw={700}>
-        Scanning{combo ? ` ${combo}` : ""}…
+        Scanning{combo() ? ` ${combo()}` : ""}…
       </Text>
       <Box className="w-full">
         <Progress
-          value={pct}
+          value={pct()}
           size="lg"
           color="primary"
           aria-label="pattern scan progress"
@@ -301,11 +307,11 @@ export function ScanProgress({
       </Box>
       <Box className="flex w-full justify-between gap-4">
         <Text size="sm" fw={600} data-testid="patterns-scan-progress-count">
-          {total > 0 ? `${done} / ${total} stocks` : "Starting…"}
+          {total() > 0 ? `${done()} / ${total()} stocks` : "Starting…"}
         </Text>
         <Text size="xs" c="dimmed">
-          {total > 0 ? `${pct}%` : ""}
-          {eta ? ` · ${eta}` : ""}
+          {total() > 0 ? `${pct()}%` : ""}
+          {eta() ? ` · ${eta()}` : ""}
         </Text>
       </Box>
       <Text size="xs" c="dimmed" ta="center">

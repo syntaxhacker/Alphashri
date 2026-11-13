@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test } from "vitest";
+import { createSignal } from "solid-js";
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import { PatternTags, fullDate, hasTag, rowTags, shortIstDate } from "./rowBadges";
 
@@ -115,5 +116,18 @@ describe("PatternTags", () => {
       />);
     expect(screen.getByTestId("patterns-list-tag-fno-AAA")).toHaveTextContent("F&O");
     expect(screen.queryByTestId("patterns-list-tag-etf-AAA")).not.toBeInTheDocument();
+  });
+
+  test("updates when the tags prop changes", () => {
+    const [tags, setTags] = createSignal<string[] | null>(null);
+    render(() => <PatternTags tags={tags()} symbol="LIVE" testIdPrefix="watch" compact />);
+    expect(screen.queryByTestId("watch-tag-fno-LIVE")).not.toBeInTheDocument();
+
+    setTags(["F&O"]);
+    expect(screen.getByTestId("watch-tag-fno-LIVE")).toHaveTextContent("F&O");
+
+    setTags(["ETF"]);
+    expect(screen.queryByTestId("watch-tag-fno-LIVE")).not.toBeInTheDocument();
+    expect(screen.getByTestId("watch-tag-etf-LIVE")).toHaveTextContent("ETF");
   });
 });

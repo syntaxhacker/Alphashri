@@ -6,6 +6,7 @@ vi.mock("@/ui", async () => {
   return mockSolidUi();
 });
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { createSignal } from "solid-js";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import {
@@ -106,5 +107,24 @@ describe("FullscreenPatternList", () => {
     render(() => <FullscreenPatternList hits={[]} activeKey={null} onSelect={vi.fn()} />);
     expect(screen.getByText("Patterns (0)")).toBeInTheDocument();
     expect(screen.getByText("No patterns detected")).toBeInTheDocument();
+  });
+
+  test("updates when the hits and activeKey props change", () => {
+    const [hits, setHits] = createSignal<PatternHitDTO[]>([OLD]);
+    const [activeKey, setActiveKey] = createSignal<string | null>(null);
+    render(() => (
+      <FullscreenPatternList hits={hits()} activeKey={activeKey()} onSelect={vi.fn()} />
+    ));
+    expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent("Falling Wedge");
+
+    setHits([NEW]);
+    expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent("Bull Flag");
+    expect(screen.getByTestId("patterns-fullscreen-list-item-0")).not.toHaveAttribute("data-selected");
+
+    setActiveKey("33");
+    expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
   });
 });

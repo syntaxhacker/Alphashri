@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+import { createSignal } from "solid-js";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { FilterNumber } from "./FilterNumber";
@@ -65,5 +66,13 @@ describe("FilterNumber", () => {
   test("forwards disabled to the underlying input", () => {
     render(() => <FilterNumber testId="fn" onChange={vi.fn()} disabled />);
     expect(inputOf("fn")).toBeDisabled();
+  });
+
+  test("updates when the value prop changes", () => {
+    const [value, setValue] = createSignal<number | null>(5);
+    render(() => <FilterNumber testId="fn" value={value()} onChange={vi.fn()} />);
+    expect(inputOf("fn")).toHaveValue(5);
+    setValue(7);
+    expect(inputOf("fn")).toHaveValue(7);
   });
 });
