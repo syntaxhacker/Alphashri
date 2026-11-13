@@ -66,7 +66,7 @@ export function DailyReportPage(props: DailyReportPageProps) {
   const [copied, setCopied] = createSignal<"csv" | "symbols" | null>(null);
   const [sparkRange, setSparkRange] = createSignal<"intraday" | "5d">("intraday");
   const [tab, setTab] = createSignal<string>("breakouts");
-  let abortController: AbortController | null = null;
+  let activeControllers: AbortController[] = [];
 
   // Universe prop is the initial value, not a controlled mirror of it — the
   // Select owns the signal afterwards.
@@ -75,23 +75,28 @@ export function DailyReportPage(props: DailyReportPageProps) {
     if (next) setUniverse(next);
   });
 
-  // The three sections load independently: a slow breakout scan must never
-  // blank the (usually instant) market-moves section, and vice versa. Each
-  // request gets its own timeout so a hung scan surfaces as a retryable
-  // section error instead of an endless spinner.
+  // The sections load independently and each one gets its own controller: a
+  // section that times out must stop its own request without aborting the
+  // sections that are still progressing (a retry would otherwise stack a
+  // second server-side scan on top of the first).
   createEffect(() => {
     // Track the scope; re-runs when date/universe/refreshKey change.
     date(); universe(); refreshKey();
-    abortController?.abort();
-    const controller = new AbortController();
-    abortController = controller;
+    for (const c of activeControllers) c.abort();
+    const controllers: AbortController[] = [];
+    activeControllers = controllers;
     let cancelled = false;
     const timers: Array<ReturnType<typeof setTimeout>> = [];
-    const withTimeout = <T,>(p: Promise<T>, ms: number, label: string): Promise<T> =>
-      new Promise<T>((resolve, reject) => {
-        const t = setTimeout(() => reject(new Error(`${label} timed out`)), ms);
+    const withTimeout = <T,>(start: (signal: AbortSignal) => Promise<T>, label: string): Promise<T> => {
+      const controller = new AbortController();
+      controllers.push(controller);
+      return new Promise<T>((resolve, reject) => {
+        const t = setTimeout(() => {
+          controller.abort();
+          reject(new Error(`${label} timed out`));
+        }, REPORT_FETCH_TIMEOUT_MS);
         timers.push(t);
-        p.then(
+        start(controller.signal).then(
           (v) => {
             clearTimeout(t);
             resolve(v);
@@ -102,6 +107,7 @@ export function DailyReportPage(props: DailyReportPageProps) {
           },
         );
       });
+    };
     setDailyLoading(true);
     setBreakoutLoading(true);
     setFollowLoading(true);
@@ -110,7 +116,7 @@ export function DailyReportPage(props: DailyReportPageProps) {
     setBreakoutError(null);
     setFollowError(null);
     setDeliveryError(null);
-    withTimeout(fetchDailyReport(date(), universe(), controller.signal), REPORT_FETCH_TIMEOUT_MS, "Market moves")
+    withTimeout((signal) => fetchDailyReport(date(), universe(), signal), "Market moves")
       .then((payload) => {
         if (cancelled) return;
         setDaily(payload);
@@ -123,7 +129,7 @@ export function DailyReportPage(props: DailyReportPageProps) {
         setDaily(null);
         setDailyLoading(false);
       });
-    withTimeout(fetchReportBreakouts(date(), universe(), controller.signal), REPORT_FETCH_TIMEOUT_MS, "Breakout scan")
+    withTimeout((signal) => fetchReportBreakouts(date(), universe(), signal), "Breakout scan")
       .then((payload) => {
         if (cancelled) return;
         setBreakouts(payload);
@@ -138,7 +144,7 @@ export function DailyReportPage(props: DailyReportPageProps) {
       });
     // Delivery % (NSE bhavcopy) is date+universe scoped like the other
     // sections and loads independently; empty rows render as nothing.
-    withTimeout(fetchReportDelivery(date(), universe(), 15, controller.signal), REPORT_FETCH_TIMEOUT_MS, "Delivery")
+    withTimeout((signal) => fetchReportDelivery(date(), universe(), 15, signal), "Delivery")
       .then((payload) => {
         if (cancelled) return;
         setDelivery(payload);
@@ -154,7 +160,7 @@ export function DailyReportPage(props: DailyReportPageProps) {
     // Follow-through loads independently of the other two sections. The date
     // picker always holds a date, so this always fetches alongside them.
     if (date()) {
-      withTimeout(fetchReportFollowThrough(date(), universe(), controller.signal), REPORT_FETCH_TIMEOUT_MS, "Follow-through")
+      withTimeout((signal) => fetchReportFollowThrough(date(), universe(), signal), "Follow-through")
         .then((payload) => {
           if (cancelled) return;
           setFollowThrough(payload);
@@ -174,7 +180,7 @@ export function DailyReportPage(props: DailyReportPageProps) {
     onCleanup(() => {
       cancelled = true;
       for (const t of timers) clearTimeout(t);
-      controller.abort();
+      for (const c of controllers) c.abort();
     });
   });
 
@@ -308,9 +314,25 @@ export function DailyReportPage(props: DailyReportPageProps) {
     return rows.some((r) => Array.isArray(r.daily_closes) && r.daily_closes.length > 0);
   });
 
-  // Page-level states (kept for compatibility): loading only while both
-  // sections are still pending; error only when both failed.
-  const loading = () => dailyLoading() && breakoutLoading();
+  // The page-level well is scoped to the active tab so a slow section only
+  // holds back the tab that renders it; the tab bar stays mounted, so the
+  // sections that already loaded stay reachable.
+  const loading = () => {
+    switch (tab()) {
+      case "moves":
+        return dailyLoading();
+      case "followthrough":
+        return followLoading();
+      case "events":
+        return eventsLoading();
+      case "scan":
+      case "breakouts":
+      default:
+        return breakoutLoading();
+    }
+  };
+  // Error only when both primary feeds failed; a single failure is reported
+  // by the section panel so the other sections stay usable.
   const error = () => (dailyError() != null && breakoutError() != null ? dailyError() : null);
 
   const isEmpty = () =>
@@ -412,15 +434,12 @@ export function DailyReportPage(props: DailyReportPageProps) {
       </ToolbarRow>
 
       <Show
-        when={loading()}
+        when={error()}
         fallback={
           <Show
-            when={error()}
+            when={isEmpty()}
             fallback={
-              <Show
-                when={isEmpty()}
-                fallback={
-                  <div class="flex flex-col gap-1 min-w-0 w-full" data-testid="report-tabs">
+              <div class="flex flex-col gap-1 min-w-0 w-full" data-testid="report-tabs">
                     <div class="overflow-x-auto min-w-0">
                       <div class="flex flex-row items-center gap-1 rounded-fin border border-fin-border bg-fin-surface p-[2px]" role="tablist" data-testid="report-tabs-list">
                         <For each={tabs}>
@@ -443,6 +462,10 @@ export function DailyReportPage(props: DailyReportPageProps) {
                         </For>
                       </div>
                     </div>
+                    <Show
+                      when={loading()}
+                      fallback={
+                        <>
                     <div hidden={tab() !== "scan"} data-testid="report-tab-panel-scan" style={{ "padding-top": "4px", "padding-bottom": "4px" }}>
                       <div class="flex flex-col gap-1 min-w-0">
                         <Show
@@ -675,6 +698,16 @@ export function DailyReportPage(props: DailyReportPageProps) {
                         <ReportEventsStrip data={events()} loading={eventsLoading()} error={eventsError()} onOpenSymbol={props.onOpenSymbol} />
                       </div>
                     </div>
+                        </>
+                      }
+                    >
+                      <div class="flex flex-col gap-1 w-full min-w-0" data-testid="report-loading">
+                        <Skeleton h={16} />
+                        <Skeleton h={16} />
+                        <Skeleton h={16} />
+                        <Skeleton h={16} />
+                      </div>
+                    </Show>
                   </div>
                 }
               >
@@ -691,15 +724,6 @@ export function DailyReportPage(props: DailyReportPageProps) {
                 {error()}
               </Alert>
             </div>
-          </Show>
-        }
-      >
-        <div class="flex flex-col gap-1 w-full min-w-0" data-testid="report-loading">
-          <Skeleton h={16} />
-          <Skeleton h={16} />
-          <Skeleton h={16} />
-          <Skeleton h={16} />
-        </div>
       </Show>
     </div>
   );

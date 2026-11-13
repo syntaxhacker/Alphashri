@@ -161,11 +161,13 @@ function renderPage(props?: { universe?: string; onOpenSymbol?: (s: string) => v
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.useRealTimers();
   mockOk();
 });
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
 });
 
 describe("DailyReportPage", () => {
@@ -294,6 +296,46 @@ describe("DailyReportPage", () => {
     renderPage();
     await waitFor(() => expect(screen.getByTestId("report-error")).toBeInTheDocument());
     expect(screen.getByTestId("report-error")).toHaveTextContent("boom");
+  });
+
+  it("renders market moves while the breakout scan is still pending", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchReportBreakouts).mockImplementation(() => new Promise(() => {}));
+    renderPage();
+    // Daily is the instant feed: its as-of chip means market moves are in hand.
+    await screen.findByTestId("report-asof");
+    // Only the active (Breakouts) tab waits; the tab bar is not blanked.
+    expect(screen.getByTestId("report-loading")).toBeInTheDocument();
+    expect(screen.getByTestId("report-tabs-list")).toBeInTheDocument();
+    await user.click(screen.getByTestId("report-tab-moves"));
+    expect(await screen.findByTestId("report-moves-gainers")).toHaveTextContent("RELIANCE");
+    expect(screen.queryByTestId("report-loading")).not.toBeInTheDocument();
+  });
+
+  it("gates the moves tab on market moves even after the breakout scan resolves", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchDailyReport).mockImplementation(() => new Promise(() => {}));
+    renderPage();
+    await screen.findByTestId("report-breakouts-table-row-RELIANCE");
+    await user.click(screen.getByTestId("report-tab-moves"));
+    expect(screen.getByTestId("report-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("report-moves-gainers")).not.toBeInTheDocument();
+  });
+
+  it("aborts a section's request when its per-section timeout fires", async () => {
+    vi.useFakeTimers();
+    let breakoutSignal: AbortSignal | undefined;
+    vi.mocked(fetchReportBreakouts).mockImplementation((_date, _universe, signal) => {
+      breakoutSignal = signal;
+      return new Promise(() => {});
+    });
+    renderPage();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(breakoutSignal).toBeDefined();
+    expect(breakoutSignal!.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(120_001);
+    expect(breakoutSignal!.aborted).toBe(true);
+    expect(screen.getByTestId("report-breakouts-error")).toHaveTextContent(/timed out/i);
   });
 
   it("shows empty state when nothing qualifies", async () => {
