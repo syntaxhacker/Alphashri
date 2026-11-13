@@ -136,14 +136,14 @@ interface DensityProviderProps {
  * Optional subtree override for tests/stories. The app itself needs no
  * provider — `useDensity` reads the module store by default.
  */
-export function DensityProvider({ children, value }: DensityProviderProps) {
+export function DensityProvider(props: DensityProviderProps) {
   createEffect(() => {
-    if (value === undefined) return;
+    if (props.value === undefined) return;
     const prev = getDensitySnapshot();
-    setDensity(value);
+    setDensity(props.value);
     onCleanup(() => {
       setDensity(prev);
     });
   });
-  return <>{children}</>;
+  return <>{props.children}</>;
 }

@@ -65,7 +65,7 @@ function TreeNode(props: TreeNodeProps) {
   if (props.renderNode) {
     return (
       <>
-        <div onClick={handleClick} className={nodeCls()} style={{ paddingLeft: paddingLeft() }}>
+        <div onClick={handleClick} className={nodeCls()} style={{ "padding-left": `${paddingLeft()}px` }}>
           {hasChildren() && <Chevron expanded={expanded} />}
           {!hasChildren() && <span className="w-[22px] shrink-0" />}
           <span className="flex-1 min-w-0">
@@ -85,7 +85,7 @@ function TreeNode(props: TreeNodeProps) {
 
   return (
     <>
-      <div onClick={handleClick} className={nodeCls()} style={{ paddingLeft: paddingLeft() }}>
+      <div onClick={handleClick} className={nodeCls()} style={{ "padding-left": `${paddingLeft()}px` }}>
         {hasChildren() && <Chevron expanded={expanded} />}
         {!hasChildren() && <span className="w-[22px] shrink-0" />}
         <span className="flex-1 min-w-0">{props.node.label}</span>

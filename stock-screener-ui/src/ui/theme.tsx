@@ -3,6 +3,6 @@ import type { JSX } from "solid-js";
 
 export const uiTheme = {} as any;
 
-export function UIProvider({ children }: { children: JSX.Element; defaultColorScheme?: "light" | "dark"; forceColorScheme?: "light" | "dark" }) {
-  return <>{children}</>;
+export function UIProvider(props: { children: JSX.Element; defaultColorScheme?: "light" | "dark"; forceColorScheme?: "light" | "dark" }) {
+  return <>{props.children}</>;
 }

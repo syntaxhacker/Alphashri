@@ -40,7 +40,7 @@ export function Overlay(props: OverlayProps) {
         "z-index": local.zIndex ?? undefined,
         "background-color": local.color ?? DEFAULT_BG,
         opacity: local.opacity != null ? local.opacity : undefined,
-        backdropFilter:
+        "backdrop-filter":
           local.blur != null ? `blur(${typeof local.blur === "number" ? `${local.blur}px` : local.blur})` : undefined,
         display: local.center ? "flex" : undefined,
         "align-items": local.center ? "center" : undefined,
