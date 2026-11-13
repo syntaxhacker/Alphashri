@@ -60,13 +60,35 @@ clean, and a regression test that FAILS before the fix.
 
 ## Remaining known defects (next waves)
 
-1. `IndexMoversStrip.tsx` `MoverSection({rows, isGainer})` — destructured props (owned by report agent).
-2. `NiftyChartPanel` cold-load: `/api/reports/daily` took **37.9s** and
-   `breakouts`/`follow-through` never fired → page sat on `report-loading`.
-   Reload renders fine. Investigate: are those fetches serialised behind the
-   daily call, or does `REPORT_FETCH_TIMEOUT_MS` abort them silently?
-3. `src/ui/inputs/**` — 17 tsc errors; check `w`/`h` prop handling.
-4. `src/utils/chart/**` — 14 tsc errors.
+1. ~~`IndexMoversStrip.tsx` `MoverSection` destructured props~~ — **DONE** (wave 1 report agent).
+2. ~~`NiftyChartPanel` cold-load blank page~~ — **DONE**: backend `compute_report` 3.8s cold /
+   0.005s cached (was >18 min). Frontend loading scoped per tab.
+3. `src/ui/inputs/**` — **DONE** (17 defects fixed, 131 ui tests).
+4. `src/utils/chart/**` — 14 tsc errors, still open.
+5. Theme: 25 → 21 → (in flight) files with hardcoded hex (owner groups dispatched).
+6. `src/test/pages.test.tsx` backtest mount throw — in flight.
+
+## Wave 3 — Ernie (openrouter/baidu/ernie-5.5-flash-preview:free)
+
+Ernie verified as a capable worker (correct token mapping, honest scope reporting,
+green targeted suites). Rolling all remaining work to it per user instruction.
+
+| # | Group | Files | Status |
+|---|---|---|---|
+| 22 | backtest theme literals | 6 | **DONE** | 244 pass, lint clean |
+| 23 | replay theme literals | 7 | in flight |
+| 24 | report/patterns theme literals | 5 | in flight |
+| 25 | sector/news/experiments theme literals | 6 | in flight |
+| 26 | chart/options/trading theme literals | 5 | in flight |
+| 27 | pages.test backtest mount throw | 1+ | in flight |
+
+## Guard status (must stay green on every commit)
+
+- `src/test/style-keys.test.ts` — **green**
+- `src/test/no-props-destructure.test.ts` — **green**
+- `src/test/theme-single-source.test.ts` — 1 case open (hardcoded hex, being cleared)
+- `src/test/ui-guard.test.ts` — green
+- `src/ui/inputs/inputs.w-h.test.tsx` — green (19 tests)
 
 ## Git rules
 Main agent only. Feature branch. Small commits. Never push develop/main.
