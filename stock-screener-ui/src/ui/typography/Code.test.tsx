@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { Code } from "./Code";
+import * as palette from "@/ui/palette";
 
 describe("Code", () => {
   it("renders inline code with font-mono", () => {
@@ -27,7 +28,7 @@ describe("Code", () => {
 
   it("applies a colored background via color", () => {
     render(() => <Code data-testid="c" block color="info">npm install</Code>);
-    expect(screen.getByTestId("c")).toHaveStyle("background-color: #58A6FF");
+    expect(screen.getByTestId("c")).toHaveStyle(`background-color: ${palette.INFO}`);
     expect(screen.getByTestId("c")).toHaveStyle("color: white");
   });
 });

@@ -101,7 +101,7 @@ export function Badge(props: UIBadgeProps) {
       data-testid={known["data-testid"]}
       id={known.id}
       className={cn(
-        "inline-flex items-center gap-1.5 whitespace-nowrap font-semibold border",
+        "inline-flex items-center gap-1.5 whitespace-nowrap font-semibold border font-mono uppercase tracking-[0.06em]",
         br ? undefined : "rounded-fin",
         known.fullWidth ? "w-full" : "",
         badgeSizeClasses(known.size),

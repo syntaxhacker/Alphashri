@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { Text } from "./Text";
+import * as palette from "@/ui/palette";
 
 describe("Text", () => {
   it("renders children as a paragraph by default", () => {
@@ -19,7 +20,7 @@ describe("Text", () => {
 
   it("applies tone color via c", () => {
     render(() => <Text data-testid="t" c="success">up</Text>);
-    expect(screen.getByTestId("t")).toHaveStyle("color: #3FB950");
+    expect(screen.getByTestId("t")).toHaveStyle(`color: ${palette.POSITIVE_COLOR}`);
   });
 
   it("applies size from the type scale", () => {

@@ -1,16 +1,6 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { createRoot } from "solid-js";
-import {
-  rem,
-  useMediaQuery,
-  useDebouncedValue,
-  useDisclosure,
-  useColorScheme,
-  useTheme,
-  useUICore,
-  useTree,
-  getTreeExpandedState,
-} from "./hooks";
+import { rem, useMediaQuery } from "./hooks";
 
 afterEach(() => {
   vi.restoreAllMocks();

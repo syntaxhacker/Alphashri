@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { Anchor } from "./Anchor";
+import * as palette from "@/ui/palette";
 
 describe("Anchor", () => {
   it("renders an anchor with href and target", () => {
@@ -37,7 +38,7 @@ describe("Anchor", () => {
 
   it("applies tone color via c", () => {
     render(() => <Anchor data-testid="a" href="#" c="primary">link</Anchor>);
-    expect(screen.getByTestId("a")).toHaveStyle("color: #58A6FF");
+    expect(screen.getByTestId("a")).toHaveStyle(`color: ${palette.PRIMARY}`);
   });
 
   it("forwards title as a native tooltip attribute", () => {
