@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { createSignal } from "solid-js";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import { TanStackTable } from "./TanStackTable";
@@ -203,6 +204,17 @@ describe("TanStackTable", () => {
     expect(htmlTable.style.tableLayout).toBe("auto");
   });
 
+  it("reacts to columns being sized/unsized after mount (table-layout tracks hasSizedColumns)", () => {
+    const [sized, setSized] = createSignal(false);
+    const unsizedCols = [{ id: "name", header: "Name", accessorKey: "name" }];
+    const sizedCols = [{ id: "name", header: "Name", accessorKey: "name", size: 200 }];
+    render(() => <TanStackTable<TestItem> data={data} columns={sized() ? sizedCols : unsizedCols} />);
+    const table = document.querySelector("table")!;
+    expect(table.style.tableLayout).toBe("auto");
+    setSized(true);
+    expect(table.style.tableLayout).toBe("fixed");
+  });
+
   it("renders group header rows and leaf rows when grouping is enabled", () => {
     const groupedData = [
       { id: "1", name: "Alpha", value: 100, category: "A" },
@@ -382,6 +394,73 @@ describe("TanStackTable", () => {
     expect(container.querySelector(".paper-tanstack-container")).toBeInTheDocument();
     expect(screen.getByTestId("wrapped-table")).toBeInTheDocument();
     expect(screen.getByText("Alpha")).toBeInTheDocument();
+  });
+
+  it("exposes row.isExpanded() as a live boolean that flips on toggle", () => {
+    const toggleColumns = [
+      { id: "name", header: "Name", accessorKey: "name" },
+      {
+        id: "toggle",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }: { row: { isExpanded: () => boolean; toggle: () => void } }) => (
+          <button data-testid="row-toggle" onClick={() => row.toggle()}>
+            {row.isExpanded() ? "open" : "closed"}
+          </button>
+        ),
+      },
+    ];
+    render(() => (<TanStackTable<TestItem>
+        data={[data[0]]}
+        columns={toggleColumns}
+        getRowCanExpand={() => true}
+        renderSubComponent={() => <span data-testid="row-detail">detail</span>}
+      />),
+    );
+    expect(screen.queryByTestId("row-detail")).toBeNull();
+    expect(screen.getByTestId("row-toggle").textContent).toBe("closed");
+    fireEvent.click(screen.getByTestId("row-toggle"));
+    expect(screen.getByTestId("row-toggle").textContent).toBe("open");
+    expect(screen.getByTestId("row-detail")).toBeInTheDocument();
+  });
+
+  it("keeps min-width in step with the visible column count", () => {
+    const many = [
+      { id: "c1", header: "C1", accessorKey: "name" },
+      { id: "c2", header: "C2", accessorKey: "name" },
+      { id: "c3", header: "C3", accessorKey: "name" },
+      { id: "c4", header: "C4", accessorKey: "name" },
+      { id: "c5", header: "C5", accessorKey: "name" },
+      { id: "c6", header: "C6", accessorKey: "name" },
+      { id: "c7", header: "C7", accessorKey: "name" },
+    ];
+    const few = many.slice(0, 2);
+    const [wide, setWide] = createSignal(true);
+    render(() => (<TanStackTable<TestItem> data={data} columns={wide() ? many : few} />));
+    const table = document.querySelector("table")!;
+    expect(table.style.minWidth).toBe("672px");
+    setWide(false);
+    expect(table.style.minWidth).toBe("640px");
+  });
+
+  it("re-aligns headers when the data turns a column numeric after mount", () => {
+    const [rows, setRows] = createSignal<TestItem[]>([]);
+    render(() => (<TanStackTable<TestItem> data={rows()} columns={columns} />));
+    const valueTh = () => screen.getByText("Value").closest("th") as HTMLTableCellElement;
+    expect(valueTh().style.textAlign).toBe("left");
+    setRows(data);
+    expect(valueTh().style.textAlign).toBe("right");
+  });
+
+  it("treats a non-positive rowWindowSize as no window instead of blanking the body", () => {
+    render(() => (<TanStackTable<TestItem>
+        data={data}
+        columns={columns}
+        rowWindowSize={0}
+        getRowTestId={(r) => `zero-window-${r.id}`}
+      />),
+    );
+    expect(screen.getAllByTestId(/^zero-window-/)).toHaveLength(2);
   });
 
   it("bare=true skips the outer Paper/TableContainer but keeps the table", () => {

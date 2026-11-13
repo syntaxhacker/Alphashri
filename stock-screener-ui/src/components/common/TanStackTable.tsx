@@ -241,25 +241,27 @@ export function TanStackTable<T>(props: Props<T>) {
     setExpandedRows((prev) => ({ ...prev, [k]: !isRowExpanded(row, index) }));
   };
 
-  const hasSizedColumns = visibleColumns().some((col) => {
-    const w = getColumnWidth(col);
-    return w !== undefined && w !== 0;
-  });
+  const hasSizedColumns = createMemo(() =>
+    visibleColumns().some((col) => {
+      const w = getColumnWidth(col);
+      return w !== undefined && w !== 0;
+    }),
+  );
   const colCount = () => visibleColumns().length;
   const showLoading = () => props.loading && props.data.length === 0;
   const showEmpty = () => !props.loading && props.data.length === 0;
   const emptyMessage = () => props.emptyMessage ?? "No data";
 
-  const tableStyle: CSSProperties = {
+  const tableStyle = (): CSSProperties => ({
     width: "100%",
-    "table-layout": hasSizedColumns ? "fixed" : "auto",
+    "table-layout": hasSizedColumns() ? "fixed" : "auto",
     "min-width": `${props.minTableWidth ?? Math.max(640, colCount() * 96)}px`,
     "border-collapse": "collapse",
     "background-color": palette.SURFACE,
     ...props.style,
-  };
+  });
 
-  const tableClassName = `paper-tanstack-table ${props.className || ""}`;
+  const tableClassName = () => `paper-tanstack-table ${props.className || ""}`;
 
   const numericColumnIds = createMemo(() => {
     const ids = new Set<string>();
@@ -312,7 +314,7 @@ export function TanStackTable<T>(props: Props<T>) {
     const width = getColumnWidth(col);
     const isSorted = () => sorting().some((s) => s.id === col.id);
     const sortDir = () => sorting().find((s) => s.id === col.id);
-    const headerStyle: CSSProperties = {
+    const headerStyle = (): CSSProperties => ({
       padding: width === 0 ? "0" : "var(--tbl-cell-pad, 2px 8px)",
       height: "var(--tbl-row-h, 23px)",
       "font-size": "10px",
@@ -334,21 +336,19 @@ export function TanStackTable<T>(props: Props<T>) {
       top: props.stickyHeader ? 0 : undefined,
       "z-index": props.stickyHeader ? 1 : undefined,
       "background-color": props.stickyHeader ? palette.SURFACE_ALT : undefined,
-    };
+    });
     const h = col.header;
     const content = typeof h === "function" ? h({ column: col }) : h != null ? <span>{h}</span> : <span>{col.id}</span>;
     return (
-      <Box
-        component="th"
-        
+      <th
         className="paper-tanstack-header-cell"
         id={`paper-tanstack-header-${String(col.id)}`}
-        style={headerStyle}
+        style={headerStyle()}
         onClick={() => col.enableSorting !== false && enableSorting() && toggleSort(col.id)}
       >
         {content}
         {isSorted() && (sortDir()?.desc ? " ▼" : " ▲")}
-      </Box>
+      </th>
     );
   };
 
@@ -368,7 +368,6 @@ export function TanStackTable<T>(props: Props<T>) {
 
   const renderRow = (row: T, index: number) => {
     const k = rowKey(row, index);
-    const expanded = () => isRowExpanded(row, index);
     return (
       <>
         <tr
@@ -384,7 +383,7 @@ export function TanStackTable<T>(props: Props<T>) {
           <For each={visibleColumns()}>{(col) => {
             const width = getColumnWidth(col);
             const cell = col.cell
-              ? col.cell({ row: { original: row, index, isExpanded: () => expanded, toggle: () => toggleRow(row, index) }, column: col })
+              ? col.cell({ row: { original: row, index, isExpanded: () => isRowExpanded(row, index), toggle: () => toggleRow(row, index) }, column: col })
               : <span>{String(getValue(row, col))}</span>;
             return (
               <Box
@@ -426,7 +425,11 @@ export function TanStackTable<T>(props: Props<T>) {
 
   const visibleItems = createMemo(() => {
     const items = bodyItems();
-    return props.rowWindowSize != null ? items.slice(0, props.rowWindowSize) : items;
+    const windowSize = props.rowWindowSize;
+    // A zero/negative window would mount nothing and blank the body while
+    // `data` is still non-empty, so it can never mean "window".
+    const capped = typeof windowSize === "number" && Number.isFinite(windowSize) && windowSize > 0;
+    return capped ? items.slice(0, windowSize) : items;
   });
 
   const tableScroll = (
@@ -434,14 +437,13 @@ export function TanStackTable<T>(props: Props<T>) {
       className="paper-tanstack-scroll"
       style={{ flex: 1, "min-height": "0px", overflow: "auto", display: "flex", "flex-direction": "column", "background-color": palette.SURFACE }}
     >
-      <Box
-        component="table"
+      <table
         ref={(el: HTMLTableElement) => (tableEl = el)}
         data-testid={props.dataTestId}
         aria-label={props.ariaLabel}
         id={props.dataTestId ? `paper-tanstack-table-${props.dataTestId}` : undefined}
-        style={tableStyle}
-        className={tableClassName}
+        style={tableStyle()}
+        className={tableClassName()}
       >
         <thead>
           <tr>
@@ -501,7 +503,7 @@ export function TanStackTable<T>(props: Props<T>) {
             </tr>
           </Show>
         </tbody>
-      </Box>
+      </table>
     </ScrollArea>
   );
 

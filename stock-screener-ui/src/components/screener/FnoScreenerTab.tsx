@@ -298,10 +298,13 @@ function money2(value: number): string {
   return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function FnoRowDetail(props: { row: FnoScreenerRow }) {
+export function FnoRowDetail(props: { row: FnoScreenerRow }) {
   const row = () => props.row;
   const maxLoss = () => row().cost_lot;
-  const legs = [{ strike: row().strike, optionType: "CE", action: "BUY", qty: 1, entry: row().premium }];
+  // `legs` must rebuild when `props.row` changes (data refetch / view-mode
+  // switch re-supplies the same expanded row with a new object). Reading
+  // `row()` at body level would pin the first row forever.
+  const legs = () => [{ strike: row().strike, optionType: "CE", action: "BUY", qty: 1, entry: row().premium }];
   const rangePct = () => Math.max(12, Math.abs(row().strike / row().spot - 1) * 100 + 5);
   return (
     <Box
@@ -322,7 +325,7 @@ function FnoRowDetail(props: { row: FnoScreenerRow }) {
         <CompactStat label="+2% est." value={formatPercentage(row().move_2pct_est)} data-testid="fno-detail-move2" />
       </CompactStatGrid>
       <PayoffChart
-        legs={legs}
+        legs={legs()}
         spot={row().spot}
         height={180}
         rangePct={rangePct()}
