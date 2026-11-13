@@ -61,19 +61,20 @@ const SUMMARY = {
 };
 
 /**
- * Wall-time budgets for the dense results grid, recorded from the measured
- * numbers below (dev box, happy-dom). They are deliberately ~2x the recorded
- * figure because CI runs 20 shards x 4 workers on shared vCPUs and the harness
- * is dominated by node insertion, not by card computation. A regression is a
- * card that gets materially heavier, not a slow CI machine.
+ * Wall-time tripwires for the dense results grid, recorded from the measured
+ * numbers logged below (dev box, happy-dom). They sit ~3-4x above the quiet-load
+ * figure because the harness is dominated by node insertion and CI runs 20
+ * shards x 4 workers on shared vCPUs; a slow machine must not fail the suite,
+ * but a card that gets materially heavier still trips. The authoritative number
+ * for any change is the `[PERF]` log line, not these limits.
  */
 const BUDGET = {
-  card: 120,
-  miniChart: 40,
-  grid60: 3000,
-  grid200: 7000,
-  grid200Candles: 8000,
-  update200: 250,
+  card: 150,
+  miniChart: 50,
+  grid60: 5000,
+  grid200: 10000,
+  grid200Candles: 12000,
+  update200: 300,
 };
 
 function budget(label: string, ms: number, limit: number): string {

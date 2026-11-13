@@ -263,6 +263,12 @@ vi.mock("../value/ValuePanel", async () => {
 
 const mockFetchMarketSnapshot = vi.mocked(fetchMarketSnapshot);
 
+// The screener body is a lazy chunk (ScreenerContent). Its first import is a
+// cold module transform — several seconds on an 8-worker run — and `findBy*`
+// would have to cover that inside its own async budget. Resolve the chunk here,
+// during collection, so no test pays a chunk load inside an assertion.
+await import("./ScreenerContent");
+
 // The Market tab is lazy and mounts on activation — keep its fetch off the
 // network so the screener's other tests stay hermetic.
 const marketSnapshot = {
