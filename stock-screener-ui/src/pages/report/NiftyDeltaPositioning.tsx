@@ -1,4 +1,4 @@
-import { createMemo, For, Show } from "solid-js";
+import { createMemo } from "solid-js";
 import type { JSX } from "solid-js";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { Text } from "@/ui";

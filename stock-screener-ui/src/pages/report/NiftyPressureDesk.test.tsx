@@ -2,7 +2,6 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
-import type { JSX } from "solid-js";
 import type { WallsPayload, WallsRow } from "@/api/reportNifty";
 import { NiftyPressureDesk } from "./NiftyPressureDesk";
 

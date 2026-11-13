@@ -2,7 +2,6 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen, within } from "@solidjs/testing-library";
-import type { JSX } from "solid-js";
 
 import type { NiftyReport, NiftySensex, NiftyWall } from "@/types/niftyReport";
 import { LevelsInPlay, LevelsInPlayContent } from "./LevelsInPlay";

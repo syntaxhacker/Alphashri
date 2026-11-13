@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, Show, onCleanup } from "solid-js";
+import { createEffect, createSignal, Show, onCleanup } from "solid-js";
 import type { JSX } from "solid-js";
 import { Loader, Text, Tooltip } from "@/ui";
 import { IconChevronRight } from "@/components/common/Icons";

@@ -446,25 +446,6 @@ describe("NiftyUnusualVolume focus strip", () => {
   });
 });
 
-describe("NiftyReportPanel unusual-volume wiring", () => {
-  function mockReport() {
-    return {
-      mode: "live",
-      date: "2026-10-12",
-      expiry: "weekly",
-      spot: 25750.5,
-      ohlc: { open: 25600, high: 25800, low: 25550, close: 25750.5 },
-      pcrOi: 1.12,
-      pcrVol: 0.95,
-      maxPain: 25700,
-      walls: { calls: [], puts: [] },
-      strikes: [strikeAt(25700, side(9_000, 1_000, "LB"), side(8_000, 1_000, "SB"))],
-      timeline: [],
-    };
-  }
-
-});
-
 describe("last / next update stamp", () => {
   const T = Date.parse("2026-10-14T12:03:15+05:30");
 

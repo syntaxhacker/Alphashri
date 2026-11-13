@@ -2,11 +2,7 @@ import { createMemo, For, Show } from "solid-js";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { LocalCompactPanel, LocalCompactStat, LocalEmptyState } from "./reportBits";
-import {
-  buildParticipantFlow,
-  type ParticipantFlowBucket,
-  type ParticipantFlowRow,
-} from "./niftyParticipantFlow";
+import { buildParticipantFlow, type ParticipantFlowRow } from "./niftyParticipantFlow";
 
 /**
  * Stacked horizontal bars of writer vs buyer flow per clock bucket.

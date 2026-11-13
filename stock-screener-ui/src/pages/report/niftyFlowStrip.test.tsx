@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 
 import { afterEach, describe, expect, test } from "vitest";
-import { render, screen, cleanup } from "@solidjs/testing-library";
+import { screen, cleanup } from "@solidjs/testing-library";
 import { buildFlowEvents, clockLabel, groupFlowRuns, summarizeFlowRuns, type FlowTapeRow } from "./niftyFlowStrip";
 import {
   FLOW_BEAR,

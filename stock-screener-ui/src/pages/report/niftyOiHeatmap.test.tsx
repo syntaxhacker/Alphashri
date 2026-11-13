@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 
 import { afterEach, describe, expect, test } from "vitest";
-import { render, screen, cleanup } from "@solidjs/testing-library";
+import { screen, cleanup } from "@solidjs/testing-library";
 import * as palette from "@/ui/palette";
 import { buildOiHeatmap, heatmapReadText, readHeatmap, type HeatmapTapeRow } from "./niftyOiHeatmap";
 import { HEATMAP_CE, HEATMAP_FLIP, HEATMAP_MP, HEATMAP_PE, HEATMAP_SPOT, NiftyOiHeatmap } from "./NiftyOiHeatmap";

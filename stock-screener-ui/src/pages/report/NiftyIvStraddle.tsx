@@ -1,4 +1,4 @@
-import { createMemo, For, Show } from "solid-js";
+import { createMemo, Show } from "solid-js";
 import * as palette from "@/ui/palette";
 import { median } from "@/utils/reportParsers";
 import { MiniLineChart, type MiniSeries } from "@/components/common/charts/MiniLineChart";

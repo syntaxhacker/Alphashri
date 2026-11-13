@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test } from "vitest";
-import type { JSX } from "solid-js";
 import { fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import type {

@@ -1,5 +1,4 @@
 import { createEffect, createMemo, createSignal, Show, onCleanup } from "solid-js";
-import type { JSX } from "solid-js";
 import { TanStackTable, type TableColumnDef } from "@/components/common/TanStackTable";
 import { LocalPanelModal } from "./LocalPanelModal";
 import * as palette from "@/ui/palette";

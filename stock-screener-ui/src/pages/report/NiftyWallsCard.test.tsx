@@ -2,7 +2,6 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
-import type { JSX } from "solid-js";
 
 import type { WallsPayload } from "@/api/reportNifty";
 import type { NiftyReport } from "@/types/niftyReport";
@@ -446,7 +445,7 @@ describe("NiftyWallsCard", () => {
 
 describe("NiftyWallsExpanded", () => {
   it("renders all walls, the tracked history and the break sequence", () => {
-    render(<NiftyWallsExpanded open walls={walls} onClose={() => {}} />);
+    render(() => <NiftyWallsExpanded open walls={walls} onClose={() => {}} />);
 
     expect(screen.getByText("CALL WALLS")).toBeInTheDocument();
     expect(screen.getByText("PUT WALLS")).toBeInTheDocument();
@@ -462,7 +461,7 @@ describe("NiftyWallsExpanded", () => {
   });
 
   it("ladders strikes monotonically and keeps a width for every table column", () => {
-    render(<NiftyWallsExpanded open walls={walls} onClose={() => {}} />);
+    render(() => <NiftyWallsExpanded open walls={walls} onClose={() => {}} />);
 
     const ladder = screen.getByTestId("walls-ladder");
     expect(
@@ -484,13 +483,13 @@ describe("NiftyWallsExpanded", () => {
   });
 
   it("shows the last break when the live alert has faded", () => {
-    render(
+    render(() => (
       <NiftyWallsExpanded
         open
         walls={{ ...walls, state: "WATCH", alert: null, alert_eligible: false }}
         onClose={() => {}}
-      />,
-    );
+      />
+    ));
 
     expect(screen.getByTestId("walls-break")).toHaveTextContent("First break 74,000");
     expect(screen.getByTestId("walls-break")).toHaveTextContent("74,096");
@@ -499,14 +498,14 @@ describe("NiftyWallsExpanded", () => {
 
   it("opens on the strike-time wall map and still exposes the data view", () => {
     const onReplayBreak = vi.fn();
-    render(
+    render(() => (
       <NiftyWallsExpanded
         open
         walls={wallsWithMap}
         onClose={() => {}}
         onReplayBreak={onReplayBreak}
-      />,
-    );
+      />
+    ));
 
     expect(screen.getByTestId("walls-map")).toBeInTheDocument();
     expect(screen.getByTestId("walls-map-calls")).toBeInTheDocument();

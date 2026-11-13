@@ -1,5 +1,4 @@
 import { createEffect, createMemo, createSignal, For, Show, onCleanup } from "solid-js";
-import type { JSX } from "solid-js";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { LocalPanelModal } from "./LocalPanelModal";
@@ -281,7 +280,7 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
         if (!alive) return;
         setIntel(data);
         setStatus("ready");
-      } catch (e) {
+      } catch {
         if (!alive || controller.signal.aborted) return;
         setStatus("error");
       }

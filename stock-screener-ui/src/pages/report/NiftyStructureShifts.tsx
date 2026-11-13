@@ -113,7 +113,7 @@ export function NiftyStructureShifts(props: NiftyStructureShiftsProps) {
               class="flex flex-col gap-[2px] min-w-0"
               style={{ "max-height": "120px", "overflow-y": "auto" }}
             >
-              <For each={ordered()}>{(shift, i) => {
+              <For each={ordered()}>{(shift) => {
                 const accent = structureSeverityAccent(shift.severity);
                 const full = shift.detail || STRUCTURE_DASH;
                 return (

@@ -1,6 +1,6 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { createMemo, For, Show } from "solid-js";
-import { Box, Text } from "@/ui";
+import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { LocalCompactPanel, LocalCompactStat } from "./reportBits";
 import { MiniLineChart } from "@/components/common/charts/MiniLineChart";

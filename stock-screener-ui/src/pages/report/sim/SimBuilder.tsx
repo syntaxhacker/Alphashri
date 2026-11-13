@@ -1,18 +1,6 @@
 import type { JSX } from "solid-js";
 import type { SimLegSpec, SimStrategySpec } from "@/types/reportSim";
-import {
-  ActionIcon,
-  Alert,
-  Badge,
-  Box,
-  Button,
-  Divider,
-  NumberInput,
-  Select,
-  Text,
-  TextInput,
-  ToolbarRow,
-} from "@/ui";
+import { ActionIcon, Alert, Badge, Button, Divider, NumberInput, Select, Text, TextInput, ToolbarRow } from "@/ui";
 import * as palette from "@/ui/palette";
 import { IconX } from "@/components/common/Icons";
 

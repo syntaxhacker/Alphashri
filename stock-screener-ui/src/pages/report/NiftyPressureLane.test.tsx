@@ -4,7 +4,6 @@ import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, test } from "vitest";
 import { NiftyPressureLane } from "./NiftyPressureLane";
 import { buildPressure } from "./niftyPressure";
-import type { JSX } from "solid-js";
 
 afterEach(cleanup);
 

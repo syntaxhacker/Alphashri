@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
 import { render, screen, within, cleanup } from "@solidjs/testing-library";
-import { createSignal, onMount } from "solid-js";
+import { createSignal } from "solid-js";
 import type { JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import {

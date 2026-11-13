@@ -1,5 +1,4 @@
 import { createMemo, Show } from "solid-js";
-import type { JSX } from "solid-js";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { Text } from "@/ui";
 import { MiniLineChart, type MiniSeries } from "@/components/common/charts/MiniLineChart";

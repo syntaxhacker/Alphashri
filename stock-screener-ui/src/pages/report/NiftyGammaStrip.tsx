@@ -1,5 +1,4 @@
-import { createMemo, createSignal, For, Show } from "solid-js";
-import type { JSX } from "solid-js";
+import { createMemo, createSignal } from "solid-js";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import * as palette from "@/ui/palette";
 import { LocalPanelModal } from "./LocalPanelModal";

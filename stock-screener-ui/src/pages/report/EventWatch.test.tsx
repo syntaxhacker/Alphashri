@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
+import { render, screen, cleanup, waitFor } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { EventWatch } from "./EventWatch";

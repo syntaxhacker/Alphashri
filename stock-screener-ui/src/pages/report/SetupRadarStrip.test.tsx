@@ -2,7 +2,6 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
-import type { JSX } from "solid-js";
 import { afterEach, describe, expect, test } from "vitest";
 import { SetupRadarStrip } from "./SetupRadarStrip";
 import type { SetupRead } from "./niftySetup";

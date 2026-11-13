@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup } from "solid-js";
+import { createSignal, onCleanup } from "solid-js";
 import { detectPatterns } from "@/api/chartPatterns";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import type { ChartTimeframe } from "./NiftyChartPanel";

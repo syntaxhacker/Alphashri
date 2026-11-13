@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, For } from "solid-js";
-import { Text, Button, Badge, Divider } from "@/ui";
+import { Text, Button, Badge, Box, Divider } from "@/ui";
 import { alpha } from "@/ui/alpha";
 import { LocalPanelModal } from "./LocalPanelModal";
 import { Sparkline } from "@/components/common/Sparkline";
@@ -292,7 +292,7 @@ function WallsTable({ title, side, rows, spot }: { title: string; side: "CALL" |
         </Text>
         <Text size="xs" span style={{ color: palette.TEXT_MUTED }}>top {rows.length} by OI</Text>
       </div>
-      <div
+      <Box
         component="table"
         style={{
           width: "100%",
@@ -402,7 +402,7 @@ function WallsTable({ title, side, rows, spot }: { title: string; side: "CALL" |
             );
           }}</For>
         </tbody>
-      </div>
+      </Box>
     </div>
   );
 }
@@ -521,7 +521,7 @@ function SequenceTable(props: { events: WallsEvent[] }) {
         </Text>
         <Text size="xs" span style={{ color: palette.TEXT_MUTED }}>touch → break · last 10</Text>
       </div>
-      <div
+      <Box
         component="table"
         style={{
           width: "100%",
@@ -592,7 +592,7 @@ function SequenceTable(props: { events: WallsEvent[] }) {
             );
           }}</For>
         </tbody>
-      </div>
+      </Box>
       {hidden > 0 && (
         <Text
           size="xs"
@@ -741,14 +741,14 @@ export function NiftyWallsExpanded(props: {
           />
         ) : (
           <>
-            <WallsLadder walls={walls} />
+            <WallsLadder walls={walls()!} />
 
             <div style={{ display: "grid", "grid-template-columns": { xs: "1fr", md: "1fr 1fr" }, "gap": "1px" }}>
               <WallsTable title="CALL WALLS" side="CALL" rows={walls()!.calls} spot={walls()!.spot} />
               <WallsTable title="PUT WALLS" side="PUT" rows={walls()!.puts} spot={walls()!.spot} />
             </div>
 
-            <HistoryChart walls={walls} />
+            <HistoryChart walls={walls()!} />
           </>
         )}
 
@@ -869,8 +869,8 @@ export function NiftyWallsExpanded(props: {
                 <Button
                   size="xs"
                   data-testid="walls-replay-break"
-                  disabled={!onReplayBreak}
-                  onClick={() => onReplayBreak?.(primaryBreak()!.at)}
+                  disabled={!props.onReplayBreak}
+                  onClick={() => props.onReplayBreak?.(primaryBreak()!.at)}
                   className="min-w-0"
                   style={{
                     "margin-top": `${REPORT_PAD.sm}px`,
