@@ -1,10 +1,12 @@
+import { splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UICollapseProps } from "../types";
 
 export function Collapse(props: UICollapseProps & Record<string, unknown>) {
-  const { timeout, unmountOnExit, ...domRest } = props;
-  void timeout;
-  if (!props.in && unmountOnExit) return null;
+  // `timeout` is accepted for API compatibility but the height transition is
+  // driven by `transitionDuration`; keep it off the DOM.
+  const [, domRest] = splitProps(props, ["timeout"]);
+  if (!props.in && props.unmountOnExit) return null;
   const duration = props.transitionDuration ?? 225;
   const timing = props.transitionTimingFunction ?? "ease";
   const styleObj: Record<string, string | number | undefined> = {

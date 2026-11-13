@@ -47,10 +47,9 @@ interface PressureBarsProps {
  * re-reconcile hundreds of `<rect>` nodes.
  */
 function PressureBars(props: PressureBarsProps) {
-  const { points, cellW, gridW, median, scaleMax } = props;
-  const scale = (v: number) => (Math.min(v, scaleMax) / scaleMax) * (ZERO - 3);
-  const medianY = ZERO - scale(median);
-  const burstY = ZERO - scale(median * PRESSURE_BURST_RATIO);
+  const scale = (v: number) => (Math.min(v, props.scaleMax) / props.scaleMax) * (ZERO - 3);
+  const medianY = ZERO - scale(props.median);
+  const burstY = ZERO - scale(props.median * PRESSURE_BURST_RATIO);
   return (
     <>
       {/* Aggressor hatch: solid = BUY (premium richer than delta-implied),
@@ -70,15 +69,15 @@ function PressureBars(props: PressureBarsProps) {
       <rect
         x={PAD_L}
         y={burstY}
-        width={gridW}
+        width={props.gridW}
         height={Math.max(0, ZERO - burstY)}
         fill={palette.WARNING}
         opacity={0.05}
       />
-      {/* median line */}
+      {/* props.median line */}
       <line
         x1={PAD_L}
-        x2={PAD_L + gridW}
+        x2={PAD_L + props.gridW}
         y1={medianY}
         y2={medianY}
         stroke={palette.TEXT_MUTED}
@@ -89,15 +88,15 @@ function PressureBars(props: PressureBarsProps) {
       {/* zero line */}
       <line
         x1={PAD_L}
-        x2={PAD_L + gridW}
+        x2={PAD_L + props.gridW}
         y1={ZERO}
         y2={ZERO}
         stroke={palette.TERM_BORDER}
         stroke-width={1}
       />
-      <For each={points}>{(p, i) => {
-        const x = PAD_L + i() * cellW;
-        const w = Math.max(0.6, cellW - 0.6);
+      <For each={props.points}>{(p, i) => {
+        const x = PAD_L + i() * props.cellW;
+        const w = Math.max(0.6, props.cellW - 0.6);
         const up = scale(p.ce);
         const down = scale(p.pe);
         const hot = p.state !== "normal";
