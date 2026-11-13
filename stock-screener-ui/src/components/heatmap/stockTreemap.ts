@@ -75,13 +75,16 @@ export interface StockTreemapStyle {
   changeNegative: string;
 }
 
-/** Builds the ECharts treemap option for a one-tile-per-stock heatmap. */
+/** Tile area by market cap (a real map) or uniform (a grid). */
+export type TreemapSizing = "uniform" | "market_cap";
+
 export function buildStockTreemapOption(
   stocks: HeatmapStock[],
   metric: string,
   metrics: MetricConfig[],
   isDark: boolean,
   style: StockTreemapStyle,
+  sizeBy: TreemapSizing = "uniform",
 ) {
   const activeMetric = resolveStockMetric(metrics, metric);
   const metricKey = activeMetric.value;
@@ -92,9 +95,10 @@ export function buildStockTreemapOption(
     const color = getHeatmapMetricColor(metricKey, mv, metricMin, metricMax);
     const textColor = getHeatmapMetricTextColor(metricKey, mv, metricMin, metricMax);
     const extra = stock as HeatmapStock & Record<string, unknown>;
+    const weight = sizeBy === "market_cap" ? Math.max(stock.market_cap || 0, 0) : 1;
     return {
       name: stock.symbol,
-      value: 1,
+      value: weight,
       path: stock.symbol,
       nameFull: stock.name,
       sector: stock.sector,

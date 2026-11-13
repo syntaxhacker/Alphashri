@@ -53,6 +53,13 @@ export interface HeatmapTreemapProps {
   chartHeight?: number | string;
   onSymbolClick?: (symbol: string) => void;
   testId?: string;
+  /**
+   * Which metrics use a diverging green/red ramp. Defaults to the heatmap's
+   * own set; the live market snapshot passes its own because a day change
+   * means the opposite of a 1-year return.
+   */
+  isSignedMetric?: (metric: string) => boolean;
+  sizeBy?: "uniform" | "market_cap";
 }
 
 export function HeatmapTreemap(props: HeatmapTreemapProps) {
@@ -71,7 +78,7 @@ export function HeatmapTreemap(props: HeatmapTreemapProps) {
   const metricMax = () => metricRange().max;
 
   const chartOption = createMemo(() =>
-    buildStockTreemapOption(props.stocks, metricKey(), metrics(), isDark, HEATMAP_TREEMAP_STYLE),
+    buildStockTreemapOption(props.stocks, metricKey(), metrics(), isDark, HEATMAP_TREEMAP_STYLE, props.sizeBy),
   );
 
   const handleChartClick = (params: { name?: string }) => {
@@ -135,7 +142,7 @@ export function HeatmapTreemap(props: HeatmapTreemapProps) {
             <Text size="xs" fw={600}>{activeMetric().label}</Text>
             <Box className="size-3 rounded" style={{ width: "12px", height: "12px", "background-color": getHeatmapMetricColor(metricKey(), metricMin(), metricMin(), metricMax()), "border-radius": "2px" }} />
             <Text size="xs">{activeMetric().fmt(metricMin())}</Text>
-            <Box className="flex-1 max-w-[120px] h-[8px] rounded-[4px]" style={{ background: isSignedHeatmapMetric(metricKey()) ? `linear-gradient(to right, ${SECTOR_STRONG_RED}, ${SECTOR_NEUTRAL}, ${SECTOR_GREEN})` : `linear-gradient(to right, ${SECTOR_STRONG_GREEN}, ${SECTOR_GREEN}, ${SECTOR_NEUTRAL}, ${SECTOR_RED}, ${SECTOR_STRONG_RED})` }} />
+            <Box className="flex-1 max-w-[120px] h-[8px] rounded-[4px]" style={{ background: (props.isSignedMetric ?? isSignedHeatmapMetric)(metricKey()) ? `linear-gradient(to right, ${SECTOR_STRONG_RED}, ${SECTOR_NEUTRAL}, ${SECTOR_GREEN})` : `linear-gradient(to right, ${SECTOR_STRONG_GREEN}, ${SECTOR_GREEN}, ${SECTOR_NEUTRAL}, ${SECTOR_RED}, ${SECTOR_STRONG_RED})` }} />
             <Box className="size-3 rounded" style={{ width: "12px", height: "12px", "background-color": getHeatmapMetricColor(metricKey(), metricMax(), metricMin(), metricMax()), "border-radius": "2px" }} />
             <Text size="xs">{activeMetric().fmt(metricMax())}</Text>
           </Box>

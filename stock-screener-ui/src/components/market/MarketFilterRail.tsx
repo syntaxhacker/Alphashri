@@ -3,7 +3,6 @@ import {
   Box,
   Checkbox,
   Divider,
-  NumberInput,
   Select,
   Switch,
   Text,
@@ -11,6 +10,7 @@ import {
   Tooltip,
 } from "@/ui";
 import { IconChevronLeft, IconFilter } from "../common/Icons";
+import { RangeInput } from "../common/RangeInput";
 import {
   CAP_TIERS,
   CAP_TIER_LABELS,
@@ -34,8 +34,6 @@ export interface MarketFilterRailProps {
   collapseLabel?: string;
 }
 
-const toNum = (v: number | string): number | null =>
-  typeof v === "number" && Number.isFinite(v) ? v : null;
 
 function SectionTitle(props: { children?: string }) {
   return (
@@ -108,112 +106,56 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
       </Box>
 
       <Divider />
-      <SectionTitle>Price ₹</SectionTitle>
-      <Box className="flex gap-1">
-        <Box className="min-w-0 flex-1">
-          <NumberInput
-            placeholder="Min"
-            aria-label="Minimum price"
-            value={filters().priceMin ?? ""}
-            onChange={(v: number | string) => props.onChange({ priceMin: toNum(v) })}
-            size="xs"
-            style={{ width: "100%" }}
-            min={0}
-            data-testid="market-filter-price-min"
-          />
-        </Box>
-        <Box className="min-w-0 flex-1">
-          <NumberInput
-            placeholder="Max"
-            aria-label="Maximum price"
-            value={filters().priceMax ?? ""}
-            onChange={(v: number | string) => props.onChange({ priceMax: toNum(v) })}
-            size="xs"
-            style={{ width: "100%" }}
-            min={0}
-            data-testid="market-filter-price-max"
-          />
-        </Box>
-      </Box>
+      <RangeInput
+        label="Price ₹"
+        min={filters().priceMin ?? null}
+        max={filters().priceMax ?? null}
+        onMinChange={(v) => props.onChange({ priceMin: v ?? undefined })}
+        onMaxChange={(v) => props.onChange({ priceMax: v ?? undefined })}
+        testId="market-filter-price"
+      />
 
-      <SectionTitle>Day change %</SectionTitle>
-      <Box className="flex gap-1">
-        <Box className="min-w-0 flex-1">
-          <NumberInput
-            placeholder="Min %"
-            aria-label="Minimum day change percent"
-            value={filters().dayChangeMin ?? ""}
-            onChange={(v: number | string) => props.onChange({ dayChangeMin: toNum(v) })}
-            size="xs"
-            style={{ width: "100%" }}
-            data-testid="market-filter-day-min"
-          />
-        </Box>
-        <Box className="min-w-0 flex-1">
-          <NumberInput
-            placeholder="Max %"
-            aria-label="Maximum day change percent"
-            value={filters().dayChangeMax ?? ""}
-            onChange={(v: number | string) => props.onChange({ dayChangeMax: toNum(v) })}
-            size="xs"
-            style={{ width: "100%" }}
-            data-testid="market-filter-day-max"
-          />
-        </Box>
-      </Box>
+      <RangeInput
+        label="Day change %"
+        min={filters().dayChangeMin ?? null}
+        max={filters().dayChangeMax ?? null}
+        onMinChange={(v) => props.onChange({ dayChangeMin: v ?? undefined })}
+        onMaxChange={(v) => props.onChange({ dayChangeMax: v ?? undefined })}
+        placeholder={["-∞", "+∞"]}
+        testId="market-filter-day"
+      />
 
-      <SectionTitle>Market cap</SectionTitle>
-      <NumberInput
-        placeholder="Min MCap (₹ Cr)"
-        aria-label="Minimum market cap in crore"
-        min={0}
-        value={filters().mcapMinCr ?? ""}
-        onChange={(v: number | string) => props.onChange({ mcapMinCr: toNum(v) })}
-        size="xs"
-        data-testid="market-filter-mcap-min"
+      <RangeInput
+        label="Market cap ₹ Cr"
+        min={filters().mcapMinCr ?? null}
+        max={filters().mcapMaxCr ?? null}
+        onMinChange={(v) => props.onChange({ mcapMinCr: v ?? undefined })}
+        onMaxChange={(v) => props.onChange({ mcapMaxCr: v ?? undefined })}
+        placeholder={["any", "any"]}
+        testId="market-filter-mcap"
       />
 
       <Divider />
-      <SectionTitle>RSI</SectionTitle>
-      <Box className="flex gap-1">
-        <Box className="min-w-0 flex-1">
-          <NumberInput
-            placeholder="Min"
-            aria-label="Minimum RSI"
-            min={0}
-            max={100}
-            value={filters().rsiMin ?? ""}
-            onChange={(v: number | string) => props.onChange({ rsiMin: toNum(v) })}
-            size="xs"
-            style={{ width: "100%" }}
-            data-testid="market-filter-rsi-min"
-          />
-        </Box>
-        <Box className="min-w-0 flex-1">
-          <NumberInput
-            placeholder="Max"
-            aria-label="Maximum RSI"
-            min={0}
-            max={100}
-            value={filters().rsiMax ?? ""}
-            onChange={(v: number | string) => props.onChange({ rsiMax: toNum(v) })}
-            size="xs"
-            style={{ width: "100%" }}
-            data-testid="market-filter-rsi-max"
-          />
-        </Box>
-      </Box>
+      <RangeInput
+        label="RSI"
+        min={filters().rsiMin ?? null}
+        max={filters().rsiMax ?? null}
+        onMinChange={(v) => props.onChange({ rsiMin: v ?? undefined })}
+        onMaxChange={(v) => props.onChange({ rsiMax: v ?? undefined })}
+        bounds={[0, 100]}
+        placeholder={["0", "100"]}
+        testId="market-filter-rsi"
+      />
 
-      <SectionTitle>Relative volume</SectionTitle>
-      <NumberInput
-        placeholder="Min rel-vol (x)"
-        aria-label="Minimum relative volume"
-        min={0}
+      <RangeInput
+        label="Relative volume"
+        min={filters().relVolMin ?? null}
+        max={filters().relVolMax ?? null}
+        onMinChange={(v) => props.onChange({ relVolMin: v ?? undefined })}
+        onMaxChange={(v) => props.onChange({ relVolMax: v ?? undefined })}
         step={0.1}
-        value={filters().relVolMin ?? ""}
-        onChange={(v: number | string) => props.onChange({ relVolMin: toNum(v) })}
-        size="xs"
-        data-testid="market-filter-relvol-min"
+        placeholder={["x", "x"]}
+        testId="market-filter-relvol"
       />
 
       <Divider />

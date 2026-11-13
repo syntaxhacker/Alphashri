@@ -37,6 +37,7 @@ import {
 } from "./marketFilters";
 import { buildMarketColumns } from "./marketColumns";
 import { MarketFilterRail } from "./MarketFilterRail";
+import { MarketMapView, MarketViewToggle, type MarketViewMode } from "./MarketMapView";
 import { TanStackTable } from "../common/TanStackTable";
 import { useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
 import { useSymbolDock } from "../common/symbolDockContext";
@@ -105,6 +106,7 @@ export function MarketScreenerPanel() {
   const [filters, setFilters] = createSignal<MarketFilterState>(defaultMarketFilters());
   const [railCollapsed, setRailCollapsed] = createSignal(false);
   const [drawerOpen, setDrawerOpen] = createSignal(false);
+  const [viewMode, setViewMode] = createSignal<MarketViewMode>("table");
   const [selectedSymbol, setSelectedSymbol] = createSignal<string | null>(null);
   const dock = useSymbolDock();
   const isNarrow = useMediaQuery("(max-width: 1023px)");
@@ -347,6 +349,7 @@ export function MarketScreenerPanel() {
             </ActionIcon>
           </Tooltip>
         </Indicator>
+        <MarketViewToggle value={viewMode()} onChange={setViewMode} />
         <Button
           size="xs"
           variant="subtle"
@@ -469,15 +472,28 @@ export function MarketScreenerPanel() {
                   </Paper>
                 }
               >
-                <MarketGrid
-                  data={filteredRows()}
-                  columns={columns()}
-                  hasActiveFilters={hasActiveFilters()}
-                  onResetFilters={resetFilters}
-                  onRowClick={handleRowClick}
-                  getRowStyle={getRowStyle}
-                  getRowTestId={getRowTestId}
-                />
+                <Show
+                  when={viewMode() === "map"}
+                  fallback={
+                    <MarketGrid
+                      data={filteredRows()}
+                      columns={columns()}
+                      hasActiveFilters={hasActiveFilters()}
+                      onResetFilters={resetFilters}
+                      onRowClick={handleRowClick}
+                      getRowStyle={getRowStyle}
+                      getRowTestId={getRowTestId}
+                    />
+                  }
+                >
+                  <MarketMapView
+                    rows={filteredRows()}
+                    onSymbolClick={(symbol) => {
+                      setSelectedSymbol(symbol);
+                      dock.open(symbol);
+                    }}
+                  />
+                </Show>
               </Show>
             }
           >

@@ -42,11 +42,13 @@ export interface MarketFilterState {
   priceMax: number | null;
   dayChangeMin: number | null;
   dayChangeMax: number | null;
-  /** Minimum market cap, ₹ crore. */
+  /** Market cap range, ₹ crore. */
   mcapMinCr: number | null;
+  mcapMaxCr: number | null;
   rsiMin: number | null;
   rsiMax: number | null;
   relVolMin: number | null;
+  relVolMax: number | null;
   aboveSma20: boolean;
   aboveSma50: boolean;
   aboveSma200: boolean;
@@ -66,9 +68,11 @@ export function defaultMarketFilters(): MarketFilterState {
     dayChangeMin: null,
     dayChangeMax: null,
     mcapMinCr: null,
+    mcapMaxCr: null,
     rsiMin: null,
     rsiMax: null,
     relVolMin: null,
+    relVolMax: null,
     aboveSma20: false,
     aboveSma50: false,
     aboveSma200: false,
@@ -85,11 +89,6 @@ function inRange(value: number | null, min: number | null, max: number | null): 
   if (min !== null && value < min) return false;
   if (max !== null && value > max) return false;
   return true;
-}
-
-function minAtLeast(value: number | null, min: number | null): boolean {
-  if (min === null) return true;
-  return value !== null && value >= min;
 }
 
 function isAboveSma(close: number | null, sma: number | null): boolean {
@@ -144,9 +143,9 @@ export function filterOnlyMarketRows(
     }
     if (!inRange(row.close, filters.priceMin, filters.priceMax)) return false;
     if (!inRange(row.change, filters.dayChangeMin, filters.dayChangeMax)) return false;
-    if (!minAtLeast(row.marketCapCr, filters.mcapMinCr)) return false;
+    if (!inRange(row.marketCapCr, filters.mcapMinCr, filters.mcapMaxCr)) return false;
     if (!inRange(row.rsi, filters.rsiMin, filters.rsiMax)) return false;
-    if (!minAtLeast(row.relativeVolume, filters.relVolMin)) return false;
+    if (!inRange(row.relativeVolume, filters.relVolMin, filters.relVolMax)) return false;
     if (filters.aboveSma20 && !isAboveSma(row.close, row.sma20)) return false;
     if (filters.aboveSma50 && !isAboveSma(row.close, row.sma50)) return false;
     if (filters.aboveSma200 && !isAboveSma(row.close, row.sma200)) return false;

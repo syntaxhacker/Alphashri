@@ -172,6 +172,16 @@ export const SECTOR_RED = "#9E4640";
 export const SECTOR_LIGHT_RED = "#5E3B39";
 export const SECTOR_NEUTRAL = "#242A31";
 
+// Heatmap value ramp. Kept apart from the SECTOR_* fill tokens: a treemap tile
+// is a *value*, and the muted sector ramp left green/red barely distinguishable
+// at a glance (sat 0.46/0.37). These hold mid luminance so white labels stay
+// legible while the two directions separate cleanly.
+export const RAMP_STRONG_GREEN = "#0E8A4F";
+export const RAMP_GREEN = "#1FA76A";
+export const RAMP_NEUTRAL = "#20262E";
+export const RAMP_RED = "#D0454C";
+export const RAMP_STRONG_RED = "#A82932";
+
 // Sector rotation (RRG quadrants + rotation status) — muted, never neon.
 export const ROTATION_LEADING = "#4C9A8F";
 export const ROTATION_IMPROVING = "#5B8DEF";

@@ -1,10 +1,10 @@
 import type { HeatmapStock } from "../../api/heatmap";
 import {
-  SECTOR_STRONG_GREEN,
-  SECTOR_GREEN,
-  SECTOR_NEUTRAL,
-  SECTOR_RED,
-  SECTOR_STRONG_RED,
+  RAMP_STRONG_GREEN,
+  RAMP_GREEN,
+  RAMP_NEUTRAL,
+  RAMP_RED,
+  RAMP_STRONG_RED,
   CREAM,
   SURFACE,
 } from "../../config/colors";
@@ -20,14 +20,12 @@ function hexToRgb(hex: string): Rgb {
   ];
 }
 
-// Gradient stops keep the heatmap semantics: strong green -> light green ->
-// neutral -> light red -> strong red (all derived from the brand palette).
 const COLOR_STOPS: [number, Rgb][] = [
-  [0, hexToRgb(SECTOR_STRONG_GREEN)],
-  [25, hexToRgb(SECTOR_GREEN)],
-  [50, hexToRgb(SECTOR_NEUTRAL)],
-  [75, hexToRgb(SECTOR_RED)],
-  [100, hexToRgb(SECTOR_STRONG_RED)],
+  [0, hexToRgb(RAMP_STRONG_GREEN)],
+  [25, hexToRgb(RAMP_GREEN)],
+  [50, hexToRgb(RAMP_NEUTRAL)],
+  [75, hexToRgb(RAMP_RED)],
+  [100, hexToRgb(RAMP_STRONG_RED)],
 ];
 
 export function lerpRgb(t: number): string {
@@ -42,7 +40,7 @@ export function lerpRgb(t: number): string {
       return `rgb(${r},${g},${b})`;
     }
   }
-  return `rgb(${hexToRgb(SECTOR_STRONG_RED).join(",")})`;
+  return `rgb(${hexToRgb(RAMP_STRONG_RED).join(",")})`;
 }
 
 export function norm(value: number, min: number, max: number): number {
@@ -65,6 +63,7 @@ export const SIGNED_HEATMAP_METRICS = new Set([
   "premarket_change",
   "move_pct",
   "perf_1y",
+  "perf_1m",
   "dividend_yield",
   "roe",
 ]);
@@ -77,7 +76,10 @@ export function isSignedHeatmapMetric(metric: string): boolean {
 export function getSignedMetricColor(value: number, min: number, max: number): string {
   if (value === 0) return lerpRgb(50);
   const extent = Math.max(Math.abs(min), Math.abs(max), 0.01);
-  const t = Math.min(Math.abs(value) / extent, 1);
+  // Linear scaling against a single outlier leaves most tiles near neutral on a
+  // 3000-name universe (one stock at +20% flattens every ±1% move). A square
+  // root keeps the extremes distinguishable while lifting the common case.
+  const t = Math.sqrt(Math.min(Math.abs(value) / extent, 1));
   return lerpRgb(value > 0 ? 50 - 50 * t : 50 + 50 * t);
 }
 
@@ -150,6 +152,14 @@ export function getMetricValue(stock: HeatmapStock, metric: string): number {
       return Number(row.adx) || 0;
     case "volume_m":
       return Number(row.volume_m) || 0;
+    // Live market-snapshot fields. Kept here (not in the component) so both the
+    // heatmap page and the screener's Map view colour through one code path.
+    case "pos_52w":
+      return Number(row.pos_52w) || 0;
+    case "relative_volume":
+      return Number(row.relative_volume) || 0;
+    case "perf_1m":
+      return Number(row.perf_1m) || 0;
     default:
       return 0;
   }

@@ -53,6 +53,11 @@ COLUMNS = [
     "Perf.1M",
     "price_52_week_high",
     "price_52_week_low",
+    # Fundamentals ride along in the same scan; the treemap colours by them.
+    "price_earnings_ttm",
+    "price_book_fq",
+    "dividend_yield_recent",
+    "return_on_equity",
     "update_mode",
 ]
 
@@ -219,6 +224,12 @@ def _shape_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "high_52w": high,
                 "low_52w": low,
                 "pos_52w": pos_52w,
+                # Fundamentals for the treemap's metric selector; None when TV
+                # has no coverage, which the UI renders as a dash rather than 0.
+                "pe_ratio": _num(raw.get("price_earnings_ttm")),
+                "pb_ratio": _num(raw.get("price_book_fq")),
+                "dividend_yield": _num(raw.get("dividend_yield_recent")),
+                "roe": _num(raw.get("return_on_equity")),
                 "fno": sym in _FNO_SYMBOLS,
                 "etf": sym in _ETF_SYMBOLS,
             }
