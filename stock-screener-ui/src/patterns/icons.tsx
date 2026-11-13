@@ -7,7 +7,7 @@
  * is copied from Tabler Icons (MIT) and rendered as native SVG: 24×24 viewBox,
  * `stroke="currentColor"`, `stroke-width="2"`, round caps/joins.
  */
-import { For, splitProps, type JSX } from "solid-js";
+import { splitProps, type JSX } from "solid-js";
 
 export interface TablerIconProps extends Omit<JSX.SvgSVGAttributes<SVGSVGElement>, "color"> {
   size?: number | string;
@@ -16,6 +16,10 @@ export interface TablerIconProps extends Omit<JSX.SvgSVGAttributes<SVGSVGElement
 }
 
 function makeIcon(paths: string[]) {
+  // A path's `d` is self-delimiting, so every subpath concatenates into one
+  // `d` that paints identically with a single DOM node — these icons repeat
+  // once per card in the results grid, where 8 nodes each is real work.
+  const merged = paths.join("");
   return function TablerIcon(props: TablerIconProps) {
     const [local, rest] = splitProps(props, ["size", "stroke", "color"]);
     return (
@@ -31,7 +35,7 @@ function makeIcon(paths: string[]) {
         stroke-linejoin="round"
         {...rest}
       >
-        <For each={paths}>{(d) => <path d={d} />}</For>
+        <path d={merged} />
       </svg>
     );
   };

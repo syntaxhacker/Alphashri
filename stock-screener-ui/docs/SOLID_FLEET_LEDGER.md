@@ -99,11 +99,37 @@ Measured baselines recorded before dispatch so every claim is comparable.
 
 | # | Job | Files | Status |
 |---|---|---|---|
-| 28 | echarts must be lazy-only | 5 | in flight |
-| 29 | tab paint: per-tab Suspense, no eager fetch, memo churn | 2 | in flight |
-| 30 | PatternCard mount cost | 4 | in flight |
-| 31 | NiftyReportShell chunk split | 3 | in flight |
-| 32 | last 3 theme offenders → guard fully green | 3 + palette | in flight |
+| 28 | echarts must be lazy-only | 5 + vite.config | **DONE**: manualChunks matched app path `echartsSolid.ts`; scoped to `node_modules`. Chunk 1093K, referenced only by `import()`, absent from modulepreload, warning gone |
+| 29 | tab paint: lazy panels, option identity, memo churn | 2 | **DONE**: ScreenerContainer shell 42.78→21.59 kB (gzip 11.97→6.19) |
+| 30 | PatternCard mount cost | 4 | **DONE**: 60 cards 1152→971 ms; 200 cards 2771→2195 ms; identical-update 1.13→0.29 ms |
+| 31 | NiftyReportShell chunk split | 3 | **DONE**: 591.61→26.20 kB (gzip 173.30→9.18), 13 lazy panels, each with skeleton + ErrorBoundary |
+| 32 | last 3 theme offenders | 3 + palette | **DONE**: theme guard **fully green (3/3)** |
+
+## Wave 4 results (measured)
+
+| Metric | Before | After |
+|---|---|---|
+| echarts chunk | 1114 KB, preloaded, 92 static importers | 1093 KB, `import()` only, 0 preload |
+| NiftyReportShell chunk | 591.61 kB | 26.20 kB (−95.6%) |
+| Screener shell chunk | 42.78 kB | 21.59 kB (−49.5%) |
+| PatternGrid 60 cards | 1152 ms | 971 ms |
+| 200 pattern cards | 2771 ms | 2195 ms |
+| 200-card identical update | 1.13 ms | 0.29 ms |
+
+## Known pre-existing flake (NOT ours)
+
+`ScreenerConfigView.test.tsx > "Preview fetches on screener change with debounce"`
+is flaky in isolation (2/3 solo runs pass; `expected 1 call, got 2`). It never
+imports `ScreenerPage`, so the screener lazy split is not the cause.
+
+## Outstanding (next candidates)
+
+1. `ScreenerContent.tsx` memo churn: `sections` rebuilds columns + `new Set()` on
+   every store tick (including `setIsLoading`), so `TanStackTable` reconciles the
+   whole table on every poll even while hidden.
+2. `bun run typecheck` — ~2200 pre-existing errors across 449 files, untouched.
+3. `lightweight-charts.development` chunk is 340 KB — the dev build may be
+   shipping in production.
 
 ## Guard status (must stay green on every commit)
 

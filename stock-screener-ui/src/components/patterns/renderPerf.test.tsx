@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { createSignal, For, type JSX } from "solid-js";
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import { SimpleGrid, UIProvider } from "@/ui";
-import type { PatternHitDTO } from "@/types/chartPatterns";
+import type { ChartCandle, PatternHitDTO } from "@/types/chartPatterns";
 import type { MatrixCell, PatternMatrixRow } from "./symbolMatrix";
 import { PatternCard, type PatternCardProps } from "./PatternCard";
 import { PatternGrid } from "./PatternGrid";
@@ -59,6 +59,42 @@ const SUMMARY = {
   bearish: 1,
   data_through: "2026-09-30",
 };
+
+/**
+ * Wall-time budgets for the dense results grid, recorded from the measured
+ * numbers below (dev box, happy-dom). They are deliberately ~2x the recorded
+ * figure because CI runs 20 shards x 4 workers on shared vCPUs and the harness
+ * is dominated by node insertion, not by card computation. A regression is a
+ * card that gets materially heavier, not a slow CI machine.
+ */
+const BUDGET = {
+  card: 120,
+  miniChart: 40,
+  grid60: 3000,
+  grid200: 7000,
+  grid200Candles: 8000,
+  update200: 250,
+};
+
+function budget(label: string, ms: number, limit: number): string {
+  return `${label}: ${ms.toFixed(2)} ms (budget ${limit} ms)`;
+}
+
+/** 120 one-minute candles — the shape a real hit carries into the grid. */
+function makeCandles(count: number): ChartCandle[] {
+  return Array.from({ length: count }, (_, i) => {
+    const o = 100 + Math.sin(i / 7) * 5 + i * 0.05;
+    const c = o + Math.cos(i / 5) * 2;
+    return {
+      t: `2026-09-${String((i % 27) + 1).padStart(2, "0")}`,
+      o,
+      h: Math.max(o, c) + 1,
+      l: Math.min(o, c) - 1,
+      c,
+      v: 1000,
+    };
+  });
+}
 
 function makeHit(id: number, symbol: string): PatternHitDTO {
   return {
@@ -115,6 +151,7 @@ describe("render perf — patterns", () => {
     const mountMs = performance.now() - t0;
     // eslint-disable-next-line no-console
     console.log(`[PERF] PatternCard mount ${mountMs.toFixed(2)} ms`);
+    expect(mountMs, budget("PatternCard mount", mountMs, BUDGET.card)).toBeLessThan(BUDGET.card);
     expect(screen.getByTestId("patterns-card-IRCON-falling_wedge")).toBeInTheDocument();
   });
 
@@ -125,6 +162,7 @@ describe("render perf — patterns", () => {
     const mountMs = performance.now() - t0;
     // eslint-disable-next-line no-console
     console.log(`[PERF] PatternMiniChart mount ${mountMs.toFixed(2)} ms`);
+    expect(mountMs, budget("PatternMiniChart mount", mountMs, BUDGET.miniChart)).toBeLessThan(BUDGET.miniChart);
     expect(screen.getByTestId("patterns-mini-chart-IRCON-falling_wedge")).toBeInTheDocument();
   });
 
@@ -147,6 +185,7 @@ describe("render perf — patterns", () => {
     const mountMs = performance.now() - t0;
     // eslint-disable-next-line no-console
     console.log(`[PERF] PatternGrid 60-card mount ${mountMs.toFixed(2)} ms`);
+    expect(mountMs, budget("PatternGrid 60-card mount", mountMs, BUDGET.grid60)).toBeLessThan(BUDGET.grid60);
     expect(screen.getAllByTestId("patterns-card")).toHaveLength(60);
   }, 20000);
 
@@ -424,10 +463,37 @@ describe("render perf — 200-card grid (results limit)", () => {
     const mountMs = performance.now() - t0;
     // eslint-disable-next-line no-console
     console.log(`[PERF] mount 200 cards: ${mountMs.toFixed(2)} ms, card renders=${counter.renders}`);
+    expect(mountMs, budget("mount 200 cards", mountMs, BUDGET.grid200)).toBeLessThan(BUDGET.grid200);
     expect(screen.getByTestId("patterns-grid")).toBeInTheDocument();
     expect(screen.getAllByTestId("patterns-card")).toHaveLength(200);
     expect(screen.getByTestId("patterns-card-P0-falling_wedge")).toBeInTheDocument();
     expect(counter.renders).toBe(200);
+  }, 20000);
+
+  test("mount 200 cards that each carry a candle window stays within budget", () => {
+    const counter = { renders: 0 };
+    const hits = Array.from({ length: 200 }, (_, i) => ({
+      ...makeHit(2000 + i, `C${i}`),
+      candles: makeCandles(120),
+    }));
+    const t0 = performance.now();
+    render(() => (
+      <SimpleGrid data-testid="patterns-grid" cols={4} spacing={16}>
+        <For each={hits}>{(hit) => <CountingCard hit={hit} counter={counter} />}</For>
+      </SimpleGrid>
+    ));
+    const mountMs = performance.now() - t0;
+    // eslint-disable-next-line no-console
+    console.log(
+      `[PERF] mount 200 cards with 120 candles: ${mountMs.toFixed(2)} ms, card renders=${counter.renders}`,
+    );
+    expect(
+      mountMs,
+      budget("mount 200 candle cards", mountMs, BUDGET.grid200Candles),
+    ).toBeLessThan(BUDGET.grid200Candles);
+    expect(screen.getAllByTestId("patterns-card")).toHaveLength(200);
+    expect(counter.renders).toBe(200);
+    expect(screen.getByTestId("patterns-mini-chart-C0-falling_wedge")).toBeInTheDocument();
   }, 20000);
 
   test("setting the list to a new array of the same hit objects renders no new cards", () => {
@@ -447,6 +513,7 @@ describe("render perf — 200-card grid (results limit)", () => {
     console.log(
       `[PERF] update 200 cards identical: ${updateMs.toFixed(2)} ms, card renders=${counter.renders} (mount ${mountRenders})`,
     );
+    expect(updateMs, budget("update 200 cards identical", updateMs, BUDGET.update200)).toBeLessThan(BUDGET.update200);
     expect(screen.getAllByTestId("patterns-card")).toHaveLength(200);
     expect(counter.renders).toBe(mountRenders); // For keys by reference: zero extra card renders
   }, 20000);
