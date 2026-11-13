@@ -29,6 +29,13 @@ clean, and a regression test that FAILS before the fix.
 | 7 | Screener JSX `.map()` → `<For>` | 5 files | **NO-OP** | agent proved Lists already use `<For>` |
 | 8 | `RangeToggle` + `Icons` | 2 | **DONE** | 323 pass; both had real defects |
 | 9 | `FullscreenPatternList` `<For>`/`<Show>` | 1 | **DONE** | 9 pass |
+| 10 | `@/ui` primitives (Accordion/Menu/Tree/Overlay) | 4 src + 4 test | **DONE** | 107 pass; fixed bool-called-as-fn crash in Accordion |
+| 11 | `Collapse` + `PressureBars` destructure | 2 | **DONE** | guards green; 18 pass |
+| 12 | Report props destructure (walls/pressure/erosion/movers/coil) | 11 src + 7 test | **DONE** | 1345 report tests pass |
+| 13 | Breakouts endpoint hang (blank Report) | diagnosis | **IN FLIGHT** | breakouts >180s; daily 2s |
+| 14 | common/ component reactivity audit | 30 files | **IN FLIGHT** | signal-read-outside-context hunt |
+| 15 | Screener deep reactivity audit | 7 files | **IN FLIGHT** | memos/effects/leaks |
+| 16 | `@/ui/inputs` w/h + reactivity | 14 files | **IN FLIGHT** | 17 tsc errors live here |
 
 ## Verified no-op findings (do not redo)
 
