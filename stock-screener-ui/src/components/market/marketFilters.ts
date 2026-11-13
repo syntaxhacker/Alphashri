@@ -83,11 +83,19 @@ export function defaultMarketFilters(): MarketFilterState {
   };
 }
 
-function inRange(value: number | null, min: number | null, max: number | null): boolean {
-  if (min === null && max === null) return true;
+const has = (v: number | null | undefined): v is number => v != null && Number.isFinite(v);
+
+function inRange(
+  value: number | null,
+  min: number | null | undefined,
+  max: number | null | undefined,
+): boolean {
+  const lo = has(min) ? min : null;
+  const hi = has(max) ? max : null;
+  if (lo === null && hi === null) return true;
   if (value === null) return false;
-  if (min !== null && value < min) return false;
-  if (max !== null && value > max) return false;
+  if (lo !== null && value < lo) return false;
+  if (hi !== null && value > hi) return false;
   return true;
 }
 
@@ -188,22 +196,30 @@ export interface MarketFilterChip {
   label: string;
 }
 
-function fmtNum(n: number): string {
+/**
+ * Total by construction: the filter state is `number | null`, but a caller that
+ * writes `undefined` (or a stale persisted state) must not be able to throw
+ * while rendering a chip — that blanks the whole panel behind the boundary.
+ */
+function fmtNum(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return "—";
   return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(2)));
 }
+
 
 function rangeChip(
   key: string,
   label: string,
-  min: number | null,
-  max: number | null,
+  min: number | null | undefined,
+  max: number | null | undefined,
   unit = "",
 ): MarketFilterChip | null {
-  if (min === null && max === null) return null;
-  if (min !== null && max !== null)
-    return { key, label: `${label} ${fmtNum(min)}–${fmtNum(max)}${unit}` };
-  if (min !== null) return { key, label: `${label} ≥ ${fmtNum(min)}${unit}` };
-  return { key, label: `${label} ≤ ${fmtNum(max as number)}${unit}` };
+  const lo = has(min);
+  const hi = has(max);
+  if (!lo && !hi) return null;
+  if (lo && hi) return { key, label: `${label} ${fmtNum(min)}–${fmtNum(max)}${unit}` };
+  if (lo) return { key, label: `${label} ≥ ${fmtNum(min)}${unit}` };
+  return { key, label: `${label} ≤ ${fmtNum(max)}${unit}` };
 }
 
 /**
@@ -226,10 +242,10 @@ export function buildMarketFilterChips(filters: MarketFilterState): MarketFilter
 
   push(rangeChip("price", "LTP", filters.priceMin, filters.priceMax, ""));
   push(rangeChip("day", "Day", filters.dayChangeMin, filters.dayChangeMax, "%"));
-  if (filters.mcapMinCr !== null)
+  if (has(filters.mcapMinCr))
     chips.push({ key: "mcap", label: `MCap ≥ ${fmtNum(filters.mcapMinCr)} Cr` });
   push(rangeChip("rsi", "RSI", filters.rsiMin, filters.rsiMax, ""));
-  if (filters.relVolMin !== null)
+  if (has(filters.relVolMin))
     chips.push({ key: "relvol", label: `RelVol ≥ ${fmtNum(filters.relVolMin)}` });
   if (filters.aboveSma20) chips.push({ key: "sma20", label: "Above SMA 20" });
   if (filters.aboveSma50) chips.push({ key: "sma50", label: "Above SMA 50" });

@@ -330,6 +330,39 @@ describe("buildMarketFilterChips", () => {
     expect(countActiveMarketFilters(defaultMarketFilters())).toBe(0);
   });
 
+  // The RangeInput hands back `null`/`undefined` interchangeably when an end is
+  // cleared. A chip builder that only tests `=== null` let `undefined` reach
+  // `fmtNum`, which threw and blanked the whole panel behind the boundary.
+  test("a cleared range end never throws", () => {
+    const undef = filters({
+      priceMin: undefined as unknown as null,
+      priceMax: undefined as unknown as null,
+      dayChangeMin: undefined as unknown as null,
+      mcapMinCr: undefined as unknown as null,
+      rsiMin: undefined as unknown as null,
+      relVolMin: undefined as unknown as null,
+    });
+    expect(() => buildMarketFilterChips(undef)).not.toThrow();
+    expect(buildMarketFilterChips(undef)).toEqual([]);
+    expect(countActiveMarketFilters(undef)).toBe(0);
+  });
+
+  test("a half-cleared range still renders one bound", () => {
+    const chips = buildMarketFilterChips(
+      filters({ priceMin: 100, priceMax: undefined as unknown as null }),
+    );
+    const price = chips.find((c) => c.key === "price");
+    expect(price?.label).toBe("LTP ≥ 100");
+  });
+
+  test("a non-finite bound renders a dash instead of throwing", () => {
+    const chips = buildMarketFilterChips(
+      filters({ rsiMin: Number.NaN as unknown as null, rsiMax: 70 }),
+    );
+    expect(() => buildMarketFilterChips(chips.length ? filters({ rsiMax: 70 }) : filters({}))).not.toThrow();
+    expect(chips.find((c) => c.key === "rsi")?.label).toBe("RSI ≤ 70");
+  });
+
   test("every filter produces a removable chip", () => {
     const chips = buildMarketFilterChips(
       filters({
