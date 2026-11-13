@@ -1,6 +1,7 @@
 // BacktestToolbar — always-visible control strip above the full-bleed chart.
 // Chart mode + Run/Reset live here; right-rail panels collapse from their own headers.
 import { Button, Text, Box } from "@/ui";
+import * as palette from "@/ui/palette";
 import { IconPlayerPlay, IconLayoutGrid } from "@/components/common/Icons";
 interface BacktestToolbarProps {
   strategyLabel: string;
@@ -26,8 +27,8 @@ export function BacktestToolbar(props: BacktestToolbarProps) {
         gap: "8px",
         "padding-left": "8px",
         "padding-right": "8px",
-        "background-color": "#0A0A0A",
-        "border-bottom": "1px solid #30363D",
+        "background-color": palette.SURFACE,
+        "border-bottom": `1px solid ${palette.BROWN}`,
       }}
       data-testid="backtest-toolbar"
     >

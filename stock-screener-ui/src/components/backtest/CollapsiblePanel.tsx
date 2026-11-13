@@ -2,6 +2,7 @@ import { Show } from "solid-js";
 import type { JSX } from "solid-js";
 // CollapsiblePanel — dense panel for the backtest right rail.
 import { Badge, Divider, Text, Box, Stack } from "@/ui";
+import * as palette from "@/ui/palette";
 import { IconChevronDown, IconChevronRight } from "@/components/common/Icons";
 import type { BacktestPanelId } from "./useBacktestLayout";
 interface CollapsiblePanelProps {
@@ -25,7 +26,7 @@ export function CollapsiblePanel(props: CollapsiblePanelProps) {
         flex: props.open ? "1 1 0" : "0 0 auto",
         "min-height": 0,
         "min-width": 0,
-        "border-top": "1px solid #30363D",
+        "border-top": `1px solid ${palette.BROWN}`,
         "border-radius": "8px",
       }}
     >
@@ -41,11 +42,11 @@ export function CollapsiblePanel(props: CollapsiblePanelProps) {
           "padding-left": "8px",
           "padding-right": "8px",
           "justify-content": "flex-start",
-          "background-color": props.open ? "#121212" : "#000000",
+          "background-color": props.open ? palette.SURFACE_ALT : palette.BG,
         }}
       >
         <Stack direction="row" align="center" gap={0.75} className="w-full">
-          <Box className="place-items-center" style={{ display: "grid", "place-items": "center", color: "#8B949E" }}>
+          <Box className="place-items-center" style={{ display: "grid", "place-items": "center", color: palette.TEXT_MUTED }}>
             {props.open ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
           </Box>
           <Text
@@ -68,7 +69,7 @@ export function CollapsiblePanel(props: CollapsiblePanelProps) {
           {props.badge != null && (
             <Badge
               size="xs"
-              style={{ height: "16px", "font-size": "10px", "font-weight": 700, "background-color": "#121212" }}
+              style={{ height: "16px", "font-size": "10px", "font-weight": 700, "background-color": palette.SURFACE_ALT }}
               variant="light"
             >
               {props.badge}

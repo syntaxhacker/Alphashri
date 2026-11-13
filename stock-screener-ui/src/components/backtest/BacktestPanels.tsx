@@ -1,4 +1,5 @@
 import { Tabs, Box, Flex } from "@/ui";
+import * as palette from "@/ui/palette";
 import { IconTable, IconHistory } from "@/components/common/Icons";
 import {
   BacktestSummary,
@@ -65,7 +66,7 @@ export function BacktestLeftPanel(props: BacktestLeftPanelProps) {
               "align-items": "center",
               "justify-content": "center",
               height: "100%",
-              color: "#8B949E",
+              color: palette.TEXT_MUTED,
             }}
             data-testid="results-empty"
           >

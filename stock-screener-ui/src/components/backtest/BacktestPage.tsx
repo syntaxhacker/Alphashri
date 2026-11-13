@@ -1,4 +1,5 @@
 import { Alert, Text, Box } from "@/ui";
+import * as palette from "@/ui/palette";
 import { IconAlertCircle } from "@/components/common/Icons";
 import { createMemo, createSignal, createEffect, Show } from "solid-js";
 import { useStoreSnapshot } from "../paper-trading/storeSnapshot";
@@ -238,7 +239,7 @@ export function BacktestPage() {
           <Show
             when={hasResults()}
             fallback={
-              <Box className="h-full flex items-center justify-center" style={{ height: "100%", display: "flex", "align-items": "center", "justify-content": "center", "background-color": "#000000" }}>
+              <Box className="h-full flex items-center justify-center" style={{ height: "100%", display: "flex", "align-items": "center", "justify-content": "center", "background-color": palette.BG }}>
                 <Text c="dimmed" size="sm">
                   {state().isRunning ? "Running backtest…" : "Open Config, pick symbols and press Run to see the chart."}
                 </Text>

@@ -1,5 +1,6 @@
 import { For } from "solid-js";
 import { Tabs, Select, Text, Center, Group, Box } from "@/ui";
+import * as palette from "@/ui/palette";
 import { BacktestChart } from "./BacktestChart";
 import type { SymbolChartData } from "../../types/backtest";
 import type { MarketHoliday } from "../../types/holidays";
@@ -45,7 +46,7 @@ export function BacktestChartTabs(props: BacktestChartTabsProps) {
         data-testid="chart-container"
         h={400}
         className="rounded-fin"
-        style={{ "background-color": "#0A0A0A", "border-radius": "2px" }}
+        style={{ "background-color": palette.SURFACE, "border-radius": "2px" }}
       >
         <Text c="dimmed">Select a symbol to view chart</Text>
       </Center>
@@ -122,7 +123,7 @@ export function BacktestChartTabs(props: BacktestChartTabsProps) {
             data-testid="chart-placeholder"
             h="100%"
             className="rounded-fin"
-            style={{ "background-color": "#0A0A0A", "border-radius": "2px" }}
+            style={{ "background-color": palette.SURFACE, "border-radius": "2px" }}
           >
             <Text c="dimmed">Select a symbol</Text>
           </Center>

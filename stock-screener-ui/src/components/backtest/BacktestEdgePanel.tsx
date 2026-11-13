@@ -27,8 +27,8 @@ function Row(props: { b: EdgeBucket; maxAbs: number }) {
       data-testid={`edge-row-${props.b.key}`}
     >
       <Text size="xs" c="dimmed" style={{ width: "60px", flex: "0 0 auto", "white-space": "nowrap" }}>{props.b.label}</Text>
-      <div class="relative flex-1 h-[14px] rounded-sm overflow-hidden" style={{ "background-color": "#121212" }}>
-        <div class="absolute top-0 bottom-0 left-1/2 w-[1px]" style={{ "background-color": "#30363D" }} />
+      <div class="relative flex-1 h-[14px] rounded-sm overflow-hidden" style={{ "background-color": palette.SURFACE_ALT }}>
+        <div class="absolute top-0 bottom-0 left-1/2 w-[1px]" style={{ "background-color": palette.BROWN }} />
         <div
           class="absolute top-1 bottom-1 rounded-xs"
           style={{
