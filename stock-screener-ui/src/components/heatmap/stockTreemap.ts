@@ -35,6 +35,21 @@ export function resolveStockMetric(metrics: MetricConfig[], metric: string): Met
   return metrics.find((m) => m.value === metric) || metrics[0];
 }
 
+/**
+ * A metric formatter must never throw: the caller can hand it a value from a
+ * stale cache or a metric with no data on this universe. "—" is the honest
+ * render for "no value", and it keeps one bad row from blanking the whole map.
+ */
+export function safeFmt(metric: { fmt: (v: number) => string }, value: unknown): string {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return "—";
+  try {
+    return metric.fmt(n);
+  } catch {
+    return "—";
+  }
+}
+
 /** Min/max of `metric` across `stocks`; safe for empty lists. */
 export function getStockMetricRange(
   stocks: HeatmapStock[],
@@ -109,7 +124,7 @@ export function buildStockTreemapOption(
       score: extra.score,
       gap52: extra.to_52w_high,
       metricLabel: activeMetric.label,
-      metricValue: activeMetric.fmt(mv),
+      metricValue: safeFmt(activeMetric, mv),
       label: { color: textColor },
       itemStyle: { color },
     };

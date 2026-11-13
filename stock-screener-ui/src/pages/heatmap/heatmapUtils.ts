@@ -119,23 +119,30 @@ export function getHeatmapMetricTextColor(
   return l > 0.55 ? SURFACE : CREAM;
 }
 
+function finiteOrZero(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export function getMetricValue(stock: HeatmapStock, metric: string): number {
   const row = stock as HeatmapStock & Record<string, unknown>;
   switch (metric) {
+    // Every case must return a finite number: a missing fundamental is 0 here
+    // (it colours as neutral) so no caller ever formats `undefined`.
     case "market_cap":
-      return stock.market_cap;
+      return finiteOrZero(stock.market_cap);
     case "change_pct":
-      return stock.change_pct;
+      return finiteOrZero(stock.change_pct);
     case "pe_ratio":
-      return stock.pe_ratio;
+      return finiteOrZero(stock.pe_ratio);
     case "pb_ratio":
-      return stock.pb_ratio ?? 0;
+      return finiteOrZero(stock.pb_ratio);
     case "dividend_yield":
-      return stock.dividend_yield ?? 0;
+      return finiteOrZero(stock.dividend_yield);
     case "perf_1y":
-      return stock.perf_1y ?? 0;
+      return finiteOrZero(stock.perf_1y);
     case "roe":
-      return stock.roe ?? 0;
+      return finiteOrZero(stock.roe);
     case "score":
       return Number(row.score) || 0;
     case "to_52w_high":
@@ -155,11 +162,11 @@ export function getMetricValue(stock: HeatmapStock, metric: string): number {
     // Live market-snapshot fields. Kept here (not in the component) so both the
     // heatmap page and the screener's Map view colour through one code path.
     case "pos_52w":
-      return Number(row.pos_52w) || 0;
+      return finiteOrZero(row.pos_52w);
     case "relative_volume":
-      return Number(row.relative_volume) || 0;
+      return finiteOrZero(row.relative_volume);
     case "perf_1m":
-      return Number(row.perf_1m) || 0;
+      return finiteOrZero(row.perf_1m);
     default:
       return 0;
   }

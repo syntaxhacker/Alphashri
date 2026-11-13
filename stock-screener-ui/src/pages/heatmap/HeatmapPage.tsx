@@ -2,6 +2,7 @@ import { createSignal, createMemo, onMount, Show } from "solid-js";
 import { Box, Text, Select, TextInput, LoadingOverlay, Badge, ToolbarRow } from "@/ui";
 import { fetchHeatmapData, fetchHeatmapSectors, type HeatmapResponse, type HeatmapStock, type SectorInfo } from "../../api/heatmap";
 import { METRICS, getMetricValue, getMetricColor, getMetricTextColor } from "./heatmapUtils";
+import { safeFmt } from "../../components/heatmap/stockTreemap";
 import { HeatmapTreemap } from "./HeatmapTreemap";
 import { ScatterView } from "./ScatterView";
 import { DistributionView } from "./DistributionView";
@@ -251,10 +252,10 @@ export function HeatmapPage() {
       >
         <Text size="xs" fw={600} data-testid="heatmap-legend-label">{activeMetric().label}</Text>
         <Box className="h-3 w-3 flex-shrink-0 rounded-[2px]" style={{ "background-color": getMetricColor(metricMin(), metricMin(), metricMax()) }} />
-        <Text size="xs" data-testid="heatmap-legend-min">{activeMetric().fmt(metricMin())}</Text>
+        <Text size="xs" data-testid="heatmap-legend-min">{safeFmt(activeMetric(), metricMin())}</Text>
         <Box className="h-2 max-w-[120px] flex-1 rounded-[4px]" style={{ background: `linear-gradient(to right, ${SECTOR_STRONG_GREEN}, ${SECTOR_GREEN}, ${SECTOR_NEUTRAL}, ${SECTOR_RED}, ${SECTOR_STRONG_RED})` }} />
         <Box className="h-3 w-3 flex-shrink-0 rounded-[2px]" style={{ "background-color": getMetricColor(metricMax(), metricMin(), metricMax()) }} />
-        <Text size="xs" data-testid="heatmap-legend-max">{activeMetric().fmt(metricMax())}</Text>
+        <Text size="xs" data-testid="heatmap-legend-max">{safeFmt(activeMetric(), metricMax())}</Text>
       </Box>
     </Box>
   );

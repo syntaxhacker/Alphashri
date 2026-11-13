@@ -24,6 +24,7 @@ import {
   buildStockTreemapOption,
   getStockMetricRange,
   resolveStockMetric,
+  safeFmt,
   type StockTreemapStyle,
 } from "../../components/heatmap/stockTreemap";
 
@@ -141,10 +142,10 @@ export function HeatmapTreemap(props: HeatmapTreemapProps) {
           <Box className="flex items-center gap-2 px-2 h-8 flex-shrink-0 border-t border-fin-border">
             <Text size="xs" fw={600}>{activeMetric().label}</Text>
             <Box className="size-3 rounded" style={{ width: "12px", height: "12px", "background-color": getHeatmapMetricColor(metricKey(), metricMin(), metricMin(), metricMax()), "border-radius": "2px" }} />
-            <Text size="xs">{activeMetric().fmt(metricMin())}</Text>
+            <Text size="xs">{safeFmt(activeMetric(), metricMin())}</Text>
             <Box className="flex-1 max-w-[120px] h-[8px] rounded-[4px]" style={{ background: (props.isSignedMetric ?? isSignedHeatmapMetric)(metricKey()) ? `linear-gradient(to right, ${SECTOR_STRONG_RED}, ${SECTOR_NEUTRAL}, ${SECTOR_GREEN})` : `linear-gradient(to right, ${SECTOR_STRONG_GREEN}, ${SECTOR_GREEN}, ${SECTOR_NEUTRAL}, ${SECTOR_RED}, ${SECTOR_STRONG_RED})` }} />
             <Box className="size-3 rounded" style={{ width: "12px", height: "12px", "background-color": getHeatmapMetricColor(metricKey(), metricMax(), metricMin(), metricMax()), "border-radius": "2px" }} />
-            <Text size="xs">{activeMetric().fmt(metricMax())}</Text>
+            <Text size="xs">{safeFmt(activeMetric(), metricMax())}</Text>
           </Box>
         </Show>
       </Stack>
