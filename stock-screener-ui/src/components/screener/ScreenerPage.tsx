@@ -3,7 +3,6 @@ import { useSearchParams } from "@solidjs/router";
 import { Box, Stack, Paper, Tabs, Text, Select, Skeleton, ActionIcon, Switch, Tooltip } from "@/ui";
 import { IconTable, IconChartDots, IconSettings, IconLayoutDashboard, IconRefresh, IconCoins, IconCalendarEvent, IconChartCandle, IconWorld } from "./icons";
 import * as state from "../../state";
-import { DashboardView } from "./DashboardView";
 import { ScreenerHeader } from "./ScreenerHeader";
 // ScreenerContent pulls the table + heatmap (echarts) graph — several MB of
 // module evaluation on the critical path of every landing. Load it on first
@@ -11,9 +10,17 @@ import { ScreenerHeader } from "./ScreenerHeader";
 const ScreenerContent = lazy(() =>
   import("./ScreenerContent").then((m) => ({ default: m.ScreenerContent })),
 );
+// The dashboard grid and the sector-group strip are the two heaviest panels in
+// this route and only one tab each needs them. Lazy-loading keeps their modules
+// (and their exclusive deps: sparkline, symbol avatar, sector api) out of the
+// shell chunk, so the other 7 tabs — and the first paint of the shell itself —
+// never pay for them.
+const DashboardView = lazy(() => import("./DashboardView").then((m) => ({ default: m.DashboardView })));
+const GroupPerformancePanel = lazy(() =>
+  import("./GroupPerformancePanel").then((m) => ({ default: m.GroupPerformancePanel })),
+);
 import { SelectionBar } from "./SelectionBar";
 import { screenerHasSideFilters } from "./ScreenerSidePanel";
-import { GroupPerformancePanel } from "./GroupPerformancePanel";
 import { ScreenerInlineFilters } from "./ScreenerInlineFilters";
 import { ErrorBoundary } from "../common/ErrorBoundary";
 
@@ -87,6 +94,18 @@ export const DASHBOARD_UNIVERSES = [
 export const DEFAULT_DASHBOARD_UNIVERSE = "nifty500";
 
 /**
+ * Shape the universe <Select> consumes. Built once at module scope instead of
+ * on every render — a fresh array identity per paint would make the select
+ * re-derive its options (and drop any memoisation inside it) for nothing.
+ */
+const DASHBOARD_UNIVERSE_OPTIONS = DASHBOARD_UNIVERSES.map((o) => ({ value: o.value, label: o.label }));
+
+/** Shared fallback for every lazy tab: same skeleton, one per boundary. */
+function PanelFallback() {
+  return <Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>;
+}
+
+/**
  * Map a Dashboard panel id to the closest existing screener profile id.
  * Returns null when there is no close profile — the caller then just opens
  * the Screener tab with the current profile.
@@ -136,7 +155,7 @@ function CompactAlerts(props: {
   activeScreener: string;
   warning?: string | null;
 }) {
-  const lines = () => {
+  const lines = createMemo(() => {
     const out: string[] = [];
     if (props.activeScreener === "52w_high") {
       out.push("52W from Upstox daily; LTP live when broker connected.");
@@ -145,7 +164,7 @@ function CompactAlerts(props: {
       out.push(props.warning);
     }
     return out;
-  };
+  });
 
   return (
     <Show when={lines().length > 0}>
@@ -194,7 +213,10 @@ export function ScreenerPage(props: ScreenerPageProps) {
       return next;
     });
   });
-  const visited = createMemo(() => new Set(visitedTabs()).add(activeTab()));
+  // Read straight off the signal instead of memoising a rebuilt Set: the
+  // "have we mounted this tab yet" question is O(1) and must not allocate a
+  // new Set (and a new memo dependency) every time the tab changes.
+  const isVisited = (tab: string) => visitedTabs().has(tab) || activeTab() === tab;
 
   // Warm the Market chunk once the browser is idle after mount; hover/focus
   // on the tab does the same sooner. Never blocks the initial load.
@@ -219,6 +241,13 @@ export function ScreenerPage(props: ScreenerPageProps) {
       setInternalUniverse(u);
     }
   };
+
+  // Profile options for the toolbar Select. Memoised so the array identity is
+  // stable across renders — an inline `.map` in JSX handed the select a new
+  // `data` array on every store tick.
+  const screenerSelectData = createMemo(() =>
+    props.screenerOptions.map((o) => ({ value: o.id, label: o.label })),
+  );
 
   const setActiveTab = (tab: string) => {
     if (tab === "dashboard") {
@@ -275,7 +304,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
                       <Select
                         value={props.activeScreener}
                         onChange={(v) => v && props.onScreenerChange(v)}
-                        data={props.screenerOptions.map((o) => ({ value: o.id, label: o.label }))}
+                        data={screenerSelectData()}
                         size="xs"
                         w={148}
                         data-testid="screener-select"
@@ -315,7 +344,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
               <Select
                 value={universe()}
                 onChange={(v) => v && handleUniverseChange(v)}
-                data={DASHBOARD_UNIVERSES.map((o) => ({ value: o.value, label: o.label }))}
+                data={DASHBOARD_UNIVERSE_OPTIONS}
                 size="xs"
                 w={148}
                 data-testid="dashboard-universe-select"
@@ -423,17 +452,19 @@ export function ScreenerPage(props: ScreenerPageProps) {
             class="min-w-0 min-h-0 overflow-auto"
             style={{ display: isDashboard() ? "flex" : "none", flex: 1 }}
           >
-            <Show when={visited().has("dashboard")}>
-              {/* Keyed on the refresh counter so the toolbar Refresh remounts the panel. */}
-              <Show when={`r${dashboardRefreshKey()}`} keyed>
-                {(_key) => (
-                  <DashboardView
-                    universe={universe()}
-                    onOpenSymbol={props.onSymbolClick}
-                    onOpenScan={handleOpenScan}
-                  />
-                )}
-              </Show>
+            <Show when={isVisited("dashboard")}>
+              <Suspense fallback={<PanelFallback />}>
+                {/* Keyed on the refresh counter so the toolbar Refresh remounts the panel. */}
+                <Show when={`r${dashboardRefreshKey()}`} keyed>
+                  {(_key) => (
+                    <DashboardView
+                      universe={universe()}
+                      onOpenSymbol={props.onSymbolClick}
+                      onOpenScan={handleOpenScan}
+                    />
+                  )}
+                </Show>
+              </Suspense>
             </Show>
           </div>
           <div
@@ -441,8 +472,10 @@ export function ScreenerPage(props: ScreenerPageProps) {
             class="min-w-0 min-h-0 flex-col gap-1"
             style={{ display: activeTab() === "screener" ? "flex" : "none", flex: 1 }}
           >
-            <Show when={visited().has("screener")}>
-              <GroupPerformancePanel />
+            <Show when={isVisited("screener")}>
+              <Suspense fallback={<Box className="p-1"><Skeleton h={24} /></Box>}>
+                <GroupPerformancePanel />
+              </Suspense>
               <Paper
                 radius={2}
                 flex={1}
@@ -453,7 +486,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
                   <ScreenerInlineFilters activeScreener={props.activeScreener} embedded />
                 </Show>
                 <Box flex={1} className="min-h-0 overflow-hidden flex flex-col py-1 gap-1">
-                  <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
+                  <Suspense fallback={<PanelFallback />}>
                     <ScreenerContent
                       approachingStocks={props.approachingStocks}
                       touchedStocks={props.touchedStocks}
@@ -476,7 +509,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
             class="min-w-0 min-h-0 overflow-auto"
             style={{ display: isValueTab() ? "flex" : "none", flex: 1 }}
           >
-            <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
+            <Suspense fallback={<PanelFallback />}>
               <Show when={isValueTab()}>
                 <DeepValueTab />
               </Show>
@@ -487,7 +520,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
             class="min-w-0 min-h-0 overflow-auto"
             style={{ display: isEventsTab() ? "flex" : "none", flex: 1 }}
           >
-            <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
+            <Suspense fallback={<PanelFallback />}>
               <Show when={isEventsTab()}>
                 <EventsTab />
               </Show>
@@ -498,7 +531,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
             class="min-w-0 min-h-0 overflow-hidden"
             style={{ display: isFnoTab() ? "flex" : "none", flex: 1 }}
           >
-            <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
+            <Suspense fallback={<PanelFallback />}>
               <ErrorBoundary label="Market screener">
                 <Show when={isFnoTab()}>
                   <FnoScreenerTab />
@@ -511,7 +544,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
             class="min-w-0 min-h-0 overflow-hidden"
             style={{ display: isMarketTab() ? "flex" : "none", flex: 1 }}
           >
-            <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
+            <Suspense fallback={<PanelFallback />}>
               <ErrorBoundary label="Market screener">
                 <Show when={isMarketTab()}>
                   <MarketTab />
@@ -524,7 +557,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
             class="min-w-0 min-h-0 overflow-auto"
             style={{ display: activeTab() === "correlation" || activeTab() === "config" ? "flex" : "none", flex: 1 }}
           >
-            <Suspense fallback={<Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>}>
+            <Suspense fallback={<PanelFallback />}>
               <Show when={activeTab() === "config"} fallback={
                 <Show when={activeTab() === "correlation"}>
                   <CorrelationTab />

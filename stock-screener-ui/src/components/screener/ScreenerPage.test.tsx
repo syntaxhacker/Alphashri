@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render as rtlRender, screen, cleanup, waitFor, within, fireEvent } from "@solidjs/testing-library";
+import { configure } from "@testing-library/dom";
 import type { JSX } from "solid-js";
 import "@testing-library/jest-dom/vitest";
 import { ScreenerPage, mapDashboardPanelToScreener, DEFAULT_DASHBOARD_UNIVERSE } from "./ScreenerPage";
@@ -8,6 +9,12 @@ import { UIProvider } from "@/ui";
 import { fetchMarketSnapshot } from "../../api/marketScreener";
 
 vi.setConfig({ testTimeout: 20_000 });
+
+// Panels (Dashboard, GroupPerformance, ScreenerContent, the tab chunks) are
+// lazy: their DOM appears a microtask after render, and under an 8-worker run
+// that first chunk resolve can exceed the 1000 ms default findBy budget. Give
+// every async query room instead of sprinkling per-call timeouts.
+configure({ asyncUtilTimeout: 10_000 });
 
 // @solidjs/router's navigation path never settles in happy-dom and MemoryRouter
 // has no initialEntries, so the router is replaced with a reactive
@@ -610,13 +617,14 @@ describe("ScreenerPage", () => {
     expect(screen.getByTestId("screener-controls")).toBeInTheDocument();
   });
 
-  it("renders the Dashboard tab by default", () => {
+  it("renders the Dashboard tab by default", async () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>), { initialRoute: "/" });
     expect(screen.getByTestId("tab-dashboard")).toBeInTheDocument();
-    expect(screen.getByTestId("dashboard-view")).toBeInTheDocument();
+    // DashboardView is lazy: it resolves a microtask after the shell paints.
+    expect(await screen.findByTestId("dashboard-view")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-view")).toHaveAttribute(
       "data-universe",
       DEFAULT_DASHBOARD_UNIVERSE,
@@ -626,6 +634,7 @@ describe("ScreenerPage", () => {
     expect(screen.queryByTestId("screener-select")).not.toBeInTheDocument();
     // Dashboard landing does not mount the screener subtree (mount-on-first-visit)
     expect(screen.queryByTestId("screener-table-approaching")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("group-performance-panel")).not.toBeInTheDocument();
   });
 
   it("switches from dashboard to screener and back", async () => {
@@ -633,14 +642,14 @@ describe("ScreenerPage", () => {
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>), { initialRoute: "/" });
-    expect(screen.getByTestId("dashboard-view")).toBeVisible();
+    expect(await screen.findByTestId("dashboard-view")).toBeVisible();
 
     fireEvent.click(screen.getByTestId("tab-screener"));
     expect(await screen.findByTestId("screener-table-approaching")).toBeVisible();
     expect(screen.getByTestId("screener-select")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("tab-dashboard"));
-    expect(screen.getByTestId("dashboard-view")).toBeVisible();
+    expect(await screen.findByTestId("dashboard-view")).toBeVisible();
     expect(screen.queryByTestId("screener-table-approaching")).not.toBeVisible();
   });
 
@@ -794,7 +803,7 @@ describe("ScreenerPage", () => {
           universe="nifty500"
         />
       </UIProvider>), { initialRoute: "/" });
-    fireEvent.click(screen.getByTestId("dashboard-open-scan-near_52w"));
+    fireEvent.click(await screen.findByTestId("dashboard-open-scan-near_52w"));
     expect(onScreenerChange).toHaveBeenCalledWith("52w_high");
     expect(await screen.findByTestId("screener-table-approaching")).toBeVisible();
   });
@@ -805,7 +814,7 @@ describe("ScreenerPage", () => {
       <UIProvider>
         <ScreenerPage {...defaultProps} onScreenerChange={onScreenerChange} universe="nifty500" />
       </UIProvider>), { initialRoute: "/" });
-    fireEvent.click(screen.getByTestId("dashboard-open-scan-gainers"));
+    fireEvent.click(await screen.findByTestId("dashboard-open-scan-gainers"));
     expect(onScreenerChange).not.toHaveBeenCalled();
     expect(await screen.findByTestId("screener-table-approaching")).toBeVisible();
   });
@@ -815,9 +824,10 @@ describe("ScreenerPage", () => {
       <UIProvider>
         <ScreenerPage {...defaultProps} universe="nifty500" />
       </UIProvider>), { initialRoute: "/" });
+    expect(await screen.findByTestId("dashboard-view")).toBeInTheDocument();
     expect(dashboardMounts.count).toBe(1);
     fireEvent.click(screen.getByTestId("dashboard-refresh"));
-    expect(dashboardMounts.count).toBe(2);
+    await waitFor(() => expect(dashboardMounts.count).toBe(2));
     expect(screen.getByTestId("dashboard-view")).toHaveAttribute("data-universe", "nifty500");
   });
 
@@ -848,7 +858,25 @@ describe("ScreenerPage", () => {
       <UIProvider>
         <ScreenerPage {...defaultProps} onSymbolClick={onSymbolClick} />
       </UIProvider>), { initialRoute: "/" });
-    fireEvent.click(screen.getByTestId("dashboard-open-symbol"));
+    fireEvent.click(await screen.findByTestId("dashboard-open-symbol"));
     expect(onSymbolClick).toHaveBeenCalledWith("RELIANCE");
+  });
+
+  it("keeps the screener table alive (no remount) when another tab is opened", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=screener" });
+    expect(await screen.findByTestId("screener-table-approaching")).toBeInTheDocument();
+    expect(await screen.findByTestId("group-performance-panel")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("tab-events"));
+    expect(await screen.findByTestId("events-panel", undefined, { timeout: 10_000 })).toBeInTheDocument();
+    // Visited tabs stay mounted (hidden), so switching back costs no remount.
+    expect(screen.getByTestId("screener-table-approaching")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("tab-screener"));
+    expect(screen.getByTestId("screener-table-approaching")).toBeInTheDocument();
+    expect(screen.getByTestId("screener-table-approaching")).toBeVisible();
   });
 });
