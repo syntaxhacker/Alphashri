@@ -39,7 +39,7 @@ export function BacktestToolbar(props: BacktestToolbarProps) {
           color={props.chartMode === "all" ? "primary" : "secondary"}
           onClick={() => props.onChartModeChange("all")}
           data-testid="chart-mode-all"
-          data-state={chartMode === "all" ? "active" : "inactive"}
+          data-state={props.chartMode === "all" ? "active" : "inactive"}
         >
           All trades
         </Button>
@@ -49,7 +49,7 @@ export function BacktestToolbar(props: BacktestToolbarProps) {
           color={props.chartMode === "trades" ? "primary" : "secondary"}
           onClick={() => props.onChartModeChange("trades")}
           data-testid="chart-mode-trades"
-          data-state={chartMode === "trades" ? "active" : "inactive"}
+          data-state={props.chartMode === "trades" ? "active" : "inactive"}
         >
           Per trade
         </Button>
