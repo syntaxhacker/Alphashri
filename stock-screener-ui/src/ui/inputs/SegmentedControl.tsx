@@ -69,7 +69,7 @@ export function SegmentedControl(props: UISegmentedControlProps) {
             handleChange(item.value);
           }}
           className={cn(
-            "flex-1 cursor-pointer select-none transition-colors",
+            "flex-1 cursor-pointer select-none transition-colors whitespace-nowrap",
             itemSizeClasses(known.size),
             "border-b border-t border-fin-border",
             i() === 0 ? "border-l rounded-l-fin" : "border-x border-fin-border",
