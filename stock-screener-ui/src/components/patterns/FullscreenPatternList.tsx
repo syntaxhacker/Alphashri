@@ -1,4 +1,4 @@
-import { createMemo } from "solid-js";
+import { createMemo, For, Show } from "solid-js";
 import { Box, Text, ToolbarRow, UnstyledButton } from "@/ui";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { StatusBadge } from "./StatusBadge";
@@ -52,43 +52,47 @@ export function FullscreenPatternList(props: FullscreenPatternListProps) {
       <Text size="xs" c="dimmed" fw={700} style={{ "text-transform": "uppercase" }}>
         {`Patterns (${sorted().length})`}
       </Text>
-      {sorted().length === 0 ? (
-        <Text size="xs" c="dimmed">
-          No patterns detected
-        </Text>
-      ) : (
-        sorted().map((hit, i) => {
-          const key = fullscreenHitKey(hit);
-          const active = props.activeKey != null && key === props.activeKey;
-          return (
-            <UnstyledButton
-              key={key}
-              onClick={() => props.onSelect(hit)}
-              data-testid={`patterns-fullscreen-list-item-${i}`}
-              data-selected={active ? "true" : undefined}
-              aria-pressed={active}
-              className={`block w-full cursor-pointer rounded-fin p-1 transition-colors hover:bg-fin-surface-alt ${
-                active ? "bg-fin-surface-alt" : "bg-transparent"
-              }`}
-            >
-              <ToolbarRow justify="space-between" gap={4} align="center">
-                <Text size="xs" fw={600} truncate style={{ flex: 1, "min-width": 0 }} lh={1.15}>
-                  {hit.pattern_name}
-                </Text>
-                <StatusBadge status={hit.status} display={displayStatusForHit(hit)} />
-              </ToolbarRow>
-              <ToolbarRow justify="space-between" gap={4} align="center">
-                <Text size="xs" c="dimmed" truncate lh={1.15}>
-                  {`${formatChartTimestamp(hit.end_date)} · ${hit.bars_ago} bar${hit.bars_ago === 1 ? "" : "s"} ago`}
-                </Text>
-                <Text size="xs" c="dimmed" lh={1.15}>
-                  {`${Math.round(hit.confidence)}%`}
-                </Text>
-              </ToolbarRow>
-            </UnstyledButton>
-          );
-        })
-      )}
+      <Show
+        when={sorted().length > 0}
+        fallback={
+          <Text size="xs" c="dimmed">
+            No patterns detected
+          </Text>
+        }
+      >
+        <For each={sorted()}>
+          {(hit, i) => {
+            const key = () => fullscreenHitKey(hit);
+            const active = () => props.activeKey != null && key() === props.activeKey;
+            return (
+              <UnstyledButton
+                onClick={() => props.onSelect(hit)}
+                data-testid={`patterns-fullscreen-list-item-${i()}`}
+                data-selected={active() ? "true" : undefined}
+                aria-pressed={active()}
+                className={`block w-full cursor-pointer rounded-fin p-1 transition-colors hover:bg-fin-surface-alt ${
+                  active() ? "bg-fin-surface-alt" : "bg-transparent"
+                }`}
+              >
+                <ToolbarRow justify="space-between" gap={4} align="center">
+                  <Text size="xs" fw={600} truncate style={{ flex: 1, "min-width": 0 }} lh={1.15}>
+                    {hit.pattern_name}
+                  </Text>
+                  <StatusBadge status={hit.status} display={displayStatusForHit(hit)} />
+                </ToolbarRow>
+                <ToolbarRow justify="space-between" gap={4} align="center">
+                  <Text size="xs" c="dimmed" truncate lh={1.15}>
+                    {`${formatChartTimestamp(hit.end_date)} · ${hit.bars_ago} bar${hit.bars_ago === 1 ? "" : "s"} ago`}
+                  </Text>
+                  <Text size="xs" c="dimmed" lh={1.15}>
+                    {`${Math.round(hit.confidence)}%`}
+                  </Text>
+                </ToolbarRow>
+              </UnstyledButton>
+            );
+          }}
+        </For>
+      </Show>
     </Box>
   );
 }
