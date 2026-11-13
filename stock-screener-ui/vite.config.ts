@@ -40,7 +40,10 @@ export default defineConfig(({ mode }) => {
             if (id.includes("@tanstack")) return "tanstack";
             // Keep the chart engine out of the shared chunk so the entry shell
             // does not statically pull it in (chart pages import it lazily).
-            if (id.includes("echarts") || id.includes("zrender")) return "echarts";
+            // Scope to the package itself: a bare `echarts` match also caught
+            // src/pages/report/echartsSolid.ts, which dragged loadEcharts.ts
+            // into this chunk and turned the dynamic import into a static one.
+            if (id.includes("node_modules/echarts") || id.includes("node_modules/zrender")) return "echarts";
           },
         },
       },

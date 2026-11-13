@@ -1,10 +1,13 @@
 import { createEffect, onMount, onCleanup, type JSX } from "solid-js";
-import * as echarts from "echarts";
+import { loadEcharts } from "../../utils/loadEcharts";
 
 /**
  * Minimal Solid wrapper around `echarts.init` — `echarts-for-react` is gone.
  * Mounts the chart once, applies option changes with `notMerge`, keeps it
  * sized to its container and disposes on cleanup.
+ *
+ * `echarts` is pulled in through `loadEcharts()` so it stays in a lazy chunk
+ * instead of the entry bundle.
  */
 export function EChart(props: {
   /** The echarts option. Solid evaluates JSX props lazily — pass a memo accessor
@@ -16,32 +19,45 @@ export function EChart(props: {
   "data-testid"?: string;
 }) {
   let chartEl: HTMLDivElement | undefined;
-  let chart: echarts.ECharts | null = null;
+  let chart: any = null;
+  let disposed = false;
+
+  const bindEvents = (instance: any) => {
+    for (const [name, handler] of Object.entries(props.onEvents ?? {})) {
+      instance.off(name);
+      instance.on(name, handler);
+    }
+  };
 
   onMount(() => {
-    if (!chartEl) return;
-    chart = echarts.init(chartEl, undefined, { renderer: "canvas" });
-    chart.setOption(props.option as echarts.EChartsCoreOption);
+    const el = chartEl;
     const resize = () => chart?.resize();
     window.addEventListener("resize", resize);
     onCleanup(() => window.removeEventListener("resize", resize));
+
+    if (!el) return;
+    void loadEcharts().then((echartsLib) => {
+      if (disposed || !echartsLib) return;
+      const instance = echartsLib.init(el, undefined, { renderer: "canvas" });
+      chart = instance;
+      instance.setOption(props.option);
+      bindEvents(instance);
+    });
   });
 
   createEffect(() => {
-    const option = props.option as echarts.EChartsCoreOption;
+    const option = props.option;
     chart?.setOption(option, { notMerge: true });
   });
 
   createEffect(() => {
     const events = props.onEvents;
-    if (!chart) return;
-    for (const [name, handler] of Object.entries(events ?? {})) {
-      chart.off(name);
-      chart.on(name, handler);
-    }
+    if (!chart || !events) return;
+    bindEvents(chart);
   });
 
   onCleanup(() => {
+    disposed = true;
     chart?.dispose();
     chart = null;
   });

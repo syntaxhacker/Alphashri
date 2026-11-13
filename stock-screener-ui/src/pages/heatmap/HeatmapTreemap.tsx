@@ -2,7 +2,7 @@ import * as palette from "@/ui/palette";
 import { createMemo, onMount, onCleanup, createEffect, Show } from "solid-js";
 import { Box, Stack, Text } from "@/ui";
 import { Select } from "@/ui";
-import * as echarts from "echarts";
+import { loadEcharts } from "../../utils/loadEcharts";
 import type { HeatmapStock } from "../../api/heatmap";
 import {
   BG,
@@ -58,7 +58,8 @@ export interface HeatmapTreemapProps {
 export function HeatmapTreemap(props: HeatmapTreemapProps) {
   const isDark = typeof document !== "undefined" ? document.documentElement.getAttribute("data-dark") === "true" : false;
   let chartEl: HTMLDivElement | undefined;
-  let chart: echarts.ECharts | null = null;
+  let chart: any = null;
+  let disposed = false;
 
   const metrics = () => props.metrics ?? METRICS;
   const showLegend = () => props.showLegend ?? true;
@@ -78,15 +79,21 @@ export function HeatmapTreemap(props: HeatmapTreemapProps) {
   };
 
   onMount(() => {
-    if (!chartEl) return;
-    chart = echarts.init(chartEl, undefined, { renderer: "canvas" });
-    chart.setOption(chartOption());
-    if (props.onSymbolClick) {
-      chart.on("click", handleChartClick);
-    }
+    const el = chartEl;
     const resize = () => chart?.resize();
     window.addEventListener("resize", resize);
     onCleanup(() => window.removeEventListener("resize", resize));
+
+    if (!el) return;
+    void loadEcharts().then((echartsLib) => {
+      if (disposed || !echartsLib) return;
+      const instance = echartsLib.init(el, undefined, { renderer: "canvas" });
+      chart = instance;
+      instance.setOption(chartOption());
+      if (props.onSymbolClick) {
+        instance.on("click", handleChartClick);
+      }
+    });
   });
 
   createEffect(() => {
@@ -95,6 +102,7 @@ export function HeatmapTreemap(props: HeatmapTreemapProps) {
   });
 
   onCleanup(() => {
+    disposed = true;
     chart?.dispose();
     chart = null;
   });

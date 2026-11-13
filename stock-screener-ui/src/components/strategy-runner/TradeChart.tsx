@@ -1,5 +1,6 @@
 import { onCleanup, onMount } from "solid-js";
 import { Box } from "@/ui";
+import { loadEcharts } from "../../utils/loadEcharts";
 import {
   CANDLESTICK_ITEM_STYLE,
 } from "../../utils/chartUtils";
@@ -39,9 +40,8 @@ export function TradeChart(props: TradeChartProps) {
 
     void (async () => {
       if (!chartRef) return;
-      const mod = await import("echarts");
-      const echartsLib = (mod as any).default ?? mod;
-      if (disposed || !chartRef) return;
+      const echartsLib = await loadEcharts();
+      if (disposed || !chartRef || !echartsLib) return;
       instance = echartsLib.init(chartRef);
 
     fetch(`${API_BASE}/api/chart/preview?symbol=${props.symbol}&date=${props.date}`)

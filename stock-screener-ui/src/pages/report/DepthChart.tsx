@@ -1,6 +1,6 @@
 import { onCleanup, onMount } from "solid-js";
 import type { JSX } from "solid-js";
-import * as echarts from "echarts";
+import { loadEcharts } from "../../utils/loadEcharts";
 
 export interface DepthChartHandle {
   resize: () => void;
@@ -20,21 +20,29 @@ export interface DepthChartProps {
 }
 
 /** Minimal Solid wrapper around `echarts.init` for panels that need the
- *  instance handle (the common case is covered by `echartsSolid`). */
+ *  instance handle (the common case is covered by `echartsSolid`). `echarts`
+ *  itself is loaded lazily via `loadEcharts()` so it stays out of the entry
+ *  chunk. */
 export function DepthChart(props: DepthChartProps) {
   let el: HTMLDivElement | undefined;
-  let chart: echarts.ECharts | null = null;
+  let chart: any = null;
+  let disposed = false;
 
   onMount(() => {
-    if (!el) return;
-    chart = echarts.init(el, undefined, { renderer: "canvas" });
+    const node = el;
     window.addEventListener("resize", resizeHandler);
-    props.onChartReady?.(chart as unknown as DepthChartHandle);
+    if (!node) return;
+    void loadEcharts().then((echartsLib) => {
+      if (disposed || !echartsLib) return;
+      chart = echartsLib.init(node, undefined, { renderer: "canvas" });
+      props.onChartReady?.(chart as DepthChartHandle);
+    });
   });
 
   const resizeHandler = () => chart?.resize();
 
   onCleanup(() => {
+    disposed = true;
     window.removeEventListener("resize", resizeHandler);
     chart?.dispose();
     chart = null;
