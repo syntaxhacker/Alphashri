@@ -708,7 +708,7 @@ export function PatternsPage(props: PatternsPageProps) {
                   />
                 </Box>
               </Box>
-              <Divider orientation="vertical" style={{ height: 18, "align-self": "center" }} />
+              <Divider orientation="vertical" style={{ height: "18px", "align-self": "center" }} />
               <TimeframeSelect
                 timeframes={timeframes()}
                 value={tfSelection()}
@@ -724,7 +724,7 @@ export function PatternsPage(props: PatternsPageProps) {
                   {`as of ${formatAsOfLabel(replayAsOf())}`}
                 </Text>
               ) : null}
-              <Divider orientation="vertical" style={{ height: 18, "align-self": "center" }} />
+              <Divider orientation="vertical" style={{ height: "18px", "align-self": "center" }} />
               <Tooltip label="Draw standalone support / resistance lines (TLS = support, TLR = resistance)">
                 <Box className="inline-flex">
                   <Switch
@@ -769,7 +769,7 @@ export function PatternsPage(props: PatternsPageProps) {
                   onChange={(v) => {
                     if (v === "all" || v === "big" || v === "others") changeIndexGroup(v);
                   }}
-                  leftSection={<Text size="xs" c="dimmed" style={{ "font-size": 10 }}>IDX</Text>}
+                  leftSection={<Text size="xs" c="dimmed" style={{ "font-size": "10px" }}>IDX</Text>}
                   w={106}
                   size="xs"
                   data-testid="patterns-index-group"
@@ -779,7 +779,7 @@ export function PatternsPage(props: PatternsPageProps) {
                 <Text
                   size="xs"
                   c="dimmed"
-                  style={{ "font-size": 10, "white-space": "nowrap" }}
+                  style={{ "font-size": "10px", "white-space": "nowrap" }}
                   data-testid="patterns-multi-tf-hint"
                 >
                   {`List/Grid: ${timeframe()}`}
@@ -1082,7 +1082,7 @@ export function PatternsPage(props: PatternsPageProps) {
         <ToolbarRow
           justify="space-between"
           gap={8}
-          style={{ "padding-top": 12, "border-top": "1px solid", "border-color": "var(--color-fin-border)" }}
+          style={{ "padding-top": "12px", "border-top": "1px solid", "border-color": "var(--color-fin-border)" }}
         >
           <Button
             size="sm"

@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test } from "vitest";
+import { createSignal } from "solid-js";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import type { WallsMap as WallsMapData } from "@/api/reportNifty";
@@ -88,5 +89,20 @@ describe("WallsMapChart", () => {
       </UIProvider>
     ));
     expect(container.querySelector("[data-testid='walls-map']")).toBeNull();
+  });
+
+  test("updates the regime chip when the regime prop signal changes", () => {
+    const [regimeSig, setRegimeSig] = createSignal<"LONG" | "SHORT" | null>("SHORT");
+    render(() => (
+      <UIProvider>
+        <WallsMapChart map={mapFixture()} regime={regimeSig()} />
+      </UIProvider>
+    ));
+
+    expect(screen.getByTestId("walls-map-regime")).toHaveTextContent("SHORT Γ");
+
+    setRegimeSig(null);
+
+    expect(screen.queryByTestId("walls-map-regime")).toBeNull();
   });
 });

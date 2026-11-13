@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createSignal } from "solid-js";
 import { render, screen, waitFor, fireEvent } from "@solidjs/testing-library";
 import { IndexMoversStrip } from "./IndexMoversStrip";
 import { fetchIndexMovers, IndexMoversResponse } from "@/api/indexMovers";
@@ -102,6 +103,18 @@ describe("IndexMoversStrip", () => {
     expect(screen.getByText("MOVERS")).toBeInTheDocument();
     expect(screen.getByText("· live only")).toBeInTheDocument();
     expect(mockFetchIndexMovers).not.toHaveBeenCalled();
+  });
+
+  it("shows the live-only message when the liveOnly prop signal flips", () => {
+    const [liveOnlySig, setLiveOnlySig] = createSignal(false);
+    render(() =>
+      <IndexMoversStrip index="NIFTY" onExpand={onExpand} liveOnly={liveOnlySig()} />);
+
+    expect(screen.queryByText("· live only")).toBeNull();
+
+    setLiveOnlySig(true);
+
+    expect(screen.getByText("· live only")).toBeInTheDocument();
   });
 
   it("shows error state when fetch fails", async () => {

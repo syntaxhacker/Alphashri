@@ -50,6 +50,7 @@ export function BacktestSummary(props: BacktestSummaryProps) {
     <Show when={props.totals}>
       {() => {
         const t = props.totals;
+        if (!t) return null;
         const netPnl = t.net_pnl ?? 0;
         const totalCosts = t.total_costs ?? 0;
         const winRate = t.win_rate ?? 0;

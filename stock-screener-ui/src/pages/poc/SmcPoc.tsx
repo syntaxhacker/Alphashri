@@ -86,9 +86,9 @@ export default function SmcPoc() {
           <span style={{ color: palette.PIVOT_CUSTOM }}>rect</span>{" "}
           <span style={{ color: palette.NT_TREND }}>trend</span>
         </Text>
-        <Chip size="sm" label={`${bars().length} bars`} style={{ "background-color": palette.SURFACE_ALT, color: palette.TEXT_MUTED_COLOR, height: 20 }} />
+        <Chip size="sm" label={`${bars().length} bars`} style={{ "background-color": palette.SURFACE_ALT, color: palette.TEXT_MUTED_COLOR, height: "20px" }} />
         <Show when={loading()}>
-          <Chip size="sm" label="loading…" style={{ "background-color": palette.SURFACE_ALT, color: palette.INFO, height: 20 }} />
+          <Chip size="sm" label="loading…" style={{ "background-color": palette.SURFACE_ALT, color: palette.INFO, height: "20px" }} />
         </Show>
         <Box className="flex-1" />
         <span className="flex items-center gap-2" style={{ "font-size": "12px", color: palette.TEXT_COLOR }}>

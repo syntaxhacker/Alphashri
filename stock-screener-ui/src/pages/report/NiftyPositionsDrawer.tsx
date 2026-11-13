@@ -195,23 +195,23 @@ const POSITION_COLUMNS: TableColumnDef<PositionRow>[] = [
   },
 ];
 
-function GreekStat({ testId, label, value }: { testId: string; label: string; value: number | null }) {
+function GreekStat(props: { testId: string; label: string; value: number | null }) {
   return (
     <div
-      data-testid={testId}
-      title={`${label} — Σ chain greek × signed qty (missing legs skipped)`}
+      data-testid={props.testId}
+      title={`${props.label} — Σ chain greek × signed qty (missing legs skipped)`}
       class="flex items-baseline justify-between gap-1 px-2 py-[2px] border border-fin-border rounded-[4px] bg-fin-bg min-w-0 font-mono tabular-nums"
       style={{
         "border-color": palette.TERM_BORDER,
         "background-color": palette.TERM_BG,
       }}
     >
-      <span class="text-[9px] text-fin-text-muted tracking-[0.06em]">{label}</span>
+      <span class="text-[9px] text-fin-text-muted tracking-[0.06em]">{props.label}</span>
       <span
         class="text-[11px] font-bold font-mono whitespace-nowrap"
-        style={{ color: toneFor(value) }}
+        style={{ color: toneFor(props.value) }}
       >
-        {formatGreek(value, label.includes("Δ") ? 1 : 2)}
+        {formatGreek(props.value, props.label.includes("Δ") ? 1 : 2)}
       </span>
     </div>
   );

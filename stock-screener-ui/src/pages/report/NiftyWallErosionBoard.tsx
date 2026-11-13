@@ -1,4 +1,4 @@
-import { Show } from "solid-js";
+import { createMemo, Show } from "solid-js";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { WallsPayload, WallsRow } from "@/api/reportNifty";
@@ -110,12 +110,7 @@ function fuelPartsTooltip(row: WallsRow | null | undefined): string {
   return `Fuel parts — ${part("erosion", parts.erosion)} · ${part("volume", parts.volume)} · ${part("proximity", parts.proximity)} · ${part("gamma", parts.gamma)} · ${part("flow", parts.flow)} | flow: ${row?.flow ?? "—"}`;
 }
 
-function Stat({
-  label,
-  value,
-  tone = palette.TEXT,
-  hideBelowMd = false,
-}: {
+function Stat(props: {
   label: string;
   value: string;
   tone?: string;
@@ -125,49 +120,47 @@ function Stat({
   return (
     <div
       class="inline-flex items-baseline gap-[2px] min-w-0 shrink-0"
-      style={{ display: hideBelowMd ? "none" : "inline-flex" }}
+      style={{ display: (props.hideBelowMd ?? false) ? "none" : "inline-flex" }}
     >
       <Text size="xs" c="dimmed" lh={1.1} style={{ "font-size": REPORT_FONT.micro }}>
-        {label}
+        {props.label}
       </Text>
       <Text
         size="xs"
         fw={700}
         lh={1.1}
-        c={tone}
+        c={props.tone ?? palette.TEXT}
         className="tabular-nums whitespace-nowrap"
       >
-        {value}
+        {props.value}
       </Text>
     </div>
   );
 }
 
-function ErosionRow({
-  row,
-  side,
-  regime,
-  testId,
-}: {
+function ErosionRow(props: {
   row: WallsRow | null;
   side: "CALL" | "PUT";
   regime: "LONG" | "SHORT" | null;
   testId: string;
 }) {
-  const view = wallErosionView(row, side);
-  const sideColor = side === "CALL" ? palette.NEGATIVE : palette.POSITIVE;
-  const statusColor = STATUS_TONE_COLOR[statusTone(row?.status)];
-  const flowColor = FLOW_TONE_COLOR[view.flowTone];
-  const fuelColor = FUEL_TONE_COLOR[fuelTone(view.fuelScore)];
-  const preBlast = isPreBlast(row, regime);
-  const ttb = row?.time_to_break_min;
-  const hasTtb = ttb != null && Number.isFinite(ttb);
+  const view = createMemo(() => wallErosionView(props.row, props.side));
+  const sideColor = props.side === "CALL" ? palette.NEGATIVE : palette.POSITIVE;
+  const statusColor = createMemo(() => STATUS_TONE_COLOR[statusTone(props.row?.status)]);
+  const flowColor = createMemo(() => FLOW_TONE_COLOR[view().flowTone]);
+  const fuelColor = createMemo(() => FUEL_TONE_COLOR[fuelTone(view().fuelScore)]);
+  const preBlast = createMemo(() => isPreBlast(props.row, props.regime));
+  const ttb = () => props.row?.time_to_break_min;
+  const hasTtb = createMemo(() => {
+    const t = ttb();
+    return t != null && Number.isFinite(t);
+  });
 
   return (
     <div
       data-testid="wall-erosion-row"
-      data-side={side}
-      title={fuelPartsTooltip(row)}
+      data-side={props.side}
+      title={fuelPartsTooltip(props.row)}
       class="flex items-center flex-nowrap min-w-0 shrink-0 overflow-hidden h-[24px]"
       style={{
         "border-top": `1px solid ${palette.BORDER}`,
@@ -177,7 +170,7 @@ function ErosionRow({
       {/* `display: contents` keeps the side wrapper out of the flex layout, so
           the row children stay direct flex items while the side testid still
           scopes the row's content. */}
-      <span data-testid={testId} class="contents">
+      <span data-testid={props.testId} class="contents">
         <Text
           size="xs"
           fw={800}
@@ -190,14 +183,14 @@ function ErosionRow({
             "white-space": "nowrap",
           }}
         >
-          {side} {view.strikeText} {view.arrow}
+          {props.side} {view().strikeText} {view().arrow}
         </Text>
         <span
           class="inline-flex items-center justify-center shrink-0 whitespace-nowrap"
           style={{
             padding: "4px 2px",
-            border: `1px solid ${statusColor}`,
-            color: statusColor,
+            border: `1px solid ${statusColor()}`,
+            color: statusColor(),
             "border-radius": `${REPORT_RADIUS.sm}px`,
             "font-size": REPORT_FONT.micro,
             "font-weight": 800,
@@ -205,7 +198,7 @@ function ErosionRow({
             "letter-spacing": "0.06em",
           }}
         >
-          {view.statusText}
+          {view().statusText}
         </span>
         <Text
           size="xs"
@@ -213,24 +206,24 @@ function ErosionRow({
           lh={1.1}
           className="tabular-nums whitespace-nowrap shrink-0"
         >
-          {distanceOf(row)}
+          {distanceOf(props.row)}
         </Text>
-        <Stat label="OI" value={view.oiText} />
+        <Stat label="OI" value={view().oiText} />
         <Stat
           label="30m"
-          value={view.erosion30Text}
-          tone={erosionColor(row?.erosion_30m)}
+          value={view().erosion30Text}
+          tone={erosionColor(props.row?.erosion_30m)}
         />
-        <Stat label="rate" value={view.rateText} hideBelowMd />
-        <Stat label="vol" value={view.volText} />
-        <Stat label="prem" value={view.premText} hideBelowMd />
+        <Stat label="rate" value={view().rateText} hideBelowMd />
+        <Stat label="vol" value={view().volText} />
+        <Stat label="prem" value={view().premText} hideBelowMd />
         <Text
           size="xs"
           fw={800}
           lh={1.1}
           className="tabular-nums whitespace-nowrap shrink-0"
           style={{
-            color: flowColor,
+            color: flowColor(),
             "letter-spacing": "0.04em",
             "white-space": "nowrap",
             "max-width": FLOW_MAX_W,
@@ -240,7 +233,7 @@ function ErosionRow({
             "flex-shrink": 1,
           }}
         >
-          {view.flowText}
+          {view().flowText}
         </Text>
         <Text
           size="xs"
@@ -248,14 +241,14 @@ function ErosionRow({
           lh={1.1}
           className="tabular-nums whitespace-nowrap shrink-0"
           style={{
-            color: fuelColor,
+            color: fuelColor(),
             "letter-spacing": "0.04em",
             "white-space": "nowrap",
             "min-width": FUEL_MIN_W,
             "flex-shrink": 0,
           }}
         >
-          {preBlast ? `PRE-BLAST ${view.fuelScore}` : `FUEL ${view.fuelScore}`}
+          {preBlast() ? `PRE-BLAST ${view().fuelScore}` : `FUEL ${view().fuelScore}`}
         </Text>
         <div
           class="ml-auto flex items-center justify-end"
@@ -270,7 +263,7 @@ function ErosionRow({
           }}
         >
           <Show
-            when={view.breached}
+            when={view().breached}
             fallback={
             <Text
               size="xs"
@@ -279,7 +272,7 @@ function ErosionRow({
               className="tabular-nums whitespace-nowrap shrink-0 min-w-0 overflow-hidden truncate"
               style={{ "min-width": "0px", "flex-shrink": 1 }}
             >
-              {hasTtb ? `${fmtTimeToBreak(ttb)} to break` : "—"}
+              {hasTtb() ? `${fmtTimeToBreak(ttb())} to break` : "—"}
             </Text>
             }
           >
@@ -315,11 +308,11 @@ function ErosionRow({
             }}
           >
             <Sparkline
-              values={view.spark}
+              values={view().spark}
               width={SPARK_W}
               height={SPARK_H}
               color={sideColor}
-              testId={`${testId}-spark`}
+              testId={`${props.testId}-spark`}
               responsive
             />
           </div>
@@ -329,18 +322,16 @@ function ErosionRow({
   );
 }
 
-export function NiftyWallErosionBoard({
-  walls,
-  symbol,
-  asOf,
-}: NiftyWallErosionBoardProps) {
-  const { call, put } = pickNearestWalls(walls);
-  const symbolLabel = symbol ?? walls?.symbol ?? "—";
-  const asOfText = hhmm(asOf ?? walls?.freshness?.last_t) ?? "—";
-  const regime = walls?.regime ?? null;
-  const flip = walls?.flip;
+export function NiftyWallErosionBoard(props: NiftyWallErosionBoardProps) {
+  const nearest = createMemo(() => pickNearestWalls(props.walls));
+  const call = () => nearest().call;
+  const put = () => nearest().put;
+  const symbolLabel = props.symbol ?? props.walls?.symbol ?? "—";
+  const asOfText = hhmm(props.asOf ?? props.walls?.freshness?.last_t) ?? "—";
+  const regime = createMemo(() => props.walls?.regime ?? null);
+  const flip = props.walls?.flip;
   const hasFlip = typeof flip === "number" && Number.isFinite(flip);
-  const regimeColor = regime === "SHORT" ? palette.NEGATIVE : palette.POSITIVE;
+  const regimeColor = createMemo(() => regime() === "SHORT" ? palette.NEGATIVE : palette.POSITIVE);
 
   return (
     <LocalCompactPanel
@@ -366,19 +357,19 @@ export function NiftyWallErosionBoard({
             as of {asOfText}
           </Text>
           <span
-            data-testid={regime ? "wall-erosion-regime" : undefined}
-            aria-hidden={regime ? undefined : true}
+            data-testid={regime() ? "wall-erosion-regime" : undefined}
+            aria-hidden={regime() ? undefined : true}
             class="inline-flex items-center justify-center shrink-0"
             style={{
               width: REGIME_SLOT_W,
               height: REGIME_SLOT_H,
               "flex-shrink": 0,
-              visibility: regime ? "visible" : "hidden",
-              ...(regime
+              visibility: regime() ? "visible" : "hidden",
+              ...(regime()
                 ? {
                     padding: "4px 2px",
-                    border: `1px solid ${regimeColor}`,
-                    color: regimeColor,
+                    border: `1px solid ${regimeColor()}`,
+                    color: regimeColor(),
                     "border-radius": `${REPORT_RADIUS.sm}px`,
                     "font-size": REPORT_FONT.micro,
                     "font-weight": 800,
@@ -388,7 +379,7 @@ export function NiftyWallErosionBoard({
                 : {}),
             }}
           >
-            {regime ? `${regime} Γ` : ""}
+            {regime() ? `${regime()} Γ` : ""}
           </span>
           <Text
             size="xs"
@@ -414,7 +405,7 @@ export function NiftyWallErosionBoard({
         data-testid="wall-erosion-body"
         data-layout="fixed"
         data-rows="2"
-        aria-busy={walls ? undefined : "true"}
+        aria-busy={props.walls ? undefined : "true"}
         title="OI erosion + volume + premium flow. PRE-BLAST = short gamma and the wall is being consumed."
         class="relative flex flex-col min-w-0 overflow-hidden"
         style={{
@@ -423,7 +414,7 @@ export function NiftyWallErosionBoard({
         }}
       >
         {/* Zero-size marker: the strip keeps its shape while the payload loads. */}
-        {!walls ? (
+        {!props.walls ? (
           <span
             data-testid="wall-erosion-skeleton"
             class="absolute overflow-hidden"
@@ -435,15 +426,15 @@ export function NiftyWallErosionBoard({
           />
         ) : null}
         <ErosionRow
-          row={call}
+          row={call()}
           side="CALL"
-          regime={regime}
+          regime={regime()}
           testId="wall-erosion-call"
         />
         <ErosionRow
-          row={put}
+          row={put()}
           side="PUT"
-          regime={regime}
+          regime={regime()}
           testId="wall-erosion-put"
         />
       </div>

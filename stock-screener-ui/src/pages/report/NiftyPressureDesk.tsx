@@ -92,24 +92,24 @@ function panelTitleStyles(): JSX.CSSProperties {
   };
 }
 
-function PanelTitle({ children }: { children: string }) {
+function PanelTitle(props: { children: string }) {
   return (
     <div class="mb-1.5" style={{ ...panelTitleStyles() }}>
-      {children}
+      {props.children}
     </div>
   );
 }
 
-function SideMark({ side, size = 7 }: { side: PressureSide; size?: number }) {
+function SideMark(props: { side: PressureSide; size?: number }) {
   return (
     <span
       class="inline-block shrink-0"
       style={{
-        width: `${size}px`,
-        height: `${size}px`,
+        width: `${props.size ?? 7}px`,
+        height: `${props.size ?? 7}px`,
         "flex-shrink": "0",
-        "border-radius": side === "CALL" ? "50%" : "1px",
-        "background-color": sideColor(side),
+        "border-radius": props.side === "CALL" ? "50%" : "1px",
+        "background-color": sideColor(props.side),
       }}
     />
   );
@@ -139,8 +139,8 @@ function FuelBar(props: { score: number | undefined; width?: number }) {
   );
 }
 
-function StatusPill({ status }: { status: string | null | undefined }) {
-  const tone = statusColor(status);
+function StatusPill(props: { status: string | null | undefined }) {
+  const tone = statusColor(props.status);
   return (
     <span
       class="inline-flex items-center gap-1 rounded-sm px-1 py-[2px] font-mono text-[10px] font-black tracking-[0.08em] leading-tight whitespace-nowrap"
@@ -150,7 +150,7 @@ function StatusPill({ status }: { status: string | null | undefined }) {
         color: tone,
       }}
     >
-      {status ?? "—"}
+      {props.status ?? "—"}
     </span>
   );
 }
@@ -346,27 +346,21 @@ function FlowPlane(props: FlowPlaneProps) {
   );
 }
 
-function HistoryPanel({
-  values,
-  color,
-  label,
-  top,
-  height,
-}: {
+function HistoryPanel(props: {
   values: (number | null)[];
   color: string;
   label: string;
   top: number;
   height: number;
 }) {
-  const finite = values.filter((value): value is number => value != null);
+  const finite = props.values.filter((value): value is number => value != null);
   if (finite.length < 2) {
     return (
       <g>
-        <text x={8} y={top + 10} fill={color} font-size={7.5} font-family={MONO}>
-          {label} · INDEX 100
+        <text x={8} y={props.top + 10} fill={props.color} font-size={7.5} font-family={MONO}>
+          {props.label} · INDEX 100
         </text>
-        <text x={272} y={top + 10} fill={MUTED} font-size={7.5} text-anchor="end" font-family={MONO}>
+        <text x={272} y={props.top + 10} fill={MUTED} font-size={7.5} text-anchor="end" font-family={MONO}>
           no history
         </text>
       </g>
@@ -377,16 +371,16 @@ function HistoryPanel({
   const pad = Math.max(0.4, (max - min) * 0.12);
   min -= pad;
   max += pad;
-  const x = (index: number) => 8 + (index / Math.max(1, values.length - 1)) * 264;
-  const y = (value: number) => top + height - ((value - min) / (max - min)) * height;
-  const points = values
+  const x = (index: number) => 8 + (index / Math.max(1, props.values.length - 1)) * 264;
+  const y = (value: number) => props.top + props.height - ((value - min) / (max - min)) * props.height;
+  const points = props.values
     .map((value, index) => (value == null ? null : `${x(index).toFixed(1)},${y(value).toFixed(1)}`))
     .filter((point): point is string => point != null)
     .join(" ");
   const last = finite[finite.length - 1];
   return (
     <g>
-      <line x1={8} y1={top + height} x2={272} y2={top + height} stroke={BORDER} stroke-width={1} />
+      <line x1={8} y1={props.top + props.height} x2={272} y2={props.top + props.height} stroke={BORDER} stroke-width={1} />
       <line
         x1={8}
         y1={y(100)}
@@ -396,17 +390,17 @@ function HistoryPanel({
         stroke-width={1}
         strokeDasharray="2 3"
       />
-      <text x={8} y={top + 10} fill={color} font-size={7.5} font-family={MONO}>
-        {label} · INDEX 100
+      <text x={8} y={props.top + 10} fill={props.color} font-size={7.5} font-family={MONO}>
+        {props.label} · INDEX 100
       </text>
-      <text x={272} y={top + 10} fill={color} font-size={7.5} text-anchor="end" font-family={MONO}>
+      <text x={272} y={props.top + 10} fill={props.color} font-size={7.5} text-anchor="end" font-family={MONO}>
         {last.toFixed(1)}
       </text>
       <text x={272} y={y(100) - 3} fill={MUTED} font-size={6.5} text-anchor="end" font-family={MONO}>
         100
       </text>
-      <polyline points={points} fill="none" stroke={color} stroke-width={1.7} />
-      <circle cx={x(values.length - 1)} cy={y(last)} r={2} fill={color} />
+      <polyline points={points} fill="none" stroke={props.color} stroke-width={1.7} />
+      <circle cx={x(props.values.length - 1)} cy={y(last)} r={2} fill={props.color} />
     </g>
   );
 }
@@ -440,14 +434,14 @@ function WallHistory(props: HistoryProps) {
   );
 }
 
-function Detail({ label, value, color }: { label: string; value: string; color?: string }) {
+function Detail(props: { label: string; value: string; color?: string }) {
   return (
     <div class="min-w-0">
       <div
         class="text-[10px] text-fin-text-muted tracking-[0.08em]"
         style={{ "font-size": `${REPORT_FONT.micro}px`, color: MUTED, "letter-spacing": REPORT_LETTER_SPACING.wide }}
       >
-        {label}
+        {props.label}
       </div>
       <div
         class="font-mono text-[12px] font-semibold tabular-nums whitespace-nowrap"
@@ -455,12 +449,12 @@ function Detail({ label, value, color }: { label: string; value: string; color?:
           "font-family": MONO,
           "font-size": `${REPORT_FONT.sm}px`,
           "font-weight": String(REPORT_FONT_WEIGHT.semibold),
-          color: color ?? palette.TEXT,
+          color: props.color ?? palette.TEXT,
           "font-variant-numeric": "tabular-nums",
           "white-space": "nowrap",
         }}
       >
-        {value}
+        {props.value}
       </div>
     </div>
   );
@@ -797,7 +791,7 @@ function PressureTable(props: {
   );
 }
 
-function SummaryChip({ label, value }: { label: string; value: string }) {
+function SummaryChip(props: { label: string; value: string }) {
   return (
     <span
       class="inline-flex items-center gap-1 rounded-sm border px-1.5 py-[2px] text-[10px] font-mono whitespace-nowrap"
@@ -809,9 +803,9 @@ function SummaryChip({ label, value }: { label: string; value: string }) {
       }}
     >
       <span class="text-fin-text-muted" style={{ "margin-right": "4px" }}>
-        {label}
+        {props.label}
       </span>
-      {value}
+      {props.value}
     </span>
   );
 }

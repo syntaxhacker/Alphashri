@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { Text, Button, Badge } from "@/ui";
 import { LocalCompactPanel } from "./reportBits";
@@ -58,7 +58,7 @@ const WALLS_GRID_COLS = {
   md: "250px 1fr 1fr minmax(280px,1fr) minmax(120px,1fr)",
 } as const;
 
-function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
+function Stat(props: { label: string; value: string; color?: string }) {
   return (
     <div class="min-w-0 py-[2px]">
       <Text
@@ -72,7 +72,7 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
           "letter-spacing": REPORT_LETTER_SPACING.wide,
         }}
       >
-        {label}
+        {props.label}
       </Text>
       <Text
         size="xs"
@@ -82,13 +82,13 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
         style={{
           "font-size": REPORT_FONT.md,
           "line-height": REPORT_LINE_HEIGHT.snug,
-          color: color ?? palette.TEXT_COLOR,
+          color: props.color ?? palette.TEXT_COLOR,
           "white-space": "nowrap",
           overflow: "hidden",
           "text-overflow": "ellipsis",
         }}
       >
-        {value}
+        {props.value}
       </Text>
     </div>
   );
@@ -123,10 +123,10 @@ function wallFuelColor(side: "CALL" | "PUT", row: WallsRow): string {
 
 /** A reserved row slot: same grid, same two-line strike cell and the same
  *  row height as a live row, so the table never shrinks. */
-function WallPlaceholderRow({ side }: { side: "CALL" | "PUT" }) {
+function WallPlaceholderRow(props: { side: "CALL" | "PUT" }) {
   return (
     <div
-      data-testid={`nifty-walls-${side.toLowerCase()}-placeholder`}
+      data-testid={`nifty-walls-${props.side.toLowerCase()}-placeholder`}
       data-placeholder="true"
       data-wall-row="true"
       class="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] items-center pl-[8px]"
@@ -183,17 +183,17 @@ function WallPlaceholderRow({ side }: { side: "CALL" | "PUT" }) {
   );
 }
 
-function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number }) {
-  const color = side === "CALL" ? palette.NEGATIVE : palette.POSITIVE;
-  const maxOi = wallsMaxOi(rows);
-  const sideKey = side.toLowerCase();
+function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number }) {
+  const color = props.side === "CALL" ? palette.NEGATIVE : palette.POSITIVE;
+  const maxOi = createMemo(() => wallsMaxOi(props.rows));
+  const sideKey = props.side.toLowerCase();
   // Three rows always: the missing ones are reserved slots, so a one-wall
   // payload leaves the table exactly as tall as a three-wall payload.
-  const placeholders = Math.max(0, WALLS_ROWS - Math.min(rows.length, WALLS_ROWS));
-  const display: (WallsRow | null)[] = [
-    ...rows.slice(0, WALLS_ROWS),
-    ...Array.from({ length: placeholders }, () => null),
-  ];
+  const placeholders = createMemo(() => Math.max(0, WALLS_ROWS - Math.min(props.rows.length, WALLS_ROWS)));
+  const display = createMemo(() => [
+    ...props.rows.slice(0, WALLS_ROWS),
+    ...Array.from({ length: placeholders() }, () => null),
+  ]);
   return (
     <div data-testid={`nifty-walls-${sideKey}`} class="min-w-0">
       <div
@@ -215,7 +215,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
             "letter-spacing": REPORT_LETTER_SPACING.wider,
           }}
         >
-          {side}
+          {props.side}
         </Text>
         <For each={WALLS_HEADINGS}>{(heading) => (
           <Text
@@ -233,11 +233,11 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
           </Text>
         )}</For>
       </div>
-      <For each={display}>{(row) => {
+      <For each={display()}>{(row) => {
         if (!row) {
-          return <WallPlaceholderRow side={side} />;
+          return <WallPlaceholderRow side={props.side} />;
         }
-        const view = wallErosionView(row, side);
+        const view = wallErosionView(row, props.side);
         const nearest = Boolean(row.nearest);
         const tracked = Boolean(row.tracked);
         const flowLabelText = flowLabel(row.flow);
@@ -248,7 +248,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
         const partsTitle = parts
           ? ` · parts: erosion ${parts.erosion}, volume ${parts.volume}, proximity ${parts.proximity}, gamma ${parts.gamma}, flow ${parts.flow}`
           : "";
-        const cellColor = wallFuelColor(side, row);
+        const cellColor = wallFuelColor(props.side, row);
         const border = nearest
           ? `2px solid ${cellColor}`
           : tracked
@@ -309,7 +309,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                   </Text>
                 </Show>
                 <span style={{ "font-size": REPORT_FONT.micro, "margin-left": "3px", color: palette.TEXT_MUTED }}>
-                  {wallCode(side === "CALL", wallSide(row.strike, spot), false)}
+                  {wallCode(props.side === "CALL", wallSide(row.strike, props.spot), false)}
                 </span>
               </div>
               <Text
@@ -321,7 +321,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                     ? `${flowLabelText} · vol ${volText} · prem ${fmtPremChange(row.prem_chg_5m)} · fuel ${view.fuelScore}${partsTitle}`
                     : undefined
                 }
-                data-testid={`nifty-walls-${side.toLowerCase()}-${row.strike}-flow`}
+                data-testid={`nifty-walls-${props.side.toLowerCase()}-${row.strike}-flow`}
                 style={{
                   "font-size": REPORT_FONT.micro,
                   "line-height": REPORT_LINE_HEIGHT.tight,
@@ -357,7 +357,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
               >
                 <div
                   style={{
-                    width: `${Math.min(100, (row.oi / maxOi) * 100)}%`,
+                    width: `${Math.min(100, (row.oi / maxOi()) * 100)}%`,
                     height: "100%",
                     "background-color": color,
                     opacity: 0.55,
@@ -389,7 +389,7 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                 "text-align": "right",
                 "font-variant-numeric": "tabular-nums",
                 color: erosionColor(row.new_oi),
-                "background-color": newOiTint(row.new_oi, rows),
+                "background-color": newOiTint(row.new_oi, props.rows),
                 "border-radius": `${REPORT_RADIUS.sm}px`,
                 "padding-left": `${REPORT_PAD.xs}px`,
                 "padding-right": `${REPORT_PAD.xs}px`,
@@ -578,12 +578,12 @@ function MiniHistory(props: { walls: WallsPayload }) {
 }
 
 /** Muted placeholder block used by the null-payload skeleton. */
-function SkeletonBar({ height, width = "100%" }: { height: number; width?: number | string }) {
+function SkeletonBar(props: { height: number; width?: number | string }) {
   return (
     <div
       style={{
-        height: `${height}px`,
-        width: typeof width === "number" ? `${width}px` : width,
+        height: `${props.height}px`,
+        width: typeof props.width === "number" ? `${props.width}px` : props.width ?? "100%",
         "border-radius": `${REPORT_RADIUS.sm}px`,
         "background-color": palette.SURFACE_ALT,
       }}
@@ -604,8 +604,8 @@ function SkeletonStat() {
 
 /** The levels rows live inside this card in both states — dropping them on a
  *  null payload would change the card height by the levels band. */
-function WallsLevelsBlock({ levels }: { levels?: JSX.Element }) {
-  if (!levels) return null;
+function WallsLevelsBlock(props: { levels?: JSX.Element }) {
+  if (!props.levels) return null;
   return (
     <div
       style={{
@@ -614,7 +614,7 @@ function WallsLevelsBlock({ levels }: { levels?: JSX.Element }) {
         "min-width": 0,
       }}
     >
-      {levels}
+      {props.levels}
     </div>
   );
 }
@@ -628,7 +628,7 @@ function WallsLevelsBlock({ levels }: { levels?: JSX.Element }) {
  *  side, so the skeleton body lands on the same height as the populated one.
  *  The READ/SEQ and tracked-history bands are reserved at 96px so they can
  *  never collapse below the live bands. */
-function WallsSkeleton({ emptyText }: { emptyText: string }) {
+function WallsSkeleton(props: { emptyText: string }) {
   return (
     <div
       data-testid="nifty-walls-skeleton"
@@ -670,7 +670,7 @@ function WallsSkeleton({ emptyText }: { emptyText: string }) {
             "margin-top": `${REPORT_PAD.xs}px`,
           }}
         >
-          {emptyText}
+          {props.emptyText}
         </Text>
       </div>
 
@@ -753,7 +753,6 @@ export function NiftyWallsCardInner(props: {
   levels?: JSX.Element;
 }) {
   const walls = () => props.walls;
-  const { onExpand, onOpenDesk, emptyText = "No walls data.", levels } = props;
   const [dismissed, setDismissed] = createSignal<string | null>(null);
 
   // One alert per wall per cooldown: the backend latches `alert.at` to the
@@ -785,8 +784,8 @@ export function NiftyWallsCardInner(props: {
   if (!walls()) {
     return (
       <LocalCompactPanel title="WALLS" testId="nifty-walls-card" flush>
-        <WallsSkeleton emptyText={emptyText} />
-        <WallsLevelsBlock levels={levels} />
+        <WallsSkeleton emptyText={props.emptyText ?? "No walls data."} />
+        <WallsLevelsBlock levels={props.levels} />
       </LocalCompactPanel>
     );
   }
@@ -821,12 +820,12 @@ export function NiftyWallsCardInner(props: {
       padded={false}
       action={
         <div class="flex items-center gap-1">
-          {onOpenDesk ? (
+          {props.onOpenDesk ? (
             <Button
               size="xs"
               variant="outline"
               data-testid="nifty-walls-desk"
-              onClick={onOpenDesk}
+              onClick={props.onOpenDesk}
               className="min-w-0"
               style={{
                 "padding-y": 0,
@@ -842,7 +841,7 @@ export function NiftyWallsCardInner(props: {
           <Button
             size="xs"
             variant="outline"
-            onClick={onExpand}
+            onClick={props.onExpand}
             className="min-w-0"
             style={{
               "padding-y": 0,
@@ -1174,7 +1173,7 @@ export function NiftyWallsCardInner(props: {
 
         <MiniHistory walls={walls()!} />
       </div>
-      <WallsLevelsBlock levels={levels} />
+      <WallsLevelsBlock levels={props.levels} />
     </LocalCompactPanel>
   );
 }

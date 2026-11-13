@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import type { JSX } from "solid-js";
 import { describe, it, expect, afterEach, vi } from "vitest";
+import { createSignal } from "solid-js";
 import { render, screen, cleanup } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { BacktestProgress, calcProgressPercent } from "./BacktestProgress";
@@ -91,6 +92,21 @@ describe("BacktestProgress", () => {
   it("renders with different progress values", () => {
     const progress = { current: 25, total: 100, message: "Analyzing stocks" };
     render(() => <BacktestProgress progress={progress} />, { wrapper: Wrapper });
+    expect(screen.getByTestId("progress-counter")).toHaveTextContent("25/100");
+    expect(screen.getByTestId("progress-message")).toHaveTextContent("Analyzing stocks");
+  });
+
+  it("updates the DOM when the progress prop signal changes", () => {
+    const [progress, setProgress] = createSignal<{
+      current: number;
+      total: number;
+      message: string;
+    }>({ current: 5, total: 10, message: "Processing..." });
+    render(() => <BacktestProgress progress={progress()} />, { wrapper: Wrapper });
+    expect(screen.getByTestId("progress-counter")).toHaveTextContent("5/10");
+    expect(screen.getByTestId("progress-message")).toHaveTextContent("Processing...");
+
+    setProgress({ current: 25, total: 100, message: "Analyzing stocks" });
     expect(screen.getByTestId("progress-counter")).toHaveTextContent("25/100");
     expect(screen.getByTestId("progress-message")).toHaveTextContent("Analyzing stocks");
   });

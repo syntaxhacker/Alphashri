@@ -220,8 +220,9 @@ export function BacktestChart(props: BacktestChartProps) {
   });
 
   const input = createMemo(() => {
-    if (!props.chartData) return null;
-    return normalizeBacktest(props.chartData, true, props.holidays, props.highlightedTradeId ?? null);
+    const cd = props.chartData;
+    if (!cd) return null;
+    return normalizeBacktest(cd, true, props.holidays, props.highlightedTradeId ?? null);
   });
 
   const trades = createMemo(() => {
@@ -229,13 +230,14 @@ export function BacktestChart(props: BacktestChartProps) {
     return cd ? mapTrades(cd) : [];
   });
   const markLines = createMemo(() => {
-    if (!props.chartData) return [];
+    const cd = props.chartData;
+    if (!cd) return [];
     // Force solid lines (the shared normalizer emits dashed/dotted).
     const forced = (input()?.markLines ?? []).map((ml) => ({
       ...ml,
       lineStyle: { ...ml.lineStyle, type: "solid" },
     }));
-    return [...forced, ...buildLevelLines(props.chartData)];
+    return [...forced, ...buildLevelLines(cd)];
   });
   const candles = createMemo(() =>
     (input()?.candles ?? []).map((c) => ({
@@ -250,11 +252,13 @@ export function BacktestChart(props: BacktestChartProps) {
 
   // zoom preset (All / 30D / 7D / 1D)
   createEffect(() => {
-    if (!props.chartData || !props.zoomValue || props.chartData.candles.length === 0) return;
-    const total = props.chartData.candles.length;
-    const startIdx = getBacktestZoomStartIndex(props.chartData.candles, props.zoomValue);
+    const cd = props.chartData;
+    const zv = props.zoomValue;
+    if (!cd || !zv || cd.candles.length === 0) return;
+    const total = cd.candles.length;
+    const startIdx = getBacktestZoomStartIndex(cd.candles, zv);
     const timer = setTimeout(() => {
-      if (props.zoomValue === "all") {
+      if (zv === "all") {
         chartRef?.fitContent();
       } else {
         chartRef?.zoomToIndexRange(startIdx, total - 1, total);

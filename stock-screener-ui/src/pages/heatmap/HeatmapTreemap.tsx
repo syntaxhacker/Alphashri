@@ -125,10 +125,10 @@ export function HeatmapTreemap(props: HeatmapTreemapProps) {
         <Show when={showLegend() && props.stocks.length > 0}>
           <Box className="flex items-center gap-2 px-2 h-8 flex-shrink-0 border-t border-fin-border">
             <Text size="xs" fw={600}>{activeMetric().label}</Text>
-            <Box className="size-3 rounded" style={{ width: 12, height: 12, "background-color": getHeatmapMetricColor(metricKey(), metricMin(), metricMin(), metricMax()), "border-radius": "2px" }} />
+            <Box className="size-3 rounded" style={{ width: "12px", height: "12px", "background-color": getHeatmapMetricColor(metricKey(), metricMin(), metricMin(), metricMax()), "border-radius": "2px" }} />
             <Text size="xs">{activeMetric().fmt(metricMin())}</Text>
             <Box className="flex-1 max-w-[120px] h-[8px] rounded-[4px]" style={{ background: isSignedHeatmapMetric(metricKey()) ? `linear-gradient(to right, ${SECTOR_STRONG_RED}, ${SECTOR_NEUTRAL}, ${SECTOR_GREEN})` : `linear-gradient(to right, ${SECTOR_STRONG_GREEN}, ${SECTOR_GREEN}, ${SECTOR_NEUTRAL}, ${SECTOR_RED}, ${SECTOR_STRONG_RED})` }} />
-            <Box className="size-3 rounded" style={{ width: 12, height: 12, "background-color": getHeatmapMetricColor(metricKey(), metricMax(), metricMin(), metricMax()), "border-radius": "2px" }} />
+            <Box className="size-3 rounded" style={{ width: "12px", height: "12px", "background-color": getHeatmapMetricColor(metricKey(), metricMax(), metricMin(), metricMax()), "border-radius": "2px" }} />
             <Text size="xs">{activeMetric().fmt(metricMax())}</Text>
           </Box>
         </Show>

@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createSignal } from "solid-js";
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import type { WallsPayload, WallsRow } from "@/api/reportNifty";
 import { NiftyPressureDesk } from "./NiftyPressureDesk";
@@ -118,5 +119,18 @@ describe("NiftyPressureDesk", () => {
     expect(screen.getByTestId("pressure-desk-empty")).toHaveTextContent(
       "No walls tape at this replay time.",
     );
+  });
+
+  it("renders the desk when the walls prop signal appears", () => {
+    const [wallsSig, setWallsSig] = createSignal<WallsPayload | null>(null);
+    render(() => <NiftyPressureDesk open walls={wallsSig()} onClose={vi.fn()} />);
+
+    expect(screen.getByTestId("pressure-desk-empty")).toBeInTheDocument();
+    expect(screen.queryByTestId("pressure-plane-CALL-25000")).toBeNull();
+
+    setWallsSig(walls);
+
+    expect(screen.getByTestId("pressure-plane-CALL-25000")).toBeInTheDocument();
+    expect(screen.queryByTestId("pressure-desk-empty")).toBeNull();
   });
 });

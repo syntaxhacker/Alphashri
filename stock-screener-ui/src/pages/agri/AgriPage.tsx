@@ -228,14 +228,14 @@ export function AgriPage() {
             {chg7d() == null ? "—" : `${pct(chg7d())} 1w`}
           </Text>
         </Box>
-        <Divider orientation="vertical" style={{ height: 32, "margin-left": "8px", "margin-right": "8px" }} />
+        <Divider orientation="vertical" style={{ height: "32px", "margin-left": "8px", "margin-right": "8px" }} />
         <Box className="min-w-0">
           <Text size="xs" c="dimmed">1 month</Text>
           <Text size="sm" fw={600} c={statColor(chg30d())} className="font-mono tabular-nums" data-testid="agri-stat-chg30d">
             {pct(chg30d())}
           </Text>
         </Box>
-        <Divider orientation="vertical" style={{ height: 32, "margin-left": "8px", "margin-right": "8px" }} />
+        <Divider orientation="vertical" style={{ height: "32px", "margin-left": "8px", "margin-right": "8px" }} />
         <Box className="min-w-0">
           <Text size="xs" c="dimmed">6 months</Text>
           <Text size="sm" fw={600} c={statColor(chg180d())} className="font-mono tabular-nums" data-testid="agri-stat-chg180d">

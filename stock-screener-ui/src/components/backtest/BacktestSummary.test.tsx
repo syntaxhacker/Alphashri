@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import type { JSX } from "solid-js";
 import { describe, it, expect, afterEach, vi } from "vitest";
+import { createSignal } from "solid-js";
 import { render, screen, cleanup } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { BacktestSummary, resolveTotals, formatCosts, formatWinRate } from "./BacktestSummary";
@@ -158,4 +159,19 @@ describe("BacktestSummary", () => {
     expect(screen.getByText("Trades")).toBeInTheDocument();
   });
 
+  it("updates the DOM when the totals prop signal changes", () => {
+    const [totals, setTotals] = createSignal({
+      net_pnl: 15000,
+      total_costs: 2500,
+      win_rate: 65.5,
+      trades: 42,
+    });
+    render(() => <BacktestSummary totals={totals()} />, { wrapper: Wrapper });
+    expect(screen.getByTestId("summary-net-pnl")).toHaveTextContent("+₹15.0K");
+    expect(screen.getByTestId("summary-trades")).toHaveTextContent("42");
+
+    setTotals({ ...totals(), net_pnl: 25000, trades: 100 });
+    expect(screen.getByTestId("summary-net-pnl")).toHaveTextContent("+₹25.0K");
+    expect(screen.getByTestId("summary-trades")).toHaveTextContent("100");
+  });
 });

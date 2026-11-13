@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createSignal } from "solid-js";
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 
 import type { WallsPayload } from "@/api/reportNifty";
@@ -440,6 +441,19 @@ describe("NiftyWallsCard", () => {
     const putTable = screen.getByTestId("nifty-walls-put");
     expect(within(putTable).getByText("▼")).toBeInTheDocument();
     expect(within(putTable).getByTestId("nifty-walls-put-73700-flow")).toHaveTextContent("WRITERS ADDING · vol —");
+  });
+
+  it("updates the skeleton empty text when the emptyText prop signal changes", () => {
+    const [emptyTextSig, setEmptyTextSig] = createSignal("No walls data.");
+    render(() => <NiftyWallsCard walls={null} onExpand={onExpand} emptyText={emptyTextSig()} />);
+
+    expect(screen.getByText("No walls data.")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-walls-skeleton")).toBeInTheDocument();
+
+    setEmptyTextSig("Waiting for walls data.");
+
+    expect(screen.getByText("Waiting for walls data.")).toBeInTheDocument();
+    expect(screen.queryByText("No walls data.")).toBeNull();
   });
 });
 

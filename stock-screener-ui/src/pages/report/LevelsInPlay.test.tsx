@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it } from "vitest";
+import { createSignal } from "solid-js";
 import { cleanup, render, screen, within } from "@solidjs/testing-library";
 
 import type { NiftyReport, NiftySensex, NiftyWall } from "@/types/niftyReport";
@@ -141,6 +142,20 @@ describe("LevelsInPlay", () => {
 
     const chip = screen.getByTestId("levels-dist-NIFTY-CE");
     expect(chip).toHaveStyle({ height: "14px", display: "inline-flex", lineHeight: "1" });
+  });
+
+  it("updates the nearest wall when the report prop signal changes", () => {
+    const [reportSig, setReportSig] = createSignal<NiftyReport | null>(
+      makeReport({ spot: 24_650, walls: { calls: [wall(24_700, 2_000_000)], puts: [] } }),
+    );
+    render(() => <LevelsInPlay report={reportSig()} sensex={null} />);
+
+    expect(screen.getByTestId("levels-ce-NIFTY")).toHaveTextContent("24,700");
+
+    setReportSig(makeReport({ spot: 24_650, walls: { calls: [wall(24_800, 3_000_000)], puts: [] } }));
+
+    expect(screen.getByTestId("levels-ce-NIFTY")).toHaveTextContent("24,800");
+    expect(screen.getByTestId("levels-ce-NIFTY")).not.toHaveTextContent("24,700");
   });
 });
 

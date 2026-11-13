@@ -253,17 +253,17 @@ function WallsLadder(props: { walls: WallsPayload }) {
   );
 }
 
-function ErosionBar({ value }: { value: number | null | undefined }) {
-  if (value == null) return null;
-  const width = Math.min(100, Math.abs(value) * 500);
+function ErosionBar(props: { value: number | null | undefined }) {
+  if (props.value == null) return null;
+  const width = Math.min(100, Math.abs(props.value) * 500);
   return (
     <div style={{ width: "100%", "height": "4px", "background-color": palette.SURFACE, overflow: "hidden" }}>
       <div
         style={{
           width: `${width}%`,
           height: "100%",
-          "background-color": erosionColor(value),
-          "margin-left": value < 0 ? "auto" : 0,
+          "background-color": erosionColor(props.value),
+          "margin-left": props.value < 0 ? "auto" : 0,
           transition: "width 280ms cubic-bezier(.22,1,.36,1)",
         }}
       />
@@ -271,11 +271,11 @@ function ErosionBar({ value }: { value: number | null | undefined }) {
   );
 }
 
-function WallsTable({ title, side, rows, spot }: { title: string; side: "CALL" | "PUT"; rows: WallsRow[]; spot: number }) {
-  const color = side === "CALL" ? palette.NEGATIVE : palette.POSITIVE;
-  const maxOi = wallsMaxOi(rows);
+function WallsTable(props: { title: string; side: "CALL" | "PUT"; rows: WallsRow[]; spot: number }) {
+  const color = props.side === "CALL" ? palette.NEGATIVE : palette.POSITIVE;
+  const maxOi = wallsMaxOi(props.rows);
   return (
-    <div data-testid={`walls-table-${side.toLowerCase()}`} class="min-w-0">
+    <div data-testid={`walls-table-${props.side.toLowerCase()}`} class="min-w-0">
       <div class="items-center" style={{ "margin-bottom": `${REPORT_PAD.sm}px`, "align-items": "center" }}>
         <Text
           size="xs"
@@ -288,9 +288,9 @@ function WallsTable({ title, side, rows, spot }: { title: string; side: "CALL" |
             "letter-spacing": REPORT_LETTER_SPACING.wide,
           }}
         >
-          {title}
+          {props.title}
         </Text>
-        <Text size="xs" span style={{ color: palette.TEXT_MUTED }}>top {rows.length} by OI</Text>
+        <Text size="xs" span style={{ color: palette.TEXT_MUTED }}>top {props.rows.length} by OI</Text>
       </div>
       <Box
         component="table"
@@ -323,12 +323,12 @@ function WallsTable({ title, side, rows, spot }: { title: string; side: "CALL" |
           </tr>
         </thead>
         <tbody>
-          <For each={rows}>{(row) => {
-            const ws = wallSide(row.strike, spot);
-            const tag = wallCode(side === "CALL", ws, false);
+          <For each={props.rows}>{(row) => {
+            const ws = wallSide(row.strike, props.spot);
+            const tag = wallCode(props.side === "CALL", ws, false);
             return (
               <tr
-                key={`${side}-${row.strike}`}
+                key={`${props.side}-${row.strike}`}
                 style={{
                   background: row.tracked ? palette.SURFACE_ALT : "transparent",
                   "font-weight": row.tracked ? 700 : 400,
@@ -388,7 +388,7 @@ function WallsTable({ title, side, rows, spot }: { title: string; side: "CALL" |
                   style={{
                     padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px`,
                     color: erosionColor(row.new_oi),
-                    "background-color": newOiTint(row.new_oi, rows),
+                    "background-color": newOiTint(row.new_oi, props.rows),
                     transition: "background-color 220ms ease",
                   }}
                 >

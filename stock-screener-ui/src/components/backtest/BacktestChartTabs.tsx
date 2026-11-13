@@ -52,7 +52,8 @@ export function BacktestChartTabs(props: BacktestChartTabsProps) {
     );
   }
 
-  const currentChartData = props.selectedSymbol ? props.chartDataMap.get(props.selectedSymbol) : null;
+  const sym = props.selectedSymbol;
+  const currentChartData = sym ? props.chartDataMap.get(sym) : null;
 
   return (
     <Box

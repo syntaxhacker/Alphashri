@@ -62,12 +62,7 @@ const timeIndex = (times: string[], at: string): number => {
 
 const timeLabel = (value: string | undefined): string => (value ? value.slice(11, 16) : "—");
 
-function Legend({
-  color,
-  label,
-  line = false,
-  dashed = false,
-}: {
+function Legend(props: {
   color: string;
   label: string;
   line?: boolean;
@@ -75,40 +70,35 @@ function Legend({
 }) {
   return (
     <div class="flex items-center gap-[3px]">
-      {line ? (
-        <span class="w-[11px]" style={{ "border-top": `1px ${dashed ? "dashed" : "solid"} ${color}` }} />
+      {props.line ?? false ? (
+        <span class="w-[11px]" style={{ "border-top": `1px ${(props.dashed ?? false) ? "dashed" : "solid"} ${props.color}` }} />
       ) : (
-        <span class="w-2 h-2 rounded-[1px]" style={{ "background-color": color }} />
+        <span class="w-2 h-2 rounded-[1px]" style={{ "background-color": props.color }} />
       )}
-      <div class="text-[7.5px] leading-1 text-fin-text-muted">{label}</div>
+      <div class="text-[7.5px] leading-1 text-fin-text-muted">{props.label}</div>
     </div>
   );
 }
 
-function AxisLabels({
-  times,
-  cellW,
-  xOffset,
-  rowsH,
-}: {
+function AxisLabels(props: {
   times: string[];
   cellW: number;
   xOffset: number;
   rowsH: number;
 }) {
-  const last = times.length - 1;
+  const last = props.times.length - 1;
   const indexes = [...new Set([0, Math.floor(last / 4), Math.floor(last / 2), Math.floor((last * 3) / 4), last])];
   return (
     <>
       <For each={indexes}>{(index) => (
         <text
-          x={xOffset + index * cellW + cellW / 2}
-          y={HEADER_H + rowsH + 11}
+          x={props.xOffset + index * props.cellW + props.cellW / 2}
+          y={HEADER_H + props.rowsH + 11}
           text-anchor="middle"
           font-size={7.5}
           fill={palette.TEXT_MUTED}
         >
-          {timeLabel(times[index])}
+          {timeLabel(props.times[index])}
         </text>
       )}</For>
     </>

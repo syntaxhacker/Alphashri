@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it } from "vitest";
+import { createSignal } from "solid-js";
 import { cleanup, render, screen, within } from "@solidjs/testing-library";
 
 import type { WallsPayload } from "@/api/reportNifty";
@@ -213,5 +214,20 @@ describe("NiftyWallErosionBoard", () => {
     expect(fullBody.getAttribute("data-layout")).toBe("fixed");
     expect(fullBody.getAttribute("data-rows")).toBe("2");
     expect(within(fullBody).getAllByTestId("wall-erosion-row")).toHaveLength(2);
+  });
+
+  it("shows dashes when the walls prop signal becomes null", () => {
+    const [wallsSig, setWallsSig] = createSignal<WallsPayload | null>(makeWalls());
+    render(() =>     <NiftyWallErosionBoard walls={wallsSig()} />);
+
+    const call = screen.getByTestId("wall-erosion-call");
+    expect(within(call).getByText(/25,000/)).toBeInTheDocument();
+    expect(within(call).getByText(/PRE-BLAST 78/)).toBeInTheDocument();
+
+    setWallsSig(null);
+
+    const nullCall = screen.getByTestId("wall-erosion-call");
+    expect(within(nullCall).getAllByText("—").length).toBeGreaterThan(0);
+    expect(within(nullCall).getByText("FUEL 0")).toBeInTheDocument();
   });
 });

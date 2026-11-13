@@ -83,17 +83,11 @@ function MoverItem(props: { row: IndexMoverRow; isGainer: boolean }) {
 
 /** Gain/loss section (left or right). The per-symbol arrow already carries
  *  the direction, so the section no longer repeats it as a label. */
-function MoverSection({
-  rows,
-  isGainer,
-}: {
-  rows: IndexMoverRow[];
-  isGainer: boolean;
-}) {
+function MoverSection(props: { rows: IndexMoverRow[]; isGainer: boolean }) {
   return (
     <span className="flex items-center gap-2 min-w-0 shrink-0">
-      {rows.map((row, i) => (
-        <MoverItem key={`${row().symbol}-${i}`} row={row} isGainer={isGainer} />
+      {props.rows.map((row, i) => (
+        <MoverItem key={`${row().symbol}-${i}`} row={row} isGainer={props.isGainer} />
       ))}
     </span>
   );

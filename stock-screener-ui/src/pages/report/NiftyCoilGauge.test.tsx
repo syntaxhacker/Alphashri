@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test } from "vitest";
+import { createSignal } from "solid-js";
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import type { JSX } from "solid-js";
@@ -119,5 +120,20 @@ describe("NiftyCoilGauge", () => {
     expect(screen.getByTestId("nifty-coil-rv-iv")).toHaveTextContent(
       "RV — / IV —",
     );
+  });
+
+  test("updates the state and ratio when the regime prop signal changes", () => {
+    const [regimeSig, setRegimeSig] = createSignal<NiftyRegimeBlock | undefined>(
+      regime({ range_pts: 50, range_baseline_pts: 100 }),
+    );
+    r(() => <NiftyCoilGauge regime={regimeSig()} />);
+
+    expect(screen.getByTestId("nifty-coil-state")).toHaveTextContent("COIL");
+    expect(screen.getByTestId("nifty-coil-ratio")).toHaveTextContent("0.5x");
+
+    setRegimeSig(regime({ range_pts: 150, range_baseline_pts: 100 }));
+
+    expect(screen.getByTestId("nifty-coil-state")).toHaveTextContent("EXPANDING");
+    expect(screen.getByTestId("nifty-coil-ratio")).toHaveTextContent("1.5x");
   });
 });

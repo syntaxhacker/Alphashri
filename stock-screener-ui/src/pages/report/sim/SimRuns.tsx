@@ -28,10 +28,10 @@ function structureText(trade: SimTrade): string {
     .join(" / ");
 }
 
-function Num({ value, color }: { value: string; color?: string }) {
+function Num(props: { value: string; color?: string }) {
   return (
-    <Text span size="xs" style={{ "font-family": palette.MONO, color }}>
-      {value}
+    <Text span size="xs" style={{ "font-family": palette.MONO, color: props.color }}>
+      {props.value}
     </Text>
   );
 }
