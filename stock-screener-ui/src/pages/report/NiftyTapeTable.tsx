@@ -20,6 +20,7 @@ import {
   TAPE_PUT_DOI,
   TAPE_ROW_HOVER,
   TAPE_ROW_LATEST,
+  TAPE_SPOT,
   TAPE_TERM_BG,
   TAPE_FLIP_NEG_TEXT,
   TAPE_FLIP_POS_TEXT,
@@ -166,12 +167,12 @@ const TAPE_TABLE_WRAP_STYLE = {
 } as JSX.CSSProperties;
 
 const TAPE_FLASH_KEYFRAMES = `@keyframes tapeRowFlash {
-  0% { "box-shadow": inset 0 0 0 100px rgba(31, 127, 255, 0.40); }
-  100% { "box-shadow": inset 0 0 0 100px rgba(31, 127, 255, 0); }
+  0% { "box-shadow": inset 0 0 0 100px ${hexToRgba(TAPE_POS_HUE, 0.40)}; }
+  100% { "box-shadow": inset 0 0 0 100px ${hexToRgba(TAPE_POS_HUE, 0)}; }
 }
 @keyframes tapeCellFlash {
-  0% { "box-shadow": inset 0 0 0 100px rgba(242, 204, 96, 0.45); }
-  100% { "box-shadow": inset 0 0 0 100px rgba(242, 204, 96, 0); }
+  0% { "box-shadow": inset 0 0 0 100px ${hexToRgba(TAPE_SPOT, 0.45)}; }
+  100% { "box-shadow": inset 0 0 0 100px ${hexToRgba(TAPE_SPOT, 0)}; }
 }
 @keyframes tapePulse {
   0% { opacity: 1; box-shadow: 0 0 0 0 ${hexToRgba(palette.POSITIVE, 0.5)}; }
@@ -404,7 +405,7 @@ export function NiftyTapeTable(props: {
             variant="transparent"
             onClick={() => setOrder((o) => (o === "newest" ? "oldest" : "newest"))}
             style={{
-              border: "1px solid #2A2A2A",
+              border: `1px solid ${palette.TAPE_HEADER_RULE}`,
               background: "transparent",
               color: TAPE_CALL_DOI,
               "border-radius": "9999px",

@@ -1,4 +1,5 @@
 import { Text } from "@/ui";
+import { FLOW_BEAR, FLOW_BULL, FLOW_STRUCT } from "@/ui/palette";
 import { createEffect, createMemo, createSignal, For, Show, onCleanup } from "solid-js";
 import {
   buildFlowEvents,
@@ -11,9 +12,7 @@ import {
 } from "./niftyFlowStrip";
 import { DERIVATIVES_CLOSE_MIN, SESSION_START_MIN } from "@/utils/marketClock";
 
-export const FLOW_BULL = "#16A34A";
-export const FLOW_BEAR = "#DC2626";
-export const FLOW_STRUCT = "#F59E0B";
+export { FLOW_BEAR, FLOW_BULL, FLOW_STRUCT };
 
 /** At most this many text labels; ticks always render for every event. */
 /** Text lane shows only the newest runs; the tooltip keeps the full history. */

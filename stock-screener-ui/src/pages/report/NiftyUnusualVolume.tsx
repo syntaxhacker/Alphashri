@@ -110,12 +110,12 @@ export function getUnusualSentimentTone(sentiment: string, side: "CE" | "PE"): s
  * Terminal palette — matches the reference unusual-volume screenshot:
  * pitch-black desk, CE blue / PE orange bars, plain bold positioning text.
  */
-export const UNUSUAL_TERM_BG = "#000000";
-export const UNUSUAL_TERM_BORDER = "#1A1A1A";
-const UNUSUAL_CE = "#5B9CF6";
-const UNUSUAL_PE = "#F2A65A";
-const UNUSUAL_CALL_VOL = "#5B9CF6";
-const UNUSUAL_PUT_VOL = "#F2A65A";
+export const UNUSUAL_TERM_BG = palette.BG;
+export const UNUSUAL_TERM_BORDER = palette.UNUSUAL_TERM_BORDER;
+const UNUSUAL_CE = palette.UNUSUAL_CE;
+const UNUSUAL_PE = palette.UNUSUAL_PE;
+const UNUSUAL_CALL_VOL = palette.UNUSUAL_CE;
+const UNUSUAL_PUT_VOL = palette.UNUSUAL_PE;
 
 type UnusualLegFilter = "all" | "CE" | "PE";
 
@@ -328,9 +328,9 @@ function UnusualFilterPill(props: {
       onClick={props.onClick}
       class="rounded-full px-[8px] py-[2px] text-[11px] font-bold cursor-pointer whitespace-nowrap shrink-0 border border-solid"
       style={{
-        "border-color": props.active ? "#2FC0AC" : "#30363D",
-        "background-color": props.active ? "rgba(47, 192, 172, 0.18)" : "transparent",
-        color: props.active ? "#8AE6D4" : "#8B949E",
+        "border-color": props.active ? palette.UNUSUAL_PILL_ACTIVE : palette.UNUSUAL_PILL_BORDER,
+        "background-color": props.active ? hexToRgba(palette.UNUSUAL_PILL_ACTIVE, 0.18) : "transparent",
+        color: props.active ? palette.UNUSUAL_PILL_ACTIVE_TEXT : palette.UNUSUAL_PILL_TEXT,
       }}
     >
       {props.label}
@@ -440,9 +440,9 @@ export function NiftyUnusualVolume(props: {
           title={focus()}
           class="whitespace-nowrap overflow-hidden truncate tabular-nums min-w-0 px-[6px] py-[2px] border-t border-b"
           style={{
-            "background-color": "#0A0A0A",
-            "border-top": "1px solid #1A1A1A",
-            "border-bottom": "1px solid #1A1A1A",
+            "background-color": palette.SURFACE,
+            "border-top": `1px solid ${UNUSUAL_TERM_BORDER}`,
+            "border-bottom": `1px solid ${UNUSUAL_TERM_BORDER}`,
           }}
         >
           <Text size="xs" span c="dimmed">

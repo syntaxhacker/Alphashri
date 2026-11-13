@@ -1,6 +1,6 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { Text } from "@/ui";
-import { HEATMAP_CE, HEATMAP_FLIP, HEATMAP_MP, HEATMAP_PE, HEATMAP_SPOT, MONO, TERM_BORDER, TERM_HEADER, TEXT_MUTED, WARNING } from "@/ui/palette";
+import { HEATMAP_CE, HEATMAP_FLIP, HEATMAP_MP, HEATMAP_PE, HEATMAP_SPOT, HEATMAP_TOUCH_STROKE, MONO, TERM_BORDER, TERM_HEADER, TEXT_MUTED, WARNING } from "@/ui/palette";
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import {
   HEATMAP_PAD_L,
@@ -592,7 +592,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
                 cy={yOf(b.touch.spot)}
                 r={3.5}
                 fill={WARNING}
-                stroke="#000"
+                stroke={HEATMAP_TOUCH_STROKE}
                 stroke-width={1}
               >
                 <title>{`Max pain touch ${formatNumberIN(Math.round(b.touch.maxPain))} @ ${b.label}`}</title>

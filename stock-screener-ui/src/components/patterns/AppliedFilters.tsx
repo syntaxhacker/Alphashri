@@ -1,5 +1,6 @@
 import { createMemo, For, Show } from "solid-js";
 import { Box, Button, Text, ToolbarRow } from "@/ui";
+import { PATTERN_CHIP_BG } from "@/ui/palette";
 import { IconX } from "@/patterns/icons";
 import { DEFAULT_PATTERN_FILTERS } from "@/state/chartPatterns";
 import type { PatternDef, PatternFilters } from "@/types/chartPatterns";
@@ -313,7 +314,8 @@ export function AppliedFilters(props: AppliedFiltersProps) {
                     {(chip) => (
                       <span
                         data-testid={`patterns-applied-filter-${chip.id}`}
-                        className="inline-flex items-center gap-1 whitespace-nowrap rounded-fin border border-transparent bg-[#484F58] px-2 py-1 text-xs text-fin-text"
+                        className="inline-flex items-center gap-1 whitespace-nowrap rounded-fin border border-transparent px-2 py-1 text-xs text-fin-text"
+                        style={{ "background-color": PATTERN_CHIP_BG }}
                       >
                         {multi ? chip.label : `${chip.group}: ${chip.label}`}
                         <button

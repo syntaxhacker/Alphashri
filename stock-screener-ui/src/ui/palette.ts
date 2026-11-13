@@ -307,6 +307,26 @@ export const HEATMAP_PE = "#16A34A";
 export const HEATMAP_SPOT = TEXT_ON_ACCENT;
 export const HEATMAP_MP = "#F59E0B";
 export const HEATMAP_FLIP = "#38BDF8";
+export const HEATMAP_TOUCH_STROKE = "#000";
 
 // ----- Option payoff chart tooltip -----------------------------------------
 export const OPTION_PAYOFF_TOOLTIP_TEXT = "#E6EDF3";
+
+// ----- Nifty flow strip (OI flow ticks) -------------------------------------
+export const FLOW_BULL = "#16A34A";
+export const FLOW_BEAR = "#DC2626";
+export const FLOW_STRUCT = "#F59E0B";
+
+// ----- Nifty unusual-volume terminal ---------------------------------------
+// Pitch-black desk with its own CE-blue / PE-orange leg hues; these are
+// chart-specific and have no global-app equivalent.
+export const UNUSUAL_TERM_BORDER = "#1A1A1A";
+export const UNUSUAL_CE = "#5B9CF6";
+export const UNUSUAL_PE = "#F2A65A";
+export const UNUSUAL_PILL_ACTIVE = "#2FC0AC";
+export const UNUSUAL_PILL_ACTIVE_TEXT = "#8AE6D4";
+export const UNUSUAL_PILL_BORDER = "#30363D";
+export const UNUSUAL_PILL_TEXT = "#8B949E";
+
+// ----- Patterns applied-filter chip ----------------------------------------
+export const PATTERN_CHIP_BG = "#484F58";
