@@ -67,18 +67,24 @@ export function MultiSelect(props: UIMultiSelectProps) {
   ]);
 
   const inputId = known.id ?? createUniqueId();
-  const labelId = known.label ? `${inputId}-multiselect-label` : undefined;
-  const explicitWidth = known.w != null ? (typeof known.w === "number" ? `${known.w}px` : known.w) : undefined;
-  const explicitHeight = known.h != null ? (typeof known.h === "number" ? `${known.h}px` : known.h) : undefined;
+  const labelId = createMemo(() => (known.label ? `${inputId}-multiselect-label` : undefined));
+  const explicitWidth = createMemo(() =>
+    known.w != null ? (typeof known.w === "number" ? `${known.w}px` : known.w) : undefined,
+  );
+  const explicitHeight = createMemo(() =>
+    known.h != null ? (typeof known.h === "number" ? `${known.h}px` : known.h) : undefined,
+  );
   const options = createMemo(() => normalizeOptions(known.data));
   const byValue = createMemo(() => new Map(options().map((o) => [o.value, o])));
-  const isError = Boolean(known.error);
+  const isError = createMemo(() => Boolean(known.error));
   let rootEl: HTMLDivElement | undefined;
-  const helperText = isError
-    ? typeof known.error === "string"
-      ? known.error
-      : String(known.error ?? "")
-    : (known.description as string | undefined);
+  const helperText = createMemo(() =>
+    isError()
+      ? typeof known.error === "string"
+        ? known.error
+        : String(known.error ?? "")
+      : (known.description as string | undefined),
+  );
 
   const [internalSelected, setInternalSelected] = createSignal<string[]>(
     (known.defaultValue ?? []).filter((v) => options().some((o) => o.value === v)),
@@ -97,18 +103,20 @@ export function MultiSelect(props: UIMultiSelectProps) {
     return known.hidePickedOptions ? shown.filter((o) => !selectedSet().has(o.value)) : shown;
   });
 
-  const rootClass = cn(
-    "flex flex-col gap-2 text-sm leading-none",
-    explicitWidth == null ? "w-full" : undefined,
-    known.className,
+  const rootClass = createMemo(() =>
+    cn(
+      "flex flex-col gap-2 text-sm leading-none",
+      explicitWidth() == null ? "w-full" : undefined,
+      known.className,
+    ),
   );
-  const rootStyle = {
+  const rootStyle = createMemo(() => ({
     ...known.style,
-    ...(explicitWidth != null ? { width: explicitWidth } : {}),
-    ...(explicitHeight != null ? { height: explicitHeight } : {}),
-  };
-  const labelClass = labelClasses(known.size);
-  const helperTextClass = helperTextClasses(isError);
+    ...(explicitWidth() != null ? { width: explicitWidth()! } : {}),
+    ...(explicitHeight() != null ? { height: explicitHeight()! } : {}),
+  }));
+  const labelClass = createMemo(() => labelClasses(known.size));
+  const helperTextClass = createMemo(() => helperTextClasses(isError()));
 
   const toggle = (v: string) => {
     if (known.disabled) return;
@@ -168,9 +176,9 @@ export function MultiSelect(props: UIMultiSelectProps) {
   const tagClass = "inline-flex items-center gap-1.5 border rounded-fin px-2 py-0.5 text-xs text-fin-text border-fin-border bg-fin-surface-alt";
 
   return (
-    <div ref={(el) => (rootEl = el)} className={rootClass} data-testid={known["data-testid"]} style={rootStyle}>
+    <div ref={(el) => (rootEl = el)} className={rootClass()} data-testid={known["data-testid"]} style={rootStyle()}>
       {known.label && (
-        <label id={labelId} htmlFor={inputId} className={labelClass}>
+        <label id={labelId()} htmlFor={inputId} className={labelClass()}>
           {known.label}
           {known.required && <span className="text-fin-negative"> *</span>}
         </label>
@@ -213,7 +221,7 @@ export function MultiSelect(props: UIMultiSelectProps) {
             disabled={known.disabled}
             required={known.required}
             placeholder={known.placeholder}
-            className={controlClasses(known.size, known.disabled, isError)}
+            className={controlClasses(known.size, known.disabled, isError())}
           />
           {known.rightSection && <span className="shrink-0">{known.rightSection}</span>}
         </div>
@@ -245,7 +253,7 @@ export function MultiSelect(props: UIMultiSelectProps) {
           </ul>
         </Show>
       </div>
-      {helperText && <p className={helperTextClass}>{helperText}</p>}
+      {helperText() && <p className={helperTextClass()}>{helperText()}</p>}
     </div>
   );
 }

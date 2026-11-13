@@ -96,10 +96,8 @@ export function Switch(props: UISwitchProps) {
     };
   });
 
-  const rootClass = cn(
-    "inline-flex items-center gap-2 leading-none",
-    known.disabled && "opacity-50",
-    known.className,
+  const rootClass = createMemo(() =>
+    cn("inline-flex items-center gap-2 leading-none", known.disabled && "opacity-50", known.className),
   );
 
   const control = (
@@ -136,7 +134,7 @@ export function Switch(props: UISwitchProps) {
 
   return (
     <label
-      className={rootClass}
+      className={rootClass()}
       style={known.style}
       data-testid={known["data-testid"] ? `${known["data-testid"]}-group` : undefined}
     >

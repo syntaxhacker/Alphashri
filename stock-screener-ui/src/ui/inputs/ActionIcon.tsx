@@ -1,4 +1,4 @@
-import { Show, splitProps } from "solid-js";
+import { createMemo, Show, splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UIActionIconProps } from "../types";
 
@@ -83,7 +83,7 @@ export function ActionIcon(props: UIActionIconProps) {
     "onMouseLeave",
   ]);
 
-  const token = colorToken(known.color);
+  const token = createMemo(() => colorToken(known.color));
   const disabledOrLoading = () => known.disabled || known.loading;
   const ariaBusy = () => (known.loading ? true : undefined);
 
@@ -94,7 +94,7 @@ export function ActionIcon(props: UIActionIconProps) {
       data-testid={known["data-testid"]}
       className={cn(
         "inline-flex items-center justify-center rounded-fin transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed",
-        variantClass(known.variant, token),
+        variantClass(known.variant, token()),
         typeof known.size === "string" ? SIZE_CLASSES[known.size] : undefined,
         radiusClass(known.radius),
         known.className,

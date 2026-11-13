@@ -1,4 +1,4 @@
-import { splitProps } from "solid-js";
+import { createMemo, splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UIButtonProps, UISize } from "../types";
 
@@ -91,7 +91,7 @@ export function Button(props: UIButtonProps) {
     "_alignItems",
   ]);
 
-  const token = colorToken(known.color);
+  const token = createMemo(() => colorToken(known.color));
   const disabledOrLoading = () => known.disabled || known.loading;
   void known._elevation; void known._spacing; void known._alignItems;
 
@@ -106,7 +106,7 @@ export function Button(props: UIButtonProps) {
       data-testid={known["data-testid"]}
       className={cn(
         "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed",
-        variantClass(known.variant, token),
+        variantClass(known.variant, token()),
         SIZE_CLASSES[known.size],
         radiusClass(known.radius),
         known.fullWidth && "w-full",

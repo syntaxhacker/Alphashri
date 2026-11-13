@@ -44,5 +44,5 @@ export function CopyButton(props: UICopyButtonProps) {
     }
   };
 
-  return props.children({ copied: copied(), copy });
+  return <>{props.children({ copied: copied(), copy })}</>;
 }

@@ -1,4 +1,4 @@
-import { createUniqueId, splitProps } from "solid-js";
+import { createMemo, createUniqueId, splitProps } from "solid-js";
 import { cn } from "../cn";
 import { stripLegacyInputProps } from "./legacyProps";
 
@@ -57,23 +57,33 @@ export function NumberInput(props: any) {
   ]);
 
   const resolvedId = known.id ?? createUniqueId();
-  const explicitWidth = known.w != null ? (typeof known.w === "number" ? `${known.w}px` : known.w) : undefined;
-  const explicitHeight = known.h != null ? (typeof known.h === "number" ? `${known.h}px` : known.h) : undefined;
-  const isError = Boolean(known.error);
-  const helperText = isError
-    ? typeof known.error === "string"
-      ? known.error
-      : String(known.error ?? "")
-    : (known.description as string | undefined);
+  const explicitWidth = createMemo(() =>
+    known.w != null ? (typeof known.w === "number" ? `${known.w}px` : known.w) : undefined,
+  );
+  const explicitHeight = createMemo(() =>
+    known.h != null ? (typeof known.h === "number" ? `${known.h}px` : known.h) : undefined,
+  );
+  const isError = createMemo(() => Boolean(known.error));
+  const helperText = createMemo(() =>
+    isError()
+      ? typeof known.error === "string"
+        ? known.error
+        : String(known.error ?? "")
+      : (known.description as string | undefined),
+  );
 
-  const isControlledInput = known.value !== undefined || (known.onChange !== undefined && known.defaultValue === undefined);
+  const isControlledInput = createMemo(
+    () => known.value !== undefined || (known.onChange !== undefined && known.defaultValue === undefined),
+  );
 
   // Legacy Mantine props are accepted for backward compatibility but never
   // forwarded to the DOM (native elements reject unknown attributes).
   const forwarded = stripLegacyInputProps(_rest);
 
-  const wrapperStyle = explicitWidth ? { width: explicitWidth, ...known.style } : known.style ?? {};
-  const inputStyle = explicitHeight ? { height: explicitHeight } : {};
+  const wrapperStyle = createMemo(() =>
+    explicitWidth() ? { width: explicitWidth()!, ...known.style } : (known.style ?? {}),
+  );
+  const inputStyle = createMemo(() => (explicitHeight() ? { height: explicitHeight()! } : {}));
 
   const wrapperTestId = known["data-testid"];
   const inputTestId = known["data-testid"] ? `${known["data-testid"]}-input` : undefined;
@@ -81,11 +91,11 @@ export function NumberInput(props: any) {
   return (
     <div
       data-testid={wrapperTestId}
-      className={cn("flex flex-col min-w-0 gap-1.5", explicitWidth == null ? "w-full" : undefined, known.className)}
-      style={wrapperStyle}
+      className={cn("flex flex-col min-w-0 gap-1.5", explicitWidth() == null ? "w-full" : undefined, known.className)}
+      style={wrapperStyle()}
     >
       {known.label && (
-        <label htmlFor={resolvedId} className={cn("text-xs font-medium", isError ? "text-fin-negative" : "text-fin-text")}>
+        <label htmlFor={resolvedId} className={cn("text-xs font-medium", isError() ? "text-fin-negative" : "text-fin-text")}>
           {known.label}
           {known.required && <span className="ml-1 text-fin-negative">*</span>}
         </label>
@@ -96,7 +106,7 @@ export function NumberInput(props: any) {
         <input
           id={resolvedId}
           type="number"
-          value={isControlledInput ? known.value : known.defaultValue}
+          value={(isControlledInput() ? known.value : known.defaultValue) ?? ""}
           onInput={(e) => known.onChange?.(coerceNumberInput(e.currentTarget.value))}
           placeholder={known.placeholder}
           name={known.name}
@@ -111,21 +121,21 @@ export function NumberInput(props: any) {
             "bg-fin-surface border border-fin-border rounded-fin text-fin-text placeholder:text-fin-text-muted",
             "focus:outline-none focus:border-fin-primary focus:ring-2 focus:ring-fin-primary",
             known.disabled ? "disabled:bg-fin-surface-alt disabled:text-fin-text-muted disabled:border-fin-border disabled:cursor-not-allowed" : undefined,
-            isError ? "border-fin-negative focus:border-fin-negative" : undefined,
+            isError() ? "border-fin-negative focus:border-fin-negative" : undefined,
           )}
-          style={inputStyle}
+          style={inputStyle()}
           data-testid={inputTestId}
           {...(forwarded as Record<string, unknown>)}
         />
         {known.rightSection && <div className="shrink-0">{known.rightSection}</div>}
         {known.suffix && <span className="shrink-0 text-fin-text-muted">{known.suffix}</span>}
       </div>
-      {helperText && (
+      {helperText() && (
         <span
-          className={cn("text-xs", isError ? "text-fin-negative" : "text-fin-text-muted")}
-          {...(isError ? (known.errorProps as Record<string, unknown> | undefined) : undefined)}
+          className={cn("text-xs", isError() ? "text-fin-negative" : "text-fin-text-muted")}
+          {...(isError() ? (known.errorProps as Record<string, unknown> | undefined) : undefined)}
         >
-          {helperText}
+          {helperText()}
         </span>
       )}
     </div>

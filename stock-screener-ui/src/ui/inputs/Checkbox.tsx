@@ -1,4 +1,4 @@
-import { createEffect, splitProps } from "solid-js";
+import { createEffect, createMemo, splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UICheckboxProps } from "../types";
 
@@ -51,13 +51,17 @@ export function Checkbox(props: UICheckboxProps) {
     if (inputEl) inputEl.indeterminate = !!known.indeterminate;
   });
 
-  const rootClass = cn("inline-flex items-center gap-2 text-sm leading-none", known.disabled && "opacity-50", known.className);
-  const boxClass = cn(
-    "flex items-center justify-center shrink-0 rounded-fin border border-fin-border bg-fin-surface text-fin-bg transition-colors",
-    boxSizeClasses(known.size),
-    toneClass(known.color),
-    known.indeterminate && "border-fin-primary",
-    known.disabled && "opacity-50 cursor-not-allowed",
+  const rootClass = createMemo(() =>
+    cn("inline-flex items-center gap-2 text-sm leading-none", known.disabled && "opacity-50", known.className),
+  );
+  const boxClass = createMemo(() =>
+    cn(
+      "flex items-center justify-center shrink-0 rounded-fin border border-fin-border bg-fin-surface text-fin-bg transition-colors",
+      boxSizeClasses(known.size),
+      toneClass(known.color),
+      known.indeterminate && "border-fin-primary",
+      known.disabled && "opacity-50 cursor-not-allowed",
+    ),
   );
 
   const control = (
@@ -74,7 +78,7 @@ export function Checkbox(props: UICheckboxProps) {
         data-testid={known["data-testid"]}
         className="peer absolute inset-0 w-full h-full cursor-pointer appearance-none bg-transparent border-none z-10"
       />
-      <span className={boxClass}>
+      <span className={boxClass()}>
         {known.indeterminate ? "—" : known.checked ? "✔" : ""}
       </span>
     </span>
@@ -89,7 +93,7 @@ export function Checkbox(props: UICheckboxProps) {
   }
 
   return (
-    <label className={rootClass} style={known.style} data-testid={known["data-testid"] ? `${known["data-testid"]}-group` : undefined}>
+    <label className={rootClass()} style={known.style} data-testid={known["data-testid"] ? `${known["data-testid"]}-group` : undefined}>
       {control}
       <span className="leading-none">
         {known.label ? <span className="text-fin-text">{known.label}</span> : null}

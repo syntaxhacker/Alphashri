@@ -44,34 +44,33 @@ export function Chip(props: UIChipProps) {
     "onClick",
   ]);
 
-  const isControlled = known.checked !== undefined;
+  const isControlled = createMemo(() => known.checked !== undefined);
   const [internalChecked, setInternalChecked] = createSignal<boolean>(known.defaultChecked ?? false);
-  const isChecked = createMemo(() => (isControlled ? known.checked : internalChecked()));
-  const { checked: toneChecked, border: toneBorder } = toneClasses(known.color);
-  const isOutline = known.variant === "outline";
+  const isChecked = createMemo(() => (isControlled() ? known.checked === true : internalChecked()));
+  const tone = createMemo(() => toneClasses(known.color));
+  const isOutline = createMemo(() => known.variant === "outline");
 
   const handleClick = (e: MouseEvent) => {
     if (known.disabled) return;
     known.onClick?.(e);
     const next = !isChecked();
-    if (!isControlled) setInternalChecked(next);
+    if (!isControlled()) setInternalChecked(next);
     known.onChange?.(next);
   };
 
-  const base = cn(
-    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-transparent transition-colors",
-    chipSizeClasses(known.size),
-    known.disabled ? "opacity-50 cursor-default" : "cursor-pointer",
-    known.className,
+  const base = createMemo(() =>
+    cn(
+      "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-transparent transition-colors",
+      chipSizeClasses(known.size),
+      known.disabled ? "opacity-50 cursor-default" : "cursor-pointer",
+      known.className,
+    ),
   );
 
-  const variantClass = isOutline
-    ? isChecked()
-      ? toneBorder
-      : cn("border-fin-border bg-transparent text-fin-text-muted hover:bg-fin-surface-alt")
-    : isChecked()
-      ? toneChecked
-      : cn("border-fin-border bg-transparent text-fin-text-muted hover:bg-fin-surface-alt");
+  const variantClass = createMemo(() => {
+    if (isOutline()) return isChecked() ? tone().border : cn("border-fin-border bg-transparent text-fin-text-muted hover:bg-fin-surface-alt");
+    return isChecked() ? tone().checked : cn("border-fin-border bg-transparent text-fin-text-muted hover:bg-fin-surface-alt");
+  });
 
   return (
     <button
@@ -81,7 +80,7 @@ export function Chip(props: UIChipProps) {
       disabled={known.disabled}
       id={known.id}
       data-testid={known["data-testid"]}
-      className={cn(base, variantClass)}
+      className={cn(base(), variantClass())}
       style={known.style}
       onClick={handleClick}
     >

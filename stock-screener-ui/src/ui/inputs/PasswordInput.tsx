@@ -1,4 +1,4 @@
-import { createSignal, createUniqueId, splitProps } from "solid-js";
+import { createMemo, createSignal, createUniqueId, splitProps } from "solid-js";
 import { cn } from "../cn";
 import { stripLegacyInputProps } from "./legacyProps";
 import type { UIPasswordInputProps } from "../types";
@@ -51,22 +51,28 @@ export function PasswordInput(props: UIPasswordInputProps) {
   ]);
 
   const resolvedId = known.id ?? createUniqueId();
-  const explicitWidth = known.w != null ? (typeof known.w === "number" ? `${known.w}px` : known.w) : undefined;
-  const explicitHeight = known.h != null ? (typeof known.h === "number" ? `${known.h}px` : known.h) : undefined;
-  const isError = Boolean(known.error);
-  const helperText = isError
-    ? typeof known.error === "string"
-      ? known.error
-      : String(known.error ?? "")
-    : (known.description as string | undefined);
+  const explicitWidth = createMemo(() =>
+    known.w != null ? (typeof known.w === "number" ? `${known.w}px` : known.w) : undefined,
+  );
+  const explicitHeight = createMemo(() =>
+    known.h != null ? (typeof known.h === "number" ? `${known.h}px` : known.h) : undefined,
+  );
+  const isError = createMemo(() => Boolean(known.error));
+  const helperText = createMemo(() =>
+    isError()
+      ? typeof known.error === "string"
+        ? known.error
+        : String(known.error ?? "")
+      : (known.description as string | undefined),
+  );
 
   const [internalVisible, setInternalVisible] = createSignal(false);
-  const isControlled = known.visible !== undefined;
-  const visible = isControlled ? known.visible : internalVisible();
+  const isControlled = createMemo(() => known.visible !== undefined);
+  const visible = createMemo(() => (isControlled() ? known.visible === true : internalVisible()));
 
   const handleToggle = () => {
-    const next = !visible;
-    if (!isControlled) setInternalVisible(next);
+    const next = !visible();
+    if (!isControlled()) setInternalVisible(next);
     known.onVisibilityChange?.(next);
   };
 
@@ -74,22 +80,26 @@ export function PasswordInput(props: UIPasswordInputProps) {
   // forwarded to the DOM (native elements reject unknown attributes).
   const forwarded = stripLegacyInputProps(_rest);
 
-  const wrapperStyle = explicitWidth ? { width: explicitWidth, ...known.style } : known.style ?? {};
-  const inputStyle = explicitHeight ? { height: explicitHeight } : {};
+  const wrapperStyle = createMemo(() =>
+    explicitWidth() ? { width: explicitWidth()!, ...known.style } : (known.style ?? {}),
+  );
+  const inputStyle = createMemo(() => (explicitHeight() ? { height: explicitHeight()! } : {}));
 
   const wrapperTestId = known["data-testid"] ? `${known["data-testid"]}-field` : undefined;
   const inputTestId = known["data-testid"];
 
-  const isControlledInput = known.value !== undefined || (known.onChange !== undefined && known.defaultValue === undefined);
+  const isControlledInput = createMemo(
+    () => known.value !== undefined || (known.onChange !== undefined && known.defaultValue === undefined),
+  );
 
   return (
     <div
       data-testid={wrapperTestId}
-      className={cn("flex flex-col min-w-0 gap-1.5", explicitWidth == null ? "w-full" : undefined, known.className)}
-      style={wrapperStyle}
+      className={cn("flex flex-col min-w-0 gap-1.5", explicitWidth() == null ? "w-full" : undefined, known.className)}
+      style={wrapperStyle()}
     >
       {known.label && (
-        <label htmlFor={resolvedId} className={cn("text-xs font-medium", isError ? "text-fin-negative" : "text-fin-text")}>
+        <label htmlFor={resolvedId} className={cn("text-xs font-medium", isError() ? "text-fin-negative" : "text-fin-text")}>
           {known.label}
           {known.required && <span className="ml-1 text-fin-negative">*</span>}
         </label>
@@ -98,8 +108,8 @@ export function PasswordInput(props: UIPasswordInputProps) {
         {known.leftSection && <div className="shrink-0">{known.leftSection}</div>}
         <input
           id={resolvedId}
-          type={visible ? "text" : "password"}
-          value={isControlledInput ? known.value : known.defaultValue}
+          type={visible() ? "text" : "password"}
+          value={(isControlledInput() ? known.value : known.defaultValue) ?? ""}
           onInput={(e) => known.onChange?.(e.currentTarget.value)}
           placeholder={known.placeholder}
           required={known.required}
@@ -110,9 +120,9 @@ export function PasswordInput(props: UIPasswordInputProps) {
             "bg-fin-surface border border-fin-border rounded-fin text-fin-text placeholder:text-fin-text-muted",
             "focus:outline-none focus:border-fin-primary focus:ring-2 focus:ring-fin-primary",
             known.disabled ? "disabled:bg-fin-surface-alt disabled:text-fin-text-muted disabled:border-fin-border disabled:cursor-not-allowed" : undefined,
-            isError ? "border-fin-negative focus:border-fin-negative" : undefined,
+            isError() ? "border-fin-negative focus:border-fin-negative" : undefined,
           )}
-          style={inputStyle}
+          style={inputStyle()}
           data-testid={inputTestId}
           {...(forwarded as Record<string, unknown>)}
         />
@@ -130,11 +140,11 @@ export function PasswordInput(props: UIPasswordInputProps) {
             known.disabled ? "opacity-50 cursor-not-allowed" : undefined,
           )}
         >
-          {visible ? <EyeOff /> : <Eye />}
+          {visible() ? <EyeOff /> : <Eye />}
         </button>
       </div>
-      {helperText && (
-        <span className={cn("text-xs", isError ? "text-fin-negative" : "text-fin-text-muted")}>{helperText}</span>
+      {helperText() && (
+        <span className={cn("text-xs", isError() ? "text-fin-negative" : "text-fin-text-muted")}>{helperText()}</span>
       )}
     </div>
   );

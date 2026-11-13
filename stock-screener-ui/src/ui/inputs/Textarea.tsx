@@ -1,4 +1,4 @@
-import { createUniqueId, splitProps } from "solid-js";
+import { createMemo, createUniqueId, splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UITextareaProps } from "../types";
 
@@ -40,52 +40,62 @@ export function Textarea(props: UITextareaProps) {
   ]);
 
   const resolvedId = known.id ?? createUniqueId();
-  const explicitWidth = known.w != null ? (typeof known.w === "number" ? `${known.w}px` : known.w) : undefined;
-  const explicitHeight = known.h != null ? (typeof known.h === "number" ? `${known.h}px` : known.h) : undefined;
-  const isError = Boolean(known.error);
-  const helperText = isError
-    ? typeof known.error === "string"
-      ? known.error
-      : String(known.error ?? "")
-    : (known.description as string | undefined);
+  const explicitWidth = createMemo(() =>
+    known.w != null ? (typeof known.w === "number" ? `${known.w}px` : known.w) : undefined,
+  );
+  const explicitHeight = createMemo(() =>
+    known.h != null ? (typeof known.h === "number" ? `${known.h}px` : known.h) : undefined,
+  );
+  const isError = createMemo(() => Boolean(known.error));
+  const helperText = createMemo(() =>
+    isError()
+      ? typeof known.error === "string"
+        ? known.error
+        : String(known.error ?? "")
+      : (known.description as string | undefined),
+  );
 
-  const effectiveMinRows = known.minRows ?? (known.autosize ? 2 : 3);
-  const effectiveMaxRows = known.maxRows;
+  const effectiveMinRows = createMemo(() => known.minRows ?? (known.autosize ? 2 : 3));
+  const effectiveMaxRows = createMemo(() => known.maxRows);
 
   // Legacy Mantine props are accepted for backward compatibility but never
   // forwarded to the DOM (native elements reject unknown attributes).
 
-  const wrapperStyle = explicitWidth ? { width: explicitWidth, ...known.style } : known.style ?? {};
-  const inputStyle = {
-    ...(explicitHeight ? { height: explicitHeight } : {}),
-    ...(effectiveMaxRows ? { "max-height": `${effectiveMaxRows * 1.4}rem` } : {}),
-  };
+  const wrapperStyle = createMemo(() =>
+    explicitWidth() ? { width: explicitWidth()!, ...known.style } : (known.style ?? {}),
+  );
+  const inputStyle = createMemo(() => ({
+    ...(explicitHeight() ? { height: explicitHeight()! } : {}),
+    ...(effectiveMaxRows() ? { "max-height": `${effectiveMaxRows()! * 1.4}rem` } : {}),
+  }));
 
   const wrapperTestId = known["data-testid"] ? `${known["data-testid"]}-field` : undefined;
   const inputTestId = known["data-testid"];
 
-  const isControlled = known.value !== undefined || (known.onChange !== undefined && known.defaultValue === undefined);
+  const isControlled = createMemo(
+    () => known.value !== undefined || (known.onChange !== undefined && known.defaultValue === undefined),
+  );
 
   return (
     <div
       data-testid={wrapperTestId}
-      className={cn("flex flex-col min-w-0 gap-1.5", explicitWidth == null ? "w-full" : undefined, known.className)}
-      style={wrapperStyle}
+      className={cn("flex flex-col min-w-0 gap-1.5", explicitWidth() == null ? "w-full" : undefined, known.className)}
+      style={wrapperStyle()}
     >
       {known.label && (
-        <label htmlFor={resolvedId} className={cn("text-xs font-medium", isError ? "text-fin-negative" : "text-fin-text")}>
+        <label htmlFor={resolvedId} className={cn("text-xs font-medium", isError() ? "text-fin-negative" : "text-fin-text")}>
           {known.label}
           {known.required && <span className="ml-1 text-fin-negative">*</span>}
         </label>
       )}
       <textarea
         id={resolvedId}
-        {...(isControlled ? { value: known.value } : { defaultValue: known.defaultValue })}
+        {...(isControlled() ? { value: known.value } : { defaultValue: known.defaultValue })}
         onInput={(e) => known.onChange?.(e.currentTarget.value)}
         placeholder={known.placeholder}
         required={known.required}
         disabled={known.disabled}
-        rows={effectiveMinRows}
+        rows={effectiveMinRows()}
         className={cn(
           "flex-1 min-w-0 block",
           sizeClass(known.size),
@@ -93,13 +103,13 @@ export function Textarea(props: UITextareaProps) {
           "bg-fin-surface border border-fin-border rounded-fin text-fin-text placeholder:text-fin-text-muted",
           "focus:outline-none focus:border-fin-primary focus:ring-2 focus:ring-fin-primary",
           known.disabled ? "disabled:bg-fin-surface-alt disabled:text-fin-text-muted disabled:border-fin-border disabled:cursor-not-allowed" : undefined,
-          isError ? "border-fin-negative focus:border-fin-negative" : undefined,
+          isError() ? "border-fin-negative focus:border-fin-negative" : undefined,
         )}
-        style={inputStyle}
+        style={inputStyle()}
         data-testid={inputTestId}
       />
-      {helperText && (
-        <span className={cn("text-xs", isError ? "text-fin-negative" : "text-fin-text-muted")}>{helperText}</span>
+      {helperText() && (
+        <span className={cn("text-xs", isError() ? "text-fin-negative" : "text-fin-text-muted")}>{helperText()}</span>
       )}
     </div>
   );

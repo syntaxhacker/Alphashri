@@ -46,4 +46,37 @@ describe("@/ui inputs — w/h sizing", () => {
     const root = container.firstElementChild as HTMLElement;
     expect(root.className).toContain("w-full");
   });
+
+  it("accepts a CSS width string and still drops full-width", () => {
+    const { container } = render(() => <TextInput w="18rem" data-testid="str-w" />);
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.style.width).toBe("18rem");
+    expect(root.className).not.toContain("w-full");
+  });
+
+  // `h` lands on the field root for the composite controls (the whole field is
+  // boxed) and on the native control for the single-line ones.
+  const rootHeightCases: [string, () => JSX.Element][] = [
+    ["Select", () => <Select data={["a"]} h={44} data-testid="h-s" />],
+    ["MultiSelect", () => <MultiSelect data={["a"]} h={44} data-testid="h-m" />],
+  ];
+
+  it.each(rootHeightCases)("%s applies h to the field root", (_name, renderFn) => {
+    const { container } = render(renderFn);
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.style.height).toBe("44px");
+  });
+
+  const controlHeightCases: [string, () => JSX.Element][] = [
+    ["NumberInput", () => <NumberInput h={44} data-testid="h-n" />],
+    ["TextInput", () => <TextInput h={44} data-testid="h-t" />],
+    ["PasswordInput", () => <PasswordInput h={44} data-testid="h-p" />],
+    ["Textarea", () => <Textarea h={44} data-testid="h-a" />],
+  ];
+
+  it.each(controlHeightCases)("%s applies h to the native control", (_name, renderFn) => {
+    const { container } = render(renderFn);
+    const control = container.querySelector("input, textarea") as HTMLElement;
+    expect(control.style.height).toBe("44px");
+  });
 });

@@ -102,31 +102,41 @@ export function Select(props: UISelectProps) {
   ]);
 
   const inputId = known.id ?? createUniqueId();
-  const labelId = known.label ? `${inputId}-label` : undefined;
-  const explicitWidth = known.w != null ? (typeof known.w === "number" ? `${known.w}px` : known.w) : undefined;
-  const explicitHeight = known.h != null ? (typeof known.h === "number" ? `${known.h}px` : known.h) : undefined;
-  const options = createMemo(() => (known.data && known.data.length > 0 ? normalizeOptions(known.data) : optionsFromChildren(known.children)));
-  const isError = Boolean(known.error);
-  let rootEl: HTMLDivElement | undefined;
-  const isControlled = known.value !== undefined || (known.onChange !== undefined && known.defaultValue === undefined);
-  const helperText = isError
-    ? typeof known.error === "string"
-      ? known.error
-      : String(known.error ?? "")
-    : (known.description as string | undefined);
-
-  const rootClass = cn(
-    "flex flex-col gap-2 text-sm leading-none",
-    explicitWidth == null ? "w-full" : undefined,
-    known.className,
+  const labelId = createMemo(() => (known.label ? `${inputId}-label` : undefined));
+  const explicitWidth = createMemo(() =>
+    known.w != null ? (typeof known.w === "number" ? `${known.w}px` : known.w) : undefined,
   );
-  const rootStyle = {
+  const explicitHeight = createMemo(() =>
+    known.h != null ? (typeof known.h === "number" ? `${known.h}px` : known.h) : undefined,
+  );
+  const options = createMemo(() => (known.data && known.data.length > 0 ? normalizeOptions(known.data) : optionsFromChildren(known.children)));
+  const isError = createMemo(() => Boolean(known.error));
+  let rootEl: HTMLDivElement | undefined;
+  const isControlled = createMemo(
+    () => known.value !== undefined || (known.onChange !== undefined && known.defaultValue === undefined),
+  );
+  const helperText = createMemo(() =>
+    isError()
+      ? typeof known.error === "string"
+        ? known.error
+        : String(known.error ?? "")
+      : (known.description as string | undefined),
+  );
+
+  const rootClass = createMemo(() =>
+    cn(
+      "flex flex-col gap-2 text-sm leading-none",
+      explicitWidth() == null ? "w-full" : undefined,
+      known.className,
+    ),
+  );
+  const rootStyle = createMemo(() => ({
     ...known.style,
-    ...(explicitWidth != null ? { width: explicitWidth } : {}),
-    ...(explicitHeight != null ? { height: explicitHeight } : {}),
-  };
-  const labelClass = labelClasses(known.size);
-  const helperTextClass = helperTextClasses(isError);
+    ...(explicitWidth() != null ? { width: explicitWidth()! } : {}),
+    ...(explicitHeight() != null ? { height: explicitHeight()! } : {}),
+  }));
+  const labelClass = createMemo(() => labelClasses(known.size));
+  const helperTextClass = createMemo(() => helperTextClasses(isError()));
 
   const handleChange = (e: Event) => {
     const target = e.currentTarget as HTMLSelectElement;
@@ -138,7 +148,7 @@ export function Select(props: UISelectProps) {
     known.onChange?.(null);
   };
 
-  const showClear = known.clearable && (known.value ?? known.defaultValue) != null && !known.disabled;
+  const showClear = createMemo(() => known.clearable && (known.value ?? known.defaultValue) != null && !known.disabled);
 
   const adornments = (
     <div className="inline-flex w-full items-center gap-2">
@@ -146,11 +156,11 @@ export function Select(props: UISelectProps) {
       <select
         id={inputId}
         name={known.name as string | undefined}
-        value={isControlled ? String(known.value ?? "") : known.defaultValue != null ? String(known.defaultValue) : undefined}
+        value={isControlled() ? String(known.value ?? "") : known.defaultValue != null ? String(known.defaultValue) : undefined}
         onInput={handleChange}
         disabled={known.disabled}
         required={known.required}
-        className={controlClasses(known.size, known.disabled, isError)}
+        className={controlClasses(known.size, known.disabled, isError())}
       >
         {known.placeholder && <option value="" disabled hidden>{known.placeholder}</option>}
         <Show when={options().length === 0}>
@@ -164,7 +174,7 @@ export function Select(props: UISelectProps) {
           )}</For>
         </Show>
       </select>
-      {showClear && (
+      {showClear() && (
         <button type="button" aria-label="clear" onClick={handleClear} onMouseDown={(e) => e.stopPropagation()} className="shrink-0 p-1 text-fin-text-muted hover:bg-fin-surface-alt rounded-fin">
           &times;
         </button>
@@ -173,37 +183,36 @@ export function Select(props: UISelectProps) {
     </div>
   );
 
-  const control = known.searchable ? (
-    <SearchableSelect
-      rootRef={() => rootEl}
-      options={options()}
-      value={known.value}
-      onChange={(v) => known.onChange?.(v)}
-      disabled={known.disabled}
-      size={known.size}
-      clearable={known.clearable}
-      placeholder={known.placeholder}
-      nothingFoundMessage={known.nothingFoundMessage}
-      inputId={inputId}
-      labelId={labelId}
-      isError={isError}
-      leftSection={known.leftSection}
-      rightSection={known.rightSection}
-    />
-  ) : (
-    adornments
-  );
-
   return (
-    <div ref={(el) => (rootEl = el)} className={rootClass} data-testid={known["data-testid"]} style={rootStyle}>
+    <div ref={(el) => (rootEl = el)} className={rootClass()} data-testid={known["data-testid"]} style={rootStyle()}>
       {known.label && (
-        <label id={labelId} htmlFor={inputId} className={labelClass}>
+        <label id={labelId()} htmlFor={inputId} className={labelClass()}>
           {known.label}
           {known.required && <span className="text-fin-negative"> *</span>}
         </label>
       )}
-      {control}
-      {helperText && <p className={helperTextClass}>{helperText}</p>}
+      <Show
+        when={known.searchable}
+        fallback={adornments}
+      >
+        <SearchableSelect
+          rootRef={() => rootEl}
+          options={options()}
+          value={known.value}
+          onChange={(v) => known.onChange?.(v)}
+          disabled={known.disabled}
+          size={known.size}
+          clearable={known.clearable}
+          placeholder={known.placeholder}
+          nothingFoundMessage={known.nothingFoundMessage}
+          inputId={inputId}
+          labelId={labelId()}
+          isError={isError()}
+          leftSection={known.leftSection}
+          rightSection={known.rightSection}
+        />
+      </Show>
+      {helperText() && <p className={helperTextClass()}>{helperText()}</p>}
     </div>
   );
 }
@@ -234,8 +243,8 @@ function SearchableSelect(props: {
       (o) => o.label.toLowerCase().includes(query().toLowerCase()) || o.value.toLowerCase().includes(query().toLowerCase()),
     ),
   );
-  const selectedLabel = props.options.find((o) => o.value === props.value)?.label;
-  const displayValue = selectedLabel ?? query() ?? "";
+  const selectedLabel = createMemo(() => props.options.find((o) => o.value === props.value)?.label);
+  const displayValue = createMemo(() => selectedLabel() ?? query() ?? "");
 
   createEffect(() => {
     if (!open()) return undefined;
@@ -303,7 +312,7 @@ function SearchableSelect(props: {
             aria-haspopup="listbox"
             aria-controls={listboxId}
             aria-multiselectable="false"
-            value={displayValue}
+            value={displayValue()}
             onInput={(e) => {
               setQuery(e.currentTarget.value);
               setOpen(true);
@@ -315,7 +324,7 @@ function SearchableSelect(props: {
             placeholder={props.placeholder}
             className={controlClasses(props.size, props.disabled, props.isError)}
           />
-          {props.clearable && displayValue && !props.disabled && (
+          {props.clearable && displayValue() && !props.disabled && (
             <button type="button" aria-label="clear" onClick={handleClear} onMouseDown={(e) => e.stopPropagation()} className="shrink-0 p-1 text-fin-text-muted hover:bg-fin-surface-alt rounded-fin">
               &times;
             </button>

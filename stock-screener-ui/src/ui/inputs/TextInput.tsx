@@ -1,4 +1,4 @@
-import { createUniqueId } from "solid-js";
+import { createMemo, createUniqueId } from "solid-js";
 import { cn } from "../cn";
 import type { UITextInputProps } from "../types";
 
@@ -8,31 +8,41 @@ function sizeClass(size?: UITextInputProps["size"]): string {
 
 export function TextInput(props: UITextInputProps) {
   const resolvedId = props.id ?? createUniqueId();
-  const explicitWidth = props.w != null ? (typeof props.w === "number" ? `${props.w}px` : props.w) : undefined;
-  const explicitHeight = props.h != null ? (typeof props.h === "number" ? `${props.h}px` : props.h) : undefined;
-  const isError = Boolean(props.error);
-  const helperText = isError
-    ? typeof props.error === "string"
-      ? props.error
-      : String(props.error ?? "")
-    : (props.description as string | undefined);
+  const explicitWidth = createMemo(() =>
+    props.w != null ? (typeof props.w === "number" ? `${props.w}px` : props.w) : undefined,
+  );
+  const explicitHeight = createMemo(() =>
+    props.h != null ? (typeof props.h === "number" ? `${props.h}px` : props.h) : undefined,
+  );
+  const isError = createMemo(() => Boolean(props.error));
+  const helperText = createMemo(() =>
+    isError()
+      ? typeof props.error === "string"
+        ? props.error
+        : String(props.error ?? "")
+      : (props.description as string | undefined),
+  );
 
-  const wrapperStyle = explicitWidth ? { width: explicitWidth, ...props.style } : props.style ?? {};
-  const inputStyle = explicitHeight ? { height: explicitHeight } : {};
+  const wrapperStyle = createMemo(() =>
+    explicitWidth() ? { width: explicitWidth()!, ...props.style } : (props.style ?? {}),
+  );
+  const inputStyle = createMemo(() => (explicitHeight() ? { height: explicitHeight()! } : {}));
 
   const wrapperTestId = props["data-testid"] ? `${props["data-testid"]}-field` : undefined;
   const inputTestId = props["data-testid"];
 
-  const isControlled = props.value !== undefined || (props.onChange !== undefined && props.defaultValue === undefined);
+  const isControlled = createMemo(
+    () => props.value !== undefined || (props.onChange !== undefined && props.defaultValue === undefined),
+  );
 
   return (
     <div
       data-testid={wrapperTestId}
-      className={cn("flex flex-col min-w-0 gap-1.5", explicitWidth == null ? "w-full" : undefined, props.className)}
-      style={wrapperStyle}
+      className={cn("flex flex-col min-w-0 gap-1.5", explicitWidth() == null ? "w-full" : undefined, props.className)}
+      style={wrapperStyle()}
     >
       {props.label && (
-        <label htmlFor={resolvedId} className={cn("text-xs font-medium", isError ? "text-fin-negative" : "text-fin-text")}>
+        <label htmlFor={resolvedId} className={cn("text-xs font-medium", isError() ? "text-fin-negative" : "text-fin-text")}>
           {props.label}
           {props.required && <span className="ml-1 text-fin-negative">*</span>}
         </label>
@@ -42,7 +52,7 @@ export function TextInput(props: UITextInputProps) {
         <input
           id={resolvedId}
           type={props.type ?? "text"}
-          value={isControlled ? props.value : props.defaultValue}
+          value={(isControlled() ? props.value : props.defaultValue) ?? ""}
           onInput={(e) => props.onChange?.(e.currentTarget.value)}
           onKeyDown={(e) => props.onKeyDown?.(e)}
           onFocus={(e) => props.onFocus?.(e)}
@@ -58,15 +68,15 @@ export function TextInput(props: UITextInputProps) {
             "bg-fin-surface border border-fin-border rounded-fin text-fin-text placeholder:text-fin-text-muted",
             "focus:outline-none focus:border-fin-primary focus:ring-2 focus:ring-fin-primary",
             props.disabled ? "disabled:bg-fin-surface-alt disabled:text-fin-text-muted disabled:border-fin-border disabled:cursor-not-allowed" : undefined,
-            isError ? "border-fin-negative focus:border-fin-negative" : undefined,
+            isError() ? "border-fin-negative focus:border-fin-negative" : undefined,
           )}
-          style={inputStyle}
+          style={inputStyle()}
           data-testid={inputTestId}
         />
         {props.rightSection && <div className="shrink-0">{props.rightSection}</div>}
       </div>
-      {helperText && (
-        <span className={cn("text-xs", isError ? "text-fin-negative" : "text-fin-text-muted")}>{helperText}</span>
+      {helperText() && (
+        <span className={cn("text-xs", isError() ? "text-fin-negative" : "text-fin-text-muted")}>{helperText()}</span>
       )}
     </div>
   );

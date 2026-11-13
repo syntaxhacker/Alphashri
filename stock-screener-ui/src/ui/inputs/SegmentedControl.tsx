@@ -1,4 +1,4 @@
-import { createSignal, For, splitProps } from "solid-js";
+import { createMemo, createSignal, For, splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UISegmentedControlProps } from "../types";
 
@@ -38,28 +38,30 @@ export function SegmentedControl(props: UISegmentedControlProps) {
     "data-testid",
   ]);
 
-  const isControlled = known.value !== undefined;
+  const isControlled = createMemo(() => known.value !== undefined);
   const [internal, setInternal] = createSignal<string | undefined>(known.defaultValue);
-  const current = isControlled ? known.value : internal();
-  const items = normalize(known.data);
+  const current = createMemo(() => (isControlled() ? known.value : internal()));
+  const items = createMemo(() => normalize(known.data));
 
   const handleChange = (v: string) => {
-    if (!isControlled) setInternal(v);
+    if (!isControlled()) setInternal(v);
     known.onChange?.(v);
   };
 
-  const rootClass = cn(
-    "inline-flex overflow-hidden rounded-fin border border-fin-border bg-fin-surface text-sm",
-    known.fullWidth ? "w-full" : "",
-    known.className,
+  const rootClass = createMemo(() =>
+    cn(
+      "inline-flex overflow-hidden rounded-fin border border-fin-border bg-fin-surface text-sm",
+      known.fullWidth ? "w-full" : "",
+      known.className,
+    ),
   );
 
   return (
-    <div role="group" id={known.id} data-testid={known["data-testid"]} className={rootClass} style={known.style} {...rest}>
-      <For each={items}>{(item, i) => (
+    <div role="group" id={known.id} data-testid={known["data-testid"]} className={rootClass()} style={known.style} {...rest}>
+      <For each={items()}>{(item, i) => (
         <button
           type="button"
-          aria-pressed={current === item.value}
+          aria-pressed={current() === item.value}
           data-value={item.value}
           disabled={item.disabled}
           onClick={() => {
@@ -70,9 +72,9 @@ export function SegmentedControl(props: UISegmentedControlProps) {
             "flex-1 cursor-pointer select-none transition-colors",
             itemSizeClasses(known.size),
             "border-b border-t border-fin-border",
-            i === 0 ? "border-l rounded-l-fin" : "border-x border-fin-border",
-            i === items.length - 1 ? "border-r rounded-r-fin" : "",
-            current === item.value ? "bg-fin-primary text-white border-fin-primary" : "text-fin-text hover:bg-fin-surface-alt",
+            i() === 0 ? "border-l rounded-l-fin" : "border-x border-fin-border",
+            i() === items().length - 1 ? "border-r rounded-r-fin" : "",
+            current() === item.value ? "bg-fin-primary text-white border-fin-primary" : "text-fin-text hover:bg-fin-surface-alt",
             item.disabled && "opacity-50 cursor-not-allowed",
             "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary",
           )}
