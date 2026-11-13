@@ -73,19 +73,18 @@ function Ctx(props: { label: string; value: JSX.Element; hint?: JSX.Element }) {
 
 /** Desk-level context strip shared by every SIM tab. */
 export function SimContextStrip(props: SimContextStripProps) {
-  const { mode, date, expiry, dte, spot, lotSize, lotVerified, coverageText, tapeLag, deskTotal } = props;
   return (
     <ToolbarRow
       data-testid="sim-context"
       gap={16}
       className="border border-fin-border rounded-[1px] p-2 bg-fin-surface-alt"
     >
-      <Ctx label="Mode / date" value={`${mode.toUpperCase()} · ${date || "—"}`} />
-      <Ctx label="Expiry / DTE" value={`${expiry} · ${dte}`} />
-      <Ctx label="Spot" value={spot} />
+      <Ctx label="Mode / date" value={`${props.mode.toUpperCase()} · ${props.date || "—"}`} />
+      <Ctx label="Expiry / DTE" value={`${props.expiry} · ${props.dte}`} />
+      <Ctx label="Spot" value={props.spot} />
       <Ctx
         label="Lot size"
-        value={lotSize}
+        value={props.lotSize}
         hint={
           <Show when={!props.lotVerified}>
             <Badge data-testid="sim-lot-unverified" size="xs" color="warning" variant="outline">
@@ -94,9 +93,9 @@ export function SimContextStrip(props: SimContextStripProps) {
           </Show>
         }
       />
-      <Ctx label="Coverage" value={coverageText} />
-      <Ctx label="Tape lag" value={tapeLag} />
-      <Ctx label="Desk total" value={deskTotal} />
+      <Ctx label="Coverage" value={props.coverageText} />
+      <Ctx label="Tape lag" value={props.tapeLag} />
+      <Ctx label="Desk total" value={props.deskTotal} />
     </ToolbarRow>
   );
 }

@@ -282,7 +282,7 @@ describe("useReplayWalls", () => {
     vi.useFakeTimers();
     const first = deferred<WallsPayload | null>();
     const fetcher = vi.fn().mockReturnValue(first.promise);
-    const { result, setProps } = setupHook(fetcher, { at: "2026-11-09T11:36:00+05:30" });
+    const { result } = setupHook(fetcher, { at: "2026-11-09T11:36:00+05:30" });
 
     await flush();
     expect(fetcher).toHaveBeenCalledTimes(1);

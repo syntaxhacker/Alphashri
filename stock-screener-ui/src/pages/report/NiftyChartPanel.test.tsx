@@ -129,7 +129,7 @@ function depthReport() {
 
 describe("NiftyChartPanel", () => {
   test("flipAt draws a no-text marker on the candle close at that time", () => {
-    const [report, setReport] = createSignal(mockReport({ candles: candles3() }));
+    const [report] = createSignal(mockReport({ candles: candles3() }));
     const [flipAt, setFlipAt] = createSignal("2026-10-12T09:16:00");
     r(() => <NiftyChartPanel report={report()} mode="live" view="chart" flipAt={flipAt()} />);
     expect(screen.getByTestId("nifty-chart-wrap")).toHaveAttribute("data-flip-marker", "1");
