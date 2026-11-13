@@ -82,12 +82,36 @@ green targeted suites). Rolling all remaining work to it per user instruction.
 | 26 | chart/options/trading theme literals | 5 | in flight |
 | 27 | pages.test backtest mount throw | 1+ | in flight |
 
+## Wave 4 — performance (Ernie)
+
+Measured baselines recorded before dispatch so every claim is comparable.
+
+| Surface | Baseline |
+|---|---|
+| prod bundle total | **4.0 MB** in `dist/assets` |
+| `echarts` chunk | **1114 KB**; statically imported by EChart/HeatmapTreemap/DepthChart → Vite warns `INEFFECTIVE_DYNAMIC_IMPORT` |
+| `NiftyReportShell` chunk | **577 KB** (biggest page chunk) |
+| `lightweight-charts.development` | **340 KB** (dev build shipped?) |
+| Screener dev DCL / FCP | **4126 ms / 4156 ms** |
+| `PatternGrid` 60-card mount | **1152 ms** |
+| 200-card mount | **2771 ms** (~14 ms/card) |
+| 200-card identical update | 1.13 ms (good — must not regress) |
+
+| # | Job | Files | Status |
+|---|---|---|---|
+| 28 | echarts must be lazy-only | 5 | in flight |
+| 29 | tab paint: per-tab Suspense, no eager fetch, memo churn | 2 | in flight |
+| 30 | PatternCard mount cost | 4 | in flight |
+| 31 | NiftyReportShell chunk split | 3 | in flight |
+| 32 | last 3 theme offenders → guard fully green | 3 + palette | in flight |
+
 ## Guard status (must stay green on every commit)
 
 - `src/test/style-keys.test.ts` — **green**
 - `src/test/no-props-destructure.test.ts` — **green**
-- `src/test/theme-single-source.test.ts` — 1 case open (hardcoded hex, being cleared)
+- `src/test/theme-single-source.test.ts` — **3 files left** (job 32 closes it)
 - `src/test/ui-guard.test.ts` — green
+- `src/test/pages.test.tsx` — **green** (backtest crash fixed: unbound `chartMode`)
 - `src/ui/inputs/inputs.w-h.test.tsx` — green (19 tests)
 
 ## Git rules
