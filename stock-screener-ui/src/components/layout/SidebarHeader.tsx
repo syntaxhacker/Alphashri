@@ -4,6 +4,9 @@ import { ActionIcon, Badge, Box, Stack, Text, Tooltip } from "@/ui";
 import NewsPanel2 from "../news/NewsPanel2";
 import { MarketStatus, MarketTicker } from "./MarketTicker";
 
+const CONTROL_SIZE = 22;
+const CONTROL_GAP = "4px";
+
 export interface SidebarHeaderProps {
   /** Desktop rail collapsed to 64px. Ignored inside the mobile drawer. */
   rail?: boolean;
@@ -30,7 +33,7 @@ export function SidebarHeader(props: SidebarHeaderProps) {
   const bell = () => (
     <Tooltip label={label()}>
       <ActionIcon
-        size="sm"
+        size={CONTROL_SIZE}
         onClick={props.onOpenNotifications}
         data-testid={testId("notif-bell")}
         aria-label={props.surgeTotal > 0 ? `Notifications, ${props.surgeTotal} surge alerts` : "Notifications"}
@@ -49,7 +52,7 @@ export function SidebarHeader(props: SidebarHeaderProps) {
   const collapse = () => props.mobile ? null : (
     <Tooltip label={collapsed() ? "Expand sidebar" : "Collapse sidebar"}>
       <ActionIcon
-        size="sm"
+        size={CONTROL_SIZE}
         onClick={props.onToggleCollapse}
         aria-label="Toggle sidebar"
         data-testid="sidebar-collapse-toggle"
@@ -78,24 +81,24 @@ export function SidebarHeader(props: SidebarHeaderProps) {
       }}
     >
       <Show when={collapsed()} fallback={(
-        <Box className="flex items-center justify-between min-w-0" style={{ gap: "4px", display: "flex", "align-items": "center", "justify-content": "space-between", "min-width": "0px" }}>
+        <Box className="flex items-center justify-between min-w-0" style={{ gap: CONTROL_GAP, display: "flex", "align-items": "center", "justify-content": "space-between", "min-width": "0px" }}>
           <Text
             id={testId("app-logo")}
             data-testid={testId("app-logo")}
             fw={700}
-            style={{ "font-size": "14px", "line-height": 1, "letter-spacing": "-0.01em" }}
+            style={{ "font-size": "13px", "line-height": 1, "letter-spacing": "-0.02em", "white-space": "nowrap" }}
           >
             Alphashri
           </Text>
-          <Stack direction="row" align="center" gap={2}>
+          <Stack direction="row" align="center" gap={CONTROL_GAP}>
             <NewsPanel2 />
             {bell()}
             {collapse()}
           </Stack>
         </Box>
       )}>
-        {/* 64px rail: keep only the control needed to expand it again. */}
-        <Stack direction="row" align="center" justify="center" gap={2}>
+        {/* Rail collapsed: keep only the control needed to expand it again. */}
+        <Stack direction="row" align="center" justify="center" gap={CONTROL_GAP}>
           {collapse()}
         </Stack>
       </Show>

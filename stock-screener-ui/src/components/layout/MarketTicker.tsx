@@ -72,6 +72,8 @@ function formatLastUpdated(lastUpdated: string | null): string {
   return lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : "--";
 }
 
+const TICKER_HEIGHT = "22px";
+
 /** Every item is the same three-track grid, so label / price / change share a
  *  baseline and a column across the whole tape. The change track is a fixed
  *  82px even though the text is plain (no pill): `+9.30 (0.22%)` and
@@ -160,6 +162,7 @@ function TickerItem(props: TickerItemProps) {
             "font-size": "9.5px",
             "line-height": "1.1",
             color: tone(),
+            "font-family": palette.MONO,
             "font-variant-numeric": "tabular-nums",
             "white-space": "nowrap",
           }}
@@ -189,7 +192,7 @@ function TickerContainer(props: TickerContainerProps) {
         display: "flex",
         "align-items": "center",
         gap: "10px",
-        height: "22px",
+        height: TICKER_HEIGHT,
         "overflow-x": "auto",
         "overflow-y": "hidden",
         "flex-wrap": "nowrap",
@@ -212,7 +215,7 @@ function TickerLoadingState() {
         display: "flex",
         "align-items": "center",
         gap: "10px",
-        height: "22px",
+        height: TICKER_HEIGHT,
         overflow: "hidden",
       }}
     >
@@ -228,7 +231,7 @@ function TickerErrorState() {
       id="market-ticker"
       className="market-ticker market-ticker-error"
       px="sm"
-      style={{ display: "flex", "align-items": "center", height: "22px" }}
+      style={{ display: "flex", "align-items": "center", height: TICKER_HEIGHT }}
     >
       <Text size="sm" c="dimmed" style={{ "font-size": "9.5px", "line-height": "1.2" }}>
         Market data unavailable

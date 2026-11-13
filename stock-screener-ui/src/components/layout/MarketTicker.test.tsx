@@ -4,6 +4,7 @@ import { render, screen, within, cleanup, waitFor } from "@solidjs/testing-libra
 import "@testing-library/jest-dom/vitest";
 import { MarketTicker, MarketStatus } from "./MarketTicker";
 import { UIProvider } from "@/ui";
+import * as palette from "@/ui/palette";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 import { isMarketClosedToday, getHolidayState } from "../../state/holidays";
 
@@ -118,7 +119,7 @@ describe("MarketTicker", () => {
       // change=150 formatted as "+150.00 (0.68%)"
       const change = screen.getByTestId("ticker-change-nsei");
       expect(change).toHaveTextContent("+150.00 (0.68%)");
-      expect(change).toHaveStyle({ color: "#3FB950" });
+      expect(change).toHaveStyle({ color: palette.POSITIVE_COLOR });
       expect(change).toHaveTextContent("▲");
     });
   });

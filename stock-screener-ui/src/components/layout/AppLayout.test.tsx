@@ -278,4 +278,19 @@ describe("AppLayout", () => {
     await fireEvent.click(desktopToggle);
     expect(screen.getAllByTestId("navbar-nested")[0]).toHaveAttribute("data-collapsed", "true");
   });
+
+  it("applies the rail width as a CSS length string", async () => {
+    render(() => (<TestWrapper initialRoute="/">
+        <AppLayout>
+          <div>Content</div>
+        </AppLayout>
+      </TestWrapper>),
+    );
+
+    expect(screen.getByTestId("app-navbar").getAttribute("style")).toMatch(/width:\s*148px/);
+
+    await fireEvent.click(screen.getAllByLabelText("Toggle sidebar").pop()!);
+
+    expect(screen.getByTestId("app-navbar").getAttribute("style")).toMatch(/width:\s*48px/);
+  });
 });
