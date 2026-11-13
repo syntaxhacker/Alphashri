@@ -217,9 +217,9 @@ export const TAPE_NEG_HUE = "#DB6D28";
 export const TAPE_FLIP_NEG_TEXT = "#FFC680";
 
 // ----- Replay / tick terminals ---------------------------------------------
-// Shared status-chip surfaces for the replay review panels, plus the lightweight-charts
-// series hues (VWAP line, EOD marker, generic series grey) and the SMC trade-stack
-// hues. One-offs with no global-app equivalent, so they live here as the single source.
+// Shared status-chip surfaces for the replay review panels, the lightweight-charts
+// series hues, and the SMC trade-stack hues. One-offs with no global-app
+// equivalent, so they live here as the single source.
 export const REPLAY_CHIP_BG = "#1F2937";
 export const REPLAY_CHIP_BG_ERROR = "#3B1D1D";
 export const REPLAY_CHIP_TEXT_ERROR = "#F87171";

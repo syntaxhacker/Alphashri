@@ -46,7 +46,7 @@ export default function NtChart(props: NtChartProps) {
     if (!el) return;
 
     const chart = createChart(el, {
-      layout: { background: { type: ColorType.Solid, color: palette.NT_BG }, textColor: "#E5E7EB" },
+      layout: { background: { type: ColorType.Solid, color: palette.NT_BG }, textColor: palette.REPLAY_CHART_TEXT },
       grid: { vertLines: { color: palette.NT_GRID }, horzLines: { color: palette.NT_GRID } },
       width: el.clientWidth,
       height,

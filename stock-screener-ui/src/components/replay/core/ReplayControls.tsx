@@ -60,11 +60,11 @@ export default function ReplayControls(props: ReplayControlsProps) {
           style={{ "accent-color": palette.PRIMARY }}
         />
       </Box>
-      <Text size="xs" className="font-mono tabular-nums" style={{ color: "#E5E7EB" }}>
+      <Text size="xs" className="font-mono tabular-nums" style={{ color: palette.REPLAY_CHART_TEXT }}>
         {props.clock > 0 ? fmtClock(props.clock) : "--:--:--"} · {props.closedCount}/{props.revealedCount} closed · net {props.net > 0 ? "+" : ""}{props.net.toFixed(1)}
       </Text>
-      {props.loading && <Chip size="sm" style={{ "background-color": "#1F2937", color: palette.PRIMARY }}>loading ticks…</Chip>}
-      {props.error && <Chip size="sm" style={{ "background-color": "#3B1D1D", color: "#F87171" }}>{props.error}</Chip>}
+      {props.loading && <Chip size="sm" style={{ "background-color": palette.REPLAY_CHIP_BG, color: palette.PRIMARY }}>loading ticks…</Chip>}
+      {props.error && <Chip size="sm" style={{ "background-color": palette.REPLAY_CHIP_BG_ERROR, color: palette.REPLAY_CHIP_TEXT_ERROR }}>{props.error}</Chip>}
     </Stack>
   );
 }

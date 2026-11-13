@@ -8,7 +8,7 @@ import type { Bar, ReplayTrade, ReplayTrend, ReplayZone, TradeStack } from "./ty
 export const stackLabel = (stack: TradeStack | undefined): string =>
   stack === "inv" ? "MOMENTUM" : stack === "retest" ? "REVERSION" : "TRADE";
 export const stackColor = (stack: TradeStack | undefined): string =>
-  stack === "inv" ? "#2563EB" : stack === "retest" ? "#A855F7" : "#6B7280";
+  stack === "inv" ? palette.STACK_MOMENTUM : stack === "retest" ? palette.STACK_REVERSION : palette.SERIES_STACK_DEFAULT;
 export const kindLabel = (kind: string): string =>
   kind === "inv" ? "iFVG inversion" : kind === "retest" ? "FVG retest" : kind;
 export const resultColor = (result: string): "success" | "warning" | "error" | "default" =>
@@ -52,7 +52,7 @@ export default function TradeReplayCard(props: TradeReplayCardProps) {
             <Stack direction="row" align="center" gap="xs">
               <Chip size="xs" color={props.trade.side === "LONG" ? "success" : "error"} style={{ height: "18px", "font-size": "10px", "font-weight": 700 }}>{props.trade.side}</Chip>
               <Show when={props.trade.stack}>
-                <Chip size="xs" style={{ height: "18px", "font-size": "9px", "background-color": "#1F2937", color: stackColor(props.trade.stack), border: `1px solid ${stackColor(props.trade.stack)}` }}>{stackLabel(props.trade.stack)}</Chip>
+                <Chip size="xs" style={{ height: "18px", "font-size": "9px", "background-color": palette.REPLAY_CHIP_BG, color: stackColor(props.trade.stack), border: `1px solid ${stackColor(props.trade.stack)}` }}>{stackLabel(props.trade.stack)}</Chip>
               </Show>
               <Text size="xs" fw={600} style={{ color: palette.TEXT, "font-size": "10px" }}>
                 #{props.index + 1} {kindLabel(props.trade.kind)}

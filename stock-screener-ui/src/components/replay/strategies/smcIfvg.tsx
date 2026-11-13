@@ -57,13 +57,13 @@ const smcIfvg: ReplayStrategyPlugin = {
         {tradeStatChips(bundle, [
           <Chip
             size="sm"
-            style={{ "background-color": "#1F2937", color: palette.PRIMARY, border: `1px solid ${stackColor("inv")}` }}
+            style={{ "background-color": palette.REPLAY_CHIP_BG, color: palette.PRIMARY, border: `1px solid ${stackColor("inv")}` }}
           >
             {`MOMENTUM ${netStack("inv") > 0 ? "+" : ""}${netStack("inv").toFixed(1)}`}
           </Chip>,
           <Chip
             size="sm"
-            style={{ "background-color": "#1F2937", color: "#CE9BFC", border: `1px solid ${stackColor("retest")}` }}
+            style={{ "background-color": palette.REPLAY_CHIP_BG, color: palette.STACK_REVERSION_TEXT, border: `1px solid ${stackColor("retest")}` }}
           >
             {`REVERSION ${netStack("retest") > 0 ? "+" : ""}${netStack("retest").toFixed(1)}`}
           </Chip>,

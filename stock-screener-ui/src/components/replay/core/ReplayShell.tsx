@@ -238,11 +238,11 @@ export default function ReplayShell(props: { plugin: ReplayStrategyPlugin; heade
   return (
     <Box p="sm" w="100%" data-testid={plugin().mode === "timeline" ? "tick-replay" : "replay-strategy"}>
       <Stack direction="row" gap="sm" mb="xs" align="center" wrap>
-        <Text fw={600} style={{ "font-size": "1.125rem", color: "#E5E7EB" }}>{plugin().label}</Text>
+        <Text fw={600} style={{ "font-size": "1.125rem", color: palette.REPLAY_CHART_TEXT }}>{plugin().label}</Text>
         {props.headerExtra}
       </Stack>
       <Show when={plugin().subtitle || plugin().summary}>
-        <Text size="xs" style={{ color: "#9CA3AF", display: "block", "margin-bottom": "8px" }}>
+        <Text size="xs" style={{ color: palette.REPLAY_CHART_MUTED, display: "block", "margin-bottom": "8px" }}>
           {plugin().subtitle}{plugin().summary?.(bundle() ?? EMPTY_BUNDLE, raw())}
         </Text>
       </Show>
@@ -252,7 +252,7 @@ export default function ReplayShell(props: { plugin: ReplayStrategyPlugin; heade
             size="xs"
             variant="subtle"
             onClick={() => setDate(d)}
-            style={{ "background-color": d === date() ? "#2563EB" : "#1F2937", color: "#E5E7EB", cursor: "pointer", "font-weight": d === date() ? 700 : 400, "border-radius": "4px" }}
+            style={{ "background-color": d === date() ? palette.STACK_MOMENTUM : palette.REPLAY_CHIP_BG, color: palette.REPLAY_CHART_TEXT, cursor: "pointer", "font-weight": d === date() ? 700 : 400, "border-radius": "4px" }}
           >
             {d}
           </Button>
@@ -275,9 +275,9 @@ export default function ReplayShell(props: { plugin: ReplayStrategyPlugin; heade
             )}
             <Stack direction="row" gap="sm" mb="sm" align="center" wrap>
               {paramControls()}
-              {!plugin().panel && <Button size="xs" variant="subtle" disabled style={{ "background-color": "#1F2937", color: palette.POSITIVE, "border-radius": "4px" }}>{trades().length} trades</Button>}
-              {loading() && <Button size="xs" variant="subtle" disabled style={{ "background-color": "#1F2937", color: palette.PRIMARY, "border-radius": "4px" }}>loading ticks…</Button>}
-              {bundle()?.error && <Button size="xs" variant="subtle" disabled style={{ "background-color": "#3B1D1D", color: "#F87171", "border-radius": "4px" }}>{bundle()?.error}</Button>}
+              {!plugin().panel && <Button size="xs" variant="subtle" disabled style={{ "background-color": palette.REPLAY_CHIP_BG, color: palette.POSITIVE, "border-radius": "4px" }}>{trades().length} trades</Button>}
+              {loading() && <Button size="xs" variant="subtle" disabled style={{ "background-color": palette.REPLAY_CHIP_BG, color: palette.PRIMARY, "border-radius": "4px" }}>loading ticks…</Button>}
+              {bundle()?.error && <Button size="xs" variant="subtle" disabled style={{ "background-color": palette.REPLAY_CHIP_BG_ERROR, color: palette.REPLAY_CHIP_TEXT_ERROR, "border-radius": "4px" }}>{bundle()?.error}</Button>}
             </Stack>
             {plugin().panel?.(bundle() ?? EMPTY_BUNDLE, raw())}
             {!loading() && trades().length === 0 && (
@@ -333,11 +333,11 @@ export default function ReplayShell(props: { plugin: ReplayStrategyPlugin; heade
           />
         </Card>
         <Card bg={palette.NT_BG} style={{ border: `1px solid ${palette.NT_GRID}`, overflow: "hidden" }}>
-          <Box p="sm" style={{ "background-color": "#111", "border-bottom": `1px solid ${palette.NT_GRID}`, display: "flex", "justify-content": "space-between", "align-items": "center" }}>
+          <Box p="sm" style={{ "background-color": palette.REPLAY_BG, "border-bottom": `1px solid ${palette.NT_GRID}`, display: "flex", "justify-content": "space-between", "align-items": "center" }}>
             <Text size="xs" fw={700} style={{ color: palette.PRIMARY }}>
               Trades — {closed().length} closed · net {net() > 0 ? "+" : ""}{net().toFixed(1)} pts
             </Text>
-            <Button size="xs" variant="subtle" disabled style={{ "background-color": "#1F2937", color: "#9CA3AF", "border-radius": "4px" }}>
+            <Button size="xs" variant="subtle" disabled style={{ "background-color": palette.REPLAY_CHIP_BG, color: palette.REPLAY_CHART_MUTED, "border-radius": "4px" }}>
               {revealed().length - closed().length} open
             </Button>
           </Box>

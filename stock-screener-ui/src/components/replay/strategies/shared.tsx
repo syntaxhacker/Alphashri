@@ -16,13 +16,13 @@ export function tradeStatChips(bundle: ReplayBundle, extra?: JSX.Element[]): JSX
   return [
     <Chip
       size="sm"
-      style={{ "background-color": "#1F2937", color: palette.POSITIVE }}
+      style={{ "background-color": palette.REPLAY_CHIP_BG, color: palette.POSITIVE }}
     >
       {`${trades.length} trades`}
     </Chip>,
     <Chip
       size="sm"
-      style={{ "background-color": "#1F2937", color: palette.TEXT_MUTED }}
+      style={{ "background-color": palette.REPLAY_CHIP_BG, color: palette.TEXT_MUTED }}
     >
       {`win ${wins}/${trades.length}`}
     </Chip>,

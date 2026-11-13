@@ -70,7 +70,7 @@ export default function ReplayChartHost(props: ReplayChartHostProps) {
     if (!boxRef || !bars.length) return;
     const tickState: { lastDay: string } = { lastDay: "" };
     const chart = createChart(boxRef, {
-      layout: { background: { type: ColorType.Solid, color: palette.NT_BG }, textColor: "#E5E7EB" },
+      layout: { background: { type: ColorType.Solid, color: palette.NT_BG }, textColor: palette.REPLAY_CHART_TEXT },
       grid: { vertLines: { color: palette.NT_GRID }, horzLines: { color: palette.NT_GRID } },
       width: boxRef.clientWidth,
       height,
@@ -93,7 +93,7 @@ export default function ReplayChartHost(props: ReplayChartHostProps) {
     });
     chartRef = chart;
     const cs = chart.addSeries(CandlestickSeries, { upColor: palette.NT_CANDLE_BULL, downColor: palette.NT_CANDLE_BEAR, borderVisible: false });
-    const vs = chart.addSeries(LineSeries, { color: "#F0B90B", lineWidth: 1, priceLineVisible: false, lastValueVisible: true });
+    const vs = chart.addSeries(LineSeries, { color: palette.SERIES_VWAP, lineWidth: 1, priceLineVisible: false, lastValueVisible: true });
     seriesRef = cs;
     vwapRef = vs;
     cs.setData([]);
@@ -213,7 +213,7 @@ export default function ReplayChartHost(props: ReplayChartHostProps) {
     const mkey = shown.map(t => `${t.time}:${t.exit_time <= now ? t.exit_time : ""}`).join("|");
     if (mkey !== pg.mkey) {
       pg.mkey = mkey;
-      const exitColor = (r: string) => r === "TP" ? palette.MARKER_TP : r === "EOD" ? "#9CA3AF" : palette.MARKER_SL;
+      const exitColor = (r: string) => r === "TP" ? palette.MARKER_TP : r === "EOD" ? palette.REPLAY_CHART_MUTED : palette.MARKER_SL;
       markersRef?.setMarkers(shown.flatMap(t => {
         const isLong = t.side === "LONG";
         const m: any[] = [{
