@@ -23,6 +23,7 @@ export { List, ListItem } from "./typography/List";
 
 // Inputs
 export { Button } from "./inputs/Button";
+export { RangeSlider, Slider } from "./inputs/RangeSlider";
 export { ActionIcon } from "./inputs/ActionIcon";
 export { UnstyledButton } from "./inputs/UnstyledButton";
 export { TextInput } from "./inputs/TextInput";

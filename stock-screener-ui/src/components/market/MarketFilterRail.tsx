@@ -112,6 +112,9 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
         max={filters().priceMax ?? null}
         onMinChange={(v) => props.onChange({ priceMin: v ?? undefined })}
         onMaxChange={(v) => props.onChange({ priceMax: v ?? undefined })}
+        domain={[0, 10000]}
+        step={10}
+        formatValue={(v) => `₹${v}`}
         testId="market-filter-price"
       />
 
@@ -121,7 +124,14 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
         max={filters().dayChangeMax ?? null}
         onMinChange={(v) => props.onChange({ dayChangeMin: v ?? undefined })}
         onMaxChange={(v) => props.onChange({ dayChangeMax: v ?? undefined })}
-        placeholder={["-∞", "+∞"]}
+        domain={[-20, 20]}
+        step={0.5}
+        formatValue={(v) => `${v > 0 ? "+" : ""}${v}%`}
+        marks={[
+          { value: -20, label: "-20" },
+          { value: 0, label: "0" },
+          { value: 20, label: "+20" },
+        ]}
         testId="market-filter-day"
       />
 
@@ -131,7 +141,9 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
         max={filters().mcapMaxCr ?? null}
         onMinChange={(v) => props.onChange({ mcapMinCr: v ?? undefined })}
         onMaxChange={(v) => props.onChange({ mcapMaxCr: v ?? undefined })}
-        placeholder={["any", "any"]}
+        domain={[0, 500000]}
+        step={1000}
+        formatValue={(v) => `₹${Math.round(v / 1000)}k Cr`}
         testId="market-filter-mcap"
       />
 
@@ -142,8 +154,13 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
         max={filters().rsiMax ?? null}
         onMinChange={(v) => props.onChange({ rsiMin: v ?? undefined })}
         onMaxChange={(v) => props.onChange({ rsiMax: v ?? undefined })}
-        bounds={[0, 100]}
-        placeholder={["0", "100"]}
+        domain={[0, 100]}
+        marks={[
+          { value: 0, label: "0" },
+          { value: 30, label: "30" },
+          { value: 70, label: "70" },
+          { value: 100, label: "100" },
+        ]}
         testId="market-filter-rsi"
       />
 
@@ -153,8 +170,9 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
         max={filters().relVolMax ?? null}
         onMinChange={(v) => props.onChange({ relVolMin: v ?? undefined })}
         onMaxChange={(v) => props.onChange({ relVolMax: v ?? undefined })}
+        domain={[0, 10]}
         step={0.1}
-        placeholder={["x", "x"]}
+        formatValue={(v) => `${v.toFixed(1)}x`}
         testId="market-filter-relvol"
       />
 

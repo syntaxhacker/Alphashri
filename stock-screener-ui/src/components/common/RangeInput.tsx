@@ -1,21 +1,17 @@
-import { createMemo } from "solid-js";
-import { Box, NumberInput } from "@/ui";
+import { Box, NumberInput, RangeSlider } from "@/ui";
 
 export interface RangeInputProps {
-  /** Lower bound; `null` means "no lower bound". */
   min: number | null;
-  /** Upper bound; `null` means "no upper bound". */
   max: number | null;
   onMinChange?: (value: number | null) => void;
   onMaxChange?: (value: number | null) => void;
-  /** Placeholder for the open ends, e.g. "0" / "any". */
-  placeholder?: [string, string];
-  step?: number;
-  /** Hard limits used to seed the numeric inputs and clamp user entry. */
-  bounds?: [number, number];
-  size?: "xs" | "sm";
   label?: string;
-  description?: string;
+  /** Slider domain. Required — a range needs an axis to sit on. */
+  domain: [number, number];
+  step?: number;
+  formatValue?: (value: number) => string;
+  marks?: { value: number; label: string }[];
+  size?: "xs" | "sm";
   testId?: string;
   disabled?: boolean;
 }
@@ -27,89 +23,72 @@ function toNum(value: number | string | null | undefined): number | null {
 }
 
 /**
- * One labelled range instead of two unlabelled Min/Max boxes.
- *
- * Two bare inputs force the user to infer which side is which and read the
- * section title above them; a joined control with a shared track states the
- * range once and shows the active span. Values stay independent so an open
- * end still means "unbounded" rather than 0.
+ * A range is one control, not two boxes: a dual-thumb slider states the span
+ * visually and the paired numeric fields stay for exact entry. The open ends
+ * mean "unbounded", so an untouched range leaves both filters null rather than
+ * clamping them to the domain.
  */
 export function RangeInput(props: RangeInputProps) {
-  const ph = () => props.placeholder ?? ["Min", "Max"];
-  const lo = () => props.bounds?.[0] ?? 0;
-  const hi = () => props.bounds?.[1];
+  const lo = () => props.domain[0];
+  const hi = () => props.domain[1];
+  const sliderValue = (): [number, number] => [
+    props.min ?? lo(),
+    props.max ?? hi(),
+  ];
 
-  const invalid = createMemo(() => {
-    const min = props.min;
-    const max = props.max;
-    return min != null && max != null && min > max;
-  });
-
-  const span = createMemo(() => {
-    const min = props.min;
-    const max = props.max;
-    if (min == null && max == null) return "any";
-    if (min != null && max != null) return `${min} – ${max}`;
-    return min != null ? `≥ ${min}` : `≤ ${max}`;
-  });
+  const applySlider = (next: [number, number]) => {
+    props.onMinChange?.(next[0] <= lo() ? null : next[0]);
+    props.onMaxChange?.(next[1] >= hi() ? null : next[1]);
+  };
 
   return (
-    <Box className="flex flex-col gap-0.5 min-w-0" data-testid={props.testId}>
-      <Box className="flex items-center justify-between gap-1 min-w-0">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.4px] text-fin-text-muted truncate">
-          {props.label}
-        </span>
-        <span
-          className="shrink-0 font-mono text-[10px] tabular-nums text-fin-text-muted"
-          data-testid={props.testId ? `${props.testId}-span` : undefined}
-          classList={{ "text-fin-negative": invalid() }}
-        >
-          {span()}
-        </span>
-      </Box>
-      <Box
-        className="flex items-center gap-0 rounded-fin border border-fin-border overflow-hidden bg-fin-surface"
-        classList={{ "border-fin-negative": invalid() }}
-        role="group"
-        aria-label={props.label ? `${props.label} range` : "Range"}
-      >
+    <Box className="flex flex-col gap-1 min-w-0 w-full" data-testid={props.testId}>
+      <RangeSlider
+        value={sliderValue()}
+        onChange={applySlider}
+        min={lo()}
+        max={hi()}
+        step={props.step}
+        label={props.label}
+        formatValue={props.formatValue}
+        marks={props.marks}
+        size={props.size}
+        disabled={props.disabled}
+        testId={props.testId ? `${props.testId}-slider` : undefined}
+      />
+      <Box className="flex items-center gap-1 min-w-0">
         <Box className="flex-1 min-w-0">
           <NumberInput
-            placeholder={ph()[0]}
+            placeholder="Min"
             aria-label={props.label ? `${props.label} minimum` : "Minimum"}
             value={props.min ?? ""}
             onChange={(v: number | string) => props.onMinChange?.(toNum(v))}
-            size={props.size ?? "xs"}
+            size="xs"
             min={lo()}
             max={hi()}
             step={props.step}
             disabled={props.disabled}
-            style={{ width: "100%", "border": "0", "border-radius": "0" }}
+            style={{ width: "100%" }}
             data-testid={props.testId ? `${props.testId}-min` : undefined}
           />
         </Box>
-        <span className="shrink-0 px-1 text-[10px] text-fin-text-muted select-none" aria-hidden="true">
-          to
-        </span>
+        <span className="shrink-0 text-[10px] text-fin-text-muted" aria-hidden="true">to</span>
         <Box className="flex-1 min-w-0">
           <NumberInput
-            placeholder={ph()[1]}
+            placeholder="Max"
             aria-label={props.label ? `${props.label} maximum` : "Maximum"}
             value={props.max ?? ""}
             onChange={(v: number | string) => props.onMaxChange?.(toNum(v))}
-            size={props.size ?? "xs"}
+            size="xs"
             min={lo()}
             max={hi()}
             step={props.step}
             disabled={props.disabled}
-            style={{ width: "100%", "border": "0", "border-radius": "0" }}
+            style={{ width: "100%" }}
             data-testid={props.testId ? `${props.testId}-max` : undefined}
           />
         </Box>
       </Box>
-      {props.description && (
-        <span className="text-[10px] text-fin-text-muted">{props.description}</span>
-      )}
     </Box>
   );
 }
