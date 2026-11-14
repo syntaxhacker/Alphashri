@@ -84,10 +84,9 @@ export function TabsList(props: UITabsProps) {
   const cls = cn(
     "ui-tabs-list",
     known.orientation === "vertical" ? "flex flex-col" : "flex flex-row items-stretch",
-    // A tab strip is navigation, not a control. It sits flat on the surface with a
-    // single rule under the whole row; the active tab marks itself with an accent
-    // underline that lands on that rule. The old bordered pill box made every page
-    // read as a card nested inside a card.
+    // Flat navigation strip: one rule under the whole row, active tab marked by
+    // an accent underline landing on it. Pass `className="border-b-0"` (plus an
+    // inline border-bottom-width:0) when a surrounding bar owns the rule.
     "gap-0 min-h-[30px] border-b border-fin-border",
     known.className,
   );

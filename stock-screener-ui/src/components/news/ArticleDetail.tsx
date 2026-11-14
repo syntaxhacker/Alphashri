@@ -107,7 +107,7 @@ export function ArticleDetail(props: ArticleDetailProps) {
                       {selected().source}
                     </Text>
                     <Box style={{ width: "3px", height: "3px", "border-radius": "50%", "background-color": palette.TEXT_MUTED }} />
-                    <Text size="xs" c="dimmed" className="[font-variant-numeric:tabular-nums]">
+                    <Text size="xs" c="dimmed" className="font-mono [font-variant-numeric:tabular-nums]">
                       {formatTimeAgo(content()?.publishedAt || selected().publishedAt)}
                     </Text>
                   </Box>

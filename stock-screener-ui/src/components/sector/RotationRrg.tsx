@@ -197,7 +197,7 @@ export function RotationRrg(props: RotationRrgProps) {
                 const isHi = tick === xDomain().hi;
                 return (
                   <Box
-                    className="absolute pointer-events-none text-[8px] text-fin-text-muted tabular-nums"
+                    className="font-mono absolute pointer-events-none text-[8px] text-fin-text-muted tabular-nums"
                     style={{
                       left: isLo ? 4 : isHi ? "auto" : `${x(tick)}%`,
                       right: isHi ? 4 : "auto",
@@ -216,7 +216,7 @@ export function RotationRrg(props: RotationRrgProps) {
                 const isHi = tick === yDomain().hi;
                 return (
                   <Box
-                    className="absolute pointer-events-none text-[8px] text-fin-text-muted tabular-nums"
+                    className="font-mono absolute pointer-events-none text-[8px] text-fin-text-muted tabular-nums"
                     style={{
                       right: "4px",
                       bottom: isLo ? 2 : isHi ? "auto" : `${y(tick)}%`,
@@ -346,7 +346,7 @@ export function RotationRrg(props: RotationRrgProps) {
               <Text className="text-[8.5px] font-bold tracking-[0.3px] text-fin-text-muted">
                 {QUADRANT_LABELS[key]}
               </Text>
-              <Text className="text-[9px] font-semibold text-fin-text-muted tabular-nums">
+              <Text className="font-mono text-[9px] font-semibold text-fin-text-muted tabular-nums">
                 {counts()[key]}
               </Text>
             </Box>

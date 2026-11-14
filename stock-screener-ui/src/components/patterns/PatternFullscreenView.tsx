@@ -144,7 +144,7 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
             size="xs"
             c="dimmed"
             data-testid="patterns-chart-position"
-            className="min-w-[38px] text-center tabular-nums"
+            className="min-w-[38px] text-center font-mono tabular-nums"
           >
             {props.positionLabel}
           </Text>

@@ -308,7 +308,7 @@ export function DeltaProfileChart(props: DeltaProfileChartProps) {
           c="dimmed"
           span
           data-testid={`${testId()}-readout`}
-          className="tabular-nums whitespace-nowrap shrink-0"
+          className="font-mono tabular-nums whitespace-nowrap shrink-0"
         >
           {hoverPoint()
             ? `${formatNumberIN(hoverPoint()!.strike)} · cum ${formatValue()(hoverPoint()!.cumulative)} · flow ${formatValue()(hoverPoint()!.netInitiated)}`

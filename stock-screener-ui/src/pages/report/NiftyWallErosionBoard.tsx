@@ -130,7 +130,7 @@ function Stat(props: {
         fw={700}
         lh={1.1}
         c={props.tone ?? palette.TEXT}
-        className="tabular-nums whitespace-nowrap"
+        className="font-mono tabular-nums whitespace-nowrap"
       >
         {props.value}
       </Text>
@@ -175,7 +175,7 @@ function ErosionRow(props: {
           size="xs"
           fw={800}
           lh={1.1}
-          className="tabular-nums whitespace-nowrap shrink-0"
+          className="font-mono tabular-nums whitespace-nowrap shrink-0"
           style={{
             "width": "108px",
             "flex-shrink": 0,
@@ -204,7 +204,7 @@ function ErosionRow(props: {
           size="xs"
           fw={700}
           lh={1.1}
-          className="tabular-nums whitespace-nowrap shrink-0"
+          className="font-mono tabular-nums whitespace-nowrap shrink-0"
         >
           {distanceOf(props.row)}
         </Text>
@@ -221,7 +221,7 @@ function ErosionRow(props: {
           size="xs"
           fw={800}
           lh={1.1}
-          className="tabular-nums whitespace-nowrap shrink-0"
+          className="font-mono tabular-nums whitespace-nowrap shrink-0"
           style={{
             color: flowColor(),
             "letter-spacing": "0.04em",
@@ -239,7 +239,7 @@ function ErosionRow(props: {
           size="xs"
           fw={800}
           lh={1.1}
-          className="tabular-nums whitespace-nowrap shrink-0"
+          className="font-mono tabular-nums whitespace-nowrap shrink-0"
           style={{
             color: fuelColor(),
             "letter-spacing": "0.04em",
@@ -269,7 +269,7 @@ function ErosionRow(props: {
               size="xs"
               c="dimmed"
               lh={1.1}
-              className="tabular-nums whitespace-nowrap shrink-0 min-w-0 overflow-hidden truncate"
+              className="font-mono tabular-nums whitespace-nowrap shrink-0 min-w-0 overflow-hidden truncate"
               style={{ "min-width": "0px", "flex-shrink": 1 }}
             >
               {hasTtb() ? `${fmtTimeToBreak(ttb())} to break` : "—"}
@@ -385,7 +385,7 @@ export function NiftyWallErosionBoard(props: NiftyWallErosionBoardProps) {
             size="xs"
             c="dimmed"
             lh={1.2}
-            className="tabular-nums whitespace-nowrap shrink-0"
+            className="font-mono tabular-nums whitespace-nowrap shrink-0"
             style={{
               width: FLIP_SLOT_W,
               height: FLIP_SLOT_H,

@@ -71,7 +71,7 @@ export function ReportEventsStrip(props: ReportEventsStripProps) {
                     class="flex items-center gap-2 min-w-0 py-1 border-b border-fin-border tabular-nums"
                     style={{ cursor: symbolRowCursor(props.onOpenSymbol) }}
                   >
-                    <Text size="xs" c="dimmed" span className="shrink-0 tabular-nums">
+                    <Text size="xs" c="dimmed" span className="font-mono shrink-0 tabular-nums">
                       {ev.date}
                     </Text>
                     <Text size="xs" fw={700} truncate span title={ev.symbol} className="shrink-0">

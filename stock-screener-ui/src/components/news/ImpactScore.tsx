@@ -49,7 +49,7 @@ export function ImpactScore(props: ImpactScoreProps) {
             color={color()}
             variant="light"
             data-testid="impact-score"
-            className="flex-[0_0_auto] tabular-nums"
+            className="flex-[0_0_auto] font-mono tabular-nums"
           >
             {score()}/10
           </Badge>

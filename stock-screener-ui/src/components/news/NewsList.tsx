@@ -92,7 +92,7 @@ export function NewsList(props: NewsListProps) {
                 size="xs"
                 c="dimmed"
                 data-testid="news-story-count"
-                className="block mt-2 [font-variant-numeric:tabular-nums]"
+                className="block mt-2 font-mono [font-variant-numeric:tabular-nums]"
                 style={{ display: "block", "margin-top": "2px", "font-variant-numeric": "tabular-nums" }}
               >
                 {storyLabel()} across {visibleSourceNames().length} {visibleSourceNames().length === 1 ? "source" : "sources"}

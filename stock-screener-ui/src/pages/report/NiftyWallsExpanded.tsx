@@ -84,7 +84,7 @@ function StatBar(props: { walls: WallsPayload }) {
             size="sm"
             span
             fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
-            className="tabular-nums whitespace-nowrap overflow-hidden truncate"
+            className="font-mono tabular-nums whitespace-nowrap overflow-hidden truncate"
             style={{
               "font-size": REPORT_FONT.md,
               "line-height": REPORT_LINE_HEIGHT.snug,

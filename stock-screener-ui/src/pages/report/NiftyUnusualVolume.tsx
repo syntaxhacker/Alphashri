@@ -424,7 +424,7 @@ export function NiftyUnusualVolume(props: {
                 size="xs"
                 c="dimmed"
                 span
-                className="tabular-nums shrink-0 whitespace-nowrap"
+                className="font-mono tabular-nums shrink-0 whitespace-nowrap"
                 style={{ "flex-shrink": "0" }}
               >
                 upd {clock(stamp())}
