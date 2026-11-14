@@ -173,7 +173,9 @@ describe("PatternFullscreenView", () => {
   test("renders the title, meta, notes and last-close/day values in the panel", () => {
     render(() => <PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
     expect(screen.getByText("IRCON · Falling Wedge")).toBeInTheDocument();
-    expect(screen.getByText("IRCON · 1D · 2 bars ago")).toBeInTheDocument();
+    expect(screen.getAllByText("IRCON").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("1D").length).toBeGreaterThan(0);
+    expect(screen.getByText("2 bars ago")).toBeInTheDocument();
     expect(screen.getByText("Higher lows into a falling wedge.")).toBeInTheDocument();
     expect(screen.getByText(/113\.40/)).toBeInTheDocument();
     expect(screen.getByText(/1\.20%/)).toBeInTheDocument();

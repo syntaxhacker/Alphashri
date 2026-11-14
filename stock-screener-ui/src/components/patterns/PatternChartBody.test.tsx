@@ -126,7 +126,9 @@ describe("PatternChartBody", () => {
     render(() => <PatternChartBody hit={HIT} candles={CANDLES} />);
     const panel = screen.getByTestId("patterns-fullscreen-panel");
     expect(panel).toBeInTheDocument();
-    expect(screen.getByText("IRCON · 1D · 2 bars ago")).toBeInTheDocument();
+    expect(screen.getAllByText("IRCON").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("1D").length).toBeGreaterThan(0);
+    expect(screen.getByText("2 bars ago")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-status-confirmed")).toHaveTextContent("Confirmed");
     expect(screen.getByTestId("patterns-quality-strong")).toBeInTheDocument();
     expect(screen.getByText("₹120.00")).toBeInTheDocument();
