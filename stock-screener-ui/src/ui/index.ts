@@ -96,7 +96,7 @@ export { rem } from "./hooks";
 
 // Types
 export type {
-  UIBaseProps, UISize, UIColor, UITone, UIFontWeight, UIAlign, UIFlexDirection, UIFlexWrap,
+  UITheme, UIBaseProps, UISize, UIColor, UITone, UIFontWeight, UIAlign, UIFlexDirection, UIFlexWrap,
   UIJustify, UIAlignItems, UIGap, UIRadius, UIVariant,
   UIBoxProps, UIFlexProps, UIStackProps, UIGroupProps, UICenterProps,
   UIPaperProps, UICardProps, UIScrollAreaProps, UIDividerProps, UICollapseProps,

@@ -81,9 +81,11 @@ export function Textarea(props: UITextareaProps) {
     const lineHeight = lineHeightOf(known.size);
     const border = isError() ? palette.NEGATIVE : focused() ? palette.PRIMARY : palette.BORDER;
     const rows = effectiveMinRows();
+    const natural = `${rows * lineHeight + 18}px`;
+    const height = explicitHeight() ?? natural;
     return {
-      height: explicitHeight() ?? `${rows * lineHeight + 18}px`,
-      "min-height": `${lineHeight * rows + 18}px`,
+      height,
+      "min-height": height,
       "border-radius": "6px",
       border: `1px solid ${border}`,
       "box-shadow": focused() ? `0 0 0 1px ${border}` : "none",
@@ -100,7 +102,6 @@ export function Textarea(props: UITextareaProps) {
       ...(known.disabled ? { opacity: "0.45", cursor: "not-allowed" } : {}),
     };
   });
-
   const wrapperTestId = known["data-testid"] ? `${known["data-testid"]}-field` : undefined;
   const inputTestId = known["data-testid"];
 

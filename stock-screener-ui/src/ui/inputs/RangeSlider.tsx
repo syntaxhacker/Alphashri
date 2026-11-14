@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import { cn } from "../cn";
 
 export interface SliderProps {
@@ -67,6 +67,10 @@ function Thumb(props: {
       onKeyDown={onKeyDown}
       class={cn(
         "absolute top-1/2 h-[13px] w-[13px] -translate-x-1/2 -translate-y-1/2 rounded-full",
+        // Let the pointer fall through to the track that owns the drag: a thumb
+        // that swallows pointerdown cannot be grabbed, and the track's capture
+        // is what makes the whole row draggable.
+        "pointer-events-none",
         "border-2 border-fin-primary bg-fin-surface shadow-sm",
         props.disabled ? "cursor-not-allowed opacity-50" : "cursor-grab active:cursor-grabbing",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fin-primary",
@@ -102,32 +106,44 @@ export function RangeSlider(props: RangeSliderProps) {
     return (node: HTMLDivElement) => {
       if (!node || el) return;
       el = node;
-      const move = (clientX: number) => {
-        const box = node.getBoundingClientRect();
-        if (box.width === 0) return;
-        const ratio = clamp((clientX - box.left) / box.width, 0, 1);
-        const raw = min() + ratio * (props.max - min());
-        const snapped = Math.round(raw / step()) * step();
-        const index = active();
-        if (index === null) {
-          const nearest = Math.abs(snapped - lo()) <= Math.abs(snapped - hi()) ? 0 : 1;
-          commit(nearest, snapped);
-        } else {
-          commit(index, snapped);
-        }
+      // Measure the inner bar, not the padded container: the 6px side padding
+      // otherwise shifts every ratio, so the ends of the range were
+      // unreachable by dragging.
+      const bar = () => node.firstElementChild as HTMLElement | null;
+      const ratioAt = (clientX: number): number | null => {
+        const target = bar() ?? node;
+        const box = target.getBoundingClientRect();
+        if (box.width === 0) return null;
+        return clamp((clientX - box.left) / box.width, 0, 1);
       };
+      const valueAt = (clientX: number): number | null => {
+        const ratio = ratioAt(clientX);
+        if (ratio === null) return null;
+        const raw = min() + ratio * (props.max - min());
+        return Math.round(raw / step()) * step();
+      };
+      const nearestTo = (value: number): 0 | 1 =>
+        Math.abs(value - lo()) <= Math.abs(value - hi()) ? 0 : 1;
+
       const onPointerDown = (e: PointerEvent) => {
         if (props.disabled) return;
-        const box = node.getBoundingClientRect();
-        const ratio = box.width === 0 ? 0 : clamp((e.clientX - box.left) / box.width, 0, 1);
-        const raw = min() + ratio * (props.max - min());
-        setActive(Math.abs(raw - lo()) <= Math.abs(raw - hi()) ? 0 : 1);
+        // Only react to the primary button so a right-click cannot latch a drag.
+        if (e.button !== 0) return;
+        const value = valueAt(e.clientX);
+        if (value === null) return;
+        e.preventDefault();
+        setActive(nearestTo(value));
         node.setPointerCapture(e.pointerId);
-        move(e.clientX);
+        commit(nearestTo(value), value);
       };
       const onPointerMove = (e: PointerEvent) => {
+        if (props.disabled) return;
         if (!node.hasPointerCapture(e.pointerId)) return;
-        move(e.clientX);
+        const value = valueAt(e.clientX);
+        const index = active();
+        if (value === null || index === null) return;
+        e.preventDefault();
+        commit(index, value);
       };
       const release = (e: PointerEvent) => {
         if (node.hasPointerCapture(e.pointerId)) node.releasePointerCapture(e.pointerId);
@@ -137,6 +153,12 @@ export function RangeSlider(props: RangeSliderProps) {
       node.addEventListener("pointermove", onPointerMove);
       node.addEventListener("pointerup", release);
       node.addEventListener("pointercancel", release);
+      onCleanup(() => {
+        node.removeEventListener("pointerdown", onPointerDown);
+        node.removeEventListener("pointermove", onPointerMove);
+        node.removeEventListener("pointerup", release);
+        node.removeEventListener("pointercancel", release);
+      });
     };
   };
 
