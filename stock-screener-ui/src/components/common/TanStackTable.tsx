@@ -434,18 +434,31 @@ export function TanStackTable<T>(props: Props<T>) {
     return items;
   });
 
-  const visibleItems = createMemo(() => {
-    const items = bodyItems();
-    const windowSize = props.rowWindowSize;
-    // A zero/negative window would mount nothing and blank the body while
-    // `data` is still non-empty, so it can never mean "window".
-    const capped = typeof windowSize === "number" && Number.isFinite(windowSize) && windowSize > 0;
-    return capped ? items.slice(0, windowSize) : items;
+  const windowBase = () => {
+    const size = props.rowWindowSize;
+    return typeof size === "number" && Number.isFinite(size) && size > 0 ? size : Number.POSITIVE_INFINITY;
+  };
+  const [windowEnd, setWindowEnd] = createSignal(windowBase());
+
+  // A new dataset resets the window: filtering must not leave 800 rows mounted.
+  createEffect(() => {
+    void props.data;
+    setWindowEnd(windowBase());
   });
 
-  // rowWindowSize is a hard cap with no scroll listener, so the remainder is
-  // genuinely not rendered. Say so — a table that quietly stops at 80 of 312
-  // reads as "the rest don't exist".
+  const visibleItems = createMemo(() => {
+    const items = bodyItems();
+    return items.slice(0, Math.min(windowEnd(), items.length));
+  });
+
+  const loadMore = () => {
+    const total = bodyItems().length;
+    const step = Number.isFinite(windowBase()) ? windowBase() : total;
+    setWindowEnd((n) => Math.min(n + step, total));
+  };
+
+  // rowWindowSize is a page size, not a hard cap: the footer stays honest and
+  // scrolling near the end extends the window.
   const hiddenCount = createMemo(() => {
     const total = bodyItems().length;
     const shown = visibleItems().length;
@@ -457,6 +470,10 @@ export function TanStackTable<T>(props: Props<T>) {
       <ScrollArea
         className="paper-tanstack-scroll"
         style={{ flex: 1, "min-height": "0px", overflow: "auto", display: "flex", "flex-direction": "column", "background-color": palette.SURFACE }}
+        onScroll={(e) => {
+          const el = e.currentTarget as HTMLElement;
+          if (el.scrollTop + el.clientHeight >= el.scrollHeight - 160) loadMore();
+        }}
       >
         <table
           ref={(el: HTMLTableElement) => (tableEl = el)}
@@ -532,7 +549,14 @@ export function TanStackTable<T>(props: Props<T>) {
           data-testid="table-window-footer"
         >
           showing {visibleItems().length} of {bodyItems().length}
-          <span class="opacity-70">· {hiddenCount()} not rendered</span>
+          <button
+            type="button"
+            onClick={loadMore}
+            data-testid="table-window-load-more"
+            class="ml-1 underline decoration-dotted underline-offset-2 hover:text-fin-text"
+          >
+            load more
+          </button>
         </div>
       </Show>
     </>

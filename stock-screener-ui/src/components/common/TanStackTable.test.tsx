@@ -361,7 +361,10 @@ describe("TanStackTable", () => {
     ));
     const footer = screen.getByTestId("table-window-footer");
     expect(footer).toHaveTextContent("showing 5 of 12");
-    expect(footer).toHaveTextContent("7 not rendered");
+    expect(screen.getByTestId("table-window-load-more")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("table-window-load-more"));
+    expect(screen.getByTestId("table-window-footer")).toHaveTextContent("showing 10 of 12");
   });
 
   it("shows no window footer when every row fits", () => {
