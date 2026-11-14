@@ -444,6 +444,20 @@ describe("PatternsPage", () => {
     expect(screen.queryByTestId("patterns-grid")).not.toBeInTheDocument();
   });
 
+  test("renders the live counters on the tab row instead of a second band", () => {
+    r(<PatternsPage {...makeProps()} />);
+    const tabList = screen.getByTestId("patterns-tab-list");
+    const stats = screen.getByTestId("patterns-stats");
+    const panel = screen.getByTestId("patterns-panel-scan");
+    // Same strip: the counters share the tab row's parent, not the panel body.
+    expect(tabList.parentElement).toBe(stats.parentElement?.parentElement);
+    expect(panel).not.toContainElement(stats);
+    // The wrapper owns the single bottom rule; the list's own rule is zeroed.
+    const band = tabList.parentElement as HTMLElement;
+    expect(band.className).toContain("border-b");
+    expect(tabList.getAttribute("style")).toContain("border-bottom-width: 0px");
+  });
+
   test("view toggle switches between the dense list and the card grid", async () => {
     r(<PatternsPage {...makeProps()} />);
     expect(screen.getByTestId("patterns-list")).toBeInTheDocument();

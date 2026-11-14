@@ -50,6 +50,16 @@ describe("ScanStats", () => {
     }
   });
 
+  test("fits the 30px tab row in one non-wrapping line", () => {
+    render(() => <ScanStats summary={SUMMARY} />);
+    const strip = screen.getByTestId("patterns-stats");
+    // A wrapped or taller strip would push the tab row into a second band.
+    expect(strip.className).toContain("h-[30px]");
+    expect(strip.className).toContain("overflow-x-auto");
+    expect(strip.className).not.toContain("flex-wrap");
+    expect(strip.className).not.toContain("min-h-");
+  });
+
   test("formats the bull/bear and data-through values", () => {
     render(() => <ScanStats summary={SUMMARY} />);
     expect(screen.getByTestId("patterns-stat-bull_bear")).toHaveTextContent("7 / 3");
