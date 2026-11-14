@@ -173,3 +173,21 @@ Main agent only. Feature branch. Small commits. Never push develop/main.
 - `height: 100%` inside an auto-height flex parent grows to content; use `flex: 1 1 0%`.
 - A column with no `size` absorbs all slack and starves its neighbours (the symbol-column bug).
 - Numbers must be `font-mono tabular-nums`; the primary identifier column never truncates.
+
+## Wave 6 — full route sweep (viewport fit + control alignment)
+
+Measured every route at 1366x768: `documentElement.scrollHeight`, `scrollWidth - clientWidth`,
+`app-main` internal scroll, and the vertical centre spread of every flex control row.
+
+| Route | Fit | Overflow | Row spread |
+|---|---|---|---|
+| `/`, all 8 screener tabs, `/report`, `/report/index`, `/report/us`, `/patterns` both tabs, `/options`, `/backtest`, `/strategies`, `/settings`, `/heatmap`, `/agri`, `/orderflow`, `/sector`, `/replay`, `/admin` | 768/768 | 0 | clean (≤3px) |
+| `/bots` | **1047/768 → 768/768** | 0 | clean |
+
+`/bots` fix: card was not a flex column and its wrapper was `display:block`, so
+`fillContainer` had no containing block — the 919px table rendered outside a
+538px card. Wrapper is a flex column now; table scrolls internally.
+
+### Standing invariant
+Any route must satisfy: `scrollHeight === innerHeight`, `scrollWidth === clientWidth`,
+`app-main` does not scroll, and every flex row's child centre spread ≤ 3px.
