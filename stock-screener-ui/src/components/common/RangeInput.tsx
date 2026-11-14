@@ -33,18 +33,49 @@ function toNum(value: number | string | null | undefined): number | null {
 export function RangeInput(props: RangeInputProps) {
   const lo = () => props.domain[0];
   const hi = () => props.domain[1];
-  const sliderValue = (): [number, number] => [
-    props.min ?? lo(),
-    props.max ?? hi(),
-  ];
+  const clampToDomain = (v: number) => Math.min(Math.max(v, lo()), hi());
+  // A floor above the ceiling (or the reverse) is not a range: it matches
+  // nothing and it made the slider paint an inverted, ARIA-invalid pair.
+  const sliderValue = (): [number, number] => {
+    const a = clampToDomain(props.min ?? lo());
+    const b = clampToDomain(props.max ?? hi());
+    return a <= b ? [a, b] : [b, a];
+  };
 
   const applySlider = (next: [number, number]) => {
-    const nextMin = next[0] <= lo() ? null : next[0];
-    const nextMax = next[1] >= hi() ? null : next[1];
+    const a = clampToDomain(next[0]);
+    const b = clampToDomain(next[1]);
+    const nextMin = a <= lo() ? null : a;
+    const nextMax = b >= hi() ? null : b;
     // Only notify the side that actually changed: firing both callbacks made one
     // pointer move produce two state writes (and two table/rail updates).
     if (nextMin !== (props.min ?? null)) props.onMinChange?.(nextMin);
     if (nextMax !== (props.max ?? null)) props.onMaxChange?.(nextMax);
+  };
+
+  // A typed value is clamped to the domain and kept inside the pair, but it is
+  // never mapped to `null`: typing the domain minimum ("0") is a deliberate
+  // floor, while blank means "unbounded". Coercing the edited side (rather than
+  // pushing the other) keeps it to one callback and never rewrites a field the
+  // user did not touch.
+  const applyMin = (raw: number | null) => {
+    if (raw === null) {
+      props.onMinChange?.(null);
+      return;
+    }
+    const value = clampToDomain(raw);
+    const ceiling = props.max;
+    props.onMinChange?.(ceiling !== null && value > ceiling ? ceiling : value);
+  };
+
+  const applyMax = (raw: number | null) => {
+    if (raw === null) {
+      props.onMaxChange?.(null);
+      return;
+    }
+    const value = clampToDomain(raw);
+    const floor = props.min;
+    props.onMaxChange?.(floor !== null && value < floor ? floor : value);
   };
 
   return (
@@ -69,7 +100,7 @@ export function RangeInput(props: RangeInputProps) {
             placeholder="Min"
             aria-label={props.label ? `${props.label} minimum` : "Minimum"}
             value={props.min ?? ""}
-            onChange={(v: number | string) => props.onMinChange?.(toNum(v))}
+            onChange={(v: number | string) => applyMin(toNum(v))}
             size="xs"
             min={lo()}
             max={hi()}
@@ -85,7 +116,7 @@ export function RangeInput(props: RangeInputProps) {
             placeholder="Max"
             aria-label={props.label ? `${props.label} maximum` : "Maximum"}
             value={props.max ?? ""}
-            onChange={(v: number | string) => props.onMaxChange?.(toNum(v))}
+            onChange={(v: number | string) => applyMax(toNum(v))}
             size="xs"
             min={lo()}
             max={hi()}
