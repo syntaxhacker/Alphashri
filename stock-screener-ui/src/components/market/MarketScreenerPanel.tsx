@@ -6,6 +6,7 @@ import {
   createSignal,
   onCleanup,
   onMount,
+  type JSX,
 } from "solid-js";
 import {
   Box,
@@ -38,6 +39,7 @@ import {
   type MarketFilterState,
 } from "./marketFilters";
 import { buildMarketColumns } from "./marketColumns";
+import { alpha, PRIMARY } from "@/ui/palette";
 import { MarketFilterRail } from "./MarketFilterRail";
 import { MarketMapView, MarketViewToggle, type MarketViewMode } from "./MarketMapView";
 import { TanStackTable } from "../common/TanStackTable";
@@ -65,7 +67,7 @@ function MarketGrid(props: {
   hasActiveFilters: boolean;
   onResetFilters: () => void;
   onRowClick: (row: MarketRow) => void;
-  getRowStyle: (row: MarketRow) => { backgroundColor: string } | undefined;
+  getRowStyle: (row: MarketRow) => JSX.CSSProperties | undefined;
   getRowTestId: (row: MarketRow) => string;
 }) {
   return (
@@ -276,9 +278,9 @@ export function MarketScreenerPanel() {
     onCleanup(() => document.removeEventListener("keydown", onKeyDown));
   });
 
-  const getRowStyle = (row: MarketRow) =>
+  const getRowStyle = (row: MarketRow): JSX.CSSProperties | undefined =>
     row.symbol === selectedSymbol()
-      ? { backgroundColor: "rgba(88, 166, 255, 0.12)" }
+      ? { "background-color": alpha(PRIMARY, 0.16) }
       : undefined;
 
   const getRowTestId = (row: MarketRow) => `market-row-${row.symbol}`;
