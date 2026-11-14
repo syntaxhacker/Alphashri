@@ -148,7 +148,8 @@ and the rows never reorder. If the value is nested or derived, use `accessorFn`.
 
 ## 6. Type errors are a bug-finding instrument
 
-`npx tsc --noEmit` in this repo reports ~950 pre-existing errors. **Do not treat them as
+`npx tsc --noEmit` in this repo reports **369 pre-existing errors as of 2026-11-14**. Re-measure
+rather than trusting that number: `npx tsc --noEmit 2>&1 | grep -c "error TS"`. **Do not treat them as
 cosmetic.** Every cluster cleared so far exposed real runtime defects:
 
 | Cluster cleared | Runtime bug it exposed |
@@ -225,7 +226,7 @@ npx tsc --noEmit 2>&1 | grep -E '^src/<your scope>/' | wc -l   # before/after
 .venv/bin/python -m pytest <your test files> -q                # backend
 ```
 
-Guards that must stay green when your scope touches them:
+Guards that must stay green when your scope touches them (canonical list — `AGENTS.md` points here):
 
 ```bash
 npx vitest run src/test/style-keys.test.ts          # kebab-case + px strings
@@ -233,6 +234,8 @@ npx vitest run src/test/no-props-destructure.test.ts
 npx vitest run src/test/numeric-typography.test.ts   # mono + tabular
 npx vitest run src/test/table-structure.test.ts      # column-declaration baseline
 npx vitest run src/test/ui-guard.test.ts
+npx vitest run src/test/design-scale.test.ts         # radius · control height · icon size · 9px type floor · focus ring
+npx vitest run src/test/theme-single-source.test.ts  # palette is the only hex source
 npx vitest run src/ui/inputs/inputs.w-h.test.tsx
 ```
 
@@ -278,15 +281,18 @@ grep -c "WALLS_GRID_COLS" NiftyWallsCard.tsx   # count occurrences, not lines
 
 ## 9. Model routing
 
+Canonical source for model routing **and** concurrency — `AGENTS.md` and
+`docs/agent-fleet-playbook.md` point here rather than restating it.
+
 | Purpose | Model |
 |---|---|
-| **Default for all subagent work** | the **current/main session model** (whatever the parent is running) |
-| Free-tier fallback when the default is unavailable | `opencode/deepseek-v4.1-flash-free`, `opencode/nemotron-3.5-super-vl-free`, `openrouter/nvidia/nemotron-3.5-super-vl:free`, `openrouter/baidu/ernie-5.5-flash-preview:free` |
+| **Default for all subagent work** | `opencode/nemotron-3.5-super-vl-free` ("Nemotron 3.5 Super VL Free", $0) |
+| Fallback pool (use when a free tier reports `Free usage limit reached`) | `opencode/deepseek-v4.1-flash-free`, `openrouter/nvidia/nemotron-3.5-super-vl:free`, `openrouter/baidu/ernie-5.5-flash-preview:free`, `commandcode/deepseek-v4.1` |
 | Adversarial / final verification | escalate one agent, state why |
 
 - The user's standing instruction is **one model for every agent** — do not mix models
   across a wave unless asked.
-- **Up to 5 concurrent agents** on disjoint file sets. More just queues.
+- **5 concurrent agents** max, on disjoint file sets. More just queues.
 - Free tiers return `Free usage limit reached` mid-task and can leave the tree half-edited.
   When that happens: the main agent finishes the task itself and says so.
 - Verify every agent claim. Reports have asserted success while the page was blank, the

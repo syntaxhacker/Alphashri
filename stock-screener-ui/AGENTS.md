@@ -85,18 +85,13 @@ Full rules: [UI_RULES.md](./UI_RULES.md). Checklist to tick for every revamp: [U
 2. **Inputs default to `fullWidth`.** In a row, give each an explicit `w={n}` or wrap it in a flex cell (`<Box className="flex-1 min-w-0">` + `style={{ width: "100%" }}`). Accidental full-width selects are a bug.
 3. **Control rows use `<ToolbarRow>`** (from `@/ui`) — it forces `align-items:center` + explicit gap. `Group` defaults to `align-items: stretch`; if used for controls, pass `align="center"`.
 4. **No nested bordered cards**; one border per section, inner separation via dividers. Panels/charts fill their flex container (`autoSize`, no fixed heights in flex panels).
-5. **Verify visually, not just build.** After any UI change: `bun run build && bun run lint`, then a chrome-devtools screenshot at a real viewport in empty/loading/full states, then the guards:
-   - `npx vitest run src/test/ui-guard.test.ts`
-   - `npx vitest run src/test/design-scale.test.ts` (radius · control height · icon size · 9px type floor · focus ring)
-   - `npx vitest run src/test/theme-single-source.test.ts`
-   - `npx vitest run src/ui/inputs/inputs.w-h.test.tsx`
-   - the feature's unit tests + its E2E spec.
+5. **Verify visually, not just build.** After any UI change: `bun run build && bun run lint`, then a chrome-devtools screenshot at a real viewport in empty/loading/full states, then run the guard suite listed once in `SUBAGENT_RULES.md §8` (do not keep a second copy here) plus the feature's unit tests and its E2E spec.
    Build/lint do NOT catch alignment bugs — the screenshot is part of the definition of done.
 6. **A page is not "done" until it is measured, not eyeballed.** The Index Report chrome was 800px above the chart (walls card 475px) with the chart permanently below the fold, and it survived review because nothing measured it. If a fix claims "now it fits", take the `getBoundingClientRect()` numbers before/after and put them in the commit message.
 
 ## State Management
 - All stores in `src/state/` — custom `createSubscriber` pattern + `useStoreSubscription` hook
-- Redux slices in `src/state/store/` (appSlice, notificationsSlice) — legacy, minimal usage
+- Solid `createStore` slices in `src/state/store/` (appSlice, notificationsSlice) — legacy, minimal usage
 - Never call `useState` for data that lives in a store
 
 ## Component Patterns
@@ -110,16 +105,22 @@ Full rules: [UI_RULES.md](./UI_RULES.md). Checklist to tick for every revamp: [U
 ## Folder Structure
 ```
 src/
-  api/          # API layer (fetchWithAuth, endpoint functions)
+  api/          # one module per feature, typed calls over fetchWithAuth (src/state/auth.ts)
   assets/       # static assets (svg, images)
-  components/   # UI components organized by feature
-  config/       # constants.ts, theme.ts, backtestDefaults.ts
-  hooks/        # generic shared hooks (useAsyncData, useECharts, useStoreSubscription, useTableSort)
-  pages/        # page-level routing targets (chart, sector, settings, options, screener, strategies)
-  state/        # all state management (subscriber stores + redux in state/store/)
+  components/   # feature UI; common/ holds shared widgets (TanStackTable, tableCells, compact)
+  config/       # constants, theme, backtestDefaults, colors, patternCatalog, tvSymbols
+  hooks/        # useFetch, usePolling, useStoreSubscription, useScreenerState, useOptionsState, …
+  pages/        # route entry points (21 of 28 routes; 7 live under components/ — see docs/MAP.md)
+  patterns/     # GoF study modules + icons.tsx + solidUiMock.tsx (test-only). NOT the chart-pattern feature
+  state/        # createSubscriber stores; state/store/ holds Solid createStore slices
+  test/         # shared guard specs (style-keys, no-react, design-scale, …)
+  test-utils/   # shared render/test helpers
   types/        # TypeScript type definitions
-  utils/        # shared utilities (ui-helpers, chartUtils, notifications, runtime_utils)
+  ui/           # local design system (Box/Flex/Paper/inputs) + palette.ts = single colour source
+  utils/        # pure helpers (chartUtils, color, marketClock, reportParsers, …)
 ```
+
+**Agent navigation map: `docs/MAP.md`** — "to do X, go to Y", verified paths, and the three things named "patterns".
 
 ## Replay Trading
 - Components: `src/components/replay/` — page-level feature, uses SSE from `api/replay_api.py`
@@ -484,7 +485,7 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - See [MUTATION_TESTING.md](./MUTATION_TESTING.md) for advanced testing guide
 
 ## Agent Fleet / Subagent Routing
-- **Default subagent model: `opencode/nemotron-3.5-super-vl-free` ("Nemotron 3.5 Super VL Free", $0).** Use it for every subagent unless the user names a different model. Do not fall back to Muse.
+- **Default subagent model: `opencode/nemotron-3.5-super-vl-free` ("Nemotron 3.5 Super VL Free", $0).** Use it for every subagent unless the user names a different model. Model routing is owned by `SUBAGENT_RULES.md §9` — that section is authoritative; do not keep a second copy of the pool here.
 - Free-tier quota is finite — if a free model returns `Free usage limit reached`, report it and retry later or escalate that one agent, stating why.
 - Escalate a single agent to a stronger model **only** for correctness-critical work (adversarial verification, final holdout) and state why.
 - Long-running loop protocol (waves, ledger, gates, **fill-honesty audit**) lives in the **`non-stop`** skill.
@@ -496,7 +497,7 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - **Protected paths.** Never edit `db/alphashri.db`, `.github/workflows/test.yml`, or unrelated files already dirty in the worktree.
 - **Return contract.** Report changes, files touched, the exact test command with pass/fail counts, and anything not done. A report without test counts is rejected.
 - **Review gate.** The main agent reviews the diff, fills integration gaps, then runs the full affected suite + `oxlint` + `bun run build` + the UI guards before committing. Agents never commit.
-- **Free model pool:** `opencode/deepseek-v4.1-flash-free`, `opencode/nemotron-3.5-super-vl-free`, `openrouter/nvidia/nemotron-3.5-super-vl:free`, `opencode/crouton-alpha-free`. One model per independent scope.
+- **Free model pool:** owned by `SUBAGENT_RULES.md §9` — use the pool listed there, one model per independent scope.
 
 ### Comment policy
 - Comments explain **why**, never **what**. No narration (`// set the value`), no docstrings that restate the signature, no changelog comments.
@@ -635,8 +636,7 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - **`_filter_to_date_or_recent` timezone bug** — see [PRODUCTION.md](./PRODUCTION.md) (known production issue)
 - **TradingAgents auth**: `get_current_user` dependency has compatibility issues with this router (langgraph_sdk/chaining chainlit interference). All trading_agents endpoints use no auth or hardcoded user_id=3 for now.
 - **Analysis speed**: Multi-agent analysis takes 60-120s (15+ DeepSeek LLM calls). First analysis on any ticker is slow, subsequent requests are instant from file cache.
-- **`tsc` clusters still open** (~380 errors): `src/pages/**` beyond `report`, plus `components/options|sector|strategies|replay|backtest|news`. Cleared clusters (`report`, `common`+`ui`, `paper-trading`+`bots`, `screener`+`patterns`, `utils`+`api`+`state`) each exposed real runtime defects — treat the remaining ones as bug hunts, not tidying.
+- **`tsc` clusters still open** (369 errors as of 2026-11-14 — re-measure, do not trust this number): `src/pages/**` beyond `report`, plus `components/options|sector|strategies|replay|backtest|news`. Re-measure with `npx tsc --noEmit 2>&1 | grep -c "error TS"`. Cleared clusters (`report`, `common`+`ui`, `paper-trading`+`bots`, `screener`+`patterns`, `utils`+`api`+`state`) each exposed real runtime defects — treat the remaining ones as bug hunts, not tidying.
 - **Index Report chart focus (LEVEL 1/2)** — specified in [docs/INDEX_REPORT_REDESIGN.md](./docs/INDEX_REPORT_REDESIGN.md) but not built. The walls card is now 5-column and 216px (was 475px single-column), so the chart is visible; the drawer and focus mode are still pending.
 - **`rowWindowSize` unreachable rows** — `TanStackTable` discloses `showing 80 of 312 · 232 not rendered` in the footer, but there is still no way to reach the remainder.
-- **`HeatmapPage` Top-10 view renders two tables** — see [docs/BUGS_TABLES.md](./docs/BUGS_TABLES.md).
 - **Symbol cell click inversion** — body should navigate in-app, the `↗` affordance opens the external TV link; currently inverted. Top item in [docs/UX_BETTERMENT.md](./docs/UX_BETTERMENT.md).
