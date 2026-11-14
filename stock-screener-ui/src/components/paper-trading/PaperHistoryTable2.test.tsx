@@ -112,14 +112,15 @@ describe("PaperHistoryTable", () => {
       mockStateStore.isLoading = true;
       mockStateStore.trades = [];
       r();
-      expect(screen.getByText("Loading trade history...")).toBeInTheDocument();
       expect(screen.getByTestId("history-panel")).toBeInTheDocument();
+      expect(screen.getByRole("progressbar")).toBeInTheDocument();
     });
 
     test("does not show loading when isLoading but trades exist", () => {
       mockStateStore.isLoading = true;
       mockStateStore.trades = [mockTrade()];
       r();
+      expect(screen.getByTestId("trades-header")).toBeInTheDocument();
       expect(screen.queryByText("Loading trade history...")).not.toBeInTheDocument();
     });
   });
