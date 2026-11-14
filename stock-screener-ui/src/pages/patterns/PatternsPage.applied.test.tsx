@@ -543,10 +543,13 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
     expect(screen.queryByTestId("patterns-loading")).not.toBeInTheDocument();
   });
 
-  test("loading with no results and no active scan shows the generic loader", () => {
+  test("loading with no results and no active scan shows the card skeleton", () => {
     r(<PatternsPage {...makeProps({ loading: true, results: [], total: 0 })} />);
     expect(screen.getByTestId("patterns-loading")).toBeInTheDocument();
-    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+    // The fallback is a layout-matched card grid, not a centred spinner.
+    expect(screen.getByTestId("patterns-skeleton-grid")).toBeInTheDocument();
+    expect(screen.getAllByTestId("patterns-skeleton-card")).toHaveLength(8);
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     expect(screen.queryByTestId("patterns-grid")).not.toBeInTheDocument();
   });
 

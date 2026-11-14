@@ -1,5 +1,5 @@
-import { createEffect, createMemo, createSignal, mergeProps } from "solid-js";
-import { ActionIcon, Alert, Box, Button, Chip, Divider, Loader, LoadingOverlay, Menu, MenuDropdown, MenuItem, MenuTarget, Modal, SegmentedControl, Select, Switch, Tabs, Text, ToolbarRow, Tooltip, useMediaQuery } from "@/ui";
+import { Suspense, batch, createEffect, createMemo, createSignal, mergeProps, type JSX } from "solid-js";
+import { ActionIcon, Alert, Box, Button, Chip, Divider, LoadingOverlay, Menu, MenuDropdown, MenuItem, MenuTarget, Modal, SegmentedControl, Select, Switch, Tabs, Text, ToolbarRow, Tooltip, useMediaQuery } from "@/ui";
 import { IconAdjustmentsHorizontal, IconDotsVertical } from "@/components/common/Icons";
 import type {
   JobDTO,
@@ -19,6 +19,7 @@ import { LookbackSelect } from "@/components/patterns/LookbackSelect";
 import { SymbolFilter } from "@/components/patterns/SymbolFilter";
 import { ResultsSearch } from "@/components/patterns/ResultsSearch";
 import { PatternGrid } from "@/components/patterns/PatternGrid";
+import { PatternSkeleton, PatternGridSkeleton } from "@/components/patterns/PatternSkeleton";
 import { PatternListView } from "@/components/patterns/PatternListView";
 import { IndexMembersDrawer } from "@/components/patterns/IndexMembersDrawer";
 import { PatternSymbolMatrix } from "@/components/patterns/PatternSymbolMatrix";
@@ -148,7 +149,7 @@ export interface PatternsPageProps {
  * Patterns workspace: universe() bar + stat strip on top, then a 2-column layout
  * (filter rail | card grid). Clicking a card opens the fullscreen chart.
  */
-export function PatternsPage(props: PatternsPageProps) {
+function PatternsWorkspace(props: PatternsPageProps) {
   // Solid props are getters — never destructure. Local accessors keep call
   // sites terse while staying lazy; the parent store drives reactivity.
   const timeframes = () => props.timeframes;
@@ -904,12 +905,12 @@ export function PatternsPage(props: PatternsPageProps) {
         {(view() === "matrix" ? matrixLoading() : loading()) && !hasRows() ? (
           <Box
             data-testid="patterns-loading"
-            className="flex flex-col items-center justify-center gap-2 py-6"
+            className="flex flex-1 min-h-0 flex-col gap-2 overflow-hidden"
           >
             {scanActive() ? (
               <ScanProgress job={job()} scanning={scanning()} universe={universe()} timeframe={timeframe()} variant="block" />
             ) : (
-              <Loader size="lg" />
+              <PatternGridSkeleton />
             )}
           </Box>
         ) : !hasRows() ? (
@@ -1148,3 +1149,23 @@ export function PatternsPage(props: PatternsPageProps) {
     </Box>
   );
 }
+
+/**
+ * Route entry: the boundary swaps in a layout-matched skeleton until
+ * everything below it has resolved, so a cold load never shows a spinner
+ * over an empty page.
+ */
+export function PatternsPage(props: PatternsPageProps) {
+  let tree!: JSX.Element;
+  // Solid leaves its effect queue null when a Suspense is constructed outside
+  // a reactive root (the page tests build the element eagerly); batch seeds it.
+  batch(() => {
+    tree = (
+      <Suspense fallback={<PatternSkeleton />}>
+        <PatternsWorkspace {...props} />
+      </Suspense>
+    );
+  });
+  return tree;
+}
+

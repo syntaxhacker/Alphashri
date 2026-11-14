@@ -713,6 +713,9 @@ describe("PatternsPage", () => {
   test("shows loading state", () => {
     r(<PatternsPage {...makeProps({ loading: true, results: [], total: 0 })} />);
     expect(screen.getByTestId("patterns-loading")).toBeInTheDocument();
+    // Cold load draws the card skeleton, not a centred spinner.
+    expect(screen.getByTestId("patterns-skeleton-grid")).toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     expect(screen.queryByTestId("patterns-empty")).not.toBeInTheDocument();
   });
 
