@@ -1,6 +1,5 @@
-import { onCleanup } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import { usePreviewChart } from "./PreviewChartProvider";
+import { useSymbolDock } from "./symbolDockContext";
 import { SymbolLink } from "./SymbolLink";
 
 interface ClickableSymbolProps {
@@ -8,6 +7,7 @@ interface ClickableSymbolProps {
   fw?: number;
   size?: string;
   showPreview?: boolean;
+  /** @deprecated the dock owns preview dismissal. */
   previewTimeout?: number;
   onClick?: (symbol: string) => void;
   stopClickPropagation?: boolean;
@@ -15,51 +15,26 @@ interface ClickableSymbolProps {
   testId?: string;
 }
 
-/**
- * Thin wrapper over SymbolLink for clickable symbol buttons in tables.
- * - Symbol text is a button (not a TradingView link) that navigates or calls onClick.
- * - Hover preview via PreviewChartProvider (host/dock) when mounted, falls back to no-op.
- * - Preserves `.symbol-link` class and `data-testid`/`symbol-link-<symbol>` e2e contracts.
- * - Keeps `stopClickPropagation` and 5s close timer behaviour for backward compat.
- */
+/** Symbol button for tables: hover previews in the dock, click navigates. */
 export function ClickableSymbol(props: ClickableSymbolProps) {
   const navigate = useNavigate();
-  const { showPreviewChart, hidePreviewChart } = usePreviewChart();
-  let closeTimer: number | null = null;
+  const dock = useSymbolDock();
 
-  const clearCloseTimer = () => {
-    if (closeTimer) {
-      clearTimeout(closeTimer);
-      closeTimer = null;
-    }
-  };
-
-  const handleClosePreview = () => {
-    clearCloseTimer();
-    hidePreviewChart();
-  };
-
-  const handleMouseEnter = (_symbol: string, e?: MouseEvent) => {
+  const handleMouseEnter = () => {
     if (!(props.showPreview ?? false)) return;
-    if (!e) return;
-    clearCloseTimer();
-    showPreviewChart(e, props.symbol);
+    dock.preview(props.symbol);
   };
 
   const handleMouseLeave = () => {
     if (!(props.showPreview ?? false)) return;
-    clearCloseTimer();
-    hidePreviewChart();
-    closeTimer = window.setTimeout(() => {
-      handleClosePreview();
-    }, props.previewTimeout ?? 5000);
+    dock.endPreview();
   };
 
   const handleTextClick = (sym: string, e: MouseEvent) => {
     if (props.stopClickPropagation ?? true) {
       e.stopPropagation();
     }
-    handleClosePreview();
+    dock.endPreview();
     if (props.onClick) {
       props.onClick(sym);
     } else {
@@ -67,21 +42,15 @@ export function ClickableSymbol(props: ClickableSymbolProps) {
     }
   };
 
-  onCleanup(clearCloseTimer);
-
   return (
     <SymbolLink
       symbol={props.symbol}
       tvLink={false}
       showChart={false}
       onTextClick={handleTextClick}
-      onPreview={(props.showPreview ?? false) ? handleMouseEnter : undefined}
-      onPreviewEnd={(props.showPreview ?? false) ? handleMouseLeave : undefined}
+      onPreview={handleMouseEnter}
+      onPreviewEnd={handleMouseLeave}
       testId={props.testId ?? `symbol-link-${props.symbol}`}
-      textClassName="symbol-link"
-      weight={props.fw ?? 600}
-      size={(props.size ?? "sm") as "xs" | "sm" | "md"}
-      stopPropagation={props.stopClickPropagation ?? true}
     />
   );
 }

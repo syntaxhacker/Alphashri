@@ -12,6 +12,8 @@ export interface SymbolDockApi {
   close: () => void;
   /** True while the dock holds a user-pinned chart (previews are ignored). */
   pinned: boolean;
+  /** Inline mount node; null falls back to the fixed overlay. */
+  setOutlet: (el: HTMLElement | null) => void;
 }
 
 const noop = () => {};
@@ -26,6 +28,7 @@ export const SymbolDockContext = createContext<SymbolDockApi>({
   open: noop,
   close: noop,
   pinned: false,
+  setOutlet: noop,
 });
 
 export function useSymbolDock(): SymbolDockApi {

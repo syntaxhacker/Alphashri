@@ -39,6 +39,7 @@ import { buildMarketColumns } from "./marketColumns";
 import { MarketFilterRail } from "./MarketFilterRail";
 import { MarketMapView, MarketViewToggle, type MarketViewMode } from "./MarketMapView";
 import { TanStackTable } from "../common/TanStackTable";
+import { ChartDockOutlet } from "../common/ChartDockOutlet";
 import { useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
 import { useSymbolDock } from "../common/symbolDockContext";
 
@@ -110,6 +111,7 @@ export function MarketScreenerPanel() {
   const [selectedSymbol, setSelectedSymbol] = createSignal<string | null>(null);
   const dock = useSymbolDock();
   const isNarrow = useMediaQuery("(max-width: 1023px)");
+  const isWide = useMediaQuery("(min-width: 1400px)");
 
   const { rows, total, updateMode, asOf, isLoading, error, refresh, stale: cachedStale, warming } =
     useMarketSnapshotSolid(universe);
@@ -502,6 +504,9 @@ export function MarketScreenerPanel() {
             </Paper>
           </Show>
         </Box>
+        <Show when={isWide()}>
+          <ChartDockOutlet class="flex-shrink-0 basis-[38%] min-w-80 max-w-3xl min-h-0 empty:hidden" />
+        </Show>
       </Box>
 
       <Show when={isNarrow() && drawerOpen()}>
