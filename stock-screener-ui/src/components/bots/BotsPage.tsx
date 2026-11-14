@@ -236,7 +236,7 @@ function BotsTable(props: {
         />
       }
     >
-      <Box id="bots-list-card" data-testid="bots-list-card" className="overflow-hidden rounded border border-fin-border bg-fin-surface">
+      <Box id="bots-list-card" data-testid="bots-list-card" className="flex min-h-0 flex-1 flex-col overflow-hidden rounded border border-fin-border bg-fin-surface">
         <ToolbarRow gap={8} wrap={false} style={{ padding: "8px 12px", "border-bottom": "1px solid var(--color-fin-border)" }}>
           <Box w={4} h={20} className="rounded-sm bg-fin-positive" />
           <Text size="sm" fw={600}>Configured Bots</Text>
@@ -247,6 +247,7 @@ function BotsTable(props: {
           data={state().bots}
           columns={columns()}
           dataTestId="bots-table"
+          fillContainer
           getRowTestId={(row) => `bot-row-${row.id}`}
           getRowClassName={() => "bot-row"}
           getRowStyle={(row) => ({
@@ -278,7 +279,7 @@ function PageContent(props: {
     >
       <Stack className="flex flex-1 min-h-0 min-w-0 flex-col gap-2 px-4 py-2" id="bots-page">
         <BotsPageTabs currentView={props.currentView} onViewChange={props.handleViewChange} />
-        <Box className="flex-1 min-h-0 min-w-0 overflow-auto">
+        <Box className="flex flex-1 min-h-0 min-w-0 flex-col overflow-hidden">
           <Switch>
             <Match when={isLoading()}>
               <Stack align="center" justify="center" className="h-full" data-testid="bots-loading">
