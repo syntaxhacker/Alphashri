@@ -354,6 +354,18 @@ describe("NiftyWallsCard", () => {
 
 
 
+  it("lays the populated band out in five columns, not one", () => {
+    // Measured in the browser at 1366px: the xs single-column variant stacked
+    // CALL/PUT/READ/history and grew the card to 475px, which pushed the chart
+    // below the fold. The wide variant has to actually be applied.
+    render(() => <NiftyWallsCard walls={walls} onExpand={onExpand} />);
+    const grid = screen.getByTestId("nifty-walls-grid");
+    expect(grid.className).toContain("min-[1100px]:grid-cols-");
+    expect(grid.className).toContain("grid-cols-1");
+    // Guard the inline style too: an inline template would beat the variant.
+    expect(grid.getAttribute("style") ?? "").not.toContain("grid-template-columns");
+  });
+
   it("renders a reserved skeleton instead of a one-line empty row when there is no payload", () => {
     render(() => (
     <NiftyWallsCard walls={null} onExpand={onExpand} />

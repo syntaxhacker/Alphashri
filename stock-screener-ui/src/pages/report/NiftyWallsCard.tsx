@@ -52,12 +52,6 @@ const WALLS_HEADINGS = ["OI", "NEW", "5m", "30m", "DIST"] as const;
  *  skeleton keeps the same band height as the populated card. */
 const WALLS_RESERVED_H = 96;
 
-/** The walls band grid: state/stats | CALL | PUT | READ+SEQ | tracked history. */
-const WALLS_GRID_COLS = {
-  xs: "minmax(0,1fr)",
-  md: "250px 1fr 1fr minmax(280px,1fr) minmax(120px,1fr)",
-} as const;
-
 function Stat(props: { label: string; value: string; color?: string }) {
   return (
     <div class="min-w-0 py-[2px]">
@@ -635,7 +629,7 @@ function WallsSkeleton(props: { emptyText: string }) {
       class="grid gap-[8px] p-[8px] items-start"
       style={{
         display: "grid",
-        "grid-template-columns": WALLS_GRID_COLS.xs,
+        "grid-template-columns": "minmax(0,1fr)",
         gap: `${REPORT_PAD.sm}px`,
         padding: `${REPORT_PAD.sm}px`,
         "align-items": "start",
@@ -855,14 +849,12 @@ export function NiftyWallsCardInner(props: {
       style={{ "border-top": "none" }}
     >
       <div
-        class="grid items-start"
-        style={{
-          display: "grid",
-          "grid-template-columns": WALLS_GRID_COLS.xs,
-          gap: `${REPORT_PAD.sm}px`,
-          padding: `${REPORT_PAD.sm}px`,
-          "align-items": "start",
-        }}
+        // The five-column band is the point of this card: at the xs variant it
+        // stacked CALL/PUT/READ/history into one column and grew to 475px,
+        // which pushed the chart below the fold. Media query, not inline style,
+        // so the wide layout actually wins at desk width.
+        class="grid items-start gap-[8px] p-[8px] grid-cols-1 min-[1100px]:grid-cols-[250px_1fr_1fr_minmax(280px,1fr)_minmax(120px,1fr)]"
+        data-testid="nifty-walls-grid"
       >
         <div class="min-w-0">
           <div class="flex items-center flex-wrap gap-2" style={{ "align-items": "center", "flex-wrap": "wrap", "row-gap": `${REPORT_PAD.xs}px` }}>
