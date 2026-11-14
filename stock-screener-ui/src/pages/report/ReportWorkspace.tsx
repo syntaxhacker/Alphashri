@@ -48,7 +48,7 @@ const SIDE_TAB_STYLE: JSX.CSSProperties = {
   "padding-right": "4.8px",
   "padding-top": "0",
   "padding-bottom": "0",
-  "font-size": "8px",
+  "font-size": "9px",
   "font-weight": 800,
   "letter-spacing": "0.4px",
 };

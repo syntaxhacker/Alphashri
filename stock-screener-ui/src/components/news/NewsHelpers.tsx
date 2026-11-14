@@ -473,7 +473,7 @@ export function NewsListHeader(props: {
         </Text>
         <Show when={props.wsConnected}>
           <Tooltip label="Live updates connected">
-            <Box style={{ color: palette.POSITIVE, "font-size": "8px" }}>
+            <Box style={{ color: palette.POSITIVE, "font-size": "9px" }}>
               <Box style={{ width: "8px", height: "8px", "border-radius": "50%", "background-color": palette.POSITIVE }} />
             </Box>
           </Tooltip>

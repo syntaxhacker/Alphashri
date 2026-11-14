@@ -290,7 +290,7 @@ function DeskSideColumn(props: { side: DeskSide; label: string; noTrade: boolean
                     fw={800}
                     style={{
                       color: TAG_COLORS[reason.tag],
-                      "font-size": "8px",
+                      "font-size": "9px",
                       "line-height": 1.5,
                       "letter-spacing": "0.06em",
                       "text-transform": "uppercase",

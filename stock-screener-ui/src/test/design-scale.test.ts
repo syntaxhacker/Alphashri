@@ -133,8 +133,9 @@ describe("type scale", () => {
       readFileSync(path, "utf8")
         .split("\n")
         .forEach((text, i) => {
-          for (const m of text.matchAll(/text-\[(\d+)px\]/g)) {
-            if (!TYPE_SCALE.has(m[1])) offenders.push({ file: rel, line: i + 1, detail: `${m[1]}px` });
+          for (const m of text.matchAll(/text-\[(\d+)px\]|[bf]ont-?[sS]ize["']?\s*:\s*["'](\d+)px["']/g)) {
+            const px = m[1] ?? m[2];
+            if (!TYPE_SCALE.has(px)) offenders.push({ file: rel, line: i + 1, detail: `${px}px` });
           }
         });
     }

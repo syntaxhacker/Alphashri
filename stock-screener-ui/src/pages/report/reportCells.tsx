@@ -177,7 +177,7 @@ export function DecisionChip(props: {
         size="xs"
         fw={700}
         c="dimmed"
-        style={{ "font-size": "8px", "letter-spacing": "0.05em" }}
+        style={{ "font-size": "9px", "letter-spacing": "0.05em" }}
       >
         {props.label}
       </Text>

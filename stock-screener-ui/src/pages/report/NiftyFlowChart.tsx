@@ -166,7 +166,7 @@ export function NiftyFlowChart(props: NiftyFlowChartProps) {
     <div data-testid="nifty-flowchart" class="w-full min-w-0 relative">
       <span
         aria-hidden
-        style={{ position: "absolute", left: 0, top: 0, "font-size": "8px", "letter-spacing": "0.06em", color: palette.TEXT_MUTED, "pointer-events": "none" }}
+        style={{ position: "absolute", left: 0, top: 0, "font-size": "9px", "letter-spacing": "0.06em", color: palette.TEXT_MUTED, "pointer-events": "none" }}
       >
         FLOW
       </span>
@@ -215,7 +215,7 @@ export function NiftyFlowChart(props: NiftyFlowChartProps) {
             const pct = (xOf(i) / VB_W) * 100;
             const tr = pct > 92 ? "translateX(-100%)" : pct < 2 ? "none" : "translateX(-50%)";
             return (
-              <span style={{ position: "absolute", left: `${pct}%`, "transform": tr, "font-size": "8px", "line-height": "12px", color: palette.TEXT_MUTED, "font-family": palette.MONO, "white-space": "nowrap" }}>
+              <span style={{ position: "absolute", left: `${pct}%`, "transform": tr, "font-size": "9px", "line-height": "12px", color: palette.TEXT_MUTED, "font-family": palette.MONO, "white-space": "nowrap" }}>
                 {t}
               </span>
             );
