@@ -1,42 +1,119 @@
 # Test Rules — stock-screener-ui
 
 ## Stack
-- **Unit/component**: Vitest + `@testing-library/react` + happy-dom
+- **Unit/component**: Vitest + `@solidjs/testing-library` + happy-dom (the React adapter is gone — see `SOLID_MIGRATION.md`)
 - **E2E**: Playwright (`tests/e2e/`)
 - **Backend**: pytest (`tests/`)
 
-## Running Tests
-- `bun run test` — all vitest tests (`vitest run --dir src`)
-- `npx vitest run <file>` — single file (use this, NOT `bun test` which lacks vi.mock support)
-- `npx vitest run --dir src/components/paper-trading/` — directory
-- `bunx playwright test` — E2E tests (requires dev server running)
-- **Always use `--workers=5` for Playwright** to match CI parallelism
+---
 
-### Skip Test Environment Variables
-Use environment variables to skip specific test suites during development (faster iteration):
+## 0. No weak tests — the rule that outranks everything else
+
+A test earns its place only if it **can fail**. Before committing a test, ask: *what change
+would break this?* If the answer is "nothing plausible", delete it.
+
+### Forbidden (each was a real defect that survived the suite)
+
+| Anti-pattern | Why it is weak | Do instead |
+|---|---|---|
+| `expect(el).toBeInTheDocument()` as the only assertion | proves mount, not behaviour | assert the value/colour/class that matters |
+| asserting on an exact call count under fake timers | races; observes 2–4 instead of 1 | assert the settled state, or state the contract explicitly |
+| `vi.mock("@/ui")` in a page/feature test | the stub drops `c`/`fw`/`tt`/`size`, so a colour or typography regression **cannot fail** | render the real `@/ui`; it is local, dependency-free and fast |
+| a regression test that passes **before** the fix | proves nothing | prove it fails on the old code (revert via a `/tmp` copy, never `git checkout`) |
+| `expect(fn).toHaveBeenCalled()` when the argument matters | ignores the payload that caused the bug | assert the argument (`mock.calls[0][0]`) |
+| snapshot of an entire component | noisy, hides intent, breaks on styling | assert the specific invariants |
+| `toHaveStyle({ color: "..." })` against a mocked primitive | the mock never applies it | assert `className` contains the palette token, or render the real primitive |
+| "it renders" / "does not throw" | a blank page also does not throw | assert observable output |
+
+### Required shape
+
+Every behaviour test asserts **one of**: rendered text, a computed class/token, an emitted
+callback argument, a URL/param the code built, or a thrown error message. Nothing else counts.
+
+### Deterministic, not merely tolerant
+
+- No `waitFor` around something that is synchronous.
+- No `sleep`/`setTimeout` in a test body.
+- Fake timers: advance by an explicit duration, then assert the **settled** result.
+- If a test only passes with `--no-file-parallelism`, it is broken — fix the shared state, do
+  not serialise the runner.
+- Proving determinism: run the file **10 consecutive times**; all 10 green.
+
+### One assertion per concern
+
+A test named "renders the table" may assert headers, row count and a cell value — but when it
+fails the name must tell you which invariant broke. Split when the name stops being true.
+
+---
+
+## 1. What to mock, and what never to
+
+**Mock the boundary, never the design system.**
+
+| Mock | Verdict |
+|---|---|
+| `fetch` / `fetchWithAuth` / any HTTP | **yes** — a unit test must not hit the network |
+| `@solidjs/router` (`useNavigate`, `useSearchParams`) | **yes** — routing is out of scope |
+| auth / session / token refresh | **yes** |
+| `echarts`, `lightweight-charts` (`@/utils/loadEcharts`) | **yes** — canvas is not inspectable in happy-dom |
+| `@/ui` primitives, `components/common/*` | **NO** — render the real component |
+| the module under test | **never** — you would be testing the mock |
+
+When you mock `@/ui` you are asserting against a component that does not exist in
+production. `src/pages/solidTestStubs.tsx` normalises `class`/`style`/`data-*` and **drops**
+`c`, `fw`, `tt`, `size`, `truncate`. That is precisely how `tt="uppercase"` shipped broken on
+34 labels and how `c="success"` stopped colouring after a `class=` override.
+
+Existing `@/ui` mocks are debt: retire one when you touch the file. Do not add new ones.
+
+---
+
+## 2. Running tests
+
+- `npx vitest run <file>` — single file. **Always prefer this.** (`bun test` lacks `vi.mock`.)
+- `npx vitest run --changed` — touched files only, for a quick loop.
+- `bun run test` — the whole suite. **CI only.** Locally it starves the API/tape writer during
+  market hours and takes >15 min, which is how tests stop being run at all.
+- Playwright: always pass a file filter. `--workers=4`, `--output=/tmp/...`.
+
+### Skip-suite env vars (pre-commit hooks)
 
 ```bash
-# Skip Python tests
-SKIP_PYTHON=1 git commit ...
-
-# Skip frontend unit tests  
-SKIP_UI=1 git commit ...
-
-# Skip both (e.g., for doc-only commits)
+SKIP_PYTHON=1 git commit ...      # doc-only / frontend-only
+SKIP_UI=1 git commit ...          # backend-only
 SKIP_PYTHON=1 SKIP_UI=1 git commit ...
 ```
 
-## File Conventions
+Never use these to hide a failure — only to skip suites your diff cannot affect.
 
-### Unit Test Files
-- Co-located with source: `src/**/*.test.ts` or `src/**/*.test.tsx`
-- Same directory as the component/module they test
-- Test file name matches source file name (e.g., `WatchlistScan.tsx` → `WatchlistScan.test.tsx`)
+---
 
-### E2E Tests
-- Located in `tests/e2e/`
-- Named `*.spec.ts`
-- Use Playwright's `page` fixture for browser interactions
+## 3. File conventions
+
+- Co-located: `src/**/*.test.ts(x)` beside the source, same basename.
+- A pure helper's tests live beside the helper, not beside its consumer.
+- E2E in `tests/e2e/*.spec.ts`.
+- Backend in `tests/**/test_*.py`.
+
+---
+
+## 4. Guards that must stay green
+
+These encode rules that are otherwise invisible in review. Fix the source, **never** the
+guard, and never add an allowlist entry without deleting another.
+
+```bash
+npx vitest run src/test/style-keys.test.ts          # kebab-case style keys + px strings
+npx vitest run src/test/no-props-destructure.test.ts # Solid props are getters
+npx vitest run src/test/numeric-typography.test.ts   # mono + tabular on every number
+npx vitest run src/test/table-structure.test.ts      # column-declaration baseline (shrinks)
+npx vitest run src/test/ui-guard.test.ts             # no Mantine styles={{}}
+npx vitest run src/test/theme-single-source.test.ts  # no hardcoded hex
+npx vitest run src/ui/inputs/inputs.w-h.test.tsx     # w/h honoured
+```
+
+An allowlist entry is a **promise to remove it**. If you cannot say when, do not add it.
+
 
 #### API Mock Pattern — Use `apiRoute()` for localhost:8765 endpoints
 
