@@ -16,7 +16,7 @@ export function PivotList(props: { pivots?: PatternHitDTO["pivots"] }) {
     <Show when={props.pivots?.length}>
       <Box
         data-testid="patterns-detail-pivots"
-        className="border-t border-fin-border pt-2"
+        className="border-t border-fin-border px-3 py-2"
       >
         <UnstyledButton
           onClick={toggle}
