@@ -47,4 +47,15 @@
   *::after {
     box-sizing: border-box;
   }
+
+  /*
+   * One focus ring for every native control. Components used to each re-invent
+   * `focus-visible:` (or omit it — 55 of 61 raw buttons had no focus state at
+   * all), so keyboard navigation was invisible on most of the app.
+   */
+  :is(button, a, [role="button"], summary):focus-visible,
+  :is(input, select, textarea):focus {
+    outline: 2px solid var(--color-fin-primary);
+    outline-offset: 1px;
+  }
 }

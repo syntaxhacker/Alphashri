@@ -85,6 +85,15 @@ describe("design scale", () => {
     expect(offenders, `\n${report}\n\nAllowed: ${[...RADIUS_SCALE].join(", ")}`).toEqual([]);
   });
 
+  it("every native control gets a focus ring", () => {
+    // One rule in tailwind.css covers all of them; this asserts it still exists
+    // and has not been narrowed to a class a raw button would not carry.
+    const css = readFileSync(join(SRC, "tailwind.css"), "utf8");
+    expect(css).toMatch(/:is\(button, a, \[role="button"\], summary\):focus-visible/);
+    expect(css).toMatch(/:is\(input, select, textarea\):focus/);
+    expect(css).toMatch(/outline: 2px solid var\(--color-fin-primary\)/);
+  });
+
   it("every control height is in the scale", () => {
     // Chart/canvas heights are content-driven and legitimately arbitrary
     // (a 340px sparkline panel, a 148px IV skew). Only *control* heights —
