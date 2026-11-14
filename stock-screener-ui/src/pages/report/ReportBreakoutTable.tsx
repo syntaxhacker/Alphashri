@@ -1,11 +1,12 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
-import { Badge, Chip, SegmentedControl, Text, ToolbarRow } from "@/ui";
+import { Badge, Chip, SegmentedControl, ToolbarRow } from "@/ui";
 import { CompactPanel } from "@/components/common/compact";
+import { BadgeCell, NumCell, SymbolCell, TextCell } from "@/components/common/tableCells";
 import { TanStackTable, type TableColumnDef } from "@/components/common/TanStackTable";
 import { LocalSymbolAvatar, LocalSparkline } from "./reportBits";
 import { ReportPanelTitle } from "./reportCells";
 import type { BreakoutRow, BreakoutSide } from "../../types/report";
-import { formatCurrency, formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
+import { formatCurrency, formatPercentage } from "../../utils/ui-helpers";
 
 export const BREAKOUT_TYPE_LABELS: Record<string, string> = {
   "52w_high": "52W High",
@@ -106,16 +107,7 @@ export function ReportBreakoutTable(props: ReportBreakoutTableProps) {
           return (
             <div class="flex items-center gap-2 min-w-0">
               <LocalSymbolAvatar symbol={r.symbol} name={r.name} size={20} />
-              <div class="min-w-0 flex flex-col">
-                <Text size="xs" fw={700} truncate span>
-                  {r.symbol}
-                </Text>
-                <Show when={r.name}>
-                  <Text size="xs" c="dimmed" truncate span>
-                    {r.name}
-                  </Text>
-                </Show>
-              </div>
+              <SymbolCell symbol={r.symbol} name={r.name} />
             </div>
           );
         },
@@ -126,9 +118,7 @@ export function ReportBreakoutTable(props: ReportBreakoutTableProps) {
         accessorKey: "type",
         meta: { align: "center" },
         cell: ({ row }) => (
-          <Badge size="xs" color={typeColor(row.original.type, direction())}>
-            {typeLabel(row.original.type)}
-          </Badge>
+          <BadgeCell label={typeLabel(row.original.type)} color={typeColor(row.original.type, direction())} />
         ),
       },
       {
@@ -137,9 +127,7 @@ export function ReportBreakoutTable(props: ReportBreakoutTableProps) {
         accessorKey: "level",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <Text size="xs" span className="tabular-nums">
-            {formatCurrency(row.original.level, 2)}
-          </Text>
+          <NumCell value={row.original.level} format={(v) => formatCurrency(v, 2)} />
         ),
       },
       {
@@ -148,9 +136,7 @@ export function ReportBreakoutTable(props: ReportBreakoutTableProps) {
         accessorKey: "close",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <Text size="xs" span className="tabular-nums">
-            {formatCurrency(row.original.close, 2)}
-          </Text>
+          <NumCell value={row.original.close} format={(v) => formatCurrency(v, 2)} />
         ),
       },
       {
@@ -159,9 +145,11 @@ export function ReportBreakoutTable(props: ReportBreakoutTableProps) {
         accessorKey: "pct_above",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <Text size="xs" c={direction() === "up" ? "success" : "error"} span className="tabular-nums">
-            {formatPercentage(row.original.pct_above)}
-          </Text>
+          <NumCell
+            value={row.original.pct_above}
+            format={formatPercentage}
+            tone={direction() === "up" ? "success" : "error"}
+          />
         ),
       },
       {
@@ -169,14 +157,9 @@ export function ReportBreakoutTable(props: ReportBreakoutTableProps) {
         header: "Vol ×",
         accessorKey: "volume_ratio",
         meta: { align: "right" },
-        cell: ({ row }) => {
-          const v = row.original.volume_ratio;
-          return (
-            <Text size="xs" span className="tabular-nums">
-              {typeof v === "number" && Number.isFinite(v) ? `${v.toFixed(1)}x` : "—"}
-            </Text>
-          );
-        },
+        cell: ({ row }) => (
+          <NumCell value={row.original.volume_ratio} format={(v) => `${v.toFixed(1)}x`} />
+        ),
       },
       {
         id: "change",
@@ -184,9 +167,7 @@ export function ReportBreakoutTable(props: ReportBreakoutTableProps) {
         accessorKey: "change",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <Text size="xs" c={getPnLTextColor(row.original.change)} span className="tabular-nums">
-            {formatPercentage(row.original.change)}
-          </Text>
+          <NumCell value={row.original.change} signed format={formatPercentage} />
         ),
       },
       {
@@ -194,25 +175,20 @@ export function ReportBreakoutTable(props: ReportBreakoutTableProps) {
         header: "52W gap %",
         accessorKey: "to_52w_high",
         meta: { align: "right" },
-        cell: ({ row }) => {
-          const v = row.original.to_52w_high;
-          return (
-            <Text size="xs" c={getPnLTextColor(-(v ?? 0))} span className="tabular-nums">
-              {typeof v === "number" && Number.isFinite(v) ? formatPercentage(v) : "—"}
-            </Text>
-          );
-        },
+        cell: ({ row }) => (
+          <NumCell
+            value={row.original.to_52w_high == null ? null : -row.original.to_52w_high}
+            signed
+            format={(v) => formatPercentage(-v)}
+          />
+        ),
       },
       {
         id: "sector",
         header: "Sector",
         accessorKey: "sector",
         meta: { align: "left" },
-        cell: ({ row }) => (
-          <Text size="xs" c="dimmed" truncate span>
-            {row.original.sector || "—"}
-          </Text>
-        ),
+        cell: ({ row }) => <TextCell value={row.original.sector} dimmed />,
       },
       {
         id: "spark",
