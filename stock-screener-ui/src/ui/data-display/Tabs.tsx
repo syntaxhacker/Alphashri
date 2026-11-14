@@ -83,8 +83,12 @@ export function TabsList(props: UITabsProps) {
 
   const cls = cn(
     "ui-tabs-list",
-    known.orientation === "vertical" ? "flex flex-col" : "flex flex-row items-center",
-    "gap-1 min-h-[28px] rounded-fin border border-fin-border bg-fin-surface p-[2px]",
+    known.orientation === "vertical" ? "flex flex-col" : "flex flex-row items-stretch",
+    // A tab strip is navigation, not a control. It sits flat on the surface with a
+    // single rule under the whole row; the active tab marks itself with an accent
+    // underline that lands on that rule. The old bordered pill box made every page
+    // read as a card nested inside a card.
+    "gap-0 min-h-[30px] border-b border-fin-border",
     known.className,
   );
 
@@ -128,8 +132,13 @@ export function Tab(props: UITabProps) {
   const cls = createMemo(() =>
     cn(
       "ui-tab",
-      "inline-flex items-center justify-center gap-1 px-1.5 min-h-[28px] text-[10.5px] font-mono uppercase tracking-[0.07em] leading-none transition-colors outline-none focus-visible:ring-1 focus-visible:ring-fin-primary",
-      active() ? "text-fin-primary border-b-2 border-fin-primary" : "text-fin-text-muted hover:bg-fin-surface-alt hover:text-fin-text",
+      "inline-flex items-center justify-center gap-1.5 px-3 min-h-[30px] text-[11px] font-medium tracking-[0.02em] leading-none transition-colors outline-none focus-visible:ring-1 focus-visible:ring-fin-primary",
+      // Full-height underline instead of a border-bottom on the button: it reads as
+      // one continuous rule with the strip, not a floating chip.
+      "border-b-2 -mb-px",
+      active()
+        ? "text-fin-text font-semibold border-fin-primary"
+        : "text-fin-text-muted border-transparent hover:bg-fin-surface-alt hover:text-fin-text",
       known.disabled ? "opacity-50 cursor-default" : "cursor-pointer",
       known.className,
     ),
