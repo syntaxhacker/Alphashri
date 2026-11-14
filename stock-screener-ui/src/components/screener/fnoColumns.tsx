@@ -1,62 +1,68 @@
 import type { TableColumnDef } from "../common/TanStackTable";
-import { Badge, Box, Text, Tooltip } from "@/ui";
+import { Box, Tooltip } from "@/ui";
+import { BadgeCell, NumCell, TextCell } from "../common/tableCells";
 import { SymbolLink } from "../common/SymbolLink";
 import type { FnoScreenerRow } from "../../api/fnoScreener";
 import { formatNumber, formatPercentage } from "@/utils/ui-helpers";
 
-function setupTone(setup: FnoScreenerRow["setup"]): "success" | "info" | "warning" | "secondary" | "error" {
+function setupTone(
+  setup: FnoScreenerRow["setup"],
+): "success" | "info" | "warning" | "secondary" | "error" {
   switch (setup) {
-    case "BREAKOUT": return "success";
-    case "NEAR HIGH": return "info";
-    case "EXTENDED": return "warning";
-    case "WEAK": return "error";
-    default: return "secondary";
+    case "BREAKOUT":
+      return "success";
+    case "NEAR HIGH":
+      return "info";
+    case "EXTENDED":
+      return "warning";
+    case "WEAK":
+      return "error";
+    default:
+      return "secondary";
   }
 }
 
 function setupShort(setup: FnoScreenerRow["setup"]): string {
   switch (setup) {
-    case "BREAKOUT": return "BRK";
-    case "NEAR HIGH": return "NEAR";
-    case "EXTENDED": return "EXT";
-    default: return setup;
+    case "BREAKOUT":
+      return "BRK";
+    case "NEAR HIGH":
+      return "NEAR";
+    case "EXTENDED":
+      return "EXT";
+    default:
+      return setup;
   }
 }
 
 function setupLabel(setup: FnoScreenerRow["setup"]): string {
   switch (setup) {
-    case "BREAKOUT": return "BREAKOUT — at/above 20-day high with volume ≥1.1× average";
-    case "NEAR HIGH": return "NEAR HIGH — within 2% of the 20-day high";
-    case "EXTENDED": return "EXTENDED — 5D >12% or >15% above the 20-DMA";
-    case "BASE": return "BASE — within ±3% of the 20-DMA, volume <1.1×";
-    case "WEAK": return "WEAK — 1D and 5D both negative";
-    case "WATCH": return "WATCH — mixed momentum";
-    default: return setup;
+    case "BREAKOUT":
+      return "BREAKOUT — at/above 20-day high with volume ≥1.1× average";
+    case "NEAR HIGH":
+      return "NEAR HIGH — within 2% of the 20-day high";
+    case "EXTENDED":
+      return "EXTENDED — 5D >12% or >15% above the 20-DMA";
+    case "BASE":
+      return "BASE — within ±3% of the 20-DMA, volume <1.1×";
+    case "WEAK":
+      return "WEAK — 1D and 5D both negative";
+    case "WATCH":
+      return "WATCH — mixed momentum";
+    default:
+      return setup;
   }
 }
 
-function pct(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "–";
-  return formatPercentage(value);
-}
+const DASH = "–";
 
-function plainPct(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "–";
-  return formatPercentage(value, 2, false);
-}
-
-function pctTone(value: number | null | undefined): "success" | "error" | "secondary" {
-  if (value === null || value === undefined || Number.isNaN(value) || value === 0) return "secondary";
-  return value > 0 ? "success" : "error";
+/** Zero is the neutral reading for a momentum column, not a gain. */
+function pctTone(value: number): "dimmed" | undefined {
+  return value === 0 ? "dimmed" : undefined;
 }
 
 function money2(value: number): string {
   return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function fix2(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "–";
-  return value.toFixed(2);
 }
 
 export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
@@ -118,14 +124,11 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
         const r = row.original;
         return (
           <Tooltip label={setupLabel(r.setup)}>
-            <Badge
-              size="xs"
+            <BadgeCell
+              label={setupShort(r.setup)}
               color={setupTone(r.setup)}
-              data-testid={`fno-cell-setup-${r.symbol}`}
-              style={{ "white-space": "nowrap", "font-size": "9px" }}
-            >
-              {setupShort(r.setup)}
-            </Badge>
+              testId={`fno-cell-setup-${r.symbol}`}
+            />
           </Tooltip>
         );
       },
@@ -135,11 +138,13 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
       accessorFn: (r) => r.call,
       header: "CALL",
       size: 76,
-      meta: { align: "center" },
+      meta: { align: "left" },
       cell: ({ row }) => (
-        <Text size="xs" fw={600} data-testid={`fno-cell-call-${row.original.symbol}`}>
-          {row.original.call}
-        </Text>
+        <TextCell
+          value={row.original.call}
+          fw={600}
+          testId={`fno-cell-call-${row.original.symbol}`}
+        />
       ),
     },
     {
@@ -148,9 +153,12 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
       header: "SPOT",
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text size="xs" data-testid={`fno-cell-spot-${row.original.symbol}`}>
-          {money2(row.original.spot)}
-        </Text>
+        <NumCell
+          value={row.original.spot}
+          dash={DASH}
+          format={money2}
+          testId={`fno-cell-spot-${row.original.symbol}`}
+        />
       ),
     },
     {
@@ -159,9 +167,14 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
       header: "1D%",
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text size="xs" c={pctTone(row.original.d1)} data-testid={`fno-cell-d1-${row.original.symbol}`}>
-          {pct(row.original.d1)}
-        </Text>
+        <NumCell
+          value={row.original.d1}
+          dash={DASH}
+          signed
+          tone={pctTone(row.original.d1)}
+          format={formatPercentage}
+          testId={`fno-cell-d1-${row.original.symbol}`}
+        />
       ),
     },
     {
@@ -170,9 +183,14 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
       header: "5D%",
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text size="xs" c={pctTone(row.original.d5)} data-testid={`fno-cell-d5-${row.original.symbol}`}>
-          {pct(row.original.d5)}
-        </Text>
+        <NumCell
+          value={row.original.d5}
+          dash={DASH}
+          signed
+          tone={pctTone(row.original.d5)}
+          format={formatPercentage}
+          testId={`fno-cell-d5-${row.original.symbol}`}
+        />
       ),
     },
     {
@@ -181,9 +199,12 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
       header: "VOL×",
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text size="xs" data-testid={`fno-cell-vol-${row.original.symbol}`}>
-          {fix2(row.original.vol_ratio)}×
-        </Text>
+        <NumCell
+          value={row.original.vol_ratio}
+          dash={DASH}
+          format={(v) => `${v.toFixed(2)}×`}
+          testId={`fno-cell-vol-${row.original.symbol}`}
+        />
       ),
     },
     {
@@ -192,9 +213,12 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
       header: "OTM%",
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text size="xs" data-testid={`fno-cell-otm-${row.original.symbol}`}>
-          {plainPct(row.original.otm_pct)}
-        </Text>
+        <NumCell
+          value={row.original.otm_pct}
+          dash={DASH}
+          format={(v) => formatPercentage(v, 2, false)}
+          testId={`fno-cell-otm-${row.original.symbol}`}
+        />
       ),
     },
     {
@@ -203,9 +227,12 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
       header: "PREMIUM",
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text size="xs" data-testid={`fno-cell-premium-${row.original.symbol}`}>
-          {money2(row.original.premium)}
-        </Text>
+        <NumCell
+          value={row.original.premium}
+          dash={DASH}
+          format={money2}
+          testId={`fno-cell-premium-${row.original.symbol}`}
+        />
       ),
     },
     {
@@ -214,9 +241,12 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
       header: "COST",
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text size="xs" data-testid={`fno-cell-cost-${row.original.symbol}`}>
-          ₹{Math.round(row.original.cost_lot).toLocaleString("en-IN")}
-        </Text>
+        <NumCell
+          value={row.original.cost_lot}
+          dash={DASH}
+          format={(v) => `₹${Math.round(v).toLocaleString("en-IN")}`}
+          testId={`fno-cell-cost-${row.original.symbol}`}
+        />
       ),
     },
     {
@@ -225,9 +255,12 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
       header: "POP%",
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text size="xs" data-testid={`fno-cell-pop-${row.original.symbol}`}>
-          {plainPct(row.original.pop)}
-        </Text>
+        <NumCell
+          value={row.original.pop}
+          dash={DASH}
+          format={(v) => formatPercentage(v, 2, false)}
+          testId={`fno-cell-pop-${row.original.symbol}`}
+        />
       ),
     },
     {
@@ -236,9 +269,12 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
       header: "DELTA",
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text size="xs" data-testid={`fno-cell-delta-${row.original.symbol}`}>
-          {fix2(row.original.delta)}
-        </Text>
+        <NumCell
+          value={row.original.delta}
+          dash={DASH}
+          format={(v) => v.toFixed(2)}
+          testId={`fno-cell-delta-${row.original.symbol}`}
+        />
       ),
     },
     {
@@ -247,9 +283,12 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
       header: "GAMMA",
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text size="xs" data-testid={`fno-cell-gamma-${row.original.symbol}`}>
-          {fix2(row.original.gamma)}
-        </Text>
+        <NumCell
+          value={row.original.gamma}
+          dash={DASH}
+          format={(v) => v.toFixed(2)}
+          testId={`fno-cell-gamma-${row.original.symbol}`}
+        />
       ),
     },
     {
@@ -258,9 +297,12 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
       header: "THETA",
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text size="xs" data-testid={`fno-cell-theta-${row.original.symbol}`}>
-          {fix2(row.original.theta)}
-        </Text>
+        <NumCell
+          value={row.original.theta}
+          dash={DASH}
+          format={(v) => v.toFixed(2)}
+          testId={`fno-cell-theta-${row.original.symbol}`}
+        />
       ),
     },
     {
@@ -269,9 +311,12 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
       header: "VEGA",
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text size="xs" data-testid={`fno-cell-vega-${row.original.symbol}`}>
-          {fix2(row.original.vega)}
-        </Text>
+        <NumCell
+          value={row.original.vega}
+          dash={DASH}
+          format={(v) => v.toFixed(2)}
+          testId={`fno-cell-vega-${row.original.symbol}`}
+        />
       ),
     },
     {
@@ -280,9 +325,12 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
       header: "IV%",
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text size="xs" data-testid={`fno-cell-iv-${row.original.symbol}`}>
-          {plainPct(row.original.iv)}
-        </Text>
+        <NumCell
+          value={row.original.iv}
+          dash={DASH}
+          format={(v) => formatPercentage(v, 2, false)}
+          testId={`fno-cell-iv-${row.original.symbol}`}
+        />
       ),
     },
     {
@@ -291,9 +339,12 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
       header: "OI",
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text size="xs" data-testid={`fno-cell-oi-${row.original.symbol}`}>
-          {formatNumber(row.original.oi)}
-        </Text>
+        <NumCell
+          value={row.original.oi}
+          dash={DASH}
+          format={formatNumber}
+          testId={`fno-cell-oi-${row.original.symbol}`}
+        />
       ),
     },
     {
@@ -302,9 +353,12 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
       header: "SPREAD%",
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text size="xs" data-testid={`fno-cell-spread-${row.original.symbol}`}>
-          {plainPct(row.original.spread_pct)}
-        </Text>
+        <NumCell
+          value={row.original.spread_pct}
+          dash={DASH}
+          format={(v) => formatPercentage(v, 2, false)}
+          testId={`fno-cell-spread-${row.original.symbol}`}
+        />
       ),
     },
     {
@@ -313,9 +367,12 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
       header: "+2% est.",
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text size="xs" data-testid={`fno-cell-move-${row.original.symbol}`}>
-          {pct(row.original.move_2pct_est)}
-        </Text>
+        <NumCell
+          value={row.original.move_2pct_est}
+          dash={DASH}
+          format={formatPercentage}
+          testId={`fno-cell-move-${row.original.symbol}`}
+        />
       ),
     },
   ];

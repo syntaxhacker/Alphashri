@@ -166,7 +166,7 @@ export function CorrelationTab() {
   return (
     <Stack spacing={2} className="h-full w-full" data-testid="correlation-tab">
       <CompactPanel title="Correlation Analysis" description="Analyze price correlation between symbols">
-        <ToolbarRow gap={8} align="center" className="w-full">
+        <ToolbarRow gap={8} className="w-full">
           <MultiSelect
             placeholder="Search and select symbols"
             data={searchData().map((s) => ({ value: s.symbol, label: s.symbol }))}
@@ -210,7 +210,7 @@ export function CorrelationTab() {
         </ToolbarRow>
 
         <Show when={store().error}>
-          <Alert icon={<IconAlertCircle size={16} />} color="error" size="sm">
+          <Alert icon={<IconAlertCircle size={16} />} color="error">
             {store().error}
           </Alert>
         </Show>

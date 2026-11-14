@@ -54,10 +54,7 @@ const sampleRow: FnoScreenerRow = {
 
 type Accessor = (row: FnoScreenerRow) => unknown;
 
-function accessorOf(
-  columns: TableColumnDef<FnoScreenerRow>[],
-  id: string,
-): Accessor {
+function accessorOf(columns: TableColumnDef<FnoScreenerRow>[], id: string): Accessor {
   const col = columns.find((c) => c.id === id);
   expect(col).toBeDefined();
   return col!.accessorFn as Accessor;
@@ -120,5 +117,36 @@ describe("buildFnoColumns", () => {
     EXPECTED_DATA_COLUMNS.forEach((id) => {
       expect(accessorOf(columns, id)(sampleRow)).toBe(sampleRow[fieldById[id]]);
     });
+  });
+
+  it("declares an alignment that matches the rendered cell", () => {
+    const numbers = [
+      "spot",
+      "d1",
+      "d5",
+      "vol_ratio",
+      "otm_pct",
+      "premium",
+      "cost_lot",
+      "pop",
+      "delta",
+      "gamma",
+      "theta",
+      "vega",
+      "iv",
+      "oi",
+      "spread_pct",
+      "move_2pct_est",
+    ];
+    const alignOf = (id: string) =>
+      (columns.find((c) => c.id === id)?.meta as { align?: string })?.align;
+    numbers.forEach((id) => expect(alignOf(id), `${id} is numeric`).toBe("right"));
+    expect(alignOf("symbol")).toBe("left");
+    expect(alignOf("call")).toBe("left");
+    expect(alignOf("setup")).toBe("center");
+    expect(alignOf("expand")).toBe("center");
+    for (const col of columns) {
+      expect((col.meta as { align?: string } | undefined)?.align).toBeTruthy();
+    }
   });
 });

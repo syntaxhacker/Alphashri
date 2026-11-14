@@ -1,13 +1,8 @@
 import type { ColumnDef } from "./index";
-import { getPnLTextColor, formatTimeAgo } from "../../../utils/ui-helpers";
-import { Tooltip, Text } from "@/ui";
-import {
-  pnlPctCell,
-  fixedOrZero,
-  signedPercent,
-  signedPercentCell,
-  numCol,
-} from "./columnHelpers";
+import { formatPercentage, formatTimeAgo } from "../../../utils/ui-helpers";
+import { Tooltip } from "@/ui";
+import { BadgeCell, NumCell } from "@/components/common/tableCells";
+import { fixedOrZero, numCol, signedPercent, tonePositive } from "./columnHelpers";
 
 export const symbolCol: ColumnDef = {
   key: "symbol",
@@ -35,7 +30,9 @@ export const dayChangeCol: ColumnDef = {
   label: "Day Change",
   type: "number",
   sortable: true,
-  format: (value: number) => pnlPctCell(value),
+  format: (value: number) => (
+    <NumCell value={value} signed format={(v) => formatPercentage(v, 2, true)} />
+  ),
 };
 
 export const volumeMCol: ColumnDef = {
@@ -43,7 +40,7 @@ export const volumeMCol: ColumnDef = {
   label: "Volume (M)",
   type: "number",
   sortable: true,
-  format: (value: number) => fixedOrZero(value, 2),
+  format: (value: number) => <NumCell value={value ?? 0} format={(v) => fixedOrZero(v, 2)} />,
 };
 
 export const rsiCol: ColumnDef = {
@@ -51,7 +48,7 @@ export const rsiCol: ColumnDef = {
   label: "RSI",
   type: "number",
   sortable: true,
-  format: (value: number) => fixedOrZero(value, 1),
+  format: (value: number) => <NumCell value={value ?? 0} format={(v) => fixedOrZero(v, 1)} />,
 };
 
 export const adxCol: ColumnDef = {
@@ -59,7 +56,7 @@ export const adxCol: ColumnDef = {
   label: "ADX",
   type: "number",
   sortable: true,
-  format: (value: number) => fixedOrZero(value, 1),
+  format: (value: number) => <NumCell value={value ?? 0} format={(v) => fixedOrZero(v, 1)} />,
 };
 
 export const touched52wCol: ColumnDef = {
@@ -68,7 +65,7 @@ export const touched52wCol: ColumnDef = {
   type: "badge",
   sortable: true,
   format: (value: boolean, stock: any) => {
-    if (!value) return "No";
+    if (!value) return <BadgeCell label="No" color="secondary" />;
     const lastTouched = stock?.last_touched;
     if (lastTouched) {
       const timeAgo = formatTimeAgo(lastTouched);
@@ -79,13 +76,11 @@ export const touched52wCol: ColumnDef = {
       });
       return (
         <Tooltip label={`Touched on ${fullDate} (${timeAgo})`}>
-          <Text span fw={500} c="primary">
-            Yes ({timeAgo})
-          </Text>
+          <BadgeCell label={`Yes (${timeAgo})`} color="success" />
         </Tooltip>
       );
     }
-    return "Yes";
+    return <BadgeCell label="Yes" color="success" />;
   },
 };
 
@@ -94,28 +89,26 @@ export const volumeSurgeCol: ColumnDef = {
   label: "Vol Surge",
   type: "number",
   sortable: true,
-  format: (value: number) => (value ?? 1).toFixed(1) + "x",
+  format: (value: number) => <NumCell value={value ?? 1} format={(v) => `${v.toFixed(1)}x`} />,
 };
 
 export const moveCol = (key: string, label: string): ColumnDef =>
-  numCol(key, label, (value: number) =>
-    value != null
-      ? { value: signedPercent(value, 2), className: getPnLTextColor(value) }
-      : { value: "-", className: "" },
-  );
+  numCol(key, label, (value: number) => (
+    <NumCell value={value} signed dash="-" format={(v) => signedPercent(v, 2)} />
+  ));
 
 export const recentReturn5dCol: ColumnDef = {
   key: "recent_return_5d",
   label: "Return 5D",
   type: "number",
   sortable: true,
-  format: (value: number) => {
-    const cell = signedPercentCell(value, 1);
-    return {
-      ...cell,
-      value: `${value > 5 ? "🚀" : value > 0 ? "🟢" : "🔴"} ${cell.value}`,
-    };
-  },
+  format: (value: number) => (
+    <NumCell
+      value={value}
+      tone={tonePositive(value)}
+      format={(v) => `${v > 5 ? "🚀" : v > 0 ? "🟢" : "🔴"} ${signedPercent(v, 1)}`}
+    />
+  ),
 };
 
 export const perfWCol: ColumnDef = {
@@ -123,5 +116,7 @@ export const perfWCol: ColumnDef = {
   label: "Perf W",
   type: "number",
   sortable: true,
-  format: (value: number) => signedPercentCell(value, 1),
+  format: (value: number) => (
+    <NumCell value={value} tone={tonePositive(value)} format={(v) => signedPercent(v, 1)} />
+  ),
 };

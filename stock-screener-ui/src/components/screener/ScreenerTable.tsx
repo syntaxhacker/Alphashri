@@ -123,11 +123,12 @@ export function ScreenerTable(props: ScreenerTableProps) {
         enableSorting: col.sortable ?? true,
         meta: {
           align:
-            col.key === "symbol"
+            col.align ??
+            (col.key === "symbol" || col.type === "string"
               ? "left"
               : col.type === "badge" || col.key === "score"
                 ? "center"
-                : "right",
+                : "right"),
         },
         cell: ({ row }) => {
           const stock = row.original;

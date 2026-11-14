@@ -4,6 +4,7 @@ import { render, screen, cleanup, fireEvent, waitFor } from "@solidjs/testing-li
 import { createSignal } from "solid-js";
 import "@testing-library/jest-dom/vitest";
 import { ScreenerTable } from "./ScreenerTable";
+import { getColumnsForScreener } from "./columns";
 import { UIProvider } from "@/ui";
 import type { Stock } from "../../types";
 import type { ColumnDef } from "./columns";
@@ -148,13 +149,21 @@ describe("ScreenerTable", () => {
     expect(screen.getByTestId("stock-row-RELIANCE")).toBeInTheDocument();
     expect(screen.queryByTestId("stock-row-TCS")).not.toBeInTheDocument();
   });
-
 });
 
 describe("ScreenerTable market-tick updates", () => {
   const tickColumns: ColumnDef[] = [
     { key: "symbol", label: "Symbol", type: "string", sortable: true },
-    { key: "day_change", label: "Change", type: "number", sortable: true, format: (value: number) => ({ value: `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`, className: value >= 0 ? "success" : "error" }) },
+    {
+      key: "day_change",
+      label: "Change",
+      type: "number",
+      sortable: true,
+      format: (value: number) => ({
+        value: `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`,
+        className: value >= 0 ? "success" : "error",
+      }),
+    },
   ];
 
   it("shows the FINAL value after 120 rapid market ticks (no stale intermediate renders)", async () => {
@@ -196,7 +205,10 @@ describe("ScreenerTable approach badges", () => {
   it("shows FRESH badge for fresh approaches", () => {
     render(() => (
       <UIProvider>
-        <ScreenerTable {...badgeProps} stocks={[{ ...mockStock, approach_type: "fresh" as const }]} />
+        <ScreenerTable
+          {...badgeProps}
+          stocks={[{ ...mockStock, approach_type: "fresh" as const }]}
+        />
       </UIProvider>
     ));
     const badge = screen.getByTestId("approach-badge-RELIANCE");
@@ -207,7 +219,10 @@ describe("ScreenerTable approach badges", () => {
   it("shows RETEST badge for retests", () => {
     render(() => (
       <UIProvider>
-        <ScreenerTable {...badgeProps} stocks={[{ ...mockStock, symbol: "ZIMLAB", approach_type: "retest" as const }]} />
+        <ScreenerTable
+          {...badgeProps}
+          stocks={[{ ...mockStock, symbol: "ZIMLAB", approach_type: "retest" as const }]}
+        />
       </UIProvider>
     ));
     const badge = screen.getByTestId("approach-badge-ZIMLAB");
@@ -222,5 +237,42 @@ describe("ScreenerTable approach badges", () => {
       </UIProvider>
     ));
     expect(screen.queryByTestId("approach-badge-RELIANCE")).not.toBeInTheDocument();
+  });
+});
+
+describe("ScreenerTable column kit", () => {
+  it("renders numeric cells mono/tabular right and badges centred", () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerTable
+          stocks={[mockStock]}
+          columns={getColumnsForScreener("buyer_interest_enhanced")}
+          touchedSymbols={new Set()}
+          onSymbolClick={vi.fn()}
+          onSymbolHover={vi.fn()}
+        />
+      </UIProvider>
+    ));
+    const row = screen.getByTestId("stock-row-RELIANCE");
+    const headers = [...document.querySelectorAll("thead th")].map((th) => th.textContent!.trim());
+    const cells = [...row.querySelectorAll("td")];
+
+    for (const name of ["Day Change", "Volume (M)", "Return 5D"]) {
+      const index = headers.indexOf(name);
+      expect(index, `${name} header exists`).toBeGreaterThan(-1);
+      expect(cells[index].style.textAlign, `${name} header`).toBe("right");
+      const value = cells[index].firstElementChild as HTMLElement;
+      expect(value.className, name).toContain("font-mono");
+      expect(value.className, name).toContain("tabular-nums");
+      expect(value.className, name).toContain("text-right");
+    }
+
+    const touchedIndex = headers.indexOf("Touched");
+    expect(cells[touchedIndex].style.textAlign).toBe("center");
+    expect(cells[touchedIndex].textContent).toBe("No");
+
+    const sectorIndex = headers.indexOf("Sector");
+    expect(cells[sectorIndex].style.textAlign).toBe("left");
+    expect(cells[sectorIndex].textContent).toBe("Energy");
   });
 });

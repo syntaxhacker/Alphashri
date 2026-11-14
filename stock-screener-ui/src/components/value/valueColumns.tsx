@@ -1,21 +1,19 @@
 import type { JSX } from "solid-js";
 import { For } from "solid-js";
 import type { TableColumnDef as ColumnDef } from "../common/TanStackTable";
-import { Box, Badge, Text } from "@/ui";
+import { Box, Text } from "@/ui";
 import type { ValueRow } from "../../api/valueScan";
 import { SymbolLink } from "../common/SymbolLink";
+import { BadgeCell, NumCell, TextCell } from "../common/tableCells";
 import { ValueScoreCell } from "./ValueScoreCell";
-import {
-  formatValueMcap,
-  formatValueNum,
-  formatValuePct,
-  formatValuePrice,
-} from "./valueFormat";
+import { formatValueMcap, formatValueNum, formatValuePct, formatValuePrice } from "./valueFormat";
+
+const DASH = "–";
 
 function dash(symbol: string, key: string): JSX.Element {
   return (
     <Text size="xs" c="dimmed" data-testid={`value-dash-${symbol}-${key}`}>
-      –
+      {DASH}
     </Text>
   );
 }
@@ -94,17 +92,12 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
               weight={600}
               className="flex-shrink-0"
             />
-            <Text
-              size="xs"
-              c="dimmed"
-              truncate
-              lh={1.15}
+            <TextCell
+              value={`${r.name} · ${r.exchange}`}
+              dimmed
               title={`${r.name} · ${r.exchange}`}
-              data-testid={`value-subname-${r.symbol}`}
-              className="min-w-0 text-[10px]"
-            >
-              {r.name} · {r.exchange}
-            </Text>
+              testId={`value-subname-${r.symbol}`}
+            />
           </Box>
         );
       },
@@ -117,9 +110,13 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
       cell: ({ row }) => {
         const r = row.original;
         return (
-          <Text size="xs" fw={500} data-testid={`value-price-${r.symbol}`}>
-            {formatValuePrice(r)}
-          </Text>
+          <NumCell
+            value={r.price}
+            dash={DASH}
+            fw={500}
+            format={(v) => formatValuePrice({ ...r, price: v })}
+            testId={`value-price-${r.symbol}`}
+          />
         );
       },
     },
@@ -131,14 +128,14 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
       cell: ({ row }) => {
         const r = row.original;
         return (
-          <Text
-            size="xs"
+          <NumCell
+            value={r.change}
+            dash={DASH}
+            signed
             fw={600}
-            c={r.change >= 0 ? "success" : "error"}
-            data-testid={`value-change-${r.symbol}`}
-          >
-            {formatValuePct(r.change)}
-          </Text>
+            format={(v) => formatValuePct(v)}
+            testId={`value-change-${r.symbol}`}
+          />
         );
       },
     },
@@ -150,9 +147,12 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
       cell: ({ row }) => {
         const r = row.original;
         return (
-          <Text size="xs" data-testid={`value-mcap-${r.symbol}`}>
-            {formatValueMcap(r)}
-          </Text>
+          <NumCell
+            value={r.mcap_bn}
+            dash={DASH}
+            format={(v) => formatValueMcap({ ...r, mcap_bn: v })}
+            testId={`value-mcap-${r.symbol}`}
+          />
         );
       },
     },
@@ -165,9 +165,12 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
         const r = row.original;
         if (r.pe === null) return dash(r.symbol, "pe");
         return (
-          <Text size="xs" data-testid={`value-pe-${r.symbol}`}>
-            {formatValueNum(r.pe)}
-          </Text>
+          <NumCell
+            value={r.pe}
+            dash={DASH}
+            format={(v) => formatValueNum(v)}
+            testId={`value-pe-${r.symbol}`}
+          />
         );
       },
     },
@@ -180,9 +183,12 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
         const r = row.original;
         if (r.ps === null) return dash(r.symbol, "ps");
         return (
-          <Text size="xs" data-testid={`value-ps-${r.symbol}`}>
-            {formatValueNum(r.ps)}
-          </Text>
+          <NumCell
+            value={r.ps}
+            dash={DASH}
+            format={(v) => formatValueNum(v)}
+            testId={`value-ps-${r.symbol}`}
+          />
         );
       },
     },
@@ -195,9 +201,12 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
         const r = row.original;
         if (r.fcf_yield === null) return dash(r.symbol, "fcf");
         return (
-          <Text size="xs" data-testid={`value-fcf-${r.symbol}`}>
-            {formatValuePct(r.fcf_yield)}
-          </Text>
+          <NumCell
+            value={r.fcf_yield}
+            dash={DASH}
+            format={(v) => formatValuePct(v)}
+            testId={`value-fcf-${r.symbol}`}
+          />
         );
       },
     },
@@ -210,9 +219,12 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
         const r = row.original;
         if (r.roe === null) return dash(r.symbol, "roe");
         return (
-          <Text size="xs" data-testid={`value-roe-${r.symbol}`}>
-            {formatValuePct(r.roe)}
-          </Text>
+          <NumCell
+            value={r.roe}
+            dash={DASH}
+            format={(v) => formatValuePct(v)}
+            testId={`value-roe-${r.symbol}`}
+          />
         );
       },
     },
@@ -225,9 +237,12 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
         const r = row.original;
         if (r.rev_yoy === null) return dash(r.symbol, "rev");
         return (
-          <Text size="xs" data-testid={`value-rev-${r.symbol}`}>
-            {formatValuePct(r.rev_yoy)}
-          </Text>
+          <NumCell
+            value={r.rev_yoy}
+            dash={DASH}
+            format={(v) => formatValuePct(v)}
+            testId={`value-rev-${r.symbol}`}
+          />
         );
       },
     },
@@ -257,11 +272,7 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
             data-testid={`value-flags-${r.symbol}`}
           >
             <For each={r.flags.slice(0, 3)}>
-              {(f) => (
-                <Badge size="xs" color="secondary">
-                  {f.replace(/_/g, " ")}
-                </Badge>
-              )}
+              {(f) => <BadgeCell label={f.replace(/_/g, " ")} color="secondary" />}
             </For>
           </Box>
         );
@@ -276,9 +287,12 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
         const r = row.original;
         if (r.off_52w_high === null) return dash(r.symbol, "w52");
         return (
-          <Text size="xs" data-testid={`value-w52-${r.symbol}`}>
-            {formatValuePct(r.off_52w_high)}
-          </Text>
+          <NumCell
+            value={r.off_52w_high}
+            dash={DASH}
+            format={(v) => formatValuePct(v)}
+            testId={`value-w52-${r.symbol}`}
+          />
         );
       },
     },

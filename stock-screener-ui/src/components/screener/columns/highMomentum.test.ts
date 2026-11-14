@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { getHighMomentumColumns } from "./highMomentum";
+import { cellOf, cellText } from "./columnTestFixtures";
 
 function fmt(key: string) {
   const c = getHighMomentumColumns().find((x) => x.key === key);
@@ -16,15 +17,15 @@ describe("highMomentum columns", () => {
   });
 
   describe("rsi", () => {
-    it("78.9 -> 78.9", () => expect(fmt("rsi")(78.9)).toBe("78.9"));
-    it("null -> 0.0", () => expect(fmt("rsi")(null)).toBe("0.0"));
-    it("NaN -> NaN", () => expect(fmt("rsi")(NaN)).toBe("NaN"));
-    it("Infinity not throw", () => expect(() => fmt("rsi")(Infinity)).not.toThrow());
+    it("78.9 -> 78.9", () => expect(cellText(() => fmt("rsi")(78.9))).toBe("78.9"));
+    it("null -> 0.0", () => expect(cellText(() => fmt("rsi")(null))).toBe("0.0"));
+    it("NaN -> dash", () => expect(cellText(() => fmt("rsi")(NaN))).toBe("—"));
+    it("Infinity -> dash", () => expect(cellText(() => fmt("rsi")(Infinity))).toBe("—"));
   });
 
   describe("day_change", () => {
-    it("0 green", () => expect((fmt("day_change")(0) as any).className).toBe("success"));
-    it("-1 red", () => expect((fmt("day_change")(-1) as any).className).toBe("error"));
+    it("0 green", () => expect(cellOf(() => fmt("day_change")(0)).tone).toBe("success"));
+    it("-1 red", () => expect(cellOf(() => fmt("day_change")(-1)).tone).toBe("error"));
   });
 
   describe("recent_return_5d", () => {
@@ -33,10 +34,10 @@ describe("highMomentum columns", () => {
       [3.0, "🟢", "success"],
       [-4.5, "🔴", "error"],
       [0, "🔴", "error"],
-    ])("return %s -> %s %s", (v, icon, ec) => {
-      const r: any = fmt("recent_return_5d")(v);
-      expect(r.value).toContain(icon);
-      expect(r.className).toBe(ec);
+    ])("return %s -> %s %s", (v, icon, expTone) => {
+      const cell = cellOf(() => fmt("recent_return_5d")(v));
+      expect(cell.text).toContain(icon);
+      expect(cell.tone).toBe(expTone);
     });
   });
 
@@ -45,18 +46,18 @@ describe("highMomentum columns", () => {
       [2.1, "success"],
       [-1.0, "error"],
       [0, "error"],
-    ])("perf %s -> %s", (v, ec) => expect((fmt("perf_w")(v) as any).className).toBe(ec));
+    ])("perf %s -> %s", (v, expTone) => expect(cellOf(() => fmt("perf_w")(v)).tone).toBe(expTone));
   });
 
   describe("volume_m", () => {
-    it("null -> 0.00", () => expect(fmt("volume_m")(null)).toBe("0.00"));
-    it("0 -> 0.00", () => expect(fmt("volume_m")(0)).toBe("0.00"));
+    it("null -> 0.00", () => expect(cellText(() => fmt("volume_m")(null))).toBe("0.00"));
+    it("0 -> 0.00", () => expect(cellText(() => fmt("volume_m")(0))).toBe("0.00"));
   });
 
   it("all sortable", () => getHighMomentumColumns().forEach((c) => expect(c.sortable).toBe(true)));
 
   describe("edge: volume 0, price 0/NaN", () => {
-    it("volume 0 displays", () => expect(fmt("volume_m")(0)).toBe("0.00"));
-    it("rsi 0 displays 0.0", () => expect(fmt("rsi")(0)).toBe("0.0"));
+    it("volume 0 displays", () => expect(cellText(() => fmt("volume_m")(0))).toBe("0.00"));
+    it("rsi 0 displays 0.0", () => expect(cellText(() => fmt("rsi")(0))).toBe("0.0"));
   });
 });

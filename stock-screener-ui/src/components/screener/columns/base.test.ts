@@ -12,6 +12,7 @@ import {
   recentReturn5dCol,
   perfWCol,
 } from "./base";
+import { cellOf, cellText } from "./columnTestFixtures";
 
 describe("base columns", () => {
   it("symbolCol structure", () => {
@@ -23,21 +24,27 @@ describe("base columns", () => {
     expect(scoreCol.type).toBe("badge");
   });
 
-  describe("dayChangeCol formatting with getPnLTextColor", () => {
+  describe("dayChangeCol", () => {
     const fmt = dayChangeCol.format!;
     it.each([
       [1.25, "+1.25%", "success"],
       [-0.5, "-0.50%", "error"],
       [0, "+0.00%", "success"],
-      [NaN, "NaN%", "error"], // NaN >=0 false => red
-    ])("value %s -> %s %s", (val, expVal, expCls) => {
-      const res: any = fmt(val, {} as any);
-      expect(res.value).toBe(expVal);
-      expect(res.className).toBe(expCls);
+    ])("value %s -> %s %s", (val, expVal, expTone) => {
+      const cell = cellOf(() => fmt(val, {} as any));
+      expect(cell.text).toBe(expVal);
+      expect(cell.tone).toBe(expTone);
     });
-    it("handles Infinity", () => {
-      expect(() => fmt(Infinity, {} as any)).not.toThrow();
-      expect(() => fmt(-Infinity, {} as any)).not.toThrow();
+    it("numbers are mono tabular and right aligned", () => {
+      const cell = cellOf(() => fmt(1.25, {} as any));
+      expect(cell.className).toContain("font-mono");
+      expect(cell.className).toContain("tabular-nums");
+      expect(cell.className).toContain("text-right");
+    });
+    it("NaN/Infinity render the dash instead of NaN%", () => {
+      expect(cellText(() => fmt(NaN as any, {} as any))).toBe("—");
+      expect(cellText(() => fmt(Infinity, {} as any))).toBe("—");
+      expect(cellText(() => fmt(-Infinity, {} as any))).toBe("—");
     });
   });
 
@@ -48,8 +55,10 @@ describe("base columns", () => {
       [0, "0.00"],
       [null, "0.00"],
       [undefined, "0.00"],
-    ])("volumeM %s -> %s", (val, exp) => expect(fmt(val as any, {} as any)).toBe(exp));
-    it("Infinity -> Infinity string", () => expect(fmt(Infinity as any, {} as any)).toBe("Infinity"));
+    ])("volumeM %s -> %s", (val, exp) =>
+      expect(cellText(() => fmt(val as any, {} as any))).toBe(exp),
+    );
+    it("Infinity -> dash", () => expect(cellText(() => fmt(Infinity as any, {} as any))).toBe("—"));
   });
 
   describe("rsiCol / adxCol", () => {
@@ -59,24 +68,33 @@ describe("base columns", () => {
       [adxCol, 30.123, "30.1"],
       [adxCol, undefined, "0.0"],
     ])("%s", (col, val, exp) => {
-      expect(col.format!(val as any, {} as any)).toBe(exp);
+      expect(cellText(() => col.format!(val as any, {} as any))).toBe(exp);
     });
-    it("handles NaN -> NaN", () => expect(rsiCol.format!(NaN as any, {} as any)).toBe("NaN"));
-    it("handles Infinity", () => expect(() => rsiCol.format!(Infinity as any, {} as any)).not.toThrow());
+    it("NaN -> dash", () =>
+      expect(cellText(() => rsiCol.format!(NaN as any, {} as any))).toBe("—"));
+    it("Infinity -> dash", () =>
+      expect(cellText(() => rsiCol.format!(Infinity as any, {} as any))).toBe("—"));
   });
 
   describe("touched52wCol", () => {
     const fmt = touched52wCol.format!;
-    it("false -> No", () => expect(fmt(false as any, {} as any)).toBe("No"));
-    it("true without last_touched -> Yes", () => expect(fmt(true as any, {} as any)).toBe("Yes"));
-    it("true with last_touched -> Tooltip element", () => {
-      const twoDaysAgo = new Date(Date.now() - 2 * 86400000).toISOString();
-      const res = fmt(true as any, { last_touched: twoDaysAgo } as any) as HTMLElement;
-      expect(res).toBeDefined();
-      // Solid Tooltip surfaces its string label as the wrapper aria-label
-      expect(res.getAttribute("aria-label")).toContain("Touched on");
+    it("false -> No badge", () => {
+      const cell = cellOf(() => fmt(false as any, {} as any));
+      expect(cell.text).toBe("No");
     });
-    it("handles missing stock object", () => expect(fmt(true as any, null as any)).toBe("Yes"));
+    it("true without last_touched -> Yes badge", () => {
+      expect(cellText(() => fmt(true as any, {} as any))).toBe("Yes");
+    });
+    it("true with last_touched -> tooltip carrying the full date", () => {
+      const twoDaysAgo = new Date(Date.now() - 2 * 86400000).toISOString();
+      const cell = cellOf(() => fmt(true as any, { last_touched: twoDaysAgo } as any));
+      expect(cell.text).toContain("Yes");
+      expect(cell.text).toContain("2d ago");
+      const labelled = document.body.querySelector("[aria-label^='Touched on']");
+      expect(labelled?.getAttribute("aria-label")).toContain("Touched on");
+    });
+    it("handles missing stock object", () =>
+      expect(cellText(() => fmt(true as any, null as any))).toBe("Yes"));
   });
 
   describe("volumeSurgeCol", () => {
@@ -86,8 +104,10 @@ describe("base columns", () => {
       [null, "1.0x"],
       [undefined, "1.0x"],
       [0, "0.0x"],
-      [Infinity, "Infinityx"],
-    ])("surge %s -> %s", (val, exp) => expect(fmt(val as any, {} as any)).toBe(exp));
+    ])("surge %s -> %s", (val, exp) =>
+      expect(cellText(() => fmt(val as any, {} as any))).toBe(exp),
+    );
+    it("Infinity -> dash", () => expect(cellText(() => fmt(Infinity as any, {} as any))).toBe("—"));
   });
 
   describe("moveCol", () => {
@@ -100,22 +120,19 @@ describe("base columns", () => {
     it.each([
       [2.5, "+2.50%", "success"],
       [-1.2, "-1.20%", "error"],
-      [0, "0.00%", "error"], // 0 not >0 => red? Actually getPnLTextColor(0)=green but moveCol uses getPnLTextColor which returns green for 0; check implementation: getPnLTextColor(0)=green, but test expects...
-      // Let's check base.tsx moveCol: className: value != null ? getPnLTextColor(value) : "" . getPnLTextColor(0)=green
-    ])("move %s", (val, expVal, expCls) => {
-      const res: any = col.format!(val as any, {} as any);
-      // For 0, implementation returns green not red, so adjust expectation
-      if (val === 0) expCls = "success";
-      expect(res.value).toBe(expVal);
-      expect(res.className).toBe(expCls);
+      [0, "0.00%", "success"],
+    ])("move %s", (val, expVal, expTone) => {
+      const cell = cellOf(() => col.format!(val as any, {} as any));
+      expect(cell.text).toBe(expVal);
+      expect(cell.tone).toBe(expTone);
     });
-    it("null -> dash with empty class", () => {
-      const res: any = col.format!(null as any, {} as any);
-      expect(res.value).toBe("-");
-      expect(res.className).toBe("");
+    it("null -> dash", () => {
+      const cell = cellOf(() => col.format!(null as any, {} as any));
+      expect(cell.text).toBe("-");
+      expect(cell.tone).toBe("");
     });
     it("NaN handled", () => {
-      expect(() => col.format!(NaN as any, {} as any)).not.toThrow();
+      expect(cellText(() => col.format!(NaN as any, {} as any))).toBe("-");
     });
   });
 
@@ -126,17 +143,14 @@ describe("base columns", () => {
       [3.2, "🟢 +3.2%", "success"],
       [-2.1, "🔴 -2.1%", "error"],
       [0, "🔴 0.0%", "error"],
-      [5, "🟢 +5.0%", "success"], // boundary exactly 5 -> not >5 so green circle
+      [5, "🟢 +5.0%", "success"],
       [5.01, "🚀 +5.0%", "success"],
-    ])("return %s", (val, expVal, expCls) => {
-      const res: any = fmt(val as any, {} as any);
-      expect(res.value).toBe(expVal);
-      expect(res.className).toBe(expCls);
+    ])("return %s", (val, expVal, expTone) => {
+      const cell = cellOf(() => fmt(val as any, {} as any));
+      expect(cell.text).toBe(expVal);
+      expect(cell.tone).toBe(expTone);
     });
-    it("NaN -> red circle", () => {
-      const res: any = fmt(NaN as any, {} as any);
-      expect(res.className).toBe("error");
-    });
+    it("NaN -> dash", () => expect(cellText(() => fmt(NaN as any, {} as any))).toBe("—"));
   });
 
   describe("perfWCol", () => {
@@ -145,12 +159,11 @@ describe("base columns", () => {
       [1.5, "+1.5%", "success"],
       [-3.2, "-3.2%", "error"],
       [0, "0.0%", "error"],
-      [NaN, "NaN%", "error"],
-    ])("perf %s", (val, expVal, expCls) => {
-      const res: any = fmt(val as any, {} as any);
-      // pctFormat uses value>0 green else red, NaN>0 false => red
-      expect(res.value).toContain("%");
-      expect(res.className).toBe(expCls);
+    ])("perf %s -> %s", (val, expVal, expTone) => {
+      const cell = cellOf(() => fmt(val as any, {} as any));
+      expect(cell.text).toBe(expVal);
+      expect(cell.tone).toBe(expTone);
     });
+    it("NaN -> dash", () => expect(cellText(() => fmt(NaN as any, {} as any))).toBe("—"));
   });
 });

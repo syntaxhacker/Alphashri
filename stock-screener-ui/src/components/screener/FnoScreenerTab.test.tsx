@@ -190,14 +190,17 @@ const baseResponse = {
   matched: 6,
 };
 
-const renderTab = () => render(() => <UIProvider><FnoScreenerTab /></UIProvider>);
+const renderTab = () =>
+  render(() => (
+    <UIProvider>
+      <FnoScreenerTab />
+    </UIProvider>
+  ));
 
 beforeEach(() => {
   vi.clearAllMocks();
   mockFetchFnoScreener.mockResolvedValue(baseResponse);
 });
-
-
 
 describe("FnoScreenerTab", () => {
   it("renders the toolbar and fetches defaults on mount", async () => {
@@ -237,6 +240,32 @@ describe("FnoScreenerTab", () => {
     expect(screen.getByTestId("fno-cell-move-RELIANCE")).toHaveTextContent("+3.40%");
     expect(screen.getByTestId("fno-cell-oi-RELIANCE")).toHaveTextContent("1.3L");
     expect(screen.getByTestId("fno-cell-vol-TCS")).toHaveTextContent("0.90×");
+
+    // Numeric cells must be mono + tabular or the columns stop lining up.
+    for (const cell of [
+      "spot",
+      "d1",
+      "d5",
+      "vol",
+      "otm",
+      "premium",
+      "cost",
+      "pop",
+      "delta",
+      "gamma",
+      "theta",
+      "vega",
+      "iv",
+      "oi",
+      "spread",
+      "move",
+    ]) {
+      const el = screen.getByTestId(`fno-cell-${cell}-RELIANCE`);
+      expect(el.className, cell).toContain("font-mono");
+      expect(el.className, cell).toContain("tabular-nums");
+      expect(el.className, cell).toContain("text-right");
+    }
+    expect(screen.getByTestId("fno-cell-call-RELIANCE").className).toContain("text-left");
   });
 
   it("preset switch triggers a refetch and aborts the previous request", async () => {
@@ -261,7 +290,9 @@ describe("FnoScreenerTab", () => {
     renderTab();
     await waitFor(() => expect(screen.getByTestId("fno-row-RELIANCE")).toBeInTheDocument());
 
-    fireEvent.input(within(screen.getByTestId("fno-expiry-select")).getByRole("combobox"), { target: { value: "2026-11-13" } });
+    fireEvent.input(within(screen.getByTestId("fno-expiry-select")).getByRole("combobox"), {
+      target: { value: "2026-11-13" },
+    });
 
     await waitFor(() => {
       const lastParams = mockFetchFnoScreener.mock.calls.at(-1)![0] as FnoScreenerParams;

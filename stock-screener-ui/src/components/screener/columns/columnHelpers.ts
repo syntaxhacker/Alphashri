@@ -36,6 +36,11 @@ export function fixedCellDash(value: number | null | undefined, precision: numbe
   return { value: value?.toFixed(precision) || "-" };
 }
 
+/** The text of a FormattedCell — for cells whose rendering moved to the kit. */
+export function formattedText(cell: string | FormattedCell): string {
+  return typeof cell === "string" ? cell : cell.value;
+}
+
 /** Dash string for null/undefined, FormattedCell otherwise. */
 export function fixedCellOrString(
   value: number | null | undefined,
