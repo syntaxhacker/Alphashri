@@ -1,3 +1,4 @@
+import { createMemo } from "solid-js";
 import * as strategiesState from "../state/strategies";
 import * as botsState from "../state/bots";
 import { useStoreSubscription } from "./useStoreSubscription";
@@ -84,11 +85,19 @@ function useStrategyActions() {
 }
 
 export function useStrategiesState() {
-  useStoreSubscription(strategiesState.subscribe);
-  useStoreSubscription(botsState.subscribe);
-  const state = strategiesState.getStrategiesState();
-  const botsData = botsState.getBotsState();
-  const isAnyBotRunning = botsData.bots.some((b) => b.running);
+  const version = useStoreSubscription(strategiesState.subscribe);
+  const botsVersion = useStoreSubscription(botsState.subscribe);
+
+  // Module singletons: read the counter first so getters re-run on notify.
+  const readState = () => {
+    version();
+    return strategiesState.getStrategiesState();
+  };
+  const readBots = () => {
+    botsVersion();
+    return botsState.getBotsState();
+  };
+  const isAnyBotRunning = createMemo(() => readBots().bots.some((b) => b.running));
 
   const { onViewChange, onRefresh } = useViewActions();
   const {
@@ -120,18 +129,43 @@ export function useStrategiesState() {
     syncVariations(templateId);
   };
 
+  // Getters, not values: a Solid component body runs once, so a snapshot would
+  // never show data that arrives after mount.
   return {
-    strategies: state.strategies,
-    templates: state.templates,
-    performance: state.allPerformance,
-    bots: state.bots,
-    isLoading: state.isLoading,
-    error: state.error,
-    activeView: strategiesState.getCurrentView() as StrategyView,
-    showCreateModal: state.showCreateModal,
-    showEditModal: state.showEditModal,
-    editingStrategy: state.editingStrategy,
-    parentTemplate: state.parentTemplate,
+    get strategies() {
+      return readState().strategies;
+    },
+    get templates() {
+      return readState().templates;
+    },
+    get performance() {
+      return readState().allPerformance;
+    },
+    get bots() {
+      return readState().bots;
+    },
+    get isLoading() {
+      return readState().isLoading;
+    },
+    get error() {
+      return readState().error;
+    },
+    get activeView() {
+      version();
+      return strategiesState.getCurrentView() as StrategyView;
+    },
+    get showCreateModal() {
+      return readState().showCreateModal;
+    },
+    get showEditModal() {
+      return readState().showEditModal;
+    },
+    get editingStrategy() {
+      return readState().editingStrategy;
+    },
+    get parentTemplate() {
+      return readState().parentTemplate;
+    },
     onViewChange,
     onRefresh,
     onOpenCreateModal,
@@ -147,6 +181,8 @@ export function useStrategiesState() {
     onSelectStrategy: onSelect,
     onClearError,
     onUpdate,
-    isAnyBotRunning,
+    get isAnyBotRunning() {
+      return isAnyBotRunning();
+    },
   };
 }

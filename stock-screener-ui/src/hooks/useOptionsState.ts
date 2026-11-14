@@ -1,4 +1,4 @@
-import { createEffect, createMemo } from "solid-js";
+import { createEffect, createMemo, onMount } from "solid-js";
 import * as optionsState from "../state/optionsStore";
 import {
   subscribe,
@@ -55,29 +55,48 @@ export function buildStrikeMatrix(
 }
 
 export function useOptionsState() {
-  useStoreSubscription(subscribe);
+  const version = useStoreSubscription(subscribe);
 
-  // The store is a module singleton, read through the subscription above.
-  const state = optionsState.getOptionsState();
+  // The store is a module singleton. Reading the subscription counter first is
+  // what makes every getter/memo below re-run when it notifies.
+  const readState = () => {
+    version();
+    return optionsState.getOptionsState();
+  };
 
-  createEffect(() => {
+  onMount(() => {
     void optionsState.initOptionsState();
-  });
-
-  createEffect(() => {
-    if (state.selectedUnderlying && state.selectedExpiry) {
-      void optionsState.fetchChain();
-    }
-  });
-
-  createEffect(() => {
     void optionsState.fetchPositions();
   });
 
-  const filteredChain = createMemo(() => getFilteredChain());
-  const strikeMatrix = createMemo(() => getStrikeMatrix(filteredChain()));
-  const availableExpiries = createMemo(() => getAvailableExpiries());
-  const availableUnderlyings = createMemo(() => getAvailableUnderlyingSymbols());
+  // Track only the (underlying, expiry) pair. An effect that read the whole
+  // store would re-enter itself: fetchChain notifies, which would re-run it.
+  const selectionKey = createMemo(() => {
+    const s = readState();
+    return `${s.selectedUnderlying}|${s.selectedExpiry}`;
+  });
+
+  createEffect(() => {
+    const [underlying, expiry] = selectionKey().split("|");
+    if (underlying && expiry) void optionsState.fetchChain();
+  });
+
+  const filteredChain = createMemo(() => {
+    version();
+    return getFilteredChain();
+  });
+  const strikeMatrix = createMemo(() => {
+    version();
+    return getStrikeMatrix(filteredChain());
+  });
+  const availableExpiries = createMemo(() => {
+    version();
+    return getAvailableExpiries();
+  });
+  const availableUnderlyings = createMemo(() => {
+    version();
+    return getAvailableUnderlyingSymbols();
+  });
 
   const onSetUnderlying = (underlying: string) => {
     optionsState.setUnderlying(underlying);
@@ -97,21 +116,51 @@ export function useOptionsState() {
     console.log("Row clicked:", contract);
   };
 
+  // Getters, not values: a Solid component body runs once, so a snapshot would
+  // never show data that arrives after mount.
   return {
-    selectedUnderlying: state.selectedUnderlying,
-    selectedExpiry: state.selectedExpiry,
-    optionChain: state.optionChain,
-    positions: state.positions,
-    loading: state.loading,
-    error: state.error,
-    filters: state.filters,
-    spotPrice: state.spotPrice,
-    timestamp: state.lastUpdated,
-    summary: state.summary,
-    availableUnderlyings: availableUnderlyings(),
-    availableExpiries: availableExpiries(),
-    filteredChain: filteredChain(),
-    strikeMatrix: strikeMatrix(),
+    get selectedUnderlying() {
+      return readState().selectedUnderlying;
+    },
+    get selectedExpiry() {
+      return readState().selectedExpiry;
+    },
+    get optionChain() {
+      return readState().optionChain;
+    },
+    get positions() {
+      return readState().positions;
+    },
+    get loading() {
+      return readState().loading;
+    },
+    get error() {
+      return readState().error;
+    },
+    get filters() {
+      return readState().filters;
+    },
+    get spotPrice() {
+      return readState().spotPrice;
+    },
+    get timestamp() {
+      return readState().lastUpdated;
+    },
+    get summary() {
+      return readState().summary;
+    },
+    get availableUnderlyings() {
+      return availableUnderlyings();
+    },
+    get availableExpiries() {
+      return availableExpiries();
+    },
+    get filteredChain() {
+      return filteredChain();
+    },
+    get strikeMatrix() {
+      return strikeMatrix();
+    },
     setUnderlying: onSetUnderlying,
     setExpiry: onSetExpiry,
     setFilters: onSetFilters,
