@@ -71,7 +71,9 @@ function buildCells(summary: PatternSummary | null, job?: JobDTO | null): StatCe
   ];
 }
 
-/** Dense inline stat strip (~28px): `LABEL value` pairs separated by dividers, no Card. */
+/** Dense 24px sub-header: `LABEL value` pairs separated by dividers, one line,
+ * the tail overflowing horizontally (never wrapping). Numbers are mono +
+ * tabular-nums so digits line up across cells. */
 export function ScanStats(props: ScanStatsProps) {
   // `relativeAge` derives from `Date.now()`, so without a tick it freezes until
   // the next store update. Re-render every 60s to keep "x min ago" fresh.
@@ -92,14 +94,14 @@ export function ScanStats(props: ScanStatsProps) {
   return (
     <Box
       data-testid="patterns-stats"
-      className="flex min-h-[18px] items-center overflow-x-auto tabular-nums"
+      className="flex min-h-[24px] items-center overflow-x-auto"
     >
-      <ToolbarRow gap={0} wrap={false} style={{ "overflow-x": "auto" }}>
+      <ToolbarRow gap={0} wrap={false}>
         <For each={cells()}>
           {(cell, index) => (
-            <Box className="flex shrink-0 items-center">
+            <Box className="flex shrink-0 items-baseline">
               <Show when={index() > 0}>
-                <Divider orientation="vertical" style={{ height: "16px" }} className="mx-3" />
+                <Divider orientation="vertical" style={{ height: "14px" }} className="mx-2" />
               </Show>
               <Box
                 data-testid={`patterns-stat-${cell.key}`}
@@ -115,16 +117,20 @@ export function ScanStats(props: ScanStatsProps) {
                     ? () => props.onSelect?.("confirmed")
                     : undefined
                 }
-                className={`flex min-w-0 items-baseline gap-1.5 whitespace-nowrap ${
+                className={`flex min-w-0 items-baseline gap-1 whitespace-nowrap ${
                   clickable(cell.key)
                     ? "cursor-pointer rounded-[4px] px-[2px] transition-colors hover:bg-fin-surface-alt"
                     : ""
                 }`}
               >
-                <Text size="xs" c="dimmed" style={{ "text-transform": "uppercase", "font-size": "10px" }} fw={700} truncate>
+                <Text c="dimmed" fw={700} className="text-[9px] tracking-wide uppercase" truncate>
                   {cell.label}
                 </Text>
-                <Text size="xs" fw={700} c={cell.tone ?? "default"} style={{ "font-size": "10px" }} truncate>
+                <Text
+                  fw={700}
+                  c={cell.tone ?? "default"}
+                  className="font-mono tabular-nums text-[11px] text-right truncate"
+                >
                   <Show when={cell.key === "bull_bear" && props.onSelect} fallback={cell.value}>
                     <>
                       <span

@@ -69,7 +69,12 @@ function Section(props: {
     return (
       <Box className="flex min-w-0 flex-col gap-0.5">
         <Box className="flex items-center gap-1">
-          <Text size="xs" c="dimmed" style={{ "font-size": "10px", "line-height": 1.2 }}>
+          <Text
+            size="xs"
+            c="dimmed"
+            className="tracking-wide uppercase"
+            style={{ "font-size": "10px", "line-height": 1.2 }}
+          >
             {props.title}
           </Text>
           {props.info}
@@ -83,7 +88,7 @@ function Section(props: {
       <Box
         className="flex items-center gap-1 border-b border-fin-border pb-0.5"
       >
-        <Text size="xs" fw={700} style={{ "text-transform": "uppercase", "letter-spacing": "0.4px" }} c="dimmed">
+        <Text fw={700} c="dimmed" className="text-[10px] tracking-wide uppercase">
           {props.title}
         </Text>
         {props.info}

@@ -1,4 +1,4 @@
-import { createMemo, For, Show } from "solid-js";
+import { createMemo, createSignal, For, Show } from "solid-js";
 import { Box, Button, Text, ToolbarRow } from "@/ui";
 import { PATTERN_CHIP_BG } from "@/ui/palette";
 import { IconX } from "@/patterns/icons";
@@ -257,6 +257,9 @@ export function buildAppliedFilterChips(
   return chips;
 }
 
+/** How many chips render inline before collapsing to a `+N` overflow chip. */
+const MAX_VISIBLE_CHIPS = 6;
+
 export interface AppliedFiltersProps {
   filters: PatternFilters;
   /** Catalog, used to render pattern ids as readable names. */
@@ -271,13 +274,18 @@ export interface AppliedFiltersProps {
  * to drop one filter. Renders nothing when no filters are applied.
  */
 export function AppliedFilters(props: AppliedFiltersProps) {
-  const chips = createMemo(() => buildAppliedFilterChips(props.filters, props.patterns));
+  const allChips = createMemo(() => buildAppliedFilterChips(props.filters, props.patterns));
+  const [expanded, setExpanded] = createSignal(false);
+  const visibleChips = createMemo(() =>
+    expanded() ? allChips() : allChips().slice(0, MAX_VISIBLE_CHIPS),
+  );
+  const overflowCount = createMemo(() => allChips().length - visibleChips().length);
 
   // Consecutive chips sharing a `group` render under one muted label, so
   // "Pattern: A · Pattern: B · Pattern: C" becomes "Patterns  A  B  C".
   const groups = createMemo(() => {
     const next: Array<{ group: string; items: AppliedFilterChip[] }> = [];
-    for (const chip of chips()) {
+    for (const chip of visibleChips()) {
       const last = next[next.length - 1];
       if (last && last.group === chip.group) last.items.push(chip);
       else next.push({ group: chip.group, items: [chip] });
@@ -286,15 +294,15 @@ export function AppliedFilters(props: AppliedFiltersProps) {
   });
 
   return (
-    <Show when={chips().length > 0}>
+    <Show when={allChips().length > 0}>
       <Box data-testid="patterns-applied-filters" className="min-w-0">
-        <ToolbarRow gap={6} style={{ "flex-wrap": "wrap", "row-gap": "3px" }}>
-          <Text
-            size="xs"
-            c="dimmed"
-            fw={700}
-            style={{ "text-transform": "none", "letter-spacing": "0.2px" }}
-          >
+        <ToolbarRow
+          gap={4}
+          wrap={false}
+          className="min-w-0"
+          style={{ "overflow-x": expanded() ? "auto" : "hidden" }}
+        >
+          <Text c="dimmed" fw={700} className="text-[9px] tracking-wide uppercase">
             Active
           </Text>
           <For each={groups()}>
@@ -303,10 +311,10 @@ export function AppliedFilters(props: AppliedFiltersProps) {
               return (
                 <Box
                   data-testid={`patterns-applied-group-${group.group.toLowerCase()}`}
-                  className="inline-flex min-w-0 items-center gap-[2px] pl-[2px]"
+                  className="inline-flex min-w-0 items-center gap-[4px] pl-[2px]"
                 >
                   <Show when={multi}>
-                    <Text size="xs" c="dimmed" fw={600} style={{ "white-space": "nowrap" }}>
+                    <Text c="dimmed" fw={600} className="text-[9px] tracking-wide uppercase">
                       {`${group.group}s`}
                     </Text>
                   </Show>
@@ -314,7 +322,7 @@ export function AppliedFilters(props: AppliedFiltersProps) {
                     {(chip) => (
                       <span
                         data-testid={`patterns-applied-filter-${chip.id}`}
-                        className="inline-flex items-center gap-1 whitespace-nowrap rounded-fin border border-transparent px-2 py-1 text-xs text-fin-text"
+                        className="inline-flex items-center gap-[4px] whitespace-nowrap rounded-fin border border-transparent px-2 py-1 text-xs text-fin-text"
                         style={{ "background-color": PATTERN_CHIP_BG }}
                       >
                         {multi ? chip.label : `${chip.group}: ${chip.label}`}
@@ -334,15 +342,35 @@ export function AppliedFilters(props: AppliedFiltersProps) {
               );
             }}
           </For>
-        <Button
-          size="xs"
-          variant="subtle"
-          onClick={() => props.resetFilters()}
-          data-testid="patterns-applied-clear-all"
-        >
-          Clear all
-        </Button>
-      </ToolbarRow>
+          <Show when={overflowCount() > 0 && !expanded()}>
+            <Button
+              size="xs"
+              variant="subtle"
+              onClick={() => setExpanded(true)}
+              data-testid="patterns-applied-overflow"
+            >
+              +{overflowCount()}
+            </Button>
+          </Show>
+          <Show when={expanded()}>
+            <Button
+              size="xs"
+              variant="subtle"
+              onClick={() => setExpanded(false)}
+              className="text-[9px] tracking-wide uppercase"
+            >
+              Collapse
+            </Button>
+          </Show>
+          <Button
+            size="xs"
+            variant="subtle"
+            onClick={() => props.resetFilters()}
+            data-testid="patterns-applied-clear-all"
+          >
+            Clear all
+          </Button>
+        </ToolbarRow>
       </Box>
     </Show>
   );

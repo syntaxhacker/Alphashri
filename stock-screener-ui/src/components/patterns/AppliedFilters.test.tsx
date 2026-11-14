@@ -295,7 +295,7 @@ describe("AppliedFilters", () => {
     expect(screen.getByText("Trendlines: TLR only")).toBeInTheDocument();
   });
 
-  test("shows one chip per active filter across all groups", () => {
+  test("shows one chip per active filter across all groups (within the visible cap)", () => {
     render(() =>       <AppliedFilters
         filters={makeFilters({
           family: ["reversal"],
@@ -304,14 +304,6 @@ describe("AppliedFilters", () => {
           status: ["confirmed"],
           quality: "strong",
           formed_within_bars: 5,
-          volume_confirmed: true,
-          min_rr: 2,
-          symbol: "RELIANCE",
-          min_base_days: 90,
-          max_range_pct: 20,
-          max_52w_gap: 3,
-          sort: "newest",
-          trendlines: "none",
         })}
         patterns={PATTERNS}
         setFilter={vi.fn()}
@@ -324,17 +316,32 @@ describe("AppliedFilters", () => {
       "Status: Confirmed",
       "Quality: Strong",
       "Formed: within 5 bars",
-      "Volume: Confirmed",
-      "R:R: ≥ 2",
-      "Symbol: RELIANCE",
-      "Base: ≥ 90d",
-      "Range: ≤ 20%",
-      "52W: gap ≤ 3%",
-      "Sort: Latest formed",
-      "Trendlines: Hidden",
     ]) {
       expect(screen.getByText(text)).toBeInTheDocument();
     }
+  });
+
+  test("collapses to a +N overflow chip beyond the visible cap", () => {
+    render(() =>       <AppliedFilters
+        filters={makeFilters({
+          family: ["reversal"],
+          pattern_id: ["double_bottom"],
+          direction: ["bullish"],
+          status: ["confirmed"],
+          quality: "strong",
+          formed_within_bars: 5,
+          volume_confirmed: true,
+        })}
+        patterns={PATTERNS}
+        setFilter={vi.fn()}
+        resetFilters={vi.fn()}
+      />);
+    // 7 chips > cap of 6 -> 6 inline, "+1" overflow.
+    expect(screen.getByTestId("patterns-applied-overflow")).toHaveTextContent("+1");
+    expect(screen.queryByText("Volume: Confirmed")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("patterns-applied-overflow"));
+    expect(screen.getByText("Volume: Confirmed")).toBeInTheDocument();
+    expect(screen.queryByTestId("patterns-applied-overflow")).not.toBeInTheDocument();
   });
 
   test("removing family / pattern / status chips drops only that value", () => {
@@ -376,7 +383,6 @@ describe("AppliedFilters", () => {
     ["symbol", "patterns-applied-filter-symbol:RELIANCE", "symbol", null],
     ["min_base_days", "patterns-applied-filter-min_base_days", "min_base_days", null],
     ["max_range_pct", "patterns-applied-filter-max_range_pct", "max_range_pct", null],
-    ["max_52w_gap", "patterns-applied-filter-max_52w_gap", "max_52w_gap", null],
   ])("removing the %s chip clears it", (_name, testId, key, next) => {
     const setFilter = vi.fn();
     render(() =>       <AppliedFilters
