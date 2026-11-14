@@ -770,8 +770,8 @@ export function WatchView(props: WatchViewProps) {
 
   return (
     <Box data-testid="watch-view" className="flex min-w-0 flex-col gap-1">
-      <ToolbarRow justify="space-between" data-testid="watch-toolbar" gap={8}>
-        <ToolbarRow gap={8}>
+      <ToolbarRow justify="space-between" data-testid="watch-toolbar" gap={8} wrap={false} className="h-9">
+        <ToolbarRow gap={8} wrap={false}>
           <Select
             value={setup()}
             onChange={(v) => setSetup(String(v ?? "breakout"))}
@@ -785,12 +785,13 @@ export function WatchView(props: WatchViewProps) {
           <Tooltip label="Gate on time-adjusted intraday volume (vol_adj). Triggered = price + vol_adj ≥ gate.">
             <Box data-testid="watch-vol-adj-input" className="inline-flex">
               <NumberInput
-                label="Vol (adj) ≥"
+                placeholder="Vol (adj) ≥"
+                aria-label="Vol (adj) gate"
                 value={relVol()}
                 onChange={(v) => setRelVol(typeof v === "number" ? v : v === "" ? "" : Number(v))}
                 min={0}
                 step={0.1}
-                w={140}
+                w={120}
                 size="sm"
                 data-testid="watch-relvol-input"
               />
@@ -806,9 +807,9 @@ export function WatchView(props: WatchViewProps) {
             Refresh
           </button>
         </ToolbarRow>
-        <ToolbarRow gap={8}>
+        <ToolbarRow gap={8} wrap={false}>
           <Show when={updatedAt()}>
-            <Text size="xs" c="dimmed" data-testid="watch-updated-at">
+            <Text size="xs" c="dimmed" truncate className="min-w-0" data-testid="watch-updated-at">
               {`Updated ${updatedAt()}`}
             </Text>
           </Show>
@@ -833,25 +834,25 @@ export function WatchView(props: WatchViewProps) {
         </ToolbarRow>
       </ToolbarRow>
 
-      <Show when={activeSetup()?.description}>
-        <Text size="xs" c="dimmed" data-testid="watch-setup-description">
-          {activeSetup()!.description}
-        </Text>
-      </Show>
+      <ToolbarRow gap={2} wrap={false} clip className="h-6" data-testid="watch-summary">
+        <Show when={activeSetup()?.description}>
+          <Text size="xs" c="dimmed" truncate className="min-w-0" data-testid="watch-setup-description">
+            {activeSetup()!.description}
+          </Text>
+        </Show>
+        <Show when={activeSetup()?.description && streamMeta()}>
+          <Text size="xs" c="dimmed" className="shrink-0 px-1" aria-hidden="true">
+            ·
+          </Text>
+        </Show>
+        <Show when={streamMeta()}>
+          <Text size="xs" c="dimmed" truncate className="min-w-0" data-testid="watch-stream-meta">
+            {`${activeSetup()?.label ?? streamMeta()!.setup} · Vol (adj) ≥ ${streamMeta()!.min_rel_volume}`}
+          </Text>
+        </Show>
+      </ToolbarRow>
 
-      <Show when={streamMeta()}>
-        <Text size="xs" c="dimmed" data-testid="watch-stream-meta">
-          {`${activeSetup()?.label ?? streamMeta()!.setup} · Vol (adj) ≥ ${streamMeta()!.min_rel_volume}`}
-        </Text>
-      </Show>
-
-      <Show when={streaming() && items().length > 0}>
-        <Text size="xs" c="dimmed" data-testid="watch-streaming">
-          {`loading more… ${items().length} rows`}
-        </Text>
-      </Show>
-
-      <ToolbarRow gap={8} data-testid="watch-filters" style={{ "flex-wrap": "wrap", "align-items": "center" }}>
+      <ToolbarRow gap={8} data-testid="watch-filters" wrap={false} className="h-8">
         <TextInput
           placeholder="Search symbol…"
           value={search()}
@@ -875,17 +876,18 @@ export function WatchView(props: WatchViewProps) {
           data-testid="watch-state-filter"
         />
         <NumberInput
-          label="Within % of trigger"
+          placeholder="≤ % of trigger"
+          aria-label="Within % of trigger"
           value={withinPct()}
           onChange={(v) => setWithinPct(typeof v === "number" ? v : v === "" ? "" : Number(v))}
           min={0}
           step={1}
           size="sm"
-          w={170}
+          w={110}
           data-testid="watch-within-pct"
         />
         <Switch
-          label="Hide invalidated"
+          label="Hide inval."
           size="sm"
           checked={hideInvalidated()}
           onChange={(e) => setHideInvalidated(e.currentTarget.checked)}
@@ -901,23 +903,28 @@ export function WatchView(props: WatchViewProps) {
         <Text size="xs" c="dimmed" data-testid="watch-count">
           {countLabel()}
         </Text>
+        <Show when={streaming() && items().length > 0}>
+          <Text size="xs" c="dimmed" className="shrink-0" data-testid="watch-streaming">
+            {`loading more… ${items().length} rows`}
+          </Text>
+        </Show>
         <button
           type="button"
           onClick={() => void handleCopyCsv()}
           disabled={filtered().length === 0}
           data-testid="watch-copy-csv"
-          className="inline-flex h-7 items-center rounded-fin border border-fin-border px-2 text-xs text-fin-text transition-colors hover:bg-fin-surface-alt disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-fin border border-fin-border px-2 text-xs text-fin-text transition-colors hover:bg-fin-surface-alt disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Copy CSV
+          CSV
         </button>
         <button
           type="button"
           onClick={() => void handleCopySymbols()}
           disabled={filtered().length === 0}
           data-testid="watch-copy-symbols"
-          className="inline-flex h-7 items-center rounded-fin border border-fin-border px-2 text-xs text-fin-text transition-colors hover:bg-fin-surface-alt disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-fin border border-fin-border px-2 text-xs text-fin-text transition-colors hover:bg-fin-surface-alt disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Copy symbols
+          Symbols
         </button>
         <Show when={copyMsg()}>
           <Text size="xs" c={copyFailed() ? "error" : "success"} data-testid="watch-copy-toast">
