@@ -4,6 +4,8 @@ import {
   createEffect,
   createMemo,
   createSignal,
+  onCleanup,
+  onMount,
 } from "solid-js";
 import {
   Box,
@@ -232,6 +234,47 @@ export function MarketScreenerPanel() {
     setSelectedSymbol(row.symbol);
     dock.open(row.symbol);
   };
+
+  const rowIndex = createMemo(() => {
+    const symbol = selectedSymbol();
+    return symbol ? filteredRows().findIndex((row) => row.symbol === symbol) : -1;
+  });
+
+  const stepSymbol = (direction: 1 | -1) => {
+    const rows = filteredRows();
+    const current = rowIndex();
+    if (!rows.length || current < 0) return;
+    const next = rows[Math.min(Math.max(current + direction, 0), rows.length - 1)];
+    if (next.symbol === selectedSymbol()) return;
+    setSelectedSymbol(next.symbol);
+    dock.open(next.symbol);
+    document
+      .querySelector(`[data-testid="market-row-${next.symbol}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  };
+
+  // Arrow keys walk the filtered list and re-point the chart at the new symbol.
+  onMount(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (!selectedSymbol()) return;
+      event.preventDefault();
+      stepSymbol(event.key === "ArrowDown" ? 1 : -1);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    onCleanup(() => document.removeEventListener("keydown", onKeyDown));
+  });
 
   const getRowStyle = (row: MarketRow) =>
     row.symbol === selectedSymbol()
