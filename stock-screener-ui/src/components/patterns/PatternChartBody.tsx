@@ -131,13 +131,13 @@ function FullscreenPanel(props: {
               Last close
             </Text>
             <Box className="flex min-w-0 items-baseline gap-2">
-              <Text fw={600} className="tabular-nums text-[18px] leading-none">
+              <Text fw={600} className="font-mono tabular-nums text-[18px] leading-none">
                 {formatPrice(lastClose())}
               </Text>
               <Text
                 size="xs"
                 fw={600}
-                className="tabular-nums text-[11px]"
+                className="font-mono tabular-nums text-[11px]"
                 c={getPnLTextColor(dayChange() ?? 0)}
               >
                 {dayChange() != null ? formatPercentage(dayChange()!, 2) : "—"}
@@ -147,7 +147,7 @@ function FullscreenPanel(props: {
           <Show when={props.hit.confidence != null}>
             <Box className="flex w-28 flex-shrink-0 flex-col items-end gap-1">
               <Text size="xs" c="dimmed" className="text-[10px] uppercase tracking-[0.4px]">
-                Confidence <span className="tabular-nums text-fin-text">{props.hit.confidence}%</span>
+                Confidence <span className="font-mono tabular-nums text-fin-text">{props.hit.confidence}%</span>
               </Text>
               <Box className="h-[3px] w-full overflow-hidden rounded-full bg-fin-surface-alt">
                 <Box
