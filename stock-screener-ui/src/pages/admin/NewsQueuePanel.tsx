@@ -1,6 +1,6 @@
 import { createSignal, createMemo, Show, For, Switch, Match } from "solid-js";
 import { usePolling } from "@/hooks/usePolling";
-import { Alert, Badge, Button, Group, Loader, Paper, Progress, Stack, Text } from "@/ui";
+import { Alert, Badge, Box, Button, Loader, Progress, Stack, Text } from "@/ui";
 import { ToolbarRow } from "@/ui";
 import { Icon } from "../../components/common/Icons";
 import { useAuth } from "../../components/auth/AuthProvider2";
@@ -8,6 +8,8 @@ import { CompactPanel, CompactStat, CompactStatGrid } from "../../components/com
 import type { NewsAnalysisQueueStatus, NewsAnalysisQueueStatusResponse } from "../../types/admin";
 
 import { API_BASE } from "@/api/config";
+
+const MONO = "font-mono tabular-nums text-[11px]";
 
 interface ProcessResult {
   status?: string;
@@ -95,106 +97,104 @@ export function NewsQueuePanel() {
     <Show
       when={!loading() || data()}
       fallback={
-        <Paper p="sm" radius="sm" data-testid="admin-news-queue-loading">
-          <Group gap="sm" justify="center" py="sm">
-            <Loader size="sm" />
-            <Text size="sm" c="dimmed">Loading queue…</Text>
-          </Group>
-        </Paper>
+        <Box data-testid="admin-news-queue-loading" className="flex items-center gap-1 p-1">
+          <Loader size="xs" />
+          <Text size="xs" c="dimmed">Loading queue…</Text>
+        </Box>
       }
     >
       <Show
         when={vm().hasQueue || vm().needsWork}
         fallback={
-          <Text ta="center" size="sm" c="dimmed" data-testid="admin-news-queue-empty">
+          <Text size="xs" c="dimmed" data-testid="admin-news-queue-empty">
             No articles need analysis. All summaries are up to date.
           </Text>
         }
       >
-        <Stack gap="sm" data-testid="admin-news-queue-panel">
+        <Stack gap={4} className="h-full min-h-0 overflow-auto" data-testid="admin-news-queue-panel">
           <Show when={error()}>
-            <Alert color="error">{error()}</Alert>
+            <Alert color="error" data-testid="admin-news-queue-error">{error()}</Alert>
           </Show>
 
-          <CompactStatGrid>
-            <CompactStat label="Pending" value={vm().qq?.pending ?? "—"} tone={vm().qq?.pending ? "warning" : "secondary"} />
-            <CompactStat label="Done" value={vm().qq?.done ?? "—"} tone="success" />
-            <CompactStat label="Failed" value={vm().qq?.failed ?? "—"} tone={vm().qq?.failed ? "error" : "secondary"} />
-            <CompactStat label="Total" value={vm().qq?.total ?? "—"} tone="secondary" />
+          <CompactStatGrid cols={4} spacing={4}>
+            <CompactStat dense label="Pending" value={vm().qq?.pending ?? "—"} tone={vm().qq?.pending ? "warning" : "secondary"} />
+            <CompactStat dense label="Done" value={vm().qq?.done ?? "—"} tone="success" />
+            <CompactStat dense label="Failed" value={vm().qq?.failed ?? "—"} tone={vm().qq?.failed ? "error" : "secondary"} />
+            <CompactStat dense label="Total" value={vm().qq?.total ?? "—"} tone="secondary" />
           </CompactStatGrid>
 
           <Show when={vm().hasQueue}>
-            <CompactPanel title="Progress">
-              <Stack gap={4}>
-                <Group justify="space-between">
-                  <Text size="sm" fw={500}>Progress</Text>
-                  <Text size="xs" c="dimmed">{vm().qq.done + vm().qq.failed} / {vm().qq.total} ({vm().pct}%)</Text>
-                </Group>
-                <Progress value={vm().pct} size="md" animated={!!vm().qq.pending} />
+            <CompactPanel title="Progress" flush>
+              <Stack gap={2} className="px-1 py-[2px]">
+                <ToolbarRow gap={4} justify="space-between" wrap={false}>
+                  <Text size="xs" fw={500}>Progress</Text>
+                  <Text size="xs" c="dimmed" class={MONO}>{vm().qq.done + vm().qq.failed} / {vm().qq.total} ({vm().pct}%)</Text>
+                </ToolbarRow>
+                <Progress value={vm().pct} size="sm" animated={!!vm().qq.pending} />
               </Stack>
             </CompactPanel>
           </Show>
 
-          <ToolbarRow gap={8} justify="space-between" wrap>
-            <Group gap="xs">
+          <ToolbarRow gap={4} justify="space-between" wrap={false}>
+            <ToolbarRow gap={4} wrap={false}>
               <Show when={busy()} fallback={
-                <Button size="sm" leftSection={<Icon name="plus" size={14} />} onClick={() => doAction("enqueue", { limit: 0, force: false })} loading={actionLoading() === "enqueue"} variant="light">
+                <Button size="xs" leftSection={<Icon name="plus" size={12} />} onClick={() => doAction("enqueue", { limit: 0, force: false })} loading={actionLoading() === "enqueue"} variant="light">
                   Enqueue broken
                 </Button>
               }>
-                <Button size="sm" leftSection={<Icon name="plus" size={14} />} onClick={() => doAction("enqueue", { limit: 0, force: false })} loading={actionLoading() === "enqueue"} disabled variant="light">
+                <Button size="xs" leftSection={<Icon name="plus" size={12} />} onClick={() => doAction("enqueue", { limit: 0, force: false })} loading={actionLoading() === "enqueue"} disabled variant="light">
                   Enqueue broken
                 </Button>
               </Show>
               <Show when={busy() || !vm().qq?.pending} fallback={
-                <Button size="sm" leftSection={<Icon name="player-play" size={14} />} onClick={() => doAction("process", {})} loading={actionLoading() === "process"}>
+                <Button size="xs" leftSection={<Icon name="player-play" size={12} />} onClick={() => doAction("process", {})} loading={actionLoading() === "process"}>
                   Process next
                 </Button>
               }>
-                <Button size="sm" leftSection={<Icon name="player-play" size={14} />} onClick={() => doAction("process", {})} loading={actionLoading() === "process"} disabled>
+                <Button size="xs" leftSection={<Icon name="player-play" size={12} />} onClick={() => doAction("process", {})} loading={actionLoading() === "process"} disabled>
                   Process next
                 </Button>
               </Show>
-            </Group>
-            <Badge size="lg" variant="outline" color={!vm().needsWork ? "success" : "warning"}>
+            </ToolbarRow>
+            <Badge size="xs" variant="outline" color={!vm().needsWork ? "success" : "warning"}>
               {vm().needs?.broken_summary ?? "—"} broken · {vm().needs?.null_analysis ?? "—"} null
             </Badge>
           </ToolbarRow>
 
           <Show when={result()}>
             {(r) => (
-              <Paper p="sm" radius="sm" bg={r().failed ? "error.light" : "success.light"}>
+              <Box p="xs" radius="sm" className="border border-fin-border" data-testid="ofj-news-result">
                 <Switch
                   fallback={
                     <Stack gap={2}>
-                      <Group gap="xs">
-                        <Badge size="sm" color="error">Failed</Badge>
-                        <Text size="sm" fw={500}>ID {r().article_id}</Text>
-                      </Group>
+                      <ToolbarRow gap={4}>
+                        <Badge size="xs" color="error">Failed</Badge>
+                        <Text size="xs" fw={500}>ID {r().article_id}</Text>
+                      </ToolbarRow>
                       <Text size="xs" c="dimmed">{(r().headline || "").slice(0, 80)}</Text>
                       <Text size="xs" c="error">{(r().error || "").slice(0, 200)}</Text>
                     </Stack>
                   }
                 >
                   <Match when={r().message && !r().processed && !r().failed}>
-                    <Text size="sm">{r().message}</Text>
+                    <Text size="xs">{r().message}</Text>
                   </Match>
                   <Match when={r().processed}>
                     <Stack gap={2}>
-                      <Group gap="xs">
-                        <Badge size="sm" color="success">Done</Badge>
-                        <Text size="sm" fw={500}>ID {r().article_id}</Text>
-                        <Badge size="sm" color={r().sentiment === "BULLISH" ? "success" : r().sentiment === "BEARISH" ? "error" : "secondary"}>
+                      <ToolbarRow gap={4}>
+                        <Badge size="xs" color="success">Done</Badge>
+                        <Text size="xs" fw={500}>ID {r().article_id}</Text>
+                        <Badge size="xs" color={r().sentiment === "BULLISH" ? "success" : r().sentiment === "BEARISH" ? "error" : "secondary"}>
                           {r().sentiment}
                         </Badge>
-                        <Text size="xs" c="dimmed">Impact: {r().impact_score}</Text>
-                      </Group>
+                        <Text size="xs" c="dimmed" class={MONO}>Impact: {r().impact_score}</Text>
+                      </ToolbarRow>
                       <Text size="xs" lineClamp={1}>{(r().headline || "").slice(0, 120)}</Text>
                       <Text size="xs" c="dimmed" lineClamp={2}>{(r().summary || "").slice(0, 200)}</Text>
                     </Stack>
                   </Match>
                 </Switch>
-              </Paper>
+              </Box>
             )}
           </Show>
 

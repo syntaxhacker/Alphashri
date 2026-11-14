@@ -1,6 +1,6 @@
 import { Show, createMemo, createSignal, onCleanup, onMount, type JSX } from "solid-js";
 import type { TableColumnDef } from "../../components/common/TanStackTable";
-import { ActionIcon, Alert, Box, Button, Loader, NumberInput, Select, Switch, Text } from "@/ui";
+import { ActionIcon, Alert, Box, Button, Loader, NumberInput, Select, Switch, Text, ToolbarRow } from "@/ui";
 import { Icon } from "../../components/common/Icons";
 import { useAuth } from "../../components/auth/AuthProvider2";
 import { TanStackTable } from "../../components/common/TanStackTable";
@@ -365,26 +365,28 @@ export function AdminPatternTimeframesPanel() {
         data-testid="admin-pattern-timeframes-panel"
         className="flex h-full min-h-0 flex-col p-[2px]"
       >
-        <Box className="flex shrink-0 items-center justify-between gap-2 px-1 py-[2px]">
+        <ToolbarRow gap={8} justify="space-between" wrap={false} className="shrink-0 px-1 py-[2px]">
           <Text size="xs" c="dimmed" data-testid="admin-tf-summary" style={{ "font-size": "10px" }}>
             {`${enabledCount()} enabled / ${totalCount()} total · ${Math.max(0, totalCount() - enabledCount())} disabled · ${resampledCount()} resampled`}
           </Text>
           <Text size="xs" c="dimmed" data-testid="admin-tf-note" style={{ "font-size": "10px" }}>
             3m and 2h are off by default
           </Text>
-        </Box>
+        </ToolbarRow>
 
         <Show when={loadError()}>
           <Alert color="error" variant="light" data-testid="admin-tf-load-error">{loadError()}</Alert>
         </Show>
 
-        <Box
+        <ToolbarRow
+          gap={4}
+          wrap
+          className="shrink-0 px-1"
           data-testid="admin-tf-add-row"
-          className="flex min-h-[26px] shrink-0 flex-wrap items-center gap-1 px-1 py-0"
         >
           <NumberInput
-            size="xs"
-            w={52}
+            size="sm"
+            w={60}
             min={1}
             placeholder="15"
             value={amount()}
@@ -392,8 +394,8 @@ export function AdminPatternTimeframesPanel() {
             data-testid="admin-tf-amount"
           />
           <Select
-            size="xs"
-            w={86}
+            size="sm"
+            w={96}
             data={UNIT_DATA}
             value={unit()}
             onChange={(value) => setUnit(value ?? "m")}
@@ -402,8 +404,8 @@ export function AdminPatternTimeframesPanel() {
           <Show when={sourceOptions().length > 0}>
             <Text size="xs" c="dimmed" style={{ "font-size": "10px" }}>src</Text>
             <Select
-              size="xs"
-              w={90}
+              size="sm"
+              w={100}
               data={sourceOptions()}
               value={effectiveSource()}
               onChange={(value) => setSourceTf(value ?? SOURCE_AUTO)}
@@ -414,23 +416,21 @@ export function AdminPatternTimeframesPanel() {
             when={canAdd()}
             fallback={
               <Button
-                size="xs"
+                size="sm"
                 variant="filled"
                 disabled
                 onClick={() => void handleAdd()}
                 data-testid="admin-tf-add"
-                style={{ "min-width": 0, "min-height": "24px", padding: "2px 10px", "font-size": "11px", "line-height": 1.2 }}
               >
                 Add
               </Button>
             }
           >
             <Button
-              size="xs"
+              size="sm"
               variant="filled"
               onClick={() => void handleAdd()}
               data-testid="admin-tf-add"
-              style={{ "min-width": 0, "min-height": "24px", padding: "2px 10px", "font-size": "11px", "line-height": 1.2 }}
             >
               Add
             </Button>
@@ -441,7 +441,7 @@ export function AdminPatternTimeframesPanel() {
               <span data-testid="admin-tf-error">{addError()}</span>
             </Text>
           </Show>
-        </Box>
+        </ToolbarRow>
 
         <Show when={actionError()}>
           <Alert color="error" variant="light" data-testid="admin-tf-error">{actionError()}</Alert>
@@ -455,6 +455,7 @@ export function AdminPatternTimeframesPanel() {
             enableSorting={false}
             dense
             fillContainer
+            minTableWidth={620}
             loading={loading()}
             loadingMessage="Loading pattern timeframes…"
             emptyMessage="No timeframes configured"

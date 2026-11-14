@@ -1,7 +1,7 @@
 import { createSignal, createMemo, Show } from "solid-js";
 import { usePolling } from "@/hooks/usePolling";
 import {
-  Alert, Badge, Button, Checkbox, Group, Loader, Paper, Progress, Stack, Text,
+  Alert, Badge, Box, Button, Checkbox, Loader, Progress, Stack, Text,
 } from "@/ui";
 import { ToolbarRow } from "@/ui";
 import { Icon } from "../../components/common/Icons";
@@ -10,6 +10,8 @@ import { CompactPanel, CompactStat, CompactStatGrid } from "../../components/com
 import type { Week52RangeAdminStatus } from "../../types/admin";
 
 import { API_BASE } from "@/api/config";
+
+const MONO = "font-mono tabular-nums text-[11px]";
 
 function formatDateTime(isoString: string): string {
   try {
@@ -116,75 +118,74 @@ export function Admin52wRangePanel() {
     <Show
       when={!loading() || data()}
       fallback={
-        <Paper p="sm" radius="sm" data-testid="admin-52w-loading">
-          <Group gap="sm" justify="center" py="sm">
-            <Loader size="sm" />
-            <Text size="sm" c="dimmed">Loading 52W range status…</Text>
-          </Group>
-        </Paper>
+        <Box data-testid="admin-52w-loading" className="flex items-center gap-1 p-1">
+          <Loader size="xs" />
+          <Text size="xs" c="dimmed">Loading 52W range status…</Text>
+        </Box>
       }
     >
-      <Stack gap="sm" data-testid="admin-52w-range-panel">
-        <CompactStatGrid>
-          <CompactStat label="DB rows" value={vm().db?.db_row_count ?? "—"} />
+      <Stack gap={4} className="h-full min-h-0 overflow-auto" data-testid="admin-52w-range-panel">
+        <CompactStatGrid cols={3} spacing={4}>
+          <CompactStat dense label="DB rows" value={vm().db?.db_row_count ?? "—"} />
           <CompactStat
+            dense
             label="Coverage"
             value={vm().db?.coverage_pct != null ? `${vm().db!.coverage_pct}%` : "—"}
             hint={`${vm().db?.db_row_count ?? 0} / ${vm().db?.expected_universe ?? "?"} EQ`}
           />
-          <CompactStat label="Expected EQ" value={vm().db?.expected_universe ?? "—"} />
+          <CompactStat dense label="Expected EQ" value={vm().db?.expected_universe ?? "—"} />
         </CompactStatGrid>
 
-        <CompactPanel title="Batch status">
-          <Group gap="xs" align="center" wrap="wrap">
+        <CompactPanel title="Batch status" flush>
+          <ToolbarRow gap={4} className="px-1 py-[2px]">
             <Text size="xs" c="dimmed">Job:</Text>
             <Badge
-              size="sm"
+              size="xs"
               color={vm().running ? "warning" : vm().stale ? "warning" : vm().job?.status === "completed" ? "success" : vm().job?.status === "failed" ? "error" : "secondary"}
               variant="light"
             >
               {vm().job?.status}{vm().stale ? " — stale" : ""}
             </Badge>
             <Show when={vm().job?.elapsed_sec != null && !vm().running}>
-              <Text size="xs" c="dimmed">{vm().job?.elapsed_sec}s</Text>
+              <Text size="xs" c="dimmed" class={MONO}>{vm().job?.elapsed_sec}s</Text>
             </Show>
             <Show when={vm().job?.finished_at && !vm().running}>
-              <Text size="xs" c="dimmed">· {formatDateTime(vm().job!.finished_at!)}</Text>
+              <Text size="xs" c="dimmed" class={MONO}>· {formatDateTime(vm().job!.finished_at!)}</Text>
             </Show>
-          </Group>
+          </ToolbarRow>
         </CompactPanel>
 
-        <ToolbarRow gap={8} justify="space-between" wrap data-testid="admin-52w-toolbar">
-          <Group gap="xs">
+        <ToolbarRow gap={4} justify="space-between" wrap={false} data-testid="admin-52w-toolbar">
+          <ToolbarRow gap={4} wrap={false}>
             <Show when={vm().running} fallback={
-              <Button size="sm" leftSection={<Icon name="player-play" size={14} />} onClick={startBatch} loading={starting()} data-testid="admin-52w-run">
+              <Button size="xs" leftSection={<Icon name="player-play" size={12} />} onClick={startBatch} loading={starting()} data-testid="admin-52w-run">
                 Run batch
               </Button>
             }>
-              <Button size="sm" leftSection={<Icon name="player-play" size={14} />} onClick={startBatch} loading={starting()} disabled data-testid="admin-52w-run">
+              <Button size="xs" leftSection={<Icon name="player-play" size={12} />} onClick={startBatch} loading={starting()} disabled data-testid="admin-52w-run">
                 Run batch
               </Button>
             </Show>
             <Show when={vm().running} fallback={
-              <Button size="sm" variant="filled" color="warning" leftSection={<Icon name="trash" size={14} />} onClick={() => clearAction(false)} loading={clearing()}>
+              <Button size="xs" variant="filled" color="warning" leftSection={<Icon name="trash" size={12} />} onClick={() => clearAction(false)} loading={clearing()}>
                 Clear cache
               </Button>
             }>
-              <Button size="sm" variant="filled" color="warning" leftSection={<Icon name="trash" size={14} />} onClick={() => clearAction(false)} loading={clearing()} disabled>
+              <Button size="xs" variant="filled" color="warning" leftSection={<Icon name="trash" size={12} />} onClick={() => clearAction(false)} loading={clearing()} disabled>
                 Clear cache
               </Button>
             </Show>
             <Show when={vm().running} fallback={
-              <Button size="sm" variant="filled" color="error" leftSection={<Icon name="trash" size={14} />} onClick={() => clearAction(true)} loading={clearing()}>
+              <Button size="xs" variant="filled" color="error" leftSection={<Icon name="trash" size={12} />} onClick={() => clearAction(true)} loading={clearing()}>
                 Clear cache + DB
               </Button>
             }>
-              <Button size="sm" variant="filled" color="error" leftSection={<Icon name="trash" size={14} />} onClick={() => clearAction(true)} loading={clearing()} disabled>
+              <Button size="xs" variant="filled" color="error" leftSection={<Icon name="trash" size={12} />} onClick={() => clearAction(true)} loading={clearing()} disabled>
                 Clear cache + DB
               </Button>
             </Show>
-          </Group>
-          <Group gap="xs" align="center">
+          </ToolbarRow>
+          <ToolbarRow gap={4} wrap={false}>
             <Checkbox
               label="Full refresh (~2466 EQ symbols, no skip-existing)"
               checked={fullRefresh()}
@@ -192,28 +193,28 @@ export function Admin52wRangePanel() {
               data-testid="admin-52w-full-refresh"
               size="xs"
             />
-            <Button size="xs" variant="light" leftSection={<Icon name="refresh" size={12} />} onClick={fetchStatus} loading={loading()}>
+            <Button size="xs" variant="light" leftSection={<Icon name="refresh" size={12} />} onClick={fetchStatus} loading={loading()} style={{ "min-height": "24px" }}>
               Refresh
             </Button>
-          </Group>
+          </ToolbarRow>
         </ToolbarRow>
 
         <Show when={error()}>
-          <Alert color="error">{error()}</Alert>
+          <Alert color="error" data-testid="admin-52w-error">{error()}</Alert>
         </Show>
 
         <Show when={vm().running}>
-          <CompactPanel title="Batch progress">
-            <Stack gap={4}>
-              <Group justify="space-between">
-                <Text size="sm" fw={500}>Batch Progress</Text>
-                <Text size="xs" c="dimmed">
+          <CompactPanel title="Batch progress" flush>
+            <Stack gap={2} className="px-1 py-[2px]">
+              <ToolbarRow gap={4} justify="space-between" wrap={false}>
+                <Text size="xs" fw={500}>Batch Progress</Text>
+                <Text size="xs" c="dimmed" class={MONO}>
                   {vm().job?.processed ?? 0} / {vm().job?.total ?? "?"} · ok {vm().job?.ok ?? 0} · fail {vm().job?.failed ?? 0} · skip {vm().job?.skipped ?? 0}
                 </Text>
-              </Group>
-              <Progress value={vm().progress} size="md" animated />
+              </ToolbarRow>
+              <Progress value={vm().progress} size="sm" animated />
               <Show when={vm().job?.last_symbol}>
-                <Text size="xs" c="dimmed">Last: {vm().job?.last_symbol}</Text>
+                <Text size="xs" c="dimmed" class={MONO}>Last: {vm().job?.last_symbol}</Text>
               </Show>
               <Show when={vm().job?.message}>
                 <Text size="xs" c="dimmed">{vm().job?.message}</Text>
@@ -223,8 +224,8 @@ export function Admin52wRangePanel() {
         </Show>
 
         <Show when={!vm().running && vm().job?.status === "completed"}>
-          <Alert color="success">
-            <Text size="sm">Batch completed{vm().job?.elapsed_sec != null ? ` in ${vm().job!.elapsed_sec}s` : ""}</Text>
+          <Alert color="success" data-testid="admin-52w-completed">
+            <Text size="xs">Batch completed{vm().job?.elapsed_sec != null ? ` in ${vm().job!.elapsed_sec}s` : ""}</Text>
             <Show when={vm().job?.message}>
               <Text size="xs" c="dimmed">{vm().job?.message}</Text>
             </Show>
@@ -232,19 +233,19 @@ export function Admin52wRangePanel() {
         </Show>
 
         <Show when={!vm().running && vm().job?.status === "failed"}>
-          <Alert color="error">
-            <Text size="sm">Batch failed</Text>
+          <Alert color="error" data-testid="admin-52w-failed">
+            <Text size="xs">Batch failed</Text>
             <Text size="xs">{String(vm().job?.error || vm().job?.message || "").slice(0, 300)}</Text>
           </Alert>
         </Show>
 
         <Show when={vm().db?.db_latest_updated_at}>
-          <Text size="xs" c="dimmed" data-testid="admin-52w-latest-update">
+          <Text size="xs" c="dimmed" class={MONO} data-testid="admin-52w-latest-update">
             Latest DB update: {formatDateTime(vm().db!.db_latest_updated_at!)}
           </Text>
         </Show>
         <Show when={vm().d?.run_hint && !vm().running}>
-          <Text size="xs" c="dimmed">CLI: {vm().d?.run_hint}</Text>
+          <Text size="xs" c="dimmed" class={MONO}>CLI: {vm().d?.run_hint}</Text>
         </Show>
       </Stack>
     </Show>

@@ -1,7 +1,8 @@
 import { createSignal, createMemo, onMount, Show, type JSX } from "solid-js";
 import { usePolling } from "@/hooks/usePolling";
 import type { TableColumnDef } from "../../components/common/TanStackTable";
-import { Alert, Badge, Box, Button, Group, Loader, Select, Stack, Text } from "@/ui";
+import { Alert, Badge, Box, Button, Loader, Select, Stack, Text } from "@/ui";
+import { ToolbarRow } from "@/ui";
 import { Icon } from "../../components/common/Icons";
 import { useAuth } from "../../components/auth/AuthProvider2";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../../components/common/compact";
@@ -11,7 +12,7 @@ import type { OrderFlowJournalRow, OrderFlowJournalSummary } from "../../types/a
 import { API_BASE } from "@/api/config";
 const REFRESH_MS = 60_000;
 
-const MONO = "font-mono tabular-nums";
+const MONO = "font-mono tabular-nums text-[11px]";
 
 /** Broker labels, including the "mixed" case that must stand out. */
 export const BROKER_BADGE: Record<string, { label: string; color: string }> = {
@@ -51,7 +52,7 @@ export function describeGap(row: OrderFlowJournalRow): string {
 function cell(align: "left" | "right" | "center", children: JSX.Element) {
   const justify = align === "right" ? "end" : align === "center" ? "center" : "start";
   return (
-    <Box className={`flex items-center gap-2 p-2 justify-${justify}`}>
+    <Box className={`flex items-center gap-1 justify-${justify}`}>
       {children}
     </Box>
   );
@@ -64,8 +65,8 @@ const COLUMNS: TableColumnDef<OrderFlowJournalRow>[] = [
     accessorKey: "symbol",
     meta: { align: "left" },
     cell: ({ row }) => (
-      <Box className="flex items-center justify-start gap-2 p-2">
-        <Text size="sm" fw={700}>{row.original.symbol}</Text>
+      <Box className="flex items-center justify-start">
+        <Text size="xs" fw={700}>{row.original.symbol}</Text>
       </Box>
     ),
   },
@@ -79,13 +80,13 @@ const COLUMNS: TableColumnDef<OrderFlowJournalRow>[] = [
       const badge = BROKER_BADGE[key] ?? BROKER_BADGE.unknown;
       const r = row.original;
       return (
-        <Box className="flex items-center justify-start gap-2 p-2">
-          <Badge color={badge.color} variant={key === "mixed" ? "filled" : "light"} size="sm"
+        <Box className="flex items-center justify-start gap-1">
+          <Badge color={badge.color} variant={key === "mixed" ? "filled" : "light"} size="xs"
             data-testid={`ofj-broker-${key}`}>
             {badge.label}
           </Badge>
           <Show when={r.broker_mismatch}>
-            <Badge color="red" variant="filled" size="sm" data-testid="ofj-broker-mismatch">
+            <Badge color="red" variant="filled" size="xs" data-testid="ofj-broker-mismatch">
               name says {r.named_broker}
             </Badge>
           </Show>
@@ -99,8 +100,8 @@ const COLUMNS: TableColumnDef<OrderFlowJournalRow>[] = [
     accessorKey: "bytes",
     meta: { align: "right" },
     cell: ({ row }) => (
-      <Box className="flex items-center justify-end gap-2 p-2">
-        <Text size="sm" class={MONO}>{formatBytes(row.original.bytes)}</Text>
+      <Box className="flex items-center justify-end">
+        <Text size="xs" class={MONO}>{formatBytes(row.original.bytes)}</Text>
       </Box>
     ),
   },
@@ -110,8 +111,8 @@ const COLUMNS: TableColumnDef<OrderFlowJournalRow>[] = [
     accessorKey: "records",
     meta: { align: "right" },
     cell: ({ row }) => (
-      <Box className="flex items-center justify-end gap-2 p-2">
-        <Text size="sm" class={MONO}>{row.original.records.toLocaleString()}</Text>
+      <Box className="flex items-center justify-end">
+        <Text size="xs" class={MONO}>{row.original.records.toLocaleString()}</Text>
       </Box>
     ),
   },
@@ -123,8 +124,8 @@ const COLUMNS: TableColumnDef<OrderFlowJournalRow>[] = [
     cell: ({ row }) => {
       const pct = row.original.coverage_pct;
       return (
-        <Box className="flex items-center justify-end gap-2 p-2">
-          <Text size="sm" fw={700} c={coverageTone(pct)} class={MONO} data-testid="ofj-coverage">
+        <Box className="flex items-center justify-end">
+          <Text size="xs" fw={700} c={coverageTone(pct)} class={MONO} data-testid="ofj-coverage">
             {formatCoverage(pct)}
           </Text>
         </Box>
@@ -137,8 +138,8 @@ const COLUMNS: TableColumnDef<OrderFlowJournalRow>[] = [
     accessorFn: (row) => describeGap(row),
     meta: { align: "left" },
     cell: ({ row }) => (
-      <Box className="flex items-center justify-start gap-2 p-2">
-        <Text size="sm" c="dimmed">{describeGap(row.original)}</Text>
+      <Box className="flex items-center justify-start">
+        <Text size="xs" c="dimmed" class={MONO}>{describeGap(row.original)}</Text>
       </Box>
     ),
   },
@@ -185,12 +186,13 @@ export function OrderFlowJournalPanel() {
     <Show
       when={!loading() || summary()}
       fallback={
-        <Group justify="center" p={16}>
-          <Loader size="sm" />
-        </Group>
+        <Box data-testid="ofj-loading" className="flex items-center gap-1 p-1">
+          <Loader size="xs" />
+          <Text size="xs" c="dimmed">Loading order-flow journal…</Text>
+        </Box>
       }
     >
-      <Stack gap={8} data-testid="orderflow-journal-panel">
+      <Stack gap={4} className="h-full min-h-0" data-testid="orderflow-journal-panel">
         <Show when={error()}>
           <Alert color="error" variant="light" data-testid="ofj-error">{error()}</Alert>
         </Show>
@@ -198,60 +200,79 @@ export function OrderFlowJournalPanel() {
         <Show when={summary()}>
           {(s) => (
             <>
-              <CompactStatGrid>
-                <CompactStat label="Day" value={s().day} />
-                <CompactStat
-                  label="Session coverage"
-                  value={formatCoverage(s().overall_coverage_pct)}
-                  tone={coverageTone(s().overall_coverage_pct) === "text.secondary" ? "text.primary" : coverageTone(s().overall_coverage_pct)}
-                  hint={`${s().session_start}–${s().session_close} · ${s().session_minutes} min`}
-                />
-                <CompactStat label="Stored" value={formatBytes(s().total_bytes)} hint={`${s().total_records.toLocaleString()} records`} />
-                <CompactStat
-                  label="Symbols"
-                  value={String(rows().length)}
-                  hint={s().broker_available ? "journal enabled" : "journal disabled"}
-                />
-              </CompactStatGrid>
-
-              <Group gap={8} align="center" wrap="wrap">
-                <Box className="w-[200px]">
-                  <Select
-                    size="sm"
-                    label="Day"
-                    data={s().available_days.map((d) => ({ value: d, label: d }))}
-                    value={day()}
-                    onChange={(value) => {
-                      setDay(value);
-                      void load(value);
-                    }}
-                    data-testid="ofj-day-select"
+              <Box className="shrink-0">
+                <CompactStatGrid cols={4} spacing={4}>
+                  <CompactStat dense label="Day" value={s().day} />
+                  <CompactStat
+                    dense
+                    label="Session coverage"
+                    value={formatCoverage(s().overall_coverage_pct)}
+                    tone={coverageTone(s().overall_coverage_pct) === "text.secondary" ? "text.primary" : coverageTone(s().overall_coverage_pct)}
+                    hint={`${s().session_start}–${s().session_close} · ${s().session_minutes} min`}
                   />
-                </Box>
-                <Button size="sm" variant="outline" leftSection={<Icon name="refresh" size={16} />}
-                  onClick={() => void load(day())} data-testid="ofj-refresh">
+                  <CompactStat dense label="Stored" value={formatBytes(s().total_bytes)} hint={`${s().total_records.toLocaleString()} records`} />
+                  <CompactStat
+                    dense
+                    label="Symbols"
+                    value={String(rows().length)}
+                    hint={s().broker_available ? "journal enabled" : "journal disabled"}
+                  />
+                </CompactStatGrid>
+              </Box>
+
+              <ToolbarRow gap={4} wrap={false} className="min-w-0">
+                <Select
+                  size="xs"
+                  w={110}
+                  placeholder="Day"
+                  data={s().available_days.map((d) => ({ value: d, label: d }))}
+                  value={day()}
+                  onChange={(value) => {
+                    setDay(value);
+                    void load(value);
+                  }}
+                  data-testid="ofj-day-select"
+                />
+                <Button size="xs" variant="outline" leftSection={<Icon name="refresh" size={12} />}
+                  onClick={() => void load(day())} data-testid="ofj-refresh" style={{ "min-height": "24px" }}>
                   Refresh
                 </Button>
-                <Text size="xs" c="dimmed">
+                <Text size="xs" c="dimmed" truncate maw={360} title="Coverage = share of session minutes with at least one stored record. Auto-refreshes every 60s.">
                   Coverage = share of session minutes with at least one stored record. Auto-refreshes every 60s.
                 </Text>
                 <Show when={s().auction_minutes > 0}>
-                  <Text size="xs" c="dimmed" data-testid="ofj-cas-note">
+                  <Text
+                    size="xs"
+                    c="dimmed"
+                    truncate
+                    maw={420}
+                    data-testid="ofj-cas-note"
+                    title={`Measured to ${s().session_close} — continuous cash trading ends there (NSE closing auction runs until ${s().full_session_close}, so no trades print in the last ${s().auction_minutes} min).`}
+                  >
                     Measured to <b>{s().session_close}</b> — continuous cash trading ends there
                     (NSE closing auction runs until {s().full_session_close}, so no trades print
                     in the last {s().auction_minutes} min).
                   </Text>
                 </Show>
-              </Group>
+              </ToolbarRow>
 
-              <CompactPanel title={`Stored data — ${s().day}`}>
-                <TanStackTable<OrderFlowJournalRow>
-                  data={rows()}
-                  columns={COLUMNS}
-                  dataTestId="orderflow-journal-table"
-                  emptyMessage="No journal data for this day"
-                />
-              </CompactPanel>
+              <Box className="flex min-h-0 flex-1 flex-col">
+                <CompactPanel title={`Stored data — ${s().day}`} flush scrollable>
+                  {/* CompactPanel's scroll body is a block box, so the fill-height
+                      chain has to be restarted here for `fillContainer` to bind. */}
+                  <Box className="flex min-h-0 flex-col" style={{ height: "100%" }}>
+                  <TanStackTable<OrderFlowJournalRow>
+                    data={rows()}
+                    columns={COLUMNS}
+                    dataTestId="orderflow-journal-table"
+                    emptyMessage="No journal data for this day"
+                    dense
+                    fillContainer
+                    rowWindowSize={60}
+                  />
+                  </Box>
+                </CompactPanel>
+              </Box>
             </>
           )}
         </Show>
