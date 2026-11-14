@@ -2,10 +2,11 @@
 
 
 @theme {
+  /* Mirrors src/ui/palette.ts — theme-single-source.test.ts enforces this. */
   --color-fin-bg: #000000;
-  --color-fin-surface: #0a0a0a;
-  --color-fin-surface-alt: #15181c;
-  --color-fin-border: #2b2b2b;
+  --color-fin-surface: #13161c;
+  --color-fin-surface-alt: #1f242d;
+  --color-fin-border: #2c313b;
   --color-fin-text: #e8e8e8;
   --color-fin-text-muted: #9b9b9b;
   --color-fin-primary: #d9902a;
@@ -13,7 +14,13 @@
   --color-fin-negative: #d94a55;
   --color-fin-warning: #c9912f;
   --color-fin-info: #4a8fd8;
-  --radius-fin: 2px;
+  /* Radius scale: controls = md, inner elements (tags, checkboxes) = sm,
+     modals/drawers = lg. Nothing else stays at 2px except hairline separators.
+     --radius-fin is the control alias, kept because every primitive uses it. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-fin: 6px;
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }

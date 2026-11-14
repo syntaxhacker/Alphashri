@@ -109,7 +109,7 @@ describe("Badge — terminal tag", () => {
     const cls = classOf(screen.getByTestId("b"));
     expect(cls).toContain("uppercase");
     expect(cls).toContain("font-mono");
-    expect(cls).toContain("tracking-[0.06em]");
+    expect(cls).toContain("tracking-[0.04em]");
   });
 });
 

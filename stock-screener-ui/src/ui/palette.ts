@@ -2,7 +2,10 @@
 // SINGLE SOURCE OF TRUTH FOR ALL COLORS IN THE APP
 // ------------------------------------------------------------
 // Style: "Bloomberg terminal" — pure black canvas, amber chrome, mono data.
-//   - Body #000000, panels #0A0A0A, bars #141414, hairline #2B2B2B
+//   - Body #000000, panel #13161C, raised #1F242D, hairline #2C313B
+//     A borderless panel has to read as a panel, so the surface ramp keeps a
+//     perceptible step at each level, page → panel → raised, ≥1.15:1 luminance
+//     between every adjacent pair; see SURFACES.
 //   - Text #E8E8E8, muted #9B9B9B, dividers #6E6E6E
 //   - Primary/CTA: amber #D9902A (panel headers, active tabs, selection, keys)
 //   - Links/info: blue #4A8FD8
@@ -17,9 +20,10 @@ export const POSITIVE_COLOR = "#2FA36B"; // bullish green
 export const NEGATIVE_COLOR = "#D94A55"; // bearish red
 export const TEXT_COLOR = "#E8E8E8";     // off-white
 export const TEXT_MUTED_COLOR = "#9B9B9B";
-export const BG_COLOR = "#000000";       // body
-export const SURFACE_COLOR = "#0A0A0A";  // cards / panels
-export const BORDER_COLOR = "#2B2B2B";   // hairline borders
+export const BG_COLOR = "#000000";       // body / page
+export const SURFACE_COLOR = "#13161C";  // panels / cards
+export const SURFACE_ALT_COLOR = "#1F242D"; // raised: popovers, headers, active rows
+export const BORDER_COLOR = "#2C313B";   // hairline borders
 
 // ----- dark theme scales (high-contrast ramps) -----
 export const SCALE_DARK = ["#E8E8E8","#C4C4C4","#9B9B9B","#6E6E6E","#525252","#3A3A3A","#2B2B2B","#1F1F1F","#141414","#000000"];
@@ -66,9 +70,12 @@ export const TEXT = TEXT_COLOR;
 export const TEXT_MUTED = TEXT_MUTED_COLOR;
 export const BG = BG_COLOR;
 export const SURFACE = SURFACE_COLOR;
-export const SURFACE_ALT = "#15181C";
+export const SURFACE_ALT = SURFACE_ALT_COLOR;
 export const BORDER = BORDER_COLOR;
 export const SURFACE_TEXT = TEXT_COLOR;
+
+/** Surface ramp, page → panel → raised, with the hairline that separates them. */
+export const SURFACES = { page: BG, panel: SURFACE, raised: SURFACE_ALT, border: BORDER } as const;
 
 // Muted pattern/chart accent palette (professional desk look, not neon).
 export const PATTERN_LINE_COLORS = [
@@ -114,14 +121,17 @@ export const TOOLTIP_BG = "#15181C";
 export const TOOLTIP_BORDER = BORDER_COLOR;
 export const TOOLTIP_TEXT = TEXT_COLOR;
 export const AXIS_LINE = BORDER_COLOR;
-export const AXIS_SPLIT = SURFACE_ALT;
+// Chart grid splitters keep their own value: they are chart ink, not chrome, so
+// they must not move when the surface ramp is retuned.
+export const CHART_SPLIT_COLOR = "#15181C";
+export const AXIS_SPLIT = CHART_SPLIT_COLOR;
 export const CHART_BG = BG_COLOR;
 /** Pure-black plot background for the TradingView (lightweight-charts) panels. */
 export const CHART_TV_BG = BG_COLOR;
 export const CHART_TEXT = TEXT_COLOR;
 export const CHART_MUTED = TEXT_MUTED_COLOR;
 export const CHART_BORDER = BORDER_COLOR;
-export const CHART_SPLIT = SURFACE_ALT;
+export const CHART_SPLIT = CHART_SPLIT_COLOR;
 export const CHART_CROSSHAIR = "#6B7280";
 export const CHART_OVERLAY = "rgba(14, 16, 18, 0.95)";
 export const CHART_DROPDOWN = "rgba(21, 24, 28, 0.96)";
