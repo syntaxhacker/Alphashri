@@ -15,7 +15,7 @@ import { POSITIVE, NEGATIVE, PRIMARY } from "@/ui/palette";
 import * as palette from "@/ui/palette";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { Icon } from "../../components/common/Icons";
-import { EChart } from "../heatmap/EChart";
+import { EChart } from "@/components/common/EChart";
 
 const COMMODITY_OPTIONS: AgriCommodity[] = [
   { key: "rice", label: "Rice" },

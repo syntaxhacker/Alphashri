@@ -15,7 +15,7 @@ import {
   getMetricValue,
   getSignedMetricColor,
   type MetricConfig,
-} from "../../pages/heatmap/heatmapUtils";
+} from "./heatmapUtils";
 
 export type { MetricConfig };
 

@@ -7,7 +7,7 @@ import {
   getStockMetricRange,
   resolveStockMetric,
   type StockTreemapStyle,
-} from "../../components/heatmap/stockTreemap";
+} from "./stockTreemap";
 
 const STYLE: StockTreemapStyle = {
   borderDark: "#000",

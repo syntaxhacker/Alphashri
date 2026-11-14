@@ -57,8 +57,6 @@ const INLINE_COLUMN_ALLOWLIST = new Set<string>([
   "pages/admin/LLMStatsPanel.tsx",
   "pages/admin/OrderFlowJournalPanel.tsx",
   "pages/admin/RecentRunsTable.tsx",
-  "pages/heatmap/HeatmapListView.tsx",
-  "pages/heatmap/TopBottomView.tsx",
   "pages/report/EventWatch.tsx",
   "pages/report/IndexMoversModal.tsx",
   "pages/report/NiftyPositionsDrawer.tsx",

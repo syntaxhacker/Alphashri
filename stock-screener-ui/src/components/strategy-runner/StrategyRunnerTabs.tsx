@@ -17,7 +17,7 @@ import {
 import { TanStackTable } from "../common/TanStackTable";
 import { TradeChart } from "./TradeChart";
 import { SideBadge } from "../common/BadgeComponents";
-import { getMetricColor, getMetricTextColor } from "../../pages/heatmap/heatmapUtils";
+import { getMetricColor, getMetricTextColor } from "../../components/heatmap/heatmapUtils";
 import type {
   StrategyRunnerTrade,
   StrategyRunnerSummary,

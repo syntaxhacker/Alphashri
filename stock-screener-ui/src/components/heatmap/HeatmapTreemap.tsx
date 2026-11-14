@@ -26,7 +26,7 @@ import {
   resolveStockMetric,
   safeFmt,
   type StockTreemapStyle,
-} from "../../components/heatmap/stockTreemap";
+} from "./stockTreemap";
 
 /** Surface-specific look: NSE heatmap tiles. Shared data/tooltip live in stockTreemap.ts. */
 const HEATMAP_TREEMAP_STYLE: StockTreemapStyle = {

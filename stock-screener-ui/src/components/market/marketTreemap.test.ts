@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { MARKET_METRICS, isMarketSignedMetric, toTreemapRow } from "./marketTreemap";
-import { getMetricValue, getHeatmapMetricColor } from "@/pages/heatmap/heatmapUtils";
+import { getMetricValue, getHeatmapMetricColor } from "@/components/heatmap/heatmapUtils";
 import { buildStockTreemapOption, getStockMetricRange, safeFmt } from "@/components/heatmap/stockTreemap";
 import type { HeatmapStock } from "@/api/heatmap";
 import type { MarketRow } from "@/types/marketScreener";

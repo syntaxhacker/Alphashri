@@ -1,7 +1,7 @@
 import type { HeatmapStock } from "@/api/heatmap";
-import type { MetricConfig } from "@/pages/heatmap/heatmapUtils";
+import type { MetricConfig } from "@/components/heatmap/heatmapUtils";
 import type { MarketRow } from "@/types/marketScreener";
-import { formatMarketCap } from "@/pages/heatmap/heatmapUtils";
+import { formatMarketCap } from "@/components/heatmap/heatmapUtils";
 
 export interface MarketTreemapRow extends HeatmapStock {
   rsi: number | null;

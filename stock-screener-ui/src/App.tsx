@@ -27,7 +27,6 @@ const SettingsPage = lazy(() => import("./pages/settings/SettingsPage").then(m =
 const ChartView = lazy(() => import("./pages/chart/ChartView"));
 const NewsPage = lazy(() => import("./pages/NewsPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
-const HeatmapPage = lazy(() => import("./pages/heatmap/HeatmapPage").then(m => ({ default: m.HeatmapPage })));
 const AgriContainer = lazy(() => import("./pages/agri/AgriContainer").then(m => ({ default: m.AgriContainer })));
 const OrderFlowPage = lazy(() => import("./pages/orderflow/OrderFlowPage").then(m => ({ default: m.OrderFlowPage })));
 const PatternsContainer = lazy(() => import("./pages/patterns/PatternsContainer").then(m => ({ default: m.PatternsContainer })));
@@ -121,7 +120,6 @@ function AppContent() {
           <Route path="/settings" component={SettingsPage} />
           <Route path="/news" component={NewsPage} />
           <Route path="/admin" component={AdminPage} />
-          <Route path="/heatmap" component={HeatmapPage} />
           <Route path="/agri" component={AgriContainer} />
           <Route path="/orderflow" component={OrderFlowPage} />
           <Route path="/patterns" component={PatternsContainer} />

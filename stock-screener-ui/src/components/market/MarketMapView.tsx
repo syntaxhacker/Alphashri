@@ -1,6 +1,6 @@
 import { createMemo, createSignal } from "solid-js";
 import { Box, SegmentedControl } from "@/ui";
-import { HeatmapTreemap } from "@/pages/heatmap/HeatmapTreemap";
+import { HeatmapTreemap } from "@/components/heatmap/HeatmapTreemap";
 import { MARKET_METRICS, isMarketSignedMetric, toTreemapRow } from "./marketTreemap";
 import type { MarketRow } from "@/types/marketScreener";
 

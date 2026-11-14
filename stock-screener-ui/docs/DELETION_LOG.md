@@ -1,5 +1,35 @@
 # Code Deletion Log
 
+## 2026-11-14 — Standalone Heatmap page removed
+
+The `/heatmap` route was a second surface for data the Screener already renders
+(`?tab=market` → `MarketMapView` → `HeatmapTreemap`); Sector keeps its own treemap.
+Deleted the page and its page-only views, and moved the shared treemap/helpers out of
+`src/pages/heatmap/` so the directory disappears (a `pages/` folder with no page is a
+navigation trap for agents).
+
+### Deleted
+
+- `src/pages/heatmap/HeatmapPage.tsx` — route entry, 6 views, toolbar + legend
+- `src/pages/heatmap/HeatmapListView.tsx`, `TopBottomView.tsx`, `ScatterView.tsx`,
+  `DistributionView.tsx`, `SectorBarView.tsx` — page-only view components
+- `src/pages/heatmap/HeatmapPage.test.tsx`
+- `tests/e2e/heatmap.spec.ts`
+- route + lazy import in `src/App.tsx`; rail item in `NavbarNested.tsx`
+- `HeatmapListView` case in `src/components/common/tableAlignment.spec.tsx`;
+  two allowlist rows in `src/test/table-structure.test.ts`
+- two defects in `docs/BUGS_TABLES.md` that no longer have a surface
+
+### Moved (kept — still used by Sector / Market Map / Agri / Strategy Runner)
+
+- `src/pages/heatmap/heatmapUtils.ts` (+ test) → `src/components/heatmap/`
+- `src/pages/heatmap/HeatmapTreemap.tsx` → `src/components/heatmap/`
+- `src/pages/heatmap/stockTreemap.test.ts` → `src/components/heatmap/`
+- `src/pages/heatmap/EChart.tsx` → `src/components/common/`
+
+`src/api/heatmap.ts` and `src/components/heatmap/stockTreemap.ts` are unchanged (shared).
+
+
 ## 2026-10-22 Refactor Session — Nifty report + Deep Value (React/TS)
 
 Scope: `src/pages/report/**`, `src/components/value/**`, `src/utils/**`.
